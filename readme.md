@@ -12,7 +12,7 @@ This repo contains code for Clio parser and analyzer, code highlighter and langu
 
 ## Quick Guide
 
-Clio isn't recognized by github as a language and it doesn't have correct syntax highlighting on github, please visit [Clio Quick Guide web-page](https://pouya-eghbali.github.io/clio/quick.html) for a quick guide, the Clio editor and embedded browser compiler.
+Clio isn't recognized by github as a language and it doesn't have correct syntax highlighting on github, please visit [Clio Quick Guide web-page](https://pouya-eghbali.github.io/clio/docs/quick.html) for a quick guide, the Clio editor and embedded browser compiler.
 
 Please note this web page isn't that good looking on mobile devices as for I have more important concerns with Clio at the moment.
 
