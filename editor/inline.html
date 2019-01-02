@@ -1,0 +1,27 @@
+<html>
+  <head>
+    <title>Clio Inline</title>
+    <meta content="">
+  </head>
+  <body>
+    <script type="text/clio">
+
+#body -> $ -> fn body:
+  [#clio #is #awesome] -> * fn t:
+    #<div> -> $ -> text t -> appendTo body
+-> * eval
+
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="clio.js"></script>
+    <script>
+
+(function (body) {
+  ['js', 'is', 'meeeeeh'].map(function (t) {
+    $('<div>').text(t).appendTo(body);
+  })
+})($('body'))
+
+    </script>
+  </body>
+</html>

@@ -1,0 +1,26 @@
+{
+  "context-menu": {
+    "atom-text-editor": [
+      {
+        "label": "Toggle language-clio",
+        "command": "language-clio:toggle"
+      }
+    ]
+  },
+  "menu": [
+    {
+      "label": "Packages",
+      "submenu": [
+        {
+          "label": "language-clio",
+          "submenu": [
+            {
+              "label": "Toggle",
+              "command": "language-clio:toggle"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

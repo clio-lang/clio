@@ -1,0 +1,103 @@
+body {
+  width: 960px;
+  margin: 0 auto;
+  background: #EEEEEE;
+  padding-bottom: 8em;
+}
+
+.clio-ide {
+  box-shadow: 1px 1px 8px 1px rgba(0,0,0,.1);
+}
+
+#header {
+  font-family: 'Fira Sans';
+  color: #515151;
+  display: flex;
+  padding-bottom: 1em;
+  cursor: default;
+}
+
+#header h1 {
+  padding: 1em;
+  padding-top: 2em;
+  margin: 0;
+  animation: 6s title-shadow step-end infinite;
+  animation-play-state: paused;
+  width: 200px;
+}
+
+#header h1.quick {
+  padding-bottom: 1.5em;
+}
+
+.content, code {
+  font-family: 'Fira Sans';
+  color: #515151;
+}
+
+.paragraph {
+  padding: 1em;
+}
+
+.paragraph + .clio-ide {
+  margin-top: 1em;
+}
+
+.clio-ide + .paragraph {
+  margin-top: 1em;
+}
+
+.paragraph code {
+  color: #c66;
+}
+
+.clio-ide + h2 {
+  margin-top: 1em;
+}
+
+h2 {
+  padding: 1em;
+  padding-left: 1.5em;
+  margin: 0;
+}
+
+.post-description {
+  font-family: 'Fira Sans';
+  color: #515151;
+  padding: 1em;
+}
+
+#header h1:hover {
+  animation-play-state: running;
+}
+
+@keyframes title-shadow {
+  9%  { text-shadow: 1px 1px #CCC }
+  18% { text-shadow: 1px 1px #CCC, 2px 2px }
+  27% { text-shadow: 1px 1px #CCC, 2px 2px, 3px 3px #CCC }
+  36% { text-shadow: 1px 1px #CCC, 2px 2px, 3px 3px #CCC, 4px 4px }
+  46% { text-shadow: 1px 1px #CCC, 2px 2px, 3px 3px #CCC, 4px 4px, 5px 5px #CCC }
+  54% { text-shadow: 1px 1px #CCC, 2px 2px, 3px 3px #CCC, 4px 4px, 5px 5px #CCC, 6px 6px }
+  63% { text-shadow: 1px 1px #CCC, 2px 2px, 3px 3px #CCC, 4px 4px, 5px 5px #CCC, 6px 6px, 7px 7px #CCC }
+  72% { text-shadow: 1px 1px #CCC, 2px 2px, 3px 3px #CCC, 4px 4px, 5px 5px #CCC, 6px 6px, 7px 7px #CCC, 8px 8px }
+  81% { text-shadow: 1px 1px #CCC, 2px 2px, 3px 3px #CCC, 4px 4px, 5px 5px #CCC, 6px 6px, 7px 7px #CCC, 8px 8px, 9px 9px #CCC }
+  90% { text-shadow: 1px 1px #CCC, 2px 2px, 3px 3px #CCC, 4px 4px, 5px 5px #CCC, 6px 6px, 7px 7px #CCC, 8px 8px, 9px 9px #CCC, 10px 10px }
+}
+
+#header .about {
+  flex-grow: 2;
+  font-size: 18px;
+  padding: 1em;
+  padding-top: 1.5em;
+  box-sizing: border-box;
+  display: flex;
+}
+
+.about-inner {
+  margin: auto 0;
+  padding-top: 8px;
+  padding-left: 2.5em;
+  border-left: 4px solid #515151;
+  padding-bottom: 8px;
+  text-align: left;
+}

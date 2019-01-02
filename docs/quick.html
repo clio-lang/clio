@@ -1,0 +1,307 @@
+<html>
+  <head>
+    <title>Clio - Quick Guide</title>
+    <meta content="">
+    <link rel="stylesheet" href="../editor/fonts/fira_code.css">
+    <link href="https://fonts.googleapis.com/css?family=Fira+Sans" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery.perfect-scrollbar/1.4.0/css/perfect-scrollbar.min.css" />
+    <link rel="stylesheet" href="../editor/editor.css" />
+    <link rel="stylesheet" href="../editor/website.css" />
+  </head>
+  <body>
+    <div id="header">
+      <h1 class="quick">Clio <br> Quick Guide</h1>
+      <div class="about">
+        <div class="about-inner">
+          Clio is a pure functional lazy-evaluated programming language <br>
+          targeting decentralized and distributed systems. It is made <br>
+          to take advantage of multiple CPUs and CPU cores (parallelism) <br>
+          by default and to run on clusters and on the cloud easily.
+        </div>
+      </div>
+    </div>
+    <div class="post-description">
+      Clio is a clean and noise-free language. Each map function takes advantage of multiple cores and cpus [planned]. All functions are defined as micro-services [planned].
+      Clio supports cloud modules and functions [implemented], which are modules and functions living on another (or the same) machine written in another (or the same) language.
+      Clio supports tensor/array programming and indexing [implemented/needs fixing].
+    </div>
+    <article class="content">
+      <h2> Disclaimer </h2>
+      <div class="paragraph">
+        This guide was written for people who are already familiar with coding and programming languages.
+        This guide is targetting advanced users, since Clio isn't ready for production yet. <br>
+        Clio is still in early development stages, so things might stop working and there are tons of bugs. Every new feature introduced might break existing functionality.
+        New features are planned, and some features are already implemented but need fixing.
+        </div>
+        <h2> Flows </h2>
+        <div class="paragraph">
+        Let's start with a classical hello world example in Clio
+        </div>
+        <pre class="clio-editor" contenteditable="true">'hello world' -> print</pre>
+        <div class="paragraph">
+        <code>-></code> is the pipe operator, and using pipes is the only way to call functions in Clio, which makes it easy to chain functions
+        </div>
+        <pre class="clio-editor" contenteditable="true">'hello world' -> upper -> print</pre>
+        <div class="paragraph">
+        Using <code>-></code> to chain functions is called a flow. If necessary, you can use new lines to make your flows more readable
+        </div>
+        <pre class="clio-editor" contenteditable="true">'hello world'
+  -> upper
+  -> print</pre>
+      <div class="paragraph">
+      Let's print a list
+      </div>
+      <pre class="clio-editor" contenteditable="true">[1 2 3] -> print</pre>
+      <div class="paragraph">
+        To map a function to a list or iterator, we write <code> -> * </code>. Using <code> * </code> after the pipe operator means we want to <i> map </i> the function to our data
+      </div>
+      <pre class="clio-editor" contenteditable="true">[1 2 3] -> * print</pre>
+      <div class="paragraph">
+        Clio has support for words. Words are strings that do not have any whitespace in them, <code> # </code> is used to declare a word
+      </div>
+      <pre class="clio-editor" contenteditable="true">#hello -> print</pre>
+      <div class="paragraph">
+        We can refer to the value of the previous step using <code> @ </code>
+      </div>
+      <pre class="clio-editor" contenteditable="true">#world -> print #hello @</pre>
+      <div class="paragraph">
+        It's possible to pass several arguments to a function
+      </div>
+      <pre class="clio-editor" contenteditable="true">#world #hello -> print</pre>
+      <div class="paragraph">
+        <code> @0 @1 @2 ... </code> can be used to refer to the arguments
+      </div>
+      <pre class="clio-editor" contenteditable="true">#world #hello -> print @1 @0</pre>
+      <div class="paragraph">
+        <code> => </code> is used to store data or the result of a flow in a variable
+      </div>
+      <pre class="clio-editor" contenteditable="true">'clio' -> upper => clio
+clio -> print</pre>
+      <h2> Functions </h2>
+      <div class="paragraph">
+        Let's define a function
+      </div>
+      <pre class="clio-editor" contenteditable="true">fn double n:
+  n * 2
+
+[1 2 3] -> * double -> print</pre>
+      <div class="paragraph">
+        Functions being lazy evaluated by default makes Clio fast by preventing stack size and recursion limit issues
+      </div>
+      <pre class="clio-editor" contenteditable="true">fn fib n:
+  if n <= 1: n
+  else:
+    (n - 1 -> fib) + (n - 2 -> fib)
+
+10000 -> fib -> print</pre>
+      <div class="paragraph">
+        As you've guessed, functions have implicit return in Clio. <br> Clio supports quick functions, which are single-line and can only be used in flows.
+      </div>
+      <pre class="clio-editor" contenteditable="true">64 -> n: n * 2 -> print
+[1 2 3] -> * n: n^2 -> print</pre>
+      <div class="paragraph">
+        For multi-line functions, Clio supports in-flow definitions as well
+      </div>
+      <pre class="clio-editor" contenteditable="true">[1 2 3] -> * fn n:
+  n * 2
+-> print</pre>
+      <div class="paragraph">
+        Clio doesn't process flows until their value is needed. In this example, no result is printed because Clio functions are lazy by default and <code> hello </code> is never called
+      </div>
+      <pre class="clio-editor" contenteditable="true">fn hello t:
+  t -> print #hello @
+
+#world -> hello</pre>
+      <div class="paragraph">
+        To force evaluate a flow we can use <code> eval </code>
+      </div>
+      <pre class="clio-editor" contenteditable="true">fn hello t:
+  t -> print #hello @
+
+#world -> hello -> eval</pre>
+      <div class="paragraph">
+        To define eager functions, we can use the <code> eager </code> decorator as follows
+      </div>
+      <pre class="clio-editor" contenteditable="true">@eager
+fn hello t:
+  t -> print #hello @
+
+#world -> hello</pre>
+      <div class="paragraph">
+        Decorators can be used with in-flow functions too
+      </div>
+      <pre class="clio-editor" contenteditable="true">#world -> (@eager) fn t:
+  t -> print #hello @</pre>
+      <div class="paragraph">
+        Clio supports function overloading. decorators are <i> shared </i> between all overloads
+      </div>
+      <pre class="clio-editor" contenteditable="true">@eager
+fn hello x if str:
+  x -> print 'Hello string' @ #!
+
+fn hello x if num:
+  x -> print 'Hi numeric' @ #!
+
+[42 #WORD] -> * hello</pre>
+      <div class="paragraph">
+        Functions cannot read from or write to the outside scope. When a function is defined, the outside scope will get frozen for that function,
+        it will not get any updates from outside, and it cannot update outside variables. This is necessary for the language to be pure.
+        It also reduces side-effects and makes it easier to write parallel code.
+      </div>
+      <pre class="clio-editor" contenteditable="true">1 => x
+fn add_to_x n:
+  x + n => x
+
+x -> print 'x is' @
+1 -> add_to_x -> print 'The result of the function is' @
+x -> print 'x is' @
+2 => x
+x -> print 'x is' @
+1 -> add_to_x -> print 'The result of the function is' @</pre>
+      <div class="paragraph">
+        Values passed to functions can be transformed before function calls. This is useful when we want to pass properties or do some quick calculations on our data without modifying the data itself
+      </div>
+      <pre class="clio-editor" contenteditable="true">[1 2 3] -> * print #twice @ #is (transform n: n * 2)</pre>
+      <div class="paragraph">
+        This is very different from lambdas and anonymous functions in other languages. A lambda is a quick function definition that can be passed to another function
+        so the other function can make use of it, that's not the case for Clio's transforms. Transforms actually transform the data before calling the function, so
+        the value of the transform is passed to the function, not a function that can act on the data.
+      </div>
+      <h2> Control Flow </h2>
+      <div class="paragraph">
+        Let's start by if-else
+      </div>
+      <pre class="clio-editor" contenteditable="true">fn test n:
+  if n > 0:
+    #positive
+  elif n < 0:
+    #negative
+  else:
+    #zero
+
+[0 10 -10] -> * test -> * print</pre>
+      <div class="paragraph">
+        It's possible to use if-else in flows
+      </div>
+      <pre class="clio-editor" contenteditable="true">@eager
+fn test n:
+  n -> if > 0:
+    #positive
+  elif < 0:
+    #negative
+  else:
+    #zero
+  -> print
+
+[0 10 -10] -> * test</pre>
+      <div class="paragraph">
+        Alternatively, if our if-else blocks are only one-liners, we can pretty format them as follows
+      </div>
+      <pre class="clio-editor" contenteditable="true">@eager
+fn test n:
+  n -> if   > 0:  #positive
+       elif < 0:  #negative
+       else:      #zero
+
+    -> print
+
+[0 10 -10] -> * test</pre>
+      <div class="paragraph">
+        Conditionals can be used in flows, and flows can also be used in conditionals
+      </div>
+      <pre class="clio-editor" contenteditable="true">[10 20 30]
+  -> * if pow 2 -> add 2 > 105: #yes
+                          else: #no
+  -> * print</pre>
+      <div class="paragraph">
+        Clio doesn't support loops, we can use recursion instead. There's no limit for recursion
+      </div>
+      <pre class="clio-editor" contenteditable="true">@eager
+fn loop n:
+  if n = 0:
+    'Loop completed' -> print
+  else:
+    n - 1 -> loop
+
+1000 -> loop
+--1'000'000 -> loop -- this will kill your browser!</pre>
+      <div class="paragraph">
+        Maps can be used instead of <i> for </i> loops
+      </div>
+      <pre class="clio-editor" contenteditable="true">-- TODO: fix for non-eager functions!
+
+0..9 -> * (@eager) fn i:
+  0..9 -> * (@eager) fn j:
+    [i j]
+-> * print</pre>
+      <h2> Custom Types </h2>
+      <div class="paragraph">
+        Clio supports custom types. Custom types in Clio are equivalent to
+        objects in other languages, but they're made to work better with parallelism and the functional programming paradigm. Let's define a custom type
+      </div>
+      <pre class="clio-editor" contenteditable="true">type cat name age:
+  name => my name
+  age  => my age
+
+#Moki 6 -> cat => moki
+
+moki's name -> print</pre>
+      <div class="paragraph">
+        Each custom type has an init function that will be called upon creation. Inside the init function, the properties of the type can be accessed using <code> self' </code> , <code> self's </code> or <code> my </code>
+      </div>
+      <pre class="clio-editor" contenteditable="true">type cat name age:
+  name => my name
+  age  => self' age
+
+  'A new cat was created' -> print
+
+#Moki 6 -> cat => moki
+
+moki's name -> print</pre>
+      <div class="paragraph">
+        Functions can be overloaded for custom types using the <code> of </code> keyword. This will make <code> self' </code> , <code> self's </code> and <code> my </code> available in the function scope
+      </div>
+      <pre class="clio-editor" contenteditable="true">type cat name:
+  name => my name
+
+type dog name:
+  name => my name
+
+@eager
+fn hello of cat:
+  my name -> print 'Meow! My name is' @
+
+fn hello of dog:
+  my name -> print 'Woof! My name is' @
+
+#Honey -> cat -> hello
+#Gino -> dog -> hello</pre>
+      <div class="paragraph">
+        The <code> of </code> keyword can be combined with <code> if </code> keyword for further overloading of the argument of <code> hello </code>
+      </div>
+      <pre class="clio-editor" contenteditable="true">type cat name:
+  name => my name
+
+@eager
+fn hello s if str of cat:
+  s -> print 'Hello string' @ 'I\'m a cat!'
+
+@eager
+fn hello n if num of cat:
+  n -> print 'Hello numeric' @ 'I\'m a cat!'
+
+#Chili -> cat => chili
+chili -> hello 'lorem ipsum'
+chili -> hello 42</pre>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <scriptsrc="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.9.1/underscore-min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.perfect-scrollbar/1.4.0/perfect-scrollbar.min.js"></script>
+    <script src="../editor/jquery.caret.min.js"></script>
+    <script src="../editor/clio.js"></script>
+    <script src="../editor/editor.js"></script>
+    <script>
+      $('.clio-editor').clio_editor();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,347 @@
+/* TODO: fix colors?? */
+
+body {
+  box-sizing: border-box;
+}
+.clio-ide {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  font-family: 'Fira Code';
+  min-width: 960px;
+}
+.clio-ide .file-opener {
+  display: none;
+}
+.clio-editor-container {
+  display: inline-flex;
+  flex-direction: row;
+  width: 100%;
+  position: relative;
+}
+.console-container {
+  display: inline-flex;
+  flex-direction: row;
+  width: 100%;
+  padding: 1em;
+  box-sizing: border-box;
+  position: relative;
+  /*border-left: 1px solid #ddd;*/
+}
+.console {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: 'Fira Code';
+  font-size: 16px;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+.console .console-line {
+  padding: .15em;
+  padding-left: 1em;
+  box-sizing: border-box;
+  margin: 0;
+}
+.toolbar-container {
+  padding: 1em;
+  padding-bottom: .5em;
+  width: 100%;
+  box-sizing: border-box;
+}
+.toolbar {
+  width: 100%;
+  padding-bottom: 1em;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  font-family: 'Fira Sans'
+}
+.toolbar .expand {
+  flex-grow: 2;
+}
+.fake-caret {
+  display: inline-block;
+  width: 2px;
+  height: 16px;
+  padding-top: 2px;
+  margin-left: 2px;
+  background: red;
+}
+.caret {
+  display: inline-block;
+  width: 1px;
+  height: 16px;
+  padding-top: 2px;
+  margin-left: 2px;
+  background: black;
+  position: absolute;
+  animation: 1s blink step-end infinite;
+  transition: 0.1s ease-in-out all;
+  position: absolute;
+  left: -10000px;
+  top: -10000px;
+}
+@keyframes blink {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.toolbar > * {
+  margin-right: .6em;
+}
+.toolbar *:last-child {
+  margin-right: 0;
+}
+.clio-editor {
+  font-family: 'Fira Code';
+  padding: 1em;
+  box-sizing: border-box;
+  font-size: 16px;
+  margin: 0;
+  width: 100%;
+  caret-color: transparent;
+}
+.clio-editor:focus {
+  outline: none;
+}
+.line-numbers {
+  font-family: 'Fira Code';
+  padding: 1em;
+  padding-right: 0;
+  counter-reset: line;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+}
+.line-numbers span {
+  display: block;
+}
+.line-numbers span:before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  border-right: 1px solid #ddd;
+  color: #888;
+  font-size: 16px;
+  padding-right: 1em;
+}
+.toolbar a {
+  text-decoration: none;
+  padding: .6em;
+  border: 1px solid;
+  box-sizing: border-box;
+}
+.toolbar .theme-select {
+  text-decoration: none;
+  padding: .4em;
+  border: 1px solid;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  font-size: 16px;
+  margin: 0;
+}
+
+/*.new-line {
+  white-space: pre;
+}*/
+
+/* Dracula Theme */
+
+.dracula-theme {
+  background: #282a36;
+  color: #f8f8f2;
+  outline-color: #282a36;
+}
+
+.dracula-theme .caret {
+  background: #ff79c6;
+}
+
+.dracula-theme .toolbar a {
+  border-color: #ff79c6;
+  color: #f8f8f2;
+}
+.dracula-theme .toolbar .theme-select {
+  border-color: #ff79c6;
+  color: #f8f8f2;
+  background: #282a36;
+}
+.dracula-theme .line-numbers {
+  background-color: #282a36;
+  color: #c5c8c6;
+}
+.dracula-theme .keyword {
+  color: #bd93f9;
+}
+.dracula-theme .number, .dracula-theme .literal {
+  color: #ff79c6;
+}
+.dracula-theme .math, .dracula-theme .operator, .dracula-theme .comparison {
+  color: #8be9fd;
+}
+.dracula-theme .variable {
+  color: #50fa7b;
+}
+.dracula-theme .string {
+  color: #f1fa8c;
+}
+.dracula-theme .comment {
+  color: #6272a4;
+}
+.dracula-theme .builtin {
+  color: #ffb86c;
+}
+.dracula-theme .grouping, .dracula-theme .special {
+  color: #8be9fd;
+}
+
+/* tomorrow-night Theme */
+
+.tomorrow-night-theme {
+  background: #1d1f21;
+  color: #c5c8c6;
+  outline-color: #1d1f21;
+}
+.tomorrow-night-theme .toolbar a {
+  border-color: #81a2be;
+  color: #c5c8c6;
+}
+.tomorrow-night-theme .caret {
+  background: #81a2be;
+}
+.tomorrow-night-theme .toolbar .theme-select {
+  border-color: #81a2be;
+  color: #c5c8c6;
+  background: #1d1f21;
+}
+.tomorrow-night-theme .line-numbers {
+  background-color: #1d1f21;
+  color: #c5c8c6;
+}
+.tomorrow-night-theme .keyword {
+  color: #b294bb;
+}
+.tomorrow-night-theme .number, .tomorrow-night-theme .literal {
+  color: #81a2be;
+}
+.tomorrow-night-theme .math, .tomorrow-night-theme .operator, .tomorrow-night-theme .comparison {
+  color: #8abeb7;
+}
+.tomorrow-night-theme .variable {
+  color: #b5bd68;
+}
+.tomorrow-night-theme .string {
+  color: #f0c674;
+}
+.tomorrow-night-theme .comment {
+  color: #969896;
+}
+.tomorrow-night-theme .builtin {
+  color: #de935f;
+}
+.tomorrow-night-theme .grouping, .tomorrow-night-theme .special {
+  color: #8abeb7;
+}
+
+/* tomorrow Theme */
+
+.tomorrow-theme {
+  background: #ffffff;
+  color: #4d4d4c;
+  outline-color: #ffffff;
+}
+.tomorrow-theme .toolbar a {
+  border-color: #4271ae;
+  color: #4d4d4c;
+}
+.tomorrow-theme .caret {
+  background: #4271ae;
+}
+.tomorrow-theme .toolbar .theme-select {
+  border-color: #4271ae;
+  color: #4d4d4c;
+  background: #ffffff;
+}
+.tomorrow-theme .line-numbers {
+  background-color: #ffffff;
+  color: #4d4d4c;
+}
+.tomorrow-theme .keyword {
+  color: #8959a8;
+}
+.tomorrow-theme .number, .tomorrow-theme .literal {
+  color: #4271ae;
+}
+.tomorrow-theme .math, .tomorrow-theme .operator, .tomorrow-theme .comparison {
+  color: #3e999f;
+}
+.tomorrow-theme .variable {
+  color: #718c00;
+}
+.tomorrow-theme .string {
+  color: #eab700;
+}
+.tomorrow-theme .comment {
+  color: #8e908c;
+}
+.tomorrow-theme .builtin {
+  /*color: #f5871f;*/
+  color: #8959a8;
+}
+.tomorrow-theme .grouping, .tomorrow-theme .special {
+  color: #3e999f;
+}
+
+/* ayu-light Theme */
+
+.ayu-light-theme {
+  background: #FAFAFA;
+  color: #5C6773;
+  outline-color: #FAFAFA;
+}
+.ayu-light-theme .toolbar a {
+  border-color: #A37ACC;
+  color: #5C6773;
+}
+.ayu-light-theme .caret {
+  background: #A37ACC;
+}
+.ayu-light-theme .toolbar .theme-select {
+  border-color: #A37ACC;
+  color: #5C6773;
+  background: #FAFAFA;
+}
+.ayu-light-theme .line-numbers {
+  background-color: #FAFAFA;
+  color: #5C6773;
+}
+.ayu-light-theme .keyword {
+  color: #A37ACC;
+}
+.ayu-light-theme .number, .ayu-light-theme .literal {
+  color: #FF7733;
+}
+.ayu-light-theme .math, .ayu-light-theme .operator, .ayu-light-theme .comparison {
+  color: #36A3D9;
+}
+.ayu-light-theme .variable {
+  color: #86B300;
+}
+.ayu-light-theme .string {
+  color: #E7C547;
+}
+.ayu-light-theme .comment {
+  color: #ABB0B6;
+}
+.ayu-light-theme .builtin {
+  color: #F29718;
+}
+.ayu-light-theme .grouping, .ayu-light-theme .special {
+  color: #E6B673;
+}

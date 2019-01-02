@@ -1,0 +1,118 @@
+'fileTypes' : [
+  'clio'
+]
+'name' : 'clio'
+'patterns' : [
+  {
+    'include' : '#main'
+  }
+]
+'scopeName' : 'source.clio'
+'uuid' : ''
+'repository' : {
+  'main' : {
+    'patterns' : [
+      {
+        'match' : '\\btype ([a-zA-Z][a-zA-Z0-9_-]*)\\b'
+        'captures':
+          {
+            '1': {
+              'name': 'entity.name.type.clio'
+            }
+          }
+        'name' : 'keyword.clio'
+      }
+      {
+        'match' : '\\bof ([a-zA-Z][a-zA-Z0-9_-]*)\\b'
+        'captures':
+          {
+            '1': {
+              'name': 'entity.name.type.clio'
+            }
+          }
+        'name' : 'keyword.clio'
+      }
+      {
+        'match' : '(->( *[*])?) *(fn)? *([a-zA-Z$][a-zA-Z0-9$_-]*)\\b'
+        'captures':
+          {
+            '4': {
+              'name': 'entity.name.function.clio'
+            }
+          }
+        'name' : 'keyword.clio'
+      }
+      {
+        'match' : '\\bfn ([a-zA-Z][a-zA-Z0-9_-]*)\\b'
+        'captures':
+          {
+            '1': {
+              'name': 'entity.name.function.clio'
+            }
+          }
+        'name' : 'keyword.clio'
+      }
+      {
+        'match' : '\\b(fn|eager|if|elif|else|import|from|transform|of|type|as)\\b'
+        'name' : 'keyword.clio'
+      }
+      {
+        'match' : '(->( *[*])?)'
+        'name' : 'keyword.control.clio'
+      }
+      {
+        'match' : '(=>)'
+        'name' : 'keyword.control.clio'
+      }
+      {
+        'match' : '([><=])'
+        'name' : 'operator.clio'
+      }
+      {
+        'match' : 'https?://[^ \n\r]*'
+        'name' : 'symbol.clio' # well idk
+      }
+      {
+        'begin' : '(#)'
+        'beginCaptures' : {
+          '1' : {
+            'name' : 'string.other.clio'
+          }
+        }
+        'contentName' : 'string.single.clio'
+        'end' : '[ \r\n\\[\\]]'
+      }
+      {
+        'match' : '(@(\\b\\d+)?)'
+        'name' : 'constant.other.clio'
+      }
+      {
+        'match' : '(\\b\\d+)'
+        'name' : 'constant.numeric.clio'
+      }
+      {
+        'match': '(my|[a-zA-Z][a-zA-Z0-9_-]*\'s?)',
+        'name': 'variable.other.clio'
+      }
+      {
+        'begin' : '(^|[\\[\\(\\s])(\\\')'
+        'beginCaptures' : {
+          '2' : {
+            'name' : 'punctuation.clio'
+          }
+        }
+        'contentName' : 'string.single.clio'
+        'end' : '(?<!\\\\)(\\\')'
+        'endCaptures' : {
+          '1' : {
+            'name' : 'punctuation.clio'
+          }
+        }
+      }
+      {
+        'match' : '(--.*)'
+        'name' : 'comment.clio'
+      }
+    ]
+  }
+}

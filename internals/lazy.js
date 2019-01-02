@@ -1,0 +1,172 @@
+// laziness for clio
+
+//const memoize = require('memoizee');
+
+function memoize(fn) {
+  var cache = new Map();
+  return async function(...args) {
+    args = await Promise.all(args);
+    var hash = args.toString();
+    var cached = cache.get(hash);
+    if (cached != undefined) {
+      return cached;
+    }
+    var result = await fn(...args);
+    cache.set(hash, result);
+    return result;
+  };
+}
+
+function lazy(fn, do_memoize) {
+  if (do_memoize) {
+    fn = memoize(fn)
+  }
+  var func = function (...args) {
+    return new lazy_call(fn, ...args);
+  };
+  func.is_lazy = true;
+  return func;
+}
+
+class lazy_call {
+  constructor(fn, ...args) {
+    this.fn = fn;
+    this.args = args;
+  }
+  async call() {
+    this.args = await Promise.all(this.args);
+    return await this.fn(...this.args);
+  }
+  async map(fn) {
+    var self = this;
+    if (!fn.is_lazy) {
+      return (await value(self)).map(fn);
+    } else {
+      return lazy(async function () {
+        return (await value(self)).map(fn);
+      });
+    }
+  }
+}
+
+async function process_args(lazy) {
+  var needs_processing = [];
+  if (lazy.constructor == lazy_call) {
+    for (var i = 0; i < lazy.args.length; i++) {
+      var arg = lazy.args[i];
+      if (arg.constructor == Array) {
+        // we should remove these recursive calls, probably
+        arg = await Promise.all(arg);
+        arg = await value(arg);
+        lazy.args[i] = arg;
+      };
+      if (arg.constructor == lazy_call) {
+        var result = await arg.call();
+        lazy.args[i] = result;
+        if (result.constructor == lazy_call) {
+          needs_processing.push(result);
+        }
+      }
+    }
+  }
+  return needs_processing;
+}
+
+async function value_helper(lazy) {
+  var needs_processing = [lazy];
+  while (needs_processing.length) {
+    var current = needs_processing.pop();
+    current.args = await Promise.all(current.args);
+    var even_more_to_process = process_args(current);
+    while (even_more_to_process.length) {
+      needs_processing.push(even_more_to_process.pop())
+    }
+  }
+  var parent = null;
+  var index;
+  var level = lazy;
+  while (true) {
+    var all_non_lazy = true;
+    for (var i = 0; i < level.args.length; i++) {
+      if (level.args[i].constructor == lazy_call) {
+        parent = level;
+        index = i;
+        level = level.args[i];
+        all_non_lazy = false;
+        break;
+      }
+    }
+    if (all_non_lazy) {
+      var result = await level.call();
+      if (parent == null) {
+        // the issue is here
+        // putting this here solves the issue
+        // but please ffs solve it
+        return await value(result);
+      }
+      parent.args[index] = result;
+      level = lazy;
+      parent = null;
+    }
+  }
+}
+
+function has_lazy_args(lazy) {
+  for (var i = 0; i < lazy.args.length; i++) {
+    if (lazy.args[i].constructor == lazy_call) {
+      return i;
+    }
+  }
+  return false;
+}
+
+async function value_of(lazy) {
+  var parent = null;
+  var current = lazy;
+  var index = 0;
+  var i = 0;
+  while (true) {
+    if (current.constructor != lazy_call) {
+      return current;
+    }
+    current.args = await Promise.all(current.args);
+    var lazy_index = has_lazy_args(current);
+    if (lazy_index !== false) {
+      parent = current;
+      current = current.args[lazy_index];
+      index = lazy_index;
+    } else {
+      var result = await value_helper(current);
+      if (parent != null) {
+        parent.args[index] = result;
+        current = lazy;
+        parent = null;
+        index = 0;
+      } else {
+        current = result;
+      }
+    }
+  }
+}
+
+async function value(lazy) {
+  // we should remove these recursive calls, probably
+  if (lazy.constructor == Array) {
+    return await Promise.all(lazy.map(value));
+  }
+  var result = await value_of(lazy);
+  if (result.constructor == Array) {
+    return await Promise.all(result.map(value));
+  }
+  if (result.constructor == lazy_call) {
+    return await value(result);
+  }
+  if (result.is_lazy) {
+    return await value(result.call());
+  }
+  return result;
+}
+
+exports.lazy = lazy;
+exports.lazy_call = lazy_call;
+exports.value = value;
