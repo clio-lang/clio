@@ -1,22 +1,61 @@
 module.exports = async function(scope, builtins) {
-    (scope['a'] = new builtins.Generator(
+    await builtins.funcall([builtins.slice(new builtins.Generator(
         (i, self) => self.data[i],
         [builtins.Decimal('1'), builtins.Decimal('2'), builtins.Decimal('3'), builtins.Decimal('4'), builtins.Decimal('5'), builtins.Decimal('6'), builtins.Decimal('7'), builtins.Decimal('8'), builtins.Decimal('9'), builtins.Decimal('10')],
         self => self.data.length,
-    ));
-    await builtins.starmap([await builtins.funcall([(scope['a'] || builtins['a'] || new builtins.Property('a'))], [(new builtins.AtSign(0)), (new builtins.Transform((function(scope) {
-        var func = builtins.lazy(async function(n) {
-            var scope = Object.assign({}, func.frozenscope);
-            var args_obj = {};
-            var _arguments = arguments;
-            ['n'].forEach(function(arg, index) {
-                scope[arg] = _arguments[index]
-            });
-            return await builtins.funcall([(scope['n'] || builtins['n'] || new builtins.Property('n'))], [builtins.Decimal('5')], builtins.gt)
-        }, true);
-        func.frozenscope = Object.assign({}, scope);
-        func.frozenscope['self'] = func;
-        return func;
-    })(scope), 0, true))], (scope['filter'] || builtins['filter'] || new builtins.Property('filter')))], (scope['print'] || builtins['print'] || new builtins.Property('print')), []);
+    ), [new builtins.Generator(
+        (i, self) => self.data[i],
+        [builtins.Decimal('2'), builtins.Decimal('3'), builtins.Decimal('4'), builtins.Decimal('5'), builtins.Decimal('6')],
+        self => self.data.length,
+    )], 0)], [], (scope['print'] || builtins['print'] || new builtins.Property('print')));
+    await builtins.funcall([builtins.slice(new builtins.Generator(
+        (i, self) => self.data[i],
+        [builtins.Decimal('1'), builtins.Decimal('2'), builtins.Decimal('3'), builtins.Decimal('4'), builtins.Decimal('5'), builtins.Decimal('6'), builtins.Decimal('7'), builtins.Decimal('8'), builtins.Decimal('9'), builtins.Decimal('10')],
+        self => self.data.length,
+    ), [new builtins.Generator(
+        (i, self) => self.data.start.add(self.data.step.mul(i)), {
+            start: builtins.Decimal('2'),
+            end: builtins.Decimal('7'),
+            step: builtins.Decimal('1')
+        },
+        self => self.data.start.sub(self.data.end).div(self.data.step).abs().add(1),
+    )], 0)], [], (scope['print'] || builtins['print'] || new builtins.Property('print')));
+    await builtins.funcall([builtins.slice(new builtins.Generator(
+        (i, self) => self.data[i],
+        [builtins.Decimal('1'), builtins.Decimal('2'), builtins.Decimal('3'), builtins.Decimal('4'), builtins.Decimal('5'), builtins.Decimal('6'), builtins.Decimal('7'), builtins.Decimal('8'), builtins.Decimal('9'), builtins.Decimal('10')],
+        self => self.data.length,
+    ), [new builtins.Generator(
+        (i, self) => self.data.start.add(self.data.step.mul(i)), {
+            start: builtins.Decimal('2'),
+            end: builtins.Decimal('7'),
+            step: builtins.Decimal('2')
+        },
+        self => self.data.start.sub(self.data.end).div(self.data.step).abs().add(1),
+    )], 0)], [], (scope['print'] || builtins['print'] || new builtins.Property('print')));
+    await builtins.funcall([builtins.slice(new builtins.Generator(
+        (i, self) => self.data[i],
+        [new builtins.Generator(
+            (i, self) => self.data[i],
+            [builtins.Decimal('1'), builtins.Decimal('2'), builtins.Decimal('3')],
+            self => self.data.length,
+        ), new builtins.Generator(
+            (i, self) => self.data[i],
+            [builtins.Decimal('4'), builtins.Decimal('5'), builtins.Decimal('6')],
+            self => self.data.length,
+        ), new builtins.Generator(
+            (i, self) => self.data[i],
+            [builtins.Decimal('7'), builtins.Decimal('8'), builtins.Decimal('9')],
+            self => self.data.length,
+        )],
+        self => self.data.length,
+    ), [new builtins.Generator(
+        (i, self) => self.data[i],
+        [builtins.Decimal('0'), builtins.Decimal('2')],
+        self => self.data.length,
+    ), new builtins.Generator(
+        (i, self) => self.data[i],
+        [builtins.Decimal('0'), builtins.Decimal('1')],
+        self => self.data.length,
+    )], 0)], [], (scope['print'] || builtins['print'] || new builtins.Property('print')));
     return scope;
 };

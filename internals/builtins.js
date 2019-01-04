@@ -420,10 +420,13 @@ builtins.slice = lazy(async function (list, slicers, index) {
       }
     } else if (slicer.data.start) {
       // range cut
-      // TODO: steps
       list = new Generator(
         list.getter,
-        list.data.slice(slicer.data.start.toNumber(), slicer.data.end.toNumber()),
+        list.data.filter(function(_, i) {
+          return slicer.data.start.lte(i) &&
+                 slicer.data.end.gt(i) &&
+                 new builtins.Decimal(i).sub(slicer.data.start).mod(slicer.data.step).eq(0);
+        }),
         list.length,
       );
     } else {
