@@ -57,5 +57,10 @@ module.exports = async function(scope, builtins) {
         [builtins.Decimal('0'), builtins.Decimal('1')],
         self => self.data.length,
     )], 0)], [], (scope['print'] || builtins['print'] || new builtins.Property('print')));
+    await builtins.funcall([builtins.funcall([new builtins.Generator(
+        (i, self) => self.data[i],
+        [builtins.Decimal('1'), builtins.Decimal('2'), builtins.Decimal('3')],
+        self => self.data.length,
+    )], [builtins.Decimal('2')], builtins.mul)], [], (scope['print'] || builtins['print'] || new builtins.Property('print')));
     return scope;
 };

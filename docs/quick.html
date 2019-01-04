@@ -293,6 +293,38 @@ fn hello n if num of cat:
 #Chili -> cat => chili
 chili -> hello 'lorem ipsum'
 chili -> hello 42</pre>
+      <h2> Tensor Programing </h2>
+      <div class="paragraph">
+        Clio has built-in support for tensor programming and indexing. Let's start with slicing a simple 1D list
+      </div>
+      <pre class="clio-editor" contenteditable="true">[1 2 3 4 5 6 7 8 9 10][0] -> print</pre>
+      <div class="paragraph">
+        Lists, tensors and ranges are all generators in Clio. A <code> Generator </code> has a <code> getter </code> method, a <code> length </code> method and a <code> data </code> attribute.
+        This makes <code> Generator </code> a lazy type, capable of easily doing lazy operations. <br>
+        Generators can be sliced as we did in the previous example.
+        The syntax for slicing is <code> Generator[Slicers] </code>. Each slicer can be a range, a list or a number. If the slicer is a number, a single item with that index will be returned.
+        If the slicer is a list, several items with indexes included in the list will be returned
+      </div>
+      <pre class="clio-editor" contenteditable="true">[1 2 3 4 5 6 7 8 9 10][[0 1 2]] -> print</pre>
+      <div class="paragraph">
+        The Same applies for ranges. If the slicer is a range, several items with indexes in that range will be returned
+      </div>
+      <pre class="clio-editor" contenteditable="true">[1 2 3 4 5 6 7 8 9 10][0..3] -> print</pre>
+      <div class="paragraph">
+        Ranges can have steps. The syntax for ranges is <code> start..end:step </code>
+      </div>
+      <pre class="clio-editor" contenteditable="true">0..10:1.25 -> * print</pre>
+      <div class="paragraph">
+        Stepped ranges can be used for slicing
+      </div>
+      <pre class="clio-editor" contenteditable="true">[1 2 3 4 5 6 7 8 9 10][0..7:2] -> print</pre>
+      <div class="paragraph">
+        Clio supports multi-dimensional indexing. Let's make a matrix and get the last 2 elements of last 2 lines
+      </div>
+      <pre class="clio-editor" contenteditable="true">[[1 2 3]
+ [4 5 6]
+ [7 8 9]][1.. 1..] -> print</pre>
+
     </article>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
     <scriptsrc="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.9.1/underscore-min.js"></script>
