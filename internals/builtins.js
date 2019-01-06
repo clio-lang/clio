@@ -166,11 +166,12 @@ builtins.funcall = async function(data, args, func) {
         data = await value(data);
     }
     if (!args.length) {
-        return func(...data);
+        return await func(...data);
     }
     var AtSigned = false;
     args = args.map(function(arg) {
         if (arg.constructor == Transform) {
+            AtSigned = true;
             if (!func.is_lazy) {
               return value(arg.transform(data));
             }
@@ -183,9 +184,9 @@ builtins.funcall = async function(data, args, func) {
     })
     args = await Promise.all(args);
     if (AtSigned) {
-        return func(...args);
+        return await func(...args);
     }
-    return func(...data, ...args);
+    return await func(...data, ...args);
 }
 
 builtins.map = async function(a, f, ...args) {
@@ -209,6 +210,7 @@ builtins.map = async function(a, f, ...args) {
         var AtSigned = false;
         _args = args.map(async function(arg) {
             if (arg.constructor == Transform) {
+                AtSigned = true;
                 if (!f.is_lazy) {
                   return value(arg.transform([d, ...a]));
                 }
@@ -256,6 +258,9 @@ builtins.dec = lazy(function(a, b) {
 })
 
 builtins.add = lazy(function(a, b) {
+    if ((a.constructor == String) || (b.constructor == String)) {
+      return a.toString() + b.toString();
+    }
     return a.add(b);
 })
 
@@ -346,8 +351,8 @@ builtins.string = lazy(async function (thing, colorize) {
 })
 
 builtins.print = async function(...args) {
-    var args = await Promise.all(args.map(a => builtins.string(a, true)).map(value));
-    console.log(...args);
+    var _args = await Promise.all(args.map(a => builtins.string(a, true)).map(value));
+    console.log(..._args);
     return args[0];
 }
 
@@ -452,12 +457,19 @@ builtins.upper = lazy(function(a, b) {
     return a.toUpperCase();
 })
 
+builtins['sentence-case'] = lazy(function(a, b) {
+  if (b) {
+      return a[0].toLocaleUpperCase(b) + a.slice(1);
+  }
+  return a[0].toUpperCase(b) + a.slice(1);
+})
+
 builtins.eval = expr => expr;
 
 builtins.eager = function (oldoverload) {
   var newoverload = async function (...args) {
-    var func = get_proper_function(args, newoverload.overloads);
-    return await value(func(...args));
+    var func = await get_proper_function(args, newoverload.overloads);
+    return await value(await func(...args));
   }
   newoverload.overloads = oldoverload.overloads;
   return newoverload;

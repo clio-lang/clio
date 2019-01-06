@@ -118,11 +118,11 @@ const matchers = {
   },
   op_math: function (i, tokens, parser) {
     return helpers.isSeq([
-      {name: ['symbol', 'property_access', 'number', 'wrapped_math', 'math', 'wrapped_flow', 'range', 'list'], count: 1},
+      {name: ['symbol', 'property_access', 'number', 'wrapped_math', 'math', 'wrapped_flow', 'range', 'list', 'string', 'word'], count: 1},
       {name: ['_'], count: 0, opt: true},
       {name: 'op', count: 1},
       {name: ['_'], count: 0, opt: true},
-      {name: ['symbol', 'property_access', 'number', 'wrapped_math', 'math', 'wrapped_flow'], count: 1},
+      {name: ['symbol', 'property_access', 'number', 'wrapped_math', 'math', 'wrapped_flow', 'string', 'word'], count: 1},
     ], i, tokens);
   },
   math: function (i, tokens, parser) {
@@ -256,7 +256,6 @@ const matchers = {
   decorator: function (i, tokens) {
     return helpers.isSeq([
       {name: 'atsign', count: 1},
-      {name: '_', count: 0, opt: true},
       {name: ['symbol', 'property_access'], count: 1},
       {name: '_', count: 1, opt: true},
       {name: ['symbol', 'property_access', 'number', 'list'], sep: ['_'], count: 0, enders: ['_n'], opt: true},
@@ -530,7 +529,7 @@ const matchers = {
       {name: '_', count: 0, opt: true},
       {name: 'colon', count: 1},
       {name: ['_', '_n', '^'], count: 0}, // if it's _n then it's block for sure!
-      {name: ['block', 'string', 'word', 'number', 'list', 'symbol', 'property_access', 'self_property_access'], count: 1}
+      {name: ['block', 'string', 'word', 'number', 'list', 'symbol', 'property_access', 'self_property_access', 'math'], count: 1}
     ], i, tokens)
   },
   elif_statement: function (i, tokens) {
@@ -541,7 +540,7 @@ const matchers = {
       {name: '_', count: 0, opt: true},
       {name: 'colon', count: 1},
       {name: ['_', '_n', '^'], count: 0}, // if it's _n then it's block for sure!
-      {name: ['block', 'string', 'word', 'number', 'list', 'symbol', 'property_access', 'self_property_access'], count: 1}
+      {name: ['block', 'string', 'word', 'number', 'list', 'symbol', 'property_access', 'self_property_access', 'math'], count: 1}
     ], i, tokens)
   },
   else_statement: function (i, tokens) {
@@ -550,7 +549,7 @@ const matchers = {
       {name: '_', count: 0, opt: true},
       {name: 'colon', count: 1},
       {name: ['_', '_n', '^'], count: 0}, // if it's _n then it's block for sure!
-      {name: ['block', 'string', 'word', 'number', 'list', 'symbol', 'property_access', 'self_property_access'], count: 1}
+      {name: ['block', 'string', 'word', 'number', 'list', 'symbol', 'property_access', 'self_property_access', 'math'], count: 1}
     ], i, tokens)
   },
   stepped_range: function (i, tokens) {
@@ -576,7 +575,7 @@ const matchers = {
     return helpers.isSeq([
       {name: ['symbol', 'property_access', 'list', 'empty_list', 'slice',
               'range', 'stepped_range', 'string', 'word', 'number', 'bool', 'wrapped_flow',
-              'math', 'if_fun_call', 'wrapped_math'], count: 0, sep: ['_'],
+              'math', 'if_fun_call', 'wrapped_math', 'atsign'], count: 0, sep: ['_'],
               enders: ['setter', 'mapper', 'starmapper', 'naked_mapper', 'naked_star_mapper',
                 'filter', 'starinflowfundef', 'decorated_starinflowfundef', 'inflowfundef', 'decorated_inflowfundef', 'starinflowprocdef', 'inflowprocdef', 'condmapper', 'starcondmapper', 'quickfundef', 'starquickfundef', 'return_mapper']
       },
@@ -626,7 +625,7 @@ const matchers = {
     return helpers.isSeq([
       {name: 'if_statement', count: 1},
       {name: ['_', '_n', '^'], count: 0, opt: true},
-      {name: 'elif_statement', count: 0, opt: true, fail: ['elif']},
+      {name: 'elif_statement', count: 0, opt: true, fail: ['elif'], sep: ['_n', '_', '^'], enders: []},
       {name: ['_', '_n', '^'], count: 0, opt: true},
       {name: 'else_statement', count: 1, opt: true, fail: ['else']},
     ], i, tokens)

@@ -1,5 +1,6 @@
 const unescapeJs = require('unescape-js');
 const cast_to_bool = require('../common').cast_to_bool;
+var Decimal = require('decimal.js');
 
 function analyzer(tree, source) {
 
@@ -160,7 +161,14 @@ function analyzer(tree, source) {
     range: function (node) {
       var start = node.tokens[0].tokens.length ? node.tokens[0].tokens[0] : {name: 'number', raw: '0'};
       var end = node.tokens.length > 1 ? node.tokens[1] : {name: 'number', raw: 'Infinity'};
-      var step = analyze({name: 'number', raw: '1'}).code;
+
+      if (Decimal(start.raw).lt(Decimal(end.raw))) {
+        var step = {name: 'number', raw: '1'}
+      } else {
+        var step = {name: 'number', raw: '-1'}
+      }
+
+      var step = analyze(step).code;
       var start = analyze(start).code;
       var end = analyze(end).code;
       return {
@@ -355,6 +363,19 @@ function analyzer(tree, source) {
         transform.tokens[1] = {name: 'symbol', raw: transform.tokens[1].tokens[1].raw};
       } else {
         var index = '0';
+      }
+      if (transform.tokens[2].name == 'symbol') {
+        // convert to flow
+        var data = transform.tokens[1];
+        var fn = transform.tokens[2];
+        var flow = {
+          name: 'flow',
+          tokens: [
+            data,
+            {name: 'naked_mapper', tokens: [fn]}
+          ]
+        }
+        transform.tokens[2] = flow;
       }
       transform.tokens[2] = {
         name: 'block',

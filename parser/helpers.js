@@ -149,7 +149,7 @@ const helpers = {
       };
     } else {
       var non_importants_raw = [
-        '_', '_n', '^', 'map', 'set', 'indent', 'dedent', 'filt', 'not', 'proc', 'import', 'from', 
+        '_', '_n', '^', 'map', 'set', 'indent', 'dedent', 'filt', 'not', 'proc', 'import', 'from',
         'lbra', 'rbra', 'colon', 'if', 'else', 'elif', 'fn', 'lpar', 'rpar', 'dot', 'comma', 'type', 'of', 'as'
       ];
       var non_importants_token = ['starmap'];

@@ -83,7 +83,7 @@ class Generator {
     if (!func.is_lazy) {
       var result = [];
       for (var i = 0; i < this.len(); i++) {
-        result.push(func(await value(this.get(i))));
+        result.push(await func(await value(this.get(i))));
       }
       return new Generator(
         (i, self) => self.data[i],
