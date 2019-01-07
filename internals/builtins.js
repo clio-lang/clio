@@ -254,6 +254,9 @@ builtins.filter = function(data, func) {
 }
 
 builtins.dec = lazy(function(a, b) {
+    if (a.constructor == builtins.Generator) {
+      return a.map(el => builtins.dec(el, b));
+    }
     return a.sub(b);
 })
 
@@ -261,18 +264,30 @@ builtins.add = lazy(function(a, b) {
     if ((a.constructor == String) || (b.constructor == String)) {
       return a.toString() + b.toString();
     }
+    if (a.constructor == builtins.Generator) {
+      return a.map(el => builtins.add(el, b));
+    }
     return a.add(b);
 })
 
 builtins.div = lazy(function(a, b) {
+    if (a.constructor == builtins.Generator) {
+      return a.map(el => builtins.div(el, b));
+    }
     return a.div(b);
 })
 
 builtins.mul = lazy(function(a, b) {
+    if (a.constructor == builtins.Generator) {
+      return a.map(el => builtins.mul(el, b));
+    }
     return a.mul(b);
 })
 
 builtins.pow = lazy(function(a, b) {
+    if (a.constructor == builtins.Generator) {
+      return a.map(el => builtins.pow(el, b));
+    }
     return a.pow(b);
 })
 

@@ -576,7 +576,7 @@ const matchers = {
       {name: ['symbol', 'property_access', 'list', 'empty_list', 'slice',
               'range', 'stepped_range', 'string', 'word', 'number', 'bool', 'wrapped_flow',
               'math', 'if_fun_call', 'wrapped_math', 'atsign'], count: 0, sep: ['_'],
-              enders: ['setter', 'mapper', 'starmapper', 'naked_mapper', 'naked_star_mapper',
+              enders: ['setter', 'mapper', 'starmapper', 'naked_mapper', 'naked_star_mapper', '_n', '^',
                 'filter', 'starinflowfundef', 'decorated_starinflowfundef', 'inflowfundef', 'decorated_inflowfundef', 'starinflowprocdef', 'inflowprocdef', 'condmapper', 'starcondmapper', 'quickfundef', 'starquickfundef', 'return_mapper']
       },
       {

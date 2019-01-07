@@ -79,7 +79,7 @@ class Generator {
   len() {
     return this.length.constructor == Function ? this.length(this) : this.length;
   }
-  async map(func, args) {
+  async map(func) {
     if (!func.is_lazy) {
       var result = [];
       for (var i = 0; i < this.len(); i++) {
