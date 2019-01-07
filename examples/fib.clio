@@ -1,0 +1,5 @@
+fn fib n:
+  if n < 2: n
+  else: (n - 1 -> fib) + (n - 2 -> fib)
+
+0..100 -> * fib -> * print
