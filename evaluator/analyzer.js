@@ -162,15 +162,10 @@ function analyzer(tree, source) {
       var start = node.tokens[0].tokens.length ? node.tokens[0].tokens[0] : {name: 'number', raw: '0'};
       var end = node.tokens.length > 1 ? node.tokens[1] : {name: 'number', raw: 'Infinity'};
 
-      if (Decimal(start.raw).lt(Decimal(end.raw))) {
-        var step = {name: 'number', raw: '1'}
-      } else {
-        var step = {name: 'number', raw: '-1'}
-      }
-
-      var step = analyze(step).code;
       var start = analyze(start).code;
       var end = analyze(end).code;
+      var step = `builtins.Decimal(builtins.Decimal(${start}).lt(builtins.Decimal(${end}))?1:-1)`
+
       return {
         code: `new builtins.Generator(
           (i, self) => self.data.start.add(self.data.step.mul(i)),
