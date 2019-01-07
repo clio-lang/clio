@@ -1,4 +1,4 @@
-const { lazy_call, value } = require('./lazy');
+const { lazy_call, value, lazy } = require('./lazy');
 
 var Decimal = require('decimal.js');
 
@@ -91,14 +91,18 @@ class Generator {
         self => self.data.length,
       );
     } else {
-      var getter = this.getter;
-      var data = this.data;
-      var length = this.length;
-      return new Generator(
-        (i, self) => func(getter(i, self)),
-        data,
-        length,
-      );
+      var _this = this;
+      return lazy(async function () {
+        var result = [];
+        for (var i = 0; i < _this.len(); i++) {
+          result.push(await func(await value(_this.get(i))));
+        }
+        return new Generator(
+          (i, self) => self.data[i],
+          result,
+          self => self.data.length,
+        );
+      })();
     }
   }
   slice(slicers) {
