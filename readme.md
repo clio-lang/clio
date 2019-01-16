@@ -1,6 +1,6 @@
-![Clio Logo](media/logo.png)
+![Clio Logo](media/logo-256x256.png)
 
-# Clio 
+# Clio
 
 Clio is a pure functional lazy-evaluated programming language targeting decentralized and distributed systems. It is made to take advantage of multiple CPUs and CPU cores (parallelism) by default, to run on clusters and on the cloud easily.
 
