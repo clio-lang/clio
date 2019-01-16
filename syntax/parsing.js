@@ -98,6 +98,25 @@ const matchers = {
       {name: 'sop', count: 1, raw: '*'},
     ], i, tokens)
   },
+  stepped_range: function (i, tokens) {
+    return helpers.isSeq([
+      {name: ['range'], count: 1},
+      {name: ['colon'], count: 1},
+      {name: ['number', 'symbol'], count: 1},
+    ], i, tokens);
+  },
+  range: function (i, tokens) {
+    return helpers.isSeq([
+      {name: ['range_start'], count: 1},
+      {name: ['number', 'symbol'], count: 1, opt: true},
+    ], i, tokens);
+  },
+  range_start: function (i, tokens) {
+    return helpers.isSeq([
+      {name: ['number', 'symbol'], count: 1, opt: true},
+      {name: ['dot'], count: 2},
+    ], i, tokens);
+  },
   dsop_math: function (i, tokens, parser) {
     return helpers.isSeq([
       {name: ['symbol', 'property_access', 'number', 'wrapped_math', 'math', 'wrapped_flow', 'range', 'list'], count: 1},
@@ -412,7 +431,7 @@ const matchers = {
       {name: '_', count: 1, opt: true},
       {name: 'colon', count: 1},
       {name: '_', count: 1, opt: true},
-      {name: ['math', 'wrapped_math', 'cmpexpr', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'list'], count: 1}
+      {name: ['math', 'wrapped_math', 'cmpexpr', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'list', 'bool', 'string', 'word'], count: 1}
     ], i, tokens)
   },
   /*starquickfundef: function (i, tokens) {
@@ -443,7 +462,7 @@ const matchers = {
       {name: ['_', '_n', '^'], count: 0},
       {name: 'set', count: 1},
       {name: '_', count: 1},
-      {name: ['symbol', 'property_access'], count: 1},
+      {name: ['symbol', 'property_access', 'slice'], count: 1},
     ], i, tokens)
   },
   starmapper: function (i, tokens) {
@@ -516,8 +535,10 @@ const matchers = {
     return helpers.isSeq([
       {name: 'indent', count: 1},
       {name: ['_', '^'], count: 0},
-      {name: ['block', 'conditional', 'flow', 'fundef', 'anonfundef', 'list', 'string', 'word', 'number', 'symbol', 'property_access', 'bool', 'math', 'procdef', 'range', 'typedef', 'fundefof'], count: 0, sep: ['_', '_n', '^'], enders: ['dedent']},
-      {name: '_n', count: 1},
+      {name: ['block', 'conditional', 'flow', 'fundef', 'anonfundef', 'list', 'string', 'word', 'number',
+              'symbol', 'property_access', 'bool', 'math', 'procdef', 'range', 'typedef', 'fundefof', 'notexpr',
+              'slice'], count: 0, sep: ['_', '_n', '^'], enders: ['dedent']},
+      {name: ['_n', '^'], count: 0, opt: true},
       {name: 'dedent', count: 1},
     ], i, tokens);
   },
@@ -525,22 +546,22 @@ const matchers = {
     return helpers.isSeq([
       {name: 'if', count: 1},
       {name: '_', count: 0, opt: true},
-      {name: ['halfcmp', 'flow', 'symbol', 'property_access', 'cmpexpr', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'if_fun_call'], count: 1},
+      {name: ['halfcmp', 'flow', 'symbol', 'property_access', 'cmpexpr', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'if_fun_call', 'math'], count: 1},
       {name: '_', count: 0, opt: true},
       {name: 'colon', count: 1},
       {name: ['_', '_n', '^'], count: 0}, // if it's _n then it's block for sure!
-      {name: ['block', 'string', 'word', 'number', 'list', 'symbol', 'property_access', 'self_property_access', 'math'], count: 1}
+      {name: ['block', 'string', 'word', 'number', 'list', 'symbol', 'property_access', 'self_property_access', 'math', 'slice', 'notexpr'], count: 1}
     ], i, tokens)
   },
   elif_statement: function (i, tokens) {
     return helpers.isSeq([
       {name: 'elif', count: 1},
       {name: '_', count: 0},
-      {name: ['halfcmp', 'flow', 'symbol', 'property_access', 'cmpexpr', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'if_fun_call'], count: 1},
+      {name: ['halfcmp', 'flow', 'symbol', 'property_access', 'cmpexpr', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'if_fun_call', 'math'], count: 1},
       {name: '_', count: 0, opt: true},
       {name: 'colon', count: 1},
       {name: ['_', '_n', '^'], count: 0}, // if it's _n then it's block for sure!
-      {name: ['block', 'string', 'word', 'number', 'list', 'symbol', 'property_access', 'self_property_access', 'math'], count: 1}
+      {name: ['block', 'string', 'word', 'number', 'list', 'symbol', 'property_access', 'self_property_access', 'math', 'slice', 'notexpr'], count: 1}
     ], i, tokens)
   },
   else_statement: function (i, tokens) {
@@ -549,42 +570,26 @@ const matchers = {
       {name: '_', count: 0, opt: true},
       {name: 'colon', count: 1},
       {name: ['_', '_n', '^'], count: 0}, // if it's _n then it's block for sure!
-      {name: ['block', 'string', 'word', 'number', 'list', 'symbol', 'property_access', 'self_property_access', 'math'], count: 1}
+      {name: ['block', 'string', 'word', 'number', 'list', 'symbol', 'property_access', 'self_property_access', 'math', 'slice', 'notexpr'], count: 1}
     ], i, tokens)
-  },
-  stepped_range: function (i, tokens) {
-    return helpers.isSeq([
-      {name: ['range'], count: 1},
-      {name: ['colon'], count: 1},
-      {name: ['number', 'symbol'], count: 1},
-    ], i, tokens);
-  },
-  range: function (i, tokens) {
-    return helpers.isSeq([
-      {name: ['range_start'], count: 1},
-      {name: ['number', 'symbol'], count: 1, opt: true},
-    ], i, tokens);
-  },
-  range_start: function (i, tokens) {
-    return helpers.isSeq([
-      {name: ['number', 'symbol'], count: 1, opt: true},
-      {name: ['dot'], count: 2},
-    ], i, tokens);
   },
   flow: function (i, tokens) {
     return helpers.isSeq([
       {name: ['symbol', 'property_access', 'list', 'empty_list', 'slice',
               'range', 'stepped_range', 'string', 'word', 'number', 'bool', 'wrapped_flow',
-              'math', 'if_fun_call', 'wrapped_math', 'atsign'], count: 0, sep: ['_'],
+              'math', 'if_fun_call', 'wrapped_math', 'atsign', 'slice', 'notexpr'], count: 0, sep: ['_'],
               enders: ['setter', 'mapper', 'starmapper', 'naked_mapper', 'naked_star_mapper', '_n', '^',
-                'filter', 'starinflowfundef', 'decorated_starinflowfundef', 'inflowfundef', 'decorated_inflowfundef', 'starinflowprocdef', 'inflowprocdef', 'condmapper', 'starcondmapper', 'quickfundef', 'starquickfundef', 'return_mapper']
+                'filter', 'starinflowfundef', 'decorated_starinflowfundef', 'inflowfundef', 'decorated_inflowfundef',
+                'starinflowprocdef', 'inflowprocdef', 'condmapper', 'starcondmapper', 'quickfundef', 'starquickfundef', 'return_mapper',
+              ],
+              not_after: ['not']
       },
       {
         name: ['setter', 'mapper', 'starmapper', 'naked_mapper', 'naked_star_mapper',
           'filter', 'starinflowfundef', 'decorated_starinflowfundef', 'inflowfundef', 'decorated_inflowfundef', 'starinflowprocdef', 'inflowprocdef', 'condmapper', 'starcondmapper', 'quickfundef', 'starquickfundef', 'return_mapper'],
         count: 0, sep: ['_', '_n', '^'],
         enders: [
-          'colon', '_n', '^', 'symbol', 'property_access', 'list', 'number', 'bool', 'empty_list', 'range', 'stepped_range', 'string', 'math', 'wrapped_math',
+          'colon', '_n', '^', 'symbol', 'property_access', 'list', 'number', 'bool', 'empty_list', 'range', 'stepped_range', 'string', 'math', 'wrapped_math', 'notexpr', 'slice',
           'word', 'dedent', 'eof', 'flow', 'conditional', 'rpar', 'fundef', 'comparison', 'procdef', 'decorator', 'import_st', 'import_nk', 'import_al', 'typedef', 'fundefof', 'fundefif', 'fundefifof']
       },
     ], i, tokens)
@@ -595,30 +600,30 @@ const matchers = {
       {name: ['_', '^'], count: 0},
       {name: ['comparison'], count: 1},
       {name: ['_', '^'], count: 0},
-      {name: ['number', 'symbol', 'property_access', 'string', 'word', 'flow', 'wrapped_flow', 'wrapped_math'], count: 1},
+      {name: ['number', 'symbol', 'property_access', 'string', 'word', 'flow', 'wrapped_flow', 'wrapped_math', 'bool'], count: 1},
     ], i, tokens);
   },
   halfcmp: function (i, tokens) {
     return helpers.isSeq([
       {name: ['comparison'], count: 1},
       {name: ['_', '^'], count: 0},
-      {name: ['number', 'symbol', 'property_access', 'string', 'word', 'wrapped_flow', 'wrapped_math', 'flow'], count: 1},
+      {name: ['number', 'symbol', 'property_access', 'string', 'word', 'wrapped_flow', 'wrapped_math', 'flow', 'bool'], count: 1},
     ], i, tokens);
   },
   notexpr: function (i, tokens) {
     return helpers.isSeq([
       {name: ['not'], count: 1},
       {name: ['_'], count: 0},
-      {name: ['cmpexpr', 'string', 'symbol', 'property_access', 'list', 'word', 'wrapped_flow', 'wrapped_math', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'bool'], count: 1},
+      {name: ['cmpexpr', 'string', 'symbol', 'property_access', 'list', 'word', 'wrapped_flow', 'wrapped_math', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'bool', 'slice', 'math'], count: 1},
     ], i, tokens);
   },
   and_or_expr: function (i, tokens) {
     return helpers.isSeq([
-      {name: ['cmpexpr', 'string', 'symbol', 'property_access', 'list', 'word', 'wrapped_flow', 'wrapped_math', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'bool'], count: 1},
+      {name: ['cmpexpr', 'string', 'symbol', 'property_access', 'list', 'word', 'wrapped_flow', 'wrapped_math', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'bool', 'slice', 'math'], count: 1},
       {name: ['_'], count: 0},
       {name: ['and', 'or'], count: 1},
       {name: ['_'], count: 0},
-      {name: ['cmpexpr', 'string', 'symbol', 'property_access', 'list', 'word', 'wrapped_flow', 'wrapped_math', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'bool'], count: 1},
+      {name: ['cmpexpr', 'string', 'symbol', 'property_access', 'list', 'word', 'wrapped_flow', 'wrapped_math', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'bool', 'slice', 'math'], count: 1},
     ], i, tokens);
   },
   conditional: function (i, tokens) {

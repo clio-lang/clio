@@ -1,7 +1,7 @@
 const patterns = {
 
   string: /^'([^\\]|\\.)*?'/,
-  word: /^#[^\[\] \r\n]+/i,
+  word: /^#[^\[\] \r\n:]+/i,
   number: /^(0|-?[1-9][0-9']*)(\.[0-9']+)?/,
   possesive: /^(my|[a-zA-Z$][a-zA-Z0-9_$-]*'s?)/,
 
@@ -26,7 +26,7 @@ const patterns = {
 
   comment: /^ *--[^\r\n]+/,
 
-  symbol: /^[a-z$][a-z_0-9$-]*/i,
+  symbol: /^[a-z$_][a-z_0-9$-]*/i,
 
   map: /^->/,
   set: /^=>/,

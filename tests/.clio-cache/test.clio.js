@@ -3,51 +3,14 @@ module.exports = async function(scope, builtins) {
         (i, self) => self.data[i],
         [builtins.Decimal('1'), builtins.Decimal('2'), builtins.Decimal('3'), builtins.Decimal('4')],
         self => self.data.length,
-    )], [builtins.Decimal('2')], builtins.mul)], [], (scope['print'] || builtins['print'] || new builtins.Property('print')));
+    )], [builtins.Decimal('2')], builtins.mul)], [], await builtins.funcall(['print'], [scope], builtins.get_symbol));
     await builtins.funcall([builtins.funcall([new builtins.Generator(
-        (i, self) => self.data[i],
-        [builtins.Decimal('1'), builtins.Decimal('2'), builtins.Decimal('3'), builtins.Decimal('4')],
-        self => self.data.length,
-    )], [builtins.Decimal('2')], builtins.add)], [], (scope['print'] || builtins['print'] || new builtins.Property('print')));
-    await builtins.funcall([builtins.funcall([new builtins.Generator(
-        (i, self) => self.data[i],
-        [builtins.Decimal('1'), builtins.Decimal('2'), builtins.Decimal('3'), builtins.Decimal('4')],
-        self => self.data.length,
-    )], [builtins.Decimal('2')], builtins.dec)], [], (scope['print'] || builtins['print'] || new builtins.Property('print')));
-    await builtins.funcall([builtins.funcall([new builtins.Generator(
-        (i, self) => self.data[i],
-        [builtins.Decimal('1'), builtins.Decimal('2'), builtins.Decimal('3'), builtins.Decimal('4')],
-        self => self.data.length,
-    )], [builtins.Decimal('2')], builtins.div)], [], (scope['print'] || builtins['print'] || new builtins.Property('print')));
-    await builtins.funcall([builtins.funcall([new builtins.Generator(
-        (i, self) => self.data[i],
-        [builtins.Decimal('1'), builtins.Decimal('2'), builtins.Decimal('3'), builtins.Decimal('4')],
-        self => self.data.length,
-    )], [builtins.Decimal('2')], builtins.pow)], [], (scope['print'] || builtins['print'] || new builtins.Property('print')));
-    await builtins.funcall([builtins.funcall([new builtins.Generator(
-        (i, self) => self.data[i],
-        [builtins.Decimal('1'), builtins.Decimal('2'), builtins.Decimal('3'), builtins.Decimal('4')],
-        self => self.data.length,
-    )], [builtins.funcall([builtins.Decimal('2')], [builtins.Decimal('2')], builtins.add)], builtins.mul)], [], (scope['print'] || builtins['print'] || new builtins.Property('print')));
-    await builtins.funcall([builtins.funcall([new builtins.Generator(
-        (i, self) => self.data[i],
-        [builtins.Decimal('1'), builtins.Decimal('2'), builtins.Decimal('3'), builtins.Decimal('4')],
-        self => self.data.length,
-    )], [builtins.funcall([builtins.Decimal('2')], [builtins.Decimal('2')], builtins.add)], builtins.add)], [], (scope['print'] || builtins['print'] || new builtins.Property('print')));
-    await builtins.funcall([builtins.funcall([new builtins.Generator(
-        (i, self) => self.data[i],
-        [builtins.Decimal('1'), builtins.Decimal('2'), builtins.Decimal('3'), builtins.Decimal('4')],
-        self => self.data.length,
-    )], [builtins.funcall([builtins.Decimal('2')], [builtins.Decimal('2')], builtins.add)], builtins.dec)], [], (scope['print'] || builtins['print'] || new builtins.Property('print')));
-    await builtins.funcall([builtins.funcall([new builtins.Generator(
-        (i, self) => self.data[i],
-        [builtins.Decimal('1'), builtins.Decimal('2'), builtins.Decimal('3'), builtins.Decimal('4')],
-        self => self.data.length,
-    )], [builtins.funcall([builtins.Decimal('2')], [builtins.Decimal('2')], builtins.add)], builtins.div)], [], (scope['print'] || builtins['print'] || new builtins.Property('print')));
-    await builtins.funcall([builtins.funcall([new builtins.Generator(
-        (i, self) => self.data[i],
-        [builtins.Decimal('1'), builtins.Decimal('2'), builtins.Decimal('3'), builtins.Decimal('4')],
-        self => self.data.length,
-    )], [builtins.funcall([builtins.Decimal('2')], [builtins.Decimal('2')], builtins.add)], builtins.pow)], [], (scope['print'] || builtins['print'] || new builtins.Property('print')));
+        (i, self) => self.data.start.add(self.data.step.mul(i)), {
+            start: builtins.Decimal('1'),
+            end: builtins.Decimal('4'),
+            step: builtins.Decimal(builtins.Decimal(builtins.Decimal('1')).lt(builtins.Decimal(builtins.Decimal('4'))) ? 1 : -1)
+        },
+        self => self.data.start.sub(self.data.end).div(self.data.step).abs().add(1),
+    )], [builtins.Decimal('2')], builtins.mul)], [], await builtins.funcall(['print'], [scope], builtins.get_symbol));
     return scope;
 };

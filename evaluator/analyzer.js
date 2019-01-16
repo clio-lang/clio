@@ -62,7 +62,7 @@ function analyzer(tree, source) {
     },
     symbol: function (node) {
       return {
-        code: `(scope['${node.raw}'] || builtins['${node.raw}'] || new builtins.Property('${node.raw}'))`
+        code: `await builtins.funcall(['${node.raw}'], [scope], builtins.get_symbol)`
       };
     },
     /*dotted_symbol: function (node) {
@@ -118,7 +118,7 @@ function analyzer(tree, source) {
     notexpr: function (node) {
       var right = analyze(node.tokens[0]).code;
       return {
-        code: `(!(${right}))`
+        code: `(builtins.funcall([${right}], [], builtins.not))`
       };
     },
     and_or_expr: function (node) {
@@ -195,7 +195,7 @@ function analyzer(tree, source) {
       var slicers = node.tokens.pop().tokens;
       var slicers = analyze(slicers).map(s => s.code).join(', ');
       return {
-        code: `builtins.slice(${list.code}, [${slicers}], 0)`
+        code: `builtins.funcall([${list.code}], [[${slicers}], 0], builtins.slice)`
       };
     },
     comparison: function (node) {
@@ -518,7 +518,7 @@ function analyzer(tree, source) {
     },
     math: function (node) {
       const ops = {
-        '*': 'builtins.mul', '^': 'builtins.pow', '/': 'builtins.div', '+': 'builtins.add', '-': 'builtins.dec'
+        '*': 'builtins.mul', '^': 'builtins.pow', '/': 'builtins.div', '+': 'builtins.add', '-': 'builtins.dec', '%': 'builtins.mod'
       }
       var left = analyze(node.tokens[0].tokens[0]);
       var op = ops[node.tokens[0].tokens[1].raw];
@@ -660,7 +660,7 @@ function analyzer(tree, source) {
               ${block}
             }, true);
             func.frozenscope = Object.assign({}, scope);
-            func.frozenscope['self'] = func;
+            func.frozenscope['recall'] = func;
             return func;
           })(scope)`
         };
@@ -678,7 +678,7 @@ function analyzer(tree, source) {
           }, true);
           func.frozenscope = Object.assign({}, scope);
           func.frozenscope['${name}'] = func;
-          func.frozenscope['self'] = func;
+          func.frozenscope['recall'] = func;
           return func;
         })(scope), '${name}', scope)`,
         name: name,
@@ -1003,7 +1003,7 @@ function analyzer(tree, source) {
         condition.variables.forEach(v => variables.push(v))
       }
       return {
-        code: `if (${condition.code}) {${block}}`,
+        code: `if (await builtins.funcall([${condition.code}], [], builtins.bool)) {${block}}`,
         vars: variables
       };
     },

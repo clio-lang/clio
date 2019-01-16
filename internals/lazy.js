@@ -35,6 +35,7 @@ class lazy_call {
   }
   async call() {
     this.args = await Promise.all(this.args);
+    this.args = await value(this.args);
     return await this.fn(...this.args);
   }
   async map(fn) {
@@ -126,6 +127,9 @@ async function value_of(lazy) {
   var index = 0;
   var i = 0;
   while (true) {
+    if (current == undefined) {
+      return current;
+    }
     if (current.constructor != lazy_call) {
       return current;
     }
@@ -151,10 +155,16 @@ async function value_of(lazy) {
 
 async function value(lazy) {
   // we should remove these recursive calls, probably
+  if (lazy == undefined) {
+    return lazy;
+  }
   if (lazy.constructor == Array) {
     return await Promise.all(lazy.map(value));
   }
   var result = await value_of(lazy);
+  if (result == undefined) {
+    return result;
+  }
   if (result.constructor == Array) {
     return await Promise.all(result.map(value));
   }

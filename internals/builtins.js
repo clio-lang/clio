@@ -152,6 +152,16 @@ builtins.cloud_call = async function(url, fn_name, args, kwargs) {
   return response.result;
 }
 
+builtins.get_symbol = function(key, scope) {
+  if (scope.hasOwnProperty(key)) {
+    return scope[key]
+  }
+  if (builtins.hasOwnProperty(key)) {
+    return builtins[key];
+  }
+  return new builtins.Property(key);
+}
+
 builtins.funcall = async function(data, args, func) {
     if (func.constructor == Property) { // JS compatibility layer?
       var prop = func.prop;
@@ -277,11 +287,18 @@ builtins.div = lazy(function(a, b) {
     return a.div(b);
 })
 
-builtins.mul = lazy(function(a, b) {
+builtins.mul = lazy(async function(a, b) {
     if (a.constructor == builtins.Generator) {
-      return a.map(el => builtins.mul(el, b));
+      return await a.map(el => builtins.mul(el, b));
     }
     return a.mul(b);
+})
+
+builtins.mod = lazy(function(a, b) {
+    if (a.constructor == builtins.Generator) {
+      return a.map(el => builtins.mod(el, b));
+    }
+    return a.mod(b);
 })
 
 builtins.pow = lazy(function(a, b) {
@@ -291,8 +308,22 @@ builtins.pow = lazy(function(a, b) {
     return a.pow(b);
 })
 
+builtins.bool = function (a) {
+  if (a.constructor == builtins.Decimal) {
+    return !a.eq(0);
+  }
+  return a;
+}
+
+builtins.not = function (a) {
+  return !a;
+}
+
 builtins.eq = function(a, b) {
-    return a.eq(b);
+    if (a.eq) {
+      return a.eq(b);
+    }
+    return a == b;
 }
 
 builtins.lt = function(a, b) {
@@ -391,7 +422,8 @@ builtins.slice = lazy(async function (list, slicers, index) {
     // it's a range
     if (slicer.constructor == Decimal) {
       // a regular index
-      if (index == 1) {
+      list = list.get(slicer.toNumber());
+      /*if (index != 1) {
         list = new Generator(
           list.getter,
           [list.get(slicer.toNumber())],
@@ -399,7 +431,7 @@ builtins.slice = lazy(async function (list, slicers, index) {
         );
       } else {
         list = list.get(slicer.toNumber());
-      }
+      }*/
     } else if (slicer.data.start) {
       // range cut
       // TODO: steps
@@ -429,7 +461,8 @@ builtins.slice = lazy(async function (list, slicers, index) {
     // it's a normal list
     if (slicer.constructor == Decimal) {
       // a regular index
-      if (index == 1) {
+      list = list.get(slicer.toNumber());
+      /*if (index != 1) {
         list = new Generator(
           list.getter,
           [list.data[slicer.toNumber()]],
@@ -437,7 +470,7 @@ builtins.slice = lazy(async function (list, slicers, index) {
         );
       } else {
         list = list.get(slicer.toNumber());
-      }
+      }*/
     } else if (slicer.data.start) {
       // range cut
       list = new Generator(
