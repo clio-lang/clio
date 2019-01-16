@@ -80,7 +80,7 @@
           }
         }
         'contentName' : 'string.single.clio'
-        'end' : '[ \r\n\\[\\]]'
+        'end' : '[ \r\n\\[\\]:]'
       }
       {
         'match' : '(@(\\b\\d+)?)'
