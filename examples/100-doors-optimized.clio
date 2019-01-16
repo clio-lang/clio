@@ -1,0 +1,6 @@
+1..100 -> * (@eager) fn i:
+  i ^ 0.5
+    -> eq @ (transform i: floor)
+    -> if = true: #open
+            else: #closed
+    -> print #Door i #is @
