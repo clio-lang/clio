@@ -12,6 +12,11 @@ Clio is in active development and it's not ready for production.
 
 This repo contains code for the Clio parser and analyzer, the code highlighter and language support for different code editors, the web-based Clio editor, documentation and everything related to Clio. All Clio related code will be hosted in this repo until the project has a stable structure.
 
+## Examples
+
+You can check the examples in [./examples](https://github.com/pouya-eghbali/clio/tree/master/examples) or you can check
+[Clio on Rosetta Code](http://rosettacode.org/wiki/Clio).
+
 ## Quick Guide
 
 Clio isn't recognized by github as a language and it doesn't have correct syntax highlighting on github, please visit [Clio Quick Guide web-page](https://pouya-eghbali.github.io/clio/docs/quick.html) for the quick guide, the Clio editor and embedded browser compiler.
