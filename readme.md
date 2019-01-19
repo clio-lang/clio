@@ -12,6 +12,13 @@ Clio is in active development and it's not ready for production.
 
 This repo contains code for the Clio parser and analyzer, the code highlighter and language support for different code editors, the web-based Clio editor, documentation and everything related to Clio. All Clio related code will be hosted in this repo until the project has a stable structure.
 
+## Links
+
+*	[Clio on Rosetta Code](http://rosettacode.org/wiki/Clio)
+*	[Quick Guide](https://pouya-eghbali.github.io/clio/docs/quick.html)
+*	[Web IDE](https://pouya-eghbali.github.io/clio/editor/)
+*	[Browser Bundle Size Graph](https://pouya-eghbali.github.io/clio/editor/breakdown.html)
+
 ## Examples
 
 You can check the examples in [./examples](https://github.com/pouya-eghbali/clio/tree/master/examples) or you can check
