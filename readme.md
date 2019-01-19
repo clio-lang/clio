@@ -64,7 +64,12 @@ For command line usage you need NodeJS [latest version] and Clio dependencies. T
 
 	browserify browser.js | uglifyjs > editor/clio.js
 
-you need `browserify` and `uglify-es` installed in order to compile for browser. To run a Clio program do
+you need `browserify` and `uglify-es` installed in order to compile for browser. To generate the size breakdown
+you'll need `disc`
+
+	browserify browser.js --full-paths | uglifyjs | discify -o editor/breakdown.html
+
+to run a Clio program do
 
 	node index.js run path/to/file.clio
 
