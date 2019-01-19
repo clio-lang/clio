@@ -230,8 +230,8 @@ fn loop n:
       </div>
       <pre class="clio-editor" contenteditable="true">-- TODO: fix for non-eager functions!
 
-0..9 -> * (@eager) fn i:
-  0..9 -> * (@eager) fn j:
+[0:9] -> * (@eager) fn i:
+  [0:9] -> * (@eager) fn j:
     [i j]
 -> * print</pre>
       <h2> Custom Types </h2>
@@ -309,21 +309,21 @@ chili -> hello 42</pre>
       <div class="paragraph">
         The Same applies for ranges. If the slicer is a range, several items with indexes in that range will be returned
       </div>
-      <pre class="clio-editor" contenteditable="true">[1 2 3 4 5 6 7 8 9 10][0..3] -> print</pre>
+      <pre class="clio-editor" contenteditable="true">[1 2 3 4 5 6 7 8 9 10][[0:3]] -> print</pre>
       <div class="paragraph">
-        Ranges can have steps. The syntax for ranges is <code> start..end:step </code>
+        Ranges can have steps. The syntax for ranges is <code> [start:end:step] </code>
       </div>
-      <pre class="clio-editor" contenteditable="true">0..10:1.25 -> * print</pre>
+      <pre class="clio-editor" contenteditable="true">[0:10:1.25] -> * print</pre>
       <div class="paragraph">
         Stepped ranges can be used for slicing
       </div>
-      <pre class="clio-editor" contenteditable="true">[1 2 3 4 5 6 7 8 9 10][0..7:2] -> print</pre>
+      <pre class="clio-editor" contenteditable="true">[1 2 3 4 5 6 7 8 9 10][[0:7:2]] -> print</pre>
       <div class="paragraph">
         Clio supports multi-dimensional indexing. Let's make a matrix and get the last 2 elements of last 2 lines
       </div>
       <pre class="clio-editor" contenteditable="true">[[1 2 3]
  [4 5 6]
- [7 8 9]][1.. 1..] -> print</pre>
+ [7 8 9]][[1:] [1:]] -> print</pre>
 
     </article>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>

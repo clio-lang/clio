@@ -175,10 +175,9 @@ function analyzer(tree, source) {
       };
     },
     stepped_range: function (node) {
-      var range = node.tokens[0];
-      var start = range.tokens[0].tokens.length ? range.tokens[0].tokens[0] : {name: 'number', raw: '0'};
-      var end = range.tokens.length > 1 ? range.tokens[1] : {name: 'number', raw: 'Inf'};
-      var step = node.tokens[1];
+      var start = node.tokens[0].tokens.length ? node.tokens[0].tokens[0] : {name: 'number', raw: '0'};
+      var end = node.tokens.length > 2 ? node.tokens[1] : {name: 'number', raw: 'Inf'};
+      var step = node.tokens[2];
       var start = analyze(start).code;
       var end = analyze(end).code;
       var step = analyze(step).code;

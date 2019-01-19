@@ -1,4 +1,4 @@
-1..100 -> * (@eager) fn i:
+[1:100] -> * (@eager) fn i:
   i ^ 0.5
     -> eq @ (transform i: floor)
     -> if = true: #open

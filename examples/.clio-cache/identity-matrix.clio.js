@@ -10,8 +10,8 @@ module.exports = async function(scope, builtins) {
             return await builtins.starmap([new builtins.Generator(
                 (i, self) => self.data.start.add(self.data.step.mul(i)), {
                     start: builtins.Decimal('0'),
-                    end: (scope['n'] || builtins['n'] || new builtins.Property('n')),
-                    step: builtins.Decimal(builtins.Decimal(builtins.Decimal('0')).lt(builtins.Decimal((scope['n'] || builtins['n'] || new builtins.Property('n')))) ? 1 : -1)
+                    end: await builtins.funcall(['n'], [scope], builtins.get_symbol),
+                    step: builtins.Decimal(builtins.Decimal(builtins.Decimal('0')).lt(builtins.Decimal(await builtins.funcall(['n'], [scope], builtins.get_symbol))) ? 1 : -1)
                 },
                 self => self.data.start.sub(self.data.end).div(self.data.step).abs().add(1),
             )], (function(scope) {
@@ -25,8 +25,8 @@ module.exports = async function(scope, builtins) {
                     return await builtins.starmap([new builtins.Generator(
                         (i, self) => self.data.start.add(self.data.step.mul(i)), {
                             start: builtins.Decimal('0'),
-                            end: (scope['n'] || builtins['n'] || new builtins.Property('n')),
-                            step: builtins.Decimal(builtins.Decimal(builtins.Decimal('0')).lt(builtins.Decimal((scope['n'] || builtins['n'] || new builtins.Property('n')))) ? 1 : -1)
+                            end: await builtins.funcall(['n'], [scope], builtins.get_symbol),
+                            step: builtins.Decimal(builtins.Decimal(builtins.Decimal('0')).lt(builtins.Decimal(await builtins.funcall(['n'], [scope], builtins.get_symbol))) ? 1 : -1)
                         },
                         self => self.data.start.sub(self.data.end).div(self.data.step).abs().add(1),
                     )], ((function(scope) {
@@ -37,27 +37,27 @@ module.exports = async function(scope, builtins) {
                             ['$in'].forEach(function(arg, index) {
                                 scope[arg] = _arguments[index]
                             });
-                            if (await builtins.funcall([(scope['$in'] || builtins['$in'] || new builtins.Property('$in'))], [(scope['i'] || builtins['i'] || new builtins.Property('i'))], builtins.eq)) {
+                            if (await builtins.funcall([await builtins.funcall([await builtins.funcall(['$in'], [scope], builtins.get_symbol)], [await builtins.funcall(['i'], [scope], builtins.get_symbol)], builtins.eq)], [], builtins.bool)) {
                                 return builtins.Decimal('1')
                             } else {
                                 return builtins.Decimal('0')
                             }
                         }, true);
                         func.frozenscope = Object.assign({}, scope);
-                        func.frozenscope['self'] = func;
+                        func.frozenscope['recall'] = func;
                         return func;
                     })(scope)), [])
                 }, true);
                 func.frozenscope = Object.assign({}, scope);
-                func.frozenscope['self'] = func;
+                func.frozenscope['recall'] = func;
                 return func;
             })(scope), [])
         }, true);
         func.frozenscope = Object.assign({}, scope);
         func.frozenscope['identity-matrix'] = func;
-        func.frozenscope['self'] = func;
+        func.frozenscope['recall'] = func;
         return func;
     })(scope), 'identity-matrix', scope);
-    await builtins.starmap([await builtins.funcall([builtins.Decimal('5')], [], (scope['identity-matrix'] || builtins['identity-matrix'] || new builtins.Property('identity-matrix')))], (scope['print'] || builtins['print'] || new builtins.Property('print')), []);
+    await builtins.starmap([await builtins.funcall([builtins.Decimal('5')], [], await builtins.funcall(['identity-matrix'], [scope], builtins.get_symbol))], await builtins.funcall(['print'], [scope], builtins.get_symbol), []);
     return scope;
 };

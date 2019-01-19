@@ -98,28 +98,32 @@ const matchers = {
       {name: 'sop', count: 1, raw: '*'},
     ], i, tokens)
   },
-  stepped_range: function (i, tokens) {
+  range_start: function (i, tokens, parser) {
     return helpers.isSeq([
-      {name: ['range'], count: 1},
-      {name: ['colon'], count: 1},
-      {name: ['number', 'symbol'], count: 1},
+      {name: 'lbra', count: 1},
+      {name: ['number', 'symbol', 'wrapped_math'], count: 1, opt: true},
+      {name: 'colon', count: 1},
     ], i, tokens);
   },
-  range: function (i, tokens) {
+  stepped_range: function (i, tokens, parser) {
     return helpers.isSeq([
-      {name: ['range_start'], count: 1},
-      {name: ['number', 'symbol'], count: 1, opt: true},
+      {name: 'range_start', count: 1},
+      {name: ['number', 'symbol', 'wrapped_math'], count: 1, opt: true},
+      {name: 'colon', count: 1},
+      {name: ['number', 'symbol', 'wrapped_math'], count: 1},
+      {name: 'rbra', count: 1},
     ], i, tokens);
   },
-  range_start: function (i, tokens) {
+  range: function (i, tokens, parser) {
     return helpers.isSeq([
-      {name: ['number', 'symbol'], count: 1, opt: true},
-      {name: ['dot'], count: 2},
+      {name: 'range_start', count: 1},
+      {name: ['number', 'symbol', 'wrapped_math'], count: 1, opt: true},
+      {name: 'rbra', count: 1},
     ], i, tokens);
   },
   dsop_math: function (i, tokens, parser) {
     return helpers.isSeq([
-      {name: ['symbol', 'property_access', 'number', 'wrapped_math', 'math', 'wrapped_flow', 'range', 'list'], count: 1},
+      {name: ['symbol', 'property_access', 'number', 'wrapped_math', 'math', 'wrapped_flow', 'range', 'stepped_range', 'list'], count: 1},
       {name: ['_'], count: 0, opt: true},
       {name: 'dsop', count: 1},
       {name: ['_'], count: 0, opt: true},
@@ -128,7 +132,7 @@ const matchers = {
   },
   sop_math: function (i, tokens, parser) {
     return helpers.isSeq([
-      {name: ['symbol', 'property_access', 'number', 'wrapped_math', 'math', 'wrapped_flow', 'range', 'list'], count: 1},
+      {name: ['symbol', 'property_access', 'number', 'wrapped_math', 'math', 'wrapped_flow', 'range', 'stepped_range', 'list'], count: 1},
       {name: ['_'], count: 0, opt: true},
       {name: 'sop', count: 1},
       {name: ['_'], count: 0, opt: true},
@@ -137,7 +141,7 @@ const matchers = {
   },
   op_math: function (i, tokens, parser) {
     return helpers.isSeq([
-      {name: ['symbol', 'property_access', 'number', 'wrapped_math', 'math', 'wrapped_flow', 'range', 'list', 'string', 'word'], count: 1},
+      {name: ['symbol', 'property_access', 'number', 'wrapped_math', 'math', 'wrapped_flow', 'range', 'stepped_range', 'list', 'string', 'word'], count: 1},
       {name: ['_'], count: 0, opt: true},
       {name: 'op', count: 1},
       {name: ['_'], count: 0, opt: true},

@@ -1,6 +1,6 @@
 fn identity-matrix n:
-  0..n -> * fn i:
-    0..n -> * if = i: 1
-                else: 0
+  [0:n] -> * fn i:
+    [0:n] -> * if = i: 1
+                 else: 0
 
 5 -> identity-matrix -> * print

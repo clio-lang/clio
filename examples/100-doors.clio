@@ -1,14 +1,14 @@
 fn visit-doors doors step:
   if step > 100: doors
   else:
-    1..100
+    [1:100]
       -> * fn index:
             if index % step: doors[(index - 1)]
             else: not doors[(index - 1)]
       -> visit-doors (step + 1)
 
-1..100 -> * n: false -> visit-doors 1 => doors
-1..100 -> * (@eager) fn i:
+[1:100] -> * n: false -> visit-doors 1 => doors
+[1:100] -> * (@eager) fn i:
   doors[(i - 1)]
     -> if = true: #open
             else: #closed
