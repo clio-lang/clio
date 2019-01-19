@@ -18,6 +18,8 @@ This repo contains code for the Clio parser and analyzer, the code highlighter a
 *	[Quick Guide](https://pouya-eghbali.github.io/clio/docs/quick.html)
 *	[Web IDE](https://pouya-eghbali.github.io/clio/editor/)
 *	[Browser Bundle Size Graph](https://pouya-eghbali.github.io/clio/editor/breakdown.html)
+*	[Clio on Trello](https://trello.com/b/WpwsB69B/clio)
+*	[Clio Chat (on Telegram)](https://t.me/joinchat/B0kZo0kVldfXldTDqz95XA)
 
 ## Examples
 
