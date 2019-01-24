@@ -62,7 +62,7 @@ function analyzer(tree, source) {
     },
     symbol: function (node) {
       return {
-        code: `await builtins.funcall(['${node.raw}'], [scope], builtins.get_symbol)`
+        code: `await builtins.funcall(['${node.raw}'], [scope], builtins.get_symbol, file, {index: ${node.index}, fn: '<get-symbol>'})`
       };
     },
     /*dotted_symbol: function (node) {
@@ -118,7 +118,7 @@ function analyzer(tree, source) {
     notexpr: function (node) {
       var right = analyze(node.tokens[0]).code;
       return {
-        code: `(builtins.funcall([${right}], [], builtins.not))`
+        code: `(builtins.funcall([${right}], [], builtins.not, file, {index: ${node.index}, fn: '<not>'}))`
       };
     },
     and_or_expr: function (node) {
@@ -191,10 +191,12 @@ function analyzer(tree, source) {
     },
     slice: function (node) {
       var list = analyze(node.tokens.shift());
-      var slicers = node.tokens.pop().tokens;
+      var slicers = node.tokens.pop();
+      var index = slicers.index;
+      var slicers = slicers.tokens;
       var slicers = analyze(slicers).map(s => s.code).join(', ');
       return {
-        code: `builtins.funcall([${list.code}], [[${slicers}], 0], builtins.slice)`
+        code: `builtins.funcall([${list.code}], [[${slicers}], 0], builtins.slice, file, {index: ${index}, fn: 'builtins.slice'})`
       };
     },
     comparison: function (node) {
@@ -214,7 +216,7 @@ function analyzer(tree, source) {
       };
       var func = funcs[cmp];
       return {
-        code: `await builtins.funcall([${left.code}], [${right.code}], ${func})`
+        code: `await builtins.funcall([${left.code}], [${right.code}], ${func}, file, {index: ${node.index}, fn: '${func}'})`
       }
     },
     import_st: function (node) {
@@ -404,15 +406,15 @@ function analyzer(tree, source) {
         } else if (token.type == 'map') {
           code = `await builtins.starmap([${code}], ${token.code[0]}, ${token.code[1]})`;
         } else if (['inflowfundef', 'inflowprocdef'].includes(token.type)) {
-          code = `await builtins.funcall([${code}], [], ${token.code})`;
+          code = `await builtins.funcall([${code}], [], ${token.code}, file, {index: ${node.index}, fn: '<anonymous-fn>'})`;
         } else if (['starinflowfundef', 'starinflowprocdef'].includes(token.type)) {
           code = `await builtins.starmap([${code}], ${token.code}, [])`;
         } else if (token.type == 'condmapper') {
-          code = `await builtins.funcall([${code}], [], ${token.code})`
+          code = `await builtins.funcall([${code}], [], ${token.code}, file, {index: ${node.index}, fn: '<conditional>'})`
         } else if (token.type == 'starcondmapper') {
           code = `await builtins.starmap([${code}], ${token.code}, [])`
         } else {
-          code = `await builtins.funcall([${code}], ${token.code[1]}, ${token.code[0]})`;
+          code = `await builtins.funcall([${code}], ${token.code[1]}, ${token.code[0]}, file, {index: ${token.fnindex}, fn: '${token.fn}'})`;
         }
       })
       return {
@@ -451,19 +453,27 @@ function analyzer(tree, source) {
     },
     mapper: function (node) {
       var func = node.tokens[0];
+      var fn = func.raw;
+      var fnindex = func.index;
       func = analyze(func).code;
       var args = analyze(node.tokens.slice(1)).map(t => t.code);
       var args = `[${args.join(', ')}]`
       return {
-        code: [func, args]
+        code: [func, args],
+        fn: fn,
+        fnindex: fnindex
       };
     },
     naked_mapper: function (node) {
       var func = node.tokens[0];
+      var fn = func.raw;
+      var fnindex = func.index;
       func = analyze(func).code;
       var args = '[]';
       return {
-        code: [func, args]
+        code: [func, args],
+        fn: fn,
+        fnindex: fnindex
       };
     },
     starmapper: function (node) {
@@ -523,7 +533,7 @@ function analyzer(tree, source) {
       var op = ops[node.tokens[0].tokens[1].raw];
       var right = analyze(node.tokens[0].tokens[2]);
       return {
-        code: `builtins.funcall([${left.code}], [${right.code}], ${op})`,
+        code: `builtins.funcall([${left.code}], [${right.code}], ${op}, file, {index: ${node.index}, fn: '${op}'})`,
         vars: (left.vars || []).concat(right.vars || [])
       };
     },
@@ -1002,7 +1012,7 @@ function analyzer(tree, source) {
         condition.variables.forEach(v => variables.push(v))
       }
       return {
-        code: `if (await builtins.funcall([${condition.code}], [], builtins.bool)) {${block}}`,
+        code: `if (await builtins.funcall([${condition.code}], [], builtins.bool), file, {index: ${node.index}, fn: '<conditional>'}) {${block}}`,
         vars: variables
       };
     },
@@ -1036,10 +1046,13 @@ function analyzer(tree, source) {
   function analyze(tree) {
     if (tree.constructor === Array) {
       var result = tree.map(function (node) {
-        return analyzers[node.name](node);
+        var result = analyzers[node.name](node);
+        result.index = result.index || node.index
+        return result;
       });
     } else {
       var result = analyzers[tree.name](tree);
+      result.index = result.index || tree.index
     }
     return result;
   };
@@ -1062,7 +1075,7 @@ function analyzer(tree, source) {
   }*/
   var code = tree.map(t => t.code || t).join(';\n');
 
-  var code = `module.exports = async function (scope, builtins) {
+  var code = `module.exports = async function (scope, builtins, file) {
     ${code};
     return scope;
   };`

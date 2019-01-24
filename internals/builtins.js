@@ -1,8 +1,11 @@
 var { lazy, value, lazy_call } = require('../internals/lazy');
 var { Transform, AtSign, Decimal, Generator, Property } = require('../internals/types');
 
+const {throw_error, exception_handler} = require('../common');
+
 var builtins = {};
 
+builtins.error = throw_error;
 builtins.lazy = lazy;
 builtins.lazy_call = lazy_call;
 builtins.value = value;
@@ -74,7 +77,7 @@ builtins.define_function = function(fn, fn_name, scope) {
     var overloadfn = scope[fn_name];
     var overloads = overloadfn.overloads;
   } else {
-    var overloadfn = (function (...args) {
+    var overloadfn = (async function (...args) {
       var func = get_proper_function(args, overloadfn.overloads);
       return func(...args);
     });
@@ -104,7 +107,7 @@ builtins.define_function = function(fn, fn_name, scope) {
 builtins.decorate_function = function (decorator, args, fn_name, overload, scope) {
   if (fn_name.constructor == Function) {
     // anonymous decoration
-    var overloadfn = (function (...args) {
+    var overloadfn = (async function (...args) {
       var func = get_proper_function(args, overloadfn.overloads);
       return func(...args);
     });
@@ -162,7 +165,9 @@ builtins.get_symbol = function(key, scope) {
   return new builtins.Property(key);
 }
 
-builtins.funcall = async function(data, args, func) {
+builtins.funcall = async function(data, args, func, file, trace) {
+    var current_stack = [{file: file, trace: trace}];
+    var func_call;
     if (func.constructor == Property) { // JS compatibility layer?
       var prop = func.prop;
       func = function (data, ...args) {
@@ -170,13 +175,17 @@ builtins.funcall = async function(data, args, func) {
       }
     }
     if (!func.is_lazy) {
-        args = Promise.all(args);
-        data = Promise.all(data);
-        args = await value(args);
-        data = await value(data);
+        args = Promise.all(args).catch(e => {exception_handler(e, {clio_stack: current_stack})});
+        data = Promise.all(data).catch(e => {exception_handler(e, {clio_stack: current_stack})});
+        args = await value(args).catch(e => {exception_handler(e, {clio_stack: current_stack})});
+        data = await value(data).catch(e => {exception_handler(e, {clio_stack: current_stack})});
     }
     if (!args.length) {
-        return await func(...data);
+      func_call = func(...data).catch(e => {exception_handler(e, {clio_stack: current_stack})});
+      if (func_call.constructor == builtins.lazy_call) {
+        func_call.clio_stack = current_stack;
+      }
+      return await func_call;
     }
     var AtSigned = false;
     args = args.map(function(arg) {
@@ -192,11 +201,22 @@ builtins.funcall = async function(data, args, func) {
         }
         return arg;
     })
-    args = await Promise.all(args);
+    args = await Promise.all(args).catch(e => {exception_handler(e, {clio_stack: current_stack})});
     if (AtSigned) {
-        return await func(...args);
+        func_call = func(...args).catch(e => {exception_handler(e, {clio_stack: current_stack})});
+        if (func_call.constructor == builtins.lazy_call) {
+          func_call.clio_stack = current_stack;
+        }
+        return await func_call;
+    };
+    func_call = func(...data, ...args);
+    if (func_call.constructor == Promise) {
+      func_call = await func_call.catch(e => {exception_handler(e, {clio_stack: current_stack})});
     }
-    return await func(...data, ...args);
+    if (func_call.constructor == builtins.lazy_call) {
+      func_call.clio_stack = current_stack;
+    }
+    return func_call;
 }
 
 builtins.map = async function(a, f, ...args) {
@@ -365,11 +385,11 @@ builtins.length = lazy(function(a) {
     return a.length;
 })
 
-var colors = require('colors/safe');
+var chalk = require('chalk');
 
 var colormap = {
-  int: colors.yellow,
-  range: colors.cyan,
+  int: chalk.yellow,
+  range: chalk.cyan,
 }
 
 builtins.string = lazy(async function (thing, colorize) {
@@ -422,6 +442,9 @@ builtins.slice = lazy(async function (list, slicers, index) {
     // it's a range
     if (slicer.constructor == Decimal) {
       // a regular index
+      if (slicer.toNumber() >= list.len()) {
+        throw new Error(`Index ${slicer.toString()} is bigger than array length.`);
+      }
       list = list.get(slicer.toNumber());
       /*if (index != 1) {
         list = new Generator(
@@ -461,6 +484,9 @@ builtins.slice = lazy(async function (list, slicers, index) {
     // it's a normal list
     if (slicer.constructor == Decimal) {
       // a regular index
+      if (slicer.toNumber() >= list.len()) {
+        throw new Error(`Index ${slicer.toString()} is bigger than array length.`);
+      }
       list = list.get(slicer.toNumber());
       /*if (index != 1) {
         list = new Generator(

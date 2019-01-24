@@ -1,6 +1,6 @@
 // laziness for clio
 
-//const memoize = require('memoizee');
+const {exception_handler} = require('../common');
 
 function memoize(fn) {
   var cache = new Map();
@@ -34,17 +34,28 @@ class lazy_call {
     this.args = args;
   }
   async call() {
-    this.args = await Promise.all(this.args);
-    this.args = await value(this.args);
-    return await this.fn(...this.args);
+    var self = this;
+    this.args = await Promise.all(this.args).catch(e => exception_handler(e, self));
+    this.args = await value(this.args).catch(e => exception_handler(e, self));
+    var result = await this.fn(...this.args).catch(e => exception_handler(e, self));
+    if (result.constructor == lazy_call) {
+      if (result.clio_stack) {
+        if (this.clio_stack) {
+          result.clio_stack = [...result.clio_stack, ...this.clio_stack];
+        }
+      } else {
+        result.clio_stack = this.clio_stack;
+      }
+    } // how to put this in non-lazy calls?
+    return result;
   }
   async map(fn) {
     var self = this;
     if (!fn.is_lazy) {
-      return (await value(self)).map(fn);
+      return (await value(self).catch(e => {throw e})).map(fn);
     } else {
       return lazy(async function () {
-        return (await value(self)).map(fn);
+        return (await value(self).catch(e => {throw e})).map(fn);
       });
     }
   }
@@ -62,7 +73,7 @@ async function process_args(lazy) {
         lazy.args[i] = arg;
       };
       if (arg.constructor == lazy_call) {
-        var result = await arg.call();
+        var result = await arg.call().catch(e => {throw e});
         lazy.args[i] = result;
         if (result.constructor == lazy_call) {
           needs_processing.push(result);
@@ -98,7 +109,7 @@ async function value_helper(lazy) {
       }
     }
     if (all_non_lazy) {
-      var result = await level.call();
+      var result = await level.call().catch(e => {throw e});
       if (parent == null) {
         // the issue is here
         // putting this here solves the issue
@@ -172,7 +183,7 @@ async function value(lazy) {
     return await value(result);
   }
   if (result.is_lazy) {
-    return await value(result.call());
+    return await value(result.call().catch(e => {throw e}));
   }
   return result;
 }

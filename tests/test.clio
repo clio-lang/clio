@@ -1,1 +1,7 @@
-[0:10:2] * 2 -> print
+fn pluck list index:
+  list[index]
+
+fn pluck2 list index:
+  list -> pluck index
+
+[1 2 3] -> pluck2 10 -> print

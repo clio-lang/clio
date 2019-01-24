@@ -63,7 +63,8 @@ function process_file(file) {
           [ ] remove all paths from require
           [ ] ^ try to remember that also
       */
-      return clio_import(file);
+      //return clio_import(file).catch(e => console.log(e));
+      return clio_import(file).catch(e => e.exit());
     }
 
     var tokens = lexer(contents);

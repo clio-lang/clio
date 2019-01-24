@@ -62,7 +62,7 @@ function do_import(file) {
 
   write_file(code, cache_file);
   cache_file = cache_file.replace(/\\/g, '/'); // windows fix |:
-  return require(cache_file)({}, builtins);  // because why not?
+  return require(cache_file)({}, builtins, {source: contents, name: file_name}).catch(e => {throw e});  // because why not?
 }
 
 function clio_import(file) {
@@ -82,10 +82,11 @@ function clio_import(file) {
     var source_stats = fs.statSync(file);
     if (cache_stats.mtime > source_stats.mtime) {
       cache_file = cache_file.replace(/\\/g, '/'); // windows fix |:
-      return require(cache_file)({}, builtins);
+      var contents = fs.readFileSync(file, 'utf8');
+      return require(cache_file)({}, builtins, {source: contents, name: file_name}).catch(e => {throw e});
     }
   }
-  return do_import(file);
+  return do_import(file).catch(e => {throw e});
 }
 
 module.exports = clio_import;
