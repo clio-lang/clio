@@ -52,21 +52,33 @@ module.exports = async function(scope, builtins, file) {
         func.frozenscope['recall'] = func;
         return func;
     })(scope), 'pluck2', scope);
-    await builtins.funcall([await builtins.funcall([new builtins.Generator(
+    await builtins.funcall([await builtins.starmap([new builtins.Generator(
         (i, self) => self.data[i],
-        [builtins.Decimal('1'), builtins.Decimal('2'), builtins.Decimal('3')],
+        [new builtins.Generator(
+            (i, self) => self.data[i],
+            [builtins.Decimal('4'), builtins.Decimal('4'), builtins.Decimal('4')],
+            self => self.data.length,
+        ), new builtins.Generator(
+            (i, self) => self.data[i],
+            [builtins.Decimal('2'), builtins.Decimal('2'), builtins.Decimal('2')],
+            self => self.data.length,
+        ), new builtins.Generator(
+            (i, self) => self.data[i],
+            [builtins.Decimal('3'), builtins.Decimal('3'), builtins.Decimal('3')],
+            self => self.data.length,
+        )],
         self => self.data.length,
-    )], [builtins.Decimal('10')], await builtins.funcall(['pluck2'], [scope], builtins.get_symbol, file, {
-        index: 92,
+    )], await builtins.funcall(['pluck2'], [scope], builtins.get_symbol, file, {
+        index: 114,
         fn: '<get-symbol>'
-    }), file, {
-        index: 92,
+    }), [builtins.Decimal('4')], file, {
+        index: 114,
         fn: 'pluck2'
     })], [], await builtins.funcall(['print'], [scope], builtins.get_symbol, file, {
-        index: 105,
+        index: 126,
         fn: '<get-symbol>'
     }), file, {
-        index: 105,
+        index: 126,
         fn: 'print'
     });
     return scope;

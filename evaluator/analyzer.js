@@ -303,11 +303,13 @@ function analyzer(tree, source) {
     },
     starinflowfundef: function (node) {
       node.tokens.unshift({name: 'symbol', raw: ''})
+      var fnindex = node.tokens[1].index;
       node.name = 'fundef';
       var func_code = analyze(node).code;
       return {
         type: 'starinflowfundef',
-        code: func_code
+        code: func_code,
+        fnindex: fnindex
       }
     },
     decorated_starinflowfundef: function (node) {
@@ -404,15 +406,15 @@ function analyzer(tree, source) {
         } else if (token.type == 'return') {
           code = `return await ${code};`;
         } else if (token.type == 'map') {
-          code = `await builtins.starmap([${code}], ${token.code[0]}, ${token.code[1]})`;
+          code = `await builtins.starmap([${code}], ${token.code[0]}, ${token.code[1]}, file, {index: ${token.fnindex}, fn: '${token.fn}'})`;
         } else if (['inflowfundef', 'inflowprocdef'].includes(token.type)) {
           code = `await builtins.funcall([${code}], [], ${token.code}, file, {index: ${node.index}, fn: '<anonymous-fn>'})`;
         } else if (['starinflowfundef', 'starinflowprocdef'].includes(token.type)) {
-          code = `await builtins.starmap([${code}], ${token.code}, [])`;
+          code = `await builtins.starmap([${code}], ${token.code}, [], file, {index: ${token.fnindex}, fn: '<anonymous-fn>'})`;
         } else if (token.type == 'condmapper') {
           code = `await builtins.funcall([${code}], [], ${token.code}, file, {index: ${node.index}, fn: '<conditional>'})`
         } else if (token.type == 'starcondmapper') {
-          code = `await builtins.starmap([${code}], ${token.code}, [])`
+          code = `await builtins.starmap([${code}], ${token.code}, [], file, {index: ${token.fnindex}, fn: '${token.fn}'})`
         } else {
           code = `await builtins.funcall([${code}], ${token.code[1]}, ${token.code[0]}, file, {index: ${token.fnindex}, fn: '${token.fn}'})`;
         }
@@ -478,21 +480,29 @@ function analyzer(tree, source) {
     },
     starmapper: function (node) {
       var func = node.tokens[0];
+      var fn = func.raw;
+      var fnindex = func.index;
       func = analyze(func).code;
       var args = analyze(node.tokens.slice(1)).map(t => t.code);
       var args = `[${args.join(', ')}]`;
       return {
         code: [func, args],
-        type: 'map'
+        type: 'map',
+        fn: fn,
+        fnindex: fnindex
       };
     },
     naked_star_mapper: function (node) {
       var func = node.tokens[0];
+      var fn = func.raw;
+      var fnindex = func.index;
       func = analyze(func).code;
       var args = '[]';
       return {
         code: [func, args],
-        type: 'map'
+        type: 'map',
+        fn: fn,
+        fnindex: fnindex
       };
     },
     return_mapper: function (node) {

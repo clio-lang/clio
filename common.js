@@ -62,20 +62,20 @@ function resolve_and_print(code, file, fn, index) {
   // prepare styles:
   file = chalk.green(`"${file}"`);
   fn = chalk.magenta.italic(fn);
-  var message = chalk.cyan(` At file ${file} when calling ${fn}:\n`)
+  var message = chalk.gray(` At file ${file} when calling ${fn}:\n`)
   console.log(message);
   while (last_three_lines.length > 0) {
     line = last_three_lines.shift();
     line_number = error_at_line - last_three_lines.length;
     line_number = line_number.toString().padStart(line_name_len, ' ');
     line_number = chalk.cyan(line_number)
-    line = chalk.cyanBright(`   ${line_number} ${chalk.gray('│')} ${line}`);
+    line = chalk.cyan(`   ${line_number} ${chalk.white('│')} ${line}`);
     console.log(line);
   }
   var pad = new Array(line_name_len + 6 + error_at_char).join(' ')
   error_at_line = chalk.yellow(error_at_line);
   error_at_char = chalk.yellow(error_at_char);
-  message = chalk.cyan(`${pad} ^ At line ${error_at_line} char ${error_at_char}`)
+  message = chalk.gray(`${pad} ^ At line ${error_at_line} char ${error_at_char}`)
   console.log(message);
   console.log();
 }

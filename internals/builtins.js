@@ -174,14 +174,15 @@ builtins.funcall = async function(data, args, func, file, trace) {
         return data[prop](...args);
       }
     }
+    var handler = e => {exception_handler(e, {clio_stack: current_stack})};
     if (!func.is_lazy) {
-        args = Promise.all(args).catch(e => {exception_handler(e, {clio_stack: current_stack})});
-        data = Promise.all(data).catch(e => {exception_handler(e, {clio_stack: current_stack})});
-        args = await value(args).catch(e => {exception_handler(e, {clio_stack: current_stack})});
-        data = await value(data).catch(e => {exception_handler(e, {clio_stack: current_stack})});
+        args = Promise.all(args).catch(handler);
+        data = Promise.all(data).catch(handler);
+        args = await value(args).catch(handler);
+        data = await value(data).catch(handler);
     }
     if (!args.length) {
-      func_call = func(...data).catch(e => {exception_handler(e, {clio_stack: current_stack})});
+      func_call = func(...data).catch(handler);
       if (func_call.constructor == builtins.lazy_call) {
         func_call.clio_stack = current_stack;
       }
@@ -201,9 +202,9 @@ builtins.funcall = async function(data, args, func, file, trace) {
         }
         return arg;
     })
-    args = await Promise.all(args).catch(e => {exception_handler(e, {clio_stack: current_stack})});
+    args = await Promise.all(args).catch(handler);
     if (AtSigned) {
-        func_call = func(...args).catch(e => {exception_handler(e, {clio_stack: current_stack})});
+        func_call = func(...args).catch(handler);
         if (func_call.constructor == builtins.lazy_call) {
           func_call.clio_stack = current_stack;
         }
@@ -211,7 +212,7 @@ builtins.funcall = async function(data, args, func, file, trace) {
     };
     func_call = func(...data, ...args);
     if (func_call.constructor == Promise) {
-      func_call = await func_call.catch(e => {exception_handler(e, {clio_stack: current_stack})});
+      func_call = await func_call.catch(handler);
     }
     if (func_call.constructor == builtins.lazy_call) {
       func_call.clio_stack = current_stack;
@@ -219,20 +220,20 @@ builtins.funcall = async function(data, args, func, file, trace) {
     return func_call;
 }
 
-builtins.map = async function(a, f, ...args) {
+builtins.map = async function(a, f, stack, ...args) {
     if (!f.is_lazy) {
-        args = await Promise.all(args.map(value));
-        a = await Promise.all(a.map(value));
+        args = await Promise.all(args.map(value)).catch(e => {throw e});
+        a = await Promise.all(a.map(value)).catch(e => {throw e});
     }
     data = a.shift();
     if (!args.length) {
         if (!f.is_lazy) {
           return await data.map(function (d) {
-            return f(d, ...a);
+            return f(d, ...a).catch(e => {throw e});
           });
         } else {
           return await data.map(lazy(function (d) {
-            return f(d, ...a);
+            return f(d, ...a).catch(e => {throw e});
           }));
         }
     }
@@ -260,14 +261,15 @@ builtins.map = async function(a, f, ...args) {
     if (f.is_lazy) {
       fn = lazy(fn);
     }
-    return await data.map(fn);
+    return await data.map(fn, stack).catch(e => {throw e});
 }
 
-builtins.starmap = function(a, f, args) {
+builtins.starmap = function(a, f, args, file, trace) {
+    var current_stack = [{file: file, trace: trace}];
     if (!args.length) {
-        return builtins.map(a, f);
+        return builtins.map(a, f, current_stack).catch(e => {exception_handler(e, {clio_stack: current_stack})});
     }
-    return builtins.map(a, f, ...args);
+    return builtins.map(a, f, current_stack, ...args).catch(e => {exception_handler(e, {clio_stack: current_stack})});
 }
 
 builtins.filter = function(data, func) {
@@ -401,7 +403,7 @@ builtins.string = lazy(async function (thing, colorize) {
       var start = thing.data.start;
       var end = thing.data.end;
       var step = thing.data.step;
-      string = [start, end, step].join(colors.white(':'));
+      string = [start, end, step].join(chalk.white(':'));
     } else {
       string = await Promise.all((await value(thing.map(i => builtins.string(i, colorize)))).data.map(value));
       string = string.join(' ');
@@ -411,7 +413,7 @@ builtins.string = lazy(async function (thing, colorize) {
     string = thing.toString();
   }
   if (colorize) {
-    string = (colormap[type] || colors.white)(string);
+    string = (colormap[type] || chalk.white)(string);
   }
   return string;
 })

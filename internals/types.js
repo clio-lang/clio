@@ -79,11 +79,11 @@ class Generator {
   len() {
     return this.length.constructor == Function ? this.length(this) : this.length;
   }
-  async map(func) {
+  async map(func, stack) {
     if (!func.is_lazy) {
       var result = [];
       for (var i = 0; i < this.len(); i++) {
-        result.push(await func(await value(this.get(i))));
+        result.push(await func(await value(this.get(i)).catch(e => {throw e})).catch(e => {throw e}));
       }
       return new Generator(
         (i, self) => self.data[i],
@@ -95,7 +95,10 @@ class Generator {
       return lazy(async function () {
         var result = [];
         for (var i = 0; i < _this.len(); i++) {
-          result.push(await func(await value(_this.get(i))));
+          var val = await value(_this.get(i)).catch(e => {throw e});
+          var r = await func(val).catch(e => {throw e});
+          r.clio_stack = stack;
+          result.push(r);
         }
         return new Generator(
           (i, self) => self.data[i],

@@ -4,4 +4,6 @@ fn pluck list index:
 fn pluck2 list index:
   list -> pluck index
 
-[1 2 3] -> pluck2 10 -> print
+[[4 4 4]
+ [2 2 2]
+ [3 3 3]] -> * pluck2 4 -> print

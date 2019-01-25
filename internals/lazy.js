@@ -1,12 +1,14 @@
 // laziness for clio
 
 const {exception_handler} = require('../common');
+var objhash = require('object-hash');
 
 function memoize(fn) {
   var cache = new Map();
   return async function(...args) {
     args = await Promise.all(args);
-    var hash = args.toString();
+    //var hash = args.toString();
+    var hash = objhash(args);
     var cached = cache.get(hash);
     if (cached != undefined) {
       return cached;
@@ -21,7 +23,7 @@ function lazy(fn, do_memoize) {
   if (do_memoize) {
     fn = memoize(fn)
   }
-  var func = function (...args) {
+  var func = async function (...args) {
     return new lazy_call(fn, ...args);
   };
   func.is_lazy = true;
