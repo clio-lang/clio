@@ -65,29 +65,36 @@ For a list of what's done and what's planned you can check [Clio on Trello](http
 
 ## Command Line Usage
 
-For command line usage you need NodeJS [latest version] and Clio dependencies. To install Clio dependencies in the project directory, do
+To install, download or clone this repository:
+
+	git clone https://github.com/pouya-eghbali/clio
+
+You need NodeJS [latest version] and Clio dependencies. To install Clio dependencies in the project directory, do
 
 	npm install
 
-`index.js` is the program entry and `browser.js` is main file for the browser. To compile for browser do
+Then `link` clio bin
 
-	browserify browser.js | uglifyjs > editor/clio.js
-
-you need `browserify` and `uglify-es` installed in order to compile for browser. To generate the size breakdown
-you'll need `disc`
-
-	browserify browser.js --full-paths | uglifyjs | discify -o editor/breakdown.html
+	npm link
 
 to run a Clio program do
 
-	node index.js run path/to/file.clio
+	clio run path/to/file.clio
 
 to print the abstract syntax tree
 
-	node index.js ast path/to/file.clio
+	clio ast path/to/file.clio
 
 and to compile Clio code to JS do
 
-	node index.js compile path/to/source.clio path/to/output.js
+	clio compile path/to/source.clio path/to/output.js
 
 by default Node puts a limit on memory usage, to change this limit please refer to [this guide](https://gist.github.com/motss/f55b92ccab0d434fa6e6cfd07423014b).
+
+## Developing
+
+Clio uses gulp as task runner. Simply doing
+
+	gulp bundle
+
+Will generate the minified browser bundle and the size graph.
