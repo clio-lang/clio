@@ -1,14 +1,33 @@
 // laziness for clio
 
-const {exception_handler} = require('../common');
-var objhash = require('object-hash');
+const {exception_handler, extend_array} = require('../common');
+const md5 = require('./md5');
+
+MemoizeID = 0;
+// todo: add support for objects, classes and etc...
+function stringify(arg) {
+  if (arg.constructor == Array) {
+    arg = arg.map(stringify);
+  }
+  if (['Generator'].includes(arg.constructor.name)) {
+    arg._memoize_id = arg._memoize_id ? arg._memoize_id : MemoizeID++;
+    arg = `_memoize_id: ${arg._memoize_id}`; // FIXME: we're doomed if arg is this string
+  }
+  return arg.toString();
+}
+
+function serialize(arg) {
+  return md5(stringify(arg));
+}
 
 function memoize(fn) {
   var cache = new Map();
   return async function(...args) {
     args = await Promise.all(args);
     //var hash = args.toString();
-    var hash = objhash(args);
+    //var hash = JSON.stringify(args);
+    //var hash = objhash(args);
+    var hash = serialize(args);
     var cached = cache.get(hash);
     if (cached != undefined) {
       return cached;
@@ -19,6 +38,26 @@ function memoize(fn) {
   };
 }
 
+/*
+var objhash = require('object-hash'); // TODO: replace with faster one
+
+function memoize(fn) {
+  var cache = new Map();
+  return async function(...args) {
+    args = await Promise.all(args);
+    //var hash = args.toString();
+    var hash = JSON.stringify(args);
+    //var hash = objhash(args);
+    var cached = cache.get(hash);
+    if (cached != undefined) {
+      return cached;
+    }
+    var result = await fn(...args);
+    cache.set(hash, result);
+    return result;
+  };
+}
+*/
 function lazy(fn, do_memoize) {
   if (do_memoize) {
     fn = memoize(fn)
@@ -42,11 +81,14 @@ class lazy_call {
     var result = await this.fn(...this.args).catch(e => exception_handler(e, self));
     if (result.constructor == lazy_call) {
       if (result.clio_stack) {
-        if (this.clio_stack) {
-          result.clio_stack = [...result.clio_stack, ...this.clio_stack];
-        }
+        result.prev = this
+        /*if (this.clio_stack) {
+          // -> this is slow asf!
+          result.clio_stack = extend_array(result.clio_stack, this.clio_stack);
+        }*/
       } else {
         result.clio_stack = this.clio_stack;
+        result.prev = this.prev
       }
     } // how to put this in non-lazy calls?
     return result;

@@ -2,13 +2,10 @@
 var chalk = require('chalk');
 
 class ClioException extends Error {
-  constructor(e, stack) {
+  constructor(e, call) {
     super(e.message);
-    this.clio_stack = stack;
+    this.prev = call;
     Error.captureStackTrace(this, ClioException);
-  }
-  add_to_stack(file, trace) {
-    this.clio_stack.push({file: file, trace: trace})
   }
   exit() {
     this.print_stack()
@@ -17,22 +14,34 @@ class ClioException extends Error {
   }
   print_stack() {
     console.log();
-    this.clio_stack.forEach(function (stack) {
-      resolve_and_print(stack.file.source, stack.file.name, stack.trace.fn, stack.trace.index);
-    });
+    var prev = this.prev;
+    while (prev) {
+      prev.clio_stack.forEach(function (stack) {
+        resolve_and_print(stack.file.source, stack.file.name, stack.trace.fn, stack.trace.index);
+      });
+      prev = prev.prev;
+    }
     var message = chalk.red(` Exception: ${this.message}\n`);
     console.log(message);
   }
 }
 
-function exception_handler(e, call) {
-  if (e.constructor == ClioException) {
-    if (call.clio_stack) {
-      e.clio_stack = [...e.clio_stack, ...call.clio_stack]
-    }
+function extend_array(a, b) {
+  if (!a) {
+    return b ? b : [];
   }
+  if (!b) {
+    return a ? a : [];
+  }
+  for (var i = 0; i < b.length; i++) {
+    a.push(b[i])
+  }
+  return a;
+}
+
+function exception_handler(e, call) {
   if (e.constructor != ClioException) {
-    e = new ClioException(e, call.clio_stack);
+    e = new ClioException(e, call);
   }
   throw e;
 }
@@ -137,3 +146,4 @@ exports.throw_error = throw_error;
 exports.exception_handler = exception_handler;
 exports.ClioException = ClioException;
 exports.cast_to_bool = cast_to_bool;
+exports.extend_array = extend_array;

@@ -105,7 +105,8 @@ builtins.define_function = function(fn, fn_name, scope) {
 }
 
 builtins.decorate_function = function (decorator, args, fn_name, overload, scope) {
-  if (fn_name.constructor == Function) {
+  var AsyncFunction = (async () => {}).constructor;
+  if ([Function, AsyncFunction].includes(fn_name.constructor)) {
     // anonymous decoration
     var overloadfn = (async function (...args) {
       var func = get_proper_function(args, overloadfn.overloads);
@@ -285,14 +286,14 @@ builtins.filter = function(data, func) {
     return data.filter(func);
 }
 
-builtins.dec = lazy(function(a, b) {
+builtins.dec = lazy(async function(a, b) {
     if (a.constructor == builtins.Generator) {
       return a.map(el => builtins.dec(el, b));
     }
     return a.sub(b);
 })
 
-builtins.add = lazy(function(a, b) {
+builtins.add = lazy(async function(a, b) {
     if ((a.constructor == String) || (b.constructor == String)) {
       return a.toString() + b.toString();
     }
@@ -302,7 +303,7 @@ builtins.add = lazy(function(a, b) {
     return a.add(b);
 })
 
-builtins.div = lazy(function(a, b) {
+builtins.div = lazy(async function(a, b) {
     if (a.constructor == builtins.Generator) {
       return a.map(el => builtins.div(el, b));
     }
@@ -316,51 +317,51 @@ builtins.mul = lazy(async function(a, b) {
     return a.mul(b);
 })
 
-builtins.mod = lazy(function(a, b) {
+builtins.mod = lazy(async function(a, b) {
     if (a.constructor == builtins.Generator) {
       return a.map(el => builtins.mod(el, b));
     }
     return a.mod(b);
 })
 
-builtins.pow = lazy(function(a, b) {
+builtins.pow = lazy(async function(a, b) {
     if (a.constructor == builtins.Generator) {
       return a.map(el => builtins.pow(el, b));
     }
     return a.pow(b);
 })
 
-builtins.bool = function (a) {
+builtins.bool = async function (a) {
   if (a.constructor == builtins.Decimal) {
     return !a.eq(0);
   }
   return a;
 }
 
-builtins.not = function (a) {
+builtins.not = async function (a) {
   return !a;
 }
 
-builtins.eq = function(a, b) {
+builtins.eq = async function(a, b) {
     if (a.eq) {
       return a.eq(b);
     }
     return a == b;
 }
 
-builtins.lt = function(a, b) {
+builtins.lt = async function(a, b) {
     return a.lt(b);
 }
 
-builtins.lte = function(a, b) {
+builtins.lte = async function(a, b) {
     return a.lte(b);
 }
 
-builtins.gt = function(a, b) {
+builtins.gt = async function(a, b) {
     return a.gt(b);
 }
 
-builtins.gte = function(a, b) {
+builtins.gte = async function(a, b) {
     return a.gte(b);
 }
 

@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 const fs = require('fs');
 const path = require('path');
 const treeify = require('treeify');
@@ -86,18 +88,18 @@ function process_file(file) {
 }
 
 if (process.argv.length <= 3) {
-    console.log("Usage: " + __filename + " ast|compile|run SOURCE_FILE DEST_FILE?");
+    console.log("Usage: " + "clio" + " ast|compile|run SOURCE_FILE DEST_FILE?");
     process.exit(-1);
 }
 
 if (!['ast', 'compile', 'run'].includes(process.argv[2])) {
-  console.log("Usage: " + __filename + " ast|compile|run SOURCE_FILE DEST_FILE?");
+  console.log("Usage: " + "clio" + " ast|compile|run SOURCE_FILE DEST_FILE?");
   process.exit(-1);
 }
 
 if (process.argv[2] == 'compile') {
   if (process.argv.length <= 4) {
-      console.log("Usage: " + __filename + " ast|compile|run SOURCE_FILE DEST_FILE?");
+      console.log("Usage: " + "clio" + " ast|compile|run SOURCE_FILE DEST_FILE?");
       process.exit(-1);
   }
 }

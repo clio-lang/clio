@@ -1022,7 +1022,7 @@ function analyzer(tree, source) {
         condition.variables.forEach(v => variables.push(v))
       }
       return {
-        code: `if (await builtins.funcall([${condition.code}], [], builtins.bool), file, {index: ${node.index}, fn: '<conditional>'}) {${block}}`,
+        code: `if (await builtins.funcall([${condition.code}], [], builtins.bool, file, {index: ${node.index}, fn: '<conditional>'})) {${block}}`,
         vars: variables
       };
     },
