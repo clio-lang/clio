@@ -57,17 +57,24 @@ module.exports = async function(scope, builtins, file) {
         func.frozenscope['recall'] = func;
         return func;
     })(scope), 'fib', scope);
-    await builtins.funcall([await builtins.funcall([builtins.Decimal('10')], [], await builtins.funcall(['fib'], [scope], builtins.get_symbol, file, {
-        index: 71,
+    await builtins.funcall([await builtins.starmap([new builtins.Generator(
+        (i, self) => self.data.start.add(self.data.step.mul(i)), {
+            start: builtins.Decimal('0'),
+            end: builtins.Decimal('10'),
+            step: builtins.Decimal(builtins.Decimal(builtins.Decimal('0')).lt(builtins.Decimal(builtins.Decimal('10'))) ? 1 : -1)
+        },
+        self => self.data.start.sub(self.data.end).div(self.data.step).abs().add(1),
+    )], await builtins.funcall(['fib'], [scope], builtins.get_symbol, file, {
+        index: 77,
         fn: '<get-symbol>'
-    }), file, {
-        index: 71,
+    }), [], file, {
+        index: 77,
         fn: 'fib'
     })], [], await builtins.funcall(['print'], [scope], builtins.get_symbol, file, {
-        index: 78,
+        index: 84,
         fn: '<get-symbol>'
     }), file, {
-        index: 78,
+        index: 84,
         fn: 'print'
     });
     return scope;

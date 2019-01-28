@@ -8,6 +8,7 @@ const parser = require('./parser/parser');
 const analyzer = require('./evaluator/analyzer');
 const clio_import = require('./internals/import');
 const beautify = require('js-beautify').js;
+const highlight = require('./highlight');
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 
@@ -56,6 +57,11 @@ function write_file(source, path) {
 function process_file(file) {
   fs.readFile(file, 'utf8', function(err, contents) {
 
+    if (process.argv[2] == 'highlight') {
+      console.log();
+      return console.log(highlight(contents));
+    }
+
     if (process.argv[2] == 'run') {
       /*
         TODO:
@@ -88,18 +94,18 @@ function process_file(file) {
 }
 
 if (process.argv.length <= 3) {
-    console.log("Usage: " + "clio" + " ast|compile|run SOURCE_FILE DEST_FILE?");
+    console.log("Usage: " + "clio" + " ast|compile|run|highlight SOURCE_FILE DEST_FILE?");
     process.exit(-1);
 }
 
-if (!['ast', 'compile', 'run'].includes(process.argv[2])) {
-  console.log("Usage: " + "clio" + " ast|compile|run SOURCE_FILE DEST_FILE?");
+if (!['ast', 'compile', 'run', 'highlight'].includes(process.argv[2])) {
+  console.log("Usage: " + "clio" + " ast|compile|run|highlight SOURCE_FILE DEST_FILE?");
   process.exit(-1);
 }
 
 if (process.argv[2] == 'compile') {
   if (process.argv.length <= 4) {
-      console.log("Usage: " + "clio" + " ast|compile|run SOURCE_FILE DEST_FILE?");
+      console.log("Usage: " + "clio" + " ast|compile|run|highlight SOURCE_FILE DEST_FILE?");
       process.exit(-1);
   }
 }

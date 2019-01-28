@@ -391,7 +391,7 @@ builtins.length = lazy(function(a) {
 var chalk = require('chalk');
 
 var colormap = {
-  int: chalk.yellow,
+  num: chalk.yellow,
   range: chalk.cyan,
 }
 
@@ -400,7 +400,7 @@ builtins.string = lazy(async function (thing, colorize) {
   var string;
   if (type == 'gen') {
     if (thing.data.start) {
-      type = 'int'
+      type = 'num'
       var start = thing.data.start;
       var end = thing.data.end;
       var step = thing.data.step;
