@@ -81,6 +81,10 @@ to run a Clio program do
 
 	clio run path/to/file.clio
 
+to highlight a Clio file do
+
+	clio highlight path/to/file.clio
+
 to print the abstract syntax tree
 
 	clio ast path/to/file.clio
