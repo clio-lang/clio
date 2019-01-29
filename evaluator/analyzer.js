@@ -83,18 +83,10 @@ function analyzer(tree, source) {
       };
     },*/
     property_access: function (node) {
-      node.tokens = node.tokens.map(token => {
-        token.raw = token.raw.replace(/'s?$/, '');
-        if (token.raw == 'my') {
-          token.raw = 'self'
-        }
-        return token.raw;
-      });
-      var first = node.tokens.shift()
-      var code = `(new builtins.lazy_call(async () => (await builtins.value(scope['${first}'] || builtins['${first}']))))`
-      node.tokens.forEach(function (token) {
-        code = `(new builtins.lazy_call(async () => (await builtins.value(${code}))['${token}']))`
-      })
+      var first = analyze(node.tokens.shift()).code;
+      var code = `(new builtins.lazy_call(async () => (await builtins.value(${first}))))`
+      var last = node.tokens.pop().raw;
+      code = `(new builtins.lazy_call(async () => (await builtins.value(${code}))['${last}']))`
       return {
         code: code
       };

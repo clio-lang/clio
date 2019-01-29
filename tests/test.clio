@@ -1,15 +1,16 @@
-fn pluck list index:
-  list[index]
+type Cat name age:
+  name => self.name
+  age => self.age
 
-fn pluck2 list index:
-  list -> pluck index
+#moki 6 -> Cat => moki
+#chili 6 -> Cat => chili
+#honey 6 -> Cat => honey
 
-[[1 2 3]
- [4 5 6]
- [7 8 9]] -> * pluck2 1 -> print
+[moki chili honey] => cats
 
-10 => x
-if x > 11:
-  #YES -> print
-else:
-  #NO -> print
+type Person name cats:
+  cats => self.cats
+  name => self.name
+
+#pouya cats -> Person => pouya
+pouya.cats[1].name -> print

@@ -42,16 +42,24 @@ const matchers = {
   // TODO: all to es6
   slice: (i, tokens) =>
     helpers.isSeq([
-      {name: ['symbol', 'list', 'range'], count: 1},
+      {name: ['symbol', 'list', 'range', 'property_access', 'slice'], count: 1},
       {name: ['list'], count: 0, enders: []},
     ], i, tokens),
 
   property_access: (i, tokens) =>
     helpers.isSeq([
+      {name: ['symbol', 'slice'], count: 1},
+      {name: ['dot'], count: 1},
+      {name: ['symbol'], count: 1}
+    ], i, tokens),
+
+  /*
+  property_access: (i, tokens) =>
+    helpers.isSeq([
       {name: 'possesive', count: 1},
       {name: '_', count: 0},
       {name: ['possesive', 'symbol'], count: 0, sep: ['_'], enders: []},
-    ], i, tokens),
+    ], i, tokens),*/
 
   atnumber: function (i, tokens) {
     return helpers.isSeq([
