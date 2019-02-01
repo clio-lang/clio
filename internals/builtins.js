@@ -568,4 +568,15 @@ builtins.eager = function (oldoverload) {
   return newoverload;
 }
 
+builtins.timeout = function(fn, time) {
+  return setTimeout(fn, time.toNumber())
+}
+
+builtins.interval = function(fn, time) {
+  var i = 0;
+  return setInterval(function () {
+    fn(i++)
+  }, time.toNumber())
+}
+
 module.exports = builtins;

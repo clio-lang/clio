@@ -1,3 +1,5 @@
-[[0:100:2]
- [0:100:2]
- [0:100:2]][0 [0:10:2]] -> print
+@eager
+fn meow i:
+  #meow -> print
+
+meow -> interval 1000

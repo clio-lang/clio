@@ -226,9 +226,12 @@ async function value(lazy) {
   if (result.constructor == lazy_call) {
     return await value(result);
   }
-  if (result.is_lazy) {
-    return await value(result.call().catch(e => {throw e}));
+  if (result.constructor == lazy_call) {
+    return await value(result);
   }
+  /*if (result.is_lazy) {
+    return await value(result.call().catch(e => {throw e}));
+  }*/
   return result;
 }
 
