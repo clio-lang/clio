@@ -464,15 +464,23 @@ builtins.slice = lazy(async function (list, slicers, index) {
       }*/
     } else if (slicer.data.start) {
       // range cut
-      // TODO: steps
-      var step = slicer.data.step;
-      var start = list.data.start.add(slicer.data.start);
+      var start;
+      if (list.data.start.gte(slicer.data.start)) {
+        start = list.data.start;
+      } else {
+        start = slicer.data.start;
+      }
       var end;
       if (slicer.data.end == Infinity) {
         end = list.data.end;
       } else {
-        end = list.data.end.sub(slicer.data.end);
+        if (list.data.end.lte(slicer.data.end)) {
+          end = list.data.end;
+        } else {
+          end = slicer.data.end;
+        }
       }
+      var step = slicer.data.step.mul(list.data.step);
       list = new Generator(
         list.getter,
         {start: start, end: end, step: step},
