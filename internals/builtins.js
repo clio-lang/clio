@@ -448,7 +448,11 @@ builtins.slice = lazy(async function (list, slicers, index) {
       if (slicer.toNumber() >= list.len()) {
         throw new Error(`Index ${slicer.toString()} is bigger than array length.`);
       }
-      list = list.get(slicer.toNumber());
+      list = new Generator(
+        list.getter,
+        [list.get(slicer.toNumber())],
+        list.length,
+      );
       /*if (index != 1) {
         list = new Generator(
           list.getter,
@@ -490,7 +494,11 @@ builtins.slice = lazy(async function (list, slicers, index) {
       if (slicer.toNumber() >= list.len()) {
         throw new Error(`Index ${slicer.toString()} is bigger than array length.`);
       }
-      list = list.get(slicer.toNumber());
+      list = new Generator(
+        list.getter,
+        [list.data[slicer.toNumber()]],
+        list.length,
+      );
       /*if (index != 1) {
         list = new Generator(
           list.getter,

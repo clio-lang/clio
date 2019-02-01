@@ -1,129 +1,54 @@
 module.exports = async function(scope, builtins, file) {
-    scope['Cat'] = (function(scope) {
-        scope = Object.assign({}, scope);
-        var init = builtins.define_function((function(scope) {
-            var func = builtins.lazy(async function(name, age, self) {
-                var scope = Object.assign({}, func.frozenscope);
-                var args_obj = {};
-                var _arguments = arguments;
-                ['name', 'age', 'self'].forEach(function(arg, index) {
-                    scope[arg] = _arguments[index]
-                });
-                (scope['self']['name'] = await builtins.funcall(['name'], [scope], builtins.get_symbol, file, {
-                    index: 21,
-                    fn: '<get-symbol>'
-                }));
-                (scope['self']['age'] = await builtins.funcall(['age'], [scope], builtins.get_symbol, file, {
-                    index: 41,
-                    fn: '<get-symbol>'
-                }));
-                (scope['self']['type'] = `Cat`);
-                return await builtins.funcall(['self'], [scope], builtins.get_symbol, file, {
-                    index: undefined,
-                    fn: '<get-symbol>'
-                })
-            }, true);
-            func.frozenscope = Object.assign({}, scope);
-            func.frozenscope['init'] = func;
-            func.frozenscope['recall'] = func;
-            return func;
-        })(scope), 'init', scope);
-        return function(...args) {
-            return init(...args, {});
-        }
-    })(scope);
-    (scope['moki'] = await builtins.funcall(['moki', builtins.Decimal('6')], [], await builtins.funcall(['Cat'], [scope], builtins.get_symbol, file, {
-        index: 69,
-        fn: '<get-symbol>'
-    }), file, {
-        index: 69,
-        fn: 'Cat'
-    }));
-    (scope['chili'] = await builtins.funcall(['chili', builtins.Decimal('6')], [], await builtins.funcall(['Cat'], [scope], builtins.get_symbol, file, {
-        index: 93,
-        fn: '<get-symbol>'
-    }), file, {
-        index: 93,
-        fn: 'Cat'
-    }));
-    (scope['honey'] = await builtins.funcall(['honey', builtins.Decimal('6')], [], await builtins.funcall(['Cat'], [scope], builtins.get_symbol, file, {
-        index: 118,
-        fn: '<get-symbol>'
-    }), file, {
-        index: 118,
-        fn: 'Cat'
-    }));
-    (scope['cats'] = new builtins.Generator(
+    await builtins.funcall([builtins.funcall([new builtins.Generator(
         (i, self) => self.data[i],
-        [await builtins.funcall(['moki'], [scope], builtins.get_symbol, file, {
-            index: 133,
-            fn: '<get-symbol>'
-        }), await builtins.funcall(['chili'], [scope], builtins.get_symbol, file, {
-            index: 138,
-            fn: '<get-symbol>'
-        }), await builtins.funcall(['honey'], [scope], builtins.get_symbol, file, {
-            index: 144,
-            fn: '<get-symbol>'
-        })],
+        [new builtins.Generator(
+            (i, self) => self.data[i],
+            [builtins.Decimal('1'), builtins.Decimal('2'), builtins.Decimal('3')],
+            self => self.data.length,
+        ), new builtins.Generator(
+            (i, self) => self.data[i],
+            [builtins.Decimal('4'), builtins.Decimal('5'), builtins.Decimal('6')],
+            self => self.data.length,
+        ), new builtins.Generator(
+            (i, self) => self.data[i],
+            [builtins.Decimal('7'), builtins.Decimal('8'), builtins.Decimal('9')],
+            self => self.data.length,
+        )],
         self => self.data.length,
-    ));
-    scope['Person'] = (function(scope) {
-        scope = Object.assign({}, scope);
-        var init = builtins.define_function((function(scope) {
-            var func = builtins.lazy(async function(name, cats, self) {
-                var scope = Object.assign({}, func.frozenscope);
-                var args_obj = {};
-                var _arguments = arguments;
-                ['name', 'cats', 'self'].forEach(function(arg, index) {
-                    scope[arg] = _arguments[index]
-                });
-                (scope['self']['cats'] = await builtins.funcall(['cats'], [scope], builtins.get_symbol, file, {
-                    index: 185,
-                    fn: '<get-symbol>'
-                }));
-                (scope['self']['name'] = await builtins.funcall(['name'], [scope], builtins.get_symbol, file, {
-                    index: 205,
-                    fn: '<get-symbol>'
-                }));
-                (scope['self']['type'] = `Person`);
-                return await builtins.funcall(['self'], [scope], builtins.get_symbol, file, {
-                    index: undefined,
-                    fn: '<get-symbol>'
-                })
-            }, true);
-            func.frozenscope = Object.assign({}, scope);
-            func.frozenscope['init'] = func;
-            func.frozenscope['recall'] = func;
-            return func;
-        })(scope), 'init', scope);
-        return function(...args) {
-            return init(...args, {});
-        }
-    })(scope);
-    (scope['pouya'] = await builtins.funcall(['pouya', await builtins.funcall(['cats'], [scope], builtins.get_symbol, file, {
-        index: 231,
-        fn: '<get-symbol>'
-    })], [], await builtins.funcall(['Person'], [scope], builtins.get_symbol, file, {
-        index: 239,
-        fn: '<get-symbol>'
-    }), file, {
-        index: 239,
-        fn: 'Person'
-    }));
-    await builtins.funcall([(new builtins.lazy_call(async () => (await builtins.value((new builtins.lazy_call(async () => (await builtins.value(builtins.funcall([(new builtins.lazy_call(async () => (await builtins.value((new builtins.lazy_call(async () => (await builtins.value(await builtins.funcall(['pouya'], [scope], builtins.get_symbol, file, {
-        index: 255,
-        fn: '<get-symbol>'
-    })))))))['cats']))], [
-        [builtins.Decimal('1')], 0
+    )], [
+        [new builtins.Generator(
+            (i, self) => self.data.start.add(self.data.step.mul(i)), {
+                start: builtins.Decimal('0'),
+                end: builtins.Decimal('Infinity'),
+                step: builtins.Decimal(builtins.Decimal(builtins.Decimal('0')).lt(builtins.Decimal(builtins.Decimal('Infinity'))) ? 1 : -1)
+            },
+            self => self.data.start.sub(self.data.end).div(self.data.step).abs().add(1),
+        ), new builtins.Generator(
+            (i, self) => self.data.start.add(self.data.step.mul(i)), {
+                start: builtins.Decimal('1'),
+                end: builtins.Decimal('Infinity'),
+                step: builtins.Decimal(builtins.Decimal(builtins.Decimal('1')).lt(builtins.Decimal(builtins.Decimal('Infinity'))) ? 1 : -1)
+            },
+            self => self.data.start.sub(self.data.end).div(self.data.step).abs().add(1),
+        )], 0
     ], builtins.slice, file, {
-        index: 265,
+        index: 27,
         fn: 'builtins.slice'
-    })))))))['name']))], [], await builtins.funcall(['print'], [scope], builtins.get_symbol, file, {
-        index: 277,
+    })], [], await builtins.funcall(['print'], [scope], builtins.get_symbol, file, {
+        index: 41,
         fn: '<get-symbol>'
     }), file, {
-        index: 277,
+        index: 41,
         fn: 'print'
     });
+    `
+[start:end:step]
+[start:end]
+[start:]
+[start::step]
+[:end]
+[:end:step]
+[::]
+[:]`;
     return scope;
 };

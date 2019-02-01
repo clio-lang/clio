@@ -15,7 +15,7 @@ class ClioException extends Error {
   print_stack() {
     console.log();
     var prev = this.prev;
-    while (prev) {
+    while (prev && prev.clio_stack) {
       prev.clio_stack.forEach(function (stack) {
         resolve_and_print(stack.file.source, stack.file.name, stack.trace.fn, stack.trace.index);
       });
