@@ -1,8 +1,11 @@
-const throw_error = require('../common').throw_error;
+const ClioException = require('../common').ClioException;
 const helpers = require('./helpers');
 const {matchers, illegals} = require('../syntax/parsing');
 
-function parser(contents, tokens, silent) {
+function parser(contents, tokens, silent, file) {
+  if (!file) {
+    file = '<undefined>'
+  }
   var ast = [];
   var match, matched;
   var res_tokens;
@@ -42,7 +45,21 @@ function parser(contents, tokens, silent) {
   for (var i = 0; i < tokens.length; i++) {
     if (illegals.includes(tokens[i].name)) { // TODO: add a distance calculator to detect typos (eg. eilf instead of elif)
       if (!silent) {
-        throw_error(contents, `Unexpected token '${tokens[i].name}'`, tokens[i].index);
+        //throw_error(contents, `Unexpected token '${tokens[i].name}'`, tokens[i].index);
+        var stack = {
+          clio_stack: [{
+            file: {
+              name: file,
+              source: contents,
+            },
+            trace: {
+              fn: '@parse',
+              index: tokens[i].index
+            }
+          }]
+        }
+        var error = new Error(`Unexpected token '${tokens[i].name}'`)
+        throw new ClioException(error, stack)
       }
       result = false;
       break;

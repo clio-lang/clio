@@ -71,7 +71,11 @@ function process_file(file) {
           [ ] remove all paths from require
           [ ] ^ try to remember that also
       */
-      return clio_import(file).catch(e => e.exit ? e.exit() : console.log(e));
+      try {
+        return clio_import(file);
+      } catch (e) {
+        return e.exit ? e.exit() : console.log(e);
+      }
     }
 
     var tokens = lexer(contents);
@@ -79,7 +83,11 @@ function process_file(file) {
       return;
     }
     tokens = tokens[1];
-    var result = parser(contents, tokens);
+    try {
+      var result = parser(contents, tokens, false, file);
+    } catch (e) {
+      return e.exit ? e.exit() : console.log(e);
+    }
     var ast = result[1];
     if (process.argv[2] == 'ast') {
       return print_ast(ast);

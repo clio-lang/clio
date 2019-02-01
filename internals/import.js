@@ -43,7 +43,11 @@ function do_import(file) {
     return;
   }
   tokens = tokens[1];
-  var result = parser(contents, tokens);
+  try {
+    var result = parser(contents, tokens, false, file);
+  } catch (e) {
+    throw e;
+  }
   var ast = result[1];
   ast.pop() // eof
   var code = beautify(analyzer(ast, contents));
@@ -86,7 +90,11 @@ function clio_import(file) {
       return require(cache_file)({}, builtins, {source: contents, name: file_name}).catch(e => {throw e});
     }
   }
-  return do_import(file).catch(e => {throw e});
+  try {
+    return do_import(file);
+  } catch (e) {
+    throw e;
+  }
 }
 
 module.exports = clio_import;
