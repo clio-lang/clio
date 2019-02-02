@@ -12,7 +12,7 @@ function analyzer(tree, source) {
 
   */
 
-  // OPTIMIZE: this function needs to be optimized af
+  // OPTIMIZE: this function needs to be optimized
 
   function make_return(expr) {
     if (expr.name == 'conditional') { // special cases like if/else
@@ -150,6 +150,22 @@ function analyzer(tree, source) {
         )`
       };
     },
+    hash_map: function (node) {
+      // TODO: for now, we're using native json
+      //       however, we need to support clio types
+      var pairs = [];
+      var key, val;
+      for (var i = 0; i < node.tokens.length/2; i++) {
+        key = analyze(node.tokens[i*2]);
+        val = analyze(node.tokens[i*2+1]);
+        pairs.push(`${key.code}: ${val.code}`);
+      }
+      var code = pairs.join(', ');
+      code = `{${code}}`;
+      return {
+        code: code
+      };
+    },
     range: function (node) {
       var start = node.tokens[0].tokens.length ? node.tokens[0].tokens[0] : {name: 'number', raw: '0'};
       var end = node.tokens.length > 1 ? node.tokens[1] : {name: 'number', raw: 'Infinity'};
@@ -218,6 +234,13 @@ function analyzer(tree, source) {
         var code = names_to_import.map(function (symbol) {
           return `scope['${symbol}'] = builtins.lazy(function (...args) {
             return builtins.cloud_call('${from.raw}', '${symbol}', args, {});
+          }, true);
+          scope['${symbol}.is_cloud'] = true`
+        }).join(';\n');
+      } else if (from.raw == 'host') {
+        var code = names_to_import.map(function (symbol) {
+          return `scope['${symbol}'] = builtins.lazy(function (...args) {
+            return builtins.cloud_call(host, '${symbol}', args, {});
           }, true);
           scope['${symbol}.is_cloud'] = true`
         }).join(';\n');

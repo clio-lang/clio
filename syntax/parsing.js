@@ -213,6 +213,23 @@ const matchers = {
       {name: 'rbra', count: 1},
     ], i, tokens);
   },*/
+  hash_map: function (i, tokens) {
+    return helpers.isWrappedRepeat('lcbr', 'rcbr', [
+      {name: ['_', '_n', '^'], count: 0, opt: true},
+      {name: ['symbol', 'property_access', 'number', 'string', 'word', 'bool'], count: 1},
+      {name: ['_'], count: 0, opt: true},
+      {name: ['colon'], count: 1},
+      {name: ['_'], count: 0, opt: true},
+      {name: ['symbol', 'property_access', 'number', 'list', 'empty_list', 'string', 'word', 'bool', 'wrapped_math', 'range', 'stepped_range'], count: 1},
+      {name: ['_', '_n', '^'], count: 0, opt: true},
+    ], i, tokens)
+  },
+  empty_hash_map: function (i, tokens) {
+    return helpers.isSeq([
+      {name: 'lcbr', count: 1},
+      {name: 'rcbr', count: 1},
+    ], i, tokens)
+  },
   list: function (i, tokens) {
     return helpers.isSeq([
       {name: 'lbra', count: 1},
@@ -587,7 +604,7 @@ const matchers = {
   },
   flow: function (i, tokens) {
     return helpers.isSeq([
-      {name: ['symbol', 'property_access', 'list', 'empty_list', 'slice',
+      {name: ['symbol', 'property_access', 'list', 'empty_list', 'slice', 'hash_map',
               'range', 'stepped_range', 'string', 'word', 'number', 'bool', 'wrapped_flow',
               'math', 'if_fun_call', 'wrapped_math', 'atsign', 'slice', 'notexpr'], count: 0, sep: ['_'],
               enders: ['setter', 'mapper', 'starmapper', 'naked_mapper', 'naked_star_mapper', '_n', '^',
@@ -601,7 +618,7 @@ const matchers = {
           'filter', 'starinflowfundef', 'decorated_starinflowfundef', 'inflowfundef', 'decorated_inflowfundef', 'starinflowprocdef', 'inflowprocdef', 'condmapper', 'starcondmapper', 'quickfundef', 'starquickfundef', 'return_mapper'],
         count: 0, sep: ['_', '_n', '^'],
         enders: [
-          'colon', '_n', '^', 'symbol', 'property_access', 'list', 'number', 'bool', 'empty_list', 'range', 'stepped_range', 'string', 'math', 'wrapped_math', 'notexpr', 'slice',
+          'colon', '_n', '^', 'symbol', 'property_access', 'list', 'number', 'bool', 'empty_list', 'range', 'stepped_range', 'string', 'math', 'wrapped_math', 'notexpr', 'slice', 'hash_map',
           'word', 'dedent', 'eof', 'flow', 'conditional', 'rpar', 'fundef', 'comparison', 'procdef', 'decorator', 'import_st', 'import_nk', 'import_al', 'typedef', 'fundefof', 'fundefif', 'fundefifof']
       },
     ], i, tokens)
@@ -655,7 +672,7 @@ const matchers = {
   }
 }
 
-const illegals = ['map', 'set', 'return', 'fn', 'if', 'elif', 'else', 'dot', 'star', 'lbra', 'rbra', 'comma', 'colon', 'starmap'];
+const illegals = ['map', 'set', 'return', 'fn', 'if', 'elif', 'else', 'dot', 'star', 'lbra', 'rbra', 'comma', 'colon', 'starmap', 'lcbr', 'rcbr'];
 
 exports.illegals = illegals;
 exports.matchers = matchers;

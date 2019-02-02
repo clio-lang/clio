@@ -2,6 +2,25 @@ const helpers = {
   isOneOf: function (token, list) {
     return list.includes(token.name);
   },
+  isWrappedRepeat: function (start, end, seq, i, tokens, parser) {
+    if (!helpers.isOneOf(tokens[i], [start])) {
+      return -1;
+    }
+    i += 1;
+    // grab until end;
+    var match = helpers.isSeq(seq, i, tokens);
+    while (match != -1) {
+      i = match;
+      match = helpers.isSeq(seq, i, tokens);
+      if (i > tokens.length-1) {
+        return -1;
+      }
+    }
+    if (!helpers.isOneOf(tokens[i], [end])) {
+      return -1;
+    }
+    return i+1;
+  },
   isWrapped: function (start, expected, end, i, tokens, parser) {
     const start_i = i;
     if (!helpers.isOneOf(tokens[i], [start])) {
@@ -150,7 +169,8 @@ const helpers = {
     } else {
       var non_importants_raw = [
         '_', '_n', '^', 'map', 'set', 'indent', 'dedent', 'filt', 'not', 'proc', 'import', 'from',
-        'lbra', 'rbra', 'colon', 'if', 'else', 'elif', 'fn', 'lpar', 'rpar', 'dot', 'comma', 'type', 'of', 'as'
+        'lbra', 'rbra', 'colon', 'if', 'else', 'elif', 'fn', 'lpar', 'rpar', 'dot', 'comma', 'type', 'of', 'as',
+        'lcbr', 'rcbr'
       ];
       var non_importants_token = ['starmap'];
       var res_tokens = tokens.slice(start, end).filter(function (obj) {

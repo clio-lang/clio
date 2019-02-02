@@ -48,6 +48,8 @@ const patterns = {
   rbra: /^[\]]/,
   lpar: /^[\(]/,
   rpar: /^[\)]/,
+  lcbr: /^[\{]/,
+  rcbr: /^[\}]/,
 
   emptyline: /^(\r?\n[ \t\f]*\r?\n)+/,
   comma: /^,/,
