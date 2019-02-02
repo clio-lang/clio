@@ -1,0 +1,38 @@
+{
+    "name": "iclio",
+    "version": "1.0.4",
+    "description": "iClio is a Clio kernel for the Jupyter notebook",
+    "keywords": [
+        "clio",
+        "kernel",
+        "jupyter"
+    ],
+    "license": "Apache-2.0",
+    "author": {
+        "author": "Pouya Eghbali"
+    },
+    "bin": {
+        "iclio": "bin/iclio.js",
+        "iclio-console": "bin/iclio-console.js",
+        "iclio-install": "bin/iclio-install.js",
+        "iclio-notebook": "bin/iclio-notebook.js",
+        "iclio-kernel": "lib/kernel.js"
+    },
+    "dependencies": {
+        "jp-kernel": "1"
+    },
+    "devDependencies": {
+        "debug": "2",
+        "eslint": "2",
+        "jmp": "1",
+        "jsdoc": "3",
+        "mocha": "3",
+        "uuid": "3"
+    },
+    "scripts": {
+        "doc": "jsdoc -R README.md -d docs bin lib",
+        "lint": "eslint bin lib test",
+        "test:mocha": "mocha lib/**/*.spec.js",
+        "test": "npm run lint && npm run test:mocha"
+    }
+}
