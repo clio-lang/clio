@@ -12,8 +12,10 @@
     "clio": "./index.js"
   },
   "dependencies": {
+    "body-parser": "^1.18.3",
     "chalk": "^2.4.2",
     "decimal.js": "^10.0.1",
+    "express": "^4.16.4",
     "js-beautify": "^1.8.6",
     "node-fetch": "^2.2.0",
     "stacktrace-js": "^2.0.0",

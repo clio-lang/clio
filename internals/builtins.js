@@ -1,6 +1,6 @@
 var { lazy, value, lazy_call } = require('../internals/lazy');
 var { Transform, AtSign, Decimal, Generator, Property } = require('../internals/types');
-
+const {jsonReviver, jsonReplacer} = require('../internals/json');
 const {throw_error, exception_handler} = require('../common');
 
 var builtins = {};
@@ -14,30 +14,6 @@ builtins.AtSign = AtSign;
 builtins.Decimal = Decimal;
 builtins.Generator = Generator;
 builtins.Property = Property;
-
-function jsonReplacer(key, value) {
-  if (value.toNumber) {
-    return value.toNumber();
-  }
-  if (value.constructor == Array) {
-    return value.map(function (v, k) {
-      return jsonReplacer(k, v); // good job javascript!
-    });
-  }
-  return value;
-}
-
-function jsonReviver(key, value) {
-  if (value.constructor == Number) {
-    return Decimal(value);
-  }
-  if (value.constructor == Array) {
-    return value.map(function (v, k) {
-      return jsonReviver(k, v); // good job javascript!
-    });
-  }
-  return value;
-}
 
 var js_to_clio_type_map = function (type) {
   switch (type) {
@@ -410,6 +386,8 @@ builtins.string = lazy(async function (thing, colorize) {
       string = string.join(' ');
       string = `[${string}]`;
     }
+  } else if (typeof thing == 'object') {
+    string = JSON.stringify(thing); // TODO: better support for objects
   } else {
     string = thing.toString();
   }

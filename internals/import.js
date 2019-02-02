@@ -36,7 +36,7 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
 
 builtins.clio_require = clio_require;
 
-function do_import(file) {
+function do_import(file, direct) {
   var contents = fs.readFileSync(file, 'utf8');
   var tokens = lexer(contents);
   if (tokens[0] == false) {
@@ -69,7 +69,7 @@ function do_import(file) {
   return require(cache_file)({}, builtins, {source: contents, name: file_name}).catch(e => {throw e});  // because why not?
 }
 
-function clio_import(file) {
+function clio_import(file, direct) {
   if (!path.isAbsolute(file)) {
     var cwd = process.cwd();
     file = path.join(cwd, file);

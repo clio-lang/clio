@@ -6,6 +6,7 @@ const treeify = require('treeify');
 const lexer = require('./lexer/lexer');
 const parser = require('./parser/parser');
 const analyzer = require('./evaluator/analyzer');
+const clio_host = require('./host/host');
 const clio_import = require('./internals/import');
 const beautify = require('js-beautify').js;
 const highlight = require('./highlight');
@@ -54,7 +55,7 @@ function write_file(source, path) {
   fs.writeFileSync(path, source);
 }
 
-function process_file(file) {
+async function process_file(file) {
   fs.readFile(file, 'utf8', function(err, contents) {
 
     if (process.argv[2] == 'highlight') {
@@ -72,10 +73,19 @@ function process_file(file) {
           [ ] ^ try to remember that also
       */
       try {
-        return clio_import(file);
+        return clio_import(file, true);
       } catch (e) {
         return e.exit ? e.exit() : console.log(e);
       }
+    }
+
+    if (process.argv[2] == 'host') {
+      try {
+        var _module = clio_import(file, true);
+      } catch (e) {
+        return e.exit ? e.exit() : console.log(e);
+      }
+      return clio_host(_module);
     }
 
     var tokens = lexer(contents);
@@ -102,18 +112,18 @@ function process_file(file) {
 }
 
 if (process.argv.length <= 3) {
-    console.log("Usage: " + "clio" + " ast|compile|run|highlight SOURCE_FILE DEST_FILE?");
+    console.log("Usage: " + "clio" + " ast|compile|run|highlight|host SOURCE_FILE DEST_FILE?");
     process.exit(-1);
 }
 
-if (!['ast', 'compile', 'run', 'highlight'].includes(process.argv[2])) {
-  console.log("Usage: " + "clio" + " ast|compile|run|highlight SOURCE_FILE DEST_FILE?");
+if (!['ast', 'compile', 'run', 'highlight', 'host'].includes(process.argv[2])) {
+  console.log("Usage: " + "clio" + " ast|compile|run|highlight|host SOURCE_FILE DEST_FILE?");
   process.exit(-1);
 }
 
 if (process.argv[2] == 'compile') {
   if (process.argv.length <= 4) {
-      console.log("Usage: " + "clio" + " ast|compile|run|highlight SOURCE_FILE DEST_FILE?");
+      console.log("Usage: " + "clio" + " ast|compile|run|highlight|host SOURCE_FILE DEST_FILE?");
       process.exit(-1);
   }
 }

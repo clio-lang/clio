@@ -1,5 +1,2 @@
-@eager
-fn meow i:
-  #meow -> print
-
-meow -> interval 1000
+import heavy from http://localhost:3000
+[0:10] -> * heavy -> * print

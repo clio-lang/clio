@@ -1,0 +1,6 @@
+fn heavy n:
+  n ^ 100000000
+
+{
+  #exports: [#heavy]
+} => host
