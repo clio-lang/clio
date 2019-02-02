@@ -1,78 +1,22 @@
-class Generator {
-  constructor(fn, data, length) {
-    this.fn = fn;
-    this.data = data;
-    this.length = length;
-  }
-  get(i) {
-    return this.fn(i, this);
-  }
-  len() {
-    return this.length.constructor == Function ? this.length(this) : this.length;
-  }
-}
+const clio_import = require('../internals/import');
+const Decimal = require('decimal.js');
+const {value} = require('../internals/lazy')
 
-var a = new Generator(
-  (i, self) => self.data[i],
-  [1, 2, 3, 4],
-  self => self.data.length,
-);
+global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
+var clio_tests = clio_import('tests/test.clio');
 
-for (var i = 0; i < a.len(); i++) {
-  console.log(a.get(i));
-}
+test('Adding 1 + 1 equals 2', async () => {
+  expect(await value((await clio_tests).add(new Decimal(1), new Decimal(1)))).toEqual(new Decimal(2))
+})
 
-var r = new Generator(
-  (i, self) => self.data[0]+self.data[2]*i,
-  [10, 0, -1],
-  self => Math.abs((self.data[0]-self.data[1])/self.data[2]),
-);
+test('Twice 2 equals 4', async () => {
+  expect(await value((await clio_tests).double(new Decimal(2)))).toEqual(new Decimal(4))
+})
 
-for (var i = 0; i < r.len(); i++) {
-  console.log(r.get(i));
-}
+test('Fib 10 equals 55', async () => {
+  expect(await value((await clio_tests).fib(new Decimal(10)))).toEqual(new Decimal(55))
+})
 
-/*
-class Slicer {
-  constructor(_) {
-    this.start = _.start;
-    this.end   = _.end;
-    this.step  = _.step;
-  }
-  slice(data) {
-    var start = this.start || 0;
-    var end   = this.end || data.length;
-    data = data.slice(start, end);
-    // we'll take care of step later
-    return data;
-  }
-}
-
-function slice(data, slicers) {
-  var first = slicers.shift();
-  if (first.constructor == Slicer) {
-    data = first.slice(data);
-  } else {
-    data = data[first];
-  }
-  if (!slicers.length) {
-    return data;
-  }
-  return data.map(d => slice(d, slicers.slice()));
-}
-
-a =
-[
-  [[1, 2, 3], [1, 2, 3], [1, 2, 3]],
-  [[3, 4, 5], [3, 4, 5], [3, 5, 6]],
-  [[5, 6, 7], [5, 6, 7], [5, 6, 7]],
-]
-
-// a[1:3 1:3 1:3]
-
-console.log(
-  slice(a, [new Slicer({start:1, end:3}),
-            new Slicer({start:1, end:3}),
-            new Slicer({start:1, end:3})])
-);
-*/
+test('Index 10 of range is 20', async () => {
+  expect(await value((await value((await clio_tests).the_range)).get(new Decimal(10)))).toEqual(new Decimal(20))
+})
