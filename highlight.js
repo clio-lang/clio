@@ -38,7 +38,7 @@ function highlight(text) {
     },
     {color: chalk.gray, pattern: /^--.*?($|\n)/},
     {color: chalk.green, pattern: /^#[^\[\] \r\n]+/i},
-    {color: chalk.magenta, pattern: /^(fn|if|else|elif|return|not|or|and|transform|proc|import)(?![a-zA-Z_-])/},
+    {color: chalk.magenta, pattern: /^(fn|if|else|elif|return|not|or|and|transform|proc|import|from)(?![a-zA-Z_-])/},
     {color: chalk.yellow, pattern: /^(true|false)/},
     {color: chalk.cyan, pattern: /^(->|=>)/},
     {color: chalk.cyan, pattern: /^(!|!=|=|>|<|>=|<=)/},

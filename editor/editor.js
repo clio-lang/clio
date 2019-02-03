@@ -89,7 +89,7 @@ jQuery.fn.extend({
         },*/
         {class: 'comment', pattern: /^--.*?($|\n)/},
         {class: 'string', pattern: /^#[^\[\] \r\n]+/i},
-        {class: 'keyword', pattern: /^(fn|if|else|elif|return|not|or|and|transform|import)(?![a-zA-Z_-])/},
+        {class: 'keyword', pattern: /^(fn|if|else|elif|return|not|or|and|transform|import|from)(?![a-zA-Z_-])/},
         {class: 'builtin', pattern: /^(print|upper|map|pow|mul|add|div|sub)(?![a-zA-Z_-])/},
         {class: 'literal', pattern: /^(true|false)/},
         {class: 'operator', pattern: /^(->|=>)/},
