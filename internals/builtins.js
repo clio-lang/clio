@@ -386,9 +386,7 @@ builtins.string = lazy(async function (thing, colorize) {
       string = string.join(' ');
       string = `[${string}]`;
     }
-  } else if (typeof thing == 'object') {
-    string = JSON.stringify(thing); // TODO: better support for objects
-  } else {
+  } else {  // TODO: better support for objects
     string = thing.toString();
   }
   if (colorize) {
