@@ -249,7 +249,7 @@ builtins.starmap = function(a, f, args, file, trace) {
     return builtins.map(a, f, current_stack, ...args).catch(e => {exception_handler(e, {clio_stack: current_stack})});
 }
 
-builtins.filter = function(data, func) {
+builtins.filter = async function(data, func) {
     if (func.constructor == Generator) {
         var filter_data = func;
         func = function(n, i) {
@@ -341,26 +341,26 @@ builtins.gte = async function(a, b) {
     return a.gte(b);
 }
 
-builtins.cat = lazy(function() {
+builtins.cat = lazy(async function() {
     if (typeof arguments[0] == 'string') {
         return [...arguments].join('');
     }
 })
 
-builtins.head = lazy(function(a) {
+builtins.head = lazy(async function(a) {
     return a[0];
 })
 
-builtins.tail = lazy(function(a) {
+builtins.tail = lazy(async function(a) {
     return a.slice(1);
 })
 
-builtins.append = lazy(function(a, b) {
+builtins.append = lazy(async function(a, b) {
     a.push(b);
     return a;
 })
 
-builtins.length = lazy(function(a) {
+builtins.length = lazy(async function(a) {
     return a.length;
 })
 
@@ -403,7 +403,7 @@ builtins.print = async function(...args) {
     return args[0];
 }
 
-builtins.flat = lazy(function (a) {
+builtins.flat = lazy(async function (a) {
   var res = [];
   a.forEach(function (_a) {
     _a.forEach(function (__a) {
@@ -521,14 +521,14 @@ builtins.slice = lazy(async function (list, slicers, index) {
   return list.map(l => builtins.slice(l, slicers, index));
 })
 
-builtins.upper = lazy(function(a, b) {
+builtins.upper = lazy(async function(a, b) {
     if (b) {
         return a.toLocaleUpperCase(b);
     }
     return a.toUpperCase();
 })
 
-builtins['sentence-case'] = lazy(function(a, b) {
+builtins['sentence-case'] = lazy(async function(a, b) {
   if (b) {
       return a[0].toLocaleUpperCase(b) + a.slice(1);
   }
