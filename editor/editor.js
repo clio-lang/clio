@@ -89,7 +89,7 @@ jQuery.fn.extend({
         },*/
         {class: 'comment', pattern: /^--.*?($|\n)/},
         {class: 'string', pattern: /^#[^\[\] \r\n]+/i},
-        {class: 'keyword', pattern: /^(fn|if|else|elif|return|not|or|and|transform|proc)(?![a-zA-Z_-])/},
+        {class: 'keyword', pattern: /^(fn|if|else|elif|return|not|or|and|transform|import)(?![a-zA-Z_-])/},
         {class: 'builtin', pattern: /^(print|upper|map|pow|mul|add|div|sub)(?![a-zA-Z_-])/},
         {class: 'literal', pattern: /^(true|false)/},
         {class: 'operator', pattern: /^(->|=>)/},
@@ -100,6 +100,7 @@ jQuery.fn.extend({
         {class: 'number', pattern: /^(0|-?[1-9][0-9']*)(\.[0-9']+)?/},
         {class: 'symbol', pattern: /^[a-z_][a-z_0-9]*('s? )?/i},
         {class: 'string', pattern: /^('([^\\]|\\.)*?'|:\S+)/},
+        {class: 'string', pattern: /^https?:[^ \r\n]+/},
         {class: 'not-classified', pattern: /^\S+/},
         {class: 'new-line', pattern: /^(\r\n|[\r\n])/},
         {class: 'white-space', pattern: /\s+/},

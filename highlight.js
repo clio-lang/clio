@@ -48,6 +48,7 @@ function highlight(text) {
     {color: chalk.yellow, pattern: /^(0|-?[1-9][0-9']*)(\.[0-9']+)?/},
     {color: chalk.white, pattern: /^[a-z_][a-z_0-9]*('s? )?/i},
     {color: chalk.green, pattern: /^('([^\\]|\\.)*?'|:\S+)/},
+    {color: chalk.green, pattern: /^https?:[^ \r\n]+/},
     {color: chalk.white, pattern: /^\S+/},
     {color: chalk.white, pattern: /^(\r\n|[\r\n])/},
     {color: chalk.white, pattern: /\s+/},
