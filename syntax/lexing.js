@@ -22,7 +22,7 @@ const patterns = {
 
   import: /^import(?![a-zA-Z_-])/,
   from: /^from(?![a-zA-Z_-])/,
-  url: /^https?:[^ \r\n]+/,
+  url: /^(http|ws)s?:\/\/[^ \r\n]+/,
 
   comment: /^ *--[^\r\n]+/,
 

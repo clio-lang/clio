@@ -1,4 +1,5 @@
-module.exports = async function(scope, builtins, file, host) {
+module.exports = async function(scope, builtins, file) {
+    var ws_connections = [];
     builtins.define_function((function(scope) {
         var func = builtins.lazy(async function(n) {
             var scope = Object.assign({}, func.frozenscope);
@@ -20,7 +21,16 @@ module.exports = async function(scope, builtins, file, host) {
         func.frozenscope['recall'] = func;
         return func;
     })(scope), 'heavy', scope);
-    (scope['host'] = {
+    await (async function(__data) {
+        var fn = async function(...__data) {
+            return (scope['host'] = [...__data][0])
+        }
+        if (__data.is_reactive) {
+            return __data.set_listener(fn)
+        } else {
+            return await fn(__data)
+        }
+    })({
         'exports': new builtins.Generator(
             (i, self) => self.data[i],
             ['heavy'],

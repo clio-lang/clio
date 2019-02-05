@@ -32,6 +32,14 @@ var js_to_clio_type_map = function (type) {
   }
 }
 
+builtins.revive = function (str) {
+  return JSON.parse(str, jsonReviver);
+}
+
+builtins.replace = function (obj) {
+  return JSON.stringify(obj, jsonReplacer);
+}
+
 builtins.typeof = function (thing) {
   return thing.type || js_to_clio_type_map(thing.constructor) || thing.constructor;
 }
@@ -104,7 +112,26 @@ builtins.decorate_function = function (decorator, args, fn_name, overload, scope
   return decorated_fn;
 }
 
-builtins.cloud_call = async function(url, fn_name, args, kwargs) {
+builtins.ws_call = async function (ws, fn_name, args, kwargs) {
+  var id = ws.id++;
+  var data = JSON.stringify({
+    fn_name: fn_name,
+    args: args,
+    kwargs: kwargs,
+    id: id
+  }, jsonReplacer);
+  ws.socket.send(data);
+  var response = await new Promise(function(resolve, reject) {
+    ws.promises[id] = resolve;
+  });
+
+  if (response.stdout) {
+    console.log(response.stdout.replace(/\n$/, ''));
+  }
+  return response.result;
+}
+
+builtins.http_call = async function(url, fn_name, args, kwargs) {
 
   var data = JSON.stringify({
     fn_name: fn_name,

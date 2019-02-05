@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const {jsonReviver, jsonReplacer} = require('../internals/json');
 const {value} = require('../internals/lazy');
+const enableWs = require('express-ws');
 
 async function clio_host(scope, port) {
 
@@ -22,6 +23,7 @@ async function clio_host(scope, port) {
   } else {
       // Workers share the TCP connection in this server
       var app = express();
+      enableWs(app);
 
       app.use(body_parser.urlencoded({ extended: false }));
       app.use(body_parser.json({
@@ -37,6 +39,23 @@ async function clio_host(scope, port) {
         var result = await value(fn(...args));
         res.json({result: result})
       });
+
+      app.ws('/execute', (ws, req) => {
+          ws.on('message', async msg => {
+              var data = JSON.parse(msg, jsonReviver);
+              var fn_name = data.fn_name;
+              var args = data.args;
+              var fn = scope[fn_name];
+              var result = await value(fn(...args));
+              data = JSON.stringify({result: result, id: data.id}, jsonReplacer);
+              console.log(data);
+              ws.send(data);
+          })
+
+          ws.on('close', () => {
+              return
+          })
+      })
 
       // All workers use this port
       app.listen(port);

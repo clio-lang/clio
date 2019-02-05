@@ -231,19 +231,28 @@ function analyzer(tree, source) {
       var names_to_import = node.tokens.slice(0,-1).map(t => t.raw);
       var from = node.tokens[node.tokens.length - 1].tokens[0];
       if (from.name == 'url') {
-        var code = names_to_import.map(function (symbol) {
-          return `scope['${symbol}'] = builtins.lazy(function (...args) {
-            return builtins.cloud_call('${from.raw}', '${symbol}', args, {});
-          }, true);
-          scope['${symbol}.is_cloud'] = true`
-        }).join(';\n');
-      } else if (from.raw == 'host') {
-        var code = names_to_import.map(function (symbol) {
-          return `scope['${symbol}'] = builtins.lazy(function (...args) {
-            return builtins.cloud_call(host, '${symbol}', args, {});
-          }, true);
-          scope['${symbol}.is_cloud'] = true`
-        }).join(';\n');
+        if (from.raw.startsWith('http')) {
+          var code = names_to_import.map(function (symbol) {
+            return `scope['${symbol}'] = builtins.lazy(function (...args) {
+              return builtins.http_call('${from.raw}', '${symbol}', args, {});
+            }, true);`
+          }).join(';\n');
+        } else {
+          var conn = `ws_connections['${from.raw}'] = {socket: new WebSocket('${from.raw}/execute'), id: 0, promises: {}}`;
+          var listener = `ws_connections['${from.raw}'].socket.onmessage = function (event) {
+            var data = builtins.revive(event.data);
+            ws_connections['${from.raw}'].promises[data.id.toNumber()](data);
+          }
+          await new Promise(function (resolve, reject) {
+            ws_connections['${from.raw}'].socket.onopen = resolve;
+          })`
+          var code = names_to_import.map(function (symbol) {
+            return `scope['${symbol}'] = builtins.lazy(function (...args) {
+              return builtins.ws_call(ws_connections['${from.raw}'], '${symbol}', args, {});
+            }, true);`
+          }).join(';\n');
+          code = `${conn};\n${listener};\n${code}`;
+        }
       } else {
         var stringified_names_to_import = names_to_import.map(a => `'${a}'`).join(', ');
         var code = `await builtins.clio_require('${from.raw}', [${stringified_names_to_import}], __dirname, scope)`;
@@ -421,7 +430,7 @@ function analyzer(tree, source) {
       var variables = [];
       tokens.forEach(function (token) {
         if (token.type == 'setter') {
-          code = `(scope${token.code} = ${code})`;
+          code = `(scope${token.code} = [${code}][0])`;
           variables.push(token.code);
         } else if (token.type == 'filter') {
           code = `await builtins.filter([${code}], ${token.code})`;
@@ -1118,7 +1127,13 @@ function analyzer(tree, source) {
   var code = tree.map(t => t.code || t).join(';\n');
 
   var code = `module.exports = async function (scope, builtins, file) {
+    var ws_connections = [];
     ${code};
+    for (var server in ws_connections) {
+      if (ws_connections.hasOwnProperty(server)) {
+        ws_connections[server].socket.close()
+      }
+    }
     return scope;
   };`
 

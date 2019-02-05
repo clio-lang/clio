@@ -12,6 +12,7 @@ const beautify = require('js-beautify').js;
 const highlight = require('./highlight');
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
+global.WebSocket = require('websocket').w3cwebsocket; // same for WebSocket
 
 /******************************************************************************
   ULTIMATE TODO, IDEA AND BUG LIST
