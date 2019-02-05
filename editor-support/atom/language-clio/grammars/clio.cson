@@ -36,7 +36,8 @@
         'begin': '{'
         'end': '}'
         'patterns': [
-          'match': '([#A-Za-z0-9]+):'
+          'include': '$base'
+          'match': '([#A-Za-z0-9]+):' # FIXME
           'captures':
             {
               '1': {

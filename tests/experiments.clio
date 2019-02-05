@@ -1,0 +1,11 @@
+#emitter -> emitter => ee
+ee:#message -> upper -> print
+
+ee -> emit #message #hello
+ee -> emit #message #world
+
+@eager
+fn emit_message i ee:
+  #message -> cat '-' -> cat i -> emit ee #message @
+
+5000 -> interval emit_message ee

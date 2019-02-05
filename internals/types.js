@@ -14,6 +14,17 @@ class Property {
   }
 }
 
+class EventListener {
+  constructor(ee, ev) {
+    this.ee = ee;
+    this.ev = ev;
+    this.is_reactive = true;
+  }
+  set_listener(fn) {
+    return this.ee.on(this.ev, fn);
+  }
+}
+
 class Transform {
     constructor(func, index, star) {
         this.func = func;
@@ -118,3 +129,4 @@ exports.Property = Property;
 exports.AtSign = AtSign;
 exports.Transform = Transform;
 exports.Decimal = Decimal;
+exports.EventListener = EventListener;

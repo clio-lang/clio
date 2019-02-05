@@ -79,7 +79,7 @@ class lazy_call {
     this.args = await Promise.all(this.args).catch(e => exception_handler(e, self));
     this.args = await value(this.args).catch(e => exception_handler(e, self));
     var result = await this.fn(...this.args).catch(e => exception_handler(e, self));
-    if (result.constructor == lazy_call) {
+    if (result && result.constructor == lazy_call) {
       if (result.clio_stack) {
         result.prev = this
         /*if (this.clio_stack) {

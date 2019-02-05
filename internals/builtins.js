@@ -1,7 +1,9 @@
 var { lazy, value, lazy_call } = require('../internals/lazy');
-var { Transform, AtSign, Decimal, Generator, Property } = require('../internals/types');
+var { Transform, AtSign, Decimal, Generator, Property, EventListener } = require('../internals/types');
 const {jsonReviver, jsonReplacer} = require('../internals/json');
 const {throw_error, exception_handler} = require('../common');
+
+const EventEmitter = require('events');
 
 var builtins = {};
 
@@ -191,7 +193,7 @@ builtins.funcall = async function(data, args, func, file, trace) {
     if (func_call.constructor == Promise) {
       func_call = await func_call.catch(handler);
     }
-    if (func_call.constructor == builtins.lazy_call) {
+    if (func_call && func_call.constructor == builtins.lazy_call) {
       func_call.clio_stack = current_stack;
     }
     return func_call;
@@ -548,11 +550,23 @@ builtins.timeout = function(fn, time) {
   return setTimeout(fn, time.toNumber())
 }
 
-builtins.interval = function(fn, time) {
+builtins.interval = function(time, fn, ...args) {
   var i = 0;
   return setInterval(function () {
-    fn(i++)
+    fn(i++, ...args)
   }, time.toNumber())
 }
+
+builtins.emitter = async function(name) {
+  var ee = new EventEmitter();
+  ee.name = name;
+  return ee;
+}
+
+builtins.emit = async function(ee, ev, ...args) {
+  ee.emit(ev, ...args)
+}
+
+builtins.EventListener = EventListener;
 
 module.exports = builtins;

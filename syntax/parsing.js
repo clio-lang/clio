@@ -213,13 +213,18 @@ const matchers = {
       {name: 'rbra', count: 1},
     ], i, tokens);
   },*/
+  event: function(i, tokens) {
+    return helpers.isSeq([
+      {name: ['symbol', 'slice', 'property_access'], count: 1},
+      {name: 'colon', count: 1},
+      {name: ['symbol', 'string', 'word', 'property_access', 'slice'], count: 1},
+    ], i, tokens)
+  },
   hash_map: function (i, tokens) {
     return helpers.isWrappedRepeat('lcbr', 'rcbr', [
       {name: ['_', '_n', '^'], count: 0, opt: true},
       {name: ['symbol', 'property_access', 'number', 'string', 'word', 'bool'], count: 1},
-      {name: ['_'], count: 0, opt: true},
-      {name: ['colon'], count: 1},
-      {name: ['_'], count: 0, opt: true},
+      {name: ['_'], count: 0},
       {name: ['symbol', 'property_access', 'number', 'list', 'empty_list', 'string', 'word', 'bool', 'wrapped_math', 'range', 'stepped_range'], count: 1},
       {name: ['_', '_n', '^'], count: 0, opt: true},
     ], i, tokens)
@@ -604,7 +609,7 @@ const matchers = {
   },
   flow: function (i, tokens) {
     return helpers.isSeq([
-      {name: ['symbol', 'property_access', 'list', 'empty_list', 'slice', 'hash_map',
+      {name: ['symbol', 'property_access', 'list', 'empty_list', 'slice', 'hash_map', 'event',
               'range', 'stepped_range', 'string', 'word', 'number', 'bool', 'wrapped_flow',
               'math', 'if_fun_call', 'wrapped_math', 'atsign', 'slice', 'notexpr'], count: 0, sep: ['_'],
               enders: ['setter', 'mapper', 'starmapper', 'naked_mapper', 'naked_star_mapper', '_n', '^',

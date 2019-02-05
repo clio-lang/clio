@@ -399,6 +399,13 @@ function analyzer(tree, source) {
         code: `(new builtins.Transform(${func_code}, ${index}, false))`
       }
     },
+    event: function (node) {
+      var ee = analyze(node.tokens[0]).code;
+      var ev = analyze(node.tokens[1]).code;
+      return {
+        code: `(new builtins.EventListener(${ee}, ${ev}))`
+      }
+    },
     flow: function (node) {
       var tokens = analyze(node.tokens);
       var data = [];
@@ -410,7 +417,7 @@ function analyzer(tree, source) {
         data.push(tokens.shift());
       }
       data = data.map(d => d.code).join(', ');
-      var code = `${data}`;
+      var code = `...__data`;
       var variables = [];
       tokens.forEach(function (token) {
         if (token.type == 'setter') {
@@ -434,6 +441,16 @@ function analyzer(tree, source) {
           code = `await builtins.funcall([${code}], ${token.code[1]}, ${token.code[0]}, file, {index: ${token.fnindex}, fn: '${token.fn}'})`;
         }
       })
+      code = `await (async function(__data) {
+        var fn = async function (...__data) {
+          return ${code}
+        }
+        if (__data.is_reactive) {
+          return __data.set_listener(fn)
+        } else {
+          return await fn(__data)
+        }
+      })(${data})`
       return {
         code: code,
         vars: variables
