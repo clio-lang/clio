@@ -23,7 +23,7 @@ module.exports = async function(scope, builtins, file) {
     })(scope), 'heavy', scope);
     await (async function(__data) {
         var fn = async function(...__data) {
-            return (scope['host'] = [...__data][0])
+            return (await builtins.update_vars(scope, ['host'], ...__data))
         }
         if (__data.is_reactive) {
             return __data.set_listener(fn)
@@ -37,5 +37,10 @@ module.exports = async function(scope, builtins, file) {
             self => self.data.length,
         )
     });
+    for (var server in ws_connections) {
+        if (ws_connections.hasOwnProperty(server)) {
+            ws_connections[server].socket.close()
+        }
+    }
     return scope;
 };

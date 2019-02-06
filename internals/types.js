@@ -1,6 +1,6 @@
 const { lazy_call, value, lazy } = require('./lazy');
-
-var Decimal = require('decimal.js');
+const EventEmitter = require('events');
+const Decimal = require('decimal.js');
 
 class AtSign {
   constructor(index) {
@@ -22,6 +22,23 @@ class EventListener {
   }
   set_listener(fn) {
     return this.ee.on(this.ev, fn);
+  }
+}
+
+class Broadcast {
+  constructor(data) {
+    this.emitter = new EventEmitter();
+    this._data = data;
+  }
+  set data(data) {
+    this.emitter.emit('data', data);
+    this._data = data;
+  }
+  on(ev, fn) {
+    return this.emitter.on(ev, fn);
+  }
+  off(ev, fn) {
+    return this.emitter.off(ev, fn);
   }
 }
 
@@ -130,3 +147,4 @@ exports.AtSign = AtSign;
 exports.Transform = Transform;
 exports.Decimal = Decimal;
 exports.EventListener = EventListener;
+exports.Broadcast = Broadcast;

@@ -1,5 +1,5 @@
 var { lazy, value, lazy_call } = require('../internals/lazy');
-var { Transform, AtSign, Decimal, Generator, Property, EventListener } = require('../internals/types');
+var { Transform, AtSign, Decimal, Generator, Property, EventListener, Broadcast } = require('../internals/types');
 const {jsonReviver, jsonReplacer} = require('../internals/json');
 const {throw_error, exception_handler} = require('../common');
 
@@ -30,6 +30,21 @@ var js_to_clio_type_map = function (type) {
     default:
 
   }
+}
+
+builtins.broadcast = async function (data) {
+  return new Broadcast(data);
+}
+
+builtins.update_vars = async function (scope, key, val) {
+  key = key[0];
+  if (scope[key]) {
+    var variable = await value(scope[key]);
+    if (variable.constructor == Broadcast) {
+      return variable.data = val;
+    }
+  }
+  return scope[key] = val;
 }
 
 builtins.revive = function (str) {
@@ -112,13 +127,58 @@ builtins.decorate_function = function (decorator, args, fn_name, overload, scope
   return decorated_fn;
 }
 
+builtins.setup_ws = async function (connections, host) {
+  connections[host] = {socket: new WebSocket(`${host}/connect`), id: 0, promises: {}, broadcasts: {}}
+  connections[host].socket.onmessage = function (event) {
+    var data = builtins.revive(event.data);
+    if (data.id) {
+      connections[host].promises[data.id.toNumber()](data);
+    } else if (data.service) {
+      if (data.service == 'update') {
+        if (data.broadcast) {
+          var broadcast = connections[host].broadcasts[data.broadcast];
+          broadcast.data = data.data;
+        }
+      }
+    }
+  }
+  // TODO: reconnect on close
+  await new Promise(function (resolve, reject) {
+    connections[host].socket.onopen = resolve;
+  })
+}
+
+builtins.ws_get = async function (ws, key) {
+  var id = ws.id++;
+  var data = JSON.stringify({
+    key: key,
+    id: id,
+    method: 'get',
+  }, jsonReplacer);
+  ws.socket.send(data);
+  var response = await new Promise(function(resolve, reject) {
+    ws.promises[id] = resolve;
+  });
+  var type = response.type;
+  if (type == 'function') {
+    return builtins.lazy(async function (...args) {
+      return builtins.ws_call(ws, key, args, {});
+    }, true);
+  } else if (type == 'broadcast') {
+    var broadcast = new Broadcast();
+    ws.broadcasts[key] = broadcast;
+    return broadcast;
+  }
+}
+
 builtins.ws_call = async function (ws, fn_name, args, kwargs) {
   var id = ws.id++;
   var data = JSON.stringify({
     fn_name: fn_name,
     args: args,
     kwargs: kwargs,
-    id: id
+    id: id,
+    method: 'execute',
   }, jsonReplacer);
   ws.socket.send(data);
   var response = await new Promise(function(resolve, reject) {
@@ -580,7 +640,7 @@ builtins.timeout = function(fn, time) {
 builtins.interval = function(time, fn, ...args) {
   var i = 0;
   return setInterval(function () {
-    fn(i++, ...args)
+    fn(new Decimal(i++), ...args)
   }, time.toNumber())
 }
 

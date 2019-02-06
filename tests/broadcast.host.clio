@@ -1,0 +1,13 @@
+--- server
+
+data -> broadcast => source
+
+@eager
+fn put i source:
+  i => source
+
+1000 -> interval put source
+
+{
+  #exports [#source]
+} => host

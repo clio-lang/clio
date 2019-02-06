@@ -8,9 +8,14 @@ const {jsonReviver, jsonReplacer} = require('../internals/json');
 const {value} = require('../internals/lazy');
 const enableWs = require('express-ws');
 
+var { Transform, AtSign, Decimal, Generator, Property, EventListener, Broadcast } = require('../internals/types');
+
 async function clio_host(scope, port) {
 
   scope = await scope;
+  var config = await scope.host;
+  var exported = {};
+  await config.exports.map(async e => {exported[e] = scope[e]});
 
   if (!port) {
     port = 3000;
@@ -40,20 +45,50 @@ async function clio_host(scope, port) {
         res.json({result: result})
       });
 
-      app.ws('/execute', (ws, req) => {
+      app.connected = {}
+      app.no_connected = 0;
+
+      app.ws('/connect', (ws, req) => {
+
+          var cleanups = [];
+
           ws.on('message', async msg => {
               var data = JSON.parse(msg, jsonReviver);
-              var fn_name = data.fn_name;
-              var args = data.args;
-              var fn = scope[fn_name];
-              var result = await value(fn(...args));
-              data = JSON.stringify({result: result, id: data.id}, jsonReplacer);
-              console.log(data);
-              ws.send(data);
+              var method = data.method;
+              if (method == 'execute') {
+                var fn_name = data.fn_name;
+                var args = data.args;
+                var fn = scope[fn_name];
+                var result = await value(fn(...args));
+                data = JSON.stringify({result: result, id: data.id}, jsonReplacer);
+                ws.send(data);
+              } else if (method == 'get') {
+                var key = data.key;
+                var val = await value(scope[key]);
+                var constructor = val.constructor;
+                var type;
+                if (constructor == Function) {
+                  type = 'function';
+                } else if (constructor == Broadcast) {
+                  type = 'broadcast';
+                  // subscribe this client
+                  var fn = function (data) {
+                    return ws.send(
+                      JSON.stringify({service: 'update', broadcast: key, data: data}, jsonReplacer)
+                    )
+                  }
+                  val.on('data', fn);
+                  cleanups.push(function () {
+                    val.off('data', fn);
+                  })
+                }
+                data = JSON.stringify({type: type, id: data.id}, jsonReplacer);
+                ws.send(data)
+              }
           })
 
           ws.on('close', () => {
-              return
+              cleanups.forEach(cleanup => cleanup());
           })
       })
 

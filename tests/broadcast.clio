@@ -1,0 +1,4 @@
+--- client
+import source from ws://localhost:3000
+
+source:#data -> print 'Seconds since start:' @

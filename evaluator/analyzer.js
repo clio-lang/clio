@@ -238,20 +238,12 @@ function analyzer(tree, source) {
             }, true);`
           }).join(';\n');
         } else {
-          var conn = `ws_connections['${from.raw}'] = {socket: new WebSocket('${from.raw}/execute'), id: 0, promises: {}}`;
-          var listener = `ws_connections['${from.raw}'].socket.onmessage = function (event) {
-            var data = builtins.revive(event.data);
-            ws_connections['${from.raw}'].promises[data.id.toNumber()](data);
-          }
-          await new Promise(function (resolve, reject) {
-            ws_connections['${from.raw}'].socket.onopen = resolve;
-          })`
+          var conn = `await builtins.setup_ws(ws_connections, '${from.raw}')`;
+          // it may not be a function, this should be considered!
           var code = names_to_import.map(function (symbol) {
-            return `scope['${symbol}'] = builtins.lazy(function (...args) {
-              return builtins.ws_call(ws_connections['${from.raw}'], '${symbol}', args, {});
-            }, true);`
+            return `scope['${symbol}'] = await builtins.ws_get(ws_connections['${from.raw}'], '${symbol}');`
           }).join(';\n');
-          code = `${conn};\n${listener};\n${code}`;
+          code = `${conn};${code}`;
         }
       } else {
         var stringified_names_to_import = names_to_import.map(a => `'${a}'`).join(', ');
@@ -430,7 +422,7 @@ function analyzer(tree, source) {
       var variables = [];
       tokens.forEach(function (token) {
         if (token.type == 'setter') {
-          code = `(scope${token.code} = [${code}][0])`;
+          code = `(await builtins.update_vars(scope, ${token.code}, ${code}))`;
           variables.push(token.code);
         } else if (token.type == 'filter') {
           code = `await builtins.filter([${code}], ${token.code})`;
@@ -1131,7 +1123,9 @@ function analyzer(tree, source) {
     ${code};
     for (var server in ws_connections) {
       if (ws_connections.hasOwnProperty(server)) {
-        ws_connections[server].socket.close()
+        if (ws_connections[server].broadcasts == {}) {
+          ws_connections[server].socket.close()
+        }
       }
     }
     return scope;
