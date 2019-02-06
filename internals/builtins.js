@@ -185,6 +185,11 @@ builtins.ws_call = async function (ws, fn_name, args, kwargs) {
     ws.promises[id] = resolve;
   });
 
+  // ws supports broadcasts, check
+  if (response.result.constructor == Broadcast) {
+    ws.broadcasts[response.result.uuid] = response.result;
+  }
+
   if (response.stdout) {
     console.log(response.stdout.replace(/\n$/, ''));
   }

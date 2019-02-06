@@ -404,7 +404,7 @@ function analyzer(tree, source) {
       var ee = analyze(node.tokens[0]).code;
       var ev = analyze(node.tokens[1]).code;
       return {
-        code: `(new builtins.EventListener(${ee}, ${ev}))`
+        code: `(new builtins.EventListener(await builtins.value(${ee}), ${ev}))`
       }
     },
     async_flow: function (node) {

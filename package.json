@@ -22,6 +22,7 @@
     "stacktrace-js": "^2.0.0",
     "treeify": "^1.1.0",
     "unescape-js": "^1.1.0",
+    "uuid": "^3.3.2",
     "websocket": "^1.0.28"
   },
   "devDependencies": {

@@ -1,4 +1,4 @@
-var { Decimal } = require('../internals/types');
+var { Decimal, Broadcast } = require('../internals/types');
 
 function jsonReplacer(key, value) {
   if (value.toNumber) {
@@ -8,6 +8,9 @@ function jsonReplacer(key, value) {
     return value.map(function (v, k) {
       return jsonReplacer(k, v); // good job javascript!
     });
+  }
+  if (value.constructor == Broadcast) {
+    return `clio::broadcast::${value.uuid}`; // this only works for host, // FIXME
   }
   if (value.constructor == Object) {
     var result = {};
@@ -30,6 +33,11 @@ function jsonReviver(key, value) {
     if (value.startsWith('number::')) {
       value = value.slice(8);
       return Decimal(value);
+    } else if (value.startsWith('broadcast::')) {
+      value = value.slice(11);
+      var broadcast = new Broadcast();
+      broadcast.uuid = value;
+      return broadcast;
     }
   }
   if (value.constructor == Array) {

@@ -1,4 +1,9 @@
 --- client
-import source from ws://localhost:3000
+import source counter from ws://localhost:3000
 
-source:#data -> print 'Seconds since start:' @
+--source:#data -> print 'Seconds since start:' @
+100 -> counter => c1
+1000 -> counter => c2
+
+c1:#data -> print 'c1 tick:' @
+c2:#data -> print 'c2 tick:' @

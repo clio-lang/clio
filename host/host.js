@@ -7,8 +7,19 @@ const fs = require('fs');
 const {jsonReviver, jsonReplacer} = require('../internals/json');
 const {value} = require('../internals/lazy');
 const enableWs = require('express-ws');
+const uuid4 = require('uuid/v4');
 
 var { Transform, AtSign, Decimal, Generator, Property, EventListener, Broadcast } = require('../internals/types');
+
+function find_broadcasts(obj) {
+  // currently only checks if obj is a broadcast
+  // we should support Clio Generators to check
+  // for more complex data types
+  if (obj.constructor == Broadcast) {
+    return [obj]
+  }
+  return []
+}
 
 async function clio_host(scope, port) {
 
@@ -51,6 +62,7 @@ async function clio_host(scope, port) {
       app.ws('/connect', (ws, req) => {
 
           var cleanups = [];
+          var broadcasts = {};
 
           ws.on('message', async msg => {
               var data = JSON.parse(msg, jsonReviver);
@@ -60,6 +72,28 @@ async function clio_host(scope, port) {
                 var args = data.args;
                 var fn = scope[fn_name];
                 var result = await value(fn(...args));
+                var result_broadcasts = find_broadcasts(result);
+                result_broadcasts.forEach(function (broadcast) {
+                  // these are passed by reference, so it's safe
+                  // to assign the uuid like this
+                  var uuid = uuid4();
+                  while (broadcasts.hasOwnProperty(uuid)) {
+                    uuid = uuid4(); // to avoid collisions!
+                    // althought it may exist on client!
+                  }
+                  broadcast.uuid = uuid;
+                  broadcasts.uuid = broadcast;
+                  var fn = async function (data) {
+                    data = await value(data);
+                    return ws.send(
+                      JSON.stringify({service: 'update', broadcast: uuid, data: data}, jsonReplacer)
+                    )
+                  }
+                  broadcast.on('data', fn);
+                  cleanups.push(function () {
+                    broadcast.off('data', fn);
+                  });
+                });
                 data = JSON.stringify({result: result, id: data.id}, jsonReplacer);
                 ws.send(data);
               } else if (method == 'get') {
@@ -67,12 +101,13 @@ async function clio_host(scope, port) {
                 var val = await value(scope[key]);
                 var constructor = val.constructor;
                 var type;
-                if (constructor == Function) {
+                if (val instanceof Function) {
                   type = 'function';
                 } else if (constructor == Broadcast) {
                   type = 'broadcast';
                   // subscribe this client
-                  var fn = function (data) {
+                  var fn = async function (data) {
+                    data = await value(data);
                     return ws.send(
                       JSON.stringify({service: 'update', broadcast: key, data: data}, jsonReplacer)
                     )
