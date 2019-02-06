@@ -170,7 +170,7 @@ const helpers = {
       var non_importants_raw = [
         '_', '_n', '^', 'map', 'set', 'indent', 'dedent', 'filt', 'not', 'proc', 'import', 'from',
         'lbra', 'rbra', 'colon', 'if', 'else', 'elif', 'fn', 'lpar', 'rpar', 'dot', 'comma', 'type', 'of', 'as',
-        'lcbr', 'rcbr'
+        'lcbr', 'rcbr', 'async'
       ];
       var non_importants_token = ['starmap'];
       var res_tokens = tokens.slice(start, end).filter(function (obj) {

@@ -407,6 +407,11 @@ function analyzer(tree, source) {
         code: `(new builtins.EventListener(${ee}, ${ev}))`
       }
     },
+    async_flow: function (node) {
+      var flow = analyze(node.tokens[0]);
+      flow.code = flow.code.replace(/^await /, '');
+      return flow;
+    },
     flow: function (node) {
       var tokens = analyze(node.tokens);
       var data = [];

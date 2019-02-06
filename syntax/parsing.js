@@ -607,6 +607,13 @@ const matchers = {
       {name: ['block', 'string', 'word', 'number', 'list', 'symbol', 'property_access', 'self_property_access', 'math', 'slice', 'notexpr'], count: 1}
     ], i, tokens)
   },
+  async_flow: function (i, tokens) {
+    return helpers.isSeq([
+      {name: 'async', count: 1},
+      {name: '_', count: 0},
+      {name: 'flow', count: 1},
+    ], i, tokens)
+  },
   flow: function (i, tokens) {
     return helpers.isSeq([
       {name: ['symbol', 'property_access', 'list', 'empty_list', 'slice', 'hash_map', 'event',

@@ -8,6 +8,7 @@ const patterns = {
   fn: /^fn(?![a-zA-Z_-])/,
   //proc: /^proc(?![a-zA-Z_-])/,
   return: /^return(?![a-zA-Z_-])/,
+  async: /^async(?![a-zA-Z_-])/,
   if: /^if(?![a-zA-Z_-])/,
   elif: /^elif(?![a-zA-Z_-])/,
   else: /^else(?![a-zA-Z_-])/,
