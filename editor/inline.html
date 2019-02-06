@@ -2,26 +2,44 @@
   <head>
     <title>Clio Inline</title>
     <meta content="">
+    <style>
+      html, body {
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+        padding: 0;
+        margin: 0;
+      }
+      body {
+        padding-top: 2em;
+      }
+      #container {
+        width: 100%;
+        height: 100%;
+        font-size: 4em;
+        padding: 4em;
+        text-align: center;
+        box-sizing: border-box;
+      }
+    </style>
   </head>
   <body>
+    <div id="container">
+      <div id="message"> Currently on the server: </div>
+      <div id="counter"></div>
+    </div>
     <script type="text/clio">
 
-#body -> $ -> fn body:
-  [#clio #is #awesome] -> * fn t:
-    #<div> -> $ -> text t -> appendTo body
--> * eval
+import source from ws://localhost:3000
+source:#data -> update_dom
 
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
-    <script src="clio.js"></script>
     <script>
-
-(function (body) {
-  ['js', 'is', 'meeeeeh'].map(function (t) {
-    $('<div>').text(t).appendTo(body);
-  })
-})($('body'))
-
+      async function update_dom(i) {
+        $('#counter').text(i);
+      }
     </script>
+    <script src="clio.js"></script>
   </body>
 </html>

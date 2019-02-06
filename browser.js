@@ -53,6 +53,18 @@ async function clio_process_source(source, out, info, printfn) {
           printfn(...args);
           return args[0];
       }
+      builtins.get_symbol = function(key, scope) {
+        if (scope.hasOwnProperty(key)) {
+          return scope[key]
+        }
+        if (builtins.hasOwnProperty(key)) {
+          return builtins[key];
+        }
+        if (window.hasOwnProperty(key)) {
+          return window[key];
+        }
+        return new builtins.Property(key);
+      }
       await module.exports({$: $}, builtins);
     }
     var t4 = (new Date).getTime();
@@ -73,6 +85,6 @@ window.clio_process_source = clio_process_source;
 document.addEventListener("DOMContentLoaded", function() {
   document.querySelectorAll('script[type="text/clio"]').forEach(function (el) {
     var source = el.innerHTML;
-    clio_process_source(source, 'run', false);
+    clio_process_source(source, 'run', false, console.log);
   });
 });
