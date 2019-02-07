@@ -1,5 +1,0 @@
-*.swp
-misc/
-node_modules/
-npm-debug.log
-.ipynb_checkpoints/

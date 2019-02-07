@@ -1,5 +1,0 @@
-fn fib n:
-  if n < 2: n
-  else: (n - 1 -> fib) + (n - 2 -> fib)
-
-[0:10] -> * fib -> print
