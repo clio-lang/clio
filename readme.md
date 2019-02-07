@@ -17,20 +17,20 @@ This repo contains code for the Clio parser and analyzer, the code highlighter a
 ## Links
 
 *	[Clio on Rosetta Code](http://rosettacode.org/wiki/Clio)
-*	[Quick Guide](https://pouya-eghbali.github.io/clio/docs/quick.html)
-*	[Web IDE](https://pouya-eghbali.github.io/clio/editor/)
-*	[Browser Bundle Size Graph](https://pouya-eghbali.github.io/clio/editor/breakdown.html)
+*	[Quick Guide](https://clio-lang.github.io/clio-docs/quick.html)
+*	[Web IDE](https://clio-lang.github.io/clio-editor/)
+*	[Browser Bundle Size Graph](https://clio-lang.github.io/clio-editor/breakdown.html)
 *	[Clio on Trello](https://trello.com/b/WpwsB69B/clio)
 *	[Clio Chat (on Telegram)](https://t.me/joinchat/B0kZo0kVldfXldTDqz95XA)
 
 ## Examples
 
-You can check the examples in [./examples](https://github.com/pouya-eghbali/clio/tree/master/examples) or you can check
+You can check the examples in [examples repository](https://github.com/clio-lang/examples) or you can check
 [Clio on Rosetta Code](http://rosettacode.org/wiki/Clio).
 
 ## Quick Guide
 
-Clio isn't recognized by github as a language and it doesn't have correct syntax highlighting on github, please visit [Clio Quick Guide web-page](https://pouya-eghbali.github.io/clio/docs/quick.html) for the quick guide, the Clio editor and embedded browser compiler.
+Clio isn't recognized by github as a language and it doesn't have correct syntax highlighting on github, please visit [Clio Quick Guide web-page](https://clio-lang.github.io/clio-docs/quick.html) for the quick guide, the Clio editor and embedded browser compiler.
 
 Please note this web page isn't that good looking on mobile devices as I have more important concerns with Clio at the moment.
 
@@ -69,7 +69,7 @@ For a list of what's done and what's planned you can check [Clio on Trello](http
 
 To install, download or clone this repository:
 
-	git clone https://github.com/pouya-eghbali/clio
+	git clone https://github.com/clio-lang/clio
 
 You need NodeJS [latest version] and Clio dependencies. To install Clio dependencies in the project directory, do
 
