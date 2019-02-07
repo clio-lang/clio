@@ -1,11 +1,84 @@
-fn double n:
-  n * 2
+2 => a
+3 => b
 
-fn add a b:
-  a + b
+a + b => a_plus_b
+a - b => a_minus_b
+a * b => a_mul_b
+a / b => a_div_b
+a ^ b => a_pow_b
+a % b => a_mod_b
+
+a -> add 1 -> mul 2 -> pow 3 => chain
 
 fn fib n:
   if n < 2: n
-  else: (n - 1  -> fib) + (n - 2 -> fib)
+  else: (n - 1 -> fib) + (n - 2 -> fib)
 
-[0:100] -> * double => the_range
+[1 2 3 4 5] -> * fib => fib_of_list
+[1:5] -> * fib => fib_of_range
+
+true => t
+false => f
+
+t and f => t_and_f
+t or f => t_or_f
+not t => not_t
+not f => not_f
+
+a -> add 1 (transform i: i * 2) => transform_a
+
+import heavy from http://localhost:3000
+a -> heavy => a_heavy
+
+import double from ws://localhost:3000
+a -> double => a_double
+
+{
+  #key #value
+} => hash_map
+
+a -> pow 3 @ => a_pos
+
+#emitter -> emitter => ee
+
+@eager
+fn emit_message ee message:
+  ee -> emit #message message
+
+#data -> broadcast => br
+
+@eager
+fn broadcast_message br message:
+  message => br
+
+[0:100][50] => range_slice
+[0 1 2 3 4 5][1] => list_slice
+
+[0:4] -> * (@eager) fn i:
+  i * 2
+=> eager_map
+
+[0:4] -> * fn i:
+  i * 2
+=> lazy_map
+
+10 => number
+
+if number = 8:
+  '=8' => number_is
+elif number > 10:
+  '>10' => number_is
+elif number < 10:
+  '<10' => number_is
+else:
+  '=10' => number_is
+
+10 -> if = 8: '=8'
+   elif > 10: '>10'
+   elif < 10: '<10'
+        else: '=10'
+   => other_is
+
+8 => eight
+if eight = 8:
+  true => eight_is_eight

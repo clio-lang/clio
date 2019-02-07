@@ -1,6 +1,9 @@
 fn heavy n:
-  n ^ 100000000
+  n ^ 10 -- not so heavy
+
+fn double n:
+  n * 2
 
 {
-  #exports [#heavy]
+  #exports [#heavy #double]
 } => host

@@ -26,19 +26,6 @@ class ClioException extends Error {
   }
 }
 
-function extend_array(a, b) {
-  if (!a) {
-    return b ? b : [];
-  }
-  if (!b) {
-    return a ? a : [];
-  }
-  for (var i = 0; i < b.length; i++) {
-    a.push(b[i])
-  }
-  return a;
-}
-
 function exception_handler(e, call) {
   if (e.constructor != ClioException) {
     e = new ClioException(e, call);
@@ -146,4 +133,3 @@ exports.throw_error = throw_error;
 exports.exception_handler = exception_handler;
 exports.ClioException = ClioException;
 exports.cast_to_bool = cast_to_bool;
-exports.extend_array = extend_array;

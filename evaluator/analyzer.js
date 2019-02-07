@@ -115,8 +115,8 @@ function analyzer(tree, source) {
     },
     and_or_expr: function (node) {
       var tokens = analyze(node.tokens);
-      var left = tokens[0].code;
-      var right = tokens[2].code;
+      var left = tokens[0].code.replace(/ *;+ *$/, '');
+      var right = tokens[2].code.replace(/ *;+ *$/, '');
       var cmp = tokens[1];
       return {
         code: `((${left}) ${cmp} (${right}))`

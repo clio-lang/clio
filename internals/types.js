@@ -57,44 +57,6 @@ class Transform {
     }
 }
 
-class LazyRange {
-  constructor(start, end, step, functor) {
-    this.start = start;
-    this.end = end;
-    this.step = step;
-    this.functor = functor || this.default_functor;
-  }
-  async get(index) {
-    var val = await this.functor(index, this);
-    return val;
-  }
-  length() {
-    return ((this.end.sub(this.start)).div(this.step)).floor().abs().add(1);
-  }
-  default_functor(index, obj) {
-    return obj.start.add(obj.step.mul(index));
-  }
-  async map(fn) {
-    if (!fn.is_lazy) {
-      var result = [];
-      for (var i = 0; i < this.length(); i++) {
-        result.push(await fn(await value(await this.get(i))));
-      }
-    } else {
-      var functor = this.functor;
-      var result = new LazyRange(
-        this.start,
-        this.end,
-        this.step,
-        function (index, obj) {
-          return fn(functor(index, obj));
-        }
-      )
-    }
-    return result;
-  }
-}
-
 class Generator {
   constructor(getter, data, length) {
     this.getter = getter;

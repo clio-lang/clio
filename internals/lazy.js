@@ -1,6 +1,6 @@
 // laziness for clio
 
-const {exception_handler, extend_array} = require('../common');
+const {exception_handler} = require('../common');
 const md5 = require('./md5');
 
 MemoizeID = 0;
@@ -82,10 +82,6 @@ class lazy_call {
     if (result && result.constructor == lazy_call) {
       if (result.clio_stack) {
         result.prev = this
-        /*if (this.clio_stack) {
-          // -> this is slow asf!
-          result.clio_stack = extend_array(result.clio_stack, this.clio_stack);
-        }*/
       } else {
         result.clio_stack = this.clio_stack;
         result.prev = this.prev

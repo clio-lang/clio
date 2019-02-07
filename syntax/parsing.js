@@ -607,6 +607,22 @@ const matchers = {
       {name: ['block', 'string', 'word', 'number', 'list', 'symbol', 'property_access', 'self_property_access', 'math', 'slice', 'notexpr'], count: 1}
     ], i, tokens)
   },
+  notexpr: function (i, tokens) {
+    return helpers.isSeq([
+      {name: ['not'], count: 1},
+      {name: ['_'], count: 0},
+      {name: ['cmpexpr', 'string', 'symbol', 'property_access', 'list', 'word', 'wrapped_flow', 'wrapped_math', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'bool', 'slice', 'math'], count: 1},
+    ], i, tokens);
+  },
+  and_or_expr: function (i, tokens) {
+    return helpers.isSeq([
+      {name: ['cmpexpr', 'string', 'symbol', 'property_access', 'list', 'word', 'wrapped_flow', 'wrapped_math', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'bool', 'slice', 'math'], count: 1},
+      {name: ['_'], count: 0},
+      {name: ['and', 'or'], count: 1},
+      {name: ['_'], count: 0},
+      {name: ['cmpexpr', 'string', 'symbol', 'property_access', 'list', 'word', 'wrapped_flow', 'wrapped_math', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'bool', 'slice', 'math'], count: 1},
+    ], i, tokens);
+  },
   async_flow: function (i, tokens) {
     return helpers.isSeq([
       {name: 'async', count: 1},
@@ -618,7 +634,7 @@ const matchers = {
     return helpers.isSeq([
       {name: ['symbol', 'property_access', 'list', 'empty_list', 'slice', 'hash_map', 'event',
               'range', 'stepped_range', 'string', 'word', 'number', 'bool', 'wrapped_flow',
-              'math', 'if_fun_call', 'wrapped_math', 'atsign', 'slice', 'notexpr'], count: 0, sep: ['_'],
+              'math', 'if_fun_call', 'wrapped_math', 'atsign', 'slice', 'notexpr', 'and_or_expr'], count: 0, sep: ['_'],
               enders: ['setter', 'mapper', 'starmapper', 'naked_mapper', 'naked_star_mapper', '_n', '^',
                 'filter', 'starinflowfundef', 'decorated_starinflowfundef', 'inflowfundef', 'decorated_inflowfundef',
                 'starinflowprocdef', 'inflowprocdef', 'condmapper', 'starcondmapper', 'quickfundef', 'starquickfundef', 'return_mapper',
@@ -649,22 +665,6 @@ const matchers = {
       {name: ['comparison'], count: 1},
       {name: ['_', '^'], count: 0},
       {name: ['number', 'symbol', 'property_access', 'string', 'word', 'wrapped_flow', 'wrapped_math', 'flow', 'bool'], count: 1},
-    ], i, tokens);
-  },
-  notexpr: function (i, tokens) {
-    return helpers.isSeq([
-      {name: ['not'], count: 1},
-      {name: ['_'], count: 0},
-      {name: ['cmpexpr', 'string', 'symbol', 'property_access', 'list', 'word', 'wrapped_flow', 'wrapped_math', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'bool', 'slice', 'math'], count: 1},
-    ], i, tokens);
-  },
-  and_or_expr: function (i, tokens) {
-    return helpers.isSeq([
-      {name: ['cmpexpr', 'string', 'symbol', 'property_access', 'list', 'word', 'wrapped_flow', 'wrapped_math', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'bool', 'slice', 'math'], count: 1},
-      {name: ['_'], count: 0},
-      {name: ['and', 'or'], count: 1},
-      {name: ['_'], count: 0},
-      {name: ['cmpexpr', 'string', 'symbol', 'property_access', 'list', 'word', 'wrapped_flow', 'wrapped_math', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'bool', 'slice', 'math'], count: 1},
     ], i, tokens);
   },
   conditional: function (i, tokens) {
