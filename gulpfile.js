@@ -12,12 +12,12 @@ var     browserify = require('browserify'),
 
 var config = {
     js: {
-        src: './index.js',                  // Entry point
-        browser: './browser.js',            // Browser entry point
-        outputDir: './editor/',             // Directory to save bundle to
-        outputFile: 'clio.js',              // Name to use for bundle
-        bundlePath: './editor/clio.js',     // To be used with disc
-        disc: './editor/breakdown.html',    // Name to use for disc
+        src: './index.js',                      // Entry point
+        browser: './browser.js',                // Browser entry point
+        outputDir: '../clio-editor/',           // Directory to save bundle to
+        outputFile: 'clio.js',                  // Name to use for bundle
+        bundlePath: '../clio-editor/clio.js',   // To be used with disc
+        disc: '../clio-editor/breakdown.html',  // Name to use for disc
     },
 };
 
