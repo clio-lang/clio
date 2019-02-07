@@ -1,4 +1,4 @@
-![Clio Logo](media/logo-128x128.png)
+![Clio Logo](https://github.com/clio-lang/media/blob/master/logo-128x128.png)
 
 # Clio
 
@@ -6,7 +6,7 @@ Clio is a pure functional lazy-evaluated programming language targeting decentra
 
 Clio compiles to JavaScript. This makes Clio fast, easy to port and easy to extend. It gives Clio a free JIT compiler, a powerful VM and access to lots of existing libraries. It enables Clio to run in the browser and on servers, and anywhere JavaScript can run.
 
-![Clio Logo](media/clio-cut.png)
+![Clio Logo](https://github.com/clio-lang/media/blob/master/clio-cut.png)
 
 ## Project Status
 
