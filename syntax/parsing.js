@@ -132,27 +132,27 @@ const matchers = {
   dsop_math: function (i, tokens, parser) {
     return helpers.isSeq([
       {name: ['symbol', 'property_access', 'number', 'wrapped_math', 'math', 'wrapped_flow', 'range', 'stepped_range', 'list'], count: 1},
-      {name: ['_'], count: 0, opt: true},
+      {name: ['_', '^', '_n'], count: 0, opt: true},
       {name: 'dsop', count: 1},
-      {name: ['_'], count: 0, opt: true},
+      {name: ['_', '^', '_n'], count: 0, opt: true},
       {name: ['symbol', 'property_access', 'number', 'wrapped_math', 'math', 'wrapped_flow'], count: 1},
     ], i, tokens);
   },
   sop_math: function (i, tokens, parser) {
     return helpers.isSeq([
       {name: ['symbol', 'property_access', 'number', 'wrapped_math', 'math', 'wrapped_flow', 'range', 'stepped_range', 'list'], count: 1},
-      {name: ['_'], count: 0, opt: true},
+      {name: ['_', '^', '_n'], count: 0, opt: true},
       {name: 'sop', count: 1},
-      {name: ['_'], count: 0, opt: true},
+      {name: ['_', '^', '_n'], count: 0, opt: true},
       {name: ['symbol', 'property_access', 'number', 'wrapped_math', 'math', 'wrapped_flow'], count: 1},
     ], i, tokens);
   },
   op_math: function (i, tokens, parser) {
     return helpers.isSeq([
       {name: ['symbol', 'property_access', 'number', 'wrapped_math', 'math', 'wrapped_flow', 'range', 'stepped_range', 'list', 'string', 'word'], count: 1},
-      {name: ['_'], count: 0, opt: true},
+      {name: ['_', '^', '_n'], count: 0, opt: true},
       {name: 'op', count: 1},
-      {name: ['_'], count: 0, opt: true},
+      {name: ['_', '^', '_n'], count: 0, opt: true},
       {name: ['symbol', 'property_access', 'number', 'wrapped_math', 'math', 'wrapped_flow', 'string', 'word'], count: 1},
     ], i, tokens);
   },
