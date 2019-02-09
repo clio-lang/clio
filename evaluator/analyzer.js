@@ -448,15 +448,17 @@ function analyzer(tree, source) {
         }
       })
       code = `await (async function(__data) {
-        var fn = async function (...__data) {
+        var fn = async function (__data) {
           return ${code}
         }
-        if (__data.is_reactive) {
-          return __data.set_listener(fn)
+        if (__data[0].is_reactive) {
+          return __data[0].set_listener(function (n) {
+            return fn([n, ...__data.slice(1)])
+          })
         } else {
           return await fn(__data)
         }
-      })(${data})`
+      })([${data}])`
       return {
         code: code,
         vars: variables
