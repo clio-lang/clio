@@ -184,8 +184,8 @@ function analyzer(tree, source) {
     },
     stepped_range: function (node) {
       var start = node.tokens[0].tokens.length ? node.tokens[0].tokens[0] : {name: 'number', raw: '0'};
-      var end = node.tokens.length > 2 ? node.tokens[1] : {name: 'number', raw: 'Inf'};
-      var step = node.tokens[2];
+      var end = node.tokens.length > 2 ? node.tokens[1] : {name: 'number', raw: 'Infinity'};
+      var step = node.tokens[node.tokens.length > 2 ? 2 : 1];
       var start = analyze(start).code;
       var end = analyze(end).code;
       var step = analyze(step).code;

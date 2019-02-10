@@ -42,7 +42,7 @@ const matchers = {
   // TODO: all to es6
   slice: (i, tokens) =>
     helpers.isSeq([
-      {name: ['symbol', 'list', 'range', 'property_access', 'slice'], count: 1},
+      {name: ['symbol', 'list', 'range', 'property_access', 'slice', 'stepped_range'], count: 1},
       {name: ['list'], count: 0, enders: []},
     ], i, tokens),
 
