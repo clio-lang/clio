@@ -475,18 +475,8 @@ function analyzer(tree, source) {
       if (node.tokens[0].name == 'symbol') {
         var variable = `['${node.tokens[0].raw}']`;
       } else if (node.tokens[0].name == 'property_access') {
-        var tokens = node.tokens[0].tokens.map(token => {
-          token.raw = token.raw.replace(/'s?$/, '');
-          if (token.raw == 'my') {
-            token.raw = 'self'
-          }
-          return token.raw;
-        });
-        var first = tokens.shift()
-        var code = `['${first}']`
-        tokens.forEach(function (token) {
-          variable = `${code}['${token}']`
-        })
+        var tokens = node.tokens[0].tokens.map(token => `"${token.raw}"`)
+        variable = `[${tokens.join(', ')}]`
       }
       return {
         type: 'setter',

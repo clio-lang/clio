@@ -36,15 +36,25 @@ builtins.broadcast = async function (data) {
   return new Broadcast(data);
 }
 
-builtins.update_vars = async function (scope, key, val) {
-  key = key[0];
-  if (scope[key]) {
-    var variable = await value(scope[key]);
-    if (variable.constructor == Broadcast) {
-      return variable.data = val;
+builtins.update_vars = async function (scope, keys, val) {
+  var parent = scope;
+  var key;
+  while (keys.length) {
+    key = keys.shift();
+    if (parent.hasOwnProperty(key)) {
+      variable = await value(parent[key]);
+      if (variable.constructor == Broadcast) {
+        if (keys.length) {
+          throw new Error('Cannot assign to child nodes of a broadcast')
+        }
+        return variable.data = val;
+      }
+      if (keys.length) {
+        parent = variable
+      }
     }
   }
-  return scope[key] = val;
+  return parent[key] = val;
 }
 
 builtins.revive = function (str) {
