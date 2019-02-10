@@ -656,7 +656,7 @@ function analyzer(tree, source) {
           {name: 'string', raw: `'${type_name}'`},
           {name: 'setter', tokens: [
             {name: 'property_access', tokens: [
-              {name: 'possesive', raw: 'my'},
+              {name: 'symbol', raw: 'self'},
               {name: 'symbol', raw: 'type'},
             ]}
           ]}
