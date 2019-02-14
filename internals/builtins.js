@@ -1,9 +1,7 @@
 var { lazy, value, lazy_call } = require('../internals/lazy');
-var { Transform, AtSign, Decimal, Generator, Property, EventListener, Broadcast } = require('../internals/types');
+var { Transform, AtSign, Decimal, Generator, Property, EventListener, Broadcast, EventEmitter } = require('../internals/types');
 const {jsonReviver, jsonReplacer} = require('../internals/json');
 const {throw_error, exception_handler} = require('../common');
-
-const EventEmitter = require('events');
 
 var builtins = {};
 
@@ -138,16 +136,17 @@ builtins.decorate_function = function (decorator, args, fn_name, overload, scope
 }
 
 builtins.setup_ws = async function (connections, host) {
-  connections[host] = {socket: new WebSocket(`${host}/connect`), id: 0, promises: {}, broadcasts: {}}
+  connections[host] = {socket: new WebSocket(`${host}/connect`), id: 0, promises: {}, emitters: {}}
   connections[host].socket.onmessage = function (event) {
     var data = builtins.revive(event.data);
     if (data.id) {
       connections[host].promises[data.id.toNumber()](data);
     } else if (data.service) {
       if (data.service == 'update') {
-        if (data.broadcast) {
-          var broadcast = connections[host].broadcasts[data.broadcast];
-          broadcast.data = data.data;
+        if (data.emitter) {
+          var emitter = connections[host].emitters[data.emitter];
+          var event = data.event;
+          emitter.emit(event, data.data);
         }
       }
     }
@@ -174,10 +173,14 @@ builtins.ws_get = async function (ws, key) {
     return builtins.lazy(async function (...args) {
       return builtins.ws_call(ws, key, args, {});
     }, true);
-  } else if (type == 'broadcast') {
-    var broadcast = new Broadcast();
-    ws.broadcasts[key] = broadcast;
-    return broadcast;
+  } else if (type == 'emitter') {
+    var emitter = new EventEmitter({
+      wildcard: true,
+      newListener: false,
+      maxListeners: 128,
+    });
+    ws.emitters[key] = emitter;
+    return emitter;
   }
 }
 
@@ -195,9 +198,9 @@ builtins.ws_call = async function (ws, fn_name, args, kwargs) {
     ws.promises[id] = resolve;
   });
 
-  // ws supports broadcasts, check
-  if (response.result.constructor == Broadcast) {
-    ws.broadcasts[response.result.uuid] = response.result;
+  // ws supports emitters, check
+  if (response.result.constructor == EventEmitter) {
+    ws.emitters[response.result.uuid] = response.result;
   }
 
   if (response.stdout) {
@@ -659,8 +662,12 @@ builtins.interval = function(time, fn, ...args) {
   }, time.toNumber())
 }
 
-builtins.emitter = async function(name) {
-  var ee = new EventEmitter();
+builtins.emitter = async function(name, maxListeners) {
+  var ee = new EventEmitter({
+    wildcard: true,
+    newListener: false,
+    maxListeners: maxListeners || 128,
+  });
   ee.name = name;
   return ee;
 }

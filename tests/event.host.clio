@@ -1,0 +1,22 @@
+--- server
+
+'emitter' -> emitter => source
+
+@eager
+fn do_emit i source:
+  source -> emit #tick i
+
+1000 -> interval do_emit source
+
+@eager
+fn counter i:
+  i -> emitter => em
+  @eager
+  fn count n em:
+    source -> emit #tick (i + n)
+  1000 -> interval count em
+  em
+
+{
+  #exports [#source #counter]
+} => host

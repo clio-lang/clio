@@ -9,13 +9,14 @@ const {value} = require('../internals/lazy');
 const enableWs = require('express-ws');
 const uuid4 = require('uuid/v4');
 
-var { Transform, AtSign, Decimal, Generator, Property, EventListener, Broadcast } = require('../internals/types');
+var { Transform, AtSign, Decimal, Generator, Property,
+  EventListener, Broadcast, EventEmitter } = require('../internals/types');
 
-function find_broadcasts(obj) {
-  // currently only checks if obj is a broadcast
+function find_emitters(obj) {
+  // currently only checks if obj is a emitter
   // we should support Clio Generators to check
   // for more complex data types
-  if (obj.constructor == Broadcast) {
+  if (obj.constructor == EventEmitter) {
     return [obj]
   }
   return []
@@ -62,7 +63,7 @@ async function clio_host(scope, port) {
       app.ws('/connect', (ws, req) => {
 
           var cleanups = [];
-          var broadcasts = {};
+          var emitters = {};
 
           ws.on('message', async msg => {
               var data = JSON.parse(msg, jsonReviver);
@@ -72,26 +73,26 @@ async function clio_host(scope, port) {
                 var args = data.args;
                 var fn = scope[fn_name];
                 var result = await value(fn(...args));
-                var result_broadcasts = find_broadcasts(result);
-                result_broadcasts.forEach(function (broadcast) {
+                var result_emitters = find_emitters(result);
+                result_emitters.forEach(function (emitter) {
                   // these are passed by reference, so it's safe
                   // to assign the uuid like this
                   var uuid = uuid4();
-                  while (broadcasts.hasOwnProperty(uuid)) {
+                  while (emitters.hasOwnProperty(uuid)) {
                     uuid = uuid4(); // to avoid collisions!
                     // althought it may exist on client!
                   }
-                  broadcast.uuid = uuid;
-                  broadcasts.uuid = broadcast;
+                  emitter.uuid = uuid;
+                  emitters.uuid = emitter;
                   var fn = async function (data) {
                     data = await value(data);
                     return ws.send(
-                      JSON.stringify({service: 'update', broadcast: uuid, data: data}, jsonReplacer)
+                      JSON.stringify({service: 'update', emitter: uuid, data: data, event: this.event}, jsonReplacer)
                     )
                   }
-                  broadcast.on('data', fn);
+                  emitter.on('*', fn);
                   cleanups.push(function () {
-                    broadcast.off('data', fn);
+                    emitter.off('*', fn);
                   });
                 });
                 data = JSON.stringify({result: result, id: data.id}, jsonReplacer);
@@ -103,18 +104,18 @@ async function clio_host(scope, port) {
                 var type;
                 if (val instanceof Function) {
                   type = 'function';
-                } else if (constructor == Broadcast) {
-                  type = 'broadcast';
+                } else if (constructor == EventEmitter) {
+                  type = 'emitter';
                   // subscribe this client
                   var fn = async function (data) {
                     data = await value(data);
                     return ws.send(
-                      JSON.stringify({service: 'update', broadcast: key, data: data}, jsonReplacer)
+                      JSON.stringify({service: 'update', emitter: key, data: data, event: this.event}, jsonReplacer)
                     )
                   }
-                  val.on('data', fn);
+                  val.on('*', fn);
                   cleanups.push(function () {
-                    val.off('data', fn);
+                    val.off('*', fn);
                   })
                 }
                 data = JSON.stringify({type: type, id: data.id}, jsonReplacer);

@@ -1120,7 +1120,7 @@ function analyzer(tree, source) {
     ${code};
     for (var server in ws_connections) {
       if (ws_connections.hasOwnProperty(server)) {
-        if (ws_connections[server].broadcasts == {}) {
+        if (ws_connections[server].emitters == {}) {
           ws_connections[server].socket.close()
         }
       }
