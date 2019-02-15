@@ -71,14 +71,14 @@ const matchers = {
     return helpers.isSeq([
       {name: 'from', count: 1},
       {name: '_', count: 0},
-      {name: ['url', 'symbol', 'property_access', 'path'], count: 1},
+      {name: ['url', 'symbol', 'path', 'property_access'], count: 1},
     ], i, tokens)
   },
   import_st: function (i, tokens) {
     return helpers.isSeq([
       {name: 'import', count: 1},
       {name: '_', count: 0},
-      {name: ['symbol', 'property_access'], count: 0, sep: ['_', '^', '_n'], enders: ['from_st']},
+      {name: ['symbol'], count: 0, sep: ['_', '^', '_n'], enders: ['from_st']},
       {name: '_', count: 0, opt: true},
       {name: 'from_st', count: 1},
     ], i, tokens)
@@ -87,7 +87,14 @@ const matchers = {
     return helpers.isSeq([
       {name: 'import', count: 1},
       {name: '_', count: 0},
-      {name: ['symbol', 'property_access', 'property_access'], count: 0, sep: ['_'], enders: ['_n']},
+      {name: ['symbol', 'property_access'], count: 0, sep: ['_'], enders: ['_n']},
+    ], i, tokens)
+  },
+  import_path: function (i, tokens) {
+    return helpers.isSeq([
+      {name: 'import', count: 1},
+      {name: '_', count: 0},
+      {name: ['path'], count: 1},
     ], i, tokens)
   },
   import_al: function (i, tokens) {

@@ -16,12 +16,12 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
   // TODO: must work for internals, built-in modules, relative imports
   // TODO: should be able to import js files
   current_dir = current_dir.replace(/\.clio-cache$/,'');
-  module_path = path.join(current_dir, `${module_name}.clio`);
-  if (fs.existsSync(module_path)) {
-    var mod = await clio_import(module_path);
+  if (module_name.endsWith('.js')) {
+    var mod = require(path.join(current_dir, module_name));
     if (names_to_import.length == 0) {
       // import all
       var clio_module = {};
+      module_name = module_name.replace(/.js$/, '').replace(/.*?\/+/, '');
       clio_module[module_name] = mod;
     } else {
       var clio_module = {};
@@ -29,8 +29,57 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
         clio_module[name] = mod[name];
       })
     }
+  } else if (module_name.indexOf('/') > -1) {
+    if (!module_name.endsWith('.clio')) {
+      module_name = `${module_name}.clio`
+    }
+    module_path = path.join(current_dir, module_name);
+    if (fs.existsSync(module_path)) {
+      var mod = await clio_import(module_path);
+      if (names_to_import.length == 0) {
+        // import all
+        var clio_module = {};
+        module_name = module_name.replace(/.clio/, '').replace(/.*?\/+/, '');
+        clio_module[module_name] = mod;
+      } else {
+        var clio_module = {};
+        names_to_import.forEach(function (name) {
+          clio_module[name] = mod[name];
+        })
+      }
+    }
+  } else if (module_name.endsWith('.clio')) {
+    module_path = path.join(current_dir, module_name);
+    if (fs.existsSync(module_path)) {
+      var mod = await clio_import(module_path);
+      if (names_to_import.length == 0) {
+        // import all
+        var clio_module = {};
+        module_name = module_name.replace(/.clio/, '').replace(/.*?\/+/, '');
+        clio_module[module_name] = mod;
+      } else {
+        var clio_module = {};
+        names_to_import.forEach(function (name) {
+          clio_module[name] = mod[name];
+        })
+      }
+    }
+  } else {
+    module_path = path.join(current_dir, `${module_name}.clio`);
+    if (fs.existsSync(module_path)) {
+      var mod = await clio_import(module_path);
+      if (names_to_import.length == 0) {
+        // import all
+        var clio_module = {};
+        clio_module[module_name] = mod;
+      } else {
+        var clio_module = {};
+        names_to_import.forEach(function (name) {
+          clio_module[name] = mod[name];
+        })
+      }
+    }
   }
-  //var clio_module = require(path.join(process.env.clio_root, 'internals', module_name));
   Object.assign(scope, clio_module);
 }
 

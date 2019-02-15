@@ -253,6 +253,17 @@ function analyzer(tree, source) {
     },
     import_nk: function (node) {
       var imports = node.tokens.map(function (mod) {
+        if (mod.name == 'property_access') {
+          mod.raw = mod.tokens.map(t => t.raw).join('.');
+        }
+        return `await builtins.clio_require('${mod.raw}', [], __dirname, scope)`
+      })
+      return {
+        code: imports.join(';\n')
+      };
+    },
+    import_path: function (node) {
+      var imports = node.tokens.map(function (mod) {
         return `await builtins.clio_require('${mod.raw}', [], __dirname, scope)`
       })
       return {
