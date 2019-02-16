@@ -22,19 +22,20 @@ function find_emitters(obj) {
   return []
 }
 
-async function clio_host(scope, port) {
+async function clio_host(scope) {
 
   scope = await scope;
   var config = await scope.host;
   var exported = {};
   await config.exports.map(async e => {exported[e] = scope[e]});
 
-  if (!port) {
-    port = 3000;
-  }
+  var port = config.port ? config.port.toNumber() : 3000;
+  var workers = config.workers ? config.workers.toNumber() : cpu_count;
+
+  console.log(`Starting a cluster consisting of ${workers} workers, on port ${port}`);
 
   if (cluster.isMaster) {
-      for (var i = 0; i < cpu_count; i++) {
+      for (var i = 0; i < workers; i++) {
           cluster.fork();
       }
   } else {
@@ -131,7 +132,6 @@ async function clio_host(scope, port) {
       // All workers use this port
       app.listen(port);
   }
-  return port;
 }
 
 module.exports = clio_host
