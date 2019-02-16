@@ -14,8 +14,6 @@ const highlight = require('./highlight');
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require('websocket').w3cwebsocket; // same for WebSocket
 
-console.log(process.cwd());
-
 /******************************************************************************
   ULTIMATE TODO, IDEA AND BUG LIST
     [ ] Allow only one symbol, or a flow in __conditional__
