@@ -59,7 +59,7 @@ function lexer(string) {
             imatch = string.slice(i+match[0].length).match(patterns._);
             _i = imatch ? imatch[0].length : 0;
             if (indents[indents.length-1] < _i) {
-              if ((tokens.length - 2 >= 0) && ([tokens.length-2].name == 'colon')) {
+              if ((tokens.length - 2 >= 0) && (tokens[tokens.length-2].name == 'colon')) {
                 tokens.push({
                   name: 'indent',
                   index: i+1,
