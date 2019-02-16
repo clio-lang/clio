@@ -1,6 +1,9 @@
 var { Decimal, EventEmitter } = require('../internals/types');
 
 function jsonReplacer(key, value) {
+  if (!value) {
+    return value
+  }
   if (value.toNumber) {
     return `clio::number::${value.toString()}`;
   }

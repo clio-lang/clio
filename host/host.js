@@ -16,6 +16,9 @@ function find_emitters(obj) {
   // currently only checks if obj is a emitter
   // we should support Clio Generators to check
   // for more complex data types
+  if (!obj) {
+    return [];
+  }
   if (obj.constructor == EventEmitter) {
     return [obj]
   }
@@ -32,9 +35,8 @@ async function clio_host(scope) {
   var port = config.port ? config.port.toNumber() : 3000;
   var workers = config.workers ? config.workers.toNumber() : cpu_count;
 
-  console.log(`Starting a cluster consisting of ${workers} workers, on port ${port}`);
-
   if (cluster.isMaster) {
+      console.log(`Starting a cluster consisting of ${workers} workers, on port ${port}`);
       for (var i = 0; i < workers; i++) {
           cluster.fork();
       }

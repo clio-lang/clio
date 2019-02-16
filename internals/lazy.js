@@ -13,6 +13,14 @@ function stringify(arg) {
     arg._memoize_id = arg._memoize_id ? arg._memoize_id : MemoizeID++;
     arg = `_memoize_id: ${arg._memoize_id}`; // FIXME: we're doomed if arg is this string
   }
+  if (arg.constructor == Object) {
+    var stringified = ''
+    for (var variable in arg) {
+      if (arg.hasOwnProperty(variable)) {
+        stringified += `[${variable}: ${stringify(arg[variable])}]`;
+      }
+    }
+  }
   return arg.toString();
 }
 
