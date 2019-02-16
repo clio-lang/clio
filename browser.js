@@ -81,6 +81,10 @@ async function clio_process_source(source, out, info, printfn) {
 }
 
 window.clio_process_source = clio_process_source;
+window.clio = {
+  process: clio_process_source,
+  builtins: builtins,
+}
 
 document.addEventListener("DOMContentLoaded", function() {
   document.querySelectorAll('script[type="text/clio"]').forEach(function (el) {
