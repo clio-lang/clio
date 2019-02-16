@@ -80,15 +80,18 @@ async function clio_process_source(source, out, info, printfn) {
   }
 }
 
+function process_scripts() {
+  document.addEventListener("DOMContentLoaded", function() {
+    document.querySelectorAll('script[type="text/clio"]').forEach(function (el) {
+      var source = el.innerHTML;
+      clio_process_source(source, 'run', false, console.log);
+    });
+  });
+}
+
 window.clio_process_source = clio_process_source;
 window.clio = {
   process: clio_process_source,
   builtins: builtins,
+  process_scripts: process_scripts
 }
-
-document.addEventListener("DOMContentLoaded", function() {
-  document.querySelectorAll('script[type="text/clio"]').forEach(function (el) {
-    var source = el.innerHTML;
-    clio_process_source(source, 'run', false, console.log);
-  });
-});
