@@ -674,6 +674,7 @@ builtins.emitter = async function(name, maxListeners) {
 
 builtins.emit = async function(ee, ev, ...args) {
   ee.emit(ev, ...args)
+  return args[0]
 }
 
 builtins.EventListener = EventListener;
