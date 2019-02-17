@@ -12,9 +12,7 @@ function write_file(source, path) {
 
 async function clio_require(module_name, names_to_import, current_dir, scope) {
   // TODO: must work in browser (http imports)
-  // TODO: must accept $scope and write to it directly
-  // TODO: must work for internals, built-in modules, relative imports
-  // TODO: should be able to import js files
+  // TODO: must work for built-in modules
   current_dir = current_dir.replace(/\.clio-cache$/,'');
   if (module_name.endsWith('.js')) {
     var mod = require(path.join(current_dir, module_name));
@@ -124,6 +122,10 @@ function clio_import(file, direct) {
     file = path.join(cwd, file);
   }
   var file_dir = path.dirname(file);
+  if (direct) {
+    global.__basedir = file_dir;
+    process.chdir(file_dir);
+  }
   var file_name = path.basename(file);
   var cache_dir = `${file_dir}${path.sep}.clio-cache`
   var cache_file = `${cache_dir}${path.sep}${file_name}.js`;

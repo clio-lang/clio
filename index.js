@@ -68,7 +68,8 @@ async function process_file(file) {
       /*
         TODO:
           [X] set direct import flag
-          [ ] ^ try to remember why I wanted that
+          [X] ^ try to remember why I wanted that
+              ^ for setting __basedir
           [X] change cwd to input file dir
           [ ] remove all paths from require
           [ ] ^ try to remember that also
