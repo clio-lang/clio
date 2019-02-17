@@ -93,5 +93,6 @@ window.clio_process_source = clio_process_source;
 window.clio = {
   process: clio_process_source,
   builtins: builtins,
-  process_scripts: process_scripts
+  process_scripts: process_scripts,
+  is_browser: true,
 }
