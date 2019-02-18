@@ -48,7 +48,7 @@ const matchers = {
 
   property_access: (i, tokens) =>
     helpers.isSeq([
-      {name: ['symbol', 'slice'], count: 1},
+      {name: ['symbol', 'slice', 'property_access'], count: 1},
       {name: ['dot'], count: 1},
       {name: ['symbol'], count: 1}
     ], i, tokens),
