@@ -232,7 +232,7 @@ const matchers = {
       {name: ['_', '_n', '^'], count: 0, opt: true},
       {name: ['symbol', 'property_access', 'number', 'string', 'word', 'bool'], count: 1},
       {name: ['_'], count: 0},
-      {name: ['symbol', 'property_access', 'number', 'list', 'empty_list', 'string', 'word', 'bool', 'wrapped_math', 'range', 'stepped_range'], count: 1},
+      {name: ['symbol', 'property_access', 'number', 'list', 'empty_list', 'string', 'word', 'bool', 'wrapped_math', 'range', 'stepped_range', 'hash_map'], count: 1},
       {name: ['_', '_n', '^'], count: 0, opt: true},
     ], i, tokens)
   },
