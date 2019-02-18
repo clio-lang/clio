@@ -10,8 +10,76 @@ function write_file(source, path) {
   fs.writeFileSync(path, source);
 }
 
+// TODO: better path resolving!
+
+function http_resolve_path(__basedir, path){
+  path = path.replace(__basedir, '')
+             .replace(/[^/]*\/\.\.(\/|$)/g, '')
+             .replace(/\/\.(\/|$)/g, '/')
+             .replace(/\/\/+/g, '/')
+  return __basedir + path
+}
+
+function http_dir_name(path) {
+  // assume resolved
+  return path.replace(/\/[^/]*$/, '')
+}
+
+async function clio_require_browser(module_name, names_to_import, current_dir, scope) {
+  // TODO: cache compiled .clio files in localStorage
+  //       ^ localStorage[`clio-cache-${content-hash}`] = compiled
+  // __basedir is window.clio.__basedir || protocol://domain:port
+
+  var __basedir = window.clio.__basedir || window.location.origin;
+  var __filename = http_resolve_path(__basedir, `${current_dir}/${module_name}`);
+  var __dirname = http_dir_name(__filename);
+  //    ^ necessary for nested imports
+
+  if (__filename.endsWith('.js')) {
+    var mod = await fetch(__filename);
+    var module = {
+      exports: {}
+    }
+    var exports = module.exports;
+    eval(await mod.text());
+    if (names_to_import.length == 0) {
+      // import all
+      var clio_module = {};
+      module_name = module_name.replace(/.js$/, '').replace(/.*?\/+/, '');
+      clio_module[module_name] = exports;
+    } else {
+      var clio_module = {};
+      names_to_import.forEach(function (name) {
+        clio_module[name] = exports[name];
+      })
+    }
+  } else if (__filename.indexOf('/') > -1) {
+    if (!__filename.endsWith('.clio')) {
+      __filename = `${__filename}.clio`
+    }
+    var mod = await fetch(__filename);
+    var source = await mod.text();
+    var code = window.clio.compile(source);
+    var module = {};
+    eval(code);
+    // TODO: fix file arg for browser
+    var mod = {};
+    await module.exports(mod, window.clio.builtins);
+    var clio_module = {};
+    if (names_to_import.length == 0) {
+      // import all
+      var module_name = module_name.replace(/\.clio/, '').replace(/.*?\/+/, '');
+      clio_module[module_name] = mod;
+    } else {
+      names_to_import.forEach(function (name) {
+        clio_module[name] = mod[name];
+      })
+    }
+  }
+  Object.assign(scope, clio_module);
+}
+
 async function clio_require(module_name, names_to_import, current_dir, scope) {
-  // TODO: must work in browser (http imports)
   // TODO: must work for built-in modules
   current_dir = current_dir.replace(/\.clio-cache$/,'');
   if (module_name.endsWith('.js')) {
@@ -19,7 +87,7 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
     if (names_to_import.length == 0) {
       // import all
       var clio_module = {};
-      module_name = module_name.replace(/.js$/, '').replace(/.*?\/+/, '');
+      module_name = module_name.replace(/\.js$/, '').replace(/.*?\/+/, '');
       clio_module[module_name] = mod;
     } else {
       var clio_module = {};
@@ -37,7 +105,7 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
       if (names_to_import.length == 0) {
         // import all
         var clio_module = {};
-        module_name = module_name.replace(/.clio/, '').replace(/.*?\/+/, '');
+        module_name = module_name.replace(/\.clio/, '').replace(/.*?\/+/, '');
         clio_module[module_name] = mod;
       } else {
         var clio_module = {};
@@ -53,7 +121,7 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
       if (names_to_import.length == 0) {
         // import all
         var clio_module = {};
-        module_name = module_name.replace(/.clio/, '').replace(/.*?\/+/, '');
+        module_name = module_name.replace(/\.clio/, '').replace(/.*?\/+/, '');
         clio_module[module_name] = mod;
       } else {
         var clio_module = {};
@@ -148,4 +216,5 @@ function clio_import(file, direct) {
   }
 }
 
-module.exports = clio_import;
+module.exports.clio_import = clio_import;
+module.exports.clio_require_browser = clio_require_browser;

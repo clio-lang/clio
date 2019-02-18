@@ -1,4 +1,4 @@
-const clio_import = require('../internals/import');
+const {clio_import} = require('../internals/import');
 const Decimal = require('decimal.js');
 const {value} = require('../internals/lazy');
 

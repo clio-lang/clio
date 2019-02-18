@@ -7,7 +7,7 @@ const lexer = require('./lexer/lexer');
 const parser = require('./parser/parser');
 const analyzer = require('./evaluator/analyzer');
 const clio_host = require('./host/host');
-const clio_import = require('./internals/import');
+const {clio_import} = require('./internals/import');
 const beautify = require('js-beautify').js;
 const highlight = require('./highlight');
 
