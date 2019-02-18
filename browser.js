@@ -8,11 +8,6 @@ var builtins = require('./internals/builtins');
 // setup builtins for browser usage
 builtins.clio_require = clio_require_browser;
 
-builtins.print = async function(...args) {
-    var args = await Promise.all(args.map(a => window.clio.builtins.string(a, true)).map(window.clio.builtins.value));
-    window.clio.printfn(...args);
-    return args[0];
-}
 builtins.get_symbol = function(key, scope) {
   if (scope.hasOwnProperty(key)) {
     return scope[key]
@@ -43,9 +38,9 @@ function remove_props(obj,keys){
  }
 }
 
-function print_ast(ast) {
+function print_ast(ast, printfn) {
   remove_props(ast, 'index');
-  window.clio.printfn(treeify.asTree(ast, true));
+  printfn(treeify.asTree(ast, true));
   //console.dir(x, { depth: null, colors: true });
 }
 
@@ -59,7 +54,7 @@ function compile(source) {
   return code;
 }
 
-async function clio_process_source(source, out, info, __dirname) {
+async function clio_process_source(source, out, info, printfn, __dirname) {
   if (!__dirname) {
     __dirname = window.location.href
                   .replace(/\?[^/#]*/, '')  // remove ?query=whatever
@@ -76,13 +71,18 @@ async function clio_process_source(source, out, info, __dirname) {
   var t2 = (new Date).getTime();
   var ast = result[1];
   if(out == 'ast') {
-    if (info) { window.clio.printfn(`Ast time: ${(t2-t1)/1000}s`) };
-    print_ast(ast, window.clio.printfn);
+    if (info) { printfn(`Ast time: ${(t2-t1)/1000}s`) };
+    print_ast(ast, printfn);
   } else {
     ast.pop() // eof
     var code = analyzer(ast, source);
     var t3 = (new Date).getTime();
     if (out == 'run') {
+      builtins.print = async function(...args) {
+          var args = await Promise.all(args.map(a => window.clio.builtins.string(a, true)).map(window.clio.builtins.value));
+          printfn(...args);
+          return args[0];
+      }
       var module = {};
       eval(code);
       // TODO: fix file arg for browser
@@ -91,11 +91,11 @@ async function clio_process_source(source, out, info, __dirname) {
     var t4 = (new Date).getTime();
     if (info) {
       setTimeout(function () {
-        window.clio.printfn();
-        window.clio.printfn('-----------------------------------------');
-        window.clio.printfn(`Ast time:\t${(t2-t1)/1000}s`);
-        window.clio.printfn(`Compile time:\t${(t3-t2)/1000}s`);
-        window.clio.printfn(`Eval time:\t${(t4-t3)/1000}s`);
+        printfn();
+        printfn('-----------------------------------------');
+        printfn(`Ast time:\t${(t2-t1)/1000}s`);
+        printfn(`Compile time:\t${(t3-t2)/1000}s`);
+        printfn(`Eval time:\t${(t4-t3)/1000}s`);
       }, 1);
     };
   }
@@ -108,7 +108,7 @@ function process_scripts(options) {
   document.addEventListener("DOMContentLoaded", function() {
     document.querySelectorAll('script[type="text/clio"]').forEach(function (el) {
       var source = el.innerHTML;
-      clio_process_source(source, 'run', false, options.__dirname);
+      clio_process_source(source, 'run', false, console.log, options.__dirname);
     });
   });
 }
@@ -119,6 +119,5 @@ window.clio = {
   builtins: builtins,
   process_scripts: process_scripts,
   is_browser: true,
-  compile: compile,
-  printfn: console.log,
+  compile: compile
 }
