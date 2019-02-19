@@ -5,6 +5,7 @@ const parser = require('../parser/parser');
 const analyzer = require('../evaluator/analyzer');
 const builtins = require('./builtins');
 const beautify = require('js-beautify').js;
+const md5 = require('./md5');
 
 function write_file(source, path) {
   fs.writeFileSync(path, source);
@@ -26,8 +27,6 @@ function http_dir_name(path) {
 }
 
 async function clio_require_browser(module_name, names_to_import, current_dir, scope) {
-  // TODO: cache compiled .clio files in localStorage
-  //       ^ localStorage[`clio-cache-${content-hash}`] = compiled
   // __basedir is window.clio.__basedir || protocol://domain:port
 
   var __basedir = window.clio.__basedir || window.location.origin;
@@ -64,7 +63,12 @@ async function clio_require_browser(module_name, names_to_import, current_dir, s
       var mod = await fetch(__filename);
     }
     var source = await mod.text();
-    var code = window.clio.compile(source);
+    var source_hash = md5(source);
+    var code = window.localStorage.getItem(`clio-compile-cache-${source_hash}`);
+    if (!code) {
+      code = window.clio.compile(source);
+      window.localStorage.setItem(`clio-compile-cache-${source_hash}`, code);
+    }
     var module = {};
     eval(code);
     // TODO: fix file arg for browser
