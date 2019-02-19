@@ -58,6 +58,11 @@ async function clio_require_browser(module_name, names_to_import, current_dir, s
       __filename = `${__filename}.clio`
     }
     var mod = await fetch(__filename);
+    if (mod.status != 200) {
+      var __filename = http_resolve_path(__basedir, `clio_env/${module_name}`);
+      var __dirname = http_dir_name(__filename);
+      var mod = await fetch(__filename);
+    }
     var source = await mod.text();
     var code = window.clio.compile(source);
     var module = {};
@@ -79,10 +84,17 @@ async function clio_require_browser(module_name, names_to_import, current_dir, s
   Object.assign(scope, clio_module);
 }
 
+function resolve_path(path){
+  return path.replace(/[^/]*\/\.\.(\/|$)/g, '')
+             .replace(/\/\.(\/|$)/g, '/')
+             .replace(/\/\/+/g, '/')
+}
+
 async function clio_require(module_name, names_to_import, current_dir, scope) {
   // TODO: must work for built-in modules
   // TODO: clio_require_browser is better written!
   current_dir = current_dir.replace(/\.clio-cache$/,'');
+
   if (module_name.endsWith('.js')) {
     var mod = require(path.join(current_dir, module_name));
     if (names_to_import.length == 0) {
@@ -101,6 +113,10 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
       module_name = `${module_name}.clio`
     }
     module_path = path.join(current_dir, module_name);
+    if (!fs.existsSync(module_path)) {
+      // switch to __basedir + clio_env + module_name
+      module_path = path.join(__basedir, 'clio_env', module_name);
+    }
     if (fs.existsSync(module_path)) {
       var mod = await clio_import(module_path);
       if (names_to_import.length == 0) {
@@ -117,6 +133,10 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
     }
   } else if (module_name.endsWith('.clio')) {
     module_path = path.join(current_dir, module_name);
+    if (!fs.existsSync(module_path)) {
+      // switch to __basedir + clio_env + module_name
+      module_path = path.join(__basedir, 'clio_env', module_name);
+    }
     if (fs.existsSync(module_path)) {
       var mod = await clio_import(module_path);
       if (names_to_import.length == 0) {
@@ -133,6 +153,10 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
     }
   } else {
     module_path = path.join(current_dir, `${module_name}.clio`);
+    if (!fs.existsSync(module_path)) {
+      // switch to __basedir + clio_env + module_name
+      module_path = path.join(__basedir, 'clio_env', module_name);
+    }
     if (fs.existsSync(module_path)) {
       var mod = await clio_import(module_path);
       if (names_to_import.length == 0) {
