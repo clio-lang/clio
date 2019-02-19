@@ -10,6 +10,8 @@ const clio_host = require('./host/host');
 const {clio_import} = require('./internals/import');
 const beautify = require('js-beautify').js;
 const highlight = require('./highlight');
+const decompress = require('decompress');
+const tmp = require('tmp');
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require('websocket').w3cwebsocket; // same for WebSocket
@@ -114,23 +116,36 @@ async function process_file(file) {
 }
 
 if (process.argv.length <= 3) {
-    console.log("Usage: " + "clio" + " ast|compile|run|highlight|host SOURCE_FILE DEST_FILE?");
+    console.log("Usage: " + "clio" + " ast|compile|run|highlight|host|get OPTIONS");
     process.exit(-1);
 }
 
-if (!['ast', 'compile', 'run', 'highlight', 'host'].includes(process.argv[2])) {
-  console.log("Usage: " + "clio" + " ast|compile|run|highlight|host SOURCE_FILE DEST_FILE?");
+if (!['ast', 'compile', 'run', 'highlight', 'host', 'get'].includes(process.argv[2])) {
+  console.log("Usage: " + "clio" + " ast|compile|run|highlight|host|get OPTIONS");
   process.exit(-1);
 }
 
 if (process.argv[2] == 'compile') {
   if (process.argv.length <= 4) {
-      console.log("Usage: " + "clio" + " ast|compile|run|highlight|host SOURCE_FILE DEST_FILE?");
+      console.log("Usage: " + "clio" + " ast|compile|run|highlight|host|get OPTIONS");
       process.exit(-1);
   }
 }
 
-var file = process.argv[3];
-process.env.clio_root = __dirname;
-// ^ we'll remove this when we package clio, ofc
-process_file(file);
+if (process.argv[2] == 'get') {
+  (async () => {
+    var url = process.argv[3];
+    var file = await fetch(url);
+    var array_buffer = await file.arrayBuffer();
+    var buffer = Buffer.from(array_buffer);
+    var tmpobj = tmp.fileSync();
+    fs.writeFileSync(tmpobj.name, buffer, 'binary');
+    await decompress(tmpobj.name, 'clio_env')
+    tmpobj.removeCallback();
+  })();
+} else {
+  var file = process.argv[3];
+  process.env.clio_root = __dirname;
+  // ^ we'll remove this when we package clio, ofc
+  process_file(file);
+}

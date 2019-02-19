@@ -81,6 +81,7 @@ async function clio_require_browser(module_name, names_to_import, current_dir, s
 
 async function clio_require(module_name, names_to_import, current_dir, scope) {
   // TODO: must work for built-in modules
+  // TODO: clio_require_browser is better written!
   current_dir = current_dir.replace(/\.clio-cache$/,'');
   if (module_name.endsWith('.js')) {
     var mod = require(path.join(current_dir, module_name));
