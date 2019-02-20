@@ -516,6 +516,11 @@ builtins.print = async function(...args) {
     return args[0];
 }
 
+builtins.log = async function (...args) {
+  console.log(...args);
+  return args[0];
+}
+
 builtins.flat = lazy(async function (a) {
   var res = [];
   a.forEach(function (_a) {
