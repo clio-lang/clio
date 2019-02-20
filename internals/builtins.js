@@ -249,19 +249,31 @@ builtins.get_symbol = function(key, scope) {
   return new builtins.Property(key);
 }
 
+const AsyncFunction = (async () => {}).constructor;
+
+builtins.assure_async = async function (fn) {
+  if (fn.constructor === AsyncFunction) {
+    return fn;
+  }
+  return async function (...args) {
+    return fn(...args);
+  };
+}
+
 builtins.funcall = async function(data, args, func, file, trace) {
     if (func.constructor == lazy_call) {
       func = await value(func);
       // ^ in case it is property access
     }
-    var current_stack = [{file: file, trace: trace}];
-    var func_call;
     if (func.constructor == Property) { // JS compatibility layer?
       var prop = func.prop;
       func = function (data, ...args) {
         return data[prop](...args);
       }
     }
+    func = await builtins.assure_async(func);
+    var current_stack = [{file: file, trace: trace}];
+    var func_call;
     var handler = e => {exception_handler(e, {clio_stack: current_stack})};
     if (!func.is_lazy) {
         args = Promise.all(args).catch(handler);
@@ -313,6 +325,13 @@ builtins.map = async function(a, f, stack, ...args) {
       f = await value(f);
       // ^ in case it is property access
     }
+    if (f.constructor == Property) { // JS compatibility layer?
+      var prop = f.prop;
+      f = function (data, ...args) {
+        return data[prop](...args);
+      }
+    }
+    f = await builtins.assure_async(f);
     if (!f.is_lazy) {
         args = await Promise.all(args.map(value)).catch(e => {throw e});
         a = await Promise.all(a.map(value)).catch(e => {throw e});
