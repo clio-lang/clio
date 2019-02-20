@@ -30,18 +30,25 @@ function serialize(arg) {
 
 function memoize(fn) {
   var cache = new Map();
+  var cache_keys = [];
   return async function(...args) {
     args = await Promise.all(args);
-    //var hash = args.toString();
-    //var hash = JSON.stringify(args);
-    //var hash = objhash(args);
-    var hash = serialize(args);
-    var cached = cache.get(hash);
-    if (cached != undefined) {
-      return cached;
+    if (fn.mmax && fn.mmax.gt(0)) {
+      var hash = serialize(args);
+      var cached = cache.get(hash);
+      if (cached != undefined) {
+        return cached;
+      }
     }
     var result = await fn(...args);
-    cache.set(hash, result);
+    if (fn.mmax && fn.mmax.gt(0)) {
+      cache.set(hash, result);
+      cache_keys.push(hash);
+      if (fn.mmax.lt(cache_keys.length)) {
+        var key = cache_keys.shift();
+        cache.delete(key);
+      }
+    }
     return result;
   };
 }

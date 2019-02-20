@@ -651,6 +651,13 @@ builtins.eager = function (oldoverload) {
   return newoverload;
 }
 
+builtins.mmax = function (fn, overload_name, max) {
+  fn.overloads.forEach(function (overload) {
+    overload.mmax = max;
+  })
+  return fn;
+}
+
 builtins.timeout = function(fn, time) {
   return setTimeout(fn, time.toNumber())
 }
