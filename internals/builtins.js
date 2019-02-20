@@ -250,6 +250,10 @@ builtins.get_symbol = function(key, scope) {
 }
 
 builtins.funcall = async function(data, args, func, file, trace) {
+    if (func.constructor == lazy_call) {
+      func = await value(func);
+      // ^ in case it is property access
+    }
     var current_stack = [{file: file, trace: trace}];
     var func_call;
     if (func.constructor == Property) { // JS compatibility layer?
@@ -305,6 +309,10 @@ builtins.funcall = async function(data, args, func, file, trace) {
 }
 
 builtins.map = async function(a, f, stack, ...args) {
+    if (f.constructor == lazy_call) {
+      f = await value(f);
+      // ^ in case it is property access
+    }
     if (!f.is_lazy) {
         args = await Promise.all(args.map(value)).catch(e => {throw e});
         a = await Promise.all(a.map(value)).catch(e => {throw e});
