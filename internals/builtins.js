@@ -320,6 +320,10 @@ builtins.funcall = async function(data, args, func, file, trace) {
     return func_call;
 }
 
+Object.defineProperty(Array.prototype, 'async_map', {
+    value: async function(...args) { return this.map(...args) }
+});
+
 builtins.map = async function(a, f, stack, ...args) {
     if (f.constructor == lazy_call) {
       f = await value(f);
@@ -371,6 +375,9 @@ builtins.map = async function(a, f, stack, ...args) {
     };
     if (f.is_lazy) {
       fn = lazy(fn);
+    }
+    if (data.async_map) {
+      return await data.async_map(fn, stack).catch(e => {throw e});
     }
     return await data.map(fn, stack).catch(e => {throw e});
 }
