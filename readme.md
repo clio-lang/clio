@@ -11,8 +11,8 @@ Clio compiles to JavaScript. This makes Clio fast, easy to port and easy to exte
 ## Project Status
 
 Clio is in active development and it's not ready for production.
-
-This repo contains code for the Clio parser and analyzer, the code highlighter and language support for different code editors, the web-based Clio editor, documentation and everything related to Clio. All Clio related code will be hosted in this repo until the project has a stable structure.
+It is in a highly experimental state, although some stable demonstrations and
+test programs exist, it is not recommended to use in production.
 
 ## Links
 
@@ -32,7 +32,7 @@ You can check the examples in [examples repository](https://github.com/clio-lang
 
 Clio isn't recognized by github as a language and it doesn't have correct syntax highlighting on github, please visit [Clio Quick Guide web-page](https://clio-lang.github.io/clio-docs/quick.html) for the quick guide, the Clio editor and embedded browser compiler.
 
-Please note this web page isn't that good looking on mobile devices as I have more important concerns with Clio at the moment.
+The above quick guide isn't complete, a better documentation for Clio will be hosted on [docs.clio-lang.org](http://docs.clio-lang.org) soon.
 
 ## Features and Work in Progress
 
