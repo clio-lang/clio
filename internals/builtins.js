@@ -397,6 +397,9 @@ builtins.filter = async function(data, func) {
             return filter_data.get(i);
         }
     }
+    if (data.filter) {
+      return data.filter(func);
+    }
     if (data.constructor !== Array) {
         return [data].filter(func);
     }
