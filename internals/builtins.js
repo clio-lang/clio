@@ -1,5 +1,5 @@
 var { lazy, value, lazy_call } = require('../internals/lazy');
-var { Transform, AtSign, Decimal, Generator, Property, EventListener, Broadcast, EventEmitter } = require('../internals/types');
+var { Transform, AtSign, Decimal, Generator, Property, EventListener, EventEmitter } = require('../internals/types');
 const {jsonReviver, jsonReplacer} = require('../internals/json');
 const {throw_error, exception_handler} = require('../common');
 
@@ -30,10 +30,6 @@ var js_to_clio_type_map = function (type) {
   }
 }
 
-builtins.broadcast = async function (data) {
-  return new Broadcast(data);
-}
-
 builtins.update_vars = async function (scope, keys, val) {
   var parent = scope;
   var key;
@@ -41,12 +37,6 @@ builtins.update_vars = async function (scope, keys, val) {
     key = keys.shift();
     if (parent.hasOwnProperty(key)) {
       variable = await value(parent[key]);
-      if (variable.constructor == Broadcast) {
-        if (keys.length) {
-          throw new Error('Cannot assign to child nodes of a broadcast')
-        }
-        return variable.data = val;
-      }
       if (keys.length) {
         parent = variable
       }

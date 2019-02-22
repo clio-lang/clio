@@ -25,23 +25,6 @@ class EventListener {
   }
 }
 
-class Broadcast {
-  constructor(data) {
-    this.emitter = new EventEmitter();
-    this._data = data;
-  }
-  set data(data) {
-    this.emitter.emit('data', data);
-    this._data = data;
-  }
-  on(ev, fn) {
-    return this.emitter.on(ev, fn);
-  }
-  off(ev, fn) {
-    return this.emitter.off(ev, fn);
-  }
-}
-
 class Transform {
     constructor(func, index, star) {
         this.func = func;
@@ -110,4 +93,3 @@ exports.Transform = Transform;
 exports.Decimal = Decimal;
 exports.EventListener = EventListener;
 exports.EventEmitter = EventEmitter;
-exports.Broadcast = Broadcast;
