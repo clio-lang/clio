@@ -561,6 +561,13 @@ builtins.take = lazy(function(list, n) {
 })
 
 builtins.slice = lazy(async function (list, slicers, index) {
+  if ((slicers.length == 1) && (slicers[index].constructor == Decimal)){
+    var i = slicers[index].toNumber()
+    if (list.constructor == Array) {
+      return list[i];
+    }
+    return list.get(i);
+  }
   var slicer = slicers[index++];
   if (list.data.start) {
     // it's a range
