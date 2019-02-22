@@ -514,7 +514,7 @@ const matchers = {
       {name: ['symbol', 'property_access', 'quickfundef'], count: 1},
       {name: '_', count: 1},
       {
-        name: ['symbol', 'property_access', 'atsign', 'atnumber', 'number', 'list', 'bool', 'wrapped_flow', 'wrapped_math', 'string', 'word', 'empty_list', 'transform', 'startransform', 'wrapped_quickfundef'], count: 0, sep: ['_'],
+        name: ['symbol', 'property_access', 'atsign', 'atnumber', 'number', 'list', 'bool', 'wrapped_flow', 'wrapped_math', 'string', 'word', 'empty_list', 'transform', 'startransform', 'wrapped_quickfundef', 'hash_map'], count: 0, sep: ['_'],
         enders: ['colon', '_n', 'map', 'set', 'mapper', 'starmapper', 'naked_mapper', 'naked_star_mapper', 'setter', 'dedent', 'rpar', 'starmap']},
     ], i, tokens)
   },
@@ -526,7 +526,7 @@ const matchers = {
       {name: ['symbol', 'property_access', 'quickfundef'], count: 1},
       {name: '_', count: 1},
       {
-        name: ['symbol', 'property_access', 'atsign', 'atnumber', 'number', 'list', 'bool', 'wrapped_flow', 'wrapped_math', 'string', 'word', 'empty_list', 'transform', 'startransform', 'wrapped_quickfundef'], count: 0, sep: ['_'],
+        name: ['symbol', 'property_access', 'atsign', 'atnumber', 'number', 'list', 'bool', 'wrapped_flow', 'wrapped_math', 'string', 'word', 'empty_list', 'transform', 'startransform', 'wrapped_quickfundef', 'hash_map'], count: 0, sep: ['_'],
         enders: ['colon', '_n', 'map', 'set', 'mapper', 'starmapper', 'naked_mapper', 'naked_star_mapper', 'setter', 'dedent', 'rpar', 'comparison']},
     ], i, tokens)
   },
@@ -577,7 +577,7 @@ const matchers = {
       {name: 'indent', count: 1},
       {name: ['_', '^'], count: 0},
       {name: ['block', 'conditional', 'flow', 'fundef', 'anonfundef', 'list', 'string', 'word', 'number', 'decorated_fundef',
-              'symbol', 'property_access', 'bool', 'math', 'procdef', 'range', 'typedef', 'fundefof', 'notexpr',
+              'symbol', 'property_access', 'bool', 'math', 'procdef', 'range', 'typedef', 'fundefof', 'notexpr','hash_map',
               'slice'], count: 0, sep: ['_', '_n', '^'], enders: ['dedent']},
       {name: ['_n', '^'], count: 0, opt: true},
       {name: 'dedent', count: 1},
