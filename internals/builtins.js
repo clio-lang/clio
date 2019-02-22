@@ -693,6 +693,10 @@ builtins.eager = function (oldoverload) {
     return await value(await func(...args));
   }
   newoverload.overloads = oldoverload.overloads;
+  newoverload.mmax = 0;
+  newoverload.overloads.forEach(function (overload) {
+    overload.mmax = max;
+  })
   return newoverload;
 }
 
