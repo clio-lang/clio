@@ -695,7 +695,7 @@ builtins.eager = function (oldoverload) {
   newoverload.overloads = oldoverload.overloads;
   newoverload.mmax = 0;
   newoverload.overloads.forEach(function (overload) {
-    overload.mmax = max;
+    overload.mmax = 0;
   })
   return newoverload;
 }
