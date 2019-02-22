@@ -449,6 +449,9 @@ builtins.pow = lazy(async function(a, b) {
 })
 
 builtins.bool = async function (a) {
+  if (!a) {
+    return false;
+  }
   if (a.constructor == builtins.Decimal) {
     return !a.eq(0);
   }
