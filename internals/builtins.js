@@ -455,6 +455,9 @@ builtins.bool = async function (a) {
   if (!a) {
     return false;
   }
+  if (a.constructor == Array) {
+    return a.length > 0;
+  }
   if (a.constructor == builtins.Decimal) {
     return !a.eq(0);
   }
