@@ -57,10 +57,15 @@ async function clio_require_browser(module_name, names_to_import, current_dir, s
     if (!__filename.endsWith('.clio')) {
       __filename = `${__filename}.clio`
     }
-    var mod = await fetch(__filename);
-    if (mod.status != 200) {
+    const exists = await fetch(__filename, {
+      method: 'HEAD',
+      cache: 'no-cache'
+    });
+    if (exists.status != 200) {
       var __filename = http_resolve_path(__basedir, `/clio_env/${module_name}.clio`);
       var __dirname = http_dir_name(__filename);
+      var mod = await fetch(__filename);
+    } else {
       var mod = await fetch(__filename);
     }
     var source = await mod.text();
