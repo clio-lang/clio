@@ -224,6 +224,13 @@ async function value(lazy) {
   if (lazy == undefined) {
     return lazy;
   }
+  if (lazy.constructor == Object) {
+    for (var key in lazy) {
+      if (lazy.hasOwnProperty(key)) {
+        lazy[key] = await value(lazy[key])
+      }
+    }
+  }
   if (lazy.constructor == Array) {
     return await Promise.all(lazy.map(value));
   }
