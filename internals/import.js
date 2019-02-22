@@ -40,16 +40,17 @@ async function clio_require_browser(module_name, names_to_import, current_dir, s
       exports: {}
     }
     var exports = module.exports;
-    eval(await mod.text());
+    var source = await mod.text();
+    eval(source);
     if (names_to_import.length == 0) {
       // import all
       var clio_module = {};
       module_name = module_name.replace(/.js$/, '').replace(/.*?\/+/, '');
-      clio_module[module_name] = exports;
+      clio_module[module_name] = module.exports || exports;
     } else {
       var clio_module = {};
       names_to_import.forEach(function (name) {
-        clio_module[name] = exports[name];
+        clio_module[name] = module.exports[name] || exports[name];
       })
     }
   } else if (__filename.indexOf('/') > -1) {
@@ -58,7 +59,7 @@ async function clio_require_browser(module_name, names_to_import, current_dir, s
     }
     var mod = await fetch(__filename);
     if (mod.status != 200) {
-      var __filename = http_resolve_path(__basedir, `clio_env/${module_name}`);
+      var __filename = http_resolve_path(__basedir, `/clio_env/${module_name}.clio`);
       var __dirname = http_dir_name(__filename);
       var mod = await fetch(__filename);
     }
