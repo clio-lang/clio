@@ -28,6 +28,9 @@ function jsonReplacer(key, value) {
 }
 
 function jsonReviver(key, value) {
+  if (!value) {
+    return value;
+  }
   if (value.constructor == Number) {
     return Decimal(value);
   }
