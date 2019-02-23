@@ -1,7 +1,7 @@
 var { Decimal, EventEmitter } = require('../internals/types');
 
 function jsonReplacer(key, value) {
-  if (!value) {
+  if ([null, undefined].includes(value)) {
     return value
   }
   if (value.toNumber) {
@@ -28,7 +28,7 @@ function jsonReplacer(key, value) {
 }
 
 function jsonReviver(key, value) {
-  if (!value) {
+  if ([null, undefined].includes(value)) {
     return value;
   }
   if (value.constructor == Number) {
