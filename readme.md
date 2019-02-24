@@ -19,6 +19,7 @@ test programs exist, it is not recommended to use in production.
 ## Links
 
 *	[Clio Website](http://clio-lang.org)
+*	[Documentation](http://docs.clio-lang.org)
 *	[Clio on Rosetta Code](http://rosettacode.org/wiki/Clio)
 *	[Quick Guide](https://clio-lang.github.io/clio-docs/quick.html)
 *	[Web IDE](https://clio-lang.github.io/clio-editor/)
