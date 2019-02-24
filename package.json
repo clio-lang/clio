@@ -11,6 +11,10 @@
   "bin": {
     "clio": "./index.js"
   },
+  "repository": {
+  "type" : "git",
+  "url" : "https://github.com/clio-lang/clio.git"
+  },
   "jest": {
     "collectCoverageFrom": [
       "**/*.js",
