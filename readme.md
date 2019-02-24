@@ -1,4 +1,5 @@
 ![Clio Logo](https://github.com/clio-lang/media/blob/master/logo-128x128.png)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fclio-lang%2Fclio.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fclio-lang%2Fclio?ref=badge_shield)
 
 # Clio
 
@@ -105,3 +106,7 @@ Clio uses gulp as task runner. Simply doing
 	gulp bundle
 
 Will generate the minified browser bundle and the size graph.
+
+
+## License
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fclio-lang%2Fclio.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fclio-lang%2Fclio?ref=badge_large)
