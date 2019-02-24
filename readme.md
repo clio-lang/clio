@@ -1,5 +1,6 @@
-![Clio Logo](https://github.com/clio-lang/media/blob/master/logo-128x128.png)
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fclio-lang%2Fclio.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fclio-lang%2Fclio?ref=badge_shield)
+
+![Clio Logo](https://github.com/clio-lang/media/blob/master/logo-128x128.png)
 
 # Clio
 
