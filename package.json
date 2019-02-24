@@ -1,6 +1,6 @@
 {
   "name": "clio-lang",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Clio Programming Language",
   "main": "index.js",
   "scripts": {
@@ -12,8 +12,8 @@
     "clio": "./index.js"
   },
   "repository": {
-  "type" : "git",
-  "url" : "https://github.com/clio-lang/clio.git"
+    "type": "git",
+    "url": "https://github.com/clio-lang/clio.git"
   },
   "jest": {
     "collectCoverageFrom": [
