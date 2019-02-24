@@ -949,6 +949,9 @@ function analyzer(tree, source) {
         if (expr.name == 'halfcmp') {
           expr.tokens.unshift({name: 'symbol', raw: '$in'});
           expr.name = 'cmpexpr';
+        } else if (expr.name == 'halfnot') {
+          expr.tokens = [{name: 'symbol', raw: '$in'}];
+          expr.name = 'notexpr';
         } else if (expr.name == 'if_fun_call') {
           expr.name = 'mapper';
           expr = {

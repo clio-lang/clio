@@ -587,7 +587,7 @@ const matchers = {
     return helpers.isSeq([
       {name: 'if', count: 1},
       {name: '_', count: 0, opt: true},
-      {name: ['halfcmp', 'flow', 'symbol', 'property_access', 'cmpexpr', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'if_fun_call', 'math'], count: 1},
+      {name: ['halfcmp', 'flow', 'symbol', 'property_access', 'cmpexpr', 'and_or_expr', 'wrapped_and_or', 'halfnot', 'notexpr', 'wrapped_not', 'if_fun_call', 'math'], count: 1},
       {name: '_', count: 0, opt: true},
       {name: 'colon', count: 1},
       {name: ['_', '_n', '^'], count: 0}, // if it's _n then it's block for sure!
@@ -682,6 +682,11 @@ const matchers = {
       {name: ['_', '_n', '^'], count: 0, opt: true},
       {name: 'else_statement', count: 1, opt: true, fail: ['else']},
     ], i, tokens)
+  },
+  halfnot: function (i, tokens) {
+    return helpers.isSeq([
+      {name: 'not', count: 1}
+    ], i, tokens);
   },
   eof: function (i, tokens) {
     return helpers.isSeq([
