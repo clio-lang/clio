@@ -1,6 +1,6 @@
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fclio-lang%2Fclio.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fclio-lang%2Fclio?ref=badge_shield)
 
-![Clio Logo](https://github.com/clio-lang/media/blob/master/logo-128x128.png)
+![Clio Logo](https://raw.githubusercontent.com/clio-lang/media/master/logo-128x128.png)
 
 # Clio
 
@@ -8,7 +8,7 @@ Clio is a pure functional lazy-evaluated programming language targeting decentra
 
 Clio compiles to JavaScript. This makes Clio fast, easy to port and easy to extend. It gives Clio a free JIT compiler, a powerful VM and access to lots of existing libraries. It enables Clio to run in the browser and on servers, and anywhere JavaScript can run.
 
-![Clio Logo](https://github.com/clio-lang/media/blob/master/clio-cut.png)
+![Clio Logo](https://raw.githubusercontent.com/clio-lang/media/master/clio-cut.png)
 
 ## Project Status
 
