@@ -7,7 +7,7 @@
     "test": "jest --collect-coverage"
   },
   "author": "Pouya Eghbali",
-  "license": "Apache 2.0",
+  "license": "Apache-2.0",
   "bin": {
     "clio": "./index.js"
   },
@@ -60,6 +60,6 @@
     "puppeteer": "^1.12.2",
     "vinyl-buffer": "^1.0.1",
     "vinyl-source-stream": "^2.0.0",
-    "watchify": "^3.11.0"
+    "watchify": "^3.11.1"
   }
 }
