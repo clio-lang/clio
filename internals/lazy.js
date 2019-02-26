@@ -33,7 +33,7 @@ function memoize(fn) {
   var cache_keys = [];
   return async function(...args) {
     args = await Promise.all(args);
-    if (fn.mmax && fn.mmax.gt(0)) {
+    if (!fn.mmax || (fn.mmax && fn.mmax.gt(0))) {
       var hash = serialize(args);
       var cached = cache.get(hash);
       if (cached != undefined) {
@@ -41,10 +41,10 @@ function memoize(fn) {
       }
     }
     var result = await fn(...args);
-    if (fn.mmax && fn.mmax.gt(0)) {
+    if (!fn.mmax || fn.mmax.gt(0)) {
       cache.set(hash, result);
       cache_keys.push(hash);
-      if (fn.mmax.lt(cache_keys.length)) {
+      if (fn.mmax && fn.mmax.lt(cache_keys.length)) {
         var key = cache_keys.shift();
         cache.delete(key);
       }
