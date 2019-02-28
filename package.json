@@ -44,7 +44,8 @@
     "treeify": "^1.1.0",
     "unescape-js": "^1.1.0",
     "uuid": "^3.3.2",
-    "websocket": "^1.0.28"
+    "websocket": "^1.0.28",
+    "yargs": "^13.2.1"
   },
   "devDependencies": {
     "buffer": "^5.2.1",

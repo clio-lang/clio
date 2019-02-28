@@ -16,21 +16,6 @@ const tmp = require('tmp');
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require('websocket').w3cwebsocket; // same for WebSocket
 
-/******************************************************************************
-  ULTIMATE TODO, IDEA AND BUG LIST
-    [ ] Allow only one symbol, or a flow in __conditional__
-    [ ] Allow no condition for if, in __inflowcond__
-    [ ] Rename else to else_block in grammars
-    [ ] Allow whitespace before colon
-    [ ] Investigate possible conditional grammars and fix grammar
-    [X] Fix string bug
-    [ ] Add comments for mortals
- ******************************************************************************/
-
-/******************************************************************************
-  CODE FOR TESTING LEXER AND PARSER AND OTHER CRAP
- ******************************************************************************/
-
 function remove_props(obj,keys){
  if(obj instanceof Array){
    obj.forEach(function(item){
@@ -58,38 +43,33 @@ function write_file(source, path) {
   fs.writeFileSync(path, source);
 }
 
-async function process_file(file) {
-  fs.readFile(file, 'utf8', function(err, contents) {
+async function process_file(argv) {
 
-    if (process.argv[2] == 'highlight') {
+  process.env.clio_root = __dirname;
+  argv.command = argv._[0];
+
+  if (argv.command == 'run') {
+    try {
+      return clio_import(argv.source, true);
+    } catch (e) {
+      return e.exit ? e.exit() : console.log(e);
+    }
+  }
+
+  if (argv.command == 'host') {
+    try {
+      var _module = clio_import(argv.source, true);
+    } catch (e) {
+      return e.exit ? e.exit() : console.log(e);
+    }
+    return clio_host(_module);
+  }
+
+  fs.readFile(argv.source, 'utf8', function(err, contents) {
+
+    if (argv.command == 'highlight') {
       console.log();
       return console.log(highlight(contents));
-    }
-
-    if (process.argv[2] == 'run') {
-      /*
-        TODO:
-          [X] set direct import flag
-          [X] ^ try to remember why I wanted that
-              ^ for setting __basedir
-          [X] change cwd to input file dir
-          [ ] remove all paths from require
-          [ ] ^ try to remember that also
-      */
-      try {
-        return clio_import(file, true);
-      } catch (e) {
-        return e.exit ? e.exit() : console.log(e);
-      }
-    }
-
-    if (process.argv[2] == 'host') {
-      try {
-        var _module = clio_import(file, true);
-      } catch (e) {
-        return e.exit ? e.exit() : console.log(e);
-      }
-      return clio_host(_module);
     }
 
     var tokens = lexer(contents);
@@ -98,54 +78,90 @@ async function process_file(file) {
     }
     tokens = tokens[1];
     try {
-      var result = parser(contents, tokens, false, file);
+      var result = parser(contents, tokens, false, argv.source);
     } catch (e) {
       return e.exit ? e.exit() : console.log(e);
     }
     var ast = result[1];
-    if (process.argv[2] == 'ast') {
+    if (argv.command == 'ast') {
       return print_ast(ast);
     }
     ast.pop() // eof
     var code = beautify(analyzer(ast, contents));
 
-    if (process.argv[2] == 'compile') {
-      write_file(code, process.argv[4]);
+    if (argv.command == 'compile') {
+      write_file(code, argv.destination);
     }
   });
 }
 
-if (process.argv.length <= 3) {
-    console.log("Usage: " + "clio" + " ast|compile|run|highlight|host|get OPTIONS");
-    process.exit(-1);
-}
-
-if (!['ast', 'compile', 'run', 'highlight', 'host', 'get'].includes(process.argv[2])) {
-  console.log("Usage: " + "clio" + " ast|compile|run|highlight|host|get OPTIONS");
-  process.exit(-1);
-}
-
-if (process.argv[2] == 'compile') {
-  if (process.argv.length <= 4) {
-      console.log("Usage: " + "clio" + " ast|compile|run|highlight|host|get OPTIONS");
-      process.exit(-1);
-  }
-}
-
-if (process.argv[2] == 'get') {
-  (async () => {
-    var url = process.argv[3];
-    var file = await fetch(url);
-    var array_buffer = await file.arrayBuffer();
-    var buffer = Buffer.from(array_buffer);
-    var tmpobj = tmp.fileSync();
-    fs.writeFileSync(tmpobj.name, buffer, 'binary');
-    await decompress(tmpobj.name, 'clio_env')
-    tmpobj.removeCallback();
-  })();
-} else {
-  var file = process.argv[3];
-  process.env.clio_root = __dirname;
-  // ^ we'll remove this when we package clio, ofc
-  process_file(file);
-}
+const argv = require('yargs')
+  .command('run <source>', 'Compile and run Clio file', (yargs) => {
+    yargs.positional('source', {
+      describe: 'source file to run',
+      type: 'string'
+    })
+  },
+  (argv) => {
+    process_file(argv)
+  })
+  .command('host <source>', 'Host a Clio file', (yargs) => {
+    yargs.positional('source', {
+      describe: 'source file to host',
+      type: 'string'
+    })
+  },
+  (argv) => {
+    process_file(argv)
+  })
+  .command('highlight <source>', 'Highlight a Clio file', (yargs) => {
+    yargs.positional('source', {
+      describe: 'source file to highlight',
+      type: 'string'
+    })
+  },
+  (argv) => {
+    process_file(argv)
+  })
+  .command('ast <source>', 'Print ast for a Clio file', (yargs) => {
+    yargs.positional('source', {
+      describe: 'source file to analyze',
+      type: 'string'
+    })
+  },
+  (argv) => {
+    process_file(argv)
+  })
+  .command('get <url>', 'Download and install a Clio module', (yargs) => {
+    yargs.positional('source', {
+      describe: 'source file to analyze',
+      type: 'string'
+    })
+  },
+  (argv) => {
+    (async () => {
+      var url = argv.url;
+      var file = await fetch(url);
+      var array_buffer = await file.arrayBuffer();
+      var buffer = Buffer.from(array_buffer);
+      var tmpobj = tmp.fileSync();
+      fs.writeFileSync(tmpobj.name, buffer, 'binary');
+      await decompress(tmpobj.name, 'clio_env')
+      tmpobj.removeCallback();
+    })();
+  })
+  .command('compile <source> <destination>', 'Compile a Clio file', (yargs) => {
+    yargs.positional('source', {
+      describe: 'source file to compile',
+      type: 'string'
+    }).positional('destination', {
+      describe: 'destination file to write to',
+      type: 'string'
+    })
+  },
+  (argv) => {
+    process_file(argv)
+  })
+  .demandCommand(1, 'must provide a valid command')
+  .completion()
+  .argv
