@@ -25,6 +25,19 @@ const matchers = {
   wrapped_not: function (i, tokens, parser) {
     return helpers.isWrapped('lpar', 'notexpr', 'rpar', i, tokens, parser)
   },
+  list: function (i, tokens, parser) {
+    return helpers.isWrappedRepeat('lbra', 'rbra', [
+      {name: ['_', '_n', '^'], count: 0, opt: true},
+      {name: ['symbol', 'property_access', 'number', 'list', 'empty_list', 'string', 'word', 'bool', 'wrapped_math', 'range', 'stepped_range'], count: 0, sep: ['_', '_n', '^', 'indent', 'dedent'], enders: ['rbra', 'lbra']},
+      {name: ['_', '_n', '^'], count: 0, opt: true},
+    ], i, tokens)
+  },
+  empty_list: function (i, tokens) {
+    return helpers.isSeq([
+      {name: 'lbra', count: 1},
+      {name: 'rbra', count: 1},
+    ], i, tokens)
+  },
   naked_startransform: function (i, tokens) {
     return helpers.isSeq([
       {name: 'sop', count: 1, raw: '*'},
@@ -240,19 +253,6 @@ const matchers = {
     return helpers.isSeq([
       {name: 'lcbr', count: 1},
       {name: 'rcbr', count: 1},
-    ], i, tokens)
-  },
-  list: function (i, tokens) {
-    return helpers.isSeq([
-      {name: 'lbra', count: 1},
-      {name: ['symbol', 'property_access', 'number', 'list', 'empty_list', 'string', 'word', 'bool', 'wrapped_math', 'range', 'stepped_range'], count: 0, sep: ['_', '_n', '^', 'indent', 'dedent'], enders: ['rbra', 'lbra']},
-      {name: 'rbra', count: 1},
-    ], i, tokens)
-  },
-  empty_list: function (i, tokens) {
-    return helpers.isSeq([
-      {name: 'lbra', count: 1},
-      {name: 'rbra', count: 1},
     ], i, tokens)
   },
   decorated_inflowfundef: function (i, tokens) {
