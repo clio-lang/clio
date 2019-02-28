@@ -10,6 +10,22 @@ Clio compiles to JavaScript. This makes Clio fast, easy to port and easy to exte
 
 ![Clio Logo](https://raw.githubusercontent.com/clio-lang/media/master/clio-cut.png)
 
+## Install
+
+To install you'll need Node.js (latest version) and NPM. Clio is hosted on NPM, to install it simply do
+
+```bash
+npm i -g clio-lang
+```
+
+## Command Line Usage
+
+To see a list of available `clio` commands and their description you can run
+
+```bash
+clio --help
+```
+
 ## Project Status
 
 Clio is in active development and it's not ready for production.
@@ -19,11 +35,11 @@ test programs exist, it is not recommended to use in production.
 ## Links
 
 *	[Clio Website](http://clio-lang.org)
+*	[Discourse](http://forum.clio-lang.org)
 *	[Documentation](http://docs.clio-lang.org)
 *	[Clio on Rosetta Code](http://rosettacode.org/wiki/Clio)
 *	[Quick Guide](https://clio-lang.github.io/clio-docs/quick.html)
 *	[Web IDE](https://clio-lang.github.io/clio-editor/)
-*	[Browser Bundle Size Graph](https://clio-lang.github.io/clio-editor/breakdown.html)
 *	[Clio on Trello](https://trello.com/b/WpwsB69B/clio)
 *	[Clio Chat (on Telegram)](https://t.me/joinchat/B0kZo0kVldfXldTDqz95XA)
 
@@ -67,48 +83,6 @@ For a list of what's done and what's planned you can check [Clio on Trello](http
 - Take advantage of multi-core CPUs and multiple CPUs by default
 - It should be easy to port existing code, and it should be easy to port Clio code to different platforms
 - Avoid spaghetti code and callback hell
-
-
-## Command Line Usage
-
-To install, download or clone this repository:
-
-	git clone https://github.com/clio-lang/clio
-
-You need NodeJS [latest version] and Clio dependencies. To install Clio dependencies in the project directory, do
-
-	npm install
-
-Then `link` clio bin
-
-	npm link
-
-to run a Clio program do
-
-	clio run path/to/file.clio
-
-to highlight a Clio file do
-
-	clio highlight path/to/file.clio
-
-to print the abstract syntax tree
-
-	clio ast path/to/file.clio
-
-and to compile Clio code to JS do
-
-	clio compile path/to/source.clio path/to/output.js
-
-by default Node puts a limit on memory usage, to change this limit please refer to [this guide](https://gist.github.com/motss/f55b92ccab0d434fa6e6cfd07423014b).
-
-## Developing
-
-Clio uses gulp as task runner. Simply doing
-
-	gulp bundle
-
-Will generate the minified browser bundle and the size graph.
-
 
 ## License
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fclio-lang%2Fclio.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fclio-lang%2Fclio?ref=badge_large)
