@@ -3,15 +3,7 @@ const cast_to_bool = require('../common').cast_to_bool;
 var Decimal = require('decimal.js');
 
 function analyzer(tree, source) {
-
-  /*
-      TODO:
-
-    [ ] ranges
-    [ ] remove vars we have our own scoping now
-
-  */
-
+  
   // OPTIMIZE: this function needs to be optimized
 
   function make_return(expr) {
@@ -65,23 +57,6 @@ function analyzer(tree, source) {
         code: `await builtins.funcall(['${node.raw}'], [scope], builtins.get_symbol, file, {index: ${node.index}, fn: '<get-symbol>'})`
       };
     },
-    /*dotted_symbol: function (node) {
-      var first = node.tokens.shift()
-      var code = `(new builtins.lazy_call(async () => (await builtins.value(scope['${first.raw}'] || builtins['${first.raw}']))))`
-      node.tokens.forEach(function (t) {
-        code = `(new builtins.lazy_call(async () => (await builtins.value(${code}))['${t.raw}']))`
-      })
-      return {
-        code: code
-      };
-    },
-    self_dotted_symbol: function (node) {
-      node.tokens.unshift({raw: 'instance'});
-      var tree = node.tokens.map(t => `['${t.raw}']`).join('');
-      return {
-        code: `(await scope${tree} || await builtins${tree})`
-      };
-    },*/
     property_access: function (node) {
       var first = analyze(node.tokens.shift()).code;
       var code = `(new builtins.lazy_call(async () => (await builtins.value(${first}))))`
