@@ -1,4 +1,4 @@
-var { lazy, value, lazy_call } = require('../internals/lazy');
+var { lazy, value, lazy_call, memoize } = require('../internals/lazy');
 var { Transform, AtSign, Decimal, Generator, Property, EventListener, EventEmitter } = require('../internals/types');
 const {jsonReviver, jsonReplacer} = require('../internals/json');
 const {throw_error, exception_handler} = require('../common');
@@ -162,7 +162,7 @@ builtins.ws_get = async function (ws, key) {
   if (type == 'function') {
     return builtins.lazy(async function (...args) {
       return builtins.ws_call(ws, key, args, {});
-    }, true);
+    });
   } else if (type == 'emitter') {
     var emitter = new EventEmitter({
       wildcard: true,
@@ -693,9 +693,9 @@ builtins.eager = function (oldoverload) {
     return await value(await func(...args));
   }
   newoverload.overloads = oldoverload.overloads;
-  newoverload.mmax = 0;
+  newoverload.mmax = builtins.Decimal(0);
   newoverload.overloads.forEach(function (overload) {
-    overload.mmax = 0;
+    overload.mmax = builtins.Decimal(0);
   })
   return newoverload;
 }
@@ -703,8 +703,13 @@ builtins.eager = function (oldoverload) {
 builtins.mmax = function (fn, overload_name, max) {
   fn.overloads.forEach(function (overload) {
     overload.mmax = max;
-  })
+  });
+  fn.mmax = max;
   return fn;
+}
+
+builtins.memoize = function (fn, overload_name, max) {
+  return memoize(fn, max || 1000);
 }
 
 builtins.timeout = function(fn, time) {

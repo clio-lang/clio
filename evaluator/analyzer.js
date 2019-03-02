@@ -3,7 +3,7 @@ const cast_to_bool = require('../common').cast_to_bool;
 var Decimal = require('decimal.js');
 
 function analyzer(tree, source) {
-  
+
   // OPTIMIZE: this function needs to be optimized
 
   function make_return(expr) {
@@ -210,7 +210,7 @@ function analyzer(tree, source) {
           var code = names_to_import.map(function (symbol) {
             return `scope['${symbol}'] = builtins.lazy(function (...args) {
               return builtins.http_call('${from.raw}', '${symbol}', args, {});
-            }, true);`
+            });`
           }).join(';\n');
         } else {
           var conn = `await builtins.setup_ws(ws_connections, '${from.raw}')`;
@@ -750,7 +750,7 @@ function analyzer(tree, source) {
                 scope[arg] = _arguments[index]
             });
             ${block}
-          }, true);
+          });
           func.frozenscope = Object.assign({}, scope);
           func.frozenscope['${name}'] = func;
           func.frozenscope['self'] = func;
@@ -787,7 +787,7 @@ function analyzer(tree, source) {
                 scope[arg] = _arguments[index]
             });
             ${block}
-          }, true);
+          });
           func.frozenscope = Object.assign({}, scope);
           func.frozenscope['${name}'] = func;
           func.frozenscope['self'] = func;
@@ -831,7 +831,7 @@ function analyzer(tree, source) {
                 scope[arg] = _arguments[index]
             });
             ${block}
-          }, true);
+          });
           func.frozenscope = Object.assign({}, scope);
           func.frozenscope['${name}'] = func;
           func.frozenscope['self'] = func;

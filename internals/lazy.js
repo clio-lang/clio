@@ -28,9 +28,10 @@ function serialize(arg) {
   return md5(stringify(arg));
 }
 
-function memoize(fn) {
+function memoize(fn, max) {
   var cache = new Map();
   var cache_keys = [];
+  fn.mmax = max;
   return async function(...args) {
     args = await Promise.all(args);
     if (!fn.mmax || (fn.mmax && fn.mmax.gt(0))) {
@@ -53,30 +54,7 @@ function memoize(fn) {
   };
 }
 
-/*
-var objhash = require('object-hash'); // TODO: replace with faster one
-
-function memoize(fn) {
-  var cache = new Map();
-  return async function(...args) {
-    args = await Promise.all(args);
-    //var hash = args.toString();
-    var hash = JSON.stringify(args);
-    //var hash = objhash(args);
-    var cached = cache.get(hash);
-    if (cached != undefined) {
-      return cached;
-    }
-    var result = await fn(...args);
-    cache.set(hash, result);
-    return result;
-  };
-}
-*/
-function lazy(fn, do_memoize) {
-  if (do_memoize) {
-    fn = memoize(fn)
-  }
+function lazy(fn) {
   var func = async function (...args) {
     return new lazy_call(fn, ...args);
   };
