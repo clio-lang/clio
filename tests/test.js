@@ -88,21 +88,12 @@ test('event emitter', async () => {
   })).toEqual('hello')
 })
 
-test('broadcasts', async () => {
-  var broadcast = await value((await clio_tests).br)
-  var broadcaster = await value((await clio_tests).broadcast_message)
-  expect(await new Promise(function(resolve, reject) {
-    broadcast.on('data', resolve);
-    broadcaster(broadcast, 'hello')
-  })).toEqual('hello')
-})
-
 test('range slicing', async () => {
-  expect((await value((await clio_tests).range_slice)).data[0]).toEqual(new Decimal(50))
+  expect((await value((await clio_tests).range_slice))).toEqual(new Decimal(50))
 })
 
 test('list slicing', async () => {
-  expect((await value((await clio_tests).list_slice)).data[0]).toEqual(new Decimal(1))
+  expect((await value((await clio_tests).list_slice))).toEqual(new Decimal(1))
 })
 
 test('eager map', async () => {

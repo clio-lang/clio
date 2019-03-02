@@ -45,12 +45,6 @@ a -> pow 3 @ => a_pos
 fn emit_message ee message:
   ee -> emit #message message
 
-#data -> broadcast => br
-
-@eager
-fn broadcast_message br message:
-  message => br
-
 [0:100][50] => range_slice
 [0 1 2 3 4 5][1] => list_slice
 
