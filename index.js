@@ -58,7 +58,7 @@ async function process_file(argv) {
 
   if (argv.command == 'host') {
     try {
-      var _module = clio_import(argv.source, true);
+      var _module = clio_import(argv.source);
     } catch (e) {
       return e.exit ? e.exit() : console.log(e);
     }
