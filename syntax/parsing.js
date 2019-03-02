@@ -424,45 +424,6 @@ const matchers = {
       {name: 'fundefifof', count: 1},
     ], i, tokens)
   },
-  /*procdef: function (i, tokens) {
-    return helpers.isSeq([
-      {name: 'proc', count: 1},
-      {name: '_', count: 1},
-      {name: 'symbol', 'property_access', count: 1},
-      {name: '_', count: 1},
-      {name: 'symbol', 'property_access', sep: ['_'], count: 0, enders: ['colon']},
-      {name: 'colon', count: 1},
-      {name: '_n', count: 0},
-      {name: 'block', count: 1}
-    ], i, tokens)
-  },
-  inflowprocdef: function (i, tokens) {
-    return helpers.isSeq([
-      {name: ['_', '^', '_n'], count: 1},
-      {name: 'map', count: 1},
-      {name: '_', count: 1},
-      {name: 'proc', count: 1},
-      {name: '_', count: 1},
-      {name: 'symbol', 'property_access', count: 1},
-      {name: 'colon', count: 1},
-      {name: '_n', count: 0},
-      {name: 'block', count: 1}
-    ], i, tokens)
-  },
-  starinflowprocdef: function (i, tokens) {
-    return helpers.isSeq([
-      {name: ['_', '^', '_n'], count: 1},
-      {name: 'starmap', count: 1},
-      {name: '_', count: 1, opt: true},
-      {name: 'proc', count: 1},
-      {name: '_', count: 1},
-      {name: 'symbol', 'property_access', count: 1},
-      {name: '_', count: 1, opt: true},
-      {name: 'colon', count: 1},
-      {name: '_n', count: 0},
-      {name: 'block', count: 1}
-    ], i, tokens)
-  },*/
   quickfundef: function (i, tokens) {
     return helpers.isSeq([
       //{name: ['_', '_n', '^'], count: 0},
@@ -475,18 +436,6 @@ const matchers = {
       {name: ['math', 'wrapped_math', 'cmpexpr', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not', 'list', 'bool', 'string', 'word'], count: 1}
     ], i, tokens)
   },
-  /*starquickfundef: function (i, tokens) {
-    return helpers.isSeq([
-      {name: ['_', '_n', '^'], count: 0},
-      {name: 'starmap', count: 1},
-      {name: '_', count: 1},
-      {name: 'symbol', 'property_access', count: 1},
-      {name: '_', count: 1, opt: true},
-      {name: 'colon', count: 1},
-      {name: '_', count: 1, opt: true},
-      {name: ['math', 'wrapped_math'], count: 1}
-    ], i, tokens)
-  },*/
   if_fun_call: function (i, tokens) {
     return helpers.isSeq([
       {name: ['symbol', 'property_access'], count: 1, should_be_after: ['if', 'elif']},
@@ -577,7 +526,7 @@ const matchers = {
       {name: 'indent', count: 1},
       {name: ['_', '^'], count: 0},
       {name: ['block', 'conditional', 'flow', 'fundef', 'anonfundef', 'list', 'string', 'word', 'number', 'decorated_fundef',
-              'symbol', 'property_access', 'bool', 'math', 'procdef', 'range', 'typedef', 'fundefof', 'notexpr','hash_map',
+              'symbol', 'property_access', 'bool', 'math', 'range', 'typedef', 'fundefof', 'notexpr','hash_map',
               'slice'], count: 0, sep: ['_', '_n', '^'], enders: ['dedent']},
       {name: ['_n', '^'], count: 0, opt: true},
       {name: 'dedent', count: 1},
@@ -644,17 +593,17 @@ const matchers = {
               'math', 'if_fun_call', 'wrapped_math', 'atsign', 'slice', 'notexpr', 'and_or_expr'], count: 0, sep: ['_'],
               enders: ['setter', 'mapper', 'starmapper', 'naked_mapper', 'naked_star_mapper', '_n', '^',
                 'filter', 'starinflowfundef', 'decorated_starinflowfundef', 'inflowfundef', 'decorated_inflowfundef',
-                'starinflowprocdef', 'inflowprocdef', 'condmapper', 'starcondmapper', 'quickfundef', 'starquickfundef', 'return_mapper',
+                'condmapper', 'starcondmapper', 'quickfundef', 'starquickfundef', 'return_mapper',
               ],
               not_after: ['not']
       },
       {
         name: ['setter', 'mapper', 'starmapper', 'naked_mapper', 'naked_star_mapper',
-          'filter', 'starinflowfundef', 'decorated_starinflowfundef', 'inflowfundef', 'decorated_inflowfundef', 'starinflowprocdef', 'inflowprocdef', 'condmapper', 'starcondmapper', 'quickfundef', 'starquickfundef', 'return_mapper'],
+          'filter', 'starinflowfundef', 'decorated_starinflowfundef', 'inflowfundef', 'decorated_inflowfundef', 'condmapper', 'starcondmapper', 'quickfundef', 'starquickfundef', 'return_mapper'],
         count: 0, sep: ['_', '_n', '^'],
         enders: [
           'colon', '_n', '^', 'symbol', 'property_access', 'list', 'number', 'bool', 'empty_list', 'range', 'stepped_range', 'string', 'math', 'wrapped_math', 'notexpr', 'slice', 'hash_map',
-          'word', 'dedent', 'eof', 'flow', 'conditional', 'rpar', 'fundef', 'comparison', 'procdef', 'decorator', 'import_st', 'import_nk', 'import_al', 'typedef', 'fundefof', 'fundefif', 'fundefifof']
+          'word', 'dedent', 'eof', 'flow', 'conditional', 'rpar', 'fundef', 'comparison', 'decorator', 'import_st', 'import_nk', 'import_al', 'typedef', 'fundefof', 'fundefif', 'fundefifof']
       },
     ], i, tokens)
   },

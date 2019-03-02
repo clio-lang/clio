@@ -3,10 +3,8 @@ const patterns = {
   string: /^'([^\\]|\\.)*?'/,
   word: /^#[^\[\] \r\n:]+/i,
   number: /^(0|-?[1-9][0-9']*)(\.[0-9']+)?/,
-  //possesive: /^(my|[a-zA-Z$][a-zA-Z0-9_$-]*'s?)/,
 
   fn: /^fn(?![a-zA-Z_-])/,
-  //proc: /^proc(?![a-zA-Z_-])/,
   return: /^return(?![a-zA-Z_-])/,
   async: /^async(?![a-zA-Z_-])/,
   if: /^if(?![a-zA-Z_-])/,

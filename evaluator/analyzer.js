@@ -427,7 +427,7 @@ function analyzer(tree, source) {
       var tokens = analyze(node.tokens);
       var data = [];
       var function_calls = ['setter', 'mapper', 'starmapper', 'naked_mapper', 'naked_star_mapper',
-        'filter', 'starinflowfundef', 'inflowfundef', 'starinflowprocdef', 'inflowprocdef', 'condmapper', 'decorated_starinflowfundef',
+        'filter', 'starinflowfundef', 'inflowfundef', 'condmapper', 'decorated_starinflowfundef',
         'starcondmapper', 'quickfundef', 'starquickfundef', 'return_mapper', 'fundef', 'decorated_inflowfundef']; // fix this list
       var i = 0;
       while (!function_calls.includes(node.tokens[i++].name)) {
@@ -446,9 +446,9 @@ function analyzer(tree, source) {
           code = `return await ${code};`;
         } else if (token.type == 'map') {
           code = `await builtins.starmap([${code}], ${token.code[0]}, ${token.code[1]}, file, {index: ${token.fnindex}, fn: '${token.fn}'})`;
-        } else if (['inflowfundef', 'inflowprocdef'].includes(token.type)) {
+        } else if (['inflowfundef'].includes(token.type)) {
           code = `await builtins.funcall([${code}], [], ${token.code}, file, {index: ${node.index}, fn: '<anonymous-fn>'})`;
-        } else if (['starinflowfundef', 'starinflowprocdef'].includes(token.type)) {
+        } else if (['starinflowfundef'].includes(token.type)) {
           code = `await builtins.starmap([${code}], ${token.code}, [], file, {index: ${token.fnindex}, fn: '<anonymous-fn>'})`;
         } else if (token.type == 'condmapper') {
           code = `await builtins.funcall([${code}], [], ${token.code}, file, {index: ${node.index}, fn: '<conditional>'})`
@@ -865,67 +865,6 @@ function analyzer(tree, source) {
         })(scope), '${name}', scope)`,
         name: name,
         overload: `[${overload}]`
-      };
-    },
-    inflowprocdef: function (node) {
-      node.tokens.unshift({name: 'symbol', raw: ''})
-      node.name = 'procdef';
-      var func_code = analyze(node).code;
-      return {
-        type: 'inflowprocdef',
-        code: func_code
-      }
-    },
-    starinflowprocdef: function (node) {
-      node.tokens.unshift({name: 'symbol', raw: ''})
-      node.name = 'procdef';
-      var func_code = analyze(node).code;
-      return {
-        type: 'starinflowprocdef',
-        code: func_code
-      }
-    },
-    procdef: function (node) {
-      var block = node.tokens.pop().tokens;
-      var implicit_return = make_return(block.pop());
-      block.push(implicit_return);
-      var block_vars = [];
-      var block = analyze(block).map(function (t) {
-        if (t.vars) {
-          t.vars.forEach(v => block_vars.push(v))
-        }
-        return t.code;
-      }).join(';\n');
-      /*if (block_vars.length > 0) {
-        var variables = `var ${block_vars.join(', ')};`;
-        var block = `${variables}\n${block}`;
-      }*/
-      var name = node.tokens.shift().raw;
-      var args = node.tokens.map(t => t.raw).join(', ');
-      var arg_names = node.tokens.map(t => `'${t.raw}'`).join(', ');
-      if (name == '') {
-        return {
-          code: `function(${args}) {
-              var args_obj = {};
-              var _arguments = arguments;
-              [${arg_names}].forEach(function (arg, index) {
-                args_obj[arg] = _arguments[index]
-              })
-              scope = Object.assign(scope, args_obj);
-              ${block}
-            }`
-        };
-      }
-      return {
-        code: `scope['${name}'] = function(${args}) {
-            var args_obj = {};
-            var _arguments = arguments;
-            [${arg_names}].forEach(function (arg, index) {
-              args_obj[arg] = _arguments[index]
-            })
-            scope = Object.assign(scope, args_obj);
-            ${block}
-          }`
       };
     },
     empty_list: function (node) {
