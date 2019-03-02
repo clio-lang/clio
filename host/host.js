@@ -25,7 +25,7 @@ function find_emitters(obj) {
   return []
 }
 
-async function clio_host(scope) {
+async function clio_host(scope, root_dir) {
 
   scope = await scope;
   var config = await scope.host;
@@ -41,6 +41,11 @@ async function clio_host(scope) {
           cluster.fork();
       }
   } else {
+
+      if (root_dir) {
+        process.chdir(root_dir)
+      }
+
       // Workers share the TCP connection in this server
       var app = express();
       enableWs(app);

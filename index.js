@@ -58,11 +58,19 @@ async function process_file(argv) {
 
   if (argv.command == 'host') {
     try {
+
+      if (!path.isAbsolute(argv.source)) {
+        var cwd = process.cwd();
+        var file = path.join(cwd, argv.source);
+      }
+      var file_dir = path.dirname(file);
+      global.__basedir = file_dir;
+
       var _module = clio_import(argv.source);
     } catch (e) {
       return e.exit ? e.exit() : console.log(e);
     }
-    return clio_host(_module);
+    return clio_host(_module, file_dir);
   }
 
   fs.readFile(argv.source, 'utf8', function(err, contents) {
