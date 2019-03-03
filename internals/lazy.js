@@ -197,20 +197,27 @@ async function value_of(lazy) {
   }
 }
 
+// OPTIMIZE: This function needs optimizations and reconsiderations
+
 async function value(lazy) {
   // we should remove these recursive calls, probably
   if (lazy == undefined) {
     return lazy;
   }
+  if (lazy.__clio_is_processed) {
+    return lazy;
+  }
+  if (lazy.constructor == Array) {
+    return await Promise.all(lazy.map(value));
+  }
   if (lazy.constructor == Object) {
+    lazy.__clio_is_processed = true;
     for (var key in lazy) {
       if (lazy.hasOwnProperty(key)) {
         lazy[key] = await value(lazy[key])
       }
     }
-  }
-  if (lazy.constructor == Array) {
-    return await Promise.all(lazy.map(value));
+    return lazy;
   }
   var result = await value_of(lazy);
   if (result == undefined) {
