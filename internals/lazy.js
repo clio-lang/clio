@@ -217,6 +217,7 @@ async function value(lazy) {
         lazy[key] = await value(lazy[key])
       }
     }
+    delete lazy.__clio_is_processed;
     return lazy;
   }
   var result = await value_of(lazy);

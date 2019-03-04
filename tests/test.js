@@ -72,7 +72,7 @@ test('ws calls: a -> double = 4', async () => {
 })
 
 test('test hash maps', async () => {
-  expect(await value((await clio_tests).hash_map)).toEqual({__clio_is_processed: true, key: 'value'})
+  expect(await value((await clio_tests).hash_map)).toEqual({key: 'value'})
 })
 
 test('positional arguments', async () => {
