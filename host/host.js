@@ -32,8 +32,8 @@ async function clio_host(scope, root_dir) {
   var exported = {};
   await config.exports.map(async e => {exported[e] = scope[e]});
 
-  var port = config.port ? config.port.toNumber() : 3000;
-  var workers = config.workers ? config.workers.toNumber() : cpu_count;
+  var port = config.port ? Number(config.port) : 3000;
+  var workers = config.workers ? Number(config.workers) : cpu_count;
 
   if (cluster.isMaster) {
       console.log(`Starting a cluster consisting of ${workers} workers, on port ${port}`);
