@@ -32,13 +32,13 @@ function jsonReviver(key, value) {
     return value;
   }
   if (value.constructor == Number) {
-    return Decimal(value);
+    return new Decimal(value);
   }
   if ((value.constructor == String) && (value.startsWith('clio::'))) {
     value = value.slice(6);
     if (value.startsWith('number::')) {
       value = value.slice(8);
-      return Decimal(value);
+      return new Decimal(value);
     } else if (value.startsWith('emitter::')) {
       value = value.slice(9);
       var emitter = new EventEmitter({

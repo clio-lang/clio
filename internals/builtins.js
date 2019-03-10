@@ -511,23 +511,23 @@ var colormap = {
   range: chalk.cyan,
 }
 
-builtins.string = lazy(async function (thing, colorize) {
-  var type = await value(builtins.typeof(thing));
+builtins.string = lazy(async function (object, colorize) {
+  var type = await value(builtins.typeof(object));
   var string;
   if (type == 'gen') {
-    if (thing.data.start) {
+    if (object.data.start) {
       type = 'num'
-      var start = thing.data.start;
-      var end = thing.data.end;
-      var step = thing.data.step;
+      var start = object.data.start;
+      var end = object.data.end;
+      var step = object.data.step;
       string = [start, end, step].join(chalk.white(':'));
     } else {
-      string = await Promise.all((await value(thing.map(i => builtins.string(i, colorize)))).data.map(value));
+      string = await Promise.all((await value(object.map(i => builtins.string(i, colorize)))).data.map(value));
       string = string.join(' ');
       string = `[${string}]`;
     }
   } else {  // TODO: better support for objects
-    string = thing.toString();
+    string = object.toString();
   }
   if (colorize) {
     string = (colormap[type] || chalk.white)(string);
@@ -561,7 +561,7 @@ builtins.take = lazy(function(list, n) {
 })
 
 builtins.slice = lazy(async function (list, slicers, index) {
-  if ((slicers.length == 1) && (slicers[index].constructor == Decimal)){
+  if ((slicers.length == 1) && slicers[index].decimal){
     var i = slicers[index].toNumber()
     if (list.constructor == Array) {
       return list[i];
@@ -571,7 +571,7 @@ builtins.slice = lazy(async function (list, slicers, index) {
   var slicer = slicers[index++];
   if (list.data.start) {
     // it's a range
-    if (slicer.constructor == Decimal) {
+    if (slicer.decimal) {
       // a regular index
       if (slicer.toNumber() >= list.len()) {
         throw new Error(`Index ${slicer.toString()} is bigger than array length.`);
@@ -625,7 +625,7 @@ builtins.slice = lazy(async function (list, slicers, index) {
     }
   } else {
     // it's a normal list
-    if (slicer.constructor == Decimal) {
+    if (slicer.decimal) {
       // a regular index
       if (slicer.toNumber() >= list.len()) {
         throw new Error(`Index ${slicer.toString()} is bigger than array length.`);
@@ -693,9 +693,9 @@ builtins.eager = function (oldoverload) {
     return await value(await func(...args));
   }
   newoverload.overloads = oldoverload.overloads;
-  newoverload.mmax = builtins.Decimal(0);
+  newoverload.mmax = new builtins.Decimal(0);
   newoverload.overloads.forEach(function (overload) {
-    overload.mmax = builtins.Decimal(0);
+    overload.mmax = new builtins.Decimal(0);
   })
   return newoverload;
 }
@@ -719,7 +719,7 @@ builtins.timeout = function(fn, time) {
 builtins.interval = function(time, fn, ...args) {
   var i = 0;
   return setInterval(function () {
-    fn(new Decimal(i++), ...args)
+    fn(new builtins.Decimal(i++), ...args)
   }, time.toNumber())
 }
 

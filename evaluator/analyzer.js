@@ -1,6 +1,6 @@
 const unescapeJs = require('unescape-js');
 const cast_to_bool = require('../common').cast_to_bool;
-var Decimal = require('decimal.js');
+const {Decimal} = require('../internals/types');
 
 function analyzer(tree, source) {
 
@@ -44,7 +44,7 @@ function analyzer(tree, source) {
     number: function (node) {
       node.raw = node.raw.replace(/'/g, '');
       return {
-        code: `builtins.Decimal('${node.raw}')`
+        code: `new builtins.Decimal('${node.raw}')`
       };
     },
     bool: function (node) {
@@ -147,7 +147,7 @@ function analyzer(tree, source) {
 
       var start = analyze(start).code;
       var end = analyze(end).code;
-      var step = `builtins.Decimal(builtins.Decimal(${start}).lt(builtins.Decimal(${end}))?1:-1)`
+      var step = `new builtins.Decimal(new builtins.Decimal(${start}).lt(new builtins.Decimal(${end}))?1:-1)`
 
       return {
         code: `new builtins.Generator(

@@ -1,5 +1,5 @@
 const {clio_import} = require('../internals/import');
-const Decimal = require('decimal.js');
+const {Decimal} = require('../internals/types');
 const {value} = require('../internals/lazy');
 
 const del = require('del');
