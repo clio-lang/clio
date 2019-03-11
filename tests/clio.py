@@ -1,12 +1,7 @@
-from flask import Flask, url_for
-from flask import Response
-from flask import request
-
-app = Flask(__name__)
-
 import io
 import json
 from contextlib import redirect_stdout
+from flask.json import JSONEncoder, JSONDecoder
 
 def clio(fn):
     def clio_fn(*args, **kwargs):
@@ -19,54 +14,25 @@ def clio(fn):
         })
     return clio_fn
 
-@clio
-def hello(person):
-    print(f'hello {person}!')
-    print(f'hello from Python!')
-    return person
+class ClioJSONEncoder(JSONEncoder):
 
-@clio
-def double(n):
-    return n*2
+    def default(self, obj):
+        if isinstance(obj, int):
+            return f'clio::number::{obj}'
+        return JSONEncoder.default(self, obj)
 
-name_spaces = {
-    'python': {
-        'hello': hello,
-        'double': double
-    }
-}
+def clio_parse_item(item):
+    if isinstance(item, str) and item.startswith('clio::number::'):
+        return int(item.strip('clio::number::'))
+    if isinstance(item, list):
+        return [clio_parse_item(it) for it in item]
+    if isinstance(item, dict):
+        return clio_parse_dict(item)
+    return item
 
-@app.route('/python', methods = ['GET'])
-def python_namespace():
+def clio_parse_dict(obj):
+    for key in obj:
+        obj[key]= clio_parse_item(obj[key])
+    return obj
 
-    #if request.headers['Content-Type'] == 'text/plain':
-        #res = json.dumps(list(name_spaces[request.data].keys()))
-    res = json.dumps(list(name_spaces['python'].keys()))
-    resp = Response(res, status=200, mimetype='application/json')
-    return resp
-
-@app.route('/python/execute', methods = ['POST'])
-def do_exec():
-    if request.headers['Content-Type'] == 'application/clio-cloud-call':
-        data = json.loads(request.data)
-        name_space = 'python'
-        fn_name = data['fn_name']
-        fn = name_spaces[name_space][fn_name]
-        args = data['args']
-        kwargs = data['kwargs']
-
-        res = fn(*args, **kwargs)
-        resp = Response(res, status=200, mimetype='application/json')
-        return resp
-
-    #elif request.headers['Content-Type'] == 'application/octet-stream':
-    #    f = open('./binary', 'wb')
-    #    f.write(request.data)
-    #            f.close()
-    #    return "Binary message written!"
-    #
-    #else:
-    #    return "415 Unsupported Media Type ;)"
-
-if __name__ == '__main__':
-    app.run()
+ClioJSONDecoder = json.JSONDecoder(object_hook=clio_parse_dict)
