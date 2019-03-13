@@ -38,8 +38,8 @@ test('a -> add 1 -> mul 2 -> pow 3', async () => {
 })
 
 test('expect fib of list to be same as range', async () => {
-  var fib_of_list = await value(value((await clio_tests).fib_of_list.data))
-  var fib_of_range = await value(value((await clio_tests).fib_of_range.data))
+  var fib_of_list = await Promise.all((await value((await clio_tests).fib_of_list)).data.map(value))
+  var fib_of_range = await Promise.all((await value((await clio_tests).fib_of_range)).data.map(value))
   expect(fib_of_list).toEqual(fib_of_range)
 })
 

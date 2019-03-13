@@ -1,4 +1,4 @@
-var { lazy, value, lazy_call, memoize } = require('../internals/lazy');
+var { lazy, value, LazyCall, memoize } = require('../internals/lazy');
 var { Transform, AtSign, Decimal, Generator, Property, EventListener, EventEmitter } = require('../internals/types');
 const {jsonReviver, jsonReplacer} = require('../internals/json');
 const {throw_error, exception_handler} = require('../common');
@@ -7,7 +7,7 @@ var builtins = {};
 
 builtins.error = throw_error;
 builtins.lazy = lazy;
-builtins.lazy_call = lazy_call;
+builtins.LazyCall = LazyCall;
 builtins.value = value;
 builtins.Transform = Transform;
 builtins.AtSign = AtSign;
@@ -251,7 +251,7 @@ builtins.assure_async = async function (fn) {
 }
 
 builtins.funcall = async function(data, args, func, file, trace) {
-    if (func.constructor == lazy_call) {
+    if (func.constructor == LazyCall) {
       func = await value(func);
       // ^ in case it is property access
     }
@@ -266,14 +266,12 @@ builtins.funcall = async function(data, args, func, file, trace) {
     var func_call;
     var handler = e => {exception_handler(e, {clio_stack: current_stack})};
     if (!func.is_lazy) {
-        args = Promise.all(args).catch(handler);
-        data = Promise.all(data).catch(handler);
-        args = await value(args).catch(handler);
-        data = await value(data).catch(handler);
+        args = await Promise.all(args.map(value)).catch(handler);
+        data = await Promise.all(data.map(value)).catch(handler);
     }
     if (!args.length) {
       func_call = func(...data).catch(handler);
-      if (func_call.constructor == builtins.lazy_call) {
+      if (func_call.constructor == builtins.LazyCall) {
         func_call.clio_stack = current_stack;
       }
       return await func_call;
@@ -295,7 +293,7 @@ builtins.funcall = async function(data, args, func, file, trace) {
     args = await Promise.all(args).catch(handler);
     if (AtSigned) {
         func_call = func(...args).catch(handler);
-        if (func_call.constructor == builtins.lazy_call) {
+        if (func_call.constructor == builtins.LazyCall) {
           func_call.clio_stack = current_stack;
         }
         return await func_call;
@@ -304,7 +302,7 @@ builtins.funcall = async function(data, args, func, file, trace) {
     if (func_call.constructor == Promise) {
       func_call = await func_call.catch(handler);
     }
-    if (func_call && func_call.constructor == builtins.lazy_call) {
+    if (func_call && func_call.constructor == builtins.LazyCall) {
       func_call.clio_stack = current_stack;
     }
     return func_call;
@@ -315,7 +313,7 @@ Object.defineProperty(Array.prototype, 'async_map', {
 });
 
 builtins.map = async function(a, f, stack, ...args) {
-    if (f.constructor == lazy_call) {
+    if (f.constructor == LazyCall) {
       f = await value(f);
       // ^ in case it is property access
     }

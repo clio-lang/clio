@@ -1,4 +1,4 @@
-const { lazy_call, value, lazy } = require('./lazy');
+const { LazyCall, value, lazy } = require('./lazy');
 const DecimalJS = require('decimal.js');
 const EventEmitter = require('eventemitter2').EventEmitter2;
 
