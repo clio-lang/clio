@@ -3,7 +3,15 @@ const package = require("../../package.json");
 const dependencies = package.clioDependencies;
 
 /**
- * Check if user has already installed some dependencies
+ * Get user's current working directory
+ */
+const cwd = process.cwd();
+
+/**
+ * @method hasClioDependencies
+ * @returns {bool}
+ * @description Returns true if the project has at least one dependency listed
+ *              in the Package.json file.
  */
 
 function hasClioDependencies() {
@@ -11,6 +19,15 @@ function hasClioDependencies() {
       && !!Object.keys(dependencies)
       && !!Object.keys(dependencies).length 
 }
+
+/**
+ * @method addDependency
+ * @param {string} dependency
+ * @returns {string[]|object}
+ * @description Adds a dependency to the list of dependencies (if any).
+ *              If no dependencies are listed, it will create the "clioDependencies"
+ *              object and adds the first dependency. 
+ */
 
 function addDependency(dependency) {
   return hasClioDependencies()
@@ -20,6 +37,13 @@ function addDependency(dependency) {
          })
 }
 
+/**
+ * @method updatePackageJsonDependencies
+ * @param {string} dependency
+ * @returns {Promise}
+ * @description updates Package.json file with the desidered dependency.
+ */
+
 function updatePackageJsonDependencies(dependency) {
   return new Promise((resolve, reject) => {
     
@@ -28,7 +52,7 @@ function updatePackageJsonDependencies(dependency) {
     const newPackage = Object.assign(oldPackage, addDependency(dependency));
     const formatJson = JSON.stringify(newPackage, null, 2);
 
-    fs.writeFile("../../package.json", formatJson, (err) => {
+    fs.writeFile(`${cwd}/package.json`, formatJson, (err) => {
       return err 
            ? reject(err)
            : resolve()

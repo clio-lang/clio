@@ -1,4 +1,6 @@
 {
+  "0": "github.com/micheleriva/mjn",
+  "1": "github.com/micheleriva/mjn",
   "name": "clio-lang",
   "version": "0.0.13",
   "description": "Clio Programming Language",

@@ -2,6 +2,7 @@ const decompress = require('decompress');
 const tmp = require('tmp');
 const fs = require('fs');
 const fetch = require("node-fetch");
+const { updatePackageJsonDependencies } = require("../helpers/package")
 
 const gitHubRegex = /^github\.com\/(\w|\d|_|-).+\/(\d|\w|-|_).+$/gi;
 const versionRegex = /@(\d\.?){1,3}$/gi;
@@ -26,7 +27,9 @@ async function fetchFile(argv) {
 /**
  * @method fetchGitHub
  * @param {string} argv
- * @returns {void} 
+ * @returns {void}
+ * @description Fetches a library from GitHub and saves
+ *              the dependency reference into the Package.json file.
  */
 
 async function fetchGitHub(argv) {
@@ -62,15 +65,21 @@ async function fetchGitHub(argv) {
   const fetchUrl = `https://${packageUri}/archive/${packageTarget}.zip`;
   
 
-  process.stdout.write(`Downloading ${fetchUrl}...`);
-  
+  console.log(`Downloading ${fetchUrl}...`);
   fetchFile({url: fetchUrl});
+
+  updatePackageJsonDependencies(argv)
+    .then(() => console.log(`Added ${argv} to the dependencies list`))
+    .catch((err) => console.log(`Can not add ${argv} to the dependencies list`, err))
+
 }
 
 /**
  * @method getVersion
  * @param {string} argv
  * @returns {string}
+ * @description Gets the version number (if any) of the
+ *              desidered dependency.
  */
 
 function getVersion(argv) {
@@ -83,7 +92,9 @@ function getVersion(argv) {
 /**
  * @method hasVersion
  * @param {string} argv
- * @returns {boolean} 
+ * @returns {boolean}
+ * @description Returns true when the desidered dependency
+ *              specifies a version.
  */
 
 function hasVersion(argv) {
