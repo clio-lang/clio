@@ -1,11 +1,11 @@
-const fs = require("fs");
-const package = require("../../package.json");
-const dependencies = package.clioDependencies;
-
 /**
  * Get user's current working directory
  */
 const cwd = process.cwd();
+
+const fs = require("fs");
+const package = require(`${cwd}/package.json`);
+const dependencies = package.clioDependencies;
 
 /**
  * @method hasClioDependencies
