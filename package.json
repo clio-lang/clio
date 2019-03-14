@@ -1,6 +1,4 @@
 {
-  "0": "github.com/micheleriva/mjn",
-  "1": "github.com/micheleriva/mjn",
   "name": "clio-lang",
   "version": "0.0.13",
   "description": "Clio Programming Language",
@@ -9,6 +7,13 @@
     "test": "jest --collect-coverage"
   },
   "author": "Pouya Eghbali",
+  "contributors": [
+    {
+      "email": "ciao@micheleriva.it",
+      "name": "Michele Riva",
+      "url": "https://www.micheleriva.it"
+    }
+  ],
   "license": "Apache-2.0",
   "bin": {
     "clio": "./index.js"
@@ -34,36 +39,36 @@
     "preset": "jest-puppeteer"
   },
   "dependencies": {
-    "body-parser": "^1.18.3",
-    "chalk": "^2.4.2",
-    "decimal.js": "^10.0.1",
-    "decompress": "^4.2.0",
-    "eventemitter2": "^5.0.1",
-    "express": "^4.16.4",
-    "express-ws": "^4.0.0",
-    "js-beautify": "^1.8.6",
-    "node-fetch": "^2.2.0",
+    "body-parser": "1.18.3",
+    "chalk": "2.4.2",
+    "decimal.js": "10.0.1",
+    "decompress": "4.2.0",
+    "eventemitter2": "5.0.1",
+    "express": "4.16.4",
+    "express-ws": "4.0.0",
+    "js-beautify": "1.8.6",
+    "node-fetch": "2.2.0",
     "tmp": "0.0.33",
-    "treeify": "^1.1.0",
-    "unescape-js": "^1.1.0",
-    "uuid": "^3.3.2",
-    "websocket": "^1.0.28",
-    "yargs": "^13.2.1"
+    "treeify": "1.1.0",
+    "unescape-js": "1.1.0",
+    "uuid": "3.3.2",
+    "websocket": "1.0.28",
+    "yargs": "13.2.1"
   },
   "devDependencies": {
-    "buffer": "^5.2.1",
-    "del": "^3.0.0",
-    "disc": "^1.3.3",
-    "gulp": "^4.0.0",
-    "gulp-livereload": "^4.0.1",
-    "gulp-rename": "^1.4.0",
-    "gulp-terser": "^1.1.7",
-    "jest": "^24.3.1",
-    "jest-puppeteer": "^4.0.0",
-    "merge": "^1.2.1",
-    "puppeteer": "^1.12.2",
-    "vinyl-buffer": "^1.0.1",
-    "vinyl-source-stream": "^2.0.0",
-    "watchify": "^3.11.1"
+    "buffer": "5.2.1",
+    "del": "3.0.0",
+    "disc": "1.3.3",
+    "gulp": "4.0.0",
+    "gulp-livereload": "4.0.1",
+    "gulp-rename": "1.4.0",
+    "gulp-terser": "1.1.7",
+    "jest": "24.3.1",
+    "jest-puppeteer": "4.0.0",
+    "merge": "1.2.1",
+    "puppeteer": "1.12.2",
+    "vinyl-buffer": "1.0.1",
+    "vinyl-source-stream": "2.0.0",
+    "watchify": "3.11.1"
   }
 }
