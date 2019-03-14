@@ -4,8 +4,8 @@ const fs = require("fs");
  * Get user's current working directory
  */
 const cwd = process.cwd();
-const package = require(`${cwd}/package.json`);
-const dependencies = package.clioDependencies;
+const packageJson = require(`${cwd}/package.json`);
+const dependencies = packageJson.clioDependencies;
 
 /**
  * @method getClioDependencies
@@ -61,7 +61,7 @@ function updatePackageJsonDependencies(dependency) {
   return new Promise((resolve, reject) => {
     
     // Ugly way to clone object by values and not by reference
-    const oldPackage = JSON.parse(JSON.stringify(package));
+    const oldPackage = JSON.parse(JSON.stringify(packageJson));
     const newPackage = Object.assign(oldPackage, addDependency(dependency));
     const formatJson = JSON.stringify(newPackage, null, 2);
 

@@ -110,5 +110,7 @@ function hasVersion(argv) {
 }
 
 module.exports = {
-  get
+  get,
+  hasVersion,
+  getVersion
 }
