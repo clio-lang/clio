@@ -10,5 +10,6 @@ test("Testing private methods", () => {
 
   expect(hasVersion(gitHubPackage)).toBeFalsy();
   expect(hasVersion(gitHubPackageVersion)).toBeTruthy();
+  expect(getVersion(gitHubPackageVersion)).toBe("@1.2.3");
 
 })
