@@ -7,10 +7,18 @@ const { updatePackageJsonDependencies } = require("../helpers/package")
 const gitHubRegex = /^github\.com\/(\w|\d|_|-).+\/(\d|\w|-|_).+$/gi;
 const versionRegex = /@(\d\.?){1,3}$/gi;
 
-async function get(argv) {
-  return gitHubRegex.test(argv) 
-         ? fetchGitHub(argv) 
-         : fetchFile(argv)
+/**
+ * @method get
+ * @param {string} argv
+ * @returns {void}
+ * @description Installs a Clio dependency
+ */
+
+function get(argv) {
+  const url = argv.url;
+  return gitHubRegex.test(url) 
+         ? fetchGitHub(url)
+         : fetchFile(url)
 }
 
 async function fetchFile(argv) {
@@ -101,4 +109,6 @@ function hasVersion(argv) {
   return !!getVersion(argv).length
 }
 
-get("github.com/micheleriva/mjn")
+module.exports = {
+  get
+}

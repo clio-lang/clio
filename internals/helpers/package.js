@@ -1,11 +1,24 @@
+const fs = require("fs");
+
 /**
  * Get user's current working directory
  */
 const cwd = process.cwd();
-
-const fs = require("fs");
 const package = require(`${cwd}/package.json`);
 const dependencies = package.clioDependencies;
+
+/**
+ * @method getClioDependencies
+ * @returns {string[]}
+ * @description Get Clio dependencies listed in the
+ *              Packge.json file.
+ */
+
+function getClioDependencies() {
+  return hasClioDependencies() 
+         ? dependencies 
+         : []
+}
 
 /**
  * @method hasClioDependencies
@@ -62,7 +75,8 @@ function updatePackageJsonDependencies(dependency) {
 }
 
 module.exports = {
-  hasClioDependencies,
   addDependency,
+  getClioDependencies,
+  hasClioDependencies,
   updatePackageJsonDependencies
 }
