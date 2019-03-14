@@ -2,3 +2,5 @@ node_modules
 coverage
 .clio-cache
 __pycache__
+.vscode
+clio_env
