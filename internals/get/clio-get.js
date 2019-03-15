@@ -2,9 +2,9 @@ const decompress = require('decompress');
 const tmp = require('tmp');
 const fs = require('fs');
 const fetch = require("node-fetch");
-const { updatePackageJsonDependencies } = require("../helpers/package")
+const { updatePackageJsonDependencies, getClioDependencies } = require("../helpers/package")
 
-const gitHubRegex = /^github\.com\/(\w|\d|_|-).+\/(\d|\w|-|_).+$/gi;
+const gitHubRegex = /github\.com\/(\w|\d|_|-).+\/(\d|\w|-|_).+/gi;
 const versionRegex = /@(\d\.?){1,3}$/gi;
 
 /**
@@ -16,20 +16,24 @@ const versionRegex = /@(\d\.?){1,3}$/gi;
 
 function get(argv) {
   const url = argv.url;
-  return gitHubRegex.test(url) 
+  return url.match(gitHubRegex).length 
          ? fetchGitHub(url)
          : fetchFile(url)
 }
 
 async function fetchFile(argv) {
-  const url = argv.url;
-  const file = await fetch(url);
-  const array_buffer = await file.arrayBuffer();
-  const buffer = Buffer.from(array_buffer);
-  const tmpobj = tmp.fileSync();
-  fs.writeFileSync(tmpobj.name, buffer, 'binary');
-  await decompress(tmpobj.name, 'clio_env')
-  tmpobj.removeCallback();
+  try {
+    const url = argv.url;
+    const file = await fetch(url);
+    const array_buffer = await file.arrayBuffer();
+    const buffer = Buffer.from(array_buffer);
+    const tmpobj = tmp.fileSync();
+    fs.writeFileSync(tmpobj.name, buffer, 'binary');
+    await decompress(tmpobj.name, 'clio_env')
+    tmpobj.removeCallback();
+  } catch (err) {
+    console.log(err)
+  }
 }
 
 /**
@@ -72,13 +76,18 @@ async function fetchGitHub(argv) {
    */
   const fetchUrl = `https://${packageUri}/archive/${packageTarget}.zip`;
   
-
-  console.log(`Downloading ${fetchUrl}...`);
+  console.log(`Downloading ${argv}...`);
   fetchFile({url: fetchUrl});
 
-  updatePackageJsonDependencies(argv)
-    .then(() => console.log(`Added ${argv} to the dependencies list`))
-    .catch((err) => console.log(`Can not add ${argv} to the dependencies list`, err))
+  /**
+   * If the dependency is already listed in package.json
+   * don't update it.
+   */
+  if (!getClioDependencies().includes(argv)) {
+    updatePackageJsonDependencies(argv)
+      .then(() => console.log(`Added ${argv} to the dependencies list`))
+      .catch((err) => console.log(`Can not add ${argv} to the dependencies list`, err))
+  }
 
 }
 
