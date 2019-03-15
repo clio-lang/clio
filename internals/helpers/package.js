@@ -78,5 +78,6 @@ module.exports = {
   addDependency,
   getClioDependencies,
   hasClioDependencies,
-  updatePackageJsonDependencies
+  updatePackageJsonDependencies,
+  packageJson
 }
