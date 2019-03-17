@@ -7,11 +7,11 @@ const lexer = require('./lexer/lexer');
 const parser = require('./parser/parser');
 const analyzer = require('./evaluator/analyzer');
 const clio_host = require('./host/host');
-const {clio_import} = require('./internals/import');
+const { clio_import } = require('./internals/import');
 const beautify = require('js-beautify').js;
 const highlight = require('./highlight');
-const decompress = require('decompress');
-const tmp = require('tmp');
+const { get } = require('./internals/get/clio-get');
+const { showDependencies, getDependencies } = require('./internals/deps')
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require('websocket').w3cwebsocket; // same for WebSocket
@@ -146,18 +146,21 @@ const argv = require('yargs')
       type: 'string'
     })
   },
-  (argv) => {
-    (async () => {
-      var url = argv.url;
-      var file = await fetch(url);
-      var array_buffer = await file.arrayBuffer();
-      var buffer = Buffer.from(array_buffer);
-      var tmpobj = tmp.fileSync();
-      fs.writeFileSync(tmpobj.name, buffer, 'binary');
-      await decompress(tmpobj.name, 'clio_env')
-      tmpobj.removeCallback();
-    })();
-  })
+  (argv) => get(argv))
+  .command('deps.show', 'Shows the list of dependencies listed in Package.json', (yargs) => {
+    yargs.positional('source', {
+      describe: 'Shows the list of dependencies listed in Package.json',
+      type: 'string'
+    })
+  },
+  (_) => showDependencies())
+  .command('deps.get', 'Download every dependency listed in Package.json', (yargs) => {
+    yargs.positional('source', {
+      describe: 'Download every dependency listed in Package.json',
+      type: 'string'
+    })
+  },
+  (_) => getDependencies())
   .command('compile <source> <destination>', 'Compile a Clio file', (yargs) => {
     yargs.positional('source', {
       describe: 'source file to compile',
