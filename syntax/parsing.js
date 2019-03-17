@@ -333,57 +333,6 @@ const matchers = {
       {name: 'block', count: 1}
     ], i, tokens)
   },
-  fundefif: function (i, tokens) {
-    return helpers.isSeq([
-      {name: 'fn', count: 1},
-      {name: '_', count: 1},
-      {name: 'symbol', count: 1},
-      {name: '_', count: 1},
-      {name: 'symbol', sep: ['_'], count: 0, enders: ['if']},
-      {name: '_', count: 0},
-      {name: 'if', count: 1},
-      {name: '_', count: 0},
-      {name: ['if_fun_call', 'symbol'], count: 1},
-      {name: '_', count: 0, opt: true},
-      {name: 'colon', count: 1},
-      {name: '_n', count: 0},
-      {name: 'block', count: 1}
-    ], i, tokens)
-  },
-  fundefof: function (i, tokens) {
-    return helpers.isSeq([
-      {name: 'fn', count: 1},
-      {name: '_', count: 1},
-      {name: 'symbol', count: 1},
-      {name: '_', count: 0},
-      {name: 'symbol', sep: ['_'], count: 0, enders: ['of_something'], opt: true},
-      {name: '_', count: 0, opt: true},
-      {name: 'of_something', count: 1},
-      {name: '_', count: 0, opt: true},
-      {name: 'colon', count: 1},
-      {name: '_n', count: 0},
-      {name: 'block', count: 1}
-    ], i, tokens)
-  },
-  fundefifof: function (i, tokens) {
-    return helpers.isSeq([
-      {name: 'fn', count: 1},
-      {name: '_', count: 1},
-      {name: 'symbol', count: 1},
-      {name: '_', count: 0},
-      {name: 'symbol', sep: ['_'], count: 0, enders: ['if'], opt: true},
-      {name: '_', count: 0},
-      {name: 'if', count: 1},
-      {name: '_', count: 1},
-      {name: ['if_fun_call', 'symbol'], count: 1},
-      {name: '_', count: 0, opt: true},
-      {name: 'of_something', count: 1},
-      {name: '_', count: 0, opt: true},
-      {name: 'colon', count: 1},
-      {name: '_n', count: 0},
-      {name: 'block', count: 1}
-    ], i, tokens)
-  },
   typedef: function (i, tokens) {
     return helpers.isSeq([
       {name: 'type', count: 1},
@@ -401,27 +350,6 @@ const matchers = {
       {name: 'decorator', count: 0, sep: ['_', '^', '_n'], enders: ['fundef']},
       {name: ['_', '^', '_n'], count: 0},
       {name: 'fundef', count: 1},
-    ], i, tokens)
-  },
-  decorated_fundefif: function (i, tokens) {
-    return helpers.isSeq([
-      {name: 'decorator', count: 0, sep: ['_', '^', '_n'], enders: ['fundefif']},
-      {name: ['_', '^', '_n'], count: 0},
-      {name: 'fundefif', count: 1},
-    ], i, tokens)
-  },
-  decorated_fundefof: function (i, tokens) {
-    return helpers.isSeq([
-      {name: 'decorator', count: 0, sep: ['_', '^', '_n'], enders: ['fundefof']},
-      {name: ['_', '^', '_n'], count: 0},
-      {name: 'fundefof', count: 1},
-    ], i, tokens)
-  },
-  decorated_fundefifof: function (i, tokens) {
-    return helpers.isSeq([
-      {name: 'decorator', count: 0, sep: ['_', '^', '_n'], enders: ['fundefifof']},
-      {name: ['_', '^', '_n'], count: 0},
-      {name: 'fundefifof', count: 1},
     ], i, tokens)
   },
   quickfundef: function (i, tokens) {
@@ -603,7 +531,7 @@ const matchers = {
         count: 0, sep: ['_', '_n', '^'],
         enders: [
           'colon', '_n', '^', 'symbol', 'property_access', 'list', 'number', 'bool', 'empty_list', 'range', 'stepped_range', 'string', 'math', 'wrapped_math', 'notexpr', 'slice', 'hash_map',
-          'word', 'dedent', 'eof', 'flow', 'conditional', 'rpar', 'fundef', 'comparison', 'decorator', 'import_st', 'import_nk', 'import_al', 'typedef', 'fundefof', 'fundefif', 'fundefifof']
+          'word', 'dedent', 'eof', 'flow', 'conditional', 'rpar', 'fundef', 'comparison', 'decorator', 'import_st', 'import_nk', 'import_al', 'typedef']
       },
     ], i, tokens)
   },
