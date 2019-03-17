@@ -57,70 +57,19 @@ builtins.typeof = function (thing) {
   return thing.type || js_to_clio_type_map(thing.constructor) || thing.constructor;
 }
 
-var get_proper_function = function (args, funcs) {
-  var types = args.map(builtins.typeof);
-  for (var i = 0; i < funcs.length; i++) {
-    var func = funcs[i];
-    if (!func.overload) {
-      return func;
-    }
-    var sliced_types = types.slice(0, func.overload.length);
-    if (sliced_types.every( e => func.overload.includes(e) )) {
-      return func;
-    }
-  }
-}
-
 builtins.define_function = function(fn, fn_name, scope) {
-  if (scope[fn_name]) {
-    var overloadfn = scope[fn_name];
-    var overloads = overloadfn.overloads;
-  } else {
-    var overloadfn = (async function (...args) {
-      var func = get_proper_function(args, overloadfn.overloads);
-      return func(...args);
-    });
-    if (fn.is_lazy) {
-      overloadfn = lazy(overloadfn);
-    };
-    var overloads = [];
-  }
-  overloads.push(fn);
-  overloadfn.overloads = overloads.sort(function (a, b) {
-    if (a.overload) {
-     a = a.overload.length;
-    } else {
-     a = 0;
-    }
-    if (b.overload) {
-     b = b.overload.length;
-    } else {
-     b = 0;
-    }
-    return a < b;
-  });
-  scope[fn_name] = overloadfn;
-  return overloadfn;
+  scope[fn_name] = fn;
+  return fn;
 }
 
-builtins.decorate_function = function (decorator, args, fn_name, overload, scope) {
+builtins.decorate_function = function (decorator, args, fn_name, scope) {
   var AsyncFunction = (async () => {}).constructor;
   if ([Function, AsyncFunction].includes(fn_name.constructor)) {
     // anonymous decoration
-    var overloadfn = (async function (...args) {
-      var func = get_proper_function(args, overloadfn.overloads);
-      return func(...args);
-    });
-    if (fn_name.is_lazy) {
-      overloadfn = lazy(overloadfn);
-    };
-    var overloads = [];
-    overloads.push(fn_name);
-    overloadfn.overloads = overloads;
-    return decorator(overloadfn, overload, ...args);
+    return decorator(fn_name, ...args);
   }
-  var overload_fn = scope[fn_name];
-  var decorated_fn = decorator(overload_fn, overload, ...args);
+  var fn = scope[fn_name];
+  var decorated_fn = decorator(fn, ...args);
   scope[fn_name] = decorated_fn;
   return decorated_fn;
 }
@@ -685,28 +634,20 @@ builtins['sentence-case'] = lazy(async function(a, b) {
 
 builtins.eval = expr => expr;
 
-builtins.eager = function (oldoverload) {
-  var newoverload = async function (...args) {
-    var func = await get_proper_function(args, newoverload.overloads);
-    return await value(await func(...args));
+builtins.eager = function (fn) {
+  var eager_fn = async function (...args) {
+    return await value(await fn(...args));
   }
-  newoverload.overloads = oldoverload.overloads;
-  newoverload.mmax = new builtins.Decimal(0);
-  newoverload.overloads.forEach(function (overload) {
-    overload.mmax = new builtins.Decimal(0);
-  })
-  return newoverload;
+  eager_fn.mmax = new builtins.Decimal(0);
+  return eager_fn;
 }
 
-builtins.mmax = function (fn, overload_name, max) {
-  fn.overloads.forEach(function (overload) {
-    overload.mmax = max;
-  });
+builtins.mmax = function (fn, max) {
   fn.mmax = max;
   return fn;
 }
 
-builtins.memoize = function (fn, overload_name, max) {
+builtins.memoize = function (fn, max) {
   return memoize(fn, max || 1000);
 }
 

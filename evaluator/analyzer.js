@@ -572,7 +572,7 @@ function analyzer(tree, source) {
         var name = analyze(token.shift()).code;
         var args = analyze(token).map(t => t.code);
         args = args.join(', ')
-        code.push(`builtins.decorate_function(${name}, [${args}], '${func.name}', ${func.overload}, scope)`);
+        code.push(`builtins.decorate_function(${name}, [${args}], '${func.name}', scope)`);
       }
       code.unshift(func.code);
       code = code.join(';\n');
@@ -666,7 +666,6 @@ function analyzer(tree, source) {
           return func;
         })(scope), '${name}', scope)`,
         name: name,
-        overload: `'default'`
       };
     },
     empty_list: function (node) {
