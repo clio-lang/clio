@@ -1,7 +1,7 @@
-var cluster = require('cluster');
-var express = require('express');
-var cpu_count = require('os').cpus().length;
-var body_parser = require("body-parser");
+const cluster = require('cluster');
+const express = require('express');
+const cpu_count = require('os').cpus().length;
+const body_parser = require("body-parser");
 const path = require('path');
 const fs = require('fs');
 const {jsonReviver, jsonReplacer} = require('../internals/json');
@@ -32,14 +32,44 @@ async function clio_host(scope, root_dir) {
   var exported = {};
   await config.exports.map(async e => {exported[e] = scope[e]});
 
-  var port = config.port ? Number(config.port) : 3000;
-  var workers = config.workers ? Number(config.workers) : cpu_count;
+  /**
+   * User configured port.
+   * Default is 3000
+   */
+  const port = config.port ? Number(config.port) : 3000;
+
+  /**
+   * Define how many workers to spawn.
+   * Check if there are enough CPUs available
+   * before spawning 'em all.
+   */
+  const workers = () => {
+    if (config.workers) {
+
+      const reqWorkers = Number(config.workers);
+
+      if (reqWorkers > cpu_count) {
+        console.log(`Unable to use ${reqWorkers}. Current CPU only supports ${cpu_count} workers`);
+        console.log(`Switching to ${cpu_count} workers`);
+        return cpu_count;
+
+      } else {
+        return reqWorkers;
+      }
+
+    } else {
+      return cpu_count;
+    }
+  }
 
   if (cluster.isMaster) {
-      console.log(`Starting a cluster consisting of ${workers} workers, on port ${port}`);
-      for (var i = 0; i < workers; i++) {
+
+      console.log(`Starting a cluster consisting of ${workers()} workers, on port ${port}`);
+
+      for (var i = 0; i < workers(); i++) {
           cluster.fork();
       }
+
   } else {
 
       if (root_dir) {
