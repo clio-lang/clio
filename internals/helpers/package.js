@@ -4,7 +4,11 @@ const fs = require("fs");
  * Get user's current working directory
  */
 const cwd = process.cwd();
-const packageJson = require(`${cwd}/package.json`);
+try {
+  var packageJson = require(`${cwd}/package.json`);
+} catch (e) {
+  var packageJson = {};
+}
 const dependencies = packageJson.clioDependencies;
 
 /**
@@ -15,8 +19,8 @@ const dependencies = packageJson.clioDependencies;
  */
 
 function getClioDependencies() {
-  return hasClioDependencies() 
-         ? dependencies 
+  return hasClioDependencies()
+         ? dependencies
          : []
 }
 
@@ -28,9 +32,9 @@ function getClioDependencies() {
  */
 
 function hasClioDependencies() {
-  return !!dependencies 
+  return !!dependencies
       && !!Object.keys(dependencies)
-      && !!Object.keys(dependencies).length 
+      && !!Object.keys(dependencies).length
 }
 
 /**
@@ -39,7 +43,7 @@ function hasClioDependencies() {
  * @returns {string[]|object}
  * @description Adds a dependency to the list of dependencies (if any).
  *              If no dependencies are listed, it will create the "clioDependencies"
- *              object and adds the first dependency. 
+ *              object and adds the first dependency.
  */
 
 function addDependency(dependency) {
@@ -59,14 +63,14 @@ function addDependency(dependency) {
 
 function updatePackageJsonDependencies(dependency) {
   return new Promise((resolve, reject) => {
-    
+
     // Ugly way to clone object by values and not by reference
     const oldPackage = JSON.parse(JSON.stringify(packageJson));
     const newPackage = Object.assign(oldPackage, addDependency(dependency));
     const formatJson = JSON.stringify(newPackage, null, 2);
 
     fs.writeFile(`${cwd}/package.json`, formatJson, (err) => {
-      return err 
+      return err
            ? reject(err)
            : resolve()
     })
