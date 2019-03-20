@@ -36,7 +36,7 @@ async function clio_host(scope, root_dir) {
    * User configured port.
    * Default is 3000
    */
-  const port = config.port ? Number(config.port) : 3000;
+  const port = config.port ? config.port.toNumber() : 3000;
 
   /**
    * Define how many workers to spawn.
