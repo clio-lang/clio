@@ -508,7 +508,7 @@ builtins.take = lazy(function(list, n) {
 })
 
 builtins.slice = lazy(async function (list, slicers, index) {
-  if ((slicers.length == 1) && slicers[index].decimal){
+  if ((slicers.length == 1) && slicers[index].constructor == Decimal){
     var i = slicers[index].toNumber()
     if (list.constructor == Array) {
       return list[i];
@@ -518,7 +518,7 @@ builtins.slice = lazy(async function (list, slicers, index) {
   var slicer = slicers[index++];
   if (list.data.start) {
     // it's a range
-    if (slicer.decimal) {
+    if (slicer.constructor == Decimal) {
       // a regular index
       if (slicer.toNumber() >= list.len()) {
         throw new Error(`Index ${slicer.toString()} is bigger than array length.`);
@@ -572,7 +572,7 @@ builtins.slice = lazy(async function (list, slicers, index) {
     }
   } else {
     // it's a normal list
-    if (slicer.decimal) {
+    if (slicer.constructor == Decimal) {
       // a regular index
       if (slicer.toNumber() >= list.len()) {
         throw new Error(`Index ${slicer.toString()} is bigger than array length.`);

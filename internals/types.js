@@ -1,35 +1,6 @@
 const { LazyCall, value, lazy } = require('./lazy');
-const DecimalJS = require('decimal.js');
+const Decimal = require('decimal.js');
 const EventEmitter = require('eventemitter2').EventEmitter2;
-
-class Decimal extends Number {
-  constructor(number, decimal) {
-    super(number);
-    this.decimal = decimal || number.decimal || new DecimalJS(number);
-    return new Proxy(this, {
-      get: function(target, key) {
-        const bypass = ['toString']
-        if (typeof target[key] === "function" && !bypass.includes(key)) {
-          return function(...args) {
-            return target[key].call(target, args);
-          }
-        } else if (typeof target.decimal[key] === "function") {
-          return function(...args) {
-            args = args.map(arg => arg.decimal || arg);
-            const result = target.decimal[key].call(target.decimal, ...args);
-            if (result.constructor === Number) {
-              return new Decimal(result);
-            } else if (result.constructor === DecimalJS) {
-              return new Decimal(Number(result), result)
-            }
-            return result
-          }
-        }
-        return target[key] || target.decimal[key];
-      }
-    })
-  }
-}
 
 class AtSign {
   constructor(index) {
