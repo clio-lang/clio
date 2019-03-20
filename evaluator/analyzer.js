@@ -59,11 +59,9 @@ function analyzer(tree, source) {
     },
     property_access: function (node) {
       var first = analyze(node.tokens.shift()).code;
-      var code = `(new builtins.LazyCall(async () => (await builtins.value(${first}))))`
       var last = node.tokens.pop().raw;
-      code = `(new builtins.LazyCall(async () => (await builtins.value(${code}))['${last}']))`
       return {
-        code: code
+        code: `(await builtins.get_property(${first}, "${last}"))`
       };
     },
     string: function (node) {

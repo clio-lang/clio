@@ -191,12 +191,22 @@ builtins.get_symbol = function(key, scope) {
 const AsyncFunction = (async () => {}).constructor;
 
 builtins.assure_async = async function (fn) {
+  fn = await fn;
   if (fn.constructor === AsyncFunction) {
     return fn;
   }
   return async function (...args) {
     return fn(...args);
   };
+}
+
+builtins.get_property = async function (obj, prop) {
+  obj = await value(obj);
+  prop = await obj[prop];
+  if ([Function, AsyncFunction].includes(prop.constructor)) {
+    prop = prop.bind(obj)
+  }
+  return prop;
 }
 
 builtins.funcall = async function(data, args, func, file, trace) {
@@ -207,7 +217,7 @@ builtins.funcall = async function(data, args, func, file, trace) {
     if (func.constructor == Property) { // JS compatibility layer?
       var prop = func.prop;
       func = function (data, ...args) {
-        return data[prop](...args);
+        return data[prop].call(data, ...args);
       }
     }
     func = await builtins.assure_async(func);
@@ -269,7 +279,7 @@ builtins.map = async function(a, f, stack, ...args) {
     if (f.constructor == Property) { // JS compatibility layer?
       var prop = f.prop;
       f = function (data, ...args) {
-        return data[prop](...args);
+        return data[prop].call(data, ...args);
       }
     }
     f = await builtins.assure_async(f);
