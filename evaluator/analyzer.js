@@ -643,6 +643,7 @@ function analyzer(tree, source) {
             }, true);
             func.frozenscope = Object.assign({}, scope);
             func.frozenscope['recall'] = func;
+            func.is_clio_fn = true;
             return func;
           })(scope)`
         };
@@ -661,6 +662,7 @@ function analyzer(tree, source) {
           func.frozenscope = Object.assign({}, scope);
           func.frozenscope['${name}'] = func;
           func.frozenscope['recall'] = func;
+          func.is_clio_fn = true;
           return func;
         })(scope), '${name}', scope)`,
         name: name,

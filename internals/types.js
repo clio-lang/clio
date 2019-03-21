@@ -86,6 +86,66 @@ class Generator {
   }
 }
 
+// https://stackoverflow.com/a/1482209/2451039
+function isObjLiteral(_obj) {
+  var _test  = _obj;
+  return (  typeof _obj !== 'object' || _obj === null ?
+              false :
+              (
+                (function () {
+                  while (!false) {
+                    if (  Object.getPrototypeOf( _test = Object.getPrototypeOf(_test)  ) === null) {
+                      break;
+                    }
+                  }
+                  return Object.getPrototypeOf(_obj) === _test;
+                })()
+              )
+          );
+}
+// TODO: we probably need to make a cleaner version of ^
+
+var cast_to_js = function (object) {
+  // TODO: add more data types
+  if (object.constructor == Array) {
+    return object.map(cast_to_js);
+  } else if (object.constructor == Decimal) {
+    return object.toNumber();
+  } else if (isObjLiteral(object)) {
+    return Object.keys(object).reduce((out, key) => {
+      out[key] = cast_to_js(object[key]);
+    })
+  } else {
+    return object;
+  }
+}
+
+var cast_to_clio = function (object) {
+  // TODO: add more data types
+  if (object.constructor == Array) {
+    return object.map(cast_to_clio);
+  } else if (object.constructor == Number) {
+    return Decimal(object);
+  } else if (isObjLiteral(object)) {
+    return Object.keys(object).reduce((out, key) => {
+      out[key] = cast_to_clio(object[key]);
+    })
+  } else {
+    return object;
+  }
+}
+
+var autocast = function (fn) {
+  return function (...args) {
+    // cast the args to js safe ones
+    args = cast_to_js(args);
+    // call the js function
+    var results = fn(...args);
+    // cast back to clio types
+    return cast_to_clio(results);
+  };
+}
+
 exports.Generator = Generator;
 exports.Property = Property;
 exports.AtSign = AtSign;
@@ -93,3 +153,4 @@ exports.Transform = Transform;
 exports.Decimal = Decimal;
 exports.EventListener = EventListener;
 exports.EventEmitter = EventEmitter;
+exports.autocast = autocast;

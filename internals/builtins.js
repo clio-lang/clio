@@ -1,5 +1,5 @@
 var { lazy, value, LazyCall, memoize } = require('../internals/lazy');
-var { Transform, AtSign, Decimal, Generator, Property, EventListener, EventEmitter } = require('../internals/types');
+var { Transform, AtSign, Decimal, Generator, Property, EventListener, EventEmitter, autocast } = require('../internals/types');
 const {jsonReviver, jsonReplacer} = require('../internals/json');
 const {throw_error, exception_handler} = require('../common');
 
@@ -7,13 +7,7 @@ var builtins = {};
 
 builtins.error = throw_error;
 builtins.lazy = lazy;
-builtins.LazyCall = LazyCall;
 builtins.value = value;
-builtins.Transform = Transform;
-builtins.AtSign = AtSign;
-builtins.Decimal = Decimal;
-builtins.Generator = Generator;
-builtins.Property = Property;
 
 var js_to_clio_type_map = function (type) {
   switch (type) {
@@ -66,10 +60,13 @@ builtins.decorate_function = function (decorator, args, fn_name, scope) {
   var AsyncFunction = (async () => {}).constructor;
   if ([Function, AsyncFunction].includes(fn_name.constructor)) {
     // anonymous decoration
-    return decorator(fn_name, ...args);
+    var decorated_fn = decorator(fn_name, ...args);
+    decorated_fn.is_clio_fn = fn_name.is_clio_fn;
+    return decorated_fn;
   }
   var fn = scope[fn_name];
   var decorated_fn = decorator(fn, ...args);
+  decorated_fn.is_clio_fn = fn.is_clio_fn;
   scope[fn_name] = decorated_fn;
   return decorated_fn;
 }
@@ -220,6 +217,9 @@ builtins.funcall = async function(data, args, func, file, trace) {
         return data[prop].call(data, ...args);
       }
     }
+    if (!func.is_clio_fn) {
+      func = autocast(func);
+    }
     func = await builtins.assure_async(func);
     var current_stack = [{file: file, trace: trace}];
     var func_call;
@@ -272,6 +272,7 @@ Object.defineProperty(Array.prototype, 'async_map', {
 });
 
 builtins.map = async function(a, f, stack, ...args) {
+    // TODO: fix the arguments names!
     if (f.constructor == LazyCall) {
       f = await value(f);
       // ^ in case it is property access
@@ -281,6 +282,9 @@ builtins.map = async function(a, f, stack, ...args) {
       f = function (data, ...args) {
         return data[prop].call(data, ...args);
       }
+    }
+    if (!f.is_clio_fn) {
+      f = autocast(func);
     }
     f = await builtins.assure_async(f);
     if (!f.is_lazy) {
@@ -686,6 +690,16 @@ builtins.emit = async function(ee, ev, ...args) {
   ee.emit(ev, ...args)
 }
 
+Object.keys(builtins).forEach(k => {
+  builtins[k].is_clio_fn = true;
+});
+
+builtins.LazyCall = LazyCall;
+builtins.Transform = Transform;
+builtins.AtSign = AtSign;
+builtins.Decimal = Decimal;
+builtins.Generator = Generator;
+builtins.Property = Property;
 builtins.EventListener = EventListener;
 
 module.exports = builtins;
