@@ -66,14 +66,6 @@ const matchers = {
       {name: ['symbol'], count: 1}
     ], i, tokens),
 
-  /*
-  property_access: (i, tokens) =>
-    helpers.isSeq([
-      {name: 'possesive', count: 1},
-      {name: '_', count: 0},
-      {name: ['possesive', 'symbol'], count: 0, sep: ['_'], enders: []},
-    ], i, tokens),*/
-
   atnumber: function (i, tokens) {
     return helpers.isSeq([
       {name: 'atsign', count: 1},
@@ -199,40 +191,7 @@ const matchers = {
       {name: ['math', 'wrapped_math', 'symbol', 'property_access', 'number', 'bool', 'cmpexpr', 'and_or_expr', 'wrapped_and_or', 'notexpr', 'wrapped_not'], count: 1, not_before: ['comparison']},
     ], i, tokens)
   },
-  /*stepped_range: function (i, tokens) {
-    return helpers.isSeq([
-      {name: ['symbol', 'property_access', 'number'], count: 1},
-      {name: 'comma', count: 1},
-      {name: ['symbol', 'property_access', 'number'], count: 1},
-      {name: 'dot', count: 2},
-      {name: ['symbol', 'property_access', 'number'], count: 1}
-    ], i, tokens);
-  },*/
-  /*double_dot: function (i, tokens) {
-    return helpers.isSeq([
-      {name: 'dot', count: 2},
-    ], i, tokens);
-  },
-  dotted_range: function (i, tokens) {
-    return helpers.isSeq([
-      {name: ['symbol', 'property_access', 'number', 'wrapped_math'], count: 1, opt: true},
-      {name: '_', count: 0, opt: true},
-      {name: 'double_dot', count: 1},
-      {name: '_', count: 0, opt: true},
-      {name: ['symbol', 'property_access', 'number', 'wrapped_math'], count: 1, opt: true},
-    ], i, tokens);
-  },
-  range: function (i, tokens) {
-    return helpers.isSeq([
-      {name: 'lbra', count: 1},
-      {name: '_', count: 0, opt: true},
-      {name: ['symbol', 'property_access', 'number', 'wrapped_math'], count: 1, opt: true},
-      {name: '_', count: 0, opt: true},
-      {name: 'dotted_range', count: 1},
-      {name: '_', count: 0, opt: true},
-      {name: 'rbra', count: 1},
-    ], i, tokens);
-  },*/
+
   event: function(i, tokens) {
     return helpers.isSeq([
       {name: ['symbol', 'slice', 'property_access'], count: 1},
@@ -354,9 +313,6 @@ const matchers = {
   },
   quickfundef: function (i, tokens) {
     return helpers.isSeq([
-      //{name: ['_', '_n', '^'], count: 0},
-      //{name: 'map', count: 1},
-      //{name: '_', count: 1},
       {name: 'symbol', count: 1, not_after: ['transform', 'as']},
       {name: '_', count: 1, opt: true},
       {name: 'colon', count: 1},

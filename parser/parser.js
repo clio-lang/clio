@@ -45,7 +45,6 @@ function parser(contents, tokens, silent, file) {
   for (var i = 0; i < tokens.length; i++) {
     if (illegals.includes(tokens[i].name)) { // TODO: add a distance calculator to detect typos (eg. eilf instead of elif)
       if (!silent) {
-        //throw_error(contents, `Unexpected token '${tokens[i].name}'`, tokens[i].index);
         var stack = {
           clio_stack: [{
             file: {
