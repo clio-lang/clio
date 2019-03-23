@@ -49,11 +49,7 @@ async function process_file(argv) {
   argv.command = argv._[0];
 
   if (argv.command == 'run') {
-    try {
-      return clio_import(argv.source, true);
-    } catch (e) {
-      return e.exit ? e.exit() : console.log(e);
-    }
+    return clio_import(argv.source, true).catch(e => e.exit ? e.exit() : console.log(e) )
   }
 
   if (argv.command == 'host') {
