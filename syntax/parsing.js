@@ -7,9 +7,6 @@ const matchers = {
   wrapped_math: function (i, tokens, parser) {
     return helpers.isWrapped('lpar', 'math', 'rpar', i, tokens, parser)
   },
-  wrapped_flow: function (i, tokens, parser) {
-    return helpers.isWrapped('lpar', 'flow', 'rpar', i, tokens, parser)
-  },
   wrapped_quickfundef: function (i, tokens, parser) {
     return helpers.isWrapped('lpar', 'quickfundef', 'rpar', i, tokens, parser)
   },
@@ -24,6 +21,9 @@ const matchers = {
   },
   wrapped_not: function (i, tokens, parser) {
     return helpers.isWrapped('lpar', 'notexpr', 'rpar', i, tokens, parser)
+  },
+  wrapped_cmpexpr: function (i, tokens, parser) {
+    return helpers.isWrapped('lpar', 'cmpexpr', 'rpar', i, tokens, parser)
   },
   list: function (i, tokens, parser) {
     return helpers.isWrappedRepeat('lbra', 'rbra', [
@@ -410,7 +410,7 @@ const matchers = {
       {name: 'indent', count: 1},
       {name: ['_', '^'], count: 0},
       {name: ['block', 'conditional', 'flow', 'fundef', 'anonfundef', 'list', 'string', 'word', 'number', 'decorated_fundef',
-              'symbol', 'property_access', 'bool', 'math', 'range', 'typedef', 'fundefof', 'notexpr','hash_map', 'cmpexpr',
+              'symbol', 'property_access', 'bool', 'math', 'range', 'typedef', 'fundefof', 'notexpr','hash_map', 'cmpexpr', 'wrapped_cmpexpr',
               'slice'], count: 0, sep: ['_', '_n', '^'], enders: ['dedent']},
       {name: ['_n', '^'], count: 0, opt: true},
       {name: 'dedent', count: 1},
@@ -473,7 +473,7 @@ const matchers = {
   flow: function (i, tokens) {
     return helpers.isSeq([
       {name: ['symbol', 'property_access', 'list', 'empty_list', 'slice', 'hash_map', 'event',
-              'range', 'stepped_range', 'string', 'word', 'number', 'bool', 'wrapped_flow',
+              'range', 'stepped_range', 'string', 'word', 'number', 'bool', 'wrapped_flow', 'wrapped_cmpexpr',
               'math', 'if_fun_call', 'wrapped_math', 'atsign', 'slice', 'notexpr', 'and_or_expr'], count: 0, sep: ['_'],
               enders: ['setter', 'mapper', 'starmapper', 'naked_mapper', 'naked_star_mapper', '_n', '^',
                 'filter', 'starinflowfundef', 'decorated_starinflowfundef', 'inflowfundef', 'decorated_inflowfundef',
@@ -490,6 +490,9 @@ const matchers = {
           'word', 'dedent', 'eof', 'flow', 'conditional', 'rpar', 'fundef', 'comparison', 'decorator', 'import_st', 'import_nk', 'import_al', 'typedef']
       },
     ], i, tokens)
+  },
+  wrapped_flow: function (i, tokens, parser) {
+    return helpers.isWrapped('lpar', 'flow', 'rpar', i, tokens, parser)
   },
   cmpexpr: function (i, tokens) {
     return helpers.isSeq([
