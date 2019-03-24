@@ -116,11 +116,7 @@ function analyzer(tree, source) {
       }).join(', ')
       var list = `[${inner}]`;
       return {
-        code: `new builtins.Generator(
-          (i, self) => self.data[i],
-          ${list},
-          self => self.data.length,
-        )`
+        code: list
       };
     },
     hash_map: function (node) {
@@ -148,11 +144,7 @@ function analyzer(tree, source) {
       var step = `new builtins.Decimal(new builtins.Decimal(${start}).lt(new builtins.Decimal(${end}))?1:-1)`
 
       return {
-        code: `new builtins.Generator(
-          (i, self) => self.data.start.add(self.data.step.mul(i)),
-          {start:${start}, end:${end}, step:${step}},
-          self => self.data.start.sub(self.data.end).div(self.data.step).abs().add(1),
-        )`
+        code: `new builtins.Range(${start}, ${end}, ${step})`
       };
     },
     stepped_range: function (node) {
@@ -163,11 +155,7 @@ function analyzer(tree, source) {
       var end = analyze(end).code;
       var step = analyze(step).code;
       return {
-        code: `new builtins.Generator(
-          (i, self) => self.data.start.add(self.data.step.mul(i)),
-          {start:${start}, end:${end}, step:${step}},
-          self => self.data.start.sub(self.data.end).div(self.data.step).abs().add(1),
-        )`
+        code: `new builtins.Range(${start}, ${end}, ${step})`
       };
     },
     slice: function (node) {
@@ -670,11 +658,7 @@ function analyzer(tree, source) {
     },
     empty_list: function (node) {
       return {
-        code: `new builtins.Generator(
-          (i, self) => self.data[i],
-          [],
-          self => self.data.length,
-        )`
+        code: `[]`
       };
     },
     condmapper: function (node) {

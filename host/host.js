@@ -9,13 +9,12 @@ const {value} = require('../internals/lazy');
 const enableWs = require('express-ws');
 const uuid4 = require('uuid/v4');
 
-var { Transform, AtSign, Decimal, Generator, Property,
+var { Transform, AtSign, Decimal, Range, Property,
   EventListener, Broadcast, EventEmitter } = require('../internals/types');
 
 function find_emitters(obj) {
   // currently only checks if obj is a emitter
-  // we should support Clio Generators to check
-  // for more complex data types
+  // we need to check more complex and nested objects
   if (!obj) {
     return [];
   }

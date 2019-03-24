@@ -1,5 +1,5 @@
 var { lazy, value, LazyCall, memoize } = require('../internals/lazy');
-var { Transform, AtSign, Decimal, Generator, Property, EventListener, EventEmitter, autocast } = require('../internals/types');
+var { Transform, AtSign, Decimal, Range, Property, EventListener, EventEmitter, autocast } = require('../internals/types');
 const {jsonReviver, jsonReplacer} = require('../internals/json');
 const {throw_error, exception_handler} = require('../common');
 
@@ -15,8 +15,8 @@ var js_to_clio_type_map = function (type) {
       return 'str';
     case Object:
       return 'obj';
-    case Generator:
-      return 'gen';
+    case Range:
+      return 'range';
     case Decimal:
       return 'num';
     default:
@@ -341,24 +341,8 @@ builtins.starmap = function(a, f, args, file, trace) {
     return builtins.map(a, f, current_stack, ...args).catch(e => {exception_handler(e, {clio_stack: current_stack})});
 }
 
-builtins.filter = async function(data, func) {
-    if (func.constructor == Generator) {
-        var filter_data = func;
-        func = function(n, i) {
-            return filter_data.get(i);
-        }
-    }
-    if (data.filter) {
-      return data.filter(func);
-    }
-    if (data.constructor !== Array) {
-        return [data].filter(func);
-    }
-    return data.filter(func);
-}
-
 builtins.dec = lazy(async function(a, b) {
-    if (a.constructor == builtins.Generator) {
+    if (a.constructor == Array) {
       return a.map(el => builtins.dec(el, b));
     }
     return a.sub(b);
@@ -368,35 +352,35 @@ builtins.add = lazy(async function(a, b) {
     if ((a.constructor == String) || (b.constructor == String)) {
       return a.toString() + b.toString();
     }
-    if (a.constructor == builtins.Generator) {
+    if (a.constructor == Array) {
       return a.map(el => builtins.add(el, b));
     }
     return a.add(b);
 })
 
 builtins.div = lazy(async function(a, b) {
-    if (a.constructor == builtins.Generator) {
+    if (a.constructor == Array) {
       return a.map(el => builtins.div(el, b));
     }
     return a.div(b);
 })
 
 builtins.mul = lazy(async function(a, b) {
-    if (a.constructor == builtins.Generator) {
+    if (a.constructor == Array) {
       return await a.map(el => builtins.mul(el, b));
     }
     return a.mul(b);
 })
 
 builtins.mod = lazy(async function(a, b) {
-    if (a.constructor == builtins.Generator) {
+    if (a.constructor == Array) {
       return a.map(el => builtins.mod(el, b));
     }
     return a.mod(b);
 })
 
 builtins.pow = lazy(async function(a, b) {
-    if (a.constructor == builtins.Generator) {
+    if (a.constructor == Array) {
       return a.map(el => builtins.pow(el, b));
     }
     return a.pow(b);
@@ -468,32 +452,20 @@ builtins.length = lazy(async function(a) {
 var chalk = require('chalk');
 
 var colormap = {
-  num: chalk.yellow,
-  range: chalk.cyan,
+  Decimal: chalk.yellow,
+  Range: chalk.cyan,
+  Array: chalk.cyan
 }
 
 builtins.string = lazy(async function (object, colorize) {
-  var type = await value(builtins.typeof(object));
-  var string;
-  if (type == 'gen') {
-    if (object.data.start) {
-      type = 'num'
-      var start = object.data.start;
-      var end = object.data.end;
-      var step = object.data.step;
-      string = [start, end, step].join(chalk.white(':'));
-    } else {
-      string = await Promise.all((await value(object.map(i => builtins.string(i, colorize)))).data.map(value));
-      string = string.join(' ');
-      string = `[${string}]`;
-    }
-  } else {  // TODO: better support for objects
-    string = object.toString();
+  if (object.constructor == Array) {
+    var inner = await Promise.all(object.map(builtins.string));
+    inner = await Promise.all(inner.map(builtins.value));
+    return colormap.Array('[' + inner.join(' ') + ']');
+  } else if (object.constructor == Decimal) {
+    return colormap.Decimal(object.toString());
   }
-  if (colorize) {
-    string = (colormap[type] || chalk.white)(string);
-  }
-  return string;
+  return object.toString();
 })
 
 builtins.print = async function(...args) {
@@ -521,115 +493,51 @@ builtins.take = lazy(function(list, n) {
   // redo
 })
 
-builtins.slice = lazy(async function (list, slicers, index) {
-  if ((slicers.length == 1) && slicers[index].constructor == Decimal){
-    var i = slicers[index].toNumber()
-    if (list.constructor == Array) {
-      return list[i];
+builtins.slice = lazy(async function (list, slicers) {
+  if (list.constructor == Array) {
+    var slicer = slicers.shift();
+    if (slicer.constructor == builtins.Decimal) {
+      list = list[slicer.toNumber()];
+    } else if (slicer.constructor == Array) {
+      var wanted = slicer.map(d => d.toNumber());
+      list = wanted.map(w => list[w]);
+    } else if (slicer.constructor == builtins.Range) {
+      var wanted = [];
+      var curr = slicer.start;
+      while (curr.lte(list.length) && curr.lte(slicer.end)) {
+        wanted.push(curr.toNumber());
+        curr = curr.add(slicer.step);
+      }
+      list = wanted.map(w => list[w]);
     }
-    return list.get(i);
-  }
-  var slicer = slicers[index++];
-  if (list.data.start) {
-    // it's a range
-    if (slicer.constructor == Decimal) {
-      // a regular index
-      if (slicer.toNumber() >= list.len()) {
-        throw new Error(`Index ${slicer.toString()} is bigger than array length.`);
-      }
-      list = new Generator(
-        list.getter,
-        [list.get(slicer.toNumber())],
-        list.length,
-      );
-      /*if (index != 1) {
-        list = new Generator(
-          list.getter,
-          [list.get(slicer.toNumber())],
-          list.length,
-        );
-      } else {
-        list = list.get(slicer.toNumber());
-      }*/
-    } else if (slicer.data.start) {
-      // range cut
-      var start;
-      if (list.data.start.gte(slicer.data.start)) {
-        start = list.data.start;
-      } else {
-        start = slicer.data.start;
-      }
-      var end;
-      if (slicer.data.end == Infinity) {
-        end = list.data.end;
-      } else {
-        if (list.data.end.lte(slicer.data.end)) {
-          end = list.data.end;
-        } else {
-          end = slicer.data.end;
-        }
-      }
-      var step = slicer.data.step.mul(list.data.step);
-      list = new Generator(
-        list.getter,
-        {start: start, end: end, step: step},
-        list.length,
-      );
-    } else {
-      // multiple cut
-      var indices = slicer.data.map(d => d.toNumber())
-      list = new Generator(
-        list.getter,
-        indices.map(i => list.get(i)),
-        list.length,
-      );
+    if (!slicers.length) {
+      return list;
     }
+    list = list.map(item => builtins.slice(item, slicers.slice(0)));
+    list = list.map(builtins.value);
+    return await Promise.all(list);
   } else {
-    // it's a normal list
-    if (slicer.constructor == Decimal) {
-      // a regular index
-      if (slicer.toNumber() >= list.len()) {
-        throw new Error(`Index ${slicer.toString()} is bigger than array length.`);
+    // it's a range
+    var slicer = slicers.shift();
+    if (slicer.constructor == builtins.Decimal) {
+      list = list.get(slicer.toNumber())
+    } else if (slicer.constructor == Array) {
+      var wanted = slicer.map(d => d.toNumber());
+      list = wanted.map(w => list.get(w));
+    } else if (slicer.constructor == builtins.Range) {
+      var wanted = [];
+      var curr = slicer.start;
+      while (curr.lte(list.length) && curr.lte(slicer.end)) {
+        wanted.push(curr.toNumber());
+        curr = curr.add(slicer.step);
       }
-      list = new Generator(
-        list.getter,
-        [list.data[slicer.toNumber()]],
-        list.length,
-      );
-      /*if (index != 1) {
-        list = new Generator(
-          list.getter,
-          [list.data[slicer.toNumber()]],
-          list.length,
-        );
-      } else {
-        list = list.get(slicer.toNumber());
-      }*/
-    } else if (slicer.data.start) {
-      // range cut
-      list = new Generator(
-        list.getter,
-        list.data.filter(function(_, i) {
-          return slicer.data.start.lte(i) &&
-                 slicer.data.end.gt(i) &&
-                 new builtins.Decimal(i).sub(slicer.data.start).mod(slicer.data.step).eq(0);
-        }),
-        list.length,
-      );
-    } else {
-      // multiple cut
-      var indices = slicer.data.map(d => d.toNumber())
-      list = new Generator(
-        list.getter,
-        list.data.filter((l, i) => indices.includes(i)),
-        list.length,
-      );
+      list = wanted.map(w => list.get(w));
     }
+    if (!slicers.length) {
+      return list;
+    }
+    throw new Error(`Can't slice a range any further.`);
   }
-  if (index == slicers.length) {
-    return list;
-  }
-  return list.map(l => builtins.slice(l, slicers, index));
 })
 
 builtins.upper = lazy(async function(a, b) {
@@ -698,7 +606,7 @@ builtins.LazyCall = LazyCall;
 builtins.Transform = Transform;
 builtins.AtSign = AtSign;
 builtins.Decimal = Decimal;
-builtins.Generator = Generator;
+builtins.Range = Range;
 builtins.Property = Property;
 builtins.EventListener = EventListener;
 

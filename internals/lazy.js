@@ -9,10 +9,6 @@ function stringify(arg) {
   if (arg.constructor == Array) {
     arg = arg.map(stringify);
   }
-  if (['Generator'].includes(arg.constructor.name)) {
-    arg._memoize_id = arg._memoize_id ? arg._memoize_id : MemoizeID++;
-    arg = `_memoize_id: ${arg._memoize_id}`; // FIXME: we're doomed if arg is this string
-  }
   if (arg.constructor == Object) {
     var stringified = ''
     for (var variable in arg) {

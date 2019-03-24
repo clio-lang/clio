@@ -40,49 +40,41 @@ class Transform {
     }
 }
 
-class Generator {
-  constructor(getter, data, length) {
-    this.getter = getter;
-    this.data = data;
-    this.length = length;
+class Range {
+  constructor(start, end, step, getter) {
+    this.start = start || Decimal(0);
+    this.end = end || Decimal('Inf');
+    this.step = step || Decimal(1);
+    this.getter = getter || ((i, r) => r.step.mul(i).add(r.start))
   }
   get(i) {
     return this.getter(i, this);
   }
   len() {
-    return this.length.constructor == Function ? this.length(this) : this.length;
+    return this.end.sub(this.start).div(this.step).floor();
   }
-  async map(func, stack) {
-    if (!func.is_lazy) {
-      var result = [];
-      for (var i = 0; i < this.len(); i++) {
-        result.push(await func(await value(this.get(i)).catch(e => {throw e})).catch(e => {throw e}));
-      }
-      return new Generator(
-        (i, self) => self.data[i],
-        result,
-        self => self.data.length,
-      );
-    } else {
-      var _this = this;
-      return lazy(async function () {
-        var result = [];
-        for (var i = 0; i < _this.len(); i++) {
-          var val = await value(_this.get(i)).catch(e => {throw e});
-          var r = await func(val).catch(e => {throw e});
-          r.clio_stack = stack;
-          result.push(r);
-        }
-        return new Generator(
-          (i, self) => self.data[i],
-          result,
-          self => self.data.length,
-        );
-      })();
-    }
+  get length() {
+    return this.len();
+  }
+  async map(fn, stack) {
+    return new Range(
+      this.start,
+      this.end,
+      this.step,
+      (i, r) => fn(this.getter(i, r))
+    );
   }
   slice(slicers) {
     return this.slicer(this, slicers);
+  }
+  asArray() {
+    var array = [];
+    var i = Decimal(0);
+    while (i.lte(this.length)) {
+      array.push(this.get(i));
+      i = i.add(1);
+    }
+    return array;
   }
 }
 
@@ -146,7 +138,7 @@ var autocast = function (fn) {
   };
 }
 
-exports.Generator = Generator;
+exports.Range = Range;
 exports.Property = Property;
 exports.AtSign = AtSign;
 exports.Transform = Transform;

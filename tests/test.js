@@ -38,8 +38,8 @@ test('a -> add 1 -> mul 2 -> pow 3', async () => {
 })
 
 test('expect fib of list to be same as range', async () => {
-  var fib_of_list = await Promise.all((await value((await clio_tests).fib_of_list)).data.map(value))
-  var fib_of_range = await Promise.all((await value((await clio_tests).fib_of_range)).data.map(value))
+  var fib_of_list = await Promise.all((await value((await clio_tests).fib_of_list)).map(value))
+  var fib_of_range = await Promise.all((await value((await clio_tests).fib_of_range)).asArray().map(value))
   expect(fib_of_list).toEqual(fib_of_range)
 })
 
@@ -97,7 +97,10 @@ test('list slicing', async () => {
 })
 
 test('eager map', async () => {
-  expect((await value((await clio_tests).eager_map)).data).toEqual(
+  var eager_map = await value((await clio_tests).eager_map);
+  eager_map = eager_map.asArray().map(value);
+  eager_map = await Promise.all(eager_map);
+  expect(eager_map).toEqual(
     [new Decimal(0),new Decimal(2),new Decimal(4),new Decimal(6),new Decimal(8)])
 })
 
