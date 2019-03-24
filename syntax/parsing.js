@@ -410,7 +410,7 @@ const matchers = {
       {name: 'indent', count: 1},
       {name: ['_', '^'], count: 0},
       {name: ['block', 'conditional', 'flow', 'fundef', 'anonfundef', 'list', 'string', 'word', 'number', 'decorated_fundef',
-              'symbol', 'property_access', 'bool', 'math', 'range', 'typedef', 'fundefof', 'notexpr','hash_map',
+              'symbol', 'property_access', 'bool', 'math', 'range', 'typedef', 'fundefof', 'notexpr','hash_map', 'cmpexpr',
               'slice'], count: 0, sep: ['_', '_n', '^'], enders: ['dedent']},
       {name: ['_n', '^'], count: 0, opt: true},
       {name: 'dedent', count: 1},
