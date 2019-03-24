@@ -556,6 +556,20 @@ builtins['sentence-case'] = lazy(async function(a, b) {
 
 builtins.eval = expr => expr;
 
+builtins.filter = lazy(async function (array, fn) {
+  var result = [];
+  for (var i = 0; i < array.length; i++) {
+    if (await value(fn(array[i]))) {
+      result.push(array[i])
+    }
+  }
+  return result;
+})
+
+builtins.includes = lazy(autocast(async function (array, item) {
+  return array.includes(item);
+}))
+
 builtins.eager = function (fn) {
   var eager_fn = async function (...args) {
     return await value(await fn(...args));
