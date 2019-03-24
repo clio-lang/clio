@@ -234,6 +234,9 @@ function analyzer(tree, source) {
     wrapped_quickfundef: function (node) {
       return analyze(node.tokens[0]);
     },
+    wrapped_cmpexpr: function (node) {
+      return analyze(node.tokens[0]);
+    },
     quickfundef: function (node) {
       node.tokens.unshift({name: 'symbol', raw: ''})
       node.name = 'fundef';
