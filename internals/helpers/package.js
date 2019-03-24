@@ -7,7 +7,7 @@ const cwd = process.cwd();
 try {
   var packageJson = require(`${cwd}/package.json`);
 } catch (e) {
-  var packageJson = {};
+  var packageJson = {clioDependencies: []};
 }
 const dependencies = packageJson.clioDependencies;
 
@@ -48,7 +48,9 @@ function hasClioDependencies() {
 
 function addDependency(dependency) {
   return hasClioDependencies()
-         ? [...dependencies, dependency]
+         ? new Object({
+           clioDependencies: [...dependencies, dependency]
+         })
          : new Object({
            clioDependencies: [dependency]
          })
