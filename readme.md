@@ -50,11 +50,9 @@ test programs exist, it is not recommended to use in production.
 You can check the examples in [examples repository](https://github.com/clio-lang/examples) or you can check
 [Clio on Rosetta Code](http://rosettacode.org/wiki/Clio).
 
-## Quick Guide
+## Documentation
 
-Clio isn't recognized by github as a language and it doesn't have correct syntax highlighting on github, please visit [Clio Quick Guide web-page](https://clio-lang.github.io/clio-docs/quick.html) for the quick guide, the Clio editor and embedded browser compiler.
-
-The above quick guide isn't complete, a better documentation for Clio will be hosted on [docs.clio-lang.org](http://docs.clio-lang.org) soon.
+You can visit [docs.clio-lang.org](http://docs.clio-lang.org) for a short tutorial, introduction and documentation. This documentation is a work in progress and your contributions are highly appreciated.
 
 ## Features and Work in Progress
 
@@ -65,15 +63,11 @@ The above quick guide isn't complete, a better documentation for Clio will be ho
 - Asynchronous by default
 - Functional programming paradigm
 - Pipes and flows
-- Function overloading
-- Custom data types
 - Functions are micro-services
 - Network-based foreign function interface
 - Tensor/array indexing and programming
 - Cloud/decentralized/distributed modules and functions
 - Event-based flow control
-
-Some of the ideas in the list are currently implemented, some are implemented but need fixing, some others are planned and will be in the core, and there are ideas that were fully implemented in the core, but commented out in the code since they will be migrated in modules or completely removed.
 
 For a list of what's done and what's planned you can check [Clio on Trello](https://trello.com/b/WpwsB69B/clio).
 
