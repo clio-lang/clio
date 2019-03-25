@@ -1,15 +1,19 @@
 const fs = require("fs");
 
-/**
- * Get user's current working directory
- */
-const cwd = process.cwd();
-try {
-  var packageJson = require(`${cwd}/package.json`);
-} catch (e) {
-  var packageJson = {clioDependencies: []};
+var packageJson, dependencies;
+
+function getPackage() {
+  /**
+   * Get user's current working directory
+   */
+  const cwd = process.cwd();
+  try {
+    packageJson = require(`${cwd}/package.json`);
+  } catch (e) {
+    packageJson = {clioDependencies: []};
+  }
+  dependencies = packageJson.clioDependencies;
 }
-const dependencies = packageJson.clioDependencies;
 
 /**
  * @method getClioDependencies
@@ -19,6 +23,7 @@ const dependencies = packageJson.clioDependencies;
  */
 
 function getClioDependencies() {
+  getPackage();
   return hasClioDependencies()
          ? dependencies
          : []
@@ -32,6 +37,7 @@ function getClioDependencies() {
  */
 
 function hasClioDependencies() {
+  getPackage();
   return !!dependencies
       && !!Object.keys(dependencies)
       && !!Object.keys(dependencies).length
@@ -47,6 +53,7 @@ function hasClioDependencies() {
  */
 
 function addDependency(dependency) {
+  getPackage();
   return hasClioDependencies()
          ? new Object({
            clioDependencies: [...dependencies, dependency]
@@ -64,6 +71,7 @@ function addDependency(dependency) {
  */
 
 function updatePackageJsonDependencies(dependency) {
+  getPackage();
   return new Promise((resolve, reject) => {
 
     // Ugly way to clone object by values and not by reference

@@ -11,7 +11,8 @@ const { clio_import } = require('./internals/import');
 const beautify = require('js-beautify').js;
 const highlight = require('./highlight');
 const { get } = require('./internals/get/clio-get');
-const { showDependencies, getDependencies } = require('./internals/deps')
+const { showDependencies, getDependencies } = require('./internals/deps');
+const { initPackage } = require('./internals/helpers/pkginit');
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require('websocket').w3cwebsocket; // same for WebSocket
@@ -135,6 +136,12 @@ const argv = require('yargs')
   },
   (argv) => {
     process_file(argv)
+  })
+  .command('init', 'Generate a package.json and fetch stdlib', (yargs) => {
+
+  },
+  (argv) => {
+    initPackage()
   })
   .command('get <url>', 'Download and install a Clio module', (yargs) => {
     yargs.positional('source', {
