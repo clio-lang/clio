@@ -292,18 +292,6 @@ const matchers = {
       {name: 'block', count: 1}
     ], i, tokens)
   },
-  typedef: function (i, tokens) {
-    return helpers.isSeq([
-      {name: 'type', count: 1},
-      {name: '_', count: 1},
-      {name: 'symbol', count: 1},
-      {name: '_', count: 1},
-      {name: 'symbol', sep: ['_'], count: 0, enders: ['colon']},
-      {name: 'colon', count: 1},
-      {name: '_n', count: 0},
-      {name: 'block', count: 1}
-    ], i, tokens)
-  },
   decorated_fundef: function (i, tokens) {
     return helpers.isSeq([
       {name: 'decorator', count: 0, sep: ['_', '^', '_n'], enders: ['fundef']},
@@ -410,7 +398,7 @@ const matchers = {
       {name: 'indent', count: 1},
       {name: ['_', '^'], count: 0},
       {name: ['block', 'conditional', 'flow', 'fundef', 'anonfundef', 'list', 'string', 'word', 'number', 'decorated_fundef',
-              'symbol', 'property_access', 'bool', 'math', 'range', 'typedef', 'fundefof', 'notexpr','hash_map', 'cmpexpr', 'wrapped_cmpexpr',
+              'symbol', 'property_access', 'bool', 'math', 'range', 'fundefof', 'notexpr','hash_map', 'cmpexpr', 'wrapped_cmpexpr',
               'slice'], count: 0, sep: ['_', '_n', '^'], enders: ['dedent']},
       {name: ['_n', '^'], count: 0, opt: true},
       {name: 'dedent', count: 1},
@@ -487,7 +475,7 @@ const matchers = {
         count: 0, sep: ['_', '_n', '^'],
         enders: [
           'colon', '_n', '^', 'symbol', 'property_access', 'list', 'number', 'bool', 'empty_list', 'range', 'stepped_range', 'string', 'math', 'wrapped_math', 'notexpr', 'slice', 'hash_map',
-          'word', 'dedent', 'eof', 'flow', 'conditional', 'rpar', 'fundef', 'comparison', 'decorator', 'import_st', 'import_nk', 'import_al', 'typedef']
+          'word', 'dedent', 'eof', 'flow', 'conditional', 'rpar', 'fundef', 'comparison', 'decorator', 'import_st', 'import_nk', 'import_al']
       },
     ], i, tokens)
   },

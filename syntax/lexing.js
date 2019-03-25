@@ -16,7 +16,6 @@ const patterns = {
   or: /^or(?![a-zA-Z_-])/,
   not: /^not(?![a-zA-Z_-])/,
   of: /^of(?![a-zA-Z_-])/,
-  type: /^type(?![a-zA-Z_-])/,
   as: /^as(?![a-zA-Z_-])/,
 
   import: /^import(?![a-zA-Z_-])/,

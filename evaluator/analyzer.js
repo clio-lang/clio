@@ -569,39 +569,6 @@ function analyzer(tree, source) {
         code: code
       };
     },
-    typedef: function (node) {
-      var type_name = node.tokens[0].raw;
-      node.name = 'fundef';
-      node.tokens[0].raw = 'init';
-      var block = node.tokens.pop();
-      var type_setter = {
-        name: 'flow',
-        tokens: [
-          {name: 'string', raw: `'${type_name}'`},
-          {name: 'setter', tokens: [
-            {name: 'property_access', tokens: [
-              {name: 'symbol', raw: 'self'},
-              {name: 'symbol', raw: 'type'},
-            ]}
-          ]}
-        ]
-      }
-      block.tokens.push(type_setter);
-      block.tokens.push({name: 'symbol', raw: 'self'});
-      node.tokens.push({name: 'symbol', raw: 'self'});
-      node.tokens.push(block);
-      var func = analyze(node);
-      var code = `scope['${type_name}'] = (function(scope) {
-        scope = Object.assign({}, scope);
-        var init = ${func.code};
-        return function (...args) {
-          return init(...args, {});
-        }
-      })(scope)`
-      return {
-        code: code
-      };
-    },
     fundef: function (node) {
       var block = node.tokens.pop().tokens;
       var implicit_return = make_return(block.pop());
