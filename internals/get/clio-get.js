@@ -51,14 +51,14 @@ async function fetchFile(argv) {
  *              the dependency reference into the Package.json file.
  */
 
-async function fetchFromRepo(package) {
+async function fetchFromRepo(pkg) {
 
-  const packageName = hasVersion(package)
-                    ? package.replace(versionRegex, "")
-                    : package;
+  const packageName = hasVersion(pkg)
+                    ? pkg.replace(versionRegex, "")
+                    : pkg;
 
-  const packageTarget = hasVersion(package)
-                      ? getVersion(package).replace("@", "")
+  const packageTarget = hasVersion(pkg)
+                      ? getVersion(pkg).replace("@", "")
                       : "master";
 
   console.log(`Getting ${packageName} from main repository,`);
@@ -73,17 +73,17 @@ async function fetchFromRepo(package) {
 
   const fetchUrl = `${packageUri}/archive/${packageTarget}.zip`;
 
-  console.log(`Downloading ${package}...`);
+  console.log(`Downloading ${pkg}...`);
   fetchFile({url: fetchUrl});
 
   /**
    * If the dependency is already listed in package.json
    * don't update it.
    */
-  if (!getClioDependencies().includes(package)) {
-    updatePackageJsonDependencies(package)
-      .then(() => console.log(`Added ${package} to the dependencies list`))
-      .catch((err) => console.log(`Can not add ${package} to the dependencies list`, err))
+  if (!getClioDependencies().includes(pkg)) {
+    updatePackageJsonDependencies(pkg)
+      .then(() => console.log(`Added ${pkg} to the dependencies list`))
+      .catch((err) => console.log(`Can not add ${pkg} to the dependencies list`, err))
   }
 
 }
