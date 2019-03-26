@@ -42,7 +42,6 @@
     "body-parser": "1.18.3",
     "break_infinity.js": "^1.0.5",
     "chalk": "2.4.2",
-    "decimal.js": "10.0.1",
     "decompress": "4.2.0",
     "eventemitter2": "5.0.1",
     "express": "4.16.4",
