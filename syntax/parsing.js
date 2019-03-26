@@ -380,7 +380,7 @@ const matchers = {
       {name: ['_', '_n', '^'], count: 0},
       {name: 'starmap', count: 1},
       {name: '_', count: 1},
-      {name: ['symbol', 'property_access', 'anonfundef', 'quickfundef'], count: 1},
+      {name: ['symbol', 'property_access', 'anonfundef', 'quickfundef', 'halfnot'], count: 1},
       {fail: ['symbol', 'property_access', 'transform', 'startransform'], 'skip': ['_']}
     ], i, tokens)
   },
@@ -389,7 +389,7 @@ const matchers = {
       {name: ['_', '_n', '^'], count: 0},
       {name: 'map', count: 1},
       {name: '_', count: 1},
-      {name: ['symbol', 'property_access', 'anonfundef', 'quickfundef'], count: 1},
+      {name: ['symbol', 'property_access', 'anonfundef', 'quickfundef', 'halfnot'], count: 1},
       {fail: ['symbol', 'property_access', 'transform', 'startransform'], 'skip': ['_']}
     ], i, tokens)
   },

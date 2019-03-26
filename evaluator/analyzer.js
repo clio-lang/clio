@@ -473,6 +473,10 @@ function analyzer(tree, source) {
     },
     naked_mapper: function (node) {
       var func = node.tokens[0];
+      if (func.name == 'halfnot') {
+        func.raw = 'not';
+        func.name = 'symbol';
+      }
       var fn = func.raw;
       var fnindex = func.index;
       func = analyze(func).code;
@@ -499,6 +503,10 @@ function analyzer(tree, source) {
     },
     naked_star_mapper: function (node) {
       var func = node.tokens[0];
+      if (func.name == 'halfnot') {
+        func.raw = 'not';
+        func.name = 'symbol';
+      }
       var fn = func.raw;
       var fnindex = func.index;
       func = analyze(func).code;
