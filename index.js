@@ -1,19 +1,5 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
-const path = require('path');
-const treeify = require('treeify');
-const lexer = require('./lexer/lexer');
-const parser = require('./parser/parser');
-const analyzer = require('./evaluator/analyzer');
-const clio_host = require('./host/host');
-const { clio_import } = require('./internals/import');
-const beautify = require('js-beautify').js;
-const highlight = require('./highlight');
-const { get } = require('./internals/get/clio-get');
-const { showDependencies, getDependencies } = require('./internals/deps');
-const { initPackage } = require('./internals/helpers/pkginit');
-
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require('websocket').w3cwebsocket; // same for WebSocket
 
@@ -35,6 +21,7 @@ function remove_props(obj,keys){
 }
 
 function print_ast(ast) {
+  const treeify = require('treeify');
   remove_props(ast, 'index')
   console.log(treeify.asTree(ast, true));
   //console.dir(x, { depth: null, colors: true });
@@ -50,10 +37,13 @@ async function process_file(argv) {
   argv.command = argv._[0];
 
   if (argv.command == 'run') {
+    const { clio_import } = require('./internals/import');
     return clio_import(argv.source, true).catch(e => e.exit ? e.exit() : console.log(e) )
   }
 
   if (argv.command == 'host') {
+    const path = require('path');
+    const clio_host = require('./host/host');
     try {
 
       if (!path.isAbsolute(argv.source)) {
@@ -69,6 +59,13 @@ async function process_file(argv) {
     }
     return clio_host(_module, file_dir);
   }
+
+  const fs = require('fs');
+  const lexer = require('./lexer/lexer');
+  const parser = require('./parser/parser');
+  const analyzer = require('./evaluator/analyzer');
+  const beautify = require('js-beautify').js;
+  const highlight = require('./highlight');
 
   fs.readFile(argv.source, 'utf8', function(err, contents) {
 
@@ -141,6 +138,7 @@ const argv = require('yargs')
 
   },
   (argv) => {
+    const { initPackage } = require('./internals/helpers/pkginit');
     initPackage()
   })
   .command('get <url>', 'Download and install a Clio module', (yargs) => {
@@ -149,21 +147,30 @@ const argv = require('yargs')
       type: 'string'
     })
   },
-  (argv) => get(argv))
+  (argv) => {
+    const { get } = require('./internals/get/clio-get');
+    get(argv)
+  })
   .command('deps.show', 'Shows the list of dependencies listed in Package.json', (yargs) => {
     yargs.positional('source', {
       describe: 'Shows the list of dependencies listed in Package.json',
       type: 'string'
     })
   },
-  (_) => showDependencies())
+  (_) => {
+    const { showDependencies } = require('./internals/deps');
+    showDependencies()
+  })
   .command('deps.get', 'Download every dependency listed in Package.json', (yargs) => {
     yargs.positional('source', {
       describe: 'Download every dependency listed in Package.json',
       type: 'string'
     })
   },
-  (_) => getDependencies())
+  (_) => {
+    const { getDependencies } = require('./internals/deps');
+    getDependencies()
+  })
   .command('compile <source> <destination>', 'Compile a Clio file', (yargs) => {
     yargs.positional('source', {
       describe: 'source file to compile',
