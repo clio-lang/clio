@@ -70,7 +70,7 @@ class Range {
   }
   asArray() {
     var array = [];
-    var i = Decimal(0);
+    var i = new Decimal(0);
     while (i.lte(this.length)) {
       array.push(this.get(i));
       i = i.add(1);
@@ -118,7 +118,7 @@ var cast_to_clio = function (object) {
   if (object.constructor == Array) {
     return object.map(cast_to_clio);
   } else if (object.constructor == Number) {
-    return Decimal(object);
+    return new Decimal(object);
   } else if (isObjLiteral(object)) {
     return Object.keys(object).reduce((out, key) => {
       out[key] = cast_to_clio(object[key]);

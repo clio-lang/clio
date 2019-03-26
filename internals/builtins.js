@@ -376,7 +376,7 @@ builtins.mod = lazy(async function(a, b) {
     if (a.constructor == Array) {
       return a.map(el => builtins.mod(el, b));
     }
-    return a.mod(b);
+    return a.sub(a.div(b).floor().mul(b));
 })
 
 builtins.pow = lazy(async function(a, b) {
@@ -574,7 +574,7 @@ builtins.includes = lazy(async function (array, item) {
     }
   }
   return false;
-})
+});
 
 builtins.eager = function (fn) {
   var eager_fn = async function (...args) {
