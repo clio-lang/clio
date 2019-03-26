@@ -566,9 +566,15 @@ builtins.filter = lazy(async function (array, fn) {
   return result;
 })
 
-builtins.includes = lazy(autocast(async function (array, item) {
-  return array.includes(item);
-}))
+builtins.includes = lazy(async function (array, item) {
+  for (let i = 0; i < array.length; i++) {
+    const element = array[i];
+    if (element && ((element.eq && element.eq(item)) || element == item)) {
+      return true;
+    }
+  }
+  return false;
+})
 
 builtins.eager = function (fn) {
   var eager_fn = async function (...args) {
