@@ -25,14 +25,14 @@ async function initPackage() {
     return fs.writeFile(path.join(cwd, 'package.json'), stringified, 'utf8', getDependencies);
   }
 
-  const interface = readline.createInterface({
+  const r_interface = readline.createInterface({
     input: process.stdin,
     output: process.stdout
   })
 
   async function ask(message) {
     return new Promise(function(resolve, reject) {
-      interface.question(message, resolve);
+      r_interface.question(message, resolve);
     });
   }
 

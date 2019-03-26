@@ -1,5 +1,6 @@
 const { LazyCall, value, lazy } = require('./lazy');
-const Decimal = require('decimal.js');
+//const Decimal = require('decimal.js'); <- too slow
+const Decimal = require('break_infinity.js');
 const EventEmitter = require('eventemitter2').EventEmitter2;
 
 class AtSign {
