@@ -430,6 +430,7 @@ builtins.cat = lazy(async function() {
     if (typeof arguments[0] == 'string') {
         return [...arguments].join('');
     }
+    return Array.prototype.concat.apply([], arguments);
 })
 
 builtins.head = lazy(async function(a) {
