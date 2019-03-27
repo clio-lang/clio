@@ -36,8 +36,9 @@ async function process_file(argv) {
   process.env.clio_root = __dirname;
   argv.command = argv._[0];
 
+  const { clio_import } = require('./internals/import');
+
   if (argv.command == 'run') {
-    const { clio_import } = require('./internals/import');
     return clio_import(argv.source, true).catch(e => e.exit ? e.exit() : console.log(e) )
   }
 

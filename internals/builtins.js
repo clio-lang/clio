@@ -257,6 +257,7 @@ builtins.funcall = async function(data, args, func, file, trace) {
         }
         return await func_call;
     };
+    data = await Promise.all(data.map(value))
     func_call = func(...data, ...args);
     if (func_call.constructor == Promise) {
       func_call = await func_call.catch(handler);

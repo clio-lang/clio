@@ -32,12 +32,13 @@ class Transform {
         this.star = star;
         this.index = index;
     }
-    transform(data) {
+    async transform(data) {
       data = data[this.index];
+      data = await value(data);
       if (this.star) {
         return data.map(this.func);
       }
-      return this.func(data);
+      return await value(this.func(data));
     }
 }
 

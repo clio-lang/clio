@@ -79,6 +79,7 @@ function updatePackageJsonDependencies(dependency) {
     const newPackage = Object.assign(oldPackage, addDependency(dependency));
     const formatJson = JSON.stringify(newPackage, null, 2);
 
+    const cwd = process.cwd();
     fs.writeFile(`${cwd}/package.json`, formatJson, (err) => {
       return err
            ? reject(err)
