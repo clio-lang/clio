@@ -1,11 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const lexer = require('../lexer/lexer');
-const parser = require('../parser/parser');
-const analyzer = require('../evaluator/analyzer');
 const builtins = require('./builtins');
-const beautify = require('js-beautify').js;
-const md5 = require('./md5');
 
 function write_file(source, path) {
   fs.writeFileSync(path, source);
@@ -27,6 +22,7 @@ function http_dir_name(path) {
 }
 
 async function clio_require_browser(module_name, names_to_import, current_dir, scope) {
+  const md5 = require('./md5');
   // __basedir is window.clio.__basedir || protocol://domain:port
 
   var __basedir = window.clio.__basedir || window.location.origin;
@@ -258,6 +254,12 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
 builtins.clio_require = clio_require;
 
 async function do_import(file, direct) {
+
+  const lexer = require('../lexer/lexer');
+  const parser = require('../parser/parser');
+  const analyzer = require('../evaluator/analyzer');
+  const beautify = require('js-beautify').js;
+
   var contents = fs.readFileSync(file, 'utf8');
   var tokens = lexer(contents);
   if (tokens[0] == false) {
