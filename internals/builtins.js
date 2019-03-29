@@ -299,7 +299,7 @@ builtins.map = async function(a, f, stack, ...args) {
             return f(d, ...a).catch(e => {throw e});
           });
         } else {
-          return await data.map(lazy(function (d) {
+          return await data.map(lazy(async function (d) {
             return f(d, ...a).catch(e => {throw e});
           }));
         }

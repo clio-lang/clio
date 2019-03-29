@@ -10,31 +10,31 @@ global.WebSocket = require('websocket').w3cwebsocket; // same for WebSocket
 var clio_tests = clio_import('tests/test.clio');
 
 test('a + b = 2 + 3', async () => {
-  expect(await value((await clio_tests).a_plus_b)).toEqual(new Decimal(5))
+  expect(await value((await clio_tests).a_plus_b)).toEqual(new Decimal("5"))
 })
 
 test('a - b = 2 - 3', async () => {
-  expect(await value((await clio_tests).a_minus_b)).toEqual(new Decimal(-1))
+  expect(await value((await clio_tests).a_minus_b)).toEqual(new Decimal("-1"))
 })
 
 test('a * b = 2 * 3', async () => {
-  expect(await value((await clio_tests).a_mul_b)).toEqual(new Decimal(6))
+  expect(await value((await clio_tests).a_mul_b)).toEqual(new Decimal("6"))
 })
 
 test('a / b = 2 / 3', async () => {
-  expect(await value((await clio_tests).a_div_b)).toEqual(new Decimal(2).div(3))
+  expect(await value((await clio_tests).a_div_b)).toEqual(new Decimal("2").div(new Decimal("3")))
 })
 
 test('a % b = 2 % 3', async () => {
-  expect(await value((await clio_tests).a_mod_b)).toEqual(new Decimal(2))
+  expect(await value((await clio_tests).a_mod_b)).toEqual(new Decimal("2"))
 })
 
 test('a ^ b = 2 ^ 3', async () => {
-  expect(await value((await clio_tests).a_pow_b)).toEqual(new Decimal(8))
+  expect(await value((await clio_tests).a_pow_b)).toEqual(new Decimal("8"))
 })
 
 test('a -> add 1 -> mul 2 -> pow 3', async () => {
-  expect(await value((await clio_tests).chain)).toEqual(new Decimal(216))
+  expect(await value((await clio_tests).chain)).toEqual(new Decimal("216"))
 })
 
 test('expect fib of list to be same as range', async () => {
@@ -60,15 +60,15 @@ test('not t = !t', async () => {
 })
 
 test('a -> add 1 (transform i: i * 2) = a * 2 + 1', async () => {
-  expect(await value((await clio_tests).transform_a)).toEqual(new Decimal(5))
+  expect(await value((await clio_tests).transform_a)).toEqual(new Decimal("5"))
 })
 
 test('http calls: a -> heavy = 1024', async () => {
-  expect(await value((await clio_tests).a_heavy)).toEqual(new Decimal(1024))
+  expect(await value((await clio_tests).a_heavy)).toEqual(new Decimal("1024"))
 })
 
 test('ws calls: a -> double = 4', async () => {
-  expect(await value((await clio_tests).a_double)).toEqual(new Decimal(4))
+  expect(await value((await clio_tests).a_double)).toEqual(new Decimal("4"))
 })
 
 test('test hash maps', async () => {
@@ -76,7 +76,7 @@ test('test hash maps', async () => {
 })
 
 test('positional arguments', async () => {
-  expect(await value((await clio_tests).a_pos)).toEqual(new Decimal(9))
+  expect(await value((await clio_tests).a_pos)).toEqual(new Decimal("9"))
 })
 
 test('event emitter', async () => {
@@ -89,11 +89,11 @@ test('event emitter', async () => {
 })
 
 test('range slicing', async () => {
-  expect((await value((await clio_tests).range_slice))).toEqual(new Decimal(50))
+  expect((await value((await clio_tests).range_slice))).toEqual(new Decimal("50"))
 })
 
 test('list slicing', async () => {
-  expect((await value((await clio_tests).list_slice))).toEqual(new Decimal(1))
+  expect((await value((await clio_tests).list_slice))).toEqual(new Decimal("1"))
 })
 
 test('eager map', async () => {
@@ -101,7 +101,7 @@ test('eager map', async () => {
   eager_map = eager_map.asArray().map(value);
   eager_map = await Promise.all(eager_map);
   expect(eager_map).toEqual(
-    [new Decimal(0),new Decimal(2),new Decimal(4),new Decimal(6),new Decimal(8)])
+    [new Decimal("0"),new Decimal("2"),new Decimal("4"),new Decimal("6"),new Decimal("8")])
 })
 
 test('conditionals', async () => {

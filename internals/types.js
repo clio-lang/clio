@@ -1,6 +1,6 @@
 const { LazyCall, value, lazy } = require('./lazy');
 //const Decimal = require('decimal.js'); <- too slow
-const Decimal = require('break_infinity.js');
+const Decimal = require('clio-decimal');
 const EventEmitter = require('eventemitter2').EventEmitter2;
 
 class AtSign {
@@ -44,10 +44,10 @@ class Transform {
 
 class Range {
   constructor(start, end, step, getter) {
-    this.start = start || Decimal(0);
-    this.end = end || Decimal('Inf');
-    this.step = step || Decimal(1);
-    this.getter = getter || ((i, r) => r.step.mul(i).add(r.start))
+    this.start = start || new Decimal(0);
+    this.end = end || new Decimal('Inf');
+    this.step = step || new Decimal(1);
+    this.getter = getter || ((i, r) => r.step.mul(new Decimal(i)).add(r.start))
   }
   get(i) {
     return this.getter(i, this);
@@ -72,9 +72,9 @@ class Range {
   asArray() {
     var array = [];
     var i = new Decimal(0);
-    while (i.lte(this.length)) {
-      array.push(this.get(i));
-      i = i.add(1);
+    while (i.lte(new Decimal(this.length))) {
+      array.push(this.get(i.toNumber()));
+      i = i.add(new Decimal(1));
     }
     return array;
   }

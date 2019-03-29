@@ -65,7 +65,9 @@ class LazyCall {
   }
   async call() {
     var self = this;
-    var result = await this.fn.apply(null, this.args).catch(e => exception_handler(e, self));
+    // this is needed, but has negative impact on performance
+    this.args = await Promise.all(this.args.map(value));
+    var result = await this.fn.apply(null, this.args).catch(e => {exception_handler(e, self)});
     if (result && result.constructor == LazyCall) {
       if (result.clio_stack) {
         result.prev = this
