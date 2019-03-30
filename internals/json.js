@@ -1,11 +1,8 @@
-var { Decimal, EventEmitter } = require('../internals/types');
+var { EventEmitter } = require('../internals/types');
 
 function jsonReplacer(key, value) {
   if ([null, undefined].includes(value)) {
     return value
-  }
-  if (value.toNumber) {
-    return `clio::number::${value.toString()}`;
   }
   if (value.constructor == Array) {
     return value.map(function (v, k) {
@@ -31,15 +28,9 @@ function jsonReviver(key, value) {
   if ([null, undefined].includes(value)) {
     return value;
   }
-  if (value.constructor == Number) {
-    return new Decimal(value);
-  }
   if ((value.constructor == String) && (value.startsWith('clio::'))) {
     value = value.slice(6);
-    if (value.startsWith('number::')) {
-      value = value.slice(8);
-      return new Decimal(value);
-    } else if (value.startsWith('emitter::')) {
+    if (value.startsWith('emitter::')) {
       value = value.slice(9);
       var emitter = new EventEmitter({
         wildcard: true,

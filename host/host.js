@@ -9,7 +9,7 @@ const {value} = require('../internals/lazy');
 const enableWs = require('express-ws');
 const uuid4 = require('uuid/v4');
 
-var { Transform, AtSign, Decimal, Range, Property,
+var { Transform, AtSign, Range, Property,
   EventListener, Broadcast, EventEmitter } = require('../internals/types');
 
 function find_emitters(obj) {
@@ -35,7 +35,7 @@ async function clio_host(scope, root_dir) {
    * User configured port.
    * Default is 3000
    */
-  const port = config.port ? config.port.toNumber() : 3000;
+  const port = config.port ? config.port : 3000;
 
   /**
    * Define how many workers to spawn.

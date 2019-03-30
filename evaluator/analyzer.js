@@ -1,6 +1,5 @@
 const unescapeJs = require('unescape-js');
 const cast_to_bool = require('../common').cast_to_bool;
-const {Decimal} = require('../internals/types');
 
 function analyzer(tree, source) {
 
@@ -44,7 +43,7 @@ function analyzer(tree, source) {
     number: function (node) {
       node.raw = node.raw.replace(/'/g, '');
       return {
-        code: `new builtins.Decimal('${node.raw}')`
+        code: `${node.raw}`
       };
     },
     bool: function (node) {
@@ -141,7 +140,7 @@ function analyzer(tree, source) {
 
       var start = analyze(start).code;
       var end = analyze(end).code;
-      var step = `new builtins.Decimal(new builtins.Decimal(${start}).lt(new builtins.Decimal(${end}))?1:-1)`
+      var step = `(${start} < ${end} ? 1 : -1)`
 
       return {
         code: `new builtins.Range(${start}, ${end}, ${step})`
@@ -834,15 +833,18 @@ function analyzer(tree, source) {
   var code = `module.exports = async function (scope, builtins, file) {
     var ws_connections = [];
     ${code};
-    for (var server in ws_connections) {
-      if (ws_connections.hasOwnProperty(server)) {
-        if (ws_connections[server].emitters == {}) {
-          ws_connections[server].socket.close()
-        }
-      }
-    }
     return scope;
   };`
+
+  /*
+    for (var server in ws_connections) {
+      if (ws_connections.hasOwnProperty(server)) {
+          if (Object.keys(ws_connections[server].emitters).length == 0) {                
+              ws_connections[server].socket.close()
+          }
+      }
+    }
+  */
 
   return code;
 }

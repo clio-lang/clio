@@ -1,5 +1,5 @@
 var { lazy, value, LazyCall, memoize } = require('../internals/lazy');
-var { Transform, AtSign, Decimal, Range, Property, EventListener, EventEmitter, autocast } = require('../internals/types');
+var { Transform, AtSign, Range, Property, EventListener, EventEmitter } = require('../internals/types');
 const {jsonReviver, jsonReplacer} = require('../internals/json');
 const {throw_error, exception_handler} = require('../common');
 
@@ -17,7 +17,7 @@ var js_to_clio_type_map = function (type) {
       return 'obj';
     case Range:
       return 'range';
-    case Decimal:
+    case Number:
       return 'num';
     default:
 
@@ -39,16 +39,16 @@ builtins.update_vars = async function (scope, keys, val) {
   return parent[key] = val;
 }
 
-builtins.revive = function (str) {
+builtins.jrevive = function (str) {
   return JSON.parse(str, jsonReviver);
 }
 
-builtins.replace = function (obj) {
+builtins.jreplace = function (obj) {
   return JSON.stringify(obj, jsonReplacer);
 }
 
 builtins.typeof = function (thing) {
-  return thing.type || js_to_clio_type_map(thing.constructor) || thing.constructor;
+  return typeof thing;
 }
 
 builtins.define_function = function(fn, fn_name, scope) {
@@ -74,9 +74,9 @@ builtins.decorate_function = function (decorator, args, fn_name, scope) {
 builtins.setup_ws = async function (connections, host) {
   connections[host] = {socket: new WebSocket(`${host}/connect`), id: 0, promises: {}, emitters: {}}
   connections[host].socket.onmessage = function (event) {
-    var data = builtins.revive(event.data);
-    if (data.id) {
-      connections[host].promises[data.id.toNumber()](data);
+    var data = builtins.jrevive(event.data);    
+    if (data.id != undefined) {      
+      connections[host].promises[data.id](data);
     } else if (data.service) {
       if (data.service == 'update') {
         if (data.emitter) {
@@ -100,7 +100,7 @@ builtins.ws_get = async function (ws, key) {
     id: id,
     method: 'get',
   }, jsonReplacer);
-  ws.socket.send(data);
+  ws.socket.send(data);  
   var response = await new Promise(function(resolve, reject) {
     ws.promises[id] = resolve;
   });
@@ -217,9 +217,6 @@ builtins.funcall = async function(data, args, func, file, trace) {
         return data[prop].call(data, ...args);
       }
     }
-    if (!func.is_clio_fn) {
-      func = autocast(func);
-    }
     func = await builtins.assure_async(func);
     var current_stack = [{file: file, trace: trace}];
     var func_call;
@@ -284,9 +281,6 @@ builtins.map = async function(a, f, stack, ...args) {
         return data[prop].call(data, ...args);
       }
     }
-    if (!f.is_clio_fn) {
-      f = autocast(func);
-    }
     f = await builtins.assure_async(f);
     if (!f.is_lazy) {
         args = await Promise.all(args.map(value)).catch(e => {throw e});
@@ -346,7 +340,7 @@ builtins.dec = lazy(async function(a, b) {
     if (a.constructor == Array) {
       return a.map(el => builtins.dec(el, b));
     }
-    return a.sub(b);
+    return a - b;
 })
 
 builtins.add = lazy(async function(a, b) {
@@ -356,35 +350,35 @@ builtins.add = lazy(async function(a, b) {
     if (a.constructor == Array) {
       return a.map(el => builtins.add(el, b));
     }
-    return a.add(b);
+    return a + b;
 })
 
 builtins.div = lazy(async function(a, b) {
     if (a.constructor == Array) {
       return a.map(el => builtins.div(el, b));
     }
-    return a.div(b);
+    return a / b;
 })
 
 builtins.mul = lazy(async function(a, b) {
     if (a.constructor == Array) {
       return await a.map(el => builtins.mul(el, b));
     }
-    return a.mul(b);
+    return a * b;
 })
 
 builtins.mod = lazy(async function(a, b) {
     if (a.constructor == Array) {
       return a.map(el => builtins.mod(el, b));
     }
-    return a.sub(a.div(b).floor().mul(b));
+    return a % b;
 })
 
 builtins.pow = lazy(async function(a, b) {
     if (a.constructor == Array) {
       return a.map(el => builtins.pow(el, b));
     }
-    return a.pow(b);
+    return a ** b;
 })
 
 builtins.bool = async function (a) {
@@ -394,8 +388,8 @@ builtins.bool = async function (a) {
   if (a.constructor == Array) {
     return a.length > 0;
   }
-  if (a.constructor == builtins.Decimal) {
-    return !a.eq(0);
+  if (a.constructor == Number) {
+    return a != 0;
   }
   return a;
 }
@@ -405,26 +399,23 @@ builtins.not = async function (a) {
 }
 
 builtins.eq = async function(a, b) {
-    if (a.eq) {
-      return a.eq(b);
-    }
     return a == b;
 }
 
 builtins.lt = async function(a, b) {
-    return a.lt(b);
+    return a < b;
 }
 
 builtins.lte = async function(a, b) {
-    return a.lte(b);
+    return a <= b;
 }
 
 builtins.gt = async function(a, b) {
-    return a.gt(b);
+    return a > b;
 }
 
 builtins.gte = async function(a, b) {
-    return a.gte(b);
+    return a >= b;
 }
 
 builtins.cat = lazy(async function() {
@@ -454,7 +445,7 @@ builtins.length = lazy(async function(a) {
 var chalk = require('chalk');
 
 var colormap = {
-  Decimal: chalk.yellow,
+  Number: chalk.yellow,
   Range: chalk.cyan,
   Array: chalk.cyan
 }
@@ -464,8 +455,10 @@ builtins.string = lazy(async function (object, colorize) {
     var inner = await Promise.all(object.map(builtins.string));
     inner = await Promise.all(inner.map(builtins.value));
     return colormap.Array('[' + inner.join(' ') + ']');
-  } else if (object.constructor == Decimal) {
-    return colormap.Decimal(object.toString());
+  } else if (object.constructor == Number) {
+    return colormap.Number(object.toString());
+  } else if (object.constructor == BigInt) {
+    return colormap.Number(object.toString());
   }
   return object.toString();
 })
@@ -498,17 +491,16 @@ builtins.take = lazy(function(list, n) {
 builtins.slice = lazy(async function (list, slicers) {
   if (list.constructor == Array) {
     var slicer = slicers.shift();
-    if (slicer.constructor == builtins.Decimal) {
-      list = list[slicer.toNumber()];
+    if (slicer.constructor == Number) {
+      list = list[slicer];
     } else if (slicer.constructor == Array) {
-      var wanted = slicer.map(d => d.toNumber());
-      list = wanted.map(w => list[w]);
+      list = slicer.map(w => list[w]);
     } else if (slicer.constructor == builtins.Range) {
       var wanted = [];
       var curr = slicer.start;
-      while (curr.lte(list.length) && curr.lte(slicer.end)) {
-        wanted.push(curr.toNumber());
-        curr = curr.add(slicer.step);
+      while ((curr <= list.length) && (curr <= slicer.end)) {
+        wanted.push(curr);
+        curr = curr + slicer.step;
       }
       list = wanted.map(w => list[w]);
     }
@@ -521,17 +513,16 @@ builtins.slice = lazy(async function (list, slicers) {
   } else {
     // it's a range
     var slicer = slicers.shift();
-    if (slicer.constructor == builtins.Decimal) {
-      list = list.get(slicer.toNumber())
+    if (slicer.constructor == Number) {
+      list = list.get(slicer)
     } else if (slicer.constructor == Array) {
-      var wanted = slicer.map(d => d.toNumber());
-      list = wanted.map(w => list.get(w));
+      list = slicer.map(w => list.get(w));
     } else if (slicer.constructor == builtins.Range) {
       var wanted = [];
       var curr = slicer.start;
-      while (curr.lte(list.length) && curr.lte(slicer.end)) {
-        wanted.push(curr.toNumber());
-        curr = curr.add(slicer.step);
+      while ((curr <= list.length) && (curr <= slicer.end)) {
+        wanted.push(curr);
+        curr = curr + slicer.step;
       }
       list = wanted.map(w => list.get(w));
     }
@@ -582,7 +573,7 @@ builtins.eager = function (fn) {
   var eager_fn = async function (...args) {
     return await value(await fn(...args));
   }
-  eager_fn.mmax = new builtins.Decimal(0);
+  eager_fn.mmax = 0;
   return eager_fn;
 }
 
@@ -596,14 +587,14 @@ builtins.memoize = function (fn, max) {
 }
 
 builtins.timeout = function(fn, time) {
-  return setTimeout(fn, time.toNumber())
+  return setTimeout(fn, time)
 }
 
 builtins.interval = function(time, fn, ...args) {
   var i = 0;
   return setInterval(function () {
-    fn(new builtins.Decimal(i++), ...args)
-  }, time.toNumber())
+    fn(i++, ...args)
+  }, time)
 }
 
 builtins.emitter = async function(name, maxListeners) {
@@ -627,7 +618,6 @@ Object.keys(builtins).forEach(k => {
 builtins.LazyCall = LazyCall;
 builtins.Transform = Transform;
 builtins.AtSign = AtSign;
-builtins.Decimal = Decimal;
 builtins.Range = Range;
 builtins.Property = Property;
 builtins.EventListener = EventListener;
