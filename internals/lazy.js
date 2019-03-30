@@ -65,7 +65,7 @@ class LazyCall {
   }
   async call() {
     var self = this;
-    // this is needed, but has negative impact on performance
+    // this is needed, but has negative impact on performance    
     this.args = await Promise.all(this.args.map(value));
     var result = await this.fn.apply(null, this.args).catch(e => {exception_handler(e, self)});
     if (result && result.constructor == LazyCall) {
@@ -92,7 +92,7 @@ class LazyCall {
 
 async function value(lazy) {
   lazy = await lazy;
-  while (lazy && lazy.constructor == LazyCall) {
+  while (lazy instanceof LazyCall) {
     lazy = await lazy.call();
   }
   return lazy;

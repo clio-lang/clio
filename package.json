@@ -45,6 +45,7 @@
     "eventemitter2": "5.0.1",
     "express": "4.16.4",
     "express-ws": "4.0.0",
+    "greenlet": "^1.0.1",
     "js-beautify": "1.8.6",
     "node-fetch": "2.2.0",
     "tmp": "0.0.33",
