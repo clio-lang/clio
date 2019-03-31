@@ -127,6 +127,33 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
         clio_module[name] = mod[name];
       })
     }
+  } else if (module_name.endsWith('.clio')) {
+    module_path = path.join(current_dir, module_name);
+    if (!fs.existsSync(module_path)) {
+      // switch to __basedir + clio_env + module_name
+      module_path = path.join(__basedir, 'clio_env', module_name);
+    }
+    if (!fs.existsSync(module_path)) {
+      // switch to __basedir + stdlib + module_name
+      // TODO: respect Clio version in stdlib imports
+      module_path = path.join(__basedir, 'clio_env', 'stdlib-master', `${module_name}.clio`);
+    }
+    if (fs.existsSync(module_path)) {
+      var mod = await clio_import(module_path);
+      if (names_to_import.length == 0) {
+        // import all
+        var clio_module = {};
+        module_name = module_name.replace(/\.clio/, '').replace(/.*?\/+/, '');
+        clio_module[module_name] = mod;
+      } else {
+        var clio_module = {};
+        names_to_import.forEach(function (name) {
+          clio_module[name] = mod[name];
+        })
+      }
+    } else {
+      throw "Module doesn't exist!"
+    }
   } else if (module_name.indexOf('/') > -1) {
     // try importing .clio file first
     module_path = path.join(current_dir, `${module_name}.clio`);
@@ -183,34 +210,9 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
           })
         }
       } catch (e) {
-
+        throw e;
       } finally {
         module.paths = _paths;
-      }
-    }
-  } else if (module_name.endsWith('.clio')) {
-    module_path = path.join(current_dir, module_name);
-    if (!fs.existsSync(module_path)) {
-      // switch to __basedir + clio_env + module_name
-      module_path = path.join(__basedir, 'clio_env', module_name);
-    }
-    if (!fs.existsSync(module_path)) {
-      // switch to __basedir + stdlib + module_name
-      // TODO: respect Clio version in stdlib imports
-      module_path = path.join(__basedir, 'clio_env', 'stdlib-master', `${module_name}.clio`);
-    }
-    if (fs.existsSync(module_path)) {
-      var mod = await clio_import(module_path);
-      if (names_to_import.length == 0) {
-        // import all
-        var clio_module = {};
-        module_name = module_name.replace(/\.clio/, '').replace(/.*?\/+/, '');
-        clio_module[module_name] = mod;
-      } else {
-        var clio_module = {};
-        names_to_import.forEach(function (name) {
-          clio_module[name] = mod[name];
-        })
       }
     }
   } else {
@@ -268,7 +270,7 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
           })
         }
       } catch (e) {
-
+        throw e;
       } finally {
         module.paths = _paths;
       }
