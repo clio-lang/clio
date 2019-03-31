@@ -131,13 +131,26 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
     // try importing .clio file first
     module_path = path.join(current_dir, `${module_name}.clio`);
     if (!fs.existsSync(module_path)) {
+      // switch to main.clio
+      module_path = path.join(__basedir, module_name, 'main.clio');
+    }
+    if (!fs.existsSync(module_path)) {
       // switch to __basedir + clio_env + module_name
       module_path = path.join(__basedir, 'clio_env', `${module_name}.clio`);
+    }
+    if (!fs.existsSync(module_path)) {
+      // switch to __basedir + clio_env + module_name + main.clio
+      module_path = path.join(__basedir, 'clio_env', module_name, main.clio);
     }
     if (!fs.existsSync(module_path)) {
       // switch to __basedir + stdlib + module_name
       // TODO: respect Clio version in stdlib imports
       module_path = path.join(__basedir, 'clio_env', 'stdlib-master', `${module_name}.clio`);
+    }
+    if (!fs.existsSync(module_path)) {
+      // switch to __basedir + stdlib + module_name + main.clio
+      // TODO: respect Clio version in stdlib imports
+      module_path = path.join(__basedir, 'clio_env', 'stdlib-master', module_name, 'main.clio');
     }
     if (fs.existsSync(module_path)) {
       var mod = await clio_import(module_path);
@@ -204,13 +217,26 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
     // first try to import Clio module
     module_path = path.join(current_dir, `${module_name}.clio`);
     if (!fs.existsSync(module_path)) {
+      // switch to main.clio
+      module_path = path.join(__basedir, module_name, 'main.clio');
+    }
+    if (!fs.existsSync(module_path)) {
       // switch to __basedir + clio_env + module_name
       module_path = path.join(__basedir, 'clio_env', `${module_name}.clio`);
+    }
+    if (!fs.existsSync(module_path)) {
+      // switch to __basedir + clio_env + module_name + main.clio
+      module_path = path.join(__basedir, 'clio_env', module_name, main.clio);
     }
     if (!fs.existsSync(module_path)) {
       // switch to __basedir + stdlib + module_name
       // TODO: respect Clio version in stdlib imports
       module_path = path.join(__basedir, 'clio_env', 'stdlib-master', `${module_name}.clio`);
+    }
+    if (!fs.existsSync(module_path)) {
+      // switch to __basedir + stdlib + module_name + main.clio
+      // TODO: respect Clio version in stdlib imports
+      module_path = path.join(__basedir, 'clio_env', 'stdlib-master', module_name, 'main.clio');
     }
     if (fs.existsSync(module_path)) {
       var mod = await clio_import(module_path);
