@@ -533,6 +533,22 @@ builtins.slice = lazy(async function (list, slicers) {
   }
 })
 
+builtins.take = lazy(async function(iterable, n){
+  if (iterable instanceof Array) {
+    return iterable.slice(0, n);
+  }
+  var end = Math.floor(iterable.start / iterable.step) * n;
+  if (iterable.end < end) {
+    end = iterable.end;
+  }
+  return new builtins.Range(
+    iterable.start,
+    end,
+    iterable.step,
+    iterable.getter,
+  );
+})
+
 builtins.upper = lazy(async function(a, b) {
     if (b) {
         return a.toLocaleUpperCase(b);
