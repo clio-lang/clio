@@ -1,4 +1,4 @@
-var { lazy, value, LazyCall, memoize } = require('../internals/lazy');
+var { lazy, memoize } = require('../internals/lazy');
 var { Transform, AtSign, Range, Property, EventListener, EventEmitter } = require('../internals/types');
 const {jsonReviver, jsonReplacer} = require('../internals/json');
 const {throw_error, exception_handler} = require('../common');
@@ -7,7 +7,6 @@ var builtins = {};
 
 builtins.error = throw_error;
 builtins.lazy = lazy;
-builtins.value = value;
 
 var js_to_clio_type_map = function (type) {
   switch (type) {
@@ -30,7 +29,7 @@ builtins.update_vars = async function (scope, keys, val) {
   while (keys.length) {
     key = keys.shift();
     if (parent.hasOwnProperty(key)) {
-      variable = await value(parent[key]);
+      variable = await parent[key];
       if (keys.length) {
         parent = variable
       }
@@ -177,6 +176,9 @@ builtins.http_call = async function(url, fn_name, args, kwargs) {
 
 builtins.get_symbol = function(key, scope) {
   if (scope.hasOwnProperty(key)) {
+    if (scope.is_clio_fn) {
+      return scope[key].__value__ || scope[key];
+    }
     return scope[key]
   }
   if (builtins.hasOwnProperty(key)) {
@@ -198,7 +200,7 @@ builtins.assure_async = async function (fn) {
 }
 
 builtins.get_property = async function (obj, prop) {
-  obj = await value(obj);
+  obj = await obj;
   prop = await obj[prop];
   if ([Function, AsyncFunction].includes(prop.constructor)) {
     prop = prop.bind(obj)
@@ -207,11 +209,7 @@ builtins.get_property = async function (obj, prop) {
 }
 
 builtins.funcall = async function(data, args, func, file, trace) {
-    if (func.constructor == LazyCall) {
-      func = await value(func);
-      // ^ in case it is property access
-    }
-    if (func.constructor == Property) { // JS compatibility layer?
+    if (func.constructor == Property) { // JS compatibility layer?      
       var prop = func.prop;
       func = function (data, ...args) {
         return data[prop].call(data, ...args);
@@ -220,16 +218,16 @@ builtins.funcall = async function(data, args, func, file, trace) {
     func = await builtins.assure_async(func);
     var current_stack = [{file: file, trace: trace}];
     var func_call;
-    var handler = e => {exception_handler(e, {clio_stack: current_stack})};
+    var handler = e => {console.log(e);exception_handler(e, {clio_stack: current_stack})};
     if (!func.is_lazy) {
-        args = await Promise.all(args.map(value)).catch(handler);
-        data = await Promise.all(data.map(value)).catch(handler);
+        args = await Promise.all(args).catch(handler);
+        data = await Promise.all(data).catch(handler);
     }
     if (!args.length) {
       func_call = func(...data).catch(handler);
-      if (func_call.constructor == builtins.LazyCall) {
+      //if (func_call.constructor == builtins.LazyCall) {
         func_call.clio_stack = current_stack;
-      }
+      //}
       return await func_call;
     }
     var AtSigned = false;
@@ -237,7 +235,7 @@ builtins.funcall = async function(data, args, func, file, trace) {
         if (arg.constructor == Transform) {
             AtSigned = true;
             if (!func.is_lazy) {
-              return value(arg.transform(data));
+              return arg.transform(data);
             }
             return arg.transform(data);
         } else if (arg.constructor == AtSign) {
@@ -249,17 +247,17 @@ builtins.funcall = async function(data, args, func, file, trace) {
     args = await Promise.all(args).catch(handler);
     if (AtSigned) {
         func_call = func(...args).catch(handler);
-        if (func_call.constructor == builtins.LazyCall) {
+        //if (func_call.constructor == builtins.LazyCall) {
           func_call.clio_stack = current_stack;
-        }
+        //}
         return await func_call;
     };
-    data = await Promise.all(data.map(value))
+    data = await Promise.all(data)
     func_call = func(...data, ...args);
     if (func_call.constructor == Promise) {
       func_call = await func_call.catch(handler);
     }
-    if (func_call && func_call.constructor == builtins.LazyCall) {
+    if (func_call /*&& func_call.constructor == builtins.LazyCall*/) {
       func_call.clio_stack = current_stack;
     }
     return func_call;
@@ -270,11 +268,6 @@ Object.defineProperty(Array.prototype, 'async_map', {
 });
 
 builtins.map = async function(a, f, stack, ...args) {
-    // TODO: fix the arguments names!
-    if (f.constructor == LazyCall) {
-      f = await value(f);
-      // ^ in case it is property access
-    }
     if (f.constructor == Property) { // JS compatibility layer?
       var prop = f.prop;
       f = function (data, ...args) {
@@ -283,8 +276,8 @@ builtins.map = async function(a, f, stack, ...args) {
     }
     f = await builtins.assure_async(f);
     if (!f.is_lazy) {
-        args = await Promise.all(args.map(value)).catch(e => {throw e});
-        a = await Promise.all(a.map(value)).catch(e => {throw e});
+        args = await Promise.all(args).catch(e => {throw e});
+        a = await Promise.all(a).catch(e => {throw e});
     }
     data = a.shift();
     if (!args.length) {
@@ -304,7 +297,7 @@ builtins.map = async function(a, f, stack, ...args) {
             if (arg.constructor == Transform) {
                 AtSigned = true;
                 if (!f.is_lazy) {
-                  return value(arg.transform([d, ...a]));
+                  return arg.transform([d, ...a]);
                 }
                 return arg.transform([d, ...a]);
             } else if (arg.constructor == AtSign) {
@@ -453,7 +446,7 @@ var colormap = {
 builtins.string = lazy(async function (object, colorize) {
   if (object.constructor == Array) {
     var inner = await Promise.all(object.map(builtins.string));
-    inner = await Promise.all(inner.map(builtins.value));
+    inner = await Promise.all(inner);
     return colormap.Array('[' + inner.join(' ') + ']');
   } else if (object.constructor == Number) {
     return colormap.Number(object.toString());
@@ -464,8 +457,7 @@ builtins.string = lazy(async function (object, colorize) {
 })
 
 builtins.print = async function(...args) {
-    var _args = await Promise.all(args.map(a => builtins.string(a, true)).map(value));
-    console.log(..._args);
+    var _args = await Promise.all(_args.map(a => builtins.string(a, true)));
     return args[0];
 }
 
@@ -508,7 +500,6 @@ builtins.slice = lazy(async function (list, slicers) {
       return list;
     }
     list = list.map(item => builtins.slice(item, slicers.slice(0)));
-    list = list.map(builtins.value);
     return await Promise.all(list);
   } else {
     // it's a range
@@ -568,7 +559,7 @@ builtins.eval = expr => expr;
 builtins.filter = lazy(async function (array, fn) {
   var result = [];
   for (var i = 0; i < array.length; i++) {
-    if (await value(fn(array[i]))) {
+    if (await fn(array[i])) {
       result.push(array[i])
     }
   }
@@ -587,7 +578,7 @@ builtins.includes = lazy(async function (array, item) {
 
 builtins.eager = function (fn) {
   var eager_fn = async function (...args) {
-    return await value(await fn(...args));
+    return await fn(...args);
   }
   eager_fn.mmax = 0;
   return eager_fn;
@@ -631,7 +622,7 @@ Object.keys(builtins).forEach(k => {
   builtins[k].is_clio_fn = true;
 });
 
-builtins.LazyCall = LazyCall;
+//builtins.LazyCall = LazyCall;
 builtins.Transform = Transform;
 builtins.AtSign = AtSign;
 builtins.Range = Range;

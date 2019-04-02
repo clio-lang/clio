@@ -5,7 +5,6 @@ const body_parser = require("body-parser");
 const path = require('path');
 const fs = require('fs');
 const {jsonReviver, jsonReplacer} = require('../internals/json');
-const {value} = require('../internals/lazy');
 const enableWs = require('express-ws');
 const uuid4 = require('uuid/v4');
 
@@ -90,7 +89,7 @@ async function clio_host(scope, root_dir) {
         var fn_name = req.body.fn_name;
         var args = req.body.args;
         var fn = scope[fn_name];
-        var result = await value(fn(...args));
+        var result = await fn(...args);
         res.json({result: result})
       });
 
@@ -109,7 +108,7 @@ async function clio_host(scope, root_dir) {
                 var fn_name = data.fn_name;
                 var args = data.args;
                 var fn = scope[fn_name];
-                var result = await value(fn(...args));
+                var result = await fn(...args);
                 var result_emitters = find_emitters(result);
                 result_emitters.forEach(function (emitter) {
                   // these are passed by reference, so it's safe
@@ -122,7 +121,7 @@ async function clio_host(scope, root_dir) {
                   emitter.uuid = uuid;
                   emitters.uuid = emitter;
                   var fn = async function (data) {
-                    data = await value(data);
+                    data = await data;
                     return ws.send(
                       JSON.stringify({service: 'update', emitter: uuid, data: data, event: this.event}, jsonReplacer)
                     )
@@ -136,7 +135,7 @@ async function clio_host(scope, root_dir) {
                 ws.send(data);
               } else if (method == 'get') {
                 var key = data.key;
-                var val = await value(scope[key]);
+                var val = await scope[key];
                 var constructor = val.constructor;
                 var type;
                 if (val instanceof Function) {
@@ -145,7 +144,7 @@ async function clio_host(scope, root_dir) {
                   type = 'emitter';
                   // subscribe this client
                   var fn = async function (data) {
-                    data = await value(data);
+                    data = await data;
                     return ws.send(
                       JSON.stringify({service: 'update', emitter: key, data: data, event: this.event}, jsonReplacer)
                     )

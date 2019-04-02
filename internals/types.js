@@ -1,4 +1,3 @@
-const { LazyCall, value, lazy } = require('./lazy');
 const EventEmitter = require('eventemitter2').EventEmitter2;
 
 class AtSign {
@@ -32,11 +31,10 @@ class Transform {
     }
     async transform(data) {
       data = data[this.index];
-      data = await value(data);
       if (this.star) {
         return data.map(this.func);
       }
-      return await value(this.func(data));
+      return await this.func(data);
     }
 }
 

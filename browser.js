@@ -79,7 +79,7 @@ async function clio_process_source(source, out, info, printfn, __dirname) {
     var t3 = (new Date).getTime();
     if (out == 'run') {
       builtins.print = async function(...args) {
-          var args = await Promise.all(args.map(a => window.clio.builtins.string(a, true)).map(window.clio.builtins.value));
+          var args = await Promise.all(args.map(a => window.clio.builtins.string(a, true)));
           printfn(...args);
           return args[0];
       }

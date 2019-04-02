@@ -1,6 +1,6 @@
 // laziness for clio
 
-const {exception_handler} = require('../common');
+const lazy = require('clio-lazy')
 const md5 = require('./md5');
 
 MemoizeID = 0;
@@ -50,54 +50,4 @@ function memoize(fn, max) {
   };
 }
 
-function lazy(fn) {
-  var func = async function (...args) {
-    return new LazyCall(fn, ...args);
-  };
-  func.is_lazy = true;
-  return func;
-}
-
-class LazyCall {
-  constructor(fn, ...args) {
-    this.fn = fn;
-    this.args = args;
-  }
-  async call() {
-    var self = this;
-    // this is needed, but has negative impact on performance    
-    this.args = await Promise.all(this.args.map(value));
-    var result = await this.fn.apply(null, this.args).catch(e => {exception_handler(e, self)});
-    if (result && result.constructor == LazyCall) {
-      if (result.clio_stack) {
-        result.prev = this
-      } else {
-        result.clio_stack = this.clio_stack;
-        result.prev = this.prev
-      }
-    } // how to put this in non-lazy calls?
-    return result;
-  }
-  async map(fn) {
-    var self = this;
-    if (!fn.is_lazy) {
-      return (await value(self).catch(e => {throw e})).map(fn);
-    } else {
-      return lazy(async function () {
-        return (await value(self).catch(e => {throw e})).map(fn);
-      });
-    }
-  }
-}
-
-async function value(lazy) {
-  lazy = await lazy;
-  while (lazy instanceof LazyCall) {
-    lazy = await lazy.call();
-  }
-  return lazy;
-}
-
 exports.lazy = lazy;
-exports.LazyCall = LazyCall;
-exports.value = value;

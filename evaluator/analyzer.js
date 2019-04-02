@@ -248,19 +248,6 @@ function analyzer(tree, source) {
         code: func_code
       }
     },
-    /*starquickfundef: function (node) {
-      node.tokens.unshift({name: 'symbol', raw: ''})
-      node.name = 'fundef';
-      node.tokens[2] = {
-        name: 'block',
-        tokens: [node.tokens[2]]
-      }
-      var func_code = analyze(node).code;
-      return {
-        code: [func_code, '[]'],
-        type: 'map'
-      }
-    },*/
     inflowfundef: function (node) {
       node.tokens.unshift({name: 'symbol', raw: ''})
       node.name = 'fundef';
@@ -378,7 +365,7 @@ function analyzer(tree, source) {
       var ee = analyze(node.tokens[0]).code;
       var ev = analyze(node.tokens[1]).code;
       return {
-        code: `(new builtins.EventListener(await builtins.value(${ee}), ${ev}))`
+        code: `(new builtins.EventListener(${ee}, ${ev}))`
       }
     },
     async_flow: function (node) {
@@ -587,10 +574,6 @@ function analyzer(tree, source) {
         }
         return t.code;
       }).join(';\n');
-      /*if (block_vars.length > 0) {
-        var variables = `var ${block_vars.join(', ')};`;
-        var block = `${variables}\n${block}`;
-      }*/
       var name = node.tokens.shift().raw;
       var args = node.tokens.map(t => t.raw).join(', ');
       var arg_names = node.tokens.map(t => `'${t.raw}'`).join(', ');
@@ -607,7 +590,8 @@ function analyzer(tree, source) {
               ${block}
             }, true);
             func.frozenscope = Object.assign({}, scope);
-            func.frozenscope['recall'] = func;
+            func.frozenscope.recall = func;
+            func.frozenscope.is_clio_fn = true;
             func.is_clio_fn = true;
             return func;
           })(scope)`
@@ -625,8 +609,9 @@ function analyzer(tree, source) {
             ${block}
           }, true);
           func.frozenscope = Object.assign({}, scope);
-          func.frozenscope['${name}'] = func;
-          func.frozenscope['recall'] = func;
+          func.frozenscope.recall = func;
+          func.frozenscope.${name} = func;
+          func.frozenscope.is_clio_fn = true;
           func.is_clio_fn = true;
           return func;
         })(scope), '${name}', scope)`,
