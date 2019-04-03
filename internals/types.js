@@ -54,7 +54,7 @@ class Range {
   get length() {
     return this.len();
   }
-  async map(fn, stack) {
+  async map(fn, stack) {    
     return new Range(
       this.start,
       this.end,

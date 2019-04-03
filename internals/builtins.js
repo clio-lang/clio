@@ -219,10 +219,10 @@ builtins.funcall = async function(data, args, func, file, trace) {
     var current_stack = [{file: file, trace: trace}];
     var func_call;
     var handler = e => {console.log(e);exception_handler(e, {clio_stack: current_stack})};
-    if (!func.is_lazy) {
+    /*if (!func.is_lazy) {
         args = await Promise.all(args).catch(handler);
         data = await Promise.all(data).catch(handler);
-    }
+    }*/
     if (!args.length) {
       func_call = func(...data).catch(handler);
       //if (func_call.constructor == builtins.LazyCall) {
@@ -252,7 +252,7 @@ builtins.funcall = async function(data, args, func, file, trace) {
         //}
         return await func_call;
     };
-    data = await Promise.all(data)
+    //data = await Promise.all(data)
     func_call = func(...data, ...args);
     if (func_call.constructor == Promise) {
       func_call = await func_call.catch(handler);
@@ -281,15 +281,15 @@ builtins.map = async function(a, f, stack, ...args) {
     }
     data = a.shift();
     if (!args.length) {
-        if (!f.is_lazy) {
+        //if (!f.is_lazy) {
           return await data.map(function (d) {
             return f(d, ...a).catch(e => {throw e});
           });
-        } else {
+        /*} else {
           return await data.map(lazy(async function (d) {
             return f(d, ...a).catch(e => {throw e});
           }));
-        }
+        }*/
     }
     var fn = async function(d) {
         var AtSigned = false;
@@ -312,19 +312,19 @@ builtins.map = async function(a, f, stack, ...args) {
         }
         return await f(d, ..._args);
     };
-    if (f.is_lazy) {
+    /*if (f.is_lazy) {
       fn = lazy(fn);
-    }
+    }*/
     if (data.async_map) {
       return await data.async_map(fn, stack).catch(e => {throw e});
     }
     return await data.map(fn, stack).catch(e => {throw e});
 }
 
-builtins.starmap = function(a, f, args, file, trace) {
-    var current_stack = [{file: file, trace: trace}];
+builtins.starmap = async function(a, f, args, file, trace) {
+    var current_stack = [{file: file, trace: trace}];    
     if (!args.length) {
-        return builtins.map(a, f, current_stack).catch(e => {exception_handler(e, {clio_stack: current_stack})});
+        var r = builtins.map(a, f, current_stack).catch(e => {exception_handler(e, {clio_stack: current_stack})});
     }
     return builtins.map(a, f, current_stack, ...args).catch(e => {exception_handler(e, {clio_stack: current_stack})});
 }
@@ -444,6 +444,7 @@ var colormap = {
 }
 
 builtins.string = lazy(async function (object, colorize) {
+  object = await object;  
   if (object.constructor == Array) {
     var inner = await Promise.all(object.map(builtins.string));
     inner = await Promise.all(inner);
@@ -456,9 +457,10 @@ builtins.string = lazy(async function (object, colorize) {
   return object.toString();
 })
 
-builtins.print = async function(...args) {
-    var _args = await Promise.all(_args.map(a => builtins.string(a, true)));
-    return args[0];
+builtins.print = async function (...args) {
+  var _args = await Promise.all(args.map(a => builtins.string(a, true)));
+  console.log(..._args);
+  return args[0];
 }
 
 builtins.log = async function (...args) {
@@ -476,8 +478,20 @@ builtins.flat = lazy(async function (a) {
   return res;
 })
 
-builtins.take = lazy(function(list, n) {
-  // redo
+builtins.take = lazy(async function(list, n) {
+  if (list instanceof Array) {
+    return list.slice(0, n);
+  }
+  if (list instanceof Range) {
+    var end = list.start + (n - 1) * list.step;
+    end = list.end < end ? list.end : end;
+    return new Range(
+      list.start,
+      end,
+      list.step,
+      list.getter
+    )
+  }
 })
 
 builtins.slice = lazy(async function (list, slicers) {
@@ -522,22 +536,6 @@ builtins.slice = lazy(async function (list, slicers) {
     }
     throw new Error(`Can't slice a range any further.`);
   }
-})
-
-builtins.take = lazy(async function(iterable, n){
-  if (iterable instanceof Array) {
-    return iterable.slice(0, n);
-  }
-  var end = Math.floor(iterable.start / iterable.step) * n;
-  if (iterable.end < end) {
-    end = iterable.end;
-  }
-  return new builtins.Range(
-    iterable.start,
-    end,
-    iterable.step,
-    iterable.getter,
-  );
 })
 
 builtins.upper = lazy(async function(a, b) {
