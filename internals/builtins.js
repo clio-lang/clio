@@ -239,7 +239,6 @@ builtins.funcall = async function(data, args, func, file, trace) {
   var current_stack = [{ file: file, trace: trace }];
   var func_call;
   var handler = e => {
-    console.log(e);
     exception_handler(e, { clio_stack: current_stack });
   };
   /*if (!func.is_lazy) {
