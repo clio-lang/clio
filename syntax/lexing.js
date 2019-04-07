@@ -1,6 +1,5 @@
 const patterns = {
-
-  string: /^'([^\\]|\\.)*?'/,
+  string: /^'([^\\]|\\.)*?'|^"([^\\]|\\.)*?"/,
   word: /^#[^\[\] \r\n:]+/i,
   number: /^(0|-?[1-9][0-9']*)(n|(\.[0-9']+))?/,
 
@@ -54,7 +53,7 @@ const patterns = {
   comma: /^,/,
   colon: /^:/,
   _n: /^\r?\n/,
-  _: /^ +/,
-}
+  _: /^ +/
+};
 
-module.exports = patterns
+module.exports = patterns;
