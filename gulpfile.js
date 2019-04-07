@@ -1,12 +1,9 @@
 var browserify = require("browserify"),
   buffer = require("vinyl-buffer"),
   gulp = require("gulp"),
-  livereload = require("gulp-livereload"),
-  merge = require("merge"),
   rename = require("gulp-rename"),
   source = require("vinyl-source-stream"),
   disc = require("disc"),
-  watchify = require("watchify"),
   fs = require("fs"),
   terser = require("gulp-terser");
 

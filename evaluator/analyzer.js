@@ -1,5 +1,4 @@
 const unescapeJs = require("unescape-js");
-const cast_to_bool = require("../common").cast_to_bool;
 
 function analyzer(tree, source) {
   // OPTIMIZE: this function needs to be optimized

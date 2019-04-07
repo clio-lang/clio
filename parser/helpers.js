@@ -2,7 +2,7 @@ const helpers = {
   isOneOf: function(token, list) {
     return list.includes(token.name);
   },
-  isWrappedRepeat: function(start, end, seq, i, tokens, parser) {
+  isWrappedRepeat: function(start, end, seq, i, tokens) {
     if (!helpers.isOneOf(tokens[i], [start])) {
       return -1;
     }
@@ -143,7 +143,6 @@ const helpers = {
     return i;
   },
   grabAllUntil: function(tokens, i, list, sep, enders) {
-    var initial_i = i;
     var one_matched = false;
     while (true) {
       var curr_tok = tokens[i];

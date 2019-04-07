@@ -2,21 +2,11 @@ const cluster = require("cluster");
 const express = require("express");
 const cpu_count = require("os").cpus().length;
 const body_parser = require("body-parser");
-const path = require("path");
-const fs = require("fs");
 const { jsonReviver, jsonReplacer } = require("../internals/json");
 const enableWs = require("express-ws");
 const uuid4 = require("uuid/v4");
 
-var {
-  Transform,
-  AtSign,
-  Range,
-  Property,
-  EventListener,
-  Broadcast,
-  EventEmitter
-} = require("../internals/types");
+var { EventEmitter } = require("../internals/types");
 
 function find_emitters(obj) {
   // currently only checks if obj is a emitter
