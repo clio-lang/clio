@@ -37,9 +37,7 @@ Currently we need help with:
 
 To keep the looks of our source code unified, we have a few requirements regarding your code contributions:
 
-* Indent using two spaces (soft tabs)
-* There must be a space after each `,` in any `,` spearated content.
-* When defining functions, put the opening curly brace on the same line.
+* Commits must conform to the (prettier.io)[https://prettier.io/] linting styles. (Use Prettier plugin when developing with Visual Studio Code)
 * Use `snake_case` for functions, variables and methods, `PascalCase` for classes, and `SCREAMING_SNAKE_CASE` for globals.
 
 You can get more ideas by reading our code.
