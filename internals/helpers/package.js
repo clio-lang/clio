@@ -10,7 +10,7 @@ function getPackage() {
   try {
     packageJson = require(`${cwd}/package.json`);
   } catch (e) {
-    packageJson = {clioDependencies: []};
+    packageJson = { clioDependencies: [] };
   }
   dependencies = packageJson.clioDependencies;
 }
@@ -24,9 +24,7 @@ function getPackage() {
 
 function getClioDependencies() {
   getPackage();
-  return hasClioDependencies()
-         ? dependencies
-         : []
+  return hasClioDependencies() ? dependencies : [];
 }
 
 /**
@@ -38,9 +36,11 @@ function getClioDependencies() {
 
 function hasClioDependencies() {
   getPackage();
-  return !!dependencies
-      && !!Object.keys(dependencies)
-      && !!Object.keys(dependencies).length
+  return (
+    !!dependencies &&
+    !!Object.keys(dependencies) &&
+    !!Object.keys(dependencies).length
+  );
 }
 
 /**
@@ -55,12 +55,12 @@ function hasClioDependencies() {
 function addDependency(dependency) {
   getPackage();
   return hasClioDependencies()
-         ? new Object({
-           clioDependencies: [...dependencies, dependency]
-         })
-         : new Object({
-           clioDependencies: [dependency]
-         })
+    ? new Object({
+        clioDependencies: [...dependencies, dependency]
+      })
+    : new Object({
+        clioDependencies: [dependency]
+      });
 }
 
 /**
@@ -73,20 +73,16 @@ function addDependency(dependency) {
 function updatePackageJsonDependencies(dependency) {
   getPackage();
   return new Promise((resolve, reject) => {
-
     // Ugly way to clone object by values and not by reference
     const oldPackage = JSON.parse(JSON.stringify(packageJson));
     const newPackage = Object.assign(oldPackage, addDependency(dependency));
     const formatJson = JSON.stringify(newPackage, null, 2);
 
     const cwd = process.cwd();
-    fs.writeFile(`${cwd}/package.json`, formatJson, (err) => {
-      return err
-           ? reject(err)
-           : resolve()
-    })
-
-  })
+    fs.writeFile(`${cwd}/package.json`, formatJson, err => {
+      return err ? reject(err) : resolve();
+    });
+  });
 }
 
 module.exports = {
@@ -95,4 +91,4 @@ module.exports = {
   hasClioDependencies,
   updatePackageJsonDependencies,
   packageJson
-}
+};

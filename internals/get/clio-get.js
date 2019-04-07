@@ -1,8 +1,11 @@
-const decompress = require('decompress');
-const tmp = require('tmp');
-const fs = require('fs');
+const decompress = require("decompress");
+const tmp = require("tmp");
+const fs = require("fs");
 const fetch = require("node-fetch");
-const { updatePackageJsonDependencies, getClioDependencies } = require("../helpers/package")
+const {
+  updatePackageJsonDependencies,
+  getClioDependencies
+} = require("../helpers/package");
 
 const gitHubRegex = /github\.com\/(\w|\d|_|-).+\/(\d|\w|-|_).+/gi;
 const urlRegex = /https?:\/\/.+/gi;
@@ -34,11 +37,11 @@ async function fetchFile(argv) {
     const array_buffer = await file.arrayBuffer();
     const buffer = Buffer.from(array_buffer);
     const tmpobj = tmp.fileSync();
-    fs.writeFileSync(tmpobj.name, buffer, 'binary');
-    await decompress(tmpobj.name, 'clio_env')
+    fs.writeFileSync(tmpobj.name, buffer, "binary");
+    await decompress(tmpobj.name, "clio_env");
     tmpobj.removeCallback();
   } catch (err) {
-    console.log(err)
+    console.log(err);
   }
 }
 
@@ -52,17 +55,16 @@ async function fetchFile(argv) {
  */
 
 async function fetchFromRepo(pkg) {
-
-  const packageName = hasVersion(pkg)
-                    ? pkg.replace(versionRegex, "")
-                    : pkg;
+  const packageName = hasVersion(pkg) ? pkg.replace(versionRegex, "") : pkg;
 
   const packageTarget = hasVersion(pkg)
-                      ? getVersion(pkg).replace("@", "")
-                      : "master";
+    ? getVersion(pkg).replace("@", "")
+    : "master";
 
   console.log(`Getting ${packageName} from main repository,`);
-  const file = await fetch(`https://raw.githubusercontent.com/clio-lang/packages/master/packages/${packageName}.json`);
+  const file = await fetch(
+    `https://raw.githubusercontent.com/clio-lang/packages/master/packages/${packageName}.json`
+  );
 
   if (file.status != 200) {
     return console.log(`Couldn't fetch package info`);
@@ -74,7 +76,7 @@ async function fetchFromRepo(pkg) {
   const fetchUrl = `${packageUri}/archive/${packageTarget}.zip`;
 
   console.log(`Downloading ${pkg}...`);
-  fetchFile({url: fetchUrl});
+  fetchFile({ url: fetchUrl });
 
   /**
    * If the dependency is already listed in package.json
@@ -83,9 +85,10 @@ async function fetchFromRepo(pkg) {
   if (!getClioDependencies().includes(pkg)) {
     updatePackageJsonDependencies(pkg)
       .then(() => console.log(`Added ${pkg} to the dependencies list`))
-      .catch((err) => console.log(`Can not add ${pkg} to the dependencies list`, err))
+      .catch(err =>
+        console.log(`Can not add ${pkg} to the dependencies list`, err)
+      );
   }
-
 }
 
 /**
@@ -114,12 +117,10 @@ async function fetchGitHub(argv) {
    *
    */
   const packageTarget = hasVersion(argv)
-                      ? getVersion(argv).replace("@", "")
-                      : "master";
+    ? getVersion(argv).replace("@", "")
+    : "master";
 
-  const packageUri = hasVersion(argv)
-                   ? argv.replace(versionRegex, "")
-                   : argv
+  const packageUri = hasVersion(argv) ? argv.replace(versionRegex, "") : argv;
 
   /**
    * So now let's create a download uri that will look as follows:
@@ -129,7 +130,7 @@ async function fetchGitHub(argv) {
   const fetchUrl = `https://${packageUri}/archive/${packageTarget}.zip`;
 
   console.log(`Downloading ${argv}...`);
-  fetchFile({url: fetchUrl});
+  fetchFile({ url: fetchUrl });
 
   /**
    * If the dependency is already listed in package.json
@@ -138,9 +139,10 @@ async function fetchGitHub(argv) {
   if (!getClioDependencies().includes(argv)) {
     updatePackageJsonDependencies(argv)
       .then(() => console.log(`Added ${argv} to the dependencies list`))
-      .catch((err) => console.log(`Can not add ${argv} to the dependencies list`, err))
+      .catch(err =>
+        console.log(`Can not add ${argv} to the dependencies list`, err)
+      );
   }
-
 }
 
 /**
@@ -152,10 +154,8 @@ async function fetchGitHub(argv) {
  */
 
 function getVersion(argv) {
-  const matches = argv.match(versionRegex)
-  return matches
-       ? matches[0]
-       : ""
+  const matches = argv.match(versionRegex);
+  return matches ? matches[0] : "";
 }
 
 /**
@@ -167,11 +167,11 @@ function getVersion(argv) {
  */
 
 function hasVersion(argv) {
-  return !!getVersion(argv).length
+  return !!getVersion(argv).length;
 }
 
 module.exports = {
   get,
   hasVersion,
   getVersion
-}
+};
