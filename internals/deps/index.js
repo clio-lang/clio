@@ -1,9 +1,9 @@
-const { 
-        getClioDependencies
-      , hasClioDependencies 
-  } = require("../helpers/package");
+const {
+  getClioDependencies,
+  hasClioDependencies
+} = require("../helpers/package");
 
-const { get } = require('../get/clio-get')
+const { get } = require("../get/clio-get");
 
 /**
  * @method showDependencies
@@ -13,15 +13,13 @@ const { get } = require('../get/clio-get')
  */
 
 function showDependencies() {
-  if (!hasClioDependencies()) { 
+  if (!hasClioDependencies()) {
     console.log("No dependencies found in package.json");
-    return
+    return;
   }
 
   const deps = getClioDependencies();
-  const formattedDeps = deps
-                          .map((dep) => `~> ${dep}`)
-                          .join('\n');
+  const formattedDeps = deps.map(dep => `~> ${dep}`).join("\n");
   console.log(formattedDeps);
 }
 
@@ -35,15 +33,15 @@ function showDependencies() {
 function getDependencies() {
   if (!hasClioDependencies()) {
     console.log("No dependencies found in package.json");
-    return
+    return;
   }
 
   for (const dep of getClioDependencies()) {
-    get({ url: dep })
+    get({ url: dep });
   }
 }
 
 module.exports = {
   showDependencies,
   getDependencies
-}
+};

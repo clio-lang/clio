@@ -1,4 +1,4 @@
-const EventEmitter = require('eventemitter2').EventEmitter2;
+const EventEmitter = require("eventemitter2").EventEmitter2;
 
 class AtSign {
   constructor(index) {
@@ -24,18 +24,18 @@ class EventListener {
 }
 
 class Transform {
-    constructor(func, index, star) {
-        this.func = func;
-        this.star = star;
-        this.index = index;
+  constructor(func, index, star) {
+    this.func = func;
+    this.star = star;
+    this.index = index;
+  }
+  async transform(data) {
+    data = data[this.index];
+    if (this.star) {
+      return data.map(this.func);
     }
-    async transform(data) {
-      data = data[this.index];
-      if (this.star) {
-        return data.map(this.func);
-      }
-      return await this.func(data);
-    }
+    return await this.func(data);
+  }
 }
 
 class Range {
@@ -43,7 +43,7 @@ class Range {
     this.start = start || 0;
     this.end = end || Infinity;
     this.step = step || 1;
-    this.getter = getter || ((i, r) => r.step * (i + r.start))
+    this.getter = getter || ((i, r) => r.step * (i + r.start));
   }
   get(i) {
     return this.getter(i, this);
@@ -54,12 +54,9 @@ class Range {
   get length() {
     return this.len();
   }
-  async map(fn, stack) {    
-    return new Range(
-      this.start,
-      this.end,
-      this.step,
-      (i, r) => fn(this.getter(i, r))
+  async map(fn, stack) {
+    return new Range(this.start, this.end, this.step, (i, r) =>
+      fn(this.getter(i, r))
     );
   }
   slice(slicers) {

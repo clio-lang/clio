@@ -1,7 +1,7 @@
 // laziness for clio
 
-const lazy = require('clio-lazy')
-const md5 = require('./md5');
+const lazy = require("clio-lazy");
+const md5 = require("./md5");
 
 MemoizeID = 0;
 // todo: add support for objects, classes and etc...
@@ -10,7 +10,7 @@ function stringify(arg) {
     arg = arg.map(stringify);
   }
   if (arg.constructor == Object) {
-    var stringified = ''
+    var stringified = "";
     for (var variable in arg) {
       if (arg.hasOwnProperty(variable)) {
         stringified += `[${variable}: ${stringify(arg[variable])}]`;
