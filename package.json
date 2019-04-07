@@ -12,6 +12,11 @@
       "email": "ciao@micheleriva.it",
       "name": "Michele Riva",
       "url": "https://www.micheleriva.it"
+    },
+    {
+      "email": "garritfranke@gmail.com",
+      "name": "Garrit Franke",
+      "url": "https://garrit.xyz"
     }
   ],
   "license": "Apache-2.0",
