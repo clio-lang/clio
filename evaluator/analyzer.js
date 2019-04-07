@@ -1,7 +1,6 @@
 const unescapeJs = require("unescape-js");
-const cast_to_bool = require("../common").cast_to_bool;
 
-function analyzer(tree, source) {
+function analyzer(tree) {
   // OPTIMIZE: this function needs to be optimized
 
   function make_return(expr) {
@@ -79,7 +78,7 @@ function analyzer(tree, source) {
         code: `'${node.raw.slice(1)}'`
       };
     },
-    atsign: function(node) {
+    atsign: function() {
       return { code: "(new builtins.AtSign(0))" };
     },
     atnumber: function(node) {
@@ -108,13 +107,13 @@ function analyzer(tree, source) {
     wrapped_and_or: function(node) {
       return analyze(node.tokens[0]);
     },
-    or: function(node) {
+    or: function() {
       return "||";
     },
-    and: function(node) {
+    and: function() {
       return "&&";
     },
-    not: function(node) {
+    not: function() {
       return "!";
     },
     list: function(node) {
@@ -573,7 +572,6 @@ function analyzer(tree, source) {
       };
     },
     return_mapper: function(node) {
-      var func = node.tokens[0].raw;
       return {
         type: "return"
       };
@@ -699,7 +697,7 @@ function analyzer(tree, source) {
         name: name
       };
     },
-    empty_list: function(node) {
+    empty_list: function() {
       return {
         code: `[]`
       };

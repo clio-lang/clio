@@ -36,8 +36,6 @@ async function clio_require_browser(
     __basedir,
     `${current_dir}/${module_name}`
   );
-  var __dirname = http_dir_name(__filename);
-  //    ^ necessary for nested imports
 
   if (__filename.endsWith(".js")) {
     var mod = await fetch(__filename);
