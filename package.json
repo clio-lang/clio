@@ -40,7 +40,7 @@
       "!jest-puppeteer.config.js",
       "!host/**/*",
       "!tests/**/*"
-    ],
+    ]
   },
   "dependencies": {
     "body-parser": "1.18.3",
