@@ -120,3 +120,14 @@ test("in-flow conditionals", async () => {
 test("test equity", async () => {
   expect(await clio_tests.eight_is_eight).toEqual(true);
 });
+
+afterAll(async () => {
+  var ws_connections = clio_tests.clio_ws_connections;
+  for (var server in ws_connections) {
+    if (ws_connections.hasOwnProperty(server)) {
+      if (Object.keys(ws_connections[server].emitters).length == 0) {
+        ws_connections[server].socket.close()
+      }
+    }
+  }
+})

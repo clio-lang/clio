@@ -903,6 +903,7 @@ function analyzer(tree) {
   var code = `module.exports = async function (scope, builtins, file) {
     var ws_connections = [];
     ${code};
+    scope.clio_ws_connections = ws_connections;
     return scope;
   };`;
 
