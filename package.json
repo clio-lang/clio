@@ -41,7 +41,6 @@
       "!host/**/*",
       "!tests/**/*"
     ],
-    "preset": "jest-puppeteer"
   },
   "dependencies": {
     "body-parser": "1.18.3",
@@ -51,7 +50,6 @@
     "eventemitter2": "5.0.1",
     "express": "4.16.4",
     "express-ws": "4.0.0",
-    "greenlet": "^1.0.1",
     "js-beautify": "1.8.6",
     "node-fetch": "2.2.0",
     "tmp": "0.0.33",
@@ -70,9 +68,7 @@
     "gulp-rename": "1.4.0",
     "gulp-terser": "1.1.7",
     "jest": "24.3.1",
-    "jest-puppeteer": "4.0.0",
     "merge": "1.2.1",
-    "puppeteer": "1.12.2",
     "vinyl-buffer": "1.0.1",
     "vinyl-source-stream": "2.0.0",
     "watchify": "3.11.1"

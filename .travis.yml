@@ -7,3 +7,8 @@ node_js:
 cache:
   directories:
     - "node_modules"
+script:
+  - npm install
+  - node index.js host tests/host.test.clio &
+  - sleep 10
+  - npm test
