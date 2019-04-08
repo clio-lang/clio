@@ -4,11 +4,8 @@ node_js:
   - "10"
   - "9"
   - "8"
-cache:
-  directories:
-    - "node_modules"
 script:
   - npm install
-  - node index.js host tests/host.test.clio &
+  - node index.js host tests/test.host.clio &
   - sleep 10
   - npm test
