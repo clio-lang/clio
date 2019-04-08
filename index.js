@@ -42,7 +42,7 @@ async function process_file(argv) {
     );
   }
 
-  if (argv.command == "host") {
+  if (argv.command == "host") {    
     const path = require("path");
     const clio_host = require("./host/host");
     try {
@@ -53,7 +53,7 @@ async function process_file(argv) {
       var file_dir = path.dirname(file);
       global.__basedir = file_dir;
 
-      var _module = clio_import(argv.source);
+      var _module = clio_import(argv.source);      
     } catch (e) {
       return e.exit ? e.exit() : console.log(e);
     }
@@ -95,3 +95,128 @@ async function process_file(argv) {
     }
   });
 }
+
+require("yargs")
+  .command(
+    "run <source>",
+    "Compile and run Clio file",
+    yargs => {
+      yargs.positional("source", {
+        describe: "source file to run",
+        type: "string"
+      });
+    },
+    argv => {
+      process_file(argv);
+    }
+  )
+  .command(
+    "host <source>",
+    "Host a Clio file",
+    yargs => {
+      yargs.positional("source", {
+        describe: "source file to host",
+        type: "string"
+      });
+    },
+    argv => {
+      process_file(argv);
+    }
+  )
+  .command(
+    "highlight <source>",
+    "Highlight a Clio file",
+    yargs => {
+      yargs.positional("source", {
+        describe: "source file to highlight",
+        type: "string"
+      });
+    },
+    argv => {
+      process_file(argv);
+    }
+  )
+  .command(
+    "ast <source>",
+    "Print ast for a Clio file",
+    yargs => {
+      yargs.positional("source", {
+        describe: "source file to analyze",
+        type: "string"
+      });
+    },
+    argv => {
+      process_file(argv);
+    }
+  )
+  .command(
+    "init",
+    "Generate a package.json and fetch stdlib",
+    yargs => { },
+    argv => {
+      const { initPackage } = require("./internals/helpers/pkginit");
+      initPackage();
+    }
+  )
+  .command(
+    "get <url>",
+    "Download and install a Clio module",
+    yargs => {
+      yargs.positional("source", {
+        describe: "source file to analyze",
+        type: "string"
+      });
+    },
+    argv => {
+      const { get } = require("./internals/get/clio-get");
+      get(argv);
+    }
+  )
+  .command(
+    "deps.show",
+    "Shows the list of dependencies listed in Package.json",
+    yargs => {
+      yargs.positional("source", {
+        describe: "Shows the list of dependencies listed in Package.json",
+        type: "string"
+      });
+    },
+    _ => {
+      const { showDependencies } = require("./internals/deps");
+      showDependencies();
+    }
+  )
+  .command(
+    "deps.get",
+    "Download every dependency listed in Package.json",
+    yargs => {
+      yargs.positional("source", {
+        describe: "Download every dependency listed in Package.json",
+        type: "string"
+      });
+    },
+    _ => {
+      const { getDependencies } = require("./internals/deps");
+      getDependencies();
+    }
+  )
+  .command(
+    "compile <source> <destination>",
+    "Compile a Clio file",
+    yargs => {
+      yargs
+        .positional("source", {
+          describe: "source file to compile",
+          type: "string"
+        })
+        .positional("destination", {
+          describe: "destination file to write to",
+          type: "string"
+        });
+    },
+    argv => {
+      process_file(argv);
+    }
+  )
+  .demandCommand(1, "must provide a valid command")
+  .completion().argv;
