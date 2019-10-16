@@ -20,10 +20,10 @@ const matchers = {
       parser
     );
   },
-  startransform: function(i, tokens, parser) {
+  star_transform: function(i, tokens, parser) {
     return helpers.isWrapped(
       "lpar",
-      "naked_startransform",
+      "naked_star_transform",
       "rpar",
       i,
       tokens,
@@ -76,7 +76,7 @@ const matchers = {
       tokens
     );
   },
-  naked_startransform: function(i, tokens) {
+  naked_star_transform: function(i, tokens) {
     return helpers.isSeq(
       [
         { name: "sop", count: 1, raw: "*" },
@@ -653,7 +653,7 @@ const matchers = {
             "word",
             "empty_list",
             "transform",
-            "startransform",
+            "star_transform",
             "wrapped_quickfundef"
           ],
           count: 0,
@@ -700,7 +700,7 @@ const matchers = {
             "word",
             "empty_list",
             "transform",
-            "startransform",
+            "star_transform",
             "wrapped_quickfundef",
             "hash_map"
           ],
@@ -749,7 +749,7 @@ const matchers = {
             "word",
             "empty_list",
             "transform",
-            "startransform",
+            "star_transform",
             "wrapped_quickfundef",
             "hash_map"
           ],
@@ -828,7 +828,7 @@ const matchers = {
           count: 1
         },
         {
-          fail: ["symbol", "property_access", "transform", "startransform"],
+          fail: ["symbol", "property_access", "transform", "star_transform"],
           skip: ["_"]
         }
       ],
@@ -853,7 +853,7 @@ const matchers = {
           count: 1
         },
         {
-          fail: ["symbol", "property_access", "transform", "startransform"],
+          fail: ["symbol", "property_access", "transform", "star_transform"],
           skip: ["_"]
         }
       ],

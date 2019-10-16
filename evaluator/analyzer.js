@@ -347,7 +347,7 @@ function analyzer(tree) {
         type: func.type
       };
     },
-    startransform: function(node) {
+    star_transform: function(node) {
       var transform = node.tokens[0].tokens[1];
       transform.tokens[0] = { name: "symbol", raw: "" };
       transform.name = "fundef";
@@ -910,7 +910,7 @@ function analyzer(tree) {
   /*
     for (var server in ws_connections) {
       if (ws_connections.hasOwnProperty(server)) {
-          if (Object.keys(ws_connections[server].emitters).length == 0) {                
+          if (Object.keys(ws_connections[server].emitters).length == 0) {
               ws_connections[server].socket.close()
           }
       }
