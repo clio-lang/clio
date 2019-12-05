@@ -28,11 +28,16 @@ function createPackage(packageName) {
   }
   const stringified = JSON.stringify(pkg, null, 2);
   fs.writeFileSync(path.join(dir, "package.json"), stringified, "utf8");
+  getDependencies();
   console.log("Added Clio dependencies");
 
-  getDependencies();
+  shell.exec(`echo "'Hello World' -> print" > index.clio`);
 
   shell.exec("git init && git add -A && git commit -m 'Initial Commit'");
+  shell.echo("\nInitialization Complete!");
+  shell.echo(
+    `Run 'cd ${packageName}' to open, then 'clio run index.clio' to run the project!`
+  );
 }
 
 module.exports = createPackage;
