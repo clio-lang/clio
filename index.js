@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+const createPackage = require("./cli/createpackage");
+
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require("websocket").w3cwebsocket; // same for WebSocket
 
@@ -42,7 +44,7 @@ async function process_file(argv) {
     );
   }
 
-  if (argv.command == "host") {    
+  if (argv.command == "host") {
     const path = require("path");
     const clio_host = require("./host/host");
     try {
@@ -53,7 +55,7 @@ async function process_file(argv) {
       var file_dir = path.dirname(file);
       global.__basedir = file_dir;
 
-      var _module = clio_import(argv.source);      
+      var _module = clio_import(argv.source);
     } catch (e) {
       return e.exit ? e.exit() : console.log(e);
     }
@@ -152,10 +154,23 @@ require("yargs")
   .command(
     "init",
     "Generate a package.json and fetch stdlib",
-    yargs => { },
+    yargs => {},
     argv => {
       const { initPackage } = require("./internals/helpers/pkginit");
       initPackage();
+    }
+  )
+  .command(
+    "new <project>",
+    "Create a new Clio project",
+    yargs => {
+      yargs.positional("project", {
+        describe: "name of the project",
+        type: "string"
+      });
+    },
+    argv => {
+      require("./cli/createpackage")(argv.project);
     }
   )
   .command(
