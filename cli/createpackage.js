@@ -1,5 +1,4 @@
 const fs = require("fs");
-const childProcess = require("child_process");
 const path = require("path");
 const shell = require("shelljs");
 const { getDependencies } = require("../internals/deps");
