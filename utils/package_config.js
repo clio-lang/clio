@@ -33,10 +33,6 @@ function write_package_config(cfg, filePath = configFileName) {
   fs.writeFileSync(filePath, cfgStr);
 }
 
-function get_package_dependencies() {
-  return [...get_package_config().dependencies];
-}
-
 module.exports = {
   get_package_config,
   get_package_dependencies,
