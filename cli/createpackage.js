@@ -17,7 +17,7 @@ function createPackage(packageName) {
     title: packageName,
     description: "Package Title",
     version: "0.1.0",
-    license: "MIT",
+    license: "ISC",
     main: "index.clio",
     author: {
       name: "Your Name Here",
