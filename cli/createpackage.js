@@ -13,7 +13,7 @@ function createPackage(packageName) {
   shell.mkdir(packageName);
   shell.cd(packageName);
 
-  const config = {
+  const defaultConfig = {
     title: packageName,
     description: "",
     version: "0.1.0",
@@ -25,11 +25,11 @@ function createPackage(packageName) {
       email: "",
       website: ""
     },
-    scripts: [{ test: "No tests specified" }],
-    dependencies: [{ stdlib: "latest" }]
+    scripts: { test: "No tests specified" },
+    dependencies: { stdlib: "latest" }
   };
 
-  packageConfig.write_package_config(config);
+  packageConfig.write_package_config(defaultConfig);
 
   getDependencies();
   console.log("Added Clio dependencies");

@@ -54,7 +54,7 @@ async function initPackage() {
   pkg.keywords = (await ask("Keywords: ")) || "";
   pkg.author = (await ask("Author: ")) || "";
   pkg.license = (await ask("License: (ISC) ")) || "ISC";
-  pkg.dependencies = ["stdlib"];
+  pkg.dependencies = { stdlib: "latest", asd: "asd" };
 
   const stringified = JSON.stringify(pkg, null, 2);
   console.log(`\n${stringified}\n`);
