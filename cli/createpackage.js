@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const shell = require("shelljs");
+const packageConfig = require("../utils/package_config");
 const { getDependencies } = require("../internals/deps");
 
 function createPackage(packageName) {
@@ -8,25 +9,27 @@ function createPackage(packageName) {
     shell.echo("Sorry, this script requires git");
     shell.exit(1);
   }
-  const cwd = process.cwd();
-  const dir = path.join(cwd, packageName);
 
   shell.mkdir(packageName);
   shell.cd(packageName);
-  shell.exec("npm init -y");
 
-  const pkg = require(path.join(dir, "package.json"));
-  if (!pkg.clioDependencies) {
-    pkg.clioDependencies = ["stdlib"];
-    delete pkg.main;
-    pkg.entry = "index.clio";
-    pkg.version = "0.1.0";
-    delete pkg.scripts;
-  } else if (!pkg.clioDependencies.includes("stdlib")) {
-    pkg.clioDependencies.push("stdlib");
-  }
-  const stringified = JSON.stringify(pkg, null, 2);
-  fs.writeFileSync(path.join(dir, "package.json"), stringified, "utf8");
+  const config = {
+    title: packageName,
+    description: "Package Title",
+    version: "0.1.0",
+    license: "MIT",
+    main: "index.clio",
+    author: {
+      name: "Your Name Here",
+      email: "Your Email Here",
+      website: "Your Website Here"
+    },
+    scripts: [{ test: "No tests specified" }],
+    dependencies: [{ stdlib: "latest" }]
+  };
+
+  packageConfig.write_package_config(config);
+
   getDependencies();
   console.log("Added Clio dependencies");
 
