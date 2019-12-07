@@ -35,7 +35,6 @@ function write_package_config(cfg, filePath = configFileName) {
 
 module.exports = {
   get_package_config,
-  get_package_dependencies,
   write_package_config,
   configFileName
 };
