@@ -4,7 +4,7 @@ on: [push]
 
 jobs:
   test:
-    runs-on: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: [ubuntu-latest, windows-latest, macOS-latest]
 
     strategy:
       matrix:
