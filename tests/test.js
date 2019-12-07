@@ -126,8 +126,8 @@ afterAll(async () => {
   for (var server in ws_connections) {
     if (ws_connections.hasOwnProperty(server)) {
       if (Object.keys(ws_connections[server].emitters).length == 0) {
-        ws_connections[server].socket.close()
+        ws_connections[server].socket.close();
       }
     }
   }
-})
+});
