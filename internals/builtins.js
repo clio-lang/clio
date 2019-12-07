@@ -601,7 +601,7 @@ builtins.filter = lazy(async function(array, fn) {
 builtins.includes = lazy(async function(array, item) {
   for (let i = 0; i < array.length; i++) {
     const element = array[i];
-    if ((element && (element.eq && element.eq(item))) || element == item) {
+    if ((element && element.eq && element.eq(item)) || element == item) {
       return true;
     }
   }

@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "lint:check": "prettier --check ./**/*.js",
+    "lint:fix": "prettier --write ./**/*.js",
     "test": "jest --collect-coverage"
   },
   "author": "Pouya Eghbali",

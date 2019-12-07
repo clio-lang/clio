@@ -71,7 +71,10 @@ const matchers = {
   },
   empty_list: function(i, tokens) {
     return helpers.isSeq(
-      [{ name: "lbra", count: 1 }, { name: "rbra", count: 1 }],
+      [
+        { name: "lbra", count: 1 },
+        { name: "rbra", count: 1 }
+      ],
       i,
       tokens
     );
@@ -132,7 +135,10 @@ const matchers = {
 
   atnumber: function(i, tokens) {
     return helpers.isSeq(
-      [{ name: "atsign", count: 1 }, { name: "number", count: 1 }],
+      [
+        { name: "atsign", count: 1 },
+        { name: "number", count: 1 }
+      ],
       i,
       tokens
     );
@@ -472,7 +478,10 @@ const matchers = {
   },
   empty_hash_map: function(i, tokens) {
     return helpers.isSeq(
-      [{ name: "lcbr", count: 1 }, { name: "rcbr", count: 1 }],
+      [
+        { name: "lcbr", count: 1 },
+        { name: "rcbr", count: 1 }
+      ],
       i,
       tokens
     );
@@ -1311,7 +1320,10 @@ const matchers = {
   },
   eof: function(i, tokens) {
     return helpers.isSeq(
-      [{ name: ["_", "_n", "^"], count: 0 }, { name: ["eof"], count: 1 }],
+      [
+        { name: ["_", "_n", "^"], count: 0 },
+        { name: ["eof"], count: 1 }
+      ],
       i,
       tokens
     );
