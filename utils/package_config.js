@@ -1,0 +1,34 @@
+const path = require("path");
+const fs = require("fs");
+const toml = require("toml");
+
+/**
+ *
+ * @param {string} filename Optional name of file containing the configurations for the clio package in format `foo.toml`.
+ */
+function get_package_config(filename = "cliopgk.toml") {
+  console.log(path.join(__dirname, filename));
+  const file = fs.readFileSync(path.join(__dirname, filename));
+  const packageConfig = toml.parse(file);
+
+  return {
+    title: packageConfig.title,
+    description: packageConfig.description,
+    version: packageConfig.version,
+    license: packageConfig.license,
+    main: packageConfig.main,
+    author: {
+      name: packageConfig.author.name,
+      email: packageConfig.author.email,
+      website: packageConfig.author.website
+    },
+    scripts: packageConfig.scripts,
+    dependencies: packageConfig.dependencies
+  };
+}
+
+function get_package_dependencies() {
+  return [...get_package_config().dependencies];
+}
+
+module.exports = { get_package_config, get_package_dependencies };

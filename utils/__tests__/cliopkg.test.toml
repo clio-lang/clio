@@ -1,0 +1,15 @@
+title = "Clio test"
+version = "1.0.0"
+main = "index.clio"
+[author]
+name = "Foo Bar"
+email = "foo@bar.de"
+website = "foobar.com"
+
+[scripts]
+test = "clio test **/*.clio"
+
+[dependencies]
+stdlib = "^2.3.1"
+foo = "2.1"
+
