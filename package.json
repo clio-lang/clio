@@ -4,6 +4,7 @@
   "description": "Clio Programming Language",
   "main": "index.js",
   "scripts": {
+    "lint:check": "prettier --check ./**/*.js",
     "test": "jest --collect-coverage"
   },
   "author": "Pouya Eghbali",
@@ -70,6 +71,7 @@
     "gulp-terser": "1.1.7",
     "jest": "24.3.1",
     "merge": "1.2.1",
+    "prettier": "1.19.1",
     "vinyl-buffer": "1.0.1",
     "vinyl-source-stream": "2.0.0",
     "watchify": "3.11.1"
