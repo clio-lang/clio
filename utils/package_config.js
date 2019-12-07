@@ -7,7 +7,6 @@ const toml = require("toml");
  * @param {string} filename Optional name of file containing the configurations for the clio package in format `foo.toml`.
  */
 function get_package_config(filename = "cliopgk.toml") {
-  console.log(path.join(__dirname, filename));
   const file = fs.readFileSync(path.join(__dirname, filename));
   const packageConfig = toml.parse(file);
 

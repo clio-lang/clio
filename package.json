@@ -42,6 +42,15 @@
       "!jest-puppeteer.config.js",
       "!host/**/*",
       "!tests/**/*"
+    ],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "jsx",
+      "ts",
+      "tsx",
+      "node",
+      "toml"
     ]
   },
   "dependencies": {
@@ -56,6 +65,7 @@
     "node-fetch": "2.2.0",
     "shelljs": "^0.8.3",
     "tmp": "0.0.33",
+    "toml": "^3.0.0",
     "treeify": "1.1.0",
     "unescape-js": "1.1.0",
     "uuid": "3.3.2",
