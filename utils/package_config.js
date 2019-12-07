@@ -23,6 +23,10 @@ function get_package_config(filename = configFileName) {
       email: packageConfig.author.email,
       website: packageConfig.author.website
     },
+    keywords: packageConfig.keywords,
+    git_repository: packageConfig.git_repository,
+    documentation: packageConfig.documentation,
+
     scripts: packageConfig.scripts,
     dependencies: packageConfig.dependencies
   };

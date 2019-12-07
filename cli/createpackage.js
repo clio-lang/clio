@@ -15,14 +15,15 @@ function createPackage(packageName) {
 
   const config = {
     title: packageName,
-    description: "Package Title",
+    description: "",
     version: "0.1.0",
     license: "ISC",
     main: "index.clio",
+    keywords: "",
     author: {
-      name: "Your Name Here",
-      email: "Your Email Here",
-      website: "Your Website Here"
+      name: "",
+      email: "",
+      website: ""
     },
     scripts: [{ test: "No tests specified" }],
     dependencies: [{ stdlib: "latest" }]

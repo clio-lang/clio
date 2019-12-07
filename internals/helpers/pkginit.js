@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
 const { getDependencies } = require("../deps");
+const { write_package_config } = require("../../utils/package_config");
 
 /**
  * @method initPackage
@@ -53,7 +54,7 @@ async function initPackage() {
   pkg.keywords = (await ask("Keywords: ")) || "";
   pkg.author = (await ask("Author: ")) || "";
   pkg.license = (await ask("License: (ISC) ")) || "ISC";
-  pkg.clioDependencies = ["stdlib"];
+  pkg.dependencies = ["stdlib"];
 
   const stringified = JSON.stringify(pkg, null, 2);
   console.log(`\n${stringified}\n`);
@@ -61,12 +62,7 @@ async function initPackage() {
     ((await ask("Is this ok? (yes) ")) || "yes") == "yes" ? true : false;
   process.stdin.destroy();
   if (ok) {
-    return fs.writeFile(
-      path.join(cwd, "package.json"),
-      stringified,
-      "utf8",
-      getDependencies
-    );
+    return write_package_config(pkg);
   } else {
     return initPackage();
   }
