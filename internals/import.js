@@ -155,7 +155,7 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
       );
     }
     if (fs.existsSync(module_path)) {
-      var mod = await clio_import(module_path);
+      var mod = await clioImport(module_path);
       if (names_to_import.length == 0) {
         // import all
         var clio_module = {};
@@ -207,7 +207,7 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
       );
     }
     if (fs.existsSync(module_path)) {
-      var mod = await clio_import(module_path);
+      var mod = await clioImport(module_path);
       if (names_to_import.length == 0) {
         // import all
         var clio_module = {};
@@ -279,7 +279,7 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
       );
     }
     if (fs.existsSync(module_path)) {
-      var mod = await clio_import(module_path);
+      var mod = await clioImport(module_path);
       if (names_to_import.length == 0) {
         // import all
         var clio_module = {};
@@ -362,7 +362,7 @@ async function do_import(file, direct) {
   }); // because why not?
 }
 
-async function clio_import(file, direct) {
+async function clioImport(file, direct) {
   if (!path.isAbsolute(file)) {
     let cwd = process.cwd();
     file = path.join(cwd, file);
@@ -397,5 +397,5 @@ async function clio_import(file, direct) {
   });
 }
 
-module.exports.clio_import = clio_import;
-module.exports.clio_require_browser = clio_require_browser;
+module.exports.clioImport = clioImport;
+module.exports.clioRequireBrowser = clio_require_browser;

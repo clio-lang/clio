@@ -38,10 +38,10 @@ async function processFile(argv) {
   process.env.clio_root = __dirname;
   argv.command = argv._[0];
 
-  const { clio_import } = require("./internals/import");
+  const { clioImport } = require("./internals/import");
 
   if (argv.command == "run") {
-    return clio_import(argv.source, true).catch(e =>
+    return clioImport(argv.source, true).catch(e =>
       e.exit ? e.exit() : console.log(e)
     );
   }
@@ -57,7 +57,7 @@ async function processFile(argv) {
       var file_dir = path.dirname(file);
       global.__basedir = file_dir;
 
-      var _module = clio_import(argv.source);
+      var _module = clioImport(argv.source);
     } catch (e) {
       return e.exit ? e.exit() : console.log(e);
     }

@@ -1,11 +1,11 @@
-const { clio_import } = require("../internals/import");
+const { clioImport } = require("../internals/import");
 
 const del = require("del");
 del.sync("tests/.clio-cache/*");
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require("websocket").w3cwebsocket; // same for WebSocket
-let clioTests = clio_import("tests/test.clio");
+let clioTests = clioImport("tests/test.clio");
 
 beforeAll(async () => {
   clioTests = await clioTests;
@@ -120,11 +120,11 @@ test("test equity", async () => {
 });
 
 afterAll(async () => {
-  let ws_connections = clioTests.clio_ws_connections;
-  for (let server in ws_connections) {
-    if (ws_connections.hasOwnProperty(server)) {
-      if (Object.keys(ws_connections[server].emitters).length == 0) {
-        ws_connections[server].socket.close();
+  let wsConnections = clioTests.clio_ws_connections;
+  for (let server in wsConnections) {
+    if (wsConnections.hasOwnProperty(server)) {
+      if (Object.keys(wsConnections[server].emitters).length == 0) {
+        wsConnections[server].socket.close();
       }
     }
   }
