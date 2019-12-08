@@ -8,6 +8,6 @@ test("Print AST", () => {
   shell.exec("clio new test");
   shell.cd("test");
   const ast = shell.exec("clio ast index.clio");
-  console.log("AST:", ast);
-  expect(JSON.stringify(ast)).toBeDefined();
+  expect(ast.toString()).toContain("tokens\n");
+  expect(ast.toString()).toContain("eof\n");
 });

@@ -2,32 +2,15 @@
 
 const createPackage = require("./init/createpackage");
 const fs = require("fs");
+const printAst = require("./misc/ast");
+const lexer = require("../lexer/lexer");
+const parser = require("../parser/parser");
+const analyzer = require("../evaluator/analyzer");
+const beautify = require("js-beautify").js;
+const highlight = require("../highlight");
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require("websocket").w3cwebsocket; // same for WebSocket
-
-function remove_props(obj, keys) {
-  if (obj instanceof Array) {
-    obj.forEach(function(item) {
-      remove_props(item, keys);
-    });
-  } else if (typeof obj === "object") {
-    Object.getOwnPropertyNames(obj).forEach(function(key) {
-      if (keys.indexOf(key) !== -1) {
-        delete obj[key];
-      } else {
-        remove_props(obj[key], keys);
-      }
-    });
-  }
-}
-
-function print_ast(ast) {
-  const treeify = require("treeify");
-  remove_props(ast, "index");
-  console.log(treeify.asTree(ast, true));
-  //console.dir(x, { depth: null, colors: true });
-}
 
 function writeFile(source, path) {
   fs.writeFileSync(path, source);
@@ -63,13 +46,6 @@ async function processFile(argv) {
     }
     return clio_host(_module, file_dir);
   }
-
-  const fs = require("fs");
-  const lexer = require("../lexer/lexer");
-  const parser = require("../parser/parser");
-  const analyzer = require("../evaluator/analyzer");
-  const beautify = require("js-beautify").js;
-  const highlight = require("../highlight");
 
   fs.readFile(argv.source, "utf8", function(err, contents) {
     if (argv.command == "highlight") {
@@ -150,7 +126,17 @@ require("yargs")
       });
     },
     argv => {
-      processFile(argv);
+      fs.readFile(argv.source, "utf8", (err, contents) => {
+        if (err) console.trace(err);
+        let tokens = lexer(contents);
+        if (tokens[0] == false) {
+          return;
+        }
+        tokens = tokens[1];
+        const result = parser(contents, tokens, false, argv.source);
+        let ast = result[1];
+        printAst(ast);
+      });
     }
   )
   .command(
