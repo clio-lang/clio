@@ -9,6 +9,7 @@
     "Atomics": "readonly",
     "process": true,
     "jest": true,
+    "__dirname": true,
     "SharedArrayBuffer": "readonly"
   },
   "parserOptions": {
@@ -33,7 +34,7 @@
     "block-spacing": "error",
     "brace-style": ["error", "1tbs"],
     "callback-return": "error",
-    "camelcase": "off",
+    "camelcase": "error",
     "capitalized-comments": "off",
     "class-methods-use-this": "error",
     "comma-dangle": "error",
@@ -173,6 +174,7 @@
     "no-process-env": "off",
     "no-process-exit": "error",
     "no-proto": "error",
+    "no-prototype-builtins": "warn",
     "no-restricted-globals": "error",
     "no-restricted-imports": "error",
     "no-restricted-modules": "error",
