@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
 const { getDependencies } = require("../deps");
-const { write_package_config } = require("../../utils/package_config");
+const { write_package_config } = require("../../package/package_config");
 
 /**
  * @method initPackage
