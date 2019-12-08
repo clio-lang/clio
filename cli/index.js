@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const createPackage = require("./cli/createpackage");
+const createPackage = require("./init/createpackage");
 const fs = require("fs");
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
@@ -38,7 +38,7 @@ async function processFile(argv) {
   process.env.clio_root = __dirname;
   argv.command = argv._[0];
 
-  const { clioImport } = require("./internals/import");
+  const { clioImport } = require("../internals/import");
 
   if (argv.command == "run") {
     return clioImport(argv.source, true).catch(e =>
@@ -48,7 +48,7 @@ async function processFile(argv) {
 
   if (argv.command == "host") {
     const path = require("path");
-    const clio_host = require("./host/host");
+    const clio_host = require("../host/host");
     try {
       if (!path.isAbsolute(argv.source)) {
         let cwd = process.cwd();
@@ -65,11 +65,11 @@ async function processFile(argv) {
   }
 
   const fs = require("fs");
-  const lexer = require("./lexer/lexer");
-  const parser = require("./parser/parser");
-  const analyzer = require("./evaluator/analyzer");
+  const lexer = require("../lexer/lexer");
+  const parser = require("../parser/parser");
+  const analyzer = require("../evaluator/analyzer");
   const beautify = require("js-beautify").js;
-  const highlight = require("./highlight");
+  const highlight = require("../highlight");
 
   fs.readFile(argv.source, "utf8", function(err, contents) {
     if (argv.command == "highlight") {
@@ -158,7 +158,7 @@ require("yargs")
     "Generate a package.json and fetch stdlib",
     () => {},
     () => {
-      const { initPackage } = require("./internals/helpers/pkginit");
+      const { initPackage } = require("../internals/helpers/pkginit");
       initPackage();
     }
   )
@@ -185,7 +185,7 @@ require("yargs")
       });
     },
     argv => {
-      const { get } = require("./internals/get/clio-get");
+      const { get } = require("../internals/get/clio-get");
       get(argv);
     }
   )
@@ -199,7 +199,7 @@ require("yargs")
       });
     },
     _ => {
-      const { showDependencies } = require("./internals/deps");
+      const { showDependencies } = require("../internals/deps");
       showDependencies();
     }
   )
@@ -213,7 +213,7 @@ require("yargs")
       });
     },
     _ => {
-      const { getDependencies } = require("./internals/deps");
+      const { getDependencies } = require("../internals/deps");
       getDependencies();
     }
   )

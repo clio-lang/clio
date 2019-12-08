@@ -2,7 +2,7 @@
   "name": "clio-lang",
   "version": "0.1.5",
   "description": "Clio Programming Language",
-  "main": "index.js",
+  "main": "cli/index.js",
   "scripts": {
     "lint:check": "prettier --check ./**/*.js && eslint .",
     "lint:fix": "prettier --write ./**/*.js",
@@ -27,7 +27,7 @@
   ],
   "license": "Apache-2.0",
   "bin": {
-    "clio": "./index.js"
+    "clio": "./cli/index.js"
   },
   "repository": {
     "type": "git",
