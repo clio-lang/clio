@@ -26,7 +26,7 @@ function createPackage(packageName) {
       website: ""
     },
     scripts: { test: "No tests specified" },
-    dependencies: { stdlib: "latest" }
+    dependencies: [{ name: "stdlib", version: "latest" }]
   };
 
   packageConfig.write_package_config(defaultConfig);
