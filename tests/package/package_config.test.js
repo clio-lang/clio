@@ -6,8 +6,7 @@ const package_config = require("../../package/package_config");
 
 test("Import config file", () => {
   const config = package_config.get_package_config(
-    "/Users/frankeg/dev/clio/tests/package/cliopkg.test.toml"
-    //path.join(__dirname, "cliopkg.test.toml")
+    path.join(__dirname, "cliopkg.test.toml")
   );
   expect(config.title).toBeDefined();
 });
