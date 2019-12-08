@@ -16,7 +16,7 @@ async function initPackage() {
   const dir = path.basename(cwd);
 
   if (fs.existsSync(path.join(cwd, "package.json"))) {
-    var pkg = require(path.join(cwd, "package.json"));
+    const pkg = require(path.join(cwd, "package.json"));
     if (!pkg.clioDependencies) {
       pkg.clioDependencies = ["stdlib"];
     } else if (!pkg.clioDependencies.includes("stdlib")) {
@@ -31,18 +31,18 @@ async function initPackage() {
     );
   }
 
-  const r_interface = readline.createInterface({
+  const rInterface = readline.createInterface({
     input: process.stdin,
     output: process.stdout
   });
 
   async function ask(message) {
-    return new Promise(function(resolve, reject) {
-      r_interface.question(message, resolve);
+    return new Promise(function(resolve) {
+      rInterface.question(message, resolve);
     });
   }
 
-  var pkg = {};
+  let pkg = {};
   pkg.title = (await ask(`Package name: (${dir}) `)) || dir;
   pkg.version = (await ask("Version: (1.0.0) ")) || "1.0.0";
   pkg.description = (await ask("Description: ")) || "";
