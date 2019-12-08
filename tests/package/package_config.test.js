@@ -6,8 +6,8 @@ const package_config = require("../../package/package_config");
 
 test("Import config file", () => {
   const config = package_config.get_package_config(
-      "/Users/frankeg/dev/clio/tests/package/cliopkg.test.toml"
-      //path.join(__dirname, "cliopkg.test.toml")
+    "/Users/frankeg/dev/clio/tests/package/cliopkg.test.toml"
+    //path.join(__dirname, "cliopkg.test.toml")
   );
   expect(config.title).toBeDefined();
 });
@@ -15,7 +15,7 @@ test("Import config file", () => {
 test("Write config file", () => {
   const config = {
     title: "test",
-    dependencies: [{ foo: "1.2.3" }]
+    dependencies: [{ name: "Foo", version: "1.2.3" }]
   };
 
   const tmpDir = tmp.dirSync();
@@ -26,5 +26,5 @@ test("Write config file", () => {
   const file = fs.readFileSync(filePath);
   const contents = toml.parse(file.toString());
   expect(contents.title).toBe("test");
-  expect(contents.dependencies).toEqual([{ foo: "1.2.3" }]);
+  expect(contents.dependencies).toEqual({ Foo: "1.2.3" });
 });
