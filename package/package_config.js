@@ -41,7 +41,6 @@ function write_package_config(
   filePath = path.join(process.cwd(), configFileName)
 ) {
   const deps = {};
-  console.debug(cfg.dependencies);
   cfg.dependencies.forEach(dep => (deps[dep.name] = dep.version));
   const cfgStr = toml.stringify({ ...cfg, dependencies: deps });
   fs.writeFileSync(filePath, cfgStr);
@@ -55,9 +54,7 @@ function addDependency(dep) {
   const config = get_package_config();
   const depName = dep[0];
   const depVersion = dep[1];
-  console.debug("Old deps:", config.dependencies);
   config.dependencies.push({ name: depName, version: depVersion });
-  console.debug("New deps:", config.dependencies);
   write_package_config(config);
 }
 
@@ -66,7 +63,6 @@ function addDependency(dep) {
  */
 function getPackageDependencies() {
   const config = get_package_config();
-  console.log(config);
   return config.dependencies;
 }
 

@@ -38,7 +38,6 @@ function getDependencies() {
     console.log("No dependencies found in package.json");
     return;
   }
-  console.debug("getDependencies:", package_config.getPackageDependencies());
 
   for (const dep of package_config.getPackageDependencies()) {
     get({ url: dep.name });

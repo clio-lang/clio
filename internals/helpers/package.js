@@ -36,7 +36,6 @@ function getClioDependencies() {
 
 function hasClioDependencies() {
   const dependencies = package_config.getPackageDependencies();
-  console.trace(dependencies);
   return (
     !!dependencies &&
     !!Object.keys(dependencies) &&
@@ -53,7 +52,6 @@ function hasClioDependencies() {
 
 function updatePackageJsonDependencies(dependency) {
   return new Promise((resolve, reject) => {
-    console.log("Dep:", dependency);
     package_config.addDependency([dependency, "latest"]);
     resolve();
   });
