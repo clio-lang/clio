@@ -19,7 +19,7 @@ jobs:
       - name: npm install & test
         run: |
           npm ci
-          node index.js host tests/test.host.clio &
+          node cli/index.js host tests/test.host.clio &
           sleep 10
           npm test
         env:
