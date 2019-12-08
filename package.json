@@ -4,7 +4,7 @@
   "description": "Clio Programming Language",
   "main": "index.js",
   "scripts": {
-    "lint:check": "prettier --check ./**/*.js",
+    "lint:check": "prettier --check ./**/*.js && eslint .",
     "lint:fix": "prettier --write ./**/*.js",
     "test": "jest --collect-coverage"
   },
