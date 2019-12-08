@@ -28,11 +28,12 @@ function print_ast(ast) {
   //console.dir(x, { depth: null, colors: true });
 }
 
-function write_file(source, path) {
+function writeFile(source, path) {
   fs.writeFileSync(path, source);
 }
 
-async function process_file(argv) {
+async function processFile(argv) {
+  // eslint-disable-next-line camelcase
   process.env.clio_root = __dirname;
   argv.command = argv._[0];
 
@@ -93,7 +94,7 @@ async function process_file(argv) {
     let code = beautify(analyzer(ast, contents));
 
     if (argv.command == "compile") {
-      write_file(code, argv.destination);
+      writeFile(code, argv.destination);
     }
   });
 }
@@ -109,7 +110,7 @@ require("yargs")
       });
     },
     argv => {
-      process_file(argv);
+      processFile(argv);
     }
   )
   .command(
@@ -122,7 +123,7 @@ require("yargs")
       });
     },
     argv => {
-      process_file(argv);
+      processFile(argv);
     }
   )
   .command(
@@ -135,7 +136,7 @@ require("yargs")
       });
     },
     argv => {
-      process_file(argv);
+      processFile(argv);
     }
   )
   .command(
@@ -148,7 +149,7 @@ require("yargs")
       });
     },
     argv => {
-      process_file(argv);
+      processFile(argv);
     }
   )
   .command(
@@ -230,7 +231,7 @@ require("yargs")
         });
     },
     argv => {
-      process_file(argv);
+      processFile(argv);
     }
   )
   .demandCommand(1, "must provide a valid command")
