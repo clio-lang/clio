@@ -34,11 +34,8 @@ function hasClioDependencies() {
  * @description updates Package.json file with the desidered dependency.
  */
 
-function updatePackageJsonDependencies(dependency) {
-  return new Promise((resolve, reject) => {
-    package_config.addDependency([dependency, "latest"]);
-    resolve();
-  });
+async function updatePackageJsonDependencies(dependency) {
+  package_config.addDependency([dependency, "latest"]);
 }
 
 module.exports = {
