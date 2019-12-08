@@ -8,6 +8,7 @@ const parser = require("../parser/parser");
 const analyzer = require("../evaluator/analyzer");
 const beautify = require("js-beautify").js;
 const highlight = require("../highlight");
+const run = require("./run");
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require("websocket").w3cwebsocket; // same for WebSocket
@@ -22,12 +23,6 @@ async function processFile(argv) {
   argv.command = argv._[0];
 
   const { clioImport } = require("../internals/import");
-
-  if (argv.command == "run") {
-    return clioImport(argv.source, true).catch(e =>
-      e.exit ? e.exit() : console.log(e)
-    );
-  }
 
   if (argv.command == "host") {
     const path = require("path");
@@ -87,7 +82,7 @@ require("yargs")
       });
     },
     argv => {
-      processFile(argv);
+      run(argv.source);
     }
   )
   .command(
