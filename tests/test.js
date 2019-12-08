@@ -40,11 +40,9 @@ test("a -> add 1 -> mul 2 -> pow 3", async () => {
 });
 
 test("expect fib of list to be same as range", async () => {
-  let fib_of_list = await Promise.all(await clioTests.fib_of_list);
-  let fib_of_range = await Promise.all(
-    (await clioTests.fib_of_range).asArray()
-  );
-  expect(fib_of_list).toEqual(fib_of_range);
+  let fibOfList = await Promise.all(await clioTests.fib_of_list);
+  let fibOfRange = await Promise.all((await clioTests.fib_of_range).asArray());
+  expect(fibOfList).toEqual(fibOfRange);
 });
 
 test("t and f = t && f", async () => {
@@ -87,7 +85,7 @@ test("event emitter", async () => {
   let emitter = await clioTests.ee;
   let emit = await clioTests.emit_message;
   expect(
-    await new Promise(function(resolve, reject) {
+    await new Promise(function(resolve) {
       emitter.on("message", resolve);
       emit(emitter, "hello");
     })
@@ -103,10 +101,10 @@ test("list slicing", async () => {
 });
 
 test("eager map", async () => {
-  let eager_map = await clioTests.eager_map;
-  eager_map = eager_map.asArray();
-  eager_map = await Promise.all(eager_map);
-  expect(eager_map).toEqual([0, 2, 4, 6, 8]);
+  let eagerMap = await clioTests.eager_map;
+  eagerMap = eagerMap.asArray();
+  eagerMap = await Promise.all(eagerMap);
+  expect(eagerMap).toEqual([0, 2, 4, 6, 8]);
 });
 
 test("conditionals", async () => {

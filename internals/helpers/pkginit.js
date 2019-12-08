@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
 const { getDependencies } = require("../deps");
-const { write_package_config } = require("../../package/package_config");
+const { writePackageConfig } = require("../../package/packageConfig");
 
 /**
  * @method initPackage
@@ -66,7 +66,7 @@ async function initPackage() {
     ((await ask("Is this ok? (yes) ")) || "yes") == "yes" ? true : false;
   process.stdin.destroy();
   if (ok) {
-    write_package_config(pkg);
+    writePackageConfig(pkg);
     getDependencies();
   } else {
     return initPackage();

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const createPackage = require("./cli/createpackage");
+const fs = require("fs");
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require("websocket").w3cwebsocket; // same for WebSocket
@@ -155,8 +156,8 @@ require("yargs")
   .command(
     "init",
     "Generate a package.json and fetch stdlib",
-    yargs => {},
-    argv => {
+    () => {},
+    () => {
       const { initPackage } = require("./internals/helpers/pkginit");
       initPackage();
     }
@@ -171,7 +172,7 @@ require("yargs")
       });
     },
     argv => {
-      require("./cli/createpackage")(argv.project);
+      createPackage(argv.project);
     }
   )
   .command(

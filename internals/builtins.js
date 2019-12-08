@@ -56,23 +56,23 @@ builtins.typeof = function(thing) {
   return typeof thing;
 };
 
-builtins.define_function = function(fn, fn_name, scope) {
-  scope[fn_name] = fn;
+builtins.define_function = function(fn, fnName, scope) {
+  scope[fnName] = fn;
   return fn;
 };
 
-builtins.decorate_function = function(decorator, args, fn_name, scope) {
+builtins.decorate_function = function(decorator, args, fnName, scope) {
   let AsyncFunction = (async () => {}).constructor;
-  if ([Function, AsyncFunction].includes(fn_name.constructor)) {
+  if ([Function, AsyncFunction].includes(fnName.constructor)) {
     // anonymous decoration
-    var decorated_fn = decorator(fn_name, ...args);
-    decorated_fn.is_clio_fn = fn_name.is_clio_fn;
+    var decorated_fn = decorator(fnName, ...args);
+    decorated_fn.is_clio_fn = fnName.is_clio_fn;
     return decorated_fn;
   }
-  let fn = scope[fn_name];
+  let fn = scope[fnName];
   var decorated_fn = decorator(fn, ...args);
   decorated_fn.is_clio_fn = fn.is_clio_fn;
-  scope[fn_name] = decorated_fn;
+  scope[fnName] = decorated_fn;
   return decorated_fn;
 };
 
@@ -133,11 +133,11 @@ builtins.ws_get = async function(ws, key) {
   }
 };
 
-builtins.ws_call = async function(ws, fn_name, args, kwargs) {
+builtins.ws_call = async function(ws, fnName, args, kwargs) {
   let id = ws.id++;
   let data = JSON.stringify(
     {
-      fn_name: fn_name,
+      fnName: fnName,
       args: args,
       kwargs: kwargs,
       id: id,
@@ -161,10 +161,10 @@ builtins.ws_call = async function(ws, fn_name, args, kwargs) {
   return response.result;
 };
 
-builtins.http_call = async function(url, fn_name, args, kwargs) {
+builtins.http_call = async function(url, fnName, args, kwargs) {
   let data = JSON.stringify(
     {
-      fn_name: fn_name,
+      fnName: fnName,
       args: args,
       kwargs: kwargs
     },

@@ -3,28 +3,26 @@ const unescapeJs = require("unescape-js");
 function analyzer(tree) {
   // OPTIMIZE: this function needs to be optimized
 
-  function make_return(expr) {
-    if (expr.name == "conditional") {
+  function makeReturn(expr) {
+    if (expr.name === "conditional") {
       // special cases like if/else
       // replace last node with return
-      let tokens = expr.tokens.map(make_return);
-      expr.tokens = tokens;
+      expr.tokens = expr.tokens.map(makeReturn);
       return expr;
     } else if (
       ["if_statement", "elif_statement", "else_statement"].includes(expr.name)
     ) {
       let block = expr.tokens[expr.tokens.length - 1];
 
-      if (block.name != "block") {
+      if (block.name !== "block") {
         block = {
           name: "block",
           tokens: [block]
         };
       }
 
-      let last_expr = block.tokens[block.tokens.length - 1];
-      let redefined = make_return(last_expr);
-      block.tokens[block.tokens.length - 1] = redefined;
+      let lastExpr = block.tokens[block.tokens.length - 1];
+      block.tokens[block.tokens.length - 1] = makeReturn(lastExpr);
       expr.tokens[expr.tokens.length - 1] = block;
       return expr;
     }
@@ -57,7 +55,7 @@ function analyzer(tree) {
         code: `await builtins.funcall(['${node.raw}'], [scope], builtins.get_symbol, file, {index: ${node.index}, fn: '<get-symbol>'})`
       };
     },
-    property_access: function(node) {
+    propertyAccess: function(node) {
       let first = analyze(node.tokens.shift()).code;
       let last = node.tokens.pop().raw;
       return {
@@ -95,7 +93,7 @@ function analyzer(tree) {
         code: `((${left}) ${cmp} (${right}))`
       };
     },
-    wrapped_not: function(node) {
+    wrappedNot: function(node) {
       return analyze(node.tokens[0]);
     },
     wrapped_and_or: function(node) {
@@ -610,7 +608,7 @@ function analyzer(tree) {
     },
     fundef: function(node) {
       var block = node.tokens.pop().tokens;
-      let implicit_return = make_return(block.pop());
+      let implicit_return = makeReturn(block.pop());
       block.push(implicit_return);
       let block_vars = [];
       var block = analyze(block)

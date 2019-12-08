@@ -8,7 +8,7 @@ const uuid4 = require("uuid/v4");
 
 let { EventEmitter } = require("../internals/types");
 
-function find_emitters(obj) {
+function findEmitters(obj) {
   // currently only checks if obj is a emitter
   // we need to check more complex and nested objects
   if (!obj) {
@@ -84,9 +84,9 @@ async function clio_host(scope, root_dir) {
     app.set("json replacer", jsonReplacer);
 
     app.post("/execute", async function(req, res) {
-      let fn_name = req.body.fn_name;
+      let fnName = req.body.fnName;
       let args = req.body.args;
-      let fn = scope[fn_name];
+      let fn = scope[fnName];
       let result = await fn(...args);
       res.json({ result: result });
     });
@@ -102,11 +102,11 @@ async function clio_host(scope, root_dir) {
         let data = JSON.parse(msg, jsonReviver);
         let method = data.method;
         if (method == "execute") {
-          let fn_name = data.fn_name;
+          let fnName = data.fnName;
           let args = data.args;
-          var fn = scope[fn_name];
+          var fn = scope[fnName];
           let result = await fn(...args);
-          let result_emitters = find_emitters(result);
+          let result_emitters = findEmitters(result);
           result_emitters.forEach(function(emitter) {
             // these are passed by reference, so it's safe
             // to assign the uuid like this
