@@ -5,6 +5,7 @@ node_js:
   - "11"
 script:
   - npm install
-  - node index.js host tests/test.host.clio &
+  - npm link
+  - clio host tests/test.host.clio &
   - sleep 10
   - npm test
