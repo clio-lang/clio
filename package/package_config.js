@@ -6,10 +6,12 @@ const configFileName = "cliopgk.toml";
 
 /**
  *
- * @param {string} filename Optional name of file containing the configurations for the clio package in format `foo.toml`.
+ * @param {string} filepath Optional name of file containing the configurations for the clio package in format `foo.toml`.
  */
-function get_package_config(filename = configFileName) {
-  const file = fs.readFileSync(path.join(__dirname, filename));
+function get_package_config(
+  filepath = path.join(process.cwd(), configFileName)
+) {
+  const file = fs.readFileSync(filepath);
   const packageConfig = toml.parse(file);
 
   return {
@@ -32,7 +34,10 @@ function get_package_config(filename = configFileName) {
   };
 }
 
-function write_package_config(cfg, filePath = configFileName) {
+function write_package_config(
+  cfg,
+  filePath = path.join(process.cwd(), configFileName)
+) {
   const cfgStr = toml.stringify(cfg);
   fs.writeFileSync(filePath, cfgStr);
 }

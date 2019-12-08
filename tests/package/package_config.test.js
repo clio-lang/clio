@@ -2,11 +2,12 @@ const tmp = require("tmp");
 const path = require("path");
 const fs = require("fs");
 const toml = require("@iarna/toml");
-const package_config = require("../package_config");
+const package_config = require("../../package/package_config");
 
 test("Import config file", () => {
   const config = package_config.get_package_config(
-    "__tests__/cliopkg.test.toml"
+      "/Users/frankeg/dev/clio/tests/package/cliopkg.test.toml"
+      //path.join(__dirname, "cliopkg.test.toml")
   );
   expect(config.title).toBeDefined();
 });
