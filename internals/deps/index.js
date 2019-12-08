@@ -1,7 +1,5 @@
-const {
-  getClioDependencies,
-  hasClioDependencies
-} = require("../helpers/package");
+const { hasClioDependencies } = require("../helpers/package");
+const package_config = require("../../package/package_config");
 
 const { get } = require("../get/clio-get");
 
@@ -18,8 +16,10 @@ function showDependencies() {
     return;
   }
 
-  const deps = getClioDependencies();
-  const formattedDeps = deps.map(dep => `~> ${dep}`).join("\n");
+  const deps = package_config.getPackageDependencies();
+  const formattedDeps = deps
+    .map(dep => `~> ${dep[name]}: ${dep[version]}`)
+    .join("\n");
   console.log(formattedDeps);
 }
 
@@ -36,8 +36,8 @@ function getDependencies() {
     return;
   }
 
-  for (const dep of getClioDependencies()) {
-    get({ url: dep });
+  for (const dep of package_config.getPackageDependencies()) {
+    get({ url: dep.name });
   }
 }
 

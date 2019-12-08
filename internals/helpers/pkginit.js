@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
 const { getDependencies } = require("../deps");
+const { write_package_config } = require("../../package/package_config");
 
 /**
  * @method initPackage
@@ -42,18 +43,22 @@ async function initPackage() {
   }
 
   var pkg = {};
-  pkg.name = (await ask(`Package name: (${dir}) `)) || dir;
+  pkg.title = (await ask(`Package name: (${dir}) `)) || dir;
   pkg.version = (await ask("Version: (1.0.0) ")) || "1.0.0";
   pkg.description = (await ask("Description: ")) || "";
-  pkg.entry = (await ask("Entry point: (index.clio) ")) || "index.clio";
-  pkg.test =
-    (await ask("Test command: ")) ||
-    'echo "Error: no test specified" && exit 1';
+  pkg.main = (await ask("Entry point: (index.clio) ")) || "index.clio";
   pkg.git = (await ask("Git repository: ")) || "";
   pkg.keywords = (await ask("Keywords: ")) || "";
-  pkg.author = (await ask("Author: ")) || "";
+  pkg.author = {};
+  pkg.author.name = (await ask("Author name: ")) || "";
+  pkg.author.email = (await ask("Author email: ")) || "";
   pkg.license = (await ask("License: (ISC) ")) || "ISC";
-  pkg.clioDependencies = ["stdlib"];
+  pkg.dependencies = [{ name: "stdlib", version: "latest" }];
+  pkg.scripts = {
+    test:
+      (await ask("Test command: ")) ||
+      'echo "Error: no test specified" && exit 1'
+  };
 
   const stringified = JSON.stringify(pkg, null, 2);
   console.log(`\n${stringified}\n`);
@@ -61,12 +66,8 @@ async function initPackage() {
     ((await ask("Is this ok? (yes) ")) || "yes") == "yes" ? true : false;
   process.stdin.destroy();
   if (ok) {
-    return fs.writeFile(
-      path.join(cwd, "package.json"),
-      stringified,
-      "utf8",
-      getDependencies
-    );
+    write_package_config(pkg);
+    getDependencies();
   } else {
     return initPackage();
   }

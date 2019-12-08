@@ -1,19 +1,4 @@
-const fs = require("fs");
-
-var packageJson, dependencies;
-
-function getPackage() {
-  /**
-   * Get user's current working directory
-   */
-  const cwd = process.cwd();
-  try {
-    packageJson = require(`${cwd}/package.json`);
-  } catch (e) {
-    packageJson = { clioDependencies: [] };
-  }
-  dependencies = packageJson.clioDependencies;
-}
+const package_config = require("../../package/package_config");
 
 /**
  * @method getClioDependencies
@@ -23,8 +8,7 @@ function getPackage() {
  */
 
 function getClioDependencies() {
-  getPackage();
-  return hasClioDependencies() ? dependencies : [];
+  return package_config.getPackageDependencies();
 }
 
 /**
@@ -35,32 +19,12 @@ function getClioDependencies() {
  */
 
 function hasClioDependencies() {
-  getPackage();
+  const dependencies = package_config.getPackageDependencies();
   return (
     !!dependencies &&
     !!Object.keys(dependencies) &&
     !!Object.keys(dependencies).length
   );
-}
-
-/**
- * @method addDependency
- * @param {string} dependency
- * @returns {string[]|object}
- * @description Adds a dependency to the list of dependencies (if any).
- *              If no dependencies are listed, it will create the "clioDependencies"
- *              object and adds the first dependency.
- */
-
-function addDependency(dependency) {
-  getPackage();
-  return hasClioDependencies()
-    ? new Object({
-        clioDependencies: [...dependencies, dependency]
-      })
-    : new Object({
-        clioDependencies: [dependency]
-      });
 }
 
 /**
@@ -70,25 +34,12 @@ function addDependency(dependency) {
  * @description updates Package.json file with the desidered dependency.
  */
 
-function updatePackageJsonDependencies(dependency) {
-  getPackage();
-  return new Promise((resolve, reject) => {
-    // Ugly way to clone object by values and not by reference
-    const oldPackage = JSON.parse(JSON.stringify(packageJson));
-    const newPackage = Object.assign(oldPackage, addDependency(dependency));
-    const formatJson = JSON.stringify(newPackage, null, 2);
-
-    const cwd = process.cwd();
-    fs.writeFile(`${cwd}/package.json`, formatJson, err => {
-      return err ? reject(err) : resolve();
-    });
-  });
+async function updatePackageJsonDependencies(dependency) {
+  package_config.addDependency([dependency, "latest"]);
 }
 
 module.exports = {
-  addDependency,
   getClioDependencies,
   hasClioDependencies,
-  updatePackageJsonDependencies,
-  packageJson
+  updatePackageJsonDependencies
 };

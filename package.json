@@ -42,9 +42,19 @@
       "!jest-puppeteer.config.js",
       "!host/**/*",
       "!tests/**/*"
+    ],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "jsx",
+      "ts",
+      "tsx",
+      "node",
+      "toml"
     ]
   },
   "dependencies": {
+    "@iarna/toml": "^2.2.3",
     "body-parser": "1.19.0",
     "chalk": "3.0.0",
     "clio-lazy": "^1.0.0",

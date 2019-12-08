@@ -4,3 +4,5 @@ coverage
 __pycache__
 .vscode
 clio_env
+.idea/
+/clio.iml
