@@ -6,7 +6,6 @@ const {
   updatePackageJsonDependencies,
   getClioDependencies
 } = require("../helpers/package");
-const package_config = require("../../package/package_config");
 
 const gitHubRegex = /github\.com\/(\w|\d|_|-).+\/(\d|\w|-|_).+/gi;
 const urlRegex = /https?:\/\/.+/gi;

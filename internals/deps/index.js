@@ -1,7 +1,4 @@
-const {
-  getClioDependencies,
-  hasClioDependencies
-} = require("../helpers/package");
+const { hasClioDependencies } = require("../helpers/package");
 const package_config = require("../../package/package_config");
 
 const { get } = require("../get/clio-get");

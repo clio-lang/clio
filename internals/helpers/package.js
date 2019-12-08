@@ -1,20 +1,4 @@
-const fs = require("fs");
 const package_config = require("../../package/package_config");
-
-var packageJson, dependencies;
-
-function getPackage() {
-  /**
-   * Get user's current working directory
-   */
-  const cwd = process.cwd();
-  try {
-    packageJson = require(`${cwd}/package.json`);
-  } catch (e) {
-    packageJson = { clioDependencies: [] };
-  }
-  dependencies = packageJson.clioDependencies;
-}
 
 /**
  * @method getClioDependencies
@@ -60,6 +44,5 @@ function updatePackageJsonDependencies(dependency) {
 module.exports = {
   getClioDependencies,
   hasClioDependencies,
-  updatePackageJsonDependencies,
-  packageJson
+  updatePackageJsonDependencies
 };

@@ -1,5 +1,4 @@
 const fs = require("fs");
-const path = require("path");
 const shell = require("shelljs");
 const packageConfig = require("../package/package_config");
 const { getDependencies } = require("../internals/deps");
