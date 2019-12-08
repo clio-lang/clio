@@ -19,7 +19,8 @@ jobs:
       - name: npm install & test
         run: |
           npm ci
-          node cli/index.js host tests/test.host.clio &
+          npm link
+          clio host tests/test.host.clio &
           sleep 10
           npm test
         env:
@@ -37,7 +38,7 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node-version }}
-      - name: npm install & test
+      - name: npm lint:check
         run: |
           npm ci
           npm run lint:check
