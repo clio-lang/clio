@@ -449,8 +449,8 @@ function analyzer(tree) {
         var fn = async function (__data) {
           return ${code}
         }
-        if (__data[0].is_reactive) {
-          return __data[0].set_listener(function (n) {
+        if (__data[0].isReactive) {
+          return __data[0].setListener(function (n) {
             return fn([n, ...__data.slice(1)])
           })
         } else {

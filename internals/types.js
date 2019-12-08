@@ -16,9 +16,9 @@ class EventListener {
   constructor(ee, ev) {
     this.ee = ee;
     this.ev = ev;
-    this.is_reactive = true;
+    this.isReactive = true;
   }
-  set_listener(fn) {
+  setListener(fn) {
     return this.ee.on(this.ev, fn);
   }
 }
@@ -54,7 +54,7 @@ class Range {
   get length() {
     return this.len();
   }
-  async map(fn, stack) {
+  async map(fn) {
     return new Range(this.start, this.end, this.step, (i, r) =>
       fn(this.getter(i, r))
     );
