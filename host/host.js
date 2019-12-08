@@ -1,7 +1,7 @@
 const cluster = require("cluster");
 const express = require("express");
-const cpu_count = require("os").cpus().length;
-const body_parser = require("body-parser");
+const cpuCount = require("os").cpus().length;
+const bodyParser = require("body-parser");
 const { jsonReviver, jsonReplacer } = require("../internals/json");
 const enableWs = require("express-ws");
 const uuid4 = require("uuid/v4");
@@ -14,13 +14,13 @@ function findEmitters(obj) {
   if (!obj) {
     return [];
   }
-  if (obj.constructor == EventEmitter) {
+  if (obj.constructor === EventEmitter) {
     return [obj];
   }
   return [];
 }
 
-async function clio_host(scope, root_dir) {
+async function clioHost(scope, rootDir) {
   scope = await scope;
   let config = await scope.host;
   let exported = {};
@@ -43,17 +43,17 @@ async function clio_host(scope, root_dir) {
     if (config.workers) {
       const reqWorkers = Number(config.workers);
 
-      if (reqWorkers > cpu_count) {
+      if (reqWorkers > cpuCount) {
         console.log(
-          `Unable to use ${reqWorkers}. Current CPU only supports ${cpu_count} workers`
+          `Unable to use ${reqWorkers}. Current CPU only supports ${cpuCount} workers`
         );
-        console.log(`Switching to ${cpu_count} workers`);
-        return cpu_count;
+        console.log(`Switching to ${cpuCount} workers`);
+        return cpuCount;
       } else {
         return reqWorkers;
       }
     } else {
-      return cpu_count;
+      return cpuCount;
     }
   };
 
@@ -66,17 +66,17 @@ async function clio_host(scope, root_dir) {
       cluster.fork();
     }
   } else {
-    if (root_dir) {
-      process.chdir(root_dir);
+    if (rootDir) {
+      process.chdir(rootDir);
     }
 
     // Workers share the TCP connection in this server
     let app = express();
     enableWs(app);
 
-    app.use(body_parser.urlencoded({ extended: false }));
+    app.use(bodyParser.urlencoded({ extended: false }));
     app.use(
-      body_parser.json({
+      bodyParser.json({
         type: req => req.get("Content-Type") === "application/clio-cloud-call",
         reviver: jsonReviver
       })
@@ -92,22 +92,22 @@ async function clio_host(scope, root_dir) {
     });
 
     app.connected = {};
-    app.no_connected = 0;
+    app.appConnected = 0;
 
-    app.ws("/connect", (ws, req) => {
+    app.ws("/connect", ws => {
       let cleanups = [];
       let emitters = {};
 
       ws.on("message", async msg => {
         let data = JSON.parse(msg, jsonReviver);
         let method = data.method;
-        if (method == "execute") {
+        if (method === "execute") {
           let fnName = data.fnName;
           let args = data.args;
-          var fn = scope[fnName];
+          const fn = scope[fnName];
           let result = await fn(...args);
-          let result_emitters = findEmitters(result);
-          result_emitters.forEach(function(emitter) {
+          let resultEmitters = findEmitters(result);
+          resultEmitters.forEach(function(emitter) {
             // these are passed by reference, so it's safe
             // to assign the uuid like this
             let uuid = uuid4();
@@ -138,17 +138,17 @@ async function clio_host(scope, root_dir) {
           });
           data = JSON.stringify({ result: result, id: data.id }, jsonReplacer);
           ws.send(data);
-        } else if (method == "get") {
+        } else if (method === "get") {
           let key = data.key;
           let val = await scope[key];
           let constructor = val.constructor;
           let type;
           if (val instanceof Function) {
             type = "function";
-          } else if (constructor == EventEmitter) {
+          } else if (constructor === EventEmitter) {
             type = "emitter";
             // subscribe this client
-            var fn = async function(data) {
+            const fn = async function(data) {
               data = await data;
               return ws.send(
                 JSON.stringify(
@@ -182,4 +182,4 @@ async function clio_host(scope, root_dir) {
   }
 }
 
-module.exports = clio_host;
+module.exports = clioHost;
