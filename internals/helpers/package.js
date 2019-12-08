@@ -1,4 +1,4 @@
-const package_config = require("../../package/package_config");
+const packageConfig = require("../../package/packageConfig");
 
 /**
  * @method getClioDependencies
@@ -8,7 +8,7 @@ const package_config = require("../../package/package_config");
  */
 
 function getClioDependencies() {
-  return package_config.getPackageDependencies();
+  return packageConfig.getPackageDependencies();
 }
 
 /**
@@ -19,7 +19,7 @@ function getClioDependencies() {
  */
 
 function hasClioDependencies() {
-  const dependencies = package_config.getPackageDependencies();
+  const dependencies = packageConfig.getPackageDependencies();
   return (
     !!dependencies &&
     !!Object.keys(dependencies) &&
@@ -35,7 +35,7 @@ function hasClioDependencies() {
  */
 
 async function updatePackageJsonDependencies(dependency) {
-  package_config.addDependency([dependency, "latest"]);
+  packageConfig.addDependency([dependency, "latest"]);
 }
 
 module.exports = {

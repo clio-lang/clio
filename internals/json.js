@@ -1,4 +1,4 @@
-var { EventEmitter } = require("../internals/types");
+let { EventEmitter } = require("../internals/types");
 
 function jsonReplacer(key, value) {
   if ([null, undefined].includes(value)) {
@@ -13,7 +13,7 @@ function jsonReplacer(key, value) {
     return `clio::emitter::${value.uuid}`; // this only works for host, // FIXME
   }
   if (value.constructor == Object) {
-    var result = {};
+    let result = {};
     for (var key in value) {
       if (value.hasOwnProperty(key)) {
         result[key] = jsonReplacer(key, value[key]);
@@ -32,7 +32,7 @@ function jsonReviver(key, value) {
     value = value.slice(6);
     if (value.startsWith("emitter::")) {
       value = value.slice(9);
-      var emitter = new EventEmitter({
+      let emitter = new EventEmitter({
         wildcard: true,
         newListener: false,
         maxListeners: 128

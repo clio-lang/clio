@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const createPackage = require("./cli/createpackage");
+const fs = require("fs");
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require("websocket").w3cwebsocket; // same for WebSocket
@@ -28,18 +29,19 @@ function print_ast(ast) {
   //console.dir(x, { depth: null, colors: true });
 }
 
-function write_file(source, path) {
+function writeFile(source, path) {
   fs.writeFileSync(path, source);
 }
 
-async function process_file(argv) {
+async function processFile(argv) {
+  // eslint-disable-next-line camelcase
   process.env.clio_root = __dirname;
   argv.command = argv._[0];
 
-  const { clio_import } = require("./internals/import");
+  const { clioImport } = require("./internals/import");
 
   if (argv.command == "run") {
-    return clio_import(argv.source, true).catch(e =>
+    return clioImport(argv.source, true).catch(e =>
       e.exit ? e.exit() : console.log(e)
     );
   }
@@ -49,13 +51,13 @@ async function process_file(argv) {
     const clio_host = require("./host/host");
     try {
       if (!path.isAbsolute(argv.source)) {
-        var cwd = process.cwd();
+        let cwd = process.cwd();
         var file = path.join(cwd, argv.source);
       }
       var file_dir = path.dirname(file);
       global.__basedir = file_dir;
 
-      var _module = clio_import(argv.source);
+      var _module = clioImport(argv.source);
     } catch (e) {
       return e.exit ? e.exit() : console.log(e);
     }
@@ -75,7 +77,7 @@ async function process_file(argv) {
       return console.log(highlight(contents));
     }
 
-    var tokens = lexer(contents);
+    let tokens = lexer(contents);
     if (tokens[0] == false) {
       return;
     }
@@ -85,15 +87,15 @@ async function process_file(argv) {
     } catch (e) {
       return e.exit ? e.exit() : console.log(e);
     }
-    var ast = result[1];
+    let ast = result[1];
     if (argv.command == "ast") {
       return print_ast(ast);
     }
     ast.pop(); // eof
-    var code = beautify(analyzer(ast, contents));
+    let code = beautify(analyzer(ast, contents));
 
     if (argv.command == "compile") {
-      write_file(code, argv.destination);
+      writeFile(code, argv.destination);
     }
   });
 }
@@ -109,7 +111,7 @@ require("yargs")
       });
     },
     argv => {
-      process_file(argv);
+      processFile(argv);
     }
   )
   .command(
@@ -122,7 +124,7 @@ require("yargs")
       });
     },
     argv => {
-      process_file(argv);
+      processFile(argv);
     }
   )
   .command(
@@ -135,7 +137,7 @@ require("yargs")
       });
     },
     argv => {
-      process_file(argv);
+      processFile(argv);
     }
   )
   .command(
@@ -148,14 +150,14 @@ require("yargs")
       });
     },
     argv => {
-      process_file(argv);
+      processFile(argv);
     }
   )
   .command(
     "init",
     "Generate a package.json and fetch stdlib",
-    yargs => {},
-    argv => {
+    () => {},
+    () => {
       const { initPackage } = require("./internals/helpers/pkginit");
       initPackage();
     }
@@ -170,7 +172,7 @@ require("yargs")
       });
     },
     argv => {
-      require("./cli/createpackage")(argv.project);
+      createPackage(argv.project);
     }
   )
   .command(
@@ -230,7 +232,7 @@ require("yargs")
         });
     },
     argv => {
-      process_file(argv);
+      processFile(argv);
     }
   )
   .demandCommand(1, "must provide a valid command")

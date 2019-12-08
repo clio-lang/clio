@@ -2,8 +2,8 @@
  * http://www.myersdaily.org/joseph/javascript/md5-text.html
  */
 module.exports = (function() {
-  var md5cycle = function(x, k) {
-    var a = x[0],
+  let md5cycle = function(x, k) {
+    let a = x[0],
       b = x[1],
       c = x[2],
       d = x[3];
@@ -82,7 +82,7 @@ module.exports = (function() {
     x[3] = add32(d, x[3]);
   };
 
-  var cmn = function(q, a, b, x, s, t) {
+  let cmn = function(q, a, b, x, s, t) {
     a = add32(add32(a, q), add32(x, t));
     return add32((a << s) | (a >>> (32 - s)), b);
   };
@@ -103,15 +103,15 @@ module.exports = (function() {
     return cmn(c ^ (b | ~d), a, b, x, s, t);
   };
 
-  var md51 = function(s) {
-    var n = s.length,
+  let md51 = function(s) {
+    let n = s.length,
       state = [1732584193, -271733879, -1732584194, 271733878],
       i;
     for (i = 64; i <= s.length; i += 64) {
       md5cycle(state, md5blk(s.substring(i - 64, i)));
     }
     s = s.substring(i - 64);
-    var tail = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    let tail = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     for (i = 0; i < s.length; i++)
       tail[i >> 2] |= s.charCodeAt(i) << (i % 4 << 3);
     tail[i >> 2] |= 0x80 << (i % 4 << 3);
@@ -141,7 +141,7 @@ module.exports = (function() {
    */
   var md5blk = function(s) {
     /* I figured global was faster.   */
-    var md5blks = [],
+    let md5blks = [],
       i; /* Andy King said do it this way. */
     for (i = 0; i < 64; i += 4) {
       md5blks[i >> 2] =
@@ -153,22 +153,22 @@ module.exports = (function() {
     return md5blks;
   };
 
-  var hex_chr = "0123456789abcdef".split("");
+  let hex_chr = "0123456789abcdef".split("");
 
-  var rhex = function(n) {
-    var s = "",
+  let rhex = function(n) {
+    let s = "",
       j = 0;
     for (; j < 4; j++)
       s += hex_chr[(n >> (j * 8 + 4)) & 0x0f] + hex_chr[(n >> (j * 8)) & 0x0f];
     return s;
   };
 
-  var hex = function(x) {
-    for (var i = 0; i < x.length; i++) x[i] = rhex(x[i]);
+  let hex = function(x) {
+    for (let i = 0; i < x.length; i++) x[i] = rhex(x[i]);
     return x.join("");
   };
 
-  var md5 = function(s) {
+  let md5 = function(s) {
     return hex(md51(s));
   };
 
@@ -184,7 +184,7 @@ module.exports = (function() {
 
   if (md5("hello") != "5d41402abc4b2a76b9719d911017c592") {
     add32 = function(x, y) {
-      var lsw = (x & 0xffff) + (y & 0xffff),
+      let lsw = (x & 0xffff) + (y & 0xffff),
         msw = (x >> 16) + (y >> 16) + (lsw >> 16);
       return (msw << 16) | (lsw & 0xffff);
     };

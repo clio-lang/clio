@@ -31,7 +31,7 @@ async function clio_require_browser(
   const md5 = require("./md5");
   // __basedir is window.clio.__basedir || protocol://domain:port
 
-  var __basedir = window.clio.__basedir || window.location.origin;
+  let __basedir = window.clio.__basedir || window.location.origin;
   var __filename = http_resolve_path(
     __basedir,
     `${current_dir}/${module_name}`
@@ -42,7 +42,7 @@ async function clio_require_browser(
     var module = {
       exports: {}
     };
-    var exports = module.exports;
+    let exports = module.exports;
     var source = await mod.text();
     eval(source);
     if (names_to_import.length == 0) {
@@ -69,14 +69,14 @@ async function clio_require_browser(
         __basedir,
         `/clio_env/${module_name}.clio`
       );
-      var __dirname = http_dir_name(__filename);
+      let __dirname = http_dir_name(__filename);
       var mod = await fetch(__filename);
     } else {
       var mod = await fetch(__filename);
     }
     var source = await mod.text();
-    var source_hash = md5(source);
-    var code = window.localStorage.getItem(`clio-compile-cache-${source_hash}`);
+    let source_hash = md5(source);
+    let code = window.localStorage.getItem(`clio-compile-cache-${source_hash}`);
     if (!code) {
       code = window.clio.compile(source);
       window.localStorage.setItem(`clio-compile-cache-${source_hash}`, code);
@@ -108,11 +108,11 @@ function resolve_path(path) {
 }
 
 function make_module_paths() {
-  var dir = process.cwd();
-  var paths = [];
+  let dir = process.cwd();
+  let paths = [];
   while (true) {
     paths.push(path.join(dir, "node_modules"));
-    var _dir = path.dirname(dir);
+    let _dir = path.dirname(dir);
     if (dir == _dir) {
       return paths;
     }
@@ -155,7 +155,7 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
       );
     }
     if (fs.existsSync(module_path)) {
-      var mod = await clio_import(module_path);
+      var mod = await clioImport(module_path);
       if (names_to_import.length == 0) {
         // import all
         var clio_module = {};
@@ -207,7 +207,7 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
       );
     }
     if (fs.existsSync(module_path)) {
-      var mod = await clio_import(module_path);
+      var mod = await clioImport(module_path);
       if (names_to_import.length == 0) {
         // import all
         var clio_module = {};
@@ -279,7 +279,7 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
       );
     }
     if (fs.existsSync(module_path)) {
-      var mod = await clio_import(module_path);
+      var mod = await clioImport(module_path);
       if (names_to_import.length == 0) {
         // import all
         var clio_module = {};
@@ -325,8 +325,8 @@ async function do_import(file, direct) {
   const analyzer = require("../evaluator/analyzer");
   const beautify = require("js-beautify").js;
 
-  var contents = fs.readFileSync(file, "utf8");
-  var tokens = lexer(contents);
+  let contents = fs.readFileSync(file, "utf8");
+  let tokens = lexer(contents);
   if (tokens[0] == false) {
     return;
   }
@@ -336,18 +336,18 @@ async function do_import(file, direct) {
   } catch (e) {
     throw e;
   }
-  var ast = result[1];
+  let ast = result[1];
   ast.pop(); // eof
-  var code = beautify(analyzer(ast, contents));
+  let code = beautify(analyzer(ast, contents));
 
   if (!path.isAbsolute(file)) {
-    var cwd = process.cwd();
+    let cwd = process.cwd();
     var file = path.join(cwd, file);
   }
-  var file_dir = path.dirname(file);
-  var file_name = path.basename(file);
-  var cache_dir = `${file_dir}${path.sep}.clio-cache`;
-  var cache_file = `${cache_dir}${path.sep}${file_name}.js`;
+  let file_dir = path.dirname(file);
+  let file_name = path.basename(file);
+  let cache_dir = `${file_dir}${path.sep}.clio-cache`;
+  let cache_file = `${cache_dir}${path.sep}${file_name}.js`;
   if (!fs.existsSync(cache_dir)) {
     fs.mkdirSync(cache_dir);
   }
@@ -362,28 +362,28 @@ async function do_import(file, direct) {
   }); // because why not?
 }
 
-async function clio_import(file, direct) {
+async function clioImport(file, direct) {
   if (!path.isAbsolute(file)) {
-    var cwd = process.cwd();
+    let cwd = process.cwd();
     file = path.join(cwd, file);
   }
-  var file_dir = path.dirname(file);
+  let file_dir = path.dirname(file);
   if (direct) {
     global.__basedir = file_dir;
     process.chdir(file_dir);
   }
-  var file_name = path.basename(file);
-  var cache_dir = `${file_dir}${path.sep}.clio-cache`;
-  var cache_file = `${cache_dir}${path.sep}${file_name}.js`;
+  let file_name = path.basename(file);
+  let cache_dir = `${file_dir}${path.sep}.clio-cache`;
+  let cache_file = `${cache_dir}${path.sep}${file_name}.js`;
   if (!fs.existsSync(cache_dir)) {
     fs.mkdirSync(cache_dir);
   }
   if (fs.existsSync(cache_file)) {
-    var cache_stats = fs.statSync(cache_file);
-    var source_stats = fs.statSync(file);
+    let cache_stats = fs.statSync(cache_file);
+    let source_stats = fs.statSync(file);
     if (cache_stats.mtime > source_stats.mtime) {
       cache_file = cache_file.replace(/\\/g, "/"); // windows fix |:
-      var contents = fs.readFileSync(file, "utf8");
+      let contents = fs.readFileSync(file, "utf8");
       return require(cache_file)({}, builtins, {
         source: contents,
         name: file_name
@@ -397,5 +397,5 @@ async function clio_import(file, direct) {
   });
 }
 
-module.exports.clio_import = clio_import;
-module.exports.clio_require_browser = clio_require_browser;
+module.exports.clioImport = clioImport;
+module.exports.clioRequireBrowser = clio_require_browser;

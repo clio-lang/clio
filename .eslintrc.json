@@ -1,0 +1,33 @@
+{
+  "env": {
+    "browser": true,
+    "commonjs": true,
+    "es6": true
+  },
+  "extends": ["plugin:jest/recommended"],
+  "globals": {
+    "Atomics": "readonly",
+    "process": true,
+    "jest": true,
+    "__dirname": true,
+    "SharedArrayBuffer": "readonly"
+  },
+  "parserOptions": {
+    "ecmaVersion": 2018
+  },
+  "rules": {
+    "no-var": "warn",
+    "no-unused-vars": "warn",
+    "no-dupe-args": "warn",
+    "no-dupe-class-members": "warn",
+    "no-dupe-keys": "warn",
+    "no-duplicate-case": "warn",
+    "no-duplicate-imports": "warn",
+    "camelcase": "warn",
+    "no-debugger": "error",
+    "no-unreachable": "warn",
+    "no-label-var": "warn",
+    "sort-imports": "warn"
+  },
+  "plugins": ["jest"]
+}

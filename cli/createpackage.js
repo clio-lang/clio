@@ -1,5 +1,5 @@
 const shell = require("shelljs");
-const packageConfig = require("../package/package_config");
+const packageConfig = require("../package/packageConfig");
 const { getDependencies } = require("../internals/deps");
 
 function createPackage(packageName) {
@@ -27,7 +27,7 @@ function createPackage(packageName) {
     dependencies: [{ name: "stdlib", version: "latest" }]
   };
 
-  packageConfig.write_package_config(defaultConfig);
+  packageConfig.writePackageConfig(defaultConfig);
 
   getDependencies();
   console.log("Added Clio dependencies");

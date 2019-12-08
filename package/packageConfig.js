@@ -8,9 +8,7 @@ const configFileName = "cliopgk.toml";
  *
  * @param {string} filepath Optional name of file containing the configurations for the clio package in format `foo.toml`.
  */
-function get_package_config(
-  filepath = path.join(process.cwd(), configFileName)
-) {
+function getPackageConfig(filepath = path.join(process.cwd(), configFileName)) {
   const file = fs.readFileSync(filepath);
   const packageConfig = toml.parse(file);
 
@@ -26,6 +24,7 @@ function get_package_config(
       website: packageConfig.author.website
     },
     keywords: packageConfig.keywords,
+    // eslint-disable-next-line camelcase
     git_repository: packageConfig.git_repository,
     documentation: packageConfig.documentation,
 
@@ -36,7 +35,7 @@ function get_package_config(
   };
 }
 
-function write_package_config(
+function writePackageConfig(
   cfg,
   filePath = path.join(process.cwd(), configFileName)
 ) {
@@ -51,24 +50,24 @@ function write_package_config(
  * @param {string[]} dep
  */
 function addDependency(dep) {
-  const config = get_package_config();
+  const config = getPackageConfig();
   const depName = dep[0];
   const depVersion = dep[1];
   config.dependencies.push({ name: depName, version: depVersion });
-  write_package_config(config);
+  writePackageConfig(config);
 }
 
 /**
  * @returns {{name, version}}
  */
 function getPackageDependencies() {
-  const config = get_package_config();
+  const config = getPackageConfig();
   return config.dependencies;
 }
 
 module.exports = {
-  get_package_config,
-  write_package_config,
+  getPackageConfig,
+  writePackageConfig: writePackageConfig,
   addDependency,
   getPackageDependencies,
   configFileName

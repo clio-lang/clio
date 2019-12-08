@@ -8,7 +8,7 @@ const helpers = {
     }
     i += 1;
     // grab until end;
-    var match = helpers.isSeq(seq, i, tokens);
+    let match = helpers.isSeq(seq, i, tokens);
     while (match != -1) {
       i = match;
       match = helpers.isSeq(seq, i, tokens);
@@ -38,9 +38,9 @@ const helpers = {
       return -1;
     }
     // match it XD
-    var grabbed_tokens = tokens.slice(start_i + 1, i);
+    let grabbed_tokens = tokens.slice(start_i + 1, i);
     grabbed_tokens.push({ name: "eof" });
-    var match = parser("", grabbed_tokens, true);
+    let match = parser("", grabbed_tokens, true);
     if (!match[0]) {
       return -1;
     }
@@ -50,7 +50,7 @@ const helpers = {
     return -1;
   },
   isSeq: function(seq, i, tokens) {
-    for (var rule in seq) {
+    for (let rule in seq) {
       if (seq.hasOwnProperty(rule)) {
         rule = seq[rule];
         if (typeof rule.name != typeof []) {
@@ -85,9 +85,9 @@ const helpers = {
           }
         }
         if (rule.count >= 1) {
-          var count = rule.count;
+          let count = rule.count;
           while (count > 0) {
-            var name_match = true;
+            let name_match = true;
             if (rule.raw && rule.raw != tokens[i].raw) {
               name_match = false;
             }
@@ -106,7 +106,7 @@ const helpers = {
           }
         } else if (rule.count <= 0) {
           if (rule.sep != undefined) {
-            var _i = helpers.grabAllUntil(
+            let _i = helpers.grabAllUntil(
               tokens,
               i,
               rule.name,
@@ -126,7 +126,7 @@ const helpers = {
               }
             }
           } else {
-            var res = helpers.isOneOf(tokens[i], rule.name);
+            let res = helpers.isOneOf(tokens[i], rule.name);
             if (res) {
               while (helpers.isOneOf(tokens[i], rule.name)) {
                 i += 1;
@@ -143,9 +143,9 @@ const helpers = {
     return i;
   },
   grabAllUntil: function(tokens, i, list, sep, enders) {
-    var one_matched = false;
+    let one_matched = false;
     while (true) {
-      var curr_tok = tokens[i];
+      let curr_tok = tokens[i];
       if (helpers.isOneOf(curr_tok, sep)) {
         i += 1;
       } else if (helpers.isOneOf(curr_tok, list)) {
@@ -172,7 +172,7 @@ const helpers = {
         tokens: res_tokens
       };
     } else {
-      var non_importants_raw = [
+      let non_importants_raw = [
         "_",
         "_n",
         "^",
@@ -203,7 +203,7 @@ const helpers = {
         "rcbr",
         "async"
       ];
-      var non_importants_token = ["starmap"];
+      let non_importants_token = ["starmap"];
       var res_tokens = tokens.slice(start, end).filter(function(obj) {
         if (non_importants_raw.includes(obj.name) && obj.raw != undefined) {
           return false;
@@ -219,10 +219,10 @@ const helpers = {
         tokens: res_tokens
       };
     }
-    var head = tokens.slice(0, start);
+    let head = tokens.slice(0, start);
     head.push(result);
-    var tail = tokens.slice(end);
-    var body = head.concat(tail);
+    let tail = tokens.slice(end);
+    let body = head.concat(tail);
     return body;
   }
 };

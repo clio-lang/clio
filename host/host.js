@@ -1,29 +1,29 @@
 const cluster = require("cluster");
 const express = require("express");
-const cpu_count = require("os").cpus().length;
-const body_parser = require("body-parser");
+const cpuCount = require("os").cpus().length;
+const bodyParser = require("body-parser");
 const { jsonReviver, jsonReplacer } = require("../internals/json");
 const enableWs = require("express-ws");
 const uuid4 = require("uuid/v4");
 
-var { EventEmitter } = require("../internals/types");
+let { EventEmitter } = require("../internals/types");
 
-function find_emitters(obj) {
+function findEmitters(obj) {
   // currently only checks if obj is a emitter
   // we need to check more complex and nested objects
   if (!obj) {
     return [];
   }
-  if (obj.constructor == EventEmitter) {
+  if (obj.constructor === EventEmitter) {
     return [obj];
   }
   return [];
 }
 
-async function clio_host(scope, root_dir) {
+async function clioHost(scope, rootDir) {
   scope = await scope;
-  var config = await scope.host;
-  var exported = {};
+  let config = await scope.host;
+  let exported = {};
   await config.exports.map(async e => {
     exported[e] = scope[e];
   });
@@ -43,17 +43,17 @@ async function clio_host(scope, root_dir) {
     if (config.workers) {
       const reqWorkers = Number(config.workers);
 
-      if (reqWorkers > cpu_count) {
+      if (reqWorkers > cpuCount) {
         console.log(
-          `Unable to use ${reqWorkers}. Current CPU only supports ${cpu_count} workers`
+          `Unable to use ${reqWorkers}. Current CPU only supports ${cpuCount} workers`
         );
-        console.log(`Switching to ${cpu_count} workers`);
-        return cpu_count;
+        console.log(`Switching to ${cpuCount} workers`);
+        return cpuCount;
       } else {
         return reqWorkers;
       }
     } else {
-      return cpu_count;
+      return cpuCount;
     }
   };
 
@@ -62,21 +62,21 @@ async function clio_host(scope, root_dir) {
       `Starting a cluster consisting of ${workers()} workers, on port ${port}`
     );
 
-    for (var i = 0; i < workers(); i++) {
+    for (let i = 0; i < workers(); i++) {
       cluster.fork();
     }
   } else {
-    if (root_dir) {
-      process.chdir(root_dir);
+    if (rootDir) {
+      process.chdir(rootDir);
     }
 
     // Workers share the TCP connection in this server
-    var app = express();
+    let app = express();
     enableWs(app);
 
-    app.use(body_parser.urlencoded({ extended: false }));
+    app.use(bodyParser.urlencoded({ extended: false }));
     app.use(
-      body_parser.json({
+      bodyParser.json({
         type: req => req.get("Content-Type") === "application/clio-cloud-call",
         reviver: jsonReviver
       })
@@ -84,40 +84,40 @@ async function clio_host(scope, root_dir) {
     app.set("json replacer", jsonReplacer);
 
     app.post("/execute", async function(req, res) {
-      var fn_name = req.body.fn_name;
-      var args = req.body.args;
-      var fn = scope[fn_name];
-      var result = await fn(...args);
+      let fnName = req.body.fnName;
+      let args = req.body.args;
+      let fn = scope[fnName];
+      let result = await fn(...args);
       res.json({ result: result });
     });
 
     app.connected = {};
-    app.no_connected = 0;
+    app.appConnected = 0;
 
-    app.ws("/connect", (ws, req) => {
-      var cleanups = [];
-      var emitters = {};
+    app.ws("/connect", ws => {
+      let cleanups = [];
+      let emitters = {};
 
       ws.on("message", async msg => {
-        var data = JSON.parse(msg, jsonReviver);
-        var method = data.method;
-        if (method == "execute") {
-          var fn_name = data.fn_name;
-          var args = data.args;
-          var fn = scope[fn_name];
-          var result = await fn(...args);
-          var result_emitters = find_emitters(result);
-          result_emitters.forEach(function(emitter) {
+        let data = JSON.parse(msg, jsonReviver);
+        let method = data.method;
+        if (method === "execute") {
+          let fnName = data.fnName;
+          let args = data.args;
+          const fn = scope[fnName];
+          let result = await fn(...args);
+          let resultEmitters = findEmitters(result);
+          resultEmitters.forEach(function(emitter) {
             // these are passed by reference, so it's safe
             // to assign the uuid like this
-            var uuid = uuid4();
+            let uuid = uuid4();
             while (emitters.hasOwnProperty(uuid)) {
               uuid = uuid4(); // to avoid collisions!
               // althought it may exist on client!
             }
             emitter.uuid = uuid;
             emitters.uuid = emitter;
-            var fn = async function(data) {
+            let fn = async function(data) {
               data = await data;
               return ws.send(
                 JSON.stringify(
@@ -138,17 +138,17 @@ async function clio_host(scope, root_dir) {
           });
           data = JSON.stringify({ result: result, id: data.id }, jsonReplacer);
           ws.send(data);
-        } else if (method == "get") {
-          var key = data.key;
-          var val = await scope[key];
-          var constructor = val.constructor;
-          var type;
+        } else if (method === "get") {
+          let key = data.key;
+          let val = await scope[key];
+          let constructor = val.constructor;
+          let type;
           if (val instanceof Function) {
             type = "function";
-          } else if (constructor == EventEmitter) {
+          } else if (constructor === EventEmitter) {
             type = "emitter";
             // subscribe this client
-            var fn = async function(data) {
+            const fn = async function(data) {
               data = await data;
               return ws.send(
                 JSON.stringify(
@@ -182,4 +182,4 @@ async function clio_host(scope, root_dir) {
   }
 }
 
-module.exports = clio_host;
+module.exports = clioHost;
