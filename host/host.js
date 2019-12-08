@@ -6,7 +6,7 @@ const { jsonReviver, jsonReplacer } = require("../internals/json");
 const enableWs = require("express-ws");
 const uuid4 = require("uuid/v4");
 
-var { EventEmitter } = require("../internals/types");
+let { EventEmitter } = require("../internals/types");
 
 function find_emitters(obj) {
   // currently only checks if obj is a emitter
@@ -22,8 +22,8 @@ function find_emitters(obj) {
 
 async function clio_host(scope, root_dir) {
   scope = await scope;
-  var config = await scope.host;
-  var exported = {};
+  let config = await scope.host;
+  let exported = {};
   await config.exports.map(async e => {
     exported[e] = scope[e];
   });
@@ -62,7 +62,7 @@ async function clio_host(scope, root_dir) {
       `Starting a cluster consisting of ${workers()} workers, on port ${port}`
     );
 
-    for (var i = 0; i < workers(); i++) {
+    for (let i = 0; i < workers(); i++) {
       cluster.fork();
     }
   } else {
@@ -71,7 +71,7 @@ async function clio_host(scope, root_dir) {
     }
 
     // Workers share the TCP connection in this server
-    var app = express();
+    let app = express();
     enableWs(app);
 
     app.use(body_parser.urlencoded({ extended: false }));
@@ -84,10 +84,10 @@ async function clio_host(scope, root_dir) {
     app.set("json replacer", jsonReplacer);
 
     app.post("/execute", async function(req, res) {
-      var fn_name = req.body.fn_name;
-      var args = req.body.args;
-      var fn = scope[fn_name];
-      var result = await fn(...args);
+      let fn_name = req.body.fn_name;
+      let args = req.body.args;
+      let fn = scope[fn_name];
+      let result = await fn(...args);
       res.json({ result: result });
     });
 
@@ -95,29 +95,29 @@ async function clio_host(scope, root_dir) {
     app.no_connected = 0;
 
     app.ws("/connect", (ws, req) => {
-      var cleanups = [];
-      var emitters = {};
+      let cleanups = [];
+      let emitters = {};
 
       ws.on("message", async msg => {
-        var data = JSON.parse(msg, jsonReviver);
-        var method = data.method;
+        let data = JSON.parse(msg, jsonReviver);
+        let method = data.method;
         if (method == "execute") {
-          var fn_name = data.fn_name;
-          var args = data.args;
+          let fn_name = data.fn_name;
+          let args = data.args;
           var fn = scope[fn_name];
-          var result = await fn(...args);
-          var result_emitters = find_emitters(result);
+          let result = await fn(...args);
+          let result_emitters = find_emitters(result);
           result_emitters.forEach(function(emitter) {
             // these are passed by reference, so it's safe
             // to assign the uuid like this
-            var uuid = uuid4();
+            let uuid = uuid4();
             while (emitters.hasOwnProperty(uuid)) {
               uuid = uuid4(); // to avoid collisions!
               // althought it may exist on client!
             }
             emitter.uuid = uuid;
             emitters.uuid = emitter;
-            var fn = async function(data) {
+            let fn = async function(data) {
               data = await data;
               return ws.send(
                 JSON.stringify(
@@ -139,10 +139,10 @@ async function clio_host(scope, root_dir) {
           data = JSON.stringify({ result: result, id: data.id }, jsonReplacer);
           ws.send(data);
         } else if (method == "get") {
-          var key = data.key;
-          var val = await scope[key];
-          var constructor = val.constructor;
-          var type;
+          let key = data.key;
+          let val = await scope[key];
+          let constructor = val.constructor;
+          let type;
           if (val instanceof Function) {
             type = "function";
           } else if (constructor == EventEmitter) {

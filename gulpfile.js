@@ -1,4 +1,4 @@
-var browserify = require("browserify"),
+let browserify = require("browserify"),
   buffer = require("vinyl-buffer"),
   gulp = require("gulp"),
   rename = require("gulp-rename"),
@@ -7,7 +7,7 @@ var browserify = require("browserify"),
   fs = require("fs"),
   terser = require("gulp-terser");
 
-var config = {
+let config = {
   js: {
     src: "./index.js", // Entry point
     browser: "./browser.js", // Browser entry point

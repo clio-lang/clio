@@ -1,5 +1,5 @@
-var { lazy, memoize } = require("../internals/lazy");
-var {
+let { lazy, memoize } = require("../internals/lazy");
+let {
   Transform,
   AtSign,
   Range,
@@ -10,12 +10,12 @@ var {
 const { jsonReviver, jsonReplacer } = require("../internals/json");
 const { throw_error, exception_handler } = require("../common");
 
-var builtins = {};
+let builtins = {};
 
 builtins.error = throw_error;
 builtins.lazy = lazy;
 
-var js_to_clio_type_map = function(type) {
+let js_to_clio_type_map = function(type) {
   switch (type) {
     case String:
       return "str";
@@ -30,8 +30,8 @@ var js_to_clio_type_map = function(type) {
 };
 
 builtins.update_vars = async function(scope, keys, val) {
-  var parent = scope;
-  var key;
+  let parent = scope;
+  let key;
   while (keys.length) {
     key = keys.shift();
     if (parent.hasOwnProperty(key)) {
@@ -62,14 +62,14 @@ builtins.define_function = function(fn, fn_name, scope) {
 };
 
 builtins.decorate_function = function(decorator, args, fn_name, scope) {
-  var AsyncFunction = (async () => {}).constructor;
+  let AsyncFunction = (async () => {}).constructor;
   if ([Function, AsyncFunction].includes(fn_name.constructor)) {
     // anonymous decoration
     var decorated_fn = decorator(fn_name, ...args);
     decorated_fn.is_clio_fn = fn_name.is_clio_fn;
     return decorated_fn;
   }
-  var fn = scope[fn_name];
+  let fn = scope[fn_name];
   var decorated_fn = decorator(fn, ...args);
   decorated_fn.is_clio_fn = fn.is_clio_fn;
   scope[fn_name] = decorated_fn;
@@ -84,13 +84,13 @@ builtins.setup_ws = async function(connections, host) {
     emitters: {}
   };
   connections[host].socket.onmessage = function(event) {
-    var data = builtins.jrevive(event.data);
+    let data = builtins.jrevive(event.data);
     if (data.id != undefined) {
       connections[host].promises[data.id](data);
     } else if (data.service) {
       if (data.service == "update") {
         if (data.emitter) {
-          var emitter = connections[host].emitters[data.emitter];
+          let emitter = connections[host].emitters[data.emitter];
           var event = data.event;
           emitter.emit(event, data.data);
         }
@@ -104,8 +104,8 @@ builtins.setup_ws = async function(connections, host) {
 };
 
 builtins.ws_get = async function(ws, key) {
-  var id = ws.id++;
-  var data = JSON.stringify(
+  let id = ws.id++;
+  let data = JSON.stringify(
     {
       key: key,
       id: id,
@@ -114,16 +114,16 @@ builtins.ws_get = async function(ws, key) {
     jsonReplacer
   );
   ws.socket.send(data);
-  var response = await new Promise(function(resolve, reject) {
+  let response = await new Promise(function(resolve, reject) {
     ws.promises[id] = resolve;
   });
-  var type = response.type;
+  let type = response.type;
   if (type == "function") {
     return builtins.lazy(async function(...args) {
       return builtins.ws_call(ws, key, args, {});
     });
   } else if (type == "emitter") {
-    var emitter = new EventEmitter({
+    let emitter = new EventEmitter({
       wildcard: true,
       newListener: false,
       maxListeners: 128
@@ -134,8 +134,8 @@ builtins.ws_get = async function(ws, key) {
 };
 
 builtins.ws_call = async function(ws, fn_name, args, kwargs) {
-  var id = ws.id++;
-  var data = JSON.stringify(
+  let id = ws.id++;
+  let data = JSON.stringify(
     {
       fn_name: fn_name,
       args: args,
@@ -146,7 +146,7 @@ builtins.ws_call = async function(ws, fn_name, args, kwargs) {
     jsonReplacer
   );
   ws.socket.send(data);
-  var response = await new Promise(function(resolve, reject) {
+  let response = await new Promise(function(resolve, reject) {
     ws.promises[id] = resolve;
   });
 
@@ -162,7 +162,7 @@ builtins.ws_call = async function(ws, fn_name, args, kwargs) {
 };
 
 builtins.http_call = async function(url, fn_name, args, kwargs) {
-  var data = JSON.stringify(
+  let data = JSON.stringify(
     {
       fn_name: fn_name,
       args: args,
@@ -171,7 +171,7 @@ builtins.http_call = async function(url, fn_name, args, kwargs) {
     jsonReplacer
   );
 
-  var response = await fetch(`${url}/execute`, {
+  let response = await fetch(`${url}/execute`, {
     method: "POST", // *GET, POST, PUT, DELETE, etc.
     mode: "cors", // no-cors, cors, *same-origin
     cache: "no-cache", // *default, no-cache, reload, force-cache, only-if-cached
@@ -230,15 +230,15 @@ builtins.get_property = async function(obj, prop) {
 builtins.funcall = async function(data, args, func, file, trace) {
   if (func.constructor == Property) {
     // JS compatibility layer?
-    var prop = func.prop;
+    let prop = func.prop;
     func = function(data, ...args) {
       return data[prop].call(data, ...args);
     };
   }
   func = await builtins.assure_async(func);
-  var current_stack = [{ file: file, trace: trace }];
-  var func_call;
-  var handler = e => {
+  let current_stack = [{ file: file, trace: trace }];
+  let func_call;
+  let handler = e => {
     exception_handler(e, { clio_stack: current_stack });
   };
   /*if (!func.is_lazy) {
@@ -252,7 +252,7 @@ builtins.funcall = async function(data, args, func, file, trace) {
     //}
     return await func_call;
   }
-  var AtSigned = false;
+  let AtSigned = false;
   args = args.map(function(arg) {
     if (arg.constructor == Transform) {
       AtSigned = true;
@@ -294,7 +294,7 @@ Object.defineProperty(Array.prototype, "async_map", {
 builtins.map = async function(a, f, stack, ...args) {
   if (f.constructor == Property) {
     // JS compatibility layer?
-    var prop = f.prop;
+    let prop = f.prop;
     f = function(data, ...args) {
       return data[prop].call(data, ...args);
     };
@@ -322,8 +322,8 @@ builtins.map = async function(a, f, stack, ...args) {
           }));
         }*/
   }
-  var fn = async function(d) {
-    var AtSigned = false;
+  let fn = async function(d) {
+    let AtSigned = false;
     _args = args.map(async function(arg) {
       if (arg.constructor == Transform) {
         AtSigned = true;
@@ -357,9 +357,9 @@ builtins.map = async function(a, f, stack, ...args) {
 };
 
 builtins.starmap = async function(a, f, args, file, trace) {
-  var current_stack = [{ file: file, trace: trace }];
+  let current_stack = [{ file: file, trace: trace }];
   if (!args.length) {
-    var r = builtins.map(a, f, current_stack).catch(e => {
+    let r = builtins.map(a, f, current_stack).catch(e => {
       exception_handler(e, { clio_stack: current_stack });
     });
   }
@@ -474,9 +474,9 @@ builtins.length = lazy(async function(a) {
   return a.length;
 });
 
-var chalk = require("chalk");
+let chalk = require("chalk");
 
-var colormap = {
+let colormap = {
   Number: chalk.yellow,
   Range: chalk.cyan,
   Array: chalk.cyan
@@ -485,7 +485,7 @@ var colormap = {
 builtins.string = lazy(async function(object, colorize) {
   object = await object;
   if (object.constructor == Array) {
-    var inner = await Promise.all(object.map(builtins.string));
+    let inner = await Promise.all(object.map(builtins.string));
     inner = await Promise.all(inner);
     return colormap.Array("[" + inner.join(" ") + "]");
   } else if (object.constructor == Number) {
@@ -497,7 +497,7 @@ builtins.string = lazy(async function(object, colorize) {
 });
 
 builtins.print = async function(...args) {
-  var _args = await Promise.all(args.map(a => builtins.string(a, true)));
+  let _args = await Promise.all(args.map(a => builtins.string(a, true)));
   console.log(..._args);
   return args[0];
 };
@@ -508,7 +508,7 @@ builtins.log = async function(...args) {
 };
 
 builtins.flat = lazy(async function(a) {
-  var res = [];
+  let res = [];
   a.forEach(function(_a) {
     _a.forEach(function(__a) {
       res.push(__a);
@@ -522,7 +522,7 @@ builtins.take = lazy(async function(list, n) {
     return list.slice(0, n);
   }
   if (list instanceof Range) {
-    var end = list.start + (n - 1) * list.step;
+    let end = list.start + (n - 1) * list.step;
     end = list.end < end ? list.end : end;
     return new Range(list.start, end, list.step, list.getter);
   }
@@ -589,8 +589,8 @@ builtins["sentence-case"] = lazy(async function(a, b) {
 builtins.eval = expr => expr;
 
 builtins.filter = lazy(async function(array, fn) {
-  var result = [];
-  for (var i = 0; i < array.length; i++) {
+  let result = [];
+  for (let i = 0; i < array.length; i++) {
     if (await fn(array[i])) {
       result.push(array[i]);
     }
@@ -609,7 +609,7 @@ builtins.includes = lazy(async function(array, item) {
 });
 
 builtins.eager = function(fn) {
-  var eager_fn = async function(...args) {
+  let eager_fn = async function(...args) {
     return await fn(...args);
   };
   eager_fn.mmax = 0;
@@ -630,14 +630,14 @@ builtins.timeout = function(fn, time) {
 };
 
 builtins.interval = function(time, fn, ...args) {
-  var i = 0;
+  let i = 0;
   return setInterval(function() {
     fn(i++, ...args);
   }, time);
 };
 
 builtins.emitter = async function(name, maxListeners) {
-  var ee = new EventEmitter({
+  let ee = new EventEmitter({
     wildcard: true,
     newListener: false,
     maxListeners: maxListeners || 128

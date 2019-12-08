@@ -1,5 +1,5 @@
 // TODO: move exceptions to its own file
-var chalk = require("chalk");
+let chalk = require("chalk");
 
 class ClioException extends Error {
   constructor(e, call) {
@@ -14,7 +14,7 @@ class ClioException extends Error {
   }
   print_stack() {
     console.log();
-    var prev = this.prev;
+    let prev = this.prev;
     while (prev && prev.clio_stack) {
       prev.clio_stack.forEach(function(stack) {
         resolve_and_print(
@@ -26,7 +26,7 @@ class ClioException extends Error {
       });
       prev = prev.prev;
     }
-    var message = chalk.red(` Exception: ${this.message}\n`);
+    let message = chalk.red(` Exception: ${this.message}\n`);
     console.log(message);
   }
 }
@@ -39,11 +39,11 @@ function exception_handler(e, call) {
 }
 
 function resolve_and_print(code, file, fn, index) {
-  var all_lines = code.split("\n");
-  var lines = [];
-  var count = 0;
-  var chars_before_line = 0;
-  var line;
+  let all_lines = code.split("\n");
+  let lines = [];
+  let count = 0;
+  let chars_before_line = 0;
+  let line;
   while (count <= index) {
     line = all_lines.shift();
     lines.push(line);
@@ -52,18 +52,18 @@ function resolve_and_print(code, file, fn, index) {
       chars_before_line = count;
     }
   }
-  var last_three_lines = lines.slice(Math.max(lines.length - 3, 0));
-  var chars = lines.reduce(function(memo, line) {
+  let last_three_lines = lines.slice(Math.max(lines.length - 3, 0));
+  let chars = lines.reduce(function(memo, line) {
     return memo + line.length + 1;
   }, 0);
-  var error_at_line = lines.length;
-  var error_at_char = index - chars_before_line;
-  var line_name_len = error_at_line.toString().length;
-  var line_number;
+  let error_at_line = lines.length;
+  let error_at_char = index - chars_before_line;
+  let line_name_len = error_at_line.toString().length;
+  let line_number;
   // prepare styles:
   file = chalk.green(`"${file}"`);
   fn = chalk.magenta.italic(fn);
-  var message = chalk.white(` At file ${file} when calling ${fn}:\n`);
+  let message = chalk.white(` At file ${file} when calling ${fn}:\n`);
   console.log(message);
   while (last_three_lines.length > 0) {
     line = last_three_lines.shift();
@@ -73,7 +73,7 @@ function resolve_and_print(code, file, fn, index) {
     line = chalk.white(`   ${line_number} ${chalk.white("│")} ${line}`);
     console.log(line);
   }
-  var pad = new Array(line_name_len + 6 + error_at_char).join(" ");
+  let pad = new Array(line_name_len + 6 + error_at_char).join(" ");
   error_at_line = chalk.yellow(error_at_line);
   error_at_char = chalk.yellow(error_at_char);
   message = chalk.white(
@@ -84,24 +84,24 @@ function resolve_and_print(code, file, fn, index) {
 }
 
 function throw_error(code, error, index) {
-  var all_lines = code.split("\n");
-  var lines = [];
-  var count = 0;
-  var line;
+  let all_lines = code.split("\n");
+  let lines = [];
+  let count = 0;
+  let line;
   while (count <= index) {
     line = all_lines.shift();
     lines.push(line);
     count += line.length + 1;
   }
-  var last_three_lines = lines.slice(Math.max(lines.length - 3, 0));
-  var chars = lines.reduce(function(memo, line) {
+  let last_three_lines = lines.slice(Math.max(lines.length - 3, 0));
+  let chars = lines.reduce(function(memo, line) {
     return memo + line.length + 1;
   }, 0);
-  var error_at_line = lines.length;
-  var error_at_char =
+  let error_at_line = lines.length;
+  let error_at_char =
     index - (chars - last_three_lines[last_three_lines.length - 1].length) + 1;
-  var line_name_len = error_at_line.toString().length;
-  var line_number;
+  let line_name_len = error_at_line.toString().length;
+  let line_number;
   console.log();
   while (last_three_lines.length > 0) {
     line = last_three_lines.shift();
@@ -109,7 +109,7 @@ function throw_error(code, error, index) {
     line_number = line_number.toString().padStart(line_name_len, " ");
     console.log(`${line_number} │ ${line}`);
   }
-  var pad = new Array(line_name_len + 3 + error_at_char).join(" ");
+  let pad = new Array(line_name_len + 3 + error_at_char).join(" ");
   console.log(
     `${pad} ^ Exception at line ${error_at_line} char ${error_at_char}`
   );

@@ -6,15 +6,15 @@ function parser(contents, tokens, silent, file) {
   if (!file) {
     file = "<undefined>";
   }
-  var ast = [];
-  var match, matched;
-  var res_tokens;
-  var all_matchers = Object.keys(matchers);
+  let ast = [];
+  let match, matched;
+  let res_tokens;
+  let all_matchers = Object.keys(matchers);
   var i = 0;
-  var j = 0;
+  let j = 0;
   while (true) {
     matched = false;
-    var matcher = all_matchers[j];
+    let matcher = all_matchers[j];
     i = 0;
     while (true) {
       res_tokens = undefined;
@@ -42,12 +42,12 @@ function parser(contents, tokens, silent, file) {
     }
     j++;
   }
-  var result = true;
+  let result = true;
   for (var i = 0; i < tokens.length; i++) {
     if (illegals.includes(tokens[i].name)) {
       // TODO: add a distance calculator to detect typos (eg. eilf instead of elif)
       if (!silent) {
-        var stack = {
+        let stack = {
           clio_stack: [
             {
               file: {
@@ -61,7 +61,7 @@ function parser(contents, tokens, silent, file) {
             }
           ]
         };
-        var error = new Error(`Unexpected token '${tokens[i].name}'`);
+        let error = new Error(`Unexpected token '${tokens[i].name}'`);
         throw new ClioException(error, stack);
       }
       result = false;

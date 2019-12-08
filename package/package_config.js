@@ -26,6 +26,7 @@ function get_package_config(
       website: packageConfig.author.website
     },
     keywords: packageConfig.keywords,
+    // eslint-disable-next-line camelcase
     git_repository: packageConfig.git_repository,
     documentation: packageConfig.documentation,
 
@@ -36,7 +37,7 @@ function get_package_config(
   };
 }
 
-function write_package_config(
+function writePackageConfig(
   cfg,
   filePath = path.join(process.cwd(), configFileName)
 ) {
@@ -55,7 +56,7 @@ function addDependency(dep) {
   const depName = dep[0];
   const depVersion = dep[1];
   config.dependencies.push({ name: depName, version: depVersion });
-  write_package_config(config);
+  writePackageConfig(config);
 }
 
 /**
@@ -68,7 +69,7 @@ function getPackageDependencies() {
 
 module.exports = {
   get_package_config,
-  write_package_config,
+  write_package_config: writePackageConfig,
   addDependency,
   getPackageDependencies,
   configFileName

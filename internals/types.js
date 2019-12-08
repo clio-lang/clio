@@ -63,8 +63,8 @@ class Range {
     return this.slicer(this, slicers);
   }
   asArray() {
-    var array = [];
-    var i = 0;
+    let array = [];
+    let i = 0;
     while (i < this.length) {
       array.push(this.get(i));
       i++;

@@ -7,13 +7,13 @@ function analyzer(tree) {
     if (expr.name == "conditional") {
       // special cases like if/else
       // replace last node with return
-      var tokens = expr.tokens.map(make_return);
+      let tokens = expr.tokens.map(make_return);
       expr.tokens = tokens;
       return expr;
     } else if (
       ["if_statement", "elif_statement", "else_statement"].includes(expr.name)
     ) {
-      var block = expr.tokens[expr.tokens.length - 1];
+      let block = expr.tokens[expr.tokens.length - 1];
 
       if (block.name != "block") {
         block = {
@@ -22,8 +22,8 @@ function analyzer(tree) {
         };
       }
 
-      var last_expr = block.tokens[block.tokens.length - 1];
-      var redefined = make_return(last_expr);
+      let last_expr = block.tokens[block.tokens.length - 1];
+      let redefined = make_return(last_expr);
       block.tokens[block.tokens.length - 1] = redefined;
       expr.tokens[expr.tokens.length - 1] = block;
       return expr;
@@ -36,7 +36,7 @@ function analyzer(tree) {
 
   const analyzers = {
     return: function(node) {
-      var code = analyze(node.tokens[0]).code;
+      let code = analyze(node.tokens[0]).code;
       return {
         code: `return ${code}`
       };
@@ -58,8 +58,8 @@ function analyzer(tree) {
       };
     },
     property_access: function(node) {
-      var first = analyze(node.tokens.shift()).code;
-      var last = node.tokens.pop().raw;
+      let first = analyze(node.tokens.shift()).code;
+      let last = node.tokens.pop().raw;
       return {
         code: `(await builtins.get_property(${first}, "${last}"))`
       };
@@ -81,16 +81,16 @@ function analyzer(tree) {
       return { code: `(new builtins.AtSign(${node.tokens[1].raw}))` };
     },
     notexpr: function(node) {
-      var right = analyze(node.tokens[0]).code;
+      let right = analyze(node.tokens[0]).code;
       return {
         code: `(builtins.funcall([${right}], [], builtins.not, file, {index: ${node.index}, fn: '<not>'}))`
       };
     },
     and_or_expr: function(node) {
-      var tokens = analyze(node.tokens);
-      var left = tokens[0].code.replace(/ *;+ *$/, "");
-      var right = tokens[2].code.replace(/ *;+ *$/, "");
-      var cmp = tokens[1];
+      let tokens = analyze(node.tokens);
+      let left = tokens[0].code.replace(/ *;+ *$/, "");
+      let right = tokens[2].code.replace(/ *;+ *$/, "");
+      let cmp = tokens[1];
       return {
         code: `((${left}) ${cmp} (${right}))`
       };
@@ -111,12 +111,12 @@ function analyzer(tree) {
       return "!";
     },
     list: function(node) {
-      var inner = node.tokens
+      let inner = node.tokens
         .map(function(token) {
           return analyze(token).code;
         })
         .join(", ");
-      var list = `[${inner}]`;
+      let list = `[${inner}]`;
       return {
         code: list
       };
@@ -124,14 +124,14 @@ function analyzer(tree) {
     hash_map: function(node) {
       // TODO: for now, we're using native json
       //       however, we need to support clio types
-      var pairs = [];
-      var key, val;
-      for (var i = 0; i < node.tokens.length / 2; i++) {
+      let pairs = [];
+      let key, val;
+      for (let i = 0; i < node.tokens.length / 2; i++) {
         key = analyze(node.tokens[i * 2]);
         val = analyze(node.tokens[i * 2 + 1]);
         pairs.push(`${key.code}: ${val.code}`);
       }
-      var code = pairs.join(", ");
+      let code = pairs.join(", ");
       code = `{${code}}`;
       return {
         code: code
@@ -148,7 +148,7 @@ function analyzer(tree) {
 
       var start = analyze(start).code;
       var end = analyze(end).code;
-      var step = `(${start} < ${end} ? 1 : -1)`;
+      let step = `(${start} < ${end} ? 1 : -1)`;
 
       return {
         code: `new builtins.Range(${start}, ${end}, ${step})`
@@ -171,9 +171,9 @@ function analyzer(tree) {
       };
     },
     slice: function(node) {
-      var list = analyze(node.tokens.shift());
+      let list = analyze(node.tokens.shift());
       var slicers = node.tokens.pop();
-      var index = slicers.index;
+      let index = slicers.index;
       var slicers = slicers.tokens;
       var slicers = analyze(slicers)
         .map(s => s.code)
@@ -186,10 +186,10 @@ function analyzer(tree) {
       return node.raw;
     },
     cmpexpr: function(node) {
-      var tokens = analyze(node.tokens);
-      var left = tokens[0];
-      var right = tokens[2];
-      var cmp = tokens[1];
+      let tokens = analyze(node.tokens);
+      let left = tokens[0];
+      let right = tokens[2];
+      let cmp = tokens[1];
       const funcs = {
         "=": "builtins.eq",
         ">": "builtins.gt",
@@ -197,14 +197,14 @@ function analyzer(tree) {
         "<": "builtins.lt",
         "<=": "builtins.lte"
       };
-      var func = funcs[cmp];
+      let func = funcs[cmp];
       return {
         code: `await builtins.funcall([${left.code}], [${right.code}], ${func}, file, {index: ${node.index}, fn: '${func}'})`
       };
     },
     import_st: function(node) {
-      var names_to_import = node.tokens.slice(0, -1).map(t => t.raw);
-      var from = node.tokens[node.tokens.length - 1].tokens[0];
+      let names_to_import = node.tokens.slice(0, -1).map(t => t.raw);
+      let from = node.tokens[node.tokens.length - 1].tokens[0];
       if (from.name == "url") {
         if (from.raw.startsWith("http")) {
           var code = names_to_import
@@ -215,7 +215,7 @@ function analyzer(tree) {
             })
             .join(";\n");
         } else {
-          var conn = `await builtins.setup_ws(ws_connections, '${from.raw}')`;
+          let conn = `await builtins.setup_ws(ws_connections, '${from.raw}')`;
           // it may not be a function, this should be considered!
           var code = names_to_import
             .map(function(symbol) {
@@ -225,7 +225,7 @@ function analyzer(tree) {
           code = `${conn};${code}`;
         }
       } else {
-        var stringified_names_to_import = names_to_import
+        let stringified_names_to_import = names_to_import
           .map(a => `'${a}'`)
           .join(", ");
         var code = `await builtins.clio_require('${from.raw}', [${stringified_names_to_import}], __dirname, scope)`;
@@ -233,7 +233,7 @@ function analyzer(tree) {
       return { code: code };
     },
     import_nk: function(node) {
-      var imports = node.tokens.map(function(mod) {
+      let imports = node.tokens.map(function(mod) {
         if (mod.name == "property_access") {
           mod.raw = mod.tokens.map(t => t.raw).join(".");
         }
@@ -244,7 +244,7 @@ function analyzer(tree) {
       };
     },
     import_path: function(node) {
-      var imports = node.tokens.map(function(mod) {
+      let imports = node.tokens.map(function(mod) {
         return `await builtins.clio_require('${mod.raw}', [], __dirname, scope)`;
       });
       return {
@@ -264,7 +264,7 @@ function analyzer(tree) {
         name: "block",
         tokens: [node.tokens[2]]
       };
-      var func_code = analyze(node).code;
+      let func_code = analyze(node).code;
       return {
         code: func_code
       };
@@ -272,25 +272,25 @@ function analyzer(tree) {
     inflowfundef: function(node) {
       node.tokens.unshift({ name: "symbol", raw: "" });
       node.name = "fundef";
-      var func_code = analyze(node).code;
+      let func_code = analyze(node).code;
       return {
         type: "inflowfundef",
         code: func_code
       };
     },
     decorated_inflowfundef: function(node) {
-      var block = node.tokens.pop();
-      var arg = node.tokens.pop();
-      var func = analyze({
+      let block = node.tokens.pop();
+      let arg = node.tokens.pop();
+      let func = analyze({
         name: "inflowfundef",
         tokens: [arg, block]
       });
-      var code = func.code;
+      let code = func.code;
       while (node.tokens.length) {
         token = node.tokens.pop().tokens.pop().tokens;
         token.shift(); // shift @
-        var name = analyze(token.shift()).code;
-        var args = analyze(token).map(t => t.code);
+        let name = analyze(token.shift()).code;
+        let args = analyze(token).map(t => t.code);
         args = args.join(", ");
         code = `builtins.decorate_function(${name}, [${args}], ${code}, '', scope)`;
       }
@@ -301,9 +301,9 @@ function analyzer(tree) {
     },
     starinflowfundef: function(node) {
       node.tokens.unshift({ name: "symbol", raw: "" });
-      var fnindex = node.tokens[1].index;
+      let fnindex = node.tokens[1].index;
       node.name = "fundef";
-      var func_code = analyze(node).code;
+      let func_code = analyze(node).code;
       return {
         type: "starinflowfundef",
         code: func_code,
@@ -311,18 +311,18 @@ function analyzer(tree) {
       };
     },
     decorated_starinflowfundef: function(node) {
-      var block = node.tokens.pop();
-      var arg = node.tokens.pop();
-      var func = analyze({
+      let block = node.tokens.pop();
+      let arg = node.tokens.pop();
+      let func = analyze({
         name: "starinflowfundef",
         tokens: [arg, block]
       });
-      var code = func.code;
+      let code = func.code;
       while (node.tokens.length) {
         token = node.tokens.pop().tokens.pop().tokens;
         token.shift(); // shift @
-        var name = analyze(token.shift()).code;
-        var args = analyze(token).map(t => t.code);
+        let name = analyze(token.shift()).code;
+        let args = analyze(token).map(t => t.code);
         args = args.join(", ");
         code = `builtins.decorate_function(${name}, [${args}], ${code}, '', scope)`;
       }
@@ -332,7 +332,7 @@ function analyzer(tree) {
       };
     },
     star_transform: function(node) {
-      var transform = node.tokens[0].tokens[1];
+      let transform = node.tokens[0].tokens[1];
       transform.tokens[0] = { name: "symbol", raw: "" };
       transform.name = "fundef";
       if (transform.tokens[1].name == "atnum_as") {
@@ -348,13 +348,13 @@ function analyzer(tree) {
         name: "block",
         tokens: [transform.tokens[2]]
       };
-      var func_code = analyze(transform).code;
+      let func_code = analyze(transform).code;
       return {
         code: `(new builtins.Transform(${func_code}, ${index}, true))`
       };
     },
     transform: function(node) {
-      var transform = node.tokens[0];
+      let transform = node.tokens[0];
       transform.tokens[0] = { name: "symbol", raw: "" };
       transform.name = "fundef";
       if (transform.tokens[1].name == "atnum_as") {
@@ -368,9 +368,9 @@ function analyzer(tree) {
       }
       if (transform.tokens[2].name == "symbol") {
         // convert to flow
-        var data = transform.tokens[1];
-        var fn = transform.tokens[2];
-        var flow = {
+        let data = transform.tokens[1];
+        let fn = transform.tokens[2];
+        let flow = {
           name: "flow",
           tokens: [data, { name: "naked_mapper", tokens: [fn] }]
         };
@@ -380,27 +380,27 @@ function analyzer(tree) {
         name: "block",
         tokens: [transform.tokens[2]]
       };
-      var func_code = analyze(transform).code;
+      let func_code = analyze(transform).code;
       return {
         code: `(new builtins.Transform(${func_code}, ${index}, false))`
       };
     },
     event: function(node) {
-      var ee = analyze(node.tokens[0]).code;
-      var ev = analyze(node.tokens[1]).code;
+      let ee = analyze(node.tokens[0]).code;
+      let ev = analyze(node.tokens[1]).code;
       return {
         code: `(new builtins.EventListener(${ee}, ${ev}))`
       };
     },
     async_flow: function(node) {
-      var flow = analyze(node.tokens[0]);
+      let flow = analyze(node.tokens[0]);
       flow.code = flow.code.replace(/^await /, "");
       return flow;
     },
     flow: function(node) {
-      var tokens = analyze(node.tokens);
-      var data = [];
-      var function_calls = [
+      let tokens = analyze(node.tokens);
+      let data = [];
+      let function_calls = [
         "setter",
         "mapper",
         "starmapper",
@@ -418,13 +418,13 @@ function analyzer(tree) {
         "fundef",
         "decorated_inflowfundef"
       ]; // fix this list
-      var i = 0;
+      let i = 0;
       while (!function_calls.includes(node.tokens[i++].name)) {
         data.push(tokens.shift());
       }
       data = data.map(d => d.code).join(", ");
-      var code = `...__data`;
-      var variables = [];
+      let code = `...__data`;
+      let variables = [];
       tokens.forEach(function(token) {
         if (token.type == "setter") {
           code = `(await builtins.update_vars(scope, ${token.code}, ${code}))`;
@@ -465,7 +465,7 @@ function analyzer(tree) {
       };
     },
     wrapped_flow: function(node) {
-      var res = analyze(node.tokens[0]);
+      let res = analyze(node.tokens[0]);
       return {
         code: res.code,
         vars: res.vars
@@ -475,7 +475,7 @@ function analyzer(tree) {
       if (node.tokens[0].name == "symbol") {
         var variable = `['${node.tokens[0].raw}']`;
       } else if (node.tokens[0].name == "property_access") {
-        var tokens = node.tokens[0].tokens.map(token => `"${token.raw}"`);
+        let tokens = node.tokens[0].tokens.map(token => `"${token.raw}"`);
         variable = `[${tokens.join(", ")}]`;
       }
       return {
@@ -484,9 +484,9 @@ function analyzer(tree) {
       };
     },
     mapper: function(node) {
-      var func = node.tokens[0];
-      var fn = func.raw;
-      var fnindex = func.index;
+      let func = node.tokens[0];
+      let fn = func.raw;
+      let fnindex = func.index;
       func = analyze(func).code;
       var args = analyze(node.tokens.slice(1)).map(t => t.code);
       var args = `[${args.join(", ")}]`;
@@ -497,15 +497,15 @@ function analyzer(tree) {
       };
     },
     naked_mapper: function(node) {
-      var func = node.tokens[0];
+      let func = node.tokens[0];
       if (func.name == "halfnot") {
         func.raw = "not";
         func.name = "symbol";
       }
-      var fn = func.raw;
-      var fnindex = func.index;
+      let fn = func.raw;
+      let fnindex = func.index;
       func = analyze(func).code;
-      var args = "[]";
+      let args = "[]";
       return {
         code: [func, args],
         fn: fn,
@@ -513,9 +513,9 @@ function analyzer(tree) {
       };
     },
     starmapper: function(node) {
-      var func = node.tokens[0];
-      var fn = func.raw;
-      var fnindex = func.index;
+      let func = node.tokens[0];
+      let fn = func.raw;
+      let fnindex = func.index;
       func = analyze(func).code;
       var args = analyze(node.tokens.slice(1)).map(t => t.code);
       var args = `[${args.join(", ")}]`;
@@ -527,15 +527,15 @@ function analyzer(tree) {
       };
     },
     naked_star_mapper: function(node) {
-      var func = node.tokens[0];
+      let func = node.tokens[0];
       if (func.name == "halfnot") {
         func.raw = "not";
         func.name = "symbol";
       }
-      var fn = func.raw;
-      var fnindex = func.index;
+      let fn = func.raw;
+      let fnindex = func.index;
       func = analyze(func).code;
-      var args = "[]";
+      let args = "[]";
       return {
         code: [func, args],
         type: "map",
@@ -549,13 +549,13 @@ function analyzer(tree) {
       };
     },
     filter: function(node) {
-      var arg = node.tokens[0].raw;
-      var body = node.tokens[1];
-      var block = {
+      let arg = node.tokens[0].raw;
+      let body = node.tokens[1];
+      let block = {
         name: "block",
         tokens: [body]
       };
-      var func = {
+      let func = {
         name: "fundef",
         tokens: [
           { name: "symbol", raw: "" }, // anonymous
@@ -581,22 +581,22 @@ function analyzer(tree) {
         "-": "builtins.dec",
         "%": "builtins.mod"
       };
-      var left = analyze(node.tokens[0].tokens[0]);
-      var op = ops[node.tokens[0].tokens[1].raw];
-      var right = analyze(node.tokens[0].tokens[2]);
+      let left = analyze(node.tokens[0].tokens[0]);
+      let op = ops[node.tokens[0].tokens[1].raw];
+      let right = analyze(node.tokens[0].tokens[2]);
       return {
         code: `builtins.funcall([${left.code}], [${right.code}], ${op}, file, {index: ${node.index}, fn: '${op}'})`,
         vars: (left.vars || []).concat(right.vars || [])
       };
     },
     decorated_fundef: function(node) {
-      var func = analyze(node.tokens.pop());
-      var code = [];
+      let func = analyze(node.tokens.pop());
+      let code = [];
       while (node.tokens.length) {
         token = node.tokens.pop().tokens;
         token.shift(); // shift @
-        var name = analyze(token.shift()).code;
-        var args = analyze(token).map(t => t.code);
+        let name = analyze(token.shift()).code;
+        let args = analyze(token).map(t => t.code);
         args = args.join(", ");
         code.push(
           `builtins.decorate_function(${name}, [${args}], '${func.name}', scope)`
@@ -610,9 +610,9 @@ function analyzer(tree) {
     },
     fundef: function(node) {
       var block = node.tokens.pop().tokens;
-      var implicit_return = make_return(block.pop());
+      let implicit_return = make_return(block.pop());
       block.push(implicit_return);
-      var block_vars = [];
+      let block_vars = [];
       var block = analyze(block)
         .map(function(t) {
           if (t.vars) {
@@ -621,9 +621,9 @@ function analyzer(tree) {
           return t.code;
         })
         .join(";\n");
-      var name = node.tokens.shift().raw;
-      var args = node.tokens.map(t => t.raw).join(", ");
-      var arg_names = node.tokens.map(t => `'${t.raw}'`).join(", ");
+      let name = node.tokens.shift().raw;
+      let args = node.tokens.map(t => t.raw).join(", ");
+      let arg_names = node.tokens.map(t => `'${t.raw}'`).join(", ");
       if (name == "") {
         return {
           code: `(function (scope) {
@@ -671,9 +671,9 @@ function analyzer(tree) {
       };
     },
     condmapper: function(node) {
-      var conditional = node.tokens[0];
-      var tokens = conditional.tokens;
-      var else_statement;
+      let conditional = node.tokens[0];
+      let tokens = conditional.tokens;
+      let else_statement;
       if (tokens[tokens.length - 1].name == "else_block") {
         else_statement = tokens.pop();
       }
@@ -732,7 +732,7 @@ function analyzer(tree) {
         tokens.push(else_statement);
       }
 
-      var fun_def = {
+      let fun_def = {
         name: "fundef",
         tokens: [
           { name: "symbol", raw: "" }, // function name, this is anonymous
@@ -749,7 +749,7 @@ function analyzer(tree) {
         ]
       };
 
-      var code = analyze(fun_def).code;
+      let code = analyze(fun_def).code;
       return {
         code: `(${code})`,
         type: "condmapper"
@@ -757,13 +757,13 @@ function analyzer(tree) {
     },
     starcondmapper: function(node) {
       node.name = "condmapper";
-      var result = analyze(node);
+      let result = analyze(node);
       result.type = "starcondmapper";
       return result;
     },
     conditional: function(node) {
-      var block_vars = [];
-      var code = node.tokens
+      let block_vars = [];
+      let code = node.tokens
         .map(analyze)
         .map(function(t) {
           if (t.vars) {
@@ -778,15 +778,15 @@ function analyzer(tree) {
       };
     },
     if_statement: function(node) {
-      var variables = [];
-      var condition = analyze(node.tokens[0]);
+      let variables = [];
+      let condition = analyze(node.tokens[0]);
       if (node.tokens[1].name != "block") {
         node.tokens[1] = {
           name: "block",
           tokens: [node.tokens[1]]
         };
       }
-      var block = node.tokens[1].tokens
+      let block = node.tokens[1].tokens
         .map(analyze)
         .map(function(t) {
           if (t.vars) {
@@ -805,7 +805,7 @@ function analyzer(tree) {
     },
     elif_statement: function(node) {
       node.name = "if_statement";
-      var result = analyze(node);
+      let result = analyze(node);
       result.code = `else ${result.code}`;
       return result;
     },
@@ -817,7 +817,7 @@ function analyzer(tree) {
         };
       }
       block_vars = [];
-      var block = analyze(node.tokens[0].tokens)
+      let block = analyze(node.tokens[0].tokens)
         .map(function(t) {
           if (t.vars) {
             t.vars.forEach(v => block_vars.push(v));
@@ -835,7 +835,7 @@ function analyzer(tree) {
   function analyze(tree) {
     if (tree.constructor === Array) {
       var result = tree.map(function(node) {
-        var result = analyzers[node.name](node);
+        let result = analyzers[node.name](node);
         result.index = result.index || node.index;
         return result;
       });
@@ -847,7 +847,7 @@ function analyzer(tree) {
   }
 
   tree = analyze(tree);
-  var variables = [];
+  let variables = [];
   tree.forEach(function(t) {
     if (t.vars) {
       t.vars.forEach(function(v) {

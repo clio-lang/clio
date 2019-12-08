@@ -49,7 +49,7 @@ async function process_file(argv) {
     const clio_host = require("./host/host");
     try {
       if (!path.isAbsolute(argv.source)) {
-        var cwd = process.cwd();
+        let cwd = process.cwd();
         var file = path.join(cwd, argv.source);
       }
       var file_dir = path.dirname(file);
@@ -75,7 +75,7 @@ async function process_file(argv) {
       return console.log(highlight(contents));
     }
 
-    var tokens = lexer(contents);
+    let tokens = lexer(contents);
     if (tokens[0] == false) {
       return;
     }
@@ -85,12 +85,12 @@ async function process_file(argv) {
     } catch (e) {
       return e.exit ? e.exit() : console.log(e);
     }
-    var ast = result[1];
+    let ast = result[1];
     if (argv.command == "ast") {
       return print_ast(ast);
     }
     ast.pop(); // eof
-    var code = beautify(analyzer(ast, contents));
+    let code = beautify(analyzer(ast, contents));
 
     if (argv.command == "compile") {
       write_file(code, argv.destination);

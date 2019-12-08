@@ -4,7 +4,7 @@ const parser = require("./parser/parser");
 const analyzer = require("./evaluator/analyzer");
 const { clio_require_browser } = require("./internals/import");
 
-var builtins = require("./internals/builtins");
+let builtins = require("./internals/builtins");
 // setup builtins for browser usage
 builtins.clio_require = clio_require_browser;
 
@@ -44,12 +44,12 @@ function print_ast(ast, printfn) {
 }
 
 function compile(source) {
-  var tokens = lexer(source)[1];
-  var ast = parser(source, tokens)[1];
+  let tokens = lexer(source)[1];
+  let ast = parser(source, tokens)[1];
   if (ast[ast.length - 1].name == "eof") {
     ast.pop();
   }
-  var code = analyzer(ast, source);
+  let code = analyzer(ast, source);
   return code;
 }
 
@@ -60,15 +60,15 @@ async function clio_process_source(source, out, info, printfn, __dirname) {
       .replace(/#.*/, "") // remove #id
       .replace(/[^/]+\.[^/]+$/, ""); //remove filename
   }
-  var tokens = lexer(source);
+  let tokens = lexer(source);
   if (tokens[0] == false) {
     return;
   }
   tokens = tokens[1];
-  var t1 = new Date().getTime();
-  var result = parser(source, tokens);
-  var t2 = new Date().getTime();
-  var ast = result[1];
+  let t1 = new Date().getTime();
+  let result = parser(source, tokens);
+  let t2 = new Date().getTime();
+  let ast = result[1];
   if (out == "ast") {
     if (info) {
       printfn(`Ast time: ${(t2 - t1) / 1000}s`);
@@ -76,8 +76,8 @@ async function clio_process_source(source, out, info, printfn, __dirname) {
     print_ast(ast, printfn);
   } else {
     ast.pop(); // eof
-    var code = analyzer(ast, source);
-    var t3 = new Date().getTime();
+    let code = analyzer(ast, source);
+    let t3 = new Date().getTime();
     if (out == "run") {
       builtins.print = async function(...args) {
         var args = await Promise.all(
@@ -86,12 +86,12 @@ async function clio_process_source(source, out, info, printfn, __dirname) {
         printfn(...args);
         return args[0];
       };
-      var module = {};
+      let module = {};
       eval(code);
       // TODO: fix file arg for browser
       await module.exports({}, window.clio.builtins);
     }
-    var t4 = new Date().getTime();
+    let t4 = new Date().getTime();
     if (info) {
       setTimeout(function() {
         printfn();
@@ -110,7 +110,7 @@ function process_scripts(options) {
   }
   document.addEventListener("DOMContentLoaded", function() {
     document.querySelectorAll('script[type="text/clio"]').forEach(function(el) {
-      var source = el.innerHTML;
+      let source = el.innerHTML;
       clio_process_source(source, "run", false, console.log, options.__dirname);
     });
   });

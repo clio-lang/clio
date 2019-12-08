@@ -5,7 +5,7 @@ del.sync("tests/.clio-cache/*");
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require("websocket").w3cwebsocket; // same for WebSocket
-var clio_tests = clio_import("tests/test.clio");
+let clio_tests = clio_import("tests/test.clio");
 
 beforeAll(async () => {
   clio_tests = await clio_tests;
@@ -40,8 +40,8 @@ test("a -> add 1 -> mul 2 -> pow 3", async () => {
 });
 
 test("expect fib of list to be same as range", async () => {
-  var fib_of_list = await Promise.all(await clio_tests.fib_of_list);
-  var fib_of_range = await Promise.all(
+  let fib_of_list = await Promise.all(await clio_tests.fib_of_list);
+  let fib_of_range = await Promise.all(
     (await clio_tests.fib_of_range).asArray()
   );
   expect(fib_of_list).toEqual(fib_of_range);
@@ -84,8 +84,8 @@ test("positional arguments", async () => {
 });
 
 test("event emitter", async () => {
-  var emitter = await clio_tests.ee;
-  var emit = await clio_tests.emit_message;
+  let emitter = await clio_tests.ee;
+  let emit = await clio_tests.emit_message;
   expect(
     await new Promise(function(resolve, reject) {
       emitter.on("message", resolve);
@@ -103,7 +103,7 @@ test("list slicing", async () => {
 });
 
 test("eager map", async () => {
-  var eager_map = await clio_tests.eager_map;
+  let eager_map = await clio_tests.eager_map;
   eager_map = eager_map.asArray();
   eager_map = await Promise.all(eager_map);
   expect(eager_map).toEqual([0, 2, 4, 6, 8]);
@@ -122,8 +122,8 @@ test("test equity", async () => {
 });
 
 afterAll(async () => {
-  var ws_connections = clio_tests.clio_ws_connections;
-  for (var server in ws_connections) {
+  let ws_connections = clio_tests.clio_ws_connections;
+  for (let server in ws_connections) {
     if (ws_connections.hasOwnProperty(server)) {
       if (Object.keys(ws_connections[server].emitters).length == 0) {
         ws_connections[server].socket.close();

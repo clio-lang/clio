@@ -1,12 +1,12 @@
 const chalk = require("chalk");
 
 function highlight(text) {
-  var patterns = [
+  let patterns = [
     {
       pattern: /^fn +[a-z_][a-z_0-9]*/i,
       action: function(match, colorized) {
-        var name = match.slice(2).trim(" ");
-        var spaces = match.length - name.length - 2;
+        let name = match.slice(2).trim(" ");
+        let spaces = match.length - name.length - 2;
         colorized.push(chalk.magenta("fn"));
         colorized.push(chalk.white(" ".repeat(spaces)));
         colorized.push(chalk.blue(name));
@@ -15,8 +15,8 @@ function highlight(text) {
     {
       pattern: /^type +[a-z_][a-z_0-9]*/i,
       action: function(match, colorized) {
-        var name = match.slice(4).trim(" ");
-        var spaces = match.length - name.length - 4;
+        let name = match.slice(4).trim(" ");
+        let spaces = match.length - name.length - 4;
         colorized.push(chalk.magenta("type"));
         colorized.push(chalk.white(" ".repeat(spaces)));
         colorized.push(chalk.blue(name));
@@ -29,8 +29,8 @@ function highlight(text) {
     {
       pattern: /^[-=]> +[a-z_][a-z_0-9]*/i,
       action: function(match, colorized) {
-        var name = match.slice(2).trim(" ");
-        var spaces = match.length - name.length - 2;
+        let name = match.slice(2).trim(" ");
+        let spaces = match.length - name.length - 2;
         colorized.push(chalk.magenta(match.slice(0, 2)));
         colorized.push(chalk.white(" ".repeat(spaces)));
         colorized.push(chalk.blue(name));
@@ -39,9 +39,9 @@ function highlight(text) {
     {
       pattern: /^-> *\* *[a-z_][a-z_0-9]*/i,
       action: function(match, colorized) {
-        var name = match.match(/[a-z_][a-z_0-9]*/)[0];
-        var operator = match.match(/-> *\*/)[0];
-        var spaces = match.length - name.length - operator.length;
+        let name = match.match(/[a-z_][a-z_0-9]*/)[0];
+        let operator = match.match(/-> *\*/)[0];
+        let spaces = match.length - name.length - operator.length;
         colorized.push(chalk.magenta(operator));
         colorized.push(chalk.white(" ".repeat(spaces)));
         colorized.push(chalk.blue(name));
@@ -67,11 +67,11 @@ function highlight(text) {
     { color: chalk.white, pattern: /^(\r\n|[\r\n])/ },
     { color: chalk.white, pattern: /\s+/ }
   ];
-  var colorized = [];
-  var i = 0;
+  let colorized = [];
+  let i = 0;
   while (i <= text.length) {
-    for (var j = 0; j < patterns.length; j++) {
-      var match = text.slice(i).match(patterns[j].pattern);
+    for (let j = 0; j < patterns.length; j++) {
+      let match = text.slice(i).match(patterns[j].pattern);
       if (match != null) {
         if (patterns[j].action != undefined) {
           patterns[j].action(match[0], colorized);

@@ -2,13 +2,13 @@ const patterns = require("../syntax/lexing");
 const throw_error = require("../common").throw_error;
 
 function lexer(string) {
-  var tokens = [];
-  var pattern, match, imatch, matched, _i, raw;
-  var i = 0;
-  var indents = [0];
+  let tokens = [];
+  let pattern, match, imatch, matched, _i, raw;
+  let i = 0;
+  let indents = [0];
   while (i < string.length) {
     matched = false;
-    for (var name in patterns) {
+    for (let name in patterns) {
       if (patterns.hasOwnProperty(name)) {
         pattern = patterns[name];
         match = string.slice(i).match(pattern);
@@ -27,7 +27,7 @@ function lexer(string) {
           } else if (name == "emptyline") {
             // so, we should check if this is an emptyline AND dedent, or just an emptyline
             // also, emptylines ARE new lines -_-
-            var indent_after = string.slice(i + raw.length).match(patterns._);
+            let indent_after = string.slice(i + raw.length).match(patterns._);
             if (indent_after == null) {
               indent_after = 0;
             } else {
