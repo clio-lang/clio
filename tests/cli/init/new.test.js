@@ -10,6 +10,7 @@ test("Create a package", () => {
     .ls()
     .toString()
     .split(",");
+  console.debug(files);
   expect(files.includes("cliopkg.toml")).toBe(true);
   expect(files.includes("clio_env")).toBe(true);
 });
