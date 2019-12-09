@@ -25,28 +25,6 @@ jobs:
           npm test
         env:
           CI: true
-  test-windows:
-    runs-on: windows-latest
-
-    strategy:
-      matrix:
-        node-version: [10.x, 11.x, 12.x]
-
-    steps:
-      - uses: actions/checkout@v1
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v1
-        with:
-          node-version: ${{ matrix.node-version }}
-      - name: npm install & test
-        run: |
-          npm ci
-          npm link
-          clio host tests/test.host.clio &
-          ping -n 10 localhost
-          npm test
-        env:
-          CI: true
   lint:
     runs-on: [ubuntu-latest]
 
