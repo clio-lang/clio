@@ -54,9 +54,6 @@ async function processFile(argv) {
       return e.exit ? e.exit() : console.log(e);
     }
     let ast = result[1];
-    if (argv.command == "ast") {
-      return print_ast(ast);
-    }
     ast.pop(); // eof
     let code = beautify(analyzer(ast, contents));
 
