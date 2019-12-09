@@ -5,17 +5,12 @@ const fs = require("fs");
 const printAst = require("./misc/ast");
 const lexer = require("../lexer/lexer");
 const parser = require("../parser/parser");
-const analyzer = require("../evaluator/analyzer");
-const beautify = require("js-beautify").js;
 const highlight = require("./highlight");
 const run = require("./run");
+const compile = require("./compile");
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require("websocket").w3cwebsocket; // same for WebSocket
-
-function writeFile(source, path) {
-  fs.writeFileSync(path, source);
-}
 
 async function processFile(argv) {
   // eslint-disable-next-line camelcase
@@ -41,26 +36,6 @@ async function processFile(argv) {
     }
     return clio_host(_module, file_dir);
   }
-
-  fs.readFile(argv.source, "utf8", function(err, contents) {
-    let tokens = lexer(contents);
-    if (tokens[0] == false) {
-      return;
-    }
-    tokens = tokens[1];
-    try {
-      var result = parser(contents, tokens, false, argv.source);
-    } catch (e) {
-      return e.exit ? e.exit() : console.log(e);
-    }
-    let ast = result[1];
-    ast.pop(); // eof
-    let code = beautify(analyzer(ast, contents));
-
-    if (argv.command == "compile") {
-      writeFile(code, argv.destination);
-    }
-  });
 }
 
 require("yargs")
@@ -208,7 +183,7 @@ require("yargs")
         });
     },
     argv => {
-      processFile(argv);
+      compile(argv.source, argv.destination);
     }
   )
   .demandCommand(1, "must provide a valid command")

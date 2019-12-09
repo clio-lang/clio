@@ -1,7 +1,7 @@
 const shell = require("shelljs");
 const tmp = require("tmp");
 
-test("Create a package", () => {
+test("Highlight a file", () => {
   const dir = tmp.dirSync();
   shell.cd(dir.name);
   shell.exec("clio new testproj");
