@@ -7,7 +7,7 @@ const lexer = require("../lexer/lexer");
 const parser = require("../parser/parser");
 const analyzer = require("../evaluator/analyzer");
 const beautify = require("js-beautify").js;
-const highlight = require("../highlight");
+const highlight = require("./highlight");
 const run = require("./run");
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
@@ -43,11 +43,6 @@ async function processFile(argv) {
   }
 
   fs.readFile(argv.source, "utf8", function(err, contents) {
-    if (argv.command == "highlight") {
-      console.log();
-      return console.log(highlight(contents));
-    }
-
     let tokens = lexer(contents);
     if (tokens[0] == false) {
       return;
@@ -108,7 +103,10 @@ require("yargs")
       });
     },
     argv => {
-      processFile(argv);
+      fs.readFile(argv.source, "utf8", (err, contents) => {
+        if (err) console.trace(err);
+        console.log(highlight(contents));
+      });
     }
   )
   .command(
