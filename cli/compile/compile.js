@@ -15,7 +15,7 @@ function compile(source, dest) {
       const result = parser(contents, tokens, false, source);
       let ast = result[1];
       ast.pop(); // eof
-      let code = beautify(analyzer(ast, contents));
+      let code = beautify(analyzer(ast));
 
       writeFile(code, dest);
     } catch (e) {
