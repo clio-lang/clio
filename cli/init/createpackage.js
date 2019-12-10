@@ -1,6 +1,6 @@
 const shell = require("shelljs");
-const packageConfig = require("../package/packageConfig");
-const { getDependencies } = require("../internals/deps");
+const packageConfig = require("../../package/packageConfig");
+const { getDependencies } = require("../../internals/deps");
 
 function createPackage(packageName) {
   if (!shell.which("git")) {
