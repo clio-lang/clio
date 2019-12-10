@@ -10,35 +10,10 @@ const highlight = require("./highlight");
 const run = require("./run");
 const compile = require("./compile");
 const { initPackage } = require("./init/pkginit");
+const host = require("./host");
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require("websocket").w3cwebsocket; // same for WebSocket
-
-async function processFile(argv) {
-  // eslint-disable-next-line camelcase
-  process.env.clio_root = __dirname;
-  argv.command = argv._[0];
-
-  const { clioImport } = require("../internals/import");
-
-  if (argv.command == "host") {
-    const path = require("path");
-    const clio_host = require("../host/host");
-    try {
-      if (!path.isAbsolute(argv.source)) {
-        let cwd = process.cwd();
-        var file = path.join(cwd, argv.source);
-      }
-      var file_dir = path.dirname(file);
-      global.__basedir = file_dir;
-
-      var _module = clioImport(argv.source);
-    } catch (e) {
-      return e.exit ? e.exit() : console.log(e);
-    }
-    return clio_host(_module, file_dir);
-  }
-}
 
 require("yargs")
   .command(
@@ -64,7 +39,7 @@ require("yargs")
       });
     },
     argv => {
-      processFile(argv);
+      host(argv.source);
     }
   )
   .command(
