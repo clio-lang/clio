@@ -12,15 +12,15 @@ function compile(source, dest) {
     }
     tokens = tokens[1];
     try {
-      var result = parser(contents, tokens, false, source);
+      const result = parser(contents, tokens, false, source);
+      let ast = result[1];
+      ast.pop(); // eof
+      let code = beautify(analyzer(ast, contents));
+
+      writeFile(code, dest);
     } catch (e) {
       return e.exit ? e.exit() : console.log(e);
     }
-    let ast = result[1];
-    ast.pop(); // eof
-    let code = beautify(analyzer(ast, contents));
-
-    writeFile(code, dest);
   });
 }
 

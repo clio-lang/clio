@@ -31,10 +31,11 @@ async function initPackage(skipPrompt = false, packageName) {
     );
   }
 
-  let pkg;
-  let ok = true;
+  let pkg = {};
+  let ok = false;
 
   if (skipPrompt) {
+    ok = true;
     pkg = {
       title: packageName,
       description: "",
