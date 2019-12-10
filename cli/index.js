@@ -2,12 +2,14 @@
 
 const createPackage = require("./init/createpackage");
 const fs = require("fs");
+const path = require("path");
 const printAst = require("./misc/ast");
 const lexer = require("../lexer/lexer");
 const parser = require("../parser/parser");
 const highlight = require("./highlight");
 const run = require("./run");
 const compile = require("./compile");
+const { initPackage } = require("./init/pkginit");
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require("websocket").w3cwebsocket; // same for WebSocket
@@ -105,12 +107,18 @@ require("yargs")
     }
   )
   .command(
-    "init",
+    "init [args]",
     "Generate a package.json and fetch stdlib",
-    () => {},
-    () => {
-      const { initPackage } = require("../internals/helpers/pkginit");
-      initPackage();
+    yargs => {
+      yargs.positional("y", {
+        type: "boolean",
+        default: "false"
+      });
+    },
+    argv => {
+      console.log("cwd:", process.cwd());
+      console.log("argv:", argv);
+      initPackage(argv.y, path.dirname(process.cwd()));
     }
   )
   .command(
@@ -149,7 +157,7 @@ require("yargs")
         type: "string"
       });
     },
-    _ => {
+    () => {
       const { showDependencies } = require("../internals/deps");
       showDependencies();
     }
@@ -163,7 +171,7 @@ require("yargs")
         type: "string"
       });
     },
-    _ => {
+    () => {
       const { getDependencies } = require("../internals/deps");
       getDependencies();
     }
