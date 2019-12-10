@@ -6,7 +6,8 @@
   "scripts": {
     "lint:check": "prettier --check ./**/*.js && eslint .",
     "lint:fix": "prettier --write ./**/*.js",
-    "test": "jest --collect-coverage"
+    "test": "jest --collect-coverage",
+    "test:setup": "clio host tests/test.host.clio"
   },
   "pre-commit": [
     "lint:check"
