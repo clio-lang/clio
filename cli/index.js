@@ -7,32 +7,15 @@ const printAst = require("./misc/ast");
 const lexer = require("../lexer/lexer");
 const parser = require("../parser/parser");
 const highlight = require("./highlight");
-const run = require("./run");
 const compile = require("./compile");
 const { initPackage } = require("./init/pkginit");
 const host = require("./host");
-const packageConfig = require("../package/packageConfig");
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require("websocket").w3cwebsocket; // same for WebSocket
 
 require("yargs")
-  .command(
-    "run [source]",
-    "Compile and run Clio file",
-    yargs => {
-      yargs.positional("source", {
-        describe: "source file to run",
-        type: "string",
-        default: packageConfig.getPackageConfig().main
-      });
-    },
-    argv => {
-      if (argv.source) {
-        run(argv.source);
-      }
-    }
-  )
+  .commandDir("commands")
   .command(
     "host <source>",
     "Host a Clio file",
