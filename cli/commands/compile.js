@@ -4,6 +4,22 @@ const parser = require("../../parser/parser");
 const beautify = require("js-beautify").js;
 const analyzer = require("../../evaluator/analyzer");
 
+exports.command = "compile <source> <destination>";
+exports.desc = "Compile a Clio file";
+exports.builder = {
+  source: {
+    describe: "source file to compile",
+    type: "string"
+  },
+  destination: {
+    describe: "destination file to write to",
+    type: "string"
+  }
+};
+exports.handler = function(argv) {
+  compile(argv.source, argv.destination);
+};
+
 function compile(source, dest) {
   fs.readFile(source, "utf8", function(err, contents) {
     let tokens = lexer(contents);
@@ -27,5 +43,3 @@ function compile(source, dest) {
 function writeFile(source, path) {
   fs.writeFileSync(path, source);
 }
-
-module.exports = compile;
