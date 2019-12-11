@@ -1,11 +1,7 @@
 #!/usr/bin/env node
 
 const createPackage = require("./init/createpackage");
-const fs = require("fs");
 const path = require("path");
-const printAst = require("./misc/ast");
-const lexer = require("../lexer/lexer");
-const parser = require("../parser/parser");
 const compile = require("./compile");
 const { initPackage } = require("./init/pkginit");
 
@@ -14,29 +10,6 @@ global.WebSocket = require("websocket").w3cwebsocket; // same for WebSocket
 
 require("yargs")
   .commandDir("commands")
-  .command(
-    "ast <source>",
-    "Print ast for a Clio file",
-    yargs => {
-      yargs.positional("source", {
-        describe: "source file to analyze",
-        type: "string"
-      });
-    },
-    argv => {
-      fs.readFile(argv.source, "utf8", (err, contents) => {
-        if (err) console.trace(err);
-        let tokens = lexer(contents);
-        if (tokens[0] == false) {
-          return;
-        }
-        tokens = tokens[1];
-        const result = parser(contents, tokens, false, argv.source);
-        let ast = result[1];
-        printAst(ast);
-      });
-    }
-  )
   .command(
     "init [args]",
     "Generate a package.json and fetch stdlib",
