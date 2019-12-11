@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-const compile = require("./compile");
-
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require("websocket").w3cwebsocket; // same for WebSocket
 
@@ -47,24 +45,6 @@ require("yargs")
     () => {
       const { getDependencies } = require("../internals/deps");
       getDependencies();
-    }
-  )
-  .command(
-    "compile <source> <destination>",
-    "Compile a Clio file",
-    yargs => {
-      yargs
-        .positional("source", {
-          describe: "source file to compile",
-          type: "string"
-        })
-        .positional("destination", {
-          describe: "destination file to write to",
-          type: "string"
-        });
-    },
-    argv => {
-      compile(argv.source, argv.destination);
     }
   )
   .demandCommand(1, "must provide a valid command")
