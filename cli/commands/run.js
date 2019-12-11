@@ -1,5 +1,5 @@
 const packageConfig = require("../../package/packageConfig");
-const run = require("../run");
+const { clioImport } = require("../../internals/import");
 
 exports.command = "run [source]";
 
@@ -9,12 +9,24 @@ exports.builder = {
   source: {
     describe: "source file to run",
     type: "string",
-    default: packageConfig.getPackageConfig().main
+    default: (() => {
+      // Config file is not available when running tests. This wrapper catches filenotfound exception in these cases
+      try {
+        return packageConfig.getPackageConfig().main;
+      } catch (e) {
+        console.log(
+          "cliopkg.toml not found. Is it missing, or are you running tests?"
+        );
+        return "";
+      }
+    })()
   }
 };
 
 exports.handler = argv => {
-  if (argv.source) {
-    run(argv.source);
-  }
+  run(argv.source);
 };
+
+function run(path) {
+  clioImport(path, true).catch(e => (e.exit ? e.exit() : console.log(e)));
+}
