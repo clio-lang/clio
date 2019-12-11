@@ -18,7 +18,7 @@ function showDependencies() {
 
   const deps = packageConfig.getPackageDependencies();
   const formattedDeps = deps
-    .map(dep => `~> ${dep[name]}: ${dep[version]}`)
+    .map(dep => `~> ${dep["name"]}: ${dep["version"]}`)
     .join("\n");
   console.log(formattedDeps);
 }
