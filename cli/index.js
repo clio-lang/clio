@@ -5,5 +5,7 @@ global.WebSocket = require("websocket").w3cwebsocket; // same for WebSocket
 
 require("yargs")
   .commandDir("commands")
+  .help()
+  .alias("h", "help")
   .demandCommand(1, "must provide a valid command")
   .completion().argv;
