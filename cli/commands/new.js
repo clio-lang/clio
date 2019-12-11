@@ -2,6 +2,18 @@ const shell = require("shelljs");
 const packageConfig = require("../../package/packageConfig");
 const { getDependencies } = require("../../internals/deps");
 
+exports.command = "new <project>";
+exports.desc = "Create a new Clio project";
+exports.builder = {
+  project: {
+    describe: "name of the project",
+    type: "string"
+  }
+};
+exports.handler = function(argv) {
+  createPackage(argv.project);
+};
+
 function createPackage(packageName) {
   if (!shell.which("git")) {
     shell.echo("Sorry, this script requires git");
@@ -40,5 +52,3 @@ function createPackage(packageName) {
     `Run 'cd ${packageName}' to open, then 'clio run index.clio' to run the project!`
   );
 }
-
-module.exports = createPackage;

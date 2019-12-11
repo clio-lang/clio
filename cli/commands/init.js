@@ -1,15 +1,20 @@
-const fs = require("fs");
 const path = require("path");
+const fs = require("fs");
 const readline = require("readline");
 const { getDependencies } = require("../../internals/deps");
 const { writePackageConfig } = require("../../package/packageConfig");
 
-/**
- * @method initPackage
- * @param void
- * @returns {Promise}
- * @description creates new Package.json file and installs it.
- */
+exports.command = "init [args]";
+exports.desc = "Generate a cliopkg.toml file and fetch stdlib";
+exports.builder = {
+  y: {
+    type: "boolean",
+    default: "false"
+  }
+};
+exports.handler = function(argv) {
+  initPackage(argv.y, path.dirname(process.cwd()));
+};
 
 async function initPackage(skipPrompt = false, packageName) {
   const cwd = process.cwd();
@@ -92,7 +97,3 @@ async function initPackage(skipPrompt = false, packageName) {
     return initPackage(false, packageName);
   }
 }
-
-module.exports = {
-  initPackage
-};

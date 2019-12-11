@@ -1,43 +1,12 @@
 #!/usr/bin/env node
 
-const createPackage = require("./init/createpackage");
-const path = require("path");
 const compile = require("./compile");
-const { initPackage } = require("./init/pkginit");
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require("websocket").w3cwebsocket; // same for WebSocket
 
 require("yargs")
   .commandDir("commands")
-  .command(
-    "init [args]",
-    "Generate a package.json and fetch stdlib",
-    yargs => {
-      yargs.positional("y", {
-        type: "boolean",
-        default: "false"
-      });
-    },
-    argv => {
-      console.log("cwd:", process.cwd());
-      console.log("argv:", argv);
-      initPackage(argv.y, path.dirname(process.cwd()));
-    }
-  )
-  .command(
-    "new <project>",
-    "Create a new Clio project",
-    yargs => {
-      yargs.positional("project", {
-        describe: "name of the project",
-        type: "string"
-      });
-    },
-    argv => {
-      createPackage(argv.project);
-    }
-  )
   .command(
     "get <url>",
     "Download and install a Clio module",
