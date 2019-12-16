@@ -37,8 +37,8 @@ Currently we need help with:
 
 To keep the looks of our source code unified, we have a few requirements regarding your code contributions:
 
-* Commits must conform to the (prettier.io)[https://prettier.io/] linting styles. (Use Prettier plugin when developing with Visual Studio Code)
-* Use `snake_case` for functions, variables and methods, `PascalCase` for classes, and `SCREAMING_SNAKE_CASE` for globals.
+* Commits must conform to the [prettier.io](https://prettier.io/) linting styles. Before committing, format your code using the prettier plugin for your editor, or run `npm run lint:fix` to make sure your code complies to our style guidelines. 
+* Use `camelCase` for functions, variables and methods, `PascalCase` for classes, and `SCREAMING_SNAKE_CASE` for globals.
 
 You can get more ideas by reading our code.
 
