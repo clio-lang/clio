@@ -2,6 +2,9 @@ const fs = require("fs");
 const path = require("path");
 const builtins = require("./builtins");
 
+// Hacky solution to fix hoisted vars. Should be fixed with refactor or rewrite.
+let clioModule = {};
+
 function writeFile(source, path) {
   fs.writeFileSync(path, source);
 }
@@ -44,11 +47,11 @@ async function clioRequireBrowser(
     eval(source);
     if (namesToImport.length == 0) {
       // import all
-      const clioModule = {};
+      clioModule = {};
       moduleName = moduleName.replace(/.js$/, "").replace(/.*?\/+/, "");
       clioModule[moduleName] = module.exports || exports;
     } else {
-      const clioModule = {};
+      clioModule = {};
       namesToImport.forEach(function(name) {
         clioModule[name] = module.exports[name] || exports[name];
       });
@@ -80,7 +83,7 @@ async function clioRequireBrowser(
     // TODO: fix file arg for browser
     var mod = {};
     await module.exports(mod, window.clio.builtins);
-    var clioModule = {};
+    clioModule = {};
     if (namesToImport.length == 0) {
       // import all
       var moduleName = moduleName.replace(/\.clio/, "").replace(/.*?\/+/, "");
@@ -121,7 +124,7 @@ async function clioRequire(moduleName, namesToImport, currentDir, scope) {
 
   if (moduleName.endsWith(".js")) {
     const mod = require(path.join(currentDir, moduleName));
-    let clioModule = {};
+    clioModule = {};
     if (namesToImport.length == 0) {
       // import all
       moduleName = moduleName.replace(/\.js$/, "").replace(/.*?\/+/, "");
@@ -151,11 +154,11 @@ async function clioRequire(moduleName, namesToImport, currentDir, scope) {
       const mod = await clioImport(module_path);
       if (namesToImport.length == 0) {
         // import all
-        const clioModule = {};
+        clioModule = {};
         moduleName = moduleName.replace(/\.clio/, "").replace(/.*?\/+/, "");
         clioModule[moduleName] = mod;
       } else {
-        const clioModule = {};
+        clioModule = {};
         namesToImport.forEach(function(name) {
           clioModule[name] = mod[name];
         });
@@ -203,11 +206,11 @@ async function clioRequire(moduleName, namesToImport, currentDir, scope) {
       const mod = await clioImport(module_path);
       if (namesToImport.length == 0) {
         // import all
-        const clioModule = {};
+        clioModule = {};
         moduleName = moduleName.replace(/.*?\/+/, "");
         clioModule[moduleName] = mod;
       } else {
-        const clioModule = {};
+        clioModule = {};
         namesToImport.forEach(function(name) {
           clioModule[name] = mod[name];
         });
@@ -220,11 +223,11 @@ async function clioRequire(moduleName, namesToImport, currentDir, scope) {
         const mod = require(moduleName);
         if (namesToImport.length == 0) {
           // import all
-          var clioModule = {};
+          clioModule = {};
           moduleName = moduleName.replace(/.*?\/+/, "");
           clioModule[moduleName] = mod;
         } else {
-          var clioModule = {};
+          clioModule = {};
           namesToImport.forEach(function(name) {
             clioModule[name] = mod[name];
           });
@@ -275,10 +278,10 @@ async function clioRequire(moduleName, namesToImport, currentDir, scope) {
       var mod = await clioImport(module_path);
       if (namesToImport.length == 0) {
         // import all
-        var clioModule = {};
+        clioModule = {};
         clioModule[moduleName] = mod;
       } else {
-        var clioModule = {};
+        clioModule = {};
         namesToImport.forEach(function(name) {
           clioModule[name] = mod[name];
         });
@@ -291,11 +294,11 @@ async function clioRequire(moduleName, namesToImport, currentDir, scope) {
         var mod = require(moduleName);
         if (namesToImport.length == 0) {
           // import all
-          var clioModule = {};
+          clioModule = {};
           moduleName = moduleName.replace(/.*?\/+/, "");
           clioModule[moduleName] = mod;
         } else {
-          var clioModule = {};
+          clioModule = {};
           namesToImport.forEach(function(name) {
             clioModule[name] = mod[name];
           });
