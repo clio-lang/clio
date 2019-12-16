@@ -87,5 +87,15 @@ For a list of what's done and what's planned you can check [Clio on Trello](http
 - It should be easy to port existing code, and it should be easy to port Clio code to different platforms
 - Avoid spaghetti code and callback hell
 
+## Contributing
+
+Please make sure to read the [CONTRIBUTING-Guidelines](https://github.com/clio-lang/clio/blob/develop/CONTRIBUTING.md) before making a pull request. 
+
+Thank you to all the people who already contributed to Clio!
+
+<a href="https://github.com/clio-lang/clio/graphs/contributors">
+  <img src="https://contributors-img.firebaseapp.com/image?repo=clio-lang/clio" />
+</a>
+
 ## License
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fclio-lang%2Fclio.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fclio-lang%2Fclio?ref=badge_large)
