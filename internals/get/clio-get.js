@@ -34,8 +34,8 @@ async function fetchFile(argv) {
   try {
     const url = argv.url;
     const file = await fetch(url);
-    const array_buffer = await file.arrayBuffer();
-    const buffer = Buffer.from(array_buffer);
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
     const tmpobj = tmp.fileSync();
     fs.writeFileSync(tmpobj.name, buffer, "binary");
     await decompress(tmpobj.name, "clio_env");
