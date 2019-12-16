@@ -2,13 +2,16 @@ const fs = require("fs");
 const path = require("path");
 const builtins = require("./builtins");
 
-function write_file(source, path) {
+// Hacky solution to fix hoisted vars. Should be fixed with refactor or rewrite.
+let clioModule = {};
+
+function writeFile(source, path) {
   fs.writeFileSync(path, source);
 }
 
 // TODO: better path resolving!
 
-function http_resolve_path(__basedir, path) {
+function httpResolvePath(__basedir, path) {
   path = path
     .replace(__basedir, "")
     .replace(/[^/]*\/\.\.(\/|$)/g, "")
@@ -22,38 +25,35 @@ function http_dir_name(path) {
   return path.replace(/\/[^/]*$/, "");
 }
 
-async function clio_require_browser(
-  module_name,
-  names_to_import,
-  current_dir,
+async function clioRequireBrowser(
+  moduleName,
+  namesToImport,
+  currentDir,
   scope
 ) {
   const md5 = require("./md5");
   // __basedir is window.clio.__basedir || protocol://domain:port
 
   let __basedir = window.clio.__basedir || window.location.origin;
-  var __filename = http_resolve_path(
-    __basedir,
-    `${current_dir}/${module_name}`
-  );
+  let __filename = httpResolvePath(__basedir, `${currentDir}/${moduleName}`);
 
   if (__filename.endsWith(".js")) {
-    var mod = await fetch(__filename);
-    var module = {
+    const mod = await fetch(__filename);
+    const module = {
       exports: {}
     };
     let exports = module.exports;
-    var source = await mod.text();
+    const source = await mod.text();
     eval(source);
-    if (names_to_import.length == 0) {
+    if (namesToImport.length == 0) {
       // import all
-      var clio_module = {};
-      module_name = module_name.replace(/.js$/, "").replace(/.*?\/+/, "");
-      clio_module[module_name] = module.exports || exports;
+      clioModule = {};
+      moduleName = moduleName.replace(/.js$/, "").replace(/.*?\/+/, "");
+      clioModule[moduleName] = module.exports || exports;
     } else {
-      var clio_module = {};
-      names_to_import.forEach(function(name) {
-        clio_module[name] = module.exports[name] || exports[name];
+      clioModule = {};
+      namesToImport.forEach(function(name) {
+        clioModule[name] = module.exports[name] || exports[name];
       });
     }
   } else if (__filename.indexOf("/") > -1) {
@@ -65,10 +65,7 @@ async function clio_require_browser(
       cache: "no-cache"
     });
     if (exists.status != 200) {
-      var __filename = http_resolve_path(
-        __basedir,
-        `/clio_env/${module_name}.clio`
-      );
+      __filename = httpResolvePath(__basedir, `/clio_env/${moduleName}.clio`);
       let __dirname = http_dir_name(__filename);
       var mod = await fetch(__filename);
     } else {
@@ -86,18 +83,18 @@ async function clio_require_browser(
     // TODO: fix file arg for browser
     var mod = {};
     await module.exports(mod, window.clio.builtins);
-    var clio_module = {};
-    if (names_to_import.length == 0) {
+    clioModule = {};
+    if (namesToImport.length == 0) {
       // import all
-      var module_name = module_name.replace(/\.clio/, "").replace(/.*?\/+/, "");
-      clio_module[module_name] = mod;
+      var moduleName = moduleName.replace(/\.clio/, "").replace(/.*?\/+/, "");
+      clioModule[moduleName] = mod;
     } else {
-      names_to_import.forEach(function(name) {
-        clio_module[name] = mod[name];
+      namesToImport.forEach(function(name) {
+        clioModule[name] = mod[name];
       });
     }
   }
-  Object.assign(scope, clio_module);
+  Object.assign(scope, clioModule);
 }
 
 function resolve_path(path) {
@@ -107,7 +104,7 @@ function resolve_path(path) {
     .replace(/\/\/+/g, "/");
 }
 
-function make_module_paths() {
+function makeModulePaths() {
   let dir = process.cwd();
   let paths = [];
   while (true) {
@@ -120,29 +117,28 @@ function make_module_paths() {
   }
 }
 
-async function clio_require(module_name, names_to_import, current_dir, scope) {
+async function clioRequire(moduleName, namesToImport, currentDir, scope) {
   // TODO: must work for standard library
   // TODO: clio_require_browser is better written!
-  current_dir = current_dir.replace(/\.clio-cache$/, "");
+  currentDir = currentDir.replace(/\.clio-cache$/, "");
 
-  if (module_name.endsWith(".js")) {
-    var mod = require(path.join(current_dir, module_name));
-    if (names_to_import.length == 0) {
+  if (moduleName.endsWith(".js")) {
+    const mod = require(path.join(currentDir, moduleName));
+    clioModule = {};
+    if (namesToImport.length == 0) {
       // import all
-      var clio_module = {};
-      module_name = module_name.replace(/\.js$/, "").replace(/.*?\/+/, "");
-      clio_module[module_name] = mod;
+      moduleName = moduleName.replace(/\.js$/, "").replace(/.*?\/+/, "");
+      clioModule[moduleName] = mod;
     } else {
-      var clio_module = {};
-      names_to_import.forEach(function(name) {
-        clio_module[name] = mod[name];
+      namesToImport.forEach(function(name) {
+        clioModule[name] = mod[name];
       });
     }
-  } else if (module_name.endsWith(".clio")) {
-    module_path = path.join(current_dir, module_name);
+  } else if (moduleName.endsWith(".clio")) {
+    module_path = path.join(currentDir, moduleName);
     if (!fs.existsSync(module_path)) {
       // switch to __basedir + clio_env + module_name
-      module_path = path.join(__basedir, "clio_env", module_name);
+      module_path = path.join(__basedir, "clio_env", moduleName);
     }
     if (!fs.existsSync(module_path)) {
       // switch to __basedir + stdlib + module_name
@@ -151,39 +147,39 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
         __basedir,
         "clio_env",
         "stdlib-master",
-        `${module_name}.clio`
+        `${moduleName}.clio`
       );
     }
     if (fs.existsSync(module_path)) {
-      var mod = await clioImport(module_path);
-      if (names_to_import.length == 0) {
+      const mod = await clioImport(module_path);
+      if (namesToImport.length == 0) {
         // import all
-        var clio_module = {};
-        module_name = module_name.replace(/\.clio/, "").replace(/.*?\/+/, "");
-        clio_module[module_name] = mod;
+        clioModule = {};
+        moduleName = moduleName.replace(/\.clio/, "").replace(/.*?\/+/, "");
+        clioModule[moduleName] = mod;
       } else {
-        var clio_module = {};
-        names_to_import.forEach(function(name) {
-          clio_module[name] = mod[name];
+        clioModule = {};
+        namesToImport.forEach(function(name) {
+          clioModule[name] = mod[name];
         });
       }
     } else {
       throw "Module doesn't exist!";
     }
-  } else if (module_name.indexOf("/") > -1) {
+  } else if (moduleName.indexOf("/") > -1) {
     // try importing .clio file first
-    module_path = path.join(current_dir, `${module_name}.clio`);
+    module_path = path.join(currentDir, `${moduleName}.clio`);
     if (!fs.existsSync(module_path)) {
       // switch to main.clio
-      module_path = path.join(__basedir, module_name, "main.clio");
+      module_path = path.join(__basedir, moduleName, "main.clio");
     }
     if (!fs.existsSync(module_path)) {
       // switch to __basedir + clio_env + module_name
-      module_path = path.join(__basedir, "clio_env", `${module_name}.clio`);
+      module_path = path.join(__basedir, "clio_env", `${moduleName}.clio`);
     }
     if (!fs.existsSync(module_path)) {
       // switch to __basedir + clio_env + module_name + main.clio
-      module_path = path.join(__basedir, "clio_env", module_name, "main.clio");
+      module_path = path.join(__basedir, "clio_env", moduleName, "main.clio");
     }
     if (!fs.existsSync(module_path)) {
       // switch to __basedir + stdlib + module_name
@@ -192,7 +188,7 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
         __basedir,
         "clio_env",
         "stdlib-master",
-        `${module_name}.clio`
+        `${moduleName}.clio`
       );
     }
     if (!fs.existsSync(module_path)) {
@@ -202,38 +198,38 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
         __basedir,
         "clio_env",
         "stdlib-master",
-        module_name,
+        moduleName,
         "main.clio"
       );
     }
     if (fs.existsSync(module_path)) {
-      var mod = await clioImport(module_path);
-      if (names_to_import.length == 0) {
+      const mod = await clioImport(module_path);
+      if (namesToImport.length == 0) {
         // import all
-        var clio_module = {};
-        module_name = module_name.replace(/.*?\/+/, "");
-        clio_module[module_name] = mod;
+        clioModule = {};
+        moduleName = moduleName.replace(/.*?\/+/, "");
+        clioModule[moduleName] = mod;
       } else {
-        var clio_module = {};
-        names_to_import.forEach(function(name) {
-          clio_module[name] = mod[name];
+        clioModule = {};
+        namesToImport.forEach(function(name) {
+          clioModule[name] = mod[name];
         });
       }
     } else {
       // we now try to import a node module instead
       const _paths = module.paths;
       try {
-        module.paths = make_module_paths();
-        var mod = require(module_name);
-        if (names_to_import.length == 0) {
+        module.paths = makeModulePaths();
+        const mod = require(moduleName);
+        if (namesToImport.length == 0) {
           // import all
-          var clio_module = {};
-          module_name = module_name.replace(/.*?\/+/, "");
-          clio_module[module_name] = mod;
+          clioModule = {};
+          moduleName = moduleName.replace(/.*?\/+/, "");
+          clioModule[moduleName] = mod;
         } else {
-          var clio_module = {};
-          names_to_import.forEach(function(name) {
-            clio_module[name] = mod[name];
+          clioModule = {};
+          namesToImport.forEach(function(name) {
+            clioModule[name] = mod[name];
           });
         }
       } catch (e) {
@@ -244,18 +240,18 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
     }
   } else {
     // first try to import Clio module
-    module_path = path.join(current_dir, `${module_name}.clio`);
+    module_path = path.join(currentDir, `${moduleName}.clio`);
     if (!fs.existsSync(module_path)) {
       // switch to main.clio
-      module_path = path.join(__basedir, module_name, "main.clio");
+      module_path = path.join(__basedir, moduleName, "main.clio");
     }
     if (!fs.existsSync(module_path)) {
       // switch to __basedir + clio_env + module_name
-      module_path = path.join(__basedir, "clio_env", `${module_name}.clio`);
+      module_path = path.join(__basedir, "clio_env", `${moduleName}.clio`);
     }
     if (!fs.existsSync(module_path)) {
       // switch to __basedir + clio_env + module_name + main.clio
-      module_path = path.join(__basedir, "clio_env", module_name, "main.clio");
+      module_path = path.join(__basedir, "clio_env", moduleName, "main.clio");
     }
     if (!fs.existsSync(module_path)) {
       // switch to __basedir + stdlib + module_name
@@ -264,7 +260,7 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
         __basedir,
         "clio_env",
         "stdlib-master",
-        `${module_name}.clio`
+        `${moduleName}.clio`
       );
     }
     if (!fs.existsSync(module_path)) {
@@ -274,37 +270,37 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
         __basedir,
         "clio_env",
         "stdlib-master",
-        module_name,
+        moduleName,
         "main.clio"
       );
     }
     if (fs.existsSync(module_path)) {
       var mod = await clioImport(module_path);
-      if (names_to_import.length == 0) {
+      if (namesToImport.length == 0) {
         // import all
-        var clio_module = {};
-        clio_module[module_name] = mod;
+        clioModule = {};
+        clioModule[moduleName] = mod;
       } else {
-        var clio_module = {};
-        names_to_import.forEach(function(name) {
-          clio_module[name] = mod[name];
+        clioModule = {};
+        namesToImport.forEach(function(name) {
+          clioModule[name] = mod[name];
         });
       }
     } else {
       // Clio module doesn't exist, try loading node.js module
       const _paths = module.paths;
       try {
-        module.paths = make_module_paths();
-        var mod = require(module_name);
-        if (names_to_import.length == 0) {
+        module.paths = makeModulePaths();
+        var mod = require(moduleName);
+        if (namesToImport.length == 0) {
           // import all
-          var clio_module = {};
-          module_name = module_name.replace(/.*?\/+/, "");
-          clio_module[module_name] = mod;
+          clioModule = {};
+          moduleName = moduleName.replace(/.*?\/+/, "");
+          clioModule[moduleName] = mod;
         } else {
-          var clio_module = {};
-          names_to_import.forEach(function(name) {
-            clio_module[name] = mod[name];
+          clioModule = {};
+          namesToImport.forEach(function(name) {
+            clioModule[name] = mod[name];
           });
         }
       } catch (e) {
@@ -314,12 +310,12 @@ async function clio_require(module_name, names_to_import, current_dir, scope) {
       }
     }
   }
-  Object.assign(scope, clio_module);
+  Object.assign(scope, clioModule);
 }
 
-builtins.clio_require = clio_require;
+builtins.clio_require = clioRequire;
 
-async function do_import(file, direct) {
+async function doImport(file, direct) {
   const lexer = require("../lexer/lexer");
   const parser = require("../parser/parser");
   const analyzer = require("../evaluator/analyzer");
@@ -345,18 +341,18 @@ async function do_import(file, direct) {
     var file = path.join(cwd, file);
   }
   let file_dir = path.dirname(file);
-  let file_name = path.basename(file);
+  let fileName = path.basename(file);
   let cache_dir = `${file_dir}${path.sep}.clio-cache`;
-  let cache_file = `${cache_dir}${path.sep}${file_name}.js`;
+  let cacheFile = `${cache_dir}${path.sep}${fileName}.js`;
   if (!fs.existsSync(cache_dir)) {
     fs.mkdirSync(cache_dir);
   }
 
-  write_file(code, cache_file);
-  cache_file = cache_file.replace(/\\/g, "/"); // windows fix |:
-  return require(cache_file)({}, builtins, {
+  writeFile(code, cacheFile);
+  cacheFile = cacheFile.replace(/\\/g, "/"); // windows fix |:
+  return require(cacheFile)({}, builtins, {
     source: contents,
-    name: file_name
+    name: fileName
   }).catch(e => {
     throw e;
   }); // because why not?
@@ -372,30 +368,30 @@ async function clioImport(file, direct) {
     global.__basedir = file_dir;
     process.chdir(file_dir);
   }
-  let file_name = path.basename(file);
+  let fileName = path.basename(file);
   let cache_dir = `${file_dir}${path.sep}.clio-cache`;
-  let cache_file = `${cache_dir}${path.sep}${file_name}.js`;
+  let cacheFile = `${cache_dir}${path.sep}${fileName}.js`;
   if (!fs.existsSync(cache_dir)) {
     fs.mkdirSync(cache_dir);
   }
-  if (fs.existsSync(cache_file)) {
-    let cache_stats = fs.statSync(cache_file);
-    let source_stats = fs.statSync(file);
-    if (cache_stats.mtime > source_stats.mtime) {
-      cache_file = cache_file.replace(/\\/g, "/"); // windows fix |:
+  if (fs.existsSync(cacheFile)) {
+    let cacheStats = fs.statSync(cacheFile);
+    let sourceStats = fs.statSync(file);
+    if (cacheStats.mtime > sourceStats.mtime) {
+      cacheFile = cacheFile.replace(/\\/g, "/"); // windows fix |:
       let contents = fs.readFileSync(file, "utf8");
-      return require(cache_file)({}, builtins, {
+      return require(cacheFile)({}, builtins, {
         source: contents,
-        name: file_name
+        name: fileName
       }).catch(e => {
         throw e;
       });
     }
   }
-  return do_import(file).catch(e => {
+  return doImport(file).catch(e => {
     throw e;
   });
 }
 
 module.exports.clioImport = clioImport;
-module.exports.clioRequireBrowser = clio_require_browser;
+module.exports.clioRequireBrowser = clioRequireBrowser;
