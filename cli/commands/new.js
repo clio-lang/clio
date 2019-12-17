@@ -46,6 +46,8 @@ function createPackage(packageName) {
 
   shell.exec(`echo "'Hello World' -> print" > index.clio`);
 
+  shell.exec(`echo ".clio-cache\nclio_env" > .gitignore`);
+
   shell.exec("git init && git add -A && git commit -m 'Initial Commit'");
   shell.echo("\nInitialization Complete!");
   shell.echo(
