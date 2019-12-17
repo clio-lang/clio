@@ -1,6 +1,25 @@
-const shell = require("shelljs");
+const fs = require("fs");
+const { exec } = require("child_process");
 const packageConfig = require("../../package/packageConfig");
 const { getDependencies } = require("../../internals/deps");
+
+function run(command) {
+  return new Promise((resolve, reject) => {
+    exec(command, (err, stdout, stderr) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      if (stderr) {
+        reject(new Error(stderr));
+        return;
+      }
+
+      resolve(stdout);
+    });
+  });
+}
 
 exports.command = "new <project>";
 exports.desc = "Create a new Clio project";
@@ -14,14 +33,16 @@ exports.handler = function(argv) {
   createPackage(argv.project);
 };
 
-function createPackage(packageName) {
-  if (!shell.which("git")) {
-    shell.echo("Sorry, this script requires git");
-    shell.exit(1);
+async function createPackage(packageName) {
+  try {
+    await run("which git");
+  } catch (e) {
+    console.error("Git is required to create a new Clio project. Exiting.");
+    process.exit(1);
   }
 
-  shell.mkdir(packageName);
-  shell.cd(packageName);
+  fs.mkdirSync(packageName);
+  process.chdir(packageName);
 
   const defaultConfig = {
     title: packageName,
@@ -44,13 +65,17 @@ function createPackage(packageName) {
   getDependencies();
   console.log("Added Clio dependencies");
 
-  shell.exec(`echo "'Hello World' -> print" > index.clio`);
+  try {
+    fs.writeFileSync("index.clio", "'Hello World' -> print\n");
+    fs.writeFileSync(".gitignore", ".clio-cache\nclio_env\n");
 
-  shell.exec(`echo ".clio-cache\nclio_env" > .gitignore`);
+    await run("git init && git add -A && git commit -m 'Initial Commit'");
+    console.log("Initialized new git repository.");
+  } catch (e) {
+    console.error(e);
+    process.exit(1);
+  }
 
-  shell.exec("git init && git add -A && git commit -m 'Initial Commit'");
-  shell.echo("\nInitialization Complete!");
-  shell.echo(
-    `Run 'cd ${packageName}' to open, then 'clio run index.clio' to run the project!`
-  );
+  console.log("Initialization Complete!");
+  console.log(`Run 'cd ${packageName}' to open, then 'clio run index.clio' to run the project!`);
 }
