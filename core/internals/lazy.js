@@ -1,30 +1,32 @@
 class Lazy {
   constructor(fn) {
-    this.fn = fn
+    this.fn = fn;
   }
   valueOf() {
-    let result = this.fn()
+    let result = this.fn();
     while (result instanceof Lazy) {
-      result = result.valueOf()
+      result = result.valueOf();
     }
-    return result
+    return result;
   }
 }
 
-const lazy = fn => new Lazy(fn)
+const lazy = fn => new Lazy(fn);
 
 class IO {
   constructor(fn) {
-    this.fn = fn
+    this.fn = fn;
   }
   valueOf() {
-    return this.fn()
+    return this.fn();
   }
 }
 
-const io = fn => new IO(fn)
+const io = fn => new IO(fn);
 
 module.exports = {
-  io, IO,
-  lazy, Lazy
-}
+  io,
+  IO,
+  lazy,
+  Lazy
+};
