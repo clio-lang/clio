@@ -13,7 +13,7 @@ exports.compile = source => {
         return cst;
       } else {
         // TODO: Somehow import model from bean parser
-        const firstUnmatched = result[0].name;
+        //const firstUnmatched = result[0].name;
         //const expecting = model
         //  .filter(m => m.left == firstUnmatched)
         //  .map(({ right }) => right);
