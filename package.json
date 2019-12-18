@@ -60,6 +60,7 @@
   },
   "dependencies": {
     "@iarna/toml": "^2.2.3",
+    "bean-parser": "^1.0.8",
     "body-parser": "1.19.0",
     "chalk": "3.0.0",
     "clio-lazy": "^1.0.0",
