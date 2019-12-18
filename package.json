@@ -60,6 +60,7 @@
   },
   "dependencies": {
     "@iarna/toml": "^2.2.3",
+    "bean-parser": "^1.0.8",
     "body-parser": "1.19.0",
     "chalk": "3.0.0",
     "clio-lazy": "^1.0.0",
@@ -73,7 +74,7 @@
     "tmp": "0.1.0",
     "treeify": "1.1.0",
     "unescape-js": "1.1.4",
-    "uuid": "3.3.3",
+    "uuid": "^3.3.3",
     "websocket": "1.0.31",
     "yargs": "15.0.2"
   },
