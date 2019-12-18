@@ -1,0 +1,111 @@
+// 1. Mathematics
+
+// 1.1. pow
+number|math|symbol math_priority_one => math_priority_one_start { lhs: left, op: right.raw, index: left.index }
+math_priority_one_start number|math|symbol => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+
+// 1.2. mul, div
+number|math|symbol math_priority_two => math_priority_two_start { lhs: left, op: right.raw, index: left.index }
+math_priority_two_start number|math|symbol => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+
+// 1.3. add, sub
+number|math|symbol math_priority_three => math_priority_three_start { lhs: left, op: right.raw, index: left.index }
+math_priority_three_start number|math|symbol => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+
+// 2. Comparisons
+
+comparison_start number|symbol => comparison { lhs: left.lhs, cmp: left.cmp, rhs: right, index: left.index }
+number|symbol|comparison cmp => comparison_start { lhs: left, cmp: right.raw, index: left.index }
+
+// 3. Conditionals
+
+if comparison|symbol => if_conditional_start { condition: right, index: left.index }
+if_conditional_start colon => if_conditional_start { condition: left.condition, index: left.index }
+if_conditional_start block => if_conditional { condition: left.condition, body: right, index: left.index }
+
+elif comparison|symbol => elif_conditional_start { condition: right, index: left.index }
+elif_conditional_start colon => elif_conditional_start { condition: left.condition, index: left.index }
+elif_conditional_start block => elif_conditional { body: [{ condition: left.condition, body: right, index: left.index }] }
+
+elif_conditional elif_conditional => elif_conditional { body: [...left.body, right.body], index: left.index }
+if_conditional elif_conditional => if_elif_conditional { if_block: left, elif_block: right, index: left.index }
+
+else colon => else_conditional_start { index: left.index }
+else_conditional_start block => else_conditional { body: right, index: left.index }
+if_conditional else_conditional => if_else_conditional { if_block: left, else_block: right, index: left.index }
+if_elif_conditional else_conditional => if_elif_else_conditional { if_block: left.if_block, elif_block: left.elif_block, else_block: right, index: left.index }
+
+// 4. Functions
+
+fn symbol => function_start { fn: right.raw, parameters: [], index: left.index }
+function_start symbol => function_middle { fn: left.fn, parameters: [ right.raw ], index: left.index }
+function_middle symbol => function_middle { fn: left.fn, parameters: [ ...left.parameters, right.raw ], index: left.index }
+function_middle colon => function_end { fn: left.fn, parameters: left.parameters, index: left.index }
+function_end block => function { fn: left.fn, parameters: left.parameters, body: right, index: left.index }
+
+// 5. Anonymous functions
+
+symbol colon => anonymous_function_start { parameter: left.raw, index: left.index }
+anonymous_function_start block|math|number|array => anonymous_function { parameter: left.parameter, body: right, index: left.index }
+
+// 6. Arrays
+
+lbra number|symbol|array => array_start { items: [right], index: left.index }
+array_start number|symbol|array => array_start { items: [...left.items, right], index: left.index }
+array_start rbra => array { items: [...left.items], index: left.index }
+
+// 7. Decorators
+
+at symbol => decorator_start { fn: right, args: [], index: left.index }
+decorator_start symbol|number|array => decorator_start { fn: left.fn, args: [...left.args, right], index: left.index }
+decorator_start decorator_end => decorator { fn: left.fn, args: left.args, index: left.index }
+
+// 8. Decorated function
+
+decorator function|decorated_function => decorated_function { fn: right, decorator: left, index: left.index }
+
+// 9. @, ~ and ~~
+
+at number => at_arg { at: right, index: left.index }
+
+unpack unpack => double_unpack
+double_unpack symbol => unpack_arg { double: true, arg: right, index: left.index }
+unpack symbol => unpack_arg { double: false, arg: right, index: left.index }
+
+// 10. Flows
+
+map anonymous_function => function_call { fn: right, args: [], map: true, index: left.index }
+pipe anonymous_function => function_call { fn: right, args: [], map: false, index: left.index }
+
+map symbol => function_call_start { fn: right, args: [], map: true, index: left.index }
+pipe symbol => function_call_start { fn: right, args: [], map: false, index: left.index }
+set symbol => set_var { variable: right.raw, index: left.index }
+
+function_call_start symbol|number|array|unpack_arg|at_arg => function_call_start { fn: left.fn, args: [ ...left.args, right ], index: left.index, map: left.map }
+function_call_start flow_end => function_call { fn: left.fn, args: left.args, index: left.index, map: left.map }
+
+number|array|math|string function_call|set_var => flow { data: left, calls: [right], index: left.index }
+flow function_call|set_var => flow { data: left.data, calls: [...left.calls, right], index: left.index}
+
+// 11. Blocks
+
+indent math|number|symbol|function|flow|if_elif_else_conditional => block_start { body: [ right ], index: left.index }
+block_start math|number|symbol|function|flow|if_elif_else_conditional => block_start { body: [ ...left.body, right ], index: left.index }
+block_start dedent => block { body: left.body, index: left.index }
+
+// 12. Program
+
+flow|function|decorated_function clio => clio { body: [left, ...right.body], index: left.index }
+flow|function|decorated_function eof => clio { body: [left], index: left.index }
+
+if_conditional clio => clio { body: [left, ...right.body], index: left.index }
+if_conditional eof => clio { body: [left], index: left.index }
+
+if_elif_else_conditional clio => clio { body: [left, ...right.body], index: left.index }
+if_elif_else_conditional eof => clio { body: [left], index: left.index }
+
+if_else_conditional clio => clio { body: [left, ...right.body], index: left.index }
+if_else_conditional eof => clio { body: [left], index: left.index }
+
+if_elif_conditional clio => clio { body: [left, ...right.body], index: left.index }
+if_elif_conditional eof => clio { body: [left], index: left.index }
