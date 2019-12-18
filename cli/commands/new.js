@@ -41,7 +41,9 @@ async function createPackage(packageName) {
     process.exit(1);
   }
 
-  fs.mkdirSync(packageName);
+  if (!fs.existsSync(packageName)) {
+    fs.mkdirSync(packageName);
+  }
   process.chdir(packageName);
 
   const defaultConfig = {
@@ -62,7 +64,7 @@ async function createPackage(packageName) {
 
   packageConfig.writePackageConfig(defaultConfig);
 
-  getDependencies();
+  await getDependencies();
   console.log("Added Clio dependencies");
 
   try {
@@ -79,3 +81,5 @@ async function createPackage(packageName) {
   console.log("Initialization Complete!");
   console.log(`Run 'cd ${packageName}' to open, then 'clio run index.clio' to run the project!`);
 }
+
+exports.createPackage = createPackage;

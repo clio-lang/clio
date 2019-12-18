@@ -76,7 +76,7 @@ async function fetchFromRepo(pkg) {
   const fetchUrl = `${packageUri}/archive/${packageTarget}.zip`;
 
   console.log(`Downloading ${pkg}...`);
-  fetchFile({ url: fetchUrl });
+  await fetchFile({ url: fetchUrl });
 
   /**
    * If the dependency is already listed in package.json
@@ -130,7 +130,7 @@ async function fetchGitHub(argv) {
   const fetchUrl = `https://${packageUri}/archive/${packageTarget}.zip`;
 
   console.log(`Downloading ${argv}...`);
-  fetchFile({ url: fetchUrl });
+  await fetchFile({ url: fetchUrl });
 
   /**
    * If the dependency is already listed in package.json
