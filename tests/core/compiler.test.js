@@ -4,3 +4,7 @@ test("Compile code", () => {
     expect(typeof out).toBe("string");
   });
 });
+
+test("Compilation fails", async () => {
+  await expect(compiler.compile("1 --> print\n")).rejects.toThrow();
+});

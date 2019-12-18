@@ -2,7 +2,7 @@ const generator = require("../../core/generator");
 const parser = require("../../core/parser");
 
 test("Generate from AST", () => {
-  const [_, parsed] = parser.parse(tokens);
+  const [, parsed] = parser.parse(tokens);
   const output = generator.generate(parsed[0]);
   expect(typeof output).toBe("string");
 });
