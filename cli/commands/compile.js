@@ -21,25 +21,26 @@ exports.handler = function(argv) {
 };
 
 function compile(source, dest) {
-  fs.readFile(source, "utf8", function(err, contents) {
-    let tokens = lexer(contents);
-    if (tokens[0] == false) {
-      return;
-    }
-    tokens = tokens[1];
-    try {
-      const result = parser(contents, tokens, false, source);
-      let ast = result[1];
-      ast.pop(); // eof
-      let code = beautify(analyzer(ast));
+  const contents = fs.readFileSync(source, "utf8");
+  let tokens = lexer(contents);
+  if (tokens[0] == false) {
+    return;
+  }
+  tokens = tokens[1];
+  try {
+    const result = parser(contents, tokens, false, source);
+    let ast = result[1];
+    ast.pop(); // eof
+    let code = beautify(analyzer(ast));
 
-      writeFile(code, dest);
-    } catch (e) {
-      return e.exit ? e.exit() : console.log(e);
-    }
-  });
+    writeFile(code, dest);
+  } catch (e) {
+    return e.exit ? e.exit() : console.log(e);
+  }
 }
 
 function writeFile(source, path) {
   fs.writeFileSync(path, source);
 }
+
+exports.compile = compile;
