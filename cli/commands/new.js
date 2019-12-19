@@ -1,5 +1,5 @@
 const fs = require("fs");
-const { run } = require("../lib/process");
+const { spawnSync } = require('child_process');
 const packageConfig = require("../../package/packageConfig");
 const { getDependencies } = require("../../internals/deps");
 
@@ -16,10 +16,8 @@ exports.handler = function(argv) {
 };
 
 async function createPackage(packageName) {
-  try {
-    const command = process.platform === "win32" ? "where" : "whereis";
-    await run(`${command} git`);
-  } catch (e) {
+  const result = spawnSync('git');
+  if (result.error) {
     console.error("Git is required to create a new Clio project. Exiting.");
     process.exit(1);
   }
@@ -54,7 +52,9 @@ async function createPackage(packageName) {
     fs.writeFileSync("index.clio", "'Hello World' -> print\n");
     fs.writeFileSync(".gitignore", ".clio-cache\nclio_env\n");
 
-    await run("git init && git add -A && git commit -m 'Initial Commit'");
+    spawnSync('git', ['init']);
+    spawnSync('git', ['add', '-A']);
+    spawnSync('git', ['commit', '-m', "Initial Commit"]);
     console.log("Initialized new git repository.");
   } catch (e) {
     console.error(e);
