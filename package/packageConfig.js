@@ -40,7 +40,6 @@ function writePackageConfig(cfg, directory = process.cwd()) {
   cfg.dependencies.forEach(dep => (deps[dep.name] = dep.version));
   const cfgStr = toml.stringify({ ...cfg, dependencies: deps });
   const filePath = path.join(directory, configFileName);
-  console.log(filePath);
   fs.writeFileSync(filePath, cfgStr);
 }
 

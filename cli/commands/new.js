@@ -1,5 +1,5 @@
 const fs = require("fs");
-const { run } = require("./lib/process");
+const { run } = require("../lib/process");
 const packageConfig = require("../../package/packageConfig");
 const { getDependencies } = require("../../internals/deps");
 
