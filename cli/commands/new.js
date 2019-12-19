@@ -1,25 +1,7 @@
 const fs = require("fs");
-const { exec } = require("child_process");
+const { run } = require("./lib/process");
 const packageConfig = require("../../package/packageConfig");
 const { getDependencies } = require("../../internals/deps");
-
-function run(command) {
-  return new Promise((resolve, reject) => {
-    exec(command, (err, stdout, stderr) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-
-      if (stderr) {
-        reject(new Error(stderr));
-        return;
-      }
-
-      resolve(stdout);
-    });
-  });
-}
 
 exports.command = "new <project>";
 exports.desc = "Create a new Clio project";
@@ -35,7 +17,8 @@ exports.handler = function(argv) {
 
 async function createPackage(packageName) {
   try {
-    await run("which git");
+    const command = process.platform === "win32" ? "where" : "whereis";
+    await run(`${command} git`);
   } catch (e) {
     console.error("Git is required to create a new Clio project. Exiting.");
     process.exit(1);
