@@ -9,6 +9,10 @@
     "test": "jest --collect-coverage",
     "test:setup": "clio host tests/test.host.clio"
   },
+  "engines": {
+    "node": ">=10.4",
+    "npm": ">=3"
+  },
   "pre-commit": [
     "lint:check"
   ],
