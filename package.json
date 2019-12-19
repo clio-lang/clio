@@ -70,7 +70,6 @@
     "express-ws": "4.0.0",
     "js-beautify": "1.10.2",
     "node-fetch": "2.6.0",
-    "shelljs": "^0.8.3",
     "tmp": "0.1.0",
     "treeify": "1.1.0",
     "unescape-js": "1.1.4",

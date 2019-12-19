@@ -36,9 +36,7 @@ function getDependencies() {
     return;
   }
 
-  for (const dep of packageConfig.getPackageDependencies()) {
-    get({ url: dep.name });
-  }
+  return Promise.all(packageConfig.getPackageDependencies().map(dep => get({ url: dep.name })));
 }
 
 module.exports = {

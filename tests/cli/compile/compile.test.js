@@ -1,15 +1,15 @@
-const shell = require("shelljs");
+const path = require('path');
+const fs = require('fs');
 const tmp = require("tmp");
+const { createPackage } = require('../../../cli/commands/new');
+const { compile } = require('../../../cli/commands/compile');
 
-test("Compile source to target", () => {
+test("Compile source to target", async () => {
   const dir = tmp.dirSync();
-  shell.cd(dir.name);
-  shell.exec("clio new testproj");
-  shell.cd("testproj");
-  shell.exec("clio compile index.clio ./index.js");
-  const files = shell
-    .ls()
-    .toString()
-    .split(",");
-  expect(files.includes("index.js")).toBeTruthy();
+  await createPackage(dir.name);
+  const source = path.join(dir.name, 'index.clio');
+  const destination = path.join(dir.name, 'index.js');
+  compile(source, destination);
+  const files = fs.readdirSync(dir.name);
+  expect(files.includes("index.js")).toBe(true);
 });

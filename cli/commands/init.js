@@ -16,24 +16,18 @@ exports.handler = function(argv) {
   initPackage(argv.y, path.dirname(process.cwd()));
 };
 
-async function initPackage(skipPrompt = false, packageName) {
-  const cwd = process.cwd();
-  const dir = path.basename(cwd);
+async function initPackage(skipPrompt = false, packageName, directory = process.cwd()) {
+  const directoryName = path.basename(directory);
 
-  if (fs.existsSync(path.join(cwd, "package.json"))) {
-    const pkg = require(path.join(cwd, "package.json"));
+  if (fs.existsSync(path.join(directory, "package.json"))) {
+    const pkg = require(path.join(directory, "package.json"));
     if (!pkg.clioDependencies) {
       pkg.clioDependencies = ["stdlib"];
     } else if (!pkg.clioDependencies.includes("stdlib")) {
       pkg.clioDependencies.push("stdlib");
     }
     const stringified = JSON.stringify(pkg, null, 2);
-    return fs.writeFile(
-      path.join(cwd, "package.json"),
-      stringified,
-      "utf8",
-      getDependencies
-    );
+    return fs.writeFileSync(path.join(directory, "package.json"), stringified, "utf8", getDependencies);
   }
 
   let pkg = {};
@@ -68,7 +62,7 @@ async function initPackage(skipPrompt = false, packageName) {
       });
     };
 
-    pkg.title = (await ask(`Package name: (${dir}) `)) || dir;
+    pkg.title = (await ask(`Package name: (${directoryName}) `)) || directoryName;
     pkg.version = (await ask("Version: (1.0.0) ")) || "1.0.0";
     pkg.description = (await ask("Description: ")) || "";
     pkg.main = (await ask("Entry point: (index.clio) ")) || "index.clio";
@@ -80,9 +74,7 @@ async function initPackage(skipPrompt = false, packageName) {
     pkg.license = (await ask("License: (ISC) ")) || "ISC";
     pkg.dependencies = [{ name: "stdlib", version: "latest" }];
     pkg.scripts = {
-      test:
-        (await ask("Test command: ")) ||
-        'echo "Error: no test specified" && exit 1'
+      test: (await ask("Test command: ")) || 'echo "Error: no test specified" && exit 1'
     };
     const stringified = JSON.stringify(pkg, null, 2);
     console.log(`\n${stringified}\n`);
@@ -91,9 +83,12 @@ async function initPackage(skipPrompt = false, packageName) {
 
   process.stdin.destroy();
   if (ok) {
-    writePackageConfig(pkg);
-    getDependencies();
+    writePackageConfig(pkg, directory);
+    process.chdir(directory);
+    await getDependencies();
   } else {
-    return initPackage(false, packageName);
+    return await initPackage(false, packageName);
   }
 }
+
+exports.initPackage = initPackage;

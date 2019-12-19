@@ -1,12 +1,13 @@
-const shell = require("shelljs");
 const tmp = require("tmp");
+const path = require('path');
+const { createPackage } = require('../../../cli/commands/new');
+const { run } = require('../../../cli/commands/run');
 
-test("Runs hello world", () => {
+test("Runs hello world", async () => {
+  console.log = jest.fn();
   const dir = tmp.dirSync();
-  shell.cd(dir.name);
-
-  shell.exec("clio new test");
-  shell.cd("test");
-  const result = shell.exec("clio run index.clio");
-  expect(result.toString()).toEqual("Hello World\n");
+  await createPackage(dir.name, true);
+  const source = path.join(dir.name, 'index.clio');
+  await run(source);
+  expect(console.log).toBeCalledWith('Hello World');
 });
