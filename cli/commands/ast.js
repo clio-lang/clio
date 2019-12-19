@@ -3,14 +3,14 @@ const treeify = require("treeify");
 const { parser } = require("../../core/parser");
 
 const readFile = async (...args) => fs.readFileSync(...args);
+const log = (...args) => console.log(...args) || args;
 
-function printAst(source) {
+const printAst = source =>
   readFile(source, "utf8")
     .then(parser)
     .then(cst => treeify.asTree(cst, true))
-    .then(console.log)
+    .then(log)
     .catch(console.trace);
-}
 
 const command = "ast <source>";
 const desc = "Print ast for a Clio file";
