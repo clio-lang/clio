@@ -35,13 +35,12 @@ function getPackageConfig(filepath = path.join(process.cwd(), configFileName)) {
   };
 }
 
-function writePackageConfig(
-  cfg,
-  filePath = path.join(process.cwd(), configFileName)
-) {
+function writePackageConfig(cfg, directory = process.cwd()) {
   const deps = {};
   cfg.dependencies.forEach(dep => (deps[dep.name] = dep.version));
   const cfgStr = toml.stringify({ ...cfg, dependencies: deps });
+  const filePath = path.join(directory, configFileName);
+  console.log(filePath);
   fs.writeFileSync(filePath, cfgStr);
 }
 
