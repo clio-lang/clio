@@ -21,7 +21,6 @@ function findEmitters(obj) {
 }
 
 async function clioHost(scope, rootDir) {
-  scope = await scope;
   let config = await scope.host;
   let exported = {};
   await config.exports.map(async e => {

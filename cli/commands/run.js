@@ -27,6 +27,8 @@ exports.handler = argv => {
   run(argv.source);
 };
 
-function run(path) {
-  clioImport(path, true).catch(e => (e.exit ? e.exit() : console.log(e)));
+async function run(path) {
+  await clioImport(path, true).catch(e => (e.exit ? e.exit() : console.log(e)));
 }
+
+exports.run = run;

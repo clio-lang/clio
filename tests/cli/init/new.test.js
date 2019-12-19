@@ -1,15 +1,14 @@
-const shell = require("shelljs");
 const tmp = require("tmp");
+const fs = require('fs');
+const { createPackage } = require('../../../cli/commands/new');
 
-test("Create a package", () => {
+test("Create a package", async () => {
   const dir = tmp.dirSync();
-  shell.cd(dir.name);
-  shell.exec("clio new testproj");
-  shell.cd("testproj");
-  const files = shell
-    .ls()
-    .toString()
-    .split(",");
+  await createPackage(dir.name);
+  const files = fs.readdirSync(dir.name);
+  expect(files.includes("index.clio")).toBe(true);
   expect(files.includes("cliopkg.toml")).toBe(true);
   expect(files.includes("clio_env")).toBe(true);
+  expect(files.includes(".gitignore")).toBe(true);
+  expect(files.includes(".git")).toBe(true);
 });
