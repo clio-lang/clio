@@ -1,13 +1,7 @@
-const { bean, beef } = require("bean-parser");
-const fs = require("fs");
-const path = require("path");
+const { bean } = require("bean-parser");
 const lexer = require("./lexer.js");
+const model = require("./model.js");
 
-const clioModel = fs.readFileSync(path.join(__dirname, "clio.beef"), {
-  encoding: "utf8"
-});
-
-const model = beef(clioModel);
 const parse = tokens => bean(model, tokens);
 
 const parser = source =>
