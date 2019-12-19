@@ -1,4 +1,5 @@
 const fs = require("fs");
+const treeify = require("treeify");
 const lexer = require("../../lexer/lexer");
 const parser = require("../../parser/parser");
 
@@ -8,17 +9,7 @@ exports.builder = {
   source: { describe: "source file to analyze", type: "string" }
 };
 exports.handler = function(argv) {
-  fs.readFile(argv.source, "utf8", (err, contents) => {
-    if (err) console.trace(err);
-    let tokens = lexer(contents);
-    if (tokens[0] == false) {
-      return;
-    }
-    tokens = tokens[1];
-    const result = parser(contents, tokens, false, argv.source);
-    let ast = result[1];
-    printAst(ast);
-  });
+  console.log(printAst(argv.source));
 };
 
 function removeProps(obj, keys) {
@@ -37,8 +28,21 @@ function removeProps(obj, keys) {
   }
 }
 
-function printAst(ast) {
-  const treeify = require("treeify");
-  removeProps(ast, "index");
-  console.log(treeify.asTree(ast, true));
+function printAst(source) {
+  try {
+    const contents = fs.readFileSync(source, "utf8");
+    let tokens = lexer(contents);
+    if (tokens[0] == false) {
+      return;
+    }
+    tokens = tokens[1];
+    const result = parser(contents, tokens, false, source);
+    let ast = result[1];
+    removeProps(ast, "index");
+    return treeify.asTree(ast, true);
+  } catch (err) {
+    console.trace(err);
+  }
 }
+
+exports.printAst = printAst;
