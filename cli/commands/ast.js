@@ -23,5 +23,6 @@ module.exports = {
   command,
   desc,
   builder,
-  handler
+  handler,
+  printAst
 };
