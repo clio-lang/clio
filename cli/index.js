@@ -1,17 +1,16 @@
 #!/usr/bin/env node
 
+const { isSupportedNodeVersion } = require("../utils/versionUtils");
+
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
 global.WebSocket = require("websocket").w3cwebsocket; // same for WebSocket
 
-const nodeFullVersion = process.versions.node.split(".");
-const nodeMajorVersion = Number(nodeFullVersion[0]);
-const nodeMinorVersion = Number(nodeFullVersion[1]);
-
-if (nodeMajorVersion < 10 && nodeMinorVersion < 4) {
+if (!isSupportedNodeVersion(process.versions.node)) {
   console.warn(
-    "You're using a version of node that Clio does not support. This might cause problems. Please update node to the latest version."
+    "Warning: your Node version is outdated. This might cause problems. Please, upgrade Node to version 10.4 or higher."
   );
 }
+
 require("yargs")
   .commandDir("commands")
   .help()
