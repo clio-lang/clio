@@ -7,13 +7,20 @@ exports.builder = {
   source: { describe: "source file to host", type: "string" }
 };
 exports.handler = function(argv) {
-  fs.readFile(argv.source, "utf8", (err, contents) => {
-    if (err) console.trace(err);
-    console.log(highlight(contents));
-  });
+  console.log(highlight(argv.source));
 };
 
-function highlight(text) {
+function highlight(source) {
+  try {
+    const contents = fs.readFileSync(source, "utf8");
+    return colorize(contents);
+  } catch (err) {
+    console.trace(err)
+  }
+  
+}
+
+function colorize(text) {
   let patterns = [
     {
       pattern: /^fn +[a-z_][a-z_0-9]*/i,
@@ -99,3 +106,5 @@ function highlight(text) {
   }
   return colorized.join("");
 }
+
+exports.highlight = highlight;

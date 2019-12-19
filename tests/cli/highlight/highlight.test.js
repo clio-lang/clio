@@ -1,12 +1,12 @@
-const shell = require("shelljs");
+const path = require('path');
 const tmp = require("tmp");
+const { createPackage } = require('../../../cli/commands/new');
+const { highlight } = require('../../../cli/commands/highlight');
 
-test("Highlight a file", () => {
+test("Highlight a file", async () => {
   const dir = tmp.dirSync();
-  shell.cd(dir.name);
-  shell.exec("clio new testproj");
-  shell.cd("testproj");
-  const output = shell.exec("clio highlight index.clio");
-  console.log(output);
-  expect(output.includes("print")).toBe(true);
+  await createPackage(dir.name);
+  const source = path.join(dir.name, 'index.clio');
+  const highlighted = highlight(source);
+  expect(highlighted.includes("print")).toBe(true);
 });
