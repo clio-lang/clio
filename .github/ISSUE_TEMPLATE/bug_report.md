@@ -26,6 +26,10 @@ If applicable, add screenshots to help explain your problem.
  - Clio: [e.g. 0.1.6]
  - Node: [e.g. 10.3]
  - NPM: [e.g. 6.12.1]
+ 
+**Possible solutions**
+ - Update dependency `x`
+ - Fix function `y`
 
 **Additional context**
 Add any other context about the problem here.
