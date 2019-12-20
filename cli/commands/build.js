@@ -22,6 +22,7 @@ const mkdir = dir =>
 
 const compile = async (source, dest) => {
   dest = dest || path.join(source, ".clio", "target", "node");
+  mkdir(dest);
   const files = getClioFiles(source);
   for (const file of files) {
     const relativeFile = path.relative(source, file);
