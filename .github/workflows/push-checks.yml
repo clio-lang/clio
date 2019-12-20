@@ -20,8 +20,6 @@ jobs:
         run: |
           npm ci
           npm link
-          clio host tests/test.host.clio &
-          sleep 10
           npm test
         env:
           CI: true

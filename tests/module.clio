@@ -1,4 +1,0 @@
-10 => x
-
-fn hello thing:
-  #hello -> print thing
