@@ -1,19 +1,9 @@
 const fs = require("fs");
-
 const path = require("path");
 const { format } = require("prettier");
 const { generator } = require("../../core/generator");
 
 const flatten = arr => arr.reduce((acc, val) => acc.concat(val), []);
-const mkdirp = dir => dir.split('/').reduce((path, currentDir) => {
-  if (!path && !currentDir) return '';
-  const newPath = `${path}/${currentDir}`;
-  if (newPath && !fs.existsSync(newPath)) {
-    fs.mkdirSync(newPath);
-  }
-  return newPath;
-}, '')
-
 
 const isDir = dir => fs.lstatSync(dir).isDirectory();
 const readDir = dir => fs.readdirSync(dir);
@@ -32,9 +22,6 @@ const mkdir = dir =>
 
 const compile = async (source, dest) => {
   dest = dest || path.join(source, ".clio", "target", "node");
-  if (!fs.existsSync(dest)) {
-    mkdirp(dest);
-  }
   const files = getClioFiles(source);
   for (const file of files) {
     const relativeFile = path.relative(source, file);
