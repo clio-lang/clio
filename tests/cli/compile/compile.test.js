@@ -1,15 +1,13 @@
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
 const tmp = require("tmp");
 const { createPackage } = require('../../../cli/commands/new');
-const { compile } = require('../../../cli/commands/compile');
+const { compile } = require('../../../cli/commands/build');
 
 test("Compile source to target", async () => {
   const dir = tmp.dirSync();
   await createPackage(dir.name);
-  const source = path.join(dir.name, 'index.clio');
-  const destination = path.join(dir.name, 'index.js');
-  compile(source, destination);
-  const files = fs.readdirSync(dir.name);
-  expect(files.includes("index.js")).toBe(true);
+  await compile(dir.name);
+  const files = fs.readdirSync(path.join(dir.name, '.clio/target/node'));
+  expect(files.includes("index.clio.js")).toBe(true);
 });
