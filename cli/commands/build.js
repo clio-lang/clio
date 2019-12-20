@@ -13,16 +13,18 @@ const walk = dir => (isDir(dir) ? flatten(walkDir(dir)) : [dir]);
 const isClioFile = file => file.endsWith(".clio");
 const getClioFiles = dir => walk(dir).filter(isClioFile);
 
-const mkdir = dir =>
-  dir.split(path.sep).reduce((parent, subdir) => {
+const mkdir = directory => {
+  const { root, dir, base } = path.parse(directory);
+  const parts = [...dir.split(path.sep), base];
+  return parts.reduce((parent, subdir) => {
     parent = path.join(parent, subdir);
     if (!fs.existsSync(parent)) fs.mkdirSync(parent);
     return parent;
-  }, "");
+  }, root);
+};
 
-const compile = async (source, dest) => {
+const build = async (source, dest) => {
   dest = dest || path.join(source, ".clio", "target", "node");
-  mkdir(dest);
   const files = getClioFiles(source);
   for (const file of files) {
     const relativeFile = path.relative(source, file);
@@ -38,7 +40,7 @@ const compile = async (source, dest) => {
 
 const command = "build [source] [destination]";
 const desc = "Build a Clio project";
-const handler = argv => compile(argv.source, argv.destination);
+const handler = argv => build(argv.source, argv.destination);
 const builder = {
   source: {
     describe: "source directory to read from",
@@ -52,7 +54,7 @@ const builder = {
 };
 
 module.exports = {
-  compile,
+  build,
   command,
   desc,
   builder,
