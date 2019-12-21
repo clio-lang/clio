@@ -6,6 +6,4 @@ node_js:
 script:
   - npm install
   - npm link
-  - clio host tests/test.host.clio &
-  - sleep 10
   - npm test

@@ -1,3 +1,0 @@
-import heavy from ws://localhost:3000
-
-[1 2 3 4 5] -> print -> * heavy -> print
