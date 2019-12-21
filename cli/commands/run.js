@@ -15,7 +15,7 @@ exports.builder = {
         return packageConfig.getPackageConfig().main;
       } catch (e) {
         console.log(
-          "cliopkg.toml not found. Is it missing, or are you running tests?"
+          "clio.toml not found. Is it missing, or are you running tests?"
         );
         return "";
       }
