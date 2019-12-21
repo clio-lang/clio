@@ -2,6 +2,7 @@ const fs = require("fs");
 const treeify = require("treeify");
 const lexer = require("../../lexer/lexer");
 const parser = require("../../parser/parser");
+const { error } = require("../lib/colors");
 
 exports.command = "ast <source>";
 exports.desc = "Print ast for a Clio file";
@@ -9,7 +10,8 @@ exports.builder = {
   source: { describe: "source file to analyze", type: "string" }
 };
 exports.handler = function(argv) {
-  console.log(printAst(argv.source));
+  const ast = printAst(argv.source);
+  if (ast) console.log(ast);
 };
 
 function removeProps(obj, keys) {
@@ -30,6 +32,12 @@ function removeProps(obj, keys) {
 
 function printAst(source) {
   try {
+    if (!source) {
+      throw new Error("The path to the Clio souce file is required.");
+    }
+    if (!fs.existsSync(source)) {
+      throw new Error("The provided Clio source file does not exist.");
+    }
     const contents = fs.readFileSync(source, "utf8");
     let tokens = lexer(contents);
     if (tokens[0] == false) {
@@ -41,7 +49,7 @@ function printAst(source) {
     removeProps(ast, "index");
     return treeify.asTree(ast, true);
   } catch (err) {
-    console.trace(err);
+    error(err);
   }
 }
 
