@@ -38,11 +38,7 @@ async function createPackage(packageName) {
       license: "ISC",
       main: "index.clio",
       keywords: "",
-      author: {
-        name: "",
-        email: "",
-        website: ""
-      },
+      authors: ["Your Name <you@example.com>"],
       scripts: { test: "No tests specified" },
       dependencies: [{ name: "stdlib", version: "latest" }]
     };
@@ -61,7 +57,9 @@ async function createPackage(packageName) {
     info("Initialized new git repository.");
 
     info("Initialization Complete!");
-    success(`Run 'cd ${packageName}' to open, then 'clio run index.clio' to run the project!`);
+    success(
+      `Run 'cd ${packageName}' to open, then 'clio run index.clio' to run the project!`
+    );
   } catch (e) {
     error(e);
     process.exit(1);
