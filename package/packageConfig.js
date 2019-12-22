@@ -18,11 +18,7 @@ function getPackageConfig(filepath = path.join(process.cwd(), configFileName)) {
     version: packageConfig.version,
     license: packageConfig.license,
     main: packageConfig.main,
-    author: {
-      name: packageConfig.author.name,
-      email: packageConfig.author.email,
-      website: packageConfig.author.website
-    },
+    authors: packageConfig.authors,
     keywords: packageConfig.keywords,
     // eslint-disable-next-line camelcase
     git_repository: packageConfig.git_repository,
