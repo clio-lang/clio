@@ -1,5 +1,5 @@
 const packageConfig = require("../../package/packageConfig");
-const { clioImport } = require("../../internals/import");
+//const { clioImport } = require("../../internals/import");
 
 exports.command = "run [source]";
 

@@ -1,6 +1,6 @@
 const path = require("path");
 const clioHost = require("../../host/host");
-const { clioImport } = require("../../internals/import");
+//const { clioImport } = require("../../internals/import");
 
 exports.command = "host <source>";
 exports.desc = "Host a Clio file";
@@ -19,7 +19,7 @@ async function host(source) {
 
     const _module = await clioImport(source);
     if (!_module.host) {
-      throw new Error('No host context found. Are you running a host file?');
+      throw new Error("No host context found. Are you running a host file?");
     }
     return clioHost(_module, fileDir);
   } catch (e) {

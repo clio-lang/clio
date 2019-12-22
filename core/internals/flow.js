@@ -1,5 +1,3 @@
-const { IO } = require("./lazy");
-
 class Flow {
   constructor(scope, data) {
     this.data = data;
@@ -7,16 +5,10 @@ class Flow {
   }
   pipe(fn, ...args) {
     const data = fn.call(this.data, ...args);
-    if (data instanceof IO) {
-      data.valueOf();
-    }
     return new Flow(this.scope, data);
   }
   map(fn, ...args) {
     const data = this.data.map(item => fn.call(item, ...args));
-    if (data instanceof IO) {
-      data.valueOf();
-    }
     return new Flow(this.scope, data);
   }
   set(key) {
