@@ -1,5 +1,6 @@
 const uuidv4 = require("uuid/v4");
 const { Scope } = require("./scope");
+const { IO } = require("./io");
 
 class Fn {
   constructor(fn, outerScope, type) {
@@ -10,7 +11,11 @@ class Fn {
   }
   call(...args) {
     const scope = new Scope({}, this.outerScope);
-    return new this.type(() => this.fn(scope, ...args));
+    const result = new this.type(() => this.fn(scope, ...args));
+    if (result instanceof IO) {
+      result.valueOf();
+    }
+    return result;
   }
 }
 
