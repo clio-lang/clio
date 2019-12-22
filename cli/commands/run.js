@@ -1,5 +1,4 @@
 const packageConfig = require("../../package/packageConfig");
-//const { clioImport } = require("../../internals/import");
 
 exports.command = "run [source]";
 
@@ -28,7 +27,7 @@ exports.handler = argv => {
 };
 
 async function run(path) {
-  await clioImport(path, true).catch(e => (e.exit ? e.exit() : console.log(e)));
+  await require(path).catch(console.log);
 }
 
 exports.run = run;
