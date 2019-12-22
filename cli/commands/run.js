@@ -1,7 +1,5 @@
 const fs = require("fs");
 const packageConfig = require("../../package/packageConfig");
-const { clioImport } = require("../../internals/import");
-const { error } = require("../lib/colors");
 
 exports.command = "run [source]";
 
@@ -27,17 +25,7 @@ exports.handler = argv => {
 };
 
 async function run(path) {
-  try {
-    if (!path) {
-      throw new Error("The path to the Clio souce file is required.");
-    }
-    if (!fs.existsSync(path)) {
-      throw new Error("The provided Clio source file does not exist.");
-    }
-    await clioImport(path, true).catch(e => (e.exit ? e.exit() : console.log(e)));
-  } catch (e) {
-    error(e);
-  }
+  await require(path).catch(console.log);
 }
 
 exports.run = run;
