@@ -15,3 +15,9 @@ test("Parse input string", async () => {
   const output = await parser.parser("'Hello World' -> print\n");
   expect(output.name).toBe("clio");
 });
+
+test("Parse fails", async () => {
+  return parser.parser("'Hello World -> print\n").catch(e => {
+    expect(e).toBeDefined();
+  });
+});
