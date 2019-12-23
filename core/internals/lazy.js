@@ -1,11 +1,16 @@
+const { Flow } = require("./flow");
+
 class Lazy {
   constructor(fn) {
     this.fn = fn;
   }
-  valueOf() {
+  valueOf(defer) {
     let result = this.fn();
+    if (result instanceof Flow) result = result.data;
+    if (defer) return result;
     while (result instanceof Lazy) {
-      result = result.valueOf();
+      result = result.valueOf(true);
+      if (result instanceof Flow) result = result.data;
     }
     return result;
   }
@@ -13,20 +18,7 @@ class Lazy {
 
 const lazy = fn => new Lazy(fn);
 
-class IO {
-  constructor(fn) {
-    this.fn = fn;
-  }
-  valueOf() {
-    return this.fn();
-  }
-}
-
-const io = fn => new IO(fn);
-
 module.exports = {
-  io,
-  IO,
   lazy,
   Lazy
 };
