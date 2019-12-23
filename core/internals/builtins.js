@@ -1,5 +1,6 @@
 const { Fn } = require("./functions");
-const { Lazy, IO } = require("./lazy");
+const { IO } = require("./io");
+const { Lazy } = require("./lazy");
 
 const wrapLazy = fn => new Fn((scope, ...args) => fn(...args), null, Lazy);
 const wrapIO = fn => new Fn((scope, ...args) => fn(...args), null, IO);

@@ -1,4 +1,4 @@
-const { IO } = require("./lazy");
+const { IO } = require("./io");
 
 class Array {
   constructor(...items) {
