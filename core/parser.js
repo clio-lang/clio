@@ -12,8 +12,6 @@ const parser = source =>
         const cst = result[0];
         return cst;
       } else {
-        console.log(result);
-
         const firstUnmatched = result[0].name;
         const expecting = model
           .filter(m => m.left == firstUnmatched)
