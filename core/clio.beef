@@ -19,12 +19,12 @@ number|symbol|comparison cmp => comparison_start { lhs: left, cmp: right.raw, in
 
 // 3. Conditionals
 
-if comparison|symbol => if_conditional_start { condition: right, index: left.index }
-if_conditional_start colon => if_conditional_start { condition: left.condition, index: left.index }
+if comparison|symbol => if_conditional_prestart { condition: right, index: left.index }
+if_conditional_prestart colon => if_conditional_start { condition: left.condition, index: left.index }
 if_conditional_start block => if_conditional { condition: left.condition, body: right, index: left.index }
 
-elif comparison|symbol => elif_conditional_start { condition: right, index: left.index }
-elif_conditional_start colon => elif_conditional_start { condition: left.condition, index: left.index }
+elif comparison|symbol => elif_conditional_prestart { condition: right, index: left.index }
+elif_conditional_prestart colon => elif_conditional_start { condition: left.condition, index: left.index }
 elif_conditional_start block => elif_conditional { body: [{ condition: left.condition, body: right, index: left.index }] }
 
 elif_conditional elif_conditional => elif_conditional { body: [...left.body, right.body], index: left.index }
@@ -50,8 +50,8 @@ anonymous_function_start block|math|number|array => anonymous_function { paramet
 
 // 6. Arrays
 
-lbra number|symbol|array => array_start { items: [right], index: left.index }
-array_start number|symbol|array => array_start { items: [...left.items, right], index: left.index }
+lbra number|symbol|array|string => array_start { items: [right], index: left.index }
+array_start number|symbol|array|string => array_start { items: [...left.items, right], index: left.index }
 array_start rbra => array { items: [...left.items], index: left.index }
 
 // 7. Decorators
@@ -89,8 +89,20 @@ flow function_call|set_var => flow { data: left.data, calls: [...left.calls, rig
 
 // 11. Blocks
 
-indent math|number|symbol|function|flow|if_elif_else_conditional => block_start { body: [ right ], index: left.index }
-block_start math|number|symbol|function|flow|if_elif_else_conditional => block_start { body: [ ...left.body, right ], index: left.index }
+indent math|number|symbol|function|flow => block_start { body: [ right ], index: left.index }
+
+indent if_conditional => block_start { body: [ right ], index: left.index }
+indent if_elif_conditional => block_start { body: [ right ], index: left.index }
+indent if_else_conditional => block_start { body: [ right ], index: left.index }
+indent if_elif_else_conditional => block_start { body: [ right ], index: left.index }
+
+block_start math|number|symbol|function|flow => block_start { body: [ ...left.body, right ], index: left.index }
+
+block_start if_conditional => block_start { body: [ ...left.body, right ], index: left.index }
+block_start if_elif_conditional => block_start { body: [ ...left.body, right ], index: left.index }
+block_start if_else_conditional => block_start { body: [ ...left.body, right ], index: left.index }
+block_start if_elif_else_conditional => block_start { body: [ ...left.body, right ], index: left.index }
+
 block_start dedent => block { body: left.body, index: left.index }
 
 // 12. Program
@@ -101,11 +113,11 @@ flow|function|decorated_function eof => clio { body: [left], index: left.index }
 if_conditional clio => clio { body: [left, ...right.body], index: left.index }
 if_conditional eof => clio { body: [left], index: left.index }
 
-if_elif_else_conditional clio => clio { body: [left, ...right.body], index: left.index }
-if_elif_else_conditional eof => clio { body: [left], index: left.index }
-
 if_else_conditional clio => clio { body: [left, ...right.body], index: left.index }
 if_else_conditional eof => clio { body: [left], index: left.index }
 
 if_elif_conditional clio => clio { body: [left, ...right.body], index: left.index }
 if_elif_conditional eof => clio { body: [left], index: left.index }
+
+if_elif_else_conditional clio => clio { body: [left, ...right.body], index: left.index }
+if_elif_else_conditional eof => clio { body: [left], index: left.index }
