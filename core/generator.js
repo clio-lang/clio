@@ -136,6 +136,18 @@ const rules = {
     const processedElse = generate(else_block);
     return [processedIf, processedElif, processedElse].join("\n");
   },
+  if_elif_conditional(cst, generate) {
+    const { if_block, elif_block } = cst;
+    const processedIf = generate(if_block);
+    const processedElif = generate(elif_block);
+    return [processedIf, processedElif].join("\n");
+  },
+  if_else_conditional(cst, generate) {
+    const { if_block, else_block } = cst;
+    const processedIf = generate(if_block);
+    const processedElse = generate(else_block);
+    return [processedIf, processedElse].join("\n");
+  },
   if_conditional(cst, generate) {
     const {
       condition,
