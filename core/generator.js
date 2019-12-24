@@ -1,16 +1,18 @@
 const { parser } = require("./parser");
 
 const template = generated => `
-const { Fn } = require('./internals/functions')
-const { Flow } = require('./internals/flow')
-const { Lazy } = require('./internals/lazy')
-const { Scope } = require('./internals/scope')
-const { Array } = require('./internals/array')
-const builtins = require('./internals/builtins')
+const { Fn } = require('./internals/functions');
+const { Flow } = require('./internals/flow');
+const { Lazy } = require('./internals/lazy');
+const { Scope } = require('./internals/scope');
+const { Array } = require('./internals/array');
+const builtins = require('./internals/builtins');
 
-const scope = new Scope(builtins, null)
+const scope = new Scope(builtins, null);
 
 ${generated}
+
+module.exports = scope;
 `;
 
 const implicitReturn = block => {
