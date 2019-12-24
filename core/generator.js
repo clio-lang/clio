@@ -188,7 +188,7 @@ const rules = {
       assignToScope.push(`scope.${name} = ${name};`);
     }
     return `(function import() {
-      const { ${processdNames.join(",")} } = require(${path});
+      const { ${processdNames.join(",")} } = require(${processedPath});
       ${assignToScope.join("\n")}
     })()`;
   }
