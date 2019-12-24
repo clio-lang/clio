@@ -176,6 +176,19 @@ const rules = {
     } = cst;
     const processedBody = body.map(generate);
     return `else { ${processedBody.join(";\n")} }`;
+  },
+  import_from_statement(cst, generate) {
+    const { path, names } = cst;
+    const processedPath = generate(path);
+    const processedNames = names.map(generate);
+    let assignToScope = [];
+    for (const name of processedNames) {
+      assignToScope.push(`scope.${name} = ${name};`);
+    }
+    return `(function import() {
+      const { ${processdNames.join(",")} } = require(${path});
+      ${assignToScope.join("\n")}
+    })()`;
   }
 };
 
