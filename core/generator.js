@@ -12,7 +12,7 @@ const scope = new Scope(builtins, null);
 
 ${generated}
 
-module.exports = scope;
+module.exports = { scope };
 `;
 
 const implicitReturn = block => {
@@ -34,13 +34,17 @@ const rules = {
   return(cst, generate) {
     const { expr } = cst;
     const { name } = expr;
-    if (name == "if_elif_else_conditional") {
+    if (name == "conditional") {
       expr.if_block.body.body = implicitReturn(expr.if_block.body.body);
-      expr.elif_block.body = expr.elif_block.body.map(block => {
-        block.body.body = implicitReturn(block.body.body);
-        return block;
-      });
-      expr.else_block.body.body = implicitReturn(expr.else_block.body.body);
+      if (expr.elif_block) {
+        expr.elif_block.body = expr.elif_block.body.map(block => {
+          block.body.body = implicitReturn(block.body.body);
+          return block;
+        });
+      }
+      if (expr.else_block) {
+        expr.else_block.body.body = implicitReturn(expr.else_block.body.body);
+      }
       return generate(expr);
     } else {
       const processedExpr = generate(expr);
@@ -131,24 +135,12 @@ const rules = {
     const right = generate(rhs);
     return `(${left} ${cmp} ${right})`;
   },
-  if_elif_else_conditional(cst, generate) {
+  conditional(cst, generate) {
     const { if_block, elif_block, else_block } = cst;
     const processedIf = generate(if_block);
-    const processedElif = generate(elif_block);
-    const processedElse = generate(else_block);
+    const processedElif = elif_block ? generate(elif_block) : "";
+    const processedElse = else_block ? generate(else_block) : "";
     return [processedIf, processedElif, processedElse].join("\n");
-  },
-  if_elif_conditional(cst, generate) {
-    const { if_block, elif_block } = cst;
-    const processedIf = generate(if_block);
-    const processedElif = generate(elif_block);
-    return [processedIf, processedElif].join("\n");
-  },
-  if_else_conditional(cst, generate) {
-    const { if_block, else_block } = cst;
-    const processedIf = generate(if_block);
-    const processedElse = generate(else_block);
-    return [processedIf, processedElse].join("\n");
   },
   if_conditional(cst, generate) {
     const {
@@ -185,10 +177,10 @@ const rules = {
     const processedNames = names.map(generate);
     let assignToScope = [];
     for (const name of processedNames) {
-      assignToScope.push(`scope.${name} = ${name};`);
+      assignToScope.push(`${name} = imported.${name};`);
     }
-    return `(function import() {
-      const { ${processdNames.join(",")} } = require(${processedPath});
+    return `(function() {
+      const imported = require(${processedPath});
       ${assignToScope.join("\n")}
     })()`;
   }

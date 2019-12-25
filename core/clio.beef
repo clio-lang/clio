@@ -42,6 +42,11 @@ else_conditional_start block => else_conditional { body: right, index: left.inde
 if_conditional else_conditional => if_else_conditional { if_block: left, else_block: right, index: left.index }
 if_elif_conditional else_conditional => if_elif_else_conditional { if_block: left.if_block, elif_block: left.elif_block, else_block: right, index: left.index }
 
+if_conditional conditional_end => conditional { if_block: left, index: left.index }
+if_elif_conditional conditional_end => conditional { if_block: left.if_block, elif_block: left.elif_block, index: left.index }
+if_else_conditional conditional_end => conditional { if_block: left.if_block, else_block: left.else_block, index: left.index }
+if_elif_else_conditional conditional_end => conditional { if_block: left.if_block, elif_block: left.elif_block, else_block: left.else_block, index: left.index }
+
 // - Functions
 
 fn symbol => function_start { fn: right.raw, parameters: [], index: left.index }
@@ -96,38 +101,15 @@ flow function_call|set_var => flow { data: left.data, calls: [...left.calls, rig
 
 // - Blocks
 
-indent math|number|symbol|function|flow => block_start { body: [ right ], index: left.index }
-
-indent if_conditional => block_start { body: [ right ], index: left.index }
-indent if_elif_conditional => block_start { body: [ right ], index: left.index }
-indent if_else_conditional => block_start { body: [ right ], index: left.index }
-indent if_elif_else_conditional => block_start { body: [ right ], index: left.index }
-
-block_start math|number|symbol|function|flow => block_start { body: [ ...left.body, right ], index: left.index }
-
-block_start if_conditional => block_start { body: [ ...left.body, right ], index: left.index }
-block_start if_elif_conditional => block_start { body: [ ...left.body, right ], index: left.index }
-block_start if_else_conditional => block_start { body: [ ...left.body, right ], index: left.index }
-block_start if_elif_else_conditional => block_start { body: [ ...left.body, right ], index: left.index }
+indent math|number|symbol|function|flow|conditional => block_start { body: [ right ], index: left.index }
+block_start math|number|symbol|function|flow|conditional => block_start { body: [ ...left.body, right ], index: left.index }
 
 block_start dedent => block { body: left.body, index: left.index }
 
 // - Program
 
-flow|function|decorated_function clio => clio { body: [left, ...right.body], index: left.index }
-flow|function|decorated_function eof => clio { body: [left], index: left.index }
-
-if_conditional clio => clio { body: [left, ...right.body], index: left.index }
-if_conditional eof => clio { body: [left], index: left.index }
-
-if_else_conditional clio => clio { body: [left, ...right.body], index: left.index }
-if_else_conditional eof => clio { body: [left], index: left.index }
-
-if_elif_conditional clio => clio { body: [left, ...right.body], index: left.index }
-if_elif_conditional eof => clio { body: [left], index: left.index }
-
-if_elif_else_conditional clio => clio { body: [left, ...right.body], index: left.index }
-if_elif_else_conditional eof => clio { body: [left], index: left.index }
+flow|function|decorated_function|conditional clio => clio { body: [left, ...right.body], index: left.index }
+flow|function|decorated_function|conditional eof => clio { body: [left], index: left.index }
 
 import_from_statement clio => clio { body: [left, ...right.body], index: left.index }
 import_from_statement eof => clio { body: [left], index: left.index }
