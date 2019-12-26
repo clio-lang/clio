@@ -6,6 +6,6 @@ test("Inits a package", async () => {
   const dir = tmp.dirSync();
   await initPackage(true, "testing", dir.name);
   const files = fs.readdirSync(dir.name);
-  expect(files.includes("cliopkg.toml")).toBe(true);
+  expect(files.includes("clio.toml")).toBe(true);
   expect(files.includes("clio_env")).toBe(true);
 });

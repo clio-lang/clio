@@ -1,3 +1,4 @@
+const fs = require("fs");
 const packageConfig = require("../../package/packageConfig");
 
 exports.command = "run [source]";
@@ -13,9 +14,6 @@ exports.builder = {
       try {
         return packageConfig.getPackageConfig().main;
       } catch (e) {
-        console.log(
-          "cliopkg.toml not found. Is it missing, or are you running tests?"
-        );
         return "";
       }
     })()

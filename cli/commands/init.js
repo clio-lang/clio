@@ -5,7 +5,7 @@ const { getDependencies } = require("../../internals/deps");
 const { writePackageConfig } = require("../../package/packageConfig");
 
 exports.command = "init [args]";
-exports.desc = "Generate a cliopkg.toml file and fetch stdlib";
+exports.desc = "Generate a clio.toml file and fetch stdlib";
 exports.builder = {
   y: {
     type: "boolean",
@@ -16,7 +16,11 @@ exports.handler = function(argv) {
   initPackage(argv.y, path.dirname(process.cwd()));
 };
 
-async function initPackage(skipPrompt = false, packageName, directory = process.cwd()) {
+async function initPackage(
+  skipPrompt = false,
+  packageName,
+  directory = process.cwd()
+) {
   const directoryName = path.basename(directory);
 
   if (fs.existsSync(path.join(directory, "package.json"))) {
@@ -27,7 +31,12 @@ async function initPackage(skipPrompt = false, packageName, directory = process.
       pkg.clioDependencies.push("stdlib");
     }
     const stringified = JSON.stringify(pkg, null, 2);
-    return fs.writeFileSync(path.join(directory, "package.json"), stringified, "utf8", getDependencies);
+    return fs.writeFileSync(
+      path.join(directory, "package.json"),
+      stringified,
+      "utf8",
+      getDependencies
+    );
   }
 
   let pkg = {};
@@ -62,7 +71,8 @@ async function initPackage(skipPrompt = false, packageName, directory = process.
       });
     };
 
-    pkg.title = (await ask(`Package name: (${directoryName}) `)) || directoryName;
+    pkg.title =
+      (await ask(`Package name: (${directoryName}) `)) || directoryName;
     pkg.version = (await ask("Version: (1.0.0) ")) || "1.0.0";
     pkg.description = (await ask("Description: ")) || "";
     pkg.main = (await ask("Entry point: (index.clio) ")) || "index.clio";
@@ -74,7 +84,9 @@ async function initPackage(skipPrompt = false, packageName, directory = process.
     pkg.license = (await ask("License: (ISC) ")) || "ISC";
     pkg.dependencies = [{ name: "stdlib", version: "latest" }];
     pkg.scripts = {
-      test: (await ask("Test command: ")) || 'echo "Error: no test specified" && exit 1'
+      test:
+        (await ask("Test command: ")) ||
+        'echo "Error: no test specified" && exit 1'
     };
     const stringified = JSON.stringify(pkg, null, 2);
     console.log(`\n${stringified}\n`);

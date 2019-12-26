@@ -13,9 +13,6 @@
     "node": ">=10.4",
     "npm": ">=3"
   },
-  "pre-commit": [
-    "lint:check"
-  ],
   "precommit.silent": true,
   "author": "Pouya Eghbali",
   "contributors": [
