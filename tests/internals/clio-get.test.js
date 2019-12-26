@@ -1,4 +1,4 @@
-const { getVersion, hasVersion } = require("../../internals/get/clio-get");
+const { getVersion, hasVersion } = require("../../package/packageConfig");
 
 test("Testing private methods", () => {
   const gitHubPackage = "github.com/foo/bar";
