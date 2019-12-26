@@ -1,5 +1,6 @@
 const fs = require("fs");
 const chalk = require("chalk");
+const { error } = require("../lib/colors");
 
 exports.command = "highlight <source>";
 exports.desc = "Highlight a Clio file";
@@ -7,17 +8,23 @@ exports.builder = {
   source: { describe: "source file to host", type: "string" }
 };
 exports.handler = function(argv) {
-  console.log(highlight(argv.source));
+  const colorized = highlight(argv.source);
+  if (colorized) console.log(colorized);
 };
 
 function highlight(source) {
   try {
+    if (!source) {
+      throw new Error("The path to the Clio souce file is required.");
+    }
+    if (!fs.existsSync(source)) {
+      throw new Error("The provided Clio source file does not exist.");
+    }
     const contents = fs.readFileSync(source, "utf8");
     return colorize(contents);
   } catch (err) {
-    console.trace(err)
+    error(err);
   }
-  
 }
 
 function colorize(text) {
