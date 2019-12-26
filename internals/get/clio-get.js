@@ -2,10 +2,9 @@ const decompress = require("decompress");
 const tmp = require("tmp");
 const fs = require("fs");
 const fetch = require("node-fetch");
-const {
-  updatePackageJsonDependencies,
-  getClioDependencies
-} = require("../helpers/package");
+const { updatePackageJsonDependencies } = require("../helpers/package");
+
+const { getPackageDependencies } = require("../../package/packageConfig");
 
 const gitHubRegex = /github\.com\/(\w|\d|_|-).+\/(\d|\w|-|_).+/gi;
 const urlRegex = /https?:\/\/.+/gi;
@@ -82,7 +81,7 @@ async function fetchFromRepo(pkg) {
    * If the dependency is already listed in package.json
    * don't update it.
    */
-  if (!getClioDependencies().includes(pkg)) {
+  if (!getPackageDependencies().includes(pkg)) {
     updatePackageJsonDependencies(pkg)
       .then(() => console.log(`Added ${pkg} to the dependencies list`))
       .catch(err =>
@@ -136,7 +135,7 @@ async function fetchGitHub(argv) {
    * If the dependency is already listed in package.json
    * don't update it.
    */
-  if (!getClioDependencies().includes(argv)) {
+  if (!getPackageDependencies().includes(argv)) {
     updatePackageJsonDependencies(argv)
       .then(() => console.log(`Added ${argv} to the dependencies list`))
       .catch(err =>

@@ -1,17 +1,6 @@
 const packageConfig = require("../../package/packageConfig");
 
 /**
- * @method getClioDependencies
- * @returns {string[]}
- * @description Get Clio dependencies listed in the
- *              Packge.json file.
- */
-
-function getClioDependencies() {
-  return packageConfig.getPackageDependencies();
-}
-
-/**
  * @method hasClioDependencies
  * @returns {bool}
  * @description Returns true if the project has at least one dependency listed
@@ -39,7 +28,6 @@ async function updatePackageJsonDependencies(dependency) {
 }
 
 module.exports = {
-  getClioDependencies,
   hasClioDependencies,
   updatePackageJsonDependencies
 };
