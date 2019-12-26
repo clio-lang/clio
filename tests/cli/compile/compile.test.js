@@ -10,4 +10,5 @@ test("Compile source to target", async () => {
   await build(dir.name);
   const files = fs.readdirSync(path.join(dir.name, ".clio/target/node"));
   expect(files.includes("index.clio.js")).toBe(true);
+  dir.removeCallback();
 });

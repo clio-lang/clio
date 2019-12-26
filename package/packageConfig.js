@@ -109,15 +109,14 @@ function get(argv) {
     return fetchGitHub(url);
   }
   if (url.match(urlRegex)) {
-    return fetchFile(url);
+    return fetchFile({ url });
   }
   // not github, not url, fetch pkg info from main repo
   return fetchFromRepo(url);
 }
 
-async function fetchFile(argv) {
+async function fetchFile({ url }) {
   try {
-    const url = argv.url;
     const file = await fetch(url);
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
