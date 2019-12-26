@@ -2,7 +2,6 @@ const decompress = require("decompress");
 const tmp = require("tmp");
 const fs = require("fs");
 const fetch = require("node-fetch");
-const { updatePackageJsonDependencies } = require("../helpers/package");
 
 const packageConfig = require("../../package/packageConfig");
 
