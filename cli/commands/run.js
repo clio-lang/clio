@@ -1,4 +1,3 @@
-const fs = require("fs");
 const packageConfig = require("../../package/packageConfig");
 
 exports.command = "run [source]";

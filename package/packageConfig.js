@@ -1,6 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const toml = require("@iarna/toml");
+const { get } = require("../internals/get/clio-get");
 
 const configFileName = "clio.toml";
 
@@ -10,22 +11,22 @@ const configFileName = "clio.toml";
  */
 function getPackageConfig(filepath = path.join(process.cwd(), configFileName)) {
   const file = fs.readFileSync(filepath);
-  const packageConfig = toml.parse(file);
+  const config = toml.parse(file);
 
   return {
-    title: packageConfig.title,
-    description: packageConfig.description,
-    version: packageConfig.version,
-    license: packageConfig.license,
-    main: packageConfig.main,
-    authors: packageConfig.authors,
-    keywords: packageConfig.keywords,
+    title: config.title,
+    description: config.description,
+    version: config.version,
+    license: config.license,
+    main: config.main,
+    authors: config.authors,
+    keywords: config.keywords,
     // eslint-disable-next-line camelcase
-    git_repository: packageConfig.git_repository,
-    documentation: packageConfig.documentation,
+    git_repository: config.git_repository,
+    documentation: config.documentation,
 
-    scripts: packageConfig.scripts,
-    dependencies: Object.entries(packageConfig.dependencies).map(dep => {
+    scripts: config.scripts,
+    dependencies: Object.entries(config.dependencies).map(dep => {
       return { name: dep[0], version: dep[1] };
     })
   };
@@ -71,11 +72,30 @@ function hasClioDependencies() {
   return !!dependencies && !!Object.keys(dependencies).length;
 }
 
+/**
+ * @method fetchDependencies
+ * @returns {void}
+ * @description Installs every dependency listed in
+ *              package.json
+ */
+
+function fetchDependencies() {
+  if (!hasClioDependencies()) {
+    console.log("No dependencies found in package.json");
+    return;
+  }
+
+  return Promise.all(
+    getPackageDependencies().map(dep => get({ url: dep.name }))
+  );
+}
+
 module.exports = {
   getPackageConfig,
   writePackageConfig: writePackageConfig,
   addDependency,
-  getPackageDependencies,
+  getPackageDependencies: getPackageDependencies,
   configFileName,
-  hasClioDependencies
+  hasClioDependencies,
+  fetchDependencies
 };

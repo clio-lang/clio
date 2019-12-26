@@ -3,7 +3,10 @@ const tmp = require("tmp");
 const fs = require("fs");
 const fetch = require("node-fetch");
 
-const packageConfig = require("../../package/packageConfig");
+const {
+  getPackageDependencies,
+  addDependency
+} = require("../../package/packageConfig");
 
 const gitHubRegex = /github\.com\/(\w|\d|_|-).+\/(\d|\w|-|_).+/gi;
 const urlRegex = /https?:\/\/.+/gi;
@@ -80,9 +83,8 @@ async function fetchFromRepo(pkg) {
    * If the dependency is already listed in package.json
    * don't update it.
    */
-  if (!packageConfig.getPackageDependencies().includes(pkg)) {
-    packageConfig
-      .addDependency([pkg, "latest"])
+  if (!getPackageDependencies().includes(pkg)) {
+    addDependency([pkg, "latest"])
       .then(() => console.log(`Added ${pkg} to the dependencies list`))
       .catch(err =>
         console.log(`Can not add ${pkg} to the dependencies list`, err)
@@ -136,8 +138,7 @@ async function fetchGitHub(argv) {
    * don't update it.
    */
   if (!getPackageDependencies().includes(argv)) {
-    packageConfig
-      .addDependency([argv, "latest"])
+    addDependency([argv, "latest"])
       .then(() => console.log(`Added ${argv} to the dependencies list`))
       .catch(err =>
         console.log(`Can not add ${argv} to the dependencies list`, err)
