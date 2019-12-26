@@ -151,6 +151,42 @@ const insertDecoratorEnds = tokens => {
   return result;
 };
 
+const nextNonWhite = (index, tokens) => {
+  index = Number(index);
+  for (const { name } of tokens.slice(index)) {
+    if (![...whitespaces, "dedent", "indent"].includes(name)) {
+      return name;
+    }
+  }
+};
+
+const insertConditionalEnds = tokens => {
+  const result = [];
+  let indent = 0;
+  let inConditional = [];
+  let waitingForIndent = false;
+  for (const [index, token] of Object.entries(tokens)) {
+    if (token.name == "if") inConditional.push(indent);
+    if (["if", "elif", "else"].includes(token.name)) waitingForIndent = true;
+    if (inConditional.length > 0 && token.name == "indent") {
+      if (waitingForIndent) waitingForIndent = false;
+      indent++;
+    }
+    if (inConditional.length > 0 && token.name == "dedent") indent--;
+    result.push(token);
+    if (
+      !waitingForIndent &&
+      inConditional.length &&
+      indent == inConditional[inConditional.length - 1] &&
+      !["else", "elif"].includes(nextNonWhite(index, tokens))
+    ) {
+      inConditional.pop();
+      result.push({ name: "conditional_end", index: token.index });
+    }
+  }
+  return result;
+};
+
 const whitespaces = ["space", "newline"];
 
 const removeWhites = tokens =>
@@ -171,6 +207,7 @@ const lexer = string =>
     .then(insertSlicers)
     .then(insertFlowEnds)
     .then(insertDecoratorEnds)
+    .then(insertConditionalEnds)
     .then(removeWhites);
 
 module.exports = lexer;
