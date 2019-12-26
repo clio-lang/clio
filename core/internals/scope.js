@@ -32,15 +32,10 @@ class Scope {
     return value;
   }
   extend(object, keys) {
-    if (!(object instanceof Scope)) {
-      object = new Scope(object);
-    }
-    if (!keys) {
-      Object.assign(this.scope, object.scope);
-    } else {
-      for (const key of keys) {
-        this.set(key, object.get(key));
-      }
+    if (!(object instanceof Scope)) object = new Scope(object);
+    if (!keys) keys = Object.keys(object.scope);
+    for (const key of keys) {
+      this.set(key, object.get(key));
     }
   }
 }
