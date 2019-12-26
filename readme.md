@@ -1,7 +1,7 @@
 [![npm version](https://badge.fury.io/js/clio-lang.svg)](https://badge.fury.io/js/clio-lang)
 ![Travis (.org)](https://img.shields.io/travis/clio-lang/clio.svg)
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fclio-lang%2Fclio.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fclio-lang%2Fclio?ref=badge_shield)
-[![Coverage Status](https://coveralls.io/repos/github/clio-lang/clio/badge.svg?branch=coveralls)](https://coveralls.io/github/clio-lang/clio?branch=coveralls)
+[![Coverage Status](https://coveralls.io/repos/github/clio-lang/clio/badge.svg?branch=v0.2.0)](https://coveralls.io/github/clio-lang/clio?branch=v0.2.0)
 
 ![Clio Logo](https://raw.githubusercontent.com/clio-lang/media/master/logo-128x128.png)
 
