@@ -63,5 +63,3 @@ fn foo n:
   const output = await compiler.compile(input);
   expect(output).toBeDefined();
 });
-
-// TODO: if elif else test
