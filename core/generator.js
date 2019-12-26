@@ -12,7 +12,7 @@ const scope = new Scope(builtins, null);
 
 ${generated}
 
-module.exports = { scope };
+module.exports = scope
 `;
 
 const implicitReturn = block => {
@@ -58,10 +58,10 @@ const rules = {
       body: { body }
     } = cst;
     const processedParams = parameters.map(
-      param => `scope.${param} = ${param}`
+      param => `scope.$.${param} = ${param}`
     );
     const processedBody = implicitReturn(body).map(generate);
-    return `scope.${name} = new Fn(
+    return `scope.$.${name} = new Fn(
       function ${name} (scope, ${parameters.join(", ")}) {
         ${processedParams.join(";\n")}
         ${processedBody.join(";\n")}
@@ -86,7 +86,7 @@ const rules = {
   },
   symbol(cst, generate) {
     const { raw } = cst;
-    return `scope.${raw}`;
+    return `scope.$.${raw}`;
   },
   decorated_function(cst, generate) {
     const { fn, decorator } = cst;
@@ -97,7 +97,7 @@ const rules = {
       args
     } = decorator;
     const parsedArgs = args.map(generate);
-    return `scope.${fnName} = ${name}(${parsedFn}, ${parsedArgs.join(", ")})`;
+    return `scope.$.${fnName} = ${name}(${parsedFn}, ${parsedArgs.join(", ")})`;
   },
   number(cst, generate) {
     const { raw } = cst;
@@ -174,15 +174,9 @@ const rules = {
   import_from_statement(cst, generate) {
     const { path, names } = cst;
     const processedPath = generate(path);
-    const processedNames = names.map(generate);
-    let assignToScope = [];
-    for (const name of processedNames) {
-      assignToScope.push(`${name} = imported.${name};`);
-    }
-    return `(function() {
-      const imported = require(${processedPath});
-      ${assignToScope.join("\n")}
-    })()`;
+    const processedNames = names.map(name => `"${name.raw}"`);
+    const namesList = `[ ${processedNames.join(",")} ]`;
+    return `scope.extend(require(${processedPath}), ${namesList})`;
   }
 };
 
