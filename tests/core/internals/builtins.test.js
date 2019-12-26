@@ -1,11 +1,4 @@
-const {
-  add,
-  sub,
-  mul,
-  div,
-  print,
-  pow
-} = require("../../../core/internals/builtins");
+const { add, sub, mul, div, pow } = require("../../../core/internals/builtins");
 
 test("Add lazily adds two numbers", () => {
   const sum = add.call(1, 2);

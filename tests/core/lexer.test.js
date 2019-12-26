@@ -1,6 +1,3 @@
-const fs = require("fs");
-const path = require("path");
-
 const lexer = require("../../core/lexer");
 const testfile = "'Hello world' -> print";
 test("Lexed tokens are stored in array", () => {
