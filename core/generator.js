@@ -1,16 +1,18 @@
 const { parser } = require("./parser");
 
 const template = generated => `
-const { Fn } = require('./internals/functions')
-const { Flow } = require('./internals/flow')
-const { Lazy } = require('./internals/lazy')
-const { Scope } = require('./internals/scope')
-const { Array } = require('./internals/array')
-const builtins = require('./internals/builtins')
+const { Fn } = require('./internals/functions');
+const { Flow } = require('./internals/flow');
+const { Lazy } = require('./internals/lazy');
+const { Scope } = require('./internals/scope');
+const { Array } = require('./internals/array');
+const builtins = require('./internals/builtins');
 
-const scope = new Scope(builtins, null)
+const scope = new Scope(builtins, null);
 
 ${generated}
+
+module.exports = { scope };
 `;
 
 const implicitReturn = block => {
@@ -32,13 +34,17 @@ const rules = {
   return(cst, generate) {
     const { expr } = cst;
     const { name } = expr;
-    if (name == "if_elif_else_conditional") {
+    if (name == "conditional") {
       expr.if_block.body.body = implicitReturn(expr.if_block.body.body);
-      expr.elif_block.body = expr.elif_block.body.map(block => {
-        block.body.body = implicitReturn(block.body.body);
-        return block;
-      });
-      expr.else_block.body.body = implicitReturn(expr.else_block.body.body);
+      if (expr.elif_block) {
+        expr.elif_block.body = expr.elif_block.body.map(block => {
+          block.body.body = implicitReturn(block.body.body);
+          return block;
+        });
+      }
+      if (expr.else_block) {
+        expr.else_block.body.body = implicitReturn(expr.else_block.body.body);
+      }
       return generate(expr);
     } else {
       const processedExpr = generate(expr);
@@ -129,11 +135,11 @@ const rules = {
     const right = generate(rhs);
     return `(${left} ${cmp} ${right})`;
   },
-  if_elif_else_conditional(cst, generate) {
+  conditional(cst, generate) {
     const { if_block, elif_block, else_block } = cst;
     const processedIf = generate(if_block);
-    const processedElif = generate(elif_block);
-    const processedElse = generate(else_block);
+    const processedElif = elif_block ? generate(elif_block) : "";
+    const processedElse = else_block ? generate(else_block) : "";
     return [processedIf, processedElif, processedElse].join("\n");
   },
   if_conditional(cst, generate) {
@@ -164,6 +170,19 @@ const rules = {
     } = cst;
     const processedBody = body.map(generate);
     return `else { ${processedBody.join(";\n")} }`;
+  },
+  import_from_statement(cst, generate) {
+    const { path, names } = cst;
+    const processedPath = generate(path);
+    const processedNames = names.map(generate);
+    let assignToScope = [];
+    for (const name of processedNames) {
+      assignToScope.push(`${name} = imported.${name};`);
+    }
+    return `(function() {
+      const imported = require(${processedPath});
+      ${assignToScope.join("\n")}
+    })()`;
   }
 };
 
