@@ -43,7 +43,7 @@ function writePackageConfig(cfg, directory = process.cwd()) {
  *
  * @param {string[]} dep
  */
-function addDependency(dep) {
+async function addDependency(dep) {
   const config = getPackageConfig();
   const depName = dep[0];
   const depVersion = dep[1];

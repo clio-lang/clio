@@ -16,18 +16,6 @@ function hasClioDependencies() {
   );
 }
 
-/**
- * @method updatePackageJsonDependencies
- * @param {string} dependency
- * @returns {Promise}
- * @description updates Package.json file with the desidered dependency.
- */
-
-async function updatePackageJsonDependencies(dependency) {
-  packageConfig.addDependency([dependency, "latest"]);
-}
-
 module.exports = {
-  hasClioDependencies,
-  updatePackageJsonDependencies
+  hasClioDependencies
 };
