@@ -1,23 +1,41 @@
 // - Mathematics
 
 // -- pow
-number|math|symbol math_priority_one => math_priority_one_start { lhs: left, op: right.raw, index: left.index }
-math_priority_one_start number|math|symbol => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+number|math|symbol pow => pow_start { lhs: left, op: right.raw, index: left.index }
+pow_start number|math|symbol => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
 
 // -- mul, div
-number|math|symbol math_priority_two => math_priority_two_start { lhs: left, op: right.raw, index: left.index }
-math_priority_two_start number|math|symbol => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+number|math|symbol mul => mul_start { lhs: left, op: right.raw, index: left.index }
+mul_start number|math|symbol => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+
+number|math|symbol div => div_start { lhs: left, op: right.raw, index: left.index }
+div_start number|math|symbol => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
 
 // -- add, sub
-number|math|symbol math_priority_three => math_priority_three_start { lhs: left, op: right.raw, index: left.index }
-math_priority_three_start number|math|symbol => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+number|math|symbol add => add_start { lhs: left, op: right.raw, index: left.index }
+add_start number|math|symbol => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+
+number|math|symbol sub => sub_start { lhs: left, op: right.raw, index: left.index }
+sub_start number|math|symbol => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+
+// - as!
+
+symbol as => symbol_as { src: left.raw, index: left.index }
+symbol_as symbol => as_expr { src: left.src, dest: right.raw }
 
 // - Imports
 
-import symbol|string => import_statement { path: right }
+import symbol|string => import_statement { path: right, index: left.index }
+import as_expr => import_as { names: [ right ], index: left.index }
+import mul => import_all { index: left.index }
 
-import_statement from => import_from_start { names: [left.path] }
-import_from_start symbol|string => import_from_statement { names: left.names, path: right }
+import_statement from => import_from_start { names: [left.path], index: left.index }
+import_as from => import_as_start { names: left.names, index: left.index }
+import_all from => import_all_start { index: left.index }
+
+import_from_start symbol|string => import_from_statement { names: left.names, path: right, index: left.index }
+import_all_start symbol|string => import_all_statement { names: left.names, path: right, index: left.index }
+import_as_start symbol|string => import_as_statement { names: left.names, path: right, index: left.index }
 
 // - Comparisons
 
@@ -112,5 +130,8 @@ block_start dedent => block { body: left.body, index: left.index }
 flow|function|decorated_function|conditional clio => clio { body: [left, ...right.body], index: left.index }
 flow|function|decorated_function|conditional eof => clio { body: [left], index: left.index }
 
-import_from_statement clio => clio { body: [left, ...right.body], index: left.index }
-import_from_statement eof => clio { body: [left], index: left.index }
+import_from_statement|import_statement clio => clio { body: [left, ...right.body], index: left.index }
+import_from_statement|import_statement eof => clio { body: [left], index: left.index }
+
+import_as_statement|import_all_statement clio => clio { body: [left, ...right.body], index: left.index }
+import_as_statement|import_all_statement eof => clio { body: [left], index: left.index }

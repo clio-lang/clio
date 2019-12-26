@@ -10,6 +10,12 @@ const builtins = require('./internals/builtins');
 
 const scope = new Scope(builtins, null);
 
+const moduleName = path =>
+  path
+    .split("/")
+    .pop()
+    .replace(/\.clio$/, "");
+
 ${generated}
 
 module.exports = scope
@@ -177,6 +183,26 @@ const rules = {
     const processedNames = names.map(name => `"${name.raw}"`);
     const namesList = `[ ${processedNames.join(",")} ]`;
     return `scope.extend(require(${processedPath}), ${namesList})`;
+  },
+  import_all_statement(cst, generate) {
+    const { path } = cst;
+    const processedPath = generate(path);
+    return `scope.extend(require(${processedPath}))`;
+  },
+  import_as_statement(cst, generate) {
+    const { path, names } = cst;
+    const processedPath = generate(path);
+    const processedNames = names.map(name => {
+      const { src, dest } = name;
+      return `${src}: "${dest}"`;
+    });
+    namesObject = "{" + processedNames.join(",") + "}";
+    return `scope.extend(require(${processedPath}), ${namesObject})`;
+  },
+  import_statement(cst, generate) {
+    const { path } = cst;
+    const processedPath = generate(path);
+    return `scope.extend(require(${processedPath}), null, moduleName(${processedPath}))`;
   }
 };
 

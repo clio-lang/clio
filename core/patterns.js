@@ -33,9 +33,12 @@ const patterns = {
 
   cmp: /^(!=|>=|<=|>|<|==)/,
 
-  math_priority_one: /^[\^]/,
-  math_priority_two: /^[*/]/,
-  math_priority_three: /^[-+%]/,
+  pow: /^[\^]/,
+  mul: /^[*]/,
+  div: /^[/]/,
+  add: /^[+]/,
+  sub: /^[-]/,
+  mod: /^[%]/,
 
   //range: /^\[([0-9]+,)?([0-9]+)?..([0-9]+)?\]/,
 

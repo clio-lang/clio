@@ -1,7 +1,3 @@
-/*
-  Allows doing scope.key instead of
-  doing scope.get('key')
-*/
 const proxify = scope =>
   new Proxy(scope, {
     set(scope, key, value) {
@@ -31,11 +27,25 @@ class Scope {
     this.scope[key] = value;
     return value;
   }
-  extend(object, keys) {
+  extend(object, keys, prefix) {
     if (!(object instanceof Scope)) object = new Scope(object);
-    if (!keys) keys = Object.keys(object.scope);
-    for (const key of keys) {
-      this.set(key, object.get(key));
+    keys = keys || Object.keys(object.scope);
+    if (prefix) {
+      const result = {};
+      for (const key of keys) {
+        result[key] = object.get(key);
+      }
+      this.set(prefix, result);
+    } else {
+      if (Array.isArray(keys)) {
+        for (const key of keys) {
+          this.set(key, object.get(key));
+        }
+      } else {
+        for (const [key, dest] of Object.entries(keys)) {
+          this.set(dest, object.get(key));
+        }
+      }
     }
   }
 }
