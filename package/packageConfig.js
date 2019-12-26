@@ -68,11 +68,7 @@ function getPackageDependencies() {
 
 function hasClioDependencies() {
   const dependencies = getPackageDependencies();
-  return (
-    !!dependencies &&
-    !!Object.keys(dependencies) &&
-    !!Object.keys(dependencies).length
-  );
+  return !!dependencies && !!Object.keys(dependencies).length;
 }
 
 module.exports = {
