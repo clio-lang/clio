@@ -1,7 +1,6 @@
 const fs = require("fs");
 const { spawnSync } = require("child_process");
 const packageConfig = require("../../package/packageConfig");
-const { getDependencies } = require("../../internals/deps");
 const { error, info, success } = require("../lib/colors");
 
 exports.command = "new <project>";
@@ -45,7 +44,7 @@ async function createPackage(packageName) {
 
     packageConfig.writePackageConfig(defaultConfig);
 
-    await getDependencies();
+    await packageConfig.fetchDependencies();
     info("Added Clio dependencies");
 
     fs.writeFileSync("index.clio", "'Hello World' -> print\n");

@@ -9,4 +9,5 @@ test("Print AST", async () => {
   const source = path.join(dir.name, "index.clio");
   const ast = await printAst(source);
   expect(ast.pop()).toContain("name: clio\n");
+  dir.removeCallback();
 });

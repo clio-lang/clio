@@ -28,4 +28,5 @@ test("Write config file", () => {
   const contents = toml.parse(file.toString());
   expect(contents.title).toBe("test");
   expect(contents.dependencies).toEqual({ Foo: "1.2.3" });
+  tmpDir.removeCallback();
 });
