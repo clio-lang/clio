@@ -16,13 +16,13 @@ class Scope {
   constructor(initial, outerScope) {
     this.outerScope = outerScope;
     this.scope = { ...initial };
-    return proxify(this);
+    this.$ = proxify(this);
   }
   get(key) {
     if (key in this.scope) {
       return this.scope[key];
     } else if (this.outerScope) {
-      return this.outerScope[key];
+      return this.outerScope.get(key);
     } else {
       throw "Not defined";
     }
@@ -31,8 +31,17 @@ class Scope {
     this.scope[key] = value;
     return value;
   }
-  extend(object) {
-    Object.assign(this.scope, object);
+  extend(object, keys) {
+    if (!(object instanceof Scope)) {
+      object = new Scope(object);
+    }
+    if (!keys) {
+      Object.assign(this.scope, object.scope);
+    } else {
+      for (const key of keys) {
+        this.set(key, object.get(key));
+      }
+    }
   }
 }
 
