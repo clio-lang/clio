@@ -54,6 +54,8 @@ test("Compile if elif else", async () => {
 fn foo n:
   if n < 2: 
     n
+  elif n < 4:
+    n + 2
   else:
     n + 4
 `;
