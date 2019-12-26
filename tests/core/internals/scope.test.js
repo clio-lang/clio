@@ -10,3 +10,17 @@ test("If key isn't in Scope it should be fetched from outer Scope", () => {
   const scope = new Scope({}, outerScope);
   expect(scope.$.lang).toBe("Clio");
 });
+
+test("Scope.extend should work with Scopes", () => {
+  const outerScope = new Scope({ lang: "Clio" });
+  const scope = new Scope({});
+  scope.extend(outerScope);
+  expect(scope.$.lang).toBe("Clio");
+});
+
+test("Scope.extend should work with Objects", () => {
+  const outerScope = { lang: "Clio" };
+  const scope = new Scope({});
+  scope.extend(outerScope);
+  expect(scope.$.lang).toBe("Clio");
+});
