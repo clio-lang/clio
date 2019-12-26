@@ -19,6 +19,8 @@ const patterns = {
 
   import: /^import(?![a-zA-Z_-])/,
   from: /^from(?![a-zA-Z_-])/,
+  url: /^(http|ws)s?:\/\/[^ \r\n]+/,
+  path: /^([.]{1,2})?(\/[a-zA-Z0-9.]+)+(\.clio)?/,
 
   comment: /^ *--[^\r\n]+/,
 

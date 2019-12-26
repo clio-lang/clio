@@ -32,6 +32,7 @@ if_conditional_start block => if_conditional { condition: left.condition, body: 
 
 elif comparison|symbol => elif_conditional_prestart { condition: right, index: left.index }
 elif_conditional_prestart colon => elif_conditional_start { condition: left.condition, index: left.index }
+
 elif_conditional_start block => elif_conditional { body: [{ condition: left.condition, body: right, index: left.index }] }
 
 elif_conditional elif_conditional => elif_conditional { body: [...left.body, right.body], index: left.index }
