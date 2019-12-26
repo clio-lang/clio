@@ -13,7 +13,6 @@
     "node": ">=10.4",
     "npm": ">=3"
   },
-  "precommit.silent": true,
   "author": "Pouya Eghbali",
   "contributors": [
     {
