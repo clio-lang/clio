@@ -1,18 +1,43 @@
+const { Method } = require("./method");
+
+class JSFn {
+  constructor(fn) {
+    this.fn = fn;
+  }
+  call(...args) {
+    return this.fn(...args);
+  }
+}
+
 class Flow {
   constructor(scope, data) {
     this.data = data;
     this.scope = scope;
   }
   pipe(fn, ...args) {
+    if (fn instanceof Method) fn = fn.get(this.data);
+    if (typeof fn == "function") fn = new JSFn(fn);
     const data = fn.call(this.data, ...args);
     return new Flow(this.scope, data);
   }
   map(fn, ...args) {
-    const data = this.data.map(item => fn.call(item, ...args));
+    const data = this.data.map(item => {
+      let fun = fn instanceof Method ? fn.get(this.data) : fn;
+      if (typeof fun == "function") fun = new JSFn(fun);
+      return fun.call(item, ...args);
+    });
     return new Flow(this.scope, data);
   }
   set(key) {
-    this.scope[key] = this.data;
+    if (key.includes(".")) {
+      const [first, ...rest] = key.split(".");
+      const last = rest.pop();
+      let object = this.scope.$[first];
+      while (rest.length) object = object[rest.shift()];
+      object[last] = this.data;
+    } else {
+      this.scope.$[key] = this.data;
+    }
     return this;
   }
 }
