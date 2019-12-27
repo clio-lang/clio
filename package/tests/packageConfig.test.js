@@ -2,7 +2,7 @@ const tmp = require("tmp");
 const path = require("path");
 const fs = require("fs");
 const toml = require("@iarna/toml");
-const packageConfig = require("../../package/packageConfig");
+const packageConfig = require("../packageConfig");
 
 test("Import config file", () => {
   const config = packageConfig.getPackageConfig(
