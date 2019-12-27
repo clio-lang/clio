@@ -6,7 +6,7 @@ const { printAst } = require("../../../cli/commands/ast");
 test("Print AST", async () => {
   const dir = tmp.dirSync();
   await createPackage(dir.name);
-  const source = path.join(dir.name, "index.clio");
+  const source = path.join(dir.name, "src/main.clio");
   const ast = await printAst(source);
   expect(ast.pop()).toContain("name: clio\n");
   dir.removeCallback();

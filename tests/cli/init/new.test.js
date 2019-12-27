@@ -8,7 +8,8 @@ test("Create a package", async () => {
   const dir = tmp.dirSync();
   await createPackage(dir.name);
   const files = fs.readdirSync(dir.name);
-  expect(files.includes("index.clio")).toBe(true);
+  console.log(files);
+  expect(files.includes("src")).toBe(true);
   expect(files.includes("clio.toml")).toBe(true);
   expect(files.includes("clio_env")).toBe(true);
   expect(files.includes(".gitignore")).toBe(true);
@@ -20,9 +21,7 @@ test("Create a package", async () => {
 test("Freshly generated project file includes multiple authors", async () => {
   const dir = tmp.dirSync();
   await createPackage(dir.name);
-  const config = packageConfig.getPackageConfig(
-    path.join(dir.name, "clio.toml")
-  );
+  const config = packageConfig.getPackageConfig(path.join(dir.name, "clio.toml"));
   expect(Array.isArray(config.authors)).toBe(true);
 
   dir.removeCallback();
