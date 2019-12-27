@@ -1,4 +1,4 @@
-const { Scope } = require("../../../core/internals/scope");
+const { Scope } = require("../scope");
 
 test("Scope.$ should call Scope.get and return the value for key", () => {
   const scope = new Scope({ lang: "Clio" });

@@ -1,6 +1,6 @@
-const generator = require("../../core/generator");
-const parser = require("../../core/parser");
-const lexer = require("../../core/lexer");
+const generator = require("../generator");
+const parser = require("../parser");
+const lexer = require("../lexer");
 
 test("Generate from AST", async () => {
   const tokens = await lexer(source);

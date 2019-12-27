@@ -1,4 +1,4 @@
-const parser = require("../../core/parser");
+const parser = require("../parser");
 
 test("Parse tokens", () => {
   const tokens = [
