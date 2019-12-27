@@ -1,8 +1,8 @@
 const fs = require("fs");
 const path = require("path");
 const tmp = require("tmp");
-const { createPackage } = require("../../../cli/commands/new");
-const { build } = require("../../../cli/commands/build");
+const { createPackage } = require("../new");
+const { build } = require("../build");
 
 test("Compile source to target", async () => {
   const dir = tmp.dirSync();
