@@ -30,3 +30,16 @@ test("Write config file", () => {
   expect(contents.dependencies).toEqual({ Foo: "1.2.3" });
   tmpDir.removeCallback();
 });
+
+test("hasVersion without version provided", () => {
+  const gitHubPackage = "github.com/foo/bar";
+
+  expect(packageConfig.hasVersion(gitHubPackage)).toBeFalsy();
+});
+
+test("hasVersion with version", () => {
+  const gitHubPackageVersion = "github.com/foo/bar@1.2.3";
+
+  expect(packageConfig.hasVersion(gitHubPackageVersion)).toBeTruthy();
+  expect(packageConfig.getVersion(gitHubPackageVersion)).toBe("@1.2.3");
+});
