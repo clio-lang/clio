@@ -1,7 +1,10 @@
 const fs = require("fs");
 const { spawnSync } = require("child_process");
+const degit = require("degit");
 const packageConfig = require("../../package/packageConfig");
 const { error, info, success } = require("../lib/colors");
+
+const TARGETS = ["node", "browser"];
 
 exports.command = "new <project>";
 exports.desc = "Create a new Clio project";
@@ -9,45 +12,46 @@ exports.builder = {
   project: {
     describe: "name of the project",
     type: "string"
+  },
+  target: {
+    describe: "What is this project intended for (node or browser)?",
+    type: "string",
+    default: "node"
   }
 };
 exports.handler = function(argv) {
-  createPackage(argv.project);
+  createPackage(argv.project, argv.target);
 };
 
-async function createPackage(packageName) {
+function preValidations(packageName, target) {
+  if (!packageName) {
+    throw new Error("A project name is required.");
+  }
+  if (!TARGETS.includes(target)) {
+    throw new Error('New command only supports "browser" or "node" targets.');
+  }
+  const result = spawnSync("git");
+  if (result.error) {
+    throw new Error("Git is required to create a new Clio project.");
+  }
+}
+
+async function createPackage(packageName, target = "node") {
   try {
-    if (!packageName) {
-      throw new Error("A project name is required.");
-    }
-    const result = spawnSync("git");
-    if (result.error) {
-      throw new Error("Git is required to create a new Clio project.");
-    }
+    preValidations(packageName, target);
 
-    if (!fs.existsSync(packageName)) {
-      fs.mkdirSync(packageName);
-    }
+    const emitter = degit(`clio-lang/template-${target}#master`, {
+      cache: false,
+      force: true
+    });
+
+    await emitter.clone(packageName);
+
     process.chdir(packageName);
-
-    const defaultConfig = {
-      title: packageName,
-      description: "",
-      version: "0.1.0",
-      license: "ISC",
-      main: "index.clio",
-      keywords: "",
-      authors: ["Your Name <you@example.com>"],
-      scripts: { test: "No tests specified" },
-      dependencies: [{ name: "stdlib", version: "latest" }]
-    };
-
-    packageConfig.writePackageConfig(defaultConfig);
 
     await packageConfig.fetchDependencies();
     info("Added Clio dependencies");
 
-    fs.writeFileSync("index.clio", "'Hello World' -> print\n");
     fs.writeFileSync(".gitignore", ".clio-cache\nclio_env\n");
 
     spawnSync("git", ["init"]);
@@ -56,9 +60,7 @@ async function createPackage(packageName) {
     info("Initialized new git repository.");
 
     info("Initialization Complete!");
-    success(
-      `Run 'cd ${packageName}' to open, then 'clio run index.clio' to run the project!`
-    );
+    success(`Run 'cd ${packageName}' to open, then 'clio run index.clio' to run the project!`);
   } catch (e) {
     error(e);
     process.exit(1);
