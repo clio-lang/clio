@@ -24,3 +24,17 @@ test("Scope.extend should work with Objects", () => {
   scope.extend(outerScope);
   expect(scope.$.lang).toBe("Clio");
 });
+
+test("Scope.extend should respect prefix", () => {
+  const outerScope = { lang: "Clio" };
+  const scope = new Scope({});
+  scope.extend(outerScope, null, "clio");
+  expect(scope.$.clio.lang).toBe("Clio");
+});
+
+test("Scope.extend should respect key renames", () => {
+  const outerScope = { lang: "Clio" };
+  const scope = new Scope({});
+  scope.extend(outerScope, { lang: "language" });
+  expect(scope.$.language).toBe("Clio");
+});
