@@ -1,4 +1,4 @@
-const versionUtils = require("../../utils/versionUtils");
+const versionUtils = require("../versionUtils");
 
 describe("isSupportedNodeVersion", () => {
   test("10.4 is supported", () => {
