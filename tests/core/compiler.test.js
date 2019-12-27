@@ -52,13 +52,27 @@ fn loop i:
 test("Compile if elif else", async () => {
   const input = `
 fn foo n:
-  if n < 2: 
+  if n < 2:
     n
   elif n < 4:
     n + 2
   else:
     n + 4
 `;
+
+  const output = await compiler.compile(input);
+  expect(output).toBeDefined();
+});
+
+test("Compile method calls", async () => {
+  const input = `data -> .method arg1 arg2\n`;
+
+  const output = await compiler.compile(input);
+  expect(output).toBeDefined();
+});
+
+test("Compile property access", async () => {
+  const input = `data.property -> print\n`;
 
   const output = await compiler.compile(input);
   expect(output).toBeDefined();

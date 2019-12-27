@@ -14,7 +14,9 @@ const moduleName = path =>
   path
     .split("/")
     .pop()
-    .replace(/\.clio$/, "");
+    .replace(/(\.clio|\.js)$/, "");
+
+const { Method } = require('./internals/method');
 
 ${generated}
 
@@ -128,7 +130,10 @@ const rules = {
   },
   set_var(cst, generate) {
     const { variable } = cst;
-    return `.set("${variable}")`;
+    const { name } = variable;
+    return name == "symbol"
+      ? `.set("${variable}")`
+      : `.set("${variable.symbols.map(({ raw }) => raw).join(".")}")`;
   },
   array(cst, generate) {
     const { items } = cst;
@@ -203,6 +208,16 @@ const rules = {
     const { path } = cst;
     const processedPath = generate(path);
     return `scope.extend(require(${processedPath}), null, moduleName(${processedPath}))`;
+  },
+  dot_notation(cst, generate) {
+    const { symbols } = cst;
+    const [first, ...rest] = symbols.map(({ raw }) => raw);
+    return `scope.$.${first}.${rest.join(".")}`;
+  },
+  method(cst, generate) {
+    const { symbols } = cst;
+    const processedSymbols = symbols.map(({ raw }) => `"${raw}"`).join(",");
+    return `new Method([${processedSymbols}])`;
   }
 };
 
