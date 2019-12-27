@@ -1,7 +1,7 @@
 const tmp = require("tmp");
 const path = require("path");
-const { createPackage } = require("../../../cli/commands/new");
-const { printAst } = require("../../../cli/commands/ast");
+const { createPackage } = require("../new");
+const { printAst } = require("../ast");
 
 test("Print AST", async () => {
   const dir = tmp.dirSync();
