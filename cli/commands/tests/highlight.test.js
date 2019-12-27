@@ -1,7 +1,7 @@
 const path = require("path");
 const tmp = require("tmp");
-const { createPackage } = require("../../../cli/commands/new");
-const { highlight } = require("../../../cli/commands/highlight");
+const { createPackage } = require("../new");
+const { highlight } = require("../highlight");
 
 test("Highlight a file", async () => {
   const dir = tmp.dirSync();

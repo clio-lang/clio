@@ -1,7 +1,7 @@
 const tmp = require("tmp");
 const fs = require("fs");
 const path = require("path");
-const { createPackage } = require("../../../cli/commands/new");
+const { createPackage } = require("../new");
 const packageConfig = require("../../../package/packageConfig");
 
 test("Create a package", async () => {
@@ -21,7 +21,9 @@ test("Create a package", async () => {
 test("Freshly generated project file includes multiple authors", async () => {
   const dir = tmp.dirSync();
   await createPackage(dir.name);
-  const config = packageConfig.getPackageConfig(path.join(dir.name, "clio.toml"));
+  const config = packageConfig.getPackageConfig(
+    path.join(dir.name, "clio.toml")
+  );
   expect(Array.isArray(config.authors)).toBe(true);
 
   dir.removeCallback();

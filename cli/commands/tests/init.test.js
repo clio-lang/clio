@@ -1,6 +1,6 @@
 const fs = require("fs");
 const tmp = require("tmp");
-const { initPackage } = require("../../../cli/commands/init");
+const { initPackage } = require("../init");
 
 test("Inits a package", async () => {
   const dir = tmp.dirSync();
