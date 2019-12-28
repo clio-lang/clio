@@ -8,6 +8,7 @@ module.exports = {
   highlight: require("./highlight"),
   host: require("./host"),
   init: require("./init"),
-  new: require("./new"),
+  // New keyword cannot be used
+  _new: require("./new"),
   run: require("./run")
 };
