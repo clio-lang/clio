@@ -1,7 +1,9 @@
 const fs = require("fs");
 const path = require("path");
+const toml = require("@iarna/toml");
 const { format } = require("prettier");
 const { generator } = require("../../core/generator");
+const { error } = require("../lib/colors");
 
 const flatten = arr => arr.reduce((acc, val) => acc.concat(val), []);
 
@@ -23,24 +25,62 @@ const mkdir = directory => {
   }, root);
 };
 
-const build = async (source, dest) => {
-  dest = dest || path.join(source, ".clio", "target", "node");
-  const files = getClioFiles(source);
-  for (const file of files) {
-    const relativeFile = path.relative(source, file);
-    const destFile = path.join(dest, `${relativeFile}.js`);
-    const destDir = path.dirname(destFile);
-    const contents = fs.readFileSync(file, "utf8");
-    const compiled = await generator(contents);
-    const formatted = format(compiled, { parser: "babel" });
-    mkdir(destDir);
-    fs.writeFileSync(destFile, formatted, "utf8");
+function getDestinationFromConfig(source, target) {
+  const tomlPath = path.join(source, "clio.toml");
+  if (!fs.existsSync(tomlPath)) {
+    throw new Error("clio.toml was not found on the specified directory.");
+  }
+
+  const tomlContent = fs.readFileSync(tomlPath);
+  const tomlObject = toml.parse(tomlContent.toString());
+
+  const buildConfig = tomlObject.build;
+
+  if (!buildConfig) {
+    throw new Error('No build configuration has been found. It is a "[build]" section on you "clio.toml" file.');
+  }
+
+  const buildDirectory = buildConfig.directory;
+
+  if (!buildDirectory) {
+    throw new Error(
+      'The build directory is missing on your "clio.toml".\n\nExample:\n\n[build]\ndirectory = "build"\n'
+    );
+  }
+
+  const buildTarget = target || buildConfig.target;
+
+  if (!buildTarget) {
+    throw new Error(
+      '"target" field is missing in your clio.toml file. You can override the target with the "--target" option.'
+    );
+  }
+
+  return path.join(source, `${buildDirectory}/${buildTarget}`);
+}
+
+const build = async (source, dest, target) => {
+  try {
+    const destination = dest || getDestinationFromConfig(source, target);
+    const files = getClioFiles(source);
+    for (const file of files) {
+      const relativeFile = path.relative(source, file);
+      const destFile = path.join(destination, `${relativeFile}.js`);
+      const destDir = path.dirname(destFile);
+      const contents = fs.readFileSync(file, "utf8");
+      const compiled = await generator(contents);
+      const formatted = format(compiled, { parser: "babel" });
+      mkdir(destDir);
+      fs.writeFileSync(destFile, formatted, "utf8");
+    }
+  } catch (e) {
+    error(e);
   }
 };
 
 const command = "build [source] [destination]";
 const desc = "Build a Clio project";
-const handler = argv => build(argv.source, argv.destination);
+const handler = argv => build(argv.source, argv.destination, argv.target);
 const builder = {
   source: {
     describe: "source directory to read from",
@@ -49,6 +89,10 @@ const builder = {
   },
   destination: {
     describe: "destination directory to write to",
+    type: "string"
+  },
+  target: {
+    describe: "An override for the default project target.",
     type: "string"
   }
 };
