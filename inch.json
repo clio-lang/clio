@@ -1,0 +1,6 @@
+{
+  "files": {
+    "included": ["**/*.js"],
+    "excluded": ["node_modules/"]
+  }
+}
