@@ -1,7 +1,7 @@
 const { parser } = require("./parser");
 
 const template = generated => `
-const { Fn, Flow, Lazy, Scope, Array, Method, builtins } = require('@clio/internals');
+const { Fn, Flow, Lazy, Scope, Array, Method, builtins } = require('clio-internals');
 
 const scope = new Scope(builtins, null);
 
