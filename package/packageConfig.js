@@ -23,6 +23,8 @@ function getPackageConfig(filepath = path.join(process.cwd(), configFileName)) {
     main: config.main,
     authors: config.authors,
     keywords: config.keywords,
+    build: config.build,
+    target: config.target,
     // eslint-disable-next-line camelcase
     git_repository: config.git_repository,
     documentation: config.documentation,
