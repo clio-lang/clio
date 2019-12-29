@@ -1,9 +1,9 @@
 const fs = require("fs");
 const path = require("path");
-const toml = require("@iarna/toml");
 const { format } = require("prettier");
 const { generator } = require("../../core/generator");
 const { error } = require("../lib/colors");
+const packageConfig = require("../../package/packageConfig");
 
 const flatten = arr => arr.reduce((acc, val) => acc.concat(val), []);
 
@@ -31,13 +31,12 @@ function getDestinationFromConfig(source, target) {
     throw new Error("clio.toml was not found on the specified directory.");
   }
 
-  const tomlContent = fs.readFileSync(tomlPath);
-  const tomlObject = toml.parse(tomlContent.toString());
-
-  const buildConfig = tomlObject.build;
+  const buildConfig = packageConfig.getPackageConfig().build;
 
   if (!buildConfig) {
-    throw new Error('No build configuration has been found. It is a "[build]" section on you "clio.toml" file.');
+    throw new Error(
+      'No build configuration has been found. It is a "[build]" section on you "clio.toml" file.'
+    );
   }
 
   const buildDirectory = buildConfig.directory;
