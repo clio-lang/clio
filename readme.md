@@ -6,7 +6,6 @@
 
 ![Clio Logo](https://raw.githubusercontent.com/clio-lang/media/master/logo-128x128.png)
 
-**Clio is looking to hire developers in Iran. If anyone is interested you can apply on [our telegram group.](https://t.me/joinchat/B0kZo0kVldfXldTDqz95XA)**
 
 # Clio
 
