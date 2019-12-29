@@ -1,7 +1,7 @@
 const fs = require("fs");
 const { spawnSync } = require("child_process");
 const degit = require("degit");
-const packageConfig = require("../../package/packageConfig");
+// const packageConfig = require("../../package/packageConfig");
 const { error, info, success } = require("../lib/colors");
 
 const TARGETS = ["node", "browser"];
@@ -49,8 +49,9 @@ async function createPackage(packageName, target = "node") {
 
     process.chdir(packageName);
 
-    await packageConfig.fetchDependencies();
-    info("Added Clio dependencies");
+    // FIXME This is messing clio.toml. Will remain commented until dependency management is fixed
+    // await packageConfig.fetchDependencies();
+    // info("Added Clio dependencies");
 
     fs.writeFileSync(".gitignore", ".clio-cache\nclio_env\n");
 
