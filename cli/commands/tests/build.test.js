@@ -42,6 +42,28 @@ describe("Node builds", () => {
     dir.removeCallback();
   });
 
+  test("with alternative target directory (clio build)", async () => {
+    const dir = tmp.dirSync();
+    await _new(dir.name, "node");
+    fs.writeFileSync(
+      path.join(dir.name, "clio.toml"),
+      `
+    [build]
+directory = "build"
+target = "node"
+
+[target.node]
+directory = "src"
+target = "alternative"`
+    );
+    await build(dir.name);
+
+    const files = fs.readdirSync(path.join(dir.name, "build/alternative/src"));
+    expect(files.includes("main.clio.js")).toBe(true);
+    dir.removeCallback();
+    expect(false).toBe(true);
+  });
+
   test("with target override (clio build --target=node)", async () => {
     const dir = tmp.dirSync();
     await _new(dir.name, "browser"); // project generated as browser
