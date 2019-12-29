@@ -31,7 +31,16 @@ function getDestinationFromConfig(source, target) {
     throw new Error("clio.toml was not found on the specified directory.");
   }
 
-  const buildConfig = packageConfig.getPackageConfig().build;
+  const config = packageConfig.getPackageConfig();
+  const buildConfig = config.build;
+
+  // TODO: Clean up assignment
+  let buildTarget;
+  try {
+    buildTarget = target || config.target[buildConfig.build].target;
+  } catch (e) {
+    buildTarget = buildConfig.target;
+  }
 
   if (!buildConfig) {
     throw new Error(
@@ -46,8 +55,6 @@ function getDestinationFromConfig(source, target) {
       'The build directory is missing on your "clio.toml".\n\nExample:\n\n[build]\ndirectory = "build"\n'
     );
   }
-
-  const buildTarget = target || buildConfig.target;
 
   if (!buildTarget) {
     throw new Error(
