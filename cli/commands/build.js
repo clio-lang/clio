@@ -37,7 +37,7 @@ function getDestinationFromConfig(source, target) {
   // TODO: Clean up assignment
   let buildTarget;
   try {
-    buildTarget = target || config.target[buildConfig.build].target;
+    buildTarget = target || config.target[buildConfig.target].target;
   } catch (e) {
     buildTarget = buildConfig.target;
   }
