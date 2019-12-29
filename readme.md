@@ -6,9 +6,6 @@
 ![Clio Logo](https://raw.githubusercontent.com/clio-lang/media/master/logo-128x128.png)
 
 
-**Clio is looking to hire developers in Iran. If anyone is interested you can apply on [our telegram group.](https://t.me/joinchat/B0kZo0kVldfXldTDqz95XA)**
-
-
 # Clio
 
 Clio is a pure functional lazy-evaluated programming language targeting decentralized and distributed systems. It is made to take advantage of multiple CPUs and CPU cores (parallelism) by default, to run on clusters and on the cloud easily.
