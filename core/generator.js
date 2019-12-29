@@ -58,7 +58,9 @@ const rules = {
       parameters,
       body: { body }
     } = cst;
-    const processedParams = parameters.map(param => `scope.$.${param} = ${param}`);
+    const processedParams = parameters.map(
+      param => `scope.$.${param} = ${param}`
+    );
     const processedBody = implicitReturn(body).map(generate);
     return `scope.$.${name} = new Fn(
       function ${name} (scope, ${parameters.join(", ")}) {
@@ -68,7 +70,10 @@ const rules = {
   },
   anonymous_function(cst, generate) {
     const { parameter, body: expr } = cst;
-    const processedBody = expr.name == "block" ? expr.body.map(generate).join(";\n") : generate(expr);
+    const processedBody =
+      expr.name == "block"
+        ? expr.body.map(generate).join(";\n")
+        : generate(expr);
     return `new Fn(function (scope, ${parameter}) {
       ${processedBody}
     })`;
@@ -119,7 +124,9 @@ const rules = {
   set_var(cst, generate) {
     const { variable } = cst;
     const { name } = variable;
-    return name == "symbol" ? `.set("${variable}")` : `.set("${variable.symbols.map(({ raw }) => raw).join(".")}")`;
+    return name == "symbol"
+      ? `.set("${variable}")`
+      : `.set("${variable.symbols.map(({ raw }) => raw).join(".")}")`;
   },
   array(cst, generate) {
     const { items } = cst;
