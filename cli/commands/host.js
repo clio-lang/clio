@@ -10,7 +10,7 @@ exports.handler = function(argv) {
   host(argv.source);
 };
 
-async function host(source) {
+exports.host = async source => {
   try {
     const cwd = process.cwd();
     const file = path.join(cwd, source);
@@ -24,4 +24,4 @@ async function host(source) {
   } catch (e) {
     console.log(e);
   }
-}
+};

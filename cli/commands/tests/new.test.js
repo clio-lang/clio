@@ -6,7 +6,7 @@ const packageConfig = require("../../../package/packageConfig");
 
 test("Create a package", async () => {
   const dir = tmp.dirSync();
-  await _new.createPackage(dir.name);
+  await _new(dir.name);
   const files = fs.readdirSync(dir.name);
   console.log(files);
   expect(files.includes("src")).toBe(true);
@@ -20,7 +20,7 @@ test("Create a package", async () => {
 
 test("Freshly generated project file includes multiple authors", async () => {
   const dir = tmp.dirSync();
-  await _new.createPackage(dir.name);
+  await _new(dir.name);
   const config = packageConfig.getPackageConfig(
     path.join(dir.name, "clio.toml")
   );

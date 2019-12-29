@@ -1,14 +1,15 @@
 module.exports = {
-  ast: require("./ast"),
-  build: require("./build"),
+  ast: require("./ast").printAst,
+  build: require("./build").build,
   deps: {
-    ...require("./deps"),
-    subCommands: require("./deps_commands")
+    ...require("./deps").showDependencies,
+    add: require("./deps_commands").add,
+    get: require("./deps_commands").get
   },
-  highlight: require("./highlight"),
-  host: require("./host"),
-  init: require("./init"),
+  highlight: require("./highlight").highlight,
+  host: require("./host").host,
+  init: require("./init").initPackage,
   // New keyword cannot be used
-  _new: require("./new"),
-  run: require("./run")
+  _new: require("./new").createPackage,
+  run: require("./run").run
 };

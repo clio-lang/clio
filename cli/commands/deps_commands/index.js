@@ -1,4 +1,4 @@
 module.exports = {
-  add: require("./add"),
-  get: require("./get")
+  add: require("./add").handler,
+  get: require("./get").handler
 };
