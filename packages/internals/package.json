@@ -1,11 +1,11 @@
 {
   "name": "clio-internals",
   "version": "0.1.0",
-  "description": "Internals used by the core.",
+  "description": "Internal functionality used by the Clio Programming Language core.",
   "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Run this script on the root directory.\" && exit 1"
   },
-  "author": "",
+  "author": "Andrey Luiz <andreyluiz.developer@gmail.com>",
   "license": "Apache-2.0"
 }
