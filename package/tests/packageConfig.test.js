@@ -2,7 +2,7 @@ const tmp = require("tmp");
 const path = require("path");
 const fs = require("fs");
 const toml = require("@iarna/toml");
-const packageConfig = require("../../package/packageConfig");
+const packageConfig = require("../packageConfig");
 
 test("Import config file", () => {
   const config = packageConfig.getPackageConfig(
@@ -29,4 +29,17 @@ test("Write config file", () => {
   expect(contents.title).toBe("test");
   expect(contents.dependencies).toEqual({ Foo: "1.2.3" });
   tmpDir.removeCallback();
+});
+
+test("hasVersion without version provided", () => {
+  const gitHubPackage = "github.com/foo/bar";
+
+  expect(packageConfig.hasVersion(gitHubPackage)).toBeFalsy();
+});
+
+test("hasVersion with version", () => {
+  const gitHubPackageVersion = "github.com/foo/bar@1.2.3";
+
+  expect(packageConfig.hasVersion(gitHubPackageVersion)).toBeTruthy();
+  expect(packageConfig.getVersion(gitHubPackageVersion)).toBe("@1.2.3");
 });

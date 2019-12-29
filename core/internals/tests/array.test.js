@@ -1,4 +1,4 @@
-const { Array } = require("../../../core/internals/array");
+const { Array } = require("../array");
 
 test("Created array contains values", () => {
   const arr = new Array(1, 2, 3);

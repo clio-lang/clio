@@ -1,4 +1,4 @@
-const { Lazy, lazy } = require("../../../core/internals/lazy");
+const { Lazy, lazy } = require("../lazy");
 
 test("Lazy evaluates when valueOf() is called", () => {
   const lzy = new Lazy(() => "foo");

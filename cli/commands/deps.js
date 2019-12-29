@@ -19,7 +19,7 @@ exports.handler = () => {
  *              dependencies listed in package.json
  */
 
-function showDependencies() {
+exports.showDependencies = () => {
   if (!packageConfig.hasClioDependencies()) {
     console.log("No dependencies found in package.json");
     return;
@@ -30,4 +30,4 @@ function showDependencies() {
     .map(dep => `~> ${dep["name"]}: ${dep["version"]}`)
     .join("\n");
   console.log(formattedDeps);
-}
+};

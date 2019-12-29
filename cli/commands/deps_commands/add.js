@@ -6,6 +6,5 @@ exports.builder = {
   url: { describe: "source file to analyze", type: "string" }
 };
 exports.handler = argv => {
-  console.log(argv);
   get(argv);
 };
