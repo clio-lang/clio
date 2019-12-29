@@ -1,4 +1,4 @@
-const { Array } = require("../array");
+const { Array } = require("../src/array");
 
 test("Created array contains values", () => {
   const arr = new Array(1, 2, 3);
