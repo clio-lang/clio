@@ -13,3 +13,14 @@ test = "clio test **/*.clio"
 stdlib = "^2.3.1"
 foo = "2.1"
 
+[build]
+directory = "build"
+target = "node"
+
+[target.node]
+directory = "src"
+target = "node"
+
+[target.browser]
+directory = "src"
+target = "browser"

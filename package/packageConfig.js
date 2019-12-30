@@ -15,7 +15,7 @@ function getPackageConfig(filepath = path.join(process.cwd(), configFileName)) {
   const file = fs.readFileSync(filepath);
   const config = toml.parse(file);
 
-  return {
+  const parsedConfig = {
     title: config.title,
     description: config.description,
     version: config.version,
@@ -23,15 +23,21 @@ function getPackageConfig(filepath = path.join(process.cwd(), configFileName)) {
     main: config.main,
     authors: config.authors,
     keywords: config.keywords,
+    build: config.build,
+    target: config.target,
     // eslint-disable-next-line camelcase
     git_repository: config.git_repository,
     documentation: config.documentation,
-
-    scripts: config.scripts,
-    dependencies: Object.entries(config.dependencies).map(dep => {
-      return { name: dep[0], version: dep[1] };
-    })
+    scripts: config.scripts
   };
+
+  if (config.dependencies) {
+    parsedConfig.dependencies = Object.entries(config.dependencies).map(dep => {
+      return { name: dep[0], version: dep[1] };
+    });
+  }
+
+  return parsedConfig;
 }
 
 function writePackageConfig(cfg, directory = process.cwd()) {
