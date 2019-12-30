@@ -26,12 +26,7 @@ const mkdir = directory => {
 };
 
 function getDestinationFromConfig(source, target) {
-  const tomlPath = path.join(source, "clio.toml");
-  if (!fs.existsSync(tomlPath)) {
-    throw new Error("clio.toml was not found on the specified directory.");
-  }
-
-  const config = packageConfig.getPackageConfig(tomlPath);
+  const config = packageConfig.getPackageConfig();
   const buildConfig = config.build;
 
   if (!buildConfig) {
@@ -41,9 +36,10 @@ function getDestinationFromConfig(source, target) {
   }
 
   const buildTarget =
-    target || buildConfig.target in config.target
+    target ||
+    (buildConfig.target in config.target
       ? config.target[buildConfig.target].target
-      : buildConfig.target;
+      : buildConfig.target);
 
   const buildDirectory = buildConfig.directory;
 
@@ -81,7 +77,7 @@ const build = async (source, dest, target) => {
   }
 };
 
-const command = "build [source] [destination]";
+const command = "build [target] [source] [destination]";
 const desc = "Build a Clio project";
 const handler = argv => build(argv.source, argv.destination, argv.target);
 const builder = {
@@ -96,7 +92,8 @@ const builder = {
   },
   target: {
     describe: "An override for the default project target.",
-    type: "string"
+    type: "string",
+    default: packageConfig.getPackageConfig().build.target
   }
 };
 
