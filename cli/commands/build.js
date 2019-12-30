@@ -92,8 +92,7 @@ const builder = {
   },
   target: {
     describe: "An override for the default project target.",
-    type: "string",
-    default: packageConfig.getPackageConfig().build.target
+    type: "string"
   }
 };
 
