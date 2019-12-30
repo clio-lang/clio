@@ -34,13 +34,10 @@ function getDestinationFromConfig(source, target) {
   const config = packageConfig.getPackageConfig();
   const buildConfig = config.build;
 
-  // TODO: Clean up assignment
-  let buildTarget;
-  try {
-    buildTarget = target || config.target[buildConfig.target].target;
-  } catch (e) {
-    buildTarget = buildConfig.target;
-  }
+  const buildTarget =
+    target || buildConfig.build in config.target
+      ? config.target[buildConfig.build].target
+      : buildConfig.target;
 
   if (!buildConfig) {
     throw new Error(
