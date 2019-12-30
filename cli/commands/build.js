@@ -72,6 +72,14 @@ const build = async (source, dest, target) => {
       mkdir(destDir);
       fs.writeFileSync(destFile, formatted, "utf8");
     }
+
+    const packageJsonPath = path.join(destination, "package.json");
+    if (!fs.existsSync(packageJsonPath)) {
+      fs.writeFileSync(
+        packageJsonPath,
+        JSON.stringify({ dependencies: { "clio-internals": "0.1.0" } }, null, 2)
+      );
+    }
   } catch (e) {
     error(e);
   }

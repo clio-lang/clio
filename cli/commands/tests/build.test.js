@@ -3,16 +3,40 @@ const path = require("path");
 const tmp = require("tmp");
 const { build, _new } = require("../");
 
-test("Build generates package.json", async () => {
-  const dir = tmp.dirSync();
-  await _new(dir.name, "browser");
-  await build(dir.name);
-  const file = fs.readFileSync(
-    path.join(dir.name, "build/browser", "package.json")
-  );
-  const pkgJsonObj = JSON.parse(file.toString());
-  expect(pkgJsonObj.dependencies).toBeDefined();
-  dir.removeCallback();
+describe("Package.json generation", () => {
+  test("Build generates package.json", async () => {
+    const dir = tmp.dirSync();
+    await _new(dir.name, "browser");
+    await build(dir.name);
+    const file = fs.readFileSync(
+      path.join(dir.name, "build/browser", "package.json")
+    );
+    const pkgJsonObj = JSON.parse(file.toString());
+    expect(pkgJsonObj.dependencies).toBeDefined();
+    dir.removeCallback();
+  });
+
+  test("Build skips generation of package.json when already defined", async () => {
+    const dir = tmp.dirSync();
+    await _new(dir.name, "browser");
+    const buildPath = path.join(dir.name, "build");
+    try {
+      if (fs.existsSync(buildPath)) {
+        deleteFolderRecursive(buildPath);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+
+    await build(dir.name);
+
+    const file = fs.readFileSync(
+      path.join(dir.name, "build/browser", "package.json")
+    );
+    const pkgJsonObj = JSON.parse(file.toString());
+    expect(pkgJsonObj.dependencies).toBeDefined();
+    dir.removeCallback();
+  });
 });
 
 describe("Browser builds", () => {
@@ -93,3 +117,19 @@ target = "alternative"`
     dir.removeCallback();
   });
 });
+
+const deleteFolderRecursive = path => {
+  if (fs.existsSync(path)) {
+    fs.readdirSync(path).forEach(file => {
+      const curPath = path + "/" + file;
+      if (fs.lstatSync(curPath).isDirectory()) {
+        // recurse
+        deleteFolderRecursive(curPath);
+      } else {
+        // delete file
+        fs.unlinkSync(curPath);
+      }
+    });
+    fs.rmdirSync(path);
+  }
+};
