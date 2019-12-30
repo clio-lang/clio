@@ -61,7 +61,6 @@ target = "alternative"`
     const files = fs.readdirSync(path.join(dir.name, "build/alternative/src"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
-    expect(false).toBe(true);
   });
 
   test("with target override (clio build --target=node)", async () => {
