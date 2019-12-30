@@ -34,16 +34,16 @@ function getDestinationFromConfig(source, target) {
   const config = packageConfig.getPackageConfig();
   const buildConfig = config.build;
 
-  const buildTarget =
-    target || buildConfig.build in config.target
-      ? config.target[buildConfig.build].target
-      : buildConfig.target;
-
   if (!buildConfig) {
     throw new Error(
       'No build configuration has been found. It is a "[build]" section on you "clio.toml" file.'
     );
   }
+
+  const buildTarget =
+    target || buildConfig.build in config.target
+      ? config.target[buildConfig.build].target
+      : buildConfig.target;
 
   const buildDirectory = buildConfig.directory;
 
