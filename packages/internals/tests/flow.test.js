@@ -1,5 +1,5 @@
-const { Flow } = require("../flow");
-const { Scope } = require("../scope");
+const { Flow } = require("../src/flow");
+const { Scope } = require("../src/scope");
 
 test("Test JavaScript function call", () => {
   const flow = new Flow(new Scope({}), 10).pipe(n => n * 2);

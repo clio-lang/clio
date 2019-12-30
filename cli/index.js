@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+const chalk = require("chalk");
 const { isSupportedNodeVersion } = require("../utils/versionUtils");
 
 global.fetch = require("node-fetch"); // fetch is not implemented in node (yet)
