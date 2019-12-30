@@ -3,6 +3,18 @@ const path = require("path");
 const tmp = require("tmp");
 const { build, _new } = require("../");
 
+test("Build generates package.json", async () => {
+  const dir = tmp.dirSync();
+  await _new(dir.name, "browser");
+  await build(dir.name);
+  const file = fs.readFileSync(
+    path.join(dir.name, "build/browser", "package.json")
+  );
+  const pkgJsonObj = JSON.parse(file.toString());
+  expect(pkgJsonObj.dependencies).toBeDefined();
+  dir.removeCallback();
+});
+
 describe("Browser builds", () => {
   test("with defaults (clio build)", async () => {
     const dir = tmp.dirSync();
