@@ -37,6 +37,15 @@ function getPackageConfig(filepath = path.join(process.cwd(), configFileName)) {
     });
   }
 
+  if (config.npm_dependencies) {
+    // eslint-disable-next-line camelcase
+    parsedConfig.npm_dependencies = Object.entries(config.npm_dependencies).map(
+      dep => {
+        return { name: dep[0], version: dep[1] };
+      }
+    );
+  }
+
   return parsedConfig;
 }
 
@@ -58,6 +67,10 @@ async function addDependency(dep) {
   const depVersion = dep[1];
   config.dependencies.push({ name: depName, version: depVersion });
   writePackageConfig(config);
+}
+
+function getNpmDependencies() {
+  return getPackageConfig().npm_dependencies;
 }
 
 /**
