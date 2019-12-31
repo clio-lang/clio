@@ -43,3 +43,19 @@ test("hasVersion with version", () => {
   expect(packageConfig.hasVersion(gitHubPackageVersion)).toBeTruthy();
   expect(packageConfig.getVersion(gitHubPackageVersion)).toBe("@1.2.3");
 });
+
+test("Toml contains builds and targets", () => {
+  const config = packageConfig.getPackageConfig(
+    path.join(__dirname, "clio.test.toml")
+  );
+  expect(config.build).toBeDefined();
+  expect(config.build.target).toBeDefined();
+  expect(config.build.directory).toBeDefined();
+
+  expect(config.target).toBeDefined();
+  expect(config.target.node).toBeDefined();
+  expect(config.target.node.directory).toBeDefined();
+
+  expect(config.target.node).toBeDefined();
+  expect(config.target["browser"].directory).toBeDefined();
+});
