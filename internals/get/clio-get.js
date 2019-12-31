@@ -13,26 +13,39 @@ const versionRegex = /@(\d\.?){1,3}$/gi;
 
 /**
  * @method get
- * @param {string} argv
+ * @param {object} argv
+ * @param {string} argv.source - url, uri or id (name[@version]) of the package to fetch
  * @returns {void}
  * @description Installs a Clio dependency
  */
 
-function get(argv) {
-  const url = argv.url;
-  if (url.match(gitHubRegex)) {
-    return fetchGitHub(url);
+function get({source}) {
+  // url first (could also be a github zip url)
+  const urlMatch = source.match(urlRegex);
+  if (urlMatch) {
+    return fetchZipContent({url: urlMatch[0]});
   }
-  if (url.match(urlRegex)) {
-    return fetchFile(url);
+
+  const githubMatch = source.match(gitHubRegex);
+  if (githubMatch) {
+    return fetchGitHub(githubMatch[0]);
   }
-  // not github, not url, fetch pkg info from main repo
-  return fetchFromRepo(url);
+
+  // not github, not an URL
+  // fetch pkg info from clio-lang/packages by package id (name[@version])
+  return fetchFromClioPackages(source);
 }
 
-async function fetchFile(argv) {
+/**
+ * @method fetchZipContent
+ * @param {object} argv
+ * @param {string} argv.url - url to fetch
+ * @returns {void}
+ * @description Fetch a file and decompress it in the Clio environment
+ */
+
+async function fetchZipContent({url}) {
   try {
-    const url = argv.url;
     const file = await fetch(url);
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -46,22 +59,22 @@ async function fetchFile(argv) {
 }
 
 /**
- * @method fetchFromRepo
- * @param {string} argv
+ * @method fetchFromClioPackages
+ * @param {string} pkg - package name eventually followed by tag name (for example name@v2.2.3)
  * @returns {void}
  * @description Fetches library info from official repo
  *              then fetches the library from GitHub and saves
  *              the dependency reference into the Package.json file.
  */
 
-async function fetchFromRepo(pkg) {
+async function fetchFromClioPackages(pkg) {
   const packageName = hasVersion(pkg) ? pkg.replace(versionRegex, "") : pkg;
 
   const packageTarget = hasVersion(pkg)
     ? getVersion(pkg).replace("@", "")
     : "master";
 
-  console.log(`Getting ${packageName} from main repository,`);
+  console.log(`Getting '${packageName}' from the Clio packages repository (see https://github.com/clio-lang/packages)`);
   const file = await fetch(
     `https://raw.githubusercontent.com/clio-lang/packages/master/packages/${packageName}.json`
   );
@@ -76,7 +89,7 @@ async function fetchFromRepo(pkg) {
   const fetchUrl = `${packageUri}/archive/${packageTarget}.zip`;
 
   console.log(`Downloading ${pkg}...`);
-  await fetchFile({ url: fetchUrl });
+  await fetchZipContent({ url: fetchUrl });
 
   /**
    * If the dependency is already listed in package.json
@@ -103,13 +116,14 @@ async function fetchGitHub(argv) {
   /**
    * Check if required package exposes a specific
    * version or not.
+   *
    * Specific version must be exposed the following way:
    *
-   * $ clio get github.com/foo/bar@1.2.3
+   * $ clio deps get github.com/foo/bar@1.2.3
    *
    * Specific version has to be downloaded in the following format:
    *
-   *  https://github.com/foo/bar/archive/1.2.3.zip
+   * https://github.com/foo/bar/archive/1.2.3.zip
    *
    * If no version is specified, download from master branch:
    *
@@ -130,7 +144,7 @@ async function fetchGitHub(argv) {
   const fetchUrl = `https://${packageUri}/archive/${packageTarget}.zip`;
 
   console.log(`Downloading ${argv}...`);
-  await fetchFile({ url: fetchUrl });
+  await fetchZipContent({ url: fetchUrl });
 
   /**
    * If the dependency is already listed in package.json
