@@ -13,6 +13,11 @@ describe("Package.json generation", () => {
     );
     const pkgJsonObj = JSON.parse(file.toString());
     expect(pkgJsonObj.dependencies).toBeDefined();
+
+    // As discussed here: https://github.com/clio-lang/clio/pull/93#issuecomment-569831620
+    expect(pkgJsonObj.scripts.build).toBeDefined();
+    expect(pkgJsonObj.scripts.run).toBeDefined();
+
     dir.removeCallback();
   });
 
@@ -52,7 +57,9 @@ describe("Package.json generation", () => {
 
     await build(dir.name);
 
-    const nodeModulesExists = fs.existsSync(path.join(dir.name, "build/node/node_modules"));
+    const nodeModulesExists = fs.existsSync(
+      path.join(dir.name, "build/node/node_modules")
+    );
     expect(nodeModulesExists).toBe(true);
     dir.removeCallback();
   });

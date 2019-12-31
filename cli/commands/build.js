@@ -78,11 +78,21 @@ const build = async (source, dest, target) => {
     if (!fs.existsSync(packageJsonPath)) {
       fs.writeFileSync(
         packageJsonPath,
-        JSON.stringify({ dependencies: { "clio-internals": "0.1.0" } }, null, 2)
+        JSON.stringify(
+          {
+            dependencies: { "clio-internals": "0.1.0" },
+            scripts: {
+              build: "parcel build index.html --out-dir public",
+              run: "parcel index.html --out-dir public"
+            }
+          },
+          null,
+          2
+        )
       );
     }
 
-    process.chdir(destination)
+    process.chdir(destination);
     spawnSync("npm", ["install"]);
   } catch (e) {
     error(e);
