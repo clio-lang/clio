@@ -7,6 +7,15 @@ describe("Package.json generation", () => {
   test("Build generates package.json", async () => {
     const dir = tmp.dirSync();
     await _new(dir.name, "browser");
+    const buildPath = path.join(dir.name, "build");
+    try {
+      if (fs.existsSync(buildPath)) {
+        deleteFolderRecursive(buildPath);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+
     await build(dir.name);
     const file = fs.readFileSync(
       path.join(dir.name, "build/browser", "package.json")
