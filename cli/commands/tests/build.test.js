@@ -37,6 +37,25 @@ describe("Package.json generation", () => {
     expect(pkgJsonObj.dependencies).toBeDefined();
     dir.removeCallback();
   });
+
+  test("npm dependencies are installed after build", async () => {
+    const dir = tmp.dirSync();
+    await _new(dir.name, "node");
+    const buildPath = path.join(dir.name, "build");
+    try {
+      if (fs.existsSync(buildPath)) {
+        deleteFolderRecursive(buildPath);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+
+    await build(dir.name);
+
+    const nodeModulesExists = fs.existsSync(path.join(dir.name, "build/node/node_modules"));
+    expect(nodeModulesExists).toBe(true);
+    dir.removeCallback();
+  });
 });
 
 describe("Browser builds", () => {
