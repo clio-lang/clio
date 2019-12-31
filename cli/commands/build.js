@@ -1,4 +1,5 @@
 const fs = require("fs");
+const { spawnSync } = require("child_process");
 const path = require("path");
 const { format } = require("prettier");
 const { generator } = require("../../core/generator");
@@ -80,6 +81,9 @@ const build = async (source, dest, target) => {
         JSON.stringify({ dependencies: { "clio-internals": "0.1.0" } }, null, 2)
       );
     }
+
+    process.chdir(destination)
+    spawnSync("npm", ["install"]);
   } catch (e) {
     error(e);
   }
