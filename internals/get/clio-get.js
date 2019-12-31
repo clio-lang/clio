@@ -14,26 +14,26 @@ const versionRegex = /@(\d\.?){1,3}$/gi;
 /**
  * @method get
  * @param {object} argv
- * @param {object} argv.url - url to fetch
+ * @param {object} argv.source - url to fetch or package name
  * @returns {void}
  * @description Installs a Clio dependency
  */
 
-function get({url}) {
+function get({source}) {
   // url first (could also be a github zip url)
-  const urlMatch = url.match(urlRegex);
+  const urlMatch = source.match(urlRegex);
   if (urlMatch) {
     return fetchZipContent({url: urlMatch[0]});
   }
 
-  const githubMatch = url.match(gitHubRegex);
+  const githubMatch = source.match(gitHubRegex);
   if (githubMatch) {
     return fetchGitHub(githubMatch[0]);
   }
 
   // not github, not an URL
   // fetch pkg info from clio-lang/packages by package name
-  return fetchFromClioPackages(url);
+  return fetchFromClioPackages(source);
 }
 
 /**
