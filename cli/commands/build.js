@@ -1,5 +1,4 @@
 const fs = require("fs");
-const { exec } = require("child_process");
 const path = require("path");
 const { format } = require("prettier");
 const { generator } = require("../../core/generator");
@@ -104,17 +103,7 @@ const build = async (source, dest, target) => {
       );
     }
 
-    process.chdir(destination);
-
-    await new Promise((resolve, reject) =>
-      exec("npm install", err => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
-      })
-    );
+    await packageConfig.fetchNpmDependencies(destination);
   } catch (e) {
     error(e);
   }

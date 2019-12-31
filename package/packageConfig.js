@@ -73,6 +73,19 @@ function getNpmDependencies() {
   return getPackageConfig().npm_dependencies;
 }
 
+function fetchNpmDependencies(destination) {
+  process.chdir(destination);
+  return new Promise((resolve, reject) =>
+    exec("npm install", err => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve();
+      }
+    })
+  );
+}
+
 /**
  * @returns {{name, version}}
  */
@@ -282,6 +295,7 @@ module.exports = {
   configFileName,
   hasClioDependencies,
   fetchDependencies,
+  fetchNpmDependencies,
   get,
   getVersion,
   hasVersion

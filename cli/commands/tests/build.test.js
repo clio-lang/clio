@@ -3,6 +3,18 @@ const path = require("path");
 const tmp = require("tmp");
 const { build, _new } = require("../");
 
+jest.unmock("../../../package/packageConfig");
+
+const packageConfig = require("../../../package/packageConfig");
+packageConfig.fetchNpmDependencies = jest
+  .fn()
+  .mockImplementation(async destination => {
+    return await fs.writeFile(
+      path.join(destination, "node_modules", "rickroll", "rickroll.js"),
+      "console.log()"
+    );
+  });
+
 describe("Package.json generation", () => {
   test("Build generates package.json", async () => {
     const dir = tmp.dirSync();
