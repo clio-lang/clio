@@ -278,6 +278,7 @@ module.exports = {
   writePackageConfig: writePackageConfig,
   addDependency,
   getPackageDependencies,
+  getNpmDependencies,
   configFileName,
   hasClioDependencies,
   fetchDependencies,

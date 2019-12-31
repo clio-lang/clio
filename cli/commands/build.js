@@ -1,5 +1,5 @@
 const fs = require("fs");
-const { spawnSync } = require("child_process");
+const { exec } = require("child_process");
 const path = require("path");
 const { format } = require("prettier");
 const { generator } = require("../../core/generator");
@@ -76,11 +76,23 @@ const build = async (source, dest, target) => {
 
     const packageJsonPath = path.join(destination, "package.json");
     if (!fs.existsSync(packageJsonPath)) {
+      let nodeDeps = {};
+
+      if (
+        packageConfig.getPackageConfig(path.join(source, "clio.toml"))
+          .npm_dependencies
+      ) {
+        packageConfig
+          .getPackageConfig(path.join(source, "clio.toml"))
+          .npm_dependencies.forEach(dep => {
+            nodeDeps[dep.name] = dep.version;
+          });
+      }
       fs.writeFileSync(
         packageJsonPath,
         JSON.stringify(
           {
-            dependencies: { "clio-internals": "0.1.0" },
+            dependencies: nodeDeps,
             scripts: {
               build: "parcel build index.html --out-dir public",
               run: "parcel index.html --out-dir public"
@@ -93,7 +105,16 @@ const build = async (source, dest, target) => {
     }
 
     process.chdir(destination);
-    spawnSync("npm", ["install"]);
+
+    await new Promise((resolve, reject) =>
+      exec("npm install", err => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      })
+    );
   } catch (e) {
     error(e);
   }
