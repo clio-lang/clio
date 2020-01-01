@@ -4,7 +4,7 @@ const toml = require("@iarna/toml");
 const decompress = require("decompress");
 const tmp = require("tmp");
 const fetch = require("node-fetch");
-const { exec } = require("child_process");
+const { spawn } = require("child_process");
 
 const configFileName = "clio.toml";
 
@@ -76,15 +76,11 @@ function getNpmDependencies() {
 
 function fetchNpmDependencies(destination) {
   process.chdir(destination);
-  return new Promise((resolve, reject) =>
-    exec("npm install", err => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve();
-      }
-    })
-  );
+  return new Promise((resolve, reject) => {
+    const install = spawn("npm", ["install"]);
+    install.on("close", resolve);
+    install.on("error", reject);
+  });
 }
 
 /**
