@@ -75,7 +75,9 @@ const build = async (source, dest, target) => {
 
     const packageJsonPath = path.join(destination, "package.json");
     if (!fs.existsSync(packageJsonPath)) {
-      let nodeDeps = {};
+      let nodeDeps = {
+        "clio-internals": "latest"
+      };
 
       if (
         packageConfig.getPackageConfig(path.join(source, "clio.toml"))
