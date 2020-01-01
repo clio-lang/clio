@@ -1,4 +1,3 @@
-const fs = require("fs");
 const { spawnSync } = require("child_process");
 const degit = require("degit");
 // const packageConfig = require("../../package/packageConfig");
