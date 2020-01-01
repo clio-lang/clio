@@ -36,7 +36,11 @@ function getDependencies() {
     return;
   }
 
-  return Promise.all(packageConfig.getPackageDependencies().map(dep => get({ source: dep.name })));
+  return Promise.all(
+    packageConfig
+    .getPackageDependencies()
+    .map(dep => get({ source: dep.name }))
+  );
 }
 
 module.exports = {

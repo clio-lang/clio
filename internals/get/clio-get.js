@@ -14,7 +14,7 @@ const versionRegex = /@(\d\.?){1,3}$/gi;
 /**
  * @method get
  * @param {object} argv
- * @param {object} argv.source - url to fetch or package name
+ * @param {string} argv.source - url, uri or id (name[@version]) of the package to fetch
  * @returns {void}
  * @description Installs a Clio dependency
  */
@@ -32,14 +32,14 @@ function get({source}) {
   }
 
   // not github, not an URL
-  // fetch pkg info from clio-lang/packages by package name
+  // fetch pkg info from clio-lang/packages by package id (name[@version])
   return fetchFromClioPackages(source);
 }
 
 /**
  * @method fetchZipContent
  * @param {object} argv
- * @param {object} argv.url - url to fetch
+ * @param {string} argv.url - url to fetch
  * @returns {void}
  * @description Fetch a file and decompress it in the Clio environment
  */
@@ -60,7 +60,7 @@ async function fetchZipContent({url}) {
 
 /**
  * @method fetchFromClioPackages
- * @param {string} pkg - package URL
+ * @param {string} pkg - package name eventually followed by tag name (for example name@v2.2.3)
  * @returns {void}
  * @description Fetches library info from official repo
  *              then fetches the library from GitHub and saves
@@ -123,7 +123,7 @@ async function fetchGitHub(argv) {
    *
    * Specific version has to be downloaded in the following format:
    *
-   *  https://github.com/foo/bar/archive/1.2.3.zip
+   * https://github.com/foo/bar/archive/1.2.3.zip
    *
    * If no version is specified, download from master branch:
    *
