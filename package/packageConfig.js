@@ -4,6 +4,7 @@ const toml = require("@iarna/toml");
 const decompress = require("decompress");
 const tmp = require("tmp");
 const fetch = require("node-fetch");
+const { exec } = require("child_process");
 
 const configFileName = "clio.toml";
 
