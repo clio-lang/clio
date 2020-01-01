@@ -9,10 +9,17 @@ const packageConfig = require("../../../package/packageConfig");
 packageConfig.fetchNpmDependencies = jest
   .fn()
   .mockImplementation(async destination => {
-    return await fs.writeFile(
-      path.join(destination, "node_modules", "rickroll", "rickroll.js"),
-      "console.log()"
-    );
+    return fs.promises
+      .mkdir(path.join(destination, "node_modules", "rickroll"), {
+        recursive: true
+      })
+      .then(() => {
+        return fs.promises.writeFile(
+          path.join(destination, "node_modules", "rickroll", "rickroll.js"),
+          "console.log()",
+          {}
+        );
+      });
   });
 
 describe("Package.json generation", () => {
