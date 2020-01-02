@@ -44,6 +44,17 @@ test("hasVersion with version", () => {
   expect(packageConfig.getVersion(gitHubPackageVersion)).toBe("@1.2.3");
 });
 
+test("Toml contains npm_dependencies", () => {
+  const config = packageConfig.getPackageConfig(
+    path.join(__dirname, "clio.test.toml")
+  );
+
+  expect(config.npm_dependencies).toContainEqual({
+    name: "rickroll",
+    version: "latest"
+  });
+});
+
 test("Toml contains builds and targets", () => {
   const config = packageConfig.getPackageConfig(
     path.join(__dirname, "clio.test.toml")

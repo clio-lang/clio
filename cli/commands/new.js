@@ -1,4 +1,3 @@
-const fs = require("fs");
 const { spawnSync } = require("child_process");
 const degit = require("degit");
 // const packageConfig = require("../../package/packageConfig");
@@ -53,15 +52,15 @@ async function createPackage(packageName, target = "node") {
     // await packageConfig.fetchDependencies();
     // info("Added Clio dependencies");
 
-    fs.writeFileSync(".gitignore", ".clio-cache\nclio_env\n");
-
     spawnSync("git", ["init"]);
     spawnSync("git", ["add", "-A"]);
     spawnSync("git", ["commit", "-m", "Initial Commit"]);
     info("Initialized new git repository.");
 
     info("Initialization Complete!");
-    success(`Run 'cd ${packageName}' to open, then 'clio run index.clio' to run the project!`);
+    success(
+      `Run 'cd ${packageName}' to open, then 'clio run index.clio' to run the project!`
+    );
   } catch (e) {
     error(e);
     process.exit(1);

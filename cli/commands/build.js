@@ -72,6 +72,40 @@ const build = async (source, dest, target) => {
       mkdir(destDir);
       fs.writeFileSync(destFile, formatted, "utf8");
     }
+
+    const packageJsonPath = path.join(destination, "package.json");
+    if (!fs.existsSync(packageJsonPath)) {
+      let nodeDeps = {
+        "clio-internals": "latest"
+      };
+
+      if (
+        packageConfig.getPackageConfig(path.join(source, "clio.toml"))
+          .npm_dependencies
+      ) {
+        packageConfig
+          .getPackageConfig(path.join(source, "clio.toml"))
+          .npm_dependencies.forEach(dep => {
+            nodeDeps[dep.name] = dep.version;
+          });
+      }
+      fs.writeFileSync(
+        packageJsonPath,
+        JSON.stringify(
+          {
+            dependencies: nodeDeps,
+            scripts: {
+              build: "parcel build index.html --out-dir public",
+              run: "parcel index.html --out-dir public"
+            }
+          },
+          null,
+          2
+        )
+      );
+    }
+
+    await packageConfig.fetchNpmDependencies(destination);
   } catch (e) {
     error(e);
   }
