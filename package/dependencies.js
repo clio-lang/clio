@@ -16,7 +16,7 @@ const { addDependency, getPackageConfig } = require("./packageConfig");
  * @example 
 [
   { name: 'stdlib', version: 'latest' },
-  { name: 'github.com/clio-lang/rethinkdb@2.2.3', version: 'latest' }
+  { name: 'github.com/clio-lang/rethinkdb', version: 'latest' }
 ]
  */
 function getPackageDependencies() {
@@ -39,8 +39,7 @@ function hasClioDependencies() {
  * Returns true if the project has at least one dependency listed in the package
  * config file.
  *
- * @params {string} depId - id of the dependency to check
- * @params {string} depVersion - version string of the dependency to check
+ * @params {string[]} depId - [id, version] of the dependency to check
  * @returns {bool}
  */
 
@@ -57,7 +56,7 @@ function hasDependency([depId, depVersion]) {
 const VERSION_REGEX = /@(\d\.?){1,3}$/gi;
 
 /**
- * Gets the version number (if any) of the desidered dependency.
+ * Gets the version number (if any) of the desired dependency.
  * 
  * @param {string} argv
  * @returns {string}
@@ -75,7 +74,7 @@ function getVersion(argv) {
 }
 
 /**
- * Returns true when the desidered dependency specifies a version.
+ * Returns true when the desired dependency specifies a version.
  * 
  * @param {string} id
  * @returns {boolean}
