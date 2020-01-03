@@ -23,7 +23,7 @@ exports.handler = () => {
  *              dependencies listed in package.json
  */
 
-exports.showDependencies = () => {
+const showDependencies = () => {
   if (!hasClioDependencies()) {
     logNoClioDeps();
     return;
@@ -35,3 +35,4 @@ exports.showDependencies = () => {
     .join("\n");
   console.log(formattedDeps);
 };
+exports.showDependencies = showDependencies;
