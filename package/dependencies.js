@@ -4,7 +4,7 @@ const decompress = require("decompress");
 const tmp = require("tmp");
 const fetch = require("node-fetch");
 
-const { ENV_NAME } = require("./config");
+const { CONFIGFILE_NAME, ENV_NAME } = require("./config");
 const { addDependency, getPackageConfig } = require("./packageConfig");
 
 /* Package getters */
@@ -35,6 +35,9 @@ function hasClioDependencies() {
   return !!dependencies && !!Object.keys(dependencies).length;
 }
 
+const logNoClioDeps = () =>
+  console.log(`No dependencies found in ${CONFIGFILE_NAME}`);
+
 /**
  * Returns true if the project has at least one dependency listed in the package
  * config file.
@@ -43,7 +46,7 @@ function hasClioDependencies() {
  * @returns {bool}
  */
 
-function hasDependency([depId, depVersion]) {
+function hasClioDependency([depId, depVersion]) {
   const found = getPackageDependencies().find(
     ({ name, version }) => name === depId && version === depVersion
   );
@@ -139,7 +142,7 @@ const parseSource = id => {
 
 function fetchDependencies() {
   if (!hasClioDependencies()) {
-    console.log("No dependencies found in package.json");
+    logNoClioDeps();
     return;
   }
 
@@ -166,7 +169,7 @@ function installDependency({ source }) {
     logFetching(urlMatch[0]);
 
     return fetchZipContent({ url: urlMatch[0] }).then(successful => {
-      if (successful && !hasDependency([source, "latest"])) {
+      if (successful && !hasClioDependency([source, "latest"])) {
         addDependency([source, "latest"]);
       }
     });
@@ -177,7 +180,7 @@ function installDependency({ source }) {
   const githubMatch = source.match(GITHUB_REGEX);
   if (githubMatch) {
     return fetchGitHub({ branch, name, version }).then(successful => {
-      if (successful && !hasDependency([name, version])) {
+      if (successful && !hasClioDependency([name, version])) {
         addDependency([name, version]);
       }
     });
@@ -186,7 +189,7 @@ function installDependency({ source }) {
   // not github, not an URL
   // fetch pkg info from clio-lang/packages by package id (name[@version])
   return fetchFromClioPackages({ branch, name, version }).then(successful => {
-    if (successful && !hasDependency([name, version])) {
+    if (successful && !hasClioDependency([name, version])) {
       addDependency([name, version]);
     }
   });
@@ -298,5 +301,6 @@ module.exports = {
   getVersion,
   hasClioDependencies,
   hasVersion,
-  installDependency
+  installDependency,
+  logNoClioDeps
 };
