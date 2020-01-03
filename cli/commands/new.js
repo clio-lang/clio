@@ -49,7 +49,6 @@ async function createPackage(packageName, target = "node") {
 
     process.chdir(packageName);
 
-    // FIXME This is messing <CONFIGFILE_NAME>. Will remain commented until dependency management is fixed
     await fetchDependencies();
     info("Added Clio dependencies");
 

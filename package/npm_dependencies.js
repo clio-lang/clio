@@ -1,11 +1,5 @@
 const { spawn } = require("child_process");
 
-// FIXME seems unused?
-// const { getPackageConfig } = require("./packageConfig");
-// function getNpmDependencies() {
-//   return getPackageConfig().npm_dependencies;
-// }
-
 function fetchNpmDependencies(destination) {
   process.chdir(destination);
   return new Promise((resolve, reject) => {
@@ -17,5 +11,4 @@ function fetchNpmDependencies(destination) {
 
 module.exports = {
   fetchNpmDependencies
-  // getNpmDependencies
 };
