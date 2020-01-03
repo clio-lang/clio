@@ -1,11 +1,12 @@
 const fs = require("fs");
 const path = require("path");
 const tmp = require("tmp");
+
 const { build, _new } = require("../");
 
-jest.unmock("../../../package/packageConfig");
+jest.unmock("../../../package/index");
 
-const packageConfig = require("../../../package/packageConfig");
+const packageConfig = require("../../../package/index");
 packageConfig.fetchNpmDependencies = jest
   .fn()
   .mockImplementation(async destination => {
@@ -136,7 +137,7 @@ describe("Node builds", () => {
     const dir = tmp.dirSync();
     await _new(dir.name, "node");
     fs.writeFileSync(
-      path.join(dir.name, "clio.toml"),
+      path.join(dir.name, packageConfig.CONFIGFILE_NAME),
       `
     [build]
 directory = "build"

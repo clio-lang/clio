@@ -1,4 +1,8 @@
-const packageConfig = require("../../package/packageConfig");
+const {
+  getPackageDependencies,
+  hasClioDependencies,
+  logNoClioDeps
+} = require("../../package/index");
 
 exports.command = "deps";
 exports.desc = "Manage clio dependencies";
@@ -20,12 +24,12 @@ exports.handler = () => {
  */
 
 exports.showDependencies = () => {
-  if (!packageConfig.hasClioDependencies()) {
-    console.log("No dependencies found in package.json");
+  if (!hasClioDependencies()) {
+    logNoClioDeps();
     return;
   }
 
-  const deps = packageConfig.getPackageDependencies();
+  const deps = getPackageDependencies();
   const formattedDeps = deps
     .map(dep => `~> ${dep["name"]}: ${dep["version"]}`)
     .join("\n");

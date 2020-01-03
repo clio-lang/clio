@@ -91,7 +91,6 @@
     "jest": "24.9.0",
     "lerna": "^3.19.0",
     "merge": "1.2.1",
-    "pre-commit": "^1.2.2",
     "vinyl-buffer": "1.0.1",
     "vinyl-source-stream": "2.0.0",
     "watchify": "3.11.1"
