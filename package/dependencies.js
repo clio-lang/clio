@@ -126,7 +126,7 @@ const parseSource = id => {
   const version = isVersioned ? getVersion(id) : "latest";
   const branch = isVersioned ? `v${version}` : "master";
   const name = isVersioned ? stripAtVersion(id) : id;
-  
+
   return { branch, id, isVersioned, name, version };
 };
 
@@ -165,10 +165,10 @@ function installDependency({ source }) {
   const urlMatch = source.match(URL_REGEX);
   if (urlMatch) {
     logFetching(urlMatch[0]);
-    
+
     return fetchZipContent({ url: urlMatch[0] }).then(successful => {
-      if (successful && !hasDependency([source, 'latest'])) {
-        addDependency([source, 'latest']);
+      if (successful && !hasDependency([source, "latest"])) {
+        addDependency([source, "latest"]);
       }
     });
   }
@@ -196,8 +196,7 @@ function installDependency({ source }) {
 /* Fetching utils */
 
 const logFetching = (id, version) =>
-  console.log(`Downloading ${id}` + (version ? `@${version}` : '') + '...' );
-
+  console.log(`Downloading ${id}` + (version ? `@${version}` : "") + "...");
 
 /**
  * Fetch a file and decompress it in the Clio environment
@@ -220,7 +219,7 @@ async function fetchZipContent({ url }) {
     console.log(err);
     return false;
   }
-  
+
   return true;
 }
 
@@ -254,7 +253,7 @@ async function fetchFromClioPackages(pkg) {
   const fetchUrl = `${packageUri}/archive/${branch}.zip`;
 
   logFetching(name, version);
-  
+
   return fetchZipContent({ url: fetchUrl });
 }
 
@@ -295,9 +294,9 @@ async function fetchGitHub(pkg) {
   const fetchUrl = `https://${name}/archive/${branch}.zip`;
 
   console.log(fetchUrl);
-  
+
   logFetching(name, version);
-  
+
   return fetchZipContent({ url: fetchUrl });
 }
 
