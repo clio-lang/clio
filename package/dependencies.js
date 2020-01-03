@@ -177,7 +177,7 @@ function installDependency({ source }) {
 
   const githubMatch = source.match(GITHUB_REGEX);
   if (githubMatch) {
-    return fetchGitHub(githubMatch[0]).then(successful => {
+    return fetchGitHub({ branch, name, version }).then(successful => {
       if (successful && !hasDependency([name, version])) {
         addDependency([name, version]);
       }
@@ -186,7 +186,7 @@ function installDependency({ source }) {
 
   // not github, not an URL
   // fetch pkg info from clio-lang/packages by package id (name[@version])
-  return fetchFromClioPackages(source).then(successful => {
+  return fetchFromClioPackages({ branch, name, version }).then(successful => {
     if (successful && !hasDependency([name, version])) {
       addDependency([name, version]);
     }
@@ -232,16 +232,14 @@ async function fetchZipContent({ url }) {
  * @returns {void}
  */
 
-async function fetchFromClioPackages(pkg) {
-  const { branch, name, version } = parseSource(pkg);
-
+async function fetchFromClioPackages({ branch, name, version }) {
   console.log(
     `Getting '${name}' from the Clio packages repository (https://github.com/clio-lang/packages)`
   );
+
   const file = await fetch(
     `https://raw.githubusercontent.com/clio-lang/packages/master/packages/${name}.json`
   );
-
   if (file.status != 200) {
     console.log(`Couldn't fetch package info`);
     return false;
@@ -249,7 +247,6 @@ async function fetchFromClioPackages(pkg) {
 
   const packageInfo = await file.json();
   const packageUri = packageInfo.git;
-
   const fetchUrl = `${packageUri}/archive/${branch}.zip`;
 
   logFetching(name, version);
@@ -265,7 +262,7 @@ async function fetchFromClioPackages(pkg) {
  * @returns {void}
  */
 
-async function fetchGitHub(pkg) {
+async function fetchGitHub({ branch, name, version }) {
   /**
    * Check if required package exposes a specific
    * version or not.
@@ -284,16 +281,12 @@ async function fetchGitHub(pkg) {
    *
    */
 
-  const { branch, name, version } = parseSource(pkg);
-
   /**
    * So now let's create a download uri that will look as follows:
    *
    * https://github.com/archive/foo/bar/{master|@1.2.3}.zip
    */
   const fetchUrl = `https://${name}/archive/${branch}.zip`;
-
-  console.log(fetchUrl);
 
   logFetching(name, version);
 
