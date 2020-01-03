@@ -1,10 +1,15 @@
 const path = require("path");
 const fs = require("fs");
 const readline = require("readline");
-const packageConfig = require("../../package/packageConfig");
+
+const {
+  CONFIGFILE_NAME,
+  fetchDependencies,
+  writePackageConfig
+} = require("../../package/index");
 
 exports.command = "init [args]";
-exports.desc = "Generate a clio.toml file and fetch stdlib";
+exports.desc = `Generate a ${CONFIGFILE_NAME} file and fetch stdlib`;
 exports.builder = {
   y: {
     type: "boolean",
@@ -34,7 +39,7 @@ async function initPackage(
       path.join(directory, "package.json"),
       stringified,
       "utf8",
-      packageConfig.fetchDependencies
+      fetchDependencies
     );
   }
 
@@ -94,9 +99,9 @@ async function initPackage(
 
   process.stdin.destroy();
   if (ok) {
-    packageConfig.writePackageConfig(pkg, directory);
+    writePackageConfig(pkg, directory);
     process.chdir(directory);
-    await packageConfig.fetchDependencies();
+    await fetchDependencies();
   } else {
     return await initPackage(false, packageName);
   }

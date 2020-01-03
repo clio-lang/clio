@@ -2,10 +2,17 @@ const tmp = require("tmp");
 const path = require("path");
 const fs = require("fs");
 const toml = require("@iarna/toml");
-const packageConfig = require("../packageConfig");
+
+const {
+  CONFIGFILE_NAME,
+  getPackageConfig,
+  getVersion,
+  hasVersion,
+  writePackageConfig
+} = require("../index");
 
 test("Import config file", () => {
-  const config = packageConfig.getPackageConfig(
+  const config = getPackageConfig(
     path.join(__dirname, "clio.test.toml")
   );
   expect(config.title).toBeDefined();
@@ -20,10 +27,10 @@ test("Write config file", () => {
   const tmpDir = tmp.dirSync();
   const filePath = tmpDir.name;
 
-  packageConfig.writePackageConfig(config, filePath);
+  writePackageConfig(config, filePath);
 
   const file = fs.readFileSync(
-    path.join(filePath, packageConfig.configFileName)
+    path.join(filePath, CONFIGFILE_NAME)
   );
   const contents = toml.parse(file.toString());
   expect(contents.title).toBe("test");
@@ -34,18 +41,18 @@ test("Write config file", () => {
 test("hasVersion without version provided", () => {
   const gitHubPackage = "github.com/foo/bar";
 
-  expect(packageConfig.hasVersion(gitHubPackage)).toBeFalsy();
+  expect(hasVersion(gitHubPackage)).toBeFalsy();
 });
 
 test("hasVersion with version", () => {
   const gitHubPackageVersion = "github.com/foo/bar@1.2.3";
 
-  expect(packageConfig.hasVersion(gitHubPackageVersion)).toBeTruthy();
-  expect(packageConfig.getVersion(gitHubPackageVersion)).toBe("@1.2.3");
+  expect(hasVersion(gitHubPackageVersion)).toBeTruthy();
+  expect(getVersion(gitHubPackageVersion)).toBe("1.2.3");
 });
 
 test("Toml contains npm_dependencies", () => {
-  const config = packageConfig.getPackageConfig(
+  const config = getPackageConfig(
     path.join(__dirname, "clio.test.toml")
   );
 
@@ -56,7 +63,7 @@ test("Toml contains npm_dependencies", () => {
 });
 
 test("Toml contains builds and targets", () => {
-  const config = packageConfig.getPackageConfig(
+  const config = getPackageConfig(
     path.join(__dirname, "clio.test.toml")
   );
   expect(config.build).toBeDefined();

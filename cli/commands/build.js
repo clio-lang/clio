@@ -3,7 +3,12 @@ const path = require("path");
 const { format } = require("prettier");
 const { generator } = require("../../core/generator");
 const { error } = require("../lib/colors");
-const packageConfig = require("../../package/packageConfig");
+
+const {
+  CONFIGFILE_NAME,
+  fetchNpmDependencies,
+  getPackageConfig
+} = require("../../package/index");
 
 const flatten = arr => arr.reduce((acc, val) => acc.concat(val), []);
 
@@ -26,12 +31,12 @@ const mkdir = directory => {
 };
 
 function getDestinationFromConfig(source, target) {
-  const config = packageConfig.getPackageConfig();
+  const config = getPackageConfig();
   const buildConfig = config.build;
 
   if (!buildConfig) {
     throw new Error(
-      'No build configuration has been found. It is a "[build]" section on you "clio.toml" file.'
+      `No build configuration has been found. It is a "[build]" section on you "${CONFIGFILE_NAME}" file.`
     );
   }
 
@@ -45,13 +50,13 @@ function getDestinationFromConfig(source, target) {
 
   if (!buildDirectory) {
     throw new Error(
-      'The build directory is missing on your "clio.toml".\n\nExample:\n\n[build]\ndirectory = "build"\n'
+      `The build directory is missing on your "${CONFIGFILE_NAME}".\n\nExample:\n\n[build]\ndirectory = "build"\n`
     );
   }
 
   if (!buildTarget) {
     throw new Error(
-      '"target" field is missing in your clio.toml file. You can override the target with the "--target" option.'
+      `"target" field is missing in your ${CONFIGFILE_NAME} file. You can override the target with the "--target" option.`
     );
   }
 
@@ -80,11 +85,10 @@ const build = async (source, dest, target) => {
       };
 
       if (
-        packageConfig.getPackageConfig(path.join(source, "clio.toml"))
+        getPackageConfig(path.join(source, CONFIGFILE_NAME))
           .npm_dependencies
       ) {
-        packageConfig
-          .getPackageConfig(path.join(source, "clio.toml"))
+        getPackageConfig(path.join(source, CONFIGFILE_NAME))
           .npm_dependencies.forEach(dep => {
             nodeDeps[dep.name] = dep.version;
           });
@@ -105,7 +109,7 @@ const build = async (source, dest, target) => {
       );
     }
 
-    await packageConfig.fetchNpmDependencies(destination);
+    await fetchNpmDependencies(destination);
   } catch (e) {
     error(e);
   }

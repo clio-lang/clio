@@ -1,4 +1,4 @@
-const packageConfig = require("../../package/packageConfig");
+const {getPackageConfig} = require("../../package/index");
 
 exports.command = "run [source]";
 
@@ -11,7 +11,7 @@ exports.builder = {
     default: (() => {
       // Config file is not available when running tests. This wrapper catches filenotfound exception in these cases
       try {
-        return packageConfig.getPackageConfig().main;
+        return getPackageConfig().main;
       } catch (e) {
         return "";
       }

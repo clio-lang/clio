@@ -1,6 +1,7 @@
 const { spawnSync } = require("child_process");
 const degit = require("degit");
-// const packageConfig = require("../../package/packageConfig");
+
+const {fetchDependencies} = require("../../package/index");
 const { error, info, success } = require("../lib/colors");
 
 const TARGETS = ["node", "browser"];
@@ -48,9 +49,9 @@ async function createPackage(packageName, target = "node") {
 
     process.chdir(packageName);
 
-    // FIXME This is messing clio.toml. Will remain commented until dependency management is fixed
-    // await packageConfig.fetchDependencies();
-    // info("Added Clio dependencies");
+    // FIXME This is messing <CONFIGFILE_NAME>. Will remain commented until dependency management is fixed
+    await fetchDependencies();
+    info("Added Clio dependencies");
 
     spawnSync("git", ["init"]);
     spawnSync("git", ["add", "-A"]);
