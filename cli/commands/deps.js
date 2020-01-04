@@ -17,9 +17,8 @@ exports.handler = () => {
 };
 
 /**
+ * @description Prints to the stdout the list of dependencies listed in project manifest
  * @returns {void}
- * @description Prints to the stdout the list of
- *              dependencies listed in package.json
  */
 
 const showDependencies = () => {
