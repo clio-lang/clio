@@ -1,13 +1,16 @@
 const fs = require("fs");
 const path = require("path");
 const { format } = require("prettier");
+const { spawn } = require("child_process");
+const ora = require("ora");
 const { generator } = require("../../core/generator");
-const { error } = require("../lib/colors");
+const { error, info, success } = require("../lib/colors");
 
 const {
   CONFIGFILE_NAME,
   fetchNpmDependencies,
-  getPackageConfig
+  getPackageConfig,
+  hasInstalledNpmDependencies
 } = require("../../package/index");
 
 const flatten = arr => arr.reduce((acc, val) => acc.concat(val), []);
@@ -35,19 +38,6 @@ const mkdir = directory => {
 function getDestinationFromConfig(source, target) {
   const config = getPackageConfig();
   const buildConfig = config.build;
-
-  if (!buildConfig) {
-    throw new Error(
-      `No build configuration has been found. It is a "[build]" section on your "${CONFIGFILE_NAME}" file.`
-    );
-  }
-
-  const buildTarget =
-    target ||
-    (buildConfig.target in config.target
-      ? config.target[buildConfig.target].target
-      : buildConfig.target);
-
   const buildDirectory = buildConfig.directory;
 
   if (!buildDirectory) {
@@ -56,13 +46,29 @@ function getDestinationFromConfig(source, target) {
     );
   }
 
+  return path.join(source, `${buildDirectory}/${target}`);
+}
+
+function getBuildTarget(targetOverride, config = getPackageConfig()) {
+  const buildConfig = config.build;
+
+  if (!buildConfig) {
+    throw new Error(
+      `No build configuration has been found. It is a "[build]" section on you "${CONFIGFILE_NAME}" file.`
+    );
+  }
+
+  const buildTarget =
+    targetOverride ||
+    (buildConfig.target in config.target ? config.target[buildConfig.target].target : buildConfig.target);
+
   if (!buildTarget) {
     throw new Error(
       `"target" field is missing in your ${CONFIGFILE_NAME} file. You can override the target with the "--target" option.`
     );
   }
 
-  return path.join(source, `${buildDirectory}/${buildTarget}`);
+  return buildTarget;
 }
 
 function getSourceFromConfig(source, target) {
@@ -76,25 +82,26 @@ function getSourceFromConfig(source, target) {
   }
 
   const buildSource =
-    buildConfig.target in config.target
-      ? config.target[buildConfig.target].directory
-      : buildConfig.source;
+    buildConfig.target in config.target ? config.target[buildConfig.target].directory : buildConfig.source;
 
   if (!buildSource) {
-    throw new Error(
-      `Could not find a source directory for ${target} in your ${CONFIGFILE_NAME} file.`
-    );
+    throw new Error(`Could not find a source directory for ${target} in your ${CONFIGFILE_NAME} file.`);
   }
 
   return path.join(source, buildSource);
 }
 
-const build = async (source, dest, target) => {
-  try {
-    const destination = dest || getDestinationFromConfig(source, target);
-    const sourceDir = getSourceFromConfig(source, target);
+const build = async (source, dest, targetOverride, skipBundle) => {
+  let progress = ora();
+  const target = getBuildTarget(targetOverride);
+  const destination = dest || getDestinationFromConfig(source, target);
+  const sourceDir = getSourceFromConfig(source, target);
 
-    const files = getClioFiles(sourceDir);
+  info(`Creating build for ${target}`);
+  try {
+    progress.text = "Compiling...";
+    progress.start();
+    const files = getClioFiles(source);
     for (const file of files) {
       const relativeFile = path.relative(sourceDir, file);
       const destFile = path.join(destination, `${relativeFile}.js`);
@@ -105,28 +112,33 @@ const build = async (source, dest, target) => {
       mkdir(destDir);
       fs.writeFileSync(destFile, formatted, "utf8");
     }
+    progress.succeed();
+  } catch (e) {
+    progress.fail();
+    error(e, "Compilation");
+    process.exit(3);
+  }
 
-    const nonClioFiles = getNonClioFiles(sourceDir);
-    for (const file of nonClioFiles) {
-      const relativeFile = path.relative(sourceDir, file);
-      const destFile = path.join(destination, relativeFile);
-      const destDir = path.dirname(destFile);
-      mkdir(destDir);
-      fs.copyFileSync(file, destFile);
-    }
+  const nonClioFiles = getNonClioFiles(sourceDir);
+  for (const file of nonClioFiles) {
+    const relativeFile = path.relative(sourceDir, file);
+    const destFile = path.join(destination, relativeFile);
+    const destDir = path.dirname(destFile);
+    mkdir(destDir);
+    fs.copyFileSync(file, destFile);
+  }
 
+  try {
+    progress.text = "Installing npm dependencies (this may take a while)...";
+    progress.start();
     const packageJsonPath = path.join(destination, "package.json");
     if (!fs.existsSync(packageJsonPath)) {
       let nodeDeps = {
         "clio-internals": "latest"
       };
 
-      if (
-        getPackageConfig(path.join(source, CONFIGFILE_NAME)).npm_dependencies
-      ) {
-        getPackageConfig(
-          path.join(source, CONFIGFILE_NAME)
-        ).npm_dependencies.forEach(dep => {
+      if (getPackageConfig(path.join(source, CONFIGFILE_NAME)).npm_dependencies) {
+        getPackageConfig(path.join(source, CONFIGFILE_NAME)).npm_dependencies.forEach(dep => {
           nodeDeps[dep.name] = dep.version;
         });
       }
@@ -135,6 +147,9 @@ const build = async (source, dest, target) => {
         JSON.stringify(
           {
             dependencies: nodeDeps,
+            devDependencies: {
+              parcel: "^1.12.4"
+            },
             scripts: {
               build: "parcel build index.html --out-dir public",
               run: "parcel index.html --out-dir public"
@@ -146,20 +161,62 @@ const build = async (source, dest, target) => {
       );
     }
 
-    await fetchNpmDependencies(destination);
+    if (!hasInstalledNpmDependencies(destination)) {
+      await fetchNpmDependencies(destination);
+    }
+    progress.succeed();
   } catch (e) {
-    error(e);
+    progress.fail();
+    error(e, "Dependency Install");
+    process.exit(4);
+  }
+
+  try {
+    // FIXME Create a runner for this and for node
+    if (!skipBundle && target === "browser") {
+      progress.text = "Building for browser (use --skip-bundle to skip)...";
+      progress.start();
+      const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+          <title>Document</title>
+        </head>
+        <body>
+          <script src="src/main.clio.js"></script>
+        </body>
+      </html>
+      `;
+      fs.writeFileSync(path.join(destination, "index.html"), htmlContent);
+      await buildProject(destination);
+      progress.succeed();
+      success("Project built successfully!");
+    }
+  } catch (e) {
+    progress.fail();
+    error(e, "Bundling");
+    process.exit(5);
   }
 };
 
+const buildProject = cwd =>
+  new Promise((resolve, reject) => {
+    const build = spawn("npm", ["run", "build"], { cwd });
+    build.on("close", resolve);
+    build.on("error", reject);
+  });
+
 const command = "build [target] [source] [destination]";
 const desc = "Build a Clio project";
-const handler = argv => build(argv.source, argv.destination, argv.target);
+const handler = argv => build(argv.source, argv.destination, argv.target, argv["skip-bundle"]);
 const builder = {
   source: {
     describe: "source directory to read from",
     type: "string",
-    default: "."
+    default: path.resolve(".")
   },
   destination: {
     describe: "destination directory to write to",
@@ -168,6 +225,10 @@ const builder = {
   target: {
     describe: "An override for the default project target.",
     type: "string"
+  },
+  "skip-bundle": {
+    describe: "Does not produces a bundle for browsers.",
+    type: "boolean"
   }
 };
 
