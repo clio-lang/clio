@@ -17,12 +17,11 @@ exports.handler = () => {
 };
 
 /**
+ * @description Prints to the stdout the list of dependencies listed in project manifest
  * @returns {void}
- * @description Prints to the stdout the list of
- *              dependencies listed in package.json
  */
 
-exports.showDependencies = () => {
+const showDependencies = () => {
   if (!hasClioDependencies()) {
     logNoClioDeps();
     return;
@@ -34,3 +33,4 @@ exports.showDependencies = () => {
     .join("\n");
   console.log(formattedDeps);
 };
+exports.showDependencies = showDependencies;
