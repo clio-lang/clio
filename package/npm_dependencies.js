@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const { spawn } = require("child_process");
 
 function fetchNpmDependencies(destination) {
@@ -9,6 +11,11 @@ function fetchNpmDependencies(destination) {
   });
 }
 
+function hasInstalledNpmDependencies(destination) {
+  return fs.existsSync(path.join(destination, "package-lock.json"));
+}
+
 module.exports = {
-  fetchNpmDependencies
+  fetchNpmDependencies,
+  hasInstalledNpmDependencies
 };
