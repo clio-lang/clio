@@ -135,7 +135,7 @@ const parseSource = id => {
 /* Dependency fetching */
 
 /**
- * Installs every dependency listed in package.json
+ * Installs every dependency listed in project manifest
  *
  * @returns {void|promise}
  */
