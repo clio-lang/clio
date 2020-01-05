@@ -1,10 +1,10 @@
 const fs = require("fs");
 const path = require("path");
 const { format } = require("prettier");
-const { spawn } = require("child_process");
 const ora = require("ora");
 const { generator } = require("../../core/generator");
 const { error, info, success } = require("../lib/colors");
+const { getPlatform } = require("../lib/platforms");
 
 const {
   CONFIGFILE_NAME,
@@ -101,6 +101,7 @@ const build = async (source, dest, targetOverride, skipBundle) => {
   try {
     progress.text = "Compiling...";
     progress.start();
+
     const files = getClioFiles(source);
     for (const file of files) {
       const relativeFile = path.relative(sourceDir, file);
@@ -112,6 +113,7 @@ const build = async (source, dest, targetOverride, skipBundle) => {
       mkdir(destDir);
       fs.writeFileSync(destFile, formatted, "utf8");
     }
+
     progress.succeed();
   } catch (e) {
     progress.fail();
@@ -127,43 +129,29 @@ const build = async (source, dest, targetOverride, skipBundle) => {
     mkdir(destDir);
     fs.copyFileSync(file, destFile);
   }
+  
+  const platform = getPlatform(target);
+  if (!platform) {
+    error(new Error(`Platform "${target}" is not supported.`), "Platform");
+    process.exit(6);
+  }
 
   try {
     progress.text = "Installing npm dependencies (this may take a while)...";
     progress.start();
+
     const packageJsonPath = path.join(destination, "package.json");
     if (!fs.existsSync(packageJsonPath)) {
-      let nodeDeps = {
-        "clio-internals": "latest"
-      };
-
-      if (getPackageConfig(path.join(source, CONFIGFILE_NAME)).npm_dependencies) {
-        getPackageConfig(path.join(source, CONFIGFILE_NAME)).npm_dependencies.forEach(dep => {
-          nodeDeps[dep.name] = dep.version;
-        });
-      }
-      fs.writeFileSync(
-        packageJsonPath,
-        JSON.stringify(
-          {
-            dependencies: nodeDeps,
-            devDependencies: {
-              parcel: "^1.12.4"
-            },
-            scripts: {
-              build: "parcel build index.html --out-dir public",
-              run: "parcel index.html --out-dir public"
-            }
-          },
-          null,
-          2
-        )
-      );
+      const packageInfo = platform.getPackageInfo(source);
+      console.log(packageJsonPath);
+      console.log(JSON.stringify(packageInfo, null, 2));
+      fs.writeFileSync(packageJsonPath, JSON.stringify(packageInfo, null, 2));
     }
 
     if (!hasInstalledNpmDependencies(destination)) {
       await fetchNpmDependencies(destination);
     }
+
     progress.succeed();
   } catch (e) {
     progress.fail();
@@ -173,41 +161,19 @@ const build = async (source, dest, targetOverride, skipBundle) => {
 
   try {
     // FIXME Create a runner for this and for node
-    if (!skipBundle && target === "browser") {
-      progress.text = "Building for browser (use --skip-bundle to skip)...";
-      progress.start();
-      const htmlContent = `
-      <!DOCTYPE html>
-      <html lang="en">
-        <head>
-          <meta charset="UTF-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-          <title>Document</title>
-        </head>
-        <body>
-          <script src="src/main.clio.js"></script>
-        </body>
-      </html>
-      `;
-      fs.writeFileSync(path.join(destination, "index.html"), htmlContent);
-      await buildProject(destination);
-      progress.succeed();
-      success("Project built successfully!");
-    }
+    progress.text = "Building for browser (use --skip-bundle to skip)...";
+    progress.start();
+
+    await platform.build(destination, skipBundle);
+
+    progress.succeed();
+    success("Project built successfully!");
   } catch (e) {
     progress.fail();
     error(e, "Bundling");
     process.exit(5);
   }
 };
-
-const buildProject = cwd =>
-  new Promise((resolve, reject) => {
-    const build = spawn("npm", ["run", "build"], { cwd });
-    build.on("close", resolve);
-    build.on("error", reject);
-  });
 
 const command = "build [target] [source] [destination]";
 const desc = "Build a Clio project";
