@@ -6,8 +6,7 @@
   "scripts": {
     "lint:check": "prettier --check ./**/*.js && eslint .",
     "lint:fix": "prettier --write ./**/*.js",
-    "test": "jest --collect-coverage",
-    "test:setup": "clio host tests/test.host.clio"
+    "test": "jest --collect-coverage"
   },
   "engines": {
     "node": ">=10.4",
