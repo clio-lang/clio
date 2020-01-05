@@ -26,7 +26,7 @@ packageConfig.fetchNpmDependencies = jest
 describe("Package.json generation", () => {
   test("Build generates package.json", async () => {
     const dir = tmp.dirSync();
-    await _new(dir.name, "browser");
+    await _new(dir.name, "web");
     const buildPath = path.join(dir.name, "build");
     try {
       if (fs.existsSync(buildPath)) {
@@ -38,7 +38,7 @@ describe("Package.json generation", () => {
 
     await build(dir.name);
     const file = fs.readFileSync(
-      path.join(dir.name, "build/browser", "package.json")
+      path.join(dir.name, "build/web", "package.json")
     );
     const pkgJsonObj = JSON.parse(file.toString());
     expect(pkgJsonObj.dependencies).toBeDefined();
@@ -52,7 +52,7 @@ describe("Package.json generation", () => {
 
   test("Build skips generation of package.json when already defined", async () => {
     const dir = tmp.dirSync();
-    await _new(dir.name, "browser");
+    await _new(dir.name, "web");
     const buildPath = path.join(dir.name, "build");
     try {
       if (fs.existsSync(buildPath)) {
@@ -65,7 +65,7 @@ describe("Package.json generation", () => {
     await build(dir.name);
 
     const file = fs.readFileSync(
-      path.join(dir.name, "build/browser", "package.json")
+      path.join(dir.name, "build/web", "package.json")
     );
     const pkgJsonObj = JSON.parse(file.toString());
     expect(pkgJsonObj.dependencies).toBeDefined();
@@ -94,28 +94,28 @@ describe("Package.json generation", () => {
   });
 });
 
-describe("Browser builds", () => {
+describe("Web builds", () => {
   test("with defaults (clio build)", async () => {
     const dir = tmp.dirSync();
-    await _new(dir.name, "browser");
+    await _new(dir.name, "web");
     await build(dir.name);
-    const files = fs.readdirSync(path.join(dir.name, "build/browser/src"));
+    const files = fs.readdirSync(path.join(dir.name, "build/web/src"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
   });
 
-  test("with target override (clio build --target=browser)", async () => {
+  test("with target override (clio build --target=web)", async () => {
     const dir = tmp.dirSync();
     await _new(dir.name, "node"); // project generated as node
-    await build(dir.name, undefined, "browser"); // but compiled as browser
-    const files = fs.readdirSync(path.join(dir.name, "build/browser/src"));
+    await build(dir.name, undefined, "web"); // but compiled as web
+    const files = fs.readdirSync(path.join(dir.name, "build/web/src"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
   });
 
   test("with destination override (clio build --destination=another-path)", async () => {
     const dir = tmp.dirSync();
-    await _new(dir.name, "browser");
+    await _new(dir.name, "web");
     await build(dir.name, "another-path");
     const files = fs.readdirSync(path.join(dir.name, "another-path/src"));
     expect(files.includes("main.clio.js")).toBe(true);
@@ -156,7 +156,7 @@ target = "alternative"`
 
   test("with target override (clio build --target=node)", async () => {
     const dir = tmp.dirSync();
-    await _new(dir.name, "browser"); // project generated as browser
+    await _new(dir.name, "web"); // project generated as web
     await build(dir.name, undefined, "node"); // but compiled as node
     const files = fs.readdirSync(path.join(dir.name, "build/node/src"));
     expect(files.includes("main.clio.js")).toBe(true);

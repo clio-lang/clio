@@ -1,10 +1,10 @@
 const { spawnSync } = require("child_process");
 const degit = require("degit");
 
-const {fetchDependencies} = require("../../package/index");
+const { fetchDependencies } = require("../../package/index");
 const { error, info, success } = require("../lib/colors");
 
-const TARGETS = ["node", "browser"];
+const TARGETS = ["node", "web"];
 
 exports.command = "new <project>";
 exports.desc = "Create a new Clio project";
@@ -14,7 +14,7 @@ exports.builder = {
     type: "string"
   },
   target: {
-    describe: "What is this project intended for (node or browser)?",
+    describe: "What is this project intended for (node or web)?",
     type: "string",
     default: "node"
   }
@@ -28,7 +28,7 @@ function preValidations(packageName, target) {
     throw new Error("A project name is required.");
   }
   if (!TARGETS.includes(target)) {
-    throw new Error('New command only supports "browser" or "node" targets.');
+    throw new Error('New command only supports "web" or "node" targets.');
   }
   const result = spawnSync("git");
   if (result.error) {
