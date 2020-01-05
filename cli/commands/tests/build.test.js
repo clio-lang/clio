@@ -37,6 +37,7 @@ describe("Package.json generation", () => {
     }
 
     await build(dir.name);
+    
     const file = fs.readFileSync(
       path.join(dir.name, "build/web", "package.json")
     );

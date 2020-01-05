@@ -7,7 +7,6 @@ const { CONFIGFILE_NAME } = require("./config");
 /* Package getters */
 
 /**
- *
  * @param {string} filepath Optional name of file containing the configurations for the clio package in format `foo.toml`.
  */
 function getPackageConfig(
@@ -52,16 +51,21 @@ function getPackageConfig(
 
 /* Package editing */
 
-function writePackageConfig(cfg, directory = process.cwd()) {
+/**
+ * Write a configuration object into the package config
+ *
+ * @param {object} config
+ */
+function writePackageConfig(config, directory = process.cwd()) {
   const deps = {};
-  cfg.dependencies.forEach(dep => (deps[dep.name] = dep.version));
-  const cfgStr = toml.stringify({ ...cfg, dependencies: deps });
+  config.dependencies.forEach(dep => (deps[dep.name] = dep.version));
+  const cfgStr = toml.stringify({ ...config, dependencies: deps });
   const filePath = path.join(directory, CONFIGFILE_NAME);
   fs.writeFileSync(filePath, cfgStr);
 }
 
 /**
- * Write the dependency in the package config
+ * Add a dependency to the package config
  *
  * @param {string[]} dep - [ name, version ]
  */

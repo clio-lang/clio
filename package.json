@@ -6,7 +6,8 @@
   "scripts": {
     "lint:check": "prettier --check ./**/*.js && eslint .",
     "lint:fix": "prettier --write ./**/*.js",
-    "test": "jest --collect-coverage"
+    "test": "jest --collect-coverage",
+    "test:nocov": "jest --no-coverage"
   },
   "engines": {
     "node": ">=10.4",
@@ -55,7 +56,8 @@
       "tsx",
       "node",
       "toml"
-    ]
+    ],
+    "testEnvironment": "node"
   },
   "dependencies": {
     "@iarna/toml": "^2.2.3",

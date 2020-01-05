@@ -10,8 +10,8 @@ website = "foobar.com"
 test = "clio test **/*.clio"
 
 [dependencies]
-stdlib = "^2.3.1"
-foo = "2.1"
+"hub:stdlib" = "^2.3.1"
+"hub:foo" = "2.1"
 
 [npm_dependencies]
 rickroll = "latest"
