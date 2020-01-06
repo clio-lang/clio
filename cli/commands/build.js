@@ -3,14 +3,15 @@ const path = require("path");
 const { format } = require("prettier");
 const ora = require("ora");
 const { generator } = require("../../core/generator");
-const { error, info, success } = require("../lib/colors");
+const { error, info } = require("../lib/colors");
 const { getPlatform } = require("../lib/platforms");
 
 const {
   CONFIGFILE_NAME,
   fetchNpmDependencies,
   getPackageConfig,
-  hasInstalledNpmDependencies
+  hasInstalledNpmDependencies,
+  getParsedNpmDependencies
 } = require("../../package/index");
 
 const flatten = arr => arr.reduce((acc, val) => acc.concat(val), []);
@@ -35,8 +36,11 @@ const mkdir = directory => {
   }, root);
 };
 
-function getDestinationFromConfig(source, target) {
-  const config = getPackageConfig();
+function getDestinationFromConfig(source, target, config) {
+  if (!config) {
+    throw new Error('You must pass the location of the "clio.toml" file.');
+  }
+
   const buildConfig = config.build;
   const buildDirectory = buildConfig.directory;
 
@@ -49,7 +53,11 @@ function getDestinationFromConfig(source, target) {
   return path.join(source, `${buildDirectory}/${target}`);
 }
 
-function getBuildTarget(targetOverride, config = getPackageConfig()) {
+// FIXME I'm not sure if this function should stay here
+function getBuildTarget(targetOverride, config) {
+  if (!config) {
+    throw new Error('You must pass the location of the "clio.toml" file.');
+  }
   const buildConfig = config.build;
 
   if (!buildConfig) {
@@ -93,8 +101,9 @@ function getSourceFromConfig(source, target) {
 
 const build = async (source, dest, targetOverride, skipBundle) => {
   let progress = ora();
-  const target = getBuildTarget(targetOverride);
-  const destination = dest || getDestinationFromConfig(source, target);
+  const config = getPackageConfig(path.join(source, CONFIGFILE_NAME));
+  const target = getBuildTarget(targetOverride, config);
+  const destination = dest || getDestinationFromConfig(source, target, config);
   const sourceDir = getSourceFromConfig(source, target);
 
   info(`Creating build for ${target}`);
@@ -129,7 +138,7 @@ const build = async (source, dest, targetOverride, skipBundle) => {
     mkdir(destDir);
     fs.copyFileSync(file, destFile);
   }
-  
+
   const platform = getPlatform(target);
   if (!platform) {
     error(new Error(`Platform "${target}" is not supported.`), "Platform");
@@ -142,10 +151,10 @@ const build = async (source, dest, targetOverride, skipBundle) => {
 
     const packageJsonPath = path.join(destination, "package.json");
     if (!fs.existsSync(packageJsonPath)) {
-      const packageInfo = platform.getPackageInfo(source);
-      console.log(packageJsonPath);
-      console.log(JSON.stringify(packageInfo, null, 2));
-      fs.writeFileSync(packageJsonPath, JSON.stringify(packageInfo, null, 2));
+      const dependencies = getParsedNpmDependencies(source);
+      dependencies["clio-internals"] = "latest";
+      const packageJsonContent = { dependencies };
+      fs.writeFileSync(packageJsonPath, JSON.stringify(packageJsonContent, null, 2));
     }
 
     if (!hasInstalledNpmDependencies(destination)) {
@@ -160,16 +169,8 @@ const build = async (source, dest, targetOverride, skipBundle) => {
   }
 
   try {
-    // FIXME Create a runner for this and for node
-    progress.text = "Building for browser (use --skip-bundle to skip)...";
-    progress.start();
-
     await platform.build(destination, skipBundle);
-
-    progress.succeed();
-    success("Project built successfully!");
   } catch (e) {
-    progress.fail();
     error(e, "Bundling");
     process.exit(5);
   }
@@ -203,5 +204,7 @@ module.exports = {
   command,
   desc,
   builder,
-  handler
+  handler,
+  getBuildTarget,
+  getDestinationFromConfig
 };
