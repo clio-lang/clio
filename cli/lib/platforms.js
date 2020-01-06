@@ -1,73 +1,57 @@
 const fs = require("fs");
 const path = require("path");
-const { spawn } = require("child_process");
-const { getParsedNpmDependencies } = require("../../package/index");
+const Parcel = require("parcel-bundler");
 
 const web = {
-  getPackageInfo(source) {
-    const dependencies = getParsedNpmDependencies(source);
-    dependencies["clio-internals"] = "latest";
-
-    return {
-      dependencies,
-      devDependencies: {
-        parcel: "^1.12.4"
-      },
-      scripts: {
-        build: "parcel build index.html --out-dir public",
-        run: "parcel index.html --out-dir public"
-      }
-    };
-  },
   async build(destination, skipBundle) {
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html lang="en">
-        <head>
-          <meta charset="UTF-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-          <title>Document</title>
-        </head>
-        <body>
-          <script src="src/main.clio.js"></script>
-        </body>
-      </html>
-      `;
-    fs.writeFileSync(path.join(destination, "index.html"), htmlContent);
+    if (skipBundle) return;
 
-    if (skipBundle) {
-      return;
-    }
+    const bundler = await setupParcel(destination);
 
-    return new Promise((resolve, reject) => {
-      const build = spawn("npm", ["run", "build"], { cwd: destination });
-      build.on("close", resolve);
-      build.on("error", reject);
-    });
+    await bundler.bundle();
   },
-  run() {
-    throw new Error("Not implemented.");
+  async run(path) {
+    console.log(path);
+    const bundler = await setupParcel(path, { watch: true });
+
+    await bundler.serve();
   }
 };
 
 const node = {
-  getPackageInfo() {
-    const dependencies = getParsedNpmDependencies();
-    dependencies["clio-internals"] = "latest";
-
-    return {
-      dependencies,
-      scripts: {
-        run: "node src/main.clio.js"
-      }
-    };
-  },
-  build() {},
-  run() {
-    throw new Error("Not implemented.");
+  async build() {},
+  async run(path) {
+    await require(path).catch(console.log);
   }
 };
+
+async function setupParcel(destination, options = { watch: false }) {
+  const htmlFilePath = path.join(destination, "index.html");
+  if (!fs.existsSync(htmlFilePath)) {
+    const htmlFileContent = `
+        <!DOCTYPE html>
+        <html lang="en">
+          <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+            <title>Document</title>
+          </head>
+          <body>
+            <script src="src/main.clio.js"></script>
+          </body>
+        </html>
+        `;
+    fs.writeFileSync(htmlFilePath, htmlFileContent);
+  }
+
+  console.log(options);
+  return new Parcel(htmlFilePath, {
+    outDir: path.join(destination, "dist"),
+    outFile: path.join(destination, "dist/index.html"),
+    ...options
+  });
+}
 
 const platforms = {
   web,

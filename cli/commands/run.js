@@ -1,4 +1,7 @@
-const {getPackageConfig} = require("../../package/index");
+const path = require("path");
+const { getPlatform } = require("../lib/platforms");
+const { getBuildTarget, getDestinationFromConfig, build } = require("./build");
+const { CONFIGFILE_NAME, getPackageConfig } = require("../../package/index");
 
 exports.command = "run [source]";
 
@@ -8,14 +11,7 @@ exports.builder = {
   source: {
     describe: "source file to run",
     type: "string",
-    default: (() => {
-      // Config file is not available when running tests. This wrapper catches filenotfound exception in these cases
-      try {
-        return getPackageConfig().main;
-      } catch (e) {
-        return "";
-      }
-    })()
+    default: path.resolve(".")
   }
 };
 
@@ -23,8 +19,18 @@ exports.handler = argv => {
   run(argv.source);
 };
 
-async function run(path) {
-  await require(path).catch(console.log);
+async function run(projectPath) {
+  await build(projectPath, null, null, true);
+
+  const config = getPackageConfig(path.join(projectPath, CONFIGFILE_NAME));
+  const target = getBuildTarget(null, config); // No target override
+  const destination = getDestinationFromConfig(projectPath, target, config);
+  const platform = getPlatform(target);
+  if (!platform) {
+    throw new Error(`Platform "${target}" is not supported.`);
+  }
+
+  await platform.run(destination);
 }
 
 exports.run = run;
