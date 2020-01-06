@@ -5,23 +5,21 @@ const Parcel = require("parcel-bundler");
 const web = {
   async build(destination, skipBundle) {
     if (skipBundle) return;
-
     const bundler = await setupParcel(destination);
-
     await bundler.bundle();
   },
   async run(path) {
-    console.log(path);
     const bundler = await setupParcel(path, { watch: true });
-
     await bundler.serve();
   }
 };
 
 const node = {
   async build() {},
-  async run(path) {
-    await require(path).catch(console.log);
+  async run(destination) {
+    const packageJson = path.join(destination, "package.json");
+    const packageInfo = require(packageJson);
+    await require(path.join(destination, packageInfo.main));
   }
 };
 
@@ -45,7 +43,6 @@ async function setupParcel(destination, options = { watch: false }) {
     fs.writeFileSync(htmlFilePath, htmlFileContent);
   }
 
-  console.log(options);
   return new Parcel(htmlFilePath, {
     outDir: path.join(destination, "dist"),
     outFile: path.join(destination, "dist/index.html"),
