@@ -153,7 +153,10 @@ const build = async (source, dest, targetOverride, skipBundle) => {
     if (!fs.existsSync(packageJsonPath)) {
       const dependencies = getParsedNpmDependencies(source);
       dependencies["clio-internals"] = "latest";
-      const packageJsonContent = { dependencies };
+      const packageJsonContent = {
+        dependencies,
+        main: "src/main.clio.js"
+      };
       fs.writeFileSync(packageJsonPath, JSON.stringify(packageJsonContent, null, 2));
     }
 
