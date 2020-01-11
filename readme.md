@@ -74,7 +74,7 @@ You can visit [docs.clio-lang.org](http://docs.clio-lang.org) for a short tutori
 - Cloud/decentralized/distributed modules and functions
 - Event-based flow control
 
-For a list of what's done and what's planned you can check [Clio on Trello](https://trello.com/b/WpwsB69B/clio).
+For a list of what's done and what's planned you can check [our open enhancement issues](https://github.com/clio-lang/clio/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement).
 
 ## Project Goals
 
