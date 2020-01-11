@@ -6,5 +6,5 @@ exports.builder = {
   source: { describe: "source to analyze", type: "string" }
 };
 exports.handler = argv => {
-  installDependency(argv);
+  installDependency(argv.source);
 };

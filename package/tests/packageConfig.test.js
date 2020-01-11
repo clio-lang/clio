@@ -6,8 +6,6 @@ const toml = require("@iarna/toml");
 const {
   CONFIGFILE_NAME,
   getPackageConfig,
-  getVersion,
-  hasVersion,
   writePackageConfig
 } = require("../index");
 
@@ -36,19 +34,6 @@ test("Write config file", () => {
   expect(contents.title).toBe("test");
   expect(contents.dependencies).toEqual({ Foo: "1.2.3" });
   tmpDir.removeCallback();
-});
-
-test("hasVersion without version provided", () => {
-  const gitHubPackage = "github.com/foo/bar";
-
-  expect(hasVersion(gitHubPackage)).toBeFalsy();
-});
-
-test("hasVersion with version", () => {
-  const gitHubPackageVersion = "github.com/foo/bar@1.2.3";
-
-  expect(hasVersion(gitHubPackageVersion)).toBeTruthy();
-  expect(getVersion(gitHubPackageVersion)).toBe("1.2.3");
 });
 
 test("Toml contains npm_dependencies", () => {

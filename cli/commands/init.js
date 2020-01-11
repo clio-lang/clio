@@ -5,7 +5,8 @@ const readline = require("readline");
 const {
   CONFIGFILE_NAME,
   fetchDependencies,
-  writePackageConfig
+  writePackageConfig,
+  registryId
 } = require("../../package/index");
 
 exports.command = "init [args]";
@@ -26,13 +27,14 @@ async function initPackage(
   directory = process.cwd()
 ) {
   const directoryName = path.basename(directory);
-
+  const stdlibId = registryId("stdlib");
+  
   if (fs.existsSync(path.join(directory, "package.json"))) {
     const pkg = require(path.join(directory, "package.json"));
     if (!pkg.clioDependencies) {
-      pkg.clioDependencies = ["stdlib"];
-    } else if (!pkg.clioDependencies.includes("stdlib")) {
-      pkg.clioDependencies.push("stdlib");
+      pkg.clioDependencies = [stdlibId];
+    } else if (!pkg.clioDependencies.includes(stdlibId)) {
+      pkg.clioDependencies.push(stdlibId);
     }
     const stringified = JSON.stringify(pkg, null, 2);
     return fs.writeFileSync(
@@ -61,7 +63,7 @@ async function initPackage(
         website: ""
       },
       scripts: { test: "No tests specified" },
-      dependencies: [{ name: "stdlib", version: "latest" }]
+      dependencies: [{ name: stdlibId, version: "latest" }]
     };
   } else {
     const rInterface = readline.createInterface({
@@ -86,7 +88,7 @@ async function initPackage(
     pkg.author.name = (await ask("Author name: ")) || "";
     pkg.author.email = (await ask("Author email: ")) || "";
     pkg.license = (await ask("License: (ISC) ")) || "ISC";
-    pkg.dependencies = [{ name: "stdlib", version: "latest" }];
+    pkg.dependencies = [{ name: stdlibId, version: "latest" }];
     pkg.scripts = {
       test:
         (await ask("Test command: ")) ||
@@ -98,12 +100,13 @@ async function initPackage(
   }
 
   process.stdin.destroy();
+  
   if (ok) {
     writePackageConfig(pkg, directory);
     process.chdir(directory);
     await fetchDependencies();
   } else {
-    return await initPackage(false, packageName);
+    await initPackage(false, packageName);
   }
 }
 
