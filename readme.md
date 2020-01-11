@@ -48,6 +48,7 @@ test programs exist, it is not recommended to use in production.
 - [Clio on Rosetta Code](http://rosettacode.org/wiki/Clio)
 - [Web IDE](https://clio-lang.github.io/clio-editor/)
 - [Clio Chat (on Telegram)](https://t.me/joinchat/B0kZo0kVldfXldTDqz95XA)
+- [Kanban Board](https://github.com/orgs/clio-lang/projects/1)
 
 ## Examples
 
