@@ -3,6 +3,7 @@
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fclio-lang%2Fclio.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fclio-lang%2Fclio?ref=badge_shield)
 [![Coverage Status](https://coveralls.io/repos/github/clio-lang/clio/badge.svg?branch=v0.2.0)](https://coveralls.io/github/clio-lang/clio?branch=v0.2.0)
 [![Inline docs](http://inch-ci.org/github/clio-lang/clio.svg?branch=itch-doc-lint)](http://inch-ci.org/github/clio-lang/clio)
+[![Kanban Board](https://img.shields.io/badge/Kanban%20Board-v0.2.0-1abc9c.svg)](https://github.com/orgs/clio-lang/projects/1)
 
 ![Clio Logo](https://raw.githubusercontent.com/clio-lang/media/master/logo-128x128.png)
 
