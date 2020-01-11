@@ -39,6 +39,8 @@ Clio is in active development and it's not ready for production.
 It is in a highly experimental state, although some stable demonstrations and
 test programs exist, it is not recommended to use in production.
 
+**[Click here to see what we are currently working on](https://github.com/orgs/clio-lang/projects/1)**
+
 ## Links
 
 - [Clio Website](http://clio-lang.org)
