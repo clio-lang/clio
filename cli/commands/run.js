@@ -20,7 +20,7 @@ exports.handler = argv => {
 };
 
 async function run(projectPath) {
-  await build(projectPath, null, null, true);
+  await build(projectPath, null, { skipBundle: true });
 
   const config = getPackageConfig(path.join(projectPath, CONFIGFILE_NAME));
   const target = getBuildTarget(null, config); // No target override
