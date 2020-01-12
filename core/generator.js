@@ -187,7 +187,7 @@ const rules = {
     const processedPath = generate(path);
     return `scope.extend(require(${processedPath}))`;
   },
-  import_as_statement(cst, generate) {
+  import_from_as_statement(cst, generate) {
     const { path, names } = cst;
     const processedPath = generate(path);
     const processedNames = names.map(name => {
@@ -196,6 +196,11 @@ const rules = {
     });
     namesObject = "{" + processedNames.join(",") + "}";
     return `scope.extend(require(${processedPath}), ${namesObject})`;
+  },
+  import_as_statement(cst, generate) {
+    const { path, importAs } = cst;
+    const processedPath = generate(path);
+    return `scope.$.${importAs} = require(${processedPath})`;
   },
   import_statement(cst, generate) {
     const { path } = cst;

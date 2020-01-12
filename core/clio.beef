@@ -39,12 +39,15 @@ import as_expr => import_as { names: [ right ], index: left.index }
 import mul => import_all { index: left.index }
 
 import_statement from => import_from_start { names: [left.path], index: left.index }
-import_as from => import_as_start { names: left.names, index: left.index }
+import_as from => import_from_as_start { names: left.names, index: left.index }
 import_all from => import_all_start { index: left.index }
 
 import_from_start symbol|string => import_from_statement { names: left.names, path: right, index: left.index }
 import_all_start symbol|string => import_all_statement { names: left.names, path: right, index: left.index }
-import_as_start symbol|string => import_as_statement { names: left.names, path: right, index: left.index }
+import_from_as_start symbol|string => import_from_as_statement { names: left.names, path: right, index: left.index }
+
+import_statement as => import_statement_as { path: left.path, index: left.index }
+import_statement_as symbol => import_as_statement { path: left.path, importAs: right.raw, index: left.index }
 
 // - Comparisons
 
@@ -139,8 +142,8 @@ block_start dedent => block { body: left.body, index: left.index }
 flow|function|decorated_function|conditional clio => clio { body: [left, ...right.body], index: left.index }
 flow|function|decorated_function|conditional eof => clio { body: [left], index: left.index }
 
-import_from_statement|import_statement clio => clio { body: [left, ...right.body], index: left.index }
-import_from_statement|import_statement eof => clio { body: [left], index: left.index }
+import_from_statement|import_as_statement|import_statement clio => clio { body: [left, ...right.body], index: left.index }
+import_from_statement|import_as_statement|import_statement eof => clio { body: [left], index: left.index }
 
-import_as_statement|import_all_statement clio => clio { body: [left, ...right.body], index: left.index }
-import_as_statement|import_all_statement eof => clio { body: [left], index: left.index }
+import_from_as_statement|import_all_statement clio => clio { body: [left, ...right.body], index: left.index }
+import_from_as_statement|import_all_statement eof => clio { body: [left], index: left.index }
