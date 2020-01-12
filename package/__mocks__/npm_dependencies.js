@@ -1,16 +1,13 @@
 const fs = require("fs");
 const path = require("path");
-const { spawn } = require("child_process");
-const { getPackageConfig, CONFIGFILE_NAME } = require("./packageConfig");
+const { getPackageConfig, CONFIGFILE_NAME } = require("../packageConfig");
 
-function fetchNpmDependencies(destination, silent = false) {
-  process.chdir(destination);
-  return new Promise((resolve, reject) => {
-    const install = spawn("npm", ["install", silent ? "--silent" : null]);
-    install.on("close", resolve);
-    install.on("error", reject);
-  });
-}
+const fetchNpmDependencies = jest.fn().mockImplementation(async destination => {
+  console.log("Getting mock NPM dependencies...");
+  const fakeModulePath = path.join(destination, "node_modules", "rickroll");
+  await fs.promises.mkdir(fakeModulePath, { recursive: true });
+  return fs.promises.writeFile(path.join(fakeModulePath, "rickroll.js"), "console.log()", {});
+});
 
 function hasInstalledNpmDependencies(destination) {
   return fs.existsSync(path.join(destination, "package-lock.json"));

@@ -1,7 +1,7 @@
 const fs = require("fs");
 const tmp = require("tmp");
 
-const {CONFIGFILE_NAME, ENV_NAME} = require("../../../package/config");
+const { CONFIGFILE_NAME, ENV_NAME } = require("../../../package/config");
 const { init } = require("../");
 
 test("Inits a package", async () => {

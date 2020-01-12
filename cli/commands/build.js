@@ -1,10 +1,10 @@
 const fs = require("fs");
 const path = require("path");
 const { format } = require("prettier");
-const ora = require("ora");
 const { generator } = require("../../core/generator");
 const { error, info } = require("../lib/colors");
 const { getPlatform } = require("../lib/platforms");
+const { Progress } = require("../lib/progress");
 
 const {
   CONFIGFILE_NAME,
@@ -99,17 +99,23 @@ function getSourceFromConfig(source, target) {
   return path.join(source, buildSource);
 }
 
-const build = async (source, dest, targetOverride, skipBundle) => {
-  let progress = ora();
+/**
+ *
+ * @param {string} source The project source directory
+ * @param {string} dest Destination directory to build.
+ * @param {Object} options Options to build
+ */
+const build = async (source, dest, { targetOverride, skipBundle, skipNpmInstall, silent } = {}) => {
   const config = getPackageConfig(path.join(source, CONFIGFILE_NAME));
   const target = getBuildTarget(targetOverride, config);
   const destination = dest || getDestinationFromConfig(source, target, config);
   const sourceDir = getSourceFromConfig(source, target);
 
-  info(`Creating build for ${target}`);
+  if (!silent) info(`Creating build for ${target}`);
+
+  const progress = new Progress(silent);
   try {
-    progress.text = "Compiling...";
-    progress.start();
+    progress.start("Compiling...");
 
     const files = getClioFiles(source);
     for (const file of files) {
@@ -125,9 +131,9 @@ const build = async (source, dest, targetOverride, skipBundle) => {
 
     progress.succeed();
   } catch (e) {
-    progress.fail();
+    progress.fail(`Error: ${e.stack}`);
     error(e, "Compilation");
-    process.exit(3);
+    // process.exit(3);
   }
 
   const nonClioFiles = getNonClioFiles(sourceDir);
@@ -140,15 +146,7 @@ const build = async (source, dest, targetOverride, skipBundle) => {
   }
 
   const platform = getPlatform(target);
-  if (!platform) {
-    error(new Error(`Platform "${target}" is not supported.`), "Platform");
-    process.exit(6);
-  }
-
   try {
-    progress.text = "Installing npm dependencies (this may take a while)...";
-    progress.start();
-
     const packageJsonPath = path.join(destination, "package.json");
     if (!fs.existsSync(packageJsonPath)) {
       const dependencies = getParsedNpmDependencies(source);
@@ -160,28 +158,35 @@ const build = async (source, dest, targetOverride, skipBundle) => {
       fs.writeFileSync(packageJsonPath, JSON.stringify(packageJsonContent, null, 2));
     }
 
-    if (!hasInstalledNpmDependencies(destination)) {
-      await fetchNpmDependencies(destination);
+    if (!skipNpmInstall && !hasInstalledNpmDependencies(destination)) {
+      progress.start("Installing npm dependencies (this may take a while)...");
+      await fetchNpmDependencies(destination, silent);
+      progress.succeed();
     }
-
-    progress.succeed();
   } catch (e) {
-    progress.fail();
+    progress.fail(`Error: ${e.message}`);
     error(e, "Dependency Install");
-    process.exit(4);
+    // process.exit(4);
   }
 
   try {
     await platform.build(destination, skipBundle);
   } catch (e) {
     error(e, "Bundling");
-    process.exit(5);
   }
 };
 
 const command = "build [target] [source] [destination]";
 const desc = "Build a Clio project";
-const handler = argv => build(argv.source, argv.destination, argv.target, argv["skip-bundle"]);
+
+const handler = argv => {
+  const options = {
+    targetOverride: argv.target,
+    skipBundle: argv["skip-bundle"],
+    skipNpmInstall: argv["skip-npm-install"]
+  };
+  build(argv.source, argv.destination, options);
+};
 const builder = {
   source: {
     describe: "source directory to read from",
@@ -198,6 +203,14 @@ const builder = {
   },
   "skip-bundle": {
     describe: "Does not produces a bundle for browsers.",
+    type: "boolean"
+  },
+  "skip-npm-install": {
+    describe: "Skips npm install. Useful for tests.",
+    type: "boolean"
+  },
+  silent: {
+    describe: "Mutes messages from the command.",
     type: "boolean"
   }
 };

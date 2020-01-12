@@ -7,7 +7,7 @@ exports.trace = e => console.trace(brightRed(`Error: ${e.message}`));
 exports.error = (e, prefix = "") => {
   let message = `Error: ${e.message}`;
   if (prefix) message = `${prefix} `.concat(message);
-  console.trace(brightRed(message));
+  console.error(brightRed(message));
 };
 
 exports.warn = message => console.log(chalk.yellow(`Warning: ${message}`));
