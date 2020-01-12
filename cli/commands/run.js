@@ -2,6 +2,7 @@ const path = require("path");
 const { getPlatform } = require("../lib/platforms");
 const { getBuildTarget, getDestinationFromConfig, build } = require("./build");
 const { CONFIGFILE_NAME, getPackageConfig } = require("../../package/index");
+const { error } = require("../lib/colors");
 
 exports.command = "run [source]";
 
@@ -20,17 +21,21 @@ exports.handler = argv => {
 };
 
 async function run(projectPath) {
-  await build(projectPath, null, { skipBundle: true });
+  try {
+    await build(projectPath, null, { skipBundle: true });
 
-  const config = getPackageConfig(path.join(projectPath, CONFIGFILE_NAME));
-  const target = getBuildTarget(null, config); // No target override
-  const destination = getDestinationFromConfig(projectPath, target, config);
-  const platform = getPlatform(target);
-  if (!platform) {
-    throw new Error(`Platform "${target}" is not supported.`);
+    const config = getPackageConfig(path.join(projectPath, CONFIGFILE_NAME));
+    const target = getBuildTarget(null, config); // No target override
+    const destination = getDestinationFromConfig(projectPath, target, config);
+    const platform = getPlatform(target);
+    if (!platform) {
+      throw new Error(`Platform "${target}" is not supported.`);
+    }
+
+    await platform.run(destination);
+  } catch (e) {
+    error(e);
   }
-
-  await platform.run(destination);
 }
 
 exports.run = run;
