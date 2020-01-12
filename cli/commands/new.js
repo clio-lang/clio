@@ -59,7 +59,7 @@ async function createPackage(packageName, target = "node") {
 
     info("Initialization Complete!");
     success(
-      `Run 'cd ${packageName}' to open, then 'clio run index.clio' to run the project!`
+      `Run 'cd ${packageName}' to open, then 'clio run' to run the project!`
     );
   } catch (e) {
     error(e);
