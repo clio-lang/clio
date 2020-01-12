@@ -18,7 +18,9 @@ const walkDir = dir => readDir(dir).map(f => walk(path.join(dir, f)));
 const walk = dir => (isDir(dir) ? flatten(walkDir(dir)) : [dir]);
 
 const isClioFile = file => file.endsWith(".clio");
+const isNotClioFile = file => !file.endsWith(".clio");
 const getClioFiles = dir => walk(dir).filter(isClioFile);
+const getNonClioFiles = dir => walk(dir).filter(isNotClioFile);
 
 const mkdir = directory => {
   const { root, dir, base } = path.parse(directory);
@@ -78,6 +80,15 @@ const build = async (source, dest, target) => {
       fs.writeFileSync(destFile, formatted, "utf8");
     }
 
+    const nonClioFiles = getNonClioFiles(source);
+    for (const file of nonClioFiles) {
+      const relativeFile = path.relative(source, file);
+      const destFile = path.join(destination, relativeFile);
+      const destDir = path.dirname(destFile);
+      mkdir(destDir);
+      fs.copyFileSync(file, destFile);
+    }
+
     const packageJsonPath = path.join(destination, "package.json");
     if (!fs.existsSync(packageJsonPath)) {
       let nodeDeps = {
@@ -85,13 +96,13 @@ const build = async (source, dest, target) => {
       };
 
       if (
-        getPackageConfig(path.join(source, CONFIGFILE_NAME))
-          .npm_dependencies
+        getPackageConfig(path.join(source, CONFIGFILE_NAME)).npm_dependencies
       ) {
-        getPackageConfig(path.join(source, CONFIGFILE_NAME))
-          .npm_dependencies.forEach(dep => {
-            nodeDeps[dep.name] = dep.version;
-          });
+        getPackageConfig(
+          path.join(source, CONFIGFILE_NAME)
+        ).npm_dependencies.forEach(dep => {
+          nodeDeps[dep.name] = dep.version;
+        });
       }
       fs.writeFileSync(
         packageJsonPath,
