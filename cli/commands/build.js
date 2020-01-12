@@ -38,7 +38,7 @@ function getDestinationFromConfig(source, target) {
 
   if (!buildConfig) {
     throw new Error(
-      `No build configuration has been found. It is a "[build]" section on you "${CONFIGFILE_NAME}" file.`
+      `No build configuration has been found. It is a "[build]" section on your "${CONFIGFILE_NAME}" file.`
     );
   }
 
@@ -65,12 +65,38 @@ function getDestinationFromConfig(source, target) {
   return path.join(source, `${buildDirectory}/${buildTarget}`);
 }
 
+function getSourceFromConfig(source, target) {
+  const config = getPackageConfig();
+  const buildConfig = config.build;
+
+  if (!buildConfig) {
+    throw new Error(
+      `No build configuration has been found. It is a "[build]" section on your "${CONFIGFILE_NAME}" file.`
+    );
+  }
+
+  const buildSource =
+    buildConfig.target in config.target
+      ? config.target[buildConfig.target].directory
+      : buildConfig.source;
+
+  if (!buildSource) {
+    throw new Error(
+      `Could not find a source directory for ${target} in your ${CONFIGFILE_NAME} file.`
+    );
+  }
+
+  return path.join(source, buildSource);
+}
+
 const build = async (source, dest, target) => {
   try {
     const destination = dest || getDestinationFromConfig(source, target);
-    const files = getClioFiles(source);
+    const sourceDir = getSourceFromConfig(source, target);
+
+    const files = getClioFiles(sourceDir);
     for (const file of files) {
-      const relativeFile = path.relative(source, file);
+      const relativeFile = path.relative(sourceDir, file);
       const destFile = path.join(destination, `${relativeFile}.js`);
       const destDir = path.dirname(destFile);
       const contents = fs.readFileSync(file, "utf8");
@@ -80,9 +106,9 @@ const build = async (source, dest, target) => {
       fs.writeFileSync(destFile, formatted, "utf8");
     }
 
-    const nonClioFiles = getNonClioFiles(source);
+    const nonClioFiles = getNonClioFiles(sourceDir);
     for (const file of nonClioFiles) {
-      const relativeFile = path.relative(source, file);
+      const relativeFile = path.relative(sourceDir, file);
       const destFile = path.join(destination, relativeFile);
       const destDir = path.dirname(destFile);
       mkdir(destDir);
