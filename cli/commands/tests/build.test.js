@@ -124,6 +124,18 @@ describe("Web builds", () => {
   });
 });
 
+describe("Build copies non-clio files", () => {
+  test("Copy dummy file to dest", async () => {
+    const dir = tmp.dirSync();
+    await _new(dir.name, "node");
+    fs.writeFileSync(path.join(dir.name, "src", "dummy"), "dummy");
+    await build(dir.name);
+    const files = fs.readdirSync(path.join(dir.name, "build/node"));
+    expect(files.includes("dummy")).toBe(true);
+    dir.removeCallback();
+  });
+});
+
 describe("Node builds", () => {
   test("with defaults (clio build)", async () => {
     const dir = tmp.dirSync();
