@@ -9,7 +9,9 @@ const { CONFIGFILE_NAME } = require("./config");
 /**
  * @param {string} filepath Optional name of file containing the configurations for the clio package in format `foo.toml`.
  */
-function getPackageConfig(filepath = path.join(process.cwd(), CONFIGFILE_NAME)) {
+function getPackageConfig(
+  filepath = path.join(process.cwd(), CONFIGFILE_NAME)
+) {
   const file = fs.readFileSync(filepath);
   const config = toml.parse(file);
 
@@ -37,9 +39,11 @@ function getPackageConfig(filepath = path.join(process.cwd(), CONFIGFILE_NAME)) 
 
   if (config.npm_dependencies) {
     // eslint-disable-next-line camelcase
-    parsedConfig.npm_dependencies = Object.entries(config.npm_dependencies).map(dep => {
-      return { name: dep[0], version: dep[1] };
-    });
+    parsedConfig.npm_dependencies = Object.entries(config.npm_dependencies).map(
+      dep => {
+        return { name: dep[0], version: dep[1] };
+      }
+    );
   }
 
   return parsedConfig;
@@ -70,7 +74,9 @@ function addDependency([name, version]) {
   config.dependencies.push({ name, version });
   writePackageConfig(config);
 
-  console.log(`Added ${name}@${version} to the dependencies list in ${CONFIGFILE_NAME}`);
+  console.log(
+    `Added ${name}@${version} to the dependencies list in ${CONFIGFILE_NAME}`
+  );
 }
 
 module.exports = {
