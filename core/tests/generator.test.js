@@ -26,4 +26,5 @@ import * from "here"
 import this from "that"
 import this as that from "other"
 import "module"
+import "module" as m
 `;
