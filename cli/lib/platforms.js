@@ -23,6 +23,12 @@ const node = {
   }
 };
 
+// FIXME In the future, this should not be done this way
+const defeito = {
+  build() {},
+  run() {}
+};
+
 async function setupParcel(destination, options = { watch: false }) {
   const htmlFilePath = path.join(destination, "index.html");
   if (!fs.existsSync(htmlFilePath)) {
@@ -52,11 +58,14 @@ async function setupParcel(destination, options = { watch: false }) {
 
 const platforms = {
   web,
-  node
+  node,
+  defeito
 };
 
 function getPlatform(name) {
-  return platforms[name];
+  const platform = platforms[name];
+  if (!platform) return platforms.defeito;
+  return platform;
 }
 
 exports.getPlatform = getPlatform;
