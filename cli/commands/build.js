@@ -62,7 +62,7 @@ function getBuildTarget(targetOverride, config) {
 
   if (!buildConfig) {
     throw new Error(
-      `No build configuration has been found. It is a "[build]" section on you "${CONFIGFILE_NAME}" file.`
+      `No build configuration has been found. Please add a [build] section to your "${CONFIGFILE_NAME}" file.`
     );
   }
 
