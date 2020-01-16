@@ -42,7 +42,7 @@ async function setupParcel(destination, options = { watch: false }) {
             <title>Document</title>
           </head>
           <body>
-            <script src="src/main.clio.js"></script>
+            <script src="main.clio.js"></script>
           </body>
         </html>
         `;
