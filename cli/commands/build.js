@@ -79,8 +79,7 @@ function getBuildTarget(targetOverride, config) {
   return buildTarget;
 }
 
-function getSourceFromConfig(source, target) {
-  const config = getPackageConfig();
+function getSourceFromConfig(source, target, config) {
   const buildConfig = config.build;
 
   if (!buildConfig) {
@@ -109,7 +108,7 @@ const build = async (source, dest, { targetOverride, skipBundle, skipNpmInstall,
   const config = getPackageConfig(path.join(source, CONFIGFILE_NAME));
   const target = getBuildTarget(targetOverride, config);
   const destination = dest || getDestinationFromConfig(source, target, config);
-  const sourceDir = getSourceFromConfig(source, target);
+  const sourceDir = getSourceFromConfig(source, target, config);
 
   if (!silent) info(`Creating build for ${target}`);
 
@@ -153,7 +152,7 @@ const build = async (source, dest, { targetOverride, skipBundle, skipNpmInstall,
       dependencies["clio-internals"] = "latest";
       const packageJsonContent = {
         dependencies,
-        main: "src/main.clio.js"
+        main: "main.clio.js"
       };
       fs.writeFileSync(packageJsonPath, JSON.stringify(packageJsonContent, null, 2));
     }
