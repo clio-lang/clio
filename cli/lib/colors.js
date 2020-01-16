@@ -2,6 +2,8 @@ const chalk = require("chalk");
 
 const brightRed = chalk.rgb(255, 80, 50);
 
+exports.brightRed = brightRed;
+
 exports.trace = e => console.trace(brightRed(`Error: ${e.message}`));
 
 exports.error = (e, prefix = "") => {
@@ -10,7 +12,7 @@ exports.error = (e, prefix = "") => {
   console.error(brightRed(message));
 };
 
-exports.warn = message => console.log(chalk.yellow(`Warning: ${message}`));
+exports.warn = message => console.warn(chalk.yellow(`Warning: ${message}`));
 
 exports.info = message => console.log(chalk.blue(`Info: ${message}`));
 
