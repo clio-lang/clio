@@ -23,27 +23,19 @@ jobs:
           npm test
         env:
           CI: true
-
-  coveralls:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v1
-      - uses: actions/setup-node@v1
-        with:
-          node-version: 12.x
-      - name: npm install & test
-        run: |
-          npm ci
-          npm link
-          npm test
-        env:
-          CI: true
-      - name: Coveralls
+      - name: Coveralls Parallel
         uses: coverallsapp/github-action@master
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          path-to-lcov: "./coverage/lcov.info"
+          parallel: true
+          path-to-lcov: ./coverage/lcov.info
+
+      - name: Coveralls Finished
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          parallel-finished: true
+
 
   lint:
     runs-on: [ubuntu-latest]
