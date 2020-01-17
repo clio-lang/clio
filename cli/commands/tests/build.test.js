@@ -24,7 +24,9 @@ describe("Package.json generation", () => {
       skipBundle: true,
       silent: true
     });
-    const file = fs.readFileSync(path.join(dir.name, "build/web", "package.json"));
+    const file = fs.readFileSync(
+      path.join(dir.name, "build/web", "package.json")
+    );
     const pkgJsonObj = JSON.parse(file.toString());
     expect(pkgJsonObj.main).toBeDefined();
     expect(pkgJsonObj.dependencies).toBeDefined();
@@ -40,7 +42,9 @@ describe("Package.json generation", () => {
       silent: true
     });
 
-    const file = fs.readFileSync(path.join(dir.name, "build/node", "package.json"));
+    const file = fs.readFileSync(
+      path.join(dir.name, "build/node", "package.json")
+    );
     const pkgJsonObj = JSON.parse(file.toString());
     expect(pkgJsonObj.dependencies).toBeDefined();
     dir.removeCallback();
@@ -54,7 +58,9 @@ describe("Package.json generation", () => {
       silent: true
     });
 
-    const nodeModulesExists = fs.existsSync(path.join(dir.name, "build/node/node_modules"));
+    const nodeModulesExists = fs.existsSync(
+      path.join(dir.name, "build/node/node_modules")
+    );
     expect(nodeModulesExists).toBe(true);
   });
 });
