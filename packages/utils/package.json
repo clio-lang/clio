@@ -1,5 +1,5 @@
 {
-  "name": "utils",
+  "name": "clio-utils",
   "version": "0.1.0",
   "description": "utils for the clio programming language",
   "main": "lib/index.js",

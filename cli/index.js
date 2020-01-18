@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
 const chalk = require("chalk");
-const { isSupportedNodeVersion } = require("../utils/versionUtils");
+
+// TODO: How to link lerna with unpublished package?
+const { isSupportedNodeVersion } = require("../packages/utils");
 
 if (!isSupportedNodeVersion(process.versions.node)) {
   chalk.yellow(
