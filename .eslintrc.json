@@ -15,6 +15,7 @@
   "parserOptions": {
     "ecmaVersion": 2018
   },
+  "ignorePatterns": ["node_modules/"],
   "rules": {
     "no-var": "warn",
     "no-unused-vars": "warn",
