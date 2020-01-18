@@ -1,0 +1,18 @@
+{
+  "name": "utils",
+  "version": "0.1.0",
+  "description": "utils for the clio programming language",
+  "main": "lib/index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/clio-lang/clio"
+  },
+  "author": "garritfra <garritfranke@gmail.com>",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "neon-cli": "^0.3.3"
+  },
+  "scripts": {
+    "install": "neon build"
+  }
+}
