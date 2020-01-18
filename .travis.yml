@@ -1,7 +1,7 @@
 language: node_js
 
 before_install:
-  - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain
+  - curl https://sh.rustup.rs -sSf | sh -s -- -y
   - source $HOME/.cargo/env
 node_js:
   - "stable"
