@@ -68,7 +68,9 @@ function getBuildTarget(targetOverride, config) {
 
   const buildTarget =
     targetOverride ||
-    (buildConfig.target in config.target ? config.target[buildConfig.target].target : buildConfig.target);
+    (buildConfig.target in config.target
+      ? config.target[buildConfig.target].target
+      : buildConfig.target);
 
   if (!buildTarget) {
     throw new Error(
@@ -89,10 +91,14 @@ function getSourceFromConfig(source, target, config) {
   }
 
   const buildSource =
-    buildConfig.target in config.target ? config.target[buildConfig.target].directory : buildConfig.source;
+    buildConfig.target in config.target
+      ? config.target[buildConfig.target].directory
+      : buildConfig.source;
 
   if (!buildSource) {
-    throw new Error(`Could not find a source directory for ${target} in your ${CONFIGFILE_NAME} file.`);
+    throw new Error(
+      `Could not find a source directory for ${target} in your ${CONFIGFILE_NAME} file.`
+    );
   }
 
   return path.join(source, buildSource);
@@ -104,7 +110,11 @@ function getSourceFromConfig(source, target, config) {
  * @param {string} dest Destination directory to build.
  * @param {Object} options Options to build
  */
-const build = async (source, dest, { targetOverride, skipBundle, skipNpmInstall, silent } = {}) => {
+const build = async (
+  source,
+  dest,
+  { targetOverride, skipBundle, skipNpmInstall, silent } = {}
+) => {
   const config = getPackageConfig(path.join(source, CONFIGFILE_NAME));
   const target = getBuildTarget(targetOverride, config);
   const destination = dest || getDestinationFromConfig(source, target, config);
@@ -154,7 +164,10 @@ const build = async (source, dest, { targetOverride, skipBundle, skipNpmInstall,
         dependencies,
         main: "main.clio.js"
       };
-      fs.writeFileSync(packageJsonPath, JSON.stringify(packageJsonContent, null, 2));
+      fs.writeFileSync(
+        packageJsonPath,
+        JSON.stringify(packageJsonContent, null, 2)
+      );
     }
 
     if (!skipNpmInstall && !hasInstalledNpmDependencies(destination)) {
