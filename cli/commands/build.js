@@ -2,12 +2,16 @@ const fs = require("fs");
 const path = require("path");
 const { format } = require("prettier");
 const { generator } = require("../../core/generator");
-const { error } = require("../lib/colors");
+const { error, info } = require("../lib/colors");
+const { getPlatform } = require("../lib/platforms");
+const { Progress } = require("../lib/progress");
 
 const {
   CONFIGFILE_NAME,
   fetchNpmDependencies,
-  getPackageConfig
+  getPackageConfig,
+  hasInstalledNpmDependencies,
+  getParsedNpmDependencies
 } = require("../../package/index");
 
 const flatten = arr => arr.reduce((acc, val) => acc.concat(val), []);
@@ -32,22 +36,12 @@ const mkdir = directory => {
   }, root);
 };
 
-function getDestinationFromConfig(source, target) {
-  const config = getPackageConfig();
-  const buildConfig = config.build;
-
-  if (!buildConfig) {
-    throw new Error(
-      `No build configuration has been found. It is a "[build]" section on your "${CONFIGFILE_NAME}" file.`
-    );
+function getDestinationFromConfig(source, target, config) {
+  if (!config) {
+    throw new Error('You must pass the location of the "clio.toml" file.');
   }
 
-  const buildTarget =
-    target ||
-    (buildConfig.target in config.target
-      ? config.target[buildConfig.target].target
-      : buildConfig.target);
-
+  const buildConfig = config.build;
   const buildDirectory = buildConfig.directory;
 
   if (!buildDirectory) {
@@ -56,17 +50,36 @@ function getDestinationFromConfig(source, target) {
     );
   }
 
+  return path.join(source, `${buildDirectory}/${target}`);
+}
+
+// FIXME I'm not sure if this function should stay here
+function getBuildTarget(targetOverride, config) {
+  if (!config) {
+    throw new Error('You must pass the location of the "clio.toml" file.');
+  }
+  const buildConfig = config.build;
+
+  if (!buildConfig) {
+    throw new Error(
+      `No build configuration has been found. Please add a [build] section to your "${CONFIGFILE_NAME}" file.`
+    );
+  }
+
+  const buildTarget =
+    targetOverride ||
+    (buildConfig.target in config.target ? config.target[buildConfig.target].target : buildConfig.target);
+
   if (!buildTarget) {
     throw new Error(
       `"target" field is missing in your ${CONFIGFILE_NAME} file. You can override the target with the "--target" option.`
     );
   }
 
-  return path.join(source, `${buildDirectory}/${buildTarget}`);
+  return buildTarget;
 }
 
-function getSourceFromConfig(source, target) {
-  const config = getPackageConfig();
+function getSourceFromConfig(source, target, config) {
   const buildConfig = config.build;
 
   if (!buildConfig) {
@@ -76,25 +89,34 @@ function getSourceFromConfig(source, target) {
   }
 
   const buildSource =
-    buildConfig.target in config.target
-      ? config.target[buildConfig.target].directory
-      : buildConfig.source;
+    buildConfig.target in config.target ? config.target[buildConfig.target].directory : buildConfig.source;
 
   if (!buildSource) {
-    throw new Error(
-      `Could not find a source directory for ${target} in your ${CONFIGFILE_NAME} file.`
-    );
+    throw new Error(`Could not find a source directory for ${target} in your ${CONFIGFILE_NAME} file.`);
   }
 
   return path.join(source, buildSource);
 }
 
-const build = async (source, dest, target) => {
-  try {
-    const destination = dest || getDestinationFromConfig(source, target);
-    const sourceDir = getSourceFromConfig(source, target);
+/**
+ *
+ * @param {string} source The project source directory
+ * @param {string} dest Destination directory to build.
+ * @param {Object} options Options to build
+ */
+const build = async (source, dest, { targetOverride, skipBundle, skipNpmInstall, silent } = {}) => {
+  const config = getPackageConfig(path.join(source, CONFIGFILE_NAME));
+  const target = getBuildTarget(targetOverride, config);
+  const destination = dest || getDestinationFromConfig(source, target, config);
+  const sourceDir = getSourceFromConfig(source, target, config);
 
-    const files = getClioFiles(sourceDir);
+  if (!silent) info(`Creating build for ${target}`);
+
+  const progress = new Progress(silent);
+  try {
+    progress.start("Compiling...");
+
+    const files = getClioFiles(source);
     for (const file of files) {
       const relativeFile = path.relative(sourceDir, file);
       const destFile = path.join(destination, `${relativeFile}.js`);
@@ -106,60 +128,69 @@ const build = async (source, dest, target) => {
       fs.writeFileSync(destFile, formatted, "utf8");
     }
 
-    const nonClioFiles = getNonClioFiles(sourceDir);
-    for (const file of nonClioFiles) {
-      const relativeFile = path.relative(sourceDir, file);
-      const destFile = path.join(destination, relativeFile);
-      const destDir = path.dirname(destFile);
-      mkdir(destDir);
-      fs.copyFileSync(file, destFile);
-    }
+    progress.succeed();
+  } catch (e) {
+    progress.fail(`Error: ${e.stack}`);
+    error(e, "Compilation");
+    // process.exit(3);
+  }
 
+  const nonClioFiles = getNonClioFiles(sourceDir);
+  for (const file of nonClioFiles) {
+    const relativeFile = path.relative(sourceDir, file);
+    const destFile = path.join(destination, relativeFile);
+    const destDir = path.dirname(destFile);
+    mkdir(destDir);
+    fs.copyFileSync(file, destFile);
+  }
+
+  const platform = getPlatform(target);
+  try {
     const packageJsonPath = path.join(destination, "package.json");
     if (!fs.existsSync(packageJsonPath)) {
-      let nodeDeps = {
-        "clio-internals": "latest"
+      const dependencies = getParsedNpmDependencies(source);
+      dependencies["clio-internals"] = "latest";
+      const packageJsonContent = {
+        dependencies,
+        main: "main.clio.js"
       };
-
-      if (
-        getPackageConfig(path.join(source, CONFIGFILE_NAME)).npm_dependencies
-      ) {
-        getPackageConfig(
-          path.join(source, CONFIGFILE_NAME)
-        ).npm_dependencies.forEach(dep => {
-          nodeDeps[dep.name] = dep.version;
-        });
-      }
-      fs.writeFileSync(
-        packageJsonPath,
-        JSON.stringify(
-          {
-            dependencies: nodeDeps,
-            scripts: {
-              build: "parcel build index.html --out-dir public",
-              run: "parcel index.html --out-dir public"
-            }
-          },
-          null,
-          2
-        )
-      );
+      fs.writeFileSync(packageJsonPath, JSON.stringify(packageJsonContent, null, 2));
     }
 
-    await fetchNpmDependencies(destination);
+    if (!skipNpmInstall && !hasInstalledNpmDependencies(destination)) {
+      progress.start("Installing npm dependencies (this may take a while)...");
+      await fetchNpmDependencies(destination, silent);
+      progress.succeed();
+    }
   } catch (e) {
-    error(e);
+    progress.fail(`Error: ${e.message}`);
+    error(e, "Dependency Install");
+    // process.exit(4);
+  }
+
+  try {
+    await platform.build(destination, skipBundle);
+  } catch (e) {
+    error(e, "Bundling");
   }
 };
 
 const command = "build [target] [source] [destination]";
 const desc = "Build a Clio project";
-const handler = argv => build(argv.source, argv.destination, argv.target);
+
+const handler = argv => {
+  const options = {
+    targetOverride: argv.target,
+    skipBundle: argv["skip-bundle"],
+    skipNpmInstall: argv["skip-npm-install"]
+  };
+  build(argv.source, argv.destination, options);
+};
 const builder = {
   source: {
     describe: "source directory to read from",
     type: "string",
-    default: "."
+    default: path.resolve(".")
   },
   destination: {
     describe: "destination directory to write to",
@@ -168,6 +199,18 @@ const builder = {
   target: {
     describe: "An override for the default project target.",
     type: "string"
+  },
+  "skip-bundle": {
+    describe: "Does not produces a bundle for browsers.",
+    type: "boolean"
+  },
+  "skip-npm-install": {
+    describe: "Skips npm install. Useful for tests.",
+    type: "boolean"
+  },
+  silent: {
+    describe: "Mutes messages from the command.",
+    type: "boolean"
   }
 };
 
@@ -176,5 +219,7 @@ module.exports = {
   command,
   desc,
   builder,
-  handler
+  handler,
+  getBuildTarget,
+  getDestinationFromConfig
 };

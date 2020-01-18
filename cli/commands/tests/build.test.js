@@ -1,27 +1,10 @@
 const fs = require("fs");
 const path = require("path");
 const tmp = require("tmp");
-
 const { build, _new } = require("../");
+const { CONFIGFILE_NAME } = require("../../../package/index");
 
-jest.unmock("../../../package/index");
-
-const packageConfig = require("../../../package/index");
-packageConfig.fetchNpmDependencies = jest
-  .fn()
-  .mockImplementation(async destination => {
-    return fs.promises
-      .mkdir(path.join(destination, "node_modules", "rickroll"), {
-        recursive: true
-      })
-      .then(() => {
-        return fs.promises.writeFile(
-          path.join(destination, "node_modules", "rickroll", "rickroll.js"),
-          "console.log()",
-          {}
-        );
-      });
-  });
+jest.mock("../../../package/npm_dependencies");
 
 describe("Package.json generation", () => {
   test("Build generates package.json", async () => {
@@ -36,37 +19,31 @@ describe("Package.json generation", () => {
       console.error(err);
     }
 
-    await build(dir.name);
-
+    await build(dir.name, null, {
+      skipNpmInstall: true,
+      skipBundle: true,
+      silent: true
+    });
     const file = fs.readFileSync(
       path.join(dir.name, "build/web", "package.json")
     );
     const pkgJsonObj = JSON.parse(file.toString());
+    expect(pkgJsonObj.main).toBeDefined();
     expect(pkgJsonObj.dependencies).toBeDefined();
-
-    // As discussed here: https://github.com/clio-lang/clio/pull/93#issuecomment-569831620
-    expect(pkgJsonObj.scripts.build).toBeDefined();
-    expect(pkgJsonObj.scripts.run).toBeDefined();
-
     dir.removeCallback();
   });
 
   test("Build skips generation of package.json when already defined", async () => {
     const dir = tmp.dirSync();
-    await _new(dir.name, "web");
-    const buildPath = path.join(dir.name, "build");
-    try {
-      if (fs.existsSync(buildPath)) {
-        deleteFolderRecursive(buildPath);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-
-    await build(dir.name);
+    await _new(dir.name, "node");
+    await build(dir.name, null, {
+      skipNpmInstall: true,
+      skipBundle: true,
+      silent: true
+    });
 
     const file = fs.readFileSync(
-      path.join(dir.name, "build/web", "package.json")
+      path.join(dir.name, "build/node", "package.json")
     );
     const pkgJsonObj = JSON.parse(file.toString());
     expect(pkgJsonObj.dependencies).toBeDefined();
@@ -76,22 +53,15 @@ describe("Package.json generation", () => {
   test("npm dependencies are installed after build", async () => {
     const dir = tmp.dirSync();
     await _new(dir.name, "node");
-    const buildPath = path.join(dir.name, "build");
-    try {
-      if (fs.existsSync(buildPath)) {
-        deleteFolderRecursive(buildPath);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-
-    await build(dir.name);
+    await build(dir.name, null, {
+      skipBundle: true,
+      silent: true
+    });
 
     const nodeModulesExists = fs.existsSync(
       path.join(dir.name, "build/node/node_modules")
     );
     expect(nodeModulesExists).toBe(true);
-    dir.removeCallback();
   });
 });
 
@@ -99,29 +69,29 @@ describe("Web builds", () => {
   test("with defaults (clio build)", async () => {
     const dir = tmp.dirSync();
     await _new(dir.name, "web");
-    await build(dir.name);
+    await build(dir.name, null, { silent: true });
     const files = fs.readdirSync(path.join(dir.name, "build/web"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
-  });
+  }, 20000);
 
   test("with target override (clio build --target=web)", async () => {
     const dir = tmp.dirSync();
     await _new(dir.name, "node"); // project generated as node
-    await build(dir.name, undefined, "web"); // but compiled as web
+    await build(dir.name, null, { targetOverride: "web", silent: true }); // but compiled as web
     const files = fs.readdirSync(path.join(dir.name, "build/web"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
-  });
+  }, 20000);
 
   test("with destination override (clio build --destination=another-path)", async () => {
     const dir = tmp.dirSync();
     await _new(dir.name, "web");
-    await build(dir.name, "another-path");
+    await build(dir.name, "another-path", { silent: true });
     const files = fs.readdirSync(path.join(dir.name, "another-path"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
-  });
+  }, 20000);
 });
 
 describe("Build copies non-clio files", () => {
@@ -140,7 +110,7 @@ describe("Node builds", () => {
   test("with defaults (clio build)", async () => {
     const dir = tmp.dirSync();
     await _new(dir.name, "node");
-    await build(dir.name);
+    await build(dir.name, null, { silent: true });
     const files = fs.readdirSync(path.join(dir.name, "build/node"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
@@ -150,7 +120,7 @@ describe("Node builds", () => {
     const dir = tmp.dirSync();
     await _new(dir.name, "node");
     fs.writeFileSync(
-      path.join(dir.name, packageConfig.CONFIGFILE_NAME),
+      path.join(dir.name, CONFIGFILE_NAME),
       `
     [build]
 directory = "build"
@@ -160,7 +130,7 @@ target = "node"
 directory = "src"
 target = "alternative"`
     );
-    await build(dir.name);
+    await build(dir.name, null, { silent: true });
 
     const files = fs.readdirSync(path.join(dir.name, "build/alternative"));
     expect(files.includes("main.clio.js")).toBe(true);
@@ -170,7 +140,7 @@ target = "alternative"`
   test("with target override (clio build --target=node)", async () => {
     const dir = tmp.dirSync();
     await _new(dir.name, "web"); // project generated as web
-    await build(dir.name, undefined, "node"); // but compiled as node
+    await build(dir.name, null, { targetOverride: "node", silent: true }); // but compiled as node
     const files = fs.readdirSync(path.join(dir.name, "build/node"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
@@ -179,25 +149,9 @@ target = "alternative"`
   test("with destination override (clio build --destination=another-path)", async () => {
     const dir = tmp.dirSync();
     await _new(dir.name, "node");
-    await build(dir.name, "another-path");
+    await build(dir.name, "another-path", { silent: true });
     const files = fs.readdirSync(path.join(dir.name, "another-path"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
   });
 });
-
-const deleteFolderRecursive = path => {
-  if (fs.existsSync(path)) {
-    fs.readdirSync(path).forEach(file => {
-      const curPath = path + "/" + file;
-      if (fs.lstatSync(curPath).isDirectory()) {
-        // recurse
-        deleteFolderRecursive(curPath);
-      } else {
-        // delete file
-        fs.unlinkSync(curPath);
-      }
-    });
-    fs.rmdirSync(path);
-  }
-};
