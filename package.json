@@ -7,6 +7,7 @@
     "lint:check": "prettier --check ./**/*.js && eslint .",
     "lint:fix": "prettier --write ./**/*.js",
     "test": "jest --collect-coverage",
+    "postinstall": "lerna bootstrap && lerna link",
     "test:nocov": "jest --no-coverage"
   },
   "engines": {
