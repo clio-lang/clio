@@ -1,5 +1,4 @@
 const path = require("path");
-const clioHost = require("../../host/host");
 
 exports.command = "host <source>";
 exports.desc = "Host a Clio file";
@@ -20,7 +19,7 @@ exports.host = async source => {
     if (!_module.host) {
       throw new Error("No host context found. Are you running a host file?");
     }
-    return clioHost(_module, fileDir);
+    console.log("Host is awaiting re-implementation");
   } catch (e) {
     console.log(e);
   }
