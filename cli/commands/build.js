@@ -159,21 +159,8 @@ const build = async (
       }
 
       const clioDepDirs = fs.readdirSync(path.join(source, ENV_NAME));
-
       for (const depDir of clioDepDirs) {
-        const configPath = path.join(source, ENV_NAME, depDir, CONFIGFILE_NAME);
-        const config = getPackageConfig(configPath);
-        const packageJson = {
-          main: config.main,
-          title: config.title
-        };
-        const destFilePath = path.join(
-          destination,
-          "node_modules",
-          path.basename(depDir),
-          "package.json"
-        );
-        fs.writeFileSync(destFilePath, JSON.stringify(packageJson));
+        buildPackageJson(source, depDir, destination);
       }
       progress.succeed();
     }
@@ -224,6 +211,27 @@ const build = async (
   } catch (e) {
     error(e, "Bundling");
   }
+};
+
+const buildPackageJson = (source, dependencyPath, destination) => {
+  const configPath = path.join(
+    source,
+    ENV_NAME,
+    dependencyPath,
+    CONFIGFILE_NAME
+  );
+  const config = getPackageConfig(configPath);
+  const packageJson = {
+    main: config.main,
+    title: config.title
+  };
+  const destFilePath = path.join(
+    destination,
+    "node_modules",
+    path.basename(dependencyPath),
+    "package.json"
+  );
+  fs.writeFileSync(destFilePath, JSON.stringify(packageJson));
 };
 
 const command = "build [target] [source] [destination]";
