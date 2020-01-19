@@ -128,8 +128,7 @@ const build = async (
   try {
     progress.start("Compiling source...");
 
-    // TODO: Source file should be taken from package config
-    const files = getClioFiles(path.join(source, SOURCE_NAME));
+    const files = getClioFiles(sourceDir);
     for (const file of files) {
       const relativeFile = path.relative(sourceDir, file);
       const destFile = path.join(destination, `${relativeFile}.js`);
