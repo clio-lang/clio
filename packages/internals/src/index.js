@@ -9,6 +9,7 @@ module.exports = {
   IO: require("./io").IO,
   lazy: require("./lazy").lazy,
   Lazy: require("./lazy").Lazy,
+  Range: require("./range").Range,
   scope: require("./scope").scope,
   Scope: require("./scope").Scope,
   Method: require("./method").Method
