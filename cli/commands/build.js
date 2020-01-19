@@ -143,7 +143,7 @@ const build = async (
     progress.succeed();
 
     if (fs.existsSync(path.join(source, "clio_env"))) {
-      progress.start("Compiling Clio Dependencies...");
+      progress.start("Compiling Clio dependencies...");
       const files = getClioFiles(path.join(source, ENV_NAME));
       for (const file of files) {
         const relativeFile = path.relative(sourceDir, file);
