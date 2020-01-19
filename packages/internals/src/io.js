@@ -1,5 +1,3 @@
-const { Lazy } = require("./lazy");
-
 class IO {
   constructor(fn) {
     this.fn = fn;
@@ -15,7 +13,7 @@ class IO {
 
 const io = fn => new IO(fn);
 
-module.exports = {
-  io,
-  IO
-};
+module.exports.io = io;
+module.exports.IO = IO;
+
+const { Lazy } = require("./lazy");

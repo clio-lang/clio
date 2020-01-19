@@ -10,4 +10,4 @@ class Method {
   }
 }
 
-module.exports = { Method };
+module.exports.Method = Method;

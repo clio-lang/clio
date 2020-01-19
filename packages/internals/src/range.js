@@ -1,42 +1,38 @@
-const { IO } = require("./io");
-const { Array } = require("./array");
-
-const defaultGetter = ({ start, end, step, index }) => {
-  const value = start + step * index;
-  if (step < 0 && value < end) throw "Index out of range";
-  if (step > 0 && value > end) throw "Index out of range";
-  return value;
-};
-
 class Range {
-  constructor({ start, end, step, getter }) {
+  constructor({ start, end, step }) {
     this.start = start || 0;
     this.end = end || Infinity;
     this.step = step || (this.end > this.start ? 1 : -1);
-    this.getter = getter || defaultGetter;
   }
   valueOf() {
-    const array = new [].constructor(this.length)
-      .fill(null)
-      .map((_, i) => this.get(i).valueOf());
-    return new Array(...array);
+    return this;
   }
   get length() {
     return Math.floor(Math.abs(this.end - this.start) / Math.abs(this.step));
   }
   map(fn) {
-    const range = new Range({
-      ...this,
-      getter: ({ index }) => fn(this.get(index))
-    });
-    if (fn.type && fn.type instanceof IO) return new Array(...range.valueOf());
-    return range;
+    return this.toArray().map(fn);
+  }
+  lazyMap(fn) {
+    return new LazyMap({ getter: i => this.get(i), length: this.length, fn });
+  }
+  toArray() {
+    const items = []
+      .constructor(this.length)
+      .fill(null)
+      .map((_, i) => this.get(i));
+    return new Array(...items);
   }
   get(index) {
-    return this.getter({ ...this, index });
+    const value = this.start + this.step * index;
+    if (this.step < 0 && value < this.end) throw "Index out of range";
+    if (this.step > 0 && value > this.end) throw "Index out of range";
+    return value;
   }
 }
 
-module.exports = {
-  Range
-};
+module.exports.Range = Range;
+
+const { IO } = require("./io");
+const { Array } = require("./array");
+const { LazyMap } = require("./lazyMap");

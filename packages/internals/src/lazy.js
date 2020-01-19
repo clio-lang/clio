@@ -1,5 +1,3 @@
-const { Flow } = require("./flow");
-
 class Lazy {
   constructor(fn) {
     this.fn = fn;
@@ -18,7 +16,7 @@ class Lazy {
 
 const lazy = fn => new Lazy(fn);
 
-module.exports = {
-  lazy,
-  Lazy
-};
+module.exports.lazy = lazy;
+module.exports.Lazy = Lazy;
+
+const { Flow } = require("./flow");
