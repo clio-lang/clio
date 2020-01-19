@@ -93,19 +93,21 @@ anonymous_function_start block|math|number|array|range => anonymous_function { p
 
 // - Ranges
 
-number|symbol|math|dot_notation colon => post_colon_val { value: left, index: left.index }  // a:
-colon number|symbol|math|dot_notation => pre_colon_val { value: right, index: left.index } // :b
+number|symbol|math|dot_notation colon => post_colon_val { value: left, index: left.index }
+colon number|symbol|math|dot_notation => pre_colon_val { value: right, index: left.index }
 
-post_colon_val post_colon_val => range_inner_step_start { start: left.value, end: right.value, index: left.index } // a:b:
-range_inner_step_start number|symbol|math|dot_notation => { start: left.start, end: left.end, step: right, index: left.index } // a:b:c
-post_colon_val pre_colon_val => range_inner { start: left.value, step: right.value, index: left.index } // a::c
-pre_colon_val pre_colon_val => range_inner { end: left.value, step: right.value, index: left.index } // :a:c
-colon pre_colon_val => range_inner { step: right.value, index: left.index } // ::c
+post_colon_val post_colon_val => range_inner_step_start { start: left.value, end: right.value, index: left.index }
+colon post_colon_val => range_inner_step_start { end: right.value, index: left.index }
+range_inner_step_start number|symbol|math|dot_notation => range_inner { start: left.start, end: left.end, step: right, index: left.index }
+post_colon_val pre_colon_val => range_inner { start: left.value, step: right.value, index: left.index }
+post_colon_val number|symbol|math|dot_notation => range_inner { start: left.value, end: right, index: left.index }
+pre_colon_val pre_colon_val => range_inner { end: left.value, step: right.value, index: left.index }
+colon pre_colon_val => range_inner { step: right.value, index: left.index }
 
 lbra range_inner|colon => range_start { start: right.start, end: right.end, step: right.step, index: left.index }
-lbra post_colon_val => range_start { start: right, index: left.index }
-lbra pre_colon_val => range_start { end: right, index: left.index }
-range_start rbra => range { start: left.start, end: left.end, step: right, index: left.index }
+lbra post_colon_val => range_start { start: right.value, index: left.index }
+lbra pre_colon_val => range_start { end: right.value, index: left.index }
+range_start rbra => range { start: left.start, end: left.end, step: left.step, index: left.index }
 
 // - Arrays
 
