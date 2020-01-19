@@ -64,6 +64,21 @@ fn foo n:
   expect(output).toBeDefined();
 });
 
+test("Compile range", async () => {
+  const input = `
+[0:] => range
+[0:10] => range
+[0:10:2] => range
+[:10:2] => range
+[::2] => range
+[:10] => range
+[:] => range
+`;
+
+  const output = await compiler.compile(input);
+  expect(output).toBeDefined();
+});
+
 test("Compile method calls", async () => {
   const input = `data -> .method arg1 arg2\n`;
 
