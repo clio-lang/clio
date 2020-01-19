@@ -25,7 +25,7 @@ describe("Package.json generation", () => {
       silent: true
     });
     const file = fs.readFileSync(
-      path.join(dir.name, "build/web", "package.json")
+      path.join(dir.name, "build", "web", "package.json")
     );
     const pkgJsonObj = JSON.parse(file.toString());
     expect(pkgJsonObj.main).toBeDefined();
@@ -43,7 +43,7 @@ describe("Package.json generation", () => {
     });
 
     const file = fs.readFileSync(
-      path.join(dir.name, "build/node", "package.json")
+      path.join(dir.name, "build", "node", "package.json")
     );
     const pkgJsonObj = JSON.parse(file.toString());
     expect(pkgJsonObj.dependencies).toBeDefined();
@@ -59,7 +59,7 @@ describe("Package.json generation", () => {
     });
 
     const nodeModulesExists = fs.existsSync(
-      path.join(dir.name, "build/node/node_modules")
+      path.join(dir.name, "build", "node", "node_modules")
     );
     expect(nodeModulesExists).toBe(true);
   });
@@ -70,7 +70,7 @@ describe("Web builds", () => {
     const dir = tmp.dirSync();
     await _new(dir.name, "web");
     await build(dir.name, null, { silent: true });
-    const files = fs.readdirSync(path.join(dir.name, "build/web"));
+    const files = fs.readdirSync(path.join(dir.name, "build", "web"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
   }, 20000);
@@ -79,7 +79,7 @@ describe("Web builds", () => {
     const dir = tmp.dirSync();
     await _new(dir.name, "node"); // project generated as node
     await build(dir.name, null, { targetOverride: "web", silent: true }); // but compiled as web
-    const files = fs.readdirSync(path.join(dir.name, "build/web"));
+    const files = fs.readdirSync(path.join(dir.name, "build", "web"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
   }, 20000);
@@ -100,7 +100,7 @@ describe("Build copies non-clio files", () => {
     await _new(dir.name, "node");
     fs.writeFileSync(path.join(dir.name, "src", "dummy"), "dummy");
     await build(dir.name);
-    const files = fs.readdirSync(path.join(dir.name, "build/node"));
+    const files = fs.readdirSync(path.join(dir.name, "build", "node"));
     expect(files.includes("dummy")).toBe(true);
     dir.removeCallback();
   });
@@ -111,7 +111,7 @@ describe("Node builds", () => {
     const dir = tmp.dirSync();
     await _new(dir.name, "node");
     await build(dir.name, null, { silent: true });
-    const files = fs.readdirSync(path.join(dir.name, "build/node"));
+    const files = fs.readdirSync(path.join(dir.name, "build", "node"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
   });
@@ -132,7 +132,7 @@ target = "alternative"`
     );
     await build(dir.name, null, { silent: true });
 
-    const files = fs.readdirSync(path.join(dir.name, "build/alternative"));
+    const files = fs.readdirSync(path.join(dir.name, "build", "alternative"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
   });
@@ -141,7 +141,7 @@ target = "alternative"`
     const dir = tmp.dirSync();
     await _new(dir.name, "web"); // project generated as web
     await build(dir.name, null, { targetOverride: "node", silent: true }); // but compiled as node
-    const files = fs.readdirSync(path.join(dir.name, "build/node"));
+    const files = fs.readdirSync(path.join(dir.name, "build", "node"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
   });
