@@ -8,6 +8,8 @@ const { Progress } = require("../lib/progress");
 
 const {
   CONFIGFILE_NAME,
+  SOURCE_NAME,
+  ENV_NAME,
   fetchNpmDependencies,
   getPackageConfig,
   hasInstalledNpmDependencies,
@@ -124,9 +126,10 @@ const build = async (
 
   const progress = new Progress(silent);
   try {
-    progress.start("Compiling...");
+    progress.start("Compiling source...");
 
-    const files = getClioFiles(source);
+    // TODO: Source file should be taken from package config
+    const files = getClioFiles(path.join(source, SOURCE_NAME));
     for (const file of files) {
       const relativeFile = path.relative(sourceDir, file);
       const destFile = path.join(destination, `${relativeFile}.js`);
@@ -137,10 +140,25 @@ const build = async (
       mkdir(destDir);
       fs.writeFileSync(destFile, formatted, "utf8");
     }
-
     progress.succeed();
+
+    if (fs.existsSync(path.join(source, "clio_env"))) {
+      progress.start("Compiling Clio Dependencies...");
+      const files = getClioFiles(path.join(source, ENV_NAME));
+      for (const file of files) {
+        const relativeFile = path.relative(sourceDir, file);
+        const destFile = path.join(destination, `${relativeFile}.js`);
+        const destDir = path.dirname(destFile);
+        const contents = fs.readFileSync(file, "utf8");
+        const compiled = await generator(contents);
+        const formatted = format(compiled, { parser: "babel" });
+        mkdir(destDir);
+        fs.writeFileSync(destFile, formatted, "utf8");
+      }
+      progress.succeed();
+    }
   } catch (e) {
-    progress.fail(`Error: ${e.stack}`);
+    progress.fail(`Error: ${e}`);
     error(e, "Compilation");
     // process.exit(3);
   }
