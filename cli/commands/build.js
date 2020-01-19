@@ -144,8 +144,10 @@ const build = async (
       progress.start("Compiling Clio dependencies...");
       const files = getClioFiles(path.join(source, ENV_NAME));
       for (const file of files) {
-        const relativeFile = path.relative(sourceDir, file);
-        const destFile = path.join(destination, `${relativeFile}.js`);
+        const relativeFile = path.relative(source, file);
+        const destFile = path
+          .join(destination, `${relativeFile}.js`)
+          .replace(ENV_NAME, "node_modules");
         const destDir = path.dirname(destFile);
         const contents = fs.readFileSync(file, "utf8");
         const compiled = await generator(contents);
