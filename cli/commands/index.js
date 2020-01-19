@@ -7,8 +7,6 @@ module.exports = {
     get: require("./deps_commands").get
   },
   highlight: require("./highlight").highlight,
-  host: require("./host").host,
-  init: require("./init").initPackage,
   _new: require("./new").createPackage, // `new` keyword cannot be used
   run: require("./run").run
 };

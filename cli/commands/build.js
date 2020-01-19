@@ -174,16 +174,16 @@ const build = async (
         JSON.stringify(packageJsonContent, null, 2)
       );
     }
-
-    if (!skipNpmInstall && !hasInstalledNpmDependencies(destination)) {
-      progress.start("Installing npm dependencies (this may take a while)...");
-      await fetchNpmDependencies(destination, silent);
-      progress.succeed();
-    }
   } catch (e) {
     progress.fail(`Error: ${e.message}`);
     error(e, "Dependency Install");
     // process.exit(4);
+  }
+
+  if (!skipNpmInstall && !hasInstalledNpmDependencies(destination)) {
+    progress.start("Installing npm dependencies (this may take a while)...");
+    await fetchNpmDependencies(destination, silent);
+    progress.succeed();
   }
 
   try {
