@@ -8,12 +8,9 @@ class Array {
     return this.items.map(item => item.valueOf());
   }
   map(...args) {
-    const items = this.items.map(...args);
-    for (const item of items) {
-      if (item instanceof IO) {
-        item.valueOf();
-      }
-    }
+    const items = this.items
+      .map(...args)
+      .map(item => (item instanceof IO ? item.valueOf() : item));
     return new Array(...items);
   }
 }
