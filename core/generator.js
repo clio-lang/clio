@@ -1,7 +1,7 @@
 const { parser } = require("./parser");
 
 const template = generated => `
-const { Fn, Flow, Lazy, Scope, Array, Method, builtins } = require('clio-internals');
+const { Fn, Flow, Lazy, Scope, Array, Range, Method, builtins } = require('clio-internals');
 
 const scope = new Scope(builtins, null);
 
@@ -132,6 +132,13 @@ const rules = {
     const { items } = cst;
     const processedItems = items.map(generate);
     return `new Array(${processedItems.join(", ")})`;
+  },
+  range(cst, generate) {
+    const { start, end, step } = cst;
+    const rangeStart = start ? generate(start) : "null";
+    const rangeEnd = end ? generate(end) : "null";
+    const rangeStep = step ? generate(step) : "null";
+    return `new Range({ start: ${rangeStart}, end: ${rangeEnd}, step: ${rangeStep} })`;
   },
   comparison(cst, generate) {
     const { lhs, cmp, rhs } = cst;
