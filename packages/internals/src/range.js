@@ -33,6 +33,5 @@ class Range {
 
 module.exports.Range = Range;
 
-const { IO } = require("./io");
 const { Array } = require("./array");
 const { LazyMap } = require("./lazyMap");

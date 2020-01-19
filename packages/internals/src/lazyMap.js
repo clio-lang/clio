@@ -27,4 +27,3 @@ class LazyMap {
 module.exports.LazyMap = LazyMap;
 
 const { Array } = require("./array");
-const { IO } = require("./io");
