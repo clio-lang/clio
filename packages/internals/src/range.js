@@ -1,3 +1,6 @@
+const { IO } = require("./io");
+const { Array } = require("./array");
+
 const defaultGetter = ({ start, end, step, index }) => {
   const value = start + step * index;
   if (step < 0 && value < end) throw "Index out of range";
@@ -13,13 +16,21 @@ class Range {
     this.getter = getter || defaultGetter;
   }
   valueOf() {
-    return new Array(this.length).fill(null).map((_, i) => this.get(i));
+    const array = new [].constructor(this.length)
+      .fill(null)
+      .map((_, i) => this.get(i).valueOf());
+    return new Array(...array);
   }
   get length() {
     return Math.floor(Math.abs(this.end - this.start) / Math.abs(this.step));
   }
-  map(fun) {
-    return new Range({ ...this, getter: ({ index }) => fun(this.get(index)) });
+  map(fn) {
+    const range = new Range({
+      ...this,
+      getter: ({ index }) => fn(this.get(index))
+    });
+    if (fn.type && fn.type instanceof IO) return new Array(...range.valueOf());
+    return range;
   }
   get(index) {
     return this.getter({ ...this, index });
