@@ -158,6 +158,7 @@ const build = async (
         fs.writeFileSync(destFile, formatted, "utf8");
       }
 
+      // Build package.json files
       const clioDepDirs = fs.readdirSync(path.join(source, ENV_NAME));
       for (const depDir of clioDepDirs) {
         buildPackageJson(source, depDir, destination);
@@ -213,13 +214,16 @@ const build = async (
   }
 };
 
-const buildPackageJson = (source, dependencyPath, destination) => {
-  const configPath = path.join(
-    source,
-    ENV_NAME,
-    dependencyPath,
-    CONFIGFILE_NAME
-  );
+/**
+ * Generates a package.json for a clio module.
+ * Reads the configuration file of the module and builds a package.json file containing all nessessary fields
+ *
+ * @param {string} source source root directory of clio project
+ * @param {string} dependency name of the dependency being compiled
+ * @param {string} destination destination for package.json
+ */
+const buildPackageJson = (source, dependency, destination) => {
+  const configPath = path.join(source, ENV_NAME, dependency, CONFIGFILE_NAME);
   const config = getPackageConfig(configPath);
   const packageJson = {
     main: config.main,
@@ -228,7 +232,7 @@ const buildPackageJson = (source, dependencyPath, destination) => {
   const destFilePath = path.join(
     destination,
     "node_modules",
-    path.basename(dependencyPath),
+    path.basename(dependency),
     "package.json"
   );
   fs.writeFileSync(destFilePath, JSON.stringify(packageJson));
