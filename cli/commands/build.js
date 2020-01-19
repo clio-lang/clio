@@ -127,6 +127,7 @@ const build = async (
   try {
     progress.start("Compiling source...");
 
+    // Build source
     const files = getClioFiles(sourceDir);
     for (const file of files) {
       const relativeFile = path.relative(sourceDir, file);
@@ -140,6 +141,7 @@ const build = async (
     }
     progress.succeed();
 
+    // Build clio deps
     if (fs.existsSync(path.join(source, ENV_NAME))) {
       progress.start("Compiling Clio dependencies...");
       const files = getClioFiles(path.join(source, ENV_NAME));
@@ -154,6 +156,24 @@ const build = async (
         const formatted = format(compiled, { parser: "babel" });
         mkdir(destDir);
         fs.writeFileSync(destFile, formatted, "utf8");
+      }
+
+      const clioDepDirs = fs.readdirSync(path.join(source, ENV_NAME));
+
+      for (const depDir of clioDepDirs) {
+        const configPath = path.join(source, ENV_NAME, depDir, CONFIGFILE_NAME);
+        const config = getPackageConfig(configPath);
+        const packageJson = {
+          main: config.main,
+          title: config.title
+        };
+        const destFilePath = path.join(
+          destination,
+          "node_modules",
+          path.basename(depDir),
+          "package.json"
+        );
+        fs.writeFileSync(destFilePath, JSON.stringify(packageJson));
       }
       progress.succeed();
     }
