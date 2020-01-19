@@ -8,7 +8,6 @@ const { Progress } = require("../lib/progress");
 
 const {
   CONFIGFILE_NAME,
-  SOURCE_NAME,
   ENV_NAME,
   fetchNpmDependencies,
   getPackageConfig,
