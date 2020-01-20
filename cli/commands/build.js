@@ -157,8 +157,10 @@ const build = async (
         mkdir(destDir);
         fs.writeFileSync(destFile, formatted, "utf8");
       }
+      progress.succeed();
 
       // Build package.json files
+      progress.start("Linking Clio dependencies...");
       const clioDepDirs = fs.readdirSync(path.join(source, ENV_NAME));
       for (const depDir of clioDepDirs) {
         buildPackageJson(source, depDir, destination);
