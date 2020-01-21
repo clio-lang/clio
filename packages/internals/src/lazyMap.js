@@ -11,13 +11,12 @@ class LazyMap {
     return this;
   }
   toArray() {
-    const items = new [].constructor(this.length)
-      .fill(null)
-      .map((_, i) => this.get(i));
+    const items = [];
+    for (let i = 0; i < this.length; i++) items.push(this.get(i));
     return new Array(...items);
   }
   map(fn) {
-    return this.toArray().map(fn);
+    return this.lazyMap(fn).toArray();
   }
   lazyMap(fn) {
     return new LazyMap({ getter: i => this.get(i), length: this.length, fn });
