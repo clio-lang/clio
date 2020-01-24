@@ -1,5 +1,6 @@
 const tmp = require("tmp");
 const path = require("path");
+const fs = require("fs");
 const { createPackage } = require("../../../cli/commands/new");
 const { run } = require("../../../cli/commands/run");
 const deps = require("../../../cli/commands/deps_commands/get");
@@ -25,6 +26,10 @@ test("Runs a project with dependencies", async () => {
   packageConfig.writePackageConfig(config, dir.name);
   await deps.handler();
   await run(dir.name);
+  expect(
+    fs
+      .readdirSync(path.join(dir.name, "build", "node", "node_modules"))
+      .toString()
+  ).toContain("add");
   await dir.removeCallback();
-  expect(console.log).toHaveBeenCalled();
 });
