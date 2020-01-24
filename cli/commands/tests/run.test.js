@@ -7,5 +7,5 @@ test("Runs hello world", async () => {
   const dir = tmp.dirSync();
   await createPackage(dir.name);
   await run(dir.name);
-  expect(console.log).toBeCalledWith('Hello World');
+  expect(console.log).toHaveBeenCalledWith('Hello World');
 });
