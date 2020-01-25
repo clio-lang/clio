@@ -137,9 +137,38 @@ const build = async (
       const compiled = await generator(contents);
       const formatted = format(compiled, { parser: "babel" });
       mkdir(destDir);
-      fs.writeFileSync(destFile, formatted, "utf8");
+      await fs.promises.writeFile(destFile, formatted, "utf8");
     }
     progress.succeed();
+
+    // Init npm modules
+    try {
+      const packageJsonPath = path.join(destination, "package.json");
+      if (!fs.existsSync(packageJsonPath)) {
+        const dependencies = getParsedNpmDependencies(source);
+        dependencies["clio-internals"] = "latest";
+        const packageJsonContent = {
+          dependencies,
+          main: "main.clio.js"
+        };
+        fs.writeFileSync(
+          packageJsonPath,
+          JSON.stringify(packageJsonContent, null, 2)
+        );
+      }
+
+      if (!skipNpmInstall && !hasInstalledNpmDependencies(destination)) {
+        progress.start(
+          "Installing npm dependencies (this may take a while)..."
+        );
+        await fetchNpmDependencies(destination, silent);
+        progress.succeed();
+      }
+    } catch (e) {
+      progress.fail(`Error: ${e.message}`);
+      error(e, "Dependency Install");
+      // process.exit(4);
+    }
 
     // Build clio deps
     if (fs.existsSync(path.join(source, ENV_NAME))) {
@@ -151,11 +180,12 @@ const build = async (
           .join(destination, `${relativeFile}.js`)
           .replace(ENV_NAME, "node_modules");
         const destDir = path.dirname(destFile);
-        const contents = fs.readFileSync(file, "utf8");
+        mkdir(destDir);
+        const contents = await fs.promises.readFile(file, "utf8");
         const compiled = await generator(contents);
         const formatted = format(compiled, { parser: "babel" });
         mkdir(destDir);
-        fs.writeFileSync(destFile, formatted, "utf8");
+        await fs.promises.writeFile(destFile, formatted, "utf8");
       }
       progress.succeed();
 
@@ -179,37 +209,11 @@ const build = async (
     const destFile = path.join(destination, relativeFile);
     const destDir = path.dirname(destFile);
     mkdir(destDir);
-    fs.copyFileSync(file, destFile);
-  }
-
-  const platform = getPlatform(target);
-  try {
-    const packageJsonPath = path.join(destination, "package.json");
-    if (!fs.existsSync(packageJsonPath)) {
-      const dependencies = getParsedNpmDependencies(source);
-      dependencies["clio-internals"] = "latest";
-      const packageJsonContent = {
-        dependencies,
-        main: "main.clio.js"
-      };
-      fs.writeFileSync(
-        packageJsonPath,
-        JSON.stringify(packageJsonContent, null, 2)
-      );
-    }
-
-    if (!skipNpmInstall && !hasInstalledNpmDependencies(destination)) {
-      progress.start("Installing npm dependencies (this may take a while)...");
-      await fetchNpmDependencies(destination, silent);
-      progress.succeed();
-    }
-  } catch (e) {
-    progress.fail(`Error: ${e.message}`);
-    error(e, "Dependency Install");
-    // process.exit(4);
+    await fs.promises.copyFile(file, destFile);
   }
 
   try {
+    const platform = getPlatform(target);
     await platform.build(destination, skipBundle);
   } catch (e) {
     error(e, "Bundling");

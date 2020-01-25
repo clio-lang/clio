@@ -16,7 +16,6 @@ test("Runs hello world", async () => {
 });
 
 test("Runs a project with dependencies", async () => {
-  console.log = jest.fn();
   const dir = tmp.dirSync();
   await createPackage(dir.name);
   const config = packageConfig.getPackageConfig(
