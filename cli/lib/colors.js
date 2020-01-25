@@ -10,6 +10,7 @@ exports.error = (e, prefix = "") => {
   let message = `Error: ${e.message}`;
   if (prefix) message = `${prefix} `.concat(message);
   console.error(brightRed(message));
+  process.exit(4);
 };
 
 exports.warn = message => console.warn(chalk.yellow(`Warning: ${message}`));

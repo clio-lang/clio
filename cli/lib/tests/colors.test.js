@@ -6,12 +6,14 @@ describe("Colored messages", () => {
   const defaultConsoleTrace = console.trace;
   const defaultConsoleWarn = console.warn;
   const defaultConsoleLog = console.log;
+  const defaultProcessExit = process.exit;
 
   beforeEach(() => {
     console.error = jest.fn();
     console.trace = jest.fn();
     console.warn = jest.fn();
     console.log = jest.fn();
+    process.exit = jest.fn();
   });
 
   afterEach(() => {
@@ -19,6 +21,7 @@ describe("Colored messages", () => {
     console.trace = defaultConsoleTrace;
     console.warn = defaultConsoleWarn;
     console.log = defaultConsoleLog;
+    process.exit = defaultProcessExit;
   });
 
   test("trace", () => {
@@ -37,6 +40,7 @@ describe("Colored messages", () => {
     expect(console.error).toHaveBeenCalledWith(
       brightRed("Error: Testing error")
     );
+    expect(process.exit).toHaveBeenCalled();
   });
 
   test("error with prefix", () => {
@@ -46,6 +50,7 @@ describe("Colored messages", () => {
     expect(console.error).toHaveBeenCalledWith(
       brightRed("Foo Error: Testing error")
     );
+    expect(process.exit).toHaveBeenCalled();
   });
 
   test("warn", () => {

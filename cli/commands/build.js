@@ -212,6 +212,12 @@ const build = async (
     await fs.promises.copyFile(file, destFile);
   }
 
+  if (!skipNpmInstall && !hasInstalledNpmDependencies(destination)) {
+    progress.start("Installing npm dependencies (this may take a while)...");
+    await fetchNpmDependencies(destination, silent);
+    progress.succeed();
+  }
+
   try {
     const platform = getPlatform(target);
     await platform.build(destination, skipBundle);
