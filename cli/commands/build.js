@@ -8,6 +8,7 @@ const { Progress } = require("../lib/progress");
 
 const {
   CONFIGFILE_NAME,
+  ENV_NAME,
   fetchNpmDependencies,
   getPackageConfig,
   hasInstalledNpmDependencies,
@@ -66,18 +67,15 @@ function getBuildTarget(targetOverride, config) {
     );
   }
 
-  let buildTarget;
-  try {
-    buildTarget =
-      targetOverride ||
-      (buildConfig.target in config.target
-        ? config.target[buildConfig.target].target
-        : buildConfig.target);
-  } catch (e) {
-    throw error(
-      Error(
-        `"target" field is missing in your ${CONFIGFILE_NAME} file. You can override the target with the "--target" option.`
-      )
+  const buildTarget =
+    targetOverride ||
+    (buildConfig.target in config.target
+      ? config.target[buildConfig.target].target
+      : buildConfig.target);
+
+  if (!buildTarget) {
+    throw new Error(
+      `"target" field is missing in your ${CONFIGFILE_NAME} file. You can override the target with the "--target" option.`
     );
   }
 
@@ -92,17 +90,15 @@ function getSourceFromConfig(source, target, config) {
       `No build configuration has been found. It is a "[build]" section on your "${CONFIGFILE_NAME}" file.`
     );
   }
-  let buildSource;
-  try {
-    buildSource =
-      buildConfig.target in config.target
-        ? config.target[buildConfig.target].directory
-        : buildConfig.source;
-  } catch (e) {
-    error(
-      Error(
-        `Could not find a source directory for ${target} in your ${CONFIGFILE_NAME} file.`
-      )
+
+  const buildSource =
+    buildConfig.target in config.target
+      ? config.target[buildConfig.target].directory
+      : buildConfig.source;
+
+  if (!buildSource) {
+    throw new Error(
+      `Could not find a source directory for ${target} in your ${CONFIGFILE_NAME} file.`
     );
   }
 
@@ -129,9 +125,10 @@ const build = async (
 
   const progress = new Progress(silent);
   try {
-    progress.start("Compiling...");
+    progress.start("Compiling source...");
 
-    const files = getClioFiles(source);
+    // Build source
+    const files = getClioFiles(sourceDir);
     for (const file of files) {
       const relativeFile = path.relative(sourceDir, file);
       const destFile = path.join(destination, `${relativeFile}.js`);
@@ -140,12 +137,67 @@ const build = async (
       const compiled = await generator(contents);
       const formatted = format(compiled, { parser: "babel" });
       mkdir(destDir);
-      fs.writeFileSync(destFile, formatted, "utf8");
+      await fs.promises.writeFile(destFile, formatted, "utf8");
+    }
+    progress.succeed();
+
+    // Init npm modules
+    try {
+      const packageJsonPath = path.join(destination, "package.json");
+      if (!fs.existsSync(packageJsonPath)) {
+        const dependencies = getParsedNpmDependencies(source);
+        dependencies["clio-internals"] = "latest";
+        const packageJsonContent = {
+          dependencies,
+          main: "main.clio.js"
+        };
+        fs.writeFileSync(
+          packageJsonPath,
+          JSON.stringify(packageJsonContent, null, 2)
+        );
+      }
+
+      if (!skipNpmInstall && !hasInstalledNpmDependencies(destination)) {
+        progress.start(
+          "Installing npm dependencies (this may take a while)..."
+        );
+        await fetchNpmDependencies(destination, silent);
+        progress.succeed();
+      }
+    } catch (e) {
+      progress.fail(`Error: ${e.message}`);
+      error(e, "Dependency Install");
+      // process.exit(4);
     }
 
-    progress.succeed();
+    // Build clio deps
+    if (fs.existsSync(path.join(source, ENV_NAME))) {
+      progress.start("Compiling Clio dependencies...");
+      const files = getClioFiles(path.join(source, ENV_NAME));
+      for (const file of files) {
+        const relativeFile = path.relative(source, file);
+        const destFile = path
+          .join(destination, `${relativeFile}.js`)
+          .replace(ENV_NAME, "node_modules");
+        const contents = await fs.promises.readFile(file, "utf8");
+        const compiled = await generator(contents);
+        const formatted = format(compiled, { parser: "babel" });
+        const destDir = path.dirname(destFile);
+        mkdir(destDir);
+        await fs.promises.writeFile(destFile, formatted, "utf8");
+      }
+      progress.succeed();
+
+      // Build package.json files
+      progress.start("Linking Clio dependencies...");
+      const clioDepDirs = fs.readdirSync(path.join(source, ENV_NAME));
+      for (const depDir of clioDepDirs) {
+        buildPackageJson(source, depDir, destination);
+      }
+      progress.succeed();
+    }
   } catch (e) {
-    progress.fail(`Error: ${e.stack}`);
+    progress.fail(`Error: ${e}`);
     error(e, "Compilation");
     // process.exit(3);
   }
@@ -156,28 +208,7 @@ const build = async (
     const destFile = path.join(destination, relativeFile);
     const destDir = path.dirname(destFile);
     mkdir(destDir);
-    fs.copyFileSync(file, destFile);
-  }
-
-  const platform = getPlatform(target);
-  try {
-    const packageJsonPath = path.join(destination, "package.json");
-    if (!fs.existsSync(packageJsonPath)) {
-      const dependencies = getParsedNpmDependencies(source);
-      dependencies["clio-internals"] = "latest";
-      const packageJsonContent = {
-        dependencies,
-        main: "main.clio.js"
-      };
-      fs.writeFileSync(
-        packageJsonPath,
-        JSON.stringify(packageJsonContent, null, 2)
-      );
-    }
-  } catch (e) {
-    progress.fail(`Error: ${e.message}`);
-    error(e, "Dependency Install");
-    // process.exit(4);
+    await fs.promises.copyFile(file, destFile);
   }
 
   if (!skipNpmInstall && !hasInstalledNpmDependencies(destination)) {
@@ -187,10 +218,35 @@ const build = async (
   }
 
   try {
+    const platform = getPlatform(target);
     await platform.build(destination, skipBundle);
   } catch (e) {
     error(e, "Bundling");
   }
+};
+
+/**
+ * Generates a package.json for a clio module.
+ * Reads the configuration file of the module and builds a package.json file containing all nessessary fields
+ *
+ * @param {string} source source root directory of clio project
+ * @param {string} dependency name of the dependency being compiled
+ * @param {string} destination destination for package.json
+ */
+const buildPackageJson = (source, dependency, destination) => {
+  const configPath = path.join(source, ENV_NAME, dependency, CONFIGFILE_NAME);
+  const config = getPackageConfig(configPath);
+  const packageJson = {
+    main: config.main,
+    title: config.title
+  };
+  const destFilePath = path.join(
+    destination,
+    "node_modules",
+    path.basename(dependency),
+    "package.json"
+  );
+  fs.writeFileSync(destFilePath, JSON.stringify(packageJson));
 };
 
 const command = "build [target] [source] [destination]";
