@@ -179,11 +179,11 @@ const build = async (
         const destFile = path
           .join(destination, `${relativeFile}.js`)
           .replace(ENV_NAME, "node_modules");
-        const destDir = path.dirname(destFile);
-        mkdir(destDir);
         const contents = await fs.promises.readFile(file, "utf8");
         const compiled = await generator(contents);
         const formatted = format(compiled, { parser: "babel" });
+        const destDir = path.dirname(destFile);
+        mkdir(destDir);
         await fs.promises.writeFile(destFile, formatted, "utf8");
       }
       progress.succeed();
