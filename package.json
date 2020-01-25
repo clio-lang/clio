@@ -34,31 +34,6 @@
     "type": "git",
     "url": "https://github.com/clio-lang/clio.git"
   },
-  "jest": {
-    "collectCoverageFrom": [
-      "**/*.js",
-      "!**/*.clio.js",
-      "!coverage/**/*.js",
-      "!index.js",
-      "!browser.js",
-      "!common.js",
-      "!gulpfile.js",
-      "!highlight.js",
-      "!jest-puppeteer.config.js",
-      "!host/**/*",
-      "!tests/**/*"
-    ],
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "jsx",
-      "ts",
-      "tsx",
-      "node",
-      "toml"
-    ],
-    "testEnvironment": "node"
-  },
   "dependencies": {
     "@iarna/toml": "^2.2.3",
     "bean-parser": "^1.0.8",
