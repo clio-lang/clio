@@ -184,7 +184,6 @@ const build = async (
         const contents = await fs.promises.readFile(file, "utf8");
         const compiled = await generator(contents);
         const formatted = format(compiled, { parser: "babel" });
-        mkdir(destDir);
         await fs.promises.writeFile(destFile, formatted, "utf8");
       }
       progress.succeed();
