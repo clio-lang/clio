@@ -20,7 +20,7 @@ class Scope {
     } else if (this.outerScope) {
       return this.outerScope.get(key);
     } else {
-      throw "Not defined";
+      throw new Error("Not defined");
     }
   }
   set(key, value) {
