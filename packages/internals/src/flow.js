@@ -1,5 +1,3 @@
-const { Method } = require("./method");
-
 class JSFn {
   constructor(fn) {
     this.fn = fn;
@@ -21,7 +19,8 @@ class Flow {
     return new Flow(this.scope, data);
   }
   map(fn, ...args) {
-    const data = this.data.map(item => {
+    const map = fn.isLazy ? this.data.lazyMap : this.data.map;
+    const data = map.call(this.data, item => {
       let fun = fn instanceof Method ? fn.get(this.data) : fn;
       if (typeof fun == "function") fun = new JSFn(fun);
       return fun.call(item, ...args);
@@ -44,4 +43,7 @@ class Flow {
 
 const flow = (scope, data) => new Flow(scope, data);
 
-module.exports = { flow, Flow };
+module.exports.flow = flow;
+module.exports.Flow = Flow;
+
+const { Method } = require("./method");

@@ -52,4 +52,5 @@ class Scope {
 
 const scope = (initial, outerScope) => new Scope(initial, outerScope);
 
-module.exports = { scope, Scope };
+module.exports.scope = scope;
+module.exports.Scope = Scope;

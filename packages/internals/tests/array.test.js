@@ -1,5 +1,4 @@
 const { Array } = require("../src/array");
-const { io } = require("../src/io");
 
 test("Created array contains values", () => {
   const arr = new Array(1, 2, 3);
@@ -21,13 +20,4 @@ test("Array valueOf", () => {
   const arr = new Array(1, 2, 3);
   const values = arr.valueOf();
   expect(values).toEqual([1, 2, 3]);
-});
-
-test("Array is mappable with IO items", () => {
-  const first = io(jest.fn());
-  const second = io(jest.fn());
-  const arr = new Array(first, second);
-  const mappedValues = arr.map(i => i);
-  expect(mappedValues.items[0]).toEqual(first);
-  expect(mappedValues.items[1]).toEqual(second);
 });
