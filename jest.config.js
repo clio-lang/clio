@@ -3,6 +3,7 @@ module.exports = {
     "**/*.js",
     "!**/*.clio.js",
     "!coverage/**/*.js",
+    "!jest.config.js",
     "!index.js",
     "!browser.js",
     "!common.js",
