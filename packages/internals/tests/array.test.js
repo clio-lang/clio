@@ -40,3 +40,13 @@ test("Slice array (with an array)", () => {
   const slice = arr.slice(new Array(new Array(1, 2)));
   expect(slice.items).toEqual([2, 3]);
 });
+
+test("Slice array (multidimensional)", () => {
+  const arr = new Array(
+    new Array(1, 2, 3),
+    new Array(4, 5, 6),
+    new Array(7, 8, 9)
+  );
+  const slice = arr.slice(new Array(new Array(0, 1), 1));
+  expect(slice.items).toEqual([2, 5]);
+});

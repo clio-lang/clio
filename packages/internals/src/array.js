@@ -61,7 +61,7 @@ class Array {
     if (slicer.length > 1) {
       const current = slicer.get(0);
       const rest = slicer.slice(new Range({ start: 1 }));
-      return this.slice(current).map(item => item.slice(rest));
+      return this.slice(new Array(current)).map(item => item.slice(rest));
     }
     return this;
   }
