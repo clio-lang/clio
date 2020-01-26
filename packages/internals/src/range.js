@@ -56,11 +56,8 @@ class Range {
         return this.slice(first);
       }
     }
-    if (slicer.length > 1) {
-      const current = slicer.get(0);
-      const rest = slicer.slice(new Range({ start: 1 }));
-      return this.slice(current).map(item => item.slice(rest));
-    }
+    if (slicer.length > 1)
+      throw "Range doesn't support multidimensional slicing";
     return this;
   }
   get(index) {
