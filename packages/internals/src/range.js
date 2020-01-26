@@ -21,6 +21,10 @@ class Range {
     for (let i = 0; i < this.length; i++) items.push(this.get(i));
     return new Array(...items);
   }
+  slice(slicer) {
+    console.log("Not implemented yet");
+    return this;
+  }
   get(index) {
     const value = this.start + this.step * index;
     if (this.step < 0 && value < this.end) throw "Index out of range";

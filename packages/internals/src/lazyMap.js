@@ -18,6 +18,10 @@ class LazyMap {
   map(fn) {
     return this.lazyMap(fn).toArray();
   }
+  slice(slicer) {
+    console.log("Not implemented yet");
+    return this;
+  }
   lazyMap(fn) {
     return new LazyMap({ getter: i => this.get(i), length: this.length, fn });
   }

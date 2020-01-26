@@ -133,6 +133,12 @@ const rules = {
     const processedItems = items.map(generate);
     return `new Array(${processedItems.join(", ")})`;
   },
+  slice(cst, generate) {
+    const { slicee, slicer } = cst;
+    const processedSlicee = generate(slicee);
+    const processedSlicer = generate(slicer);
+    return `${processedSlicee}.slice(${processedSlicer})`;
+  },
   range(cst, generate) {
     const { start, end, step } = cst;
     const rangeStart = start ? generate(start) : "null";

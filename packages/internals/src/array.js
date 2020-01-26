@@ -17,6 +17,10 @@ class Array {
   get(index) {
     return this.items[index];
   }
+  slice(slicer) {
+    console.log("Not implemented yet");
+    return this;
+  }
   get length() {
     return this.items.length;
   }
