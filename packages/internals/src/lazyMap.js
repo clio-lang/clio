@@ -19,7 +19,8 @@ class LazyMap {
     return this.lazyMap(fn).toArray();
   }
   slice(slicer) {
-    console.log("Not implemented yet");
+    if (slicer.length == 1 && typeof slicer.get(0) === "number")
+      return this.get(slicer.get(0));
     return this;
   }
   lazyMap(fn) {
