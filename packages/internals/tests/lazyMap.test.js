@@ -88,3 +88,14 @@ test("Slice a lazyMap (with an array)", () => {
     true
   );
 });
+
+test("Slice a lazyMap (multidimensional)", () => {
+  const map = new LazyMap({
+    getter: i => i,
+    length: 3,
+    fn: n => new Array(n, n + 1, n + 2)
+  });
+  const slice = map.slice(new Array(new Array(0, 2), 1));
+  const expected = [1, 3];
+  expect(slice.items).toEqual(expected);
+});
