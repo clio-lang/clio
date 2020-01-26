@@ -53,13 +53,7 @@ class Range {
         return new Array(...items);
       }
       if (first instanceof Range) {
-        const items = [];
-        let index = 0;
-        while (index < first.length) {
-          const item = this.get(first.get(index++));
-          items.push(item);
-        }
-        return new Array(...items);
+        return new Array(this.slice(first));
       }
     }
     if (slicer.length > 1) {
