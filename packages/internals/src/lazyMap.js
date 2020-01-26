@@ -50,7 +50,7 @@ class LazyMap {
         return new Array(...items);
       }
       if (first instanceof Range) {
-        return new Array(this.slice(first));
+        return this.slice(first);
       }
     }
     if (slicer.length > 1) {
