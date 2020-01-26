@@ -37,8 +37,19 @@ class LazyMap {
       }
       return new Array(...items);
     }
-    if (slicer.length == 1 && typeof slicer.get(0) === "number")
-      return this.get(slicer.get(0));
+    if (slicer.length == 1) {
+      const first = slicer.get(0);
+      if (typeof first == "number") return this.get(slicer.get(0));
+      if (first instanceof Array) {
+        const items = [];
+        let index = 0;
+        while (index < first.length) {
+          const item = this.get(first.get(index++));
+          items.push(item);
+        }
+        return new Array(...items);
+      }
+    }
     return this;
   }
   lazyMap(fn) {
