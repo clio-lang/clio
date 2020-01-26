@@ -200,11 +200,11 @@ const addEOF = tokens => {
 const lexer = string =>
   tokenize(string)
     .then(addEOF)
+    .then(insertSlicers)
     .then(removeEmptyLines)
     .then(removeComments)
     .then(filterWhites)
     .then(insertIndents)
-    .then(insertSlicers)
     .then(insertFlowEnds)
     .then(insertDecoratorEnds)
     .then(insertConditionalEnds)

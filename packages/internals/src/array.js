@@ -48,6 +48,20 @@ class Array {
         }
         return new Array(...items);
       }
+      if (first instanceof Range) {
+        const items = [];
+        let index = 0;
+        while (index < first.length) {
+          const item = this.get(first.get(index++));
+          items.push(item);
+        }
+        return new Array(...items);
+      }
+    }
+    if (slicer.length > 1) {
+      const current = slicer.get(0);
+      const rest = slicer.slice(new Range({ start: 1 }));
+      return this.slice(current).map(item => item.slice(rest));
     }
     return this;
   }
