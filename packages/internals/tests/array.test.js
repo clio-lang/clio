@@ -35,6 +35,12 @@ test("Slice array (with a range)", () => {
   expect(slice.items).toEqual([2, 3]);
 });
 
+test("Slice a lazyMap (with a range, negative steps)", () => {
+  const arr = new Array(1, 2, 3);
+  const slice = arr.slice(new Range({ start: 3, end: 0 }));
+  expect(slice.items).toEqual([3, 2]);
+});
+
 test("Slice array (with an array)", () => {
   const arr = new Array(1, 2, 3);
   const slice = arr.slice(new Array(new Array(1, 2)));

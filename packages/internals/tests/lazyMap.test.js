@@ -61,6 +61,18 @@ test("Slice a lazyMap (with a range)", () => {
   );
 });
 
+test("Slice a lazyMap (with a range, negative steps)", () => {
+  const map = new LazyMap({
+    getter: i => i,
+    length: 3,
+    fn: n => n * 2
+  });
+  const newMap = map.lazyMap(n => n + 1);
+  const slice = newMap.slice(new Range({ start: 3, end: 0 }));
+  const expected = [5, 3];
+  expect(slice.items).toEqual(expected);
+});
+
 test("Slice a lazyMap (with an array[range])", () => {
   const map = new LazyMap({
     getter: i => i,
