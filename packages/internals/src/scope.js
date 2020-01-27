@@ -20,7 +20,7 @@ class Scope {
     } else if (this.outerScope) {
       return this.outerScope.get(key);
     } else {
-      throw new Error(`Error! ${key} is undefined!`);
+      throw new Error(`${key} is not defined`);
     }
   }
   set(key, value) {
