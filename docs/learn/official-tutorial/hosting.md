@@ -6,6 +6,7 @@ As an example, let's create a `host.clio` file and put this code in it:
 
 {% code-tabs %}
 {% code-tabs-item title="host.clio" %}
+
 ```text
 42 => answer
 #my_emitter -> emitter => my_emitter
@@ -20,6 +21,7 @@ fn to_power_of i n:
   #exports [#to_power_of #my_emitter #answer] -- choose what you want to host
 } => host
 ```
+
 {% endcode-tabs-item %}
 {% endcode-tabs %}
 
@@ -30,7 +32,6 @@ Now, we can host this file using:
 Then in another Clio code, we can import these variables, event emitters and functions. For functions and variables we can use http or https, ws or wss protocols, but for events we must use either ws or wss:
 
 ```text
-import answer to_power_of from http://localhost:3000
-import my_emitter from ws://localhost:3000
+import answer to_power_of from "http://localhost:3000"
+import my_emitter from "ws://localhost:3000"
 ```
-
