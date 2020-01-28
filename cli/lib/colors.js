@@ -7,7 +7,7 @@ exports.brightRed = brightRed;
 exports.trace = e => console.trace(brightRed(`Error: ${e.message}`));
 
 exports.error = (e, prefix = "") => {
-  let message = `Error: ${e.message}`;
+  let message = `Error: ${e.message || e}`;
   if (prefix) message = `${prefix} `.concat(message);
   console.error(brightRed(message));
   process.exit(4);

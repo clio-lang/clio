@@ -53,6 +53,13 @@ describe("Colored messages", () => {
     expect(process.exit).toHaveBeenCalled();
   });
 
+  test("error with string", () => {
+    const err = "err";
+    error(err);
+
+    expect(console.error).toHaveBeenCalledWith(brightRed("Error: err"));
+  });
+
   test("warn", () => {
     warn("Hey, be careful.");
 
