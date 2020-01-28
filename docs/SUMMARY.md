@@ -34,11 +34,11 @@
 
 ## Modules
 
-* [Modules](modules/modules/README.md)
-  * [Clio modules](modules/modules/clio-modules.md)
-  * [JS Modules](modules/modules/js-modules.md)
-  * [Clio environment](modules/modules/clio-environment.md)
-  * [Browser](modules/modules/browser.md)
+* [Modules](modules/README.md)
+  * [Clio modules](modules/clio-modules.md)
+  * [JS Modules](modules/js-modules.md)
+  * [Clio environment](modules/clio-environment.md)
+  * [Browser](modules/browser.md)
 
 ## Tools
 
