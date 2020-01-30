@@ -54,4 +54,5 @@
 
 ## Development
 
+- [File Structure](dev/file-structure/README.md)
 - [Dependency parser](dev/dependency_parser/README.md)
