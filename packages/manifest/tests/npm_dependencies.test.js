@@ -1,7 +1,10 @@
 const fs = require("fs");
 const path = require("path");
 const tmp = require("tmp");
-const { hasInstalledNpmDependencies, getParsedNpmDependencies } = require("../npm_dependencies");
+const {
+  hasInstalledNpmDependencies,
+  getParsedNpmDependencies
+} = require("../npm_dependencies");
 
 describe("#hasInstalledNpmDependencies", () => {
   test("should return true if directory has a package-lock.json", () => {
@@ -29,7 +32,11 @@ describe("#getParsedNpmDependencies", () => {
 
     const parserNpmDependencies = getParsedNpmDependencies(dir.name);
 
-    expect(parserNpmDependencies).toEqual({ "http-server": "1.0.0", express: "^1.5.2", chalk: "2.1.x" });
+    expect(parserNpmDependencies).toEqual({
+      "http-server": "1.0.0",
+      express: "^1.5.2",
+      chalk: "2.1.x"
+    });
   });
 
   test("should return an empty object for declared section, but no dependencies", () => {

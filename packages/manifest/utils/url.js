@@ -9,6 +9,6 @@
 githubZipURL({uri: 'github.com/foo/bar', branch: 'master'})
 // https://github.com/foo/bar/archive/master.zip
  */
-const githubZipURL = ({branch, uri}) => `${uri}/archive/${branch}.zip`;
+const githubZipURL = ({ branch, uri }) => `${uri}/archive/${branch}.zip`;
 
-module.exports = {githubZipURL};
+module.exports = { githubZipURL };

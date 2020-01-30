@@ -10,9 +10,7 @@ const {
 } = require("../index");
 
 test("Import config file", () => {
-  const config = getPackageConfig(
-    path.join(__dirname, "clio.test.toml")
-  );
+  const config = getPackageConfig(path.join(__dirname, "clio.test.toml"));
   expect(config.title).toBeDefined();
 });
 
@@ -27,9 +25,7 @@ test("Write config file", () => {
 
   writePackageConfig(config, filePath);
 
-  const file = fs.readFileSync(
-    path.join(filePath, CONFIGFILE_NAME)
-  );
+  const file = fs.readFileSync(path.join(filePath, CONFIGFILE_NAME));
   const contents = toml.parse(file.toString());
   expect(contents.title).toBe("test");
   expect(contents.dependencies).toEqual({ Foo: "1.2.3" });
@@ -37,9 +33,7 @@ test("Write config file", () => {
 });
 
 test("Toml contains npm_dependencies", () => {
-  const config = getPackageConfig(
-    path.join(__dirname, "clio.test.toml")
-  );
+  const config = getPackageConfig(path.join(__dirname, "clio.test.toml"));
 
   expect(config.npm_dependencies).toContainEqual({
     name: "rickroll",
@@ -48,9 +42,7 @@ test("Toml contains npm_dependencies", () => {
 });
 
 test("Toml contains builds and targets", () => {
-  const config = getPackageConfig(
-    path.join(__dirname, "clio.test.toml")
-  );
+  const config = getPackageConfig(path.join(__dirname, "clio.test.toml"));
   expect(config.build).toBeDefined();
   expect(config.build.target).toBeDefined();
   expect(config.build.directory).toBeDefined();

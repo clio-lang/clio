@@ -61,7 +61,7 @@ async function fetchFromClioPackages({ branch, name }) {
   }
 
   const packageInfo = await file.json();
-  const archiveURL = githubZipURL({branch, uri: packageInfo.git});
+  const archiveURL = githubZipURL({ branch, uri: packageInfo.git });
 
   logFetching(name, branch);
 
@@ -76,17 +76,16 @@ async function fetchFromClioPackages({ branch, name }) {
  * @returns {void}
  */
 async function fetchGitHubZipArchive({ branch, uri }) {
-  const archiveURL = githubZipURL({branch, uri});
-  
+  const archiveURL = githubZipURL({ branch, uri });
+
   logFetching(uri, branch);
-  
+
   return fetchZipArchive(archiveURL);
 }
-
 
 module.exports = {
   fetchFromClioPackages,
   fetchGitHubZipArchive,
   fetchZipArchive,
-  logFetching,
+  logFetching
 };
