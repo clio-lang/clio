@@ -5,5 +5,5 @@ node_js:
   - "11"
 script:
   - npm install
-  - npm link
+  - npm run link
   - npm test

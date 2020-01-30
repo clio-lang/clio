@@ -19,7 +19,7 @@ jobs:
       - name: npm install & test
         run: |
           npm ci
-          npm link
+          npm run link
           npm test
         env:
           CI: true
@@ -35,7 +35,6 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           parallel-finished: true
-
 
   lint:
     runs-on: ubuntu-latest
