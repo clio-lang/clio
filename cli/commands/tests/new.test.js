@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 const { _new } = require("../");
-const {CONFIGFILE_NAME, getPackageConfig} = require("../../../package/index");
+const { CONFIGFILE_NAME, getPackageConfig } = require("../../../package/index");
 
 test("Create a package", async () => {
   const dir = tmp.dirSync();

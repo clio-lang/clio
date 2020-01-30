@@ -1,6 +1,6 @@
 const { bean } = require("bean-parser");
-const lexer = require("./lexer.js");
-const model = require("./model.js");
+const lexer = require("./lexer.js.js");
+const model = require("./model.js.js");
 
 const parse = tokens => bean(model, tokens);
 

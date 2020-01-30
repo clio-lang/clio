@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { format } = require("prettier");
-const { generator } = require("../../core/generator");
+const { generator } = require("../../packages/core/generator");
 const { error, info } = require("../lib/colors");
 const { getPlatform } = require("../lib/platforms");
 const { Progress } = require("../lib/progress");
