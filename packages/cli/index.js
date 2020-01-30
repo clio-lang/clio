@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const chalk = require("chalk");
-const { isSupportedNodeVersion } = require("../utils/versionUtils");
+const { isSupportedNodeVersion } = require("../../utils/versionUtils");
 
 if (!isSupportedNodeVersion(process.versions.node)) {
   chalk.yellow(

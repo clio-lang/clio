@@ -1,10 +1,10 @@
 const tmp = require("tmp");
 const path = require("path");
 const fs = require("fs");
-const { createPackage } = require("../../../cli/commands/new");
-const { run } = require("../../../cli/commands/run");
-const deps = require("../../../cli/commands/deps_commands/get");
-const packageConfig = require("../../../package/packageConfig");
+const { createPackage } = require("../new");
+const { run } = require("../run");
+const deps = require("../deps_commands/get");
+const packageConfig = require("../../../../package/packageConfig");
 
 test("Runs hello world", async () => {
   console.log = jest.fn();

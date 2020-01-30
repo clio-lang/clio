@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { format } = require("prettier");
-const { generator } = require("../../packages/core/generator");
+const { generator } = require("clio-core");
 const { error, info } = require("../lib/colors");
 const { getPlatform } = require("../lib/platforms");
 const { Progress } = require("../lib/progress");
@@ -13,7 +13,7 @@ const {
   getPackageConfig,
   hasInstalledNpmDependencies,
   getParsedNpmDependencies
-} = require("../../package/index");
+} = require("../../../package/index");
 
 const flatten = arr => arr.reduce((acc, val) => acc.concat(val), []);
 

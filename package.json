@@ -8,6 +8,7 @@
     "lint:fix": "prettier --write ./**/*.js",
     "pretest": "npm run bootstrap",
     "bootstrap": "lerna bootstrap --hoist",
+    "link": "lerna link",
     "test": "jest --collect-coverage",
     "test:nocov": "jest --no-coverage"
   },

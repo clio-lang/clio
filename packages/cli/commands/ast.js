@@ -1,6 +1,6 @@
 const fs = require("fs");
 const treeify = require("treeify");
-const { parser } = require("../../packages/core");
+const { parser } = require("clio-core");
 
 const readFile = async (...args) => fs.readFileSync(...args);
 const log = (...args) => console.log(...args) || args;
