@@ -12,6 +12,7 @@
   "author": "Garrit Franke <garritfranke@gmail.com>",
   "license": "Apache-2.0",
   "dependencies": {
-    "clio-core": "^0.1.0"
+    "clio-core": "^0.1.0",
+    "clio-utils": "^0.1.0"
   }
 }
