@@ -6,6 +6,8 @@
   "scripts": {
     "lint:check": "prettier --check ./**/*.js && eslint .",
     "lint:fix": "prettier --write ./**/*.js",
+    "pretest": "npm run bootstrap",
+    "bootstrap": "lerna bootstrap --hoist",
     "test": "jest --collect-coverage",
     "test:nocov": "jest --no-coverage"
   },
@@ -36,6 +38,7 @@
   },
   "dependencies": {
     "@iarna/toml": "^2.2.3",
+    "bean-parser": "^1.0.8",
     "body-parser": "1.19.0",
     "chalk": "3.0.0",
     "clio-lazy": "^1.0.0",
