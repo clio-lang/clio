@@ -27,14 +27,14 @@ To install from git, you'll need Node.js, NPM and git. You need to clone the rep
 
 `git clone https://github.com/clio-lang/clio`
 
- Then `cd` to the project directory:
+Then `cd` to the project directory:
 
 `cd clio`
 
- Now you need to install dependencies, to do that run:
+Now you need to install dependencies, to do that run:
 
 `npm install`
 
- Now you need to link the `clio` executable:
+Now you need to link the `clio` executable:
 
-`npm link`
+`npm run link`
