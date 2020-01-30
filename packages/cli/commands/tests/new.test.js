@@ -3,10 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 const { _new } = require("..");
-const {
-  CONFIGFILE_NAME,
-  getPackageConfig
-} = require("../../../manifest/index");
+const { CONFIGFILE_NAME, getPackageConfig } = require("clio-manifest");
 test("Create a package", async () => {
   const dir = tmp.dirSync();
   await _new(dir.name);

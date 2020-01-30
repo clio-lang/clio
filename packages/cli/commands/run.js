@@ -1,7 +1,7 @@
 const path = require("path");
 const { getPlatform } = require("../lib/platforms");
 const { getBuildTarget, getDestinationFromConfig, build } = require("./build");
-const { CONFIGFILE_NAME, getPackageConfig } = require("../../manifest/index");
+const { CONFIGFILE_NAME, getPackageConfig } = require("clio-manifest");
 const { error } = require("../lib/colors");
 
 exports.command = "run [source]";

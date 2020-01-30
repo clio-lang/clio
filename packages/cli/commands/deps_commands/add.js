@@ -1,4 +1,4 @@
-const { installDependency } = require("../../../manifest/index");
+const { installDependency } = require("clio-manifest");
 
 exports.command = "add <source>";
 exports.desc = "Add a new dependency";

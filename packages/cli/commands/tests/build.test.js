@@ -2,9 +2,9 @@ const fs = require("fs");
 const path = require("path");
 const tmp = require("tmp");
 const { build, _new } = require("../");
-const { CONFIGFILE_NAME } = require("../../../manifest/index");
+const { CONFIGFILE_NAME } = require("clio-manifest");
 
-jest.mock("../../../manifest/npm_dependencies");
+jest.mock("clio-manifest/npm_dependencies");
 
 describe("Package.json generation", () => {
   test("Build generates package.json", async () => {

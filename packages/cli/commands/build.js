@@ -13,7 +13,7 @@ const {
   getPackageConfig,
   hasInstalledNpmDependencies,
   getParsedNpmDependencies
-} = require("../../manifest/index");
+} = require("clio-manifest");
 
 const flatten = arr => arr.reduce((acc, val) => acc.concat(val), []);
 

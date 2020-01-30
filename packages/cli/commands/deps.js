@@ -2,7 +2,7 @@ const {
   getPackageDependencies,
   hasClioDependencies,
   logNoClioDeps
-} = require("../../manifest/index");
+} = require("clio-manifest");
 
 exports.command = "deps";
 exports.desc = "Manage clio dependencies";
