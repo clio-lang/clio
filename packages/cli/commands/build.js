@@ -13,7 +13,7 @@ const {
   getPackageConfig,
   hasInstalledNpmDependencies,
   getParsedNpmDependencies
-} = require("../../../package/index");
+} = require("../../manifest/index");
 
 const flatten = arr => arr.reduce((acc, val) => acc.concat(val), []);
 

@@ -1,4 +1,4 @@
-const { installDependency } = require("../../../../package/index");
+const { installDependency } = require("../../../manifest/index");
 
 exports.command = "add <source>";
 exports.desc = "Add a new dependency";

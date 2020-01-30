@@ -1,7 +1,7 @@
 const { spawnSync } = require("child_process");
 const degit = require("degit");
 
-const { fetchDependencies } = require("../../../package/index");
+const { fetchDependencies } = require("../../manifest/index");
 const { error, info, success } = require("../lib/colors");
 
 const TARGETS = ["node", "web"];

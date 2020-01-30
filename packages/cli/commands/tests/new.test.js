@@ -6,8 +6,7 @@ const { _new } = require("..");
 const {
   CONFIGFILE_NAME,
   getPackageConfig
-} = require("../../../../package/index");
-
+} = require("../../../manifest/index");
 test("Create a package", async () => {
   const dir = tmp.dirSync();
   await _new(dir.name);

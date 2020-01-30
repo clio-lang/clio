@@ -2,9 +2,9 @@ const fs = require("fs");
 const path = require("path");
 const tmp = require("tmp");
 const { build, _new } = require("../");
-const { CONFIGFILE_NAME } = require("../../../../package/index");
+const { CONFIGFILE_NAME } = require("../../../manifest/index");
 
-jest.mock("../../../../package/npm_dependencies");
+jest.mock("../../../manifest/npm_dependencies");
 
 describe("Package.json generation", () => {
   test("Build generates package.json", async () => {

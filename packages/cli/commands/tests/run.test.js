@@ -4,7 +4,7 @@ const fs = require("fs");
 const { createPackage } = require("../new");
 const { run } = require("../run");
 const deps = require("../deps_commands/get");
-const packageConfig = require("../../../../package/packageConfig");
+const packageConfig = require("../../../manifest/packageConfig");
 
 test("Runs hello world", async () => {
   console.log = jest.fn();
