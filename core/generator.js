@@ -98,7 +98,7 @@ const rules = {
       args
     } = decorator;
     const parsedArgs = args.map(generate);
-    return `scope.$.${fnName} = ${name}(${parsedFn}, ${parsedArgs.join(", ")})`;
+    return `scope.$.${fnName} = ${name}(${parsedArgs.join(", ")}, ${parsedFn})`;
   },
   number(cst, generate) {
     const { raw } = cst;
@@ -126,7 +126,7 @@ const rules = {
     const { name } = variable;
     return name == "symbol"
       ? `.set("${variable}")`
-      : `.set("${variable.symbols.map(({ raw }) => raw).join(".")}")`;
+      : `.set("${variable.parts.map(({ raw }) => raw).join(".")}")`;
   },
   array(cst, generate) {
     const { items } = cst;
@@ -221,14 +221,18 @@ const rules = {
     return `scope.extend(require(${processedPath}), null, moduleName(${processedPath}))`;
   },
   dot_notation(cst, generate) {
-    const { symbols } = cst;
-    const [first, ...rest] = symbols.map(({ raw }) => raw);
+    const { parts } = cst;
+    const [first, ...rest] = parts.map(part =>
+      part.name == "symbol"
+        ? part.raw
+        : generate(part).replace(/scope\.\$./, "")
+    );
     return `scope.$.${first}.${rest.join(".")}`;
   },
   method(cst, generate) {
-    const { symbols } = cst;
-    const processedSymbols = symbols.map(({ raw }) => `"${raw}"`).join(",");
-    return `new Method([${processedSymbols}])`;
+    const { parts } = cst;
+    const processedParts = parts.map(({ raw }) => `"${raw}"`).join(",");
+    return `new Method([${processedParts}])`;
   }
 };
 

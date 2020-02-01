@@ -1,11 +1,13 @@
 // - dot notation
 
-symbol dot => symbol_dot { symbol: left, index: left.index }
-symbol_dot symbol => dot_notation { symbols: [ left.symbol, right ], index: left.index }
-symbol_dot dot_notation => dot_notation { symbols: [ left.symbol, ...right.symbols ], index: left.index }
+symbol|slice dot => symbol_dot { parts: [left], index: left.index }
+symbol_dot symbol => dot_notation { parts: [ ...left.parts, right ], index: left.index }
+symbol_dot dot_notation => dot_notation { parts: [ ...left.parts, ...right.parts ], index: left.index }
 
-dot dot_notation => method { symbols: right.symbols }
-dot symbol => method { symbols: [ right ] }
+dot dot_notation => method { parts: right.parts, index: left.index }
+dot symbol => method { parts: [ right ], index: left.index }
+
+slice method => dot_notation { parts: [left, ...right.parts], index: left.index }
 
 // - Mathematics
 
@@ -123,7 +125,7 @@ array_start rbra => array { items: [...left.items], index: left.index }
 // - Decorators
 
 at symbol|dot_notation => decorator_start { fn: right, args: [], index: left.index }
-decorator_start symbol|dot_notation|number|array|range|slice => decorator_start { fn: left.fn, args: [...left.args, right], index: left.index }
+decorator_start symbol|dot_notation|number|array|range|slice|string => decorator_start { fn: left.fn, args: [...left.args, right], index: left.index }
 decorator_start decorator_end => decorator { fn: left.fn, args: left.args, index: left.index }
 
 // - Decorated function

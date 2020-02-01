@@ -96,11 +96,13 @@ const insertIndents = tokens => {
   return result;
 };
 
+const sliceables = ["rbra", "string", "symbol"];
+
 const insertSlicers = tokens => {
   const result = [tokens[0]];
   const zipped = zipSelf(tokens);
   for (const [left, right] of zipped) {
-    if (left.name == "rbra" && right.name == "lbra") {
+    if (sliceables.includes(left.name) && right.name == "lbra") {
       const token = { name: "slicer", raw: "slicer", index: right.index };
       result.push(token);
     }
