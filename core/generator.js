@@ -98,7 +98,7 @@ const rules = {
       args
     } = decorator;
     const parsedArgs = args.map(generate);
-    return `scope.$.${fnName} = ${name}(${parsedArgs.join(", ")}, ${parsedFn})`;
+    return `scope.$.${fnName} = ${name}(${parsedFn}, ${parsedArgs.join(", ")})`;
   },
   number(cst, generate) {
     const { raw } = cst;
