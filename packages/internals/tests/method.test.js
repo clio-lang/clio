@@ -5,9 +5,11 @@ test("method internal", () => {
   const object = {
     foo: {
       bar: {
-        baz: "foundme"
+        baz() {
+          return "foundme";
+        }
       }
     }
   };
-  expect(method.get(object)).toEqual("foundme");
+  expect(method.get(object)()).toEqual("foundme");
 });

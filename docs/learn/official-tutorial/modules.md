@@ -1,9 +1,23 @@
 # Modules
 
-You can write your code in separate files and import them in another file, or you can use libraries written by other programmers. Clio supports relative path imports, plus Clio virtual environment imports. You can install a package in this environment using `clio get` command, as an example:
+You can write your code in separate files and import them in another file, or you can use libraries written by other programmers. Clio supports multiple ways to import code. 
+
+### Clio dependencies
+
+Clio dependencies are hosted in the \[Clio Package Registry\]\([https://github.com/clio-lang/packages](https://github.com/clio-lang/packages)\). You can add Clio dependencies to your project by using the following command:
 
 ```text
-clio get https://github.com/clio-lang/answer/archive/v0.1.0.tar.gz
+clio deps add <dependency>
+```
+
+So if you want to add the package `greeter`, you would run `clio deps add greeter`. This checks the Clio package registry for a matching package, adds it to your [Project Manifest File](../../reference/manifest/) and downloads it to the`clio_env` directory, where all of your project dependencies live.
+
+### Other dependencies
+
+You can add any ZIP archive as a dependency the following way:
+
+```text
+clio deps add https://github.com/clio-lang/answer/archive/v0.1.0.tar.gz
 ```
 
 Then in your code, you can import this package:
@@ -30,3 +44,4 @@ exports.answer = 42;
 // or
 module.exports.answer = () => 42;
 ```
+
