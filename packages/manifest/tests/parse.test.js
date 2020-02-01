@@ -5,7 +5,7 @@ const {
   GITHUB_ZIP_RE,
   NAME_RE,
   parsePackageId
-} = require("./parse");
+} = require("../utils/parse");
 
 const version = "2.3.3";
 const branch = "my-branch";
