@@ -79,6 +79,28 @@ test("Compile range", async () => {
   expect(output).toBeDefined();
 });
 
+test("Compile slicers", async () => {
+  const input = `
+[1 2 3 4][0] -> print
+[1:4][0] -> print
+[1 2 3 4][0:2] -> print
+[1:4][0:2] -> print
+[1 2 3 4 5 6 7 8 9 10][10:0:-2] -> print
+[0:11][10:0:-2] -> print
+[1 2 3 4 5 6 7 8][[1 2 3]] -> print
+[0:11][[1 2 3]] -> print
+[[1 2 3]
+ [4 5 6]
+ [7 8 9]][[0:2] 1] -> print
+[[1 2 3]
+ [4 5 6]
+ [7 8 9]][[0:2] [1]] -> print
+`;
+
+  const output = await compiler.compile(input);
+  expect(output).toBeDefined();
+});
+
 test("Compile method calls", async () => {
   const input = `data -> .method arg1 arg2\n`;
 

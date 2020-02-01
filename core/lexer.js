@@ -96,11 +96,13 @@ const insertIndents = tokens => {
   return result;
 };
 
+const sliceables = ["rbra", "string", "symbol"];
+
 const insertSlicers = tokens => {
   const result = [tokens[0]];
   const zipped = zipSelf(tokens);
   for (const [left, right] of zipped) {
-    if (left.name == "rbra" && right.name == "lbra") {
+    if (sliceables.includes(left.name) && right.name == "lbra") {
       const token = { name: "slicer", raw: "slicer", index: right.index };
       result.push(token);
     }
@@ -200,11 +202,11 @@ const addEOF = tokens => {
 const lexer = string =>
   tokenize(string)
     .then(addEOF)
+    .then(insertSlicers)
     .then(removeEmptyLines)
     .then(removeComments)
     .then(filterWhites)
     .then(insertIndents)
-    .then(insertSlicers)
     .then(insertFlowEnds)
     .then(insertDecoratorEnds)
     .then(insertConditionalEnds)

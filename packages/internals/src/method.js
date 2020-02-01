@@ -6,7 +6,7 @@ class Method {
     const keys = [...this.keys];
     let method = object;
     while (keys.length) method = method[keys.shift()];
-    return method;
+    return (...args) => method.call(...args);
   }
 }
 
