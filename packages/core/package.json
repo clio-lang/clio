@@ -1,0 +1,14 @@
+{
+  "name": "clio-core",
+  "version": "0.1.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Run this script on the root directory.\" && exit 1"
+  },
+  "author": "Garrit Franke <garritfranke@gmail.com>",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "bean-parser": "^1.0.8"
+  }
+}
