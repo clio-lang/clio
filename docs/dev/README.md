@@ -2,5 +2,6 @@
 
 Here we post developer resources.
 
-- [Dependency parser](./dependency_parser)
+- [Project structure](file-structure)
 
+- [Dependency parser](./dependency_parser)
