@@ -22,7 +22,7 @@ Syntax for `or` is:
 abc or xyz
 ```
 
-where `abc` and `xyz` can be one of `symbol`, `boolean`, `slice`
+where `abc` and `xyz` can be one of `symbol`, `boolean`, `slice`,
 `comparison` or `property`.
 
 ## Order of precedence
