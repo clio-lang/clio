@@ -61,13 +61,19 @@ import_statement_as symbol => import_as_statement { path: left.path, importAs: r
 comparison_start number|symbol|dot_notation => comparison { lhs: left.lhs, cmp: left.cmp, rhs: right, index: left.index }
 number|symbol|dot_notation|comparison cmp => comparison_start { lhs: left, cmp: right.raw, index: left.index }
 
+// - Logical
+
+not comparison|boolean|logical|symbol => logical { rhs: right, op: left, index: left.index }
+comparison|boolean|logical|symbol logical_end => logical { rhs: right.rhs, op: right.op, lhs: left, index: left.index }
+and|or comparison|boolean|logical|symbol => logical_end { rhs: right, op: left, index: left.index }
+
 // - Conditionals
 
-if comparison|symbol|dot_notation => if_conditional_prestart { condition: right, index: left.index }
+if comparison|symbol|boolean|logical|dot_notation => if_conditional_prestart { condition: right, index: left.index }
 if_conditional_prestart colon => if_conditional_start { condition: left.condition, index: left.index }
 if_conditional_start block => if_conditional { condition: left.condition, body: right, index: left.index }
 
-elif comparison|symbol|dot_notation => elif_conditional_prestart { condition: right, index: left.index }
+elif comparison|symbol|boolean|logical|dot_notation => elif_conditional_prestart { condition: right, index: left.index }
 elif_conditional_prestart colon => elif_conditional_start { condition: left.condition, index: left.index }
 
 elif_conditional_start block => elif_conditional { body: [{ condition: left.condition, body: right, index: left.index }] }
@@ -96,7 +102,7 @@ function_end block => function { fn: left.fn, parameters: left.parameters, body:
 // - Anonymous functions
 
 symbol colon => anonymous_function_start { parameter: left.raw, index: left.index }
-anonymous_function_start block|math|number|array|range|slice => anonymous_function { parameter: left.parameter, body: right, index: left.index }
+anonymous_function_start block|math|number|boolean|logical|array|range|slice => anonymous_function { parameter: left.parameter, body: right, index: left.index }
 
 // - Ranges
 
@@ -118,14 +124,14 @@ range_start rbra => range { start: left.start, end: left.end, step: left.step, i
 
 // - Arrays
 
-lbra number|symbol|dot_notation|array|range|slice|string => array_start { items: [right], index: left.index }
-array_start number|symbol|dot_notation|array|range|slice|string => array_start { items: [...left.items, right], index: left.index }
+lbra number|symbol|boolean|logical|dot_notation|array|range|slice|string => array_start { items: [right], index: left.index }
+array_start number|symbol|boolean|logical|dot_notation|array|range|slice|string => array_start { items: [...left.items, right], index: left.index }
 array_start rbra => array { items: [...left.items], index: left.index }
 
 // - Decorators
 
 at symbol|dot_notation => decorator_start { fn: right, args: [], index: left.index }
-decorator_start symbol|dot_notation|number|array|range|slice|string => decorator_start { fn: left.fn, args: [...left.args, right], index: left.index }
+decorator_start symbol|boolean|logical|dot_notation|number|array|range|slice|string => decorator_start { fn: left.fn, args: [...left.args, right], index: left.index }
 decorator_start decorator_end => decorator { fn: left.fn, args: left.args, index: left.index }
 
 // - Decorated function
@@ -149,16 +155,16 @@ map symbol|dot_notation|method => function_call_start { fn: right, args: [], map
 pipe symbol|dot_notation|method => function_call_start { fn: right, args: [], map: false, index: left.index }
 set symbol|dot_notation => set_var { variable: right, index: left.index }
 
-function_call_start symbol|dot_notation|number|array|range|slice|string|unpack_arg|at_arg => function_call_start { fn: left.fn, args: [ ...left.args, right ], index: left.index, map: left.map }
+function_call_start symbol|boolean|logical|dot_notation|number|array|range|slice|string|unpack_arg|at_arg => function_call_start { fn: left.fn, args: [ ...left.args, right ], index: left.index, map: left.map }
 function_call_start flow_end => function_call { fn: left.fn, args: left.args, index: left.index, map: left.map }
 
-number|array|range|slice|math|string|symbol|dot_notation function_call|set_var => flow { data: left, calls: [right], index: left.index }
+number|array|range|slice|math|string|symbol|boolean|logical|dot_notation function_call|set_var => flow { data: left, calls: [right], index: left.index }
 flow function_call|set_var => flow { data: left.data, calls: [...left.calls, right], index: left.index}
 
 // - Blocks
 
-indent math|number|array|range|slice|symbol|dot_notation|function|flow|conditional => block_start { body: [ right ], index: left.index }
-block_start math|number|array|range|slice|symbol|dot_notation|function|flow|conditional => block_start { body: [ ...left.body, right ], index: left.index }
+indent math|number|array|range|slice|symbol|boolean|logical|dot_notation|function|flow|conditional => block_start { body: [ right ], index: left.index }
+block_start math|number|array|range|slice|symbol|boolean|logical|dot_notation|function|flow|conditional => block_start { body: [ ...left.body, right ], index: left.index }
 
 block_start dedent => block { body: left.body, index: left.index }
 
