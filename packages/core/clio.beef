@@ -63,9 +63,9 @@ number|symbol|dot_notation|comparison cmp => comparison_start { lhs: left, cmp: 
 
 // - Logical
 
-not comparison|boolean|logical|symbol => logical { rhs: right, op: left, index: left.index }
-comparison|boolean|logical|symbol logical_end => logical { rhs: right.rhs, op: right.op, lhs: left, index: left.index }
-and|or comparison|boolean|logical|symbol => logical_end { rhs: right, op: left, index: left.index }
+not comparison|boolean|logical|symbol|slice|dot_notation => logical { rhs: right, op: left, index: left.index }
+comparison|boolean|logical|symbol|slice|dot_notation logical_end => logical { rhs: right.rhs, op: right.op, lhs: left, index: left.index }
+and|or comparison|boolean|logical|symbol|slice|dot_notation => logical_end { rhs: right, op: left, index: left.index }
 
 // - Conditionals
 
