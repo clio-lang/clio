@@ -5,8 +5,12 @@ class Method {
   get(object) {
     const keys = [...this.keys];
     let method = object;
-    while (keys.length) method = method[keys.shift()];
-    return (...args) => method.call(...args);
+    let thisArg = method;
+    while (keys.length) {
+      thisArg = method;
+      method = method[keys.shift()];
+    }
+    return (...args) => method.call(thisArg, ...args);
   }
 }
 
