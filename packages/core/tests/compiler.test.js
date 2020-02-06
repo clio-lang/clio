@@ -101,6 +101,23 @@ test("Compile slicers", async () => {
   expect(output).toBeDefined();
 });
 
+test("Compile logicals", async () => {
+  const input = `
+true -> print
+false -> print
+true or false -> print
+true and false -> print
+true and not false -> print
+not true -> print
+not true or not false -> print
+true or false and true -> print
+10 > 0 or 4 > 0 and 0 > 5 -> print
+`;
+
+  const output = await compiler.compile(input);
+  expect(output).toBeDefined();
+});
+
 test("Compile method calls", async () => {
   const input = `data -> .method arg1 arg2\n`;
 
