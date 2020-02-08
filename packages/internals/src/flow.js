@@ -1,12 +1,3 @@
-class JSFn {
-  constructor(fn) {
-    this.fn = fn;
-  }
-  call(...args) {
-    return this.fn(...args);
-  }
-}
-
 class Flow {
   constructor(scope, data) {
     this.data = data;
@@ -47,3 +38,4 @@ module.exports.flow = flow;
 module.exports.Flow = Flow;
 
 const { Method } = require("./method");
+const { JSFn } = require("./functions");
