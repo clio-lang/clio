@@ -146,6 +146,7 @@ nested_hash dedent => nested_hash {
   name: left.outer.root ? "hashmap" : "nested_hash",
   ...(left.outer.root ? {} : { self: left.outer.self, outer: left.outer.outer }), index: left.index
 }
+hashmap symbol => hash_key { key: right, values: left.values, root: true, index: left.index }
 
 // - Decorators
 
