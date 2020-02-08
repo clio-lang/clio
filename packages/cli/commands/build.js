@@ -334,5 +334,6 @@ module.exports = {
   builder,
   handler,
   getBuildTarget,
-  getDestinationFromConfig
+  getDestinationFromConfig,
+  copyDir
 };

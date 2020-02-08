@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const tmp = require("tmp");
 const { build, _new } = require("../");
+const { copyDir } = require("../build");
 const { CONFIGFILE_NAME } = require("clio-manifest");
 
 jest.mock("clio-manifest/npm_dependencies");
@@ -153,5 +154,33 @@ target = "alternative"`
     const files = fs.readdirSync(path.join(dir.name, "another-path"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
+  });
+});
+
+describe("copyDir", () => {
+  test("copyDir to a new directory", async () => {
+    const tempSource = tmp.dirSync();
+
+    fs.writeFileSync(path.join(tempSource.name, "test"), "foo");
+    await copyDir(tempSource.name, path.join(tempSource.name, "out"));
+    expect(
+      await fs.promises.readdir(path.join(tempSource.name, "out").toString())
+    ).toEqual(["test"]);
+
+    tempSource.removeCallback();
+  });
+
+  test("copyDir to an existing directory", async () => {
+    const tempSource = tmp.dirSync();
+    const tempTarget = tmp.dirSync();
+
+    fs.writeFileSync(path.join(tempSource.name, "test"), "foo");
+    await copyDir(tempSource.name, tempTarget.name);
+    expect(
+      await fs.promises.readdir(path.join(tempTarget.name).toString())
+    ).toEqual(["test"]);
+
+    tempSource.removeCallback();
+    tempTarget.removeCallback();
   });
 });
