@@ -9,6 +9,6 @@
   "author": "Garrit Franke <garritfranke@gmail.com>",
   "license": "Apache-2.0",
   "dependencies": {
-    "bean-parser": "^1.0.8"
+    "bean-parser": "^1.0.9"
   }
 }
