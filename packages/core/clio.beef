@@ -102,7 +102,7 @@ function_end block => function { fn: left.fn, parameters: left.parameters, body:
 // - Anonymous functions
 
 symbol colon => anonymous_function_start { parameter: left.raw, index: left.index }
-anonymous_function_start block|math|number|boolean|logical|array|range|slice => anonymous_function { parameter: left.parameter, body: right, index: left.index }
+anonymous_function_start block|math|number|array|hashmap|boolean|logical|range|slice => anonymous_function { parameter: left.parameter, body: right, index: left.index }
 
 // - Ranges
 
@@ -124,14 +124,34 @@ range_start rbra => range { start: left.start, end: left.end, step: left.step, i
 
 // - Arrays
 
-lbra number|symbol|boolean|logical|dot_notation|array|range|slice|string => array_start { items: [right], index: left.index }
-array_start number|symbol|boolean|logical|dot_notation|array|range|slice|string => array_start { items: [...left.items, right], index: left.index }
+lbra number|symbol|dot_notation|array|hashmap|boolean|logical|range|slice|string => array_start { items: [right], index: left.index }
+array_start number|symbol|dot_notation|hashmap|boolean|logical|array|range|slice|string => array_start { items: [...left.items, right], index: left.index }
 array_start rbra => array { items: [...left.items], index: left.index }
+
+// - Hashmaps
+
+hash indent => hash_indent { index: left.index }
+hash symbol => hash_key { key: right, values: [], root: true, index: left.index }
+hash_indent symbol => nested_hash_key { self: 'root', outer: { unpack: true, root: true, values: [] }, values: [], key: right, index: left.index }
+hash_key number|symbol|string|boolean => hashmap { values: [...left.values, { key: left.key, value: right } ], root: left.root, index: left.index }
+hash_key indent => nested_hash { self: left.key, outer: left, values: [], index: left.index }
+nested_hash symbol => nested_hash_key { self: left.self, outer: left.outer, values: left.values, key: right, index: left.index }
+nested_hash_key number|symbol|string|boolean => nested_hash {
+  self: left.self, outer: left.outer,
+  values: [...left.values, { key: left.key, value: right }], index: left.index
+}
+nested_hash_key indent => nested_hash { self: left.key, values: [], outer: left, index: left.index }
+nested_hash dedent => nested_hash {
+  values: left.outer.unpack ? left.values : [...left.outer.values, { key: left.self, values: left.values}],
+  name: left.outer.root ? "hashmap" : "nested_hash",
+  ...(left.outer.root ? {} : { self: left.outer.self, outer: left.outer.outer }), index: left.index
+}
+hashmap symbol => hash_key { key: right, values: left.values, root: true, index: left.index }
 
 // - Decorators
 
 at symbol|dot_notation => decorator_start { fn: right, args: [], index: left.index }
-decorator_start symbol|boolean|logical|dot_notation|number|array|range|slice|string => decorator_start { fn: left.fn, args: [...left.args, right], index: left.index }
+decorator_start symbol|dot_notation|number|boolean|logical|array|hashmap|range|slice|string => decorator_start { fn: left.fn, args: [...left.args, right], index: left.index }
 decorator_start decorator_end => decorator { fn: left.fn, args: left.args, index: left.index }
 
 // - Decorated function
@@ -155,16 +175,16 @@ map symbol|dot_notation|method => function_call_start { fn: right, args: [], map
 pipe symbol|dot_notation|method => function_call_start { fn: right, args: [], map: false, index: left.index }
 set symbol|dot_notation => set_var { variable: right, index: left.index }
 
-function_call_start symbol|boolean|logical|dot_notation|number|array|range|slice|string|unpack_arg|at_arg => function_call_start { fn: left.fn, args: [ ...left.args, right ], index: left.index, map: left.map }
+function_call_start symbol|dot_notation|number|boolean|logical|array|hashmap|range|slice|string|unpack_arg|at_arg => function_call_start { fn: left.fn, args: [ ...left.args, right ], index: left.index, map: left.map }
 function_call_start flow_end => function_call { fn: left.fn, args: left.args, index: left.index, map: left.map }
 
-number|array|range|slice|math|string|symbol|boolean|logical|dot_notation function_call|set_var => flow { data: left, calls: [right], index: left.index }
+number|boolean|logical|array|hashmap|range|slice|math|string|symbol|dot_notation function_call|set_var => flow { data: left, calls: [right], index: left.index }
 flow function_call|set_var => flow { data: left.data, calls: [...left.calls, right], index: left.index}
 
 // - Blocks
 
-indent math|number|array|range|slice|symbol|boolean|logical|dot_notation|function|flow|conditional => block_start { body: [ right ], index: left.index }
-block_start math|number|array|range|slice|symbol|boolean|logical|dot_notation|function|flow|conditional => block_start { body: [ ...left.body, right ], index: left.index }
+indent math|number|array|hashmap|boolean|logical|range|slice|symbol|dot_notation|function|flow|conditional => block_start { body: [ right ], index: left.index }
+block_start math|number|array|hashmap|boolean|logical|range|slice|symbol|dot_notation|function|flow|conditional => block_start { body: [ ...left.body, right ], index: left.index }
 
 block_start dedent => block { body: left.body, index: left.index }
 
