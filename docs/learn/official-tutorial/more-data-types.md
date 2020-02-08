@@ -40,13 +40,12 @@ evens[[0:10]] -> * print  -- first 10 even numbers | bug!
 Hash maps are similar to lists, except that there are keys instead of indexes:
 
 ```text
-{
-  #key1   #value1
-  #key2   #value2
-} => my_map
+hash
+  key1 "value1"
+  key2 "value2"
+=> my_map
 
 my_map.key1 -> print
 ```
 
 To learn how to create your own custom data types, proceed to next part.
-

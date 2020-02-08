@@ -112,7 +112,7 @@ function_end block => function { fn: left.fn, parameters: left.parameters, body:
 // - Anonymous functions
 
 symbol colon => anonymous_function_start { parameter: left.raw, index: left.index }
-anonymous_function_start block|math|number|boolean|logical|array|range|slice => anonymous_function { parameter: left.parameter, body: right, index: left.index }
+anonymous_function_start block|math|number|array|hashmap|boolean|logical|range|slice => anonymous_function { parameter: left.parameter, body: right, index: left.index }
 
 // - Ranges
 
@@ -193,8 +193,8 @@ flow function_call|set_var => flow { data: left.data, calls: [...left.calls, rig
 
 // - Blocks
 
-indent math|number|array|range|slice|symbol|boolean|logical|dot_notation|function|flow|conditional => block_start { body: [ right ], index: left.index }
-block_start math|number|array|range|slice|symbol|boolean|logical|dot_notation|function|flow|conditional => block_start { body: [ ...left.body, right ], index: left.index }
+indent math|number|array|hashmap|boolean|logical|range|slice|symbol|dot_notation|function|flow|conditional => block_start { body: [ right ], index: left.index }
+block_start math|number|array|hashmap|boolean|logical|range|slice|symbol|dot_notation|function|flow|conditional => block_start { body: [ ...left.body, right ], index: left.index }
 
 block_start dedent => block { body: left.body, index: left.index }
 

@@ -101,6 +101,23 @@ test("Compile slicers", async () => {
   expect(output).toBeDefined();
 });
 
+test("Compile hashmaps", async () => {
+  const input = `
+# widget
+    debug 'on'
+    info
+      title 'Sample widget'
+      name 'main'
+    dimensions
+      width 500
+      height 500
+-> print
+`;
+
+  const output = await compiler.compile(input);
+  expect(output).toBeDefined();
+});
+
 test("Compile logicals", async () => {
   const input = `
 true -> print
