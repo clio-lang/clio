@@ -65,3 +65,15 @@ true or false and true -> print -- true
 0 > 10 or 4 > 0 and 0 > 5 -> print -- false
 10 > 0 or 4 > 0 and 5 > 0 -> print -- true
 `;
+
+test("Variable assignments", async () => {
+  const source = `
+2 => myVar
+myVar -> print
+`;
+
+  const tokens = await lexer(source);
+  const [, parsed] = parser.parse(tokens);
+  const output = generator.generate(parsed[0]);
+  expect(typeof output).toBe("string");
+});
