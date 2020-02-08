@@ -26,6 +26,23 @@ const isClioFile = file => file.endsWith(".clio");
 const isNotClioFile = file => !file.endsWith(".clio");
 const getClioFiles = dir => walk(dir).filter(isClioFile);
 const getNonClioFiles = dir => walk(dir).filter(isNotClioFile);
+const copyDir = async (src, dest) => {
+  const entries = await fs.promises.readdir(src, { withFileTypes: true });
+  mkdir(dest);
+  for (let entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      await copyDir(srcPath, destPath);
+    } else {
+      await fs.promises.copyFile(
+        srcPath,
+        destPath,
+        fs.constants.COPYFILE_FICLONE
+      );
+    }
+  }
+};
 
 const mkdir = directory => {
   const { root, dir, base } = path.parse(directory);
