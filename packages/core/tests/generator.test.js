@@ -52,4 +52,14 @@ import "module" as m
 [[1 2 3]
  [4 5 6]
  [7 8 9]][[0:2] [1]] -> print
+
+# widget
+    debug 'on'
+    info
+      title 'Sample widget'
+      name 'main'
+    dimensions
+      width 500
+      height 500
+-> print
 `;
