@@ -55,4 +55,4 @@ const uuidv4 = require("./uuidv4");
 const { Scope } = require("./scope");
 const { IO } = require("./io");
 const { Lazy } = require("./lazy");
-const { curry, Curry } = require("jscurry");
+const { Curry } = require("jscurry");
