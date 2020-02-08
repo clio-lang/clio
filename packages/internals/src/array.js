@@ -17,6 +17,9 @@ class Array {
   get(index) {
     return this.items[index];
   }
+  push(item) {
+    this.items.push(item);
+  }
   slice(slicer) {
     if (slicer instanceof Range) {
       let slicerIndex = 0;
