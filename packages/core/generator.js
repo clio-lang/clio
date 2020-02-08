@@ -125,7 +125,7 @@ const rules = {
     const { variable } = cst;
     const { name } = variable;
     return name == "symbol"
-      ? `.set("${variable}")`
+      ? `.set("${variable.raw}")`
       : `.set("${variable.parts.map(({ raw }) => raw).join(".")}")`;
   },
   array(cst, generate) {
