@@ -133,10 +133,10 @@ array_start rbra => array { items: [...left.items], index: left.index }
 hash indent => hash_indent { index: left.index }
 hash symbol => hash_key { key: right, values: [], root: true, index: left.index }
 hash_indent symbol => nested_hash_key { self: 'root', outer: { unpack: true, root: true, values: [] }, values: [], key: right, index: left.index }
-hash_key number|symbol|string => hashmap { values: [...left.values, { key: left.key, value: right } ], root: left.root, index: left.index }
+hash_key number|symbol|string|boolean => hashmap { values: [...left.values, { key: left.key, value: right } ], root: left.root, index: left.index }
 hash_key indent => nested_hash { self: left.key, outer: left, values: [], index: left.index }
 nested_hash symbol => nested_hash_key { self: left.self, outer: left.outer, values: left.values, key: right, index: left.index }
-nested_hash_key number|symbol|string => nested_hash {
+nested_hash_key number|symbol|string|boolean => nested_hash {
   self: left.self, outer: left.outer,
   values: [...left.values, { key: left.key, value: right }], index: left.index
 }
