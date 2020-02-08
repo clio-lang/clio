@@ -3,6 +3,7 @@ const patterns = {
   word: /^#[^\[\] \r\n:]+/i,
   number: /^(0|-?[1-9][0-9']*)(n|(\.[0-9']+))?/,
 
+  hash: /^(hash|#)(?![a-zA-Z_-])/,
   fn: /^fn(?![a-zA-Z_-])/,
   if: /^if(?![a-zA-Z_-])/,
   else: /^else(?![a-zA-Z_-])/,

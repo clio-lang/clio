@@ -122,6 +122,25 @@ lbra number|symbol|dot_notation|array|range|slice|string => array_start { items:
 array_start number|symbol|dot_notation|array|range|slice|string => array_start { items: [...left.items, right], index: left.index }
 array_start rbra => array { items: [...left.items], index: left.index }
 
+// - Hashmaps
+
+hash indent => hash_indent
+hash symbol => hash_key { key: right, values: [], index: left.index, root: true }
+hash_indent symbol => nested_hash_key { self: 'root', outer: { unpack: true, root: true, values: [] }, values: [], key: right }
+hash_key number|symbol|string => hashmap { values: [...left.values, { key: left.key, value: right } ], root: left.root }
+hash_key indent => nested_hash { self: left.key, outer: left, values: [] }
+nested_hash symbol => nested_hash_key { self: left.self, outer: left.outer, values: left.values, key: right }
+nested_hash_key number|symbol|string => nested_hash {
+  self: left.self, outer: left.outer,
+  values: [...left.values, { key: left.key, value: right }]
+}
+nested_hash_key indent => nested_hash { self: left.key, values: [], outer: left }
+nested_hash dedent => nested_hash {
+  values: [...left.outer.values, { key: left.self, values: left.values}],
+  name: left.outer.root ? "hashmap" : "nested_hash",
+  ...(left.outer.root ? {} : { self: left.outer.self, outer: left.outer.outer })
+}
+
 // - Decorators
 
 at symbol|dot_notation => decorator_start { fn: right, args: [], index: left.index }
