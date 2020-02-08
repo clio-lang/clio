@@ -235,8 +235,19 @@ const rules = {
     return `new Method([${processedParts}])`;
   },
   hashmap(cst, generate) {
-    console.dir(cst, { depth: null });
-    DIE();
+    const { values } = cst;
+    const makeHash = inValues => {
+      const processed = [];
+      for (const inValue of inValues) {
+        const { key, value, values } = inValue;
+        const processedValue = values ? makeHash(values) : generate(value);
+        processed.push(`${key.raw}: (${processedValue})`);
+      }
+      return `{
+        ${processed.join(",\n")}
+      }`;
+    };
+    return makeHash(values);
   }
 };
 
