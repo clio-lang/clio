@@ -248,6 +248,15 @@ const rules = {
       }`;
     };
     return makeHash(values);
+  },
+  boolean(cst, generate) {
+    return cst.raw;
+  },
+  logical(cst, generate) {
+    const { lhs, op, rhs } = cst;
+    if (op.name == "not") return `(!${generate(rhs)})`;
+    if (op.name == "and") return `(${generate(lhs)} && ${generate(rhs)})`;
+    if (op.name == "or") return `(${generate(lhs)} || ${generate(rhs)})`;
   }
 };
 

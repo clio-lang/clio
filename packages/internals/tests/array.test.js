@@ -23,6 +23,13 @@ test("Array valueOf", () => {
   expect(values).toEqual([1, 2, 3]);
 });
 
+test("Array push", () => {
+  const arr = new Array(1, 2);
+  arr.push(3);
+  const values = arr.valueOf();
+  expect(values).toEqual([1, 2, 3]);
+});
+
 test("Slice array (with a number)", () => {
   const arr = new Array(1, 2, 3);
   const slice = arr.slice(new Array(0));

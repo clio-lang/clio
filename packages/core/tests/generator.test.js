@@ -62,4 +62,16 @@ import "module" as m
       width 500
       height 500
 -> print
+
+true -> print -- true
+false -> print -- false
+true or false -> print -- true
+true and false -> print -- false
+true and not false -> print -- true
+not true -> print -- false
+not true or not false -> print -- true
+true or false and true -> print -- true
+10 > 0 or 4 > 0 and 0 > 5 -> print -- true
+0 > 10 or 4 > 0 and 0 > 5 -> print -- false
+10 > 0 or 4 > 0 and 5 > 0 -> print -- true
 `;
