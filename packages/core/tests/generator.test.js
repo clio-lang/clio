@@ -53,3 +53,15 @@ import "module" as m
  [4 5 6]
  [7 8 9]][[0:2] [1]] -> print
 `;
+
+test("Variable assignments", async () => {
+  const source = `
+2 => myVar
+myVar -> print
+`;
+
+  const tokens = await lexer(source);
+  const [, parsed] = parser.parse(tokens);
+  const output = generator.generate(parsed[0]);
+  expect(typeof output).toBe("string");
+});
