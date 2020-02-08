@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { format } = require("prettier");
 const { generator } = require("clio-core");
-const { error, info } = require("../lib/colors");
+const { error, info, warn } = require("../lib/colors");
 const { getPlatform } = require("../lib/platforms");
 const { Progress } = require("../lib/progress");
 
@@ -234,6 +234,20 @@ const build = async (
     progress.succeed();
   }
 
+  if (process.env.CLIOPATH) {
+    // Link local internals
+    warn("Using local internals. This should only be used for debug purposes.");
+    warn(
+      "If you encounter any unwanted behavior, unset the CLIOPATH environment variable"
+    );
+    progress.start("Linking internals");
+    await linkInternals(
+      path.resolve(process.env.CLIOPATH, "packages", "internals", "src"),
+      path.join(destination, "node_modules", "clio-internals", "src")
+    );
+    progress.succeed();
+  }
+
   try {
     const platform = getPlatform(target);
     await platform.build(destination, skipBundle);
@@ -241,6 +255,14 @@ const build = async (
     error(e, "Bundling");
   }
 };
+
+/**
+ * Link local internals package as a dependency
+ * @param {string} destination Full path to destination directory
+ */
+async function linkInternals(source, destination) {
+  await copyDir(source, destination);
+}
 
 /**
  * Generates a package.json for a clio module.
