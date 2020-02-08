@@ -233,6 +233,10 @@ const rules = {
     const { parts } = cst;
     const processedParts = parts.map(({ raw }) => `"${raw}"`).join(",");
     return `new Method([${processedParts}])`;
+  },
+  hashmap(cst, generate) {
+    console.dir(cst, { depth: null });
+    DIE();
   }
 };
 
