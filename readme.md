@@ -44,12 +44,12 @@ test programs exist, it is not recommended to use in production.
 
 ## Links
 
-  - [Clio Website](http://clio-lang.org)
-  - [Documentation](http://docs.clio-lang.org)
-  - [Clio on Rosetta Code](http://rosettacode.org/wiki/Clio)
-  - [Web IDE](https://clio-lang.github.io/clio-editor/)
-  - [Clio Telegram Chat](https://t.me/joinchat/K2tN9kkVldcinF4U08lcfQ)
-  - [Kanban Board](https://github.com/orgs/clio-lang/projects/1)
+- [Clio Website](http://clio-lang.org)
+- [Documentation](http://docs.clio-lang.org)
+- [Clio on Rosetta Code](http://rosettacode.org/wiki/Clio)
+- [Web IDE](https://clio-lang.github.io/clio-editor/)
+- [Clio Telegram Chat](https://t.me/joinchat/K2tN9kkVldcinF4U08lcfQ)
+- [Kanban Board](https://github.com/orgs/clio-lang/projects/1)
 
 ## Examples
 
@@ -62,29 +62,29 @@ You can visit [docs.clio-lang.org](http://docs.clio-lang.org) for a short tutori
 
 ## Features and Work in Progress
 
-  - Pure
-  - Noise-free
-  - Lazy evaluation
-  - Lazy data types
-  - Asynchronous by default
-  - Functional programming paradigm
-  - Pipes and flows
-  - Functions are micro-services
-  - Network-based foreign function interface
-  - Tensor/array indexing and programming
-  - Cloud/decentralized/distributed modules and functions
-  - Event-based flow control
+- Pure
+- Noise-free
+- Lazy evaluation
+- Lazy data types
+- Asynchronous by default
+- Functional programming paradigm
+- Pipes and flows
+- Functions are micro-services
+- Network-based foreign function interface
+- Tensor/array indexing and programming
+- Cloud/decentralized/distributed modules and functions
+- Event-based flow control
 
 For a list of what's done and what's planned you can check [our open enhancement issues](https://github.com/clio-lang/clio/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement).
 
 ## Project Goals
 
-  - Encourage writing clean code
-  - Encourage writing interconnected micro-functionalities instead of big whole programs
-  - Make it easier to write decentralized and distributed code
-  - Take advantage of multi-core CPUs and multiple CPUs by default
-  - It should be easy to port existing code, and it should be easy to port Clio code to different platforms
-  - Avoid spaghetti code and callback hell
+- Encourage writing clean code
+- Encourage writing interconnected micro-functionalities instead of big whole programs
+- Make it easier to write decentralized and distributed code
+- Take advantage of multi-core CPUs and multiple CPUs by default
+- It should be easy to port existing code, and it should be easy to port Clio code to different platforms
+- Avoid spaghetti code and callback hell
 
 ## Contributing
 
