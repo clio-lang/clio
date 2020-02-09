@@ -1,6 +1,5 @@
 const { Fn } = require("../src/functions");
 const { Lazy } = require("../src/lazy");
-const { Scope } = require("../src/scope");
 
 test("Test Clio function currying", () => {
   const add = new Fn((scope, a, b) => a + b, null, Lazy);
