@@ -20,7 +20,7 @@ test("Map a function to LazyMap", () => {
   const map = makeLazyMap();
   const arr = map.map(n => n + 1);
   const expected = [1, 3, 5];
-  expect(arr.items.every((item, index) => item == expected[index])).toBe(true);
+  expect(arr.items).toEqual(expected);
 });
 
 test("Map a function to LazyMap (using .lazyMap)", () => {
@@ -28,7 +28,7 @@ test("Map a function to LazyMap (using .lazyMap)", () => {
   const newMap = map.lazyMap(n => n + 1);
   const arr = newMap.toArray();
   const expected = [1, 3, 5];
-  expect(arr.items.every((item, index) => item == expected[index])).toBe(true);
+  expect(arr.items).toEqual(expected);
 });
 
 test("Slice a lazyMap (with a number)", () => {
@@ -43,9 +43,7 @@ test("Slice a lazyMap (with a range)", () => {
   const newMap = map.lazyMap(n => n + 1);
   const slice = newMap.slice(new Range({ start: 1 }));
   const expected = [3, 5];
-  expect(slice.items.every((item, index) => item == expected[index])).toBe(
-    true
-  );
+  expect(slice.items).toEqual(expected);
 });
 
 test("Slice a lazyMap (with a range, negative steps)", () => {
@@ -61,9 +59,7 @@ test("Slice a lazyMap (with an array[range])", () => {
   const newMap = map.lazyMap(n => n + 1);
   const slice = newMap.slice(new Array(new Range({ start: 1 })));
   const expected = [3, 5];
-  expect(slice.items.every((item, index) => item == expected[index])).toBe(
-    true
-  );
+  expect(slice.items).toEqual(expected);
 });
 
 test("Slice a lazyMap (with an array)", () => {
@@ -71,9 +67,7 @@ test("Slice a lazyMap (with an array)", () => {
   const newMap = map.lazyMap(n => n + 1);
   const slice = newMap.slice(new Array(new Array(1, 2)));
   const expected = [3, 5];
-  expect(slice.items.every((item, index) => item == expected[index])).toBe(
-    true
-  );
+  expect(slice.items).toEqual(expected);
 });
 
 test("Slice a lazyMap (multidimensional)", () => {
