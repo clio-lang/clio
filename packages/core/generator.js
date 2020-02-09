@@ -36,15 +36,15 @@ const rules = {
     const { expr } = cst;
     const { name } = expr;
     if (name == "conditional") {
-      expr.if_block.body.body = implicitReturn(expr.if_block.body.body);
-      if (expr.elif_block) {
-        expr.elif_block.body = expr.elif_block.body.map(block => {
+      expr.ifBlock.body.body = implicitReturn(expr.ifBlock.body.body);
+      if (expr.elifBlock) {
+        expr.elifBlock.body = expr.elifBlock.body.map(block => {
           block.body.body = implicitReturn(block.body.body);
           return block;
         });
       }
-      if (expr.else_block) {
-        expr.else_block.body.body = implicitReturn(expr.else_block.body.body);
+      if (expr.elseBlock) {
+        expr.elseBlock.body.body = implicitReturn(expr.elseBlock.body.body);
       }
       return generate(expr);
     } else {
@@ -68,7 +68,7 @@ const rules = {
         ${processedBody.join(";\n")}
       }, scope, Lazy)`;
   },
-  anonymous_function(cst, generate) {
+  anonymousFunction(cst, generate) {
     const { parameter, body: expr } = cst;
     const processedBody =
       expr.name == "block"
@@ -89,7 +89,7 @@ const rules = {
     const { raw } = cst;
     return `scope.$.${raw}`;
   },
-  decorated_function(cst, generate) {
+  decoratedFunction(cst, generate) {
     const { fn, decorator } = cst;
     const { fn: fnName } = fn;
     parsedFn = generate(fn);
@@ -114,14 +114,14 @@ const rules = {
     const processedCalls = calls.map(generate).join("\n");
     return `new Flow(scope, ${processedData})\n` + processedCalls;
   },
-  function_call(cst, generate) {
+  functionCall(cst, generate) {
     const { fn, args, map } = cst;
     const processedFn = generate(fn);
     const processedArgs = args.map(generate);
     const method = map ? ".map" : ".pipe";
     return `${method}(${processedFn}, ${processedArgs.join(", ")})`;
   },
-  set_var(cst, generate) {
+  setVar(cst, generate) {
     const { variable } = cst;
     const { name } = variable;
     return name == "symbol"
@@ -153,13 +153,13 @@ const rules = {
     return `(${left} ${cmp} ${right})`;
   },
   conditional(cst, generate) {
-    const { if_block, elif_block, else_block } = cst;
-    const processedIf = generate(if_block);
-    const processedElif = elif_block ? generate(elif_block) : "";
-    const processedElse = else_block ? generate(else_block) : "";
+    const { ifBlock, elifBlock, elseBlock } = cst;
+    const processedIf = generate(ifBlock);
+    const processedElif = elifBlock ? generate(elifBlock) : "";
+    const processedElse = elseBlock ? generate(elseBlock) : "";
     return [processedIf, processedElif, processedElse].join("\n");
   },
-  if_conditional(cst, generate) {
+  ifConditional(cst, generate) {
     const {
       condition,
       body: { body }
@@ -168,7 +168,7 @@ const rules = {
     const processedCondition = generate(condition);
     return `if (${processedCondition}) { ${processedBody.join(";\n")} }`;
   },
-  elif_conditional(cst, generate) {
+  elifConditional(cst, generate) {
     const { body } = cst;
     const processedBody = body
       .map(({ condition, body: { body } }) => {
@@ -181,26 +181,26 @@ const rules = {
       });
     return processedBody.join("\n");
   },
-  else_conditional(cst, generate) {
+  elseConditional(cst, generate) {
     const {
       body: { body }
     } = cst;
     const processedBody = body.map(generate);
     return `else { ${processedBody.join(";\n")} }`;
   },
-  import_from_statement(cst, generate) {
+  importFromStatement(cst, generate) {
     const { path, names } = cst;
     const processedPath = generate(path);
     const processedNames = names.map(name => `"${name.raw}"`);
     const namesList = `[ ${processedNames.join(",")} ]`;
     return `scope.extend(require(${processedPath}), ${namesList})`;
   },
-  import_all_statement(cst, generate) {
+  importAllStatement(cst, generate) {
     const { path } = cst;
     const processedPath = generate(path);
     return `scope.extend(require(${processedPath}))`;
   },
-  import_from_as_statement(cst, generate) {
+  importFromAsStatement(cst, generate) {
     const { path, names } = cst;
     const processedPath = generate(path);
     const processedNames = names.map(name => {
@@ -210,17 +210,17 @@ const rules = {
     namesObject = "{" + processedNames.join(",") + "}";
     return `scope.extend(require(${processedPath}), ${namesObject})`;
   },
-  import_as_statement(cst, generate) {
+  importAsStatement(cst, generate) {
     const { path, importAs } = cst;
     const processedPath = generate(path);
     return `scope.$.${importAs} = require(${processedPath})`;
   },
-  import_statement(cst, generate) {
+  importStatement(cst, generate) {
     const { path } = cst;
     const processedPath = generate(path);
     return `scope.extend(require(${processedPath}), null, moduleName(${processedPath}))`;
   },
-  dot_notation(cst, generate) {
+  dotNotation(cst, generate) {
     const { parts } = cst;
     const [first, ...rest] = parts.map(part =>
       part.name == "symbol"

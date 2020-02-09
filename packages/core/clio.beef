@@ -1,200 +1,200 @@
 // - dot notation
 
-symbol|slice dot => symbol_dot { parts: [left], index: left.index }
-symbol_dot symbol => dot_notation { parts: [ ...left.parts, right ], index: left.index }
-symbol_dot dot_notation => dot_notation { parts: [ ...left.parts, ...right.parts ], index: left.index }
+symbol|slice dot => symbolDot { parts: [left], index: left.index }
+symbolDot symbol => dotNotation { parts: [ ...left.parts, right ], index: left.index }
+symbolDot dotNotation => dotNotation { parts: [ ...left.parts, ...right.parts ], index: left.index }
 
-dot dot_notation => method { parts: right.parts, index: left.index }
+dot dotNotation => method { parts: right.parts, index: left.index }
 dot symbol => method { parts: [ right ], index: left.index }
 
-slice method => dot_notation { parts: [left, ...right.parts], index: left.index }
+slice method => dotNotation { parts: [left, ...right.parts], index: left.index }
 
 // - Mathematics
 
 // -- pow
-number|math|symbol|dot_notation pow => pow_start { lhs: left, op: right.raw, index: left.index }
-pow_start number|math|symbol|dot_notation => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+number|math|symbol|dotNotation pow => powStart { lhs: left, op: right.raw, index: left.index }
+powStart number|math|symbol|dotNotation => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
 
 // -- mul, div
-number|math|symbol|dot_notation mul => mul_start { lhs: left, op: right.raw, index: left.index }
-mul_start number|math|symbol|dot_notation => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+number|math|symbol|dotNotation mul => mulStart { lhs: left, op: right.raw, index: left.index }
+mulStart number|math|symbol|dotNotation => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
 
-number|math|symbol|dot_notation div => div_start { lhs: left, op: right.raw, index: left.index }
-div_start number|math|symbol|dot_notation => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+number|math|symbol|dotNotation div => divStart { lhs: left, op: right.raw, index: left.index }
+divStart number|math|symbol|dotNotation => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
 
 // -- add, sub
-number|math|symbol|dot_notation add => add_start { lhs: left, op: right.raw, index: left.index }
-add_start number|math|symbol|dot_notation => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+number|math|symbol|dotNotation add => addStart { lhs: left, op: right.raw, index: left.index }
+addStart number|math|symbol|dotNotation => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
 
-number|math|symbol|dot_notation sub => sub_start { lhs: left, op: right.raw, index: left.index }
-sub_start number|math|symbol|dot_notation => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+number|math|symbol|dotNotation sub => subStart { lhs: left, op: right.raw, index: left.index }
+subStart number|math|symbol|dotNotation => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
 
 // - as!
 
-symbol as => symbol_as { src: left.raw, index: left.index }
-symbol_as symbol => as_expr { src: left.src, dest: right.raw }
+symbol as => symbolAs { src: left.raw, index: left.index }
+symbolAs symbol => asExpr { src: left.src, dest: right.raw }
 
 // - Slice
 
-array|range|slice|symbol|dot_notation slicer => slice_start { slicee: left, index: left.index }
-slice_start array|range|slice => slice { slicee: left.slicee, slicer: right, index: left.index }
+array|range|slice|symbol|dotNotation slicer => sliceStart { slicee: left, index: left.index }
+sliceStart array|range|slice => slice { slicee: left.slicee, slicer: right, index: left.index }
 
 // - Imports
 
-import symbol|string => import_statement { path: right, index: left.index }
-import as_expr => import_as { names: [ right ], index: left.index }
-import mul => import_all { index: left.index }
+import symbol|string => importStatement { path: right, index: left.index }
+import asExpr => importAs { names: [ right ], index: left.index }
+import mul => importAll { index: left.index }
 
-import_statement from => import_from_start { names: [left.path], index: left.index }
-import_as from => import_from_as_start { names: left.names, index: left.index }
-import_all from => import_all_start { index: left.index }
+importStatement from => importFromStart { names: [left.path], index: left.index }
+importAs from => importFromAsStart { names: left.names, index: left.index }
+importAll from => importAllStart { index: left.index }
 
-import_from_start symbol|string => import_from_statement { names: left.names, path: right, index: left.index }
-import_all_start symbol|string => import_all_statement { names: left.names, path: right, index: left.index }
-import_from_as_start symbol|string => import_from_as_statement { names: left.names, path: right, index: left.index }
+importFromStart symbol|string => importFromStatement { names: left.names, path: right, index: left.index }
+importAllStart symbol|string => importAllStatement { names: left.names, path: right, index: left.index }
+importFromAsStart symbol|string => importFromAsStatement { names: left.names, path: right, index: left.index }
 
-import_statement as => import_statement_as { path: left.path, index: left.index }
-import_statement_as symbol => import_as_statement { path: left.path, importAs: right.raw, index: left.index }
+importStatement as => importStatementAs { path: left.path, index: left.index }
+importStatementAs symbol => importAsStatement { path: left.path, importAs: right.raw, index: left.index }
 
 // - Comparisons
 
-comparison_start number|symbol|dot_notation => comparison { lhs: left.lhs, cmp: left.cmp, rhs: right, index: left.index }
-number|symbol|dot_notation|comparison cmp => comparison_start { lhs: left, cmp: right.raw, index: left.index }
+comparisonStart number|symbol|dotNotation => comparison { lhs: left.lhs, cmp: left.cmp, rhs: right, index: left.index }
+number|symbol|dotNotation|comparison cmp => comparisonStart { lhs: left, cmp: right.raw, index: left.index }
 
 // - Logical
 
-not comparison|boolean|logical|symbol|slice|dot_notation => logical { rhs: right, op: left, index: left.index }
-comparison|boolean|logical|symbol|slice|dot_notation logical_end => logical { rhs: right.rhs, op: right.op, lhs: left, index: left.index }
-and|or comparison|boolean|logical|symbol|slice|dot_notation => logical_end { rhs: right, op: left, index: left.index }
+not comparison|boolean|logical|symbol|slice|dotNotation => logical { rhs: right, op: left, index: left.index }
+comparison|boolean|logical|symbol|slice|dotNotation logicalEnd => logical { rhs: right.rhs, op: right.op, lhs: left, index: left.index }
+and|or comparison|boolean|logical|symbol|slice|dotNotation => logicalEnd { rhs: right, op: left, index: left.index }
 
 // - Conditionals
 
-if comparison|symbol|boolean|logical|dot_notation => if_conditional_prestart { condition: right, index: left.index }
-if_conditional_prestart colon => if_conditional_start { condition: left.condition, index: left.index }
-if_conditional_start block => if_conditional { condition: left.condition, body: right, index: left.index }
+if comparison|symbol|boolean|logical|dotNotation => ifConditionalPrestart { condition: right, index: left.index }
+ifConditionalPrestart colon => ifConditionalStart { condition: left.condition, index: left.index }
+ifConditionalStart block => ifConditional { condition: left.condition, body: right, index: left.index }
 
-elif comparison|symbol|boolean|logical|dot_notation => elif_conditional_prestart { condition: right, index: left.index }
-elif_conditional_prestart colon => elif_conditional_start { condition: left.condition, index: left.index }
+elif comparison|symbol|boolean|logical|dotNotation => elifConditionalPrestart { condition: right, index: left.index }
+elifConditionalPrestart colon => elifConditionalStart { condition: left.condition, index: left.index }
 
-elif_conditional_start block => elif_conditional { body: [{ condition: left.condition, body: right, index: left.index }] }
+elifConditionalStart block => elifConditional { body: [{ condition: left.condition, body: right, index: left.index }] }
 
-elif_conditional elif_conditional => elif_conditional { body: [...left.body, right.body], index: left.index }
-if_conditional elif_conditional => if_elif_conditional { if_block: left, elif_block: right, index: left.index }
+elifConditional elifConditional => elifConditional { body: [...left.body, right.body], index: left.index }
+ifConditional elifConditional => ifElifConditional { ifBlock: left, elifBlock: right, index: left.index }
 
-else colon => else_conditional_start { index: left.index }
-else_conditional_start block => else_conditional { body: right, index: left.index }
-if_conditional else_conditional => if_else_conditional { if_block: left, else_block: right, index: left.index }
-if_elif_conditional else_conditional => if_elif_else_conditional { if_block: left.if_block, elif_block: left.elif_block, else_block: right, index: left.index }
+else colon => elseConditionalStart { index: left.index }
+elseConditionalStart block => elseConditional { body: right, index: left.index }
+ifConditional elseConditional => ifElseConditional { ifBlock: left, elseBlock: right, index: left.index }
+ifElifConditional elseConditional => ifElifElseConditional { ifBlock: left.ifBlock, elifBlock: left.elifBlock, elseBlock: right, index: left.index }
 
-if_conditional conditional_end => conditional { if_block: left, index: left.index }
-if_elif_conditional conditional_end => conditional { if_block: left.if_block, elif_block: left.elif_block, index: left.index }
-if_else_conditional conditional_end => conditional { if_block: left.if_block, else_block: left.else_block, index: left.index }
-if_elif_else_conditional conditional_end => conditional { if_block: left.if_block, elif_block: left.elif_block, else_block: left.else_block, index: left.index }
+ifConditional conditionalEnd => conditional { ifBlock: left, index: left.index }
+ifElifConditional conditionalEnd => conditional { ifBlock: left.ifBlock, elifBlock: left.elifBlock, index: left.index }
+ifElseConditional conditionalEnd => conditional { ifBlock: left.ifBlock, elseBlock: left.elseBlock, index: left.index }
+ifElifElseConditional conditionalEnd => conditional { ifBlock: left.ifBlock, elifBlock: left.elifBlock, elseBlock: left.elseBlock, index: left.index }
 
 // - Functions
 
-fn symbol => function_start { fn: right.raw, parameters: [], index: left.index }
-function_start symbol => function_middle { fn: left.fn, parameters: [ right.raw ], index: left.index }
-function_middle symbol => function_middle { fn: left.fn, parameters: [ ...left.parameters, right.raw ], index: left.index }
-function_middle colon => function_end { fn: left.fn, parameters: left.parameters, index: left.index }
-function_end block => function { fn: left.fn, parameters: left.parameters, body: right, index: left.index }
+fn symbol => functionStart { fn: right.raw, parameters: [], index: left.index }
+functionStart symbol => functionMiddle { fn: left.fn, parameters: [ right.raw ], index: left.index }
+functionMiddle symbol => functionMiddle { fn: left.fn, parameters: [ ...left.parameters, right.raw ], index: left.index }
+functionMiddle colon => functionEnd { fn: left.fn, parameters: left.parameters, index: left.index }
+functionEnd block => function { fn: left.fn, parameters: left.parameters, body: right, index: left.index }
 
 // - Anonymous functions
 
-symbol colon => anonymous_function_start { parameter: left.raw, index: left.index }
-anonymous_function_start block|math|number|array|hashmap|boolean|logical|range|slice => anonymous_function { parameter: left.parameter, body: right, index: left.index }
+symbol colon => anonymousFunctionStart { parameter: left.raw, index: left.index }
+anonymousFunctionStart block|math|number|array|hashmap|boolean|logical|range|slice => anonymousFunction { parameter: left.parameter, body: right, index: left.index }
 
 // - Ranges
 
-number|symbol|math|dot_notation colon => post_colon_val { value: left, index: left.index }
-colon number|symbol|math|dot_notation => pre_colon_val { value: right, index: left.index }
+number|symbol|math|dotNotation colon => postColonVal { value: left, index: left.index }
+colon number|symbol|math|dotNotation => preColonVal { value: right, index: left.index }
 
-post_colon_val post_colon_val => range_inner_step_start { start: left.value, end: right.value, index: left.index }
-colon post_colon_val => range_inner_step_start { end: right.value, index: left.index }
-range_inner_step_start number|symbol|math|dot_notation => range_inner { start: left.start, end: left.end, step: right, index: left.index }
-post_colon_val pre_colon_val => range_inner { start: left.value, step: right.value, index: left.index }
-post_colon_val number|symbol|math|dot_notation => range_inner { start: left.value, end: right, index: left.index }
-pre_colon_val pre_colon_val => range_inner { end: left.value, step: right.value, index: left.index }
-colon pre_colon_val => range_inner { step: right.value, index: left.index }
+postColonVal postColonVal => rangeInnerStepStart { start: left.value, end: right.value, index: left.index }
+colon postColonVal => rangeInnerStepStart { end: right.value, index: left.index }
+rangeInnerStepStart number|symbol|math|dotNotation => rangeInner { start: left.start, end: left.end, step: right, index: left.index }
+postColonVal preColonVal => rangeInner { start: left.value, step: right.value, index: left.index }
+postColonVal number|symbol|math|dotNotation => rangeInner { start: left.value, end: right, index: left.index }
+preColonVal preColonVal => rangeInner { end: left.value, step: right.value, index: left.index }
+colon preColonVal => rangeInner { step: right.value, index: left.index }
 
-lbra range_inner|colon => range_start { start: right.start, end: right.end, step: right.step, index: left.index }
-lbra post_colon_val => range_start { start: right.value, index: left.index }
-lbra pre_colon_val => range_start { end: right.value, index: left.index }
-range_start rbra => range { start: left.start, end: left.end, step: left.step, index: left.index }
+lbra rangeInner|colon => rangeStart { start: right.start, end: right.end, step: right.step, index: left.index }
+lbra postColonVal => rangeStart { start: right.value, index: left.index }
+lbra preColonVal => rangeStart { end: right.value, index: left.index }
+rangeStart rbra => range { start: left.start, end: left.end, step: left.step, index: left.index }
 
 // - Arrays
 
-lbra number|symbol|dot_notation|array|hashmap|boolean|logical|range|slice|string => array_start { items: [right], index: left.index }
-array_start number|symbol|dot_notation|hashmap|boolean|logical|array|range|slice|string => array_start { items: [...left.items, right], index: left.index }
-array_start rbra => array { items: [...left.items], index: left.index }
+lbra number|symbol|dotNotation|array|hashmap|boolean|logical|range|slice|string => arrayStart { items: [right], index: left.index }
+arrayStart number|symbol|dotNotation|hashmap|boolean|logical|array|range|slice|string => arrayStart { items: [...left.items, right], index: left.index }
+arrayStart rbra => array { items: [...left.items], index: left.index }
 
 // - Hashmaps
 
-hash indent => hash_indent { index: left.index }
-hash symbol => hash_key { key: right, values: [], root: true, index: left.index }
-hash_indent symbol => nested_hash_key { self: 'root', outer: { unpack: true, root: true, values: [] }, values: [], key: right, index: left.index }
-hash_key number|symbol|string|boolean => hashmap { values: [...left.values, { key: left.key, value: right } ], root: left.root, index: left.index }
-hash_key indent => nested_hash { self: left.key, outer: left, values: [], index: left.index }
-nested_hash symbol => nested_hash_key { self: left.self, outer: left.outer, values: left.values, key: right, index: left.index }
-nested_hash_key number|symbol|string|boolean => nested_hash {
+hash indent => hashIndent { index: left.index }
+hash symbol => hashKey { key: right, values: [], root: true, index: left.index }
+hashIndent symbol => nestedHashKey { self: 'root', outer: { unpack: true, root: true, values: [] }, values: [], key: right, index: left.index }
+hashKey number|symbol|string|boolean => hashmap { values: [...left.values, { key: left.key, value: right } ], root: left.root, index: left.index }
+hashKey indent => nestedHash { self: left.key, outer: left, values: [], index: left.index }
+nestedHash symbol => nestedHashKey { self: left.self, outer: left.outer, values: left.values, key: right, index: left.index }
+nestedHashKey number|symbol|string|boolean => nestedHash {
   self: left.self, outer: left.outer,
   values: [...left.values, { key: left.key, value: right }], index: left.index
 }
-nested_hash_key indent => nested_hash { self: left.key, values: [], outer: left, index: left.index }
-nested_hash dedent => nested_hash {
+nestedHashKey indent => nestedHash { self: left.key, values: [], outer: left, index: left.index }
+nestedHash dedent => nestedHash {
   values: left.outer.unpack ? left.values : [...left.outer.values, { key: left.self, values: left.values}],
-  name: left.outer.root ? "hashmap" : "nested_hash",
+  name: left.outer.root ? "hashmap" : "nestedHash",
   ...(left.outer.root ? {} : { self: left.outer.self, outer: left.outer.outer }), index: left.index
 }
-hashmap symbol => hash_key { key: right, values: left.values, root: true, index: left.index }
+hashmap symbol => hashKey { key: right, values: left.values, root: true, index: left.index }
 
 // - Decorators
 
-at symbol|dot_notation => decorator_start { fn: right, args: [], index: left.index }
-decorator_start symbol|dot_notation|number|boolean|logical|array|hashmap|range|slice|string => decorator_start { fn: left.fn, args: [...left.args, right], index: left.index }
-decorator_start decorator_end => decorator { fn: left.fn, args: left.args, index: left.index }
+at symbol|dotNotation => decoratorStart { fn: right, args: [], index: left.index }
+decoratorStart symbol|dotNotation|number|boolean|logical|array|hashmap|range|slice|string => decoratorStart { fn: left.fn, args: [...left.args, right], index: left.index }
+decoratorStart decoratorEnd => decorator { fn: left.fn, args: left.args, index: left.index }
 
 // - Decorated function
 
-decorator function|decorated_function => decorated_function { fn: right, decorator: left, index: left.index }
+decorator function|decoratedFunction => decoratedFunction { fn: right, decorator: left, index: left.index }
 
 // - @, ~ and ~~
 
-at number => at_arg { at: right, index: left.index }
+at number => atArg { at: right, index: left.index }
 
-unpack unpack => double_unpack
-double_unpack symbol|dot_notation => unpack_arg { double: true, arg: right, index: left.index }
-unpack symbol|dot_notation => unpack_arg { double: false, arg: right, index: left.index }
+unpack unpack => doubleUnpack
+doubleUnpack symbol|dotNotation => unpackArg { double: true, arg: right, index: left.index }
+unpack symbol|dotNotation => unpackArg { double: false, arg: right, index: left.index }
 
 // - Flows
 
-map anonymous_function => function_call { fn: right, args: [], map: true, index: left.index }
-pipe anonymous_function => function_call { fn: right, args: [], map: false, index: left.index }
+map anonymousFunction => functionCall { fn: right, args: [], map: true, index: left.index }
+pipe anonymousFunction => functionCall { fn: right, args: [], map: false, index: left.index }
 
-map symbol|dot_notation|method => function_call_start { fn: right, args: [], map: true, index: left.index }
-pipe symbol|dot_notation|method => function_call_start { fn: right, args: [], map: false, index: left.index }
-set symbol|dot_notation => set_var { variable: right, index: left.index }
+map symbol|dotNotation|method => functionCallStart { fn: right, args: [], map: true, index: left.index }
+pipe symbol|dotNotation|method => functionCallStart { fn: right, args: [], map: false, index: left.index }
+set symbol|dotNotation => setVar { variable: right, index: left.index }
 
-function_call_start symbol|dot_notation|number|boolean|logical|array|hashmap|range|slice|string|unpack_arg|at_arg => function_call_start { fn: left.fn, args: [ ...left.args, right ], index: left.index, map: left.map }
-function_call_start flow_end => function_call { fn: left.fn, args: left.args, index: left.index, map: left.map }
+functionCallStart symbol|dotNotation|number|boolean|logical|array|hashmap|range|slice|string|unpackArg|atArg => functionCallStart { fn: left.fn, args: [ ...left.args, right ], index: left.index, map: left.map }
+functionCallStart flowEnd => functionCall { fn: left.fn, args: left.args, index: left.index, map: left.map }
 
-number|boolean|logical|array|hashmap|range|slice|math|string|symbol|dot_notation function_call|set_var => flow { data: left, calls: [right], index: left.index }
-flow function_call|set_var => flow { data: left.data, calls: [...left.calls, right], index: left.index}
+number|boolean|logical|array|hashmap|range|slice|math|string|symbol|dotNotation functionCall|setVar => flow { data: left, calls: [right], index: left.index }
+flow functionCall|setVar => flow { data: left.data, calls: [...left.calls, right], index: left.index}
 
 // - Blocks
 
-indent math|number|array|hashmap|boolean|logical|range|slice|symbol|dot_notation|function|flow|conditional => block_start { body: [ right ], index: left.index }
-block_start math|number|array|hashmap|boolean|logical|range|slice|symbol|dot_notation|function|flow|conditional => block_start { body: [ ...left.body, right ], index: left.index }
+indent math|number|array|hashmap|boolean|logical|range|slice|symbol|dotNotation|function|flow|conditional => blockStart { body: [ right ], index: left.index }
+blockStart math|number|array|hashmap|boolean|logical|range|slice|symbol|dotNotation|function|flow|conditional => blockStart { body: [ ...left.body, right ], index: left.index }
 
-block_start dedent => block { body: left.body, index: left.index }
+blockStart dedent => block { body: left.body, index: left.index }
 
 // - Program
 
-flow|function|decorated_function|conditional clio => clio { body: [left, ...right.body], index: left.index }
-flow|function|decorated_function|conditional eof => clio { body: [left], index: left.index }
+flow|function|decoratedFunction|conditional clio => clio { body: [left, ...right.body], index: left.index }
+flow|function|decoratedFunction|conditional eof => clio { body: [left], index: left.index }
 
-import_from_statement|import_as_statement|import_statement clio => clio { body: [left, ...right.body], index: left.index }
-import_from_statement|import_as_statement|import_statement eof => clio { body: [left], index: left.index }
+importFromStatement|importAsStatement|importStatement clio => clio { body: [left, ...right.body], index: left.index }
+importFromStatement|importAsStatement|importStatement eof => clio { body: [left], index: left.index }
 
-import_from_as_statement|import_all_statement clio => clio { body: [left, ...right.body], index: left.index }
-import_from_as_statement|import_all_statement eof => clio { body: [left], index: left.index }
+importFromAsStatement|importAllStatement clio => clio { body: [left, ...right.body], index: left.index }
+importFromAsStatement|importAllStatement eof => clio { body: [left], index: left.index }
