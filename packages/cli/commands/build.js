@@ -161,20 +161,19 @@ const build = async (
     // Init npm modules
     try {
       const packageJsonPath = path.join(destination, "package.json");
-      if (!fs.existsSync(packageJsonPath)) {
-        const dependencies = getParsedNpmDependencies(source);
-        dependencies["clio-internals"] = "latest";
-        const packageJsonContent = {
-          dependencies,
-          main: "main.clio.js"
-        };
-        fs.writeFileSync(
-          packageJsonPath,
-          JSON.stringify(packageJsonContent, null, 2)
-        );
-      }
+      const dependencies = getParsedNpmDependencies(source);
+      dependencies["clio-internals"] = "latest";
+      const packageJsonContent = {
+        dependencies,
+        main: "main.clio.js"
+      };
+      fs.writeFileSync(
+        packageJsonPath,
+        JSON.stringify(packageJsonContent, null, 2),
+        { flag: "w" }
+      );
 
-      if (!skipNpmInstall && !hasInstalledNpmDependencies(destination)) {
+      if (!skipNpmInstall) {
         progress.start(
           "Installing npm dependencies (this may take a while)..."
         );
