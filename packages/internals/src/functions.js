@@ -13,7 +13,7 @@ const getArity = fn => {
   const params = tryOr(() => getParameters(fn), []);
   const last = params.pop();
   if (last && last.type == "RestElement") return Infinity;
-  return Math.max(fn.length, params.length + last ? 1 : 0);
+  return Math.max(fn.length, params.length + (last ? 1 : 0));
 };
 
 class ExtensibleFunction extends Function {
