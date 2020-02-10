@@ -1,58 +1,71 @@
-class Fn {
-  constructor(fn, outerScope, type, arity, args = [], curried = true) {
+const tryOr = (fn, or) => {
+  try {
+    return fn();
+  } catch {
+    return or;
+  }
+};
+
+const getParameters = fn =>
+  acorn.parse(fn.toString()).body[0].expression.params;
+
+const getArity = fn => {
+  const params = tryOr(() => getParameters(fn), []);
+  const last = params.pop();
+  if (last && last.type == "RestElement") return Infinity;
+  return Math.max(fn.length, params.length + last ? 1 : 0);
+};
+
+class ExtensibleFunction extends Function {
+  constructor(fn) {
+    return Object.setPrototypeOf(fn, new.target.prototype);
+  }
+}
+
+class Fn extends ExtensibleFunction {
+  constructor(fn, outerScope, type, options = {}) {
+    const { arity, args = [], curried = true, scoped = true } = options;
+    const wrapped = (...args) => {
+      const newArgs = [...this.args, ...args];
+      if (this.curried && newArgs.length < this.arity - scoped ? 1 : 0)
+        return new Fn(this.fn, this.outerScope, this.type, {
+          arity: this.arity,
+          args: newArgs,
+          scoped: this.scoped
+        });
+      if (this.scoped) newArgs.unshift(new Scope({}, this.outerScope));
+      const result = new this.type(() => this.fn(...newArgs));
+      return result instanceof IO ? result.valueOf() : result;
+    };
+    super(wrapped);
     this.id = uuidv4();
     this.fn = fn;
     this.outerScope = outerScope;
     this.type = type;
     this.isLazy = type == Lazy;
-    this.arity = arity || fn.length - 1;
+    this.arity = arity || getArity(fn);
     this.args = args;
     this.curried = curried;
-  }
-  call(...args) {
-    const newArgs = [...this.args, ...args];
-    if (this.curried && newArgs.length < this.arity) {
-      return new Fn(this.fn, this.outerScope, this.type, this.arity, newArgs);
-    }
-    const scope = new Scope({}, this.outerScope);
-    const result = new this.type(() => this.fn(scope, ...newArgs));
-    if (result instanceof IO) {
-      return result.valueOf();
-    }
-    return result;
+    this.scoped = scoped;
+    this.isClioFn = true;
   }
   unCurry() {
-    return new Fn(
-      this.fn,
-      this.outerScope,
-      this.type,
-      this.arity,
-      this.args,
-      false
-    );
+    return new Fn(this.fn, this.outerScope, this.type, {
+      arity: this.arity,
+      args: this.args,
+      curried: false,
+      scoped: this.scoped
+    });
   }
 }
 
-class JSFn {
-  constructor(fn) {
-    this.fn = fn instanceof Curry ? fn : new Curry(fn);
-  }
-  call(...args) {
-    const result = this.fn(...args);
-    return result instanceof Curry ? new JSFn(result) : result;
-  }
-}
-
-const fn = (fn, outerScope) => new Fn(fn, outerScope);
-const jsfn = fn => new JSFn(fn);
+const fn = (...args) => new Fn(...args);
 
 module.exports.fn = fn;
 module.exports.Fn = Fn;
-module.exports.jsfn = jsfn;
-module.exports.JSFn = JSFn;
 
 const uuidv4 = require("./uuidv4");
 const { Scope } = require("./scope");
 const { IO } = require("./io");
 const { Lazy } = require("./lazy");
-const { Curry } = require("jscurry");
+const acorn = require("acorn");

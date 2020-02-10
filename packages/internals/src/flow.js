@@ -5,16 +5,16 @@ class Flow {
   }
   pipe(fn, ...args) {
     if (fn instanceof Method) fn = fn.get(this.data);
-    if (typeof fn == "function") fn = new JSFn(fn);
-    const data = fn.call(this.data, ...args);
+    if (!fn.isClioFn) fn = new Fn(fn, null, IO, { scoped: false });
+    const data = fn(this.data, ...args);
     return new Flow(this.scope, data);
   }
   map(fn, ...args) {
     const map = fn.isLazy ? this.data.lazyMap : this.data.map;
     const data = map.call(this.data, item => {
       let fun = fn instanceof Method ? fn.get(this.data) : fn;
-      if (typeof fun == "function") fun = new JSFn(fun);
-      return fun.call(item, ...args);
+      if (!fun.isClioFn) fun = new Fn(fun, null, IO, { scoped: false });
+      return fun(item, ...args);
     });
     return new Flow(this.scope, data);
   }
@@ -38,4 +38,5 @@ module.exports.flow = flow;
 module.exports.Flow = Flow;
 
 const { Method } = require("./method");
-const { JSFn } = require("./functions");
+const { Fn } = require("./functions");
+const { IO } = require("./io");
