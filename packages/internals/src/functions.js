@@ -1,7 +1,7 @@
 const tryOr = (fn, or) => {
   try {
     return fn();
-  } catch {
+  } catch (error) {
     return or;
   }
 };
