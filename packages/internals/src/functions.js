@@ -1,28 +1,3 @@
-const tryOr = (fn, or) => {
-  try {
-    return fn();
-  } catch (error) {
-    return or;
-  }
-};
-
-const getParameters = fn => {
-  const { body } = acorn.parse(fn.toString());
-  if (body[0].type == "ExpressionStatement") {
-    return body[0].expression.params;
-  } else if (body[0].type == "FunctionDeclaration") {
-    return body[0].params;
-  }
-  throw "Function has an unknown body";
-};
-
-const getArity = fn => {
-  const params = tryOr(() => getParameters(fn), []);
-  const last = params.pop();
-  if (last && last.type == "RestElement") return Infinity;
-  return Math.max(fn.length, params.length + (last ? 1 : 0));
-};
-
 class ExtensibleFunction extends Function {
   constructor(fn) {
     super();
@@ -71,11 +46,10 @@ const fn = (...args) => new Fn(...args);
 
 module.exports.fn = fn;
 module.exports.Fn = Fn;
-module.exports.getArity = getArity;
 module.exports.ExtensibleFunction = ExtensibleFunction;
 
 const uuidv4 = require("./uuidv4");
 const { Scope } = require("./scope");
 const { IO } = require("./io");
 const { Lazy } = require("./lazy");
-const acorn = require("acorn");
+const { getArity } = require("./arity");

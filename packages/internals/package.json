@@ -8,7 +8,5 @@
   },
   "author": "Andrey Luiz <andreyluiz.developer@gmail.com>",
   "license": "Apache-2.0",
-  "dependencies": {
-    "acorn": "^7.1.0"
-  }
+  "dependencies": {}
 }
