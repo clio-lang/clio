@@ -15,6 +15,13 @@ test("Test getArity", () => {
   expect(arity).toBe(3);
 });
 
+test("Test getArity with function declaration", () => {
+  const arity = getArity(function myFunction(a, b, c) {
+    return a + b + c;
+  });
+  expect(arity).toBe(3);
+});
+
 test("Test getArity on fat arrow functions", () => {
   const arity = getArity((a, b, c) => a + b + c);
   expect(arity).toBe(3);
