@@ -2,19 +2,19 @@ const { Fn } = require("./functions");
 const { IO } = require("./io");
 const { Lazy } = require("./lazy");
 
-const wrapLazy = fn => new Fn((scope, ...args) => fn(...args), null, Lazy);
-const wrapIO = fn => new Fn((scope, ...args) => fn(...args), null, IO);
+const wrapLazy = fn => new Fn(fn, null, Lazy);
+const wrapIO = fn => new Fn(fn, null, IO);
 
-const add = wrapLazy((a, b) => a.valueOf() + b.valueOf());
-const sub = wrapLazy((a, b) => a.valueOf() - b.valueOf());
-const mul = wrapLazy((a, b) => a.valueOf() * b.valueOf());
-const div = wrapLazy((a, b) => a.valueOf() / b.valueOf());
+const add = wrapLazy((scope, a, b) => a.valueOf() + b.valueOf());
+const sub = wrapLazy((scope, a, b) => a.valueOf() - b.valueOf());
+const mul = wrapLazy((scope, a, b) => a.valueOf() * b.valueOf());
+const div = wrapLazy((scope, a, b) => a.valueOf() / b.valueOf());
 
-const pow = wrapLazy((a, b) => Math.pow(a.valueOf(), b.valueOf()));
+const pow = wrapLazy((scope, a, b) => Math.pow(a.valueOf(), b.valueOf()));
 
-const print = wrapIO((...args) =>
+const print = wrapIO((scope, ...args) =>
   console.log(...args.map(arg => arg.valueOf()))
-);
+).unCurry();
 
 module.exports = {
   add,
