@@ -37,8 +37,8 @@ const getArity = fn => {
   paramText = paramText.replace(/^[^(]*?\(/, "").replace(/\) *$/, "");
   paramText = paramText.replace(/(['"])([^\\]|\\.)*?\1/g, "");
   while (paramText != (paramText = paramText.replace(/\[[^\[\]]+\]/g, "")));
-  while (paramText != (paramText = paramText.replace(/\([^())]+\)/g, "")));
-  while (paramText != (paramText = paramText.replace(/{[^{}}]+}/g, "")));
+  while (paramText != (paramText = paramText.replace(/\([^()]+\)/g, "")));
+  while (paramText != (paramText = paramText.replace(/{[^{}]+}/g, "")));
   paramText = paramText.replace(/[^,.]/gi, "");
   if (paramText.includes("...")) return Infinity;
   return paramText.length + 1;
