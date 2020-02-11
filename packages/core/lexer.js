@@ -112,7 +112,7 @@ const insertSlicers = tokens => {
 };
 
 const pipes = ["map", "pipe"];
-const flowEnd = { name: "flow_end", raw: "flow_end" };
+const flowEnd = { name: "flowEnd", raw: "flowEnd" };
 const flowEnders = ["newline", "set"];
 
 const insertFlowEnds = tokens => {
@@ -134,7 +134,7 @@ const insertFlowEnds = tokens => {
   return result;
 };
 
-const decoratorEnd = { name: "decorator_end", raw: "decorator_end" };
+const decoratorEnd = { name: "decoratorEnd", raw: "decoratorEnd" };
 
 const insertDecoratorEnds = tokens => {
   const result = [tokens[0]];
@@ -183,7 +183,7 @@ const insertConditionalEnds = tokens => {
       !["else", "elif"].includes(nextNonWhite(index, tokens))
     ) {
       inConditional.pop();
-      result.push({ name: "conditional_end", index: token.index });
+      result.push({ name: "conditionalEnd", index: token.index });
     }
   }
   return result;
