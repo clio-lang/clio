@@ -1,3 +1,13 @@
+// - Aliases
+
+alias numeric number|math
+alias symbolic symbol|dotNotation
+alias arithmatic numeric|symbolic
+alias slicables range|array|symbolic|slice
+alias lists range|hashmap|array|slice
+alias logic boolean|logical
+alias expression symbolic|numeric|lists|logic|string
+
 // - dot notation
 
 symbol|slice dot => symbolDot { parts: [left], index: left.index }
@@ -12,22 +22,22 @@ slice method => dotNotation { parts: [left, ...right.parts], index: left.index }
 // - Mathematics
 
 // -- pow
-number|math|symbol|dotNotation pow => powStart { lhs: left, op: right.raw, index: left.index }
-powStart number|math|symbol|dotNotation => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+arithmatic pow => powStart { lhs: left, op: right.raw, index: left.index }
+powStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
 
 // -- mul, div
-number|math|symbol|dotNotation mul => mulStart { lhs: left, op: right.raw, index: left.index }
-mulStart number|math|symbol|dotNotation => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+arithmatic mul => mulStart { lhs: left, op: right.raw, index: left.index }
+mulStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
 
-number|math|symbol|dotNotation div => divStart { lhs: left, op: right.raw, index: left.index }
-divStart number|math|symbol|dotNotation => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+arithmatic div => divStart { lhs: left, op: right.raw, index: left.index }
+divStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
 
 // -- add, sub
-number|math|symbol|dotNotation add => addStart { lhs: left, op: right.raw, index: left.index }
-addStart number|math|symbol|dotNotation => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+arithmatic add => addStart { lhs: left, op: right.raw, index: left.index }
+addStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
 
-number|math|symbol|dotNotation sub => subStart { lhs: left, op: right.raw, index: left.index }
-subStart number|math|symbol|dotNotation => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+arithmatic sub => subStart { lhs: left, op: right.raw, index: left.index }
+subStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
 
 // - as!
 
@@ -36,7 +46,7 @@ symbolAs symbol => asExpr { src: left.src, dest: right.raw }
 
 // - Slice
 
-array|range|slice|symbol|dotNotation slicer => sliceStart { slicee: left, index: left.index }
+slicables slicer => sliceStart { slicee: left, index: left.index }
 sliceStart array|range|slice => slice { slicee: left.slicee, slicer: right, index: left.index }
 
 // - Imports
@@ -124,8 +134,8 @@ rangeStart rbra => range { start: left.start, end: left.end, step: left.step, in
 
 // - Arrays
 
-lbra number|symbol|dotNotation|array|hashmap|boolean|logical|range|slice|string => arrayStart { items: [right], index: left.index }
-arrayStart number|symbol|dotNotation|hashmap|boolean|logical|array|range|slice|string => arrayStart { items: [...left.items, right], index: left.index }
+lbra expression => arrayStart { items: [right], index: left.index }
+arrayStart expression => arrayStart { items: [...left.items, right], index: left.index }
 arrayStart rbra => array { items: [...left.items], index: left.index }
 
 // - Hashmaps
@@ -133,10 +143,10 @@ arrayStart rbra => array { items: [...left.items], index: left.index }
 hash indent => hashIndent { index: left.index }
 hash symbol => hashKey { key: right, values: [], root: true, index: left.index }
 hashIndent symbol => nestedHashKey { self: 'root', outer: { unpack: true, root: true, values: [] }, values: [], key: right, index: left.index }
-hashKey number|symbol|string|boolean => hashmap { values: [...left.values, { key: left.key, value: right } ], root: left.root, index: left.index }
+hashKey expression => hashmap { values: [...left.values, { key: left.key, value: right } ], root: left.root, index: left.index }
 hashKey indent => nestedHash { self: left.key, outer: left, values: [], index: left.index }
 nestedHash symbol => nestedHashKey { self: left.self, outer: left.outer, values: left.values, key: right, index: left.index }
-nestedHashKey number|symbol|string|boolean => nestedHash {
+nestedHashKey expression => nestedHash {
   self: left.self, outer: left.outer,
   values: [...left.values, { key: left.key, value: right }], index: left.index
 }
@@ -151,7 +161,7 @@ hashmap symbol => hashKey { key: right, values: left.values, root: true, index: 
 // - Decorators
 
 at symbol|dotNotation => decoratorStart { fn: right, args: [], index: left.index }
-decoratorStart symbol|dotNotation|number|boolean|logical|array|hashmap|range|slice|string => decoratorStart { fn: left.fn, args: [...left.args, right], index: left.index }
+decoratorStart expression => decoratorStart { fn: left.fn, args: [...left.args, right], index: left.index }
 decoratorStart decoratorEnd => decorator { fn: left.fn, args: left.args, index: left.index }
 
 // - Decorated function
@@ -175,10 +185,10 @@ map symbol|dotNotation|method => functionCallStart { fn: right, args: [], map: t
 pipe symbol|dotNotation|method => functionCallStart { fn: right, args: [], map: false, index: left.index }
 set symbol|dotNotation => setVar { variable: right, index: left.index }
 
-functionCallStart symbol|dotNotation|number|boolean|logical|array|hashmap|range|slice|string|unpackArg|atArg => functionCallStart { fn: left.fn, args: [ ...left.args, right ], index: left.index, map: left.map }
+functionCallStart expression|unpackArg|atArg => functionCallStart { fn: left.fn, args: [ ...left.args, right ], index: left.index, map: left.map }
 functionCallStart flowEnd => functionCall { fn: left.fn, args: left.args, index: left.index, map: left.map }
 
-number|boolean|logical|array|hashmap|range|slice|math|string|symbol|dotNotation functionCall|setVar => flow { data: left, calls: [right], index: left.index }
+expression functionCall|setVar => flow { data: left, calls: [right], index: left.index }
 flow functionCall|setVar => flow { data: left.data, calls: [...left.calls, right], index: left.index}
 
 // - Blocks

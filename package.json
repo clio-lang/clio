@@ -39,7 +39,8 @@
   },
   "dependencies": {
     "@iarna/toml": "^2.2.3",
-    "bean-parser": "^1.0.8",
+    "bean-parser": "^1.0.9",
+    "acorn": "^7.1.0",
     "chalk": "3.0.0",
     "decompress": "4.2.0",
     "node-fetch": "2.6.0",
