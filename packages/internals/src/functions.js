@@ -71,6 +71,8 @@ const fn = (...args) => new Fn(...args);
 
 module.exports.fn = fn;
 module.exports.Fn = Fn;
+module.exports.getArity = getArity;
+module.exports.ExtensibleFunction = ExtensibleFunction;
 
 const uuidv4 = require("./uuidv4");
 const { Scope } = require("./scope");
