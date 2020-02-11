@@ -3,7 +3,11 @@ const path = require("path");
 const tmp = require("tmp");
 const { build, _new } = require("../");
 const { copyDir } = require("../build");
-const { CONFIGFILE_NAME } = require("clio-manifest");
+const {
+  CONFIGFILE_NAME,
+  getPackageConfig,
+  writePackageConfig
+} = require("clio-manifest");
 
 jest.mock("clio-manifest/npm_dependencies");
 
@@ -34,7 +38,7 @@ describe("Package.json generation", () => {
     dir.removeCallback();
   });
 
-  test("Build skips generation of package.json when already defined", async () => {
+  test("Overrides package.json if new dependency is added", async () => {
     const dir = tmp.dirSync();
     await _new(dir.name, "node");
     await build(dir.name, null, {
@@ -43,11 +47,33 @@ describe("Package.json generation", () => {
       silent: true
     });
 
-    const file = fs.readFileSync(
+    let file = fs.readFileSync(
       path.join(dir.name, "build", "node", "package.json")
     );
-    const pkgJsonObj = JSON.parse(file.toString());
+    let pkgJsonObj = JSON.parse(file.toString());
     expect(pkgJsonObj.dependencies).toBeDefined();
+
+    const oldConfig = getPackageConfig(path.join(dir.name, "clio.toml"));
+    const newConfig = {
+      ...oldConfig,
+      // eslint-disable-next-line camelcase
+      npm_dependencies: { ...oldConfig.npm_dependencies, express: "latest" }
+    };
+
+    writePackageConfig(newConfig, dir.name);
+
+    await build(dir.name, null, {
+      skipNpmInstall: true,
+      skipBundle: true,
+      silent: true
+    });
+
+    file = fs.readFileSync(
+      path.join(dir.name, "build", "node", "package.json")
+    );
+    pkgJsonObj = JSON.parse(file.toString());
+    expect(pkgJsonObj.dependencies.express).toBeDefined();
+
     dir.removeCallback();
   });
 
