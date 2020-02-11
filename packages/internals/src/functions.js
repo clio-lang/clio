@@ -6,8 +6,15 @@ const tryOr = (fn, or) => {
   }
 };
 
-const getParameters = fn =>
-  acorn.parse(fn.toString()).body[0].expression.params;
+const getParameters = fn => {
+  const { body } = acorn.parse(fn.toString());
+  if (body[0].type == "ExpressionStatement") {
+    return body[0].expression.params;
+  } else if (body[0].type == "FunctionDeclaration") {
+    return body[0].params;
+  }
+  throw "Function has an unknown body";
+};
 
 const getArity = fn => {
   const params = tryOr(() => getParameters(fn), []);
