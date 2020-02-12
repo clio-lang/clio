@@ -5,14 +5,15 @@ class Array {
   valueOf() {
     return this.items.map(item => item.valueOf());
   }
-  map(...args) {
-    const items = this.items
-      .map(...args)
-      .map(item => (item instanceof IO ? item.valueOf() : item));
-    return new Array(...items);
+  map(fn) {
+    return this.lazyMap(fn).toArray();
   }
   lazyMap(fn) {
-    return new LazyMap({ getter: this.get, length: this.length, fn });
+    return new LazyMap({
+      getter: i => this.get(i),
+      length: this.length,
+      fn
+    });
   }
   get(index) {
     return this.items[index];
