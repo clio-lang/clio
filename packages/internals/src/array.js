@@ -70,6 +70,5 @@ class Array {
 
 module.exports.Array = Array;
 
-const { IO } = require("./io");
 const { LazyMap } = require("./lazyMap");
 const { Range } = require("./range");
