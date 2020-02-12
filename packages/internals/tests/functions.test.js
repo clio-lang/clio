@@ -39,22 +39,30 @@ test("Test getArity with rest operator", () => {
 });
 
 test("Test getArity with deconstructing parameters", () => {
-  const arity = getArity((a, { x, y, z }, c = [1, 2, 3]) => {});
+  const arity = getArity((a, { x, y, z }, c = [1, 2, 3]) => {
+    return [a + x + y + z, ...c];
+  });
   expect(arity).toBe(3);
 });
 
 test("Test getArity with array and object as default values", () => {
-  const arity = getArity((a, c = [1, 2, 3], i = { x, y, z }) => {});
+  const arity = getArity((a, c = [1, 2, 3], i = { x, y, z }) => {
+    return [a + x + y + z, i, ...c];
+  });
   expect(arity).toBe(3);
 });
 
 test("Test getArity with string and parentheses default values", () => {
-  const arity = getArity((a, c = ",", b = 2 && (3 || 4)) => {});
+  const arity = getArity((a, c = ",", b = 2 && (3 || 4)) => {
+    return [a, c, b];
+  });
   expect(arity).toBe(3);
 });
 
 test("Test getArity with parentheses default value", () => {
-  const arity = getArity(function(a, b = 2 && (3 || 4)) {});
+  const arity = getArity(function(a, b = 2 && (3 || 4)) {
+    return [a, b];
+  });
   expect(arity).toBe(2);
 });
 
