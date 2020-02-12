@@ -10,15 +10,10 @@ class Fn extends ExtensibleFunction {
     const { arity, args = [], curried = true, scoped = true } = options;
     const wrapped = (...args) => {
       const newArgs = [...this.args, ...args];
-      if (this.curried && newArgs.length < this.arity - scoped ? 1 : 0)
-        return new Fn(this.fn, this.outerScope, this.type, {
-          arity: this.arity,
-          args: newArgs,
-          scoped: this.scoped
-        });
-      if (this.scoped) newArgs.unshift(new Scope({}, this.outerScope));
-      const result = new this.type(() => this.fn(...newArgs));
-      return result instanceof IO ? result.valueOf() : result;
+      const paramLength = this.arity - (scoped ? 1 : 0);
+      const hasEnoughArgs = newArgs.length >= paramLength;
+      const shouldRun = !args.length || !this.curried || hasEnoughArgs;
+      return shouldRun ? this.runWithArgs(newArgs) : this.withArgs(newArgs);
     };
     super(wrapped);
     this.id = uuidv4();
@@ -32,13 +27,19 @@ class Fn extends ExtensibleFunction {
     this.scoped = scoped;
     this.isClioFn = true;
   }
+  withArgs(args) {
+    const { fn, outerScope, type, arity, scoped } = this;
+    return new Fn(fn, outerScope, type, { arity, args, scoped });
+  }
+  runWithArgs(args) {
+    if (this.scoped) args.unshift(new Scope({}, this.outerScope));
+    const typed = new this.type(() => this.fn(...args));
+    return typed.asResult();
+  }
   unCurry() {
-    return new Fn(this.fn, this.outerScope, this.type, {
-      arity: this.arity,
-      args: this.args,
-      curried: false,
-      scoped: this.scoped
-    });
+    const { fn, outerScope, type, arity, scoped, args } = this;
+    const curried = false;
+    return new Fn(fn, outerScope, type, { arity, args, curried, scoped });
   }
 }
 
@@ -50,6 +51,5 @@ module.exports.ExtensibleFunction = ExtensibleFunction;
 
 const uuidv4 = require("./uuidv4");
 const { Scope } = require("./scope");
-const { IO } = require("./io");
 const { Lazy } = require("./lazy");
 const { getArity } = require("./arity");
