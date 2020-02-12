@@ -9,6 +9,9 @@ class IO {
     }
     return result;
   }
+  asResult() {
+    return this.valueOf();
+  }
 }
 
 const io = fn => new IO(fn);

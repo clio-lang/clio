@@ -1,28 +1,3 @@
-const tryOr = (fn, or) => {
-  try {
-    return fn();
-  } catch (error) {
-    return or;
-  }
-};
-
-const getParameters = fn => {
-  const { body } = acorn.parse(fn.toString());
-  if (body[0].type == "ExpressionStatement") {
-    return body[0].expression.params;
-  } else if (body[0].type == "FunctionDeclaration") {
-    return body[0].params;
-  }
-  throw "Function has an unknown body";
-};
-
-const getArity = fn => {
-  const params = tryOr(() => getParameters(fn), []);
-  const last = params.pop();
-  if (last && last.type == "RestElement") return Infinity;
-  return Math.max(fn.length, params.length + (last ? 1 : 0));
-};
-
 class ExtensibleFunction extends Function {
   constructor(fn) {
     super();
@@ -35,15 +10,10 @@ class Fn extends ExtensibleFunction {
     const { arity, args = [], curried = true, scoped = true } = options;
     const wrapped = (...args) => {
       const newArgs = [...this.args, ...args];
-      if (this.curried && newArgs.length < this.arity - scoped ? 1 : 0)
-        return new Fn(this.fn, this.outerScope, this.type, {
-          arity: this.arity,
-          args: newArgs,
-          scoped: this.scoped
-        });
-      if (this.scoped) newArgs.unshift(new Scope({}, this.outerScope));
-      const result = new this.type(() => this.fn(...newArgs));
-      return result instanceof IO ? result.valueOf() : result;
+      const paramLength = this.arity - (scoped ? 1 : 0);
+      const hasEnoughArgs = newArgs.length >= paramLength;
+      const shouldRun = !args.length || !this.curried || hasEnoughArgs;
+      return shouldRun ? this.runWithArgs(newArgs) : this.withArgs(newArgs);
     };
     super(wrapped);
     this.id = uuidv4();
@@ -57,13 +27,19 @@ class Fn extends ExtensibleFunction {
     this.scoped = scoped;
     this.isClioFn = true;
   }
+  withArgs(args) {
+    const { fn, outerScope, type, arity, scoped } = this;
+    return new Fn(fn, outerScope, type, { arity, args, scoped });
+  }
+  runWithArgs(args) {
+    if (this.scoped) args.unshift(new Scope({}, this.outerScope));
+    const typed = new this.type(() => this.fn(...args));
+    return typed.asResult();
+  }
   unCurry() {
-    return new Fn(this.fn, this.outerScope, this.type, {
-      arity: this.arity,
-      args: this.args,
-      curried: false,
-      scoped: this.scoped
-    });
+    const { fn, outerScope, type, arity, scoped, args } = this;
+    const curried = false;
+    return new Fn(fn, outerScope, type, { arity, args, curried, scoped });
   }
 }
 
@@ -71,11 +47,9 @@ const fn = (...args) => new Fn(...args);
 
 module.exports.fn = fn;
 module.exports.Fn = Fn;
-module.exports.getArity = getArity;
 module.exports.ExtensibleFunction = ExtensibleFunction;
 
 const uuidv4 = require("./uuidv4");
 const { Scope } = require("./scope");
-const { IO } = require("./io");
 const { Lazy } = require("./lazy");
-const acorn = require("acorn");
+const { getArity } = require("./arity");

@@ -12,6 +12,9 @@ class Lazy {
     }
     return result;
   }
+  asResult() {
+    return this;
+  }
 }
 
 const lazy = fn => new Lazy(fn);
