@@ -46,8 +46,8 @@ symbolAs symbol => asExpr { src: left.src, dest: right.raw }
 
 // - Slice
 
-slicables slicer => sliceStart { slicee: left, index: left.index }
-sliceStart array|range|slice => slice { slicee: left.slicee, slicer: right, index: left.index }
+slicer array|range => sliceDef { slicer: right, index: left.index }
+slicables sliceDef => slice { slicee: left, slicer: right.slicer, index: left.index }
 
 // - Imports
 
