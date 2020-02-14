@@ -39,8 +39,15 @@ Now you need to link the `clio` executable:
 
 `npm run link`
 
-If you are planning to make changes to the local clio installation, you will need to specify its location in the `CLIOPATH` environment variable. This ensures, that local clio packages will be used when building a project. Add this line to your `.bashrc` file:
+If you are planning to make changes to the local clio installation, you will need to specify its location in the `CLIOPATH` environment variable. This ensures, that local clio packages will be used when building a project. 
+
+### Setting CLIOPATH on MacOS/Linux
+Add this line to your `.bashrc` file:
 
 ```
 export CLIOPATH=<path-to-clio-installation>
 ```
+
+### Setting CLIOPATH on Windows
+
+TBD
