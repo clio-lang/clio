@@ -44,6 +44,7 @@
     "decompress": "4.2.0",
     "node-fetch": "2.6.0",
     "prettier": "^1.19.1",
+    "source-map": "^0.7.3",
     "tmp": "0.1.0",
     "treeify": "1.1.0",
     "yargs": "15.0.2"

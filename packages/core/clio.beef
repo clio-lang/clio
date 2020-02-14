@@ -10,201 +10,201 @@ alias expression symbolic|numeric|lists|logic|string
 
 // - dot notation
 
-symbol|slice dot => symbolDot { parts: [left], index: left.index }
-symbolDot symbol => dotNotation { parts: [ ...left.parts, right ], index: left.index }
-symbolDot dotNotation => dotNotation { parts: [ ...left.parts, ...right.parts ], index: left.index }
+symbol|slice dot => symbolDot { parts: [left], location: left.location }
+symbolDot symbol => dotNotation { parts: [ ...left.parts, right ], location: left.location }
+symbolDot dotNotation => dotNotation { parts: [ ...left.parts, ...right.parts ], location: left.location }
 
-dot dotNotation => method { parts: right.parts, index: left.index }
-dot symbol => method { parts: [ right ], index: left.index }
+dot dotNotation => method { parts: right.parts, location: left.location }
+dot symbol => method { parts: [ right ], location: left.location }
 
-slice method => dotNotation { parts: [left, ...right.parts], index: left.index }
+slice method => dotNotation { parts: [left, ...right.parts], location: left.location }
 
 // - Mathematics
 
 // -- pow
-arithmatic pow => powStart { lhs: left, op: right.raw, index: left.index }
-powStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+arithmatic pow => powStart { lhs: left, op: right.raw, location: left.location }
+powStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, location: left.location }
 
 // -- mul, div
-arithmatic mul => mulStart { lhs: left, op: right.raw, index: left.index }
-mulStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+arithmatic mul => mulStart { lhs: left, op: right.raw, location: left.location }
+mulStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, location: left.location }
 
-arithmatic div => divStart { lhs: left, op: right.raw, index: left.index }
-divStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+arithmatic div => divStart { lhs: left, op: right.raw, location: left.location }
+divStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, location: left.location }
 
 // -- add, sub
-arithmatic add => addStart { lhs: left, op: right.raw, index: left.index }
-addStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+arithmatic add => addStart { lhs: left, op: right.raw, location: left.location }
+addStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, location: left.location }
 
-arithmatic sub => subStart { lhs: left, op: right.raw, index: left.index }
-subStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, index: left.index }
+arithmatic sub => subStart { lhs: left, op: right.raw, location: left.location }
+subStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, location: left.location }
 
 // - as!
 
-symbol as => symbolAs { src: left.raw, index: left.index }
-symbolAs symbol => asExpr { src: left.src, dest: right.raw }
+symbol as => symbolAs { src: left.raw, location: left.location }
+symbolAs symbol => asExpr { src: left.src, dest: right.raw, location: left.location }
 
 // - Slice
 
-slicer array|range => sliceDef { slicer: right, index: left.index }
-slicables sliceDef => slice { slicee: left, slicer: right.slicer, index: left.index }
+slicer array|range => sliceDef { slicer: right, location: left.location }
+slicables sliceDef => slice { slicee: left, slicer: right.slicer, location: left.location }
 
 // - Imports
 
-import symbol|string => importStatement { path: right, index: left.index }
-import asExpr => importAs { names: [ right ], index: left.index }
-import mul => importAll { index: left.index }
+import symbol|string => importStatement { path: right, location: left.location }
+import asExpr => importAs { names: [ right ], location: left.location }
+import mul => importAll { location: left.location }
 
-importStatement from => importFromStart { names: [left.path], index: left.index }
-importAs from => importFromAsStart { names: left.names, index: left.index }
-importAll from => importAllStart { index: left.index }
+importStatement from => importFromStart { names: [left.path], location: left.location }
+importAs from => importFromAsStart { names: left.names, location: left.location }
+importAll from => importAllStart { location: left.location }
 
-importFromStart symbol|string => importFromStatement { names: left.names, path: right, index: left.index }
-importAllStart symbol|string => importAllStatement { names: left.names, path: right, index: left.index }
-importFromAsStart symbol|string => importFromAsStatement { names: left.names, path: right, index: left.index }
+importFromStart symbol|string => importFromStatement { names: left.names, path: right, location: left.location }
+importAllStart symbol|string => importAllStatement { names: left.names, path: right, location: left.location }
+importFromAsStart symbol|string => importFromAsStatement { names: left.names, path: right, location: left.location }
 
-importStatement as => importStatementAs { path: left.path, index: left.index }
-importStatementAs symbol => importAsStatement { path: left.path, importAs: right.raw, index: left.index }
+importStatement as => importStatementAs { path: left.path, location: left.location }
+importStatementAs symbol => importAsStatement { path: left.path, importAs: right.raw, location: left.location }
 
 // - Comparisons
 
-comparisonStart number|symbol|dotNotation => comparison { lhs: left.lhs, cmp: left.cmp, rhs: right, index: left.index }
-number|symbol|dotNotation|comparison cmp => comparisonStart { lhs: left, cmp: right.raw, index: left.index }
+comparisonStart number|symbol|dotNotation => comparison { lhs: left.lhs, cmp: left.cmp, rhs: right, location: left.location }
+number|symbol|dotNotation|comparison cmp => comparisonStart { lhs: left, cmp: right.raw, location: left.location }
 
 // - Logical
 
-not comparison|boolean|logical|symbol|slice|dotNotation => logical { rhs: right, op: left, index: left.index }
-comparison|boolean|logical|symbol|slice|dotNotation logicalEnd => logical { rhs: right.rhs, op: right.op, lhs: left, index: left.index }
-and|or comparison|boolean|logical|symbol|slice|dotNotation => logicalEnd { rhs: right, op: left, index: left.index }
+not comparison|boolean|logical|symbol|slice|dotNotation => logical { rhs: right, op: left, location: left.location }
+comparison|boolean|logical|symbol|slice|dotNotation logicalEnd => logical { rhs: right.rhs, op: right.op, lhs: left, location: left.location }
+and|or comparison|boolean|logical|symbol|slice|dotNotation => logicalEnd { rhs: right, op: left, location: left.location }
 
 // - Conditionals
 
-if comparison|symbol|boolean|logical|dotNotation => ifConditionalPrestart { condition: right, index: left.index }
-ifConditionalPrestart colon => ifConditionalStart { condition: left.condition, index: left.index }
-ifConditionalStart block => ifConditional { condition: left.condition, body: right, index: left.index }
+if comparison|symbol|boolean|logical|dotNotation => ifConditionalPrestart { condition: right, location: left.location }
+ifConditionalPrestart colon => ifConditionalStart { condition: left.condition, location: left.location }
+ifConditionalStart block => ifConditional { condition: left.condition, body: right, location: left.location }
 
-elif comparison|symbol|boolean|logical|dotNotation => elifConditionalPrestart { condition: right, index: left.index }
-elifConditionalPrestart colon => elifConditionalStart { condition: left.condition, index: left.index }
+elif comparison|symbol|boolean|logical|dotNotation => elifConditionalPrestart { condition: right, location: left.location }
+elifConditionalPrestart colon => elifConditionalStart { condition: left.condition, location: left.location }
 
-elifConditionalStart block => elifConditional { body: [{ condition: left.condition, body: right, index: left.index }] }
+elifConditionalStart block => elifConditional { body: [{ condition: left.condition, body: right, location: left.location }] }
 
-elifConditional elifConditional => elifConditional { body: [...left.body, right.body], index: left.index }
-ifConditional elifConditional => ifElifConditional { ifBlock: left, elifBlock: right, index: left.index }
+elifConditional elifConditional => elifConditional { body: [...left.body, right.body], location: left.location }
+ifConditional elifConditional => ifElifConditional { ifBlock: left, elifBlock: right, location: left.location }
 
-else colon => elseConditionalStart { index: left.index }
-elseConditionalStart block => elseConditional { body: right, index: left.index }
-ifConditional elseConditional => ifElseConditional { ifBlock: left, elseBlock: right, index: left.index }
-ifElifConditional elseConditional => ifElifElseConditional { ifBlock: left.ifBlock, elifBlock: left.elifBlock, elseBlock: right, index: left.index }
+else colon => elseConditionalStart { location: left.location }
+elseConditionalStart block => elseConditional { body: right, location: left.location }
+ifConditional elseConditional => ifElseConditional { ifBlock: left, elseBlock: right, location: left.location }
+ifElifConditional elseConditional => ifElifElseConditional { ifBlock: left.ifBlock, elifBlock: left.elifBlock, elseBlock: right, location: left.location }
 
-ifConditional conditionalEnd => conditional { ifBlock: left, index: left.index }
-ifElifConditional conditionalEnd => conditional { ifBlock: left.ifBlock, elifBlock: left.elifBlock, index: left.index }
-ifElseConditional conditionalEnd => conditional { ifBlock: left.ifBlock, elseBlock: left.elseBlock, index: left.index }
-ifElifElseConditional conditionalEnd => conditional { ifBlock: left.ifBlock, elifBlock: left.elifBlock, elseBlock: left.elseBlock, index: left.index }
+ifConditional conditionalEnd => conditional { ifBlock: left, location: left.location }
+ifElifConditional conditionalEnd => conditional { ifBlock: left.ifBlock, elifBlock: left.elifBlock, location: left.location }
+ifElseConditional conditionalEnd => conditional { ifBlock: left.ifBlock, elseBlock: left.elseBlock, location: left.location }
+ifElifElseConditional conditionalEnd => conditional { ifBlock: left.ifBlock, elifBlock: left.elifBlock, elseBlock: left.elseBlock, location: left.location }
 
 // - Functions
 
-fn symbol => functionStart { fn: right.raw, parameters: [], index: left.index }
-functionStart symbol => functionMiddle { fn: left.fn, parameters: [ right.raw ], index: left.index }
-functionMiddle symbol => functionMiddle { fn: left.fn, parameters: [ ...left.parameters, right.raw ], index: left.index }
-functionMiddle colon => functionEnd { fn: left.fn, parameters: left.parameters, index: left.index }
-functionEnd block => function { fn: left.fn, parameters: left.parameters, body: right, index: left.index }
+fn symbol => functionStart { fn: right.raw, parameters: [], location: left.location }
+functionStart symbol => functionMiddle { fn: left.fn, parameters: [ right.raw ], location: left.location }
+functionMiddle symbol => functionMiddle { fn: left.fn, parameters: [ ...left.parameters, right.raw ], location: left.location }
+functionMiddle colon => functionEnd { fn: left.fn, parameters: left.parameters, location: left.location }
+functionEnd block => function { fn: left.fn, parameters: left.parameters, body: right, location: left.location }
 
 // - Anonymous functions
 
-symbol colon => anonymousFunctionStart { parameter: left.raw, index: left.index }
-anonymousFunctionStart block|math|number|array|hashmap|boolean|logical|range|slice => anonymousFunction { parameter: left.parameter, body: right, index: left.index }
+symbol colon => anonymousFunctionStart { parameter: left.raw, location: left.location }
+anonymousFunctionStart block|math|number|array|hashmap|boolean|logical|range|slice => anonymousFunction { parameter: left.parameter, body: right, location: left.location }
 
 // - Ranges
 
-number|symbol|math|dotNotation colon => postColonVal { value: left, index: left.index }
-colon number|symbol|math|dotNotation => preColonVal { value: right, index: left.index }
+number|symbol|math|dotNotation colon => postColonVal { value: left, location: left.location }
+colon number|symbol|math|dotNotation => preColonVal { value: right, location: left.location }
 
-postColonVal postColonVal => rangeInnerStepStart { start: left.value, end: right.value, index: left.index }
-colon postColonVal => rangeInnerStepStart { end: right.value, index: left.index }
-rangeInnerStepStart number|symbol|math|dotNotation => rangeInner { start: left.start, end: left.end, step: right, index: left.index }
-postColonVal preColonVal => rangeInner { start: left.value, step: right.value, index: left.index }
-postColonVal number|symbol|math|dotNotation => rangeInner { start: left.value, end: right, index: left.index }
-preColonVal preColonVal => rangeInner { end: left.value, step: right.value, index: left.index }
-colon preColonVal => rangeInner { step: right.value, index: left.index }
+postColonVal postColonVal => rangeInnerStepStart { start: left.value, end: right.value, location: left.location }
+colon postColonVal => rangeInnerStepStart { end: right.value, location: left.location }
+rangeInnerStepStart number|symbol|math|dotNotation => rangeInner { start: left.start, end: left.end, step: right, location: left.location }
+postColonVal preColonVal => rangeInner { start: left.value, step: right.value, location: left.location }
+postColonVal number|symbol|math|dotNotation => rangeInner { start: left.value, end: right, location: left.location }
+preColonVal preColonVal => rangeInner { end: left.value, step: right.value, location: left.location }
+colon preColonVal => rangeInner { step: right.value, location: left.location }
 
-lbra rangeInner|colon => rangeStart { start: right.start, end: right.end, step: right.step, index: left.index }
-lbra postColonVal => rangeStart { start: right.value, index: left.index }
-lbra preColonVal => rangeStart { end: right.value, index: left.index }
-rangeStart rbra => range { start: left.start, end: left.end, step: left.step, index: left.index }
+lbra rangeInner|colon => rangeStart { start: right.start, end: right.end, step: right.step, location: left.location }
+lbra postColonVal => rangeStart { start: right.value, location: left.location }
+lbra preColonVal => rangeStart { end: right.value, location: left.location }
+rangeStart rbra => range { start: left.start, end: left.end, step: left.step, location: left.location }
 
 // - Arrays
 
-lbra expression => arrayStart { items: [right], index: left.index }
-arrayStart expression => arrayStart { items: [...left.items, right], index: left.index }
-arrayStart rbra => array { items: [...left.items], index: left.index }
+lbra expression => arrayStart { items: [right], location: left.location }
+arrayStart expression => arrayStart { items: [...left.items, right], location: left.location }
+arrayStart rbra => array { items: [...left.items], location: left.location }
 
 // - Hashmaps
 
-hash indent => hashIndent { index: left.index }
-hash symbol => hashKey { key: right, values: [], root: true, index: left.index }
-hashIndent symbol => nestedHashKey { self: 'root', outer: { unpack: true, root: true, values: [] }, values: [], key: right, index: left.index }
-hashKey expression => hashmap { values: [...left.values, { key: left.key, value: right } ], root: left.root, index: left.index }
-hashKey indent => nestedHash { self: left.key, outer: left, values: [], index: left.index }
-nestedHash symbol => nestedHashKey { self: left.self, outer: left.outer, values: left.values, key: right, index: left.index }
+hash indent => hashIndent { location: left.location }
+hash symbol => hashKey { key: right, values: [], root: true, location: left.location }
+hashIndent symbol => nestedHashKey { self: 'root', outer: { unpack: true, root: true, values: [] }, values: [], key: right, location: left.location }
+hashKey expression => hashmap { values: [...left.values, { key: left.key, value: right } ], root: left.root, location: left.location }
+hashKey indent => nestedHash { self: left.key, outer: left, values: [], location: left.location }
+nestedHash symbol => nestedHashKey { self: left.self, outer: left.outer, values: left.values, key: right, location: left.location }
 nestedHashKey expression => nestedHash {
   self: left.self, outer: left.outer,
-  values: [...left.values, { key: left.key, value: right }], index: left.index
+  values: [...left.values, { key: left.key, value: right }], location: left.location
 }
-nestedHashKey indent => nestedHash { self: left.key, values: [], outer: left, index: left.index }
+nestedHashKey indent => nestedHash { self: left.key, values: [], outer: left, location: left.location }
 nestedHash dedent => nestedHash {
   values: left.outer.unpack ? left.values : [...left.outer.values, { key: left.self, values: left.values}],
   name: left.outer.root ? "hashmap" : "nestedHash",
-  ...(left.outer.root ? {} : { self: left.outer.self, outer: left.outer.outer }), index: left.index
+  ...(left.outer.root ? {} : { self: left.outer.self, outer: left.outer.outer }), location: left.location
 }
-hashmap symbol => hashKey { key: right, values: left.values, root: true, index: left.index }
+hashmap symbol => hashKey { key: right, values: left.values, root: true, location: left.location }
 
 // - Decorators
 
-at symbol|dotNotation => decoratorStart { fn: right, args: [], index: left.index }
-decoratorStart expression => decoratorStart { fn: left.fn, args: [...left.args, right], index: left.index }
-decoratorStart decoratorEnd => decorator { fn: left.fn, args: left.args, index: left.index }
+at symbol|dotNotation => decoratorStart { fn: right, args: [], location: left.location }
+decoratorStart expression => decoratorStart { fn: left.fn, args: [...left.args, right], location: left.location }
+decoratorStart decoratorEnd => decorator { fn: left.fn, args: left.args, location: left.location }
 
 // - Decorated function
 
-decorator function|decoratedFunction => decoratedFunction { fn: right, decorator: left, index: left.index }
+decorator function|decoratedFunction => decoratedFunction { fn: right, decorator: left, location: left.location }
 
 // - @, ~ and ~~
 
-at number => atArg { at: right, index: left.index }
+at number => atArg { at: right, location: left.location }
 
 unpack unpack => doubleUnpack
-doubleUnpack symbol|dotNotation => unpackArg { double: true, arg: right, index: left.index }
-unpack symbol|dotNotation => unpackArg { double: false, arg: right, index: left.index }
+doubleUnpack symbol|dotNotation => unpackArg { double: true, arg: right, location: left.location }
+unpack symbol|dotNotation => unpackArg { double: false, arg: right, location: left.location }
 
 // - Flows
 
-map anonymousFunction => functionCall { fn: right, args: [], map: true, index: left.index }
-pipe anonymousFunction => functionCall { fn: right, args: [], map: false, index: left.index }
+map anonymousFunction => functionCall { fn: right, args: [], map: true, location: left.location }
+pipe anonymousFunction => functionCall { fn: right, args: [], map: false, location: left.location }
 
-map symbol|dotNotation|method => functionCallStart { fn: right, args: [], map: true, index: left.index }
-pipe symbol|dotNotation|method => functionCallStart { fn: right, args: [], map: false, index: left.index }
-set symbol|dotNotation => setVar { variable: right, index: left.index }
+map symbol|dotNotation|method => functionCallStart { fn: right, args: [], map: true, location: left.location }
+pipe symbol|dotNotation|method => functionCallStart { fn: right, args: [], map: false, location: left.location }
+set symbol|dotNotation => setVar { variable: right, location: left.location }
 
-functionCallStart expression|unpackArg|atArg => functionCallStart { fn: left.fn, args: [ ...left.args, right ], index: left.index, map: left.map }
-functionCallStart flowEnd => functionCall { fn: left.fn, args: left.args, index: left.index, map: left.map }
+functionCallStart expression|unpackArg|atArg => functionCallStart { fn: left.fn, args: [ ...left.args, right ], location: left.location, map: left.map }
+functionCallStart flowEnd => functionCall { fn: left.fn, args: left.args, location: left.location, map: left.map }
 
-expression functionCall|setVar => flow { data: left, calls: [right], index: left.index }
-flow functionCall|setVar => flow { data: left.data, calls: [...left.calls, right], index: left.index}
+expression functionCall|setVar => flow { data: left, calls: [right], location: left.location }
+flow functionCall|setVar => flow { data: left.data, calls: [...left.calls, right], location: left.location}
 
 // - Blocks
 
-indent math|number|array|hashmap|boolean|logical|range|slice|symbol|dotNotation|function|flow|conditional => blockStart { body: [ right ], index: left.index }
-blockStart math|number|array|hashmap|boolean|logical|range|slice|symbol|dotNotation|function|flow|conditional => blockStart { body: [ ...left.body, right ], index: left.index }
+indent math|number|array|hashmap|boolean|logical|range|slice|symbol|dotNotation|function|flow|conditional => blockStart { body: [ right ], location: left.location }
+blockStart math|number|array|hashmap|boolean|logical|range|slice|symbol|dotNotation|function|flow|conditional => blockStart { body: [ ...left.body, right ], location: left.location }
 
-blockStart dedent => block { body: left.body, index: left.index }
+blockStart dedent => block { body: left.body, location: left.location }
 
 // - Program
 
-flow|function|decoratedFunction|conditional clio => clio { body: [left, ...right.body], index: left.index }
-flow|function|decoratedFunction|conditional eof => clio { body: [left], index: left.index }
+flow|function|decoratedFunction|conditional clio => clio { body: [left, ...right.body], location: left.location }
+flow|function|decoratedFunction|conditional eof => clio { body: [left], location: left.location }
 
-importFromStatement|importAsStatement|importStatement clio => clio { body: [left, ...right.body], index: left.index }
-importFromStatement|importAsStatement|importStatement eof => clio { body: [left], index: left.index }
+importFromStatement|importAsStatement|importStatement clio => clio { body: [left, ...right.body], location: left.location }
+importFromStatement|importAsStatement|importStatement eof => clio { body: [left], location: left.location }
 
-importFromAsStatement|importAllStatement clio => clio { body: [left, ...right.body], index: left.index }
-importFromAsStatement|importAllStatement eof => clio { body: [left], index: left.index }
+importFromAsStatement|importAllStatement clio => clio { body: [left, ...right.body], location: left.location }
+importFromAsStatement|importAllStatement eof => clio { body: [left], location: left.location }

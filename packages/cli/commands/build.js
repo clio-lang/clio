@@ -149,12 +149,16 @@ const build = async (
     for (const file of files) {
       const relativeFile = path.relative(sourceDir, file);
       const destFile = path.join(destination, `${relativeFile}.js`);
+      const destFileClio = path.join(destination, relativeFile);
       const destDir = path.dirname(destFile);
       const contents = fs.readFileSync(file, "utf8");
-      const compiled = await generator(contents);
-      const formatted = format(compiled, { parser: "babel" });
+      const compiled = await generator(contents, relativeFile);
+      const { code, map } = compiled.toStringWithSourceMap();
+      const sourceMap = map.toString();
       mkdir(destDir);
-      await fs.promises.writeFile(destFile, formatted, "utf8");
+      await fs.promises.writeFile(destFileClio, contents, "utf8");
+      await fs.promises.writeFile(destFile, code, "utf8");
+      await fs.promises.writeFile(`${destFile}.map`, sourceMap, "utf8");
     }
     progress.succeed();
 
@@ -196,11 +200,13 @@ const build = async (
           .join(destination, `${relativeFile}.js`)
           .replace(ENV_NAME, "node_modules");
         const contents = await fs.promises.readFile(file, "utf8");
-        const compiled = await generator(contents);
-        const formatted = format(compiled, { parser: "babel" });
+        const compiled = await generator(contents, relativeFile);
         const destDir = path.dirname(destFile);
+        const { code, map } = compiled.toStringWithSourceMap();
+        const sourceMap = map.toString();
         mkdir(destDir);
-        await fs.promises.writeFile(destFile, formatted, "utf8");
+        await fs.promises.writeFile(destFile, code, "utf8");
+        await fs.promises.writeFile(`${destFile}.map`, sourceMap, "utf8");
       }
       progress.succeed();
 

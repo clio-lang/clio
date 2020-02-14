@@ -199,6 +199,22 @@ const addEOF = tokens => {
   return [...tokens, { name: "eof", raw: "eof", index }];
 };
 
+const parseIndexes = (tokens, string) => {
+  const lines = string.split("\n").map(line => line.length);
+  const getLocation = i => {
+    let line = 0;
+    let count = 0;
+    while (count < i) count += lines[line++];
+    return {
+      line: line + 1,
+      column: count - i
+    };
+  };
+  return tokens.map(token => {
+    return { ...token, location: getLocation(token.index) };
+  });
+};
+
 const lexer = string =>
   tokenize(string)
     .then(addEOF)
@@ -210,6 +226,7 @@ const lexer = string =>
     .then(insertFlowEnds)
     .then(insertDecoratorEnds)
     .then(insertConditionalEnds)
-    .then(removeWhites);
+    .then(removeWhites)
+    .then(tokens => parseIndexes(tokens, string));
 
 module.exports = lexer;
