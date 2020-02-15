@@ -47,7 +47,7 @@
   * [Atom](tools/tools-and-editors/atom.md)
 
 ## Reference
-
+* [Overview](reference/README.md)
 * [Project Manifest File](reference/manifest/README.md)
   * [Metadata](reference/manifest/metadata.md)
   * [build section](reference/manifest/build-section.md)
