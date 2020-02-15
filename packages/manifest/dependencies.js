@@ -20,8 +20,14 @@ const { isClioSource, parsePackageId } = require("./utils/parse");
   { name: 'github:clio-lang/rethinkdb', version: 'latest' }
 ]
  */
-function getPackageDependencies() {
-  const config = getPackageConfig();
+function getPackageDependencies(manifestFilePath) {
+  let config;
+
+  if (manifestFilePath) {
+    config = getPackageConfig(manifestFilePath);
+  } else {
+    config = getPackageConfig();
+  }
   return config.dependencies;
 }
 
@@ -30,8 +36,14 @@ function getPackageDependencies() {
  * config file.
  * @returns {bool}
  */
-function hasClioDependencies() {
-  const dependencies = getPackageDependencies();
+function hasClioDependencies(manifestFilePath) {
+  let dependencies;
+  if (manifestFilePath) {
+    dependencies = getPackageDependencies(manifestFilePath);
+  } else {
+    dependencies = getPackageDependencies();
+  }
+
   return !!dependencies && !!Object.keys(dependencies).length;
 }
 
