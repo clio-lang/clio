@@ -1,6 +1,6 @@
 const { GITHUB_PREFIX, REGISTRY_NAME, URL_PREFIX } = require("../config");
 
-// see https://github.com/clio-lang/clio-docs/tree/dev/dev/dependency_parser
+// see https://docs.clio-lang.org/v/develop/development/dependency_parser
 const GITHUB_ZIP_RE = /(github\.com\/((?:(?:\w|\d|_|-)+\/(?:\w|\d|_|-)+){1}))\/archive\/(?:v((?:\d\.?){1,3})|((?:\w|\d|_|-)+))(?:\.zip)$/i;
 const GITHUB_URI_RE = /(github\.com\/((?:(?:\w|\d|_|-)+\/(?:\w|\d|_|-)+){1}))(?:@(?:((?:\d\.?){1,3})|((?:\w|\d|_|-)+)))?$/i;
 const GITHUB_PATH_RE = /^((?:(?:\w|\d|_|-)+\/(?:\w|\d|_|-)+){1})(?:@(?:((?:\d\.?){1,3})|((?:\w|\d|_|-)+)))?$/i;
