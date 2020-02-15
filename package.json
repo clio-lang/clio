@@ -58,6 +58,7 @@
     "lerna": "^3.19.0",
     "merge": "1.2.1",
     "ora": "^4.0.3",
-    "parcel-bundler": "^1.12.4"
+    "parcel-bundler": "^1.12.4",
+    "prettier": "^1.19.1"
   }
 }
