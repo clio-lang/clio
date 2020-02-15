@@ -1,7 +1,7 @@
 const compiler = require("../compiler");
 test("Compile code", () => {
   return compiler.compile("[1 2 3] -> print\n").then(out => {
-    const { code, map } = out.toStringWithSourceMap();
+    const { code } = out.toStringWithSourceMap();
     expect(typeof code).toBe("string");
   });
 });
