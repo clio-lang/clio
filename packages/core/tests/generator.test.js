@@ -6,7 +6,8 @@ test("Generate from AST", async () => {
   const tokens = await lexer(source);
   const [, parsed] = parser.parse(tokens);
   const output = generator.generate(parsed[0]);
-  expect(typeof output).toBe("string");
+  const { code, map } = output.toStringWithSourceMap();
+  expect(typeof code).toBe("string");
 });
 
 const source = `
@@ -85,5 +86,6 @@ myVar -> print
   const tokens = await lexer(source);
   const [, parsed] = parser.parse(tokens);
   const output = generator.generate(parsed[0]);
-  expect(typeof output).toBe("string");
+  const { code, map } = output.toStringWithSourceMap();
+  expect(typeof code).toBe("string");
 });

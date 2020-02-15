@@ -21,7 +21,8 @@ const implicitReturn = block => {
   const lastExpr = block[block.length - 1];
   block[block.length - 1] = {
     name: "return",
-    expr: lastExpr
+    expr: lastExpr,
+    location: block[block.length - 1].location
   };
   return block;
 };
@@ -43,7 +44,7 @@ const rules = {
       if (expr.elifBlock) {
         expr.elifBlock.body = expr.elifBlock.body.map(block => {
           block.body.body = implicitReturn(block.body.body);
-          return node(cst, file, [block]);
+          return block;
         });
       }
       if (expr.elseBlock) {
@@ -246,7 +247,7 @@ const rules = {
       body: { body }
     } = cst;
     const processedBody = body.map(generate);
-    return node(cst, file, "else { ", processedBody.join(";\n"), " }");
+    return node(cst, file, ["else { ", processedBody.join(";\n"), " }"]);
   },
   importFromStatement(cst, generate, file) {
     const { path, names } = cst;
@@ -325,9 +326,7 @@ const rules = {
       for (const inValue of inValues) {
         const { key, value, values } = inValue;
         const processedValue = values ? makeHash(values) : generate(value);
-        processed.push(
-          node(inValue, file, [key.raw, ": (", processedValue, ")"])
-        );
+        processed.push(node(key, file, [key.raw, ": (", processedValue, ")"]));
         processed.push(",\n");
       }
       processed.pop();

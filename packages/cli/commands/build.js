@@ -149,7 +149,7 @@ const build = async (
     for (const file of files) {
       const relativeFile = path.relative(sourceDir, file);
       const destFileClio = path.join(destination, relativeFile);
-      const destFile = `${relativeFileClio}.js`;
+      const destFile = `${destFileClio}.js`;
       const destDir = path.dirname(destFile);
       const contents = fs.readFileSync(file, "utf8");
       const compiled = await generator(contents, relativeFile);

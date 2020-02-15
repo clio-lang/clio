@@ -86,7 +86,7 @@ ifConditionalStart block => ifConditional { condition: left.condition, body: rig
 elif comparison|symbol|boolean|logical|dotNotation => elifConditionalPrestart { condition: right, location: left.location }
 elifConditionalPrestart colon => elifConditionalStart { condition: left.condition, location: left.location }
 
-elifConditionalStart block => elifConditional { body: [{ condition: left.condition, body: right, location: left.location }] }
+elifConditionalStart block => elifConditional { body: [{ condition: left.condition, body: right, location: right.location }], location: left.location }
 
 elifConditional elifConditional => elifConditional { body: [...left.body, right.body], location: left.location }
 ifConditional elifConditional => ifElifConditional { ifBlock: left, elifBlock: right, location: left.location }
