@@ -78,8 +78,7 @@ function fetchDependencies() {
 /**
  * Install a Clio dependency
  *
- * @param {object} argv
- * @param {string} argv.source - url, uri or id (name[@version]) of the package to fetch
+ * @param {string} id id of the dependency, including its prefix
  * @returns {promise}
  */
 function installDependency(id) {
