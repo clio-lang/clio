@@ -1,6 +1,5 @@
 const fs = require("fs");
 const path = require("path");
-const { format } = require("prettier");
 const { generator } = require("clio-core");
 const { error, info, warn } = require("../lib/colors");
 const { getPlatform } = require("../lib/platforms");
