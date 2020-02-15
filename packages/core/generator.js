@@ -33,7 +33,7 @@ const rules = {
   clio(cst, generate, file) {
     const { body } = cst;
     const processedBody = body.map(generate);
-    const generated = processedBody.join(";\n\n");
+    const generated = processedBody.join(";");
     return node(cst, file, [template, generated, sourceMap(file)]);
   },
   return(cst, generate, file) {
@@ -74,17 +74,15 @@ const rules = {
       "(scope, ",
       parameters.join(", "),
       ") { ",
-      processedParams.join(";\n"),
-      processedBody.join(";\n"),
+      processedParams.join(";"),
+      processedBody.join(";"),
       "}, scope, Lazy)"
     ]);
   },
   anonymousFunction(cst, generate, file) {
     const { parameter, body: expr } = cst;
     const processedBody =
-      expr.name == "block"
-        ? expr.body.map(generate).join(";\n")
-        : generate(expr);
+      expr.name == "block" ? expr.body.map(generate).join(";") : generate(expr);
     return node(cst, file, [
       "new Fn(function (scope, ",
       parameter,
@@ -136,11 +134,11 @@ const rules = {
   flow(cst, generate, file) {
     const { data, calls } = cst;
     const processedData = generate(data);
-    const processedCalls = calls.map(generate).join("\n");
+    const processedCalls = calls.map(generate).join("");
     return node(cst, file, [
       "new Flow(scope, ",
       processedData,
-      ")\n",
+      ")",
       processedCalls
     ]);
   },
@@ -219,7 +217,7 @@ const rules = {
       "if (",
       processedCondition,
       ") { ",
-      processedBody.join(";\n"),
+      processedBody.join(";"),
       " }"
     ]);
   },
@@ -236,18 +234,18 @@ const rules = {
           "else if (",
           condition,
           " { ",
-          body.join(";\n"),
+          body.join(";"),
           "}"
         ]);
       });
-    return node(cst, file, [processedBody.join("\n")]);
+    return node(cst, file, [processedBody.join("")]);
   },
   elseConditional(cst, generate, file) {
     const {
       body: { body }
     } = cst;
     const processedBody = body.map(generate);
-    return node(cst, file, ["else { ", processedBody.join(";\n"), " }"]);
+    return node(cst, file, ["else { ", processedBody.join(";"), " }"]);
   },
   importFromStatement(cst, generate, file) {
     const { path, names } = cst;
@@ -327,7 +325,7 @@ const rules = {
         const { key, value, values } = inValue;
         const processedValue = values ? makeHash(values) : generate(value);
         processed.push(node(key, file, [key.raw, ": (", processedValue, ")"]));
-        processed.push(",\n");
+        processed.push(",");
       }
       processed.pop();
       return node(cst, file, ["{", ...processed, "}"]);
