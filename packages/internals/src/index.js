@@ -12,5 +12,6 @@ module.exports = {
   Range: require("./range").Range,
   scope: require("./scope").scope,
   Scope: require("./scope").Scope,
-  Method: require("./method").Method
+  Method: require("./method").Method,
+  moduleName: require("./modules").moduleName
 };

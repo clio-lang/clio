@@ -4,7 +4,7 @@ const arr = require("../arr");
 const make = (processedData, processedCalls) =>
   arr`new Flow(scope, ${processedData})${processedCalls}`;
 
-class symbol extends Rule {
+class flow extends Rule {
   cstToNode() {
     const { data, calls } = this.cst;
     const processedData = this.generate(data);
@@ -13,4 +13,4 @@ class symbol extends Rule {
   }
 }
 
-module.exports = { symbol };
+module.exports = { flow };
