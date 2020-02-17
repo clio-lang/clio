@@ -1,4 +1,9 @@
-const { GITHUB_PREFIX, REGISTRY_NAME, URL_PREFIX } = require("../config");
+const {
+  GITHUB_PREFIX,
+  REGISTRY_NAME,
+  URL_PREFIX,
+  NPM_PREFIX
+} = require("../config");
 
 // see https://docs.clio-lang.org/v/develop/development/dependency_parser
 const GITHUB_ZIP_RE = /(github\.com\/((?:(?:\w|\d|_|-)+\/(?:\w|\d|_|-)+){1}))\/archive\/(?:v((?:\d\.?){1,3})|((?:\w|\d|_|-)+))(?:\.zip)$/i;
@@ -7,7 +12,7 @@ const GITHUB_PATH_RE = /^((?:(?:\w|\d|_|-)+\/(?:\w|\d|_|-)+){1})(?:@(?:((?:\d\.?
 const NAME_RE = /^((?:\w|\d|_|-)+)(?:@(?:((?:\d\.?){1,3})|((?:\w|\d|_|-)+)))?$/i;
 const URL_RE = /https?:\/\/.+/gi;
 
-const prefixes = `${GITHUB_PREFIX}|${REGISTRY_NAME}|${URL_PREFIX}`;
+const prefixes = `${GITHUB_PREFIX}|${REGISTRY_NAME}|${URL_PREFIX}|${NPM_PREFIX}`;
 const prefixRegex = new RegExp(`(${prefixes}):(.+)`, "i");
 
 /**
@@ -26,6 +31,7 @@ const parsePackageId = input => {
   const prefixExec = prefixRegex.exec(input);
   if (prefixExec) {
     id = prefixExec[2];
+    parsed.registry = prefixExec[1];
   }
 
   // also valid for url:*
@@ -45,8 +51,7 @@ const parsePackageId = input => {
         isVersioned: !!ghZipExec[3],
         name: ghZipExec[2],
         source: `${GITHUB_PREFIX}:${ghZipExec[2]}`,
-        version: ghZipExec[3] || "latest",
-        registry: "github"
+        version: ghZipExec[3] || "latest"
       };
     }
 
@@ -63,8 +68,7 @@ const parsePackageId = input => {
       isVersioned: !!ghUriExec[3],
       name: ghUriExec[2],
       source: `${GITHUB_PREFIX}:${ghUriExec[2]}`,
-      version: ghUriExec[3] || "latest",
-      registry: GITHUB_PREFIX
+      version: ghUriExec[3] || "latest"
     };
   }
 
@@ -79,8 +83,7 @@ const parsePackageId = input => {
       isVersioned: !!ghPathExec[2],
       name: ghPathExec[1],
       source: `${GITHUB_PREFIX}:${ghPathExec[1]}`,
-      version: ghPathExec[2] || "latest",
-      registry: GITHUB_PREFIX
+      version: ghPathExec[2] || "latest"
     };
   }
 
@@ -93,8 +96,7 @@ const parsePackageId = input => {
       name: nameExec[1],
       source: `${REGISTRY_NAME}:${nameExec[1]}`,
       isVersioned: !!nameExec[2],
-      version: nameExec[2] || "latest",
-      registry: "hub"
+      version: nameExec[2] || "latest"
     };
   }
 };

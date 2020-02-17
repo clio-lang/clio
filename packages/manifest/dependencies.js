@@ -96,8 +96,32 @@ function fetchDependencies() {
  * @returns {promise}
  */
 function installDependency(id) {
-  const { url, branch, githubURI, source, version, name } = parsePackageId(id);
+  const {
+    url,
+    branch,
+    githubURI,
+    source,
+    version,
+    name,
+    registry
+  } = parsePackageId(id);
 
+  let fetch;
+  try {
+    fetch = require(`./dependencies/loaders/${registry}Loader`).fetch;
+  } catch {
+    console.warn(
+      `Cannot locate a loader for registry named "${registry}", using legacy approach`
+    );
+  }
+
+  return fetch({ name, version: version || "latest" }).then(successful => {
+    if (successful && !hasClioDependency([source, "latest"])) {
+      addDependency([source, "latest"]);
+    }
+  });
+
+  //TODO: Remove from here
   if (url && !githubURI) {
     logFetching(url);
 
