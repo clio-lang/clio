@@ -9,7 +9,7 @@ class setVar extends Rule {
     const { variable } = this.cst;
     const { name } = variable;
     return name == "symbol"
-      ? makeSymbol(".set(", `"${variable.raw}"`, ")")
+      ? makeSymbol(variable.raw)
       : makeDotNotation(variable.parts.map(({ raw }) => raw));
   }
 }
