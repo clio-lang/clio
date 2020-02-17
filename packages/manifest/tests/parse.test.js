@@ -231,7 +231,8 @@ describe("pkgr/utils/parse", () => {
         isVersioned: false,
         name: githubPath,
         source: `${GITHUB_PREFIX}:${githubPath}`,
-        version: "latest"
+        version: "latest",
+        registry: GITHUB_PREFIX
       });
     });
     test("github uri (version)", () => {
@@ -243,7 +244,8 @@ describe("pkgr/utils/parse", () => {
         isVersioned: true,
         name: githubPath,
         source: `${GITHUB_PREFIX}:${githubPath}`,
-        version
+        version,
+        registry: GITHUB_PREFIX
       });
     });
     test("github uri (branch)", () => {
@@ -255,7 +257,8 @@ describe("pkgr/utils/parse", () => {
         isVersioned: false,
         name: githubPath,
         source: `${GITHUB_PREFIX}:${githubPath}`,
-        version: "latest"
+        version: "latest",
+        registry: GITHUB_PREFIX
       });
     });
 
@@ -268,7 +271,8 @@ describe("pkgr/utils/parse", () => {
         isVersioned: false,
         name: githubPath,
         source: `${GITHUB_PREFIX}:${githubPath}`,
-        version: "latest"
+        version: "latest",
+        registry: GITHUB_PREFIX
       });
     });
     test("github path (version)", () => {
@@ -280,7 +284,8 @@ describe("pkgr/utils/parse", () => {
         isVersioned: true,
         name: githubPath,
         source: `${GITHUB_PREFIX}:${githubPath}`,
-        version
+        version,
+        registry: GITHUB_PREFIX
       });
     });
 
@@ -294,7 +299,8 @@ describe("pkgr/utils/parse", () => {
         name: githubPath,
         source: `${GITHUB_PREFIX}:${githubPath}`,
         url: githubZip_branch,
-        version: "latest"
+        version: "latest",
+        registry: GITHUB_PREFIX
       });
     });
     test("github zip (version)", () => {
@@ -307,7 +313,8 @@ describe("pkgr/utils/parse", () => {
         name: githubPath,
         source: `${GITHUB_PREFIX}:${githubPath}`,
         url: githubZip_version,
-        version
+        version,
+        registry: GITHUB_PREFIX
       });
     });
 
@@ -318,7 +325,8 @@ describe("pkgr/utils/parse", () => {
         isVersioned: false,
         name,
         source: `${REGISTRY_NAME}:${name}`,
-        version: "latest"
+        version: "latest",
+        registry: REGISTRY_NAME
       });
     });
     test("name (version)", () => {
@@ -328,7 +336,8 @@ describe("pkgr/utils/parse", () => {
         isVersioned: true,
         name,
         source: `${REGISTRY_NAME}:${name}`,
-        version
+        version,
+        registry: REGISTRY_NAME
       });
     });
     test("name (branch)", () => {
@@ -338,7 +347,8 @@ describe("pkgr/utils/parse", () => {
         isVersioned: false,
         name,
         source: `${REGISTRY_NAME}:${name}`,
-        version: "latest"
+        version: "latest",
+        registry: REGISTRY_NAME
       });
     });
 
@@ -346,6 +356,7 @@ describe("pkgr/utils/parse", () => {
       const input = "http://myurl.com/path/to/dist.zip";
       expect(parsePackageId(input)).toStrictEqual({
         input,
+        registry: "url",
         url: input,
         source: `url:${input}`
       });

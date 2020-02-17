@@ -33,6 +33,7 @@ const parsePackageId = input => {
   if (urlMatch) {
     parsed.source = `${URL_PREFIX}:${urlMatch[0]}`;
     parsed.url = urlMatch[0];
+    parsed.registry = "url";
 
     const ghZipExec = GITHUB_ZIP_RE.exec(id);
     if (ghZipExec) {
@@ -44,7 +45,8 @@ const parsePackageId = input => {
         isVersioned: !!ghZipExec[3],
         name: ghZipExec[2],
         source: `${GITHUB_PREFIX}:${ghZipExec[2]}`,
-        version: ghZipExec[3] || "latest"
+        version: ghZipExec[3] || "latest",
+        registry: "github"
       };
     }
 
@@ -61,7 +63,8 @@ const parsePackageId = input => {
       isVersioned: !!ghUriExec[3],
       name: ghUriExec[2],
       source: `${GITHUB_PREFIX}:${ghUriExec[2]}`,
-      version: ghUriExec[3] || "latest"
+      version: ghUriExec[3] || "latest",
+      registry: GITHUB_PREFIX
     };
   }
 
@@ -76,7 +79,8 @@ const parsePackageId = input => {
       isVersioned: !!ghPathExec[2],
       name: ghPathExec[1],
       source: `${GITHUB_PREFIX}:${ghPathExec[1]}`,
-      version: ghPathExec[2] || "latest"
+      version: ghPathExec[2] || "latest",
+      registry: GITHUB_PREFIX
     };
   }
 
@@ -89,7 +93,8 @@ const parsePackageId = input => {
       name: nameExec[1],
       source: `${REGISTRY_NAME}:${nameExec[1]}`,
       isVersioned: !!nameExec[2],
-      version: nameExec[2] || "latest"
+      version: nameExec[2] || "latest",
+      registry: "hub"
     };
   }
 };
