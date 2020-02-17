@@ -1,4 +1,5 @@
-const { GITHUB_PREFIX, REGISTRY_NAME, URL_PREFIX } = require("../config");
+/* eslint-disable camelcase */
+const { GITHUB_PREFIX, REGISTRY_NAME } = require("../config");
 const {
   GITHUB_PATH_RE,
   GITHUB_URI_RE,
