@@ -8,7 +8,7 @@ const NAME_RE = /^((?:\w|\d|_|-)+)(?:@(?:((?:\d\.?){1,3})|((?:\w|\d|_|-)+)))?$/i
 const URL_RE = /https?:\/\/.+/gi;
 
 const prefixes = `${GITHUB_PREFIX}|${REGISTRY_NAME}|${URL_PREFIX}`;
-const prefix_re = new RegExp(`(${prefixes}):(.+)`, "i");
+const prefixRegex = new RegExp(`(${prefixes}):(.+)`, "i");
 
 /**
  * Returns an object whose properties represent significant elements
@@ -23,7 +23,7 @@ const parsePackageId = input => {
   let parsed = { input };
   let id = input;
 
-  const prefixExec = prefix_re.exec(input);
+  const prefixExec = prefixRegex.exec(input);
   if (prefixExec) {
     id = prefixExec[2];
   }
@@ -105,7 +105,7 @@ isClioSource('github:foo/bar') // true
 isClioSource('hub:stdlib') // true
 isClioSource('stdlib') // false
  */
-const isClioSource = input => prefix_re.exec(input) !== null;
+const isClioSource = input => prefixRegex.exec(input) !== null;
 
 module.exports = {
   GITHUB_PATH_RE,
