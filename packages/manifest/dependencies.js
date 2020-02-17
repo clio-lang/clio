@@ -13,6 +13,7 @@ const { isClioSource, parsePackageId } = require("./utils/parse");
 /**
  * Get a package dependencies
  * 
+ * @param {string|undefined} manifestFilePath optional path to config file
  * @returns {{name, version}}
  * @example 
 [
@@ -34,6 +35,7 @@ function getPackageDependencies(manifestFilePath) {
 /**
  * Returns true if the project has at least one dependency listed in the package
  * config file.
+ * @param {string|undefined} manifestFilePath optional path to config file
  * @returns {bool}
  */
 function hasClioDependencies(manifestFilePath) {
