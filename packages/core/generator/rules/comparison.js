@@ -4,7 +4,7 @@ const arr = require("../arr");
 const make = (left, cmp, right) => arr`(${left} ${cmp} ${right})`;
 
 class comparison extends Rule {
-  cstToNode() {
+  parseCST() {
     const { lhs, cmp, rhs } = this.cst;
     const left = this.generate(lhs);
     const right = this.generate(rhs);

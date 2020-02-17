@@ -5,7 +5,7 @@ const make = (fnName, decName, parsedArgs, parsedFn) =>
   arr`scope.$.${fnName} = ${decName}(${parsedArgs.join(", ")})(${parsedFn})`;
 
 class decoratedFunction extends Rule {
-  cstToNode() {
+  parseCST() {
     const { fn, decorator } = this.cst;
     const { fn: fnName } = fn;
     const parsedFn = this.generate(fn);

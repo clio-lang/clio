@@ -2,7 +2,7 @@ const { Rule } = require("../rule");
 const implicit = require("../common/implicit");
 
 class ret extends Rule {
-  cstToNode() {
+  parseCST() {
     const { expr } = this.cst;
     const { name } = expr;
     if (name == "conditional") {

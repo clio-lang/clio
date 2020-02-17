@@ -3,7 +3,7 @@ const { SourceNode } = require("source-map");
 const arr = require("../arr");
 
 class hashmap extends Rule {
-  cstToNode() {
+  parseCST() {
     const { values } = this.cst;
     return this.makeHash(values);
   }

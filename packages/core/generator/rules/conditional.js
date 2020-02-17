@@ -1,7 +1,7 @@
 const { Rule } = require("../rule");
 
 class conditional extends Rule {
-  cstToNode() {
+  parseCST() {
     const { ifBlock, elifBlock, elseBlock } = this.cst;
     const processedIf = this.generate(ifBlock);
     const processedElif = elifBlock ? this.generate(elifBlock) : "";

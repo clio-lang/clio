@@ -12,7 +12,7 @@ const make = (fn, params, args, body) =>
   }, scope, Lazy)`;
 
 class fn extends Rule {
-  cstToNode() {
+  parseCST() {
     const { fn, parameters, body } = this.cst;
     const args = parameters.map(scoped);
     const processedBody = implicit(body.body).map(item => this.generate(item));

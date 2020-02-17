@@ -4,7 +4,7 @@ const arr = require("../arr");
 const make = (method, fn, args) => arr`${method}(${fn}, ${args.join(", ")})`;
 
 class functionCall extends Rule {
-  cstToNode() {
+  parseCST() {
     const { fn, args, map } = this.cst;
     const processedFn = this.generate(fn);
     const processedArgs = args.map(arg => this.generate(arg));

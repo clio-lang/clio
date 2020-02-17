@@ -4,7 +4,7 @@ const arr = require("../arr");
 const make = names => arr`scope.$.${names.join(".")}`;
 
 class dotNotation extends Rule {
-  cstToNode() {
+  parseCST() {
     const { parts } = this.cst;
     const names = parts.map(part =>
       part.name == "symbol"

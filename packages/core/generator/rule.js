@@ -10,11 +10,11 @@ class Rule {
     this.line = line;
     this.column = column;
   }
-  cstToNode() {
+  parseCST() {
     // override this
   }
   getNode() {
-    return new SourceNode(this.line, this.column, this.file, this.cstToNode());
+    return new SourceNode(this.line, this.column, this.file, this.parseCST());
   }
 }
 

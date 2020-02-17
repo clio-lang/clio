@@ -5,7 +5,7 @@ const make = (parameter, body) =>
   arr`new Fn(function (scope, ${parameter}) { ${body} })`;
 
 class anonymousFunction extends Rule {
-  cstToNode() {
+  parseCST() {
     const { parameter, body: expr } = this.cst;
     const processedBody =
       expr.name == "block"

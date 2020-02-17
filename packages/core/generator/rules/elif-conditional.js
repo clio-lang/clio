@@ -6,7 +6,7 @@ const make = (condition, body) =>
   arr`else if (${condition}) { ${body.join(";")} }`;
 
 class elifConditional extends Rule {
-  cstToNode() {
+  parseCST() {
     const { body } = this.cst;
     const parts = body.map(({ condition, body, location }) => {
       const elifBody = body.body.map(item => this.generate(item));

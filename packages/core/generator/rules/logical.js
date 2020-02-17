@@ -2,7 +2,7 @@ const { Rule } = require("../rule");
 const arr = require("../arr");
 
 class logical extends Rule {
-  cstToNode() {
+  parseCST() {
     const { lhs, op, rhs } = this.cst;
     if (op.name == "not") return arr`(!${this.generate(rhs)})`;
     if (op.name == "and")

@@ -5,7 +5,7 @@ const make = (start, end, step) =>
   arr`new Range({ start: ${start}, end: ${end}, step: ${step} })`;
 
 class range extends Rule {
-  cstToNode() {
+  parseCST() {
     const { start, end, step } = this.cst;
     const rangeStart = start ? this.generate(start) : "null";
     const rangeEnd = end ? this.generate(end) : "null";

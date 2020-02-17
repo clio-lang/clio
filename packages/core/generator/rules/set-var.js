@@ -5,7 +5,7 @@ const makeSymbol = raw => arr`.set("${raw}")`;
 const makeDotNotation = raws => arr`.set(${raws.join(".")})`;
 
 class setVar extends Rule {
-  cstToNode() {
+  parseCST() {
     const { variable } = this.cst;
     const { name } = variable;
     return name == "symbol"

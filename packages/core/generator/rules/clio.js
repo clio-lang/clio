@@ -10,7 +10,7 @@ module.exports = scope;
 `;
 
 class clio extends Rule {
-  cstToNode() {
+  parseCST() {
     const { body } = this.cst;
     const processedBody = body.map(item => this.generate(item));
     const generated = processedBody.join(";");

@@ -5,7 +5,7 @@ const make = (left, op, right) => arr`(${left} ${op} ${right})`;
 const makePow = (left, right) => arr`Math.pow(${left}, ${right})`;
 
 class math extends Rule {
-  cstToNode() {
+  parseCST() {
     const { lhs, op, rhs } = this.cst;
     const left = this.generate(lhs);
     const right = this.generate(rhs);
