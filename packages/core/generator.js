@@ -56,6 +56,7 @@ const rules = {
       return node(cst, file, ["return", processedExpr]);
     }
   },
+  // migrated
   function(cst, generate, file) {
     const {
       fn: name,
@@ -79,6 +80,7 @@ const rules = {
       "}, scope, Lazy)"
     ]);
   },
+  // migrated
   anonymousFunction(cst, generate, file) {
     const { parameter, body: expr } = cst;
     const processedBody =
@@ -91,6 +93,7 @@ const rules = {
       "})"
     ]);
   },
+  // migrated
   math(cst, generate, file) {
     const { lhs, op, rhs } = cst;
     const left = generate(lhs);
@@ -98,10 +101,12 @@ const rules = {
     if (op != "^") return node(cst, file, ["(", left, op, right, ")"]);
     return node(cst, file, ["Math.pow(", left, ",", right, ")"]);
   },
+  // migrated
   symbol(cst, generate, file) {
     const { raw } = cst;
     return node(cst, file, ["scope.$.", raw]);
   },
+  // migrated
   decoratedFunction(cst, generate, file) {
     const { fn, decorator } = cst;
     const { fn: fnName } = fn;
@@ -123,14 +128,17 @@ const rules = {
       ")"
     ]);
   },
+  // migrated
   number(cst, generate, file) {
     const { raw } = cst;
     return node(cst, file, [raw]);
   },
+  // migrated
   string(cst, generate, file) {
     const { raw } = cst;
     return node(cst, file, [raw]);
   },
+  // migrated
   flow(cst, generate, file) {
     const { data, calls } = cst;
     const processedData = generate(data);
