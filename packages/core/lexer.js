@@ -199,15 +199,17 @@ const addEOF = tokens => {
   return [...tokens, { name: "eof", raw: "eof", index }];
 };
 
+const sum = (a, b) => a + b;
+
 const parseIndexes = (tokens, string) => {
-  const lines = string.split("\n").map(line => line.length);
+  const lines = string.split("\n").map(line => line.length + 1);
   const getLocation = i => {
     let line = 0;
     let count = 0;
     while (count < i) count += lines[line++];
     return {
-      line: line + 1,
-      column: count - i
+      line: line,
+      column: i - lines.slice(0, line - 1).reduce(sum, 0) + 1
     };
   };
   return tokens.map(token => {
