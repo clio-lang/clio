@@ -206,10 +206,11 @@ const parseIndexes = (tokens, string) => {
   const getLocation = i => {
     let line = 0;
     let count = 0;
-    while (count < i) count += lines[line++];
+    while (count <= i) count += lines[line++];
     return {
       line: line,
-      column: i - lines.slice(0, line - 1).reduce(sum, 0) + 1
+      column: i - lines.slice(0, line - 1).reduce(sum, 0) + 1,
+      i
     };
   };
   return tokens.map(token => {
