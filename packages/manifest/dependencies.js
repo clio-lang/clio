@@ -109,7 +109,7 @@ function installDependency(id) {
   let fetch;
   try {
     fetch = require(`./dependencies/loaders/${registry}Loader`).fetch;
-  } catch {
+  } catch (_) {
     console.warn(
       `Cannot locate a loader for registry named "${registry}", using legacy approach`
     );
