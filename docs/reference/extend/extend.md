@@ -50,7 +50,7 @@ Never forget to add the `location` key to your definitions. Most of the time thi
 ## Adding generator rules
 
 To add a generator rule, we need to use the [Rule](./rule.md) class. We make a new file for our rule in
-`core/generator/rules`, let's call it `bitwise-not.js`:
+`core/generator/rules`, let's call it `bitwise-and.js`:
 
 ```JavaScript
 const { Rule } = require("../rule");
@@ -74,7 +74,7 @@ Now we need to add it to the list of rules in `core/generator/rules.js`:
 
 ```JavaScript
 module.exports = {
-  ...require("./rules/bitwise-not"),
+  ...require("./rules/bitwise-and"),
   // rest of the rules
 }
 ```
