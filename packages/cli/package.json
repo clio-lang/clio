@@ -14,6 +14,7 @@
   "dependencies": {
     "clio-core": "^0.1.0",
     "clio-utils": "^0.1.0",
-    "clio-manifest": "^0.1.0"
+    "clio-manifest": "^0.1.0",
+    "clio-highlight": "^1.0.0"
   }
 }

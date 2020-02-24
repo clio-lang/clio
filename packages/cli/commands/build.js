@@ -1,6 +1,5 @@
 const fs = require("fs");
 const path = require("path");
-const { format } = require("prettier");
 const { generator } = require("clio-core");
 const { error, info, warn } = require("../lib/colors");
 const { getPlatform } = require("../lib/platforms");
@@ -148,13 +147,17 @@ const build = async (
     const files = getClioFiles(sourceDir);
     for (const file of files) {
       const relativeFile = path.relative(sourceDir, file);
-      const destFile = path.join(destination, `${relativeFile}.js`);
+      const destFileClio = path.join(destination, relativeFile);
+      const destFile = `${destFileClio}.js`;
       const destDir = path.dirname(destFile);
       const contents = fs.readFileSync(file, "utf8");
-      const compiled = await generator(contents);
-      const formatted = format(compiled, { parser: "babel" });
+      const compiled = await generator(contents, relativeFile);
+      const { code, map } = compiled.toStringWithSourceMap();
+      const sourceMap = map.toString();
       mkdir(destDir);
-      await fs.promises.writeFile(destFile, formatted, "utf8");
+      await fs.promises.writeFile(destFileClio, contents, "utf8");
+      await fs.promises.writeFile(destFile, code, "utf8");
+      await fs.promises.writeFile(`${destFile}.map`, sourceMap, "utf8");
     }
     progress.succeed();
 
@@ -192,15 +195,19 @@ const build = async (
       const files = getClioFiles(path.join(source, ENV_NAME));
       for (const file of files) {
         const relativeFile = path.relative(source, file);
-        const destFile = path
-          .join(destination, `${relativeFile}.js`)
+        const destFileClio = path
+          .join(destination, relativeFile)
           .replace(ENV_NAME, "node_modules");
+        const destFile = `${destFileClio}.js`;
         const contents = await fs.promises.readFile(file, "utf8");
-        const compiled = await generator(contents);
-        const formatted = format(compiled, { parser: "babel" });
+        const compiled = await generator(contents, relativeFile);
         const destDir = path.dirname(destFile);
+        const { code, map } = compiled.toStringWithSourceMap();
+        const sourceMap = map.toString();
         mkdir(destDir);
-        await fs.promises.writeFile(destFile, formatted, "utf8");
+        await fs.promises.writeFile(destFileClio, contents, "utf8");
+        await fs.promises.writeFile(destFile, code, "utf8");
+        await fs.promises.writeFile(`${destFile}.map`, sourceMap, "utf8");
       }
       progress.succeed();
 
