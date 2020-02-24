@@ -2,11 +2,11 @@
 
 alias numeric number|math
 alias symbolic symbol|dotNotation
-alias arithmatic numeric|symbolic
-alias slicables range|array|symbolic|slice
+alias arithmatic numeric|symbolic|wrappedExpr
+alias slicables range|array|symbolic|slice|wrappedExpr
 alias lists range|hashmap|array|slice
 alias logic boolean|logical
-alias expression symbolic|numeric|lists|logic|string
+alias expression symbolic|numeric|lists|logic|string|wrappedExpr
 
 // - dot notation
 
@@ -197,6 +197,11 @@ indent math|number|array|hashmap|boolean|logical|range|slice|symbol|dotNotation|
 blockStart math|number|array|hashmap|boolean|logical|range|slice|symbol|dotNotation|function|flow|conditional => blockStart { body: [ ...left.body, right ], location: left.location }
 
 blockStart dedent => block { body: left.body, location: left.location }
+
+// - Wrapped
+
+lpar flow|expression => wrappedExprStart { expression: right, location: left.location }
+wrappedExprStart rpar => wrappedExpr { expression: left.expression, location: left.location }
 
 // - Program
 

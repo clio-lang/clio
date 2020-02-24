@@ -113,7 +113,7 @@ const insertSlicers = tokens => {
 
 const pipes = ["map", "pipe"];
 const flowEnd = { name: "flowEnd", raw: "flowEnd" };
-const flowEnders = ["newline", "set"];
+const flowEnders = ["newline", "set", "rpar"];
 
 const insertFlowEnds = tokens => {
   const result = [];

@@ -1,5 +1,6 @@
 module.exports = {
   ...require("./rules/anonymous-function"),
+  ...require("./rules/wrapped-expr"),
   ...require("./rules/array"),
   ...require("./rules/boolean"),
   ...require("./rules/clio"),

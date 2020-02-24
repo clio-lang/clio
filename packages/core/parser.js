@@ -4,7 +4,7 @@ const model = require("./model.js");
 const { colorize } = require("clio-highlight");
 
 const parse = tokens => bean(model, tokens);
-const handleParseResult = ([success, result]) => {
+const handleParseResultForSource = source => ([success, result]) => {
   if (success) {
     const cst = result[0];
     return cst;
@@ -39,6 +39,6 @@ const handleParseResult = ([success, result]) => {
 const parser = source =>
   lexer(source)
     .then(parse)
-    .then(handleParseResult);
+    .then(handleParseResultForSource(source));
 
-module.exports = { parser, parse, handleParseResult };
+module.exports = { parser, parse, handleParseResultForSource };
