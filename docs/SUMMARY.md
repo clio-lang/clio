@@ -52,6 +52,8 @@
   * [Metadata](reference/manifest/metadata.md)
   * [build section](reference/manifest/build-section.md)
   * [dependencies section](reference/manifest/dependencies-section.md)
+* [Extending Clio](reference/extend/extend.md)
+  * [Rules](reference/extend/rule.md)
 
 ## Development
 
