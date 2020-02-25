@@ -52,11 +52,11 @@
   * [Metadata](reference/manifest/metadata.md)
   * [build section](reference/manifest/build-section.md)
   * [dependencies section](reference/manifest/dependencies-section.md)
-* [Extending Clio](reference/extend/extend.md)
-  * [Rules](reference/extend/rule.md)
 
 ## Development
 
 * [File Structure](dev/file-structure/README.md)
 * [Dependency parser](dev/dependency_parser/README.md)
+* [Extending Clio](dev/extend/extend.md)
+  * [Rules](dev/extend/rule.md)
 
