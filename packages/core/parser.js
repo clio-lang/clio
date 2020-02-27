@@ -32,7 +32,7 @@ const handleParseResultForSource = source => ([success, result]) => {
     const ParsingError = `At [${line},${column}]: Expecting one of ${expecting.join(
       ", "
     )} but encountered ${encountered}`;
-    throw ParsingError;
+    throw new Error(ParsingError);
   }
 };
 
