@@ -5,6 +5,6 @@ const generator = require("./generator");
 exports.compile = (source, file) => {
   return lexer(source)
     .then(parser.parse)
-    .then(parser.handleParseResultForSource(source))
+    .then(parser.getCST(source))
     .then(cst => generator.generate(cst, file || "unknown"));
 };
