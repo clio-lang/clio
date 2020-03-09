@@ -2,4 +2,10 @@ fn double n:
   n * 2
 
 (2 -> double) + 4 => eight
+5 + (2 -> double) => nine
 (1 + 2) * (4 + 5) => twentySeven
+
+fn foo n:
+  n * (10 - 1)
+
+10 -> foo => ninety

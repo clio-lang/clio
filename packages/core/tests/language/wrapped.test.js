@@ -12,4 +12,6 @@ test("Compile and run wrapped expressions", async () => {
   const { scope } = module.exports;
   expect(scope.twentySeven.valueOf()).toEqual(27);
   expect(scope.eight.valueOf()).toEqual(8);
+  expect(scope.nine.valueOf()).toEqual(9);
+  expect(scope.ninety.valueOf()).toEqual(90);
 });

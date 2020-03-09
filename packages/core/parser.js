@@ -6,6 +6,8 @@ const { colorize } = require("clio-highlight");
 const parse = tokens => bean(model, tokens);
 
 const parsingError = (source, result) => {
+  console.log({ result });
+
   const firstUnmatched = result[0].name;
   const expecting = model
     .filter(m => m.left == firstUnmatched)
