@@ -11,6 +11,8 @@ const {
 
 jest.mock("clio-manifest/npm_dependencies");
 
+process.exit = jest.fn();
+
 describe("Package.json generation", () => {
   test("Build generates package.json", async () => {
     const dir = tmp.dirSync();
