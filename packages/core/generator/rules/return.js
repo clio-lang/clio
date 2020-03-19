@@ -19,7 +19,7 @@ class ret extends Rule {
       return [this.generate(expr)];
     } else {
       const processedExpr = this.generate(expr);
-      return ["return", processedExpr];
+      return ["return ", processedExpr];
     }
   }
 }

@@ -30,6 +30,9 @@ class Flow {
     }
     return this;
   }
+  valueOf() {
+    return this.data.valueOf();
+  }
 }
 
 const flow = (scope, data) => new Flow(scope, data);
