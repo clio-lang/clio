@@ -41,7 +41,6 @@
     "@iarna/toml": "^2.2.3",
     "bean-parser": "^1.0.9",
     "chalk": "3.0.0",
-    "clio-rpc": "0.0.1",
     "decompress": "4.2.0",
     "node-fetch": "2.6.0",
     "source-map": "^0.7.3",

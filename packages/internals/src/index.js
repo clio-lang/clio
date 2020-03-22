@@ -13,5 +13,6 @@ module.exports = {
   scope: require("./scope").scope,
   Scope: require("./scope").Scope,
   Method: require("./method").Method,
-  moduleName: require("./modules").moduleName
+  moduleName: require("./modules").moduleName,
+  rpc: require("./rpc")
 };

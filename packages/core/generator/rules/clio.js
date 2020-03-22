@@ -2,11 +2,11 @@ const { Rule } = require("../rule");
 const arr = require("../arr");
 
 const make = (body, file) =>
-  arr`const { Fn, Flow, Lazy, Scope, Array, Range, Method, builtins, moduleName } = require('clio-internals');
+  arr`const { Fn, Flow, Lazy, Scope, Array, Range, Method, builtins, moduleName, rpc } = require('clio-internals');
 const scope = new Scope(builtins, null);
 ${body}
 module.exports = scope;
-if(process.isMaster && scope.$.main) scope.$.main(scope);
+rpc.init(scope);
 //# sourceMappingURL=${file}.js.map
 `;
 
