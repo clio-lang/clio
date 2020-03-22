@@ -6,6 +6,7 @@ const make = (body, file) =>
 const scope = new Scope(builtins, null);
 ${body}
 module.exports = scope;
+if(process.isMaster && scope.$.main) scope.$.main(scope);
 //# sourceMappingURL=${file}.js.map
 `;
 
