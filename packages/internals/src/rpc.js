@@ -1,5 +1,6 @@
 const { Dispatcher } = require("clio-rpc/dispatcher");
 const { Worker } = require("clio-rpc/worker");
+const { Executor } = require("clio-rpc/executor");
 const IPC = require("clio-rpc/transports/ipc");
 const os = require("os");
 const cluster = require("cluster");
@@ -17,21 +18,31 @@ const server = scope => {
   const transport = new IPC.Server();
   dispatcher.addTransport(transport);
   transport.ipcServer.on("listening", fork);
-  dispatcher.expectWorkers(numCPUs).then(() => scope.$.main(scope));
+  dispatcher.expectWorkers(numCPUs).then(() => {
+    initExecutor();
+    scope.$.main(scope);
+  });
 };
 
 const client = scope => {
   const transport = new IPC.Client();
   const worker = new Worker(transport);
   Object.entries(scope.scope).forEach(([path, fn]) =>
-    worker.register({ path, fn })
+    worker.register({ path: `scope.$.${path}`, fn })
   );
+  initExecutor();
   worker.connect();
 };
 
 const init = scope => {
   if (cluster.isMaster) server(scope);
   else client(scope);
+};
+
+const initExecutor = () => {
+  const transport = new IPC.Client();
+  const executor = new Executor(transport);
+  module.exports.fn = name => executor.getFunction(name);
 };
 
 module.exports.init = init;
