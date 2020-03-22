@@ -16,11 +16,17 @@ const print = wrapIO((scope, ...args) =>
   console.log(...args.map(arg => arg.valueOf()))
 ).unCurry();
 
+const undistribute = wrapIO((scope, fn) => {
+  fn.distributed = false;
+  return fn;
+});
+
 module.exports = {
   add,
   sub,
   mul,
   div,
   pow,
+  undistribute,
   print
 };
