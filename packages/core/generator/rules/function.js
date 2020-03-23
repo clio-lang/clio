@@ -1,10 +1,8 @@
 const { Rule } = require("../rule");
 const arr = require("../arr");
 const implicit = require("../common/implicit");
-const path = require("path");
 
 const scoped = param => `scope.$.${param} = ${param}`;
-const cwd = process.cwd();
 
 const make = (fn, params, args, body, file) =>
   arr`scope.$.${fn} = new Fn(
