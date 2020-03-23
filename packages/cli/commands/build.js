@@ -283,7 +283,8 @@ const buildPackageJson = (source, dependency, destination) => {
   const config = getPackageConfig(configPath);
   const packageJson = {
     main: config.main,
-    title: config.title
+    title: config.title,
+    clio: { config }
   };
   const destFilePath = path.join(
     destination,

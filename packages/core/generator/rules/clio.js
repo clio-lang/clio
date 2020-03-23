@@ -6,7 +6,6 @@ const make = (body, file) =>
 const scope = new Scope(builtins, null);
 ${body}
 module.exports = scope;
-rpc.init(scope);
 //# sourceMappingURL=${file}.js.map
 `;
 

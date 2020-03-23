@@ -8,6 +8,7 @@ class ExtensibleFunction extends Function {
 class Fn extends ExtensibleFunction {
   constructor(fn, outerScope, type, options = {}) {
     const { arity, args = [], curried = true, scoped = true } = options;
+    const { filename, name } = options;
     const wrapped = (...args) => {
       const newArgs = [...this.args, ...args];
       const paramLength = this.arity - (scoped ? 1 : 0);
@@ -27,6 +28,9 @@ class Fn extends ExtensibleFunction {
     this.curried = curried;
     this.scoped = scoped;
     this.isClioFn = true;
+    this.filename = filename;
+    this.name = name;
+    this.path = `${filename}:${name}`;
   }
   withArgs(args) {
     const { fn, outerScope, type, arity, scoped } = this;
