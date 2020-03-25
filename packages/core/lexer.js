@@ -56,41 +56,39 @@ const flowTokens = ["pipe", "map", "set"];
 
 const insertIndents = tokens => {
   const result = tokens.slice(0, 1);
-  let indentLevel = 0;
-  let indentCount = 0;
+  const levels = [];
   for (const index in tokens.slice(0, -2)) {
     const [left, middle, right] = tokens.slice(index, index + 3);
-    if (
-      left.name == "newline" &&
-      middle.name == "space" &&
-      middle.raw.length != indentLevel
-    ) {
-      const dent = indentLevel > middle.raw.length ? "dedent" : "indent";
-      if (dent != "indent" || !flowTokens.includes(right.name)) {
+    const level = levels[levels.length - 1] || 0;
+    const newlineSpace = left.name == "newline" && middle.name == "space";
+    const { length } = middle.raw;
+    if (newlineSpace && length != level) {
+      const dent = level > length ? "dedent" : "indent";
+      if (dent == "dedent") {
+        while (levels.length && levels[levels.length - 1] > length) {
+          const token = { name: dent, raw: dent, index: middle.index };
+          result.push(token);
+          levels.pop();
+        }
+      } else if (!flowTokens.includes(right.name)) {
         const token = { name: dent, raw: dent, index: middle.index };
         result.push(token);
-        indentLevel = middle.raw.length;
-        indentCount += dent == "indent" ? 1 : -1;
+        levels.push(middle.raw.length);
       }
-    } else if (
-      left.name == "newline" &&
-      middle.name != "space" &&
-      indentLevel > 0
-    ) {
-      while (indentCount) {
+    } else if (left.name == "newline" && middle.name != "space" && level > 0) {
+      while (levels.length) {
         const token = { name: "dedent", raw: "dedent", index: middle.index };
         result.push(token);
-        indentCount--;
+        levels.pop();
       }
-      indentLevel = 0;
     }
     result.push(middle);
   }
   const eof = tokens.pop();
-  while (indentCount) {
+  while (levels.length) {
     const token = { name: "dedent", raw: "dedent", index: eof.index };
     result.push(token);
-    indentCount--;
+    levels.pop();
   }
   result.push(eof);
   return result;
