@@ -2,9 +2,9 @@ const patterns = require("./patterns");
 
 const zip = (left, right) => left.map((item, index) => [item, right[index]]);
 
-const zipSelf = array => zip(array, array.slice(1)).slice(0, -1);
+const zipSelf = (array) => zip(array, array.slice(1)).slice(0, -1);
 
-const tokenize = async string => {
+const tokenize = async (string) => {
   const tokens = [];
   let index = 0;
   mainloop: while (index < string.length) {
@@ -23,19 +23,19 @@ const tokenize = async string => {
   return tokens;
 };
 
-const removeEmptyLines = tokens =>
-  tokens.filter(token => token.name != "emptyline");
+const removeEmptyLines = (tokens) =>
+  tokens.filter((token) => token.name != "emptyline");
 
-const removeComments = tokens =>
-  tokens.filter(token => token.name != "comment");
+const removeComments = (tokens) =>
+  tokens.filter((token) => token.name != "comment");
 
 const brackets = [
   { start: "lbra", end: "rbra" },
   { start: "lcbr", end: "rcbr" },
-  { start: "lpar", end: "rpar" }
+  { start: "lpar", end: "rpar" },
 ];
 
-const filterWhites = tokens => {
+const filterWhites = (tokens) => {
   for (const { start, end } of brackets) {
     const result = [];
     let level = 0;
@@ -54,43 +54,41 @@ const filterWhites = tokens => {
 
 const flowTokens = ["pipe", "map", "set"];
 
-const insertIndents = tokens => {
+const insertIndents = (tokens) => {
   const result = tokens.slice(0, 1);
-  let indentLevel = 0;
-  let indentCount = 0;
+  const levels = [];
   for (const index in tokens.slice(0, -2)) {
     const [left, middle, right] = tokens.slice(index, index + 3);
-    if (
-      left.name === "newline" &&
-      middle.name === "space" &&
-      middle.raw.length != indentLevel
-    ) {
-      const dent = indentLevel > middle.raw.length ? "dedent" : "indent";
-      if (dent != "indent" || !flowTokens.includes(right.name)) {
+    const level = levels[levels.length - 1] || 0;
+    const newlineSpace = left.name == "newline" && middle.name == "space";
+    const { length } = middle.raw;
+    if (newlineSpace && length != level) {
+      const dent = level > length ? "dedent" : "indent";
+      if (dent == "dedent") {
+        while (levels.length && levels[levels.length - 1] > length) {
+          const token = { name: dent, raw: dent, index: middle.index };
+          result.push(token);
+          levels.pop();
+        }
+      } else if (!flowTokens.includes(right.name)) {
         const token = { name: dent, raw: dent, index: middle.index };
         result.push(token);
-        indentLevel = middle.raw.length;
-        indentCount += dent === "indent" ? 1 : -1;
+        levels.push(middle.raw.length);
       }
-    } else if (
-      left.name === "newline" &&
-      middle.name != "space" &&
-      indentLevel > 0
-    ) {
-      while (indentCount) {
+    } else if (left.name == "newline" && middle.name != "space" && level > 0) {
+      while (levels.length) {
         const token = { name: "dedent", raw: "dedent", index: middle.index };
         result.push(token);
-        indentCount--;
+        levels.pop();
       }
-      indentLevel = 0;
     }
     result.push(middle);
   }
   const eof = tokens.pop();
-  while (indentCount) {
+  while (levels.length) {
     const token = { name: "dedent", raw: "dedent", index: eof.index };
     result.push(token);
-    indentCount--;
+    levels.pop();
   }
   result.push(eof);
   return result;
@@ -98,7 +96,7 @@ const insertIndents = tokens => {
 
 const sliceables = ["rbra", "string", "symbol"];
 
-const insertSlicers = tokens => {
+const insertSlicers = (tokens) => {
   const result = [tokens[0]];
   const zipped = zipSelf(tokens);
   for (const [left, right] of zipped) {
@@ -115,7 +113,7 @@ const pipes = ["map", "pipe"];
 const flowEnd = { name: "flowEnd", raw: "flowEnd" };
 const flowEnders = ["newline", "set", "rpar"];
 
-const insertFlowEnds = tokens => {
+const insertFlowEnds = (tokens) => {
   const result = [];
   let isFlow = false;
   for (const token of tokens) {
@@ -136,7 +134,7 @@ const insertFlowEnds = tokens => {
 
 const decoratorEnd = { name: "decoratorEnd", raw: "decoratorEnd" };
 
-const insertDecoratorEnds = tokens => {
+const insertDecoratorEnds = (tokens) => {
   const result = [tokens[0]];
   const zipped = zipSelf(tokens);
   let isDecorator = false;
@@ -162,7 +160,7 @@ const nextNonWhite = (index, tokens) => {
   }
 };
 
-const insertConditionalEnds = tokens => {
+const insertConditionalEnds = (tokens) => {
   const result = [];
   let indent = 0;
   let inConditional = [];
@@ -191,10 +189,10 @@ const insertConditionalEnds = tokens => {
 
 const whitespaces = ["space", "newline"];
 
-const removeWhites = tokens =>
-  tokens.filter(token => !whitespaces.includes(token.name));
+const removeWhites = (tokens) =>
+  tokens.filter((token) => !whitespaces.includes(token.name));
 
-const addEOF = tokens => {
+const addEOF = (tokens) => {
   const { index } = tokens[tokens.length - 1];
   return [...tokens, { name: "eof", raw: "eof", index }];
 };
@@ -202,23 +200,23 @@ const addEOF = tokens => {
 const sum = (a, b) => a + b;
 
 const parseIndexes = (tokens, string) => {
-  const lines = string.split("\n").map(line => line.length + 1);
-  const getLocation = i => {
+  const lines = string.split("\n").map((line) => line.length + 1);
+  const getLocation = (i) => {
     let line = 1;
     let count = 0;
     while (count < i) count += lines[line++];
     return {
       line: line,
       column: i - lines.slice(0, line - 1).reduce(sum, 0) + 1,
-      i
+      i,
     };
   };
-  return tokens.map(token => {
+  return tokens.map((token) => {
     return { ...token, location: getLocation(token.index) };
   });
 };
 
-const lexer = string =>
+const lexer = (string) =>
   tokenize(string)
     .then(addEOF)
     .then(insertSlicers)
@@ -230,6 +228,6 @@ const lexer = string =>
     .then(insertDecoratorEnds)
     .then(insertConditionalEnds)
     .then(removeWhites)
-    .then(tokens => parseIndexes(tokens, string));
+    .then((tokens) => parseIndexes(tokens, string));
 
 module.exports = lexer;
