@@ -14,11 +14,14 @@ class Rule {
   constructor(cst, file, generate) {
     this.cst = cst;
     this.file = file;
-    this.generate = generate;
+    this.generateFn = generate;
     const { location } = this.cst;
     const { line, column } = location;
     this.line = line;
     this.column = column;
+  }
+  generate(CST) {
+    return this.generateFn(CST, this.file);
   }
   /**
    * Override this when extending Rule class

@@ -9,10 +9,12 @@ const proxify = scope =>
   });
 
 class Scope {
-  constructor(initial, outerScope) {
+  constructor(initial, outerScope, options = {}) {
+    const { name } = options;
     this.outerScope = outerScope;
     this.scope = { ...initial };
     this.$ = proxify(this);
+    this.name = name;
   }
   get(key) {
     if (key in this.scope) {

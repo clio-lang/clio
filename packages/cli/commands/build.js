@@ -161,6 +161,20 @@ const build = async (
     }
     progress.succeed();
 
+    // Add start.js file
+    progress.start("Adding Clio start script...");
+    // TODO: This is a start script for IPC communication
+    // We need to generate an appropriate start script
+    // based on user's configuration
+    // FIXME: This assumes main file is main.clio
+    fs.writeFileSync(
+      path.join(destination, "start.js"),
+      `const { rpc } = require("clio-internals");\n` +
+        `const scope = require("./main.clio.js");\n` +
+        `rpc.init(scope);`
+    );
+    progress.succeed();
+
     // Init npm modules
     try {
       const packageJsonPath = path.join(destination, "package.json");

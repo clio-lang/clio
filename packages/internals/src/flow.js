@@ -3,22 +3,22 @@ class Flow {
     this.data = data;
     this.scope = scope;
   }
-  pipe(fn, ...args) {
+  async pipe(fn, ...args) {
     if (fn instanceof Method) fn = fn.get(this.data);
     if (!fn.isClioFn) fn = new Fn(fn, null, IO, { scoped: false });
-    const data = fn(this.data, ...args);
+    const data = await fn(this.data, ...args);
     return new Flow(this.scope, data);
   }
-  map(fn, ...args) {
+  async map(fn, ...args) {
     const map = fn.isLazy ? this.data.lazyMap : this.data.map;
-    const data = map.call(this.data, item => {
+    const data = await map.call(this.data, item => {
       let fun = fn instanceof Method ? fn.get(this.data) : fn;
       if (!fun.isClioFn) fun = new Fn(fun, null, IO, { scoped: false });
       return fun(item, ...args);
     });
     return new Flow(this.scope, data);
   }
-  set(key) {
+  async set(key) {
     if (key.includes(".")) {
       const [first, ...rest] = key.split(".");
       const last = rest.pop();

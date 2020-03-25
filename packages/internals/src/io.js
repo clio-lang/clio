@@ -2,10 +2,10 @@ class IO {
   constructor(fn) {
     this.fn = fn;
   }
-  valueOf() {
-    let result = this.fn();
+  async valueOf() {
+    let result = await this.fn();
     while (result instanceof Lazy) {
-      result = result.valueOf();
+      result = await result.valueOf();
     }
     return result;
   }

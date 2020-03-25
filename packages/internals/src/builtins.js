@@ -14,12 +14,11 @@ const pow = wrapLazy((scope, a, b) => Math.pow(a.valueOf(), b.valueOf()));
 
 const print = wrapIO((scope, ...args) =>
   console.log(...args.map(arg => arg.valueOf()))
-).unCurry();
+)
+  .unCurry()
+  .unDistribute();
 
-const undistribute = wrapIO((scope, fn) => {
-  fn.distributed = false;
-  return fn;
-});
+const undistribute = wrapIO((scope, fn) => fn.unDistribute());
 
 module.exports = {
   add,

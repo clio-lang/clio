@@ -4,19 +4,21 @@ class LazyMap {
     this.getter = getter;
     this.fn = fn;
   }
-  get(index) {
-    return this.fn(this.getter(index));
+  async get(index) {
+    return this.fn(await this.getter(index));
   }
   valueOf() {
     return this;
   }
-  toArray() {
+  async toArray() {
     const items = [];
     for (let i = 0; i < this.length; i++) items.push(this.get(i));
-    return new Array(...items);
+    const resolved = await Promise.all(items);
+    return new Array(...resolved);
   }
-  map(fn) {
-    return this.lazyMap(fn).toArray();
+  async map(fn) {
+    const array = await this.toArray();
+    return array.map(fn);
   }
   slice(slicer) {
     if (slicer instanceof Range) {

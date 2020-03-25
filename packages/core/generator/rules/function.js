@@ -6,7 +6,9 @@ const scoped = param => `scope.$.${param} = ${param}`;
 
 const make = (fn, params, args, body, file) =>
   arr`scope.$.${fn} = new Fn(
-    function ${fn} (scope, ${params.join(", ")}) {
+    async function ${fn} (context, ${params.join(", ")}) {
+      context.run = false;
+      const { scope } = context;
       ${args.join(";")}
       ${body.join(";")}
   }, scope, Lazy, { filename: "${file}", name: "${fn}" })`;

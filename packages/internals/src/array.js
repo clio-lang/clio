@@ -5,7 +5,7 @@ class Array {
   valueOf() {
     return this.items.map(item => item.valueOf());
   }
-  map(fn) {
+  async map(fn) {
     return this.lazyMap(fn).toArray();
   }
   lazyMap(fn) {
