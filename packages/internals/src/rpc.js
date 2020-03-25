@@ -53,9 +53,9 @@ const client = () => {
   worker.connect();
 };
 
-const init = scope => {
-  if (cluster.isMaster) server(scope);
-  else client();
+const init = (scope, config) => {
+  if (cluster.isMaster) server(scope, config);
+  else client(config);
 };
 
 const initExecutor = () => {

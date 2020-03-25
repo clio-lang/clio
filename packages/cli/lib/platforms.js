@@ -17,9 +17,12 @@ const web = {
 const node = {
   async build() {},
   async run(destination) {
-    const packageJson = path.join(destination, "package.json");
-    const packageInfo = require(packageJson);
-    await require(path.join(destination, packageInfo.main));
+    //const packageJson = path.join(destination, "package.json");
+    //const packageInfo = require(packageJson);
+    //await require(path.join(destination, packageInfo.main));
+    await require(path.join(destination, "start.js"));
+    // TODO: We should spawn a process here
+    // simply requiring the main file is wrong
   }
 };
 

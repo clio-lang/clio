@@ -28,7 +28,8 @@ function getPackageConfig(
     // eslint-disable-next-line camelcase
     git_repository: config.git_repository,
     documentation: config.documentation,
-    scripts: config.scripts
+    scripts: config.scripts,
+    RPC: config.RPC
   };
 
   if (config.dependencies) {

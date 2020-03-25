@@ -11,7 +11,8 @@ const {
   fetchNpmDependencies,
   getPackageConfig,
   hasInstalledNpmDependencies,
-  getParsedNpmDependencies
+  getParsedNpmDependencies,
+  makeStartScript
 } = require("clio-manifest");
 
 const flatten = arr => arr.reduce((acc, val) => acc.concat(val), []);
@@ -163,16 +164,7 @@ const build = async (
 
     // Add start.js file
     progress.start("Adding Clio start script...");
-    // TODO: This is a start script for IPC communication
-    // We need to generate an appropriate start script
-    // based on user's configuration
-    // FIXME: This assumes main file is main.clio
-    fs.writeFileSync(
-      path.join(destination, "start.js"),
-      `const { rpc } = require("clio-internals");\n` +
-        `const scope = require("./main.clio.js");\n` +
-        `rpc.init(scope);`
-    );
+    makeStartScript(config, target, destination);
     progress.succeed();
 
     // Init npm modules

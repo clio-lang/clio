@@ -4,5 +4,6 @@ module.exports = {
   ...require("./npm_dependencies"),
   ...require("./packageConfig"),
   ...require("./utils/parse"),
-  ...require("./utils/ids")
+  ...require("./utils/ids"),
+  ...require("./rpc/index")
 };
