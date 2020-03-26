@@ -29,7 +29,8 @@ function getPackageConfig(
     git_repository: config.git_repository,
     documentation: config.documentation,
     scripts: config.scripts,
-    RPC: config.RPC
+    transports: config.transports,
+    workers: config.workers
   };
 
   if (config.dependencies) {

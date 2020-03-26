@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const Parcel = require("parcel-bundler");
+const { fork } = require("child_process");
 
 const web = {
   async build(destination, skipBundle) {
@@ -17,12 +18,7 @@ const web = {
 const node = {
   async build() {},
   async run(destination) {
-    //const packageJson = path.join(destination, "package.json");
-    //const packageInfo = require(packageJson);
-    //await require(path.join(destination, packageInfo.main));
-    await require(path.join(destination, "start.js"));
-    // TODO: We should spawn a process here
-    // simply requiring the main file is wrong
+    fork(path.join(destination, "start.js"));
   }
 };
 

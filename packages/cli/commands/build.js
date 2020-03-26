@@ -174,7 +174,7 @@ const build = async (
       dependencies["clio-internals"] = "latest";
       const packageJsonContent = {
         dependencies,
-        main: "main.clio.js"
+        main: `${config.main}.js`
       };
       fs.writeFileSync(
         packageJsonPath,
@@ -254,8 +254,8 @@ const build = async (
     );
     progress.start("Linking internals");
     await linkInternals(
-      path.resolve(process.env.CLIOPATH, "packages", "internals", "src"),
-      path.join(destination, "node_modules", "clio-internals", "src")
+      path.resolve(process.env.CLIOPATH, "packages", "internals"),
+      path.join(destination, "node_modules", "clio-internals")
     );
     progress.succeed();
   }

@@ -2,12 +2,10 @@ const fs = require("fs");
 const path = require("path");
 
 const makeStartScript = (config, target, destination) => {
-  // FIXME: We need separate config entries for main and src
-  const main = config.main.replace(/^src\//, "");
-  const RPCConf = config.RPC;
+  const { transports, workers, main } = config;
   fs.writeFileSync(
     path.join(destination, "rpc.json"),
-    JSON.stringify(RPCConf, null, 2)
+    JSON.stringify({ transports, workers }, null, 2)
   );
   fs.writeFileSync(
     path.join(destination, "start.js"),
