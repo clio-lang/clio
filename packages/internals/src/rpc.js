@@ -9,8 +9,8 @@ const { fork } = require("child_process");
 
 const numCPUs = os.cpus().length;
 
-const fromKeyValues = (prev, curr) => {
-  prev[curr.key] = curr.value;
+const fromEntries = (prev, [key, value]) => {
+  prev[key] = value;
   return prev;
 };
 
@@ -28,8 +28,11 @@ const startWorker = () => {
   console.log("Starting worker", CLIO_WORKER_ID);
   const options = Object.keys(process.env)
     .filter(key => key.startsWith("CLIO_WORKER_"))
-    .map(key => [key.replace(/^CLIO_WORKER_/, ""), process.env[key]])
-    .reduce(fromKeyValues, {});
+    .map(key => [
+      key.replace(/^CLIO_WORKER_/, "").toLowerCase(),
+      process.env[key]
+    ])
+    .reduce(fromEntries, {});
   console.log({ options });
   const transport = new IPC.Client();
   const worker = new Worker(transport);
@@ -55,13 +58,10 @@ const forkWorkers = config => {
   const start = process.argv[1];
   const { workers } = config;
   for (const worker of workers) {
-    const { transport, count = numCPUs, ...options } = worker;
+    const { count = numCPUs, ...options } = worker;
     const OPTIONS = Object.entries(options)
-      .map(([key, value]) => ({
-        key: `CLIO_WORKER_${key.toUpperCase()}`,
-        value
-      }))
-      .reduce(fromKeyValues, {});
+      .map(([key, value]) => [`CLIO_WORKER_${key.toUpperCase()}`, value])
+      .reduce(fromEntries, {});
     for (let i = 0; i < count; i++) {
       fork(start, [], {
         env: { CLIO_PROCESS_TYPE: "WORKER", CLIO_WORKER_ID: i, ...OPTIONS }
@@ -81,8 +81,7 @@ const startMaster = (scope, config) => {
   if (!scope.$.main) throw new Error("No main function, refusing to run.");
   console.log("Starting master process");
   const dispatcher = startServer();
-  const [transport] = dispatcher.transports;
-  transport.ipcServer.on("listening", () => forkWorkers(config));
+  forkWorkers(config);
   dispatcher.expectWorkers(numCPUs).then(() => runMain(scope));
 };
 

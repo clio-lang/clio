@@ -9,6 +9,6 @@
   "author": "Andrey Luiz <andreyluiz.developer@gmail.com>",
   "license": "Apache-2.0",
   "dependencies": {
-    "clio-rpc": "0.0.2"
+    "clio-rpc": "0.0.3"
   }
 }
