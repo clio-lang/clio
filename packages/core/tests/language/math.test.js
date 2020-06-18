@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 test("Compile and run maths", async () => {
-  const file = path.join(__dirname, "./clio/math.clio");
+  const file = path.join(__dirname, "clio", "math.clio");
   const input = fs.readFileSync(file, { encoding: "utf8" });
   const output = await compile(input, file);
   const { code } = output.toStringWithSourceMap();

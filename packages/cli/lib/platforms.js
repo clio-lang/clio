@@ -51,7 +51,7 @@ async function setupParcel(destination, options = { watch: false }) {
 
   return new Parcel(htmlFilePath, {
     outDir: path.join(destination, "dist"),
-    outFile: path.join(destination, "dist/index.html"),
+    outFile: path.join(destination, "dist", "index.html"),
     ...options
   });
 }
