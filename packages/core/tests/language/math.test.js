@@ -15,4 +15,7 @@ test("Compile and run maths", async () => {
   expect(scope.three.valueOf()).toEqual(3);
   expect(scope.four.valueOf()).toEqual(4);
   expect(scope.five.valueOf()).toEqual(5);
+  expect(scope.six.valueOf()).toEqual(6);
+  expect(scope.ten.valueOf()).toEqual(10);
+  expect(scope.twentyEight.valueOf()).toEqual(28);
 });

@@ -2,11 +2,11 @@
 
 alias numeric number|math
 alias symbolic symbol|dotNotation
-alias arithmatic numeric|symbolic
-alias slicables range|array|symbolic|slice
+alias arithmatic numeric|symbolic|wrappedExpr
+alias slicables range|array|symbolic|slice|wrappedExpr
 alias lists range|hashmap|array|slice
 alias logic boolean|logical
-alias expression symbolic|numeric|lists|logic|string
+alias expression symbolic|numeric|lists|logic|string|wrappedExpr
 
 // - dot notation
 
@@ -22,22 +22,22 @@ slice method => dotNotation { parts: [left, ...right.parts], location: left.loca
 // - Mathematics
 
 // -- pow
-arithmatic pow => powStart { lhs: left, op: right.raw, location: left.location }
-powStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, location: left.location }
+pow arithmatic => powEnd { rhs: right, op: left.raw, location: left.location }
+arithmatic powEnd => math { lhs: left, op: right.op, rhs: right.rhs, location: left.location }
 
 // -- mul, div
-arithmatic mul => mulStart { lhs: left, op: right.raw, location: left.location }
-mulStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, location: left.location }
+mul arithmatic => powEnd { rhs: right, op: left.raw, location: left.location }
+arithmatic mulEnd => math { lhs: left, op: right.op, rhs: right.rhs, location: left.location }
 
-arithmatic div => divStart { lhs: left, op: right.raw, location: left.location }
-divStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, location: left.location }
+div arithmatic => powEnd { rhs: right, op: left.raw, location: left.location }
+arithmatic divEnd => math { lhs: left, op: right.op, rhs: right.rhs, location: left.location }
 
 // -- add, sub
-arithmatic add => addStart { lhs: left, op: right.raw, location: left.location }
-addStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, location: left.location }
+add arithmatic => powEnd { rhs: right, op: left.raw, location: left.location }
+arithmatic addEnd => math { lhs: left, op: right.op, rhs: right.rhs, location: left.location }
 
-arithmatic sub => subStart { lhs: left, op: right.raw, location: left.location }
-subStart arithmatic => math { lhs: left.lhs, op: left.op, rhs: right, location: left.location }
+sub arithmatic => powEnd { rhs: right, op: left.raw, location: left.location }
+arithmatic subEnd => math { lhs: left, op: right.op, rhs: right.rhs, location: left.location }
 
 // - as!
 
@@ -190,6 +190,11 @@ functionCallStart flowEnd => functionCall { fn: left.fn, args: left.args, locati
 
 expression functionCall|setVar => flow { data: left, calls: [right], location: left.location }
 flow functionCall|setVar => flow { data: left.data, calls: [...left.calls, right], location: left.location}
+
+// - Wrapped
+
+lpar flow|expression => wrappedExprStart { expression: right, location: left.location }
+wrappedExprStart rpar => wrappedExpr { expression: left.expression, location: left.location }
 
 // - Blocks
 
