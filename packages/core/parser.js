@@ -10,7 +10,7 @@ const parsingError = (source, result) => {
 
   const firstUnmatched = result[0].name;
   const expecting = model
-    .filter(m => m.left == firstUnmatched)
+    .filter(m => m.left === firstUnmatched)
     .map(({ right }) => right);
   const encountered = result[1].name;
   const { location } = result[1];

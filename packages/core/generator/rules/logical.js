@@ -4,10 +4,10 @@ const arr = require("../arr");
 class logical extends Rule {
   parseCST() {
     const { lhs, op, rhs } = this.cst;
-    if (op.name == "not") return arr`(!${this.generate(rhs)})`;
-    if (op.name == "and")
+    if (op.name === "not") return arr`(!${this.generate(rhs)})`;
+    if (op.name === "and")
       return arr`(${this.generate(lhs)} && ${this.generate(rhs)})`;
-    if (op.name == "or")
+    if (op.name === "or")
       return arr`(${this.generate(lhs)} || ${this.generate(rhs)})`;
   }
 }

@@ -20,7 +20,7 @@ class Fn extends ExtensibleFunction {
     this.fn = fn;
     this.outerScope = outerScope;
     this.type = type;
-    this.isLazy = type == Lazy;
+    this.isLazy = type === Lazy;
     this.arity = arity || getArity(fn);
     this.args = args;
     this.curried = curried;

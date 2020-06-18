@@ -8,7 +8,7 @@ class setVar extends Rule {
   parseCST() {
     const { variable } = this.cst;
     const { name } = variable;
-    return name == "symbol"
+    return name === "symbol"
       ? makeSymbol(variable.raw)
       : makeDotNotation(variable.parts.map(({ raw }) => raw));
   }

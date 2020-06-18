@@ -8,7 +8,7 @@ class anonymousFunction extends Rule {
   parseCST() {
     const { parameter, body: expr } = this.cst;
     const processedBody =
-      expr.name == "block"
+      expr.name === "block"
         ? expr.body.map(item => this.generate(item)).join(";")
         : this.generate(expr);
     return make(parameter, processedBody);
