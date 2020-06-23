@@ -40,9 +40,9 @@ class Array {
       }
       return new Array(...items);
     }
-    if (slicer.length == 1) {
+    if (slicer.length === 1) {
       const first = slicer.get(0);
-      if (typeof first == "number") return this.get(slicer.get(0));
+      if (typeof first === "number") return this.get(slicer.get(0));
       if (first instanceof Array) {
         const items = [];
         let index = 0;

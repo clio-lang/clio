@@ -26,9 +26,9 @@ const reNative = RegExp(
  */
 const isNative = fn => {
   const type = typeof fn;
-  return type == "function"
+  return type === "function"
     ? reNative.test(fnToString.call(fn))
-    : (fn && type == "object" && reHostCtor.test(toString.call(fn))) || false;
+    : (fn && type === "object" && reHostCtor.test(toString.call(fn))) || false;
 };
 
 /**
@@ -42,10 +42,11 @@ const getParamEnd = source => {
     lpar = 0,
     rpar = 0;
   while (i < source.length - 1) {
-    if (source[i] == "{" && lpar == rpar) return i;
-    if (source[i] == ">" && source[i - 1] == "=" && lpar == rpar) return i - 1;
-    if (source[i] == "(") lpar++;
-    if (source[i] == ")") rpar++;
+    if (source[i] === "{" && lpar === rpar) return i;
+    if (source[i] === ">" && source[i - 1] === "=" && lpar === rpar)
+      return i - 1;
+    if (source[i] === "(") lpar++;
+    if (source[i] === ")") rpar++;
     i++;
   }
 };

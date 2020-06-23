@@ -13,7 +13,7 @@ test("Map a function using LazyMap", () => {
   const map = makeLazyMap();
   const arr = map.toArray();
   const expected = [0, 2, 4];
-  expect(arr.items.every((item, index) => item == expected[index])).toBe(true);
+  expect(arr.items.every((item, index) => item === expected[index])).toBe(true);
 });
 
 test("Map a function to LazyMap", () => {

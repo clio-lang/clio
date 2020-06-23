@@ -67,7 +67,7 @@ function getDestinationFromConfig(source, target, config) {
     );
   }
 
-  return path.join(source, `${buildDirectory}/${target}`);
+  return path.join(source, buildDirectory, target);
 }
 
 // FIXME I'm not sure if this function should stay here

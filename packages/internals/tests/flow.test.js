@@ -10,7 +10,7 @@ test("Test JavaScript function call", () => {
 test("Test JavaScript function map", () => {
   const flow = new Flow(new Scope({}), [0, 1, 2]).map(n => n * 2);
   const expected = [0, 2, 4];
-  expect(flow.data.every((item, index) => item == expected[index])).toBe(true);
+  expect(flow.data.every((item, index) => item === expected[index])).toBe(true);
 });
 
 test("Test property set", () => {
