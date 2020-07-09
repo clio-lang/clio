@@ -8,14 +8,17 @@ test("Compile and run maths", async () => {
   const output = await compile(input, file);
   const { code } = output.toStringWithSourceMap();
   const module = { exports: {} };
+  console.log(code);
+
   eval(code);
   const { scope } = module.exports;
-  expect(scope.one.valueOf()).toEqual(1);
-  expect(scope.two.valueOf()).toEqual(2);
-  expect(scope.three.valueOf()).toEqual(3);
-  expect(scope.four.valueOf()).toEqual(4);
-  expect(scope.five.valueOf()).toEqual(5);
-  expect(scope.six.valueOf()).toEqual(6);
-  expect(scope.ten.valueOf()).toEqual(10);
-  expect(scope.twentyEight.valueOf()).toEqual(28);
+  const result = scope.test();
+  expect(result.one.valueOf()).toEqual(1);
+  expect(result.two.valueOf()).toEqual(2);
+  expect(result.three.valueOf()).toEqual(3);
+  expect(result.four.valueOf()).toEqual(4);
+  expect(result.five.valueOf()).toEqual(5);
+  expect(result.six.valueOf()).toEqual(6);
+  expect(result.ten.valueOf()).toEqual(10);
+  expect(result.twentyEight.valueOf()).toEqual(28);
 });

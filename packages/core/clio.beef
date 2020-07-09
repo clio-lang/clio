@@ -193,7 +193,7 @@ flow functionCall|setVar => flow { data: left.data, calls: [...left.calls, right
 
 // - Wrapped
 
-lpar flow|expression => wrappedExprStart { expression: right, location: left.location }
+lpar flow|expression|hash => wrappedExprStart { expression: right, location: left.location }
 wrappedExprStart rpar => wrappedExpr { expression: left.expression, location: left.location }
 
 // - Blocks

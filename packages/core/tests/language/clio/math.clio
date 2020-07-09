@@ -1,13 +1,16 @@
--- simple
+@undistribute
+fn test args:
 
-2 + 3 => five
-8 - 4 => four
-6 / 2 => three
-2 * 1 => two
-9 ^ 0 => one
+  (# ) => result
 
--- complex
+  2 + 3 => result.five
+  8 - 4 => result.four
+  6 / 2 => result.three
+  2 * 1 => result.two
+  9 ^ 0 => result.one
 
-1 + 3 * 3 => ten
-1 + 3 * 3 ^ 2 => twentyEight
-2 + 2 * 6 / 3 => six
+  1 + 3 * 3 => result.ten
+  1 + 3 * 3 ^ 2 => result.twentyEight
+  2 + 2 * 6 / 3 => result.six
+
+  result

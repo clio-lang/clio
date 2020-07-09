@@ -3,7 +3,6 @@
 const { Dispatcher } = require("clio-rpc/dispatcher");
 const { Worker } = require("clio-rpc/worker");
 const { Executor } = require("clio-rpc/executor");
-const IPC = require("clio-rpc/transports/ipc");
 const os = require("os");
 const { fork } = require("child_process");
 
@@ -14,18 +13,21 @@ const fromEntries = (prev, [key, value]) => {
   return prev;
 };
 
-const startServer = () => {
+const startServer = config => {
   console.log("Starting server process");
   const dispatcher = new Dispatcher();
-  const transport = new IPC.Server();
-  dispatcher.addTransport(transport);
+  const { transports } = config;
+  for (const options of transports) {
+    const tp = options.transport.toLowerCase();
+    const Transport = require(`clio-rpc/transports/${tp}`);
+    const transport = new Transport.Server(options);
+    dispatcher.addTransport(transport);
+  }
   return dispatcher;
 };
 
 const startWorker = () => {
   // this is a worker process
-  const { CLIO_WORKER_ID } = process.env;
-  console.log("Starting worker", CLIO_WORKER_ID);
   const options = Object.keys(process.env)
     .filter(key => key.startsWith("CLIO_WORKER_"))
     .map(key => [
@@ -33,8 +35,10 @@ const startWorker = () => {
       process.env[key]
     ])
     .reduce(fromEntries, {});
-  console.log({ options });
-  const transport = new IPC.Client();
+  console.log("Starting worker", options.id);
+  const tp = options.transport.toLowerCase();
+  const Transport = require(`clio-rpc/transports/${tp}`);
+  const transport = new Transport.Client(options);
   const worker = new Worker(transport);
   [...fns.values()].forEach(fn => {
     if (fn.filename && fn.name && fn.path) {
@@ -50,7 +54,8 @@ const startWorker = () => {
       });
     }
   });
-  initExecutor();
+  const executorTransport = new Transport.Client(options);
+  initExecutor(executorTransport);
   worker.connect();
 };
 
@@ -70,8 +75,12 @@ const forkWorkers = config => {
   }
 };
 
-const runMain = scope => {
-  initExecutor();
+const runMain = (scope, config) => {
+  const { executor: options } = config;
+  const tp = options.transport.toLowerCase();
+  const Transport = require(`clio-rpc/transports/${tp}`);
+  const transport = new Transport.Client(options);
+  initExecutor(transport);
   const main = scope.$.main.withContext(true);
   console.log("Running main");
   main(process.argv).valueOf();
@@ -80,20 +89,21 @@ const runMain = scope => {
 const startMaster = (scope, config) => {
   if (!scope.$.main) throw new Error("No main function, refusing to run.");
   console.log("Starting master process");
-  const dispatcher = startServer();
+  const dispatcher = startServer(config);
   forkWorkers(config);
-  dispatcher.expectWorkers(numCPUs).then(() => runMain(scope));
+  dispatcher
+    .expectWorkers(config.executor.expect || numCPUs)
+    .then(() => runMain(scope, config));
 };
 
-const initExecutor = () => {
-  const transport = new IPC.Client();
+const initExecutor = (transport, distributed = true) => {
   module.exports.executor = new Executor(transport);
 };
 
 const init = (scope, config) => {
   const { CLIO_PROCESS_TYPE = "MASTER" } = process.env;
   if (CLIO_PROCESS_TYPE == "MASTER") startMaster(scope, config);
-  else if (CLIO_PROCESS_TYPE == "SERVER") startServer();
+  else if (CLIO_PROCESS_TYPE == "SERVER") startServer(config);
   else if (CLIO_PROCESS_TYPE == "WORKER") startWorker();
 };
 

@@ -14,6 +14,7 @@ module.exports = {
   ...require("./rules/function-call"),
   ...require("./rules/function"),
   ...require("./rules/hashmap"),
+  ...require("./rules/hash"),
   ...require("./rules/if-conditional"),
   ...require("./rules/import-all"),
   ...require("./rules/import-as"),

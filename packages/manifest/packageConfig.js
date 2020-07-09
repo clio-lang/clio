@@ -30,7 +30,8 @@ function getPackageConfig(
     documentation: config.documentation,
     scripts: config.scripts,
     transports: config.transports,
-    workers: config.workers
+    workers: config.workers,
+    executor: config.executor
   };
 
   if (config.dependencies) {

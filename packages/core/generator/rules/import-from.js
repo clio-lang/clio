@@ -10,7 +10,7 @@ const makeMicroService = (path, type, name) =>
 class importFromStatement extends Rule {
   parseCST() {
     const { path, names } = this.cst;
-    const isMicroService = path.match(/^(tcp:|ipc:|ws:|wss:)/);
+    const isMicroService = path.raw.match(/^(tcp:|ipc:|ws:|wss:)/);
     if (isMicroService) {
       const protocol = path.split(":").shift();
       const type = protocol == "wss" ? "ws" : protocol;

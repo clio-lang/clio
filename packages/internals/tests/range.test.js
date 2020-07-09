@@ -28,8 +28,8 @@ test("Range with negative steps", () => {
   check(arr, range, expected);
 });
 
-test("Map function to range", () => {
-  const arr = new Range({ start: 0, end: 10, step: 2 }).map(n => n * 2);
+test("Map function to range", async () => {
+  const arr = await new Range({ start: 0, end: 10, step: 2 }).map((n) => n * 2);
   const expected = [0, 4, 8, 12, 16];
   check(arr, arr, expected);
 });

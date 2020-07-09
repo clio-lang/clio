@@ -2,10 +2,10 @@ const fs = require("fs");
 const path = require("path");
 
 const makeStartScript = (config, target, destination) => {
-  const { transports, workers, main } = config;
+  const { transports, workers, main, executor } = config;
   fs.writeFileSync(
     path.join(destination, "rpc.json"),
-    JSON.stringify({ transports, workers }, null, 2)
+    JSON.stringify({ transports, workers, executor }, null, 2)
   );
   fs.writeFileSync(
     path.join(destination, "start.js"),

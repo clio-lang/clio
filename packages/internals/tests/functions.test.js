@@ -2,11 +2,12 @@ const { Fn } = require("../src/functions");
 const { getArity } = require("../src/arity");
 const { Lazy } = require("../src/lazy");
 
-test("Test Clio function currying", () => {
+test("Test Clio function currying", async () => {
   const add = new Fn((scope, a, b) => a + b, null, Lazy);
   const add2 = add(2);
+  const value = await add2(3).valueOf();
   expect(add2).toBeInstanceOf(Fn);
-  expect(add2(3).valueOf()).toBe(5);
+  expect(value).toBe(5);
 });
 
 test("Test getArity", () => {
