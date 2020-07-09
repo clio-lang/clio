@@ -60,6 +60,8 @@ class Fn extends ExtensibleFunction {
       const context = this.context || this.getContext(false);
       args.unshift(context);
     }
+    console.log(this.fn.toString());
+
     const typed = new this.type(() => this.fn(...args));
     return typed.asResult();
   }
@@ -80,7 +82,7 @@ class Fn extends ExtensibleFunction {
       name: this.name,
       filename: this.filename,
       distributed: this.distributed,
-      run
+      run,
     };
     return new Context(scope, meta);
   }

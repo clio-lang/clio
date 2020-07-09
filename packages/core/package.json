@@ -12,5 +12,8 @@
     "bean-parser": "^1.0.9",
     "source-map": "^0.7.3",
     "clio-highlight": "^1.0.0"
+  },
+  "devDependencies": {
+    "clio-internals": "^0.1.0"
   }
 }

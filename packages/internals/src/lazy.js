@@ -17,7 +17,7 @@ class Lazy {
   }
 }
 
-const lazy = fn => new Lazy(fn);
+const lazy = (fn) => new Lazy(fn);
 
 module.exports.lazy = lazy;
 module.exports.Lazy = Lazy;

@@ -9,9 +9,12 @@ class Flow {
     const data = await fn(this.data, ...args);
     return new Flow(this.scope, data);
   }
+  async then(fn) {
+    return fn(this);
+  }
   async map(fn, ...args) {
     const map = fn.isLazy ? this.data.lazyMap : this.data.map;
-    const data = await map.call(this.data, item => {
+    const data = await map.call(this.data, (item) => {
       let fun = fn instanceof Method ? fn.get(this.data) : fn;
       if (!fun.isClioFn) fun = new Fn(fun, null, IO, { scoped: false });
       return fun(item, ...args);

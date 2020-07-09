@@ -9,3 +9,9 @@ fn main argv:
   5 + (2 -> double) => nine
   (1 + 2) * (4 + 5) => twentySeven
   10 -> foo => ninety
+  
+  # result
+      eight       eight
+      nine        nine
+      twentySeven twentySeven
+      ninety      ninety
