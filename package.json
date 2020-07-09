@@ -38,26 +38,26 @@
     "url": "https://github.com/clio-lang/clio.git"
   },
   "dependencies": {
-    "@iarna/toml": "^2.2.3",
+    "@iarna/toml": "^2.2.5",
     "bean-parser": "^1.0.9",
     "chalk": "3.0.0",
-    "decompress": "4.2.0",
+    "decompress": "^4.2.1",
     "node-fetch": "2.6.0",
     "source-map": "^0.7.3",
     "tmp": "0.1.0",
     "treeify": "1.1.0",
-    "yargs": "15.0.2"
+    "yargs": "^15.4.0"
   },
   "devDependencies": {
     "@types/jest": "^24.0.24",
     "degit": "^2.2.2",
     "del": "5.1.0",
     "eslint": "^6.8.0",
-    "eslint-plugin-jest": "^23.1.1",
-    "jest": "^25.1.0",
-    "lerna": "^3.19.0",
+    "eslint-plugin-jest": "^23.18.0",
+    "jest": "^25.5.4",
+    "lerna": "^3.22.1",
     "merge": "1.2.1",
-    "ora": "^4.0.3",
+    "ora": "^4.0.4",
     "parcel-bundler": "^1.12.4",
     "prettier": "^1.19.1"
   }
