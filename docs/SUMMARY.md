@@ -55,6 +55,8 @@
 
 ## Development
 
+* [General](dev/general)
+  * [Coding Guidelines](dev/general/coding-guidelines.md)
 * [File Structure](dev/file-structure/README.md)
 * [Dependency parser](dev/dependency_parser/README.md)
 * [Extending Clio](dev/extend/extend.md)

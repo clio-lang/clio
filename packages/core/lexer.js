@@ -41,9 +41,9 @@ const filterWhites = tokens => {
     let level = 0;
     for (const token of tokens) {
       const { name } = token;
-      if (name == start) level++;
-      else if (name == end) level--;
-      if (!whitespaces.includes(name) || level == 0) {
+      if (name === start) level++;
+      else if (name === end) level--;
+      if (!whitespaces.includes(name) || level === 0) {
         result.push(token);
       }
     }
@@ -61,8 +61,8 @@ const insertIndents = tokens => {
   for (const index in tokens.slice(0, -2)) {
     const [left, middle, right] = tokens.slice(index, index + 3);
     if (
-      left.name == "newline" &&
-      middle.name == "space" &&
+      left.name === "newline" &&
+      middle.name === "space" &&
       middle.raw.length != indentLevel
     ) {
       const dent = indentLevel > middle.raw.length ? "dedent" : "indent";
@@ -70,10 +70,10 @@ const insertIndents = tokens => {
         const token = { name: dent, raw: dent, index: middle.index };
         result.push(token);
         indentLevel = middle.raw.length;
-        indentCount += dent == "indent" ? 1 : -1;
+        indentCount += dent === "indent" ? 1 : -1;
       }
     } else if (
-      left.name == "newline" &&
+      left.name === "newline" &&
       middle.name != "space" &&
       indentLevel > 0
     ) {
@@ -102,7 +102,7 @@ const insertSlicers = tokens => {
   const result = [tokens[0]];
   const zipped = zipSelf(tokens);
   for (const [left, right] of zipped) {
-    if (sliceables.includes(left.name) && right.name == "lbra") {
+    if (sliceables.includes(left.name) && right.name === "lbra") {
       const token = { name: "slicer", raw: "slicer", index: right.index };
       result.push(token);
     }
@@ -126,7 +126,7 @@ const insertFlowEnds = tokens => {
     } else if (flowEnders.includes(name) && isFlow) {
       isFlow = false;
       result.push({ ...flowEnd, index });
-    } else if ("colon" == name) {
+    } else if ("colon" === name) {
       isFlow = false;
     }
     result.push(token);
@@ -141,9 +141,9 @@ const insertDecoratorEnds = tokens => {
   const zipped = zipSelf(tokens);
   let isDecorator = false;
   for (const [left, right] of zipped) {
-    if (left.name == "at" && right.name == "symbol") {
+    if (left.name === "at" && right.name === "symbol") {
       isDecorator = true;
-    } else if (right.name == "newline" && isDecorator) {
+    } else if (right.name === "newline" && isDecorator) {
       const { index } = right;
       result.push({ ...decoratorEnd, index });
       isDecorator = false;
@@ -168,18 +168,18 @@ const insertConditionalEnds = tokens => {
   let inConditional = [];
   let waitingForIndent = false;
   for (const [index, token] of Object.entries(tokens)) {
-    if (token.name == "if") inConditional.push(indent);
+    if (token.name === "if") inConditional.push(indent);
     if (["if", "elif", "else"].includes(token.name)) waitingForIndent = true;
-    if (inConditional.length > 0 && token.name == "indent") {
+    if (inConditional.length > 0 && token.name === "indent") {
       if (waitingForIndent) waitingForIndent = false;
       indent++;
     }
-    if (inConditional.length > 0 && token.name == "dedent") indent--;
+    if (inConditional.length > 0 && token.name === "dedent") indent--;
     result.push(token);
     if (
       !waitingForIndent &&
       inConditional.length &&
-      indent == inConditional[inConditional.length - 1] &&
+      indent === inConditional[inConditional.length - 1] &&
       !["else", "elif"].includes(nextNonWhite(index, tokens))
     ) {
       inConditional.pop();

@@ -5,7 +5,7 @@ class ret extends Rule {
   parseCST() {
     const { expr } = this.cst;
     const { name } = expr;
-    if (name == "conditional") {
+    if (name === "conditional") {
       expr.ifBlock.body.body = implicit(expr.ifBlock.body.body);
       if (expr.elifBlock) {
         expr.elifBlock.body = expr.elifBlock.body.map(block => {
