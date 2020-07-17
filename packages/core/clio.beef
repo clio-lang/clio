@@ -73,17 +73,17 @@ number|symbol|dotNotation|comparison cmp => comparisonStart { lhs: left, cmp: ri
 
 // - Logical
 
-not comparison|boolean|logical|symbol|slice|dotNotation => logical { rhs: right, op: left, location: left.location }
-comparison|boolean|logical|symbol|slice|dotNotation logicalEnd => logical { rhs: right.rhs, op: right.op, lhs: left, location: left.location }
-and|or comparison|boolean|logical|symbol|slice|dotNotation => logicalEnd { rhs: right, op: left, location: left.location }
+not comparison|logic|symbol|slice|dotNotation => logical { rhs: right, op: left, location: left.location }
+comparison|logic|symbol|slice|dotNotation logicalEnd => logical { rhs: right.rhs, op: right.op, lhs: left, location: left.location }
+and|or comparison|logic|symbol|slice|dotNotation => logicalEnd { rhs: right, op: left, location: left.location }
 
 // - Conditionals
 
-if comparison|symbol|boolean|logical|dotNotation => ifConditionalPrestart { condition: right, location: left.location }
+if comparison|symbol|logic|dotNotation => ifConditionalPrestart { condition: right, location: left.location }
 ifConditionalPrestart colon => ifConditionalStart { condition: left.condition, location: left.location }
 ifConditionalStart block => ifConditional { condition: left.condition, body: right, location: left.location }
 
-elif comparison|symbol|boolean|logical|dotNotation => elifConditionalPrestart { condition: right, location: left.location }
+elif comparison|symbol|logic|dotNotation => elifConditionalPrestart { condition: right, location: left.location }
 elifConditionalPrestart colon => elifConditionalStart { condition: left.condition, location: left.location }
 
 elifConditionalStart block => elifConditional { body: [{ condition: left.condition, body: right, location: right.location }], location: left.location }
@@ -112,7 +112,7 @@ functionEnd block => function { fn: left.fn, parameters: left.parameters, body: 
 // - Anonymous functions
 
 symbol colon => anonymousFunctionStart { parameter: left.raw, location: left.location }
-anonymousFunctionStart block|math|number|array|hashmap|boolean|logical|range|slice => anonymousFunction { parameter: left.parameter, body: right, location: left.location }
+anonymousFunctionStart block|math|number|array|hashmap|logic|range|slice => anonymousFunction { parameter: left.parameter, body: right, location: left.location }
 
 // - Ranges
 
@@ -198,8 +198,8 @@ wrappedExprStart rpar => wrappedExpr { expression: left.expression, location: le
 
 // - Blocks
 
-indent math|number|array|hashmap|boolean|logical|range|slice|symbol|dotNotation|function|flow|conditional => blockStart { body: [ right ], location: left.location }
-blockStart math|number|array|hashmap|boolean|logical|range|slice|symbol|dotNotation|function|flow|conditional => blockStart { body: [ ...left.body, right ], location: left.location }
+indent math|number|array|hashmap|logic|range|slice|symbol|dotNotation|function|flow|conditional => blockStart { body: [ right ], location: left.location }
+blockStart math|number|array|hashmap|logic|range|slice|symbol|dotNotation|function|flow|conditional => blockStart { body: [ ...left.body, right ], location: left.location }
 
 blockStart dedent => block { body: left.body, location: left.location }
 
