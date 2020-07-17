@@ -1,16 +1,37 @@
 const { compile } = require("../../compiler");
 const fs = require("fs");
 const path = require("path");
+const { rpc } = require("clio-internals");
+const os = require("os");
+const { run } = require("jest");
+
+const numCPUs = os.cpus().length;
 
 /*
-  TODO: Find a way to test compiled files with RPC.
-  refer to packages/manifest/rpc/index.js#makeStartScript
-  for more info.
-
-  Possible solutions:
-    - Create a local RPC profile and use that to run tests
-    - Find a way to run a full SOCK/TCP cluster without breaking the test
+  TODO: Replace fork with makeWorker in clio-internals/rpc
 */
+
+const run = (scope) => {
+  const config = {
+    transports: [
+      {
+        transport: "worker-threads",
+        expect: numCPUs,
+      },
+    ],
+    workers: [
+      {
+        transport: "worker-threads",
+        count: numCPUs,
+      },
+    ],
+    executor: {
+      transport: "worker-threads",
+    },
+  };
+  return rpc.init(scope, config);
+};
+
 test("Compile and run wrapped expressions", async () => {
   const file = path.join(__dirname, "./clio/wrapped.clio");
   const input = fs.readFileSync(file, { encoding: "utf8" });
@@ -18,12 +39,8 @@ test("Compile and run wrapped expressions", async () => {
   const { code } = output.toStringWithSourceMap();
   const module = { exports: {} };
   eval(code);
-  Object.values(module.exports.scope).forEach((fn) => {
-    if (fn.context) fn.context.run = true;
-  });
-  const { main } = module.exports.scope;
-  const lazy = await main();
-  const { result } = await lazy.valueOf();
+  const { scope } = module.exports;
+  const { result } = await run(scope);
   expect(result.twentySeven.valueOf()).toEqual(27);
   expect(result.eight.valueOf()).toEqual(8);
   expect(result.nine.valueOf()).toEqual(9);

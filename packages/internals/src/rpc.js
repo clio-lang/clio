@@ -13,7 +13,7 @@ const fromEntries = (prev, [key, value]) => {
   return prev;
 };
 
-const startServer = config => {
+const startServer = (config) => {
   console.log("Starting server process");
   const dispatcher = new Dispatcher();
   const { transports } = config;
@@ -29,10 +29,10 @@ const startServer = config => {
 const startWorker = () => {
   // this is a worker process
   const options = Object.keys(process.env)
-    .filter(key => key.startsWith("CLIO_WORKER_"))
-    .map(key => [
+    .filter((key) => key.startsWith("CLIO_WORKER_"))
+    .map((key) => [
       key.replace(/^CLIO_WORKER_/, "").toLowerCase(),
-      process.env[key]
+      process.env[key],
     ])
     .reduce(fromEntries, {});
   console.log("Starting worker", options.id);
@@ -40,7 +40,7 @@ const startWorker = () => {
   const Transport = require(`clio-rpc/transports/${tp}`);
   const transport = new Transport.Client(options);
   const worker = new Worker(transport);
-  [...fns.values()].forEach(fn => {
+  [...fns.values()].forEach((fn) => {
     if (fn.filename && fn.name && fn.path) {
       console.log("Registering", fn.path);
       worker.register({
@@ -50,7 +50,7 @@ const startWorker = () => {
           const result = await call.valueOf();
           console.log({ result });
           return result;
-        }
+        },
       });
     }
   });
@@ -59,7 +59,7 @@ const startWorker = () => {
   worker.connect();
 };
 
-const forkWorkers = config => {
+const forkWorkers = (config) => {
   const start = process.argv[1];
   const { workers } = config;
   for (const worker of workers) {
@@ -69,7 +69,7 @@ const forkWorkers = config => {
       .reduce(fromEntries, {});
     for (let i = 0; i < count; i++) {
       fork(start, [], {
-        env: { CLIO_PROCESS_TYPE: "WORKER", CLIO_WORKER_ID: i, ...OPTIONS }
+        env: { CLIO_PROCESS_TYPE: "WORKER", CLIO_WORKER_ID: i, ...OPTIONS },
       });
     }
   }
@@ -96,7 +96,7 @@ const startMaster = (scope, config) => {
     .then(() => runMain(scope, config));
 };
 
-const initExecutor = (transport, distributed = true) => {
+const initExecutor = (transport) => {
   module.exports.executor = new Executor(transport);
 };
 
