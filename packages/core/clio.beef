@@ -68,8 +68,8 @@ importStatementAs symbol => importAsStatement { path: left.path, importAs: right
 
 // - Comparisons
 
-comparisonStart number|symbol|dotNotation => comparison { lhs: left.lhs, cmp: left.cmp, rhs: right, location: left.location }
-number|symbol|dotNotation|comparison cmp => comparisonStart { lhs: left, cmp: right.raw, location: left.location }
+comparisonStart number|symbolic => comparison { lhs: left.lhs, cmp: left.cmp, rhs: right, location: left.location }
+number|symbolic|comparison cmp => comparisonStart { lhs: left, cmp: right.raw, location: left.location }
 
 // - Logical
 
@@ -160,7 +160,7 @@ hashmap symbol => hashKey { key: right, values: left.values, root: true, locatio
 
 // - Decorators
 
-at symbol|dotNotation => decoratorStart { fn: right, args: [], location: left.location }
+at symbolic => decoratorStart { fn: right, args: [], location: left.location }
 decoratorStart expression => decoratorStart { fn: left.fn, args: [...left.args, right], location: left.location }
 decoratorStart decoratorEnd => decorator { fn: left.fn, args: left.args, location: left.location }
 
@@ -173,17 +173,17 @@ decorator function|decoratedFunction => decoratedFunction { fn: right, decorator
 at number => atArg { at: right, location: left.location }
 
 unpack unpack => doubleUnpack
-doubleUnpack symbol|dotNotation => unpackArg { double: true, arg: right, location: left.location }
-unpack symbol|dotNotation => unpackArg { double: false, arg: right, location: left.location }
+doubleUnpack symbolic => unpackArg { double: true, arg: right, location: left.location }
+unpack symbolic => unpackArg { double: false, arg: right, location: left.location }
 
 // - Flows
 
 map anonymousFunction => functionCall { fn: right, args: [], map: true, location: left.location }
 pipe anonymousFunction => functionCall { fn: right, args: [], map: false, location: left.location }
 
-map symbol|dotNotation|method => functionCallStart { fn: right, args: [], map: true, location: left.location }
-pipe symbol|dotNotation|method => functionCallStart { fn: right, args: [], map: false, location: left.location }
-set symbol|dotNotation => setVar { variable: right, location: left.location }
+map symbolic|method => functionCallStart { fn: right, args: [], map: true, location: left.location }
+pipe symbolic|method => functionCallStart { fn: right, args: [], map: false, location: left.location }
+set symbolic => setVar { variable: right, location: left.location }
 
 functionCallStart expression|unpackArg|atArg => functionCallStart { fn: left.fn, args: [ ...left.args, right ], location: left.location, map: left.map }
 functionCallStart flowEnd => functionCall { fn: left.fn, args: left.args, location: left.location, map: left.map }
@@ -198,8 +198,8 @@ wrappedExprStart rpar => wrappedExpr { expression: left.expression, location: le
 
 // - Blocks
 
-indent math|number|array|hashmap|logic|range|slice|symbol|dotNotation|function|flow|conditional => blockStart { body: [ right ], location: left.location }
-blockStart math|number|array|hashmap|logic|range|slice|symbol|dotNotation|function|flow|conditional => blockStart { body: [ ...left.body, right ], location: left.location }
+indent math|number|array|hashmap|logic|range|slice|symbolic|function|flow|conditional => blockStart { body: [ right ], location: left.location }
+blockStart math|number|array|hashmap|logic|range|slice|symbolic|function|flow|conditional => blockStart { body: [ ...left.body, right ], location: left.location }
 
 blockStart dedent => block { body: left.body, location: left.location }
 
