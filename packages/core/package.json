@@ -14,6 +14,7 @@
     "clio-highlight": "^1.0.0"
   },
   "devDependencies": {
-    "clio-internals": "^0.1.0"
+    "clio-internals": "^0.1.0",
+    "clio-rpc": "0.0.4"
   }
 }

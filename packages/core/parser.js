@@ -3,14 +3,12 @@ const lexer = require("./lexer.js");
 const model = require("./model.js");
 const { colorize } = require("clio-highlight");
 
-const parse = tokens => bean(model, tokens);
+const parse = (tokens) => bean(model, tokens);
 
 const parsingError = (source, result) => {
-  console.log({ result });
-
   const firstUnmatched = result[0].name;
   const expecting = model
-    .filter(m => m.left == firstUnmatched)
+    .filter((m) => m.left == firstUnmatched)
     .map(({ right }) => right);
   const encountered = result[1].name;
   const { location } = result[1];
@@ -34,7 +32,7 @@ const parsingError = (source, result) => {
   throw new Error(ParsingError);
 };
 
-const getCST = source => ([success, result]) => {
+const getCST = (source) => ([success, result]) => {
   if (success) {
     const cst = result[0];
     return cst;
@@ -43,7 +41,7 @@ const getCST = source => ([success, result]) => {
   }
 };
 
-const parser = source =>
+const parser = (source) =>
   lexer(source)
     .then(parse)
     .then(getCST(source));

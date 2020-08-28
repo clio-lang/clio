@@ -1,17 +1,49 @@
 // this should probably be a separate module
-
 const { Dispatcher } = require("clio-rpc/dispatcher");
 const { Worker } = require("clio-rpc/worker");
 const { Executor } = require("clio-rpc/executor");
 const os = require("os");
 const { fork } = require("child_process");
 
-const numCPUs = os.cpus().length;
-
-const fromEntries = (prev, [key, value]) => {
-  prev[key] = value;
-  return prev;
+const countCPUs = () => {
+  if (typeof window !== "undefined" && window.navigator)
+    return window.navigator.hardwareConcurrency;
+  return os.cpus().length;
 };
+
+const cpuCount = countCPUs();
+
+class WorkerThreadHelper {
+  startServer(config, dispatcher) {
+    const WorkerThread = require("clio-rpc/transports/worker-thread");
+    this.transport = new WorkerThread.Server();
+    dispatcher.addTransport(this.transport);
+  }
+  spawnWorkers(config) {
+    const workerCount =
+      config.workers.count === "cpu" ? cpuCount : config.workers.count;
+    for (let i = 0; i < workerCount; i++) this.spawnWorker(config);
+  }
+  spawnWorker(config) {
+    const { Worker } = require("worker_threads");
+    const worker = new Worker(config.workers.workerFile);
+    this.transport.addWorker(worker);
+  }
+  static initWorker() {
+    const { parentPort } = require("worker_threads");
+    const { Worker } = require("clio-rpc/worker");
+    const WorkerThread = require("clio-rpc/transports/worker-thread");
+    const transport = new WorkerThread.Client({
+      postMessage(data) {
+        parentPort.postMessage(data);
+      },
+    });
+    const worker = new Worker(transport);
+    registerFns(worker);
+    parentPort.on("message", (message) => transport.onmessage(message));
+    worker.connect();
+  }
+}
 
 const startServer = (config) => {
   console.log("Starting server process");
@@ -24,6 +56,22 @@ const startServer = (config) => {
     dispatcher.addTransport(transport);
   }
   return dispatcher;
+};
+
+const registerFns = (worker) => {
+  [...fns.values()].forEach((fn) => {
+    if (fn.filename && fn.name && fn.path) {
+      //console.log("Registering", fn.path);
+      worker.register({
+        path: fn.path,
+        async fn(...args) {
+          const call = await fn.withContext(true)(...args);
+          const result = await call.valueOf();
+          return result;
+        },
+      });
+    }
+  });
 };
 
 const startWorker = () => {
@@ -40,20 +88,7 @@ const startWorker = () => {
   const Transport = require(`clio-rpc/transports/${tp}`);
   const transport = new Transport.Client(options);
   const worker = new Worker(transport);
-  [...fns.values()].forEach((fn) => {
-    if (fn.filename && fn.name && fn.path) {
-      console.log("Registering", fn.path);
-      worker.register({
-        path: fn.path,
-        async fn(...args) {
-          const call = await fn.withContext(true)(...args);
-          const result = await call.valueOf();
-          console.log({ result });
-          return result;
-        },
-      });
-    }
-  });
+  registerFns(worker);
   const executorTransport = new Transport.Client(options);
   initExecutor(executorTransport);
   worker.connect();
@@ -111,3 +146,5 @@ const fns = new Map();
 
 module.exports.init = init;
 module.exports.fns = fns;
+module.exports.WorkerThreadHelper = WorkerThreadHelper;
+module.exports.initExecutor = initExecutor;

@@ -2,10 +2,10 @@ const { Rule } = require("../rule");
 const arr = require("../arr");
 const implicit = require("../common/implicit");
 
-const scoped = param => `scope.$.${param} = ${param}`;
+const scoped = (param) => `scope.$.${param} = ${param}`;
 
-const make = (fn, params, args, body, file) =>
-  arr`scope.$.${fn} = new Fn(
+const make = (fn, params, args, body, file, outerFns) =>
+  arr`${outerFns.join(";\n")}\nscope.$.${fn} = new Fn(
     async function ${fn} (context, ${params.join(", ")}) {
       context.run = false;
       const { scope } = context;
@@ -17,11 +17,35 @@ class fn extends Rule {
   parseCST() {
     const { fn, parameters, body } = this.cst;
     const args = parameters.map(scoped);
-    const processedBody = implicit(body.body).map(item => this.generate(item));
-    return make(fn, parameters, args, processedBody, this.file);
+    const functions = body.body
+      .filter(({ name }) => name === "function")
+      .map((innerFn) => ({
+        ...innerFn,
+        fn: fn + "_$_" + innerFn.fn,
+      }));
+    const strippedBody = body.body.map((item) => {
+      if (item.name === "function")
+        return {
+          ...item,
+          name: "scopedFn",
+        };
+      return item;
+    });
+    const processedBody = implicit(strippedBody).map((item) =>
+      this.generate(item)
+    );
+    const processedFunctions = functions.map((item) => this.generate(item));
+    return make(
+      fn,
+      parameters,
+      args,
+      processedBody,
+      this.file,
+      processedFunctions
+    );
   }
 }
 
 module.exports = {
-  function: fn
+  function: fn,
 };

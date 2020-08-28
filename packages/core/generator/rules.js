@@ -13,6 +13,7 @@ module.exports = {
   ...require("./rules/flow"),
   ...require("./rules/function-call"),
   ...require("./rules/function"),
+  ...require("./rules/scoped-function"),
   ...require("./rules/hashmap"),
   ...require("./rules/hash"),
   ...require("./rules/if-conditional"),
@@ -30,5 +31,5 @@ module.exports = {
   ...require("./rules/set-var"),
   ...require("./rules/slice"),
   ...require("./rules/string"),
-  ...require("./rules/symbol")
+  ...require("./rules/symbol"),
 };

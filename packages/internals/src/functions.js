@@ -33,9 +33,7 @@ class Fn extends ExtensibleFunction {
     this.scoped = scoped;
     this.isClioFn = true;
     this.filename = filename;
-    this.path = [filename, this.getOuterNames(), name]
-      .filter(Boolean)
-      .join("/");
+    this.path = "/" + [this.getOuterNames(), name].filter(Boolean).join("/");
     this.context = context || this.getContext(false);
     if (!rpc.fns.has(this.path)) rpc.fns.set(this.path, this);
   }
@@ -60,8 +58,6 @@ class Fn extends ExtensibleFunction {
       const context = this.context || this.getContext(false);
       args.unshift(context);
     }
-    console.log(this.fn.toString());
-
     const typed = new this.type(() => this.fn(...args));
     return typed.asResult();
   }
@@ -90,6 +86,12 @@ class Fn extends ExtensibleFunction {
     const context = this.getContext(run);
     const options = { ...this.options, context };
     return new Fn(this.fn, this.outerScope, this.type, options);
+  }
+  toJSON() {
+    return {
+      __clioType: "Function",
+      ...this,
+    };
   }
 }
 
