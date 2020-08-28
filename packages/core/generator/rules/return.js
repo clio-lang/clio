@@ -8,7 +8,7 @@ class ret extends Rule {
     if (name == "conditional") {
       expr.ifBlock.body.body = implicit(expr.ifBlock.body.body);
       if (expr.elifBlock) {
-        expr.elifBlock.body = expr.elifBlock.body.map(block => {
+        expr.elifBlock.body = expr.elifBlock.body.map((block) => {
           block.body.body = implicit(block.body.body);
           return block;
         });
@@ -18,6 +18,7 @@ class ret extends Rule {
       }
       return [this.generate(expr)];
     } else {
+      if (name == "scopedFn") expr.inReturn = true;
       const processedExpr = this.generate(expr);
       return ["return ", processedExpr];
     }
@@ -25,5 +26,5 @@ class ret extends Rule {
 }
 
 module.exports = {
-  return: ret
+  return: ret,
 };

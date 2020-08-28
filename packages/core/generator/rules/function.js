@@ -22,12 +22,15 @@ class fn extends Rule {
       .map((innerFn) => ({
         ...innerFn,
         fn: fn + "_$_" + innerFn.fn,
+        originalFn: innerFn.fn,
       }));
     const strippedBody = body.body.map((item) => {
       if (item.name === "function")
         return {
           ...item,
           name: "scopedFn",
+          fn: fn + "_$_" + item.fn,
+          originalFn: item.fn,
         };
       return item;
     });
