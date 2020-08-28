@@ -2,9 +2,9 @@ const { Rule } = require("../rule");
 const arr = require("../arr");
 
 const make = (fn, originalFn) =>
-  arr`scope.$.${originalFn} = scope.$.${fn}.withScope(scope)`;
+  arr`scope.$.${originalFn} = scope.$.${fn}.withOuterScope(scope)`;
 
-const makeReturn = (fn) => arr`scope.$.${fn}.withScope(scope)`;
+const makeReturn = (fn) => arr`scope.$.${fn}.withOuterScope(scope)`;
 
 class scopedFn extends Rule {
   parseCST() {
