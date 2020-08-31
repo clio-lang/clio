@@ -1,20 +1,22 @@
-const proxify = scope =>
+const proxify = (scope) =>
   new Proxy(scope, {
     set(scope, key, value) {
       return scope.set(key, value);
     },
     get(scope, key) {
       return scope.get(key);
-    }
+    },
   });
 
 class Scope {
   constructor(initial, outerScope, options = {}) {
-    const { name } = options;
+    const { name, context = {} } = options;
     this.outerScope = outerScope;
     this.scope = { ...initial };
     this.$ = proxify(this);
     this.name = name;
+    this.context = context;
+    // if(context.rpc) context.rpc.registerScope(this)
   }
   get(key) {
     if (key in this.scope) {

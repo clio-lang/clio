@@ -35,7 +35,7 @@ class Fn extends ExtensibleFunction {
     this.filename = filename;
     this.path = "/" + [this.getOuterNames(), name].filter(Boolean).join("/");
     this.context = context || this.getContext(false);
-    if (!rpc.fns.has(this.path)) rpc.fns.set(this.path, this);
+    //if (!rpc.fns.has(this.path)) rpc.fns.set(this.path, this);
   }
   getOuterNames() {
     const outerNames = [];
@@ -87,12 +87,6 @@ class Fn extends ExtensibleFunction {
     const options = { ...this.options, context };
     return new Fn(this.fn, this.outerScope, this.type, options);
   }
-  toJSON() {
-    return {
-      __clioType: "Function",
-      ...this,
-    };
-  }
 }
 
 const fn = (...args) => new Fn(...args);
@@ -106,4 +100,3 @@ const { Scope } = require("./scope");
 const { Lazy } = require("./lazy");
 const { getArity } = require("./arity");
 const { Context } = require("./context");
-const rpc = require("./rpc");
