@@ -42,7 +42,7 @@
     "bean-parser": "^1.0.9",
     "chalk": "3.0.0",
     "decompress": "^4.2.1",
-    "node-fetch": "2.6.0",
+    "node-fetch": "2.6.1",
     "source-map": "^0.7.3",
     "tmp": "0.1.0",
     "treeify": "1.1.0",
