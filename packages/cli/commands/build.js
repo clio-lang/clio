@@ -169,7 +169,7 @@ const build = async (
     try {
       const packageJsonPath = path.join(destination, "package.json");
       const dependencies = getParsedNpmDependencies(source);
-      dependencies["clio-internals"] = "latest";
+      dependencies["clio-run"] = "latest";
       const packageJsonContent = {
         dependencies,
         main: `${config.main}.js`,
