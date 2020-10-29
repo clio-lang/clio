@@ -9,10 +9,9 @@ const makeStartScript = (config, target, destination) => {
   );
   fs.writeFileSync(
     path.join(destination, "start.js"),
-    `const { rpc } = require("clio-internals");\n` +
+    `const server = require("clio-run/servers/wt.js");\n` +
       `const config = require("./rpc.json");\n` +
-      `const scope = require("./${main}.js");\n` +
-      `rpc.init(scope, config);`
+      `server(${main}.js)`
   );
 };
 

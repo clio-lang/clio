@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { generator } = require("clio-core");
+const { compile } = require("clio-core");
 const { error, info, warn } = require("../lib/colors");
 const { getPlatform } = require("../lib/platforms");
 const { Progress } = require("../lib/progress");
@@ -12,7 +12,7 @@ const {
   getPackageConfig,
   hasInstalledNpmDependencies,
   getParsedNpmDependencies,
-  makeStartScript
+  makeStartScript,
 } = require("clio-manifest");
 
 const flatten = arr => arr.reduce((acc, val) => acc.concat(val), []);
@@ -152,13 +152,11 @@ const build = async (
       const destFile = `${destFileClio}.js`;
       const destDir = path.dirname(destFile);
       const contents = fs.readFileSync(file, "utf8");
-      const compiled = await generator(contents, relativeFile);
-      const { code, map } = compiled.toStringWithSourceMap();
-      const sourceMap = map.toString();
+      const { code, map } = compile(contents, relativeFile);
       mkdir(destDir);
       await fs.promises.writeFile(destFileClio, contents, "utf8");
       await fs.promises.writeFile(destFile, code, "utf8");
-      await fs.promises.writeFile(`${destFile}.map`, sourceMap, "utf8");
+      await fs.promises.writeFile(`${destFile}.map`, map, "utf8");
     }
     progress.succeed();
 
@@ -174,7 +172,7 @@ const build = async (
       dependencies["clio-internals"] = "latest";
       const packageJsonContent = {
         dependencies,
-        main: `${config.main}.js`
+        main: `${config.main}.js`,
       };
       fs.writeFileSync(
         packageJsonPath,
@@ -206,14 +204,12 @@ const build = async (
           .replace(ENV_NAME, "node_modules");
         const destFile = `${destFileClio}.js`;
         const contents = await fs.promises.readFile(file, "utf8");
-        const compiled = await generator(contents, relativeFile);
+        const { code, map } = compile(contents, relativeFile);
         const destDir = path.dirname(destFile);
-        const { code, map } = compiled.toStringWithSourceMap();
-        const sourceMap = map.toString();
         mkdir(destDir);
         await fs.promises.writeFile(destFileClio, contents, "utf8");
         await fs.promises.writeFile(destFile, code, "utf8");
-        await fs.promises.writeFile(`${destFile}.map`, sourceMap, "utf8");
+        await fs.promises.writeFile(`${destFile}.map`, map, "utf8");
       }
       progress.succeed();
 
@@ -290,7 +286,7 @@ const buildPackageJson = (source, dependency, destination) => {
   const packageJson = {
     main: config.main,
     title: config.title,
-    clio: { config }
+    clio: { config },
   };
   const destFilePath = path.join(
     destination,
@@ -308,7 +304,7 @@ const handler = argv => {
   const options = {
     targetOverride: argv.target,
     skipBundle: argv["skip-bundle"],
-    skipNpmInstall: argv["skip-npm-install"]
+    skipNpmInstall: argv["skip-npm-install"],
   };
   build(argv.source, argv.destination, options);
 };
@@ -316,28 +312,28 @@ const builder = {
   source: {
     describe: "source directory to read from",
     type: "string",
-    default: path.resolve(".")
+    default: path.resolve("."),
   },
   destination: {
     describe: "destination directory to write to",
-    type: "string"
+    type: "string",
   },
   target: {
     describe: "An override for the default project target.",
-    type: "string"
+    type: "string",
   },
   "skip-bundle": {
     describe: "Does not produces a bundle for browsers.",
-    type: "boolean"
+    type: "boolean",
   },
   "skip-npm-install": {
     describe: "Skips npm install. Useful for tests.",
-    type: "boolean"
+    type: "boolean",
   },
   silent: {
     describe: "Mutes messages from the command.",
-    type: "boolean"
-  }
+    type: "boolean",
+  },
 };
 
 module.exports = {
@@ -348,5 +344,5 @@ module.exports = {
   handler,
   getBuildTarget,
   getDestinationFromConfig,
-  copyDir
+  copyDir,
 };

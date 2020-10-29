@@ -1,5 +1,5 @@
 {
-  "name": "clio-internals",
+  "name": "clio-run",
   "version": "0.1.0",
   "description": "Internal functionality used by the Clio Programming Language core.",
   "main": "src/index.js",
@@ -8,5 +8,7 @@
   },
   "author": "Pouya Eghbali <pouya.eghbali@yandex.com>",
   "license": "Apache-2.0",
-  "dependencies": {}
+  "dependencies": {
+    "clio-rpc": "0.0.4"
+  }
 }

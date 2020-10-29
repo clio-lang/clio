@@ -1,18 +1,42 @@
-module.exports = {
-  Array: require("./array").Array,
-  builtins: require("./builtins"),
-  flow: require("./flow").flow,
-  Flow: require("./flow").Flow,
-  fn: require("./functions").fn,
-  Fn: require("./functions").Fn,
-  io: require("./io").io,
-  IO: require("./io").IO,
-  lazy: require("./lazy").lazy,
-  Lazy: require("./lazy").Lazy,
-  Range: require("./range").Range,
-  scope: require("./scope").scope,
-  Scope: require("./scope").Scope,
-  Method: require("./method").Method,
-  moduleName: require("./modules").moduleName,
-  rpc: require("./rpc")
+const getImport = clio => {
+  const parseCloudLocation = location => {
+    const [_, protocol, host, path] = location.match(
+      /([a-z]+):\/\/([^\/]+)\/(.*)/
+    );
+    return { protocol, host, path };
+  };
+
+  const clioImportCloud = async location => {
+    const { protocol, host, path } = parseCloudLocation(location);
+    if (!protocol || protocol != "ws")
+      throw "Only WS is supported at the moment";
+    const executor = await clio.distributed.getExecutor(protocol, host);
+    const paths = await executor.getFunctions(path);
+    const fns = {};
+    for (const key in paths) fns[key.slice(path.length + 1)] = paths[key];
+    return fns;
+  };
+
+  const clioImportLocal = async location => {
+    const isClio = location.endsWith(".clio");
+    if (isClio) return await require(`${location}.js`).__clioModule(clio);
+    const isJs = location.endsWith(".js");
+    if (isJs) return require(location);
+    try {
+      const imported = await require(`${location}.clio.js`).__clioModule(clio);
+      return imported;
+    } catch (error) {
+      const imported = require(location);
+      return imported;
+    }
+  };
+
+  const clioImport = location => {
+    const isCloud = location.match(/(ws|tcp|udp):\/\//);
+    return isCloud ? clioImportCloud(location) : clioImportLocal(location);
+  };
+
+  clio.import = clioImport;
 };
+
+module.exports.getImport = getImport;
