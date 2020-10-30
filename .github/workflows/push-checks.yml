@@ -18,12 +18,12 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - name: npm install & test
         run: |
+          export CLIOPATH="$GITHUB_WORKSPACE"
           npm ci
           npm run link
           npm test
         env:
           CI: true
-          CLIOPATH: $GITHUB_WORKSPACE
       - name: Coveralls Parallel
         uses: coverallsapp/github-action@master
         with:
