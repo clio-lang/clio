@@ -7,6 +7,7 @@ __pycache__
 /clio.iml
 .cache
 .DS_Store
+dist
 
 # see package/config.js before renaming this
 clio_env 
