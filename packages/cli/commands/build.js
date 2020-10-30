@@ -137,6 +137,7 @@ const build = async (
   const target = getBuildTarget(targetOverride, config);
   const destination = dest || getDestinationFromConfig(source, target, config);
   const sourceDir = getSourceFromConfig(source, target, config);
+  const relativeMain = config.main.slice(target.length);
 
   if (!silent) info(`Creating build for ${target}`);
 
@@ -162,7 +163,7 @@ const build = async (
 
     // Add start.js file
     progress.start("Adding Clio start script...");
-    makeStartScript(config, target, destination);
+    makeStartScript(config, target, destination, relativeMain);
     progress.succeed();
 
     // Init npm modules
@@ -249,9 +250,15 @@ const build = async (
       "If you encounter any unwanted behavior, unset the CLIOPATH environment variable"
     );
     progress.start("Linking internals");
-    await linkInternals(
+    await link(
       path.resolve(process.env.CLIOPATH, "packages", "internals"),
       path.join(destination, "node_modules", "clio-internals")
+    );
+    progress.succeed();
+    progress.start("Linking run");
+    await link(
+      path.resolve(process.env.CLIOPATH, "packages", "run"),
+      path.join(destination, "node_modules", "clio-run")
     );
     progress.succeed();
   }
@@ -268,7 +275,7 @@ const build = async (
  * Link local internals package as a dependency
  * @param {string} destination Full path to destination directory
  */
-async function linkInternals(source, destination) {
+async function link(source, destination) {
   await copyDir(source, destination);
 }
 

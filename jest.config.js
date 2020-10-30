@@ -11,9 +11,10 @@ module.exports = {
     "!highlight.js",
     "!jest-puppeteer.config.js",
     "!host/**/*",
-    "!tests/**/*"
+    "!tests/**/*",
   ],
   testPathIgnorePatterns: ["<rootDir>/jest.config.js"],
   moduleFileExtensions: ["js", "json", "jsx", "ts", "tsx", "node", "toml"],
-  testEnvironment: "node"
+  testEnvironment: "node",
+  testTimeout: 30000,
 };

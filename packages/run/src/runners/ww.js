@@ -1,5 +1,4 @@
 const { run } = require("../index");
-const { Worker } = require("worker_threads");
 const { Dispatcher } = require("clio-rpc/dispatcher");
 const { Executor } = require("clio-rpc/executor");
 const WorkerThread = require("clio-rpc/transports/worker-thread");
@@ -13,7 +12,8 @@ const start = file => {
   const dispatcher = new Dispatcher();
   const serverTransport = new WorkerThread.Server();
   for (let i = 0; i < numCPUs; i++) {
-    const worker = new Worker("../workers/wt.js", { workerData: { file } });
+    // TODO: can parcel handle this?
+    const worker = new Worker(`../workers/ww.js?file=${file}`);
     serverTransport.addWorker(worker);
   }
   dispatcher.addTransport(serverTransport);
