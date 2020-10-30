@@ -265,7 +265,7 @@ const build = async (
     );
     progress.succeed();
     progress.start("Linking run");
-    link(
+    await link(
       path.resolve(process.env.CLIOPATH, "packages", "run"),
       path.join(destination, "node_modules", "clio-run")
     );
