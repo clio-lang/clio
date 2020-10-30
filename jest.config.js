@@ -13,7 +13,10 @@ module.exports = {
     "!host/**/*",
     "!tests/**/*",
   ],
-  testPathIgnorePatterns: ["<rootDir>/jest.config.js"],
+  testPathIgnorePatterns: [
+    "<rootDir>/jest.config.js",
+    "<rootDir>/packages/rpc/test",
+  ],
   moduleFileExtensions: ["js", "json", "jsx", "ts", "tsx", "node", "toml"],
   testEnvironment: "node",
   testTimeout: 30000,
