@@ -15,17 +15,17 @@ const {
   makeStartScript,
 } = require("clio-manifest");
 
-const flatten = (arr) => arr.reduce((acc, val) => acc.concat(val), []);
+const flatten = arr => arr.reduce((acc, val) => acc.concat(val), []);
 
-const isDir = (dir) => fs.lstatSync(dir).isDirectory();
-const readDir = (dir) => fs.readdirSync(dir);
-const walkDir = (dir) => readDir(dir).map((f) => walk(path.join(dir, f)));
-const walk = (dir) => (isDir(dir) ? flatten(walkDir(dir)) : [dir]);
+const isDir = dir => fs.lstatSync(dir).isDirectory();
+const readDir = dir => fs.readdirSync(dir);
+const walkDir = dir => readDir(dir).map(f => walk(path.join(dir, f)));
+const walk = dir => (isDir(dir) ? flatten(walkDir(dir)) : [dir]);
 
-const isClioFile = (file) => file.endsWith(".clio");
-const isNotClioFile = (file) => !file.endsWith(".clio");
-const getClioFiles = (dir) => walk(dir).filter(isClioFile);
-const getNonClioFiles = (dir) => walk(dir).filter(isNotClioFile);
+const isClioFile = file => file.endsWith(".clio");
+const isNotClioFile = file => !file.endsWith(".clio");
+const getClioFiles = dir => walk(dir).filter(isClioFile);
+const getNonClioFiles = dir => walk(dir).filter(isNotClioFile);
 const copyDir = async (src, dest) => {
   const entries = await fs.promises.readdir(src, { withFileTypes: true });
   mkdir(dest);
@@ -44,7 +44,7 @@ const copyDir = async (src, dest) => {
   }
 };
 
-const mkdir = (directory) => {
+const mkdir = directory => {
   const { root, dir, base } = path.parse(directory);
   const parts = [...dir.split(path.sep), base];
   return parts.reduce((parent, subdir) => {
@@ -271,7 +271,8 @@ const build = async (
  * @param {string} destination Full path to destination directory
  */
 function link(source, destination) {
-  fs.rmdirSync(destination, { recursive: true });
+  fs.rmSync(destination, { recursive: true, force: true });
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.symlinkSync(source, destination);
 }
 
@@ -303,7 +304,7 @@ const buildPackageJson = (source, dependency, destination) => {
 const command = "build [target] [source] [destination]";
 const desc = "Build a Clio project";
 
-const handler = (argv) => {
+const handler = argv => {
   const options = {
     targetOverride: argv.target,
     skipBundle: argv["skip-bundle"],
