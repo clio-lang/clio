@@ -268,12 +268,6 @@ const addIndents = (tokens) => {
   return result;
 };
 
-const removeWhites = (tokens) => {
-  return tokens.filter((item) => {
-    return !isOne(item, spaces) && !isOne(item, newline);
-  });
-};
-
 const removeIndentPair = (tokens, index) => {
   tokens.splice(index, 1);
   let outdentIndex = index + 1;
@@ -297,8 +291,6 @@ const isLeftIndentRemovable = (token) =>
 
 const isRightIndentRemovable = (token) =>
   isMathOp(token) || isLogicOp(token) || isOne(token, not);
-
-const isIndent = (token) => isOne(token, indent);
 
 const getNext = (tokens, index, stopToken, ignoreList) => {
   while (tokens[index]) {
@@ -547,7 +539,7 @@ Rules.range = once(
     const start = result[0][0] ? detokenize(result[0][0]) : "0";
     const end = result[1] ? detokenize(result[1]) : "Infinity";
     const step = result[2] ? detokenize(result[2]) : "1";
-    const firstToken = result[0] || result[1] || result[2];
+    const firstToken = result[0][0] || result[1] || result[2];
     const range = new SourceNode(
       firstToken.line,
       firstToken.column,
@@ -555,7 +547,6 @@ Rules.range = once(
       arr`range(${start}, ${end}, ${step})`
     );
     return range;
-    return result;
   });
 
 Rules.pow = once(() => [
@@ -797,15 +788,6 @@ Rules.logical = once(any(Rules.or, Rules.and, Rules.not))
   .onMatch((result) => {
     return result.pop();
   });
-
-const cmpOps = {
-  ">": "gt",
-  ">=": "gte",
-  "=": "eq",
-  "!=": "neq",
-  "<": "lt",
-  "<=": "lte",
-};
 
 Rules.cmp = once(() => [
   any(Rules.math, Rules.wrapped, Rules.range, Rules.array, number, symbol),
@@ -1440,8 +1422,6 @@ Rules.propertyAccess = once(
   return propertyAccess;
 });
 
-const dir = (item) => console.dir(item, { depth: null, maxArrayLength: null });
-
 const importInner = many(
   any(mul, symbol),
   option(as, symbol)
@@ -1516,18 +1496,6 @@ Rules.inlineImport = once(
       );
       return importStatement;
     }
-    /* Translation map
-    import "express"                 -> const ${moduleName("express")} = await clioImport("express")
-    import xyz from "express"        -> const { xyz } = await clioImport("express")
-    import * as xyz from "express"   -> const xyz = await clioImport("express")
-    import app as abc from "express" -> const { app: xyz } = await clioImport("express")
-    import
-      app as abc
-      * as rest
-    from "express"                   -> const { app: xyz, ...rest } = await clioImport("express")
-    */
-    //console.dir(result[1], { depth: null });
-    return result;
   });
 
 Rules.indentImport = once(Import, indent, importInner, outdent, from, string)
@@ -1558,7 +1526,6 @@ Rules.indentImport = once(Import, indent, importInner, outdent, from, string)
       );
       return importStatement;
     }
-    return result;
   });
 
 Rules.import = once(any(Rules.indentImport, Rules.inlineImport))
