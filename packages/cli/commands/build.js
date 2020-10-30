@@ -185,7 +185,6 @@ const build = async (
       const packageJsonPath = path.join(destination, "package.json");
       const dependencies = getParsedNpmDependencies(source);
       dependencies["clio-run"] = "latest";
-      dependencies["clio-internals"] = "latest";
       const packageJsonContent = {
         dependencies,
         main: `${config.main}.js`,
@@ -266,10 +265,6 @@ const build = async (
     );
     progress.succeed();
     progress.start("Linking run");
-    await link(
-      path.resolve(process.env.CLIOPATH, "packages", "internals"),
-      path.join(destination, "node_modules", "clio-internals")
-    );
     await link(
       path.resolve(process.env.CLIOPATH, "packages", "run"),
       path.join(destination, "node_modules", "clio-run")

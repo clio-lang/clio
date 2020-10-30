@@ -20,10 +20,10 @@ jobs:
         run: |
           npm ci
           npm run link
-          npm run bootstrap
           npm test
         env:
           CI: true
+          CLIOPATH: $GITHUB_WORKSPACE
       - name: Coveralls Parallel
         uses: coverallsapp/github-action@master
         with:
@@ -42,10 +42,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v1
-      - name: Use Node.js 12.x
+      - name: Use Node.js 14.x
         uses: actions/setup-node@v1
         with:
-          node-version: 12.x
+          node-version: 14.x
       - name: npm lint:check
         run: |
           npm ci
