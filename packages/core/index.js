@@ -536,10 +536,10 @@ Rules.range = once(
   .ignore(spaces, newline, indent, outdent)
   .name("range")
   .onMatch((result) => {
-    const start = result[0][0] ? detokenize(result[0][0]) : "0";
+    const start = result[0] && result[0][0] ? detokenize(result[0][0]) : "0";
     const end = result[1] ? detokenize(result[1]) : "Infinity";
     const step = result[2] ? detokenize(result[2]) : "1";
-    const firstToken = result[0][0] || result[1] || result[2];
+    const firstToken = result[0] || result[1] || result[2];
     const range = new SourceNode(
       firstToken.line,
       firstToken.column,
