@@ -15,24 +15,38 @@ const {
   makeStartScript,
 } = require("clio-manifest");
 
-const flatten = arr => arr.reduce((acc, val) => acc.concat(val), []);
+const flatten = (arr) => arr.reduce((acc, val) => acc.concat(val), []);
 
-const isDir = dir => fs.lstatSync(dir).isDirectory();
-const readDir = dir => fs.readdirSync(dir);
-const walkDir = dir => readDir(dir).map(f => walk(path.join(dir, f)));
-const walk = dir => (isDir(dir) ? flatten(walkDir(dir)) : [dir]);
+const isDir = (dir) => fs.lstatSync(dir).isDirectory();
+const readDir = (dir) => fs.readdirSync(dir);
+const walkDir = (dir) => readDir(dir).map((f) => walk(path.join(dir, f)));
+const walk = (dir) => (isDir(dir) ? flatten(walkDir(dir)) : [dir]);
 
-const isClioFile = file => file.endsWith(".clio");
-const isNotClioFile = file => !file.endsWith(".clio");
-const getClioFiles = dir => walk(dir).filter(isClioFile);
-const getNonClioFiles = dir => walk(dir).filter(isNotClioFile);
+const isClioFile = (file) => file.endsWith(".clio");
+const isNotClioFile = (file) => !file.endsWith(".clio");
+const getClioFiles = (dir) => walk(dir).filter(isClioFile);
+const getNonClioFiles = (dir) => walk(dir).filter(isNotClioFile);
 const copyDir = async (src, dest) => {
   const entries = await fs.promises.readdir(src, { withFileTypes: true });
   mkdir(dest);
   for (let entry of entries) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) {
+    if (entry.isSymbolicLink()) {
+      const target = fs.readlinkSync(srcPath);
+      const absTarget = path.isAbsolute(target)
+        ? target
+        : path.resolve(path.dirname(srcPath), target);
+      if (fs.lstatSync(absTarget).isDirectory()) {
+        await copyDir(absTarget, destPath);
+      } else {
+        await fs.promises.copyFile(
+          absTarget,
+          destPath,
+          fs.constants.COPYFILE_FICLONE
+        );
+      }
+    } else if (entry.isDirectory()) {
       await copyDir(srcPath, destPath);
     } else {
       await fs.promises.copyFile(
@@ -44,7 +58,7 @@ const copyDir = async (src, dest) => {
   }
 };
 
-const mkdir = directory => {
+const mkdir = (directory) => {
   const { root, dir, base } = path.parse(directory);
   const parts = [...dir.split(path.sep), base];
   return parts.reduce((parent, subdir) => {
@@ -274,10 +288,8 @@ const build = async (
  * Link local internals package as a dependency
  * @param {string} destination Full path to destination directory
  */
-function link(source, destination) {
-  fs.rmSync(destination, { recursive: true, force: true });
-  fs.mkdirSync(path.dirname(destination), { recursive: true });
-  fs.symlinkSync(source, destination);
+async function link(source, destination) {
+  await copyDir(source, destination);
 }
 
 /**
@@ -308,7 +320,7 @@ const buildPackageJson = (source, dependency, destination) => {
 const command = "build [target] [source] [destination]";
 const desc = "Build a Clio project";
 
-const handler = argv => {
+const handler = (argv) => {
   const options = {
     targetOverride: argv.target,
     skipBundle: argv["skip-bundle"],
