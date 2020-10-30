@@ -581,20 +581,11 @@ Rules.pow = once(() => [
         op.line,
         op.column,
         op.source,
-        arr`pow(${pow}, ${value})`
+        arr`Math.pow(${pow}, ${value})`
       );
     }
     return pow;
   });
-
-const ops = {
-  "+": "add",
-  "-": "sub",
-  "%": "mod",
-  "\\\\": "floorDiv",
-  "*": "mul",
-  "\\": "div",
-};
 
 Rules.mul = once(() => [
   any(Rules.wrapped, Rules.range, Rules.pow, Rules.array, number, symbol),
@@ -618,13 +609,20 @@ Rules.mul = once(() => [
     let mul = detokenize(result[0]);
     for (const [op, token] of result[1]) {
       const value = detokenize(token);
-      const fn = ops[op.raw];
-      mul = new SourceNode(
-        op.line,
-        op.column,
-        op.source,
-        arr`${fn}(${mul}, ${value})`
-      );
+      if (op.raw == "//")
+        mul = new SourceNode(
+          op.line,
+          op.column,
+          op.source,
+          arr`Math.floor(${mul} // ${value})`
+        );
+      else
+        mul = new SourceNode(
+          op.line,
+          op.column,
+          op.source,
+          arr`(${mul} ${op.raw} ${value})`
+        );
     }
     return mul;
   });
@@ -1211,7 +1209,11 @@ Rules.chain = once(() => [
     return chainNode;
   });
 
-Rules.keyValue = once(symbol, colon, any(string, symbol, number))
+Rules.keyValue = once(() => [
+  symbol,
+  colon,
+  any(Rules.functionCall, Rules.math, Rules.wrapped, string, symbol, number),
+])
   .ignore(spaces)
   .name("key value")
   .onMatch(([key, _, value]) => {
@@ -1242,7 +1244,7 @@ Rules.nestedHash = once(() => [
 
 Rules.inlineHash = once(
   hash,
-  many(any(Rules.nestedHash, Rules.keyValue)).ignore(spaces, newline)
+  option(many(any(Rules.nestedHash, Rules.keyValue)).ignore(spaces, newline))
 )
   .ignore(spaces)
   .name("inline hash")
@@ -1302,7 +1304,7 @@ Rules.mixedHash = once(
     return hashNode;
   });
 
-Rules.hash = once(any(Rules.mixedHash, Rules.inlineHash, Rules.indentHash))
+Rules.hash = once(any(Rules.mixedHash, Rules.indentHash, Rules.inlineHash))
   .name("hash")
   .onMatch(
     result =>
@@ -1405,7 +1407,7 @@ Rules.block = once(() => [
 
 Rules.wrapped = once(
   lParen,
-  any(Rules.chain, Rules.functionCall, Rules.math),
+  any(Rules.hash, Rules.chain, Rules.functionCall, Rules.math),
   rParen
 )
   .ignore(spaces, newline, indent, outdent)

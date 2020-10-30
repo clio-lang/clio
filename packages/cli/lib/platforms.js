@@ -12,20 +12,20 @@ const web = {
   async run(path) {
     const bundler = await setupParcel(path, { watch: true });
     await bundler.serve();
-  }
+  },
 };
 
 const node = {
   async build() {},
-  async run(destination) {
-    fork(path.join(destination, "start.js"));
-  }
+  async run(destination, ...forkOptions) {
+    return fork(path.join(destination, "start.js"), ...forkOptions);
+  },
 };
 
 // FIXME In the future, this should not be done this way
 const defeito = {
   build() {},
-  run() {}
+  run() {},
 };
 
 async function setupParcel(destination, options = { watch: false }) {
@@ -51,14 +51,14 @@ async function setupParcel(destination, options = { watch: false }) {
   return new Parcel(htmlFilePath, {
     outDir: path.join(destination, "dist"),
     outFile: path.join(destination, "dist/index.html"),
-    ...options
+    ...options,
   });
 }
 
 const platforms = {
   web,
   node,
-  defeito
+  defeito,
 };
 
 function getPlatform(name) {

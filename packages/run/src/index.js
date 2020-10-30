@@ -55,7 +55,7 @@ const mainDist = executor =>
 const run = async (
   module,
   { worker, executor },
-  { noExit = false, noMain = false } = {}
+  { noExit = false, noMain = false, returnMain = false } = {}
 ) => {
   const clio = {
     distributed: worker ? workerDist(executor, worker) : mainDist(executor),
@@ -65,11 +65,10 @@ const run = async (
   if (!worker) {
     if (!noMain) {
       const result = await main([]);
-      if (Array.isArray(result)) {
-        await Promise.all(result);
-      } else {
-        await result;
-      }
+      const awaited = Array.isArray(result)
+        ? await Promise.all(result)
+        : await result;
+      if (returnMain) return awaited;
     }
     if (!noExit) {
       process.exit();
@@ -77,5 +76,39 @@ const run = async (
   }
 };
 
+const importClio = file => {
+  const { Worker } = require("worker_threads");
+  const { Dispatcher } = require("clio-rpc/dispatcher");
+  const { Executor } = require("clio-rpc/executor");
+  const WorkerThread = require("clio-rpc/transports/worker-thread");
+  const path = require("path");
+
+  const os = require("os");
+
+  const numCPUs = os.cpus().length;
+  const main = require(file);
+
+  const dispatcher = new Dispatcher();
+  const serverTransport = new WorkerThread.Server();
+  const workerFile = path.resolve(__dirname, "./workers/wt.js");
+  for (let i = 0; i < numCPUs; i++) {
+    const worker = new Worker(workerFile, { workerData: { file } });
+    serverTransport.addWorker(worker);
+  }
+  dispatcher.addTransport(serverTransport);
+
+  return new Promise(resolve => {
+    dispatcher.expectWorkers(numCPUs).then(async () => {
+      const clientTransport = serverTransport.getTransport();
+      const executor = new Executor(clientTransport);
+      const clio = { distributed: mainDist(executor) };
+      getImport(clio);
+      const exports = await main.__clioModule(clio);
+      resolve({ dispatcher, exports });
+    });
+  });
+};
+
 module.exports.Distributed = Distributed;
 module.exports.run = run;
+module.exports.importClio = importClio;

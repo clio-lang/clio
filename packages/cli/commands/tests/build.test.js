@@ -6,7 +6,7 @@ const { copyDir } = require("../build");
 const {
   CONFIGFILE_NAME,
   getPackageConfig,
-  writePackageConfig
+  writePackageConfig,
 } = require("clio-manifest");
 
 jest.mock("clio-manifest/npm_dependencies");
@@ -29,7 +29,7 @@ describe("Package.json generation", () => {
     await build(dir.name, null, {
       skipNpmInstall: true,
       skipBundle: true,
-      silent: true
+      silent: true,
     });
     const file = fs.readFileSync(
       path.join(dir.name, "build", "web", "package.json")
@@ -46,7 +46,7 @@ describe("Package.json generation", () => {
     await build(dir.name, null, {
       skipNpmInstall: true,
       skipBundle: true,
-      silent: true
+      silent: true,
     });
 
     let file = fs.readFileSync(
@@ -59,7 +59,7 @@ describe("Package.json generation", () => {
     const newConfig = {
       ...oldConfig,
       // eslint-disable-next-line camelcase
-      npm_dependencies: { ...oldConfig.npm_dependencies, express: "latest" }
+      npm_dependencies: { ...oldConfig.npm_dependencies, express: "latest" },
     };
 
     writePackageConfig(newConfig, dir.name);
@@ -67,7 +67,7 @@ describe("Package.json generation", () => {
     await build(dir.name, null, {
       skipNpmInstall: true,
       skipBundle: true,
-      silent: true
+      silent: true,
     });
 
     file = fs.readFileSync(
@@ -84,7 +84,7 @@ describe("Package.json generation", () => {
     await _new(dir.name, "node");
     await build(dir.name, null, {
       skipBundle: true,
-      silent: true
+      silent: true,
     });
 
     const nodeModulesExists = fs.existsSync(
@@ -151,7 +151,9 @@ describe("Node builds", () => {
     fs.writeFileSync(
       path.join(dir.name, CONFIGFILE_NAME),
       `
-    [build]
+main = "src/main.clio"
+
+[build]
 directory = "build"
 target = "node"
 

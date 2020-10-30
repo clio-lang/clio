@@ -1,18 +1,18 @@
-/* const { compile } = require("../../compiler");
+const { compile } = require("../..");
 const fs = require("fs");
 const path = require("path");
+const { importClio } = require("clio-run");
 
 test("Compile and run maths", async () => {
-  const file = path.join(__dirname, "./clio/math.clio");
+  const relative = "./clio/math.clio";
+  const file = path.join(__dirname, relative);
   const input = fs.readFileSync(file, { encoding: "utf8" });
-  const output = await compile(input, file);
-  const { code } = output.toStringWithSourceMap();
-  const module = { exports: {} };
-  console.log(code);
-
-  eval(code);
-  const { scope } = module.exports;
-  const result = scope.test();
+  const { code } = compile(input, relative);
+  const outfile = path.join(__dirname, `${relative}.js`);
+  fs.writeFileSync(outfile, code);
+  const { dispatcher, exports } = await importClio(outfile);
+  const result = await exports.main();
+  dispatcher.kill();
   expect(result.one.valueOf()).toEqual(1);
   expect(result.two.valueOf()).toEqual(2);
   expect(result.three.valueOf()).toEqual(3);
@@ -22,4 +22,3 @@ test("Compile and run maths", async () => {
   expect(result.ten.valueOf()).toEqual(10);
   expect(result.twentyEight.valueOf()).toEqual(28);
 });
- */

@@ -11,5 +11,7 @@
   "dependencies": {
     "source-map": "^0.7.3"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "clio-run": "^0.1.2"
+  }
 }

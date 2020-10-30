@@ -1,5 +1,4 @@
-@undistribute
-fn test args:
+export fn main argv:
 
   (# ) => result
 
@@ -7,10 +6,10 @@ fn test args:
   8 - 4 => result.four
   6 / 2 => result.three
   2 * 1 => result.two
-  9 ^ 0 => result.one
+  9 ** 0 => result.one
 
   1 + 3 * 3 => result.ten
-  1 + 3 * 3 ^ 2 => result.twentyEight
+  1 + 3 * 3 ** 2 => result.twentyEight
   2 + 2 * 6 / 3 => result.six
 
   result

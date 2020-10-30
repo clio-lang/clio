@@ -7,12 +7,12 @@ const deps = require("../deps_commands/get");
 const packageConfig = require("clio-manifest");
 
 test("Runs hello world", async () => {
-  console.log = jest.fn();
   const dir = tmp.dirSync();
   await createPackage(dir.name);
-  await run(dir.name);
+  const process = await run(dir.name, { stdio: "pipe" });
   dir.removeCallback();
-  expect(console.log).toHaveBeenCalledWith("Hello World");
+  const data = await new Promise(resolve => process.stdout.on("data", resolve));
+  expect(data.toString()).toEqual("Hello World\n");
 });
 
 test("Runs a project with dependencies", async () => {

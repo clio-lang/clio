@@ -7,6 +7,6 @@ test("Highlight a file", async () => {
   await _new(dir.name);
   const source = path.join(dir.name, "src/main.clio");
   const highlighted = highlight(source);
-  expect(highlighted.includes("console.log")).toBe(true);
+  expect(highlighted.includes("log")).toBe(true);
   dir.removeCallback();
 });

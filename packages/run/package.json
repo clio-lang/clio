@@ -9,6 +9,7 @@
   "author": "Pouya Eghbali <pouya.eghbali@yandex.com>",
   "license": "Apache-2.0",
   "dependencies": {
+    "clio-internals": "^0.1.0",
     "clio-rpc": "^0.0.5"
   }
 }

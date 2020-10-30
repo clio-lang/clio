@@ -9,7 +9,10 @@ const packageConfig = require("clio-manifest");
 const test = async () => {
   const dir = tmp.dirSync();
   await createPackage(dir.name);
-  await run(dir.name);
+  const process = await run(dir.name, { stdio: "pipe" });
+  process.stdout.on("data", function (data) {
+    console.log("STDOUT", data.toString());
+  });
   dir.removeCallback();
 };
 
