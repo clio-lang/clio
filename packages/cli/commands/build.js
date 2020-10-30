@@ -15,17 +15,17 @@ const {
   makeStartScript,
 } = require("clio-manifest");
 
-const flatten = (arr) => arr.reduce((acc, val) => acc.concat(val), []);
+const flatten = arr => arr.reduce((acc, val) => acc.concat(val), []);
 
-const isDir = (dir) => fs.lstatSync(dir).isDirectory();
-const readDir = (dir) => fs.readdirSync(dir);
-const walkDir = (dir) => readDir(dir).map((f) => walk(path.join(dir, f)));
-const walk = (dir) => (isDir(dir) ? flatten(walkDir(dir)) : [dir]);
+const isDir = dir => fs.lstatSync(dir).isDirectory();
+const readDir = dir => fs.readdirSync(dir);
+const walkDir = dir => readDir(dir).map(f => walk(path.join(dir, f)));
+const walk = dir => (isDir(dir) ? flatten(walkDir(dir)) : [dir]);
 
-const isClioFile = (file) => file.endsWith(".clio");
-const isNotClioFile = (file) => !file.endsWith(".clio");
-const getClioFiles = (dir) => walk(dir).filter(isClioFile);
-const getNonClioFiles = (dir) => walk(dir).filter(isNotClioFile);
+const isClioFile = file => file.endsWith(".clio");
+const isNotClioFile = file => !file.endsWith(".clio");
+const getClioFiles = dir => walk(dir).filter(isClioFile);
+const getNonClioFiles = dir => walk(dir).filter(isNotClioFile);
 const copyDir = async (src, dest) => {
   const entries = await fs.promises.readdir(src, { withFileTypes: true });
   mkdir(dest);
@@ -44,7 +44,7 @@ const copyDir = async (src, dest) => {
   }
 };
 
-const mkdir = (directory) => {
+const mkdir = directory => {
   const { root, dir, base } = path.parse(directory);
   const parts = [...dir.split(path.sep), base];
   return parts.reduce((parent, subdir) => {
@@ -249,14 +249,9 @@ const build = async (
     warn(
       "If you encounter any unwanted behavior, unset the CLIOPATH environment variable"
     );
-    progress.start("Linking internals");
-    await link(
-      path.resolve(process.env.CLIOPATH, "packages", "internals"),
-      path.join(destination, "node_modules", "clio-internals")
-    );
     progress.succeed();
     progress.start("Linking run");
-    await link(
+    link(
       path.resolve(process.env.CLIOPATH, "packages", "run"),
       path.join(destination, "node_modules", "clio-run")
     );
@@ -275,8 +270,9 @@ const build = async (
  * Link local internals package as a dependency
  * @param {string} destination Full path to destination directory
  */
-async function link(source, destination) {
-  await copyDir(source, destination);
+function link(source, destination) {
+  fs.rmdirSync(destination, { recursive: true });
+  fs.symlinkSync(source, destination);
 }
 
 /**
@@ -307,7 +303,7 @@ const buildPackageJson = (source, dependency, destination) => {
 const command = "build [target] [source] [destination]";
 const desc = "Build a Clio project";
 
-const handler = (argv) => {
+const handler = argv => {
   const options = {
     targetOverride: argv.target,
     skipBundle: argv["skip-bundle"],

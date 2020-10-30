@@ -19,5 +19,5 @@ module.exports = {
   ],
   moduleFileExtensions: ["js", "json", "jsx", "ts", "tsx", "node", "toml"],
   testEnvironment: "node",
-  testTimeout: 120000,
+  testTimeout: 30000,
 };
