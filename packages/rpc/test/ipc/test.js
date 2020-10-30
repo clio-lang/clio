@@ -11,7 +11,7 @@ const fork = () => {
   for (let i = 0; i < numCPUs; i++) cluster.fork();
 };
 
-const logResults = args => result =>
+const logResults = (args) => (result) =>
   console.log(`${args.join(" ")} -> /api/add := ${result}`);
 
 const call = () => {

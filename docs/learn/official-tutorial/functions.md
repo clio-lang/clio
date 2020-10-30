@@ -54,4 +54,3 @@ fn add_to_x n:
 Functions should have at least one argument, value of a function call only depends on its arguments so a function with no arguments is going to be a constant. Since the value a function returns depends only on its arguments, it makes sense to cache the results and speed-up our function calls. This way instead of re-executing the function for same arguments, the function remembers the previous results and returns them.
 
 We'll talk more about functions in the future.
-

@@ -5,7 +5,7 @@ class WrappedWorkerThread extends EventEmitter {
   constructor(worker) {
     super();
     this.worker = worker;
-    this.worker.on("message", message => this.emit("message", message));
+    this.worker.on("message", (message) => this.emit("message", message));
   }
   postMessage(message) {
     this.worker.postMessage(message);
@@ -46,7 +46,7 @@ class Server extends EventEmitter {
     this.ready = false;
   }
   kill() {
-    this.workers.forEach(worker => worker.kill());
+    this.workers.forEach((worker) => worker.kill());
   }
   start() {
     this.emit("listening");
@@ -56,7 +56,7 @@ class Server extends EventEmitter {
     const wrappedWorker = new WrappedWorkerThread(worker);
     const socket = new WorkerThreadSocket(wrappedWorker);
     this.workers.push(wrappedWorker);
-    wrappedWorker.on("message", data => {
+    wrappedWorker.on("message", (data) => {
       this.handleIncoming(socket, data);
     });
   }

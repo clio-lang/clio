@@ -6,7 +6,7 @@ const WS = require("clio-rpc/transports/ws");
 const child_process = require("child_process");
 const os = require("os");
 
-const start = file => {
+const start = (file) => {
   const numCPUs = os.cpus().length;
   const port = 1337;
   const url = "ws://localhost:1337";

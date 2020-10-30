@@ -4,7 +4,7 @@ const {
   fetchFromClioPackages,
   fetchGitHubZipArchive,
   fetchZipArchive,
-  logFetching
+  logFetching,
 } = require("./utils/fetch");
 const { isClioSource, parsePackageId } = require("./utils/parse");
 
@@ -68,8 +68,8 @@ function fetchDependencies() {
 
   return Promise.all(
     getPackageDependencies()
-      .filter(dep => isClioSource(dep.name))
-      .map(dep => installDependency(dep.name))
+      .filter((dep) => isClioSource(dep.name))
+      .map((dep) => installDependency(dep.name))
   );
 }
 
@@ -88,7 +88,7 @@ function installDependency(id) {
   if (url && !githubURI) {
     logFetching(url);
 
-    return fetchZipArchive(url).then(successful => {
+    return fetchZipArchive(url).then((successful) => {
       if (successful && !hasClioDependency([source, "latest"])) {
         addDependency([source, "latest"]);
       }
@@ -97,7 +97,7 @@ function installDependency(id) {
 
   if (githubURI) {
     return fetchGitHubZipArchive({ branch, uri: githubURI }).then(
-      successful => {
+      (successful) => {
         if (successful && !hasClioDependency([source, version])) {
           addDependency([source, version]);
         }
@@ -107,7 +107,7 @@ function installDependency(id) {
 
   // not github, not an URL
   // fetch pkg info from clio-lang/packages by package id (name[@version])
-  return fetchFromClioPackages({ branch, name }).then(successful => {
+  return fetchFromClioPackages({ branch, name }).then((successful) => {
     if (successful && !hasClioDependency([source, version])) {
       addDependency([source, version]);
     }
@@ -119,5 +119,5 @@ module.exports = {
   getPackageDependencies,
   hasClioDependencies,
   installDependency,
-  logNoClioDeps
+  logNoClioDeps,
 };

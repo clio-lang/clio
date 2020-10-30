@@ -11,7 +11,9 @@ test("Runs hello world", async () => {
   await createPackage(dir.name);
   const process = await run(dir.name, { stdio: "pipe" });
   dir.removeCallback();
-  const data = await new Promise(resolve => process.stdout.on("data", resolve));
+  const data = await new Promise((resolve) =>
+    process.stdout.on("data", resolve)
+  );
   expect(data.toString()).toEqual("Hello World\n");
 });
 

@@ -6,7 +6,7 @@ class TCPSocket extends EventEmitter {
     super();
     this.socket = socket;
     this.socket.rl = readline.createInterface(this.socket);
-    this.socket.rl.on("line", data => this.onData(data));
+    this.socket.rl.on("line", (data) => this.onData(data));
     this.socket.on("close", () => this.socket.rl.close());
   }
   send(data) {

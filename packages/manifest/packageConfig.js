@@ -31,19 +31,21 @@ function getPackageConfig(
     scripts: config.scripts,
     transports: config.transports,
     workers: config.workers,
-    executor: config.executor
+    executor: config.executor,
   };
 
   if (config.dependencies) {
-    parsedConfig.dependencies = Object.entries(config.dependencies).map(dep => {
-      return { name: dep[0], version: dep[1] };
-    });
+    parsedConfig.dependencies = Object.entries(config.dependencies).map(
+      (dep) => {
+        return { name: dep[0], version: dep[1] };
+      }
+    );
   }
 
   if (config.npm_dependencies) {
     // eslint-disable-next-line camelcase
     parsedConfig.npm_dependencies = Object.entries(config.npm_dependencies).map(
-      dep => {
+      (dep) => {
         return { name: dep[0], version: dep[1] };
       }
     );
@@ -61,7 +63,7 @@ function getPackageConfig(
  */
 function writePackageConfig(config, directory = process.cwd()) {
   const deps = {};
-  config.dependencies.forEach(dep => (deps[dep.name] = dep.version));
+  config.dependencies.forEach((dep) => (deps[dep.name] = dep.version));
   const cfgStr = toml.stringify({ ...config, dependencies: deps });
   const filePath = path.join(directory, CONFIGFILE_NAME);
   fs.writeFileSync(filePath, cfgStr);
@@ -86,5 +88,5 @@ module.exports = {
   CONFIGFILE_NAME,
   addDependency,
   getPackageConfig,
-  writePackageConfig
+  writePackageConfig,
 };

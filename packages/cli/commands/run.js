@@ -16,7 +16,7 @@ exports.builder = {
   },
 };
 
-exports.handler = argv => {
+exports.handler = (argv) => {
   run(argv.source);
 };
 

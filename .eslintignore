@@ -1,0 +1,13 @@
+node_modules
+coverage
+.clio-cache
+__pycache__
+.vscode
+.idea/
+/clio.iml
+.cache
+.DS_Store
+
+*.clio.js
+
+packages/run/src/workers/ww.js

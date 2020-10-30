@@ -17,7 +17,7 @@ class Server extends EventEmitter {
   }
   static defaultIPCConfig() {
     return {
-      path: Server.getIPCPath({ name: "ipc.sock" })
+      path: Server.getIPCPath({ name: "ipc.sock" }),
     };
   }
   createIPCServer() {
@@ -26,7 +26,7 @@ class Server extends EventEmitter {
     this.ipcServer = net.createServer();
     this.ipcServer.on("listening", () => this.onListening());
     this.ipcServer.listen(path);
-    this.ipcServer.on("connection", socket => this.onIPCConnect(socket));
+    this.ipcServer.on("connection", (socket) => this.onIPCConnect(socket));
   }
   onListening() {
     this.ready = true;
@@ -34,7 +34,7 @@ class Server extends EventEmitter {
   }
   onIPCConnect(socket) {
     socket.rl = readline.createInterface(socket);
-    socket.rl.on("line", data => this.handleIncoming(socket, data));
+    socket.rl.on("line", (data) => this.handleIncoming(socket, data));
     socket.on("close", () => socket.rl.close());
   }
   handleIncoming(socket, data) {

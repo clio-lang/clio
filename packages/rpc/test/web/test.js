@@ -4,10 +4,10 @@ const WebWorker = require("../../transports/web-worker");
 
 const numCPUs = navigator.hardwareConcurrency;
 
-const logResults = args => result =>
+const logResults = (args) => (result) =>
   console.log(`${args.join(" ")} -> /api/add := ${result}`);
 
-const call = server => () => {
+const call = (server) => () => {
   const transport = server.getTransport();
   const executor = new Executor(transport);
   executor.call("/api/add", [1, 2]).then(logResults([1, 2]));

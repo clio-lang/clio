@@ -23,7 +23,7 @@ function getParsedNpmDependencies(source) {
   const npmDependencies = getPackageConfig(path.join(source, CONFIGFILE_NAME))
     .npm_dependencies;
   if (npmDependencies) {
-    npmDependencies.forEach(dep => {
+    npmDependencies.forEach((dep) => {
       dependencies[dep.name] = dep.version;
     });
   }
@@ -33,5 +33,5 @@ function getParsedNpmDependencies(source) {
 module.exports = {
   fetchNpmDependencies,
   hasInstalledNpmDependencies,
-  getParsedNpmDependencies
+  getParsedNpmDependencies,
 };

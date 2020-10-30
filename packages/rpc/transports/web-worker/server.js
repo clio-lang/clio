@@ -5,7 +5,7 @@ class WrappedWebWorker extends EventEmitter {
   constructor(worker) {
     super();
     this.worker = worker;
-    this.worker.onmessage = message => this.emit("message", message);
+    this.worker.onmessage = (message) => this.emit("message", message);
   }
   postMessage(message) {
     this.worker.postMessage(message);
@@ -50,7 +50,7 @@ class Server extends EventEmitter {
     const wrappedWorker = new WrappedWebWorker(worker);
     const socket = new WebWorkerSocket(wrappedWorker);
     this.workers.push(wrappedWorker);
-    wrappedWorker.on("message", event => {
+    wrappedWorker.on("message", (event) => {
       const { data } = event;
       this.handleIncoming(socket, data);
     });

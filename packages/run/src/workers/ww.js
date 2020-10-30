@@ -15,7 +15,7 @@ const transport = new WebWorker.Client({
 const worker = new Worker(transport);
 const executor = new Executor(transport);
 
-onmessage = message => transport.onmessage(message);
+onmessage = (message) => transport.onmessage(message);
 
 import(file)
   .then(() => {

@@ -5,7 +5,7 @@
  * @argument {string} versionStr in format "major.minor.patch". E.g.: "12.6.1"
  * @returns {boolean} true, if node version is officially supported by Clio
  */
-exports.isSupportedNodeVersion = versionStr => {
+exports.isSupportedNodeVersion = (versionStr) => {
   const nodeFullVersion = versionStr.replace("v", "").split(".");
 
   const nodeMajorVersion = Number(nodeFullVersion[0]);

@@ -18,7 +18,7 @@ class Server extends EventEmitter {
     this.tcpServer = net.createServer();
     this.tcpServer.on("listening", () => this.onListening());
     this.tcpServer.listen(port, host);
-    this.tcpServer.on("connection", socket => this.onTCPConnect(socket));
+    this.tcpServer.on("connection", (socket) => this.onTCPConnect(socket));
   }
   onListening() {
     this.ready = true;
@@ -26,7 +26,7 @@ class Server extends EventEmitter {
   }
   onTCPConnect(socket) {
     socket.rl = readline.createInterface(socket);
-    socket.rl.on("line", data => this.handleIncoming(socket, data));
+    socket.rl.on("line", (data) => this.handleIncoming(socket, data));
     socket.on("close", () => socket.rl.close());
   }
   handleIncoming(socket, data) {

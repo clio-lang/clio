@@ -8,5 +8,5 @@ const transport = new WorkerThread.Client({
 });
 const worker = new Worker(transport);
 worker.register({ path: "/api/add", fn: (a, b) => a + b });
-parentPort.on("message", message => transport.onmessage(message));
+parentPort.on("message", (message) => transport.onmessage(message));
 worker.connect();

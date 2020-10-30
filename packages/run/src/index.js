@@ -22,7 +22,7 @@ class Distributed {
     const Protocol = require("../../rpc/transports/ws");
     const transport = new Protocol.Client({ url: `${protocol}://${host}` });
     transport.connect();
-    await new Promise(resolve => transport.on("connect", resolve));
+    await new Promise((resolve) => transport.on("connect", resolve));
     const executor = new Executor(transport);
     this.executors.set(key, executor);
     return executor;
@@ -42,7 +42,7 @@ const workerDist = (executor, worker) =>
     },
   });
 
-const mainDist = executor =>
+const mainDist = (executor) =>
   new Distributed(false, {
     getFunction(fn) {
       return executor.getFunction(fn);
@@ -76,7 +76,7 @@ const run = async (
   }
 };
 
-const importClio = file => {
+const importClio = (file) => {
   const { Worker } = require("worker_threads");
   const { Dispatcher } = require("clio-rpc/dispatcher");
   const { Executor } = require("clio-rpc/executor");
@@ -97,7 +97,7 @@ const importClio = file => {
   }
   dispatcher.addTransport(serverTransport);
 
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     dispatcher.expectWorkers(numCPUs).then(async () => {
       const clientTransport = serverTransport.getTransport();
       const executor = new Executor(clientTransport);

@@ -13,7 +13,7 @@ const transport = new WorkerThread.Client({
 const worker = new Worker(transport);
 const executor = new Executor(transport);
 
-parentPort.on("message", message => transport.onmessage(message));
+parentPort.on("message", (message) => transport.onmessage(message));
 
 const main = require(workerData.file);
 run(main, { worker, executor }).then(() => worker.connect());

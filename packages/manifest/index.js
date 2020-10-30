@@ -5,5 +5,5 @@ module.exports = {
   ...require("./packageConfig"),
   ...require("./utils/parse"),
   ...require("./utils/ids"),
-  ...require("./rpc/index")
+  ...require("./rpc/index"),
 };

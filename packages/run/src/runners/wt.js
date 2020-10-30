@@ -7,7 +7,7 @@ const path = require("path");
 
 const os = require("os");
 
-const start = file => {
+const start = (file) => {
   const numCPUs = os.cpus().length;
   const main = require(file);
 

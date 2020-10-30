@@ -16,14 +16,14 @@ class Server extends EventEmitter {
     const { port } = this.wsConfig;
     this.wsServer = new WebSocket.Server({ port });
     this.wsServer.on("listening", () => this.onListening());
-    this.wsServer.on("connection", socket => this.onWSConnect(socket));
+    this.wsServer.on("connection", (socket) => this.onWSConnect(socket));
   }
   onListening() {
     this.ready = true;
     this.emit("listening");
   }
   onWSConnect(socket) {
-    socket.on("message", data => this.handleIncoming(socket, data));
+    socket.on("message", (data) => this.handleIncoming(socket, data));
   }
   handleIncoming(socket, data) {
     const { instruction, details, id } = JSON.parse(data);

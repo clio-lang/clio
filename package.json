@@ -4,8 +4,8 @@
   "description": "Clio Programming Language",
   "main": "packages/cli/index.js",
   "scripts": {
-    "lint:check": "prettier --check '{,!(node_modules|coverage)/**/}*.js' && eslint .",
-    "lint:fix": "prettier --write ./**/*.js",
+    "lint:check": "prettier --check . && eslint .",
+    "lint:fix": "prettier --write .",
     "pretest": "npm run bootstrap",
     "bootstrap": "lerna bootstrap --hoist",
     "link": "lerna link",

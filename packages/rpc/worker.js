@@ -3,9 +3,9 @@ const { randomId } = require("./common");
 class Worker {
   constructor(transport) {
     this.transport = transport;
-    this.transport.on("message", data => this.handleData(data));
+    this.transport.on("message", (data) => this.handleData(data));
     this.transport.on("connect", () => this.handleConnect());
-    this.transport.on("error", error => this.onError(error));
+    this.transport.on("error", (error) => this.onError(error));
     this.functions = new Map();
     this.retries = 10;
   }

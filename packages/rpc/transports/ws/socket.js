@@ -4,7 +4,7 @@ class WSSocket extends EventEmitter {
   constructor(socket) {
     super();
     this.socket = socket;
-    this.socket.on("message", data => this.onData(data));
+    this.socket.on("message", (data) => this.onData(data));
   }
   send(data) {
     this.socket.send(JSON.stringify(data));

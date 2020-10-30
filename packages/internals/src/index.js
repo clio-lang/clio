@@ -1,12 +1,12 @@
-const getImport = clio => {
-  const parseCloudLocation = location => {
+const getImport = (clio) => {
+  const parseCloudLocation = (location) => {
     const [_, protocol, host, path] = location.match(
       /([a-z]+):\/\/([^\/]+)\/(.*)/
     );
     return { protocol, host, path };
   };
 
-  const clioImportCloud = async location => {
+  const clioImportCloud = async (location) => {
     const { protocol, host, path } = parseCloudLocation(location);
     if (!protocol || protocol != "ws")
       throw "Only WS is supported at the moment";
@@ -17,7 +17,7 @@ const getImport = clio => {
     return fns;
   };
 
-  const clioImportLocal = async location => {
+  const clioImportLocal = async (location) => {
     const isClio = location.endsWith(".clio");
     if (isClio) return await require(`${location}.js`).__clioModule(clio);
     const isJs = location.endsWith(".js");
@@ -31,7 +31,7 @@ const getImport = clio => {
     }
   };
 
-  const clioImport = location => {
+  const clioImport = (location) => {
     const isCloud = location.match(/(ws|tcp|udp):\/\//);
     return isCloud ? clioImportCloud(location) : clioImportLocal(location);
   };

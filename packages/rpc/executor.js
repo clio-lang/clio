@@ -8,7 +8,7 @@ class Executor {
     this.promises = new Map();
   }
   connect() {
-    this.transport.on("message", data => this.handleData(data));
+    this.transport.on("message", (data) => this.handleData(data));
     this.transport.on("connect", () => this.onConnect());
     this.transport.connect();
   }
@@ -27,7 +27,7 @@ class Executor {
   }
   call(path, args) {
     const id = randomId(32);
-    const promise = new Promise(resolve => {
+    const promise = new Promise((resolve) => {
       this.promises.set(id, { resolve });
     });
     const send = () =>
@@ -45,7 +45,7 @@ class Executor {
   }
   async getFunctions(path) {
     const id = randomId(32);
-    const promise = new Promise(resolve => {
+    const promise = new Promise((resolve) => {
       this.promises.set(id, { resolve });
     });
     const send = () =>

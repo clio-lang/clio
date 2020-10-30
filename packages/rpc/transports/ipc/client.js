@@ -11,9 +11,9 @@ class Client extends EventEmitter {
   connect() {
     this.socket = net.connect(this.ipcConfig.path);
     this.rl = readline.createInterface(this.socket);
-    this.rl.on("line", data => this.onData(data));
+    this.rl.on("line", (data) => this.onData(data));
     this.socket.on("connect", () => this.emit("connect"));
-    this.socket.on("error", error => this.emit("error", error));
+    this.socket.on("error", (error) => this.emit("error", error));
     this.socket.on("close", () => this.rl.close());
   }
   send(data) {

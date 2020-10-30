@@ -8,6 +8,6 @@ const { REGISTRY_NAME } = require("../config");
  *
  * @example registryId('stdlib') // 'hub:stdlib'
  */
-const registryId = id => `${REGISTRY_NAME}:${id}`;
+const registryId = (id) => `${REGISTRY_NAME}:${id}`;
 
 module.exports = { registryId };

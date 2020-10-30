@@ -9,4 +9,3 @@ Clio allows to easily chain functions together with flexibility without losing r
 Functions are microservices in Clio, they're isolated and free of side-effects, Clio provides tools to host these functions, export reactive data sources and static variables and import and work with them in any other place in any language. With the network-based foreign function interface you'll be able to use most of modules of any other programming language with ease.
 
 This document assumes you have at least a basic programming knowledge and you're familiar with concepts like a variable or a function, but it should be easy for non-programmers to pick up.
-

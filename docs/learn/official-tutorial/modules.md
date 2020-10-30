@@ -1,6 +1,6 @@
 # Modules
 
-You can write your code in separate files and import them in another file, or you can use libraries written by other programmers. Clio supports multiple ways to import code. 
+You can write your code in separate files and import them in another file, or you can use libraries written by other programmers. Clio supports multiple ways to import code.
 
 ### Clio dependencies
 
@@ -44,4 +44,3 @@ exports.answer = 42;
 // or
 module.exports.answer = () => 42;
 ```
-

@@ -37,6 +37,6 @@ Clio parses the logical operators with the following precedence:
 
 Clio compiles these logical operators to:
 
- - `not xyz` to `(!xyz)`
- - `abc and xyz` to `(abc && xyz)`
- - `abc or xyz` to `(abc || xyz)`
+- `not xyz` to `(!xyz)`
+- `abc and xyz` to `(abc && xyz)`
+- `abc or xyz` to `(abc || xyz)`

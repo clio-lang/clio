@@ -1,12 +1,12 @@
 const { SourceNode } = require("source-map");
 
-const TokenToSourceNode = token =>
+const TokenToSourceNode = (token) =>
   new SourceNode(token.line, token.column, token.source, token.raw);
 
 const arr = (strs, ...vals) =>
   strs.reduce((prev, curr, i) => [...prev, curr, vals[i]], []).filter(Boolean);
 
-const encode = str => {
+const encode = (str) => {
   const parts = [];
   if (str.endsWith("?")) {
     str = str.slice(0, -1);
@@ -47,7 +47,7 @@ class Token {
   constructor(name, pattern) {
     this.name = name;
     this.pattern = pattern;
-    this._onMatch = token => token;
+    this._onMatch = (token) => token;
   }
   match(str) {
     return str.match(this.pattern);
@@ -122,7 +122,7 @@ const outdent = token("Outdent");
 const blockCommentStart = token("Block Comment Start", /^\+-+/);
 const blockCommentEnd = token("Block Comment End", /^-+\+/);
 
-const symbol = token("Symbol", /^[^\s:\.|(){}[\]]+/).onMatch(token => {
+const symbol = token("Symbol", /^[^\s:\.|(){}[\]]+/).onMatch((token) => {
   if (token.isEncoded) return token;
   token.raw = encode(token.raw);
   token.isEncoded = true;
@@ -180,9 +180,9 @@ const patterns = [
 const isOne = (instance, token) =>
   instance instanceof TokenInstance && instance.is(token);
 
-const isOneOf = (instance, arr) => arr.some(token => isOne(instance, token));
+const isOneOf = (instance, arr) => arr.some((token) => isOne(instance, token));
 
-const detokenize = token =>
+const detokenize = (token) =>
   token instanceof TokenInstance ? TokenToSourceNode(token) : token;
 
 const nonSignificant = [newline, spaces, comment];
@@ -191,7 +191,7 @@ const nextSignificantToken = (tokens, i) => {
   return tokens[i] && --i;
 };
 
-const parseComments = tokens => {
+const parseComments = (tokens) => {
   const result = [];
   const content = [];
   let commentLevel = 0;
@@ -204,7 +204,7 @@ const parseComments = tokens => {
     else if (commentLevel == 0 && content.length) {
       result.push(
         comment.getInstance(
-          content.map(token => token.raw).join(""),
+          content.map((token) => token.raw).join(""),
           content[0].index,
           content[0].line,
           content[0].column
@@ -217,7 +217,7 @@ const parseComments = tokens => {
   return result;
 };
 
-const addIndents = tokens => {
+const addIndents = (tokens) => {
   const result = [];
   const indentLevels = [0];
   for (let index = 0; index < tokens.length; index++) {
@@ -268,8 +268,8 @@ const addIndents = tokens => {
   return result;
 };
 
-const removeWhites = tokens => {
-  return tokens.filter(item => {
+const removeWhites = (tokens) => {
+  return tokens.filter((item) => {
     return !isOne(item, spaces) && !isOne(item, newline);
   });
 };
@@ -286,25 +286,25 @@ const removeIndentPair = (tokens, index) => {
   tokens.splice(--outdentIndex, 1);
 };
 
-const isMathOp = token =>
-  [mul, add, sub, div, floorDiv, pow].some(op => isOne(token, op));
+const isMathOp = (token) =>
+  [mul, add, sub, div, floorDiv, pow].some((op) => isOne(token, op));
 
-const isLogicOp = token => [and, or].some(op => isOne(token, op));
-const isPipeOp = token => [arrow, fatArrow].some(op => isOne(token, op));
+const isLogicOp = (token) => [and, or].some((op) => isOne(token, op));
+const isPipeOp = (token) => [arrow, fatArrow].some((op) => isOne(token, op));
 
-const isLeftIndentRemovable = token =>
+const isLeftIndentRemovable = (token) =>
   isMathOp(token) || isLogicOp(token) || isPipeOp(token);
 
-const isRightIndentRemovable = token =>
+const isRightIndentRemovable = (token) =>
   isMathOp(token) || isLogicOp(token) || isOne(token, not);
 
-const isIndent = token => isOne(token, indent);
+const isIndent = (token) => isOne(token, indent);
 
 const getNext = (tokens, index, stopToken, ignoreList) => {
   while (tokens[index]) {
     const token = tokens[index];
     if (stopToken && isOne(token, stopToken)) return index;
-    if (ignoreList.some(it => isOne(token, it))) index++;
+    if (ignoreList.some((it) => isOne(token, it))) index++;
     else if (!stopToken) return index;
     else return;
   }
@@ -314,13 +314,13 @@ const getPrev = (tokens, index, stopToken, ignoreList) => {
   while (index > 0) {
     const token = tokens[index];
     if (stopToken && isOne(token, stopToken)) return index;
-    if (ignoreList.some(it => isOne(token, it))) index--;
+    if (ignoreList.some((it) => isOne(token, it))) index--;
     else if (!stopToken) return index;
     else return;
   }
 };
 
-const preprocessIndents = tokens => {
+const preprocessIndents = (tokens) => {
   const result = [...tokens];
   for (let index = 0; index < result.length; index++) {
     const token = result[index];
@@ -390,7 +390,7 @@ class Once {
   constructor(...definition) {
     this.definition = definition;
     this._name = "<Once>";
-    this._onMatch = result => result;
+    this._onMatch = (result) => result;
   }
   name(name) {
     this._name = name;
@@ -424,7 +424,7 @@ class Once {
         if (this._onFail) this._onFail(results, tokens[offset + skip]);
         const formattedTraceback = traceback
           .split("\n")
-          .map(part => `  ${part}`)
+          .map((part) => `  ${part}`)
           .join("\n");
         const token = tokens[startPoint] || {};
         return {
@@ -447,7 +447,7 @@ class Once {
   shouldIgnore(tokens, offset) {
     const satisfies =
       this._ignore &&
-      this._ignore.some(def => def.satisfies(tokens, offset).satisfies);
+      this._ignore.some((def) => def.satisfies(tokens, offset).satisfies);
     return satisfies;
   }
   onMatch(fn) {
@@ -543,7 +543,7 @@ Rules.range = once(
 )
   .ignore(spaces, newline, indent, outdent)
   .name("range")
-  .onMatch(result => {
+  .onMatch((result) => {
     const start = result[0][0] ? detokenize(result[0][0]) : "0";
     const end = result[1] ? detokenize(result[1]) : "Infinity";
     const step = result[2] ? detokenize(result[2]) : "1";
@@ -573,7 +573,7 @@ Rules.pow = once(() => [
     }),
 ])
   .ignore(spaces, newline, indent, outdent)
-  .onMatch(result => {
+  .onMatch((result) => {
     let pow = detokenize(result[0]);
     for (const [op, token] of result[1]) {
       const value = detokenize(token);
@@ -605,7 +605,7 @@ Rules.mul = once(() => [
     }),
 ])
   .ignore(spaces, newline, indent, outdent)
-  .onMatch(result => {
+  .onMatch((result) => {
     let mul = detokenize(result[0]);
     for (const [op, token] of result[1]) {
       const value = detokenize(token);
@@ -650,7 +650,7 @@ Rules.add = once(() => [
     }),
 ])
   .ignore(spaces, newline, indent, outdent)
-  .onMatch(result => {
+  .onMatch((result) => {
     let add = detokenize(result[0]);
     for (const [op, token] of result[1]) {
       const value = detokenize(token);
@@ -680,7 +680,7 @@ Rules.not = once(() => [
   ),
 ])
   .ignore(spaces, newline, indent, outdent)
-  .onMatch(result => {
+  .onMatch((result) => {
     return new SourceNode(
       result[0].line,
       result[0].column,
@@ -725,7 +725,7 @@ Rules.and = once(() => [
     }),
 ])
   .ignore(spaces, newline, indent, outdent)
-  .onMatch(result => {
+  .onMatch((result) => {
     let and = detokenize(result[0]);
     for (const [op, token] of result[1]) {
       const value = detokenize(token);
@@ -777,7 +777,7 @@ Rules.or = once(() => [
     }),
 ])
   .ignore(spaces, newline, indent, outdent)
-  .onMatch(result => {
+  .onMatch((result) => {
     let or = detokenize(result[0]);
     for (const [op, token] of result[1]) {
       const value = detokenize(token);
@@ -794,7 +794,7 @@ Rules.or = once(() => [
 Rules.logical = once(any(Rules.or, Rules.and, Rules.not))
   .ignore(spaces, newline, indent, outdent)
   .name("logical")
-  .onMatch(result => {
+  .onMatch((result) => {
     return result.pop();
   });
 
@@ -825,7 +825,7 @@ Rules.cmp = once(() => [
     }),
 ])
   .ignore(spaces, newline, indent, outdent)
-  .onMatch(result => {
+  .onMatch((result) => {
     let cmp = null;
     let curr = detokenize(result[0]);
     for (const [op, token] of result[1]) {
@@ -853,7 +853,7 @@ Rules.cmp = once(() => [
 Rules.math = once(any(Rules.add, Rules.mul, Rules.pow))
   .ignore(spaces, newline, indent, outdent)
   .name("math")
-  .onMatch(result => {
+  .onMatch((result) => {
     return result.pop();
   });
 
@@ -863,7 +863,7 @@ Rules.parallelFn = once(() => [
   option(pike),
 ])
   .ignore(spaces)
-  .onMatch(result => {
+  .onMatch((result) => {
     const [pike, fn] = result;
     return new SourceNode(
       pike.line,
@@ -880,7 +880,7 @@ Rules.functionCall = once(
 )
   .ignore(spaces)
   .name("function call")
-  .onMatch(result => {
+  .onMatch((result) => {
     const awaitKw = detokenize(result[0].pop());
     const fn = detokenize(result[1]);
     const args = new SourceNode(
@@ -962,7 +962,7 @@ Rules.awaitedBlock = once(() => [
 ])
   .ignore(spaces, newline)
   .onMatch(([awaitKw, _, __, inner]) => {
-    inner = inner.map(node =>
+    inner = inner.map((node) =>
       node.returnForm
         ? new SourceNode(
             node.line,
@@ -994,7 +994,7 @@ Rules.awaitedArray = once(() => [
 ])
   .ignore(spaces, newline, indent, outdent)
   .onMatch(([awaitKw, _, __, inner]) => {
-    inner = inner.map(node =>
+    inner = inner.map((node) =>
       node.returnForm
         ? new SourceNode(
             node.line,
@@ -1042,8 +1042,8 @@ Rules.chain = once(() => [
     any(
       once(
         arrow,
-        option(mul).onMatch(result => result.pop()),
-        option(any(Rules.awaitAllOp, Await)).onMatch(result => result.pop()),
+        option(mul).onMatch((result) => result.pop()),
+        option(any(Rules.awaitAllOp, Await)).onMatch((result) => result.pop()),
         any(
           once(dot, any(Rules.functionCall, symbol)),
           Rules.functionCall,
@@ -1307,7 +1307,7 @@ Rules.mixedHash = once(
 Rules.hash = once(any(Rules.mixedHash, Rules.indentHash, Rules.inlineHash))
   .name("hash")
   .onMatch(
-    result =>
+    (result) =>
       new SourceNode(
         result[0].line,
         result[0].column,
@@ -1331,11 +1331,11 @@ Rules.slice = once(() => [
     return slice;
   });
 
-const parseString = str => (str.startsWith('"') ? str : str + "'");
+const parseString = (str) => (str.startsWith('"') ? str : str + "'");
 
 Rules.string = once(option(symbol), string)
   .name("string")
-  .onMatch(result => {
+  .onMatch((result) => {
     const string = result.length == 1 ? result[0] : result[1];
     return new SourceNode(
       string.line,
@@ -1368,7 +1368,7 @@ Rules.block = once(() => [
 ])
   .ignore(spaces, newline)
   .name("block")
-  .onMatch(result => {
+  .onMatch((result) => {
     const expressions = result.flat(3).map(detokenize);
     const inner = new SourceNode(
       expressions[0].line,
@@ -1401,7 +1401,7 @@ Rules.block = once(() => [
       expressions[0].source,
       arr`{${returnInner}}`
     );
-    block.isAsync = expressions.some(expr => expr.isAsync);
+    block.isAsync = expressions.some((expr) => expr.isAsync);
     return block;
   });
 
@@ -1440,16 +1440,16 @@ Rules.propertyAccess = once(
   return propertyAccess;
 });
 
-const dir = item => console.dir(item, { depth: null, maxArrayLength: null });
+const dir = (item) => console.dir(item, { depth: null, maxArrayLength: null });
 
 const importInner = many(
   any(mul, symbol),
   option(as, symbol)
     .ignore(spaces)
-    .onMatch(result => result.pop())
+    .onMatch((result) => result.pop())
 )
   .ignore(spaces, newline)
-  .onMatch(result => {
+  .onMatch((result) => {
     result = result.filter(Boolean);
     return result.length == 2
       ? result[0].raw === "*"
@@ -1469,14 +1469,14 @@ const importInner = many(
   });
 
 const path = require("path");
-const getModuleName = location =>
+const getModuleName = (location) =>
   path.basename(location, path.extname(location));
 
 Rules.inlineImport = once(
   Import,
   option(once(importInner, from).ignore(spaces))
     .flat(1)
-    .onMatch(result => {
+    .onMatch((result) => {
       const parts = result.shift();
       const partsNode =
         parts &&
@@ -1494,7 +1494,7 @@ Rules.inlineImport = once(
 )
   .ignore(spaces)
   .name("inline import")
-  .onMatch(result => {
+  .onMatch((result) => {
     const op = result.shift();
     const [names, path] = result;
     if (names) {
@@ -1533,7 +1533,7 @@ Rules.inlineImport = once(
 Rules.indentImport = once(Import, indent, importInner, outdent, from, string)
   .ignore(spaces, newline)
   .name("indent import")
-  .onMatch(result => {
+  .onMatch((result) => {
     const op = result[0];
     const names = result[2];
     const path = result[5];
@@ -1563,7 +1563,7 @@ Rules.indentImport = once(Import, indent, importInner, outdent, from, string)
 
 Rules.import = once(any(Rules.indentImport, Rules.inlineImport))
   .name("import")
-  .onMatch(result => result.pop());
+  .onMatch((result) => result.pop());
 
 Rules.conditional = once(
   If,
@@ -1601,7 +1601,7 @@ Rules.conditional = once(
   )
 )
   .ignore(newline, spaces)
-  .onMatch(result => {
+  .onMatch((result) => {
     const ifOp = result[0];
     const condition = detokenize(result[1]);
     const bodyParts = detokenize(result[3]);
@@ -1716,7 +1716,7 @@ Rules.conditional = once(
       null,
       null,
       ifOp.source,
-      elses.map(el => el.returnForm)
+      elses.map((el) => el.returnForm)
     ).join("\n");
     const conditional = new SourceNode(
       ifOp.line,
@@ -1747,7 +1747,7 @@ Rules.fn = once(
 )
   .ignore(spaces, newline, comment)
   .name("function")
-  .onMatch(result => {
+  .onMatch((result) => {
     let exportToken = null;
     let fnToken = null;
     while (true) {
@@ -1827,10 +1827,10 @@ Rules.fn = once(
 
 Rules.clio = once(
   only(any(Rules.import, Rules.fn, comment, newline, spaces)).name("clio")
-).onMatch(result => {
+).onMatch((result) => {
   const flat = result
     .flat(2)
-    .filter(token => !isOne(token, newline) && !isOne(token, spaces));
+    .filter((token) => !isOne(token, newline) && !isOne(token, spaces));
   const innerNode = new SourceNode(null, null, flat[0].source, flat).join(
     ";\n"
   );

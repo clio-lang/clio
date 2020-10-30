@@ -5,7 +5,7 @@ describe("url", () => {
     expect(
       githubZipURL({
         branch: "master",
-        uri: "https://github.com/foo/bar"
+        uri: "https://github.com/foo/bar",
       })
     ).toBe("https://github.com/foo/bar/archive/master.zip");
   });
