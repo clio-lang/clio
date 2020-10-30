@@ -266,10 +266,6 @@ const build = async (
     progress.succeed();
     progress.start("Linking run");
     link(
-      path.resolve(process.env.CLIOPATH, "packages", "internals"),
-      path.join(destination, "node_modules", "clio-internals")
-    );
-    link(
       path.resolve(process.env.CLIOPATH, "packages", "run"),
       path.join(destination, "node_modules", "clio-run")
     );
