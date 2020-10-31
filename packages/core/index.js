@@ -529,21 +529,24 @@ const only = (...args) => new Only(...args);
 const Rules = {};
 
 Rules.range = once(
-  once(option(any(symbol, number)), dot, dot).onMatch(([start]) => start),
+  lBracket,
+  once(option(any(symbol, number)), colon).onMatch(([start]) => start),
   option(any(symbol, number)).onMatch(([end]) => end),
-  option(colon, colon, any(symbol, number)).onMatch(([_, __, step]) => step)
+  option(colon, any(symbol, number)).onMatch(([_, __, step]) => step),
+  rBracket
 )
   .ignore(spaces, newline, indent, outdent)
   .name("range")
   .onMatch((result) => {
-    const start = result[0] && result[0][0] ? detokenize(result[0][0]) : "0";
+    result.pop();
+    const { line, column, source } = result.shift();
+    const start = result[0][0] ? detokenize(result[0][0]) : "0";
     const end = result[1] ? detokenize(result[1]) : "Infinity";
     const step = result[2] ? detokenize(result[2]) : "1";
-    const firstToken = result[0] || result[1] || result[2];
     const range = new SourceNode(
-      firstToken.line,
-      firstToken.column,
-      firstToken.source,
+      line,
+      column,
+      source,
       arr`range(${start}, ${end}, ${step})`
     );
     return range;
@@ -1300,7 +1303,7 @@ Rules.hash = once(any(Rules.mixedHash, Rules.indentHash, Rules.inlineHash))
 
 Rules.slice = once(() => [
   any(Rules.array, Rules.range, symbol),
-  many(Rules.array),
+  many(any(Rules.array, Rules.range)),
 ])
   .name("slice")
   .onMatch(([lhs, rhs]) => {

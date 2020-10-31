@@ -63,14 +63,14 @@ fn foo n:
 test("Compile range", async () => {
   const input = `
 fn rangeTest start stop step:
-  start..stop::step => range
-  0.. => range
-  0..10 => range
-  0..10::2 => range
-  ..10::2 => range
-  ..::2 => range
-  ..10 => range
-  .. => range
+  [start:stop:step] => range
+  [0:] => range
+  [0:10] => range
+  [0:10:2] => range
+  [:10:2] => range
+  [::2] => range
+  [:10] => range
+  [:] => range
 `;
 
   const output = compile(input);
@@ -81,19 +81,19 @@ test("Compile slicers", async () => {
   const input = `
 fn compileSlicers args:
   [1 2 3 4][0] -> print
-  1..4[0] -> print
-  [1 2 3 4][0..2] -> print
-  1..4[0..2] -> print
-  [1 2 3 4 5 6 7 8 9 10][10..0::-2] -> print
-  0..11[10..0::-2] -> print
+  [1:4][0] -> print
+  [1 2 3 4][0:2] -> print
+  [1:4][0:2] -> print
+  [1 2 3 4 5 6 7 8 9 10][10:0:-2] -> print
+  [0:11][10:0:-2] -> print
   [1 2 3 4 5 6 7 8][[1 2 3]] -> print
-  0..11[[1 2 3]] -> print
+  [0:11][[1 2 3]] -> print
   [[1 2 3]
   [4 5 6]
-  [7 8 9]][0..2 1] -> print
+  [7 8 9]][[0:2] 1] -> print
   [[1 2 3]
   [4 5 6]
-  [7 8 9]][0..2 [1]] -> print
+  [7 8 9]][[0:2] [1]] -> print
 `;
 
   const output = compile(input);
