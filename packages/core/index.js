@@ -906,11 +906,13 @@ Rules.parallelFn = once(() => [
     );
   });
 
-Rules.functionCall = once(
+Rules.functionCall = once(() => [
   option(Await),
-  any(Rules.parallelFn, symbol),
-  many(any(Rules.range, Rules.math, number, symbol)).ignore(spaces)
-)
+  any(Rules.parallelFn, Rules.propertyAccess, symbol),
+  many(
+    any(Rules.range, Rules.math, Rules.wrapped, number, string, symbol)
+  ).ignore(spaces),
+])
   .ignore(spaces)
   .name("function call")
   .onFail((matched, tokens, offset, context) => {
@@ -1218,13 +1220,19 @@ Rules.chain = once(() => [
           }
         } else {
           const awaitOp = callItem.pop();
-          const fnCall = detokenize(call);
-          current = new SourceNode(
-            fnCall.line,
-            fnCall.column,
-            fnCall.source,
-            arr`${fnCall}(${current})`
-          );
+          current = needsShift
+            ? new SourceNode(
+                fn.line,
+                fn.column,
+                fn.source,
+                arr`${fn}(${argsNode}, ${current})`
+              )
+            : new SourceNode(
+                fn.line,
+                fn.column,
+                fn.source,
+                arr`${fn}(${current})`
+              );
           if (awaitOp) {
             isAsync = true;
             current = new SourceNode(
@@ -1519,7 +1527,7 @@ Rules.block = once(() => [
 
 Rules.wrapped = once(
   lParen,
-  any(Rules.hash, Rules.chain, Rules.functionCall, Rules.math),
+  option(any(Rules.hash, Rules.chain, Rules.functionCall, Rules.math)),
   rParen
 )
   .ignore(spaces, newline, indent, outdent)
@@ -1530,7 +1538,9 @@ Rules.wrapped = once(
     }
   })
   .onMatch(([lPar, inner, __]) => {
-    return new SourceNode(lPar.line, lPar.column, lPar.source, arr`(${inner})`);
+    return inner.length
+      ? new SourceNode(lPar.line, lPar.column, lPar.source, arr`(${inner})`)
+      : new SourceNode(lPar.line, lPar.column, lPar.source, " ");
   });
 
 Rules.propertyAccess = once(

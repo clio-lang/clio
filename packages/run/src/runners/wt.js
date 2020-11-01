@@ -22,7 +22,7 @@ const start = (file) => {
   dispatcher.expectWorkers(numCPUs).then(() => {
     const clientTransport = serverTransport.getTransport();
     const executor = new Executor(clientTransport);
-    run(main, { executor });
+    run(main, { executor }, { noExit: true });
   });
 };
 
