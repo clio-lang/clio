@@ -77,7 +77,8 @@ const run = async (
 };
 
 const importClio = (file) => {
-  const { Worker } = require("worker_threads");
+  const workerThread = "worker_threads";
+  const { Worker } = require(workerThread);
   const { Dispatcher } = require("clio-rpc/dispatcher");
   const { Executor } = require("clio-rpc/executor");
   const WorkerThread = require("clio-rpc/transports/worker-thread");

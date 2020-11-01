@@ -2055,7 +2055,7 @@ Rules.clio = once(
   const innerNode = new SourceNode(null, null, flat[0].source, flat).join(
     ";\n"
   );
-  const runtime = "const { distributed } = clio";
+  const runtime = "const { distributed } = clio; const exports = {}";
   const outerCode = arr`module.exports.__clioModule = async clio => {\n${runtime};\n${innerNode};\nreturn exports }`;
   const outerNode = new SourceNode(null, null, flat[0].source, outerCode);
   return outerNode;

@@ -13,8 +13,8 @@
     "test:nocov": "jest --no-coverage"
   },
   "engines": {
-    "node": ">=10.4",
-    "npm": ">=3"
+    "node": ">=13.0.0",
+    "npm": ">=6.12.0"
   },
   "author": "Pouya Eghbali",
   "contributors": [
@@ -39,13 +39,11 @@
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",
-    "bean-parser": "^1.0.9",
     "chalk": "3.0.0",
     "decompress": "^4.2.1",
     "node-fetch": "^2.6.1",
     "source-map": "^0.7.3",
     "tmp": "0.1.0",
-    "treeify": "1.1.0",
     "yargs": "^15.4.1"
   },
   "devDependencies": {
