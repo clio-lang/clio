@@ -15,6 +15,8 @@ const {
   makeStartScript,
 } = require("clio-manifest");
 
+const asyncCompile = async (...args) => compile(...args);
+
 const flatten = (arr) => arr.reduce((acc, val) => acc.concat(val), []);
 
 const isDir = (dir) => fs.lstatSync(dir).isDirectory();
@@ -167,7 +169,12 @@ const build = async (
       const destFile = `${destFileClio}.js`;
       const destDir = path.dirname(destFile);
       const contents = fs.readFileSync(file, "utf8");
-      const { code, map } = compile(contents, relativeFile);
+      const { code, map } = await asyncCompile(contents, relativeFile).catch(
+        (compileError) => {
+          console.error(compileError.message);
+          process.exit(1);
+        }
+      );
       mkdir(destDir);
       await fs.promises.writeFile(destFileClio, contents, "utf8");
       await fs.promises.writeFile(destFile, code, "utf8");
@@ -219,7 +226,12 @@ const build = async (
           .replace(ENV_NAME, "node_modules");
         const destFile = `${destFileClio}.js`;
         const contents = await fs.promises.readFile(file, "utf8");
-        const { code, map } = compile(contents, relativeFile);
+        const { code, map } = await asyncCompile(contents, relativeFile).catch(
+          (compileError) => {
+            console.error(compileError.message);
+            process.exit(1);
+          }
+        );
         const destDir = path.dirname(destFile);
         mkdir(destDir);
         await fs.promises.writeFile(destFileClio, contents, "utf8");
