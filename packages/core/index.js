@@ -55,14 +55,14 @@ class Token {
   getInstance(raw, index, line, column, source) {
     return new TokenInstance(this.name, raw, index, line, column, source);
   }
-  satisfies(tokens, offset) {
+  satisfies(tokens, offset, context) {
     const token = tokens[offset];
     const satisfies = token && token.name == this.name;
-    return this.result(satisfies, token);
+    return this.result(satisfies, token, context);
   }
-  result(satisfies, token = {}) {
+  result(satisfies, token = {}, context) {
     if (satisfies)
-      return { satisfies, consumes: 1, result: this._onMatch(token) };
+      return { satisfies, consumes: 1, result: this._onMatch(token, context) };
     else
       return {
         satisfies,
@@ -362,12 +362,13 @@ class Any {
     this._name = "<Any>";
     this.defs = defs;
   }
-  satisfies(tokens, offset) {
+  satisfies(tokens, offset, context) {
     const tracebacks = [];
     for (const def of this.defs) {
       const { satisfies, consumes, traceback, result } = def.satisfies(
         tokens,
-        offset
+        offset,
+        context
       );
       if (satisfies) return { satisfies, consumes, result, name: this._name };
       tracebacks.push(traceback);
@@ -396,7 +397,7 @@ class Once {
     this._flat = n;
     return this;
   }
-  satisfies(tokens, offset = 0) {
+  satisfies(tokens, offset = 0, context) {
     let startPoint = offset;
     const definition =
       this.definition.length == 1 && typeof this.definition[0] === "function"
@@ -406,14 +407,16 @@ class Once {
     const results = [];
     for (const def of definition) {
       let skip = 0;
-      if (!firstLoop) while (this.shouldIgnore(tokens, offset + skip)) skip++;
+      if (!firstLoop)
+        while (this.shouldIgnore(tokens, offset + skip, context)) skip++;
       firstLoop = false;
       const { satisfies, consumes, traceback, result } = def.satisfies(
         tokens,
-        offset + skip
+        offset + skip,
+        context
       );
       if (!satisfies) {
-        if (this._onFail) this._onFail(results, tokens[offset + skip]);
+        if (this._onFail) this._onFail(results, tokens, offset + skip, context);
         const formattedTraceback = traceback
           .split("\n")
           .map((part) => `  ${part}`)
@@ -428,7 +431,7 @@ class Once {
       results.push(result);
     }
     const flatResult = this._flat ? results.flat(this._flat) : results;
-    const matchFnResult = this._onMatch(flatResult);
+    const matchFnResult = this._onMatch(flatResult, context);
     return {
       satisfies: true,
       consumes: offset - startPoint,
@@ -436,10 +439,12 @@ class Once {
       result: matchFnResult,
     };
   }
-  shouldIgnore(tokens, offset) {
+  shouldIgnore(tokens, offset, context) {
     const satisfies =
       this._ignore &&
-      this._ignore.some((def) => def.satisfies(tokens, offset).satisfies);
+      this._ignore.some(
+        (def) => def.satisfies(tokens, offset, context).satisfies
+      );
     return satisfies;
   }
   onMatch(fn) {
@@ -459,10 +464,10 @@ class Option extends Once {
     super(...definition);
     this._name = "<Option>";
   }
-  satisfies(tokens, offset = 0) {
-    const { satisfies, ...rest } = super.satisfies(tokens, offset);
+  satisfies(tokens, offset = 0, context) {
+    const { satisfies, ...rest } = super.satisfies(tokens, offset, context);
     if (satisfies) return { satisfies, ...rest };
-    return { satisfies: true, consumes: 0, result: this._onMatch([]) };
+    return { satisfies: true, consumes: 0, result: this._onMatch([], context) };
   }
 }
 
@@ -473,7 +478,7 @@ class Many extends Once {
     super(...definition);
     this._name = "<Many>";
   }
-  satisfies(tokens, offset = 0) {
+  satisfies(tokens, offset = 0, context) {
     let satisfied = false;
     let consumed = 0;
     let lastTraceback;
@@ -482,9 +487,14 @@ class Many extends Once {
     while (true) {
       let skip = 0;
       if (!firstLoop)
-        while (this.shouldIgnore(tokens, offset + consumed + skip)) skip++;
+        while (this.shouldIgnore(tokens, offset + consumed + skip, context))
+          skip++;
       firstLoop = false;
-      const processed = super.satisfies(tokens, offset + consumed + skip);
+      const processed = super.satisfies(
+        tokens,
+        offset + consumed + skip,
+        context
+      );
       const { satisfies, consumes, traceback, result } = processed;
       lastTraceback = traceback;
       if (!satisfies) break;
@@ -509,11 +519,19 @@ class Only extends Many {
     super(...definition);
     this._name = "<Only>";
   }
-  satisfies(tokens, offset = 0) {
-    const { satisfies, consumes, ...rest } = super.satisfies(tokens, offset);
+  satisfies(tokens, offset = 0, context) {
+    const { satisfies, consumes, ...rest } = super.satisfies(
+      tokens,
+      offset,
+      context
+    );
     const isSatisfied = satisfies && consumes === tokens.length - offset;
     if (!isSatisfied) {
-      const { traceback } = super.satisfies(tokens, offset + (consumes || 0));
+      const { traceback } = super.satisfies(
+        tokens,
+        offset + (consumes || 0),
+        context
+      );
       return { ...rest, satisfies: false, traceback };
     }
     return {
@@ -526,7 +544,39 @@ class Only extends Many {
 
 const only = (...args) => new Only(...args);
 
+const errorAtToken = (token, err, { src }) => {
+  const { line, column, source } = token;
+  const lines = src
+    .split("\n")
+    .map((line, index) => `${index + 1} | ${line}`)
+    .slice(line - 3 > 0 ? line - 3 : 0, line);
+  lines.unshift(source + ":", "");
+  const spaces = column + line.toString().length + 3;
+  lines.push(" ".repeat(spaces) + "^");
+  lines.push(err);
+  throw new Error(lines.join("\n"));
+};
+
+const wrongTokenError = (expecting, tokens, offset, context) => {
+  const [key, rule] = nextSatisfies(tokens, offset, context);
+  const { line, column } = tokens[offset];
+  const name = (rule && (rule._name || key)) || tokens[offset].name;
+  errorAtToken(
+    tokens[offset],
+    `Expecting one of ${expecting} at ${line}:${column} but encountered ${name}`,
+    context
+  );
+};
+
 const Rules = {};
+
+const nextSatisfies = (tokens, offset, context) => {
+  return (
+    Object.entries(Rules).find(
+      ([_, rule]) => rule.satisfies(tokens, offset, context).satisfies
+    ) || []
+  );
+};
 
 Rules.range = once(
   lBracket,
@@ -556,13 +606,10 @@ Rules.pow = once(() => [
   any(Rules.wrapped, Rules.range, Rules.array, number, symbol),
   many(pow, any(Rules.wrapped, number, symbol))
     .ignore(spaces, newline)
-    .onFail((matched, failed) => {
+    .onFail((matched, tokens, offset, context) => {
       if (matched[0]) {
-        // (add, mul) matched
-        console.error(
-          `Expecting one of Number, Symbol or Wrapped at ${failed.line}:${failed.column} but encountered ${failed.name}`
-        );
-        process.exit(1);
+        // pow matched
+        wrongTokenError("Number, Symbol or Wrapped", tokens, offset, context);
       }
     }),
 ])
@@ -588,13 +635,10 @@ Rules.mul = once(() => [
     any(Rules.wrapped, Rules.pow, number, symbol)
   )
     .ignore(spaces, newline)
-    .onFail((matched, failed) => {
+    .onFail((matched, tokens, offset, context) => {
       if (matched[0]) {
-        // (add, mul) matched
-        console.error(
-          `Expecting one of Number, Symbol or Wrapped at ${failed.line}:${failed.column} but encountered ${failed.name}`
-        );
-        process.exit(1);
+        // (div, mul, mod) matched
+        wrongTokenError("Number, Symbol or Wrapped", tokens, offset, context);
       }
     }),
 ])
@@ -633,13 +677,10 @@ Rules.add = once(() => [
   ),
   many(any(add, sub), any(Rules.pow, Rules.mul, Rules.wrapped, number, symbol))
     .ignore(spaces, newline)
-    .onFail((matched, failed) => {
+    .onFail((matched, tokens, offset, context) => {
       if (matched[0]) {
-        // (add, mul) matched
-        console.error(
-          `Expecting one of Number, Symbol or Wrapped at ${failed.line}:${failed.column} but encountered ${failed.name}`
-        );
-        process.exit(1);
+        // (add, sub) matched
+        wrongTokenError("Number, Symbol or Wrapped", tokens, offset, context);
       }
     }),
 ])
@@ -674,6 +715,14 @@ Rules.not = once(() => [
   ),
 ])
   .ignore(spaces, newline, indent, outdent)
+  .onFail((matched, tokens, offset, context) => {
+    if (matched[0]) {
+      // (not) matched
+      const expecting =
+        "Comparison, Logical, Wrapped, Range, Power, Array, Number or Symbol";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+  })
   .onMatch((result) => {
     return new SourceNode(
       result[0].line,
@@ -708,13 +757,11 @@ Rules.and = once(() => [
     )
   )
     .ignore(spaces, newline)
-    .onFail((matched, failed) => {
+    .onFail((matched, tokens, offset, context) => {
       if (matched[0]) {
-        // (add, mul) matched
-        console.error(
-          `Expecting one of Number, Symbol or Wrapped at ${failed.line}:${failed.column} but encountered ${failed.name}`
-        );
-        process.exit(1);
+        const expecting =
+          "Logical, Comparison, Wrapped, Range, Power, Array, Number or Symbol";
+        wrongTokenError(expecting, tokens, offset, context);
       }
     }),
 ])
@@ -760,13 +807,11 @@ Rules.or = once(() => [
     )
   )
     .ignore(spaces, newline)
-    .onFail((matched, failed) => {
+    .onFail((matched, tokens, offset, context) => {
       if (matched[0]) {
-        // (add, mul) matched
-        console.error(
-          `Expecting one of Number, Symbol or Wrapped at ${failed.line}:${failed.column} but encountered ${failed.name}`
-        );
-        process.exit(1);
+        const expecting =
+          "Logical, Comparison, Wrapped, Range, Power, Array, Number or Symbol";
+        wrongTokenError(expecting, tokens, offset, context);
       }
     }),
 ])
@@ -799,13 +844,10 @@ Rules.cmp = once(() => [
     any(Rules.math, Rules.wrapped, Rules.range, Rules.array, number, symbol)
   )
     .ignore(spaces, newline)
-    .onFail((matched, failed) => {
+    .onFail((matched, tokens, offset, context) => {
       if (matched[0]) {
-        // (add, mul) matched
-        console.error(
-          `Expecting one of Number, Symbol or Wrapped at ${failed.line}:${failed.column} but encountered ${failed.name}`
-        );
-        process.exit(1);
+        const expecting = "Math, Wrapped, Range, Array, Number or Symbol";
+        wrongTokenError(expecting, tokens, offset, context);
       }
     }),
 ])
@@ -844,10 +886,16 @@ Rules.math = once(any(Rules.add, Rules.mul, Rules.pow))
 
 Rules.parallelFn = once(() => [
   pike,
-  any(symbol, Rules.propertyAccess, Rules.slice),
+  any(Rules.propertyAccess, Rules.slice, symbol),
   option(pike),
 ])
   .ignore(spaces)
+  .onFail((matched, tokens, offset, context) => {
+    if (matched[0]) {
+      const expecting = "Property Access, Slice or Symbol";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+  })
   .onMatch((result) => {
     const [pike, fn] = result;
     return new SourceNode(
@@ -865,6 +913,16 @@ Rules.functionCall = once(
 )
   .ignore(spaces)
   .name("function call")
+  .onFail((matched, tokens, offset, context) => {
+    if (matched[0][0] && matched[1]) {
+      const expecting = "Range, Math, Number or Symbol";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+    if (matched[0][0]) {
+      const expecting = "Parallel Function or Symbol";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+  })
   .onMatch((result) => {
     const awaitKw = detokenize(result[0].pop());
     const fn = detokenize(result[1]);
@@ -894,7 +952,7 @@ Rules.functionCall = once(
 
 Rules.array = once(() => [
   lBracket,
-  many(any(Rules.range, Rules.array, number, symbol, Rules.wrapped)).ignore(
+  many(any(Rules.range, Rules.array, Rules.wrapped, number, symbol)).ignore(
     spaces,
     newline,
     indent,
@@ -903,7 +961,13 @@ Rules.array = once(() => [
   rBracket,
 ])
   .ignore(spaces, newline, indent, outdent)
-  .name("array")
+  .name("Array")
+  .onFail((matched, tokens, offset, context) => {
+    if (matched[0] && !isOne(tokens[offset], colon)) {
+      const expecting = "Range, Array, Wrapped, Number or Symbol";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+  })
   .onMatch(([lBra, items, __]) => {
     items = new SourceNode(
       null,
@@ -924,6 +988,12 @@ Rules.awaited = once(() => [
   any(Rules.functionCall, Rules.wrapped, symbol),
 ])
   .ignore(spaces)
+  .onFail((matched, tokens, offset, context) => {
+    if (matched[0] && !isOne(tokens[offset], colon)) {
+      const expecting = "Function Call, Wrapped or Symbol";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+  })
   .onMatch(([awaitKw, value]) => {
     const node = new SourceNode(
       awaitKw.line,
@@ -946,6 +1016,16 @@ Rules.awaitedBlock = once(() => [
   outdent,
 ])
   .ignore(spaces, newline)
+  .onFail((matched, tokens, offset, context) => {
+    if (matched[0] && matched[1] && matched[2]) {
+      const expecting = "Chain, Function Call, Wrapped or Symbol";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+    if (matched[0] && matched[1] && !isOne(tokens[offset], lBracket)) {
+      const expecting = "Indent";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+  })
   .onMatch(([awaitKw, _, __, inner]) => {
     inner = inner.map((node) =>
       node.returnForm
@@ -978,6 +1058,16 @@ Rules.awaitedArray = once(() => [
   rBracket,
 ])
   .ignore(spaces, newline, indent, outdent)
+  .onFail((matched, tokens, offset, context) => {
+    if (matched[0] && matched[1] && matched[2]) {
+      const expecting = "Chain, Function Call, Wrapped or Symbol";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+    if (matched[0] && matched[1] && !isOne(tokens[offset], indent)) {
+      const expecting = "Left Bracket";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+  })
   .onMatch(([awaitKw, _, __, inner]) => {
     inner = inner.map((node) =>
       node.returnForm
@@ -1036,10 +1126,23 @@ Rules.chain = once(() => [
           Rules.propertyAccess,
           symbol
         )
-      ).ignore(spaces),
-      once(fatArrow, any(Rules.propertyAccess, Rules.slice, symbol)).ignore(
-        spaces
       )
+        .onFail((matched, tokens, offset, context) => {
+          if (matched[0]) {
+            const expecting =
+              "*, Await, Await All, Method, Function Call, Parallel Function, Property Access or Symbol";
+            wrongTokenError(expecting, tokens, offset, context);
+          }
+        })
+        .ignore(spaces),
+      once(fatArrow, any(Rules.propertyAccess, Rules.slice, symbol))
+        .onFail((matched, tokens, offset, context) => {
+          if (matched[0]) {
+            const expecting = "Property Access, Slice or Symbol";
+            wrongTokenError(expecting, tokens, offset, context);
+          }
+        })
+        .ignore(spaces)
     )
   ).ignore(spaces, newline, indent, outdent),
 ])
@@ -1200,6 +1303,13 @@ Rules.keyValue = once(() => [
   any(Rules.functionCall, Rules.math, Rules.wrapped, string, symbol, number),
 ])
   .ignore(spaces)
+  .onFail((matched, tokens, offset, context) => {
+    if (matched[1] && matched[2]) {
+      const expecting =
+        "Function Call, Math, Wrapped, String, Symbol or Number";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+  })
   .name("key value")
   .onMatch(([key, _, value]) => {
     key = detokenize(key);
@@ -1214,6 +1324,16 @@ Rules.nestedHash = once(() => [
   many(any(Rules.nestedHash, Rules.keyValue)).ignore(spaces, newline),
   outdent,
 ])
+  .onFail((matched, tokens, offset, context) => {
+    if (matched[1] && matched[2] && matched[3] && matched[4]) {
+      const expecting = "Nested Outdent";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+    if (matched[1] && matched[2] && matched[3]) {
+      const expecting = "Nested Hash or Key Value";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+  })
   .ignore(spaces, newline, spaces)
   .onMatch(([key, _, __, value]) => {
     key = detokenize(key);
@@ -1253,6 +1373,16 @@ Rules.indentHash = once(
 )
   .ignore(spaces, newline)
   .name("indent hash")
+  .onFail((matched, tokens, offset, context) => {
+    if (matched[0] && matched[1] && matched[2]) {
+      const expecting = "Outdent";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+    if (matched[0] && matched[1]) {
+      const expecting = "Nested Hash or Key Value";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+  })
   .onMatch(([hash, __, keys]) => {
     keys = keys.flat(2).map(detokenize);
     const keysNode = new SourceNode(null, null, hash.source, keys);
@@ -1396,13 +1526,29 @@ Rules.wrapped = once(
   rParen
 )
   .ignore(spaces, newline, indent, outdent)
+  .onFail((matched, tokens, offset, context) => {
+    if (matched[0]) {
+      const expecting = "Hash, Chain, Function Call or Math";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+  })
   .onMatch(([lPar, inner, __]) => {
     return new SourceNode(lPar.line, lPar.column, lPar.source, arr`(${inner})`);
   });
 
 Rules.propertyAccess = once(
   any(Rules.wrapped, Rules.slice, symbol),
-  many(any(once(dot, symbol), Rules.array)).flat(2)
+  many(
+    any(
+      once(dot, symbol).onFail((matched, tokens, offset, context) => {
+        if (matched[0]) {
+          const expecting = "Symbol";
+          wrongTokenError(expecting, tokens, offset, context);
+        }
+      }),
+      Rules.array
+    )
+  ).flat(2)
 ).onMatch(([first, access]) => {
   let propertyAccess = detokenize(first);
   for (const part of access) {
@@ -1429,6 +1575,12 @@ const importInner = many(
   any(mul, symbol),
   option(as, symbol)
     .ignore(spaces)
+    .onFail((matched, tokens, offset, context) => {
+      if (matched[0]) {
+        const expecting = "Symbol";
+        wrongTokenError(expecting, tokens, offset, context);
+      }
+    })
     .onMatch((result) => result.pop())
 )
   .ignore(spaces, newline)
@@ -1459,6 +1611,12 @@ Rules.inlineImport = once(
   Import,
   option(once(importInner, from).ignore(spaces))
     .flat(1)
+    .onFail((matched, tokens, offset, context) => {
+      if (matched[0]) {
+        const expecting = "From";
+        wrongTokenError(expecting, tokens, offset, context);
+      }
+    })
     .onMatch((result) => {
       const parts = result.shift();
       const partsNode =
@@ -1477,6 +1635,12 @@ Rules.inlineImport = once(
 )
   .ignore(spaces)
   .name("inline import")
+  .onFail((matched, tokens, offset, context) => {
+    if (matched[0] && !isOne(tokens[offset], indent)) {
+      const expecting = "* or Symbol";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+  })
   .onMatch((result) => {
     const op = result.shift();
     const [names, path] = result;
@@ -1504,6 +1668,24 @@ Rules.inlineImport = once(
 Rules.indentImport = once(Import, indent, importInner, outdent, from, string)
   .ignore(spaces, newline)
   .name("indent import")
+  .onFail((matched, tokens, offset, context) => {
+    if (matched[0] && matched[1] && matched[2] && matched[3] && matched[4]) {
+      const expecting = "String";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+    if (matched[0] && matched[1] && matched[2] && matched[3]) {
+      const expecting = "From";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+    if (matched[0] && matched[1] && matched[2]) {
+      const expecting = "Outdent";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+    if (matched[0] && matched[1]) {
+      const expecting = "* or Symbol";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+  })
   .onMatch((result) => {
     const op = result[0];
     const names = result[2];
@@ -1557,7 +1739,22 @@ Rules.conditional = once(
             Rules.math,
             number
           )
-        ).ignore(newline, spaces),
+        )
+          .onFail((matched, tokens, offset, context) => {
+            if (matched[0] && matched[1] && matched[2]) {
+              const expecting = "Math, Number or Block";
+              wrongTokenError(expecting, tokens, offset, context);
+            }
+            if (matched[0] && matched[1]) {
+              const expecting = "Colon";
+              wrongTokenError(expecting, tokens, offset, context);
+            }
+            if (matched[0]) {
+              const expecting = "Comparison, Symbol or Number";
+              wrongTokenError(expecting, tokens, offset, context);
+            }
+          })
+          .ignore(newline, spaces),
         once(
           colon,
           any(
@@ -1565,12 +1762,40 @@ Rules.conditional = once(
             Rules.math,
             number
           )
-        ).ignore(newline, spaces)
+        )
+          .onFail((matched, tokens, offset, context) => {
+            if (matched[0]) {
+              const expecting = "Block, Math or Number";
+              wrongTokenError(expecting, tokens, offset, context);
+            }
+          })
+          .ignore(newline, spaces)
       )
-    ).ignore(newline, spaces)
+    )
+      .onFail((matched, tokens, offset, context) => {
+        if (matched[0]) {
+          const expecting = "If or Block";
+          wrongTokenError(expecting, tokens, offset, context);
+        }
+      })
+      .ignore(newline, spaces)
   )
 )
   .ignore(newline, spaces)
+  .onFail((matched, tokens, offset, context) => {
+    if (matched[0] && matched[1] && matched[2]) {
+      const expecting = "Math, Number or Block";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+    if (matched[0] && matched[1]) {
+      const expecting = "Colon";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+    if (matched[0]) {
+      const expecting = "Comparison, Symbol or Number";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+  })
   .onMatch((result) => {
     const ifOp = result[0];
     const condition = detokenize(result[1]);
@@ -1716,6 +1941,32 @@ Rules.fn = once(
   outdent
 )
   .ignore(spaces, newline, comment)
+  .onFail((matched, tokens, offset, context) => {
+    if (matched.length == 7) {
+      const expecting = "Outdent";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+    if (matched[2] && matched[3] && matched[4] && matched[5] && matched[6]) {
+      const expecting = "Block";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+    if (matched[2] && matched[3] && matched[4] && matched[5]) {
+      const expecting = "Indent";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+    if (matched[2] && matched[3] && matched[4]) {
+      const expecting = "Colon";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+    if (matched[2] && matched[3]) {
+      const expecting = "Symbol";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+    if (matched[2]) {
+      const expecting = "Symbol";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+  })
   .name("function")
   .onMatch((result) => {
     let exportToken = null;
@@ -1812,7 +2063,7 @@ Rules.clio = once(
 
 const compile = (src, file) => {
   const tokens = tokenize(src, file);
-  const parsed = Rules.clio.satisfies(tokens);
+  const parsed = Rules.clio.satisfies(tokens, 0, { src });
   const { map, code } = parsed.result.toStringWithSourceMap();
   map.setSourceContent(file, src);
   return { code, map: map.toString() };
