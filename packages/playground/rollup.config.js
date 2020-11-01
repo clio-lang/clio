@@ -83,4 +83,14 @@ export default [
       clearScreen: false,
     },
   },
+  {
+    input: "src/clio/worker.js",
+    output: {
+      sourcemap: true,
+      format: "iife",
+      name: "app",
+      file: "public/build/worker.js",
+    },
+    plugins: plugins(),
+  },
 ];
