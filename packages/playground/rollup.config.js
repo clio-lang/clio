@@ -83,7 +83,7 @@ export default [
       clearScreen: false,
     },
   },
-  {
+  /* {
     input: "src/clio/worker.js",
     output: {
       sourcemap: true,
@@ -92,5 +92,5 @@ export default [
       file: "public/build/worker.js",
     },
     plugins: plugins(),
-  },
+  }, */
 ];

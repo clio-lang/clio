@@ -952,19 +952,16 @@ Rules.functionCall = once(
 
 Rules.array = once(() => [
   lBracket,
-  many(any(Rules.range, Rules.array, Rules.wrapped, number, symbol)).ignore(
-    spaces,
-    newline,
-    indent,
-    outdent
-  ),
+  many(
+    any(Rules.range, Rules.array, Rules.wrapped, number, string, symbol)
+  ).ignore(spaces, newline, indent, outdent),
   rBracket,
 ])
   .ignore(spaces, newline, indent, outdent)
   .name("Array")
   .onFail((matched, tokens, offset, context) => {
     if (matched[0] && !isOne(tokens[offset], colon)) {
-      const expecting = "Range, Array, Wrapped, Number or Symbol";
+      const expecting = "Range, Array, Wrapped, Number, String or Symbol";
       wrongTokenError(expecting, tokens, offset, context);
     }
   })
@@ -1723,7 +1720,14 @@ Rules.conditional = once(
   colon,
   any(
     once(indent, Rules.block, outdent).ignore(spaces, newline),
+    Rules.chain,
+    Rules.functionCall,
     Rules.math,
+    Rules.wrapped,
+    Rules.array,
+    Rules.range,
+    symbol,
+    string,
     number
   ),
   option(
@@ -1736,13 +1740,21 @@ Rules.conditional = once(
           colon,
           any(
             once(indent, Rules.block, outdent).ignore(spaces, newline),
+            Rules.chain,
+            Rules.functionCall,
             Rules.math,
+            Rules.wrapped,
+            Rules.array,
+            Rules.range,
+            symbol,
+            string,
             number
           )
         )
           .onFail((matched, tokens, offset, context) => {
             if (matched[0] && matched[1] && matched[2]) {
-              const expecting = "Math, Number or Block";
+              const expecting =
+                "Chain, Function Call, Math, Wrapped, Array, Range, Symbol, String, Number or Block";
               wrongTokenError(expecting, tokens, offset, context);
             }
             if (matched[0] && matched[1]) {
@@ -1759,13 +1771,21 @@ Rules.conditional = once(
           colon,
           any(
             once(indent, Rules.block, outdent).ignore(spaces, newline),
+            Rules.chain,
+            Rules.functionCall,
             Rules.math,
+            Rules.wrapped,
+            Rules.array,
+            Rules.range,
+            symbol,
+            string,
             number
           )
         )
           .onFail((matched, tokens, offset, context) => {
             if (matched[0]) {
-              const expecting = "Block, Math or Number";
+              const expecting =
+                "Chain, Function Call, Math, Wrapped, Array, Range, Symbol, String, Number or Block";
               wrongTokenError(expecting, tokens, offset, context);
             }
           })
@@ -1784,7 +1804,8 @@ Rules.conditional = once(
   .ignore(newline, spaces)
   .onFail((matched, tokens, offset, context) => {
     if (matched[0] && matched[1] && matched[2]) {
-      const expecting = "Math, Number or Block";
+      const expecting =
+        "Chain, Function Call, Math, Wrapped, Array, Range, Symbol, String, Number or Block";
       wrongTokenError(expecting, tokens, offset, context);
     }
     if (matched[0] && matched[1]) {

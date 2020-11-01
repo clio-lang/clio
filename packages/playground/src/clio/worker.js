@@ -5,8 +5,8 @@ import WebWorker from "clio-rpc/transports/web-worker";
 import { getModule } from "./common";
 
 const location = new URL(self.location);
-const src64 = location.searchParams.get("src");
-const src = atob(src64);
+const encoded = location.searchParams.get("src");
+const src = decodeURIComponent(encoded);
 
 const transport = new WebWorker.Client({
   postMessage(data) {

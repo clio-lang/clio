@@ -7,12 +7,12 @@ import { getModule } from "./common";
 export default async (src) => {
   const numCPUs = navigator.hardwareConcurrency;
   const main = await getModule(src);
-  const src64 = btoa(src);
+  const encoded = encodeURIComponent(src);
 
   const dispatcher = new Dispatcher();
   const serverTransport = new WebWorker.Server();
   for (let i = 0; i < numCPUs; i++) {
-    const worker = new Worker(`./build/worker.js?src=${src64}`);
+    const worker = new Worker(`./build/worker.js?src=${encoded}`);
     serverTransport.addWorker(worker);
   }
   dispatcher.addTransport(serverTransport);
