@@ -58,7 +58,7 @@ class Token {
   satisfies(tokens, offset, context) {
     const token = tokens[offset];
     const satisfies = token && token.name == this.name;
-    return this.result(satisfies, token, context);
+    return this.result(satisfies, token, { ...context, offset, consumes: 1 });
   }
   result(satisfies, token = {}, context) {
     if (satisfies)
@@ -362,6 +362,10 @@ class Any {
     this._name = "<Any>";
     this.defs = defs;
   }
+  onMatch(fn) {
+    this._onMatch = fn;
+    return this;
+  }
   satisfies(tokens, offset, context) {
     const tracebacks = [];
     for (const def of this.defs) {
@@ -370,7 +374,15 @@ class Any {
         offset,
         context
       );
-      if (satisfies) return { satisfies, consumes, result, name: this._name };
+      if (satisfies)
+        return {
+          satisfies,
+          consumes,
+          result: this._onMatch
+            ? this._onMatch(result, { ...context, offset, consumes })
+            : result,
+          name: this._name,
+        };
       tracebacks.push(traceback);
     }
     return { satisfies: false, traceback: tracebacks.join("\n") };
@@ -431,7 +443,11 @@ class Once {
       results.push(result);
     }
     const flatResult = this._flat ? results.flat(this._flat) : results;
-    const matchFnResult = this._onMatch(flatResult, context);
+    const matchFnResult = this._onMatch(flatResult, {
+      ...context,
+      offset: startPoint,
+      consumes: offset - startPoint,
+    });
     return {
       satisfies: true,
       consumes: offset - startPoint,
@@ -467,7 +483,11 @@ class Option extends Once {
   satisfies(tokens, offset = 0, context) {
     const { satisfies, ...rest } = super.satisfies(tokens, offset, context);
     if (satisfies) return { satisfies, ...rest };
-    return { satisfies: true, consumes: 0, result: this._onMatch([], context) };
+    return {
+      satisfies: true,
+      consumes: 0,
+      result: this._onMatch([], { ...context, offset, consumes: 0 }),
+    };
   }
 }
 
@@ -1049,14 +1069,14 @@ Rules.awaitedBlock = once(() => [
 Rules.awaitedArray = once(() => [
   Await,
   colon,
-  lBracket,
+  indent,
   many(any(Rules.chain, Rules.functionCall, Rules.wrapped, symbol)).ignore(
     spaces,
     newline
   ),
-  rBracket,
+  outdent,
 ])
-  .ignore(spaces, newline, indent, outdent)
+  .ignore(spaces, newline)
   .onFail((matched, tokens, offset, context) => {
     if (matched[0] && matched[1] && matched[2]) {
       const expecting = "Chain, Function Call, Wrapped or Symbol";
@@ -1094,6 +1114,68 @@ Rules.awaitedAny = once(
 
 Rules.awaitAllOp = once(lBracket, Await, rBracket);
 
+Rules.methodCall = once(dot, any(Rules.functionCall, symbol)).onMatch(
+  ([dot, call]) => {
+    dot = detokenize(dot);
+    if (call instanceof SourceNode) {
+      if (call.children[0] instanceof SourceNode) {
+        call.children[0].children.unshift(dot);
+      } else
+        call.children[0] = new SourceNode(call.line, call.column, call.source, [
+          dot,
+          call.children[0],
+        ]);
+    } else {
+      call = detokenize(call);
+      call.children.unshift(dot);
+    }
+    return call;
+  }
+);
+
+Rules.indentCall = once(() => [
+  newline,
+  indent,
+  many(
+    option(dot),
+    any(
+      Rules.chain,
+      Rules.methodCall,
+      Rules.functionCall,
+      Rules.parallelFn,
+      Rules.propertyAccess,
+      symbol
+    ).onMatch((_, { tokens, offset, consumes }) => {
+      const matchedTokens = tokens.slice(offset, offset + consumes);
+      return matchedTokens;
+    })
+  )
+    .ignore(spaces, newline)
+    .onMatch(([optionalDot, tokens]) => {
+      if (optionalDot[0]) tokens.unshift(optionalDot[0]);
+      const { index, line, column, source } = tokens[0];
+      tokens.unshift(arrow.getInstance("->", index, line, column, source));
+      tokens.unshift(spaces.getInstance(" ", index, line, column, source));
+      tokens.unshift(symbol.getInstance("_in", index, line, column, source));
+      return tokens;
+    }),
+  outdent,
+])
+  .ignore(spaces, newline)
+  .onMatch((result) => {
+    const chains = result[2].map(
+      (tokens) => Rules.chain.satisfies(tokens, 0).result
+    );
+    const chainsNode = new SourceNode(null, null, null, chains).join(", ");
+    const fn = new SourceNode(
+      result[0].line,
+      result[0].column,
+      result[0].source,
+      arr`(_in => [${chainsNode}])`
+    );
+    return fn;
+  });
+
 Rules.chain = once(() => [
   any(
     Rules.awaited,
@@ -1119,7 +1201,8 @@ Rules.chain = once(() => [
         option(mul).onMatch((result) => result.pop()),
         option(any(Rules.awaitAllOp, Await)).onMatch((result) => result.pop()),
         any(
-          once(dot, any(Rules.functionCall, symbol)),
+          Rules.indentCall,
+          Rules.methodCall,
           Rules.functionCall,
           Rules.parallelFn,
           Rules.propertyAccess,
@@ -1129,7 +1212,7 @@ Rules.chain = once(() => [
         .onFail((matched, tokens, offset, context) => {
           if (matched[0]) {
             const expecting =
-              "*, Await, Await All, Method, Function Call, Parallel Function, Property Access or Symbol";
+              "*, Indent, Await, Await All, Method, Function Call, Parallel Function, Property Access or Symbol";
             wrongTokenError(expecting, tokens, offset, context);
           }
         })
@@ -1157,14 +1240,12 @@ Rules.chain = once(() => [
     for (const callItem of calls) {
       const op = callItem.shift();
       let call = callItem.pop();
-      const isMethod = Array.isArray(call);
-      if (isMethod)
-        call = new SourceNode(
-          call[0].line,
-          call[0].column,
-          call[0].source,
-          arr`${current}.${detokenize(call[1])}`
-        );
+      const isMethod =
+        call instanceof SourceNode &&
+        call.children[0] &&
+        call.children[0].children &&
+        call.children[0].children[0] == ".";
+      if (isMethod) call.children[0].children.unshift(current);
       if (op.is(arrow)) {
         isCurrentName = false;
         const needsShift =
@@ -1220,18 +1301,22 @@ Rules.chain = once(() => [
           }
         } else {
           const awaitOp = callItem.pop();
+          const currentJoin = isMethod
+            ? ""
+            : new SourceNode(null, null, null, arr`, ${current}`);
+          const args = isMethod ? "" : current;
           current = needsShift
             ? new SourceNode(
                 fn.line,
                 fn.column,
                 fn.source,
-                arr`${fn}(${argsNode}, ${current})`
+                arr`${fn}(${argsNode}${currentJoin})`
               )
             : new SourceNode(
                 fn.line,
                 fn.column,
                 fn.source,
-                arr`${fn}(${current})`
+                arr`${fn}(${args})`
               );
           if (awaitOp) {
             isAsync = true;
@@ -1629,6 +1714,10 @@ Rules.inlineImport = once(
       const partsNode =
         parts &&
         new SourceNode(null, null, parts[0].source, parts.map(detokenize));
+      if (parts && parts.length == 1 && parts[0].children[0] === "...") {
+        parts[0].children.shift();
+        return parts;
+      }
       return parts
         ? new SourceNode(
             null,
@@ -2094,7 +2183,7 @@ Rules.clio = once(
 
 const compile = (src, file) => {
   const tokens = tokenize(src, file);
-  const parsed = Rules.clio.satisfies(tokens, 0, { src });
+  const parsed = Rules.clio.satisfies(tokens, 0, { src, tokens });
   const { map, code } = parsed.result.toStringWithSourceMap();
   map.setSourceContent(file, src);
   return { code, map: map.toString() };

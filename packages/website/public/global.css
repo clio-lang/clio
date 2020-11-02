@@ -1,0 +1,22 @@
+html,
+body {
+  position: relative;
+  padding: 0;
+  margin: 0;
+  background: #19191f;
+  color: #d4d4d4;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+}
+
+.monaco-editor .scroll-decoration {
+  box-shadow: none !important;
+}
+
+a {
+  color: rgb(100, 166, 100);
+  text-decoration: none;
+}

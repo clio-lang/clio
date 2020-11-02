@@ -9,10 +9,12 @@ const makeStartScript = (config, target, destination, relativeMain) => {
   );
   fs.writeFileSync(
     path.join(destination, "start.js"),
-    `const runner = require("clio-run/src/runners/wt.js");\n` +
-      `const config = require("./rpc.json");\n` +
-      `require("./${relativeMain}.js");\n` +
-      `runner(require.resolve("./${relativeMain}.js"))`
+    [
+      `const runner = require("clio-run/src/runners/wt.js");`,
+      `const config = require("./rpc.json");`,
+      `require("./${relativeMain}.js");`,
+      `runner(require.resolve("./${relativeMain}.js"))`,
+    ].join("\n")
   );
 };
 

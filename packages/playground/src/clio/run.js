@@ -16,9 +16,9 @@ export default async (src) => {
     serverTransport.addWorker(worker);
   }
   dispatcher.addTransport(serverTransport);
-  dispatcher.expectWorkers(numCPUs).then(() => {
+  return dispatcher.expectWorkers(numCPUs).then(() => {
     const clientTransport = serverTransport.getTransport();
     const executor = new Executor(clientTransport);
-    run(main, { executor }, { noExit: true });
+    return run(main, { executor }, { noExit: true });
   });
 };

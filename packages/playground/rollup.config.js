@@ -32,7 +32,7 @@ function serve() {
   };
 }
 
-const plugins = () => [
+const commonPlugins = () => [
   svelte({
     // enable run-time checks when not in production
     dev: !production,
@@ -55,6 +55,10 @@ const plugins = () => [
   commonjs(),
 
   nodePolyfills(),
+];
+
+const mainPlugins = () => [
+  ...commonPlugins(),
 
   // In dev mode, call `npm run start` once
   // the bundle has been generated
@@ -78,7 +82,7 @@ export default [
       name: "app",
       file: "public/build/bundle.js",
     },
-    plugins: plugins(),
+    plugins: mainPlugins(),
     watch: {
       clearScreen: false,
     },
@@ -91,6 +95,6 @@ export default [
       name: "app",
       file: "public/build/worker.js",
     },
-    plugins: plugins(),
+    plugins: commonPlugins(),
   }, */
 ];

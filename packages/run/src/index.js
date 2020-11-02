@@ -1,5 +1,6 @@
 const { Executor } = require("clio-rpc/executor");
 const { getImport } = require("clio-internals");
+const asyncHooks = require("async_hooks");
 
 class Distributed {
   constructor(isWorker, connection) {
@@ -52,27 +53,49 @@ const mainDist = (executor) =>
     },
   });
 
-const run = async (
-  module,
-  { worker, executor },
-  { noExit = false, noMain = false, returnMain = false } = {}
-) => {
+class Montior {
+  constructor() {
+    this.active = new Set();
+    this.frozen = new Set();
+    const self = this;
+    this.hook = asyncHooks.createHook({
+      init(asyncId, type) {
+        if (type === "TIMERWRAP" || type === "PROMISE") return;
+        self.active.add(asyncId);
+      },
+      destroy(asyncId) {
+        self.active.delete(asyncId);
+        self.checkExit();
+      },
+    });
+    this.hook.enable();
+  }
+  freeze() {
+    this.frozen = new Set([...this.active]);
+  }
+  exit() {
+    this.checkExit();
+    this.shouldExit = true;
+  }
+  checkExit() {
+    if ([...this.active].every((handle) => this.frozen.has(handle))) {
+      process.exit(0);
+    }
+  }
+}
+
+const run = async (module, { worker, executor }, { noMain = false } = {}) => {
   const clio = {
     distributed: worker ? workerDist(executor, worker) : mainDist(executor),
   };
   getImport(clio);
   const { main } = await module.__clioModule(clio);
-  if (!worker) {
-    if (!noMain) {
-      const result = await main([]);
-      const awaited = Array.isArray(result)
-        ? await Promise.all(result)
-        : await result;
-      if (returnMain) return awaited;
-    }
-    if (!noExit) {
-      process.exit();
-    }
+  if (!worker && !noMain) {
+    const result = await main([]);
+    const awaited = Array.isArray(result)
+      ? await Promise.all(result)
+      : await result;
+    return awaited;
   }
 };
 
@@ -111,5 +134,7 @@ const importClio = (file) => {
 };
 
 module.exports.Distributed = Distributed;
+module.exports.Montior = Montior;
+
 module.exports.run = run;
 module.exports.importClio = importClio;
