@@ -4,7 +4,7 @@ description: Getting Started with Clio
 
 # Getting Started
 
-Use Clios integrated CLI to bootstrap a new project. To do so, run:
+Use Clio's integrated CLI to bootstrap a new project. To do so, run:
 
 ```text
 clio new helloclio

@@ -187,7 +187,7 @@
     zoom: 0.25;
     margin-right: 64px;
   }
-  .saved {
+  .copied {
     position: absolute;
     padding: 1em;
     border-radius: 4px;
@@ -213,7 +213,7 @@
       bottom: -10em;
     }
   }
-  .saved.isActive {
+  .copied.isActive {
     animation: appear 4s ease-in forwards;
   }
 </style>
@@ -237,5 +237,5 @@
     <div id="left-pane" />
     <div id="right-pane" />
   </div>
-  <div class="saved" class:isActive>Saved to clipboard</div>
+  <div class="copied" class:isActive>Link copied to clipboard</div>
 </div>

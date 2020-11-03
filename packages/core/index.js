@@ -118,6 +118,8 @@ const spaces = token("Spaces", /^ +/);
 const newline = token("Newline", /^\n|\r\n?/);
 const indent = token("Indent");
 const outdent = token("Outdent");
+const callIndent = token("Call Indent");
+const callOutdent = token("Call Outdent");
 
 const blockCommentStart = token("Block Comment Start", /^\+-+/);
 const blockCommentEnd = token("Block Comment End", /^-+\+/);
@@ -280,6 +282,32 @@ const removeIndentPair = (tokens, index) => {
   tokens.splice(--outdentIndex, 1);
 };
 
+const replaceWithCallIndents = (tokens, index) => {
+  const indentToken = tokens[index];
+  tokens[index] = callIndent.getInstance(
+    "",
+    indentToken.index,
+    indentToken.line,
+    indentToken.column,
+    indentToken.source
+  );
+  let outdentIndex = index + 1;
+  let indentCount = 1;
+  while (indentCount != 0) {
+    const maybeOutdent = tokens[outdentIndex++];
+    if (isOne(maybeOutdent, outdent)) indentCount--;
+    else if (isOne(maybeOutdent, indent)) indentCount++;
+  }
+  const outdentToken = tokens[--outdentIndex];
+  tokens[outdentIndex] = callOutdent.getInstance(
+    "",
+    outdentToken.index,
+    outdentToken.line,
+    outdentToken.column,
+    outdentToken.source
+  );
+};
+
 const isMathOp = (token) =>
   [mul, add, sub, div, floorDiv, pow].some((op) => isOne(token, op));
 
@@ -316,6 +344,11 @@ const preprocessIndents = (tokens) => {
   const result = [...tokens];
   for (let index = 0; index < result.length; index++) {
     const token = result[index];
+    if (isOne(token, arrow)) {
+      const ignore = [spaces, newline, mul];
+      const nextIndentIndex = getNext(tokens, index + 1, indent, ignore);
+      if (nextIndentIndex) replaceWithCallIndents(result, nextIndentIndex);
+    }
     const ignore = [spaces, newline];
     const nextIndentIndex = getNext(tokens, index + 1, indent, ignore);
     const prevIndentIndex = getPrev(result, index - 1, indent, ignore);
@@ -352,7 +385,6 @@ const tokenize = (string, source) => {
   }
   tokens = parseComments(tokens);
   tokens = addIndents(tokens);
-  //tokens = removeWhites(tokens);
   tokens = preprocessIndents(tokens);
   return tokens;
 };
@@ -1069,14 +1101,14 @@ Rules.awaitedBlock = once(() => [
 Rules.awaitedArray = once(() => [
   Await,
   colon,
-  indent,
+  lBracket,
   many(any(Rules.chain, Rules.functionCall, Rules.wrapped, symbol)).ignore(
     spaces,
     newline
   ),
-  outdent,
+  rBracket,
 ])
-  .ignore(spaces, newline)
+  .ignore(spaces, newline, indent, outdent)
   .onFail((matched, tokens, offset, context) => {
     if (matched[0] && matched[1] && matched[2]) {
       const expecting = "Chain, Function Call, Wrapped or Symbol";
@@ -1135,7 +1167,7 @@ Rules.methodCall = once(dot, any(Rules.functionCall, symbol)).onMatch(
 
 Rules.indentCall = once(() => [
   newline,
-  indent,
+  callIndent,
   many(
     option(dot),
     any(
@@ -1159,7 +1191,7 @@ Rules.indentCall = once(() => [
       tokens.unshift(symbol.getInstance("_in", index, line, column, source));
       return tokens;
     }),
-  outdent,
+  callOutdent,
 ])
   .ignore(spaces, newline)
   .onMatch((result) => {
@@ -1245,41 +1277,40 @@ Rules.chain = once(() => [
         call.children[0] &&
         call.children[0].children &&
         call.children[0].children[0] == ".";
-      if (isMethod) call.children[0].children.unshift(current);
       if (op.is(arrow)) {
         isCurrentName = false;
         const needsShift =
           call instanceof SourceNode && call.children[1].toString() == "(";
-        const fn = needsShift ? call.children[0] : call;
+        const fn = needsShift ? call.children[0] : detokenize(call);
         const args = needsShift ? call.children.slice(2, -1) : [];
         const argsNode = new SourceNode(null, null, fn.source, args).join(", ");
         if (callItem[0]) {
           const awaitOp = callItem.pop();
           const mapOp = callItem.pop();
-          const awaitArgs = "await item, index, arr";
-          const fnHead = "async (item, index, arr) => ";
-          const mapFn = awaitOneByOne
-            ? needsShift
-              ? new SourceNode(
-                  fn.line,
-                  fn.column,
-                  fn.source,
-                  arr`${fnHead}${fn}(${argsNode}, ${awaitArgs})`
-                )
+          const regularArgs = "item, index, arr";
+          const regularHead = "(item, index, arr) => ";
+          const awaitArgs = `await ${regularArgs}`;
+          const awaitHead = `async ${regularHead}`;
+          const head = awaitOneByOne ? awaitHead : regularHead;
+          const args = awaitOneByOne ? awaitArgs : regularArgs;
+          const rawFn = needsShift ? fn : detokenize(call);
+          const methodCall =
+            !awaitOneByOne && !needsShift
+              ? new SourceNode(null, null, null, arr`(item => item${rawFn}())`)
+              : new SourceNode(null, null, null, arr`item${rawFn}`);
+          const fnToCall = isMethod ? methodCall : rawFn;
+          const callArgs = needsShift
+            ? new SourceNode(null, null, null, arr`(${argsNode}, ${args})`)
+            : new SourceNode(null, null, null, arr`(${args})`);
+          const mapFn =
+            !awaitOneByOne && !needsShift
+              ? fnToCall
               : new SourceNode(
                   fn.line,
                   fn.column,
                   fn.source,
-                  arr`${fnHead}${detokenize(call)}(${awaitArgs})`
-                )
-            : needsShift
-            ? new SourceNode(
-                fn.line,
-                fn.column,
-                fn.source,
-                arr`(item, index, arr) => ${fn}(${argsNode}, item, index, arr)`
-              )
-            : detokenize(call);
+                  arr`${head}${fnToCall}${callArgs}`
+                );
           awaitOneByOne = false;
           current = new SourceNode(
             mapOp.line,
@@ -1300,6 +1331,7 @@ Rules.chain = once(() => [
             if (!Array.isArray(awaitOp)) awaitOneByOne = true;
           }
         } else {
+          if (isMethod) call.children[0].children.unshift(current);
           const awaitOp = callItem.pop();
           const currentJoin = isMethod
             ? ""

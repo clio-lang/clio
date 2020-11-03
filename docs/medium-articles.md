@@ -4,7 +4,7 @@ description: Friend links to medium articles to provide free access to the commu
 
 # Medium articles
 
-Please note some of these posts _may not work anymore_ with the new Clio versions.
+The following articles are outdated but kept here for the purposes of historical record:
 
 {% embed url="https://blog.usejournal.com/introduction-to-clio-40dbbf9c250b?source=friends\_link&sk=fccbf892f304391eee2f85bfeffa2469" %}
 

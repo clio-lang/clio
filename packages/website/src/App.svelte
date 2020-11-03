@@ -107,6 +107,23 @@
   <div class="playground">
     <Editor title="Clio" share={true} query="code" />
   </div>
+  <div class="section features">
+    <p>
+      Clio has a clean, noise-free syntax. It makes distributed and parallel
+      programming easier.
+    </p>
+    <p>
+      The Parallel Fib example above uses the sandwich syntax
+      <code>|fib|</code>
+      to run fib function in parallel, unlike the regular fib example it does
+      not block the browser and it runs twice faster!
+    </p>
+    <p>
+      Read the
+      <a href="https://medium.com">introduction article</a>
+      on our blog to learn more.
+    </p>
+  </div>
   <div class="section">
     <h2>Community</h2>
     <div class="icons">

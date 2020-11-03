@@ -9,15 +9,13 @@
 
 - [Official Tutorial](learn/official-tutorial/README.md)
   - [Introduction](learn/official-tutorial/introduction.md)
-  - [Flow](learn/official-tutorial/flow.md)
+  - [Prepreparation](learn/official-tutorial/prepreparation.md)
+  - [Hello World!](learn/official-tutorial/hello.md)
   - [Functions](learn/official-tutorial/functions.md)
-  - [More about flows](learn/official-tutorial/more-about-flows.md)
-  - [Transforms](learn/official-tutorial/transforms.md)
-  - [Control flow](learn/official-tutorial/control-flow.md)
-  - [Events](learn/official-tutorial/events.md)
-  - [More data types](learn/official-tutorial/more-data-types.md)
-  - [Hosting](learn/official-tutorial/hosting.md)
-  - [Modules](learn/official-tutorial/modules.md)
+  - [Calls](learn/official-tutorial/calls.md)
+  - [Flows](learn/official-tutorial/flows.md)
+  - [Async/Await](learn/official-tutorial/await.md)
+  - [Parallelism](learn/official-tutorial/parallelism.md)
 
 ## Clio Executable
 
