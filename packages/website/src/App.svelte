@@ -38,7 +38,7 @@
   }
 
   .hero {
-    padding: 2em 0;
+    padding: 1em 0;
   }
   .logo {
     zoom: 0.5;
@@ -46,6 +46,7 @@
   .hero .tail {
     flex: 1;
     box-sizing: border-box;
+    margin-top: 2em;
   }
   .hero .head {
     display: flex;
@@ -71,9 +72,7 @@
     align-items: center;
     justify-content: center;
     color: rgb(100, 166, 100);
-  }
-  a.icon:hover {
-    color: rgb(204 42 64);
+    transition: ease-in 0.2s all;
   }
   a.icon img {
     height: 48px;
@@ -83,6 +82,9 @@
   a.icon:hover img {
     transition: ease-in 0.2s all;
     filter: none;
+  }
+  a:hover {
+    color: rgb(204, 42, 64);
   }
 </style>
 
@@ -94,9 +96,11 @@
     </div>
     <div class="tail">
       <p>
-        Visit the
-        <a href="https://cliolang.org/tutorial">Clio tutorial</a>
-        to learn how to build Clio apps.
+        Visit our
+        <a href="https://docs.cliolang.org/tutorial">tutorial page</a>
+        to learn Clio, or read the
+        <a href="https://docs.cliolang.org">documentation</a>
+        to learn more.
       </p>
     </div>
   </div>

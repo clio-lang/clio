@@ -20,3 +20,7 @@ a {
   color: rgb(100, 166, 100);
   text-decoration: none;
 }
+
+a:hover {
+  color: rgb(204, 42, 64);
+}
