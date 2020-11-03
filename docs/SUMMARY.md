@@ -11,6 +11,7 @@
   - [Introduction](learn/official-tutorial/introduction.md)
   - [Prepreparation](learn/official-tutorial/prepreparation.md)
   - [Hello World!](learn/official-tutorial/hello.md)
+  - [Constants](learn/official-tutorial/constants.md)
   - [Functions](learn/official-tutorial/functions.md)
   - [Calls](learn/official-tutorial/calls.md)
   - [Flows](learn/official-tutorial/flows.md)

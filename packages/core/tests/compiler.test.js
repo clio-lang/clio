@@ -38,6 +38,7 @@ test("Compile loop fails with wrong indentation", async () => {
 fn loop i:
   if i < 200000:
   i + 1 -> loop
+  i + 2 -> loop
   else:
     i
   `;

@@ -40,7 +40,7 @@ export fn main argv:
     -> * console.log
 ```
 
-Clio also supports `[await]` keyword for `Promise.all(...)`:
+Clio also supports `[await]` keyword, which also translates to `await Promise.all(...)`:
 
 ```text
 export fn main argv:

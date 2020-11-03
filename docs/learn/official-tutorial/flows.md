@@ -106,3 +106,21 @@ export fn main argv:
 ```
 
 Should print out `[[3, 3], [4, 6], [5, 9]]`.
+
+# Assignments
+
+You can assign constants in a flow:
+
+```text
+fn add a b:
+  a + b
+
+fn mul a b:
+  a * b
+
+export fn main argv:
+  2 -> add 1 => three
+    -> mul 2 => six
+  console.log "Three equals" three
+  console.log "Six equals" six
+```

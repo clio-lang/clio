@@ -1416,7 +1416,7 @@ Rules.chain = once(() => [
       chain[0].column,
       chain[0].source,
       chain
-    );
+    ).join(";");
     if (isCurrentName) {
       chainNode.returnForm = new SourceNode(
         chain[0].line,
@@ -1781,7 +1781,12 @@ Rules.inlineImport = once(
       const partsNode =
         parts &&
         new SourceNode(null, null, parts[0].source, parts.map(detokenize));
-      if (parts && parts.length == 1 && parts[0].children[0] === "...") {
+      if (
+        parts &&
+        parts.length == 1 &&
+        parts[0] instanceof SourceNode &&
+        parts[0].children[0] === "..."
+      ) {
         parts[0].children.shift();
         return parts;
       }
