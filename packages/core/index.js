@@ -962,7 +962,15 @@ Rules.functionCall = once(() => [
   option(Await),
   any(Rules.parallelFn, Rules.propertyAccess, symbol),
   many(
-    any(Rules.range, Rules.math, Rules.wrapped, number, string, symbol)
+    any(
+      Rules.range,
+      Rules.math,
+      Rules.wrapped,
+      Rules.propertyAccess,
+      number,
+      string,
+      symbol
+    )
   ).ignore(spaces),
 ])
   .ignore(spaces)
@@ -1208,6 +1216,32 @@ Rules.indentCall = once(() => [
     return fn;
   });
 
+Rules.anonymousFn = once(() => [
+  symbol,
+  colon,
+  any(
+    Rules.functionCall,
+    Rules.math,
+    Rules.slice,
+    Rules.range,
+    Rules.array,
+    Rules.wrapped,
+    Rules.logical,
+    Rules.cmp,
+    Rules.propertyAccess
+  ),
+])
+  .ignore(spaces)
+  .name("Anonymous Fn")
+  .onMatch(([param, _, body]) => {
+    return new SourceNode(
+      param.line,
+      param.column,
+      param.source,
+      arr`(${detokenize(param)} => ${detokenize(body)})`
+    );
+  });
+
 Rules.chain = once(() => [
   any(
     Rules.awaited,
@@ -1233,6 +1267,7 @@ Rules.chain = once(() => [
         option(mul).onMatch((result) => result.pop()),
         option(any(Rules.awaitAllOp, Await)).onMatch((result) => result.pop()),
         any(
+          Rules.anonymousFn,
           Rules.indentCall,
           Rules.methodCall,
           Rules.functionCall,
