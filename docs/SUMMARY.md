@@ -16,6 +16,7 @@
   - [Calls](learn/official-tutorial/calls.md)
   - [Flows](learn/official-tutorial/flows.md)
   - [Async/Await](learn/official-tutorial/await.md)
+  - [Control Flow](learn/official-tutorial/control.md)
   - [Parallelism](learn/official-tutorial/parallelism.md)
 
 ## Clio Executable
