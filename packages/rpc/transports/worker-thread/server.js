@@ -24,6 +24,7 @@ class inSocket {
   }
 }
 
+// CLient -> Server socket
 class Socket extends EventEmitter {
   constructor(server) {
     super();
@@ -34,7 +35,7 @@ class Socket extends EventEmitter {
     this.emit("connect");
   }
   send(data) {
-    this.server.handleIncoming(this.inSocket, data);
+    this.server.handleIncoming(this.inSocket, JSON.stringify(data));
   }
 }
 
@@ -64,7 +65,7 @@ class Server extends EventEmitter {
     return new Socket(this);
   }
   handleIncoming(socket, data) {
-    const { instruction, details, id } = data;
+    const { instruction, details, id } = JSON.parse(data);
     this.emit(instruction, socket, details, id);
   }
 }

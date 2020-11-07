@@ -9,10 +9,10 @@ class Client extends EventEmitter {
     this.emit("connect");
   }
   onmessage(data) {
-    this.emit("message", data);
+    this.emit("message", JSON.parse(data));
   }
   send(data) {
-    this.postMessage(data);
+    this.postMessage(JSON.stringify(data));
   }
 }
 
