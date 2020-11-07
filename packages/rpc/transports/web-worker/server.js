@@ -39,7 +39,6 @@ class Server extends EventEmitter {
   constructor() {
     super();
     this.workers = [];
-    this.messageIds = new Map();
     this.ready = false;
   }
   start() {
