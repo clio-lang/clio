@@ -74,10 +74,11 @@ class Montior {
     this.frozen = new Set([...this.active]);
   }
   exit() {
-    this.checkExit();
     this.shouldExit = true;
+    this.checkExit();
   }
   checkExit() {
+    if (!this.shouldExit) return;
     if ([...this.active].every((handle) => this.frozen.has(handle))) {
       process.exit(0);
     }
