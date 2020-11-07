@@ -12,7 +12,6 @@ const makeStartScript = (config, target, destination, relativeMain) => {
     [
       `const runner = require("clio-run/src/runners/wt.js");`,
       `const config = require("./rpc.json");`,
-      `require("./${relativeMain}.js");`,
       `runner(require.resolve("./${relativeMain}.js"))`,
     ].join("\n")
   );
