@@ -8,7 +8,9 @@ class WebWorkerSocket extends EventEmitter {
     this.connect();
   }
   connect() {
-    this.worker.on("message", (data) => this.handleWorkerMessage(data));
+    this.worker.on("message", (data) =>
+      this.handleWorkerMessage(JSON.parse(data))
+    );
     this.emit("connect");
   }
   handleWorkerMessage(event) {
@@ -19,7 +21,7 @@ class WebWorkerSocket extends EventEmitter {
   send(data) {
     const { id } = data;
     this.messageIds.add(id);
-    this.worker.postMessage(data);
+    this.worker.postMessage(JSON.stringify(data));
   }
 }
 
