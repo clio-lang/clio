@@ -17,10 +17,15 @@ class Dispatcher extends EventEmitter {
   }
   addTransport(transport) {
     this.transports.push(transport);
-    transport.on("call", (...args) => this.call(...args));
-    transport.on("getPaths", (...args) => this.getPaths(...args));
-    transport.on("registerWorker", (...args) => this.registerWorker(...args));
+    transport.on("message", (...args) => this.handleTransportMessage(...args));
     transport.start();
+  }
+  handleTransportMessage(socket, data) {
+    const { instruction, details, id } = JSON.parse(data);
+    const args = [socket, details, id];
+    if (instruction == "call") this.call(...args);
+    else if (instruction == "getPaths") this.getPaths(...args);
+    else if (instruction == "registerWorker") this.registerWorker(...args);
   }
   call(socket, { path, args }, id) {
     const worker = this.getWorker(path);

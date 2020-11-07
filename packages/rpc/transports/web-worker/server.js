@@ -58,8 +58,7 @@ class Server extends EventEmitter {
     return new Socket(this);
   }
   handleIncoming(socket, data) {
-    const { instruction, details, id } = JSON.parse(data);
-    this.emit(instruction, socket, details, id);
+    this.emit("message", socket, data);
   }
 }
 

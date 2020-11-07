@@ -30,9 +30,8 @@ class Server extends EventEmitter {
     socket.on("close", () => socket.rl.close());
   }
   handleIncoming(socket, data) {
-    const { instruction, details, id } = JSON.parse(data);
     const tcpSocket = new TCPSocket(socket);
-    this.emit(instruction, tcpSocket, details, id);
+    this.emit("message", tcpSocket, data);
   }
   start() {
     return this.createTCPServer();

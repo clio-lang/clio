@@ -38,9 +38,8 @@ class Server extends EventEmitter {
     socket.on("close", () => socket.rl.close());
   }
   handleIncoming(socket, data) {
-    const { instruction, details, id } = JSON.parse(data);
     const ipcSocket = new IPCSocket(socket);
-    this.emit(instruction, ipcSocket, details, id);
+    this.emit("message", ipcSocket, data);
   }
   start() {
     return this.createIPCServer();
