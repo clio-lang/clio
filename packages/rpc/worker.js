@@ -8,6 +8,7 @@ class Worker {
     this.transport.on("error", (error) => this.onError(error));
     this.functions = new Map();
     this.retries = 10;
+    this.id = "worker." + randomId(64);
   }
   register({ path, fn }) {
     this.functions.set(path, fn);
@@ -29,7 +30,7 @@ class Worker {
   }
   handleConnect() {
     this.retries = 10;
-    const id = randomId(32);
+    const id = randomId(64);
     const paths = [...this.functions.keys()];
     this.send(
       {
@@ -56,7 +57,7 @@ class Worker {
     this.send(data, id);
   }
   send(data, id) {
-    this.transport.send({ ...data, clientId: this.transport.id, id });
+    this.transport.send({ ...data, clientId: this.id, id });
   }
 }
 

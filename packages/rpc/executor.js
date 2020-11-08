@@ -6,6 +6,7 @@ class Executor {
     this.isConnected = false;
     this.connect();
     this.promises = new Map();
+    this.id = "executor." + randomId(64);
   }
   connect() {
     this.transport.on("message", (data) => this.handleData(data));
@@ -26,7 +27,7 @@ class Executor {
     }
   }
   call(path, args) {
-    const id = randomId(32);
+    const id = randomId(64);
     const promise = new Promise((resolve) => {
       this.promises.set(id, { resolve });
     });
@@ -34,7 +35,7 @@ class Executor {
       this.transport.send({
         instruction: "call",
         details: { path, args },
-        clientId: this.transport.id,
+        clientId: this.id,
         id,
       });
     if (this.isConnected) send();
@@ -45,7 +46,7 @@ class Executor {
     return (...args) => this.call(path, args);
   }
   async getFunctions(path) {
-    const id = randomId(32);
+    const id = randomId(64);
     const promise = new Promise((resolve) => {
       this.promises.set(id, { resolve });
     });
@@ -53,7 +54,7 @@ class Executor {
       this.transport.send({
         instruction: "getPaths",
         details: { path },
-        clientId: this.transport.id,
+        clientId: this.id,
         id,
       });
     if (this.isConnected) send();
