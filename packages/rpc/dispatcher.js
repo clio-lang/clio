@@ -21,34 +21,41 @@ class Dispatcher extends EventEmitter {
     transport.start();
   }
   handleTransportMessage(socket, data) {
-    const { instruction, details, id, clientId } = JSON.parse(data);
-    const args = [socket, details, id, clientId];
+    const { instruction, details, id, clientId, ...rest } = JSON.parse(data);
+    const args = [socket, details, id, clientId, rest];
     if (instruction == "call") this.call(...args);
     else if (instruction == "getPaths") this.getPaths(...args);
     else if (instruction == "registerWorker") this.registerWorker(...args);
   }
-  call(socket, { path, args }, id, clientId) {
+  call(socket, details, id, clientId, rest) {
+    const { path } = rest;
     const worker = this.getWorker(path);
     if (worker) {
       this.sockets.set(id, socket);
       this.send(
         worker,
-        { instruction: "call", details: { path, args }, clientId },
+        {
+          instruction: "call",
+          details,
+          clientId,
+        },
         id
       );
     } else {
       this.addJob(socket, { path, args }, id, clientId);
     }
   }
-  getPaths(socket, { path }, id, clientId) {
+  getPaths(socket, details, id, clientId) {
+    const { path } = JSON.parse(details);
     const paths = [...this.workers.keys()].filter((p) => p.startsWith(path));
     this.send(
       socket,
-      { instruction: "paths", details: { paths }, clientId },
+      { instruction: "paths", details: JSON.stringify({ paths }), clientId },
       id
     );
   }
-  registerWorker(worker, { paths }, id, clientId) {
+  registerWorker(worker, details, id, clientId) {
+    const { paths } = JSON.parse(details);
     for (const path of paths)
       this.workers.set(path, [...(this.workers.get(path) || []), worker]);
     worker.on("message", (data) => this.handleWorkerResponse(data));

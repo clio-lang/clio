@@ -18,11 +18,12 @@ class Executor {
   }
   handleData(data) {
     const { id, details, instruction } = data;
+    const deserialized = JSON.parse(details);
     if (instruction == "result") {
-      const { result } = details;
+      const { result } = deserialized;
       return this.promises.get(id).resolve(result);
     } else if (instruction == "paths") {
-      const { paths } = details;
+      const { paths } = deserialized;
       return this.promises.get(id).resolve(paths);
     }
   }
@@ -34,8 +35,9 @@ class Executor {
     const send = () =>
       this.transport.send({
         instruction: "call",
-        details: { path, args },
+        details: JSON.stringify({ path, args }),
         clientId: this.id,
+        path,
         id,
       });
     if (this.isConnected) send();
@@ -53,7 +55,7 @@ class Executor {
     const send = () =>
       this.transport.send({
         instruction: "getPaths",
-        details: { path },
+        details: JSON.stringify({ path }),
         clientId: this.id,
         id,
       });

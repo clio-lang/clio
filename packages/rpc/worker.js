@@ -35,7 +35,7 @@ class Worker {
     this.send(
       {
         instruction: "registerWorker",
-        details: { paths },
+        details: JSON.stringify({ paths }),
       },
       id
     );
@@ -46,14 +46,14 @@ class Worker {
       this.handleCallInstruction(details, id, clientId);
   }
   async handleCallInstruction(details, id, clientId) {
-    const { path, args } = details;
+    const { path, args } = JSON.parse(details);
     const fn = this.getFn(path);
     const result = await fn(...args);
     this.sendResult(result, id);
   }
   async sendResult(result, id) {
     result = await result;
-    const data = { instruction: "result", details: { result } };
+    const data = { instruction: "result", details: JSON.stringify({ result }) };
     this.send(data, id);
   }
   send(data, id) {
