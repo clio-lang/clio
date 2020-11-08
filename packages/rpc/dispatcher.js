@@ -4,7 +4,6 @@ class Dispatcher extends EventEmitter {
   constructor() {
     super();
     this.workers = new Map();
-    this.messages = new Map();
     this.clients = new Map();
     this.jobs = new Map();
     this.connectedWorkers = [];
@@ -33,7 +32,6 @@ class Dispatcher extends EventEmitter {
     const { path } = rest;
     const worker = this.getWorker(path);
     if (worker) {
-      this.messages.set(id, socket);
       this.send(
         worker,
         {
@@ -77,8 +75,8 @@ class Dispatcher extends EventEmitter {
     ]);
   }
   handleWorkerResponse(data) {
-    const { instruction, details, id } = data;
-    const socket = this.messages.get(id);
+    const { instruction, details, id, toClient } = data;
+    const socket = this.clients.get(toClient);
     this.send(socket, { instruction, details }, id);
   }
   getWorker(path) {

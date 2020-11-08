@@ -54,7 +54,11 @@ class Worker {
   async sendResult(result, id, clientId) {
     // here we use clientId to serialize Channels
     result = await result;
-    const data = { instruction: "result", details: JSON.stringify({ result }) };
+    const data = {
+      instruction: "result",
+      details: JSON.stringify({ result }),
+      toClient: clientId,
+    };
     this.send(data, id);
   }
   send(data, id) {
