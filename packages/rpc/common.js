@@ -8,6 +8,7 @@ class EventEmitter {
   emit(event, ...args) {
     this.listeners[event] = this.listeners[event] || [];
     this.listeners[event].forEach((fn) => fn(...args));
+    return this;
   }
   on(event, callback) {
     this.listeners[event] = this.listeners[event] || [];

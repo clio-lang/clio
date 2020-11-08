@@ -1,4 +1,5 @@
 const { randomId } = require("./common");
+const { Channel } = require("./channel");
 
 class Executor {
   constructor(transport) {
@@ -6,6 +7,7 @@ class Executor {
     this.isConnected = false;
     this.connect();
     this.promises = new Map();
+    this.channels = new Map();
     this.id = "executor." + randomId(64);
   }
   connect() {
@@ -16,12 +18,35 @@ class Executor {
   onConnect() {
     this.isConnected = true;
   }
+  deserialize(data) {
+    const reviver = (_, value) => {
+      if (value && value["@type"] == "Channel") {
+        const { id, clientId } = value;
+        const channel = new Channel();
+        channel.on("send", (event, ...args) => {
+          this.send({
+            instruction: "event",
+            details: JSON.stringify({ id, event, args }),
+            toClient: clientId,
+          });
+        });
+        this.channels.set(id, channel);
+        return channel;
+      }
+      return value;
+    };
+    return JSON.parse(data, reviver);
+  }
   handleData(data) {
     const { id, details, instruction } = data;
-    const deserialized = JSON.parse(details);
+    const deserialized = this.deserialize(details);
     if (instruction == "result") {
       const { result } = deserialized;
       return this.promises.get(id).resolve(result);
+    } else if (instruction == "event") {
+      const { id, event, args } = deserialized;
+      channel = this.channels.get(id);
+      channel.emit(event, ...args);
     } else if (instruction == "paths") {
       const { paths } = deserialized;
       return this.promises.get(id).resolve(paths);

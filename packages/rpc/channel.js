@@ -6,6 +6,11 @@ class Channel extends EventEmitter {
   }
   close() {
     this.emit("close");
+    return this;
+  }
+  send(event, ...args) {
+    this.emit("send", event, ...args);
+    return this;
   }
 }
 
