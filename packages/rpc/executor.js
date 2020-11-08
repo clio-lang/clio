@@ -34,6 +34,7 @@ class Executor {
       this.transport.send({
         instruction: "call",
         details: { path, args },
+        clientId: this.transport.id,
         id,
       });
     if (this.isConnected) send();
@@ -52,6 +53,7 @@ class Executor {
       this.transport.send({
         instruction: "getPaths",
         details: { path },
+        clientId: this.transport.id,
         id,
       });
     if (this.isConnected) send();

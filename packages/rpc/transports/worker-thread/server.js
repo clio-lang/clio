@@ -1,5 +1,5 @@
 const { WorkerThreadSocket } = require("./socket");
-const { EventEmitter } = require("../../common");
+const { EventEmitter, randomId } = require("../../common");
 
 class WrappedWorkerThread extends EventEmitter {
   constructor(worker) {
@@ -30,6 +30,7 @@ class Socket extends EventEmitter {
     super();
     this.server = server;
     this.inSocket = new inSocket(this);
+    this.id = "wt." + randomId(64);
   }
   connect() {
     this.emit("connect");

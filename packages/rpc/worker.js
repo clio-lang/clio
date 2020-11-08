@@ -40,10 +40,11 @@ class Worker {
     );
   }
   handleData(data) {
-    const { instruction, details, id } = data;
-    if (instruction == "call") this.handleCallInstruction(details, id);
+    const { instruction, details, id, clientId } = data;
+    if (instruction == "call")
+      this.handleCallInstruction(details, id, clientId);
   }
-  async handleCallInstruction(details, id) {
+  async handleCallInstruction(details, id, clientId) {
     const { path, args } = details;
     const fn = this.getFn(path);
     const result = await fn(...args);
@@ -55,7 +56,7 @@ class Worker {
     this.send(data, id);
   }
   send(data, id) {
-    this.transport.send({ ...data, id });
+    this.transport.send({ ...data, clientId: this.transport.id, id });
   }
 }
 

@@ -1,9 +1,10 @@
-const { EventEmitter } = require("../../common");
+const { EventEmitter, randomId } = require("../../common");
 
 class Client extends EventEmitter {
   constructor({ postMessage }) {
     super();
     this.postMessage = postMessage;
+    this.id = "wt." + randomId(64);
   }
   connect() {
     this.emit("connect");
