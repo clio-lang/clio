@@ -49,9 +49,10 @@ class Worker {
     const { path, args } = JSON.parse(details);
     const fn = this.getFn(path);
     const result = await fn(...args);
-    this.sendResult(result, id);
+    this.sendResult(result, id, clientId);
   }
-  async sendResult(result, id) {
+  async sendResult(result, id, clientId) {
+    // here we use clientId to serialize Channels
     result = await result;
     const data = { instruction: "result", details: JSON.stringify({ result }) };
     this.send(data, id);
