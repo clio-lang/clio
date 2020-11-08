@@ -28,8 +28,7 @@ class Dispatcher extends EventEmitter {
     else if (instruction == "getPaths") this.getPaths(...args);
     else if (instruction == "registerWorker") this.registerWorker(...args);
   }
-  call(socket, details, id, clientId, rest) {
-    const { path } = rest;
+  call(socket, details, id, clientId, { path }) {
     const worker = this.getWorker(path);
     if (worker) {
       this.send(
