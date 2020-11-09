@@ -1620,6 +1620,7 @@ Rules.string = once(option(symbol), string)
 Rules.block = once(() => [
   many(
     any(
+      Rules.fn,
       Rules.chain,
       Rules.functionCall,
       Rules.conditional,
@@ -1679,7 +1680,15 @@ Rules.block = once(() => [
 
 Rules.wrapped = once(
   lParen,
-  option(any(Rules.hash, Rules.chain, Rules.functionCall, Rules.math)),
+  option(
+    any(
+      Rules.anonymousFn,
+      Rules.hash,
+      Rules.chain,
+      Rules.functionCall,
+      Rules.math
+    )
+  ),
   rParen
 )
   .ignore(spaces, newline, indent, outdent)
@@ -2126,7 +2135,9 @@ Rules.fn = once(
   option(Export),
   fn,
   symbol,
-  many(symbol).ignore(spaces),
+  option(many(symbol).ignore(spaces)).onMatch((result) =>
+    result.length ? result.pop() : result
+  ),
   colon,
   indent,
   Rules.block,
@@ -2247,7 +2258,7 @@ Rules.clio = once(
   const innerNode = new SourceNode(null, null, flat[0].source, flat).join(
     ";\n"
   );
-  const runtime = "const { distributed } = clio; const exports = {}";
+  const runtime = "const { distributed, channel } = clio; const exports = {}";
   const outerCode = arr`module.exports.__clioModule = async clio => {\n${runtime};\n${innerNode};\nreturn exports }`;
   const outerNode = new SourceNode(null, null, flat[0].source, outerCode);
   return outerNode;

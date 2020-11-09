@@ -22,9 +22,10 @@ class Executor {
     const reviver = (_, value) => {
       if (value && value["@type"] == "Channel") {
         const { id, clientId } = value;
+        if (this.channels.get(id)) return;
         const channel = new Channel();
         channel.on("send", (event, ...args) => {
-          this.send({
+          this.transport.send({
             instruction: "event",
             details: JSON.stringify({ id, event, args }),
             toClient: clientId,
@@ -45,7 +46,8 @@ class Executor {
       return this.promises.get(id).resolve(result);
     } else if (instruction == "event") {
       const { id, event, args } = deserialized;
-      channel = this.channels.get(id);
+      const channel = this.channels.get(id);
+      if (!channel) return;
       channel.emit(event, ...args);
     } else if (instruction == "paths") {
       const { paths } = deserialized;

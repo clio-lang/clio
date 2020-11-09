@@ -2,17 +2,17 @@ const fs = require("fs");
 const path = require("path");
 
 const makeStartScript = (config, target, destination, relativeMain) => {
-  const { transports, workers, executor } = config;
+  const { servers, workers, executor } = config;
   fs.writeFileSync(
     path.join(destination, "rpc.json"),
-    JSON.stringify({ transports, workers, executor }, null, 2)
+    JSON.stringify({ servers, workers, executor }, null, 2)
   );
   fs.writeFileSync(
-    path.join(destination, "start.js"),
+    path.join(destination, "index.js"),
     [
-      `const runner = require("clio-run/src/runners/wt.js");`,
+      `const runner = require("clio-run/src/runners/auto.js");`,
       `const config = require("./rpc.json");`,
-      `runner(require.resolve("./${relativeMain}.js"))`,
+      `runner(require.resolve("./${relativeMain}.js"), config)`,
     ].join("\n")
   );
 };

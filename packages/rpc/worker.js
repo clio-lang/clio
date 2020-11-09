@@ -57,7 +57,7 @@ class Worker {
   }
   async handleEventInstruction(details, id, clientId) {
     const { id: channelId, event, args } = JSON.parse(details);
-    channel = this.channels.get(channelId);
+    const channel = this.channels.get(channelId);
     channel.emit(event, ...args);
   }
   serialize(data, clientId) {
@@ -72,7 +72,7 @@ class Worker {
           };
           this.send(data);
         });
-        this.channels.set(id, { channel, hook });
+        this.channels.set(id, value);
         // TODO: kill the channel on client close
         return { "@type": "Channel", clientId: this.id, id };
       }

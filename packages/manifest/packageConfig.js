@@ -29,7 +29,7 @@ function getPackageConfig(
     git_repository: config.git_repository,
     documentation: config.documentation,
     scripts: config.scripts,
-    transports: config.transports,
+    servers: config.servers,
     workers: config.workers,
     executor: config.executor,
   };

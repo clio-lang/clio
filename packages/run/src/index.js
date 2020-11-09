@@ -1,4 +1,5 @@
 const { Executor } = require("clio-rpc/executor");
+const { channel } = require("clio-rpc/channel");
 const { getImport } = require("clio-internals");
 const asyncHooks = require("async_hooks");
 
@@ -53,7 +54,7 @@ const mainDist = (executor) =>
     },
   });
 
-class Montior {
+class Monitor {
   constructor() {
     this.active = new Set();
     this.frozen = new Set();
@@ -88,6 +89,7 @@ class Montior {
 const run = async (module, { worker, executor }, { noMain = false } = {}) => {
   const clio = {
     distributed: worker ? workerDist(executor, worker) : mainDist(executor),
+    channel,
   };
   getImport(clio);
   const { main } = await module.__clioModule(clio);
@@ -135,7 +137,7 @@ const importClio = (file) => {
 };
 
 module.exports.Distributed = Distributed;
-module.exports.Montior = Montior;
+module.exports.Monitor = Monitor;
 
 module.exports.run = run;
 module.exports.importClio = importClio;

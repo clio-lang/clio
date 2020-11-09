@@ -4,6 +4,8 @@ import commonjs from "@rollup/plugin-commonjs";
 import livereload from "rollup-plugin-livereload";
 import { terser } from "rollup-plugin-terser";
 import nodePolyfills from "rollup-plugin-node-polyfills";
+import alias from "@rollup/plugin-alias";
+import path from "path";
 
 const production = !process.env.ROLLUP_WATCH;
 
@@ -42,7 +44,14 @@ const commonPlugins = () => [
       css.write("bundle.css");
     },
   }),
-
+  alias({
+    entries: [
+      {
+        find: "async_hooks",
+        replacement: path.join(__dirname, "src/shim/async_hooks.js"),
+      },
+    ],
+  }),
   // If you have external dependencies installed from
   // npm, you'll most likely need these plugins. In
   // some cases you'll need additional configuration -
@@ -92,7 +101,7 @@ export default [
     output: {
       sourcemap: true,
       format: "iife",
-      name: "app",
+      name: "worker",
       file: "public/build/worker.js",
     },
     plugins: commonPlugins(),

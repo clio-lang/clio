@@ -182,7 +182,7 @@ const build = async (
     }
     progress.succeed();
 
-    // Add start.js file
+    // Add index.js file
     progress.start("Adding Clio start script...");
     makeStartScript(config, target, destination, relativeMain);
     progress.succeed();

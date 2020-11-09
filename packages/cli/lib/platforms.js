@@ -18,7 +18,7 @@ const web = {
 const node = {
   async build() {},
   async run(destination, ...forkOptions) {
-    return fork(path.join(destination, "start.js"), ...forkOptions);
+    return fork(path.join(destination, "index.js"), ...forkOptions);
   },
 };
 
