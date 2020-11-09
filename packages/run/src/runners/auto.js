@@ -3,8 +3,10 @@ const { Dispatcher } = require("clio-rpc/dispatcher");
 
 const ws = require("./ws");
 const wt = require("./wt");
+const ww = require("./ww");
 
-const runners = { ws, wt };
+const runners = { ws, wt, ww };
+const isHost = process.argv.includes("--host");
 
 const start = async (file, options) => {
   const monitor = new Monitor();
@@ -24,6 +26,10 @@ const start = async (file, options) => {
     workers(file, servers[config.server || i], config);
   });
 
+  const execOptions = {};
+
+  if (isHost) execOptions({ noExit: true, noMain: true });
+
   const { executor } = runners[options.executor.proto];
   return executor(
     file,
@@ -31,7 +37,7 @@ const start = async (file, options) => {
     servers[options.executor.server || 0],
     monitor,
     options.executor,
-    {}
+    execOptions
   );
 };
 

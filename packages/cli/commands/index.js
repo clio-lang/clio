@@ -6,6 +6,7 @@ module.exports = {
     get: require("./deps_commands").get,
   },
   highlight: require("clio-highlight").highlight,
-  _new: require("./new").createPackage, // `new` keyword cannot be used
+  new: require("./new").createPackage,
   run: require("./run").run,
+  host: require("./host").host,
 };

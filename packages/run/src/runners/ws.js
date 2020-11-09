@@ -34,37 +34,9 @@ const executor = (file, dispatcher, server, monitor, config, options) => {
     const main = require(file);
     const transport = new WS.Client({ url });
     const executor = new Executor(transport);
-    monitor.freeze();
+    if (!options.noExit) monitor.freeze();
     await run(main, { executor }, options);
-    monitor.exit();
-  });
-};
-
-const start = (file) => {
-  const numCPUs = os.cpus().length;
-  const port = 1337;
-  const url = "ws://localhost:1337";
-  const main = require(file);
-
-  const dispatcher = new Dispatcher();
-  const transport = new WS.Server({ port, url });
-
-  const spawnWorkers = () => {
-    for (let i = 0; i < numCPUs; i++) {
-      child_process.fork(path.resolve(__dirname, "../workers/ws.js"), [
-        url,
-        file,
-      ]);
-    }
-  };
-
-  dispatcher.addTransport(transport);
-  transport.wsServer.on("listening", spawnWorkers);
-
-  dispatcher.expectWorkers(numCPUs).then(() => {
-    const transport = new WS.Client({ url });
-    const executor = new Executor(transport);
-    run(main, { executor }, { noExit: true, noMain: true });
+    if (!options.noExit) monitor.exit();
   });
 };
 

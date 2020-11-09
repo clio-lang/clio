@@ -28,30 +28,9 @@ const executor = (file, dispatcher, server, monitor, { wait_for }, options) => {
     const main = require(file);
     const clientTransport = server.getTransport();
     const executor = new Executor(clientTransport);
-    monitor.freeze();
+    if (!options.noExit) monitor.freeze();
     await run(main, { executor });
-    monitor.exit();
-  });
-};
-
-const start = (file) => {
-  const numCPUs = os.cpus().length;
-  const main = require(file);
-  const monitor = new Monitor();
-  const dispatcher = new Dispatcher();
-  const serverTransport = new WorkerThread.Server();
-  const workerFile = path.resolve(__dirname, "../workers/wt.js");
-  for (let i = 0; i < numCPUs; i++) {
-    const worker = new Worker(workerFile, { workerData: { file } });
-    serverTransport.addWorker(worker);
-  }
-  dispatcher.addTransport(serverTransport);
-  dispatcher.expectWorkers(numCPUs).then(async () => {
-    const clientTransport = serverTransport.getTransport();
-    const executor = new Executor(clientTransport);
-    monitor.freeze();
-    await run(main, { executor });
-    monitor.exit();
+    if (!options.noExit) monitor.exit();
   });
 };
 
