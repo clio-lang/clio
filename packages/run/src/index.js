@@ -21,7 +21,7 @@ class Distributed {
     const key = `${protocol}:${host}`;
     if (this.executors.has(key)) return this.executors.get(key);
     // only ws for now
-    const Protocol = require("../../rpc/transports/ws");
+    const Protocol = require("clio-rpc/transports/ws");
     const transport = new Protocol.Client({ url: `${protocol}://${host}` });
     transport.connect();
     await new Promise((resolve) => transport.on("connect", resolve));

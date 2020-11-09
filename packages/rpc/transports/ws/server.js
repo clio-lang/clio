@@ -23,11 +23,11 @@ class Server extends EventEmitter {
     this.emit("listening");
   }
   onWSConnect(socket) {
-    socket.on("message", (data) => this.handleIncoming(socket, data));
+    const wsSocket = new WSSocket(socket);
+    socket.on("message", (data) => this.handleIncoming(wsSocket, data));
   }
   handleIncoming(socket, data) {
-    const wsSocket = new WSSocket(socket);
-    this.emit("message", wsSocket, data);
+    this.emit("message", socket, data);
   }
   start() {
     return this.createWSServer();
