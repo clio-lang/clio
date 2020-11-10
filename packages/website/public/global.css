@@ -3,13 +3,12 @@ body {
   position: relative;
   padding: 0;
   margin: 0;
-  background: #19191f;
-  color: #d4d4d4;
+  color: #19191f;
+  background: #eee;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  font-family: "Fira Sans";
 }
 
 .monaco-editor .scroll-decoration {
@@ -17,10 +16,16 @@ body {
 }
 
 a {
-  color: rgb(100, 166, 100);
+  color: rgb(33, 33, 33);
+  border-bottom: 1px dotted rgba(33, 33, 33, 0.4);
   text-decoration: none;
+  padding-bottom: 2px;
+  margin-bottom: -3px;
 }
 
 a:hover {
   color: rgb(204, 42, 64);
+  border-bottom: 2px solid rgb(204, 42, 64);
+  padding-bottom: 2px;
+  margin-bottom: -4px;
 }

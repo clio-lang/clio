@@ -4,6 +4,8 @@ import commonjs from "@rollup/plugin-commonjs";
 import livereload from "rollup-plugin-livereload";
 import { terser } from "rollup-plugin-terser";
 import nodePolyfills from "rollup-plugin-node-polyfills";
+import alias from "@rollup/plugin-alias";
+import path from "path";
 
 const production = !process.env.ROLLUP_WATCH;
 
@@ -49,6 +51,14 @@ export default {
       css: (css) => {
         css.write("bundle.css");
       },
+    }),
+    alias({
+      entries: [
+        {
+          find: "async_hooks",
+          replacement: path.join(__dirname, "src/shim/async_hooks.js"),
+        },
+      ],
     }),
 
     // If you have external dependencies installed from

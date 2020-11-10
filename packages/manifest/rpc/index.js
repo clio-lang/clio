@@ -4,15 +4,15 @@ const path = require("path");
 const makeStartScript = (config, target, destination, relativeMain) => {
   const { servers, workers, executor } = config;
   fs.writeFileSync(
-    path.join(destination, "rpc.json"),
+    path.join(destination, ".clio", "rpc.json"),
     JSON.stringify({ servers, workers, executor }, null, 2)
   );
   fs.writeFileSync(
-    path.join(destination, "index.js"),
+    path.join(destination, ".clio", "index.js"),
     [
       `const runner = require("clio-run/src/runners/auto.js");`,
       `const config = require("./rpc.json");`,
-      `runner(require.resolve("./${relativeMain}.js"), config)`,
+      `runner(require.resolve("../${relativeMain}.js"), config);`,
     ].join("\n")
   );
 };

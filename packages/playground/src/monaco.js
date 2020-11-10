@@ -116,7 +116,10 @@ export const clio = {
       // strings
       [/"([^"\\]|\\.)*$/, "string.invalid"], // non-teminated string
       [/"/, { token: "string.quote", bracket: "@open", next: "@string" }],
-      [/'[^ ]*/, "string"], // non-teminated string
+
+      // single-quote strings
+      [/"([^'\\]|\\.)*$/, "string.invalid"], // non-teminated string
+      [/'/, { token: "string.quote", bracket: "@open", next: "@stringSingle" }],
     ],
 
     comment: [
@@ -131,6 +134,13 @@ export const clio = {
       [/@escapes/, "string.escape"],
       [/\\./, "string.escape.invalid"],
       [/"/, { token: "string.quote", bracket: "@close", next: "@pop" }],
+    ],
+
+    stringSingle: [
+      [/[^\\']+/, "string"],
+      [/@escapes/, "string.escape"],
+      [/\\./, "string.escape.invalid"],
+      [/'/, { token: "string.quote", bracket: "@close", next: "@pop" }],
     ],
 
     whitespace: [

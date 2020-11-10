@@ -180,6 +180,12 @@ const build = async (
       await fs.promises.writeFile(destFile, code, "utf8");
       await fs.promises.writeFile(`${destFile}.map`, map, "utf8");
     }
+
+    try {
+      fs.mkdirSync(path.join(destination, ".clio"));
+    } catch (error) {
+      //already exists
+    }
     progress.succeed();
 
     // Add index.js file

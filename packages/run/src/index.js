@@ -59,7 +59,7 @@ class Monitor {
     this.active = new Set();
     this.frozen = new Set();
     const self = this;
-    if (!asyncHooks) return;
+    if (!asyncHooks || !asyncHooks.createHook) return;
     this.hook = asyncHooks.createHook({
       init(asyncId, type) {
         if (type === "TIMERWRAP" || type === "PROMISE") return;
@@ -73,16 +73,16 @@ class Monitor {
     this.hook.enable();
   }
   freeze() {
-    if (!asyncHooks) return;
+    if (!asyncHooks || !asyncHooks.createHook) return;
     this.frozen = new Set([...this.active]);
   }
   exit() {
-    if (!asyncHooks) return;
+    if (!asyncHooks || !asyncHooks.createHook) return;
     this.shouldExit = true;
     this.checkExit();
   }
   checkExit() {
-    if (!asyncHooks) return;
+    if (!asyncHooks || !asyncHooks.createHook) return;
     if (!this.shouldExit) return;
     if ([...this.active].every((handle) => this.frozen.has(handle))) {
       process.exit(0);

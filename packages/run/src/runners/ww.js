@@ -13,8 +13,8 @@ const workers = (file, server, { count }) => {
   const workerCount =
     count === "cpu" ? window.navigator.hardwareConcurrency : count;
   for (let i = 0; i < workerCount; i++) {
-    // TODO: can parcel handle this?
-    const worker = new Worker(`../workers/ww.js?file=${file}`);
+    // TODO: parcel can't handle url parameters
+    const worker = new Worker("../workers/ww.js");
     server.addWorker(worker);
   }
 };
@@ -23,7 +23,8 @@ const executor = (file, dispatcher, server, monitor, { wait_for }, options) => {
   const workerCount =
     wait_for === "cpu" ? window.navigator.hardwareConcurrency : wait_for;
   dispatcher.expectWorkers(workerCount).then(async () => {
-    const main = require(file);
+    // TODO: this locks us to parcel
+    const main = require("parcel:main");
     const clientTransport = server.getTransport();
     const executor = new Executor(clientTransport);
     await run(main, { executor });

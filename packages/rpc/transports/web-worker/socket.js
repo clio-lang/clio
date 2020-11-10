@@ -13,8 +13,7 @@ class WebWorkerSocket extends EventEmitter {
     );
     this.emit("connect");
   }
-  handleWorkerMessage(event) {
-    const { data } = event;
+  handleWorkerMessage(data) {
     const { id } = data;
     if (this.messageIds.delete(id)) this.emit("message", data);
   }

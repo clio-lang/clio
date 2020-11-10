@@ -17,8 +17,6 @@ const executor = new Executor(transport);
 
 onmessage = (message) => transport.onmessage(message);
 
-import(file)
-  .then(() => {
-    run(main, { worker, executor });
-  })
-  .then(() => worker.connect());
+// TODO: this locks us to parcel
+const main = require("parcel:main");
+run(main, { worker, executor }, { noMain: true }).then(() => worker.connect());

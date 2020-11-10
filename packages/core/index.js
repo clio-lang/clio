@@ -82,7 +82,8 @@ const Await = token("Await", /^await/);
 const pike = token("Pike", /^\|/);
 const If = token("If", /^if/);
 const Else = token("Else", /^else/);
-const string = token("String", /^("([^"]|\\.)*"|'([^'\s]|\\.)*)/);
+const string = token("String", /^(["'])([^"]|\\.)*\1/);
+const backtick = token("Backtick", /^`/);
 const colon = token("Colon", /^:/);
 const arrow = token("Arrow", /^->/);
 const fatArrow = token("Fat Arrow", /^=>/);
@@ -135,6 +136,7 @@ const other = token("Other", /^\S+/);
 
 const patterns = [
   string,
+  backtick,
   blockCommentStart,
   blockCommentEnd,
   comment,
@@ -967,8 +969,8 @@ Rules.functionCall = once(() => [
       Rules.math,
       Rules.wrapped,
       Rules.propertyAccess,
+      Rules.string,
       number,
-      string,
       symbol
     )
   ).ignore(spaces),
@@ -1015,7 +1017,7 @@ Rules.functionCall = once(() => [
 Rules.array = once(() => [
   lBracket,
   many(
-    any(Rules.range, Rules.array, Rules.wrapped, number, string, symbol)
+    any(Rules.range, Rules.array, Rules.wrapped, number, Rules.string, symbol)
   ).ignore(spaces, newline, indent, outdent),
   rBracket,
 ])
@@ -1256,7 +1258,7 @@ Rules.chain = once(() => [
     Rules.logical,
     Rules.cmp,
     Rules.propertyAccess,
-    string,
+    Rules.string,
     symbol,
     number
   ),
@@ -1457,7 +1459,14 @@ Rules.chain = once(() => [
 Rules.keyValue = once(() => [
   symbol,
   colon,
-  any(Rules.functionCall, Rules.math, Rules.wrapped, string, symbol, number),
+  any(
+    Rules.functionCall,
+    Rules.math,
+    Rules.wrapped,
+    Rules.string,
+    symbol,
+    number
+  ),
 ])
   .ignore(spaces)
   .onFail((matched, tokens, offset, context) => {
@@ -1603,19 +1612,31 @@ Rules.slice = once(() => [
     return slice;
   });
 
-const parseString = (str) => (str.startsWith('"') ? str : str + "'");
-
-Rules.string = once(option(symbol), string)
-  .name("string")
-  .onMatch((result) => {
-    const string = result.length == 1 ? result[0] : result[1];
+Rules.string = any(
+  once(option(symbol), string)
+    .name("string")
+    .onMatch((result) => {
+      const string = result.length == 1 ? result[0] : result[1];
+      return new SourceNode(
+        string.line,
+        string.column,
+        string.source,
+        string.raw
+      );
+    }),
+  once(() => [
+    option(symbol),
+    backtick,
+    any(Rules.wrapped, Rules.array, Rules.propertyAccess, Rules.slice, symbol),
+  ]).onMatch(([_, tick, str]) => {
     return new SourceNode(
-      string.line,
-      string.column,
-      string.source,
-      parseString(string.raw)
+      tick.line,
+      tick.column,
+      tick.source,
+      arr`"${detokenize(str)}"`
     );
-  });
+  })
+);
 
 Rules.block = once(() => [
   many(
@@ -1627,13 +1648,13 @@ Rules.block = once(() => [
       Rules.logical,
       Rules.cmp,
       Rules.math,
-      Rules.string,
       Rules.slice,
       Rules.propertyAccess,
       Rules.awaitedAny,
       Rules.array,
       Rules.range,
       Rules.hash,
+      Rules.string,
       symbol,
       number
     )
@@ -1808,7 +1829,7 @@ Rules.inlineImport = once(
           )
         : null;
     }),
-  string
+  Rules.string
 )
   .ignore(spaces)
   .name("inline import")
@@ -1842,7 +1863,14 @@ Rules.inlineImport = once(
     }
   });
 
-Rules.indentImport = once(Import, indent, importInner, outdent, from, string)
+Rules.indentImport = once(
+  Import,
+  indent,
+  importInner,
+  outdent,
+  from,
+  Rules.string
+)
   .ignore(spaces, newline)
   .name("indent import")
   .onFail((matched, tokens, offset, context) => {
@@ -1906,8 +1934,8 @@ Rules.conditional = once(
     Rules.wrapped,
     Rules.array,
     Rules.range,
+    Rules.string,
     symbol,
-    string,
     number
   ),
   option(
@@ -1926,8 +1954,8 @@ Rules.conditional = once(
             Rules.wrapped,
             Rules.array,
             Rules.range,
+            Rules.string,
             symbol,
-            string,
             number
           )
         )
@@ -1957,8 +1985,8 @@ Rules.conditional = once(
             Rules.wrapped,
             Rules.array,
             Rules.range,
+            Rules.string,
             symbol,
-            string,
             number
           )
         )

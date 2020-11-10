@@ -17,13 +17,10 @@
         "  else: (fib n - 1)",
         "      + (fib n - 2)",
         "",
-        "fn print item index array:",
-        "  console.log item",
-        "",
         "export fn main argv:",
         "  [39 40 41 42]",
         "    -> * await |fib|",
-        "    -> * print",
+        "    -> * item: console.log item",
       ].join("\n");
     },
     fib() {
@@ -33,13 +30,24 @@
         "  else: (fib n - 1)",
         "      + (fib n - 2)",
         "",
-        "fn print item index array:",
-        "  console.log item",
-        "",
         "export fn main argv:",
         "  [39 40 41 42]",
         "    -> * fib",
-        "    -> * print",
+        "    -> * item: console.log item",
+      ].join("\n");
+    },
+    express() {
+      return [
+        "-- Note: this code doesn't run in the browser!",
+        'import "express"',
+        "",
+        "fn hello req res:",
+        '  "Hello world" -> res.send',
+        "",
+        "export fn main argv:",
+        "  express () ->",
+        '    .get "/" hello',
+        "    .listen 3000",
       ].join("\n");
     },
   };
@@ -69,7 +77,8 @@
     setTimeout(() => (isActive = false), 4000);
   };
 
-  const copyShareURL = () => {
+  const copyShareURL = (event) => {
+    event.preventDefault();
     const code = editor.getValue();
     const encoded = encodeURIComponent(code);
     const { origin, pathname } = window.location;
@@ -78,7 +87,8 @@
     showMessage();
   };
 
-  const compileAndRun = () => {
+  const compileAndRun = (event) => {
+    event.preventDefault();
     const src = editor.getValue();
     const { code } = compile(src, "main.clio");
     const lines = [];
@@ -95,7 +105,6 @@
       lines.push(time);
       domConsole.setValue(lines.join("\n"));
     })();
-    return false;
   };
 
   const makeEditor = async () => {
@@ -122,7 +131,7 @@
     });
   };
 
-  makeEditor();
+  document.fonts.ready.then(makeEditor);
 </script>
 
 <style>
@@ -150,7 +159,7 @@
     color: #dadada;
     text-decoration: none;
     border-radius: 6px;
-    border: 2px solid rgb(100, 166, 100);
+    border: 2px solid #333;
     padding: 0.5em 1em;
     background: transparent;
   }
@@ -226,6 +235,7 @@
     <select class="sample" on:change={setSampleCode}>
       <option selected value="parallelFib">Parallel Fib</option>
       <option value="fib">Fib</option>
+      <option value="express">Express</option>
     </select>
     {#if share}
       <a href="#?" class="btn share" on:click={copyShareURL}> Share </a>
