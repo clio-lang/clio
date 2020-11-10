@@ -1,5 +1,4 @@
 const { run } = require("../index");
-const { Dispatcher } = require("clio-rpc/dispatcher");
 const { Executor } = require("clio-rpc/executor");
 const WS = require("clio-rpc/transports/ws");
 const path = require("path");

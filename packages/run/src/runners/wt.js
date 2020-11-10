@@ -1,6 +1,5 @@
-const { run, Monitor } = require("../index");
+const { run } = require("../index");
 const { Worker } = require("worker_threads");
-const { Dispatcher } = require("clio-rpc/dispatcher");
 const { Executor } = require("clio-rpc/executor");
 const WorkerThread = require("clio-rpc/transports/worker-thread");
 const path = require("path");
