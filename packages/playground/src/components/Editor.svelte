@@ -170,6 +170,8 @@
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
+    padding: 0.55em 1em;
+    margin-bottom: -0.15em;
   }
   .share {
     margin-right: 1em;
