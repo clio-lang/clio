@@ -12,3 +12,5 @@ dist
 *.clio.js
 
 packages/run/src/workers/ww.js
+packages/website
+packages/playground
