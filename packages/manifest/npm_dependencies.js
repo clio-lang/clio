@@ -1,7 +1,13 @@
 const fs = require("fs");
 const path = require("path");
+const npmFetch = require("npm-registry-fetch");
+
 const { spawn } = require("child_process");
-const { getPackageConfig, CONFIGFILE_NAME } = require("./packageConfig");
+const {
+  getPackageConfig,
+  addNpmDependency,
+  CONFIGFILE_NAME,
+} = require("./packageConfig");
 
 function fetchNpmDependencies(destination, silent = false) {
   process.chdir(destination);
@@ -30,8 +36,17 @@ function getParsedNpmDependencies(source) {
   return dependencies;
 }
 
+async function installNpmDependency(id) {
+  const info = await npmFetch.json(id);
+  if (info.statusCode == 404)
+    throw new Error(`Couldn't fetch package info for ${id}`);
+  const { latest } = info["dist-tags"];
+  addNpmDependency([info.name, latest]);
+}
+
 module.exports = {
   fetchNpmDependencies,
   hasInstalledNpmDependencies,
   getParsedNpmDependencies,
+  installNpmDependency,
 };

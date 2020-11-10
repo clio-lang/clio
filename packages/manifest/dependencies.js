@@ -7,6 +7,7 @@ const {
   logFetching,
 } = require("./utils/fetch");
 const { isClioSource, parsePackageId } = require("./utils/parse");
+const { installNpmDependency } = require("./npm_dependencies");
 
 /* Package getters */
 
@@ -82,7 +83,9 @@ function fetchDependencies() {
  * @param {string} argv.source - url, uri or id (name[@version]) of the package to fetch
  * @returns {promise}
  */
-function installDependency(id) {
+function installDependency(id, flags) {
+  if (flags.npm) return installNpmDependency(id);
+
   const { url, branch, githubURI, source, version, name } = parsePackageId(id);
 
   if (url && !githubURI) {

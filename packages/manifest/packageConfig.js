@@ -74,11 +74,36 @@ function writePackageConfig(config, directory = process.cwd()) {
  *
  * @param {string[]} dep - [ name, version ]
  */
-function addDependency([name, version]) {
+function addDependency(dependency) {
   const config = getPackageConfig();
-  config.dependencies.push({ name, version });
+  config.dependencies = config.dependencies || {};
+  config.dependencies = {
+    ...config.dependencies,
+    ...Object.fromEntries([dependency]),
+  };
   writePackageConfig(config);
 
+  const [name, version] = dependency;
+  console.log(
+    `Added ${name}@${version} to the dependencies list in ${CONFIGFILE_NAME}`
+  );
+}
+
+/**
+ * Add a npm dependency to the package config
+ *
+ * @param {string[]} dep - [ name, version ]
+ */
+function addNpmDependency(dependency) {
+  const config = getPackageConfig();
+  config.npm_dependencies = config.npm_dependencies || {};
+  config.npm_dependencies = {
+    ...config.npm_dependencies,
+    ...Object.fromEntries([dependency]),
+  };
+  writePackageConfig(config);
+
+  const [name, version] = dependency;
   console.log(
     `Added ${name}@${version} to the dependencies list in ${CONFIGFILE_NAME}`
   );
@@ -87,6 +112,7 @@ function addDependency([name, version]) {
 module.exports = {
   CONFIGFILE_NAME,
   addDependency,
+  addNpmDependency,
   getPackageConfig,
   writePackageConfig,
 };
