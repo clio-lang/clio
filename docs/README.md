@@ -6,7 +6,6 @@ Clio compiles to JavaScript. This makes Clio fast, easy to port and easy to exte
 
 ![](https://raw.githubusercontent.com/clio-lang/media/master/clio-cut.png)
 
-
 {% hint style="danger" %}
 Clio was written from scratch, some parts of this document have been updated to reflect the new changes, but not all pages are updated. This documentation is a work in progress.
 {% endhint %}

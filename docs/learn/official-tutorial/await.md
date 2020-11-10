@@ -35,7 +35,7 @@ export fn main argv:
   await: [
     fetch "https://get.geojs.io/v1/ip/geo.json"
     fetch "https://get.geojs.io/v1/ip/geo/8.8.8.8.json"
-  ] 
+  ]
     -> * await .json
     -> * console.log
 ```
@@ -47,7 +47,7 @@ export fn main argv:
   await: [
     fetch "https://get.geojs.io/v1/ip/geo.json"
     fetch "https://get.geojs.io/v1/ip/geo/8.8.8.8.json"
-  ] 
+  ]
     -> * [await] .json
     -> * console.log
 ```
