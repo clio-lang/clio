@@ -93,21 +93,26 @@
 
   const compileAndRun = (event) => {
     event.preventDefault();
-    const src = editor.getValue();
-    const { code } = compile(src, "main.clio");
-    const lines = [];
     (async () => {
+      const lines = [];
       console.log = async (...args) => {
         lines.push(args.map(inspect).join(" "));
         domConsole.setValue(lines.join("\n"));
       };
-      const now = performance.now();
-      await run(code);
-      const end = performance.now();
-      const time = `Took ${Math.round((end - now) * 100) / 100}ms`;
-      lines.push("-".repeat(time));
-      lines.push(time);
-      domConsole.setValue(lines.join("\n"));
+      console.error = console.log;
+      try {
+        const src = editor.getValue();
+        const { code } = compile(src, "main.clio");
+        const now = performance.now();
+        await run(code);
+        const end = performance.now();
+        const time = `Took ${Math.round((end - now) * 100) / 100}ms`;
+        lines.push("-".repeat(time));
+        lines.push(time);
+        domConsole.setValue(lines.join("\n"));
+      } catch (error) {
+        console.error(error);
+      }
     })();
   };
 
