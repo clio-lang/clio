@@ -4,5 +4,5 @@ module.exports = {
   SOURCE_NAME: "src",
   GITHUB_PREFIX: "github",
   REGISTRY_NAME: "hub",
-  URL_PREFIX: "url"
+  URL_PREFIX: "url",
 };

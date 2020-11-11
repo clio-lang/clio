@@ -1,10 +1,11 @@
 const { installDependency } = require("clio-manifest");
 
-exports.command = "add <source>";
+exports.command = "add <source> [options]";
 exports.desc = "Add a new dependency";
 exports.builder = {
-  source: { describe: "source to analyze", type: "string" }
+  source: { describe: "source to analyze", type: "string" },
+  npm: { describe: "Add NPM dependency", type: "boolean" },
 };
-exports.handler = argv => {
-  installDependency(argv.source);
+exports.handler = (argv) => {
+  installDependency(argv.source, argv);
 };

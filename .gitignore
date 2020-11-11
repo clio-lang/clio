@@ -5,6 +5,10 @@ __pycache__
 .vscode
 .idea/
 /clio.iml
+.cache
+.DS_Store
+dist
+*.clio.js
 
 # see package/config.js before renaming this
 clio_env 

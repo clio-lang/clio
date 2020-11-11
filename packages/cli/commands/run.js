@@ -12,15 +12,15 @@ exports.builder = {
   source: {
     describe: "source file to run",
     type: "string",
-    default: path.resolve(".")
-  }
+    default: path.resolve("."),
+  },
 };
 
-exports.handler = argv => {
+exports.handler = (argv) => {
   run(argv.source);
 };
 
-async function run(projectPath) {
+async function run(projectPath, ...platformOptions) {
   try {
     await build(projectPath, null, { skipBundle: true });
 
@@ -32,7 +32,7 @@ async function run(projectPath) {
       throw new Error(`Platform "${target}" is not supported.`);
     }
 
-    await platform.run(destination);
+    return await platform.run(destination, ...platformOptions);
   } catch (e) {
     error(e);
   }

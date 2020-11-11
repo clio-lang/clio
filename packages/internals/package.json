@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Run this script on the root directory.\" && exit 1"
   },
-  "author": "Andrey Luiz <andreyluiz.developer@gmail.com>",
+  "author": "Pouya Eghbali <pouya.eghbali@yandex.com>",
   "license": "Apache-2.0",
   "dependencies": {}
 }

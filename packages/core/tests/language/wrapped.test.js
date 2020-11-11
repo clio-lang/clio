@@ -1,17 +1,20 @@
-const { compile } = require("../../compiler");
+const { compile } = require("../..");
 const fs = require("fs");
 const path = require("path");
+const { importClio } = require("clio-run");
 
 test("Compile and run wrapped expressions", async () => {
-  const file = path.join(__dirname, "clio", "wrapped.clio");
+  const relative = "./clio/wrapped.clio";
+  const file = path.join(__dirname, relative);
   const input = fs.readFileSync(file, { encoding: "utf8" });
-  const output = await compile(input, file);
-  const { code } = output.toStringWithSourceMap();
-  const module = { exports: {} };
-  eval(code);
-  const { scope } = module.exports;
-  expect(scope.twentySeven.valueOf()).toEqual(27);
-  expect(scope.eight.valueOf()).toEqual(8);
-  expect(scope.nine.valueOf()).toEqual(9);
-  expect(scope.ninety.valueOf()).toEqual(90);
+  const { code } = compile(input, relative);
+  const outfile = path.join(__dirname, `${relative}.js`);
+  fs.writeFileSync(outfile, code);
+  const { dispatcher, exports } = await importClio(outfile);
+  const result = await exports.main();
+  dispatcher.kill();
+  expect(result.twentySeven).toEqual(27);
+  expect(result.eight).toEqual(8);
+  expect(result.nine).toEqual(9);
+  expect(result.ninety).toEqual(90);
 });

@@ -4,8 +4,8 @@
   "description": "Clio Programming Language",
   "main": "packages/cli/index.js",
   "scripts": {
-    "lint:check": "prettier --check '{,!(node_modules|coverage)/**/}*.js' && eslint .",
-    "lint:fix": "prettier --write ./**/*.js",
+    "lint:check": "prettier --check . && eslint .",
+    "lint:fix": "prettier --write .",
     "pretest": "npm run bootstrap",
     "bootstrap": "lerna bootstrap --hoist",
     "link": "lerna link",
@@ -13,8 +13,8 @@
     "test:nocov": "jest --no-coverage"
   },
   "engines": {
-    "node": ">=10.4",
-    "npm": ">=3"
+    "node": ">=13.0.0",
+    "npm": ">=6.12.0"
   },
   "author": "Pouya Eghbali",
   "contributors": [
@@ -31,34 +31,32 @@
   ],
   "license": "Apache-2.0",
   "bin": {
-    "clio": "./packages/cli/index.js"
+    "clio": "packages/cli/index.js"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/clio-lang/clio.git"
   },
   "dependencies": {
-    "@iarna/toml": "^2.2.3",
-    "bean-parser": "^1.0.9",
+    "@iarna/toml": "^2.2.5",
     "chalk": "3.0.0",
     "decompress": "^4.2.1",
-    "node-fetch": "2.6.0",
+    "node-fetch": "^2.6.1",
     "source-map": "^0.7.3",
     "tmp": "0.1.0",
-    "treeify": "1.1.0",
-    "yargs": "^15.3.1"
+    "yargs": "^15.4.1"
   },
   "devDependencies": {
     "@types/jest": "^24.0.24",
     "degit": "^2.2.2",
     "del": "5.1.0",
     "eslint": "^6.8.0",
-    "eslint-plugin-jest": "^23.1.1",
-    "jest": "^25.1.0",
-    "lerna": "^3.19.0",
+    "eslint-plugin-jest": "^23.20.0",
+    "jest": "^25.5.4",
+    "lerna": "^3.22.1",
     "merge": "1.2.1",
-    "ora": "^4.0.3",
-    "parcel-bundler": "^1.12.4",
-    "prettier": "^1.19.1"
+    "ora": "^4.1.1",
+    "parcel-bundler": "^1.3.1",
+    "prettier": "^2.1.2"
   }
 }

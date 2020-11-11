@@ -8,7 +8,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [10.x, 11.x, 12.x]
+        node-version: [15.x, 14.x, 13.x]
 
     steps:
       - uses: actions/checkout@v1
@@ -18,6 +18,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - name: npm install & test
         run: |
+          export CLIOPATH="$GITHUB_WORKSPACE"
           npm ci
           npm run link
           npm test
@@ -41,10 +42,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v1
-      - name: Use Node.js 12.x
+      - name: Use Node.js 14.x
         uses: actions/setup-node@v1
         with:
-          node-version: 12.x
+          node-version: 14.x
       - name: npm lint:check
         run: |
           npm ci

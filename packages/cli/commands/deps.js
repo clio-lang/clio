@@ -1,16 +1,13 @@
 const {
   getPackageDependencies,
   hasClioDependencies,
-  logNoClioDeps
+  logNoClioDeps,
 } = require("clio-manifest");
 
 exports.command = "deps";
 exports.desc = "Manage clio dependencies";
-exports.builder = yargs => {
-  return yargs
-    .commandDir("deps_commands")
-    .help()
-    .alias("h", "help");
+exports.builder = (yargs) => {
+  return yargs.commandDir("deps_commands").help().alias("h", "help");
 };
 exports.handler = () => {
   showDependencies();
@@ -29,7 +26,7 @@ const showDependencies = () => {
 
   const deps = getPackageDependencies();
   const formattedDeps = deps
-    .map(dep => `~> ${dep["name"]}: ${dep["version"]}`)
+    .map((dep) => `~> ${dep["name"]}: ${dep["version"]}`)
     .join("\n");
   console.log(formattedDeps);
 };

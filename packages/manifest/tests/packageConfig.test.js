@@ -6,7 +6,7 @@ const toml = require("@iarna/toml");
 const {
   CONFIGFILE_NAME,
   getPackageConfig,
-  writePackageConfig
+  writePackageConfig,
 } = require("../index");
 
 test("Import config file", () => {
@@ -17,7 +17,7 @@ test("Import config file", () => {
 test("Write config file", () => {
   const config = {
     title: "test",
-    dependencies: [{ name: "Foo", version: "1.2.3" }]
+    dependencies: [{ name: "Foo", version: "1.2.3" }],
   };
 
   const tmpDir = tmp.dirSync();
@@ -37,7 +37,7 @@ test("Toml contains npm_dependencies", () => {
 
   expect(config.npm_dependencies).toContainEqual({
     name: "rickroll",
-    version: "latest"
+    version: "latest",
   });
 });
 

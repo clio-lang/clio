@@ -8,9 +8,17 @@ description: How to install Clio
 
 To install Clio language, you'll need Node.js and NPM. After installing Node and NPM, you can install Clio by running:
 
-`npm i -g clio-lang`
+`npm i -g clio`
 
 Check your installation by running `clio` in your local shell. You're good to go!
+
+## Install via Brew (MacOS)
+
+TBD
+
+## Install via install script
+
+TBD
 
 ## Install via Arch User Repository
 
@@ -37,11 +45,12 @@ Now you need to install dependencies, to do that run:
 
 Now you need to link the `clio` executable:
 
-`npm run link`
+`npm link`
 
-If you are planning to make changes to the local clio installation, you will need to specify its location in the `CLIOPATH` environment variable. This ensures, that local clio packages will be used when building a project. 
+If you are planning to make changes to the local clio installation, you will need to specify its location in the `CLIOPATH` environment variable. This ensures, that local clio packages will be used when building a project.
 
 ### Setting CLIOPATH on MacOS/Linux
+
 Add this line to your `.bashrc` file:
 
 ```

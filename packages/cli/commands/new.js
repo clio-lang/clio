@@ -11,15 +11,15 @@ exports.desc = "Create a new Clio project";
 exports.builder = {
   project: {
     describe: "name of the project",
-    type: "string"
+    type: "string",
   },
   target: {
     describe: "What is this project intended for (node or web)?",
     type: "string",
-    default: "node"
-  }
+    default: "node",
+  },
 };
-exports.handler = function(argv) {
+exports.handler = function (argv) {
   createPackage(argv.project, argv.target);
 };
 
@@ -42,7 +42,7 @@ async function createPackage(packageName, target = "node") {
 
     const emitter = degit(`clio-lang/template-${target}#master`, {
       cache: false,
-      force: true
+      force: true,
     });
 
     await emitter.clone(packageName);

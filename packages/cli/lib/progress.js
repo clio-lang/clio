@@ -23,5 +23,5 @@ class Progress {
 }
 
 module.exports = {
-  Progress
+  Progress,
 };

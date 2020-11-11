@@ -87,5 +87,5 @@ module.exports = {
   fetchFromClioPackages,
   fetchGitHubZipArchive,
   fetchZipArchive,
-  logFetching
+  logFetching,
 };

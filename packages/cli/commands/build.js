@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { generator } = require("clio-core");
+const { compile } = require("clio-core");
 const { error, info, warn } = require("../lib/colors");
 const { getPlatform } = require("../lib/platforms");
 const { Progress } = require("../lib/progress");
@@ -11,27 +11,44 @@ const {
   fetchNpmDependencies,
   getPackageConfig,
   hasInstalledNpmDependencies,
-  getParsedNpmDependencies
+  getParsedNpmDependencies,
+  makeStartScript,
 } = require("clio-manifest");
 
-const flatten = arr => arr.reduce((acc, val) => acc.concat(val), []);
+const asyncCompile = async (...args) => compile(...args);
 
-const isDir = dir => fs.lstatSync(dir).isDirectory();
-const readDir = dir => fs.readdirSync(dir);
-const walkDir = dir => readDir(dir).map(f => walk(path.join(dir, f)));
-const walk = dir => (isDir(dir) ? flatten(walkDir(dir)) : [dir]);
+const flatten = (arr) => arr.reduce((acc, val) => acc.concat(val), []);
 
-const isClioFile = file => file.endsWith(".clio");
-const isNotClioFile = file => !file.endsWith(".clio");
-const getClioFiles = dir => walk(dir).filter(isClioFile);
-const getNonClioFiles = dir => walk(dir).filter(isNotClioFile);
+const isDir = (dir) => fs.lstatSync(dir).isDirectory();
+const readDir = (dir) => fs.readdirSync(dir);
+const walkDir = (dir) => readDir(dir).map((f) => walk(path.join(dir, f)));
+const walk = (dir) => (isDir(dir) ? flatten(walkDir(dir)) : [dir]);
+
+const isClioFile = (file) => file.endsWith(".clio");
+const isNotClioFile = (file) => !file.endsWith(".clio");
+const getClioFiles = (dir) => walk(dir).filter(isClioFile);
+const getNonClioFiles = (dir) => walk(dir).filter(isNotClioFile);
 const copyDir = async (src, dest) => {
   const entries = await fs.promises.readdir(src, { withFileTypes: true });
   mkdir(dest);
   for (let entry of entries) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) {
+    if (entry.isSymbolicLink()) {
+      const target = fs.readlinkSync(srcPath);
+      const absTarget = path.isAbsolute(target)
+        ? target
+        : path.resolve(path.dirname(srcPath), target);
+      if (fs.lstatSync(absTarget).isDirectory()) {
+        await copyDir(absTarget, destPath);
+      } else {
+        await fs.promises.copyFile(
+          absTarget,
+          destPath,
+          fs.constants.COPYFILE_FICLONE
+        );
+      }
+    } else if (entry.isDirectory()) {
       await copyDir(srcPath, destPath);
     } else {
       await fs.promises.copyFile(
@@ -43,7 +60,7 @@ const copyDir = async (src, dest) => {
   }
 };
 
-const mkdir = directory => {
+const mkdir = (directory) => {
   const { root, dir, base } = path.parse(directory);
   const parts = [...dir.split(path.sep), base];
   return parts.reduce((parent, subdir) => {
@@ -136,6 +153,7 @@ const build = async (
   const target = getBuildTarget(targetOverride, config);
   const destination = dest || getDestinationFromConfig(source, target, config);
   const sourceDir = getSourceFromConfig(source, target, config);
+  const relativeMain = config.main.slice(target.length);
 
   if (!silent) info(`Creating build for ${target}`);
 
@@ -151,24 +169,38 @@ const build = async (
       const destFile = `${destFileClio}.js`;
       const destDir = path.dirname(destFile);
       const contents = fs.readFileSync(file, "utf8");
-      const compiled = await generator(contents, relativeFile);
-      const { code, map } = compiled.toStringWithSourceMap();
-      const sourceMap = map.toString();
+      const { code, map } = await asyncCompile(contents, relativeFile).catch(
+        (compileError) => {
+          console.error(compileError.message);
+          process.exit(1);
+        }
+      );
       mkdir(destDir);
       await fs.promises.writeFile(destFileClio, contents, "utf8");
       await fs.promises.writeFile(destFile, code, "utf8");
-      await fs.promises.writeFile(`${destFile}.map`, sourceMap, "utf8");
+      await fs.promises.writeFile(`${destFile}.map`, map, "utf8");
     }
+
+    try {
+      fs.mkdirSync(path.join(destination, ".clio"));
+    } catch (error) {
+      //already exists
+    }
+    progress.succeed();
+
+    // Add index.js file
+    progress.start("Adding Clio start script...");
+    makeStartScript(config, target, destination, relativeMain);
     progress.succeed();
 
     // Init npm modules
     try {
       const packageJsonPath = path.join(destination, "package.json");
       const dependencies = getParsedNpmDependencies(source);
-      dependencies["clio-internals"] = "latest";
+      dependencies["clio-run"] = "latest";
       const packageJsonContent = {
         dependencies,
-        main: "main.clio.js"
+        main: `${config.main}.js`,
       };
       fs.writeFileSync(
         packageJsonPath,
@@ -200,14 +232,17 @@ const build = async (
           .replace(ENV_NAME, "node_modules");
         const destFile = `${destFileClio}.js`;
         const contents = await fs.promises.readFile(file, "utf8");
-        const compiled = await generator(contents, relativeFile);
+        const { code, map } = await asyncCompile(contents, relativeFile).catch(
+          (compileError) => {
+            console.error(compileError.message);
+            process.exit(1);
+          }
+        );
         const destDir = path.dirname(destFile);
-        const { code, map } = compiled.toStringWithSourceMap();
-        const sourceMap = map.toString();
         mkdir(destDir);
         await fs.promises.writeFile(destFileClio, contents, "utf8");
         await fs.promises.writeFile(destFile, code, "utf8");
-        await fs.promises.writeFile(`${destFile}.map`, sourceMap, "utf8");
+        await fs.promises.writeFile(`${destFile}.map`, map, "utf8");
       }
       progress.succeed();
 
@@ -246,10 +281,11 @@ const build = async (
     warn(
       "If you encounter any unwanted behavior, unset the CLIOPATH environment variable"
     );
-    progress.start("Linking internals");
-    await linkInternals(
-      path.resolve(process.env.CLIOPATH, "packages", "internals", "src"),
-      path.join(destination, "node_modules", "clio-internals", "src")
+    progress.succeed();
+    progress.start("Linking run");
+    await link(
+      path.resolve(process.env.CLIOPATH, "packages", "run"),
+      path.join(destination, "node_modules", "clio-run")
     );
     progress.succeed();
   }
@@ -266,7 +302,7 @@ const build = async (
  * Link local internals package as a dependency
  * @param {string} destination Full path to destination directory
  */
-async function linkInternals(source, destination) {
+async function link(source, destination) {
   await copyDir(source, destination);
 }
 
@@ -283,7 +319,8 @@ const buildPackageJson = (source, dependency, destination) => {
   const config = getPackageConfig(configPath);
   const packageJson = {
     main: config.main,
-    title: config.title
+    title: config.title,
+    clio: { config },
   };
   const destFilePath = path.join(
     destination,
@@ -297,11 +334,11 @@ const buildPackageJson = (source, dependency, destination) => {
 const command = "build [target] [source] [destination]";
 const desc = "Build a Clio project";
 
-const handler = argv => {
+const handler = (argv) => {
   const options = {
     targetOverride: argv.target,
     skipBundle: argv["skip-bundle"],
-    skipNpmInstall: argv["skip-npm-install"]
+    skipNpmInstall: argv["skip-npm-install"],
   };
   build(argv.source, argv.destination, options);
 };
@@ -309,28 +346,28 @@ const builder = {
   source: {
     describe: "source directory to read from",
     type: "string",
-    default: path.resolve(".")
+    default: path.resolve("."),
   },
   destination: {
     describe: "destination directory to write to",
-    type: "string"
+    type: "string",
   },
   target: {
     describe: "An override for the default project target.",
-    type: "string"
+    type: "string",
   },
   "skip-bundle": {
     describe: "Does not produces a bundle for browsers.",
-    type: "boolean"
+    type: "boolean",
   },
   "skip-npm-install": {
     describe: "Skips npm install. Useful for tests.",
-    type: "boolean"
+    type: "boolean",
   },
   silent: {
     describe: "Mutes messages from the command.",
-    type: "boolean"
-  }
+    type: "boolean",
+  },
 };
 
 module.exports = {
@@ -341,5 +378,5 @@ module.exports = {
   handler,
   getBuildTarget,
   getDestinationFromConfig,
-  copyDir
+  copyDir,
 };

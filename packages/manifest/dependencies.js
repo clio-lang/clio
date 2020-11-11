@@ -4,9 +4,10 @@ const {
   fetchFromClioPackages,
   fetchGitHubZipArchive,
   fetchZipArchive,
-  logFetching
+  logFetching,
 } = require("./utils/fetch");
 const { isClioSource, parsePackageId } = require("./utils/parse");
+const { installNpmDependency } = require("./npm_dependencies");
 
 /* Package getters */
 
@@ -68,8 +69,8 @@ function fetchDependencies() {
 
   return Promise.all(
     getPackageDependencies()
-      .filter(dep => isClioSource(dep.name))
-      .map(dep => installDependency(dep.name))
+      .filter((dep) => isClioSource(dep.name))
+      .map((dep) => installDependency(dep.name))
   );
 }
 
@@ -82,13 +83,15 @@ function fetchDependencies() {
  * @param {string} argv.source - url, uri or id (name[@version]) of the package to fetch
  * @returns {promise}
  */
-function installDependency(id) {
+function installDependency(id, flags = {}) {
+  if (flags.npm) return installNpmDependency(id);
+
   const { url, branch, githubURI, source, version, name } = parsePackageId(id);
 
   if (url && !githubURI) {
     logFetching(url);
 
-    return fetchZipArchive(url).then(successful => {
+    return fetchZipArchive(url).then((successful) => {
       if (successful && !hasClioDependency([source, "latest"])) {
         addDependency([source, "latest"]);
       }
@@ -97,7 +100,7 @@ function installDependency(id) {
 
   if (githubURI) {
     return fetchGitHubZipArchive({ branch, uri: githubURI }).then(
-      successful => {
+      (successful) => {
         if (successful && !hasClioDependency([source, version])) {
           addDependency([source, version]);
         }
@@ -107,7 +110,7 @@ function installDependency(id) {
 
   // not github, not an URL
   // fetch pkg info from clio-lang/packages by package id (name[@version])
-  return fetchFromClioPackages({ branch, name }).then(successful => {
+  return fetchFromClioPackages({ branch, name }).then((successful) => {
     if (successful && !hasClioDependency([source, version])) {
       addDependency([source, version]);
     }
@@ -119,5 +122,5 @@ module.exports = {
   getPackageDependencies,
   hasClioDependencies,
   installDependency,
-  logNoClioDeps
+  logNoClioDeps,
 };

@@ -4,7 +4,7 @@ const {
   GITHUB_URI_RE,
   GITHUB_ZIP_RE,
   NAME_RE,
-  parsePackageId
+  parsePackageId,
 } = require("../utils/parse");
 
 const version = "2.3.3";
@@ -59,7 +59,7 @@ describe("pkgr/utils/parse", () => {
           0: "github.com/clio-lang/rethinkdb/archive/v2.3.3.zip",
           1: githubURI,
           2: githubPath,
-          3: version
+          3: version,
         });
       });
       test("github zip url (branch)", () => {
@@ -67,7 +67,7 @@ describe("pkgr/utils/parse", () => {
           0: "github.com/clio-lang/rethinkdb/archive/my-branch.zip",
           1: githubURI,
           2: githubPath,
-          4: branch
+          4: branch,
         });
       });
     });
@@ -102,7 +102,7 @@ describe("pkgr/utils/parse", () => {
         expect(GITHUB_URI_RE.exec(githubURI)).toMatchObject({
           0: githubURI,
           1: githubURI,
-          2: githubPath
+          2: githubPath,
         });
       });
       test("github uri (version)", () => {
@@ -110,7 +110,7 @@ describe("pkgr/utils/parse", () => {
           0: githubURI_version,
           1: githubURI,
           2: githubPath,
-          3: version
+          3: version,
         });
       });
       test("github uri (branch)", () => {
@@ -118,7 +118,7 @@ describe("pkgr/utils/parse", () => {
           0: githubURI_branch,
           1: githubURI,
           2: githubPath,
-          4: branch
+          4: branch,
         });
       });
     });
@@ -152,21 +152,21 @@ describe("pkgr/utils/parse", () => {
       test("github path", () => {
         expect(GITHUB_PATH_RE.exec(githubPath)).toMatchObject({
           0: githubPath,
-          1: githubPath
+          1: githubPath,
         });
       });
       test("github path (version)", () => {
         expect(GITHUB_PATH_RE.exec(githubPath_version)).toMatchObject({
           0: githubPath_version,
           1: githubPath,
-          2: version
+          2: version,
         });
       });
       test("github path (branch)", () => {
         expect(GITHUB_PATH_RE.exec(githubPath_branch)).toMatchObject({
           0: githubPath_branch,
           1: githubPath,
-          3: branch
+          3: branch,
         });
       });
     });
@@ -200,21 +200,21 @@ describe("pkgr/utils/parse", () => {
       test("name", () => {
         expect(NAME_RE.exec(name)).toMatchObject({
           0: name,
-          1: name
+          1: name,
         });
       });
       test("name (version)", () => {
         expect(NAME_RE.exec(name_version)).toMatchObject({
           0: name_version,
           1: name,
-          2: version
+          2: version,
         });
       });
       test("name (branch)", () => {
         expect(NAME_RE.exec(name_branch)).toMatchObject({
           0: name_branch,
           1: name,
-          3: branch
+          3: branch,
         });
       });
     });
@@ -230,7 +230,7 @@ describe("pkgr/utils/parse", () => {
         isVersioned: false,
         name: githubPath,
         source: `${GITHUB_PREFIX}:${githubPath}`,
-        version: "latest"
+        version: "latest",
       });
     });
     test("github uri (version)", () => {
@@ -242,7 +242,7 @@ describe("pkgr/utils/parse", () => {
         isVersioned: true,
         name: githubPath,
         source: `${GITHUB_PREFIX}:${githubPath}`,
-        version
+        version,
       });
     });
     test("github uri (branch)", () => {
@@ -254,7 +254,7 @@ describe("pkgr/utils/parse", () => {
         isVersioned: false,
         name: githubPath,
         source: `${GITHUB_PREFIX}:${githubPath}`,
-        version: "latest"
+        version: "latest",
       });
     });
 
@@ -267,7 +267,7 @@ describe("pkgr/utils/parse", () => {
         isVersioned: false,
         name: githubPath,
         source: `${GITHUB_PREFIX}:${githubPath}`,
-        version: "latest"
+        version: "latest",
       });
     });
     test("github path (version)", () => {
@@ -279,7 +279,7 @@ describe("pkgr/utils/parse", () => {
         isVersioned: true,
         name: githubPath,
         source: `${GITHUB_PREFIX}:${githubPath}`,
-        version
+        version,
       });
     });
 
@@ -293,7 +293,7 @@ describe("pkgr/utils/parse", () => {
         name: githubPath,
         source: `${GITHUB_PREFIX}:${githubPath}`,
         url: githubZip_branch,
-        version: "latest"
+        version: "latest",
       });
     });
     test("github zip (version)", () => {
@@ -306,7 +306,7 @@ describe("pkgr/utils/parse", () => {
         name: githubPath,
         source: `${GITHUB_PREFIX}:${githubPath}`,
         url: githubZip_version,
-        version
+        version,
       });
     });
 
@@ -317,7 +317,7 @@ describe("pkgr/utils/parse", () => {
         isVersioned: false,
         name,
         source: `${REGISTRY_NAME}:${name}`,
-        version: "latest"
+        version: "latest",
       });
     });
     test("name (version)", () => {
@@ -327,7 +327,7 @@ describe("pkgr/utils/parse", () => {
         isVersioned: true,
         name,
         source: `${REGISTRY_NAME}:${name}`,
-        version
+        version,
       });
     });
     test("name (branch)", () => {
@@ -337,7 +337,7 @@ describe("pkgr/utils/parse", () => {
         isVersioned: false,
         name,
         source: `${REGISTRY_NAME}:${name}`,
-        version: "latest"
+        version: "latest",
       });
     });
 
@@ -346,7 +346,7 @@ describe("pkgr/utils/parse", () => {
       expect(parsePackageId(input)).toStrictEqual({
         input,
         url: input,
-        source: `url:${input}`
+        source: `url:${input}`,
       });
     });
   });

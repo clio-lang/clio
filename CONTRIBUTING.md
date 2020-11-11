@@ -28,17 +28,17 @@ on our github.
 
 Currently we need help with:
 
-* __Documentation__: We need a better documentation, more examples and tutorials
-* __Tests__: We need to reach an acceptable test coverage
-* __Bugs__: We need people to write Clio code, test features, give feedback and report bugs
-* __Tools__: We have a basic set of tools and an online editor, but they're far from perfect
+- **Documentation**: We need a better documentation, more examples and tutorials
+- **Tests**: We need to reach an acceptable test coverage
+- **Bugs**: We need people to write Clio code, test features, give feedback and report bugs
+- **Tools**: We have a basic set of tools and an online editor, but they're far from perfect
 
 ## Coding style
 
 To keep the looks of our source code unified, we have a few requirements regarding your code contributions:
 
-* Commits must conform to the [prettier.io](https://prettier.io/) linting styles. Before committing, format your code using the prettier plugin for your editor, or run `npm run lint:fix` to make sure your code complies to our style guidelines. 
-* Use `camelCase` for functions, variables and methods, `PascalCase` for classes, and `SCREAMING_SNAKE_CASE` for globals.
+- Commits must conform to the [prettier.io](https://prettier.io/) linting styles. Before committing, format your code using the prettier plugin for your editor, or run `npm run lint:fix` to make sure your code complies to our style guidelines.
+- Use `camelCase` for functions, variables and methods, `PascalCase` for classes, and `SCREAMING_SNAKE_CASE` for globals.
 
 You can get more ideas by reading our code.
 

@@ -1,11 +1,12 @@
 fn double n:
   n * 2
 
-(2 -> double) + 4 => eight
-5 + (2 -> double) => nine
-(1 + 2) * (4 + 5) => twentySeven
-
 fn foo n:
   n * (10 - 1)
 
-10 -> foo => ninety
+export fn main argv:  
+  hash
+    eight:       (2 -> double) + 4
+    nine:        5 + (2 -> double)
+    twentySeven: (1 + 2) * (4 + 5)
+    ninety:      foo 10

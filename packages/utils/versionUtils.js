@@ -5,13 +5,13 @@
  * @argument {string} versionStr in format "major.minor.patch". E.g.: "12.6.1"
  * @returns {boolean} true, if node version is officially supported by Clio
  */
-exports.isSupportedNodeVersion = versionStr => {
+exports.isSupportedNodeVersion = (versionStr) => {
   const nodeFullVersion = versionStr.replace("v", "").split(".");
 
   const nodeMajorVersion = Number(nodeFullVersion[0]);
   const nodeMinorVersion = Number(nodeFullVersion[1]);
 
   return (
-    nodeMajorVersion > 10 || (nodeMajorVersion === 10 && nodeMinorVersion >= 4)
+    nodeMajorVersion > 13 || (nodeMajorVersion === 13 && nodeMinorVersion >= 0)
   );
 };

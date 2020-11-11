@@ -19,7 +19,7 @@ const prefix_re = new RegExp(`(${prefixes}):(.+)`, "i");
  *
  * @example (see tests)
  */
-const parsePackageId = input => {
+const parsePackageId = (input) => {
   let parsed = { input };
   let id = input;
 
@@ -44,7 +44,7 @@ const parsePackageId = input => {
         isVersioned: !!ghZipExec[3],
         name: ghZipExec[2],
         source: `${GITHUB_PREFIX}:${ghZipExec[2]}`,
-        version: ghZipExec[3] || "latest"
+        version: ghZipExec[3] || "latest",
       };
     }
 
@@ -61,7 +61,7 @@ const parsePackageId = input => {
       isVersioned: !!ghUriExec[3],
       name: ghUriExec[2],
       source: `${GITHUB_PREFIX}:${ghUriExec[2]}`,
-      version: ghUriExec[3] || "latest"
+      version: ghUriExec[3] || "latest",
     };
   }
 
@@ -76,7 +76,7 @@ const parsePackageId = input => {
       isVersioned: !!ghPathExec[2],
       name: ghPathExec[1],
       source: `${GITHUB_PREFIX}:${ghPathExec[1]}`,
-      version: ghPathExec[2] || "latest"
+      version: ghPathExec[2] || "latest",
     };
   }
 
@@ -89,7 +89,7 @@ const parsePackageId = input => {
       name: nameExec[1],
       source: `${REGISTRY_NAME}:${nameExec[1]}`,
       isVersioned: !!nameExec[2],
-      version: nameExec[2] || "latest"
+      version: nameExec[2] || "latest",
     };
   }
 };
@@ -105,7 +105,7 @@ isClioSource('github:foo/bar') // true
 isClioSource('hub:stdlib') // true
 isClioSource('stdlib') // false
  */
-const isClioSource = input => prefix_re.exec(input) !== null;
+const isClioSource = (input) => prefix_re.exec(input) !== null;
 
 module.exports = {
   GITHUB_PATH_RE,
@@ -113,5 +113,5 @@ module.exports = {
   GITHUB_ZIP_RE,
   NAME_RE,
   isClioSource,
-  parsePackageId
+  parsePackageId,
 };

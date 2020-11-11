@@ -3,7 +3,7 @@ const path = require("path");
 const tmp = require("tmp");
 const {
   hasInstalledNpmDependencies,
-  getParsedNpmDependencies
+  getParsedNpmDependencies,
 } = require("../npm_dependencies");
 
 describe("#hasInstalledNpmDependencies", () => {
@@ -35,7 +35,7 @@ describe("#getParsedNpmDependencies", () => {
     expect(parserNpmDependencies).toEqual({
       "http-server": "1.0.0",
       express: "^1.5.2",
-      chalk: "2.1.x"
+      chalk: "2.1.x",
     });
   });
 
