@@ -9,5 +9,5 @@
 </style>
 
 <main>
-  <Editor title="Clio" />
+  <Editor title="Clio" share={true} query="code" />
 </main>

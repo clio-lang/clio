@@ -217,6 +217,7 @@
     width: auto;
     z-index: 1000;
     background: #211e1e;
+    color: #dadada !important;
   }
   @keyframes appear {
     0% {
