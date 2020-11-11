@@ -1,8 +1,8 @@
 language: node_js
 node_js:
   - "stable"
-  - "12"
-  - "11"
+  - "14"
+  - "13"
 script:
   - npm install
   - npm run link
