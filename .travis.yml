@@ -5,5 +5,5 @@ node_js:
   - "13"
 script:
   - npm install
-  - npm link
+  - npm run bootstrap
   - npm test
