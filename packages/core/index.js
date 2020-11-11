@@ -1699,19 +1699,21 @@ Rules.block = once(() => [
     return block;
   });
 
-Rules.wrapped = once(
+Rules.wrapped = once(() => [
   lParen,
   option(
     any(
+      Rules.conditional,
       Rules.anonymousFn,
       Rules.hash,
       Rules.chain,
       Rules.functionCall,
-      Rules.math
+      Rules.math,
+      Rules.logical
     )
   ),
-  rParen
-)
+  rParen,
+])
   .ignore(spaces, newline, indent, outdent)
   .onFail((matched, tokens, offset, context) => {
     if (matched[0]) {
@@ -1721,7 +1723,14 @@ Rules.wrapped = once(
   })
   .onMatch(([lPar, inner, __]) => {
     return inner.length
-      ? new SourceNode(lPar.line, lPar.column, lPar.source, arr`(${inner})`)
+      ? new SourceNode(
+          lPar.line,
+          lPar.column,
+          lPar.source,
+          inner[0].returnForm
+            ? arr`((()=>{${inner[0].returnForm}})())`
+            : arr`(${inner[0]})`
+        )
       : new SourceNode(lPar.line, lPar.column, lPar.source, " ");
   });
 

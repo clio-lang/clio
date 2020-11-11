@@ -3,6 +3,10 @@
   export let share = false;
   export let query = "";
 
+  import FontFaceObserver from "fontfaceobserver";
+
+  const font = new FontFaceObserver("Fira Code");
+
   import { clio, loadMonaco, pastelsOnDark } from "../monaco";
   import run from "../clio/run";
 
@@ -109,7 +113,6 @@
 
   const makeEditor = async () => {
     const monaco = window.monaco || (await loadMonaco());
-
     monaco.languages.register({ id: "clio" });
     monaco.languages.setMonarchTokensProvider("clio", clio);
     monaco.editor.defineTheme("PastelsOnDark", pastelsOnDark);
@@ -131,7 +134,7 @@
     });
   };
 
-  document.fonts.ready.then(makeEditor);
+  font.load().then(makeEditor);
 </script>
 
 <style>
