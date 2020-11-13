@@ -1,4 +1,4 @@
-# Async / Await
+# Async/Await
 
 JavaScript supports async functions, so does Clio. However, unlike JavaScript Clio doesn't require an `async` keyword. Simply using an `await` keyword in your function marks it as async. The `await` keyword can be used in flows:
 
@@ -51,3 +51,4 @@ export fn main argv:
     -> * [await] .json
     -> * console.log
 ```
+

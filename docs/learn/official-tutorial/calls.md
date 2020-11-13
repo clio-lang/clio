@@ -14,8 +14,7 @@ export fn main argv:
   add 2 3
 ```
 
-The above calls the `add` function with two arguments: `2` and `3`. However, there is another way to call a function, and
-that's using pipes:
+The above calls the `add` function with two arguments: `2` and `3`. However, there is another way to call a function, and that's using pipes:
 
 ```text
 export fn main argv:
@@ -32,6 +31,8 @@ export fn main argv:
   add 2 3 -> console.log
 ```
 
+[Try on playground.](https://clio-playground.pouyae.vercel.app/?code=fn%20add%20a%20b%3A%0A%20%20a%20%2B%20b%0A%0Aexport%20fn%20main%20argv%3A%0A%20%20add%202%203%20-%3E%20console.log%0A)
+
 The above example calls `add` with `2` and `3`, then passes the results to `console.log`. If you run the above example you will see a 5 in your console! You can also use parenthesis to pass the results of a function call to another:
 
 ```text
@@ -42,7 +43,9 @@ export fn main argv:
   console.log (add 2 3)
 ```
 
-However, using this syntax is discouraged, specially when there are more than two nested calls as it can lead to unreadable, confusing pieces of code!
+[Try on playground.](https://clio-playground.pouyae.vercel.app/?code=fn%20add%20a%20b%3A%0A%20%20a%20%2B%20b%0A%0Aexport%20fn%20main%20argv%3A%0A%20%20console.log%20%28add%202%203%29)
+
+However, using this syntax is discouraged \(unless if you're a lisper!\), specially when there are more than two nested calls as it can lead to unreadable, confusing pieces of code!
 
 Finally, if you want to call a function with no arguments, simply do:
 
@@ -52,3 +55,4 @@ export fn main argv:
 ```
 
 The above code calls `functionToCall` with no arguments.
+

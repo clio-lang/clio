@@ -12,20 +12,11 @@ To install Clio language, you'll need Node.js and NPM. After installing Node and
 
 Check your installation by running `clio` in your local shell. You're good to go!
 
-## Install via Brew (MacOS)
-
-TBD
-
-## Install via install script
-
-TBD
-
 ## Install via Arch User Repository
 
-If you are using an Arch-based linux distribution, you might consider installing Clio via the Arch User Repository (AUR).
-You can get more information about the `clio-lang` package here:
+If you are using an Arch-based linux distribution, you might consider installing Clio via the Arch User Repository \(AUR\). You can get more information about the `clio-lang` package here:
 
-https://aur.archlinux.org/packages/clio-lang
+[https://aur.archlinux.org/packages/clio-lang](https://aur.archlinux.org/packages/clio-lang)
 
 ## Bleeding Edge Installation
 
@@ -53,10 +44,11 @@ If you are planning to make changes to the local clio installation, you will nee
 
 Add this line to your `.bashrc` file:
 
-```
+```text
 export CLIOPATH=<path-to-clio-installation>
 ```
 
 ### Setting CLIOPATH on Windows
 
 TBD
+
