@@ -19,6 +19,8 @@
   * [Control Flow](learn/official-tutorial/control.md)
   * [Anonymous functions](learn/official-tutorial/anonymous-functions.md)
   * [Parallelism](learn/official-tutorial/parallelism.md)
+  * [Hash maps](learn/official-tutorial/hash-maps.md)
+  * [The backquote!](learn/official-tutorial/the-backquote.md)
 
 ## Clio Executable
 
