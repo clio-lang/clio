@@ -21,6 +21,8 @@
   * [Parallelism](learn/official-tutorial/parallelism.md)
   * [Hash maps](learn/official-tutorial/hash-maps.md)
   * [The backquote!](learn/official-tutorial/the-backquote.md)
+  * [Importing](learn/official-tutorial/importing.md)
+  * [Comments](learn/official-tutorial/comments.md)
 
 ## Clio Executable
 
