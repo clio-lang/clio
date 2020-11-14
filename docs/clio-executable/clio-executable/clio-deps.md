@@ -72,6 +72,14 @@ For example to install [greeter](https://github.com/clio-lang/packages/blob/mast
 clio deps add greeter
 ```
 
+### Npm package
+
+If you want to add an npm package, you can pass `--npm` flag to this command:
+
+```text
+clio deps add --npm express
+```
+
 ## Download dependencies
 
 To fetch all of the dependencies listed in the package config file:
@@ -79,4 +87,6 @@ To fetch all of the dependencies listed in the package config file:
 ```text
 clio deps get
 ```
+
+
 

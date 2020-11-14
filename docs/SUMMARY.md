@@ -25,13 +25,11 @@
 ## Clio Executable
 
 * [Clio Executable](clio-executable/clio-executable/README.md)
-  * [clio ast](clio-executable/clio-executable/clio-ast.md)
-  * [clio compile](clio-executable/clio-executable/clio-compile.md)
+  * [Clio build](clio-executable/clio-executable/clio-build.md)
   * [clio completion](clio-executable/clio-executable/clio-completion.md)
   * [clio deps](clio-executable/clio-executable/clio-deps.md)
   * [clio highlight](clio-executable/clio-executable/clio-highlight.md)
   * [clio host](clio-executable/clio-executable/clio-host.md)
-  * [clio init](clio-executable/clio-executable/clio-init.md)
   * [clio new](clio-executable/clio-executable/clio-new.md)
   * [clio run](clio-executable/clio-executable/clio-run.md)
 
