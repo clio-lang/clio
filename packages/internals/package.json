@@ -1,12 +1,11 @@
 {
   "name": "clio-lang-internals",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Internal functionality used by the Clio Programming Language core.",
   "main": "src/index.js",
   "scripts": {
     "test": "echo \"Run this script on the root directory.\" && exit 1"
   },
   "author": "Pouya Eghbali <pouya.eghbali@yandex.com>",
-  "license": "Apache-2.0",
-  "dependencies": {}
+  "license": "Apache-2.0"
 }
