@@ -25,20 +25,6 @@ function colorize(text) {
       },
     },
     {
-      pattern: /^type +[a-z_][a-z_0-9]*/i,
-      action: function (match, colorized) {
-        let name = match.slice(4).trim(" ");
-        let spaces = match.length - name.length - 4;
-        colorized.push(chalk.magenta("type"));
-        colorized.push(chalk.white(" ".repeat(spaces)));
-        colorized.push(chalk.blue(name));
-      },
-    },
-    {
-      color: chalk.magenta,
-      pattern: /^(print|upper|map|pow|mul|add|div|sub)(?![a-zA-Z_-])/,
-    },
-    {
       pattern: /^[-=]> +[a-z_][a-z_0-9]*/i,
       action: function (match, colorized) {
         let name = match.slice(2).trim(" ");
@@ -63,7 +49,7 @@ function colorize(text) {
     { color: chalk.green, pattern: /^#[^\[\] \r\n]+/i },
     {
       color: chalk.magenta,
-      pattern: /^(fn|else|elif|if|of|return|not|or|and|transform|proc|import|from)(?![a-zA-Z_-])/,
+      pattern: /^(export|fn|else|if|not|or|and|import|from|as)(?![a-zA-Z_-])/,
     },
     { color: chalk.yellow, pattern: /^(true|false)/ },
     { color: chalk.green, pattern: /^https?:[^ \r\n]+/ },
