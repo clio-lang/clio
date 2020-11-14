@@ -1,5 +1,5 @@
 {
-  "name": "clio-lang",
+  "name": "clio",
   "version": "0.3.0-alpha.0",
   "description": "Clio Programming Language",
   "main": "packages/cli/index.js",
