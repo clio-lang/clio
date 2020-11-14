@@ -2,14 +2,13 @@
 
 ## Clio modules
 
-Any `.clio` file is a Clio module and can be imported in any other Clio code. There is no need to use a `export` keyword or a `exports` variable like in JavaScript.
+Any exported function in any `.clio` file can be imported in any other Clio file.
 
 {% tabs %}
 {% tab title="my\_module.clio" %}
 ```text
-@eager
-fn hello name:
-  'hello' name -> print
+export fn hello name:
+  'hello' name -> console.log
 ```
 {% endtab %}
 {% endtabs %}
@@ -19,10 +18,11 @@ The above example is a simple Clio module and can be imported and used like this
 ```text
 import hello from "my_module"
 
-'world' -> hello
+export fn main argv:
+  'world' -> hello
 ```
 
-In Clio, imports are relative and by path, there is no support for absolute imports. Clio recognizes the following import path formats:
+In Clio, imports are relative and by path, there is no support for absolute imports. Clio recognises the following import path formats:
 
 ```text
 import module
@@ -46,7 +46,7 @@ import "../dir/module.clio"
 
 ## External Clio Dependencies
 
-To install a package from the clio package registry, you can run:
+To install a package from the Clio package registry, you can run:
 
 ```text
 clio deps add <package-name>
