@@ -2,8 +2,9 @@
   "name": "svelte-app",
   "version": "1.0.0",
   "scripts": {
-    "build": "rollup -c",
-    "dev": "rollup -c -w",
+    "worker": "cd ../playground && npm run worker && cp public/build/worker* ../website/public/build",
+    "build": "npm run worker && rollup -c",
+    "dev": "npm run worker && rollup -c -w",
     "start": "sirv public"
   },
   "devDependencies": {
