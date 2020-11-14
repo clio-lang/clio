@@ -171,14 +171,28 @@
         </p>
         <nav class="nav">
           <ul>
-            <li><a href="#?"> Blog </a></li>
-            <li><a href="#?"> Forums </a></li>
-            <li><a href="#?"> Install </a></li>
-            <li><a href="#?"> Learn </a></li>
-            <li><a href="#?"> Documentation </a></li>
-            <li><a href="#?"> Community </a></li>
-            <li><a href="#?"> Tools </a></li>
-            <li><a href="#?"> Donate </a></li>
+            <li><a href="https://medium.com/@pouyae"> Blog </a></li>
+            <li><a href="https://forum.clio-lang.org"> Forums </a></li>
+            <li><a href="https://docs.clio-lang.org/install"> Install </a></li>
+            <li>
+              <a href="https://docs.clio-lang.org/learn/official-tutorial">
+                Learn
+              </a>
+            </li>
+            <li><a href="https://docs.clio-lang.org"> Documentation </a></li>
+            <li>
+              <a href="https://docs.clio-lang.org/links/links/community">
+                Community
+              </a>
+            </li>
+            <li>
+              <a href="https://docs.clio-lang.org/tools/tools-and-editors">
+                Tools
+              </a>
+            </li>
+            <li>
+              <a href="https://docs.clio-lang.org/support-clio"> Donate </a>
+            </li>
           </ul>
         </nav>
       </div>
@@ -186,9 +200,9 @@
     <div class="tail">
       <p>
         Visit our
-        <a href="https://docs.cliolang.org/tutorial">tutorial page</a>
+        <a href="https://docs.clio-lang.org/tutorial">tutorial page</a>
         to learn Clio, or read the
-        <a href="https://docs.cliolang.org">documentation</a>
+        <a href="https://docs.clio-lang.org">documentation</a>
         to learn more.
       </p>
     </div>
