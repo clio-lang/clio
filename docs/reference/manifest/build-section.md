@@ -1,4 +1,4 @@
-# build section
+# Build section
 
 The `[build]` section of the project manifest provides options regarding the build process of the project.
 

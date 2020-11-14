@@ -53,8 +53,9 @@
 * [Overview](reference/reference.md)
 * [Project Manifest File](reference/manifest/README.md)
   * [Metadata](reference/manifest/metadata.md)
-  * [build section](reference/manifest/build-section.md)
-  * [dependencies section](reference/manifest/dependencies-section.md)
+  * [Build section](reference/manifest/build-section.md)
+  * [Dependencies section](reference/manifest/dependencies-section.md)
+  * [Parallelism](reference/manifest/parallelism.md)
 
 ## Development
 
