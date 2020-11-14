@@ -1,3 +1,0 @@
-import ./module.clio
-
-module.x -> print

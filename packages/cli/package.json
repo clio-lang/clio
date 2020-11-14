@@ -1,0 +1,20 @@
+{
+  "name": "clio-lang-cli",
+  "version": "0.2.1",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Garrit Franke <garritfranke@gmail.com>",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "clio-core": "^0.2.1",
+    "clio-highlight": "^1.1.0",
+    "clio-manifest": "^0.2.0",
+    "clio-utils": "^0.2.0"
+  }
+}

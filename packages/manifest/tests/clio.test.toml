@@ -1,0 +1,30 @@
+title = "Clio test"
+version = "1.0.0"
+main = "index.clio"
+[author]
+name = "Foo Bar"
+email = "foo@bar.de"
+website = "foobar.com"
+
+[scripts]
+test = "clio test **/*.clio"
+
+[dependencies]
+"hub:stdlib" = "^2.3.1"
+"hub:foo" = "2.1"
+
+[npm_dependencies]
+rickroll = "latest"
+foo = "latest"
+
+[build]
+directory = "build"
+target = "node"
+
+[target.node]
+directory = "src"
+target = "node"
+
+[target.browser]
+directory = "src"
+target = "browser"

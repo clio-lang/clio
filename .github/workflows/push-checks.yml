@@ -1,6 +1,6 @@
 name: Push Checks
 
-on: [push]
+on: [push, pull_request]
 
 jobs:
   test-ubuntu:
@@ -8,7 +8,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [10.x, 11.x, 12.x]
+        node-version: [15.x, 14.x, 13.x]
 
     steps:
       - uses: actions/checkout@v1
@@ -18,26 +18,34 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - name: npm install & test
         run: |
+          export CLIOPATH="$GITHUB_WORKSPACE"
           npm ci
-          npm link
-          clio host tests/test.host.clio &
-          sleep 10
+          npm run link
           npm test
         env:
           CI: true
-  lint:
-    runs-on: [ubuntu-latest]
+      - name: Coveralls Parallel
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          parallel: true
+          path-to-lcov: ./coverage/lcov.info
 
-    strategy:
-      matrix:
-        node-version: [8.x, 10.x, 12.x]
+      - name: Coveralls Finished
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          parallel-finished: true
+
+  lint:
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v1
-      - name: Use Node.js ${{ matrix.node-version }}
+      - name: Use Node.js 14.x
         uses: actions/setup-node@v1
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 14.x
       - name: npm lint:check
         run: |
           npm ci

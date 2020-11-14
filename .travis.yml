@@ -1,11 +1,9 @@
 language: node_js
 node_js:
-  - "stable"
-  - "12"
-  - "11"
+  - "15"
+  - "14"
+  - "13"
 script:
   - npm install
-  - npm link
-  - clio host tests/test.host.clio &
-  - sleep 10
+  - npm run bootstrap
   - npm test

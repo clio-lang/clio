@@ -3,6 +3,13 @@ coverage
 .clio-cache
 __pycache__
 .vscode
-clio_env
 .idea/
 /clio.iml
+.cache
+.DS_Store
+.vercel
+dist
+*.clio.js
+
+# see package/config.js before renaming this
+clio_env 

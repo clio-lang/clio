@@ -1,5 +1,6 @@
 # Functions
 
+<<<<<<< HEAD
 In Clio, functions are pure and lazy. But before we get into the details, let's define a simple function together.
 
 ```text
@@ -54,4 +55,14 @@ fn add_to_x n:
 Functions should have at least one argument, value of a function call only depends on its arguments so a function with no arguments is going to be a constant. Since the value a function returns depends only on its arguments, it makes sense to cache the results and speed-up our function calls. This way instead of re-executing the function for same arguments, the function remembers the previous results and returns them.
 
 We'll talk more about functions in the future.
+=======
+Functions, are everything in Clio. In fact in your program's body you can only use functions \(and function imports\). here's how we define them:
+
+```text
+fn add a b:
+  a + b
+```
+
+In above code we define a function named `add`, this function accepts two parameters: `a` and `b`, what it does is adding `a` and `b` together. We don't have a `return` keyword in Clio, all functions return the last evaluated expression.
+>>>>>>> develop
 

@@ -1,0 +1,12 @@
+fn double n:
+  n * 2
+
+fn foo n:
+  n * (10 - 1)
+
+export fn main argv:  
+  hash
+    eight:       (2 -> double) + 4
+    nine:        5 + (2 -> double)
+    twentySeven: (1 + 2) * (4 + 5)
+    ninety:      foo 10

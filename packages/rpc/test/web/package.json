@@ -1,0 +1,26 @@
+{
+  "dependencies": {
+    "@babel/runtime": "^7.9.0",
+    "regenerator-runtime": "^0.13.5"
+  },
+  "name": "web",
+  "version": "1.0.0",
+  "main": "test.js",
+  "devDependencies": {
+    "@babel/core": "^7.8.7",
+    "@babel/plugin-transform-runtime": "^7.9.0",
+    "@babel/preset-env": "^7.9.0",
+    "babel-plugin-transform-runtime": "^6.23.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "parcel test.html"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "browserslist": [
+    "last 1 Chrome versions"
+  ]
+}

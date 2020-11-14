@@ -1,18 +1,21 @@
 {
-  "name": "clio-lang",
-  "version": "0.1.6",
+  "name": "clio",
+  "version": "0.3.0",
   "description": "Clio Programming Language",
-  "main": "cli/index.js",
+  "main": "packages/cli/index.js",
   "scripts": {
-    "lint:check": "prettier --check ./**/*.js && eslint .",
-    "lint:fix": "prettier --write ./**/*.js",
+    "lint:check": "prettier --check . && eslint .",
+    "lint:fix": "prettier --write .",
+    "pretest": "npm run bootstrap",
+    "bootstrap": "lerna bootstrap --hoist",
+    "link": "lerna link",
     "test": "jest --collect-coverage",
-    "test:setup": "clio host tests/test.host.clio"
+    "test:nocov": "jest --no-coverage"
   },
-  "pre-commit": [
-    "lint:check"
-  ],
-  "precommit.silent": true,
+  "engines": {
+    "node": ">=13.0.0",
+    "npm": ">=6.12.0"
+  },
   "author": "Pouya Eghbali",
   "contributors": [
     {
@@ -28,72 +31,32 @@
   ],
   "license": "Apache-2.0",
   "bin": {
-    "clio": "./cli/index.js"
+    "clio": "packages/cli/index.js"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/clio-lang/clio.git"
   },
-  "jest": {
-    "collectCoverageFrom": [
-      "**/*.js",
-      "!**/*.clio.js",
-      "!coverage/**/*.js",
-      "!index.js",
-      "!browser.js",
-      "!common.js",
-      "!gulpfile.js",
-      "!highlight.js",
-      "!jest-puppeteer.config.js",
-      "!host/**/*",
-      "!tests/**/*"
-    ],
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "jsx",
-      "ts",
-      "tsx",
-      "node",
-      "toml"
-    ]
-  },
   "dependencies": {
-    "@iarna/toml": "^2.2.3",
-    "body-parser": "1.19.0",
+    "@iarna/toml": "^2.2.5",
     "chalk": "3.0.0",
-    "clio-lazy": "^1.0.0",
-    "decompress": "4.2.0",
-    "eventemitter2": "5.0.1",
-    "express": "4.17.1",
-    "express-ws": "4.0.0",
-    "js-beautify": "1.10.2",
-    "node-fetch": "2.6.0",
-    "shelljs": "^0.8.3",
+    "decompress": "^4.2.1",
+    "node-fetch": "^2.6.1",
+    "source-map": "^0.7.3",
     "tmp": "0.1.0",
-    "treeify": "1.1.0",
-    "unescape-js": "1.1.4",
-    "uuid": "3.3.3",
-    "websocket": "1.0.31",
-    "yargs": "15.0.2"
+    "yargs": "^15.4.1"
   },
   "devDependencies": {
-    "@types/jest": "^24.0.23",
-    "buffer": "5.4.3",
+    "@types/jest": "^24.0.24",
+    "degit": "^2.2.2",
     "del": "5.1.0",
-    "disc": "1.3.3",
-    "eslint": "^6.7.2",
-    "eslint-plugin-jest": "^23.1.1",
-    "gulp": "4.0.2",
-    "gulp-livereload": "4.0.2",
-    "gulp-rename": "2.0.0",
-    "gulp-terser": "1.2.0",
-    "jest": "24.9.0",
+    "eslint": "^6.8.0",
+    "eslint-plugin-jest": "^23.20.0",
+    "jest": "^25.5.4",
+    "lerna": "^3.22.1",
     "merge": "1.2.1",
-    "pre-commit": "^1.2.2",
-    "prettier": "1.19.1",
-    "vinyl-buffer": "1.0.1",
-    "vinyl-source-stream": "2.0.0",
-    "watchify": "3.11.1"
+    "ora": "^4.1.1",
+    "parcel-bundler": "^1.3.1",
+    "prettier": "^2.1.2"
   }
 }
