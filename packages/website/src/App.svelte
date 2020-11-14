@@ -264,7 +264,9 @@
     <div class="section">
       <h2>Tools</h2>
       <div class="icons">
-        <a href="#?" class="icon">
+        <a
+          href="https://docs.clio-lang.org/tools/tools-and-editors/vscode"
+          class="icon">
           <img src="/vscode.svg" alt="vscode" />
           <span>VSCode</span>
         </a>
