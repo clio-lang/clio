@@ -1,12 +1,5 @@
 # Clio Documentation
 
-<<<<<<< HEAD
-Clio is a pure functional lazy-evaluated programming language targeting decentralized and distributed systems. It is made to take advantage of multiple CPUs and CPU cores \(parallelism\) by default, to run on clusters and on the cloud easily.
-
-Clio compiles to JavaScript. This makes Clio fast, easy to port and easy to extend. It gives Clio a free JIT compiler, a powerful VM and access to lots of existing libraries. It enables Clio to run in the browser and on servers, and anywhere JavaScript can run.
-
-# ![](https://raw.githubusercontent.com/clio-lang/media/master/clio-cut.png)
-
 Clio is a modern, functional, parallel programming language targeting decentralised and distributed systems. It is made to take advantage of multiple CPUs and CPU cores \(parallelism\) by default, to run on clusters and on the cloud easily.
 
 Clio compiles to JavaScript. This enables Clio to run in the browser and on servers, and anywhere JavaScript can run. Furthermore, Clio can take advantage of the JavaScript ecosystem, tools and libraries. On this website, you will find numerous useful information about Clio, its history and you can learn how to use it.
@@ -19,4 +12,3 @@ Click [here](https://clio-playground.pouyae.vercel.app/?code=fn%20fib%20n%3A%0A%
 Clio was recently rewritten from scratch, some parts of this document have been updated to reflect the new changes, but not all pages are updated. This documentation is a work in progress.
 {% endhint %}
 
-> > > > > > > develop

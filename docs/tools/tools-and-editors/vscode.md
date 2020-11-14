@@ -4,8 +4,3 @@ VSCode syntax highlighting support exists thanks to [Michele Riva](https://githu
 
 ![](https://github.com/micheleriva/vscode-clio/raw/master/images/preview.png)
 
-<<<<<<< HEAD
-
-=======
-
-> > > > > > > develop
