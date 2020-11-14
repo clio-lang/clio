@@ -1269,8 +1269,8 @@ Rules.chain = once(() => [
         option(mul).onMatch((result) => result.pop()),
         option(any(Rules.awaitAllOp, Await)).onMatch((result) => result.pop()),
         any(
-          Rules.anonymousFn,
           Rules.indentCall,
+          Rules.anonymousFn,
           Rules.methodCall,
           Rules.functionCall,
           Rules.parallelFn,
