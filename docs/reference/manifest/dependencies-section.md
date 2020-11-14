@@ -10,7 +10,7 @@ stdlib = "latest"
 
 A reference to the paths that can be specified as a dependency, see [dependency parser](../../development/dependency_parser.md)
 
-### NPM dependencies
+## NPM dependencies
 
 To add npm dependencies, use `[npm_dependencies]` section:
 
@@ -19,3 +19,4 @@ To add npm dependencies, use `[npm_dependencies]` section:
 express = "latest"
 passport = "latest"
 ```
+

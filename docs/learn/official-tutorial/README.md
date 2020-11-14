@@ -4,14 +4,15 @@ This is the official guide and tutorial for Clio. Please note this is a work in 
 
 ## Blogs
 
-- [Creator's official blog](https://medium.com/@pouyae)
+* [Creator's official blog](https://medium.com/@pouyae)
 
 ## Examples
 
-- [GitHub Examples Repository](https://github.com/clio-lang/examples)
-- [RosettaCode](http://rosettacode.org/wiki/Clio)
-- [Todo Example \(Host/Browser\)](https://github.com/clio-lang/clio-todo)
+* [GitHub Examples Repository](https://github.com/clio-lang/examples)
+* [RosettaCode](http://rosettacode.org/wiki/Clio)
+* [Todo Example \(Host/Browser\)](https://github.com/clio-lang/clio-todo)
 
 ## Playgrounds
 
-- [Official Clio playground](https://playground.clio-lang.org)
+* [Official Clio playground](https://playground.clio-lang.org)
+
