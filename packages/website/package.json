@@ -5,7 +5,8 @@
     "worker": "cd ../playground && npm run worker && cp public/build/worker* ../website/public/build",
     "build": "npm run worker && rollup -c",
     "dev": "npm run worker && rollup -c -w",
-    "start": "sirv public"
+    "start": "sirv public",
+    "deploy": "npm run build && cd public && vercel"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^14.0.0",
