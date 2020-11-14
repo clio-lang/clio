@@ -18,12 +18,12 @@ and to import it in Clio:
 import hello from "my_module.js"
 ```
 
-When importing JavaScript files you must include `.js` in the file name. Same as Clio modules, these imports are relative and recognize the same path formats as the Clio file imports.
+When importing JavaScript files it's better to include `.js` in the file name. Same as Clio modules, these imports are relative and recognise the same path formats as the Clio file imports.
 
-To import and use a Node.js module, install it using `npm`
+To import and use a Node.js module, install it using `clio deps add --npm`
 
 ```text
-npm i express
+clio deps add --npm express
 ```
 
 Then you can import it in your Clio file:
