@@ -22,7 +22,6 @@ fn on-ping ch:
 export fn ping-pong:
   channel () => ch
     -> .on "ping" (on-ping ch)
-
 ```
 
 {% endtab %}
