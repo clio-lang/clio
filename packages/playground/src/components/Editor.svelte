@@ -103,8 +103,9 @@
       try {
         const src = editor.getValue();
         const { code } = compile(src, "main.clio");
+        const main = await run(code);
         const now = performance.now();
-        await run(code);
+        await main();
         const end = performance.now();
         const time = `Took ${Math.round((end - now) * 100) / 100}ms`;
         lines.push("-".repeat(time));
