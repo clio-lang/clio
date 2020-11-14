@@ -9,8 +9,8 @@
   "author": "Pouya Eghbali <pouya.eghbali@yandex.com>",
   "license": "Apache-2.0",
   "dependencies": {
-    "clio-lang-internals": "^0.1.0",
-    "clio-rpc": "^0.0.5"
+    "clio-lang-internals": "^0.2.0",
+    "clio-rpc": "^0.1.0"
   },
   "devDependencies": {
     "why-is-node-running": "^2.2.0"

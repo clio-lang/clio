@@ -14,4 +14,3 @@ Clio supports line comments, block comments, and nested block comments:
 {% hint style="warning" %}
 Clio ignores the comments \(doesn't transfer them to the compiled files\)
 {% endhint %}
-

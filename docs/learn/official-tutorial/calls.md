@@ -55,4 +55,3 @@ export fn main argv:
 ```
 
 The above code calls `functionToCall` with no arguments.
-

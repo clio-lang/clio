@@ -22,8 +22,8 @@
   },
   "dependencies": {
     "@surma/rollup-plugin-off-main-thread": "^1.4.1",
-    "clio-core": "0.1.0",
-    "clio-rpc": "0.0.5",
+    "clio-core": "0.2.0",
+    "clio-rpc": "0.1.0",
     "clio-run": "0.1.2",
     "fontfaceobserver": "^2.1.0",
     "object-inspect": "^1.8.0",

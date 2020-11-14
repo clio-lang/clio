@@ -2,27 +2,26 @@
 
 ## Regular expressions
 
-GITHUB\_PATH\_RE
+GITHUB_PATH_RE
 
 ![](../.gitbook/assets/GITHUB_PATH_RE.png)
 
-GITHUB\_URI\_RE
+GITHUB_URI_RE
 
 ![](../.gitbook/assets/GITHUB_URI_RE.png)
 
-GITHUB\_ZIP\_RE
+GITHUB_ZIP_RE
 
 ![](../.gitbook/assets/GITHUB_ZIP_RE.png)
 
-NAME\_RE
+NAME_RE
 
 ![](../.gitbook/assets/NAME_RE.png)
 
-URL\_RE
+URL_RE
 
 ![](../.gitbook/assets/URL_RE.png)
 
-prefix\_re
+prefix_re
 
 ![](../.gitbook/assets/prefix_re%20%281%29.png)
-

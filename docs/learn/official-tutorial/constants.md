@@ -9,4 +9,3 @@ export fn main argv:
 ```
 
 In the above piece of code we put `"Hello world!"` in `hello`, and then we print `hello` in the next line. Constants translate to JavaScript `const` and they cannot be reassigned.
-
