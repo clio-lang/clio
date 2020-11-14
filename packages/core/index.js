@@ -984,7 +984,7 @@ Rules.functionCall = once(() => [
       const expecting = "Range, Math, Number or Symbol";
       wrongTokenError(expecting, tokens, offset, context);
     }
-    if (matched[0][0]) {
+    if (matched[0][0] && !isOne(tokens[offset], colon)) {
       const expecting = "Parallel Function or Symbol";
       wrongTokenError(expecting, tokens, offset, context);
     }
@@ -1126,10 +1126,6 @@ Rules.awaitedArray = once(() => [
       const expecting = "Chain, Function Call, Wrapped or Symbol";
       wrongTokenError(expecting, tokens, offset, context);
     }
-    if (matched[0] && matched[1] && !isOne(tokens[offset], indent)) {
-      const expecting = "Left Bracket";
-      wrongTokenError(expecting, tokens, offset, context);
-    }
   })
   .onMatch(([awaitKw, _, __, inner]) => {
     inner = inner.map((node) =>
@@ -1153,7 +1149,7 @@ Rules.awaitedArray = once(() => [
   });
 
 Rules.awaitedAny = once(
-  any(Rules.awaitedArray, Rules.awaitedBlock, Rules.awaited)
+  any(Rules.awaitedBlock, Rules.awaitedArray, Rules.awaited)
 ).onMatch(([result]) => result);
 
 Rules.awaitAllOp = once(lBracket, Await, rBracket);
