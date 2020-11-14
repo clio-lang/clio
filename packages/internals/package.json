@@ -1,6 +1,6 @@
 {
   "name": "clio-internals",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Internal functionality used by the Clio Programming Language core.",
   "main": "src/index.js",
   "scripts": {
