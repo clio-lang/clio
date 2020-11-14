@@ -13,4 +13,3 @@ Info: Initialized new git repository.
 Info: Initialization Complete!
 Success: Run 'cd x7' to open, then 'clio run index.clio' to run the project!
 ```
-

@@ -11,4 +11,3 @@ Click [here](https://clio-playground.pouyae.vercel.app/?code=fn%20fib%20n%3A%0A%
 {% hint style="danger" %}
 Clio was recently rewritten from scratch, some parts of this document have been updated to reflect the new changes, but not all pages are updated. This documentation is a work in progress.
 {% endhint %}
-
