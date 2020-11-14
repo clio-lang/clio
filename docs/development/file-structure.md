@@ -18,4 +18,3 @@ Tests are part of each package. They live in a `./tests/` directory relative to 
 ## Documentation
 
 All of the documentation for the Clio Programming Language lives in the `docs/` directory at the root of the repository. In order to keep our docs consistent, we ensure that sufficient documentation is provided within each pull request.
-

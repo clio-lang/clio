@@ -25,4 +25,3 @@ We said it's possible to change position of arguments in a function call, let's 
 The symbol we use to refer to a specific argument at a specific location is `@`, if used without and index it refers to first argument that is piped to the function, otherwise it refers to the provided index.
 
 When ready, please proceed to [next part](/docs/learn/) of this article.
-

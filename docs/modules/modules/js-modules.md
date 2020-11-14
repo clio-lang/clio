@@ -8,19 +8,23 @@ JavaScript files can be imported directly in your Clio code. For JavaScript file
 =======
 {% tabs %}
 {% tab title="my\_module.js" %}
->>>>>>> develop
+
+> > > > > > > develop
+
 ```text
 module.exports.hello = function(name) {
     console.log(`Hello ${name}`);
 }
 ```
+
 <<<<<<< HEAD
 {% endcode-tabs-item %}
 {% endcode-tabs %}
 =======
 {% endtab %}
 {% endtabs %}
->>>>>>> develop
+
+> > > > > > > develop
 
 and to import it in Clio:
 
@@ -53,20 +57,23 @@ Then you can import it in your Clio file:
 <<<<<<< HEAD
 {% code-tabs %}
 {% code-tabs-item title="example.clio" %}
+
 ```text
 import express
 ```
+
 {% endcode-tabs-item %}
 {% endcode-tabs %}
-
 
 =======
 {% tabs %}
 {% tab title="example.clio" %}
+
 ```text
 import express
 ```
+
 {% endtab %}
 {% endtabs %}
->>>>>>> develop
 
+> > > > > > > develop

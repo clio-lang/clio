@@ -12,7 +12,8 @@ To install Clio language, you'll need Node.js and NPM. After installing Node and
 `npm i -g clio-lang`
 =======
 `npm i -g clio`
->>>>>>> develop
+
+> > > > > > > develop
 
 Check your installation by running `clio` in your local shell. You're good to go!
 
@@ -22,12 +23,13 @@ Check your installation by running `clio` in your local shell. You're good to go
 If you are using an Arch-based linux distribution, you might consider installing Clio via the Arch User Repository (AUR).
 You can get more information about the `clio-lang` package here:
 
-https://aur.archlinux.org/packages/clio-lang
-=======
+# https://aur.archlinux.org/packages/clio-lang
+
 If you are using an Arch-based linux distribution, you might consider installing Clio via the Arch User Repository \(AUR\). You can get more information about the `clio-lang` package here:
 
 [https://aur.archlinux.org/packages/clio-lang](https://aur.archlinux.org/packages/clio-lang)
->>>>>>> develop
+
+> > > > > > > develop
 
 ## Bleeding Edge Installation
 
@@ -38,18 +40,18 @@ To install from git, you'll need Node.js, NPM and git. You need to clone the rep
 `git clone https://github.com/clio-lang/clio`
 
 <<<<<<< HEAD
- Then `cd` to the project directory:
+Then `cd` to the project directory:
 
 `cd clio`
 
- Now you need to install dependencies, to do that run:
+Now you need to install dependencies, to do that run:
 
 `npm install`
 
- Now you need to link the `clio` executable:
+Now you need to link the `clio` executable:
 
-`npm link`
-=======
+# `npm link`
+
 Then `cd` to the project directory:
 
 `cd clio`
@@ -76,4 +78,4 @@ export CLIOPATH=<path-to-clio-installation>
 
 TBD
 
->>>>>>> develop
+> > > > > > > develop

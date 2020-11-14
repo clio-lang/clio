@@ -7,6 +7,7 @@ As an example, let's create a `host.clio` file and put this code in it:
 
 {% code-tabs %}
 {% code-tabs-item title="host.clio" %}
+
 ```text
 42 => answer
 #my_emitter -> emitter => my_emitter
@@ -21,6 +22,7 @@ fn to_power_of i n:
   #exports [#to_power_of #my_emitter #answer] -- choose what you want to host
 } => host
 ```
+
 {% endcode-tabs-item %}
 {% endcode-tabs %}
 
@@ -48,6 +50,7 @@ You can host a Clio project using `clio host` command, you'll be able to import 
 
 {% tabs %}
 {% tab title="src/main.clio" %}
+
 ```text
 fn on-ping ch:
   fn on-ping-inner:
@@ -59,9 +62,11 @@ export fn ping-pong:
     -> .on "ping" (on-ping ch)
 
 ```
+
 {% endtab %}
 
 {% tab title="clio.toml" %}
+
 ```text
 title = "template-node"
 description = ""
@@ -103,6 +108,7 @@ url = "ws://localhost:1337"
 wait_for = "cpu"
 server = "default"
 ```
+
 {% endtab %}
 {% endtabs %}
 
@@ -117,7 +123,7 @@ fn on-pong:
 export fn main:
   await ping-pong () => ch
     -> .on "pong" on-pong
-  
+
   fn ping:
     ch -> .send "ping"
 
@@ -126,4 +132,4 @@ export fn main:
 
 You can see full examples in our [examples](https://github.com/clio-lang/examples) repository.
 
->>>>>>> develop
+> > > > > > > develop

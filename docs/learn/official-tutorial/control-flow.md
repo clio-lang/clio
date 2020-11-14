@@ -23,4 +23,3 @@ fn check n:
 ```
 
 Clio also supports event-based control flow, but we will discuss this later.
-

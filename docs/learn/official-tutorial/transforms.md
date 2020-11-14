@@ -18,4 +18,3 @@ To help with readability, Clio syntax enforces a few rules:
 
 1. A single function call is no more than a single line
 2. Transforms are only one line
-

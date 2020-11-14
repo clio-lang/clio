@@ -49,4 +49,3 @@ my_map.key1 -> print
 ```
 
 To learn how to create your own custom data types, proceed to next part.
-

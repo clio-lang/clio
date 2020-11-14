@@ -144,4 +144,3 @@ export fn main argv:
 ```
 
 [Try on playground.](https://clio-playground.pouyae.vercel.app/?code=fn%20add%20a%20b%3A%0A%20%20a%20%2B%20b%0A%0Afn%20mul%20a%20b%3A%0A%20%20a%20*%20b%0A%0Aexport%20fn%20main%20argv%3A%0A%20%202%20-%3E%20add%201%20%3D%3E%20three%0A%20%20%20%20-%3E%20mul%202%20%3D%3E%20six%0A%20%20console.log%20%22Three%20equals%22%20three%0A%20%20console.log%20%22Six%20equals%22%20six)
-

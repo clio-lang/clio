@@ -36,4 +36,3 @@ Data is always passed as first argument to the function you call, although this 
 As you can see, result of a function call can be _piped_ to more functions to create a chain. Here the order of execution is from left to right, as opposed to languages that use braces for function calls, in those languages the order is from inner to outer which leads to confusion and makes the code less readable.
 
 Although there's more about flows to learn, but we will skip them for now.
-

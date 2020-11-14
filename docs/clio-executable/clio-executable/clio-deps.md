@@ -1,8 +1,9 @@
 <<<<<<< HEAD
+
 # Clio deps
 
-Use `clio deps.show` to show Clio dependencies of a project and use `clio deps.get` to fetch and install the dependencies.
-=======
+# Use `clio deps.show` to show Clio dependencies of a project and use `clio deps.get` to fetch and install the dependencies.
+
 # clio deps
 
 ## List dependencies
@@ -92,5 +93,5 @@ To fetch all of the dependencies listed in the package config file:
 ```text
 clio deps get
 ```
->>>>>>> develop
 
+> > > > > > > develop

@@ -61,4 +61,3 @@ export fn main argv:
 ```
 
 [Try on playground.](https://clio-playground.pouyae.vercel.app/?code=export%20fn%20main%20argv%3A%0A%20%20await%3A%20%5B%0A%20%20%20%20fetch%20%22https%3A%2F%2Fget.geojs.io%2Fv1%2Fip%2Fgeo.json%22%0A%20%20%20%20fetch%20%22https%3A%2F%2Fget.geojs.io%2Fv1%2Fip%2Fgeo%2F8.8.8.8.json%22%0A%20%20%5D%0A%20%20%20%20-%3E%20*%20%5Bawait%5D%20.json%0A%20%20%20%20-%3E%20*%20console.log)
-
