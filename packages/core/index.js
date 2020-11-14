@@ -322,7 +322,7 @@ const isLeftIndentRemovable = (token) =>
 const isRightIndentRemovable = (token) =>
   isMathOp(token) || isLogicOp(token) || isOne(token, not);
 
-const getNext = (tokens, index, stopToken, ignoreList) => {
+const getNext = (tokens, index, stopToken, ignoreList = []) => {
   while (tokens[index]) {
     const token = tokens[index];
     if (stopToken && isOne(token, stopToken)) return index;
@@ -332,7 +332,7 @@ const getNext = (tokens, index, stopToken, ignoreList) => {
   }
 };
 
-const getPrev = (tokens, index, stopToken, ignoreList) => {
+const getPrev = (tokens, index, stopToken, ignoreList = []) => {
   while (index > 0) {
     const token = tokens[index];
     if (stopToken && isOne(token, stopToken)) return index;
@@ -354,6 +354,8 @@ const preprocessIndents = (tokens) => {
     const ignore = [spaces, newline];
     const nextIndentIndex = getNext(tokens, index + 1, indent, ignore);
     const prevIndentIndex = getPrev(result, index - 1, indent, ignore);
+    if (isOne(token, mul) && getPrev(result, index - 1, arrow, ignore))
+      continue;
     if (isRightIndentRemovable(token) && nextIndentIndex)
       removeIndentPair(result, nextIndentIndex);
     if (isLeftIndentRemovable(token) && prevIndentIndex) {
