@@ -21,7 +21,6 @@ fn on-ping ch:
 export fn ping-pong:
   channel () => ch
     -> .on "ping" (on-ping ch)
-
 ```
 {% endtab %}
 
@@ -81,7 +80,7 @@ fn on-pong:
 export fn main:
   await ping-pong () => ch
     -> .on "pong" on-pong
-  
+
   fn ping:
     ch -> .send "ping"
 
