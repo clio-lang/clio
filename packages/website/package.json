@@ -1,5 +1,5 @@
 {
-  "name": "svelte-app",
+  "name": "clio-website",
   "version": "1.0.0",
   "scripts": {
     "worker": "cd ../playground && npm run worker && cp public/build/worker* ../website/public/build",
