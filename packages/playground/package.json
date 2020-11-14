@@ -2,9 +2,11 @@
   "name": "clio-playground",
   "version": "0.0.1",
   "scripts": {
-    "build": "rollup -c",
-    "dev": "rollup -c -w",
-    "start": "sirv public"
+    "build": "npm run worker && rollup -c",
+    "worker": "rollup -c worker.rollup.config.js",
+    "dev": "npm run worker && rollup -c -w",
+    "start": "sirv public",
+    "deploy": "npm run build && cd public && vercel"
   },
   "devDependencies": {
     "@rollup/plugin-alias": "^3.1.1",
