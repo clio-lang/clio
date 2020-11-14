@@ -1,6 +1,6 @@
 const { Executor } = require("clio-rpc/executor");
 const { channel } = require("clio-rpc/channel");
-const { getImport } = require("clio-internals");
+const { getImport } = require("clio-lang-internals");
 const asyncHooks = require("async_hooks");
 
 class Distributed {
