@@ -23,3 +23,4 @@ target = "optimized"
 ```
 
 When building the project with this configuration, the output will be put in `<root>/out/optimized/`.
+

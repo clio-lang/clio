@@ -43,3 +43,4 @@ Being faster isn't the only benefit of running functions in parallel. On the bro
 {% endhint %}
 
 You can use parallel functions in combination with await blocks or branches, to run different type of tasks at the same time.
+
