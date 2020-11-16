@@ -37,6 +37,7 @@ const getImport = (clio) => {
   };
 
   clio.import = clioImport;
+  clio.importCloud = clioImportCloud;
 };
 
 module.exports.getImport = getImport;

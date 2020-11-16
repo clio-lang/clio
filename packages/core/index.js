@@ -82,7 +82,7 @@ const Await = token("Await", /^await/);
 const pike = token("Pike", /^\|/);
 const If = token("If", /^if/);
 const Else = token("Else", /^else/);
-const string = token("String", /(^"([^"]|\\.)*")|(^'([^']|\\.)*')/);
+const string = token("String", /(^"([^"]|\\.)*?")|(^'([^']|\\.)*?')/);
 const backtick = token("Backtick", /^`/);
 const colon = token("Colon", /^:/);
 const arrow = token("Arrow", /^->/);
@@ -125,7 +125,7 @@ const callOutdent = token("Call Outdent");
 const blockCommentStart = token("Block Comment Start", /^\+-+/);
 const blockCommentEnd = token("Block Comment End", /^-+\+/);
 
-const symbol = token("Symbol", /^[^\s:\.|(){}[\]]+/).onMatch((token) => {
+const symbol = token("Symbol", /^[^\s:\.|(){}[\]'"]+/).onMatch((token) => {
   if (token.isEncoded) return token;
   token.raw = encode(token.raw);
   token.isEncoded = true;
@@ -348,11 +348,11 @@ const preprocessIndents = (tokens) => {
     const token = result[index];
     if (isOne(token, arrow)) {
       const ignore = [spaces, newline, mul];
-      const nextIndentIndex = getNext(tokens, index + 1, indent, ignore);
+      const nextIndentIndex = getNext(result, index + 1, indent, ignore);
       if (nextIndentIndex) replaceWithCallIndents(result, nextIndentIndex);
     }
     const ignore = [spaces, newline];
-    const nextIndentIndex = getNext(tokens, index + 1, indent, ignore);
+    const nextIndentIndex = getNext(result, index + 1, indent, ignore);
     const prevIndentIndex = getPrev(result, index - 1, indent, ignore);
     if (isOne(token, mul) && getPrev(result, index - 1, arrow, ignore))
       continue;
@@ -659,8 +659,19 @@ Rules.range = once(
   });
 
 Rules.pow = once(() => [
-  any(Rules.wrapped, Rules.range, Rules.array, number, symbol),
-  many(pow, any(Rules.wrapped, number, symbol))
+  any(
+    Rules.wrapped,
+    Rules.slice,
+    Rules.propertyAccess,
+    Rules.range,
+    Rules.array,
+    number,
+    symbol
+  ),
+  many(
+    pow,
+    any(Rules.wrapped, Rules.slice, Rules.propertyAccess, number, symbol)
+  )
     .ignore(spaces, newline)
     .onFail((matched, tokens, offset, context) => {
       if (matched[0]) {
@@ -685,10 +696,26 @@ Rules.pow = once(() => [
   });
 
 Rules.mul = once(() => [
-  any(Rules.wrapped, Rules.range, Rules.pow, Rules.array, number, symbol),
+  any(
+    Rules.wrapped,
+    Rules.slice,
+    Rules.propertyAccess,
+    Rules.range,
+    Rules.pow,
+    Rules.array,
+    number,
+    symbol
+  ),
   many(
     any(mul, div, floorDiv, mod),
-    any(Rules.wrapped, Rules.pow, number, symbol)
+    any(
+      Rules.wrapped,
+      Rules.slice,
+      Rules.propertyAccess,
+      Rules.pow,
+      number,
+      symbol
+    )
   )
     .ignore(spaces, newline)
     .onFail((matched, tokens, offset, context) => {
@@ -725,13 +752,28 @@ Rules.add = once(() => [
   any(
     Rules.pow,
     Rules.mul,
+    Rules.slice,
+    Rules.propertyAccess,
     Rules.range,
     Rules.array,
     Rules.wrapped,
+    Rules.string,
     number,
     symbol
   ),
-  many(any(add, sub), any(Rules.pow, Rules.mul, Rules.wrapped, number, symbol))
+  many(
+    any(add, sub),
+    any(
+      Rules.pow,
+      Rules.mul,
+      Rules.slice,
+      Rules.propertyAccess,
+      Rules.wrapped,
+      Rules.string,
+      number,
+      symbol
+    )
+  )
     .ignore(spaces, newline)
     .onFail((matched, tokens, offset, context) => {
       if (matched[0]) {
@@ -766,6 +808,9 @@ Rules.not = once(() => [
     Rules.range,
     Rules.pow,
     Rules.array,
+    Rules.slice,
+    Rules.propertyAccess,
+    Rules.string,
     number,
     symbol
   ),
@@ -796,6 +841,9 @@ Rules.and = once(() => [
     Rules.range,
     Rules.pow,
     Rules.array,
+    Rules.slice,
+    Rules.propertyAccess,
+    Rules.string,
     number,
     symbol
   ),
@@ -808,6 +856,9 @@ Rules.and = once(() => [
       Rules.range,
       Rules.pow,
       Rules.array,
+      Rules.slice,
+      Rules.propertyAccess,
+      Rules.string,
       number,
       symbol
     )
@@ -845,6 +896,9 @@ Rules.or = once(() => [
     Rules.pow,
     Rules.array,
     Rules.and,
+    Rules.slice,
+    Rules.propertyAccess,
+    Rules.string,
     number,
     symbol
   ),
@@ -858,6 +912,9 @@ Rules.or = once(() => [
       Rules.range,
       Rules.pow,
       Rules.array,
+      Rules.slice,
+      Rules.propertyAccess,
+      Rules.string,
       number,
       symbol
     )
@@ -964,7 +1021,7 @@ Rules.parallelFn = once(() => [
 
 Rules.functionCall = once(() => [
   option(Await),
-  any(Rules.parallelFn, Rules.propertyAccess, symbol),
+  once(any(Rules.parallelFn, Rules.propertyAccess, symbol), spaces),
   many(
     any(
       Rules.range,
@@ -972,6 +1029,7 @@ Rules.functionCall = once(() => [
       Rules.wrapped,
       Rules.propertyAccess,
       Rules.string,
+      Rules.hash,
       number,
       symbol
     )
@@ -991,7 +1049,7 @@ Rules.functionCall = once(() => [
   })
   .onMatch((result) => {
     const awaitKw = detokenize(result[0].pop());
-    const fn = detokenize(result[1]);
+    const fn = detokenize(result[1][0]);
     const args = new SourceNode(
       null,
       null,
@@ -1012,7 +1070,7 @@ Rules.functionCall = once(() => [
           arr`await ${call}`
         )
       : call;
-    if (awaitKw) awaited.awaited = true;
+    if (awaitKw) awaited.isAsync = true;
     return awaited;
   });
 
@@ -1062,7 +1120,7 @@ Rules.awaited = once(() => [
       awaitKw.line,
       awaitKw.column,
       awaitKw.source,
-      arr`(await ${value})`
+      arr`(await ${detokenize(value)})`
     );
     node.isAsync = true;
     return node;
@@ -1284,10 +1342,17 @@ Rules.chain = once(() => [
           }
         })
         .ignore(spaces),
-      once(fatArrow, any(Rules.propertyAccess, Rules.slice, symbol))
+      once(
+        fatArrow,
+        any(
+          Rules.propertyAccess,
+          Rules.slice,
+          once(option(Export), symbol).ignore(spaces)
+        )
+      )
         .onFail((matched, tokens, offset, context) => {
           if (matched[0]) {
-            const expecting = "Property Access, Slice or Symbol";
+            const expecting = "Property Access, Slice, or Symbol";
             wrongTokenError(expecting, tokens, offset, context);
           }
         })
@@ -1396,7 +1461,8 @@ Rules.chain = once(() => [
           }
         }
       } else {
-        const name = detokenize(call);
+        const isExported = Array.isArray(call) && isOne(call[0][0], Export);
+        const name = detokenize(Array.isArray(call) ? call[1] : call);
         const prefix = name.toString().match(/\.|\[/) ? "" : "const ";
         chain.push(
           new SourceNode(
@@ -1406,6 +1472,15 @@ Rules.chain = once(() => [
             arr`${prefix}${name} = ${current}`
           )
         );
+        if (isExported)
+          chain.push(
+            new SourceNode(
+              call[0][0].line,
+              call[0][0].column,
+              call[0][0].source,
+              arr`exports.${name} = ${name}`
+            )
+          );
         current = name;
         isCurrentName = true;
       }
@@ -1458,6 +1533,8 @@ Rules.keyValue = once(() => [
   symbol,
   colon,
   any(
+    Rules.slice,
+    Rules.propertyAccess,
     Rules.functionCall,
     Rules.math,
     Rules.wrapped,
@@ -1585,15 +1662,14 @@ Rules.mixedHash = once(
 
 Rules.hash = once(any(Rules.mixedHash, Rules.indentHash, Rules.inlineHash))
   .name("hash")
-  .onMatch(
-    (result) =>
-      new SourceNode(
-        result[0].line,
-        result[0].column,
-        result[0].source,
-        result[0]
-      )
-  );
+  .onMatch((result) => {
+    return new SourceNode(
+      result[0].line,
+      result[0].column,
+      result[0].source,
+      result[0]
+    );
+  });
 
 Rules.slice = once(() => [
   any(Rules.array, Rules.range, symbol),
@@ -1610,28 +1686,98 @@ Rules.slice = once(() => [
     return slice;
   });
 
+// TODO: make a real parser rule for this
+const toJsTemplate = (str) => {
+  let result = "";
+  let index = 0;
+  let open = 0;
+  let inner = "";
+  while (str[index]) {
+    if (str[index] == "\\") {
+      if (open) {
+        inner += "\\";
+        index++;
+        inner += str[index];
+      } else {
+        result += "\\";
+        index++;
+        result += str[index];
+      }
+    } else if (str[index] == "{") {
+      if (!open) result += "$";
+      if (open) {
+        inner += "{";
+      } else {
+        result += "{";
+      }
+      open++;
+    } else if (str[index] == "}") {
+      open--;
+      if (open) {
+        inner += "}";
+      } else {
+        // TODO: we need sourcemaps for these too
+        const innerExpr = once(
+          any(
+            Rules.chain,
+            Rules.functionCall,
+            Rules.logical,
+            Rules.cmp,
+            Rules.math,
+            Rules.slice,
+            Rules.propertyAccess,
+            symbol
+          )
+        ).satisfies(tokenize(inner), 0);
+        result += detokenize(innerExpr.result.pop()).toString();
+        inner = "";
+        result += "}";
+      }
+    } else {
+      if (open) {
+        inner += str[index];
+      } else {
+        result += str[index];
+      }
+    }
+    index++;
+  }
+  if (open != 0) throw "Unbalanced parenthesis";
+  return result;
+};
+
 Rules.string = any(
   once(option(symbol), string)
     .name("string")
-    .onMatch((result) => {
-      const string = result.length == 1 ? result[0] : result[1];
-      return new SourceNode(
-        string.line,
-        string.column,
-        string.source,
-        string.raw
-      );
+    .onMatch(([fn, string]) => {
+      const detokenized = detokenize(fn[0]);
+      const formatFn = detokenized && detokenized.toString() == "f" ? "" : fn;
+      const str = fn.length ? toJsTemplate(string.raw) : string.raw;
+      return fn.length
+        ? new SourceNode(
+            string.line,
+            string.column,
+            string.source,
+            arr`${formatFn}\`${str.slice(1, -1)}\``
+          )
+        : new SourceNode(
+            string.line,
+            string.column,
+            string.source,
+            string.raw.replace(/\n/g, "\\n")
+          );
     }),
   once(() => [
     option(symbol),
     backtick,
     any(Rules.wrapped, Rules.array, Rules.propertyAccess, Rules.slice, symbol),
-  ]).onMatch(([_, tick, str]) => {
+  ]).onMatch(([fn, tick, str]) => {
+    const formatFn = (fn.length && fn[0].toString()) == "f" ? "" : fn;
     return new SourceNode(
       tick.line,
       tick.column,
       tick.source,
-      arr`"${detokenize(str)}"`
+      arr`${formatFn}\`${detokenize(str)}\``
     );
   })
 );
@@ -1849,25 +1995,52 @@ Rules.inlineImport = once(
   .onMatch((result) => {
     const op = result.shift();
     const [names, path] = result;
-    if (names) {
-      const importStatement = new SourceNode(
+    const importPath = names ? detokenize(path) : path.toString();
+    const imported = names || getModuleName(importPath.toString().slice(1, -1));
+    const isJS = importPath.toString().endsWith(".js");
+    const isClio = importPath.toString().endsWith(".clio");
+    const isCloud = importPath.toString().match(/[a-z]+:\/\//i);
+    if (isCloud)
+      return new SourceNode(
         op.line,
         op.column,
         op.source,
-        arr`const ${names} = await clio.import(${detokenize(path)})`
+        arr`const ${imported} = await clio.importCloud(${importPath})`
       );
-      return importStatement;
-    } else {
-      const { raw } = path;
-      const moduleName = getModuleName(raw.slice(1, -1));
-      const importStatement = new SourceNode(
+    if (isJS)
+      return new SourceNode(
         op.line,
         op.column,
         op.source,
-        arr`const ${moduleName} = await clio.import(${raw})`
+        arr`const ${imported} = require(${importPath})`
       );
-      return importStatement;
-    }
+    if (isClio)
+      return new SourceNode(
+        op.line,
+        op.column,
+        op.source,
+        arr`const ${imported} = await require(${importPath}).__clioModule(clio)`
+      );
+    const rawPath = importPath.toString().slice(1, -1);
+    const clioExtRequire = new SourceNode(
+      op.line,
+      op.column,
+      op.source,
+      arr`${imported} = await require("${rawPath}.clio").__clioModule(clio)`
+    );
+    const jsRequire = new SourceNode(
+      op.line,
+      op.column,
+      op.source,
+      arr`${imported} = require(${importPath})`
+    );
+    const importStatement = new SourceNode(
+      op.line,
+      op.column,
+      op.source,
+      arr`let ${imported}; try { ${clioExtRequire} } catch (err) { ${jsRequire} }`
+    );
+    return importStatement;
   });
 
 Rules.indentImport = once(
@@ -1931,7 +2104,14 @@ Rules.import = once(any(Rules.indentImport, Rules.inlineImport))
 
 Rules.conditional = once(
   If,
-  any(Rules.cmp, symbol, number),
+  any(
+    Rules.logical,
+    Rules.cmp,
+    Rules.slice,
+    Rules.propertyAccess,
+    symbol,
+    number
+  ),
   colon,
   any(
     once(indent, Rules.block, outdent).ignore(spaces, newline),
@@ -1951,7 +2131,14 @@ Rules.conditional = once(
       any(
         once(
           If,
-          any(Rules.cmp, symbol, number),
+          any(
+            Rules.logical,
+            Rules.cmp,
+            Rules.slice,
+            Rules.propertyAccess,
+            symbol,
+            number
+          ),
           colon,
           any(
             once(indent, Rules.block, outdent).ignore(spaces, newline),
@@ -2285,7 +2472,17 @@ Rules.fn = once(
   });
 
 Rules.clio = once(
-  only(any(Rules.import, Rules.fn, comment, newline, spaces)).name("clio")
+  only(
+    any(
+      Rules.import,
+      Rules.fn,
+      Rules.chain,
+      Rules.functionCall,
+      comment,
+      newline,
+      spaces
+    )
+  ).name("clio")
 ).onMatch((result) => {
   const flat = result
     .flat(2)

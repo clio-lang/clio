@@ -27,6 +27,7 @@ const workers = (file, server, { url, count }) => {
 };
 
 const executor = (file, dispatcher, server, monitor, config, options) => {
+  if (options.noMain) return;
   const { url, wait_for } = config;
   const workerCount = wait_for === "cpu" ? os.cpus().length : wait_for;
   dispatcher.expectWorkers(workerCount).then(async () => {

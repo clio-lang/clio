@@ -19,6 +19,7 @@ const workers = (file, server, { count }) => {
 };
 
 const executor = (file, dispatcher, server, monitor, { wait_for }, options) => {
+  if (options.noMain) return;
   const workerCount =
     wait_for === "cpu" ? window.navigator.hardwareConcurrency : wait_for;
   dispatcher.expectWorkers(workerCount).then(async () => {
