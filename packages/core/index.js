@@ -1751,7 +1751,8 @@ Rules.string = any(
     .name("string")
     .onMatch(([fn, string]) => {
       const detokenized = detokenize(fn[0]);
-      const formatFn = detokenized && detokenized.toString() == "f" ? "" : fn;
+      const formatFn =
+        detokenized && detokenized.toString() == "f" ? "" : detokenized;
       const str = fn.length ? toJsTemplate(string.raw) : string.raw;
       return fn.length
         ? new SourceNode(
@@ -1772,7 +1773,7 @@ Rules.string = any(
     backtick,
     any(Rules.wrapped, Rules.array, Rules.propertyAccess, Rules.slice, symbol),
   ]).onMatch(([fn, tick, str]) => {
-    const formatFn = (fn.length && fn[0].toString()) == "f" ? "" : fn;
+    const formatFn = (fn.length && fn[0].toString()) == "f" ? "" : detokenized;
     return new SourceNode(
       tick.line,
       tick.column,
