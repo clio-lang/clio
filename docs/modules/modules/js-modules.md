@@ -4,11 +4,13 @@ JavaScript files can be imported directly in your Clio code. For JavaScript file
 
 {% tabs %}
 {% tab title="my\_module.js" %}
+
 ```text
 module.exports.hello = function(name) {
     console.log(`Hello ${name}`);
 }
 ```
+
 {% endtab %}
 {% endtabs %}
 
@@ -30,9 +32,10 @@ Then you can import it in your Clio file:
 
 {% tabs %}
 {% tab title="example.clio" %}
+
 ```text
 import express
 ```
+
 {% endtab %}
 {% endtabs %}
-

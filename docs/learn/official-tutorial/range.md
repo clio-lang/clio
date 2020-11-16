@@ -12,4 +12,3 @@ with `start`, `end` and `step` being optional.
 {% hint style="warning" %}
 Syntax for range is implemented, but semantics aren't present in the current version of Clio. This is a work in progress.
 {% endhint %}
-

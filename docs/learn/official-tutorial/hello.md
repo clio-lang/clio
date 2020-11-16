@@ -15,4 +15,3 @@ Above code is the simplest form of writing a hello world program in Clio, let's 
 2. On the second line, we call `console.log` function, passing `"Hello world!"` to it. This function prints its arguments either to your terminal app, or to the browser's console.
 
 Running this program should show `Hello world!` in the console. Go on and try it out by running `clio run` in your project's root folder. Well, congrats for writing and running your first Clio program!
-
