@@ -800,6 +800,7 @@ Rules.add = once(() => [
 Rules.not = once(() => [
   not,
   any(
+    Rules.functionCall,
     Rules.cmp,
     Rules.and,
     Rules.not,
@@ -1304,6 +1305,8 @@ Rules.chain = once(() => [
   any(
     Rules.awaited,
     Rules.awaitedArray,
+    Rules.logical,
+    Rules.cmp,
     Rules.functionCall,
     Rules.math,
     Rules.slice,
@@ -1311,8 +1314,6 @@ Rules.chain = once(() => [
     Rules.array,
     Rules.wrapped,
     Rules.hash,
-    Rules.logical,
-    Rules.cmp,
     Rules.propertyAccess,
     Rules.string,
     symbol,
