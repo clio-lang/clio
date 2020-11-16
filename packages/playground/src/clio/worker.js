@@ -6,7 +6,7 @@ import { getModule } from "./common";
 
 const location = new URL(self.location);
 const encoded = location.searchParams.get("src");
-const src = decodeURIComponent(encoded);
+const src = decodeURIComponent(encoded).replace(/~~mod~~/g, "%");
 
 const transport = new WebWorker.Client({
   postMessage(data) {
