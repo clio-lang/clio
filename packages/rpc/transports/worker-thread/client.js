@@ -1,14 +1,16 @@
 const { EventEmitter } = require("../../common");
 
 class Client extends EventEmitter {
-  constructor({ postMessage }) {
+  constructor({ parentPort }) {
     super();
-    this.postMessage = postMessage;
+    this.parentPort = parentPort;
+    this.postMessage = (message) => parentPort.postMessage(message);
+    this.parentPort.on("message", (message) => this.onMessage(message));
   }
   connect() {
     this.emit("connect");
   }
-  onmessage(data) {
+  onMessage(data) {
     this.emit("message", JSON.parse(data));
   }
   send(data) {

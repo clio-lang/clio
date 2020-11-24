@@ -1,6 +1,10 @@
 const { Executor } = require("clio-rpc/executor");
-const { channel } = require("clio-rpc/channel");
-const { getImport } = require("clio-lang-internals");
+const {
+  getImport,
+  EventEmitter,
+  range,
+  slice,
+} = require("clio-lang-internals");
 const asyncHooks = require("async_hooks");
 
 class Distributed {
@@ -93,7 +97,11 @@ class Monitor {
 const run = async (module, { worker, executor }, { noMain = false } = {}) => {
   const clio = {
     distributed: worker ? workerDist(executor, worker) : mainDist(executor),
-    channel,
+    emitter() {
+      return new EventEmitter();
+    },
+    range,
+    slice,
   };
   getImport(clio);
   const { main } = await module.__clioModule(clio);
@@ -132,7 +140,7 @@ const importClio = (file) => {
     dispatcher.expectWorkers(numCPUs).then(async () => {
       const clientTransport = serverTransport.getTransport();
       const executor = new Executor(clientTransport);
-      const clio = { distributed: mainDist(executor) };
+      const clio = { distributed: mainDist(executor), range, slice };
       getImport(clio);
       const exports = await main.__clioModule(clio);
       resolve({ dispatcher, exports });

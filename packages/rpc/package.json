@@ -7,7 +7,8 @@
     "test": "test"
   },
   "dependencies": {
-    "ws": "^7.2.3"
+    "ws": "^7.2.3",
+    "clio-lang-internals": "^0.2.2"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

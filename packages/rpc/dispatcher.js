@@ -32,10 +32,15 @@ class Dispatcher extends EventEmitter {
   }
   event(inSocket, details, id, clientId, { toClient }) {
     const socket = this.clients.get(toClient);
-    this.send(socket, { instruction: "event", details, clientId }, id);
+    this.send(
+      socket,
+      { instruction: "event", details, clientId, toClient },
+      id
+    );
   }
   call(socket, details, id, clientId, { path }) {
     const worker = this.getWorker(path);
+    const toClient = worker.clientId;
     if (worker) {
       this.send(
         worker,
@@ -43,6 +48,7 @@ class Dispatcher extends EventEmitter {
           instruction: "call",
           details,
           clientId,
+          toClient,
         },
         id
       );
@@ -52,19 +58,30 @@ class Dispatcher extends EventEmitter {
   }
   result(inSocket, details, id, clientId, { toClient }) {
     const socket = this.clients.get(toClient);
-    this.send(socket, { instruction: "result", details, clientId }, id);
+    this.send(
+      socket,
+      { instruction: "result", details, clientId, toClient },
+      id
+    );
   }
   getPaths(socket, details, id, clientId) {
     const { path } = JSON.parse(details);
     const paths = [...this.workers.keys()].filter((p) => p.startsWith(path));
     this.send(
       socket,
-      { instruction: "paths", details: JSON.stringify({ paths }), clientId },
+      {
+        instruction: "paths",
+        details: JSON.stringify({ paths }),
+        clientId,
+        toClient: clientId,
+      },
       id
     );
   }
   registerWorker(worker, details, id, clientId) {
     const { paths } = JSON.parse(details);
+    // TODO: there must be a better way to do this
+    worker.clientId = clientId;
     for (const path of paths)
       this.workers.set(path, [...(this.workers.get(path) || []), worker]);
     for (const path of paths) {

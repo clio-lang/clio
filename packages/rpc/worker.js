@@ -1,5 +1,4 @@
-const { randomId } = require("./common");
-const { Channel } = require("./channel");
+const { randomId, EventEmitter } = require("./common");
 
 class Worker {
   constructor(transport) {
@@ -8,7 +7,7 @@ class Worker {
     this.transport.on("connect", () => this.handleConnect());
     this.transport.on("error", (error) => this.onError(error));
     this.functions = new Map();
-    this.channels = new Map();
+    this.emitters = new Map();
     this.retries = 10;
     this.id = "worker." + randomId(64);
   }
@@ -43,7 +42,9 @@ class Worker {
     );
   }
   handleData(data) {
-    const { instruction, details, id, clientId } = data;
+    const { instruction, details, id, clientId, toClient } = data;
+    // TODO: there must be a better way to do this
+    if (toClient !== this.id) return;
     if (instruction == "call")
       this.handleCallInstruction(details, id, clientId);
     else if (instruction == "event")
@@ -56,25 +57,26 @@ class Worker {
     this.sendResult(result, id, clientId);
   }
   async handleEventInstruction(details, id, clientId) {
-    const { id: channelId, event, args } = JSON.parse(details);
-    const channel = this.channels.get(channelId);
-    channel.emit(event, ...args);
+    const { id: emitterId, event, args } = JSON.parse(details);
+    const { emitter, send } = this.emitters.get(emitterId);
+    emitter.emitUnless(send, event, ...args);
   }
   serialize(data, clientId) {
     const replacer = (_, value) => {
-      if (value instanceof Channel) {
-        const id = "channel." + randomId(64);
-        value.on("send", (event, ...args) => {
+      if (value instanceof EventEmitter) {
+        const { id } = value;
+        const send = (event, ...args) => {
           const data = {
             instruction: "event",
             details: this.serialize({ id, event, args }),
             toClient: clientId,
           };
           this.send(data);
-        });
-        this.channels.set(id, value);
-        // TODO: kill the channel on client close
-        return { "@type": "Channel", clientId: this.id, id };
+        };
+        value.on(/.*/, send);
+        this.emitters.set(id, { emitter: value, send });
+        // TODO: kill the emitter on client close
+        return { "@type": "EventEmitter", clientId: this.id, id };
       }
       return value;
     };

@@ -342,6 +342,18 @@ const getPrev = (tokens, index, stopToken, ignoreList = []) => {
   }
 };
 
+const removeArrayIndents = (tokens) => {
+  const result = [...tokens];
+  let open = 0;
+  for (let index = 0; index < result.length; index++) {
+    const token = result[index];
+    if (isOne(token, lBracket)) open++;
+    if (isOne(token, rBracket)) open--;
+    if (isOne(token, indent) && open) removeIndentPair(result, index);
+  }
+  return result;
+};
+
 const preprocessIndents = (tokens) => {
   const result = [...tokens];
   for (let index = 0; index < result.length; index++) {
@@ -363,7 +375,7 @@ const preprocessIndents = (tokens) => {
       index--;
     }
   }
-  return result;
+  return removeArrayIndents(result);
 };
 
 const tokenize = (string, source) => {
@@ -1025,6 +1037,7 @@ Rules.functionCall = once(() => [
   once(any(Rules.parallelFn, Rules.propertyAccess, symbol), spaces),
   many(
     any(
+      Rules.slice,
       Rules.range,
       Rules.math,
       Rules.wrapped,
@@ -1078,7 +1091,15 @@ Rules.functionCall = once(() => [
 Rules.array = once(() => [
   lBracket,
   many(
-    any(Rules.range, Rules.array, Rules.wrapped, number, Rules.string, symbol)
+    any(
+      Rules.hash,
+      Rules.range,
+      Rules.array,
+      Rules.wrapped,
+      number,
+      Rules.string,
+      symbol
+    )
   ).ignore(spaces, newline, indent, outdent),
   rBracket,
 ])
@@ -1086,7 +1107,7 @@ Rules.array = once(() => [
   .name("Array")
   .onFail((matched, tokens, offset, context) => {
     if (matched[0] && !isOne(tokens[offset], colon)) {
-      const expecting = "Range, Array, Wrapped, Number, String or Symbol";
+      const expecting = "Hash, Range, Array, Wrapped, Number, String or Symbol";
       wrongTokenError(expecting, tokens, offset, context);
     }
   })
@@ -1436,14 +1457,14 @@ Rules.chain = once(() => [
           const awaitOp = callItem.pop();
           const currentJoin = isMethod
             ? ""
-            : new SourceNode(null, null, null, arr`, ${current}`);
+            : new SourceNode(null, null, null, arr`${current}, `);
           const args = isMethod ? "" : current;
           current = needsShift
             ? new SourceNode(
                 fn.line,
                 fn.column,
                 fn.source,
-                arr`${fn}(${argsNode}${currentJoin})`
+                arr`${fn}(${currentJoin}${argsNode})`
               )
             : new SourceNode(
                 fn.line,
@@ -1531,10 +1552,30 @@ Rules.chain = once(() => [
   });
 
 Rules.keyValue = once(() => [
-  symbol,
+  any(
+    Rules.slice,
+    Rules.range,
+    Rules.array,
+    Rules.functionCall,
+    Rules.math,
+    Rules.wrapped,
+    Rules.string,
+    once(symbol).onMatch(([symbol]) => {
+      const detokenized = detokenize(symbol);
+      return new SourceNode(
+        symbol.line,
+        symbol.column,
+        symbol.source,
+        arr`"${detokenized}"`
+      );
+    }),
+    number
+  ),
   colon,
   any(
     Rules.slice,
+    Rules.range,
+    Rules.array,
     Rules.propertyAccess,
     Rules.functionCall,
     Rules.math,
@@ -1556,7 +1597,12 @@ Rules.keyValue = once(() => [
   .onMatch(([key, _, value]) => {
     key = detokenize(key);
     value = detokenize(value);
-    return new SourceNode(null, null, key.source, arr`${key}: ${value}`);
+    return new SourceNode(
+      null,
+      null,
+      key.source,
+      arr`hashmap[${key}] = ${value}`
+    );
   });
 
 Rules.nestedHash = once(() => [
@@ -1580,12 +1626,12 @@ Rules.nestedHash = once(() => [
   .onMatch(([key, _, __, value]) => {
     key = detokenize(key);
     value = value.flat(2).map(detokenize);
-    const valueNode = new SourceNode(null, null, key.source, value);
+    const valueNode = new SourceNode(null, null, key.source, value).join(";");
     return new SourceNode(
       null,
       null,
       key.source,
-      arr`${key}: { ${valueNode.join(", ")} }`
+      arr`hashmap[${key}] = (() => { const hashmap = {}; ${valueNode}; return hashmap })()`
     );
   });
 
@@ -1597,12 +1643,12 @@ Rules.inlineHash = once(
   .name("inline hash")
   .onMatch(([hash, keys]) => {
     keys = keys.flat(2).map(detokenize);
-    const keysNode = new SourceNode(null, null, hash.source, keys);
+    const keysNode = new SourceNode(null, null, hash.source, keys).join(";");
     const hashNode = new SourceNode(
       hash.line,
       hash.column,
       hash.source,
-      arr`{ ${keysNode.join(", ")} }`
+      arr`(() => { const hashmap = {}; ${keysNode}; return hashmap })()`
     );
     return hashNode;
   });
@@ -1627,12 +1673,12 @@ Rules.indentHash = once(
   })
   .onMatch(([hash, __, keys]) => {
     keys = keys.flat(2).map(detokenize);
-    const keysNode = new SourceNode(null, null, hash.source, keys);
+    const keysNode = new SourceNode(null, null, hash.source, keys).join(";");
     const hashNode = new SourceNode(
       hash.line,
       hash.column,
       hash.source,
-      arr`{ ${keysNode.join(", ")} }`
+      arr`(() => { const hashmap = {}; ${keysNode}; return hashmap })()`
     );
     return hashNode;
   });
@@ -1651,12 +1697,12 @@ Rules.mixedHash = once(
       ...keys0.flat(2).map(detokenize),
       ...keys1.flat(2).map(detokenize),
     ];
-    const keysNode = new SourceNode(null, null, hash.source, keys);
+    const keysNode = new SourceNode(null, null, hash.source, keys).join(";");
     const hashNode = new SourceNode(
       hash.line,
       hash.column,
       hash.source,
-      arr`{ ${keysNode.join(", ")} }`
+      arr`(() => { const hashmap = {}; ${keysNode}; return hashmap })()`
     );
     return hashNode;
   });
@@ -1774,6 +1820,7 @@ Rules.string = any(
     backtick,
     any(Rules.wrapped, Rules.array, Rules.propertyAccess, Rules.slice, symbol),
   ]).onMatch(([fn, tick, str]) => {
+    const detokenized = detokenize(fn[0]);
     const formatFn = (fn.length && fn[0].toString()) == "f" ? "" : detokenized;
     return new SourceNode(
       tick.line,
@@ -2492,7 +2539,8 @@ Rules.clio = once(
   const innerNode = new SourceNode(null, null, flat[0].source, flat).join(
     ";\n"
   );
-  const runtime = "const { distributed, channel } = clio; const exports = {}";
+  const runtime =
+    "const { distributed, emitter, range, slice } = clio; const exports = {}";
   const outerCode = arr`module.exports.__clioModule = async clio => {\n${runtime};\n${innerNode};\nreturn exports }`;
   const outerNode = new SourceNode(null, null, flat[0].source, outerCode);
   return outerNode;
