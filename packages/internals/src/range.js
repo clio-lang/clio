@@ -1,5 +1,3 @@
-const it = require("./iterator");
-
 class Range {
   constructor(start = 0, end = Infinity, step = end > start ? 1 : -1, mapfn) {
     this.start = start;

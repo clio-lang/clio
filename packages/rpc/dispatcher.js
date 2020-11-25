@@ -40,8 +40,8 @@ class Dispatcher extends EventEmitter {
   }
   call(socket, details, id, clientId, { path }) {
     const worker = this.getWorker(path);
-    const toClient = worker.clientId;
     if (worker) {
+      const toClient = worker.clientId;
       this.send(
         worker,
         {
