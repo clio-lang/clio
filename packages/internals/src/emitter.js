@@ -24,7 +24,7 @@ class EventEmitter {
     this.listeners[event] = this.listeners[event] || [];
     this.listeners[event]
       .filter((fn) => fn !== callback)
-      .forEach((fn) => fn(event, ...args));
+      .forEach((fn) => fn(...args));
     for (const [pattern, fns] of Object.entries(this.regexListeners)) {
       const regex = eval(pattern);
       if (event.match(regex))
