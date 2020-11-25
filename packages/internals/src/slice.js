@@ -33,17 +33,17 @@ const objectSlice = (item, object) => {
     throw new Error(`Slicing by ${typeof slicer} is not supported.`);
   const result = [];
   for (const { key, rawKey } of keys) {
-    const slicer = isNumber(key) ? [key] : key;
-    const next = slice(item, slicer);
-    const sliced = next.map((arr) => {
-      const value = object[rawKey];
-      const slicer = isNumber(value)
-        ? [value]
-        : isRange(value)
-        ? value
-        : [value];
-      return isNumber(value) ? [slice(arr, slicer)] : slice(arr, slicer);
-    });
+    const nextSlicer = isNumber(key) ? [key] : key;
+    const next = slice(item, nextSlicer);
+    const value = object[rawKey];
+    const itemSlicer = isNumber(value)
+      ? [value]
+      : isRange(value)
+      ? value
+      : [value];
+    const doSlice = (arr) =>
+      isNumber(value) ? [slice(arr, itemSlicer)] : slice(arr, itemSlicer);
+    const sliced = isNumber(key) ? [doSlice(next)] : next.map(doSlice);
     result.push(...sliced);
   }
   return result;
