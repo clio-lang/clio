@@ -1,11 +1,12 @@
+const asyncHooks = require("async_hooks");
 const { Executor } = require("clio-rpc/executor");
+
 const {
   getImport,
   EventEmitter,
   range,
   slice,
 } = require("clio-lang-internals");
-const asyncHooks = require("async_hooks");
 
 class Distributed {
   constructor(isWorker, connection) {

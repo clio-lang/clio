@@ -11,8 +11,5 @@
   "dependencies": {
     "clio-lang-internals": "^0.2.2",
     "clio-rpc": "^0.1.1"
-  },
-  "devDependencies": {
-    "why-is-node-running": "^2.2.0"
   }
 }
