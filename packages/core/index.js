@@ -1409,12 +1409,12 @@ Rules.chain = once(() => [
         if (callItem[0]) {
           const awaitOp = callItem.pop();
           const mapOp = callItem.pop();
-          const regularArgs = "item, index, arr";
           const regularHead = "(item, index, arr) => ";
-          const awaitArgs = `await ${regularArgs}`;
+          const regularArg = "item";
+          const awaitArg = `await ${regularArg}`;
           const awaitHead = `async ${regularHead}`;
           const head = awaitOneByOne ? awaitHead : regularHead;
-          const args = awaitOneByOne ? awaitArgs : regularArgs;
+          const args = awaitOneByOne ? awaitArg : regularArg;
           const rawFn = needsShift ? fn : detokenize(call);
           const methodCall =
             !awaitOneByOne && !needsShift
@@ -1422,8 +1422,13 @@ Rules.chain = once(() => [
               : new SourceNode(null, null, null, arr`item${rawFn}`);
           const fnToCall = isMethod ? methodCall : rawFn;
           const callArgs = needsShift
-            ? new SourceNode(null, null, null, arr`(${argsNode}, ${args})`)
-            : new SourceNode(null, null, null, arr`(${args})`);
+            ? new SourceNode(
+                null,
+                null,
+                null,
+                arr`(${args}, ${argsNode}, index, arr)`
+              )
+            : new SourceNode(null, null, null, arr`(${args}, index, arr)`);
           const mapFn =
             !awaitOneByOne && !needsShift
               ? fnToCall
