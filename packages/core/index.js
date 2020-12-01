@@ -964,10 +964,28 @@ Rules.logical = once(any(Rules.or, Rules.and, Rules.not))
   });
 
 Rules.cmp = once(() => [
-  any(Rules.math, Rules.wrapped, Rules.range, Rules.array, number, symbol),
+  any(
+    Rules.math,
+    Rules.slice,
+    Rules.propertyAccess,
+    Rules.wrapped,
+    Rules.range,
+    Rules.array,
+    number,
+    symbol
+  ),
   many(
     any(lte, gte, gt, lt, eq, neq),
-    any(Rules.math, Rules.wrapped, Rules.range, Rules.array, number, symbol)
+    any(
+      Rules.math,
+      Rules.slice,
+      Rules.propertyAccess,
+      Rules.wrapped,
+      Rules.range,
+      Rules.array,
+      number,
+      symbol
+    )
   )
     .ignore(spaces, newline)
     .onFail((matched, tokens, offset, context) => {
@@ -1037,6 +1055,7 @@ Rules.functionCall = once(() => [
   once(any(Rules.parallelFn, Rules.propertyAccess, symbol), spaces),
   many(
     any(
+      Rules.anonymousFn,
       Rules.slice,
       Rules.range,
       Rules.math,
@@ -1300,14 +1319,15 @@ Rules.anonymousFn = once(() => [
   symbol,
   colon,
   any(
+    Rules.hash,
     Rules.functionCall,
+    Rules.cmp,
     Rules.math,
     Rules.slice,
     Rules.range,
     Rules.array,
     Rules.wrapped,
     Rules.logical,
-    Rules.cmp,
     Rules.propertyAccess
   ),
 ])
@@ -1421,12 +1441,15 @@ Rules.chain = once(() => [
               ? new SourceNode(null, null, null, arr`(item => item${rawFn}())`)
               : new SourceNode(null, null, null, arr`item${rawFn}`);
           const fnToCall = isMethod ? methodCall : rawFn;
+          const firstArg = isMethod
+            ? ""
+            : new SourceNode(null, null, null, [args, ","]);
           const callArgs = needsShift
             ? new SourceNode(
                 null,
                 null,
                 null,
-                arr`(${args}, ${argsNode}, index, arr)`
+                arr`(${firstArg}${argsNode}, index, arr)`
               )
             : new SourceNode(null, null, null, arr`(${args}, index, arr)`);
           const mapFn =
