@@ -2508,7 +2508,7 @@ Rules.fn = once(
         name.line,
         name.column,
         name.source,
-        arr`const ${name} = ${func}`
+        arr`const ${name} = tco(${func})`
       )
     );
     parts.push(
@@ -2568,7 +2568,7 @@ Rules.clio = once(
     ";\n"
   );
   const runtime =
-    "const { distributed, emitter, range, slice } = clio; const exports = {}";
+    "const { distributed, emitter, range, slice, tco } = clio; const exports = {}";
   const outerCode = arr`module.exports.__clioModule = async clio => {\n${runtime};\n${innerNode};\nreturn exports }`;
   const outerNode = new SourceNode(null, null, flat[0].source, outerCode);
   return outerNode;

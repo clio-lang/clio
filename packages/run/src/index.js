@@ -6,6 +6,7 @@ const {
   EventEmitter,
   range,
   slice,
+  tco,
 } = require("clio-lang-internals");
 
 class Distributed {
@@ -103,6 +104,7 @@ const run = async (module, { worker, executor }, { noMain = false } = {}) => {
     },
     range,
     slice,
+    tco,
   };
   getImport(clio);
   const { main } = await module.__clioModule(clio);
