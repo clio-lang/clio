@@ -710,8 +710,8 @@ Rules.pow = once(() => [
 Rules.mul = once(() => [
   any(
     Rules.wrapped,
-    Rules.slice,
     Rules.propertyAccess,
+    Rules.slice,
     Rules.range,
     Rules.pow,
     Rules.array,
@@ -722,8 +722,8 @@ Rules.mul = once(() => [
     any(mul, div, floorDiv, mod),
     any(
       Rules.wrapped,
-      Rules.slice,
       Rules.propertyAccess,
+      Rules.slice,
       Rules.pow,
       number,
       symbol
@@ -903,12 +903,12 @@ Rules.and = once(() => [
 Rules.or = once(() => [
   any(
     Rules.not,
+    Rules.and,
     Rules.cmp,
     Rules.wrapped,
     Rules.range,
     Rules.pow,
     Rules.array,
-    Rules.and,
     Rules.slice,
     Rules.propertyAccess,
     Rules.string,
@@ -971,6 +971,7 @@ Rules.cmp = once(() => [
     Rules.wrapped,
     Rules.range,
     Rules.array,
+    Rules.string,
     number,
     symbol
   ),
@@ -983,6 +984,7 @@ Rules.cmp = once(() => [
       Rules.wrapped,
       Rules.range,
       Rules.array,
+      Rules.string,
       number,
       symbol
     )
@@ -1056,11 +1058,11 @@ Rules.functionCall = once(() => [
   many(
     any(
       Rules.anonymousFn,
+      Rules.propertyAccess,
       Rules.slice,
       Rules.range,
       Rules.math,
       Rules.wrapped,
-      Rules.propertyAccess,
       Rules.string,
       Rules.hash,
       number,
@@ -1752,12 +1754,15 @@ Rules.slice = once(() => [
 ])
   .name("slice")
   .onMatch(([lhs, rhs]) => {
-    const slice = new SourceNode(
-      rhs.line,
-      rhs.column,
-      rhs.source,
-      arr`slice(${detokenize(lhs)}, ${detokenize(rhs)})`
-    );
+    let slice = detokenize(lhs);
+    for (const slicer of rhs) {
+      slice = new SourceNode(
+        slicer.line,
+        slicer.column,
+        slicer.source,
+        arr`slice(${slice}, ${detokenize(slicer)})`
+      );
+    }
     return slice;
   });
 
