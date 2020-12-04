@@ -77,11 +77,11 @@ class Token {
 
 const token = (...args) => new Token(...args);
 
-const fn = token("Fn", /^fn/);
-const Await = token("Await", /^await/);
+const fn = token("Fn", /^fn(?=\s|$)/);
+const Await = token("Await", /^await(?=\s|$|\[|\])/);
 const pike = token("Pike", /^\|/);
-const If = token("If", /^if/);
-const Else = token("Else", /^else/);
+const If = token("If", /^if(?=\s|$|\[|\])/);
+const Else = token("Else", /^else(?=\s|$|\[|\])/);
 const string = token("String", /(^"([^"]|\\.)*?")|(^'([^']|\\.)*?')/);
 const backtick = token("Backtick", /^`/);
 const colon = token("Colon", /^:/);
@@ -92,11 +92,11 @@ const lBracket = token("Opening Bracket", /^\[/);
 const rBracket = token("Closing Bracket", /^\]/);
 const lParen = token("Opening Parenthesis", /^\(/);
 const rParen = token("Closing Parenthesis", /^\)/);
-const hash = token("Hash", /^hash|^#/);
-const Export = token("Export", /^export/);
-const Import = token("Import", /^import/);
-const from = token("From", /^from/);
-const as = token("As", /^as/);
+const hash = token("Hash", /^(hash(?=\s|$|\[|\]))|^#/);
+const Export = token("Export", /^export(?=\s|$|\[|\])/);
+const Import = token("Import", /^import(?=\s|$|\[|\])/);
+const from = token("From", /^from(?=\s|$|\[|\])/);
+const as = token("As", /^as(?=\s|$|\[|\])/);
 const number = token("Number", /^[+-]?\d+/);
 const pow = token("Power", /^\*\*/);
 const mod = token("Module", /^%/);
@@ -112,9 +112,10 @@ const lte = token("Lower Or Equal", /^<=/);
 const lt = token("Lower", /^</);
 const neq = token("Not Equal", /^!=/);
 const eq = token("Equal", /^=/);
-const and = token("And", /^and/);
-const or = token("Or", /^or/);
-const not = token("Not", /^not/);
+const and = token("And", /^and(?=\s|$|\[|\])/);
+const or = token("Or", /^or(?=\s|$|\[|\])/);
+const not = token("Not", /^not(?=\s|$|\[|\])/);
+const In = token("In", /^in(?=\s|$|\[|\])/);
 const spaces = token("Spaces", /^ +/);
 const newline = token("Newline", /^\n|\r\n?/);
 const indent = token("Indent");
@@ -175,6 +176,7 @@ const patterns = [
   div,
   sub,
   dot,
+  In,
   symbol,
   spaces,
   newline,
@@ -813,6 +815,8 @@ Rules.not = once(() => [
   not,
   any(
     Rules.functionCall,
+    Rules.in,
+    Rules.functionCall,
     Rules.cmp,
     Rules.and,
     Rules.not,
@@ -848,6 +852,8 @@ Rules.not = once(() => [
 
 Rules.and = once(() => [
   any(
+    Rules.functionCall,
+    Rules.in,
     Rules.not,
     Rules.cmp,
     Rules.wrapped,
@@ -863,6 +869,8 @@ Rules.and = once(() => [
   many(
     and,
     any(
+      Rules.functionCall,
+      Rules.in,
       Rules.not,
       Rules.cmp,
       Rules.wrapped,
@@ -902,6 +910,8 @@ Rules.and = once(() => [
 
 Rules.or = once(() => [
   any(
+    Rules.functionCall,
+    Rules.in,
     Rules.not,
     Rules.and,
     Rules.cmp,
@@ -918,6 +928,8 @@ Rules.or = once(() => [
   many(
     or,
     any(
+      Rules.functionCall,
+      Rules.in,
       Rules.not,
       Rules.and,
       Rules.cmp,
@@ -963,8 +975,43 @@ Rules.logical = once(any(Rules.or, Rules.and, Rules.not))
     return result.pop();
   });
 
+Rules.in = once(() => [
+  any(
+    Rules.wrapped,
+    Rules.range,
+    Rules.math,
+    Rules.propertyAccess,
+    Rules.slice,
+    Rules.array,
+    Rules.string,
+    number,
+    symbol
+  ),
+  In,
+  any(Rules.propertyAccess, Rules.slice, Rules.array, Rules.string, symbol),
+])
+  .onFail((matched, tokens, offset, context) => {
+    if (matched[1]) {
+      const expecting = "Property Access, Slice, Array, Number or Symbol";
+      wrongTokenError(expecting, tokens, offset, context);
+    }
+  })
+  .ignore(spaces, newline)
+  .onMatch((result) => {
+    const lhs = detokenize(result[0]);
+    const rhs = detokenize(result[2]);
+    const op = detokenize(result[1]);
+    return new SourceNode(
+      op.line,
+      op.column,
+      op.source,
+      arr`${rhs}.includes(${lhs})`
+    );
+  });
+
 Rules.cmp = once(() => [
   any(
+    Rules.functionCall,
     Rules.math,
     Rules.slice,
     Rules.propertyAccess,
@@ -978,6 +1025,7 @@ Rules.cmp = once(() => [
   many(
     any(lte, gte, gt, lt, eq, neq),
     any(
+      Rules.functionCall,
       Rules.math,
       Rules.slice,
       Rules.propertyAccess,
@@ -1321,6 +1369,7 @@ Rules.anonymousFn = once(() => [
   symbol,
   colon,
   any(
+    Rules.logical,
     Rules.hash,
     Rules.functionCall,
     Rules.cmp,
@@ -1329,7 +1378,6 @@ Rules.anonymousFn = once(() => [
     Rules.range,
     Rules.array,
     Rules.wrapped,
-    Rules.logical,
     Rules.propertyAccess
   ),
 ])
@@ -1867,6 +1915,7 @@ Rules.string = any(
 Rules.block = once(() => [
   many(
     any(
+      Rules.in,
       Rules.fn,
       Rules.chain,
       Rules.functionCall,
@@ -1929,6 +1978,7 @@ Rules.wrapped = once(() => [
   lParen,
   option(
     any(
+      Rules.in,
       Rules.conditional,
       Rules.anonymousFn,
       Rules.hash,
@@ -2187,6 +2237,7 @@ Rules.import = once(any(Rules.indentImport, Rules.inlineImport))
 Rules.conditional = once(
   If,
   any(
+    Rules.in,
     Rules.logical,
     Rules.cmp,
     Rules.slice,
@@ -2197,6 +2248,7 @@ Rules.conditional = once(
   colon,
   any(
     once(indent, Rules.block, outdent).ignore(spaces, newline),
+    Rules.in,
     Rules.chain,
     Rules.functionCall,
     Rules.math,
@@ -2580,11 +2632,16 @@ Rules.clio = once(
 });
 
 const compile = (src, file) => {
-  const tokens = tokenize(src, file);
-  const parsed = Rules.clio.satisfies(tokens, 0, { src, tokens });
-  const { map, code } = parsed.result.toStringWithSourceMap();
-  map.setSourceContent(file, src);
-  return { code, map: map.toString() };
+  try {
+    const tokens = tokenize(src, file);
+    const parsed = Rules.clio.satisfies(tokens, 0, { src, tokens });
+    const { map, code } = parsed.result.toStringWithSourceMap();
+    map.setSourceContent(file, src);
+    return { code, map: map.toString() };
+  } catch (error) {
+    console.trace(error);
+    throw error;
+  }
 };
 
 module.exports.tokenize = tokenize;
