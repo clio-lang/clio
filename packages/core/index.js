@@ -77,11 +77,11 @@ class Token {
 
 const token = (...args) => new Token(...args);
 
-const fn = token("Fn", /^fn(?=\s|$)/);
-const Await = token("Await", /^await(?=\s|$|\[|\])/);
+const fn = token("Fn", /^fn(?=[\s:\.|(){}[\]'"])/);
+const Await = token("Await", /^await(?=[\s:\.|(){}[\]'"])/);
 const pike = token("Pike", /^\|/);
-const If = token("If", /^if(?=\s|$|\[|\])/);
-const Else = token("Else", /^else(?=\s|$|\[|\])/);
+const If = token("If", /^if(?=[\s:\.|(){}[\]'"])/);
+const Else = token("Else", /^else(?=[\s:\.|(){}[\]'"])/);
 const string = token("String", /(^"([^"]|\\.)*?")|(^'([^']|\\.)*?')/);
 const backtick = token("Backtick", /^`/);
 const colon = token("Colon", /^:/);
@@ -92,11 +92,11 @@ const lBracket = token("Opening Bracket", /^\[/);
 const rBracket = token("Closing Bracket", /^\]/);
 const lParen = token("Opening Parenthesis", /^\(/);
 const rParen = token("Closing Parenthesis", /^\)/);
-const hash = token("Hash", /^(hash(?=\s|$|\[|\]))|^#/);
-const Export = token("Export", /^export(?=\s|$|\[|\])/);
-const Import = token("Import", /^import(?=\s|$|\[|\])/);
-const from = token("From", /^from(?=\s|$|\[|\])/);
-const as = token("As", /^as(?=\s|$|\[|\])/);
+const hash = token("Hash", /^(hash(?=[\s:\.|(){}[\]'"]))|^#/);
+const Export = token("Export", /^export(?=[\s:\.|(){}[\]'"])/);
+const Import = token("Import", /^import(?=[\s:\.|(){}[\]'"])/);
+const from = token("From", /^from(?=[\s:\.|(){}[\]'"])/);
+const as = token("As", /^as(?=[\s:\.|(){}[\]'"])/);
 const number = token("Number", /^[+-]?\d+/);
 const pow = token("Power", /^\*\*/);
 const mod = token("Module", /^%/);
@@ -112,10 +112,10 @@ const lte = token("Lower Or Equal", /^<=/);
 const lt = token("Lower", /^</);
 const neq = token("Not Equal", /^!=/);
 const eq = token("Equal", /^=/);
-const and = token("And", /^and(?=\s|$|\[|\])/);
-const or = token("Or", /^or(?=\s|$|\[|\])/);
-const not = token("Not", /^not(?=\s|$|\[|\])/);
-const In = token("In", /^in(?=\s|$|\[|\])/);
+const and = token("And", /^and(?=[\s:\.|(){}[\]'"])/);
+const or = token("Or", /^or(?=[\s:\.|(){}[\]'"])/);
+const not = token("Not", /^not(?=[\s:\.|(){}[\]'"])/);
+const In = token("In", /^in(?=[\s:\.|(){}[\]'"])/);
 const spaces = token("Spaces", /^ +/);
 const newline = token("Newline", /^\n|\r\n?/);
 const indent = token("Indent");
@@ -749,7 +749,7 @@ Rules.mul = once(() => [
           op.line,
           op.column,
           op.source,
-          arr`Math.floor(${mul} // ${value})`
+          arr`Math.floor(${mul} / ${value})`
         );
       else
         mul = new SourceNode(
@@ -814,13 +814,11 @@ Rules.add = once(() => [
 Rules.not = once(() => [
   not,
   any(
+    Rules.not,
     Rules.functionCall,
     Rules.in,
     Rules.functionCall,
     Rules.cmp,
-    Rules.and,
-    Rules.not,
-    Rules.or,
     Rules.wrapped,
     Rules.range,
     Rules.pow,
@@ -829,7 +827,9 @@ Rules.not = once(() => [
     Rules.propertyAccess,
     Rules.string,
     number,
-    symbol
+    symbol,
+    Rules.and,
+    Rules.or
   ),
 ])
   .ignore(spaces, newline, indent, outdent)
@@ -912,8 +912,8 @@ Rules.or = once(() => [
   any(
     Rules.functionCall,
     Rules.in,
-    Rules.not,
     Rules.and,
+    Rules.not,
     Rules.cmp,
     Rules.wrapped,
     Rules.range,
@@ -930,8 +930,8 @@ Rules.or = once(() => [
     any(
       Rules.functionCall,
       Rules.in,
-      Rules.not,
       Rules.and,
+      Rules.not,
       Rules.cmp,
       Rules.wrapped,
       Rules.range,
@@ -2158,19 +2158,20 @@ Rules.inlineImport = once(
       op.line,
       op.column,
       op.source,
-      arr`${imported} = await require("${rawPath}.clio").__clioModule(clio)`
+      arr`await require("${rawPath}.clio").__clioModule(clio)`
     );
     const jsRequire = new SourceNode(
       op.line,
       op.column,
       op.source,
-      arr`${imported} = require(${importPath})`
+      arr`require(${importPath})`
     );
     const importStatement = new SourceNode(
       op.line,
       op.column,
       op.source,
-      arr`let ${imported}; try { ${clioExtRequire} } catch (err) { ${jsRequire} }`
+      arr`try { ${clioExtRequire} } catch (err) { ${jsRequire} };
+      const ${imported} = await (async () => { try { return ${clioExtRequire} } catch (err) { return ${jsRequire} }})();`
     );
     return importStatement;
   });
@@ -2256,6 +2257,7 @@ Rules.conditional = once(
     Rules.array,
     Rules.range,
     Rules.string,
+    Rules.hash,
     symbol,
     number
   ),
@@ -2283,6 +2285,7 @@ Rules.conditional = once(
             Rules.array,
             Rules.range,
             Rules.string,
+            Rules.hash,
             symbol,
             number
           )
@@ -2309,6 +2312,7 @@ Rules.conditional = once(
             once(indent, Rules.block, outdent).ignore(spaces, newline),
             Rules.chain,
             Rules.functionCall,
+            Rules.hash,
             Rules.math,
             Rules.wrapped,
             Rules.array,
