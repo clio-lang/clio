@@ -10,6 +10,7 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
+    "clio-core": "^0.2.3",
     "vscode-languageserver": "^7.0.0",
     "vscode-languageserver-textdocument": "^1.0.1"
   }
