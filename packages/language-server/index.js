@@ -4,7 +4,7 @@ const ls = require("vscode-languageserver/node");
 const doc = require("vscode-languageserver-textdocument");
 const url = require("url");
 const util = require("util");
-const { parse } = require("clio-core");
+const { parse, tokenize } = require("clio-core");
 
 const DEBUG_MODE = false;
 
@@ -29,14 +29,14 @@ function traceLineToDiagnostic(traceLine) {
 function updateParse(uri, source) {
   connection.console.info(`Parsing ${uri}...`);
   const diagnostics = [];
-  let result = null;
-
   try {
-    const result = parse(source, url.fileURLToPath(uri));
+    const tokens = tokenize(source, url.fileURLToPath(uri));
+    const parsed = parse(source, tokens);
+    const result = { tokens, parsed };
     parses[uri] = result;
 
-    if (result.traceback) {
-      const traceLines = result.traceback.split("\n");
+    if (parsed.traceback) {
+      const traceLines = parsed.traceback.split("\n");
       const trace = traceLineToDiagnostic(traceLines[traceLines.length - 1]);
       if (trace) {
         diagnostics.push(trace);
@@ -48,7 +48,6 @@ function updateParse(uri, source) {
     }
   } catch (e) {
     if (e.message) {
-      connection.console.log(e.message);
       const trace = traceLineToDiagnostic(e.message);
       if (trace) {
         diagnostics.push(trace);
