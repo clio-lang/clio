@@ -6,16 +6,37 @@ const url = require("url");
 const util = require("util");
 const { parse } = require("clio-core");
 
+const DEBUG_MODE = false;
+
 const connection = ls.createConnection(ls.ProposedFeatures.all);
 const documents = new ls.TextDocuments(doc.TextDocument);
 
 const parses = new Map();
 
-function updateParse(ev) {
-  connection.console.info(`Parsing ${ev.document.uri}...`);
-  const parsed = parse(ev.document.getText(), url.fileURLToPath(ev.document.uri));
-  parses[ev.document.uri] = parsed;
-  connection.console.log(util.inspect(parsed));
+function updateParse(uri, source) {
+  connection.console.info(`Parsing ${uri}...`);
+  let result = parse(source, url.fileURLToPath(uri));
+  let diagnostics = [];
+
+  if (result.traceback) {
+    const traceLines = result.traceback.split("\n");
+    const tracePattern = /Expecting\s+\S+\s+at\s+(\d+):(\d+).*/;
+    const lastTrace = tracePattern.exec(traceLines[traceLines.length - 1]);
+    if (lastTrace) {
+      const [traceMsg, rawLine, rawColumn] = lastTrace;
+      const pos = { line: parseInt(rawLine, 10), character: parseInt(rawColumn, 10) };
+      const range = { start: pos, end: { ...pos, character: 512 } }; // The end character is just an arbitrary large number
+      diagnostics.push(ls.Diagnostic.create(range, traceMsg, ls.DiagnosticSeverity.Error));
+    }
+  }
+
+  parses[uri] = result;
+
+  connection.sendDiagnostics({ uri, diagnostics });
+
+  if (DEBUG_MODE) {
+    connection.console.log(util.inspect(result));
+  }
 }
 
 function findSourceNodeAtPos(node, line, column) {
@@ -36,11 +57,11 @@ function findSourceNodeAtPos(node, line, column) {
 }
 
 documents.onDidOpen(ev => {
-  updateParse(ev);
+  updateParse(ev.document.uri, ev.document.getText());
 });
 
 documents.onDidChangeContent(ev => {
-  updateParse(ev);
+  updateParse(ev.document.uri, ev.document.getText());
 });
 
 documents.onDidClose(ev => {
