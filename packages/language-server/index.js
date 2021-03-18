@@ -11,10 +11,12 @@ const documents = new ls.TextDocuments(doc.TextDocument);
 const parses = new Map();
 
 documents.onDidOpen(ev => {
+  connection.console.info(`Parsing ${ev.document.uri}...`);
   parses[ev.document.uri] = parse(ev.document.getText(), url.fileURLToPath(ev.document.uri));
 });
 
 documents.onDidChangeContent(ev => {
+  connection.console.info(`Re-parsing ${ev.document.uri}...`);
   parses[ev.document.uri] = parse(ev.document.getText(), url.fileURLToPath(ev.document.uri));
 });
 
@@ -23,6 +25,7 @@ documents.onDidClose(ev => {
 });
 
 connection.onInitialize(params => {
+  connection.console.info("Initializing Clio language server")
   return {
     capabilities: {
       textDocumentSync: ls.TextDocumentSyncKind.Incremental,
