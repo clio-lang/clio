@@ -13,30 +13,50 @@ const documents = new ls.TextDocuments(doc.TextDocument);
 
 const parses = new Map();
 
+function traceLineToDiagnostic(traceLine) {
+  const tracePattern = /Expecting\s+\S+\s+at\s+(\d+):(\d+).*/;
+  const trace = tracePattern.exec(traceLine);
+  if (trace) {
+    const [traceMsg, rawLine, rawColumn] = trace;
+    const pos = { line: parseInt(rawLine, 10), character: parseInt(rawColumn, 10) };
+    const range = { start: pos, end: { ...pos, character: 512 } }; // The end character is just an arbitrary large number
+    return ls.Diagnostic.create(range, traceMsg, ls.DiagnosticSeverity.Error);
+  } else {
+    return null;
+  }
+}
+
 function updateParse(uri, source) {
   connection.console.info(`Parsing ${uri}...`);
-  let result = parse(source, url.fileURLToPath(uri));
-  let diagnostics = [];
+  const diagnostics = [];
+  let result = null;
 
-  if (result.traceback) {
-    const traceLines = result.traceback.split("\n");
-    const tracePattern = /Expecting\s+\S+\s+at\s+(\d+):(\d+).*/;
-    const lastTrace = tracePattern.exec(traceLines[traceLines.length - 1]);
-    if (lastTrace) {
-      const [traceMsg, rawLine, rawColumn] = lastTrace;
-      const pos = { line: parseInt(rawLine, 10), character: parseInt(rawColumn, 10) };
-      const range = { start: pos, end: { ...pos, character: 512 } }; // The end character is just an arbitrary large number
-      diagnostics.push(ls.Diagnostic.create(range, traceMsg, ls.DiagnosticSeverity.Error));
+  try {
+    const result = parse(source, url.fileURLToPath(uri));
+    parses[uri] = result;
+
+    if (result.traceback) {
+      const traceLines = result.traceback.split("\n");
+      const trace = traceLineToDiagnostic(traceLines[traceLines.length - 1]);
+      if (trace) {
+        diagnostics.push(trace);
+      }
+    }
+
+    if (DEBUG_MODE) {
+      connection.console.log(util.inspect(result));
+    }
+  } catch (e) {
+    if (e.message) {
+      connection.console.log(e.message);
+      const trace = traceLineToDiagnostic(e.message);
+      if (trace) {
+        diagnostics.push(trace);
+      }
     }
   }
 
-  parses[uri] = result;
-
   connection.sendDiagnostics({ uri, diagnostics });
-
-  if (DEBUG_MODE) {
-    connection.console.log(util.inspect(result));
-  }
 }
 
 function findSourceNodeAtPos(node, line, column) {
