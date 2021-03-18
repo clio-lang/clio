@@ -98,12 +98,24 @@ connection.onInitialize(params => {
 });
 
 connection.onCompletion(params => {
-  return [
-    {
-      label: "Test",
-      kind: ls.CompletionItemKind.Method
-    }
-  ];
+  const keywordCompletions = ["hash", "fn", "parallel", "and", "or", "not", "if", "else", "await", "import", "export", "from", "as"]
+    .map(kw => ({
+      label: kw,
+      kind: ls.CompletionItemKind.Keyword
+    }));
+
+  const stored = parses[params.textDocument.uri];
+  let functionCompletions = [];
+  if (stored) {
+    const symbols = [...new Set(stored.tokens.filter(tok => tok.name === "Symbol").map(tok => tok.raw))];
+    functionCompletions = symbols
+      .map(raw => ({
+        label: raw,
+        kind: ls.CompletionItemKind.Function
+      }));
+  }
+
+  return [...keywordCompletions, ...functionCompletions]
 });
 
 documents.listen(connection);
