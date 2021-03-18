@@ -2498,15 +2498,21 @@ Rules.clio = once(
   return outerNode;
 });
 
-const compile = (src, file) => {
+const parse = (src, file) => {
   const tokens = tokenize(src, file);
   const parsed = Rules.clio.satisfies(tokens, 0, { src, tokens });
+  return parsed;
+}
+
+const compile = (src, file) => {
+  const parsed = parse(src, file);
   const { map, code } = parsed.result.toStringWithSourceMap();
   map.setSourceContent(file, src);
   return { code, map: map.toString() };
 };
 
 module.exports.tokenize = tokenize;
+module.exports.parse = parse;
 module.exports.compile = compile;
 
 /* TODO
