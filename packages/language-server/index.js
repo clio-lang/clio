@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 const ls = require("vscode-languageserver/node");
 const doc = require("vscode-languageserver-textdocument");
 
