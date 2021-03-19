@@ -18,7 +18,10 @@ function traceLineToDiagnostic(traceLine) {
   const trace = tracePattern.exec(traceLine);
   if (trace) {
     const [traceMsg, rawLine, rawColumn] = trace;
-    const pos = { line: parseInt(rawLine, 10), character: parseInt(rawColumn, 10) };
+    const pos = {
+      line: parseInt(rawLine, 10),
+      character: parseInt(rawColumn, 10),
+    };
     const range = { start: pos, end: { ...pos, character: 512 } }; // The end character is just an arbitrary large number
     return ls.Diagnostic.create(range, traceMsg, ls.DiagnosticSeverity.Error);
   } else {
@@ -68,54 +71,76 @@ function findSourceNodeAtPos(node, line, column) {
     }
   }
 
-  if (line === node.line && column >= node.column && column < (node.column + node.source)) {
+  if (
+    line === node.line &&
+    column >= node.column &&
+    column < node.column + node.source
+  ) {
     return node;
   } else {
     return null;
   }
 }
 
-documents.onDidOpen(ev => {
+documents.onDidOpen((ev) => {
   updateParse(ev.document.uri, ev.document.getText());
 });
 
-documents.onDidChangeContent(ev => {
+documents.onDidChangeContent((ev) => {
   updateParse(ev.document.uri, ev.document.getText());
 });
 
-documents.onDidClose(ev => {
+documents.onDidClose((ev) => {
   parses.delete(ev.document.uri);
 });
 
-connection.onInitialize(params => {
-  connection.console.info("Initializing Clio language server")
+connection.onInitialize((params) => {
+  connection.console.info("Initializing Clio language server");
   return {
     capabilities: {
       textDocumentSync: ls.TextDocumentSyncKind.Incremental,
-      completionProvider: {}
-    }
+      completionProvider: {},
+    },
   };
 });
 
-connection.onCompletion(params => {
-  const keywordCompletions = ["hash", "fn", "parallel", "and", "or", "not", "if", "else", "await", "import", "export", "from", "as"]
-    .map(kw => ({
-      label: kw,
-      kind: ls.CompletionItemKind.Keyword
-    }));
+connection.onCompletion((params) => {
+  const keywordCompletions = [
+    "hash",
+    "fn",
+    "parallel",
+    "and",
+    "or",
+    "not",
+    "if",
+    "else",
+    "await",
+    "import",
+    "export",
+    "from",
+    "as",
+  ].map((kw) => ({
+    label: kw,
+    kind: ls.CompletionItemKind.Keyword,
+  }));
 
   const stored = parses[params.textDocument.uri];
   let functionCompletions = [];
   if (stored) {
-    const symbols = [...new Set(stored.tokens.filter(tok => tok.name === "Symbol").map(tok => tok.raw))];
-    functionCompletions = symbols
-      .map(raw => ({
-        label: raw,
-        kind: ls.CompletionItemKind.Function
-      }));
+    const symbols = [
+      ...new Set(
+        stored.tokens
+          .filter((tok) => tok.name === "Symbol")
+          .map((tok) => tok.raw)
+      ),
+    ];
+    functionCompletions = symbols.map((raw) => ({
+      label: raw,
+      kind: ls.CompletionItemKind.Function,
+    }));
   }
 
-  return [...keywordCompletions, ...functionCompletions]
+  return [...keywordCompletions, ...functionCompletions];
 });
 
 documents.listen(connection);
