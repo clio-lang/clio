@@ -61,27 +61,6 @@ function updateParse(uri, source) {
   connection.sendDiagnostics({ uri, diagnostics });
 }
 
-function findSourceNodeAtPos(node, line, column) {
-  if (node.children) {
-    for (const child of node.children) {
-      const found = findSourceNodeAtPos(child, line, column);
-      if (found) {
-        return found;
-      }
-    }
-  }
-
-  if (
-    line === node.line &&
-    column >= node.column &&
-    column < node.column + node.source
-  ) {
-    return node;
-  } else {
-    return null;
-  }
-}
-
 documents.onDidOpen((ev) => {
   updateParse(ev.document.uri, ev.document.getText());
 });
@@ -94,7 +73,7 @@ documents.onDidClose((ev) => {
   parses.delete(ev.document.uri);
 });
 
-connection.onInitialize((params) => {
+connection.onInitialize(() => {
   connection.console.info("Initializing Clio language server");
   return {
     capabilities: {
