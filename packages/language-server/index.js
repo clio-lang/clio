@@ -79,6 +79,7 @@ connection.onInitialize(() => {
     capabilities: {
       textDocumentSync: ls.TextDocumentSyncKind.Incremental,
       completionProvider: {},
+      hoverProvider: true,
     },
   };
 });
@@ -120,6 +121,31 @@ connection.onCompletion((params) => {
   }
 
   return [...keywordCompletions, ...functionCompletions];
+});
+
+connection.onHover((params) => {
+  const pos = params.position;
+  const stored = parses[params.textDocument.uri];
+  if (!stored) return null;
+
+  const token = stored.tokens.find(
+    (tok) =>
+      tok.line - 1 === pos.line &&
+      pos.character >= tok.column &&
+      pos.character < tok.column + tok.raw.length
+  );
+  if (!token) return null;
+
+  return {
+    contents: {
+      kind: ls.MarkupKind.PlainText,
+      value: token.name,
+    },
+    range: {
+      start: { line: token.line - 1, character: token.column },
+      end: { line: token.line - 1, character: token.column + token.raw.length },
+    },
+  };
 });
 
 documents.listen(connection);
