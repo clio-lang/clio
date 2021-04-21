@@ -225,6 +225,11 @@ testStr(
   "2 + 2 => four -> double",
   "const four=2+2;double(four)"
 );
+testStr(
+  "Flow (Property Assignment)",
+  "2 + 2 => values.four -> double",
+  "values.four=2+2;double(values.four)"
+);
 testStr("Flow (Quick Fn)", "a -> (@a > 2)", "((a)=>((a>2)))(a)");
 testStr("Flow (Map)", "[1 2 3] -> * double", "[1,2,3].map(double)");
 testStr("Flow (Chain)", "a -> double -> print", "print(double(a))");

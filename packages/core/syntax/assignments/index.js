@@ -4,11 +4,11 @@ const { expressions, wrap, values } = require("../common");
 
 module.exports = {
   // Assignment
-  symbol: {
+  ...map(["symbol", "propertyAccess", "slice"], {
     assign: wrap((lhs, rhs) => {
-      return { type: "assignOpen", name: types.get(lhs), assign: rhs };
+      return { type: "assignOpen", name: lhs, assign: rhs };
     }),
-  },
+  }),
   assignOpen: {
     ...map(
       [...values, ...expressions],

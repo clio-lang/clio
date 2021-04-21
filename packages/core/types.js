@@ -285,7 +285,7 @@ const types = {
       node.export.line,
       node.export.column,
       node.export.file,
-      ["clio.exports.", node.name, "=", node.name]
+      ["clio.exports.", get(node.name), "=", get(node.name)]
     );
     sn.insertBefore = [value.insertBefore, value].filter(Boolean);
     return sn;
@@ -648,11 +648,11 @@ const types = {
     return sn;
   },
   assignment(node) {
+    const name = get(node.name);
     const value = checkLambda(node.value, node.value);
     const sn = new SourceNode(null, null, null, [
-      "const",
-      " ",
-      node.name,
+      ...(node.name.type == "symbol" ? ["const", " "] : []),
+      name,
       asIs(node.assign),
       value,
     ]);
@@ -661,10 +661,10 @@ const types = {
     return sn;
   },
   arrowAssignment(node) {
+    const name = get(node.name);
     const insertBefore = new SourceNode(null, null, null, [
-      "const",
-      " ",
-      node.name,
+      ...(node.name.type == "symbol" ? ["const", " "] : []),
+      name,
       new SourceNode(node.arrow.line, node.arrow.column, node.arrow.file, "="),
       node.value,
     ]);
@@ -674,9 +674,9 @@ const types = {
       null,
       [node.value.insertBefore, insertBefore].filter(Boolean)
     ).join(";");
-    node.name.insertBefore = insertBefores;
-    node.name.needsAsync = node.value.needsAsync;
-    return node.name;
+    name.insertBefore = insertBefores;
+    name.needsAsync = node.value.needsAsync;
+    return name;
   },
   parameter(node) {
     return new SourceNode(

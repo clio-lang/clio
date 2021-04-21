@@ -15,11 +15,14 @@ module.exports = {
     }, 0.5),
   }),
   fatArrowOpen: {
-    symbol: wrap((lhs, rhs) => {
-      lhs.type = "arrowAssignment";
-      lhs.name = types.get(rhs);
-      return lhs;
-    }, 0.5),
+    ...map(
+      ["symbol", "propertyAccess", "slice"],
+      wrap((lhs, rhs) => {
+        lhs.type = "arrowAssignment";
+        lhs.name = rhs;
+        return lhs;
+      }, 0.5)
+    ),
   },
   arrowAssignment: {
     ...ignore("lineBreak"),
