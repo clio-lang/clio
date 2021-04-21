@@ -107,7 +107,7 @@ const run = async (module, { worker, executor }, { noMain = false } = {}) => {
     tco,
   };
   getImport(clio);
-  const { main } = await module.__clioModule(clio);
+  const { main } = await module.exports(clio);
   const argv = typeof process != undefined ? process.argv : [];
   if (!worker && !noMain) {
     const result = await main(argv);

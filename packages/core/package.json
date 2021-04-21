@@ -9,7 +9,8 @@
   "author": "Pouya Eghbali <pouya.eghbali@yandex.com>",
   "license": "Apache-2.0",
   "dependencies": {
-    "source-map": "^0.7.3"
+    "source-map": "^0.7.3",
+    "bean-parser": "2.0.0"
   },
   "devDependencies": {
     "clio-run": "^0.1.4"
