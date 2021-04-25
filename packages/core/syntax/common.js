@@ -39,6 +39,7 @@ const values = [
   "true",
   "false",
   "inCheck",
+  "group",
 ];
 const arrayLike = ["array", "symbol", "propertyAccess", "slice"];
 const expressions = [
@@ -60,6 +61,69 @@ const topLevels = [
   "imported",
 ];
 
+const lexerTokens = [
+  "if",
+  "else",
+  "fn",
+  "await",
+  "import",
+  "as",
+  "from",
+  "export",
+  "and",
+  "or",
+  "not",
+  "by",
+  "in",
+  "number",
+  "fmtStart",
+  "fmtEnd",
+  "strEscape",
+  "fmtExprStart",
+  "ender",
+  "fmtExprEnd",
+  "fmtStr",
+  "format",
+  "string",
+  "comment",
+  "outdent",
+  "indent",
+  "space",
+  "awaitAll",
+  "symbol",
+  "parameter",
+  "format",
+  "slicer",
+  "hash",
+  "ranger",
+  "dot",
+  "pike",
+  "lCurly",
+  "rCurly",
+  "lSquare",
+  "rSquare",
+  "lParen",
+  "ender",
+  "rParen",
+  "colon",
+  "arrow",
+  "subOp",
+  "addOp",
+  "gte",
+  "gt",
+  "lte",
+  "lt",
+  "fatArrow",
+  "assign",
+  "divOp",
+  "modOp",
+  "powOp",
+  "mulOp",
+  "lineBreak",
+  "groupOpen",
+  "groupClose",
+];
+
 module.exports.topLevels = topLevels;
 module.exports.controls = controls;
 module.exports.expressions = expressions;
@@ -67,3 +131,4 @@ module.exports.arrayLike = arrayLike;
 module.exports.wrap = wrap;
 module.exports.ranges = ranges;
 module.exports.values = values;
+module.exports.lexerTokens = lexerTokens;

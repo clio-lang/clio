@@ -219,32 +219,38 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
         token("pike", char, 1);
         break;
       case "{":
+        token("groupStart", "", 0);
         token("lCurly", char, 1);
         curlies++;
         break;
       case "}":
         token("rCurly", char, 1);
+        token("groupEnd", "", 0);
         curlies--;
         if (curlies < 0) throw new Error("Unbalanced curly braces");
         break;
       case "[":
         if (!awaitAll()) {
+          token("groupStart", "", 0);
           token("lSquare", char, 1);
           squares++;
         }
         break;
       case "]":
         token("rSquare", char, 1);
+        token("groupEnd", "", 0);
         squares--;
         if (squares < 0) throw new Error("Unbalanced square braces");
         break;
       case "(":
+        token("groupStart", "", 0);
         token("lParen", char, 1);
         parens++;
         break;
       case ")":
         token("ender", "", 0);
         token("rParen", char, 1);
+        token("groupEnd", "", 0);
         parens--;
         if (parens < 0) throw new Error("Unbalanced parentheses");
         break;

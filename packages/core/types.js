@@ -1,5 +1,6 @@
-const { mapfn, map } = require("bean-parser");
+const { mapfn, map, bean } = require("bean-parser");
 const { SourceNode } = require("source-map");
+const rules = require("./rules");
 
 const join = (arr, sep) => new SourceNode(null, null, null, arr).join(sep);
 const asIs = (token) =>
@@ -231,28 +232,11 @@ const types = {
   function(node) {
     const { start, name, params, body } = node;
     const man = node.man ? [`;`, name, ".__man__=`", asIs(node.man), "`"] : [];
-    const parallel = node.noParallel
-      ? []
-      : [
-          ";",
-          "distributed.set(`",
-          start.file,
-          "/",
-          name,
-          "`,",
-          name,
-          ")",
-          ";",
-          name,
-          ".parallel=distributed.get(`",
-          start.file,
-          "/",
-          name,
-          "`)",
-        ];
     const sn = new SourceNode(start.line, start.column, start.file, [
       ...(name ? ["const ", name, "="] : []),
-      "tco(",
+      ...(name ? ["register"] : []),
+      "(",
+      ...(name ? ["`", start.file, "/", name, "`,"] : []),
       node.body.needsAsync ? "async" : "",
       "(",
       new SourceNode(null, null, null, params).join(","),
@@ -261,7 +245,6 @@ const types = {
       body,
       "})",
       ...man,
-      ...parallel,
     ]);
     sn.needsAsync = false;
     sn.returnAs = new SourceNode(null, null, null, name);
@@ -688,7 +671,7 @@ const types = {
   },
   inCheck(node) {
     return new SourceNode(node.start.line, node.start.column, node.start.file, [
-      "inCheck(",
+      "includes(",
       get(node.lhs),
       ",",
       get(node.rhs),
@@ -721,7 +704,7 @@ const types = {
       .filter(Boolean);
     const inner = new SourceNode(null, null, null, content).join(";");
     return new SourceNode(null, null, null, [
-      "module.exports.exports=async(clio)=>{const{tco,range,man,inCheck,slice,f,distributed}=clio;",
+      "module.exports.exports=async(clio)=>{const{emitter,channel,range,slice,remote,register,man,includes,f}=clio;",
       inner,
       ";return clio.exports}",
     ]);

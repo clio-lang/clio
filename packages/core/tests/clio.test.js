@@ -5,7 +5,7 @@ const testStr = (name, src, expected, file = "<mem>") => {
   return test(name, () => {
     const { code } = compile(src, file);
     expected =
-      "module.exports.exports=async(clio)=>{const{tco,range,man,inCheck,slice,f,distributed}=clio;" +
+      "module.exports.exports=async(clio)=>{const{emitter,channel,range,slice,remote,register,man,includes,f}=clio;" +
       expected +
       ";return clio.exports}";
     expect(code).toBe(expected);
@@ -117,55 +117,55 @@ testStr("Not (Chained)", "not a > b and not b < c", "(!((a>b)))&&(!((b<c)))");
 testStr(
   "Functions",
   "fn add a b:\n  a + b",
-  "const add=tco((a,b)=>{return a+b});distributed.set(`<mem>/add`,add);add.parallel=distributed.get(`<mem>/add`)"
+  "const add=register(`<mem>/add`,(a,b)=>{return a+b})"
 );
 testStr(
   "Functions (With Man)",
   "-- Adds a and b!\nfn add a b:\n  a + b",
-  "const add=tco((a,b)=>{return a+b});add.__man__=`-- Adds a and b!`;distributed.set(`<mem>/add`,add);add.parallel=distributed.get(`<mem>/add`)"
+  "const add=register(`<mem>/add`,(a,b)=>{return a+b});add.__man__=`-- Adds a and b!`"
 );
 testStr(
   "Functions (With Block Man)",
   "+- Adds a and b!-+\nfn add a b:\n  a + b",
-  "const add=tco((a,b)=>{return a+b});add.__man__=`+- Adds a and b!-+`;distributed.set(`<mem>/add`,add);add.parallel=distributed.get(`<mem>/add`)"
+  "const add=register(`<mem>/add`,(a,b)=>{return a+b});add.__man__=`+- Adds a and b!-+`"
 );
 testStr(
   "Functions (With Nested Block Man)",
   "+- Adds +- a -+ and b!-+\nfn add a b:\n  a + b",
-  "const add=tco((a,b)=>{return a+b});add.__man__=`+- Adds +- a -+ and b!-+`;distributed.set(`<mem>/add`,add);add.parallel=distributed.get(`<mem>/add`)"
+  "const add=register(`<mem>/add`,(a,b)=>{return a+b});add.__man__=`+- Adds +- a -+ and b!-+`"
 );
 testStr(
   "Functions (Expression)",
   "fn add a b: a + b",
-  "const add=tco((a,b)=>{return a+b});distributed.set(`<mem>/add`,add);add.parallel=distributed.get(`<mem>/add`)"
+  "const add=register(`<mem>/add`,(a,b)=>{return a+b})"
 );
 testStr(
   "Functions (Return Assignment)",
   "fn add a b:\n  c = a + b",
-  "const add=tco((a,b)=>{const c=a+b;return c});distributed.set(`<mem>/add`,add);add.parallel=distributed.get(`<mem>/add`)"
+  "const add=register(`<mem>/add`,(a,b)=>{const c=a+b;return c})"
 );
 testStr(
   "Functions (Return Flow Assignment)",
   "fn add a b:\n  a + b => c",
-  "const add=tco((a,b)=>{const c=a+b;return c});distributed.set(`<mem>/add`,add);add.parallel=distributed.get(`<mem>/add`)"
+  "const add=register(`<mem>/add`,(a,b)=>{const c=a+b;return c})"
 );
 testStr(
   "Functions (Return Mixed Assignment)",
   "fn add a b:\n  c = a + b => sum -> mul 4",
-  "const add=tco((a,b)=>{const sum=a+b;const c=mul(sum,4);return c});distributed.set(`<mem>/add`,add);add.parallel=distributed.get(`<mem>/add`)"
+  "const add=register(`<mem>/add`,(a,b)=>{const sum=a+b;const c=mul(sum,4);return c})"
 );
 testStr(
   "Functions (Async)",
   `fn test a b:
   await |add| a b`,
-  "const test=tco(async(a,b)=>{return (await add.parallel(a,b))});distributed.set(`<mem>/test`,test);test.parallel=distributed.get(`<mem>/test`)"
+  "const test=register(`<mem>/test`,async(a,b)=>{return (await add.parallel(a,b))})"
 );
 testStr(
   "Functions (Nested Async)",
   `fn outer x:
   fn inner a b:
   await |add| a b`,
-  "const outer=tco((x)=>{const inner=tco(async(a,b)=>{return (await add.parallel(a,b))});distributed.set(`<mem>/inner`,inner);inner.parallel=distributed.get(`<mem>/inner`);return inner});distributed.set(`<mem>/outer`,outer);outer.parallel=distributed.get(`<mem>/outer`)"
+  "const outer=register(`<mem>/outer`,(x)=>{const inner=register(`<mem>/inner`,async(a,b)=>{return (await add.parallel(a,b))});return inner})"
 );
 testStr("Map", "a -> * double", "a.map(double)");
 testStr(
@@ -178,18 +178,18 @@ testStr(
   "a -> * add (4 => x)",
   "const x=4;a.map(($item, $index, $iterator)=>add($item,(x),$index,$iterator))"
 );
-testStr("In", "2 in {1 2 3}", "inCheck(2,new Set([1,2,3]))");
+testStr("In", "2 in {1 2 3}", "includes(2,new Set([1,2,3]))");
 testStr(
   "In (Wrapped)",
   "4 in ([1 2 3] -> * double)",
-  "inCheck(4,([1,2,3].map(double)))"
+  "includes(4,([1,2,3].map(double)))"
 );
-testStr("In (Hash)", "key in # key value", "inCheck(key,{key:value})");
+testStr("In (Hash)", "key in # key value", "includes(key,{key:value})");
 testStr("Conditionals", "if a > b:\n  c", "if((a>b)){c}");
 testStr(
   "Conditionals (If In)",
   "if key in # key value: console.log true",
-  "if(inCheck(key,{key:value})){console.log(true)}"
+  "if(includes(key,{key:value})){console.log(true)}"
 );
 testStr("Conditionals (Value Term)", "if a:\n  c", "if(a){c}");
 testStr(
@@ -210,12 +210,12 @@ testStr(
 testStr(
   "Conditionals (return)",
   "fn testStr a b:\n  if a > b:\n    c\n  else if a == b:\n    d\n  else:\n    x",
-  "const testStr=tco((a,b)=>{if((a>b)){return c}else if((a==b)){return d}else{return x}});distributed.set(`<mem>/testStr`,testStr);testStr.parallel=distributed.get(`<mem>/testStr`)"
+  "const testStr=register(`<mem>/testStr`,(a,b)=>{if((a>b)){return c}else if((a==b)){return d}else{return x}})"
 );
 testStr(
   "Quick Fn (return)",
   "fn add a:\n  a + @b",
-  "const add=tco((a)=>{return ((b)=>a+b)});distributed.set(`<mem>/add`,add);add.parallel=distributed.get(`<mem>/add`)"
+  "const add=register(`<mem>/add`,(a)=>{return ((b)=>a+b)})"
 );
 testStr("Method Call", ".push b c", "b.push(c)");
 testStr("Flow", "a -> double", "double(a)");
@@ -343,7 +343,7 @@ testStr("Flow (Methods)", "a -> .push b", "a.push(b)");
 testStr(
   "Flow (Method Map)",
   "a -> * .toUpperCase",
-  "a.map((tco(($item)=>{return $item.toUpperCase()})))"
+  "a.map(((($item)=>{return $item.toUpperCase()})))"
 );
 testStr(
   "Flow (Method Map w/Args)",
@@ -356,12 +356,12 @@ testStr("Assignment (Fat Arrow Call)", `double a => b`, "const b=double(a);b");
 testStr(
   "Export (Function)",
   `export fn test a b:\n  add a b`,
-  "const test=tco((a,b)=>{return add(a,b)});distributed.set(`<mem>/test`,test);test.parallel=distributed.get(`<mem>/test`);clio.exports.test=test"
+  "const test=register(`<mem>/test`,(a,b)=>{return add(a,b)});clio.exports.test=test"
 );
 testStr(
   "Export (Function With Man)",
   `-- Adds a and b!\nexport fn test a b:\n  add a b`,
-  "const test=tco((a,b)=>{return add(a,b)});test.__man__=`-- Adds a and b!`;distributed.set(`<mem>/test`,test);test.parallel=distributed.get(`<mem>/test`);clio.exports.test=test"
+  "const test=register(`<mem>/test`,(a,b)=>{return add(a,b)});test.__man__=`-- Adds a and b!`;clio.exports.test=test"
 );
 testStr(
   "Export (Constant)",
@@ -412,39 +412,40 @@ testStr(
   `f"test \n \\{a -> double}"`,
   "f(`test \n `,`{`,`a -> double}`)"
 );
+testStr("Correctly compiles groups", `await filter [a]`, "(await filter([a]))");
 testStr(
   "Ignore \\r",
   "fn add a b:\r\n  a + b",
-  "const add=tco((a,b)=>{return a+b});distributed.set(`<mem>/add`,add);add.parallel=distributed.get(`<mem>/add`)"
+  "const add=register(`<mem>/add`,(a,b)=>{return a+b})"
 );
 testStr(
   "Ignore \\n at start and end of file",
   "\nfn add a b:\r\n  a + b\n",
-  "const add=tco((a,b)=>{return a+b});distributed.set(`<mem>/add`,add);add.parallel=distributed.get(`<mem>/add`)"
+  "const add=register(`<mem>/add`,(a,b)=>{return a+b})"
 );
 testFile(
   "fib",
-  "const fib=tco((n)=>{if((n<=2)){return n}else{return (fib(n-1))+(fib(n-2))}});distributed.set(`fib.clio/fib`,fib);fib.parallel=distributed.get(`fib.clio/fib`)"
+  "const fib=register(`fib.clio/fib`,(n)=>{if((n<=2)){return n}else{return (fib(n-1))+(fib(n-2))}})"
 );
 testFile(
   "fib.parallel",
-  "const fib=tco((n)=>{if((n<2)){return n}else{return (fib(n-1))+(fib(n-2))}});distributed.set(`fib.parallel.clio/fib`,fib);fib.parallel=distributed.get(`fib.parallel.clio/fib`);const main=tco(async(argv)=>{return (await Promise.all([39,40,41,42].map(fib.parallel))).map(((it)=>(console.log(it))))});distributed.set(`fib.parallel.clio/main`,main);main.parallel=distributed.get(`fib.parallel.clio/main`);clio.exports.main=main"
+  "const fib=register(`fib.parallel.clio/fib`,(n)=>{if((n<2)){return n}else{return (fib(n-1))+(fib(n-2))}});const main=register(`fib.parallel.clio/main`,async(argv)=>{return (await Promise.all([39,40,41,42].map(fib.parallel))).map(((it)=>(console.log(it))))});clio.exports.main=main"
 );
 testFile(
   "fizzbuzz",
-  "const fizzbuzz=tco((current,last)=>{const buzz=!(current%5);const fizz=!(current%3);if((fizz)&&(buzz)){console.log(`Fizz Buzz`)}else if(fizz){console.log(`Fizz`)}else if(buzz){console.log(`Buzz`)}else{console.log(current)};if(!((current==last))){return fizzbuzz((current+1),last)}});distributed.set(`fizzbuzz.clio/fizzbuzz`,fizzbuzz);fizzbuzz.parallel=distributed.get(`fizzbuzz.clio/fizzbuzz`)"
+  "const fizzbuzz=register(`fizzbuzz.clio/fizzbuzz`,(current,last)=>{const buzz=!(current%5);const fizz=!(current%3);if((fizz)&&(buzz)){console.log(`Fizz Buzz`)}else if(fizz){console.log(`Fizz`)}else if(buzz){console.log(`Buzz`)}else{console.log(current)};if(!((current==last))){return fizzbuzz((current+1),last)}})"
 );
 testFile(
   "express",
-  'const express=await require("express.clio.js").exports(clio);const hello=tco((req,res)=>{return res.send(`Hello world`)});distributed.set(`express.clio/hello`,hello);hello.parallel=distributed.get(`express.clio/hello`);const setup=tco((app)=>{app.get(`/`,hello);return app.listen(3000)});distributed.set(`express.clio/setup`,setup);setup.parallel=distributed.get(`express.clio/setup`);const main=tco((argv)=>{const setup=express();return setup});distributed.set(`express.clio/main`,main);main.parallel=distributed.get(`express.clio/main`);clio.exports.main=main'
+  'const express=await require("express.clio.js").exports(clio);const hello=register(`express.clio/hello`,(req,res)=>{return res.send(`Hello world`)});const setup=register(`express.clio/setup`,(app)=>{app.get(`/`,hello);return app.listen(3000)});const main=register(`express.clio/main`,(argv)=>{const setup=express();return setup});clio.exports.main=main'
 );
 testFile(
   "hello",
-  "const main=tco((argv)=>{return [`game`,`web`,`tools`,`science`,`systems`,`GUI`,`mobile`].map(((area)=>(console.log(f(`Hello, `,area,` developers!`)))))});distributed.set(`hello.clio/main`,main);main.parallel=distributed.get(`hello.clio/main`)"
+  "const main=register(`hello.clio/main`,(argv)=>{return [`game`,`web`,`tools`,`science`,`systems`,`GUI`,`mobile`].map(((area)=>(console.log(f(`Hello, `,area,` developers!`)))))})"
 );
 testFile(
   "persons",
-  "const person=tco((name,age)=>{return {name:name,age:age}});distributed.set(`persons.clio/person`,person);person.parallel=distributed.get(`persons.clio/person`);const people=[(person(`John`,45)),(person(`Kate`,30))];persons.map(((person)=>(f(person.name,` is `,person.age,` years old`)))).map(print)"
+  "const person=register(`persons.clio/person`,(name,age)=>{return {name:name,age:age}});const people=[(person(`John`,45)),(person(`Kate`,30))];persons.map(((person)=>(f(person.name,` is `,person.age,` years old`)))).map(print)"
 );
 shouldThrow(
   "Unbalanced comment blocks",
