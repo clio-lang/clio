@@ -9,7 +9,7 @@ const calls = merge(
           return {
             type: "callOpen",
             fn: lhs,
-            args: [types.checkLambda(rhs, types.get(rhs), true)],
+            args: [types.checkLambda(rhs, rhs, true, true)],
           };
         }, 0.4)
       ),
@@ -19,7 +19,7 @@ const calls = merge(
           return {
             type: "callOpen",
             fn: lhs,
-            args: [types.checkLambda(rhs, types.get(rhs), true)],
+            args: [types.checkLambda(rhs, rhs, true, true)],
           };
         }, 0.4)
       ),
@@ -35,14 +35,14 @@ const calls = merge(
       ...map(
         values,
         wrap((lhs, rhs) => {
-          lhs.args.push(types.checkLambda(rhs, types.get(rhs), true));
+          lhs.args.push(types.checkLambda(rhs, rhs, true, true));
           return lhs;
         }, 0.2)
       ),
       ...map(
         expressions,
         wrap((lhs, rhs) => {
-          lhs.args.push(types.checkLambda(rhs, types.get(rhs), true));
+          lhs.args.push(types.checkLambda(rhs, rhs, true, true));
           return lhs;
         }, 2)
       ),
@@ -59,7 +59,7 @@ const calls = merge(
           type: "pipeOpen",
           data: types.get(lhs),
         };
-      }),
+      }, 0.3),
       mapArrow: wrap((lhs) => {
         lhs.type = "call";
         return {
@@ -67,7 +67,7 @@ const calls = merge(
           data: types.get(lhs),
           isMap: true,
         };
-      }),
+      }, 0.3),
     },
     pipeOpen: {
       ...ignore("space", "lineBreak"),

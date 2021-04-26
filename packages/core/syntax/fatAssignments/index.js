@@ -10,9 +10,9 @@ module.exports = {
       return {
         type: "fatArrowOpen",
         arrow: rhs,
-        value: types.checkLambda(lhs, types.get(lhs), true),
+        value: types.checkLambda(lhs, lhs, true, true),
       };
-    }, 0.5),
+    }, 0.31),
   }),
   fatArrowOpen: {
     ...map(
@@ -21,7 +21,7 @@ module.exports = {
         lhs.type = "arrowAssignment";
         lhs.name = rhs;
         return lhs;
-      }, 0.5)
+      }, 0.31)
     ),
   },
   arrowAssignment: {

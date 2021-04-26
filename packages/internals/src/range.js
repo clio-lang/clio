@@ -1,8 +1,8 @@
 class Range {
-  constructor(start = 0, end = Infinity, step = end > start ? 1 : -1, mapfn) {
+  constructor(start = 0, end = Infinity, step, mapfn) {
     this.start = start;
     this.end = end;
-    this.step = step;
+    this.step = step || (end > start ? 1 : -1);
     this.mapfn = mapfn;
     this.index = 0;
   }

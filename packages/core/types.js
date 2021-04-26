@@ -8,9 +8,13 @@ const asIs = (token) =>
 
 const conditionals = ["fullConditional", "conditional"];
 
-const checkLambda = (node, body, getValue) => {
+const checkLambda = (node, body, getValue, getBody) => {
   if (node.lambda?.length)
-    return get({ type: "lambda", body, params: node.lambda });
+    return get({
+      type: "lambda",
+      body: getBody ? get(body) : body,
+      params: node.lambda,
+    });
   return getValue ? get(node) : node;
 };
 
@@ -94,30 +98,32 @@ const types = {
   mapCall(node) {
     const { awaited, all } = node;
     const fn = getCallFn(node);
-    const args = node.args.map((arg) => checkLambda(arg, get(arg), true));
+    const args = node.args.map((arg) => checkLambda(arg, arg, true, true));
     const insertBefore = args.map((arg) => arg.insertBefore).filter(Boolean);
+    if (fn.insertBefore) insertBefore.unshift(fn.insertBefore);
     const data = args.shift();
     const needsAsync = data.needsAsync || args.some((arg) => arg.needsAsync);
-    let func;
+    let fun;
     if (args.length) {
-      func = new SourceNode(null, null, null, [
+      fun = new SourceNode(null, null, null, [
         needsAsync ? "async " : "",
         "($item",
         fn.dropMeta ? ")=>" : ", $index, $iterator)=>",
-        checkLambda(fn, get(fn), true),
+        checkLambda(fn, fn, true, true),
         fn.dropData ? "(" : "($item,",
         join(args, ","),
         fn.dropMeta ? ")" : ",$index,$iterator)",
       ]);
     } else {
-      func = checkLambda(fn, get(fn), true);
+      fun = checkLambda(fn, fn, true, true);
     }
+    if (fun.insertBefore) insertBefore.unshift(fun.insertBefore);
     let sn = new SourceNode(fn.line, fn.column, fn.file, [
       data,
       ".",
       "map",
       "(",
-      func,
+      fun,
       ")",
     ]);
     if (awaited) {
@@ -134,7 +140,10 @@ const types = {
     }
     if (insertBefore.length) sn.insertBefore = insertBefore;
     sn.needsAsync =
-      awaited || data.needsAsync || args.some((arg) => arg.needsAsync);
+      awaited ||
+      data.needsAsync ||
+      args.some((arg) => arg.needsAsync) ||
+      fun.needsAsync;
     return sn;
   },
   call(node) {
@@ -144,10 +153,12 @@ const types = {
     }
     const { awaited, all } = node;
     const fn = getCallFn(node);
-    const args = node.args.map((arg) => checkLambda(arg, get(arg), true));
+    const args = node.args.map((arg) => checkLambda(arg, arg, true, true));
     const insertBefore = args.map((arg) => arg.insertBefore).filter(Boolean);
+    const fun = checkLambda(fn, fn, true, true);
+    if (fun.insertBefore) insertBefore.unshift(fun.insertBefore);
     let sn = new SourceNode(fn.line, fn.column, fn.file, [
-      checkLambda(fn, get(fn), true),
+      fun,
       "(",
       join(args, ","),
       ")",
@@ -165,7 +176,8 @@ const types = {
       ]);
     }
     if (insertBefore.length) sn.insertBefore = insertBefore;
-    sn.needsAsync = awaited || args.some((arg) => arg.needsAsync);
+    sn.needsAsync =
+      awaited || args.some((arg) => arg.needsAsync) || fun.needsAsync;
     return sn;
   },
   ...mapfn(["add", "mul", "div", "sub", "mod", "pow"], (key) => [
@@ -214,9 +226,7 @@ const types = {
       lastNode = lastNode.name;
     }
     let last = lastNode.type
-      ? lastNode.lambda?.length
-        ? checkLambda(lastNode, get(lastNode))
-        : get(lastNode)
+      ? checkLambda(lastNode, lastNode, true, true)
       : lastNode;
     if (last.returnAs) last = last.returnAs;
     const sn = new SourceNode(null, null, null, [
@@ -279,7 +289,8 @@ const types = {
         2. assign
     */
     const path = node.path.value.slice(1, -1).replace(/^[^:]*:/, "");
-    const name = path
+    const filename = path.split("/").pop();
+    const name = filename
       .replace(/\.[^.]*$/, "")
       .split("/")
       .pop()
@@ -314,6 +325,13 @@ const types = {
           path + (path.endsWith(".clio") ? ".js" : ".clio.js"),
           '").exports(clio)',
         ]
+      );
+    } else {
+      require = new SourceNode(
+        node.import.line,
+        node.import.column,
+        node.import.file,
+        ["await remote(clio,", '"', protocol + "://" + path, '")']
       );
     }
     let assign;
@@ -556,11 +574,13 @@ const types = {
     return sn;
   },
   propertyAccess(node) {
-    return new SourceNode(null, null, null, [
-      get(node.lhs),
-      asIs(node.dot),
-      get(node.rhs),
-    ]);
+    const lhs = get(node.lhs);
+    const rhs = get(node.rhs);
+    const sn = new SourceNode(null, null, null, [lhs, asIs(node.dot), rhs]);
+    sn.insertBefore = [lhs.insertBefore, rhs.insertBefore].filter(Boolean);
+    sn.insertBefore = sn.insertBefore.length ? sn.insertBefore : null;
+    sn.needsAsync = lhs.needsAsync || rhs.needsAsync;
+    return sn;
   },
   range(node) {
     const start = node.start || "0";

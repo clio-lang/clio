@@ -133,9 +133,9 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
   const indents = () => {
     // check if we're in an array or parentheses
     if (squares || curlies || parens) return;
-    // check for math
-    const isMath = source.match(/^ *[-+*\/%]/);
-    if (isMath) {
+    // check for math, logical, arrow
+    const shouldSkip = source.match(/^ *([-+*\/%=]|and|or)/);
+    if (shouldSkip) {
       /* istanbul ignore next */
       if (tokens.last.prev) tokens.last = tokens.last.prev;
       return;

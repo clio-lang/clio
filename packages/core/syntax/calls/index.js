@@ -4,19 +4,29 @@ const { wrap, values, expressions } = require("../common");
 module.exports = merge(
   {
     // Calls
-    ...map(["symbol", "parallelFn", "propertyAccess", "method", "wrapped"], {
-      ...map(
-        [...values, ...expressions],
-        wrap((lhs, rhs) => {
-          lhs.isFn = true;
-          return {
-            type: "callOpen",
-            fn: lhs,
-            args: [rhs],
-          };
-        }, 3)
-      ),
-    }),
+    ...map(
+      [
+        "symbol",
+        "parallelFn",
+        "propertyAccess",
+        "method",
+        "wrapped",
+        "parameter",
+      ],
+      {
+        ...map(
+          [...values, ...expressions],
+          wrap((lhs, rhs) => {
+            lhs.isFn = true;
+            return {
+              type: "callOpen",
+              fn: lhs,
+              args: [rhs],
+            };
+          }, 3)
+        ),
+      }
+    ),
     callOpen: {
       ...map(
         [...values, ...expressions],
@@ -41,7 +51,14 @@ module.exports = merge(
         return rhs;
       }),
       ...map(
-        ["symbol", "parallelFn", "method", "propertyAccess", "wrapped"],
+        [
+          "symbol",
+          "parallelFn",
+          "method",
+          "propertyAccess",
+          "wrapped",
+          "parameter",
+        ],
         wrap((lhs, rhs) => {
           rhs.isFn = true;
           return {

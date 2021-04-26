@@ -1,4 +1,4 @@
-const { bean, merge } = require("bean-parser");
+const { bean } = require("bean-parser");
 const lex = require("./lexer");
 const types = require("./types");
 const rules = require("./rules");
