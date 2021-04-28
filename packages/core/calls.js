@@ -9,7 +9,7 @@ const calls = merge(
           return {
             type: "callOpen",
             fn: lhs,
-            args: [types.checkLambda(rhs, rhs, true, true)],
+            args: [types.get(rhs)],
           };
         }, 0.4)
       ),
@@ -19,7 +19,7 @@ const calls = merge(
           return {
             type: "callOpen",
             fn: lhs,
-            args: [types.checkLambda(rhs, rhs, true, true)],
+            args: [types.get(rhs)],
           };
         }, 0.4)
       ),
@@ -35,14 +35,14 @@ const calls = merge(
       ...map(
         values,
         wrap((lhs, rhs) => {
-          lhs.args.push(types.checkLambda(rhs, rhs, true, true));
+          lhs.args.push(types.get(rhs));
           return lhs;
         }, 0.2)
       ),
       ...map(
         expressions,
         wrap((lhs, rhs) => {
-          lhs.args.push(types.checkLambda(rhs, rhs, true, true));
+          lhs.args.push(types.get(rhs));
           return lhs;
         }, 2)
       ),

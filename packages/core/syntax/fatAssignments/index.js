@@ -10,7 +10,7 @@ module.exports = {
       return {
         type: "fatArrowOpen",
         arrow: rhs,
-        value: types.checkLambda(lhs, lhs, true, true),
+        value: types.get(lhs),
       };
     }, 0.31),
   }),

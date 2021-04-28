@@ -59,7 +59,7 @@ testStr(
   "(fib(n-1))+(fib(n-2))"
 );
 testStr("Call", "add a b c", "add(a,b,c)");
-testStr("Call (Quick Fn)", `(@a + b) 2 3`, "((a)=>(a+b))(2,3)");
+testStr("Call (Quick Fn)", `(@a + b) 2 3`, "((a)=>a+b)(2,3)");
 testStr("Call (No Args)", "die ()", "die()");
 testStr(
   "Call (Formatted String)",
@@ -74,17 +74,17 @@ testStr(
 testStr(
   "Call (Formatted String Quick Fn)",
   `print (f"a + b is {@a + @b}")`,
-  "print(((a,b)=>(f(`a + b is `,a+b))))"
+  "print(((a,b)=>f(`a + b is `,a+b)))"
 );
 testStr(
   "Call (Formatted String Quick Fn Call)",
   `(f"a + b is {@a + @b}") a b`,
-  "((a,b)=>(f(`a + b is `,a+b)))(a,b)"
+  "((a,b)=>f(`a + b is `,a+b))(a,b)"
 );
 testStr("Call (Complex)", "add a [b] c", "add(a,[b],c)");
 testStr("Call (Parallel)", "|add| a b c", "add.parallel(a,b,c)");
 testStr("Wrapped", "(a + b) * c", "(a+b)*c");
-testStr("Quick FN", "filter @it > 0", "filter(((it)=>(it>0)))");
+testStr("Quick FN", "filter (@it > 0)", "filter(((it)=>(it>0)))");
 testStr("Pipe", "a -> double", "double(a)");
 testStr("Pipe (w/args)", "a -> add 2", "add(a,2)");
 testStr("Await", "await a", "(await a)");
@@ -123,7 +123,7 @@ testStr(
 testStr(
   "Functions (One line, Range)",
   `fn row: (x - 1) .. (x + 2) -> .toArray -> .filter (@it >= 0)`,
-  "const row=register(`<mem>/row`,()=>{return range((x-1),(x+2),null).toArray().filter(((it)=>((it>=0))))})"
+  "const row=register(`<mem>/row`,()=>{return range((x-1),(x+2),null).toArray().filter(((it)=>(it>=0)))})"
 );
 testStr(
   "Functions (With Man)",
@@ -220,7 +220,7 @@ testStr(
 );
 testStr(
   "Quick Fn (return)",
-  "fn add a:\n  a + @b",
+  "fn add a:\n  (a + @b)",
   "const add=register(`<mem>/add`,(a)=>{return ((b)=>a+b)})"
 );
 testStr("Method Call", ".push b c", "b.push(c)");
@@ -236,7 +236,7 @@ testStr(
   "2 + 2 => values.four -> double",
   "values.four=2+2;double(values.four)"
 );
-testStr("Flow (Quick Fn)", "a -> (@a > 2)", "((a)=>((a>2)))(a)");
+testStr("Flow (Quick Fn)", "a -> (@a > 2)", "((a)=>(a>2))(a)");
 testStr("Flow (Map)", "[1 2 3] -> * double", "[1,2,3].map(double)");
 testStr("Flow (Chain)", "a -> double -> print", "print(double(a))");
 testStr("Flow (Chain Map)", "a -> * double -> print", "print(a.map(double))");
@@ -435,7 +435,7 @@ testFile(
 );
 testFile(
   "fib.parallel",
-  "const fib=register(`fib.parallel.clio/fib`,(n)=>{if((n<2)){return n}else{return (fib(n-1))+(fib(n-2))}});const main=register(`fib.parallel.clio/main`,async(argv)=>{return (await Promise.all([39,40,41,42].map(fib.parallel))).map(((it)=>(console.log(it))))});clio.exports.main=main"
+  "const fib=register(`fib.parallel.clio/fib`,(n)=>{if((n<2)){return n}else{return (fib(n-1))+(fib(n-2))}});const main=register(`fib.parallel.clio/main`,async(argv)=>{return (await Promise.all([39,40,41,42].map(fib.parallel))).map(((it)=>console.log(it)))});clio.exports.main=main"
 );
 testFile(
   "fizzbuzz",
@@ -447,11 +447,11 @@ testFile(
 );
 testFile(
   "hello",
-  "const main=register(`hello.clio/main`,(argv)=>{return [`game`,`web`,`tools`,`science`,`systems`,`GUI`,`mobile`].map(((area)=>(console.log(f(`Hello, `,area,` developers!`)))))})"
+  "const main=register(`hello.clio/main`,(argv)=>{return [`game`,`web`,`tools`,`science`,`systems`,`GUI`,`mobile`].map(((area)=>console.log(f(`Hello, `,area,` developers!`))))})"
 );
 testFile(
   "persons",
-  "const person=register(`persons.clio/person`,(name,age)=>{return {name:name,age:age}});const people=[(person(`John`,45)),(person(`Kate`,30))];persons.map(((person)=>(f(person.name,` is `,person.age,` years old`)))).map(print)"
+  "const person=register(`persons.clio/person`,(name,age)=>{return {name:name,age:age}});const people=[(person(`John`,45)),(person(`Kate`,30))];persons.map(((person)=>f(person.name,` is `,person.age,` years old`))).map(print)"
 );
 shouldThrow(
   "Imbalanced comment blocks",

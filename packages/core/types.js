@@ -98,7 +98,7 @@ const types = {
   mapCall(node) {
     const { awaited, all } = node;
     const fn = getCallFn(node);
-    const args = node.args.map((arg) => checkLambda(arg, arg, true, true));
+    const args = node.args.map(get);
     const insertBefore = args.map((arg) => arg.insertBefore).filter(Boolean);
     if (fn.insertBefore) insertBefore.unshift(fn.insertBefore);
     const data = args.shift();
@@ -109,13 +109,13 @@ const types = {
         needsAsync ? "async " : "",
         "($item",
         fn.dropMeta ? ")=>" : ", $index, $iterator)=>",
-        checkLambda(fn, fn, true, true),
+        get(fn),
         fn.dropData ? "(" : "($item,",
         join(args, ","),
         fn.dropMeta ? ")" : ",$index,$iterator)",
       ]);
     } else {
-      fun = checkLambda(fn, fn, true, true);
+      fun = get(fn);
     }
     if (fun.insertBefore) insertBefore.unshift(fun.insertBefore);
     let sn = new SourceNode(fn.line, fn.column, fn.file, [
@@ -153,9 +153,9 @@ const types = {
     }
     const { awaited, all } = node;
     const fn = getCallFn(node);
-    const args = node.args.map((arg) => checkLambda(arg, arg, true, true));
+    const args = node.args.map(get);
     const insertBefore = args.map((arg) => arg.insertBefore).filter(Boolean);
-    const fun = checkLambda(fn, fn, true, true);
+    const fun = get(fn);
     if (fun.insertBefore) insertBefore.unshift(fun.insertBefore);
     let sn = new SourceNode(fn.line, fn.column, fn.file, [
       fun,
@@ -225,9 +225,7 @@ const types = {
       content.push(get(lastNode));
       lastNode = lastNode.name;
     }
-    let last = lastNode.type
-      ? checkLambda(lastNode, lastNode, true, true)
-      : lastNode;
+    let last = lastNode.type ? get(lastNode) : lastNode;
     if (last.returnAs) last = last.returnAs;
     const sn = new SourceNode(null, null, null, [
       new SourceNode(null, null, null, content).join(";"),
@@ -379,7 +377,6 @@ const types = {
     }
     const start = node.params[0];
     return new SourceNode(start.line, start.column, start.file, [
-      "(",
       /* istanbul ignore next */
       body.needsAsync ? "async " : "",
       "(",
@@ -387,7 +384,6 @@ const types = {
       ")",
       "=>",
       body,
-      ")",
     ]);
   },
   parallelFn(node) {
@@ -633,7 +629,7 @@ const types = {
     if (!node.content) return new SourceNode(null, null, null, "");
     if (node.isFn && node.content.type == "call")
       node.content.args.map((arg) => (arg.lambda = []));
-    const content = get(node.content);
+    const content = checkLambda(node.content, node.content, true, true);
     const sn = new SourceNode(null, null, null, [
       asIs(node.start),
       content,
@@ -645,15 +641,14 @@ const types = {
   },
   assignment(node) {
     const name = get(node.name);
-    const value = checkLambda(node.value, node.value);
     const sn = new SourceNode(null, null, null, [
       ...(node.name.type == "symbol" ? ["const", " "] : []),
       name,
       asIs(node.assign),
-      value,
+      node.value,
     ]);
     sn.insertBefore = node.value.insertBefore;
-    sn.needsAsync = value.needsAsync;
+    sn.needsAsync = node.value.needsAsync;
     return sn;
   },
   arrowAssignment(node) {
