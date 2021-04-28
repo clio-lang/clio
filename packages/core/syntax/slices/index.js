@@ -9,7 +9,7 @@ module.exports = {
       lhs.type = "slice";
       lhs.slicer = types.get(rhs);
       return lhs;
-    }),
+    }, 100),
   },
   ...map(arrayLike, {
     slicer: wrap((lhs) => {

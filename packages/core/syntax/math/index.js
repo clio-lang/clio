@@ -1,6 +1,6 @@
-const { map, mapfn, ignore } = require("bean-parser");
+const { map, mapfn } = require("bean-parser");
 const types = require("../../types");
-const { wrap, values } = require("../common");
+const { wrap, values, ignore } = require("../common");
 
 module.exports = {
   // Math

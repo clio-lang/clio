@@ -6,6 +6,9 @@ class Range {
     this.mapfn = mapfn;
     this.index = 0;
   }
+  get length() {
+    return Math.floor((this.start - this.end) / this.step);
+  }
   map(fn) {
     const mapfn = this.mapfn
       ? (item, index, range) => fn(this.mapfn(item, index, range), index, range)

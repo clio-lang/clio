@@ -7,7 +7,8 @@ const testStr = (name, src, expected, file = "<mem>") => {
     expected =
       "module.exports.exports=async(clio)=>{const{emitter,channel,range,slice,remote,register,man,includes,f}=clio;" +
       expected +
-      ";return clio.exports}";
+      ";return clio.exports}" +
+      `//# sourceMappingURL=${name}.js.map`;
     expect(code).toBe(expected);
   });
 };
@@ -48,7 +49,7 @@ testStr(
   "[(a -> double => b)]",
   "const b=double(a);[(b)]"
 );
-testStr("Slice", "arr[0..100]", "slice(arr,[range(0,100,null)])");
+testStr("Slice", "arr[0..100]", "arr[range(0,100,null)]");
 testStr("Math", "a * b + c / 2", "a*b+c/2");
 testStr("Math (Indented)", "a *\n  b + c / 2", "a*b+c/2");
 testStr("Math (Power)", "a ** b", "a**b");
@@ -118,6 +119,11 @@ testStr(
   "Functions",
   "fn add a b:\n  a + b",
   "const add=register(`<mem>/add`,(a,b)=>{return a+b})"
+);
+testStr(
+  "Functions (One line, Range)",
+  `fn row: (x - 1) .. (x + 2) -> .toArray -> .filter (@it >= 0)`,
+  "const row=register(`file/row`,()=>{return range((x-1),(x+2),null).toArray().filter(((it)=>((it>=0))))})"
 );
 testStr(
   "Functions (With Man)",

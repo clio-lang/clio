@@ -1,6 +1,6 @@
-const { rule, map, ignore } = require("bean-parser");
+const { rule, map } = require("bean-parser");
 const types = require("../../types");
-const { expressions, wrap, values } = require("../common");
+const { expressions, wrap, values, ignore } = require("../common");
 
 module.exports = {
   // Fat arrow assignment

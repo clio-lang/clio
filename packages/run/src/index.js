@@ -103,6 +103,9 @@ const run = async (module, { worker, executor }, { noMain = false } = {}) => {
     slice,
     remote,
     exports: {},
+    f(...args) {
+      return args.map((arg) => arg.toString()).join("");
+    },
   };
   clio.register = (name, fn) => {
     clio.distributed.set(name, fn);
@@ -157,6 +160,9 @@ const importClio = (file) => {
         remote,
         channel,
         exports: {},
+        f(...args) {
+          return args.map((arg) => arg.toString()).join("");
+        },
       };
       const exports = await main.exports(clio);
       resolve({ dispatcher, exports });

@@ -53,6 +53,7 @@ module.exports = {
     }, 9999),
     groupEnd: wrap((lhs) => {
       lhs.open--;
+      // FIXME: We need error checking here
       return lhs.open ? lhs : bean(lhs.content, rules, true).first.item;
     }, 9999),
   },

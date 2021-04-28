@@ -18,7 +18,10 @@ const compile = (source, file, debug = false) => {
       .get(result.current.item)
       .toStringWithSourceMap();
     map.setSourceContent(file, source);
-    return { code, map: map.toString() };
+    return {
+      code: code + `//# sourceMappingURL=${file}.js.map`,
+      map: map.toString(),
+    };
     /* istanbul ignore next */
   } else {
     /* istanbul ignore next */

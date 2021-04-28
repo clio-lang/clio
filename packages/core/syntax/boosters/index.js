@@ -2,7 +2,7 @@ const { map } = require("bean-parser");
 const { wrap } = require("../common");
 
 module.exports = {
-  ...map(["symbol", "propertyAccess", "wrapped", "slice"], {
+  ...map(["symbol", "propertyAccess", "wrapped", "slice", "range"], {
     ...map(
       ["groupStart"],
       wrap(

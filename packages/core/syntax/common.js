@@ -1,4 +1,5 @@
-const { rule } = require("bean-parser");
+const { rule, lPluck, map } = require("bean-parser");
+
 const wrap = (fn, priority) =>
   rule((lhs, rhs) => {
     const result = fn(lhs, rhs);
@@ -17,6 +18,8 @@ const wrap = (fn, priority) =>
     };
     return result;
   }, priority);
+
+const ignore = (...rules) => map(rules, wrap(lPluck));
 
 const ranges = ["range", "rangeFull", "rangeBy", "byRange", "ranger"];
 
@@ -124,11 +127,12 @@ const lexerTokens = [
   "groupClose",
 ];
 
+module.exports.wrap = wrap;
+module.exports.ignore = ignore;
 module.exports.topLevels = topLevels;
 module.exports.controls = controls;
 module.exports.expressions = expressions;
 module.exports.arrayLike = arrayLike;
-module.exports.wrap = wrap;
 module.exports.ranges = ranges;
 module.exports.values = values;
 module.exports.lexerTokens = lexerTokens;

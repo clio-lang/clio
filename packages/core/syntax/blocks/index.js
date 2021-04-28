@@ -1,5 +1,5 @@
-const { topLevels, wrap } = require("../common");
-const { map, ignore } = require("bean-parser");
+const { topLevels, wrap, ignore } = require("../common");
+const { map } = require("bean-parser");
 
 module.exports = {
   // Blocks

@@ -1,32 +1,41 @@
 const rules = require("./rules");
 
 /* istanbul ignore next */
-const skips = ["blockOpen", "ifTail"];
+const opens = [
+  "blockOpen",
+  "addLhs",
+  "mulLhs",
+  "subLhs",
+  "divLhs",
+  "powLhs",
+  "comparisonOpen",
+  "logicalOpen",
+];
+/* istanbul ignore next */
+const whites = ["lineBreak"];
 
 /* istanbul ignore next */
 const parsingError = (source, file, tokens) => {
-  let first = tokens.first;
-  let next = tokens.first.next;
+  let lhs = tokens.first;
+  let rhs = tokens.first.next;
+  const step = () => {
+    lhs = rhs;
+    rhs = lhs.next;
+  };
   while (true) {
-    const isValid = rules[first.item.type][next.item.type];
-    if (isValid || skips.includes(next.item.type)) {
-      first = next;
-      next = first.next;
-    } else {
-      break;
-    }
+    if (opens.includes(rhs.item.type)) step();
+    else if (whites.includes(lhs.item.type)) step();
+    else break;
   }
-  first = first.item;
-  next = next.item;
-  const expecting = Object.keys(rules[first.type] || {}).join(", ");
-  const start = Math.max(0, next.line - 3);
-  const location = next.meta?.location || next;
+  const expecting = Object.keys(rules[lhs.item.type] || {}).join(", ");
+  const start = Math.max(0, rhs.item.line - 3);
+  const location = rhs.item.meta?.location || rhs;
   const { line, column } = location;
   const message = [
     `Parsing error at ${file}[${line}:${column}]\n`,
     source.split("\n").slice(start, line).join("\n"),
     " ".repeat(column) + "^",
-    `\nExpecting one of ${expecting} but encountered ${next?.type}`,
+    `\nExpecting one of ${expecting} but encountered ${rhs.item.type}`,
   ].join("\n");
   return new Error(message);
 };

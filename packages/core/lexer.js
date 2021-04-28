@@ -333,11 +333,11 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
     zeroSpace();
   }
   while (levels.shift()) {
-    tokens.push({ type: "lineBreak" });
-    tokens.push({ type: "outdent" });
+    token("lineBreak", "", 0);
+    token("outdent", "", 0);
   }
-  tokens.push({ type: "lineBreak" });
-  tokens.push({ type: "eof" });
+  token("lineBreak", "", 0);
+  token("eof", "", 0);
   const { current } = tokens;
   let node = current;
   while (node) {

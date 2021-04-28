@@ -9,12 +9,14 @@ const asIs = (token) =>
 const conditionals = ["fullConditional", "conditional"];
 
 const checkLambda = (node, body, getValue, getBody) => {
-  if (node.lambda?.length)
+  if (node.lambda?.length) {
+    if (body.lambda) body.lambda = null;
     return get({
       type: "lambda",
       body: getBody ? get(body) : body,
       params: node.lambda,
     });
+  }
   return getValue ? get(node) : node;
 };
 
@@ -610,14 +612,7 @@ const types = {
   },
   slice(node) {
     const { slicer, slicee } = node;
-    const sn = new SourceNode(null, null, null, [
-      "slice",
-      "(",
-      slicee,
-      ",",
-      slicer,
-      ")",
-    ]);
+    const sn = new SourceNode(null, null, null, [slicee, slicer]);
     sn.needsAsync = slicer.needsAsync || slicee.needsAsync;
     return sn;
   },
