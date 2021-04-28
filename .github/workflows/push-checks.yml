@@ -8,7 +8,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [15.x, 14.x, 13.x]
+        node-version: [16.x, 15.x, 14.x]
 
     steps:
       - uses: actions/checkout@v1
@@ -42,10 +42,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v1
-      - name: Use Node.js 14.x
+      - name: Use Node.js 16.x
         uses: actions/setup-node@v1
         with:
-          node-version: 14.x
+          node-version: 16.x
       - name: npm lint:check
         run: |
           npm ci

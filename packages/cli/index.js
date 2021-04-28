@@ -5,7 +5,7 @@ const { isSupportedNodeVersion } = require("clio-utils");
 
 if (!isSupportedNodeVersion(process.versions.node)) {
   chalk.yellow(
-    "Warning: your Node version is outdated. This might cause problems. Please, upgrade Node to version 13.0 or higher."
+    "Warning: your Node version is outdated. This might cause problems. Please, upgrade Node to version 14.0 or higher."
   );
 }
 
