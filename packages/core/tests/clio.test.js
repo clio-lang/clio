@@ -8,7 +8,7 @@ const testStr = (name, src, expected, file = "<mem>") => {
       "module.exports.exports=async(clio)=>{const{emitter,channel,range,slice,remote,register,man,includes,f}=clio;" +
       expected +
       ";return clio.exports}" +
-      `//# sourceMappingURL=${name}.js.map`;
+      `//# sourceMappingURL=${file}.js.map`;
     expect(code).toBe(expected);
   });
 };
@@ -123,7 +123,7 @@ testStr(
 testStr(
   "Functions (One line, Range)",
   `fn row: (x - 1) .. (x + 2) -> .toArray -> .filter (@it >= 0)`,
-  "const row=register(`file/row`,()=>{return range((x-1),(x+2),null).toArray().filter(((it)=>((it>=0))))})"
+  "const row=register(`<mem>/row`,()=>{return range((x-1),(x+2),null).toArray().filter(((it)=>((it>=0))))})"
 );
 testStr(
   "Functions (With Man)",
@@ -454,16 +454,16 @@ testFile(
   "const person=register(`persons.clio/person`,(name,age)=>{return {name:name,age:age}});const people=[(person(`John`,45)),(person(`Kate`,30))];persons.map(((person)=>(f(person.name,` is `,person.age,` years old`)))).map(print)"
 );
 shouldThrow(
-  "Unbalanced comment blocks",
+  "Imbalanced comment blocks",
   "+- +- -+ +-",
-  "Unbalanced comment blocks"
+  "Imbalanced comment blocks"
 );
 shouldThrow(
   "Inconsistent indentation",
   "if a:\n   x\n y",
   "Inconsistent indentation"
 );
-shouldThrow("Unbalanced curly braces", "}{}}", "Unbalanced curly braces");
-shouldThrow("Unbalanced square braces", "][]]", "Unbalanced square braces");
-shouldThrow("Unbalanced parentheses", ")())", "Unbalanced parentheses");
+shouldThrow("Imbalanced curly braces", "}{}}", "Imbalanced curly braces");
+shouldThrow("Imbalanced square braces", "][]]", "Imbalanced square braces");
+shouldThrow("Imbalanced parentheses", ")())", "Imbalanced parentheses");
 shouldThrow("Unsupported character", "!", "Unsupported character !");

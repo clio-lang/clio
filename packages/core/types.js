@@ -9,7 +9,6 @@ const conditionals = ["fullConditional", "conditional"];
 
 const checkLambda = (node, body, getValue, getBody) => {
   if (node.lambda?.length) {
-    if (body.lambda) body.lambda = null;
     return get({
       type: "lambda",
       body: getBody ? get(body) : body,
