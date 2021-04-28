@@ -122,7 +122,7 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
         source = source.slice(2);
       }
       if (!open) break;
-      if (!source && open) throw "Unbalanced comment blocks"; // FIXME
+      if (!source) throw "Imbalanced comment blocks"; // FIXME
     }
     const man = source.match(manPattern);
     /* istanbul ignore next */
@@ -227,7 +227,7 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
         token("rCurly", char, 1);
         token("groupEnd", "", 0);
         curlies--;
-        if (curlies < 0) throw new Error("Unbalanced curly braces");
+        if (curlies < 0) throw new Error("Imbalanced curly braces");
         break;
       case "[":
         if (!awaitAll()) {
@@ -240,7 +240,7 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
         token("rSquare", char, 1);
         token("groupEnd", "", 0);
         squares--;
-        if (squares < 0) throw new Error("Unbalanced square braces");
+        if (squares < 0) throw new Error("Imbalanced square braces");
         break;
       case "(":
         token("groupStart", "", 0);
@@ -252,7 +252,7 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
         token("rParen", char, 1);
         token("groupEnd", "", 0);
         parens--;
-        if (parens < 0) throw new Error("Unbalanced parentheses");
+        if (parens < 0) throw new Error("Imbalanced parentheses");
         break;
       case ":":
         token("colon", char, 1);

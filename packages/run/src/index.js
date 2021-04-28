@@ -113,7 +113,7 @@ const run = async (module, { worker, executor }, { noMain = false } = {}) => {
     return fn;
   };
   const { main } = await module.exports(clio);
-  const argv = typeof process != undefined ? process.argv : [];
+  const argv = typeof process != "undefined" ? process.argv : [];
   if (!worker && !noMain) {
     const result = await main(argv);
     const awaited = Array.isArray(result)

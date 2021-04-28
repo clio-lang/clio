@@ -1,6 +1,5 @@
-const { mapfn, map, bean } = require("bean-parser");
+const { mapfn, map } = require("bean-parser");
 const { SourceNode } = require("source-map");
-const rules = require("./rules");
 
 const join = (arr, sep) => new SourceNode(null, null, null, arr).join(sep);
 const asIs = (token) =>
