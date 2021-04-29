@@ -10,6 +10,8 @@ const opens = [
   "powLhs",
   "comparisonOpen",
   "logicalOpen",
+  "export",
+  "fnTail",
 ];
 /* istanbul ignore next */
 const whites = ["lineBreak"];
