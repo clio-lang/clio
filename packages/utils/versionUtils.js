@@ -12,6 +12,6 @@ exports.isSupportedNodeVersion = (versionStr) => {
   const nodeMinorVersion = Number(nodeFullVersion[1]);
 
   return (
-    nodeMajorVersion > 13 || (nodeMajorVersion === 13 && nodeMinorVersion >= 0)
+    nodeMajorVersion > 14 || (nodeMajorVersion === 14 && nodeMinorVersion >= 0)
   );
 };

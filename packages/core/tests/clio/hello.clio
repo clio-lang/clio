@@ -1,0 +1,3 @@
+fn main argv:
+  ["game" "web" "tools" "science" "systems" "GUI" "mobile"]
+    -> * (console.log f"Hello, {@area} developers!")

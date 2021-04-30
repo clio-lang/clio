@@ -1,0 +1,12 @@
+-- Note: this code doesn't run in the browser!
+import "express"
+
+fn hello req res:
+  "Hello world" -> res.send
+
+fn setup app:
+  app.get "/" hello
+  app.listen 3000
+
+export fn main argv:
+  express () => setup

@@ -1,0 +1,11 @@
+fn fizzbuzz current last:
+
+  buzz = not current % 5
+  fizz = not current % 3
+  
+  if fizz and buzz: console.log "Fizz Buzz"
+  else if fizz:     console.log "Fizz"
+  else if buzz:     console.log "Buzz"
+  else:             console.log current
+
+  if not current == last: fizzbuzz (current + 1) last

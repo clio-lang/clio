@@ -1,12 +1,12 @@
 const versionUtils = require("../versionUtils");
 
 describe("isSupportedNodeVersion", () => {
-  test("13.4 is supported", () => {
-    expect(versionUtils.isSupportedNodeVersion("13.4")).toBe(true);
+  test("14.4 is supported", () => {
+    expect(versionUtils.isSupportedNodeVersion("14.4")).toBe(true);
   });
 
-  test("13.6 is supported", () => {
-    expect(versionUtils.isSupportedNodeVersion("13.6")).toBe(true);
+  test("14.6 is supported", () => {
+    expect(versionUtils.isSupportedNodeVersion("14.6")).toBe(true);
   });
 
   test("10.3 is not supported", () => {

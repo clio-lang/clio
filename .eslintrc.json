@@ -13,7 +13,7 @@
     "SharedArrayBuffer": "readonly"
   },
   "parserOptions": {
-    "ecmaVersion": 2018
+    "ecmaVersion": 2020
   },
   "rules": {
     "no-var": "warn",
@@ -27,7 +27,8 @@
     "no-debugger": "error",
     "no-unreachable": "warn",
     "no-label-var": "warn",
-    "sort-imports": "warn"
+    "sort-imports": "warn",
+    "jest/valid-title": "warn"
   },
   "plugins": ["jest"]
 }

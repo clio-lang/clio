@@ -1,5 +1,4 @@
-const { randomId } = require("./common");
-const { Channel } = require("./channel");
+const { randomId, EventEmitter } = require("./common");
 
 class Executor {
   constructor(transport) {
@@ -7,7 +6,7 @@ class Executor {
     this.isConnected = false;
     this.connect();
     this.promises = new Map();
-    this.channels = new Map();
+    this.emitters = new Map();
     this.id = "executor." + randomId(64);
   }
   connect() {
@@ -20,35 +19,37 @@ class Executor {
   }
   deserialize(data) {
     const reviver = (_, value) => {
-      if (value && value["@type"] == "Channel") {
+      if (value && value["@type"] == "EventEmitter") {
         const { id, clientId } = value;
-        if (this.channels.get(id)) return;
-        const channel = new Channel();
-        channel.on("send", (event, ...args) => {
+        if (this.emitters.has(id)) return this.emitters.get(id);
+        const emitter = new EventEmitter(id);
+        const send = (event, ...args) => {
           this.transport.send({
             instruction: "event",
             details: JSON.stringify({ id, event, args }),
             toClient: clientId,
           });
-        });
-        this.channels.set(id, channel);
-        return channel;
+        };
+        emitter.on(/.*/, send);
+        this.emitters.set(id, { emitter, send });
+        return emitter;
       }
       return value;
     };
     return JSON.parse(data, reviver);
   }
   handleData(data) {
-    const { id, details, instruction } = data;
+    const { id, details, instruction, toClient } = data;
+    // TODO: there must be a better way to do this
+    if (toClient !== this.id) return;
     const deserialized = this.deserialize(details);
     if (instruction == "result") {
       const { result } = deserialized;
       return this.promises.get(id).resolve(result);
     } else if (instruction == "event") {
       const { id, event, args } = deserialized;
-      const channel = this.channels.get(id);
-      if (!channel) return;
-      channel.emit(event, ...args);
+      const { emitter, send } = this.emitters.get(id);
+      emitter.emitUnless(send, event, ...args);
     } else if (instruction == "paths") {
       const { paths } = deserialized;
       return this.promises.get(id).resolve(paths);

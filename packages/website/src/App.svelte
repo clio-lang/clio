@@ -3,6 +3,145 @@
   import "@fortawesome/fontawesome-free/js/all.js";
 </script>
 
+<main>
+  <div class="hero">
+    <div class="head">
+      <div class="logo-container">
+        <img src="/logo-512x512.png" alt="Clio" class="logo" />
+        <h1>Clio</h1>
+      </div>
+      <div class="sep" />
+      <div class="intro">
+        <p>
+          Clio is a functional, distributed programming language that compiles
+          to JavaScript. It runs in the browser and on the server and is made to
+          be a suitable language for scientific programming. Clio takes
+          advantage of multiple CPUs and multiple CPU cores (parallelism) by
+          default, is able to use network resources, is easy to run on clusters
+          and on the cloud.
+        </p>
+        <nav class="nav">
+          <ul>
+            <li><a href="https://medium.com/@pouyae"> Blog </a></li>
+            <li><a href="https://forum.clio-lang.org"> Forums </a></li>
+            <li><a href="https://docs.clio-lang.org/install"> Install </a></li>
+            <li>
+              <a href="https://docs.clio-lang.org/learn/official-tutorial">
+                Learn
+              </a>
+            </li>
+            <li><a href="https://docs.clio-lang.org"> Documentation </a></li>
+            <li>
+              <a href="https://docs.clio-lang.org/links/links/community">
+                Community
+              </a>
+            </li>
+            <li>
+              <a href="https://docs.clio-lang.org/tools/tools-and-editors">
+                Tools
+              </a>
+            </li>
+            <li>
+              <a href="https://docs.clio-lang.org/support-clio"> Donate </a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </div>
+    <div class="tail">
+      <p>
+        Visit our
+        <a href="https://docs.clio-lang.org/tutorial">tutorial page</a>
+        to learn Clio, or read the
+        <a href="https://docs.clio-lang.org">documentation</a>
+        to learn more.
+      </p>
+    </div>
+  </div>
+  <div class="playground">
+    <Editor title="Clio" share={true} query="code" />
+  </div>
+  <div class="section features">
+    <p>
+      Clio has a clean, noise-free syntax, and it makes distributed and parallel
+      programming a lot easier.
+    </p>
+    <p class="hide-on-small">
+      The Parallel Fib example above uses the sandwich syntax
+      <code>|fib|</code>
+      to run fib function in parallel, unlike the regular fib example it does not
+      block the browser and it runs twice faster!
+    </p>
+    <p>
+      Read the
+      <a href="https://blog.usejournal.com/introduction-to-clio-40dbbf9c250b">
+        introduction article
+      </a>
+      on our blog to learn more.
+    </p>
+  </div>
+  <div class="fluid-sections">
+    <div class="section">
+      <h2>Community</h2>
+      <div class="icons">
+        <a href="https://github.com/clio-lang/clio" class="icon">
+          <img src="/octocat.svg" alt="GitHub" />
+          <span>Source</span>
+        </a>
+        <a href="https://forum.clio-lang.org/" class="icon">
+          <img src="/discourse.svg" alt="Discourse" />
+          <span>Forums</span>
+        </a>
+        <a href="https://t.me/joinchat/B0kZo0kVldcBimGD4NLfVw" class="icon">
+          <img src="/telegram.svg" alt="Telegram" />
+          <span>Telegram</span>
+        </a>
+        <a href="http://rosettacode.org/wiki/Clio" class="icon">
+          <img src="/binary.svg" alt="Rosetta Code" />
+          <span>Rosetta Code</span>
+        </a>
+        <a href="https://medium.com/@pouyae" class="icon">
+          <img src="/medium.svg" alt="Medium" />
+          <span>Medium</span>
+        </a>
+        <a href="https://www.reddit.com/r/cliolang/" class="icon">
+          <img src="/reddit.svg" alt="Reddit" />
+          <span>Reddit</span>
+        </a>
+        <a href="https://twitter.com/clio_lang" class="icon">
+          <img src="/twitter.svg" alt="Twitter" />
+          <span>Twitter</span>
+        </a>
+      </div>
+    </div>
+    <div class="section">
+      <h2>Tools</h2>
+      <div class="icons">
+        <a
+          href="https://docs.clio-lang.org/tools/tools-and-editors/vscode"
+          class="icon"
+        >
+          <img src="/vscode.svg" alt="vscode" />
+          <span>VSCode</span>
+        </a>
+      </div>
+    </div>
+    <div class="section">
+      <h2>Support Clio</h2>
+      <p>
+        Clio is a work in progress and it's not production ready yet, but you
+        can help make it happen faster. If you want to help this project you can
+        get
+        <a href="https://docs.clio-lang.org/support-clio">more details here</a>.
+      </p>
+    </div>
+  </div>
+  <footer class="section">
+    Clio is released under Apache licence version 2.0, this website and all
+    related content have the same licencing terms.
+  </footer>
+</main>
+
 <style>
   main {
     padding: 1em 4em;
@@ -39,7 +178,7 @@
     padding: 1em 0;
   }
   .logo {
-    zoom: 0.25;
+    height: 128px;
   }
   .hero .tail {
     flex: 1;
@@ -151,139 +290,3 @@
     }
   }
 </style>
-
-<main>
-  <div class="hero">
-    <div class="head">
-      <div class="logo-container">
-        <img src="/logo-512x512.png" alt="Clio" class="logo" />
-        <h1>Clio</h1>
-      </div>
-      <div class="sep" />
-      <div class="intro">
-        <p>
-          Clio is a functional, distributed programming language that compiles
-          to JavaScript. It runs in the browser and on the server and is made to
-          be a suitable language for scientific programming. Clio takes
-          advantage of multiple CPUs and multiple CPU cores (parallelism) by
-          default, is able to use network resources, is easy to run on clusters
-          and on the cloud.
-        </p>
-        <nav class="nav">
-          <ul>
-            <li><a href="https://medium.com/@pouyae"> Blog </a></li>
-            <li><a href="https://forum.clio-lang.org"> Forums </a></li>
-            <li><a href="https://docs.clio-lang.org/install"> Install </a></li>
-            <li>
-              <a href="https://docs.clio-lang.org/learn/official-tutorial">
-                Learn
-              </a>
-            </li>
-            <li><a href="https://docs.clio-lang.org"> Documentation </a></li>
-            <li>
-              <a href="https://docs.clio-lang.org/links/links/community">
-                Community
-              </a>
-            </li>
-            <li>
-              <a href="https://docs.clio-lang.org/tools/tools-and-editors">
-                Tools
-              </a>
-            </li>
-            <li>
-              <a href="https://docs.clio-lang.org/support-clio"> Donate </a>
-            </li>
-          </ul>
-        </nav>
-      </div>
-    </div>
-    <div class="tail">
-      <p>
-        Visit our
-        <a href="https://docs.clio-lang.org/tutorial">tutorial page</a>
-        to learn Clio, or read the
-        <a href="https://docs.clio-lang.org">documentation</a>
-        to learn more.
-      </p>
-    </div>
-  </div>
-  <div class="playground">
-    <Editor title="Clio" share={true} query="code" />
-  </div>
-  <div class="section features">
-    <p>
-      Clio has a clean, noise-free syntax, and it makes distributed and parallel
-      programming a lot easier.
-    </p>
-    <p class="hide-on-small">
-      The Parallel Fib example above uses the sandwich syntax
-      <code>|fib|</code>
-      to run fib function in parallel, unlike the regular fib example it does
-      not block the browser and it runs twice faster!
-    </p>
-    <p>
-      Read the
-      <a href="https://blog.usejournal.com/introduction-to-clio-40dbbf9c250b">introduction article</a>
-      on our blog to learn more.
-    </p>
-  </div>
-  <div class="fluid-sections">
-    <div class="section">
-      <h2>Community</h2>
-      <div class="icons">
-        <a href="https://github.com/clio-lang/clio" class="icon">
-          <img src="/octocat.svg" alt="GitHub" />
-          <span>Source</span>
-        </a>
-        <a href="https://forum.clio-lang.org/" class="icon">
-          <img src="/discourse.svg" alt="Discourse" />
-          <span>Forums</span>
-        </a>
-        <a href="https://t.me/joinchat/B0kZo0kVldcBimGD4NLfVw" class="icon">
-          <img src="/telegram.svg" alt="Telegram" />
-          <span>Telegram</span>
-        </a>
-        <a href="http://rosettacode.org/wiki/Clio" class="icon">
-          <img src="/binary.svg" alt="Rosetta Code" />
-          <span>Rosetta Code</span>
-        </a>
-        <a href="https://medium.com/@pouyae" class="icon">
-          <img src="/medium.svg" alt="Medium" />
-          <span>Medium</span>
-        </a>
-        <a href="https://www.reddit.com/r/cliolang/" class="icon">
-          <img src="/reddit.svg" alt="Reddit" />
-          <span>Reddit</span>
-        </a>
-        <a href="https://twitter.com/clio_lang" class="icon">
-          <img src="/twitter.svg" alt="Twitter" />
-          <span>Twitter</span>
-        </a>
-      </div>
-    </div>
-    <div class="section">
-      <h2>Tools</h2>
-      <div class="icons">
-        <a
-          href="https://docs.clio-lang.org/tools/tools-and-editors/vscode"
-          class="icon">
-          <img src="/vscode.svg" alt="vscode" />
-          <span>VSCode</span>
-        </a>
-      </div>
-    </div>
-    <div class="section">
-      <h2>Support Clio</h2>
-      <p>
-        Clio is a work in progress and it's not production ready yet, but you
-        can help make it happen faster. If you want to help this project you can
-        get
-        <a href="#?">more details here</a>.
-      </p>
-    </div>
-  </div>
-  <footer class="section">
-    Clio is released under Apache licence version 2.0, this website and all
-    related content have the same licencing terms.
-  </footer>
-</main>

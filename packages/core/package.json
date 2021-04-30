@@ -1,6 +1,6 @@
 {
   "name": "clio-core",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -9,9 +9,10 @@
   "author": "Pouya Eghbali <pouya.eghbali@yandex.com>",
   "license": "Apache-2.0",
   "dependencies": {
+    "bean-parser": "2.0.0",
     "source-map": "^0.7.3"
   },
   "devDependencies": {
-    "clio-run": "^0.1.4"
+    "clio-run": "^0.2.0"
   }
 }
