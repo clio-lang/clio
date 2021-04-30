@@ -130,7 +130,7 @@
         Clio is a work in progress and it's not production ready yet, but you
         can help make it happen faster. If you want to help this project you can
         get
-        <a href="#?">more details here</a>.
+        <a href="https://docs.clio-lang.org/support-clio">more details here</a>.
       </p>
     </div>
   </div>
