@@ -91,6 +91,11 @@ testStr("Await", "await a", "(await a)");
 testStr("Await all", "[await] [a]", "(await Promise.all([a]))");
 testStr("Hashmap", "# key value", "{key:value}");
 testStr(
+  "Hashmap (As Arg)",
+  `print arg # a b c d\ne f`,
+  "print(arg,{a:b,c:d});e(f)"
+);
+testStr(
   "Hashmap (Multiline)",
   "# key value\n  key2 value2",
   "{key:value,key2:value2}"

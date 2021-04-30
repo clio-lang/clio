@@ -13,7 +13,7 @@ module.exports = {
         start: lhs,
         keyValues: [],
       };
-    }, 3),
+    }, 4.1),
     indent: wrap((lhs) => {
       return {
         type: "hashmapIndent",
@@ -36,7 +36,7 @@ module.exports = {
           })
         );
         return lhs;
-      }, 3)
+      }, 4.1)
     ),
     indent: wrap((lhs, rhs) => {
       return {
@@ -52,7 +52,7 @@ module.exports = {
       lhs.key = types.get(rhs);
       lhs.type = "hashOpen";
       return lhs;
-    }, 3),
+    }, 4.1),
     indent: wrap((lhs) => {
       lhs.type = "hashmapIndent";
       lhs.isTopLevel = true;
@@ -74,7 +74,7 @@ module.exports = {
           })
         );
         return lhs;
-      }, 3)
+      }, 4.1)
     ),
     indent: wrap((lhs, rhs) => {
       return {
@@ -91,7 +91,7 @@ module.exports = {
       lhs.key = types.get(rhs);
       lhs.type = "hashIndentOpen";
       return lhs;
-    }, 3),
+    }, 4.1),
     outdent: wrap((lhs) => {
       const { parent, isTopLevel } = lhs;
       if (isTopLevel) {
