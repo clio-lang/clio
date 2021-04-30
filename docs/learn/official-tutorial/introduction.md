@@ -13,3 +13,4 @@ Clio allows to easily chain functions together with flexibility without losing r
 All functions have a parallel version in Clio, they're isolated but not free of side-effects, Clio provides tools to host these functions, export them, import and work with them in any other place in any language. With the network-based foreign function interface you'll be able to use most of the modules of any other programming language with ease.
 
 This document assumes you have at least a basic programming knowledge and you're familiar with concepts like a variable or a function, but it should also be easy for non-programmers to pick up.This article also assumes you have installed Clio and you have a working Clio installation. If not, please follow the install instructions [here](../../install.md). If you're not ready yet to install Clio, you can always use our playground.
+
