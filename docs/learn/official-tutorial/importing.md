@@ -185,3 +185,23 @@ export fn bye arg:
 {% endtab %}
 {% endtabs %}
 
+Constants can be exported as well:
+
+```text
+42 => export answer
+3.14 => export pi
+```
+
+To import a JavaScript module, you need to use `js:` protocol:
+
+{% tabs %}
+{% tab title="main.clio" %}
+```text
+import "js:express"
+
+export fn main argv:
+  app = express ()
+```
+{% endtab %}
+{% endtabs %}
+

@@ -30,16 +30,3 @@ export fn main argv:
 
 [Try on playground.](https://clio-playground.pouyae.vercel.app/?code=fn%20zeroify%20n%3A%0A%20%20if%20n%20%3C%200%3A%20n%20%2B%201%0A%20%20else%3A%20%20%20%20%20n%20-%201%0A%0Aexport%20fn%20main%20argv%3A%0A%20%209%20-%3E%20zeroify%20-%3E%20console.log)
 
-You can also wrap an if / else in a pair of parentheses and treat it as an expression:
-
-```text
-fn sign n:
-  (if n < 0: 'negative' else: 'positive')
-    -> console.log
-
-export fn main argv:
-  sign -1
-```
-
-\[Try on playground.\]\(\[[https://clio-playground.pouyae.vercel.app/?code=fn](https://clio-playground.pouyae.vercel.app/?code=fn) sign n%3A%0A %28if n %3C 0%3A 'negative' else%3A 'positive'%29%0A -%3E console.log%0A%0Aexport fn main argv%3A%0A sign -1\]\(\[[https://clio-playground.pouyae.vercel.app/?code=fn](https://clio-playground.pouyae.vercel.app/?code=fn) sign n%3A%0A %28if n %3C 0%3A 'negative' else%3A 'positive'%29%0A -%3E console.log%0A%0Aexport fn main argv%3A%0A sign -1\)\]\([https://clio-playground.pouyae.vercel.app/?code=fn sign n%3A%0A  %28if n %3C 0%3A 'negative' else%3A 'positive'%29%0A    -%3E console.log%0A%0Aexport fn main argv%3A%0A  sign -1%29\)\](https://clio-playground.pouyae.vercel.app/?code=fn%20sign%20n%3A%0A%20%20%28if%20n%20%3C%200%3A%20'negative'%20else%3A%20'positive'%29%0A%20%20%20%20-%3E%20console.log%0A%0Aexport%20fn%20main%20argv%3A%0A%20%20sign%20-1%29%29\)\)
-

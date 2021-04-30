@@ -15,7 +15,7 @@ module.exports.hello = function(name) {
 and to import it in Clio:
 
 ```text
-import hello from "my_module.js"
+import hello from "js:my_module.js"
 ```
 
 When importing JavaScript files it's better to include `.js` in the file name. Same as Clio modules, these imports are relative and recognise the same path formats as the Clio file imports.
@@ -31,7 +31,7 @@ Then you can import it in your Clio file:
 {% tabs %}
 {% tab title="example.clio" %}
 ```text
-import express
+import "js:express"
 ```
 {% endtab %}
 {% endtabs %}

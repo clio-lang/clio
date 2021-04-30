@@ -4,7 +4,7 @@ Clio supports hash maps. There are several ways to define a hash map, first is d
 
 ```text
 export fn main argv:
-  # x: 10 y: 16 -> console.log
+  # x 10 y 16 -> console.log
 ```
 
 [Try on playground.](https://clio-playground.pouyae.vercel.app/?code=export%20fn%20main%20argv%3A%0A%20%20%23%20x%3A%2010%20y%3A%2016%20-%3E%20console.log)
@@ -14,13 +14,13 @@ Second way, is to use idents. Indents also can be used to make nested hash maps:
 ```text
 export fn main argv:
   #
-    app:
-      version: "1.0.1"
-      name: "My App"
-    window:
-      height: 100
-      width: 300
-      title: "Hello world!"
+    app
+      version "1.0.1"
+      name "My App"
+    window
+      height 100
+      width 300
+      title "Hello world!"
   -> console.log
 ```
 
@@ -30,13 +30,13 @@ The third way, is a combination of linear, and indented hash map syntax:
 
 ```text
 export fn main argv:
-  # app:
-      version: "1.0.1"
-      name: "My App"
-    window:
-      height: 100
-      width: 300
-      title: "Hello world!"
+  # app
+      version "1.0.1"
+      name "My App"
+    window
+      height 100
+      width 300
+      title "Hello world!"
   -> console.log
 ```
 
@@ -44,5 +44,9 @@ export fn main argv:
 
 {% hint style="warning" %}
 Current version of Clio translates hash maps to JavaScript objects. It is planned to use JavaScript Maps in future versions.
+{% endhint %}
+
+{% hint style="warning" %}
+It's planned to add : to separate keys from values in v0.5.0
 {% endhint %}
 

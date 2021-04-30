@@ -13,14 +13,14 @@ You can host a Clio project using `clio host` command, you'll be able to import 
 {% tabs %}
 {% tab title="src/main.clio" %}
 ```text
-fn on-ping ch:
-  fn on-ping-inner:
+fn onPing ch:
+  fn oPingInner:
     console.log "Ping received"
     ch -> .send "pong"
 
-export fn ping-pong:
-  channel () => ch
-    -> .on "ping" (on-ping ch)
+export fn pingPong:
+  emitter () => ch
+    -> .on "ping" (onPing ch)
 ```
 {% endtab %}
 
@@ -72,14 +72,14 @@ server = "default"
 Running `clio host` in the root directory of the project will host the project. We can import this in another project:
 
 ```text
-import ping-pong from "ws://localhost:1337/main.clio"
+import pingPong from "ws:localhost:1337/main.clio"
 
-fn on-pong:
+fn onPong:
   console.log "Pong received"
 
 export fn main:
   await ping-pong () => ch
-    -> .on "pong" on-pong
+    -> .on "pong" onPong
 
   fn ping:
     ch -> .send "ping"

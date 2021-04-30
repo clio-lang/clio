@@ -26,7 +26,7 @@ fn fib n:
 
 export fn main argv:
   [39 40 41 42]
-    -> * await |fib|
+    -> * [await] |fib|
     -> * item: console.log item
 ```
 

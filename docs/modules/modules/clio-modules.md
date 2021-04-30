@@ -25,7 +25,7 @@ export fn main argv:
 In Clio, imports are relative and by path, there is no support for absolute imports. Clio recognises the following import path formats:
 
 ```text
-import module
+import "module"
 import "./module"
 import "../module"
 import "dir/module"

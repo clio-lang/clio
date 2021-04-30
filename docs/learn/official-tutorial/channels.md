@@ -1,16 +1,19 @@
-# Channels
+# Emitters
 
-Channels are used as means of real time \(live\) communication with workers. They can pass messages to and from workers to the main application process. They're quite easy to use:
+Emitters are used as means of real time communication with workers. They can pass messages to and from workers to the main application process. They're quite easy to use:
 
 ```text
 fn pong:
-  channel ()
+  emitter ()
     => ch
-    -> .on "ping" (ev: ch.send "pong")
+    -> .on "ping" onPing
+    
+fn onPing: console.log "Ping received"
+fn onPong: console.log "Pong received"
 
 export fn main:
   await |pong| ()
-    -> .on "pong" (ev: console.log "Received pong!")
+    -> .on "pong" onPong
     -> .send "ping"
 ```
 
