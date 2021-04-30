@@ -1,6 +1,6 @@
 {
   "name": "clio-website",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "scripts": {
     "worker": "mkdir -p public/build && cd ../playground && npm run worker && cp public/build/worker* ../website/public/build",
     "build": "npm run worker && rollup -c",
