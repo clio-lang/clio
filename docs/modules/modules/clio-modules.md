@@ -6,12 +6,10 @@ Any exported function in any `.clio` file can be imported in any other Clio file
 
 {% tabs %}
 {% tab title="my\_module.clio" %}
-
 ```text
 export fn hello name:
   'hello' name -> console.log
 ```
-
 {% endtab %}
 {% endtabs %}
 
@@ -61,3 +59,4 @@ clio deps get
 ```
 
 When the project is compiled, the dependencies inside your `clio_env` directory will be compiled and linked to your build.
+

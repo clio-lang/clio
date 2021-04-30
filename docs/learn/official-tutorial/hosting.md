@@ -12,7 +12,6 @@ You can host a Clio project using `clio host` command, you'll be able to import 
 
 {% tabs %}
 {% tab title="src/main.clio" %}
-
 ```text
 fn on-ping ch:
   fn on-ping-inner:
@@ -23,11 +22,9 @@ export fn ping-pong:
   channel () => ch
     -> .on "ping" (on-ping ch)
 ```
-
 {% endtab %}
 
 {% tab title="clio.toml" %}
-
 ```text
 title = "template-node"
 description = ""
@@ -69,7 +66,6 @@ url = "ws://localhost:1337"
 wait_for = "cpu"
 server = "default"
 ```
-
 {% endtab %}
 {% endtabs %}
 
@@ -92,3 +88,4 @@ export fn main:
 ```
 
 You can see full examples in our [examples](https://github.com/clio-lang/examples) repository.
+
