@@ -74,7 +74,9 @@
     </p>
     <p>
       Read the
-      <a href="https://medium.com">introduction article</a>
+      <a href="https://blog.usejournal.com/introduction-to-clio-40dbbf9c250b">
+        introduction article
+      </a>
       on our blog to learn more.
     </p>
   </div>
