@@ -21,3 +21,4 @@ export fn main argv:
 ```
 
 [Run on playground.](https://clio-playground.pouyae.vercel.app/?code=export%20fn%20main%20argv%3A%0A%20%20%5B1%202%203%204%205%206%5D%0A%20%20%20%20-%3E%20.filter%20%28n%3A%20n%20%3E%202%29%0A%20%20%20%20-%3E%20console.log)
+
