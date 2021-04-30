@@ -43,7 +43,7 @@
     "chalk": "3.0.0",
     "decompress": "^4.2.1",
     "node-fetch": "^2.6.1",
-    "npm-registry-fetch": "^9.0.0",
+    "npm-registry-fetch": "^10.1.1",
     "source-map": "^0.7.3",
     "tmp": "0.1.0",
     "ws": "^7.2.3",
