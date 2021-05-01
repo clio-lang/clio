@@ -90,22 +90,29 @@ class Monitor {
   }
 }
 
+const clioCommon = {
+  f(...args) {
+    return args.map((arg) => arg.toString()).join("");
+  },
+  emitter() {
+    return new EventEmitter$4();
+  },
+  man(fn) {
+    return fn.__man__;
+  },
+  channel,
+  range,
+  slice,
+  remote,
+};
+
 const run = async (module, { worker, executor }, { noMain = false } = {}) => {
   const clio = {
     distributed: worker ? workerDist(executor, worker) : mainDist(executor),
     isWorker: !!worker,
     isMain: !worker,
-    emitter() {
-      return new EventEmitter();
-    },
-    channel,
-    range,
-    slice,
-    remote,
     exports: {},
-    f(...args) {
-      return args.map((arg) => arg.toString()).join("");
-    },
+    ...clioCommon,
   };
   clio.register = (name, fn) => {
     clio.distributed.set(name, fn);
@@ -155,14 +162,8 @@ const importClio = (file) => {
         distributed: mainDist(executor),
         isMain: true,
         isWorker: false,
-        range,
-        slice,
-        remote,
-        channel,
         exports: {},
-        f(...args) {
-          return args.map((arg) => arg.toString()).join("");
-        },
+        ...clioCommon,
       };
       const exports = await main.exports(clio);
       resolve({ dispatcher, exports });
