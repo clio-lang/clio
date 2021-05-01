@@ -64,7 +64,7 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
           }
           inner += source[0];
           source = source.slice(1);
-          if (curls == 0) break;
+          if (curls === 0) break;
         }
         token("fmtExprStart", "", 0);
         const fmtTokens = lex(inner.slice(1, -1), file, line, column);

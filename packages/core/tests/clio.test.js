@@ -25,7 +25,7 @@ const shouldThrow = (name, src, err, file = "<mem>") => {
   });
 };
 
-testStr("Booleans", "(not true) == false", "((!(true))==false)");
+testStr("Booleans", "(not true) == false", "((!(true))===false)");
 testStr("Null", "null", "null");
 testStr("Set", "{1 2 3}", "new Set([1,2,3])");
 testStr("Set (Empty)", "{}", "new Set([])");
@@ -211,17 +211,17 @@ testStr(
 testStr(
   "Conditionals (if/else if)",
   "if a > b:\n  c\nelse if a == b:\n  d",
-  "if((a>b)){c}else if((a==b)){d}"
+  "if((a>b)){c}else if((a===b)){d}"
 );
 testStr(
   "Conditionals (if/else if/else)",
   "if a > b:\n  c\nelse if a == b:\n  d\nelse:\n  x",
-  "if((a>b)){c}else if((a==b)){d}else{x}"
+  "if((a>b)){c}else if((a===b)){d}else{x}"
 );
 testStr(
   "Conditionals (return)",
   "fn testStr a b:\n  if a > b:\n    c\n  else if a == b:\n    d\n  else:\n    x",
-  "const testStr=register(`<mem>/testStr`,(a,b)=>{if((a>b)){return c}else if((a==b)){return d}else{return x}})"
+  "const testStr=register(`<mem>/testStr`,(a,b)=>{if((a>b)){return c}else if((a===b)){return d}else{return x}})"
 );
 testStr(
   "Quick Fn (return)",
@@ -444,7 +444,7 @@ testFile(
 );
 testFile(
   "fizzbuzz",
-  "const fizzbuzz=register(`fizzbuzz.clio/fizzbuzz`,(current,last)=>{const buzz=!(current%5);const fizz=!(current%3);if((fizz)&&(buzz)){console.log(`Fizz Buzz`)}else if(fizz){console.log(`Fizz`)}else if(buzz){console.log(`Buzz`)}else{console.log(current)};if(!((current==last))){return fizzbuzz((current+1),last)}})"
+  "const fizzbuzz=register(`fizzbuzz.clio/fizzbuzz`,(current,last)=>{const buzz=!(current%5);const fizz=!(current%3);if((fizz)&&(buzz)){console.log(`Fizz Buzz`)}else if(fizz){console.log(`Fizz`)}else if(buzz){console.log(`Buzz`)}else{console.log(current)};if(!((current===last))){return fizzbuzz((current+1),last)}})"
 );
 testFile(
   "express",

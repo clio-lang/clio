@@ -19,7 +19,7 @@ const checkLambda = (node, body, getValue, getBody) => {
 };
 
 const getCallFn = (node) => {
-  if (node.fn.type == "method") {
+  if (node.fn.type === "method") {
     if (!node.isMap)
       return {
         type: "propertyAccess",
@@ -219,7 +219,7 @@ const types = {
       lastNode.elseIfs.map((elseIf) => (elseIf.body.type = "return"));
       if (lastNode.else) lastNode.else.body.type = "return";
       addReturn = false;
-    } else if (lastNode.type == "assignment") {
+    } else if (lastNode.type === "assignment") {
       if (lastNode.value.insertBefore)
         content.push(lastNode.value.insertBefore);
       content.push(get(lastNode));
@@ -305,14 +305,14 @@ const types = {
        yet istanbul considers them untested branches,
        I have no idea why, I disabled istanbul checks
        here until I figure out why? */
-    if (protocol == "js") {
+    if (protocol === "js") {
       require = new SourceNode(
         node.import.line,
         node.import.column,
         node.import.file,
         ["require(", '"', path, '")']
       );
-    } /* istanbul ignore next */ else if (protocol == "clio") {
+    } /* istanbul ignore next */ else if (protocol === "clio") {
       require = new SourceNode(
         node.import.line,
         node.import.column,
@@ -339,9 +339,9 @@ const types = {
       let parts = [];
       let rest;
       for (const part of node.items) {
-        if (part.type == "symbol") {
+        if (part.type === "symbol") {
           parts.push(get(part));
-        } else if (part.lhs.type == "symbol") {
+        } else if (part.lhs.type === "symbol") {
           parts.push(
             new SourceNode(part.as.line, part.as.column, part.as.file, [
               get(part.lhs),
@@ -395,6 +395,8 @@ const types = {
   },
   comparison(node) {
     const nodes = [];
+    for (const { op } of node.comparisons)
+      if (op.value === "==") op.value = "===";
     const first = node.comparisons.shift();
     let needsAsync = node.lhs.needsAsync;
     nodes.push(
@@ -450,7 +452,7 @@ const types = {
             op.line,
             op.column,
             op.file,
-            op.value == "and" ? "&&" : "||"
+            op.value === "and" ? "&&" : "||"
           ),
           "(",
           rhs,
@@ -627,7 +629,7 @@ const types = {
   },
   wrapped(node) {
     if (!node.content) return new SourceNode(null, null, null, "");
-    if (node.isFn && node.content.type == "call")
+    if (node.isFn && node.content.type === "call")
       node.content.args.map((arg) => (arg.lambda = []));
     const content = checkLambda(node.content, node.content, true, true);
     const sn = new SourceNode(null, null, null, [
@@ -642,7 +644,7 @@ const types = {
   assignment(node) {
     const name = get(node.name);
     const sn = new SourceNode(null, null, null, [
-      ...(node.name.type == "symbol" ? ["const", " "] : []),
+      ...(node.name.type === "symbol" ? ["const", " "] : []),
       name,
       asIs(node.assign),
       node.value,
@@ -654,7 +656,7 @@ const types = {
   arrowAssignment(node) {
     const name = get(node.name);
     const insertBefore = new SourceNode(null, null, null, [
-      ...(node.name.type == "symbol" ? ["const", " "] : []),
+      ...(node.name.type === "symbol" ? ["const", " "] : []),
       name,
       new SourceNode(node.arrow.line, node.arrow.column, node.arrow.file, "="),
       node.value,
