@@ -40,7 +40,7 @@ const parsingError = (source, file, tokens) => {
     else if (whites.includes(lhs.item.type)) step();
     else break;
   }
-  if (rhs.item?.type == "clio") rhs = { item: rhs.item.content[0]?.node };
+  if (rhs.item.type == "clio") rhs = { item: rhs.item.content[0]?.node };
   const expecting = Object.keys(rules[lhs.item.type] || {}).join(", ");
   const start = Math.max(0, rhs.item.line - 3);
   const location = rhs.item.meta?.location || rhs.item;

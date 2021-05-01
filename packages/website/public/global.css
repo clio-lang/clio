@@ -3,29 +3,24 @@ body {
   position: relative;
   padding: 0;
   margin: 0;
-  color: #19191f;
-  background: #e6e3e3;
+  color: #222;
+  background: #eee;
+  overflow-x: hidden;
 }
 
 body {
-  font-family: "Fira Sans";
+  font-family: "Roboto", sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Raleway", sans-serif;
 }
 
 .monaco-editor .scroll-decoration {
   box-shadow: none !important;
-}
-
-a {
-  color: rgb(33, 33, 33);
-  border-bottom: 1px dotted rgba(33, 33, 33, 0.4);
-  text-decoration: none;
-  padding-bottom: 2px;
-  margin-bottom: -3px;
-}
-
-a:hover {
-  color: rgb(204, 42, 64);
-  border-bottom: 2px solid rgb(204, 42, 64);
-  padding-bottom: 2px;
-  margin-bottom: -4px;
 }
