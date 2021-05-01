@@ -89,28 +89,28 @@ testStr("Pipe", "a -> double", "double(a)");
 testStr("Pipe (w/args)", "a -> add 2", "add(a,2)");
 testStr("Await", "await a", "(await a)");
 testStr("Await all", "[await] [a]", "(await Promise.all([a]))");
-testStr("Hashmap", "# key value", "{key:value}");
+testStr("Hashmap", "# key: value", "{key:value}");
 testStr(
   "Hashmap (As Arg)",
-  `print arg # a b c d\ne f`,
+  `print arg # a: b c: d\ne f`,
   "print(arg,{a:b,c:d});e(f)"
 );
 testStr(
   "Hashmap (Multiline)",
-  "# key value\n  key2 value2",
+  "# key: value\n  key2: value2",
   "{key:value,key2:value2}"
 );
-testStr("Hashmap (Indented)", "#\n  key value", "{key:value}");
+testStr("Hashmap (Indented)", "#\n  key: value", "{key:value}");
 testStr(
   "Hashmap (Multi Indent)",
-  "#\n  key value key\n    key value",
+  "#\n  key: value key:\n    key: value",
   "{key:value,key:{key:value}}"
 );
-testStr("Hashmap (Multi Key)", "# one 1 two 2", "{one:1,two:2}");
-testStr("Hashmap (Nested)", "# key\n  key value", "{key:{key:value}}");
+testStr("Hashmap (Multi Key)", "# one: 1 two: 2", "{one:1,two:2}");
+testStr("Hashmap (Nested)", "# key:\n  key: value", "{key:{key:value}}");
 testStr(
   "Hashmap Should End on Line Break",
-  "# key value\ndouble x",
+  "# key: value\ndouble x",
   "{key:value};double(x)"
 );
 testStr("Comparison", "a < b", "(a<b)");
@@ -195,11 +195,11 @@ testStr(
   "4 in ([1 2 3] -> * double)",
   "includes(4,([1,2,3].map(double)))"
 );
-testStr("In (Hash)", "key in # key value", "includes(key,{key:value})");
+testStr("In (Hash)", "key in # key: value", "includes(key,{key:value})");
 testStr("Conditionals", "if a > b:\n  c", "if((a>b)){c}");
 testStr(
   "Conditionals (If In)",
-  "if key in # key value: console.log true",
+  "if key in # key: value: console.log true",
   "if(includes(key,{key:value})){console.log(true)}"
 );
 testStr("Conditionals (Value Term)", "if a:\n  c", "if(a){c}");

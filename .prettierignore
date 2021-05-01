@@ -8,5 +8,6 @@ __pycache__
 .cache
 .DS_Store
 dist
+docs
 
 *.clio.js
