@@ -1,7 +1,6 @@
 const asyncHooks = require("async_hooks");
-const { channel } = require("clio-rpc/channel");
 const { Executor } = require("clio-rpc/executor");
-const { EventEmitter, range, slice, remote } = require("clio-lang-internals");
+const builtins = require("clio-lang-internals");
 
 class Distributed {
   constructor(isWorker, connection) {
@@ -90,29 +89,13 @@ class Monitor {
   }
 }
 
-const clioCommon = {
-  f(...args) {
-    return args.map((arg) => arg.toString()).join("");
-  },
-  emitter() {
-    return new EventEmitter$4();
-  },
-  man(fn) {
-    return fn.__man__;
-  },
-  channel,
-  range,
-  slice,
-  remote,
-};
-
 const run = async (module, { worker, executor }, { noMain = false } = {}) => {
   const clio = {
     distributed: worker ? workerDist(executor, worker) : mainDist(executor),
     isWorker: !!worker,
     isMain: !worker,
     exports: {},
-    ...clioCommon,
+    ...builtins,
   };
   clio.register = (name, fn) => {
     clio.distributed.set(name, fn);
@@ -163,7 +146,7 @@ const importClio = (file) => {
         isMain: true,
         isWorker: false,
         exports: {},
-        ...clioCommon,
+        ...builtins,
       };
       const exports = await main.exports(clio);
       resolve({ dispatcher, exports });

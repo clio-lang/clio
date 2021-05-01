@@ -46,4 +46,5 @@ class EventEmitter {
   }
 }
 
-module.exports = EventEmitter;
+module.exports.EventEmitter = EventEmitter;
+module.exports.emitter = () => new EventEmitter();
