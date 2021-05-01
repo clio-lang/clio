@@ -720,7 +720,9 @@ const types = {
 };
 
 const get = (node) => {
-  return types[node.type](node);
+  const result = types[node.type](node);
+  result.node = node;
+  return result;
 };
 
 module.exports.checkLambda = checkLambda;

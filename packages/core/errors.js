@@ -16,6 +16,16 @@ const opens = [
 /* istanbul ignore next */
 const whites = ["lineBreak"];
 
+const getMessage = (file, line, start, column, source, expecting, rhs) => {
+  const code = source.split("\n").slice(start, line).join("\n");
+  return [
+    `Parsing error at ${file}[${line}:${column}]\n`,
+    code,
+    " ".repeat(column) + "^",
+    `\nExpecting one of ${expecting} but encountered ${rhs.item.type}`,
+  ].join("\n");
+};
+
 /* istanbul ignore next */
 const parsingError = (source, file, tokens) => {
   let lhs = tokens.first;
@@ -25,20 +35,18 @@ const parsingError = (source, file, tokens) => {
     rhs = lhs.next;
   };
   while (true) {
-    if (opens.includes(rhs.item.type)) step();
+    const isROpen = opens.includes(rhs.item.type);
+    const isLOpen = opens.includes(lhs.item.type);
+    if (!isLOpen && isROpen) step();
     else if (whites.includes(lhs.item.type)) step();
     else break;
   }
+  if (rhs.item?.type == "clio") rhs = { item: rhs.item.content[0]?.node };
   const expecting = Object.keys(rules[lhs.item.type] || {}).join(", ");
   const start = Math.max(0, rhs.item.line - 3);
-  const location = rhs.item.meta?.location || rhs;
+  const location = rhs.item.meta?.location || rhs.item;
   const { line, column } = location;
-  const message = [
-    `Parsing error at ${file}[${line}:${column}]\n`,
-    source.split("\n").slice(start, line).join("\n"),
-    " ".repeat(column) + "^",
-    `\nExpecting one of ${expecting} but encountered ${rhs.item.type}`,
-  ].join("\n");
+  const message = getMessage(file, line, start, column, source, expecting, rhs);
   return new Error(message);
 };
 
