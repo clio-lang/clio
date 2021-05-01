@@ -14,7 +14,7 @@ const opens = [
   "fnTail",
 ];
 /* istanbul ignore next */
-const whites = ["lineBreak"];
+const whites = ["lineBreak", "indent", "outdent"];
 
 const getMessage = (file, line, start, column, source, expecting, rhs) => {
   const code = source.split("\n").slice(start, line).join("\n");
@@ -36,8 +36,7 @@ const parsingError = (source, file, tokens) => {
   };
   while (true) {
     const isROpen = opens.includes(rhs.item.type);
-    const isLOpen = opens.includes(lhs.item.type);
-    if (!isLOpen && isROpen) step();
+    if (isROpen) step();
     else if (whites.includes(lhs.item.type)) step();
     else break;
   }
