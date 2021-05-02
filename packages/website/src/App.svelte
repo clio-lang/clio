@@ -3,6 +3,7 @@
   import Head from "./components/Head.svelte";
   import Hero from "./components/Hero.svelte";
   import Features from "./components/Features.svelte";
+  import Examples from "./components/Examples.svelte";
   import Social from "./components/Social.svelte";
   import Footer from "./components/Footer.svelte";
 </script>
@@ -15,6 +16,7 @@
 </div>
 
 <Features />
+<Examples />
 <Social />
 <Footer />
 
@@ -29,7 +31,6 @@
     margin: 0 auto;
     margin-bottom: 4em;
   }
-
   @media (max-width: 960px) {
     .playground {
       max-width: 90%;
