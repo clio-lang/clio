@@ -17,6 +17,13 @@ module.exports = {
     "<rootDir>/jest.config.js",
     "<rootDir>/packages/rpc/test",
   ],
+  coveragePathIgnorePatterns: [
+    "<rootDir>/jest.config.js",
+    "<rootDir>/packages/rpc/test",
+    "<rootDir>/packages/website",
+    "<rootDir>/packages/playground",
+    "<rootDir>/packages/highlight",
+  ],
   moduleFileExtensions: ["js", "json", "jsx", "ts", "tsx", "node", "toml"],
   testEnvironment: "node",
   testTimeout: 30000,
