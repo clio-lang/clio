@@ -1,18 +1,38 @@
-const { map } = require("bean-parser");
+const { map, merge } = require("bean-parser");
 const { wrap } = require("../common");
 
-module.exports = {
-  ...map(["symbol", "propertyAccess", "wrapped", "slice", "range"], {
+module.exports = merge(
+  {
     ...map(
-      ["groupStart"],
-      wrap(
-        /* istanbul ignore next */
-        () => {
-          /* This never matches, but boosts wrapped, array,
+      ["symbol", "propertyAccess", "wrapped", "slice", "range", "parallelFn"],
+      {
+        ...map(
+          ["groupStart"],
+          wrap(
+            /* istanbul ignore next */
+            () => {
+              /* This never matches, but boosts wrapped, array,
              hashmap, set vs block rule matching */
-        },
-        0.5
-      )
+            },
+            0.5
+          )
+        ),
+      }
     ),
-  }),
-};
+  },
+  {
+    ...map(["symbol", "propertyAccess", "wrapped", "slice", "parallelFn"], {
+      ...map(
+        ["hash"],
+        wrap(
+          /* istanbul ignore next */
+          () => {
+            /* This never matches, but boosts wrapped, array,
+             hashmap, set vs block rule matching */
+          },
+          0.05
+        )
+      ),
+    }),
+  }
+);

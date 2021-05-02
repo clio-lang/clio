@@ -25,7 +25,7 @@ const shouldThrow = (name, src, err, file = "<mem>") => {
   });
 };
 
-testStr("Booleans", "(not true) == false", "((!(true))==false)");
+testStr("Booleans", "(not true) == false", "((!(true))===false)");
 testStr("Null", "null", "null");
 testStr("Set", "{1 2 3}", "new Set([1,2,3])");
 testStr("Set (Empty)", "{}", "new Set([])");
@@ -89,23 +89,33 @@ testStr("Pipe", "a -> double", "double(a)");
 testStr("Pipe (w/args)", "a -> add 2", "add(a,2)");
 testStr("Await", "await a", "(await a)");
 testStr("Await all", "[await] [a]", "(await Promise.all([a]))");
-testStr("Hashmap", "# key value", "{key:value}");
+testStr("Hashmap", "# key: value", "{key:value}");
+testStr(
+  "Hashmap (As Arg)",
+  `print arg # a: b c: d\ne f`,
+  "print(arg,{a:b,c:d});e(f)"
+);
+testStr(
+  "Hashmap (As Arg Returned)",
+  `fn test:\n  add # title: title checked: false`,
+  "const test=register(`<mem>/test`,()=>{return add({title:title,checked:false})})"
+);
 testStr(
   "Hashmap (Multiline)",
-  "# key value\n  key2 value2",
+  "# key: value\n  key2: value2",
   "{key:value,key2:value2}"
 );
-testStr("Hashmap (Indented)", "#\n  key value", "{key:value}");
+testStr("Hashmap (Indented)", "#\n  key: value", "{key:value}");
 testStr(
   "Hashmap (Multi Indent)",
-  "#\n  key value key\n    key value",
+  "#\n  key: value key:\n    key: value",
   "{key:value,key:{key:value}}"
 );
-testStr("Hashmap (Multi Key)", "# one 1 two 2", "{one:1,two:2}");
-testStr("Hashmap (Nested)", "# key\n  key value", "{key:{key:value}}");
+testStr("Hashmap (Multi Key)", "# one: 1 two: 2", "{one:1,two:2}");
+testStr("Hashmap (Nested)", "# key:\n  key: value", "{key:{key:value}}");
 testStr(
   "Hashmap Should End on Line Break",
-  "# key value\ndouble x",
+  "# key: value\ndouble x",
   "{key:value};double(x)"
 );
 testStr("Comparison", "a < b", "(a<b)");
@@ -190,11 +200,11 @@ testStr(
   "4 in ([1 2 3] -> * double)",
   "includes(4,([1,2,3].map(double)))"
 );
-testStr("In (Hash)", "key in # key value", "includes(key,{key:value})");
+testStr("In (Hash)", "key in # key: value", "includes(key,{key:value})");
 testStr("Conditionals", "if a > b:\n  c", "if((a>b)){c}");
 testStr(
   "Conditionals (If In)",
-  "if key in # key value: console.log true",
+  "if key in # key: value: console.log true",
   "if(includes(key,{key:value})){console.log(true)}"
 );
 testStr("Conditionals (Value Term)", "if a:\n  c", "if(a){c}");
@@ -206,17 +216,17 @@ testStr(
 testStr(
   "Conditionals (if/else if)",
   "if a > b:\n  c\nelse if a == b:\n  d",
-  "if((a>b)){c}else if((a==b)){d}"
+  "if((a>b)){c}else if((a===b)){d}"
 );
 testStr(
   "Conditionals (if/else if/else)",
   "if a > b:\n  c\nelse if a == b:\n  d\nelse:\n  x",
-  "if((a>b)){c}else if((a==b)){d}else{x}"
+  "if((a>b)){c}else if((a===b)){d}else{x}"
 );
 testStr(
   "Conditionals (return)",
   "fn testStr a b:\n  if a > b:\n    c\n  else if a == b:\n    d\n  else:\n    x",
-  "const testStr=register(`<mem>/testStr`,(a,b)=>{if((a>b)){return c}else if((a==b)){return d}else{return x}})"
+  "const testStr=register(`<mem>/testStr`,(a,b)=>{if((a>b)){return c}else if((a===b)){return d}else{return x}})"
 );
 testStr(
   "Quick Fn (return)",
@@ -439,7 +449,7 @@ testFile(
 );
 testFile(
   "fizzbuzz",
-  "const fizzbuzz=register(`fizzbuzz.clio/fizzbuzz`,(current,last)=>{const buzz=!(current%5);const fizz=!(current%3);if((fizz)&&(buzz)){console.log(`Fizz Buzz`)}else if(fizz){console.log(`Fizz`)}else if(buzz){console.log(`Buzz`)}else{console.log(current)};if(!((current==last))){return fizzbuzz((current+1),last)}})"
+  "const fizzbuzz=register(`fizzbuzz.clio/fizzbuzz`,(current,last)=>{const buzz=!(current%5);const fizz=!(current%3);if((fizz)&&(buzz)){console.log(`Fizz Buzz`)}else if(fizz){console.log(`Fizz`)}else if(buzz){console.log(`Buzz`)}else{console.log(current)};if(!((current===last))){return fizzbuzz((current+1),last)}})"
 );
 testFile(
   "express",

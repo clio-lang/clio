@@ -35,7 +35,7 @@ const isRange = (o) => o instanceof Range;
 
 const slice = (arr, slicers) => {
   if (isRange(slicers)) return rangeSlice(arr, slicers);
-  if (slicers.length == 1 && isNumber(slicers[0]))
+  if (slicers.length === 1 && isNumber(slicers[0]))
     return numberSlice(arr, slicers[0]);
   return arraySlice(arr, slicers);
 };

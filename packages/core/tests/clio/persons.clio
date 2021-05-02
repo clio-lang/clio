@@ -1,6 +1,6 @@
 fn person name age:
-  # name name
-    age  age
+  # name: name
+    age:  age
 
 people = [
   (person "John" 45)

@@ -13,7 +13,7 @@ module.exports = {
         start: lhs,
         keyValues: [],
       };
-    }, 3),
+    }, 4.1),
     indent: wrap((lhs) => {
       return {
         type: "hashmapIndent",
@@ -24,6 +24,12 @@ module.exports = {
     }),
   },
   hashOpen: {
+    colon: wrap((lhs) => {
+      lhs.type = "hashOpenColon";
+      return lhs;
+    }, 4.1),
+  },
+  hashOpenColon: {
     ...map(
       values,
       wrap((lhs, rhs) => {
@@ -36,7 +42,7 @@ module.exports = {
           })
         );
         return lhs;
-      }, 3)
+      }, 4.1)
     ),
     indent: wrap((lhs, rhs) => {
       return {
@@ -52,7 +58,7 @@ module.exports = {
       lhs.key = types.get(rhs);
       lhs.type = "hashOpen";
       return lhs;
-    }, 3),
+    }, 4.1),
     indent: wrap((lhs) => {
       lhs.type = "hashmapIndent";
       lhs.isTopLevel = true;
@@ -61,6 +67,12 @@ module.exports = {
   },
   // Nested Hashmap
   hashIndentOpen: {
+    colon: wrap((lhs) => {
+      lhs.type = "hashIndentOpenColon";
+      return lhs;
+    }, 4.1),
+  },
+  hashIndentOpenColon: {
     ...map(["lineBreak"], wrap(lPluck, 3)),
     ...map(
       values,
@@ -74,7 +86,7 @@ module.exports = {
           })
         );
         return lhs;
-      }, 3)
+      }, 4.1)
     ),
     indent: wrap((lhs, rhs) => {
       return {
@@ -91,7 +103,7 @@ module.exports = {
       lhs.key = types.get(rhs);
       lhs.type = "hashIndentOpen";
       return lhs;
-    }, 3),
+    }, 4.1),
     outdent: wrap((lhs) => {
       const { parent, isTopLevel } = lhs;
       if (isTopLevel) {
@@ -99,7 +111,8 @@ module.exports = {
         return lhs;
       }
       lhs.type = "hashmap";
-      parent.type = parent.type == "hashOpen" ? "hashmap" : "hashmapIndent";
+      parent.type =
+        parent.type == "hashOpenColon" ? "hashmap" : "hashmapIndent";
       parent.keyValues.push(
         types.get({
           type: "keyValue",

@@ -10,10 +10,10 @@ const wrap = (fn, priority) =>
       else if (it.lambda?.length) result.lambda.push(...it.lambda);
     }
     result.meta = {
-      location: rhs.meta?.location || {
-        file: rhs.file,
-        line: rhs.line,
-        column: rhs.column,
+      location: lhs.meta?.location || {
+        file: lhs.file,
+        line: lhs.line,
+        column: lhs.column,
       },
     };
     return result;
