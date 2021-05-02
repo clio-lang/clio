@@ -96,6 +96,11 @@ testStr(
   "print(arg,{a:b,c:d});e(f)"
 );
 testStr(
+  "Hashmap (As Arg Returned)",
+  `fn test:\n  add # title: title checked: false`,
+  "const test=register(`<mem>/test`,()=>{return add({title:title,checked:false})})"
+);
+testStr(
   "Hashmap (Multiline)",
   "# key: value\n  key2: value2",
   "{key:value,key2:value2}"

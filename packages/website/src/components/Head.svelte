@@ -1,7 +1,3 @@
-<script>
-  let navOpen = false;
-</script>
-
 <div class="head">
   <div class="logo-container">
     <img src="/logo-512x512.png" alt="Clio" class="logo" />
