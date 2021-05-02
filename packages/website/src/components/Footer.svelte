@@ -2,7 +2,7 @@
   <div class="links">
     <div class="section">
       <h3>Social</h3>
-      <a href="https://t.me/joinchat/B0kZo0kVldcBimGD4NLfVw"> Telegram </a>
+      <a href="https://t.me/clio_lang"> Telegram </a>
       <a href="https://forum.clio-lang.org/"> Forums </a>
       <a href="https://twitter.com/clio_lang"> Twitter </a>
       <a href="https://www.reddit.com/r/cliolang/"> Reddit </a>
@@ -13,7 +13,12 @@
       <a href="https://playground.clio-lang.org"> Playground </a>
       <a href="https://medium.com/@pouyae"> Medium </a>
       <a href="http://rosettacode.org/wiki/Clio"> Rosetta Code </a>
-      <a href="https://github.com/clio-lang/clio"> Source </a>
+    </div>
+    <div class="section">
+      <h3>Clio</h3>
+      <a href="https://github.com/clio-lang/clio"> Source Code </a>
+      <a href="https://github.com/clio-lang/examples"> Examples </a>
+      <a href="https://github.com/clio-lang/rfc"> RFC </a>
     </div>
   </div>
   <footer>
