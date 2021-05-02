@@ -35,9 +35,9 @@ const parsingError = (source, file, tokens) => {
     rhs = lhs.next;
   };
   while (true) {
-    const isROpen = opens.includes(rhs.item.type);
-    if (isROpen) step();
+    if (opens.includes(rhs.item.type)) step();
     else if (whites.includes(lhs.item.type)) step();
+    else if (whites.includes(rhs.item.type)) step();
     else break;
   }
   if (rhs.item.type == "clio") rhs = { item: rhs.item.content[0]?.node };
