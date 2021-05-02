@@ -1,6 +1,6 @@
 # Functions
 
-Functions, are everything in Clio. In fact in your program's body you can only use functions \(and function imports\). here's how we define them:
+Functions the most important concept in Clio. here's how we define them:
 
 ```text
 fn add a b:

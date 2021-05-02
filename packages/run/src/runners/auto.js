@@ -29,6 +29,7 @@ const start = async (file, options) => {
   const execOptions = {};
 
   if (isHost) Object.assign(execOptions, { noExit: true, noMain: true });
+  if (!options.executor) return;
 
   const { executor } = runners[options.executor.proto];
   return executor(

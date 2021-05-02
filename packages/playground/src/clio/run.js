@@ -7,7 +7,7 @@ import { getModule } from "./common";
 export default async (src) => {
   const numCPUs = navigator.hardwareConcurrency;
   const main = await getModule(src);
-  const encoded = encodeURIComponent(src);
+  const encoded = encodeURIComponent(src.replace(/%/g, "~~mod~~"));
 
   const dispatcher = new Dispatcher();
   const serverTransport = new WebWorker.Server();

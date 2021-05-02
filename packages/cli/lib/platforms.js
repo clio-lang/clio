@@ -12,11 +12,12 @@ const web = {
       alias: {
         async_hooks: "./.clio/empty.js",
         worker_threads: "./.clio/empty.js",
+        ws: "clio-rpc/transports/ws/shim.js",
         "parcel:main": "./main.clio.js",
       },
       browserslist: ["last 1 Chrome version"],
     };
-    fs.writeFileSync(pkgPath, JSON.stringify(newPkg));
+    fs.writeFileSync(pkgPath, JSON.stringify(newPkg, null, 2));
     fs.writeFileSync(path.join(destination, ".clio", "empty.js"), "");
     if (skipBundle) return;
     const bundler = await setupParcel(destination);

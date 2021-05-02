@@ -185,3 +185,10 @@ export fn bye arg:
 {% endtab %}
 {% endtabs %}
 
+Constants can be exported as well:
+
+```text
+42 => export answer
+3.14 => export pi
+```
+

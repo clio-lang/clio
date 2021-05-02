@@ -1,0 +1,11 @@
+fn person name age:
+  # name: name
+    age:  age
+
+people = [
+  (person "John" 45)
+  (person "Kate" 30)
+]
+
+persons -> * (f"{@person.name} is {@person.age} years old")
+        -> * print

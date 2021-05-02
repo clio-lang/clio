@@ -55,7 +55,7 @@ async function fetchFromClioPackages({ branch, name }) {
   const file = await fetch(
     `https://raw.githubusercontent.com/clio-lang/packages/master/packages/${name}.json`
   );
-  if (file.status != 200) {
+  if (file.status !== 200) {
     console.log(`Couldn't fetch package info`);
     return false;
   }

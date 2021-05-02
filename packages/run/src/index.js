@@ -1,7 +1,6 @@
-const { Executor } = require("clio-rpc/executor");
-const { channel } = require("clio-rpc/channel");
-const { getImport } = require("clio-lang-internals");
 const asyncHooks = require("async_hooks");
+const { Executor } = require("clio-rpc/executor");
+const builtins = require("clio-lang-internals");
 
 class Distributed {
   constructor(isWorker, connection) {
@@ -93,12 +92,20 @@ class Monitor {
 const run = async (module, { worker, executor }, { noMain = false } = {}) => {
   const clio = {
     distributed: worker ? workerDist(executor, worker) : mainDist(executor),
-    channel,
+    isWorker: !!worker,
+    isMain: !worker,
+    exports: {},
+    ...builtins,
   };
-  getImport(clio);
-  const { main } = await module.__clioModule(clio);
+  clio.register = (name, fn) => {
+    clio.distributed.set(name, fn);
+    fn.parallel = clio.distributed.get(name);
+    return fn;
+  };
+  const { main } = await module.exports(clio);
+  const argv = typeof process != "undefined" ? process.argv : [];
   if (!worker && !noMain) {
-    const result = await main([]);
+    const result = await main(argv);
     const awaited = Array.isArray(result)
       ? await Promise.all(result)
       : await result;
@@ -107,13 +114,14 @@ const run = async (module, { worker, executor }, { noMain = false } = {}) => {
 };
 
 const importClio = (file) => {
-  const workerThread = "worker_threads";
-  const { Worker } = require(workerThread);
+  // This is probably added because of parcel
+  const worker_threads = "worker_threads";
+  const { Worker } = require(worker_threads);
   const { Dispatcher } = require("clio-rpc/dispatcher");
   const { Executor } = require("clio-rpc/executor");
   const WorkerThread = require("clio-rpc/transports/worker-thread");
-  const path = require("path");
 
+  const path = require("path");
   const os = require("os");
 
   const numCPUs = os.cpus().length;
@@ -122,6 +130,7 @@ const importClio = (file) => {
   const dispatcher = new Dispatcher();
   const serverTransport = new WorkerThread.Server();
   const workerFile = path.resolve(__dirname, "./workers/wt.js");
+
   for (let i = 0; i < numCPUs; i++) {
     const worker = new Worker(workerFile, { workerData: { file } });
     serverTransport.addWorker(worker);
@@ -132,9 +141,14 @@ const importClio = (file) => {
     dispatcher.expectWorkers(numCPUs).then(async () => {
       const clientTransport = serverTransport.getTransport();
       const executor = new Executor(clientTransport);
-      const clio = { distributed: mainDist(executor) };
-      getImport(clio);
-      const exports = await main.__clioModule(clio);
+      const clio = {
+        distributed: mainDist(executor),
+        isMain: true,
+        isWorker: false,
+        exports: {},
+        ...builtins,
+      };
+      const exports = await main.exports(clio);
       resolve({ dispatcher, exports });
     });
   });

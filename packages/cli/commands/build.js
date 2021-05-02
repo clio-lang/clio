@@ -28,6 +28,7 @@ const isClioFile = (file) => file.endsWith(".clio");
 const isNotClioFile = (file) => !file.endsWith(".clio");
 const getClioFiles = (dir) => walk(dir).filter(isClioFile);
 const getNonClioFiles = (dir) => walk(dir).filter(isNotClioFile);
+
 const copyDir = async (src, dest) => {
   const entries = await fs.promises.readdir(src, { withFileTypes: true });
   mkdir(dest);
@@ -39,15 +40,7 @@ const copyDir = async (src, dest) => {
       const absTarget = path.isAbsolute(target)
         ? target
         : path.resolve(path.dirname(srcPath), target);
-      if (fs.lstatSync(absTarget).isDirectory()) {
-        await copyDir(absTarget, destPath);
-      } else {
-        await fs.promises.copyFile(
-          absTarget,
-          destPath,
-          fs.constants.COPYFILE_FICLONE
-        );
-      }
+      fs.symlinkSync(absTarget, destPath);
     } else if (entry.isDirectory()) {
       await copyDir(srcPath, destPath);
     } else {
@@ -57,6 +50,17 @@ const copyDir = async (src, dest) => {
         fs.constants.COPYFILE_FICLONE
       );
     }
+  }
+};
+
+const rmdir = (directory) => {
+  if (fs.existsSync(directory)) {
+    fs.readdirSync(directory).forEach(function (file) {
+      const curr = path.join(directory, file);
+      if (fs.lstatSync(curr).isDirectory()) rmdir(curr);
+      else fs.unlinkSync(curr);
+    });
+    fs.rmdirSync(directory);
   }
 };
 
@@ -282,10 +286,16 @@ const build = async (
       "If you encounter any unwanted behavior, unset the CLIOPATH environment variable"
     );
     progress.succeed();
-    progress.start("Linking run");
+    progress.start("Linking dependencies");
+    rmdir(path.join(destination, "node_modules", "clio-run"));
     await link(
       path.resolve(process.env.CLIOPATH, "packages", "run"),
       path.join(destination, "node_modules", "clio-run")
+    );
+    rmdir(path.join(destination, "node_modules", "clio-rpc"));
+    await link(
+      path.resolve(process.env.CLIOPATH, "packages", "rpc"),
+      path.join(destination, "node_modules", "clio-rpc")
     );
     progress.succeed();
   }

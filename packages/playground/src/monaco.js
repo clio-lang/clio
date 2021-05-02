@@ -70,7 +70,7 @@ export const clio = {
 
       // identifiers and keywords
       [
-        /[a-z_$][\w$]*/,
+        /[a-zA-Z_$][\w$]*/i,
         {
           cases: {
             "@typeKeywords": "keyword",
@@ -79,7 +79,6 @@ export const clio = {
           },
         },
       ],
-      [/[A-Z][\w\$]*/, "type.identifier"], // to show class names nicely
 
       // whitespace
       { include: "@whitespace" },
@@ -100,10 +99,7 @@ export const clio = {
       // @ annotations.
       // As an example, we emit a debugging log message on these tokens.
       // Note: message are supressed during the first load -- change some lines to see them.
-      [
-        /@\s*[a-zA-Z_\$][\w\$]*/,
-        { token: "annotation", log: "annotation token: $0" },
-      ],
+      [/@\s*[a-zA-Z_\$][\w\$]*/, { token: "annotation" }],
 
       // numbers
       [/\d*\.\d+([eE][\-+]?\d+)?/, "number.float"],
@@ -149,12 +145,12 @@ export const clio = {
       [/--.*$/, "comment"],
     ],
 
-    function: [[/[a-z]+/, { token: "variable", next: "@pop" }]],
+    function: [[/[a-zA-Z0-9_]+/, { token: "variable", next: "@pop" }]],
 
     chain: [
       [/\*/, "operators"],
       [/\[?await\]?/, "keyword"],
-      [/[a-z]+/, { token: "variable", next: "@pop" }],
+      [/[a-zA-Z]+/, { token: "variable", next: "@pop" }],
     ],
   },
 };

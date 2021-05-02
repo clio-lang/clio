@@ -1,6 +1,6 @@
 {
   "name": "clio-manifest",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "",
   "main": "index.js",
   "directories": {
@@ -12,6 +12,6 @@
   "author": "Garrit Franke <garritfranke@gmail.com>",
   "license": "Apache-2.0",
   "dependencies": {
-    "npm-registry-fetch": "^9.0.0"
+    "npm-registry-fetch": "^10.1.1"
   }
 }

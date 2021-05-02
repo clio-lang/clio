@@ -23,8 +23,23 @@
         "",
         "export fn main argv:",
         "  [39 40 41 42]",
-        "    -> * await |fib|",
-        "    -> * item: console.log item",
+        "    -> * [await] |fib|",
+        "    -> * (console.log @it)",
+        ,
+      ].join("\n");
+    },
+    parallelFibAlternate() {
+      return [
+        "fn fib n:",
+        "  if n < 2: n",
+        "  else: (fib n - 1)",
+        "      + (fib n - 2)",
+        "",
+        "export fn main argv:",
+        "  [39 40 41 42]",
+        "    -> * |fib|",
+        "    -> * .then (console.log @it)",
+        ,
       ].join("\n");
     },
     fib() {
@@ -37,21 +52,37 @@
         "export fn main argv:",
         "  [39 40 41 42]",
         "    -> * fib",
-        "    -> * item: console.log item",
+        "    -> * (console.log @it)",
+      ].join("\n");
+    },
+    filter() {
+      return [
+        "export fn main argv:",
+        "  0..10 -> .toArray",
+        "        -> .filter (@it % 2)",
+        "        -> console.log",
+      ].join("\n");
+    },
+    reduce() {
+      return [
+        "export fn main argv:",
+        "  0..100 -> .toArray",
+        "         -> .reduce (@lhs + @rhs)",
+        "         -> console.log",
       ].join("\n");
     },
     express() {
       return [
         "-- Note: this code doesn't run in the browser!",
-        'import "express"',
+        'import "js:express"',
         "",
         "fn hello req res:",
         '  "Hello world" -> res.send',
         "",
         "export fn main argv:",
-        "  express () ->",
-        '    .get "/" hello',
-        "    .listen 3000",
+        "  app = express",
+        '  app.get "/" hello',
+        "  app.listen 3000",
       ].join("\n");
     },
   };
@@ -143,6 +174,32 @@
   font.load().then(makeEditor);
 </script>
 
+<div class="container">
+  <div class="toolbar">
+    <img src="/logo-128x128.png" class="logo" alt="logo" />
+    <span class="title">{title}</span>
+    <div class="spacer" />
+    <select class="sample" on:change={setSampleCode}>
+      <option selected value="parallelFib">Parallel Fib</option>
+      <option value="parallelFibAlternate"> Parallel Fib (Alternate) </option>
+      <option value="fib">Fib</option>
+      <option value="filter">Filter</option>
+      <option value="reduce">Reduce</option>
+      <option value="express">Express</option>
+    </select>
+    {#if share}
+      <a href="#?" class="btn share" on:click={copyShareURL}> Share </a>
+    {/if}
+    <a href="#?" class="btn" on:click={compileAndRun}> Run </a>
+  </div>
+  <div class="sep" />
+  <div class="editor">
+    <div id="left-pane" />
+    <div id="right-pane" />
+  </div>
+  <div class="copied" class:isActive>Link copied to clipboard</div>
+</div>
+
 <style>
   .container {
     height: 100%;
@@ -204,8 +261,8 @@
     flex: 1;
   }
   .logo {
-    zoom: 0.25;
-    margin-right: 64px;
+    margin-right: 1em;
+    height: 32px;
   }
   .copied {
     position: absolute;
@@ -238,26 +295,3 @@
     animation: appear 4s ease-in forwards;
   }
 </style>
-
-<div class="container">
-  <div class="toolbar">
-    <img src="/logo-128x128.png" class="logo" alt="logo" />
-    <span class="title">{title}</span>
-    <div class="spacer" />
-    <select class="sample" on:change={setSampleCode}>
-      <option selected value="parallelFib">Parallel Fib</option>
-      <option value="fib">Fib</option>
-      <option value="express">Express</option>
-    </select>
-    {#if share}
-      <a href="#?" class="btn share" on:click={copyShareURL}> Share </a>
-    {/if}
-    <a href="#?" class="btn" on:click={compileAndRun}> Run </a>
-  </div>
-  <div class="sep" />
-  <div class="editor">
-    <div id="left-pane" />
-    <div id="right-pane" />
-  </div>
-  <div class="copied" class:isActive>Link copied to clipboard</div>
-</div>

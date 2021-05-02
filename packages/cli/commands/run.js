@@ -17,7 +17,7 @@ exports.builder = {
 };
 
 exports.handler = (argv) => {
-  run(argv.source);
+  run(argv.source, argv._.slice(1));
 };
 
 async function run(projectPath, ...platformOptions) {

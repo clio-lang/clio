@@ -22,6 +22,7 @@ const workers = (file, server, { count }) => {
 };
 
 const executor = (file, dispatcher, server, monitor, { wait_for }, options) => {
+  if (options.noMain) return;
   const workerCount = wait_for === "cpu" ? os.cpus().length : wait_for;
   dispatcher.expectWorkers(workerCount).then(async () => {
     const main = require(file);
