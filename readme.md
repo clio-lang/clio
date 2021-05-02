@@ -3,7 +3,7 @@
 ![Travis (.org)](https://img.shields.io/travis/clio-lang/clio.svg)
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fclio-lang%2Fclio.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fclio-lang%2Fclio?ref=badge_shield)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/7ea4361c03b94375a58cb020328d8fd8)](https://www.codacy.com/gh/clio-lang/clio?utm_source=github.com&utm_medium=referral&utm_content=clio-lang/clio&utm_campaign=Badge_Grade)
-[![codecov](https://codecov.io/gh/clio-lang/clio/branch/master/graph/badge.svg?token=DizAOgNw8A)](https://codecov.io/gh/clio-lang/clio)
+[![codecov](https://codecov.io/gh/clio-lang/clio/branch/develop/graph/badge.svg?token=DizAOgNw8A)](https://codecov.io/gh/clio-lang/clio)
 [![Inline docs](http://inch-ci.org/github/clio-lang/clio.svg?branch=develop)](http://inch-ci.org/github/clio-lang/clio)
 [![Kanban Board](https://img.shields.io/badge/Kanban%20Board-v0.2.0-1abc9c.svg)](https://github.com/orgs/clio-lang/projects/1)
 
