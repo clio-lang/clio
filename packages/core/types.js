@@ -288,15 +288,14 @@ const types = {
     */
     const path = node.path.value.slice(1, -1).replace(/^[^:]*:/, "");
     const filename = path.split("/").pop();
+    // Get the name, and make it pascalCase
     const name = filename
       .replace(/\.[^.]*$/, "")
       .split("/")
       .pop()
-      .split(".")
+      .split(/[.-_]+/)
       .filter(Boolean)
-      .map((v, i) =>
-        i > 0 /* istanbul ignore next */ ? v[0].toUpperCase() + v.slice(1) : v
-      )
+      .map((v, i) => (i > 0 ? v[0].toUpperCase() + v.slice(1) : v))
       .join("");
     const protocol =
       node.path.value.slice(1, -1).match(/^[^:]*(?=:)/)?.[0] || "clio";
@@ -350,18 +349,23 @@ const types = {
             ])
           );
         } else {
+          const name = get(part.rhs);
           rest = new SourceNode(part.as.line, part.as.column, part.as.file, [
             "...",
-            get(part.rhs),
+            name,
           ]);
+          rest.name = name;
         }
       }
       if (rest) parts.push(rest);
-      assign = new SourceNode(null, null, null, [
-        "const{",
-        new SourceNode(null, null, null, parts).join(","),
-        "}=",
-      ]);
+      assign =
+        rest && parts.length == 1
+          ? new SourceNode(null, null, null, ["const ", rest.name, "="])
+          : new SourceNode(null, null, null, [
+              "const{",
+              new SourceNode(null, null, null, parts).join(","),
+              "}=",
+            ]);
     }
     return new SourceNode(null, null, null, [assign, require]);
   },
