@@ -90,6 +90,7 @@ testStr("Pipe (w/args)", "a -> add 2", "add(a,2)");
 testStr("Await", "await a", "(await a)");
 testStr("Await all", "[await] [a]", "(await Promise.all([a]))");
 testStr("Hashmap", "# key: value", "{key:value}");
+testStr("Hashmap (Empty)", "(#)", "({})");
 testStr(
   "Hashmap (As Arg)",
   `print arg # a: b c: d\ne f`,
