@@ -6,6 +6,7 @@ class Dispatcher extends EventEmitter {
     this.workers = new Map();
     this.clients = new Map();
     this.jobs = new Map();
+    this.rr = new Map();
     this.connectedWorkers = [];
     this.transports = [];
     this.index = 0;
@@ -53,7 +54,7 @@ class Dispatcher extends EventEmitter {
         id
       );
     } else {
-      this.addJob(socket, { path, args }, id, clientId);
+      this.addJob(socket, details, id, clientId, { path });
     }
   }
   result(inSocket, details, id, clientId, { toClient }) {
@@ -80,6 +81,7 @@ class Dispatcher extends EventEmitter {
   }
   registerWorker(worker, details, id, clientId) {
     const { paths } = JSON.parse(details);
+    if (!paths.length) return;
     // TODO: there must be a better way to do this
     worker.clientId = clientId;
     for (const path of paths)
@@ -93,17 +95,23 @@ class Dispatcher extends EventEmitter {
     const listeners = this.listeners.workerConnected || [];
     listeners.forEach((fn) => fn.call(this, worker));
   }
-  addJob(socket, { path, args }, id, clientId) {
+  addJob(socket, details, id, clientId, path) {
     this.jobs.set(path, [
       ...(this.jobs.get(path) || []),
-      [socket, { path, args }, id, clientId],
+      [socket, details, id, clientId, path],
     ]);
+  }
+  schedule(path, length) {
+    const stored = this.rr.get(path);
+    const curr = Number.isInteger(stored) ? stored : 0;
+    const next = curr + 1 >= length ? 0 : curr + 1;
+    this.rr.set(path, next);
+    return next;
   }
   getWorker(path) {
     const workers = this.workers.get(path);
     if (!workers) return;
-    const { length } = workers;
-    const index = Math.floor(Math.random() * length);
+    const index = this.schedule(path, workers.length);
     return workers[index];
   }
   send(socket, data, id) {
