@@ -6,6 +6,8 @@
   import Examples from "./components/Examples.svelte";
   import Social from "./components/Social.svelte";
   import Footer from "./components/Footer.svelte";
+  import Performance from "./components/Performance.svelte";
+
 </script>
 
 <Head />
@@ -17,6 +19,7 @@
 
 <Features />
 <Examples />
+<Performance />
 <Social />
 <Footer />
 
@@ -42,4 +45,5 @@
       display: none;
     }
   }
+
 </style>

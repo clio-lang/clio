@@ -19,6 +19,10 @@
     padding: 1em 2em;
     box-shadow: 0px 0px 32px 8px rgba(0, 0, 0, 0.3);
     align-items: center;
+    position: sticky;
+    top: 0;
+    background: #eee;
+    z-index: 9999;
   }
   .spacer {
     flex: 1;
@@ -60,4 +64,5 @@
       padding: 1em;
     }
   }
+
 </style>
