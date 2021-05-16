@@ -408,7 +408,7 @@ testStr(
 testStr(
   "Import (All as)",
   `import * as b from "js:test"`,
-  `const{...b}=require("test")`
+  `const b=require("test")`
 );
 testStr(
   "Import (Complex)",

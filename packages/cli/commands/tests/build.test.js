@@ -59,7 +59,10 @@ describe("Package.json generation", () => {
     const newConfig = {
       ...oldConfig,
       // eslint-disable-next-line camelcase
-      npm_dependencies: { ...oldConfig.npm_dependencies, express: "latest" },
+      npm_dependencies: [
+        ...(oldConfig.npm_dependencies || []),
+        { name: "express", version: "latest" },
+      ],
     };
 
     writePackageConfig(newConfig, dir.name);

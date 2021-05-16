@@ -32,6 +32,9 @@ function getPackageConfig(
     servers: config.servers,
     workers: config.workers,
     executor: config.executor,
+    dependencies: [],
+    // eslint-disable-next-line camelcase
+    npm_dependencies: [],
   };
 
   if (config.dependencies) {
@@ -64,8 +67,8 @@ function getPackageConfig(
 function writePackageConfig(config, directory = process.cwd()) {
   const dependencies = {};
   const npm_dependencies = {};
-  config.dependencies.forEach((dep) => (dependencies[dep.name] = dep.version));
-  config.npm_dependencies.forEach(
+  config.dependencies?.forEach((dep) => (dependencies[dep.name] = dep.version));
+  config.npm_dependencies?.forEach(
     (dep) => (npm_dependencies[dep.name] = dep.version)
   );
   const cfgStr = toml.stringify({ ...config, dependencies, npm_dependencies });
