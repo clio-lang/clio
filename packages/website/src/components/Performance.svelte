@@ -10,7 +10,7 @@
         label: "Clio",
         data: [42, 5.3, 4.1],
         borderColor: "rgba(68,71,90,1)",
-        backgroundColor: "rgba(80,250,123,.7)",
+        backgroundColor: "#2b82d4cc",
         borderRadius: {
           topLeft: 3,
           topRight: 3,
@@ -20,7 +20,7 @@
         label: "Clio (Parallel)",
         data: [139, 23.6, 10.2],
         borderColor: "rgba(68,71,90,1)",
-        backgroundColor: "rgba(189,147,249,.7)",
+        backgroundColor: "#4f29f0cc",
         borderRadius: {
           topLeft: 3,
           topRight: 3,
@@ -30,7 +30,7 @@
         label: "JavaScript",
         data: [41, 5.2, 3.9],
         borderColor: "rgba(68,71,90,1)",
-        backgroundColor: "rgba(255,184,108,.7)",
+        backgroundColor: "#b5cea7cc",
         borderRadius: {
           topLeft: 3,
           topRight: 3,
