@@ -14,7 +14,7 @@ export fn main argv:
   add 2 3
 ```
 
-The above calls the `add` function with two arguments: `2` and `3`. However, there is another way to call a function, and that's using pipes:
+The above code calls the `add` function with two arguments: `2` and `3`. However, there is another way to call a function, and that's using pipes:
 
 ```text
 export fn main argv:
@@ -45,7 +45,7 @@ export fn main argv:
 
 [Try on playground.](https://clio-playground.pouyae.vercel.app/?code=fn%20add%20a%20b%3A%0A%20%20a%20%2B%20b%0A%0Aexport%20fn%20main%20argv%3A%0A%20%20console.log%20%28add%202%203%29)
 
-However, using this syntax is discouraged \(unless if you're a lisper!\), specially when there are more than two nested calls as it can lead to unreadable, confusing pieces of code!
+However, using this syntax is discouraged \(but justified in some cases\), specially when there are more than two nested calls as it can lead to unreadable, confusing pieces of code!
 
 Finally, if you want to call a function with no arguments, simply do:
 

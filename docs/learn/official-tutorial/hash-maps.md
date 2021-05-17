@@ -42,7 +42,9 @@ export fn main argv:
 
 [Try on playground.](https://clio-playground.pouyae.vercel.app/?code=export%20fn%20main%20argv%3A%0A%20%20%23%20app%3A%0A%20%20%20%20%20%20version%3A%20%221.0.1%22%0A%20%20%20%20%20%20name%3A%20%22My%20App%22%0A%20%20%20%20window%3A%0A%20%20%20%20%20%20height%3A%20100%0A%20%20%20%20%20%20width%3A%20300%0A%20%20%20%20%20%20title%3A%20%22Hello%20world!%22%0A%20%20-%3E%20console.log)
 
-{% hint style="warning" %}
-Current version of Clio translates hash maps to JavaScript objects. It is planned to use JavaScript Maps in future versions.
+{% hint style="danger" %}
+A bug on latest Clio version prevents the above examples from running, this will be fixed in the next release.
 {% endhint %}
+
+
 
