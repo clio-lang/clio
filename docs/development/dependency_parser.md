@@ -8,11 +8,11 @@ GITHUB\_PATH\_RE
 
 GITHUB\_URI\_RE
 
-![](../.gitbook/assets/GITHUB_URI_RE%20%285%29.png)
+![](../.gitbook/assets/GITHUB_URI_RE%20%286%29.png)
 
 GITHUB\_ZIP\_RE
 
-![](../.gitbook/assets/GITHUB_ZIP_RE%20%283%29.png)
+![](../.gitbook/assets/GITHUB_ZIP_RE%20%286%29%20%284%29.png)
 
 NAME\_RE
 
