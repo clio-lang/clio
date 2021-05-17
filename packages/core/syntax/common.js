@@ -116,6 +116,7 @@ const lexerTokens = [
   "gt",
   "lte",
   "lt",
+  "eq",
   "fatArrow",
   "assign",
   "divOp",

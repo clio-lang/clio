@@ -32,6 +32,9 @@ function getPackageConfig(
     servers: config.servers,
     workers: config.workers,
     executor: config.executor,
+    dependencies: [],
+    // eslint-disable-next-line camelcase
+    npm_dependencies: [],
   };
 
   if (config.dependencies) {
@@ -62,9 +65,13 @@ function getPackageConfig(
  * @param {object} config
  */
 function writePackageConfig(config, directory = process.cwd()) {
-  const deps = {};
-  config.dependencies.forEach((dep) => (deps[dep.name] = dep.version));
-  const cfgStr = toml.stringify({ ...config, dependencies: deps });
+  const dependencies = {};
+  const npm_dependencies = {};
+  config.dependencies?.forEach((dep) => (dependencies[dep.name] = dep.version));
+  config.npm_dependencies?.forEach(
+    (dep) => (npm_dependencies[dep.name] = dep.version)
+  );
+  const cfgStr = toml.stringify({ ...config, dependencies, npm_dependencies });
   const filePath = path.join(directory, CONFIGFILE_NAME);
   fs.writeFileSync(filePath, cfgStr);
 }
@@ -76,14 +83,13 @@ function writePackageConfig(config, directory = process.cwd()) {
  */
 function addDependency(dependency) {
   const config = getPackageConfig();
-  config.dependencies = config.dependencies || {};
-  config.dependencies = {
-    ...config.dependencies,
-    ...Object.fromEntries([dependency]),
-  };
+  const [name, version] = dependency;
+
+  config.dependencies = config.dependencies || [];
+  config.dependencies.push({ name, version });
+
   writePackageConfig(config);
 
-  const [name, version] = dependency;
   console.log(
     `Added ${name}@${version} to the dependencies list in ${CONFIGFILE_NAME}`
   );
@@ -96,14 +102,13 @@ function addDependency(dependency) {
  */
 function addNpmDependency(dependency) {
   const config = getPackageConfig();
-  config.npm_dependencies = config.npm_dependencies || {};
-  config.npm_dependencies = {
-    ...config.npm_dependencies,
-    ...Object.fromEntries([dependency]),
-  };
+  const [name, version] = dependency;
+
+  config.npm_dependencies = config.npm_dependencies || [];
+  config.npm_dependencies.push({ name, version });
+
   writePackageConfig(config);
 
-  const [name, version] = dependency;
   console.log(
     `Added ${name}@${version} to the dependencies list in ${CONFIGFILE_NAME}`
   );

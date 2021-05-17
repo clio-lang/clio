@@ -6,11 +6,11 @@ module.exports = {
   ...map(["symbol", "propertyAccess", "slice", "parameter"], {
     dot: wrap((lhs, dot) => {
       return { type: "propertyAccessOpen", lhs, dot };
-    }, 12),
+    }, 912),
   }),
   propertyAccessOpen: {
     symbol: wrap((lhs, rhs) => {
       return { ...lhs, type: "propertyAccess", rhs };
-    }, 13),
+    }, 913),
   },
 };

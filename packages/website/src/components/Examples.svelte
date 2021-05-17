@@ -1,5 +1,6 @@
 <script>
   import Card from "./Card.svelte";
+
 </script>
 
 <div class="title">
@@ -46,6 +47,30 @@
         <a
           class="btn"
           href="https://github.com/clio-lang/examples/tree/master/game"
+        >
+          View Code
+        </a>
+      </div>
+    </Card>
+  </div>
+  <div class="example">
+    <Card>
+      <h3 slot="title">Realtime Todo App</h3>
+      <video src="/todo.mp4" autoplay loop muted playsinline>
+        <track kind="captions" />
+      </video>
+      <p>
+        Learn how to make a realtime, reactive todo app with Clio in just 20
+        lines of server code and under 40 lines of client code!
+      </p>
+      <div class="spacer" />
+      <div class="actions">
+        <!--a class="btn" href="https://clio-game-of-life.vercel.app">
+          Read More
+        </a-->
+        <a
+          class="btn"
+          href="https://github.com/clio-lang/examples/tree/master/todo"
         >
           View Code
         </a>
@@ -123,12 +148,14 @@
   .spacer {
     flex: 1;
   }
+  video,
   img {
     max-width: 100%;
-    border-radius: 2em;
+    border-radius: 1em;
     box-shadow: 0px 0px 16px 1px rgb(0 0 0 / 40%);
     transition: cubic-bezier(0.39, 0.575, 0.565, 1) all 0.2s;
   }
+  video:hover,
   img:hover {
     transform: scale(1.02);
   }
@@ -151,4 +178,5 @@
       margin: 1em;
     }
   }
+
 </style>

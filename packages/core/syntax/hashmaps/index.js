@@ -22,6 +22,13 @@ module.exports = {
         isTopLevel: true,
       };
     }),
+    ender: wrap((lhs) => {
+      return {
+        type: "hashmap",
+        start: lhs,
+        keyValues: [],
+      };
+    }),
   },
   hashOpen: {
     colon: wrap((lhs) => {
