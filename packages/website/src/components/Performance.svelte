@@ -12,7 +12,7 @@
   Chart.register(BarController, CategoryScale, LinearScale, BarElement);
 
   const data = {
-    labels: ["Find Primes (0..160k)", "Jimp (Process Images)", "Fib (30..46)"],
+    labels: ["Find Primes", "Jimp", "Fib"],
     datasets: [
       {
         label: "Clio",
@@ -188,8 +188,11 @@
     .title {
       text-align: center;
     }
+    .inner > div {
+      padding: 0;
+    }
     h2 {
-      margin: 1em;
+      margin: 0.5em;
     }
   }
 

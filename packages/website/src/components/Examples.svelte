@@ -168,14 +168,15 @@
   @media (max-width: 640px) {
     .examples {
       padding: 1em;
-      grid-template-columns: repeat(1, 1fr);
+      display: flex;
+      flex-direction: column;
       margin-bottom: 1em;
     }
     .title {
       text-align: center;
     }
     h2 {
-      margin: 1em;
+      margin: 0.5em;
     }
   }
 

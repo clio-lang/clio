@@ -1,5 +1,6 @@
 <script>
   import Card from "./Card.svelte";
+
 </script>
 
 <div class="title">
@@ -133,14 +134,16 @@
   @media (max-width: 640px) {
     .features {
       padding: 1em;
-      grid-template-columns: repeat(1, 1fr);
+      display: flex;
+      flex-direction: column;
       margin-bottom: 1em;
     }
     .title {
       text-align: center;
     }
     h2 {
-      margin: 1em;
+      margin: 0.5em;
     }
   }
+
 </style>
