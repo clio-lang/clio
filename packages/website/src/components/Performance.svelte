@@ -7,9 +7,18 @@
     CategoryScale,
     LinearScale,
     BarElement,
+    Legend,
+    Tooltip,
   } from "chart.js";
 
-  Chart.register(BarController, CategoryScale, LinearScale, BarElement);
+  Chart.register(
+    BarController,
+    CategoryScale,
+    LinearScale,
+    BarElement,
+    Legend,
+    Tooltip
+  );
 
   const data = {
     labels: ["Find Primes", "Jimp", "Fib"],
