@@ -1,13 +1,13 @@
 {
   "name": "clio-rpc",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "This module is used to do multiprocessing and distributed processing in Clio.",
   "main": "index.js",
   "directories": {
     "test": "test"
   },
   "dependencies": {
-    "clio-lang-internals": "^0.4.0",
+    "clio-lang-internals": "^0.5.0",
     "ws": "^7.2.3"
   },
   "scripts": {
