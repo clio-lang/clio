@@ -1,7 +1,15 @@
 <script>
   import Card from "./Card.svelte";
   import { onMount } from "svelte";
-  import Chart from "chart.js";
+  import {
+    Chart,
+    BarController,
+    CategoryScale,
+    LinearScale,
+    BarElement,
+  } from "chart.js";
+
+  Chart.register(BarController, CategoryScale, LinearScale, BarElement);
 
   const data = {
     labels: ["Find Primes (0..160k)", "Jimp (Process Images)", "Fib (30..46)"],
