@@ -134,7 +134,7 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
     // check if we're in an array or parentheses
     if (squares || curlies || parens) return;
     // check for math, logical, arrow
-    const shouldSkip = source.match(/^ *([-+*\/%=]|and|or)/);
+    const shouldSkip = source.match(/^ *([+*\/%=]|-[^>]|and|or)/);
     if (shouldSkip) {
       /* istanbul ignore next */
       if (tokens.last.prev) tokens.last = tokens.last.prev;
@@ -163,6 +163,15 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
       levels.unshift(level);
       /* istanbul ignore next */
       if (tokens.last.prev) tokens.last = tokens.last.prev;
+      token("indent");
+    }
+  };
+  // match an indented hash
+  const hashIndent = () => {
+    const isIndented = source.match(/^ *(?:[a-z_$][0-9a-z_$]*) *: *\n/);
+    if (isIndented) {
+      levels.unshift(levels[0] + 2);
+      /* istanbul ignore next */
       token("indent");
     }
   };
@@ -210,6 +219,7 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
     switch (char) {
       case "#":
         token("hash", char, 1);
+        hashIndent();
         break;
       case ".":
         if (source[1] == ".") token("ranger", "..", 2);
