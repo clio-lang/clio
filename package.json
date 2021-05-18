@@ -47,7 +47,11 @@
     "source-map": "^0.7.3",
     "tmp": "0.1.0",
     "ws": "^7.2.3",
-    "yargs": "^15.4.1"
+    "yargs": "^15.4.1",
+    "clio-core": "./packages/core",
+    "clio-highlight": "./packages/highlight",
+    "clio-manifest": "./packages/manifest",
+    "clio-utils": "./packages/utils"
   },
   "devDependencies": {
     "@types/jest": "^24.0.24",
