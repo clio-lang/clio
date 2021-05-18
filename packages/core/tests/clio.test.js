@@ -52,6 +52,7 @@ testStr(
 testStr("Slice", "arr[0..100]", "arr[range(0,100,null)]");
 testStr("Math", "a * b + c / 2", "a*b+c/2");
 testStr("Math (Indented)", "a *\n  b + c / 2", "a*b+c/2");
+testStr("Math (Indented-before)", "a\n  * b + c / 2", "a*b+c/2");
 testStr("Math (Power)", "a ** b", "a**b");
 testStr(
   "Math (Multiline)",
