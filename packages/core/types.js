@@ -586,7 +586,7 @@ const types = {
   },
   range(node) {
     const start = node.start || "0";
-    const end = node.end || "Inf";
+    const end = node.end || "Infinity";
     const step = node.step || "null";
     const { location } = node;
     const sn = new SourceNode(location.line, location.column, location.file, [
