@@ -41,7 +41,7 @@
     "@iarna/toml": "^2.2.5",
     "bean-parser": "2.0.0",
     "chalk": "3.0.0",
-    "clio-cli": "file:./packages/cli",
+    "clio-lang-cli": "0.5.1",
     "decompress": "^4.2.1",
     "node-fetch": "^2.6.1",
     "npm-registry-fetch": "^10.1.1",
