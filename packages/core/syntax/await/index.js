@@ -13,7 +13,7 @@ module.exports = {
   },
   awaitAll: {
     ...map(
-      [...values, "call", "parallelFn"],
+      [...values, "call", "parallelFn", "method"],
       wrap((lhs, rhs) => {
         return {
           type: "awaited",

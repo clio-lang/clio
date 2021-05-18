@@ -30,20 +30,20 @@ testStr("Null", "null", "null");
 testStr("Set", "{1 2 3}", "new Set([1,2,3])");
 testStr("Set (Empty)", "{}", "new Set([])");
 testStr("Range", "2..100", "range(2,100,null)");
-testStr("Range (No End)", "2..", "range(2,Inf,null)");
+testStr("Range (No End)", "2..", "range(2,Infinity,null)");
 testStr("Range (No Start)", "..100", "range(0,100,null)");
-testStr("Range (No Start No End)", "..", "range(0,Inf,null)");
+testStr("Range (No Start No End)", "..", "range(0,Infinity,null)");
 testStr("Range (Step)", "2..100 by 2", "range(2,100,2)");
-testStr("Range (No End With Step)", "2.. by 2", "range(2,Inf,2)");
+testStr("Range (No End With Step)", "2.. by 2", "range(2,Infinity,2)");
 testStr("Range (No Start With Step)", "..100 by 2", "range(0,100,2)");
-testStr("Range (No Start No End With Step)", ".. by 2", "range(0,Inf,2)");
-testStr("Range (Step Only)", "by 2", "range(0,Inf,2)");
+testStr("Range (No Start No End With Step)", ".. by 2", "range(0,Infinity,2)");
+testStr("Range (Step Only)", "by 2", "range(0,Infinity,2)");
 testStr("Array", "[1 2 3]", "[1,2,3]");
 testStr("Array (Indented)", "[\n  1 2 3\n]", "[1,2,3]");
 testStr("Array (Empty)", "[]", "[]");
 testStr("Array (Nested)", "[1 [2 3]]", "[1,[2,3]]");
 testStr("Array (Range Item)", "[2..100]", "[range(2,100,null)]");
-testStr("Array (Step Only Range Item)", "[by 2]", "[range(0,Inf,2)]");
+testStr("Array (Step Only Range Item)", "[by 2]", "[range(0,Infinity,2)]");
 testStr(
   "Array (With Assignment)",
   "[(a -> double => b)]",
@@ -52,6 +52,7 @@ testStr(
 testStr("Slice", "arr[0..100]", "arr[range(0,100,null)]");
 testStr("Math", "a * b + c / 2", "a*b+c/2");
 testStr("Math (Indented)", "a *\n  b + c / 2", "a*b+c/2");
+testStr("Math (Indented-before)", "a\n  * b + c / 2", "a*b+c/2");
 testStr("Math (Power)", "a ** b", "a**b");
 testStr(
   "Math (Multiline)",
@@ -108,12 +109,24 @@ testStr(
 );
 testStr("Hashmap (Indented)", "#\n  key: value", "{key:value}");
 testStr(
+  "Hashmap (Indented Multikey)",
+  `# app:
+    version: "1.0.1"
+    name: "My App"
+  window:
+    height: 100
+    width: 300
+    title: "Hello world!"
+-> console.log`,
+  "console.log({app:{version:`1.0.1`,name:`My App`},window:{height:100,width:300,title:`Hello world!`}})"
+);
+testStr(
   "Hashmap (Multi Indent)",
   "#\n  key: value key:\n    key: value",
   "{key:value,key:{key:value}}"
 );
 testStr("Hashmap (Multi Key)", "# one: 1 two: 2", "{one:1,two:2}");
-testStr("Hashmap (Nested)", "# key:\n  key: value", "{key:{key:value}}");
+testStr("Hashmap (Nested)", "# key:\n    key: value", "{key:{key:value}}");
 testStr(
   "Hashmap Should End on Line Break",
   "# key: value\ndouble x",
