@@ -41,17 +41,17 @@
     "@iarna/toml": "^2.2.5",
     "bean-parser": "2.0.0",
     "chalk": "3.0.0",
+    "clio-core": "./packages/core",
+    "clio-highlight": "./packages/highlight",
+    "clio-manifest": "./packages/manifest",
+    "clio-utils": "./packages/utils",
     "decompress": "^4.2.1",
     "node-fetch": "^2.6.1",
     "npm-registry-fetch": "^10.1.1",
     "source-map": "^0.7.3",
     "tmp": "0.1.0",
     "ws": "^7.2.3",
-    "yargs": "^15.4.1",
-    "clio-core": "./packages/core",
-    "clio-highlight": "./packages/highlight",
-    "clio-manifest": "./packages/manifest",
-    "clio-utils": "./packages/utils"
+    "yargs": "^15.4.1"
   },
   "devDependencies": {
     "@types/jest": "^24.0.24",
