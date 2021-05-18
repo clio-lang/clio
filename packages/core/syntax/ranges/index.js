@@ -11,9 +11,9 @@ module.exports = {
         return { type: "range", location: lhs, end: types.get(rhs) };
       }, 43)
     ),
-    byRange: wrap((lhs, rhs) => {
-      return { location: lhs, step: rhs.step, type: "rangeBy" };
-    }),
+    by: wrap((lhs, rhs) => {
+      return { location: lhs, step: rhs.step, type: "rangeByOpen" };
+    }, 99),
   },
   ...map(
     values.filter((item) => !ranges.includes(item)),
@@ -32,20 +32,28 @@ module.exports = {
         return lhs;
       }, 45)
     ),
-    byRange: wrap((lhs, rhs) => {
-      return { ...lhs, step: rhs.step, type: "rangeBy" };
-    }),
+    by: wrap((lhs, rhs) => {
+      return { ...lhs, step: rhs.step, type: "rangeByOpen" };
+    }, 99),
   },
   rangeFull: {
-    byRange: wrap((lhs, rhs) => {
-      return { ...lhs, step: rhs.step, type: "rangeBy" };
-    }),
+    by: wrap((lhs, rhs) => {
+      return { ...lhs, step: rhs.step, type: "rangeByOpen" };
+    }, 99),
   },
   by: {
     ...map(
       values.filter((item) => !ranges.includes(item)),
       wrap((lhs, rhs) => {
         return { type: "byRange", step: types.get(rhs), location: lhs };
+      }, 47)
+    ),
+  },
+  rangeByOpen: {
+    ...map(
+      values.filter((item) => !ranges.includes(item)),
+      wrap((lhs, rhs) => {
+        return { ...lhs, type: "byRange", step: types.get(rhs), location: lhs };
       }, 47)
     ),
   },
