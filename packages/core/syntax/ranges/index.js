@@ -20,7 +20,7 @@ module.exports = {
     {
       ranger: wrap((lhs, rhs) => {
         return { type: "range", start: types.get(lhs), location: rhs };
-      }, 44),
+      }, 99.9),
     }
   ),
   range: {

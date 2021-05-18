@@ -133,14 +133,6 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
   const indents = () => {
     // check if we're in an array or parentheses
     if (squares || curlies || parens) return;
-    // check for math, logical, arrow
-    const shouldSkip = source.match(/^ *([+*\/%=]|-[^>]|and|or)/);
-    if (shouldSkip) {
-      /* istanbul ignore next */
-      if (tokens.last.prev) tokens.last = tokens.last.prev;
-      return;
-    }
-    if (tokens.last.prev?.item?.type?.endsWith?.("Op")) return;
     // check if this isn't an empty line
     const isEmpty = source.match(/^ *(?=[\r\n])/);
     if (isEmpty) return;
@@ -150,6 +142,15 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
     const level = match[0].length;
     const currLevel = levels[0];
     if (level == currLevel) return;
+    // check for math or logical
+    const shouldSkip = source.match(/^ *([+*\/%=-]|and|or)/);
+    const isDedent = level < currLevel;
+    if (shouldSkip && !isDedent) {
+      /* istanbul ignore next */
+      if (tokens.last.prev) tokens.last = tokens.last.prev;
+      return;
+    }
+    if (tokens.last.prev?.item?.type?.endsWith?.("Op")) return;
     // insert outdent / indent token
     if (level < currLevel) {
       if (levels.indexOf(level) == -1)
