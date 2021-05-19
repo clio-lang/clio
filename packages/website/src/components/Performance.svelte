@@ -94,8 +94,8 @@
         <h3>Clio is fast!</h3>
         <div class="explanation">
           <p>
-            About the same performance as JavaScript, more or less. However,
-            using Clio's microservices and parallelism features you can boost
+            About the same performance as Node.js, more or less. In addition,
+            using Clio's microservices and parallelism features lets you boost
             the performance by a few hundred to a few thousand percents!
           </p>
           <p>

@@ -91,13 +91,20 @@
     if (query) {
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get(query);
-      return code ? decodeURIComponent(code) : samples.parallelFib();
+      return code || samples.parallelFib();
     }
     return samples.parallelFib();
   }
 
+  function getIsHorizontal() {
+    const hz = new URLSearchParams(window.location.search).get("hz");
+    if (hz) return hz === "true";
+    return window.innerWidth < 720;
+  }
+
   let editor;
   let domConsole;
+  let isHorizontal = false;
 
   const setSampleCode = (event) => {
     const { value } = event.target || "parallelFib";
@@ -149,19 +156,20 @@
   };
 
   const makeEditor = async () => {
+    isHorizontal = getIsHorizontal();
     const monaco = window.monaco || (await loadMonaco());
     monaco.languages.register({ id: "clio" });
     monaco.languages.setMonarchTokensProvider("clio", clio);
     monaco.editor.defineTheme("PastelsOnDark", pastelsOnDark);
     monaco.editor.setTheme("PastelsOnDark");
-    editor = monaco.editor.create(document.getElementById("left-pane"), {
+    editor = monaco.editor.create(document.getElementById("clio-pane"), {
       value: getCode(),
       language: "clio",
       fontFamily: "Fira Code",
       fontLigatures: true,
       fontSize: 16,
     });
-    domConsole = monaco.editor.create(document.getElementById("right-pane"), {
+    domConsole = monaco.editor.create(document.getElementById("console-pane"), {
       value: "",
       language: "javascript",
       fontFamily: "Fira Code",
@@ -172,6 +180,7 @@
   };
 
   font.load().then(makeEditor);
+
 </script>
 
 <div class="container">
@@ -193,9 +202,9 @@
     <a href="#?" class="btn" on:click={compileAndRun}> Run </a>
   </div>
   <div class="sep" />
-  <div class="editor">
-    <div id="left-pane" />
-    <div id="right-pane" />
+  <div class="editor {isHorizontal ? 'horizontal' : ''}">
+    <div id="clio-pane" />
+    <div id="console-pane" />
   </div>
   <div class="copied" class:isActive>Link copied to clipboard</div>
 </div>
@@ -257,6 +266,13 @@
     flex: 1;
     overflow: hidden;
   }
+  .editor.horizontal {
+    flex-direction: column;
+  }
+  .editor.horizontal #console-pane {
+    padding-top: 1em;
+    border-top: 1px solid #404040;
+  }
   .editor > div {
     flex: 1;
   }
@@ -294,4 +310,5 @@
   .copied.isActive {
     animation: appear 4s ease-in forwards;
   }
+
 </style>
