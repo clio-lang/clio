@@ -65,6 +65,7 @@
   * [Serialization](reference/parallelism/serialization.md)
   * [FaaS](reference/parallelism/faas.md)
   * [Configuration](reference/parallelism/parallelism.md)
+* [Performance](reference/performance.md)
 
 ## Development
 
