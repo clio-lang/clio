@@ -1,4 +1,4 @@
-# Parallelism
+# Configuration
 
 Clio supports multiple protocols and backends for parallelism, distributed computing and RPC. These can be configured in the `clio.toml` file. Current version of Clio supports web workers, worker threads and web socket backends. Future versions will add TCP, UDP, UNIX sockets and Windows named pipe support.
 
