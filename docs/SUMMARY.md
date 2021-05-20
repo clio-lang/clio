@@ -65,8 +65,7 @@
 
 * [File Structure](development/file-structure.md)
 * [Dependency parser](development/dependency_parser.md)
-* [Extending Clio](development/extend/README.md)
-  * [Rules](development/extend/rule.md)
+* [Extending Clio](development/extend.md)
 
 ## Links
 
