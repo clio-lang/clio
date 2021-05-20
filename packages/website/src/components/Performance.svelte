@@ -105,7 +105,10 @@
           </p>
         </div>
         <div class="actions">
-          <a class="btn" href="https://docs.clio-lang.org/rpc/rpc">
+          <a
+            class="btn"
+            href="https://docs.clio-lang.org/reference/performance"
+          >
             Learn more!
           </a>
         </div>

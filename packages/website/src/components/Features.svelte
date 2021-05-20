@@ -18,7 +18,7 @@
       </p>
       <div class="spacer" />
       <div class="actions">
-        <a class="btn" href="https://docs.clio-lang.org/parallelism">
+        <a class="btn" href="https://docs.clio-lang.org/reference/parallelism">
           Learn more
         </a>
       </div>
