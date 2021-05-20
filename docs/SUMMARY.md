@@ -60,6 +60,10 @@
   * [Build section](reference/manifest/build-section.md)
   * [Dependencies section](reference/manifest/dependencies-section.md)
   * [Parallelism](reference/manifest/parallelism.md)
+* [Parallelism](reference/parallelism/README.md)
+  * [Intro](reference/parallelism/intro.md)
+  * [Concepts and Terminology](reference/parallelism/concepts-and-terminology.md)
+  * [Serialization](reference/parallelism/serialization.md)
 
 ## Development
 
