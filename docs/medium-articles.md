@@ -4,6 +4,12 @@ description: Friend links to medium articles to provide free access to the commu
 
 # Medium articles
 
+The following articles are valid and apply to the current version of Clio:
+
+{% embed url="https://pouyae.medium.com/re-introducing-the-clio-programming-language-cfdb3ce9fc49" %}
+
+## Archive
+
 The following articles are outdated but kept here for the purposes of historical record:
 
 {% embed url="https://blog.usejournal.com/introduction-to-clio-40dbbf9c250b?source=friends\_link&sk=fccbf892f304391eee2f85bfeffa2469" caption="" %}
