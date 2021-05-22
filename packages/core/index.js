@@ -29,5 +29,6 @@ const compile = (source, file, debug = false) => {
   }
 };
 
+module.exports.parse = parse;
 module.exports.compile = compile;
 module.exports.tokenize = lex;

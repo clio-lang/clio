@@ -45,6 +45,7 @@
     "decompress": "^4.2.1",
     "degit": "^2.2.2",
     "del": "5.1.0",
+    "enquirer": "^2.3.6",
     "merge": "2.1.1",
     "node-fetch": "^2.6.1",
     "npm-registry-fetch": "^10.1.1",

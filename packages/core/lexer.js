@@ -3,7 +3,8 @@ const { list } = require("bean-parser");
 const strPattern = /^(?:"(?:[^"]|\\")*"|'(?:[^']|\\')*')/;
 const numPattern = /^-?(?:[0-9][\d_]*)(?:\.[\d_]+)?(?:[eE][+-]?[\d_]+)?/;
 
-const keywordPattern = /^(?:if|else|fn|await|import|as|from|export|and|or|not|by|in)(?=\s|$)|^else(?=:)|^await(?=])/;
+const keywordPattern =
+  /^(?:if|else|fn|await|import|as|from|export|and|or|not|by|in)(?=\s|$)|^else(?=:)|^await(?=])/;
 const symbolPattern = /^(?:[a-z_$][0-9a-z_$]*)/i; // Should we allow unicode?
 const parameterPattern = /^@(?:[a-z_$][0-9a-z_$]*)/i; // Should we allow unicode?
 const commentPattern = /^--.*?(?=\n|$)/;

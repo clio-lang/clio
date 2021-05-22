@@ -257,6 +257,10 @@ const types = {
     sn.needsAsync = false;
     sn.returnAs = new SourceNode(null, null, null, name);
     sn.returnAs.insertBefore = sn;
+    sn.fn = {
+      man: node.man,
+      name,
+    };
     return sn;
   },
   exportedFunction(node) {
@@ -268,6 +272,7 @@ const types = {
       ["clio.exports.", node.name, "=", node.name]
     );
     sn.insertBefore = [fn.insertBefore, fn].filter(Boolean);
+    sn.fn = fn.fn;
     return sn;
   },
   exported(node) {

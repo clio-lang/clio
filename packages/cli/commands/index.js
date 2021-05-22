@@ -9,4 +9,5 @@ module.exports = {
   _new: require("./new").createPackage, // Can't use "new" here
   run: require("./run").run,
   host: require("./host").host,
+  man: require("./man").man,
 };
