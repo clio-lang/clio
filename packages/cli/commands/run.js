@@ -28,6 +28,7 @@ async function run(projectPath, ...platformOptions) {
     const target = getBuildTarget(null, config); // No target override
     const destination = getDestinationFromConfig(projectPath, target, config);
     const platform = getPlatform(target);
+
     if (!platform) {
       throw new Error(`Platform "${target}" is not supported.`);
     }

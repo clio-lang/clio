@@ -28,11 +28,12 @@ async function host(projectPath, ...platformOptions) {
     const target = getBuildTarget(null, config); // No target override
     const destination = getDestinationFromConfig(projectPath, target, config);
     const platform = getPlatform(target);
+
     if (!platform) {
       throw new Error(`Platform "${target}" is not supported.`);
     }
 
-    return await platform.run(destination, ["--host"], ...platformOptions);
+    return await platform.host(destination, ...platformOptions);
   } catch (e) {
     error(e);
   }

@@ -8,9 +8,8 @@ const tcp = require("./tcp");
 const ipc = require("./ipc");
 
 const runners = { ws, wt, ww, tcp, ipc };
-const isHost = process.argv.includes("--host");
 
-const start = async (file, options) => {
+const start = async (file, options, isHost = false) => {
   const monitor = new Monitor();
   const dispatcher = new Dispatcher();
 

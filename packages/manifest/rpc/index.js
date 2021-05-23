@@ -15,6 +15,14 @@ const makeStartScript = (config, target, destination, relativeMain) => {
       `runner(require.resolve("../${relativeMain}.js"), config);`,
     ].join("\n")
   );
+  fs.writeFileSync(
+    path.join(destination, ".clio", "host.js"),
+    [
+      `const runner = require("clio-run/src/runners/auto.js");`,
+      `const config = require("./rpc.json");`,
+      `runner(require.resolve("../${relativeMain}.js"), config, true);`,
+    ].join("\n")
+  );
 };
 
 module.exports.makeStartScript = makeStartScript;
