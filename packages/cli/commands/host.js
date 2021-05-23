@@ -16,6 +16,10 @@ exports.builder = {
     type: "string",
     default: path.resolve("."),
   },
+  config: {
+    describe: "Path to override config file",
+    type: "string",
+  },
   server: {
     describe: "Start a server",
     type: "boolean",
