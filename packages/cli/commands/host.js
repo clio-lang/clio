@@ -1,7 +1,9 @@
 const path = require("path");
+const fs = require("fs");
 const { getPlatform } = require("../lib/platforms");
 const { getBuildTarget, getDestinationFromConfig, build } = require("./build");
 const { CONFIGFILE_NAME, getPackageConfig } = require("clio-manifest");
+const { getHostConfig, writeHostConfig } = require("clio-manifest");
 const { error } = require("../lib/colors");
 
 exports.command = "host [source]";
@@ -10,30 +12,168 @@ exports.describe = "Compile and host Clio file";
 
 exports.builder = {
   source: {
-    describe: "source file to host",
+    describe: "Source directory to read from",
     type: "string",
     default: path.resolve("."),
+  },
+  server: {
+    describe: "Start a server",
+    type: "boolean",
+  },
+  workers: {
+    describe: 'Workers to summon ("cpu" or a number)',
+    type: "string",
+  },
+  tcp: {
+    describe: "Use TCP protocol",
+    type: "boolean",
+  },
+  ws: {
+    describe: "Use Web Socket protocol",
+    type: "boolean",
+  },
+  ipc: {
+    describe: "Use IPC protocol",
+    type: "boolean",
+  },
+  host: {
+    describe: "Host name to use for TCP or WS",
+    type: "string",
+  },
+  port: {
+    describe: "Port number to use for TCP or WS",
+    type: "number",
+  },
+  path: {
+    describe: "Path to connect to (IPC)",
+    type: "string",
+  },
+  url: {
+    describe: "URL to connect to (WS)",
+    type: "string",
+  },
+  clean: {
+    describe: "Clean up previous overrides",
+    type: "boolean",
   },
 };
 
 exports.handler = (argv) => {
-  host(argv.source);
+  host(argv, argv._.slice(1));
 };
 
-async function host(projectPath, ...platformOptions) {
+async function host(args, ...platformOptions) {
   try {
-    await build(projectPath, null, { skipBundle: true });
+    await build(args.source, null, { skipBundle: true });
 
-    const config = getPackageConfig(path.join(projectPath, CONFIGFILE_NAME));
+    const config = getPackageConfig(path.join(args.source, CONFIGFILE_NAME));
     const target = getBuildTarget(null, config); // No target override
-    const destination = getDestinationFromConfig(projectPath, target, config);
+    const destination = getDestinationFromConfig(args.source, target, config);
     const platform = getPlatform(target);
 
     if (!platform) {
       throw new Error(`Platform "${target}" is not supported.`);
     }
 
-    return await platform.host(destination, ...platformOptions);
+    if (args.clean) {
+      const hostDir = path.join(destination, ".clio", ".host");
+      if (fs.existsSync(hostDir)) fs.rmSync(hostDir, { recursive: true });
+    }
+
+    // Check if we need to override the config:
+    if (args.config) {
+      // Read config file:
+      const hostConfig = { servers: [], workers: [] };
+      // Write rpc.json file:
+      const relativeMain = config.main.slice(target.length);
+      const configName = writeHostConfig(destination, hostConfig, relativeMain);
+      return await platform.host(destination, configName, ...platformOptions);
+    } else if (args.tcp) {
+      // Make config object
+      const hostConfig = {};
+      if (args.workers) {
+        const worker = {
+          count: args.workers,
+          proto: "tcp",
+        };
+        if (args.host && args.port) {
+          const addr = args.host === "0.0.0.0" ? "127.0.0.1" : args.host;
+          worker.port = args.port;
+          worker.host = addr;
+        } else {
+          worker.server = "default";
+        }
+        hostConfig.workers = [worker];
+      }
+      if (args.server) {
+        const server = { name: "default", proto: "tcp" };
+        if (args.host && args.port) {
+          server.port = args.port;
+          server.host = args.host;
+        }
+        hostConfig.servers = [server];
+      }
+      // Write rpc.json file:
+      const relativeMain = config.main.slice(target.length);
+      const configName = writeHostConfig(destination, hostConfig, relativeMain);
+      return await platform.host(destination, configName, ...platformOptions);
+    } else if (args.ipc) {
+      // Make config object
+      const hostConfig = { servers: [], workers: [] };
+      if (args.workers) {
+        const worker = {
+          count: args.workers,
+          proto: "ipc",
+        };
+        if (args.path) {
+          worker.path = args.path;
+        } else {
+          worker.server = "default";
+        }
+        hostConfig.workers = [worker];
+      }
+      if (args.server) {
+        const server = { name: "default", proto: "ipc" };
+        if (args.path) server.path = args.path;
+        hostConfig.servers = [server];
+      }
+      // Write rpc.json file:
+      const relativeMain = config.main.slice(target.length);
+      const configName = writeHostConfig(destination, hostConfig, relativeMain);
+      return await platform.host(destination, configName, ...platformOptions);
+    } else if (args.ws) {
+      // Make config object
+      const hostConfig = { servers: [], workers: [] };
+      if (args.workers) {
+        const worker = {
+          count: args.workers,
+          proto: "ws",
+        };
+        if (args.host && args.port) {
+          const addr = args.host === "0.0.0.0" ? "127.0.0.1" : args.host;
+          worker.url = `ws://${addr}:${port}`;
+        } else if (args.url) {
+          worker.url = url;
+        } else {
+          worker.server = "default";
+        }
+        hostConfig.workers = [worker];
+      }
+      if (args.server) {
+        const server = { name: "default", proto: "ws" };
+        if (args.host && args.port) {
+          server.port = args.port;
+          server.host = args.host;
+        }
+        hostConfig.servers = [server];
+      }
+      // Write rpc.json file:
+      const relativeMain = config.main.slice(target.length);
+      const configName = writeHostConfig(destination, hostConfig, relativeMain);
+      return await platform.host(destination, configName, ...platformOptions);
+    } else {
+      return await platform.host(destination, null, ...platformOptions);
+    }
   } catch (e) {
     error(e);
   }
