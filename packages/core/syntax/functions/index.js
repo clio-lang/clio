@@ -39,11 +39,11 @@ module.exports = {
   comment: {
     ...ignore("lineBreak"),
     function: wrap((lhs, rhs) => {
-      rhs.man = lhs;
+      rhs.doc = lhs;
       return rhs;
     }, 2),
     exportedFunction: wrap((lhs, rhs) => {
-      rhs.value.man = lhs;
+      rhs.value.doc = lhs;
       return rhs;
     }, 2),
   },

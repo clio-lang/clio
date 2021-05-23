@@ -239,7 +239,7 @@ const types = {
   },
   function(node) {
     const { start, name, params, body } = node;
-    const man = node.man ? [`;`, name, ".__man__=`", asIs(node.man), "`"] : [];
+    const doc = node.doc ? [`;`, name, ".__doc__=`", asIs(node.doc), "`"] : [];
     const sn = new SourceNode(start.line, start.column, start.file, [
       ...(name ? ["const ", name, "="] : []),
       ...(name ? ["register"] : []),
@@ -252,13 +252,13 @@ const types = {
       "{",
       body,
       "})",
-      ...man,
+      ...doc,
     ]);
     sn.needsAsync = false;
     sn.returnAs = new SourceNode(null, null, null, name);
     sn.returnAs.insertBefore = sn;
     sn.fn = {
-      man: node.man,
+      doc: node.doc,
       name,
     };
     return sn;

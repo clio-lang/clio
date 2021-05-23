@@ -5,27 +5,27 @@ const { parse, tokenize } = require("clio-core");
 const { parsingError } = require("clio-core/errors");
 const chalk = require("chalk");
 
-exports.command = "man [source]";
-exports.describe = "Show manuals for a Clio module";
+exports.command = "docs [source]";
+exports.describe = "Show documentation for a Clio module";
 
 exports.builder = {
   source: {
-    describe: "source file or directory of the manual",
+    describe: "source file or directory of the documentation",
     type: "string",
     default: ".",
   },
 };
 
 exports.handler = (argv) => {
-  man(argv.source);
+  docs(argv.source);
 };
 
 function onSelect(root, prompt) {
   return async function onAnswer(answer) {
     await prompt.clear();
     return answer == ".."
-      ? man(path.dirname(root))
-      : man(path.join(root, answer));
+      ? docs(path.dirname(root))
+      : docs(path.join(root, answer));
   };
 }
 
@@ -33,8 +33,8 @@ function onFnSelect(root, fnMap, prompt) {
   return async function onAnswer(answer) {
     await prompt.clear();
     return answer == ".."
-      ? man(path.dirname(root))
-      : manFn(root, answer, fnMap[answer]);
+      ? docs(path.dirname(root))
+      : docsFn(root, answer, fnMap[answer]);
   };
 }
 
@@ -42,7 +42,7 @@ function selectFn(root, fns) {
   const fnMap = Object.fromEntries(
     fns.map((fn) => [
       fn.name,
-      fn.man?.value || `No manual available for ${fn.name}`,
+      fn.doc?.value || `No documentation available for ${fn.name}`,
     ])
   );
   const prompt = new Select({
@@ -63,9 +63,9 @@ function selectFile(root, choices) {
 }
 
 // TODO: move to clio-highlight
-function colorize(man) {
+function colorize(docs) {
   // TODO: imrpove highlighting
-  return man
+  return docs
     .replace(/@[^\s]+/g, (matched) => chalk.blue(matched))
     .replace(
       /({[^}]+})(\s+)([^\s]+)/g,
@@ -73,17 +73,17 @@ function colorize(man) {
     );
 }
 
-function manFn(root, name, man) {
-  const manstr = man.replace(/^\+-\s+/, "").replace(/\s+-\+$/, "");
+function docsFn(root, name, docs) {
+  const docsstr = docs.replace(/^\+-\s+/, "").replace(/\s+-\+$/, "");
   console.log(
     [
-      chalk.yellow(`Showing man for ${root}:${name}\n`),
-      colorize(manstr),
+      chalk.yellow(`Showing docs for ${root}:${name}\n`),
+      colorize(docsstr),
       "",
     ].join("\n")
   );
   const prompt = new Toggle({
-    name: "man",
+    name: "docs",
     message: "Exit?",
     enabled: "Yes",
     disabled: "..",
@@ -93,12 +93,12 @@ function manFn(root, name, man) {
     .run()
     .then((answer) => {
       prompt.clear();
-      if (!answer) return manFile(root);
+      if (!answer) return docsFile(root);
     })
     .catch(console.error);
 }
 
-async function manFile(filename) {
+async function docsFile(filename) {
   const source = fs.readFileSync(filename, { encoding: "utf-8" });
   const tokens = tokenize(source, filename);
   const result = parse(tokens);
@@ -114,7 +114,7 @@ async function manFile(filename) {
   }
 }
 
-function manDirectory(projectPath) {
+function docsDirectory(projectPath) {
   const choices = fs
     .readdirSync(projectPath)
     .filter((dir) => !dir.startsWith("."))
@@ -133,10 +133,10 @@ function isClioFile(file) {
   return file.endsWith(".clio");
 }
 
-function man(projectPath) {
+function docs(projectPath) {
   return isDirectory(projectPath)
-    ? manDirectory(projectPath)
-    : manFile(projectPath);
+    ? docsDirectory(projectPath)
+    : docsFile(projectPath);
 }
 
-exports.man = man;
+exports.docs = docs;

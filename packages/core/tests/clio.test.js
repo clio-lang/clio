@@ -152,17 +152,17 @@ testStr(
 testStr(
   "Functions (With Man)",
   "-- Adds a and b!\nfn add a b:\n  a + b",
-  "const add=register(`<mem>/add`,(a,b)=>{return a+b});add.__man__=`-- Adds a and b!`"
+  "const add=register(`<mem>/add`,(a,b)=>{return a+b});add.__doc__=`-- Adds a and b!`"
 );
 testStr(
   "Functions (With Block Man)",
   "+- Adds a and b!-+\nfn add a b:\n  a + b",
-  "const add=register(`<mem>/add`,(a,b)=>{return a+b});add.__man__=`+- Adds a and b!-+`"
+  "const add=register(`<mem>/add`,(a,b)=>{return a+b});add.__doc__=`+- Adds a and b!-+`"
 );
 testStr(
   "Functions (With Nested Block Man)",
   "+- Adds +- a -+ and b!-+\nfn add a b:\n  a + b",
-  "const add=register(`<mem>/add`,(a,b)=>{return a+b});add.__man__=`+- Adds +- a -+ and b!-+`"
+  "const add=register(`<mem>/add`,(a,b)=>{return a+b});add.__doc__=`+- Adds +- a -+ and b!-+`"
 );
 testStr(
   "Functions (Expression)",
@@ -391,7 +391,7 @@ testStr(
 testStr(
   "Export (Function With Man)",
   `-- Adds a and b!\nexport fn test a b:\n  add a b`,
-  "const test=register(`<mem>/test`,(a,b)=>{return add(a,b)});test.__man__=`-- Adds a and b!`;clio.exports.test=test"
+  "const test=register(`<mem>/test`,(a,b)=>{return add(a,b)});test.__doc__=`-- Adds a and b!`;clio.exports.test=test"
 );
 testStr(
   "Export (Constant)",
