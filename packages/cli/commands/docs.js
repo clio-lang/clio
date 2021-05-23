@@ -1,9 +1,34 @@
 const path = require("path");
 const fs = require("fs");
-const { Select, Toggle } = require("enquirer");
+const { AutoComplete, Toggle } = require("enquirer");
+const utils = require("enquirer/lib/utils");
 const { parse, tokenize } = require("clio-core");
 const { parsingError } = require("clio-core/errors");
 const chalk = require("chalk");
+
+// TODO: Move this to a separate file
+// I believe docs command should have a module of its own
+class NicerAutoComplete extends AutoComplete {
+  async pointer(choice, i) {
+    let val = await this.element("pointer", choice, i);
+
+    if (typeof val === "string" && utils.hasColor(val)) {
+      return val;
+    }
+
+    if (val) {
+      let styles = this.styles;
+      let focused = this.index === i;
+      let style = focused ? styles.primary : (val) => val;
+      let ele = await this.resolve(
+        val[focused ? "on" : "off"] || val,
+        this.state
+      );
+      let styled = !utils.hasColor(ele) ? style(ele) : ele;
+      return focused ? styled : " ".repeat(ele.length);
+    }
+  }
+}
 
 exports.command = "docs [source]";
 exports.describe = "Show documentation for a Clio module";
@@ -45,7 +70,7 @@ function selectFn(root, fns) {
       fn.doc?.value || `No documentation available for ${fn.name}`,
     ])
   );
-  const prompt = new Select({
+  const prompt = new NicerAutoComplete({
     name: "function",
     message: "Select a function",
     choices: ["..", ...Object.keys(fnMap)],
@@ -54,7 +79,7 @@ function selectFn(root, fns) {
 }
 
 function selectFile(root, choices) {
-  const prompt = new Select({
+  const prompt = new NicerAutoComplete({
     name: "file",
     message: "Select a file or a directory",
     choices: ["..", ...choices],
