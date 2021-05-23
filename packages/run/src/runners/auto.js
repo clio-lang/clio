@@ -5,8 +5,9 @@ const ws = require("./ws");
 const wt = require("./wt");
 const ww = require("./ww");
 const tcp = require("./tcp");
+const ipc = require("./ipc");
 
-const runners = { ws, wt, ww, tcp };
+const runners = { ws, wt, ww, tcp, ipc };
 const isHost = process.argv.includes("--host");
 
 const start = async (file, options) => {
