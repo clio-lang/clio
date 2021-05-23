@@ -5,9 +5,12 @@ const parseCloudLocation = (location) => {
   return { protocol, host, path };
 };
 
+const supported = ["tcp", "ipc", "ws"];
+
 const remote = async (clio, location) => {
   const { protocol, host, path } = parseCloudLocation(location);
-  if (!protocol || protocol != "ws") throw "Only WS is supported at the moment";
+  if (!supported.includes(protocol))
+    throw new Error(`Protocol "${protocol}" is not supported.`);
   const executor = await clio.distributed.getExecutor(protocol, host);
   const paths = await executor.getFunctions(path);
   const fns = {};
