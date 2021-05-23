@@ -87,7 +87,7 @@ async function host(args, ...platformOptions) {
     // Check if we need to override the config:
     if (args.config) {
       // Read config file:
-      const hostConfig = { servers: [], workers: [] };
+      const hostConfig = getHostConfig(args.config);
       // Write rpc.json file:
       const relativeMain = config.main.slice(target.length);
       const configName = writeHostConfig(destination, hostConfig, relativeMain);
