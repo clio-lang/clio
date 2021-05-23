@@ -19,7 +19,9 @@ module.exports = {
   ],
   coveragePathIgnorePatterns: [
     "<rootDir>/jest.config.js",
-    "<rootDir>/packages/rpc/test",
+    "<rootDir>/packages/rpc",
+    "<rootDir>/packages/cli",
+    "<rootDir>/packages/run",
     "<rootDir>/packages/website",
     "<rootDir>/packages/playground",
     "<rootDir>/packages/highlight",
