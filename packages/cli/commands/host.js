@@ -6,7 +6,7 @@ const { CONFIGFILE_NAME, getPackageConfig } = require("clio-manifest");
 const { getHostConfig, writeHostConfig } = require("clio-manifest");
 const { error } = require("../lib/colors");
 
-exports.command = "host [source]";
+exports.command = "host [source] [protocol]";
 
 exports.describe = "Compile and host Clio file";
 
@@ -28,17 +28,9 @@ exports.builder = {
     describe: 'Workers to summon ("cpu" or a number)',
     type: "string",
   },
-  tcp: {
-    describe: "Use TCP protocol",
-    type: "boolean",
-  },
-  ws: {
-    describe: "Use Web Socket protocol",
-    type: "boolean",
-  },
-  ipc: {
-    describe: "Use IPC protocol",
-    type: "boolean",
+  protocol: {
+    describe: "Choose the hosting protocol",
+    type: "string",
   },
   host: {
     describe: "Host name to use for TCP or WS",
@@ -92,9 +84,9 @@ async function host(args, ...platformOptions) {
       const relativeMain = config.main.slice(target.length);
       const configName = writeHostConfig(destination, hostConfig, relativeMain);
       return await platform.host(destination, configName, ...platformOptions);
-    } else if (args.tcp) {
+    } else if (args.protocol === "tcp") {
       // Make config object
-      const hostConfig = {};
+      const hostConfig = { servers: [], workers: [] };
       if (args.workers) {
         const worker = {
           count: args.workers,
@@ -121,7 +113,7 @@ async function host(args, ...platformOptions) {
       const relativeMain = config.main.slice(target.length);
       const configName = writeHostConfig(destination, hostConfig, relativeMain);
       return await platform.host(destination, configName, ...platformOptions);
-    } else if (args.ipc) {
+    } else if (args.protocol === "ipc") {
       // Make config object
       const hostConfig = { servers: [], workers: [] };
       if (args.workers) {
@@ -145,7 +137,7 @@ async function host(args, ...platformOptions) {
       const relativeMain = config.main.slice(target.length);
       const configName = writeHostConfig(destination, hostConfig, relativeMain);
       return await platform.host(destination, configName, ...platformOptions);
-    } else if (args.ws) {
+    } else if (args.protocol === "ws") {
       // Make config object
       const hostConfig = { servers: [], workers: [] };
       if (args.workers) {
@@ -175,6 +167,8 @@ async function host(args, ...platformOptions) {
       const relativeMain = config.main.slice(target.length);
       const configName = writeHostConfig(destination, hostConfig, relativeMain);
       return await platform.host(destination, configName, ...platformOptions);
+    } else if (args.protocol) {
+      throw new Error(`Protocol "${args.protocol}" is not supported.`);
     } else {
       return await platform.host(destination, null, ...platformOptions);
     }

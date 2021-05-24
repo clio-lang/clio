@@ -25,7 +25,7 @@ const walkDir = (dir) => readDir(dir).map((f) => walk(path.join(dir, f)));
 const walk = (dir) => (isDir(dir) ? flatten(walkDir(dir)) : [dir]);
 
 const isClioFile = (file) => file.endsWith(".clio");
-const isNotClioFile = (file) => !file.endsWith(".clio");
+const isNotClioFile = (file) => !isClioFile(file);
 const getClioFiles = (dir) => walk(dir).filter(isClioFile);
 const getNonClioFiles = (dir) => walk(dir).filter(isNotClioFile);
 
