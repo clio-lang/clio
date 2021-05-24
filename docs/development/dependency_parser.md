@@ -4,7 +4,7 @@
 
 GITHUB\_PATH\_RE
 
-![](../.gitbook/assets/GITHUB_PATH_RE%20%285%29.png)
+![](../.gitbook/assets/GITHUB_PATH_RE%20%289%29%20%285%29.png)
 
 GITHUB\_URI\_RE
 
@@ -12,11 +12,11 @@ GITHUB\_URI\_RE
 
 GITHUB\_ZIP\_RE
 
-![](../.gitbook/assets/GITHUB_ZIP_RE%20%286%29%20%286%29%20%283%29.png)
+![](../.gitbook/assets/GITHUB_ZIP_RE%20%286%29%20%286%29%20%281%29%20%284%29.png)
 
 NAME\_RE
 
-![](../.gitbook/assets/NAME_RE%20%285%29.png)
+![](../.gitbook/assets/NAME_RE%20%286%29.png)
 
 URL\_RE
 
