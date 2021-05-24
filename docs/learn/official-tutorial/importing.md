@@ -189,6 +189,6 @@ Constants can be exported as well:
 
 ```text
 42 => export answer
-3.14 => export pi
+export pi = 3.14
 ```
 

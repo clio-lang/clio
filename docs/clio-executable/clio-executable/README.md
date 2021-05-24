@@ -11,5 +11,6 @@ Clio executable provides several commands to work with Clio code:
 * [`clio highlight`](clio-highlight.md)
 * [`clio host`](clio-host.md)
 * [`clio new`](clio-new.md)
-* [`clio run`](clio-run.md)
+* [`clio run`](clio-run.md) 
+* [`clio docs`](https://docs.clio-lang.org/clio-executable/clio-executable/clio-docs)
 
