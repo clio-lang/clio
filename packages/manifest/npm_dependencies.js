@@ -10,11 +10,10 @@ const {
 } = require("./packageConfig");
 
 function fetchNpmDependencies(destination, silent = false) {
-  process.chdir(destination);
   return new Promise((resolve, reject) => {
     const args = ["install"];
     if (silent) args.push("--silent");
-    const install = spawn("npm", args);
+    const install = spawn("npm", args, { cwd: destination });
     install.on("close", resolve);
     install.on("error", reject);
   });
