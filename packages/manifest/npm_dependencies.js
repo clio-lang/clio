@@ -10,11 +10,10 @@ const {
 } = require("./packageConfig");
 
 function fetchNpmDependencies(destination, silent = false) {
-  process.chdir(destination);
   return new Promise((resolve, reject) => {
     const args = ["install"];
     if (silent) args.push("--silent");
-    const install = spawn("npm", args);
+    const install = spawn("npm", args, { cwd: destination });
     install.on("close", resolve);
     install.on("error", reject);
   });
@@ -26,8 +25,9 @@ function hasInstalledNpmDependencies(destination) {
 
 function getParsedNpmDependencies(source) {
   const dependencies = {};
-  const npmDependencies = getPackageConfig(path.join(source, CONFIGFILE_NAME))
-    .npm_dependencies;
+  const npmDependencies = getPackageConfig(
+    path.join(source, CONFIGFILE_NAME)
+  ).npm_dependencies;
   if (npmDependencies) {
     npmDependencies.forEach((dep) => {
       dependencies[dep.name] = dep.version;

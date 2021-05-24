@@ -27,12 +27,23 @@ const web = {
     const bundler = await setupParcel(path, { watch: true });
     await bundler.serve();
   },
+  async host() {
+    throw new Error(`Platform "web" does not support hosting.`);
+  },
 };
 
 const node = {
   async build() {},
   async run(destination, ...forkOptions) {
     return fork(path.join(destination, ".clio", "index.js"), ...forkOptions);
+  },
+  async host(destination, override, ...forkOptions) {
+    return override
+      ? fork(
+          path.join(destination, ".clio", ".host", override, "host.js"),
+          ...forkOptions
+        )
+      : fork(path.join(destination, ".clio", "host.js"), ...forkOptions);
   },
 };
 

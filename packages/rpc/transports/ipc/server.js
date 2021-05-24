@@ -11,9 +11,9 @@ class Server extends EventEmitter {
     this.ready = false;
   }
   static getIPCPath({ name }) {
-    const paths = [process.cwd(), name];
-    if (process.platform == "win32") paths.unshift("\\\\?\\pipe");
-    return path.join(...paths);
+    const parts = [process.cwd(), name];
+    if (process.platform == "win32") parts.unshift("\\\\?\\pipe");
+    return path.join(...parts);
   }
   static defaultIPCConfig() {
     return {

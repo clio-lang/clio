@@ -7,6 +7,7 @@ const {
   CONFIGFILE_NAME,
   getPackageConfig,
   writePackageConfig,
+  writeHostConfig,
 } = require("../index");
 
 test("Import config file", () => {
@@ -29,6 +30,25 @@ test("Write config file", () => {
   const contents = toml.parse(file.toString());
   expect(contents.title).toBe("test");
   expect(contents.dependencies).toEqual({ Foo: "1.2.3" });
+  tmpDir.removeCallback();
+});
+
+test("Write host config file", () => {
+  const config = {
+    servers: [{ name: "default" }],
+    workers: [{ server: "default" }],
+  };
+
+  const tmpDir = tmp.dirSync();
+  const filePath = tmpDir.name;
+
+  const name = writeHostConfig(filePath, config, "main.clio");
+
+  const file = fs.readFileSync(
+    path.join(filePath, ".clio", ".host", name, "rpc.json")
+  );
+  const contents = JSON.parse(file.toString());
+  expect(contents).toEqual(config);
   tmpDir.removeCallback();
 });
 

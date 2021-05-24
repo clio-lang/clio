@@ -1,6 +1,11 @@
 const asyncHooks = require("async_hooks");
-const { Executor } = require("clio-rpc/executor");
 const builtins = require("clio-lang-internals");
+
+const executors = {
+  ws: require("./executors/ws"),
+  ipc: require("./executors/ipc"),
+  tcp: require("./executors/tcp"),
+};
 
 class Distributed {
   constructor(isWorker, connection) {
@@ -19,14 +24,7 @@ class Distributed {
   async getExecutor(protocol, host) {
     const key = `${protocol}:${host}`;
     if (this.executors.has(key)) return this.executors.get(key);
-    // only ws for now
-    const Protocol = require("clio-rpc/transports/ws");
-    const transport = new Protocol.Client({ url: `${protocol}://${host}` });
-    transport.connect();
-    await new Promise((resolve) => transport.on("connect", resolve));
-    const executor = new Executor(transport);
-    this.executors.set(key, executor);
-    return executor;
+    return await executors[protocol].call(this, key, protocol, host);
   }
 }
 

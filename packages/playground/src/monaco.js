@@ -6,8 +6,7 @@ export const loadMonaco = () =>
     script.onload = () => {
       require.config({
         paths: {
-          vs:
-            "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.21.2/min/vs",
+          vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.21.2/min/vs",
         },
       });
       require(["vs/editor/editor.main"], () => resolve(monaco));
@@ -60,7 +59,8 @@ export const clio = {
   symbols: /[=><!~?:&|+\-*\/\^%]+/,
 
   // C# style strings
-  escapes: /\\(?:[abfnrtv\\"']|x[0-9A-Fa-f]{1,4}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})/,
+  escapes:
+    /\\(?:[abfnrtv\\"']|x[0-9A-Fa-f]{1,4}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})/,
 
   // The main tokenizer for our languages
   tokenizer: {

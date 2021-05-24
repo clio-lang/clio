@@ -4,11 +4,12 @@ const { Dispatcher } = require("clio-rpc/dispatcher");
 const ws = require("./ws");
 const wt = require("./wt");
 const ww = require("./ww");
+const tcp = require("./tcp");
+const ipc = require("./ipc");
 
-const runners = { ws, wt, ww };
-const isHost = process.argv.includes("--host");
+const runners = { ws, wt, ww, tcp, ipc };
 
-const start = async (file, options) => {
+const start = async (file, options, isHost = false) => {
   const monitor = new Monitor();
   const dispatcher = new Dispatcher();
 
