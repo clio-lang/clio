@@ -54,24 +54,11 @@ const copyDir = async (src, dest) => {
 };
 
 const rmdir = (directory) => {
-  if (fs.existsSync(directory)) {
-    fs.readdirSync(directory).forEach(function (file) {
-      const curr = path.join(directory, file);
-      if (fs.lstatSync(curr).isDirectory()) rmdir(curr);
-      else fs.unlinkSync(curr);
-    });
-    fs.rmdirSync(directory);
-  }
+  if (fs.existsSync(directory)) fs.rmSync(directory, { recursive: true });
 };
 
 const mkdir = (directory) => {
-  const { root, dir, base } = path.parse(directory);
-  const parts = [...dir.split(path.sep), base];
-  return parts.reduce((parent, subdir) => {
-    parent = path.join(parent, subdir);
-    if (!fs.existsSync(parent)) fs.mkdirSync(parent);
-    return parent;
-  }, root);
+  if (!fs.existsSync(directory)) fs.mkdirSync(directory, { recursive: true });
 };
 
 function getDestinationFromConfig(source, target, config) {
@@ -185,11 +172,7 @@ const build = async (
       await fs.promises.writeFile(`${destFile}.map`, map, "utf8");
     }
 
-    try {
-      fs.mkdirSync(path.join(destination, ".clio"));
-    } catch (error) {
-      //already exists
-    }
+    mkdir(path.join(destination, ".clio"));
     progress.succeed();
 
     // Add index.js file
