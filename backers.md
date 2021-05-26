@@ -1,22 +1,22 @@
 # Support Clio
 
-I want to thank everyone who shows interest in Clio and supports Clio
-by contributing to it or by donating to it.
+I want to thank all the backers and supporters of the project,
+all those who have contributed to the project at any point in time,
+supported us financially, gave us a star on github, wrote about
+us, provided us with feebacks, kept us motivated and were active
+in our community in any other ways.
 
-In this file you will find a list of all people who have supported Clio
-by giving donations.
+I appreciate all the help, and all your contributions, without which
+the project wouldn't be what it is today. Thank you all for helping
+us grow, share our vision and letting this happen!
 
-If you like Clio you can help in several ways.
+## Funds
 
-As a community, we need people to spread the word about Clio.
-We also need people to help us write better documentation, tutorials,
-examples, demos, tests and bug fixes.
-
-I appreciate your generous donations, as it will help me spend even more
-time on developing Clio.
-
-If you want to donate you can do so on [our patreon](https://www.patreon.com/pouya) page.
+All funds collected on open collective (or received directly by the
+project owner) are spent on promoting and developing Clio.
 
 ## Backers
 
-[Michele Riva](https://micheleriva.it)
+[Ivo Balbaert](https://www.packtpub.com/authors/ivo-balbaert)
+
+![Clio backers](https://opencollective.com/clio/backers.svg?width=890)
