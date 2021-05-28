@@ -37,17 +37,33 @@ function getParsedNpmDependencies(source) {
   return dependencies;
 }
 
-async function installNpmDependency(id) {
-  const info = await npmFetch.json(id);
+function getParsedNpmDevDependencies(source) {
+  const dependencies = {};
+  const npmDevDependencies = getPackageConfig(
+    path.join(source, CONFIGFILE_NAME)
+  ).npm_dev_dependencies;
+  if (npmDevDependencies) {
+    npmDevDependencies.forEach((dep) => {
+      dependencies[dep.name] = dep.version;
+    });
+  }
+  return dependencies;
+}
+
+async function installNpmDependency(id, flags) {
+  const [_, org, name, tag] = id.match(/^(?:@([^/]+)\/)?([^@]+)(?:@(.*))?/);
+  const package = org ? `@${org}/${name}` : name;
+  const info = await npmFetch.json(package).catch((err) => err);
   if (info.statusCode == 404)
     throw new Error(`Couldn't fetch package info for ${id}`);
-  const { latest } = info["dist-tags"];
-  addNpmDependency([info.name, latest]);
+  const selected = info["dist-tags"][tag || "latest"];
+  addNpmDependency([info.name, selected], flags);
 }
 
 module.exports = {
   fetchNpmDependencies,
   hasInstalledNpmDependencies,
   getParsedNpmDependencies,
+  getParsedNpmDevDependencies,
   installNpmDependency,
 };

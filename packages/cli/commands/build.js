@@ -12,6 +12,7 @@ const {
   getPackageConfig,
   hasInstalledNpmDependencies,
   getParsedNpmDependencies,
+  getParsedNpmDevDependencies,
   makeStartScript,
 } = require("clio-manifest");
 
@@ -184,9 +185,11 @@ const build = async (
     try {
       const packageJsonPath = path.join(destination, "package.json");
       const dependencies = getParsedNpmDependencies(source);
+      const devDependencies = getParsedNpmDevDependencies(source);
       dependencies["clio-run"] = "latest";
       const packageJsonContent = {
         dependencies,
+        devDependencies,
         main: `${config.main}.js`,
       };
       fs.writeFileSync(

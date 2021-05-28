@@ -4,6 +4,7 @@ const tmp = require("tmp");
 const {
   hasInstalledNpmDependencies,
   getParsedNpmDependencies,
+  getParsedNpmDevDependencies,
 } = require("../npm_dependencies");
 
 describe("#hasInstalledNpmDependencies", () => {
@@ -36,6 +37,27 @@ describe("#getParsedNpmDependencies", () => {
       "http-server": "1.0.0",
       express: "^1.5.2",
       chalk: "2.1.x",
+    });
+  });
+
+  describe("#getParsedNpmDevDependencies", () => {
+    test("should return an object with parsed dependencies for section with declared dependencies", () => {
+      const dir = tmp.dirSync();
+      const content = `
+    [npm_dev_dependencies]
+    http-server="1.0.0"
+    express="^1.5.2"
+    chalk="2.1.x"
+    `;
+      fs.writeFileSync(path.join(dir.name, "clio.toml"), content);
+
+      const parserNpmDependencies = getParsedNpmDevDependencies(dir.name);
+
+      expect(parserNpmDependencies).toEqual({
+        "http-server": "1.0.0",
+        express: "^1.5.2",
+        chalk: "2.1.x",
+      });
     });
   });
 

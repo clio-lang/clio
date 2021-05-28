@@ -35,23 +35,18 @@ function getPackageConfig(
     dependencies: [],
     // eslint-disable-next-line camelcase
     npm_dependencies: [],
+    // eslint-disable-next-line camelcase
+    npm_dev_dependencies: [],
   };
 
-  if (config.dependencies) {
-    parsedConfig.dependencies = Object.entries(config.dependencies).map(
-      (dep) => {
-        return { name: dep[0], version: dep[1] };
-      }
-    );
-  }
+  const keys = ["dependencies", "npm_dependencies", "npm_dev_dependencies"];
 
-  if (config.npm_dependencies) {
-    // eslint-disable-next-line camelcase
-    parsedConfig.npm_dependencies = Object.entries(config.npm_dependencies).map(
-      (dep) => {
+  for (const key of keys) {
+    if (config[key]) {
+      parsedConfig[key] = Object.entries(config[key]).map((dep) => {
         return { name: dep[0], version: dep[1] };
-      }
-    );
+      });
+    }
   }
 
   return parsedConfig;
@@ -82,11 +77,20 @@ function getHostConfig(filepath) {
 function writePackageConfig(config, directory = process.cwd()) {
   const dependencies = {};
   const npm_dependencies = {};
+  const npm_dev_dependencies = {};
   config.dependencies?.forEach((dep) => (dependencies[dep.name] = dep.version));
   config.npm_dependencies?.forEach(
     (dep) => (npm_dependencies[dep.name] = dep.version)
   );
-  const cfgStr = toml.stringify({ ...config, dependencies, npm_dependencies });
+  config.npm_dev_dependencies?.forEach(
+    (dep) => (npm_dev_dependencies[dep.name] = dep.version)
+  );
+  const cfgStr = toml.stringify({
+    ...config,
+    dependencies,
+    npm_dependencies,
+    npm_dev_dependencies,
+  });
   const filePath = path.join(directory, CONFIGFILE_NAME);
   fs.writeFileSync(filePath, cfgStr);
 }
@@ -114,13 +118,19 @@ function addDependency(dependency) {
  * Add a npm dependency to the package config
  *
  * @param {string[]} dep - [ name, version ]
+ * @param {Object} flags - { dev }
  */
-function addNpmDependency(dependency) {
+function addNpmDependency(dependency, flags) {
   const config = getPackageConfig();
   const [name, version] = dependency;
 
-  config.npm_dependencies = config.npm_dependencies || [];
-  config.npm_dependencies.push({ name, version });
+  if (flags.dev) {
+    config.npm_dev_dependencies = config.npm_dev_dependencies || [];
+    config.npm_dev_dependencies.push({ name, version });
+  } else {
+    config.npm_dependencies = config.npm_dependencies || [];
+    config.npm_dependencies.push({ name, version });
+  }
 
   writePackageConfig(config);
 

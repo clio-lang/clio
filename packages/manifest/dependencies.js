@@ -84,7 +84,7 @@ function fetchDependencies() {
  * @returns {promise}
  */
 function installDependency(id, flags = {}) {
-  if (flags.npm) return installNpmDependency(id);
+  if (flags.npm) return installNpmDependency(id, flags);
 
   const { url, branch, githubURI, source, version, name } = parsePackageId(id);
 
