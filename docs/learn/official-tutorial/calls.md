@@ -7,7 +7,7 @@ fn add a b:
   a + b
 ```
 
-We can run call this function in two different ways. You saw the first form in the Hello World! section:
+We can call this function in two different ways. You saw the first form in the Hello World! section:
 
 ```text
 export fn main argv:

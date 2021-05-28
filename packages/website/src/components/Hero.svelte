@@ -16,7 +16,9 @@
 
     <div class="learn-more">
       Visit our
-      <a href="https://docs.clio-lang.org/tutorial">tutorial page</a>
+      <a href="https://docs.clio-lang.org/learn/official-tutorial"
+        >tutorial page</a
+      >
       to learn Clio, or read the
       <a href="https://docs.clio-lang.org">documentation</a>
       to learn more.
