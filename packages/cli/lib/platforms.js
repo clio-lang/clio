@@ -1,31 +1,57 @@
 const fs = require("fs");
 const path = require("path");
-const Parcel = require("parcel-bundler");
-const { fork } = require("child_process");
+const Parcel = require("@parcel/core").default;
+const { fork, spawnSync } = require("child_process");
+
+const makeHtmlFile = (destination) => {
+  const htmlFilePath = path.join(destination, "index.html");
+  if (!fs.existsSync(htmlFilePath)) {
+    const htmlFileContent = `
+        <!DOCTYPE html>
+        <html lang="en">
+          <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+            <title>Document</title>
+          </head>
+          <body>
+            <script src=".clio/index.js"></script>
+          </body>
+        </html>
+        `;
+    fs.writeFileSync(htmlFilePath, htmlFileContent);
+  }
+};
+
+const patchPkgForWeb = (destination) => {
+  const pkgPath = path.join(destination, "package.json");
+  const pkgJson = require(pkgPath);
+  const newPkg = {
+    ...pkgJson,
+    alias: {
+      async_hooks: "./.clio/empty.js",
+      worker_threads: "./.clio/empty.js",
+      ws: "clio-rpc/transports/ws/shim.js",
+      "main.clio": "./main.clio.js",
+      ...pkgJson.alias,
+    },
+    browserslist: pkgJson.browserslist || ["last 1 Chrome version"],
+  };
+  fs.writeFileSync(pkgPath, JSON.stringify(newPkg, null, 2));
+};
 
 const web = {
   async build(destination, skipBundle) {
-    const pkgPath = path.join(destination, "package.json");
-    const pkgJson = require(pkgPath);
-    const newPkg = {
-      ...pkgJson,
-      alias: {
-        async_hooks: "./.clio/empty.js",
-        worker_threads: "./.clio/empty.js",
-        ws: "clio-rpc/transports/ws/shim.js",
-        "parcel:main": "./main.clio.js",
-      },
-      browserslist: ["last 1 Chrome version"],
-    };
-    fs.writeFileSync(pkgPath, JSON.stringify(newPkg, null, 2));
+    patchPkgForWeb(destination);
     fs.writeFileSync(path.join(destination, ".clio", "empty.js"), "");
+    makeHtmlFile(destination);
     if (skipBundle) return;
     const bundler = await setupParcel(destination);
-    await bundler.bundle();
+    await bundler.run();
   },
   async run(path) {
-    const bundler = await setupParcel(path, { watch: true });
-    await bundler.serve();
+    await setupParcel(path, { serveOptions: { port: 1234 } });
   },
   async host() {
     throw new Error(`Platform "web" does not support hosting.`);
@@ -53,30 +79,15 @@ const defeito = {
   run() {},
 };
 
-async function setupParcel(destination, options = { watch: false }) {
-  const htmlFilePath = path.join(destination, "index.html");
-  if (!fs.existsSync(htmlFilePath)) {
-    const htmlFileContent = `
-        <!DOCTYPE html>
-        <html lang="en">
-          <head>
-            <meta charset="UTF-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-            <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-            <title>Document</title>
-          </head>
-          <body>
-            <script src=".clio/index.js"></script>
-          </body>
-        </html>
-        `;
-    fs.writeFileSync(htmlFilePath, htmlFileContent);
-  }
-
-  return new Parcel(htmlFilePath, {
-    outDir: path.join(destination, "dist"),
-    outFile: path.join(destination, "dist/index.html"),
-    ...options,
+async function setupParcel(destination, options = {}) {
+  // TODO: this should be fixed
+  spawnSync("npm", ["i", "-S", "parcel@next"], {
+    cwd: destination,
+    stdio: "inherit",
+  });
+  spawnSync("npx", ["parcel", "index.html"], {
+    cwd: destination,
+    stdio: "inherit",
   });
 }
 

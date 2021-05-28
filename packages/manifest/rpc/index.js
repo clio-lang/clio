@@ -7,12 +7,16 @@ const makeStartScript = (config, target, destination, relativeMain) => {
     path.join(destination, ".clio", "rpc.json"),
     JSON.stringify({ servers, workers, executor }, null, 2)
   );
+  const main =
+    target === "web"
+      ? '"main.clio"'
+      : `require.resolve("../${relativeMain}.js")`;
   fs.writeFileSync(
     path.join(destination, ".clio", "index.js"),
     [
       `const runner = require("clio-run/src/runners/auto.js");`,
       `const config = require("./rpc.json");`,
-      `runner(require.resolve("../${relativeMain}.js"), config);`,
+      `runner(${main}, config);`,
     ].join("\n")
   );
   fs.writeFileSync(
@@ -20,7 +24,7 @@ const makeStartScript = (config, target, destination, relativeMain) => {
     [
       `const runner = require("clio-run/src/runners/auto.js");`,
       `const config = require("./rpc.json");`,
-      `runner(require.resolve("../${relativeMain}.js"), config, true);`,
+      `runner(${main}, config, true);`,
     ].join("\n")
   );
 };

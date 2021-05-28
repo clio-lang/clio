@@ -18,5 +18,5 @@ const executor = new Executor(transport);
 onmessage = (message) => transport.onmessage(message);
 
 // TODO: this locks us to parcel
-const main = require("parcel:main");
+const main = require("main.clio");
 run(main, { worker, executor }, { noMain: true }).then(() => worker.connect());
