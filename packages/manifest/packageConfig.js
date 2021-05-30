@@ -72,6 +72,12 @@ function getHostConfig(filepath) {
   return parsedConfig;
 }
 
+function removeKeys(object, ...keys) {
+  const clone = { ...object };
+  for (const key of keys) delete clone[key];
+  return clone;
+}
+
 /* Package editing */
 
 /**
@@ -79,26 +85,38 @@ function getHostConfig(filepath) {
  *
  * @param {object} config
  */
-function writePackageConfig(configPath) {
-  const dependencies = {};
-  const npm = { dependencies: {}, devDependencies: {} };
+function writePackageConfig(configPath, config) {
+  const cfg = {};
 
-  config.dependencies?.forEach((dep) => (dependencies[dep.name] = dep.version));
+  if (config.dependencies?.length) {
+    cfg.dependencies = {};
+    for (const dep of config.dependencies) {
+      cfg.dependencies[dep.name] = dep.version;
+    }
+  }
 
-  config.npm.dependencies.forEach(
-    (dep) => (npm.dependencies[dep.name] = dep.version)
-  );
+  if (config.npm?.dependencies?.length) {
+    cfg.npm = cfg.npm || {};
+    cfg.npm.dependencies = {};
+    for (const dep of config.npm.dependencies) {
+      cfg.npm.dependencies[dep.name] = dep.version;
+    }
+  }
 
-  config.npm.devDependencies.forEach(
-    (dep) => (npm.devDependencies[dep.name] = dep.version)
-  );
+  if (config.npm?.devDependencies?.length) {
+    cfg.npm = cfg.npm || {};
+    cfg.npm.devDependencies = {};
+    for (const dep of config.npm.devDependencies) {
+      cfg.npm.devDependencies[dep.name] = dep.version;
+    }
+  }
 
   const cfgStr = toml.stringify({
-    ...config,
-    dependencies,
+    ...removeKeys(config, "dependencies", "npmOverride"),
+    ...cfg,
     npm: {
-      ...config.npm,
-      ...npm,
+      ...config.npmOverride,
+      ...cfg.npm,
     },
   });
 
@@ -142,7 +160,7 @@ function addNpmDependency(configPath, dependency, flags) {
     config.npm.dependencies.push({ name, version });
   }
 
-  writePackageConfig(config);
+  writePackageConfig(configPath, config);
 
   console.log(
     `Added ${name}@${version} to the dependencies list in ${configPath}`

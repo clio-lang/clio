@@ -90,18 +90,18 @@ function installDependency(configPath, id, flags = {}) {
   if (url && !githubURI) {
     logFetching(url);
 
-    return fetchZipArchive(url).then((successful) => {
-      if (successful && !hasClioDependency([source, "latest"])) {
-        addDependency([source, "latest"]);
+    return fetchZipArchive(configPath, url).then((successful) => {
+      if (successful && !hasClioDependency(configPath, [source, "latest"])) {
+        addDependency(configPath, [source, "latest"]);
       }
     });
   }
 
   if (githubURI) {
-    return fetchGitHubZipArchive({ branch, uri: githubURI }).then(
+    return fetchGitHubZipArchive(configPath, { branch, uri: githubURI }).then(
       (successful) => {
-        if (successful && !hasClioDependency(configPath, [(source, version)])) {
-          addDependency(configPath, [(source, version)]);
+        if (successful && !hasClioDependency(configPath, [source, version])) {
+          addDependency(configPath, [source, version]);
         }
       }
     );
@@ -109,11 +109,13 @@ function installDependency(configPath, id, flags = {}) {
 
   // not github, not an URL
   // fetch pkg info from clio-lang/packages by package id (name[@version])
-  return fetchFromClioPackages({ branch, name }).then((successful) => {
-    if (successful && !hasClioDependency(configPath, [(source, version)])) {
-      addDependency(configPath, [(source, version)]);
+  return fetchFromClioPackages(configPath, { branch, name }).then(
+    (successful) => {
+      if (successful && !hasClioDependency(configPath, [source, version])) {
+        addDependency(configPath, [source, version]);
+      }
     }
-  });
+  );
 }
 
 module.exports = {

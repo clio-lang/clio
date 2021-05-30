@@ -1,21 +1,22 @@
 const { spawn } = require("child_process");
 
-const npmCommand = (command, destination, args) => {
+const npmCommand = (command, destination, args, forkOptions = {}) => {
   const argv = args && args.length ? ["--", ...args] : [];
   const npm = process.platform == "win32" ? "npm.cmd" : "npm";
   return spawn(npm, ["run", command, ...argv], {
     cwd: destination,
     stdio: "inherit",
+    ...forkOptions,
   });
 };
 
 const js = {
   async build() {},
-  async run(destination, args) {
-    npmCommand("start", destination, args);
+  async run(destination, args, forkOptions) {
+    return npmCommand("start", destination, args, forkOptions);
   },
   async host(destination, args) {
-    npmCommand("host", destination, args);
+    return npmCommand("host", destination, args);
   },
 };
 

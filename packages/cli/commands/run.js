@@ -31,7 +31,7 @@ exports.handler = (argv) => {
   run(argv, argv._.slice(1));
 };
 
-async function run(argv, args) {
+async function run(argv, args, forkOptions = {}) {
   try {
     const configFiles = isDir(argv.config)
       ? fs.readdirSync(argv.config).filter(isClioConfig)
@@ -57,7 +57,7 @@ async function run(argv, args) {
       throw new Error(`Platform "${target}" is not supported.`);
     }
 
-    return await platform.run(destination, args);
+    return await platform.run(destination, args, forkOptions);
   } catch (e) {
     error(e);
   }

@@ -42,14 +42,14 @@ function getParsedNpmDevDependencies(configPath) {
   return dependencies;
 }
 
-async function installNpmDependency(id, flags) {
+async function installNpmDependency(configPath, id, flags) {
   const [_, org, name, tag] = id.match(/^(?:@([^/]+)\/)?([^@]+)(?:@(.*))?/);
-  const package = org ? `@${org}/${name}` : name;
-  const info = await npmFetch.json(package).catch((err) => err);
+  const pkg = org ? `@${org}/${name}` : name;
+  const info = await npmFetch.json(pkg).catch((err) => err);
   if (info.statusCode == 404)
     throw new Error(`Couldn't fetch package info for ${id}`);
   const selected = info["dist-tags"][tag || "latest"];
-  addNpmDependency([info.name, selected], flags);
+  addNpmDependency(configPath, [info.name, selected], flags);
 }
 
 module.exports = {

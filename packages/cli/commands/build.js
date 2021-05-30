@@ -118,6 +118,31 @@ function getSourceFromConfig(configPath, config) {
 }
 
 /**
+ * Generates a package.json for a clio module.
+ * Reads the configuration file of the module and builds a package.json file containing all nessessary fields
+ *
+ * @param {string} source source root directory of clio project
+ * @param {string} dependency name of the dependency being compiled
+ * @param {string} destination destination for package.json
+ */
+const buildPackageJson = (source, dependency, destination) => {
+  const configPath = path.join(source, ENV_NAME, dependency, "clio.toml");
+  const config = getPackageConfig(configPath);
+  const packageJson = {
+    main: config.main,
+    title: config.title,
+    clio: { config },
+  };
+  const destFilePath = path.join(
+    destination,
+    "node_modules",
+    path.basename(dependency),
+    "package.json"
+  );
+  fs.writeFileSync(destFilePath, JSON.stringify(packageJson));
+};
+
+/**
  *
  * @param {string} configPath Path to the project config file
  * @param {Object} options Options to build
@@ -235,9 +260,9 @@ const build = async (configPath, options = {}) => {
 
       // Build package.json files
       progress.start("Linking Clio dependencies...");
-      const clioDepDirs = fs.readdirSync(path.join(source, ENV_NAME));
+      const clioDepDirs = fs.readdirSync(path.join(sourceDir, ENV_NAME));
       for (const depDir of clioDepDirs) {
-        buildPackageJson(source, depDir, destination);
+        buildPackageJson(sourceDir, depDir, destination);
       }
       progress.succeed();
     }

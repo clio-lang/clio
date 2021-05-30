@@ -4,7 +4,6 @@ const fs = require("fs");
 const toml = require("@iarna/toml");
 
 const {
-  CONFIGFILE_NAME,
   getPackageConfig,
   writePackageConfig,
   writeHostConfig,
@@ -21,12 +20,12 @@ test("Write config file", () => {
     dependencies: [{ name: "Foo", version: "1.2.3" }],
   };
 
-  const tmpDir = tmp.dirSync();
-  const filePath = tmpDir.name;
+  const tmpDir = tmp.dirSync({ unsafeCleanup: true });
+  const filePath = path.join(tmpDir.name, "clio.toml");
 
-  writePackageConfig(config, filePath);
+  writePackageConfig(filePath, config);
 
-  const file = fs.readFileSync(path.join(filePath, CONFIGFILE_NAME));
+  const file = fs.readFileSync(filePath);
   const contents = toml.parse(file.toString());
   expect(contents.title).toBe("test");
   expect(contents.dependencies).toEqual({ Foo: "1.2.3" });
@@ -39,7 +38,7 @@ test("Write host config file", () => {
     workers: [{ server: "default" }],
   };
 
-  const tmpDir = tmp.dirSync();
+  const tmpDir = tmp.dirSync({ unsafeCleanup: true });
   const filePath = tmpDir.name;
 
   const name = writeHostConfig(filePath, config, "main.clio");

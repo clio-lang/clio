@@ -1,4 +1,6 @@
 const path = require("path");
+const fs = require("fs");
+
 const { fetchDependencies } = require("clio-manifest");
 const { error } = require("../../lib/colors");
 const { isClioConfig, isDir } = require("../build"); // TODO: Move to lib
