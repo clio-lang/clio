@@ -53,10 +53,6 @@ async function host(argv, args) {
     const destination = getDestinationFromConfig(configPath, config);
     const platform = getPlatform(target);
 
-    if (!platform) {
-      throw new Error(`Platform "${target}" is not supported.`);
-    }
-
     return await platform.host(destination, args);
   } catch (e) {
     error(e);

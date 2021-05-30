@@ -53,10 +53,6 @@ async function run(argv, args, forkOptions = {}) {
     const destination = getDestinationFromConfig(configPath, config);
     const platform = getPlatform(target);
 
-    if (!platform) {
-      throw new Error(`Platform "${target}" is not supported.`);
-    }
-
     return await platform.run(destination, args, forkOptions);
   } catch (e) {
     error(e);
