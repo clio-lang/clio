@@ -18,7 +18,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - name: npm install & test
         run: |
-          sudo apt install git
+          sudo apt install -y git
           export CLIOPATH="$GITHUB_WORKSPACE"
           npm ci
           npm run link
