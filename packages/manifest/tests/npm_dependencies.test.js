@@ -24,7 +24,7 @@ describe("#getParsedNpmDependencies", () => {
   test("should return an object with parsed dependencies for section with declared dependencies", () => {
     const dir = tmp.dirSync();
     const content = `
-    [npm_dependencies]
+    [npm.dependencies]
     http-server="1.0.0"
     express="^1.5.2"
     chalk="2.1.x"
@@ -64,7 +64,7 @@ describe("#getParsedNpmDependencies", () => {
   test("should return an empty object for declared section, but no dependencies", () => {
     const dir = tmp.dirSync();
     const content = `
-    [npm_dependencies]
+    [npm.dependencies]
     `;
     fs.writeFileSync(path.join(dir.name, "clio.toml"), content);
 

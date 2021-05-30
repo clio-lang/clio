@@ -1,4 +1,3 @@
-const { CONFIGFILE_NAME } = require("./config");
 const { addDependency, getPackageConfig } = require("./packageConfig");
 const {
   fetchFromClioPackages,
@@ -21,8 +20,8 @@ const { installNpmDependency } = require("./npm_dependencies");
   { name: 'github:clio-lang/rethinkdb', version: 'latest' }
 ]
  */
-function getPackageDependencies() {
-  const config = getPackageConfig();
+function getPackageDependencies(configPath) {
+  const config = getPackageConfig(configPath);
   return config.dependencies;
 }
 
@@ -31,13 +30,13 @@ function getPackageDependencies() {
  * config file.
  * @returns {bool}
  */
-function hasClioDependencies() {
-  const dependencies = getPackageDependencies();
+function hasClioDependencies(configPath) {
+  const dependencies = getPackageDependencies(configPath);
   return !!dependencies && !!Object.keys(dependencies).length;
 }
 
-const logNoClioDeps = () =>
-  console.log(`No dependencies found in ${CONFIGFILE_NAME}`);
+const logNoClioDeps = (configPath) =>
+  console.log(`No dependencies found in ${configPath}`);
 
 /**
  * Returns true if the project has at least one dependency listed in the package
@@ -46,8 +45,8 @@ const logNoClioDeps = () =>
  * @params {string[]} depId - [id, version] of the dependency to check
  * @returns {bool}
  */
-function hasClioDependency([depId, depVersion]) {
-  const found = getPackageDependencies().find(
+function hasClioDependency(configPath, [depId, depVersion]) {
+  const found = getPackageDependencies(configPath).find(
     ({ name, version }) => name === depId && version === depVersion
   );
 
@@ -61,16 +60,16 @@ function hasClioDependency([depId, depVersion]) {
  *
  * @returns {void|promise}
  */
-function fetchDependencies() {
-  if (!hasClioDependencies()) {
-    logNoClioDeps();
+function fetchDependencies(configPath) {
+  if (!hasClioDependencies(configPath)) {
+    logNoClioDeps(configPath);
     return;
   }
 
   return Promise.all(
-    getPackageDependencies()
+    getPackageDependencies(configPath)
       .filter((dep) => isClioSource(dep.name))
-      .map((dep) => installDependency(dep.name))
+      .map((dep) => installDependency(configPath, dep.name))
   );
 }
 
@@ -83,8 +82,8 @@ function fetchDependencies() {
  * @param {string} argv.source - url, uri or id (name[@version]) of the package to fetch
  * @returns {promise}
  */
-function installDependency(id, flags = {}) {
-  if (flags.npm) return installNpmDependency(id, flags);
+function installDependency(configPath, id, flags = {}) {
+  if (flags.npm) return installNpmDependency(configPath, id, flags);
 
   const { url, branch, githubURI, source, version, name } = parsePackageId(id);
 
@@ -101,8 +100,8 @@ function installDependency(id, flags = {}) {
   if (githubURI) {
     return fetchGitHubZipArchive({ branch, uri: githubURI }).then(
       (successful) => {
-        if (successful && !hasClioDependency([source, version])) {
-          addDependency([source, version]);
+        if (successful && !hasClioDependency(configPath, [(source, version)])) {
+          addDependency(configPath, [(source, version)]);
         }
       }
     );
@@ -111,8 +110,8 @@ function installDependency(id, flags = {}) {
   // not github, not an URL
   // fetch pkg info from clio-lang/packages by package id (name[@version])
   return fetchFromClioPackages({ branch, name }).then((successful) => {
-    if (successful && !hasClioDependency([source, version])) {
-      addDependency([source, version]);
+    if (successful && !hasClioDependency(configPath, [(source, version)])) {
+      addDependency(configPath, [(source, version)]);
     }
   });
 }

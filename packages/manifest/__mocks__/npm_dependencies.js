@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { getPackageConfig, CONFIGFILE_NAME } = require("../packageConfig");
+const { getPackageConfig } = require("../packageConfig");
 
 const fetchNpmDependencies = jest
   .fn()
@@ -19,11 +19,9 @@ function hasInstalledNpmDependencies(destination) {
   return fs.existsSync(path.join(destination, "package-lock.json"));
 }
 
-function getParsedNpmDependencies(source) {
+function getParsedNpmDependencies(configPath) {
   const dependencies = {};
-  const npmDependencies = getPackageConfig(
-    path.join(source, CONFIGFILE_NAME)
-  ).npm_dependencies;
+  const npmDependencies = getPackageConfig(configPath).npm.dependencies;
   if (npmDependencies) {
     npmDependencies.forEach((dep) => {
       dependencies[dep.name] = dep.version;
@@ -32,11 +30,9 @@ function getParsedNpmDependencies(source) {
   return dependencies;
 }
 
-function getParsedNpmDevDependencies(source) {
+function getParsedNpmDevDependencies(configPath) {
   const dependencies = {};
-  const npmDevDependencies = getPackageConfig(
-    path.join(source, CONFIGFILE_NAME)
-  ).npm_dev_dependencies;
+  const npmDevDependencies = getPackageConfig(configPath).npm.devDependencies;
   if (npmDevDependencies) {
     npmDevDependencies.forEach((dep) => {
       dependencies[dep.name] = dep.version;

@@ -52,10 +52,10 @@ test("Write host config file", () => {
   tmpDir.removeCallback();
 });
 
-test("Toml contains npm_dependencies", () => {
+test("Toml contains npm.dependencies", () => {
   const config = getPackageConfig(path.join(__dirname, "clio.test.toml"));
 
-  expect(config.npm_dependencies).toContainEqual({
+  expect(config.npm.dependencies).toContainEqual({
     name: "rickroll",
     version: "latest",
   });

@@ -59,10 +59,12 @@ describe("Package.json generation", () => {
     const newConfig = {
       ...oldConfig,
       // eslint-disable-next-line camelcase
-      npm_dependencies: [
-        ...(oldConfig.npm_dependencies || []),
-        { name: "express", version: "latest" },
-      ],
+      npm: {
+        dependencies: [
+          ...(oldConfig.npm.dependencies || []),
+          { name: "express", version: "latest" },
+        ],
+      },
     };
 
     writePackageConfig(newConfig, dir.name);
@@ -102,15 +104,6 @@ describe("Web builds", () => {
     const dir = tmp.dirSync();
     await _new(dir.name, "web");
     await build(dir.name, null, { silent: true });
-    const files = fs.readdirSync(path.join(dir.name, "build", "web"));
-    expect(files.includes("main.clio.js")).toBe(true);
-    dir.removeCallback();
-  }, 20000);
-
-  test("with target override (clio build --target=web)", async () => {
-    const dir = tmp.dirSync();
-    await _new(dir.name, "node"); // project generated as node
-    await build(dir.name, null, { targetOverride: "web", silent: true }); // but compiled as web
     const files = fs.readdirSync(path.join(dir.name, "build", "web"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
@@ -167,15 +160,6 @@ target = "alternative"`
     await build(dir.name, null, { silent: true });
 
     const files = fs.readdirSync(path.join(dir.name, "build", "alternative"));
-    expect(files.includes("main.clio.js")).toBe(true);
-    dir.removeCallback();
-  });
-
-  test("with target override (clio build --target=node)", async () => {
-    const dir = tmp.dirSync();
-    await _new(dir.name, "web"); // project generated as web
-    await build(dir.name, null, { targetOverride: "node", silent: true }); // but compiled as node
-    const files = fs.readdirSync(path.join(dir.name, "build", "node"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
   });
