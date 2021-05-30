@@ -18,6 +18,7 @@ test("Runs hello world", async () => {
       if (str === "Hello World\n") resolve(true);
     });
   });
+  await new Promise((resolve) => process.on("close", resolve));
   dir.removeCallback();
   expect(hello).toBe(true);
 });
@@ -30,7 +31,8 @@ test("Runs a project with dependencies", async () => {
   config.dependencies.push({ name: "hub:fib", version: "latest" });
   packageConfig.writePackageConfig(filePath, config);
   await deps.handler({ config: filePath });
-  await run({ config: filePath });
+  const process = await run({ config: filePath });
+  await new Promise((resolve) => process.on("close", resolve));
   expect(
     fs.readdirSync(path.join(dir.name, "build", "node_modules")).toString()
   ).toContain("fib-master");
