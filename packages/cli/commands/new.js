@@ -51,7 +51,7 @@ function preValidations(packageName, target) {
 
 async function createPackageJs(packageName, template) {
   const repo = TEMPLATES.includes(template)
-    ? `clio-lang/template-${template}#master`
+    ? `clio-lang/template-${template}`
     : template;
 
   const emitter = degit(repo, {
