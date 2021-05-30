@@ -137,6 +137,9 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
     // check if this isn't an empty line
     const isEmpty = source.match(/^ *(?=[\r\n])/);
     if (isEmpty) return;
+    // check if it's a comment line
+    const isComment = source.match(/^ *--/);
+    if (isComment) return;
     // check if there are spaces
     const match = source.match(/^ */);
     // check if level is changed
