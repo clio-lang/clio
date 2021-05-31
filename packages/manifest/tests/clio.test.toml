@@ -13,9 +13,12 @@ test = "clio test **/*.clio"
 "hub:stdlib" = "^2.3.1"
 "hub:foo" = "2.1"
 
-[npm_dependencies]
+[npm.dependencies]
 rickroll = "latest"
 foo = "latest"
+
+[npm.devDependencies]
+parcel = "next"
 
 [build]
 directory = "build"

@@ -24,7 +24,7 @@ const executor = (file, dispatcher, server, monitor, { wait_for }, options) => {
     wait_for === "cpu" ? window.navigator.hardwareConcurrency : wait_for;
   dispatcher.expectWorkers(workerCount).then(async () => {
     // TODO: this locks us to parcel
-    const main = require("parcel:main");
+    const main = require("main.clio.js");
     const clientTransport = server.getTransport();
     const executor = new Executor(clientTransport);
     await run(main, { executor });

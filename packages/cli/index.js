@@ -9,8 +9,18 @@ if (!isSupportedNodeVersion(process.versions.node)) {
   );
 }
 
+const command = (cmd) => ({
+  include: new RegExp(`${cmd}.js`),
+});
+
 require("yargs")
-  .commandDir("commands")
+  .commandDir("commands", command("build"))
+  .commandDir("commands", command("run"))
+  .commandDir("commands", command("host"))
+  .commandDir("commands", command("new"))
+  .commandDir("commands", command("deps"))
+  .commandDir("commands", command("docs"))
+  .commandDir("commands", command("highligh"))
   .help()
   .alias("h", "help")
   .demandCommand(1, "must provide a valid command")

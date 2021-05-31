@@ -4,63 +4,86 @@ const tmp = require("tmp");
 const {
   hasInstalledNpmDependencies,
   getParsedNpmDependencies,
+  getParsedNpmDevDependencies,
 } = require("../npm_dependencies");
 
 describe("#hasInstalledNpmDependencies", () => {
   test("should return true if directory has a package-lock.json", () => {
-    const dir = tmp.dirSync();
+    const dir = tmp.dirSync({ unsafeCleanup: true });
     fs.writeFileSync(path.join(dir.name, "package-lock.json"), "testing");
     expect(hasInstalledNpmDependencies(dir.name)).toBe(true);
   });
 
   test("should return false if directory has a package-lock.json", () => {
-    const dir = tmp.dirSync();
+    const dir = tmp.dirSync({ unsafeCleanup: true });
     expect(hasInstalledNpmDependencies(dir.name)).toBe(false);
   });
 });
 
 describe("#getParsedNpmDependencies", () => {
   test("should return an object with parsed dependencies for section with declared dependencies", () => {
-    const dir = tmp.dirSync();
+    const dir = tmp.dirSync({ unsafeCleanup: true });
     const content = `
-    [npm_dependencies]
+    [npm.dependencies]
     http-server="1.0.0"
     express="^1.5.2"
     chalk="2.1.x"
     `;
-    fs.writeFileSync(path.join(dir.name, "clio.toml"), content);
 
-    const parserNpmDependencies = getParsedNpmDependencies(dir.name);
+    const filePath = path.join(dir.name, "clio.toml");
+    fs.writeFileSync(filePath, content);
 
-    expect(parserNpmDependencies).toEqual({
+    const parsedNpmDependencies = getParsedNpmDependencies(filePath);
+    expect(parsedNpmDependencies).toEqual({
       "http-server": "1.0.0",
       express: "^1.5.2",
       chalk: "2.1.x",
     });
   });
 
-  test("should return an empty object for declared section, but no dependencies", () => {
-    const dir = tmp.dirSync();
-    const content = `
-    [npm_dependencies]
+  describe("#getParsedNpmDevDependencies", () => {
+    test("should return an object with parsed dependencies for section with declared dependencies", () => {
+      const dir = tmp.dirSync({ unsafeCleanup: true });
+      const content = `
+    [npm.devDependencies]
+    http-server="1.0.0"
+    express="^1.5.2"
+    chalk="2.1.x"
     `;
-    fs.writeFileSync(path.join(dir.name, "clio.toml"), content);
+      const filePath = path.join(dir.name, "clio.toml");
+      fs.writeFileSync(filePath, content);
 
-    const parserNpmDependencies = getParsedNpmDependencies(dir.name);
+      const parsedNpmDependencies = getParsedNpmDevDependencies(filePath);
+      expect(parsedNpmDependencies).toEqual({
+        "http-server": "1.0.0",
+        express: "^1.5.2",
+        chalk: "2.1.x",
+      });
+    });
+  });
 
-    expect(parserNpmDependencies).toEqual({});
+  test("should return an empty object for declared section, but no dependencies", () => {
+    const dir = tmp.dirSync({ unsafeCleanup: true });
+    const content = `
+    [npm.dependencies]
+    `;
+    const filePath = path.join(dir.name, "clio.toml");
+    fs.writeFileSync(filePath, content);
+
+    const parsedNpmDependencies = getParsedNpmDevDependencies(filePath);
+    expect(parsedNpmDependencies).toEqual({});
   });
 
   test("should return an empty object for no section at all", () => {
-    const dir = tmp.dirSync();
+    const dir = tmp.dirSync({ unsafeCleanup: true });
     const content = `
     [dependencies]
     stdlib="latest"
     `;
-    fs.writeFileSync(path.join(dir.name, "clio.toml"), content);
+    const filePath = path.join(dir.name, "clio.toml");
+    fs.writeFileSync(filePath, content);
 
-    const parserNpmDependencies = getParsedNpmDependencies(dir.name);
-
-    expect(parserNpmDependencies).toEqual({});
+    const parsedNpmDependencies = getParsedNpmDevDependencies(filePath);
+    expect(parsedNpmDependencies).toEqual({});
   });
 });

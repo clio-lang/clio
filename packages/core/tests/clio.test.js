@@ -453,6 +453,14 @@ testStr(
   "\nfn add a b:\r\n  a + b\n",
   "const add=register(`<mem>/add`,(a,b)=>{return a+b})"
 );
+testStr(
+  "Ignore indents on comment lines",
+  `export fn main argv:
+  5 -> console.log
+-- D between code-lines
+  "Hello" -> console.log`,
+  "const main=register(`<mem>/main`,(argv)=>{console.log(5);return console.log(`Hello`)});clio.exports.main=main"
+);
 testFile(
   "fib",
   "const fib=register(`fib.clio/fib`,(n)=>{if((n<=2)){return n}else{return (fib(n-1))+(fib(n-2))}})"

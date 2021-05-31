@@ -6,12 +6,12 @@ const { getPlatform } = require("../lib/platforms");
 const { Progress } = require("../lib/progress");
 
 const {
-  CONFIGFILE_NAME,
   ENV_NAME,
   fetchNpmDependencies,
   getPackageConfig,
   hasInstalledNpmDependencies,
   getParsedNpmDependencies,
+  getParsedNpmDevDependencies,
   makeStartScript,
 } = require("clio-manifest");
 
@@ -25,6 +25,7 @@ const walkDir = (dir) => readDir(dir).map((f) => walk(path.join(dir, f)));
 const walk = (dir) => (isDir(dir) ? flatten(walkDir(dir)) : [dir]);
 
 const isClioFile = (file) => file.endsWith(".clio");
+const isClioConfig = (file) => file.match(/(^|[.\\])clio\.toml$/);
 const isNotClioFile = (file) => !isClioFile(file);
 const getClioFiles = (dir) => walk(dir).filter(isClioFile);
 const getNonClioFiles = (dir) => walk(dir).filter(isNotClioFile);
@@ -40,7 +41,7 @@ const copyDir = async (src, dest) => {
       const absTarget = path.isAbsolute(target)
         ? target
         : path.resolve(path.dirname(srcPath), target);
-      fs.symlinkSync(absTarget, destPath);
+      if (fs.existsSync(absTarget)) copyDir(absTarget, destPath);
     } else if (entry.isDirectory()) {
       await copyDir(srcPath, destPath);
     } else {
@@ -61,92 +62,107 @@ const mkdir = (directory) => {
   if (!fs.existsSync(directory)) fs.mkdirSync(directory, { recursive: true });
 };
 
-function getDestinationFromConfig(source, target, config) {
+function getDestinationFromConfig(configPath, config) {
   if (!config) {
     throw new Error('You must pass the location of the "clio.toml" file.');
   }
 
-  const buildConfig = config.build;
-  const buildDirectory = buildConfig.directory;
-
-  if (!buildDirectory) {
+  if (!config.build) {
     throw new Error(
-      `The build directory is missing on your "${CONFIGFILE_NAME}".\n\nExample:\n\n[build]\ndirectory = "build"\n`
+      `No build configuration has been found. Please add a [build] section to your "${configPath}" file.`
     );
   }
 
-  return path.join(source, buildDirectory, target);
+  if (!config.build.destination) {
+    throw new Error(
+      `The build directory is missing on your "${configPath}".\n\nExample:\n\n[build]\ndestination = "build"\n`
+    );
+  }
+
+  return config.build.destination;
 }
 
 // FIXME I'm not sure if this function should stay here
-function getBuildTarget(targetOverride, config) {
+function getBuildTarget(configPath, config) {
   if (!config) {
     throw new Error('You must pass the location of the "clio.toml" file.');
   }
-  const buildConfig = config.build;
 
-  if (!buildConfig) {
+  if (!config.build) {
     throw new Error(
-      `No build configuration has been found. Please add a [build] section to your "${CONFIGFILE_NAME}" file.`
+      `No build configuration has been found. Please add a [build] section to your "${configPath}" file.`
     );
   }
 
-  const buildTarget =
-    targetOverride ||
-    (buildConfig.target in config.target
-      ? config.target[buildConfig.target].target
-      : buildConfig.target);
-
-  if (!buildTarget) {
-    throw new Error(
-      `"target" field is missing in your ${CONFIGFILE_NAME} file. You can override the target with the "--target" option.`
-    );
+  if (!config.build.target) {
+    throw new Error(`"target" field is missing in your "${configPath}" file.`);
   }
 
-  return buildTarget;
+  return config.build.target;
 }
 
-function getSourceFromConfig(source, target, config) {
-  const buildConfig = config.build;
-
-  if (!buildConfig) {
+function getSourceFromConfig(configPath, config) {
+  if (!config.build) {
     throw new Error(
-      `No build configuration has been found. It is a "[build]" section on your "${CONFIGFILE_NAME}" file.`
+      `No build configuration has been found. It is a "[build]" section on your "${configPath}" file.`
     );
   }
 
-  const buildSource =
-    buildConfig.target in config.target
-      ? config.target[buildConfig.target].directory
-      : buildConfig.source;
-
-  if (!buildSource) {
+  if (!config.build.source) {
     throw new Error(
-      `Could not find a source directory for ${target} in your ${CONFIGFILE_NAME} file.`
+      `Could not find a source directory for build in your ${configPath} file.`
     );
   }
 
-  return path.join(source, buildSource);
+  return config.build.source;
 }
 
 /**
+ * Generates a package.json for a clio module.
+ * Reads the configuration file of the module and builds a package.json file containing all nessessary fields
  *
- * @param {string} source The project source directory
- * @param {string} dest Destination directory to build.
+ * @param {string} source source root directory of clio project
+ * @param {string} dependency name of the dependency being compiled
+ * @param {string} destination destination for package.json
+ */
+const buildPackageJson = (source, dependency, destination) => {
+  const configPath = path.join(source, ENV_NAME, dependency, "clio.toml");
+  const config = getPackageConfig(configPath);
+  const packageJson = {
+    main: config.main,
+    title: config.title,
+    clio: { config },
+  };
+  const destFilePath = path.join(
+    destination,
+    "node_modules",
+    path.basename(dependency),
+    "package.json"
+  );
+  fs.writeFileSync(destFilePath, JSON.stringify(packageJson));
+};
+
+/**
+ *
+ * @param {string} configPath Path to the project config file
  * @param {Object} options Options to build
  */
-const build = async (
-  source,
-  dest,
-  { targetOverride, skipBundle, skipNpmInstall, silent } = {}
-) => {
-  const config = getPackageConfig(path.join(source, CONFIGFILE_NAME));
-  const target = getBuildTarget(targetOverride, config);
-  const destination = dest || getDestinationFromConfig(source, target, config);
-  const sourceDir = getSourceFromConfig(source, target, config);
-  const relativeMain = config.main.slice(target.length);
+const build = async (configPath, options = {}) => {
+  const { skipBundle, skipNpmInstall, silent, clean } = options;
 
-  if (!silent) info(`Creating build for ${target}`);
+  if (!silent) info(`Compiling from "${configPath}"`);
+
+  const config = getPackageConfig(configPath);
+  const target = getBuildTarget(configPath, config);
+  const destination = getDestinationFromConfig(configPath, config);
+  const sourceDir = getSourceFromConfig(configPath, config);
+
+  if (!silent) info(`Creating build for target "${target}"`);
+
+  if (clean && fs.existsSync(destination)) {
+    if (!silent) info(`Wiping the build directory`);
+    fs.rmSync(destination, { recursive: true });
+  }
 
   const progress = new Progress(silent);
   try {
@@ -177,17 +193,24 @@ const build = async (
 
     // Add index.js file
     progress.start("Adding Clio start script...");
-    makeStartScript(config, target, destination, relativeMain);
+    makeStartScript(config, target, destination);
     progress.succeed();
 
     // Init npm modules
     try {
       const packageJsonPath = path.join(destination, "package.json");
-      const dependencies = getParsedNpmDependencies(source);
+      const dependencies = getParsedNpmDependencies(configPath);
+      const devDependencies = getParsedNpmDevDependencies(configPath);
       dependencies["clio-run"] = "latest";
+      const packageInfo = {};
+      if (config.keywords) packageInfo.keywords = config.keywords;
+      if (config.authors) packageInfo.authors = config.authors;
       const packageJsonContent = {
+        ...packageInfo,
+        main: `./main.clio.js`,
         dependencies,
-        main: `${config.main}.js`,
+        devDependencies,
+        ...config.npmOverride,
       };
       fs.writeFileSync(
         packageJsonPath,
@@ -203,17 +226,19 @@ const build = async (
         progress.succeed();
       }
     } catch (e) {
+      console.trace(e);
       progress.fail(`Error: ${e.message}`);
       error(e, "Dependency Install");
       // process.exit(4);
     }
 
     // Build clio deps
-    if (fs.existsSync(path.join(source, ENV_NAME))) {
+    // TODO: FIXME
+    if (fs.existsSync(path.join(sourceDir, ENV_NAME))) {
       progress.start("Compiling Clio dependencies...");
-      const files = getClioFiles(path.join(source, ENV_NAME));
+      const files = getClioFiles(path.join(sourceDir, ENV_NAME));
       for (const file of files) {
-        const relativeFile = path.relative(source, file);
+        const relativeFile = path.relative(sourceDir, file);
         const destFileClio = path
           .join(destination, relativeFile)
           .replace(ENV_NAME, "node_modules");
@@ -235,9 +260,9 @@ const build = async (
 
       // Build package.json files
       progress.start("Linking Clio dependencies...");
-      const clioDepDirs = fs.readdirSync(path.join(source, ENV_NAME));
+      const clioDepDirs = fs.readdirSync(path.join(sourceDir, ENV_NAME));
       for (const depDir of clioDepDirs) {
-        buildPackageJson(source, depDir, destination);
+        buildPackageJson(sourceDir, depDir, destination);
       }
       progress.succeed();
     }
@@ -299,55 +324,27 @@ async function link(source, destination) {
   await copyDir(source, destination);
 }
 
-/**
- * Generates a package.json for a clio module.
- * Reads the configuration file of the module and builds a package.json file containing all nessessary fields
- *
- * @param {string} source source root directory of clio project
- * @param {string} dependency name of the dependency being compiled
- * @param {string} destination destination for package.json
- */
-const buildPackageJson = (source, dependency, destination) => {
-  const configPath = path.join(source, ENV_NAME, dependency, CONFIGFILE_NAME);
-  const config = getPackageConfig(configPath);
-  const packageJson = {
-    main: config.main,
-    title: config.title,
-    clio: { config },
-  };
-  const destFilePath = path.join(
-    destination,
-    "node_modules",
-    path.basename(dependency),
-    "package.json"
-  );
-  fs.writeFileSync(destFilePath, JSON.stringify(packageJson));
-};
-
-const command = "build [target] [source] [destination]";
+const command = "build [config]";
 const desc = "Build a Clio project";
 
 const handler = (argv) => {
   const options = {
-    targetOverride: argv.target,
     skipBundle: argv["skip-bundle"],
     skipNpmInstall: argv["skip-npm-install"],
+    silent: argv.silent,
   };
-  build(argv.source, argv.destination, options);
+  const configs = isDir(argv.config)
+    ? fs.readdirSync(argv.config).filter(isClioConfig)
+    : [argv.config];
+  if (!configs.length)
+    error(new Error(`No config file found in ${argv.config}`));
+  for (const config of configs) build(config, options);
 };
 const builder = {
-  source: {
-    describe: "source directory to read from",
+  config: {
+    describe: "Config file, or a directory to read configs from.",
     type: "string",
     default: path.resolve("."),
-  },
-  destination: {
-    describe: "destination directory to write to",
-    type: "string",
-  },
-  target: {
-    describe: "An override for the default project target.",
-    type: "string",
   },
   "skip-bundle": {
     describe: "Does not produces a bundle for browsers.",
@@ -361,6 +358,10 @@ const builder = {
     describe: "Mutes messages from the command.",
     type: "boolean",
   },
+  clean: {
+    describe: "Wipe the build directory before build",
+    type: "boolean",
+  },
 };
 
 module.exports = {
@@ -372,4 +373,6 @@ module.exports = {
   getBuildTarget,
   getDestinationFromConfig,
   copyDir,
+  isClioConfig,
+  isDir,
 };

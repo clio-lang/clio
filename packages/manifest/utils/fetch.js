@@ -1,8 +1,10 @@
 const fs = require("fs");
+const path = require("path");
 
 const decompress = require("decompress");
 const tmp = require("tmp");
 const fetch = require("node-fetch");
+const { getPackageConfig } = require("../packageConfig");
 
 const { ENV_NAME } = require("../config");
 const { githubZipURL } = require("./url");
@@ -17,14 +19,16 @@ const logFetching = (id, version) =>
  * @param {string} argv.url - url to fetch
  * @returns {void}
  */
-async function fetchZipArchive(url) {
+async function fetchZipArchive(configPath, url) {
   try {
+    const cfg = getPackageConfig(configPath);
+    const source = path.resolve(cfg.build.source, ENV_NAME);
     const file = await fetch(url);
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const tmpobj = tmp.fileSync();
     fs.writeFileSync(tmpobj.name, buffer, "binary");
-    await decompress(tmpobj.name, ENV_NAME);
+    await decompress(tmpobj.name, source);
     tmpobj.removeCallback();
   } catch (err) {
     console.log(err);
@@ -47,7 +51,7 @@ fetchFromClioPackages({branch: 'master', name: 'stdlib'})
 fetchFromClioPackages({branch: 'v2.3.3', name: 'rethinkdb'})
  * @returns {void}
  */
-async function fetchFromClioPackages({ branch, name }) {
+async function fetchFromClioPackages(configPath, { branch, name }) {
   console.log(
     `Getting '${name}' from the Clio packages repository (https://github.com/clio-lang/packages)`
   );
@@ -65,7 +69,7 @@ async function fetchFromClioPackages({ branch, name }) {
 
   logFetching(name, branch);
 
-  return fetchZipArchive(archiveURL);
+  return fetchZipArchive(configPath, archiveURL);
 }
 
 /**
@@ -75,12 +79,12 @@ async function fetchFromClioPackages({ branch, name }) {
  * @param {string} pkg - github uri of the package to be fetched
  * @returns {void}
  */
-async function fetchGitHubZipArchive({ branch, uri }) {
+async function fetchGitHubZipArchive(configPath, { branch, uri }) {
   const archiveURL = githubZipURL({ branch, uri });
 
   logFetching(uri, branch);
 
-  return fetchZipArchive(archiveURL);
+  return fetchZipArchive(configPath, archiveURL);
 }
 
 module.exports = {

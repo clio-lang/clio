@@ -10,6 +10,6 @@
   "author": "Pouya Eghbali <pouya.eghbali@yandex.com>",
   "license": "Apache-2.0",
   "dependencies": {
-    "chalk": "3.0.0"
+    "chalk": "4.1.1"
   }
 }
