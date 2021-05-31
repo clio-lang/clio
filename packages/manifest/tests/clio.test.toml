@@ -17,6 +17,9 @@ test = "clio test **/*.clio"
 rickroll = "latest"
 foo = "latest"
 
+[npm.devDependencies]
+parcel = "next"
+
 [build]
 directory = "build"
 target = "node"

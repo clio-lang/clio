@@ -37,6 +37,15 @@ test("Toml contains npm.dependencies", () => {
   });
 });
 
+test("Toml contains npm.devDependencies", () => {
+  const config = getPackageConfig(path.join(__dirname, "clio.test.toml"));
+
+  expect(config.npm.devDependencies).toContainEqual({
+    name: "parcel",
+    version: "next",
+  });
+});
+
 test("Toml contains builds and targets", () => {
   const config = getPackageConfig(path.join(__dirname, "clio.test.toml"));
   expect(config.build).toBeDefined();
