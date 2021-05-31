@@ -1,5 +1,6 @@
 const { spawnSync } = require("child_process");
-const degit = require("degit");
+const fs = require("fs");
+const path = require("path");
 
 const { fetchDependencies } = require("clio-manifest");
 const { error, info, success } = require("../lib/colors");
@@ -49,19 +50,27 @@ function preValidations(packageName, target) {
   }
 }
 
-async function createPackageJs(packageName, template) {
-  const repo = TEMPLATES.includes(template)
+function getRepoName(template) {
+  return TEMPLATES.includes(template)
     ? `clio-lang/template-${template}`
     : template;
+}
 
-  const emitter = degit(repo, {
-    cache: false,
-    force: true,
-  });
+function getRepoAddr(name) {
+  if (name.match(/^https?:\/\//)) return name;
+  if (name.match(/^git@/)) return name;
+  return `https://github.com/${name}`;
+}
 
-  await emitter.clone(packageName);
+async function createPackageJs(packageName, template) {
+  const repoName = getRepoName(template);
+  const repoAddr = getRepoAddr(repoName);
 
-  process.chdir(packageName);
+  process.chdir(path.dirname(packageName));
+  spawnSync("git", ["clone", repoAddr, packageName]);
+
+  process.chdir(path.basename(packageName));
+  fs.rmSync(".git", { recursive: true });
 
   await fetchDependencies("./clio.toml");
   info("Added Clio dependencies");
@@ -82,7 +91,6 @@ async function createPackage(packageName, target = "js", template = "node") {
     preValidations(packageName, target);
     if (target === "js") return await createPackageJs(packageName, template);
   } catch (e) {
-    console.trace(e);
     error(e);
     process.exit(1);
   }

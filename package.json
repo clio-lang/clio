@@ -43,7 +43,6 @@
     "chalk": "4.1.1",
     "clio-lang-cli": "0.7.0",
     "decompress": "^4.2.1",
-    "degit": "^2.8.4",
     "del": "6.0.0",
     "enquirer": "^2.3.6",
     "merge": "2.1.1",
