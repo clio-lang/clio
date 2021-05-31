@@ -21,7 +21,7 @@ exports.builder = {
     default: "js",
   },
   template: {
-    describe: "What template should be used for scaffolding the project?",
+    describe: "Template to use for scaffolding",
     type: "string",
     default: "node",
   },
