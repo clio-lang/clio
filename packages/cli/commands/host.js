@@ -7,7 +7,7 @@ const { error } = require("../lib/colors");
 const { configPrompt } = require("../lib/config");
 const { isClioConfig, isDir } = require("./build"); // TODO: Move to lib
 
-exports.command = "host [config] [protocol]";
+exports.command = "host [config]";
 
 exports.describe = "Compile and host Clio file";
 
