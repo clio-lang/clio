@@ -82,7 +82,7 @@ class Monitor {
     if (!asyncHooks || !asyncHooks.createHook) return;
     if (!this.shouldExit) return;
     if ([...this.active].every((handle) => this.frozen.has(handle))) {
-      process.exit(0);
+      process?.exit(0);
     }
   }
 }
@@ -101,7 +101,7 @@ const run = async (module, { worker, executor }, { noMain = false } = {}) => {
     return fn;
   };
   const { main } = await module.exports(clio);
-  const argv = typeof process != "undefined" ? process.argv : [];
+  const argv = process?.argv || [];
   if (!worker && !noMain) {
     const result = await main(argv);
     const awaited = Array.isArray(result)

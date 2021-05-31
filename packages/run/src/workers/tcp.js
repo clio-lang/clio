@@ -3,7 +3,7 @@ const { Worker } = require("clio-rpc/worker");
 const { Executor } = require("clio-rpc/executor");
 const TCP = require("clio-rpc/transports/tcp");
 
-const [host, port, file] = process.argv.slice(2);
+const [host, port, file] = process?.argv?.slice?.(2) || [];
 
 const config = {
   host: host === "0.0.0.0" ? "127.0.0.1" : host,

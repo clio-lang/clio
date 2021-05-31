@@ -3,8 +3,9 @@ import resolve from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
 import livereload from "rollup-plugin-livereload";
 import { terser } from "rollup-plugin-terser";
-import nodePolyfills from "rollup-plugin-node-polyfills";
+import nodePolyfills from "rollup-plugin-polyfill-node";
 import alias from "@rollup/plugin-alias";
+import css from "rollup-plugin-css-only";
 import path from "path";
 
 const production = !process.env.ROLLUP_WATCH;
@@ -36,14 +37,14 @@ function serve() {
 
 export const commonPlugins = () => [
   svelte({
-    // enable run-time checks when not in production
-    dev: !production,
-    // we'll extract any component CSS out into
-    // a separate file - better for performance
-    css: (css) => {
-      css.write("bundle.css");
+    compilerOptions: {
+      // enable run-time checks when not in production
+      dev: !production,
     },
   }),
+  // we'll extract any component CSS out into
+  // a separate file - better for performance
+  css({ output: "bundle.css" }),
   alias({
     entries: [
       {
@@ -52,6 +53,8 @@ export const commonPlugins = () => [
       },
     ],
   }),
+  commonjs(),
+  nodePolyfills(),
   // If you have external dependencies installed from
   // npm, you'll most likely need these plugins. In
   // some cases you'll need additional configuration -
@@ -61,9 +64,6 @@ export const commonPlugins = () => [
     browser: true,
     dedupe: ["svelte"],
   }),
-  commonjs(),
-
-  nodePolyfills(),
 ];
 
 export const mainPlugins = () => [
