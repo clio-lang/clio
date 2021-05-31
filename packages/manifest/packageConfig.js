@@ -57,21 +57,6 @@ function getPackageConfig(filepath) {
   return parsedConfig;
 }
 
-/**
- * @param {string} filepath Name of the file containing the configurations for the clio host in format `foo.toml`.
- */
-function getHostConfig(filepath) {
-  const file = fs.readFileSync(filepath);
-  const config = toml.parse(file);
-
-  const parsedConfig = {
-    servers: config.servers,
-    workers: config.workers,
-  };
-
-  return parsedConfig;
-}
-
 function removeKeys(object, ...keys) {
   const clone = { ...object };
   for (const key of keys) delete clone[key];
@@ -167,33 +152,9 @@ function addNpmDependency(configPath, dependency, flags) {
   );
 }
 
-/**
- * @param {Object} config Override config to write.
- */
-function writeHostConfig(destination, config) {
-  const configName = new Date().toISOString().replace(/:/g, "-");
-  const base = path.join(destination, ".clio", ".host", configName);
-  if (!fs.existsSync(base)) fs.mkdirSync(base, { recursive: true });
-  fs.writeFileSync(
-    path.join(base, "rpc.json"),
-    JSON.stringify(config, null, 2)
-  );
-  fs.writeFileSync(
-    path.join(base, "host.js"),
-    [
-      `const runner = require("clio-run/src/runners/auto.js");`,
-      `const config = require("./rpc.json");`,
-      `runner(require.resolve("../../../main.clio.js"), config, true);`,
-    ].join("\n")
-  );
-  return configName;
-}
-
 module.exports = {
   addDependency,
   addNpmDependency,
   getPackageConfig,
   writePackageConfig,
-  getHostConfig,
-  writeHostConfig,
 };
