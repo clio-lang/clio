@@ -1,6 +1,6 @@
 {
   "name": "clio-run",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Internal functionality used by the Clio Programming Language core.",
   "main": "src/index.js",
   "scripts": {
@@ -10,6 +10,6 @@
   "license": "Apache-2.0",
   "dependencies": {
     "clio-lang-internals": "^0.7.0",
-    "clio-rpc": "^0.6.0"
+    "clio-rpc": "^0.6.1"
   }
 }

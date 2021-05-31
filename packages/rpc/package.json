@@ -1,6 +1,6 @@
 {
   "name": "clio-rpc",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "This module is used to do multiprocessing and distributed processing in Clio.",
   "main": "index.js",
   "directories": {

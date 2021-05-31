@@ -1,6 +1,6 @@
 {
   "name": "clio-lang-cli",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "",
   "main": "index.js",
   "directories": {
@@ -12,9 +12,9 @@
   "author": "Garrit Franke <garritfranke@gmail.com>",
   "license": "Apache-2.0",
   "dependencies": {
-    "clio-core": "^0.7.0",
+    "clio-core": "^0.7.1",
     "clio-highlight": "^1.2.0",
-    "clio-manifest": "^0.6.0",
+    "clio-manifest": "^0.6.1",
     "clio-utils": "^0.5.0"
   }
 }
