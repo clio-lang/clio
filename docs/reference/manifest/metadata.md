@@ -7,7 +7,6 @@ title = "hello-world"
 description = "A short description about the project"
 version = "0.1.0"
 license = "MIT"
-main = "src/main.clio"
 authors = [ "Foo Bar <foo@example.com>" ]
 keywords = ""
 ```
@@ -32,10 +31,6 @@ This field specifies the version of the project. Clio advocates [Semantic Versio
 ## The `license` field
 
 This is an SPDX 2.1 license expression for this package. To keep projects uniform, we invite you to stick to a license that is listed on the [SPDX License List](https://spdx.org/licenses/).
-
-## The `main` field
-
-This field specifies the relative location to the entry file of the project. By default, `src/main.clio` is used.
 
 ## The `authors` field
 

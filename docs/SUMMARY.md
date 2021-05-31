@@ -17,14 +17,11 @@
   * [Flows](learn/official-tutorial/flows.md)
   * [Async/Await](learn/official-tutorial/await.md)
   * [Control Flow](learn/official-tutorial/control.md)
-  * [Anonymous functions](learn/official-tutorial/anonymous-functions.md)
   * [Parallelism](learn/official-tutorial/parallelism.md)
-  * [Channels](learn/official-tutorial/channels.md)
+  * [Emitters](learn/official-tutorial/channels.md)
   * [Strings](learn/official-tutorial/strings.md)
   * [Hash maps](learn/official-tutorial/hash-maps.md)
   * [Range](learn/official-tutorial/range.md)
-  * [Slicing](learn/official-tutorial/slicing.md)
-  * [The backquote!](learn/official-tutorial/the-backquote.md)
   * [Logicals](learn/official-tutorial/logicals.md)
   * [Comparison](learn/official-tutorial/comparison.md)
   * [Importing](learn/official-tutorial/importing.md)
@@ -62,14 +59,20 @@
   * [Metadata](reference/manifest/metadata.md)
   * [Build section](reference/manifest/build-section.md)
   * [Dependencies section](reference/manifest/dependencies-section.md)
-  * [Parallelism](reference/manifest/parallelism.md)
+  * [Npm section](reference/manifest/npm-section.md)
+* [Parallelism](reference/parallelism/README.md)
+  * [Intro](reference/parallelism/intro.md)
+  * [Concepts and Terminology](reference/parallelism/concepts-and-terminology.md)
+  * [Serialization](reference/parallelism/serialization.md)
+  * [FaaS](reference/parallelism/faas.md)
+  * [Configuration](reference/parallelism/parallelism.md)
+* [Performance](reference/performance.md)
 
 ## Development
 
 * [File Structure](development/file-structure.md)
 * [Dependency parser](development/dependency_parser.md)
-* [Extending Clio](development/extend/README.md)
-  * [Rules](development/extend/rule.md)
+* [Extending Clio](development/extend.md)
 
 ## Links
 

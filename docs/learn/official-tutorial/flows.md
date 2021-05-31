@@ -85,45 +85,34 @@ export fn main argv:
 
 This will call `toUpperCase` method of `"hello"`, and then pipe the result to `console.log`!
 
-### Branching
+### Anonymous functions
 
-You can use branches in Clio flows. Branching is useful when you want to call several functions on the same data, for example:
-
-```text
-fn add a b:
-  a + b
-
-fn mul a b:
-  a * b
-
-export fn main argv:
-  [1 2 3] -> *
-    add 1 -> console.log
-    mul 2 -> console.log
-```
-
-[Try on playground.](https://clio-playground.pouyae.vercel.app/?code=fn%20add%20a%20b%3A%0A%20%20a%20%2B%20b%0A%0Afn%20mul%20a%20b%3A%0A%20%20a%20*%20b%0A%0Aexport%20fn%20main%20argv%3A%0A%20%20%5B1%202%203%5D%20-%3E%20*%0A%20%20%20%20add%201%20-%3E%20console.log%0A%20%20%20%20mul%202%20-%3E%20console.log%0A)
-
-Branches return an array, containing the results of each branch:
+Anonymous functions can either be used as an argument:
 
 ```text
-fn add a b:
-  a + b
-
-fn mul a b:
-  a * b
-
 export fn main argv:
-  [1 2 3]
-    -> *
-      add 2
-      mul 3
-    -> console.log
+  [1 2 3 4 5] -> .filter (@it % 2) -> console.log
 ```
 
-[Try on playground.](https://clio-playground.pouyae.vercel.app/?code=fn%20add%20a%20b%3A%0A%20%20a%20%2B%20b%0A%0Afn%20mul%20a%20b%3A%0A%20%20a%20*%20b%0A%0Aexport%20fn%20main%20argv%3A%0A%20%20%5B1%202%203%5D%0A%20%20%20%20-%3E%20*%0A%20%20%20%20%20%20add%202%0A%20%20%20%20%20%20mul%203%0A%20%20%20%20-%3E%20console.log)
+[Try on playground.](https://clio-playground-pouyae.vercel.app/?code=export%20fn%20main%20argv%3A%0A%20%20%5B1%202%203%204%205%5D%20-%3E%20.filter%20%28%40it%20%25%202%29%20-%3E%20console.log%0A)
 
-Should print out `[[3, 3], [4, 6], [5, 9]]`.
+Or they can be used directly:
+
+```text
+export fn main argv:
+  2 -> (@a + @b) 3 -> console.log
+```
+
+[Try on playground.](https://clio-playground-pouyae.vercel.app/?code=export%20fn%20main%20argv%3A%0A%20%202%20-%3E%20%28%40a%20%2B%20%40b%29%203%20-%3E%20console.log)
+
+Please note anonymous functions can be used outside flows as well:
+
+```text
+export fn main argv:
+  (@a + @b) 2 3 -> console.log
+```
+
+[Try on playground.](https://clio-playground-pouyae.vercel.app/?code=export%20fn%20main%20argv%3A%0A%20%20%28%40a%20%2B%20%40b%29%204%203%20-%3E%20console.log)
 
 ## Assignments
 

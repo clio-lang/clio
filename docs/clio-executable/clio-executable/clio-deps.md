@@ -10,6 +10,24 @@ clio deps
 ~> rethinkdb: 2.3.3
 ```
 
+## Command Syntax and Options
+
+```text
+clio deps
+
+Manage clio dependencies
+
+Commands:
+  clio deps add <source> [config]           Add a new dependency
+  [options]
+  clio deps get [config]                    Download every dependency listed in
+                                            the package config file
+
+Options:
+      --version       Show version number                              [boolean]
+  -h, --help, --help  Show help                                        [boolean]
+```
+
 ## Add dependencies
 
 You can install from a url \(compressed package\), a git repository \(@version eg. `@1.2.2` is supported\) or from the official Clio repository. For a list of packages that exist in the official repository you can visit the [official package index repo](https://github.com/clio-lang/packages/).
@@ -78,6 +96,12 @@ If you want to add an npm package, you can pass `--npm` flag to this command:
 
 ```text
 clio deps add --npm express
+```
+
+You can also pass the `--dev` flag to install npm dev dependencies:
+
+```text
+clio deps add --npm --dev parcel
 ```
 
 ## Download dependencies

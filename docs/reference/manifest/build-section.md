@@ -4,23 +4,20 @@ The `[build]` section of the project manifest provides options regarding the bui
 
 ```text
 [build]
-directory = "build"
-target = "myTarget"
+source = "src"
+destination = "build"
+target = "js"
 ```
 
-## The `directory` field
+## The `destination` field
 
 This field specifies the relative path of the output directory of your builds. By default, directory `build` will be used.
 
+## The `source` field
+
+This field specifies the relative path of the input directory of your builds. By default, directory `src` will be used.
+
 ## The `target` field
 
-The `target` field defines the target directory the project will be built to. When building a project, it will be put in `<project-root>/<build-directory>/<target-directory>`. To give an example for a custom target path:
-
-```text
-[build]
-directory = "out"
-target = "optimized"
-```
-
-When building the project with this configuration, the output will be put in `<root>/out/optimized/`.
+The `target` field defines which code generator will be used to build the source code. Currently only "js" target is supported, "llvm" or "wasm" targets are planned for future releases.
 

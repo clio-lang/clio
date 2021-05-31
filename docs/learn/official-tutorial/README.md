@@ -9,10 +9,16 @@ This is the official guide and tutorial for Clio. Please note this is a work in 
 ## Examples
 
 * [GitHub Examples Repository](https://github.com/clio-lang/examples)
+  * [Benchmarks](https://github.com/clio-lang/examples/tree/master/benchmarks)
+  * [Fib](https://github.com/clio-lang/examples/tree/master/fib-parallel)
+  * [Game of Life](https://github.com/clio-lang/examples/tree/master/game)
+  * [Mandelbrot](https://github.com/clio-lang/examples/tree/master/mandelbrot)
+  * [Todo App](https://github.com/clio-lang/examples/tree/master/todo)
 * [RosettaCode](http://rosettacode.org/wiki/Clio)
-* [Todo Example \(Host/Browser\)](https://github.com/clio-lang/clio-todo)
 
 ## Playgrounds
 
 * [Official Clio playground](https://playground.clio-lang.org)
+
+
 

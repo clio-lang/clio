@@ -12,11 +12,20 @@ A reference to the paths that can be specified as a dependency, see [dependency 
 
 ## NPM dependencies
 
-To add npm dependencies, use `[npm_dependencies]` section:
+To add npm dependencies, use `[npm.dependencies]` section:
 
 ```text
-[npm_dependencies]
+[npm.dependencies]
 express = "latest"
 passport = "latest"
 ```
+
+For dev dependencies use `[npm.devDependencies]` section:
+
+```
+[npm.dependencies]
+parcel = "next"
+```
+
+
 
