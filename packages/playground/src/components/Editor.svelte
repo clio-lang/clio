@@ -2,6 +2,7 @@
   export let title;
   export let share = false;
   export let query = "";
+  export let code = "";
 
   import FontFaceObserver from "fontfaceobserver";
 
@@ -88,6 +89,7 @@
   };
 
   function getCode() {
+    if (code) return code;
     if (query) {
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get(query);

@@ -1,0 +1,18 @@
+{
+  ".": {
+    "__subtree": {
+      "index": {
+        "__meta": {
+          "title": "Getting started",
+          "order": 0
+        }
+      },
+      "install": {
+        "__meta": {
+          "title": "Install",
+          "order": 0
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "TODO",
+  "description": "TODO",
+  "version": "0.0.1",
+  "scripts": {
+    "worker": "mkdir -p public/build && cd ../playground && npm run worker && cp public/build/worker* ../docs/public/build",
+    "build": "npm run worker && rollup -c",
+    "dev": "npm run worker && rollup -c -w",
+    "start": "sirv public",
+    "deploy": "npm run build && cd public && vercel"
+  },
+  "dependencies": {
+    "clio-playground": "^0.5.1",
+    "prism-material-themes": "^1.0.4",
+    "prismjs": "^1.23.0",
+    "slugify": "^1.5.3"
+  },
+  "devDependencies": {
+    "@rollup/plugin-alias": "^3.1.2",
+    "@rollup/plugin-commonjs": "^19.0.0",
+    "@rollup/plugin-json": "^4.1.0",
+    "@rollup/plugin-node-resolve": "^13.0.0",
+    "chart.js": "^3.3.0",
+    "clio-playground": "../playground",
+    "rollup": "^2.50.2",
+    "rollup-plugin-css-only": "^3.1.0",
+    "rollup-plugin-livereload": "^2.0.0",
+    "rollup-plugin-polyfill-node": "^0.6.2",
+    "rollup-plugin-svelte": "^7.1.0",
+    "rollup-plugin-terser": "^7.0.2",
+    "sirv-cli": "^1.0.12",
+    "svelte": "^3.38.2",
+    "tinro": "^0.6.4"
+  }
+}
