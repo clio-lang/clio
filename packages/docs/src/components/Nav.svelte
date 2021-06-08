@@ -72,6 +72,9 @@
   .hamburger img {
     height: 2.2em;
   }
+  .logo {
+    border-radius: 4px;
+  }
   @media (max-width: 768px) {
     .hamburger {
       display: block;
@@ -87,9 +90,6 @@
     .head {
       align-items: center;
       justify-content: center;
-    }
-    .logo {
-      border-radius: 4px;
     }
   }
 

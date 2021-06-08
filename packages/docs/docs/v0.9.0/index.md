@@ -63,7 +63,7 @@ export fn main argv:
 
 ## Hint
 
-[info]> Just for you info!
+[info]> Just for your info!
 [exclamation]> DANGER!
 [question]> How do I do that?
 [check]> Congrats!

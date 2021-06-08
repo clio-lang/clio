@@ -13,7 +13,8 @@
     "clio-playground": "^0.5.1",
     "prism-material-themes": "^1.0.4",
     "prismjs": "^1.23.0",
-    "slugify": "^1.5.3"
+    "slugify": "^1.5.3",
+    "svelte-loadable": "^1.5.1"
   },
   "devDependencies": {
     "@rollup/plugin-alias": "^3.1.2",

@@ -14,7 +14,7 @@
   <Prism {language} {code} />
 {:else}
   <div class="playground">
-    <Editor {code} title="Clio Docs" />
+    <Editor {code} title="Clio docs" examples={false} />
   </div>
 {/if}
 
@@ -30,13 +30,7 @@
   }
   @media (max-width: 960px) {
     .playground {
-      max-width: 90%;
-      padding: 2em;
-    }
-  }
-  @media (max-width: 640px) {
-    .playground {
-      display: none;
+      width: 100%;
     }
   }
 
