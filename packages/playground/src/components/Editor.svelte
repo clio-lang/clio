@@ -3,6 +3,7 @@
   export let share = false;
   export let query = "";
   export let code = "";
+  export let examples = true;
 
   import FontFaceObserver from "fontfaceobserver";
 
@@ -190,14 +191,16 @@
     <img src="/logo-128x128.png" class="logo" alt="logo" />
     <span class="title">{title}</span>
     <div class="spacer" />
-    <select class="sample" on:change={setSampleCode}>
-      <option selected value="parallelFib">Parallel Fib</option>
-      <option value="parallelFibAlternate"> Parallel Fib (Alternate) </option>
-      <option value="fib">Fib</option>
-      <option value="filter">Filter</option>
-      <option value="reduce">Reduce</option>
-      <option value="express">Express</option>
-    </select>
+    {#if examples}
+      <select class="sample" on:change={setSampleCode}>
+        <option selected value="parallelFib">Parallel Fib</option>
+        <option value="parallelFibAlternate"> Parallel Fib (Alternate) </option>
+        <option value="fib">Fib</option>
+        <option value="filter">Filter</option>
+        <option value="reduce">Reduce</option>
+        <option value="express">Express</option>
+      </select>
+    {/if}
     {#if share}
       <a href="#?" class="btn share" on:click={copyShareURL}> Share </a>
     {/if}
