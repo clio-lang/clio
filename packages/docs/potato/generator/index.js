@@ -142,7 +142,7 @@ class Generator {
   }
   onTablehead(raw, { meta }) {
     const close = () => {
-      this.onLinebreak();
+      this.onLinebreak(null, { raw: "\n" });
       this.text += raw.trimLeft();
     };
     this.modules.table = true;
