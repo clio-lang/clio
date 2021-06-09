@@ -1,14 +1,12 @@
 <script>
-
   export let tree;
   export let key;
   export let level = 0;
 
-  const href = "/" + (key === "." ? "" : key);
+  const href = "/" + key;
 
   const keysOf = (tree) => {
-    const { index, ...rest } = tree.__subtree;
-    return Object.keys(rest).sort((lhs, rhs) => {
+    return Object.keys(tree.__subtree).sort((lhs, rhs) => {
       return (
         tree.__subtree[lhs].__meta.order - tree.__subtree[rhs].__meta.order
       );
@@ -25,7 +23,7 @@
 
 </script>
 
-{#if !tree.__subtree}
+{#if !Object.keys(tree.__subtree).length}
   <a {href} class:active class:inner={level}>{tree.__meta.title}</a>
 {:else}
   <a
@@ -35,7 +33,7 @@
     class:inner={level}
     on:click={toggleExpand}
   >
-    <span>{tree.__subtree.index.__meta.title}</span>
+    <span>{tree.__meta.title}</span>
     {#if expanded}
       <img src="/chevron-down-light.svg" alt="Expanded" />
     {:else}
@@ -60,6 +58,8 @@
     z-index: 2;
     position: relative;
     color: #555;
+    width: 100%;
+    box-sizing: border-box;
   }
   a:hover {
     color: #222;

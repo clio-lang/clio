@@ -38,10 +38,13 @@
 
   const slug = (title) => slugify(title).toLowerCase();
 
-  const getComponent = (meta) => async () => {
-    const url = currentVariant + meta.url.replace(/\/$/, "");
-    const file = metaVariant.urls[url];
-    return await dynamicImport(file);
+  const getComponent = () => async () => {
+    const { pathname } = window.location;
+    const url = pathname.match(/^\/v\d+(\.\d+){2}/)
+      ? pathname.slice(1)
+      : currentVariant + pathname;
+    const { filename } = metaVariant.routes[url];
+    return await dynamicImport(filename);
   };
 
   onMount(() => {
@@ -53,14 +56,16 @@
 <Nav bind:menuOpen />
 
 <div class="page">
-  <SideNav {menuOpen} bind:currentVariant />
+  <SideNav {menuOpen} {metaVariant} bind:currentVariant />
   <main>
     <Route path="/*" let:meta>
-      {#if metaVariant}
-        <Loadable loader={getComponent(meta)} let:component>
-          <svelte:component this={component} bind:sections />
-        </Loadable>
-      {/if}
+      {#key meta.url}
+        {#if metaVariant}
+          <Loadable loader={getComponent(meta)} let:component>
+            <svelte:component this={component} bind:sections />
+          </Loadable>
+        {/if}
+      {/key}
     </Route>
   </main>
   <div class="headnav">
@@ -95,13 +100,13 @@
     flex-direction: column;
   }
   .headnav {
-    min-width: 220px;
     min-height: 240px;
     border-left: 1px solid rgba(0, 0, 0, 0.1);
     position: sticky;
     top: 0;
     background: #eee;
     padding: 2em;
+    box-sizing: border-box;
   }
   .headnav > .sticky > a {
     margin-bottom: 0.5em;

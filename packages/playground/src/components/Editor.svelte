@@ -202,9 +202,11 @@
       </select>
     {/if}
     {#if share}
-      <a href="#?" class="btn share" on:click={copyShareURL}> Share </a>
+      <a href="#?" class="btn share" on:click|preventDefault={copyShareURL}>
+        Share
+      </a>
     {/if}
-    <a href="#?" class="btn" on:click={compileAndRun}> Run </a>
+    <a href="#?" class="btn" on:click|preventDefault={compileAndRun}> Run </a>
   </div>
   <div class="sep" />
   <div class="editor {isHorizontal ? 'horizontal' : ''}">

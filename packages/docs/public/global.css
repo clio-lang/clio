@@ -1,13 +1,13 @@
 html,
 body {
-  min-height: 100%;
+  height: 100%;
   padding: 0;
   margin: 0;
   font-family: "Ubuntu", sans-serif;
   scroll-behavior: smooth;
 }
 
-#sapper {
+#svelte {
   display: flex;
   min-height: 100%;
   flex-direction: column;

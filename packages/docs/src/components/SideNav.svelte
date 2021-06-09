@@ -2,11 +2,11 @@
   import { onMount } from "svelte";
   import SideNavItem from "./SideNavItem.svelte";
 
-  import routes from "../routes.json";
   import variants from "../variants.json";
 
   export let menuOpen;
   export let currentVariant;
+  export let metaVariant;
 
   const latestVariant = variants
     .slice()
@@ -17,6 +17,33 @@
     currentVariant =
       window.location.pathname.split("/").shift() || latestVariant;
   });
+
+  let routes;
+  $: routes = Object.entries(metaVariant?.routes || {}).map(
+    ([route, { title }]) => ({ route, title })
+  );
+
+  const set = (tree, parts, data) => {
+    const part = parts.shift();
+    if (!parts.length) {
+      tree[part] = { __meta: data, __subtree: {} };
+    } else {
+      tree[part] = tree[part] || { __subtree: {} };
+      set(tree[part].__subtree, parts, data);
+    }
+  };
+
+  const treeify = (routes) => {
+    const tree = {};
+    for (const { route, title } of routes) {
+      const parts = route.split("/");
+      set(tree, parts, { title });
+    }
+    return tree;
+  };
+
+  let tree;
+  $: if (routes) tree = treeify(routes)[currentVariant];
 
 </script>
 
@@ -30,7 +57,9 @@
       {/each}
     </select>
   </div>
-  <SideNavItem key="." tree={routes["."]} />
+  {#if tree}
+    <SideNavItem key={currentVariant} {tree} />
+  {/if}
 </div>
 
 <style>
@@ -42,6 +71,7 @@
     border-right: 1px solid rgba(0, 0, 0, 0.1);
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
   }
   .variants {
     align-self: flex-end;
@@ -58,7 +88,6 @@
     box-shadow: 0px 0px 1px rgb(0 0 0 / 20%);
     outline: none;
   }
-
   @media (max-width: 768px) {
     .sidenav {
       position: fixed;

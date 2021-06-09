@@ -15,14 +15,9 @@ const setMeta = (filename, sections, title, variants) => {
   const route = filename.endsWith("index.svelte")
     ? filename.slice(0, -13)
     : filename.slice(0, -7);
-  const { index, routes, urls } = getVariant(route, variants);
+  const { index, routes } = getVariant(route, variants);
   index[route] = { sections };
-  const directory = filename.endsWith("index.svelte")
-    ? route
-    : path.dirname(route);
-  routes[directory] = routes[directory] || [];
-  routes[directory].push({ filename: "./routes/" + filename, title });
-  urls[route] = "./routes/" + filename;
+  routes[route] = { filename: "./routes/" + filename, title };
 };
 
 const compile = (file, root, variants) => {
@@ -60,7 +55,7 @@ const makeVariants = (workdir) => {
     JSON.stringify(variants, null, 2)
   );
   return Object.fromEntries(
-    variants.map((variant) => [variant, { routes: {}, index: {}, urls: {} }])
+    variants.map((variant) => [variant, { routes: {}, index: {} }])
   );
 };
 
@@ -79,11 +74,9 @@ const writeImports = (workdir, variants) => {
   const imports = [];
   for (const variant in variants) {
     imports.push("./meta" + "/" + variant + ".json");
-    const roots = Object.values(variants[variant].routes);
-    for (const dir of roots) {
-      for (const route of dir) {
-        imports.push(route.filename);
-      }
+    const routes = Object.values(variants[variant].routes);
+    for (const route of routes) {
+      imports.push(route.filename);
     }
   }
   const code = [

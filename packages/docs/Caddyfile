@@ -1,0 +1,15 @@
+localhost
+root public
+
+@resources {
+  path *.js *.css *.png *.svg *.map
+}
+
+route /* {
+  rewrite index.html
+  file_server
+}
+
+handle @resources {
+  file_server
+}
