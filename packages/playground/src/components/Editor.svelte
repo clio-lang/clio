@@ -122,8 +122,7 @@
     setTimeout(() => (isActive = false), 4000);
   };
 
-  const copyShareURL = (event) => {
-    event.preventDefault();
+  const copyShareURL = () => {
     const code = editor.getValue();
     const encoded = encodeURIComponent(code);
     const { origin, pathname } = window.location;
@@ -132,8 +131,7 @@
     showMessage();
   };
 
-  const compileAndRun = (event) => {
-    event.preventDefault();
+  const compileAndRun = () => {
     (async () => {
       const lines = [];
       console.log = async (...args) => {
@@ -202,11 +200,11 @@
       </select>
     {/if}
     {#if share}
-      <a href="#?" class="btn share" on:click|preventDefault={copyShareURL}>
+      <button class="btn share" on:click={copyShareURL}>
         Share
-      </a>
+      </button>
     {/if}
-    <a href="#?" class="btn" on:click|preventDefault={compileAndRun}> Run </a>
+    <button class="btn" on:click={compileAndRun}> Run </button>
   </div>
   <div class="sep" />
   <div class="editor {isHorizontal ? 'horizontal' : ''}">

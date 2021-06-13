@@ -5,7 +5,6 @@
   export let code;
   export let language = "";
   export let inline = false;
-
 </script>
 
 {#if inline}
@@ -25,13 +24,11 @@
     overflow: hidden;
     box-shadow: 0px 0px 32px 8px rgba(0, 0, 0, 0.3);
     border: 1px solid #333;
-    max-width: 1280px;
-    margin-bottom: 4em;
+    margin-bottom: 1em;
   }
   @media (max-width: 960px) {
     .playground {
       width: 100%;
     }
   }
-
 </style>

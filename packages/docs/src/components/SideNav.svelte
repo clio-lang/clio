@@ -37,14 +37,13 @@
     const tree = {};
     for (const { route, title } of routes) {
       const parts = route.split("/");
-      set(tree, parts, { title });
+      set(tree, parts, { title, href: "/" + route });
     }
     return tree;
   };
 
   let tree;
   $: if (routes) tree = treeify(routes)[currentVariant];
-
 </script>
 
 <div class="sidenav" class:open={menuOpen}>
@@ -58,7 +57,7 @@
     </select>
   </div>
   {#if tree}
-    <SideNavItem key={currentVariant} {tree} />
+    <SideNavItem {tree} />
   {/if}
 </div>
 
@@ -104,5 +103,4 @@
       box-shadow: 0px 0px 128px 8px rgba(0, 0, 0, 0.3);
     }
   }
-
 </style>

@@ -17,7 +17,7 @@ const setMeta = (filename, sections, title, variants) => {
     : filename.slice(0, -7);
   const { index, routes } = getVariant(route, variants);
   index[route] = { sections };
-  routes[route] = { filename: "./routes/" + filename, title };
+  routes[route] = { filename: "../routes/" + filename, title };
 };
 
 const compile = (file, root, variants) => {
@@ -70,17 +70,9 @@ const writeVariants = (workdir, variants) => {
   }
 };
 
-const writeImports = (workdir, variants) => {
-  const imports = [];
-  for (const variant in variants) {
-    imports.push("./meta" + "/" + variant + ".json");
-    const routes = Object.values(variants[variant].routes);
-    for (const route of routes) {
-      imports.push(route.filename);
-    }
-  }
+const writeImportsFile = (dest, imports, fn = "dynamicImport") => {
   const code = [
-    "export default function dynamicImport(path) {",
+    `export default function ${fn}(path) {`,
     "  switch (path) {",
     ...imports.map(
       (path) => `    case "${path}":\n      return import("${path}");`
@@ -90,8 +82,24 @@ const writeImports = (workdir, variants) => {
     "  }",
     "};\n",
   ].join("\n");
-  const dest = path.resolve(workdir, "../src/imports.js");
   fs.writeFileSync(dest, code);
+};
+
+const writeImports = (workdir, variants) => {
+  const imports = [];
+  for (const variant in variants) {
+    imports.push("./meta" + "/" + variant + ".json");
+    imports.push("./meta" + "/" + variant + ".js");
+    const routeImports = [];
+    const routes = Object.values(variants[variant].routes);
+    for (const route of routes) routeImports.push(route.filename);
+    writeImportsFile(
+      path.resolve(workdir, "../src/meta", variant + ".js"),
+      routeImports,
+      "getRoute"
+    );
+  }
+  writeImportsFile(path.resolve(workdir, "../src/imports.js"), imports);
 };
 
 const cli = () => {

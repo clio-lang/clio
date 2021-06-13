@@ -14,24 +14,39 @@
   let observer;
 
   const setCurrent = (entries) => {
-    if (entries[0].boundingClientRect.y < 0) {
+    const section = entries[0].target.closest(".section");
+    const { scrollY } = window;
+    const { offsetTop } = section;
+    if (scrollY > offsetTop) {
       $currentSection = slug;
     }
   };
 
   const observe = (el) => {
-    document.addEventListener("readystatechange", () => {
+    const { readyState } = document;
+    const isReady = readyState === "complete" || readyState === "interactive";
+    if (isReady) {
       observer = new IntersectionObserver(setCurrent, {});
       observer.observe(el);
-    });
+    } else {
+      document.addEventListener("onreadystatechange", () => observe(el));
+    }
   };
 
-  onMount(() => () => {
-    observer?.disconnect();
+  onMount(() => {
+    const { hash } = window.location;
+    if (hash === "#" + slug) {
+      window.scroll({
+        behavior: "smooth",
+        top: document.getElementById(slug).offsetTop - 60,
+      });
+    }
+    return () => {
+      observer?.disconnect();
+    };
   });
 
   if (level === 1) $currentSection = slug;
-
 </script>
 
 {#if level == 1}
@@ -63,9 +78,6 @@
     margin-bottom: 1em;
     border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   }
-  .title:not(:first-child) {
-    margin-top: 1em;
-  }
   a {
     text-decoration: none;
     display: inline-flex;
@@ -76,5 +88,4 @@
   a:not(:first-child) {
     margin-top: 2em;
   }
-
 </style>

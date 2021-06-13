@@ -1,8 +1,10 @@
 <script>
+  import Search from "./Search.svelte";
+
+  export let metaVariant;
   export let menuOpen;
 
   const toggleMenu = () => (menuOpen = !menuOpen);
-
 </script>
 
 <div class="head">
@@ -13,6 +15,8 @@
     <img src="/logo-512x512.png" alt="Clio" class="logo" />
     <h1>Clio</h1>
   </div>
+  <div class="spacer" />
+  <Search {metaVariant} />
   <div class="spacer" />
   <nav class="nav">
     <a href="https://github.com/clio-lang/clio">
@@ -92,5 +96,4 @@
       justify-content: center;
     }
   }
-
 </style>

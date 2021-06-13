@@ -1,9 +1,6 @@
 <script>
   export let tree;
-  export let key;
   export let level = 0;
-
-  const href = "/" + key;
 
   const keysOf = (tree) => {
     return Object.keys(tree.__subtree).sort((lhs, rhs) => {
@@ -16,19 +13,17 @@
   let active = false;
   let expanded = false;
 
-  /* $: active = $page.path === href;
-  $: expanded = $page.path.startsWith(href); */
-
   const toggleExpand = () => (expanded = !expanded);
-
 </script>
 
 {#if !Object.keys(tree.__subtree).length}
-  <a {href} class:active class:inner={level}>{tree.__meta.title}</a>
+  <a href={tree.__meta.href} class:active class:inner={level}>
+    {tree.__meta.title}
+  </a>
 {:else}
   <a
     class="expandable"
-    {href}
+    href={tree.__meta.href}
     class:active
     class:inner={level}
     on:click={toggleExpand}
@@ -42,7 +37,7 @@
   </a>
   {#if expanded}
     {#each keysOf(tree) as key}
-      <svelte:self {key} tree={tree.__subtree[key]} level={level + 1} />
+      <svelte:self tree={tree.__subtree[key]} level={level + 1} />
     {/each}
   {/if}
 {/if}
@@ -86,5 +81,4 @@
   .inner {
     margin-left: 1em;
   }
-
 </style>

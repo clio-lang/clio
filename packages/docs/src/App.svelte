@@ -1,5 +1,6 @@
 <script>
   import Nav from "./components/Nav.svelte";
+  import Main from "./components/Main.svelte";
   import SideNav from "./components/SideNav.svelte";
 
   import "prismjs/plugins/line-numbers/prism-line-numbers.css";
@@ -11,7 +12,6 @@
   import { Route } from "tinro";
   import { onMount } from "svelte";
 
-  import Loadable from "svelte-loadable";
   import dynamicImport from "./imports";
   import slugify from "slugify";
 
@@ -38,36 +38,19 @@
 
   const slug = (title) => slugify(title).toLowerCase();
 
-  const getComponent = () => async () => {
-    const { pathname } = window.location;
-    const url = pathname.match(/^\/v\d+(\.\d+){2}/)
-      ? pathname.slice(1)
-      : currentVariant + pathname;
-    const { filename } = metaVariant.routes[url];
-    return await dynamicImport(filename);
-  };
-
   onMount(() => {
     menuOpen = window.innerWidth > 640;
   });
-
 </script>
 
-<Nav bind:menuOpen />
+<Nav bind:menuOpen {metaVariant} />
 
 <div class="page">
   <SideNav {menuOpen} {metaVariant} bind:currentVariant />
-  <main>
-    <Route path="/*" let:meta>
-      {#key meta.url}
-        {#if metaVariant}
-          <Loadable loader={getComponent(meta)} let:component>
-            <svelte:component this={component} bind:sections />
-          </Loadable>
-        {/if}
-      {/key}
-    </Route>
-  </main>
+  <Route path="/*">
+    <Main {metaVariant} bind:currentVariant bind:sections />
+  </Route>
+
   <div class="headnav">
     <div class="sticky">
       <h3>Sections</h3>
@@ -75,7 +58,7 @@
         <a
           href="#{slug(section)}"
           class:active={$currentSection == slug(section)}
-          tinro-ignore
+          data-tinro-ignore
         >
           <h4>{section}</h4>
         </a>
@@ -88,16 +71,6 @@
   .page {
     display: flex;
     flex: 1;
-  }
-  main {
-    position: relative;
-    background: #eee;
-    padding: 2em;
-    box-sizing: border-box;
-    flex: 1;
-    box-shadow: -1px -1px 100px 20px rgba(0, 0, 0, 0.2);
-    display: flex;
-    flex-direction: column;
   }
   .headnav {
     min-height: 240px;
@@ -123,8 +96,8 @@
   a {
     align-self: flex-start;
     text-decoration: none;
-    padding-bottom: 0.5em;
-    border-bottom: 1px dashed rgba(0, 0, 0, 0.1);
+    padding-bottom: 0.25em;
+    border-bottom: 1px dotted rgba(0, 0, 0, 0.1);
   }
   a:hover {
     border-bottom: 1px solid rgba(0, 0, 0, 0.8);
@@ -136,9 +109,5 @@
     .headnav {
       display: none;
     }
-    main {
-      padding: 1em;
-    }
   }
-
 </style>

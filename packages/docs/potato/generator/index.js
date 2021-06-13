@@ -37,13 +37,17 @@ class Generator {
   }
   onHeader(_, { meta }) {
     this.modules.title = true;
+    this.modules.section = true;
     const { text, level } = meta;
     const title = text.trimLeft().trimRight();
     this.close();
     if (level === 1) this.title = title;
-    if (this.currentSection) this.sections.push(this.currentSection);
+    if (this.currentSection) {
+      this.sections.push(this.currentSection);
+      this.content("</Section>");
+    }
     this.currentSection = { title, text: "" };
-    this.content(`<Title level={${level}} title="${title}" />`);
+    this.content(`<Section><Title level={${level}} title="${title}" />`);
   }
   onBlockquote(_) {
     this.close();
@@ -155,8 +159,11 @@ class Generator {
     this.text = "";
   }
   onEOF() {
+    if (this.currentSection) {
+      this.sections.push(this.currentSection);
+      this.content("</Section>");
+    }
     this.close();
-    if (this.currentSection) this.sections.push(this.currentSection);
   }
   onLinebreak(_, { raw }) {
     if (this.table.length) {
@@ -273,7 +280,6 @@ class Generator {
     const root = "../".repeat(this.compiler.file.split("/").length - 1);
     let script = "";
     for (const module in this.modules) script += modules[module](root) + "\n";
-
     const sections =
       "[" + this.sections.map(({ title }) => `"${title}"`).join(",") + "]";
     script += ["export let sections", `sections = ${sections}`].join("\n");

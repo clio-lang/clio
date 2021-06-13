@@ -1,11 +1,11 @@
 {
   "routes": {
     "v0.9.0": {
-      "filename": "./routes/v0.9.0/index.svelte",
+      "filename": "../routes/v0.9.0/index.svelte",
       "title": "Hello world"
     },
     "v0.9.0/install": {
-      "filename": "./routes/v0.9.0/install.svelte",
+      "filename": "../routes/v0.9.0/install.svelte",
       "title": "Install"
     }
   },

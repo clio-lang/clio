@@ -5,6 +5,7 @@ module.exports = {
   image: (root) => `import Image from "${root}components/Image.svelte"`,
   link: (root) => `import Link from "${root}components/Link.svelte"`,
   code: (root) => `import Code from "${root}components/Code.svelte"`,
+  section: (root) => `import Section from "${root}components/Section.svelte"`,
   list: (root) =>
     [
       `import List from "${root}components/List.svelte"`,
