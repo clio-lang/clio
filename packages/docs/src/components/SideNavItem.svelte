@@ -1,4 +1,6 @@
 <script>
+  import { onMount } from "svelte";
+
   export let tree;
   export let level = 0;
 
@@ -10,10 +12,29 @@
     });
   };
 
-  let active = false;
-  let expanded = false;
-
   const toggleExpand = () => (expanded = !expanded);
+
+  let observer;
+  let active;
+  let expanded;
+  let { pathname } = window.location;
+
+  $: active = pathname.startsWith(tree.__meta?.href);
+  $: expanded = active;
+
+  onMount(() => {
+    observer = new MutationObserver(() => {
+      if (window.location.pathname !== pathname) {
+        pathname = window.location.pathname;
+      }
+    });
+    observer.observe(document.getElementById("svelte"), {
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+    return () => observer.disconnect();
+  });
 </script>
 
 {#if !Object.keys(tree.__subtree).length}
@@ -60,13 +81,7 @@
     color: #222;
   }
   .active {
-    background: #fff;
-    color: #000;
-    box-shadow: -9px 0px 14px 2px rgb(0 0 0 / 11%);
-    border-bottom-left-radius: 4px;
-    border-top-left-radius: 4px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    margin-right: -1px;
+    color: #4f29f0;
   }
   img {
     height: 1em;

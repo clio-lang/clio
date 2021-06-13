@@ -2,6 +2,7 @@
   import Search from "./Search.svelte";
 
   export let metaVariant;
+  export let currentVariant;
   export let menuOpen;
 
   const toggleMenu = () => (menuOpen = !menuOpen);
@@ -18,6 +19,7 @@
   <div class="spacer" />
   <Search {metaVariant} />
   <div class="spacer" />
+  <div class="variant">{currentVariant}</div>
   <nav class="nav">
     <a href="https://github.com/clio-lang/clio">
       <img src="/github.png" alt="Github" />
@@ -60,7 +62,7 @@
     transition: cubic-bezier(0.23, 1, 0.32, 1) all 0.17s;
   }
   a:hover {
-    color: rgb(204, 42, 64);
+    color: #4f29f0;
   }
   a img {
     height: 32px;

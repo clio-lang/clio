@@ -116,7 +116,7 @@
     border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   }
   .result :global(.found) {
-    color: #317dd5;
+    color: #4f29f0;
   }
   input {
     border: 1px solid rgba(0, 0, 0, 0.1);

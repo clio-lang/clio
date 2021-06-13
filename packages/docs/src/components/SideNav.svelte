@@ -47,18 +47,20 @@
 </script>
 
 <div class="sidenav" class:open={menuOpen}>
-  <div class="variants">
-    <select>
-      {#each variants as variant}
-        <option value={variant} selected={variant == currentVariant}>
-          {variant}
-        </option>
-      {/each}
-    </select>
+  <div class="sticky">
+    <div class="variants">
+      <select>
+        {#each variants as variant}
+          <option value={variant} selected={variant == currentVariant}>
+            {variant}
+          </option>
+        {/each}
+      </select>
+    </div>
+    {#if tree}
+      <SideNavItem {tree} />
+    {/if}
   </div>
-  {#if tree}
-    <SideNavItem {tree} />
-  {/if}
 </div>
 
 <style>
@@ -68,8 +70,6 @@
     padding-right: 0;
     padding-left: 1em;
     border-right: 1px solid rgba(0, 0, 0, 0.1);
-    display: flex;
-    flex-direction: column;
     box-sizing: border-box;
   }
   .variants {
@@ -86,6 +86,13 @@
     width: 100%;
     box-shadow: 0px 0px 1px rgb(0 0 0 / 20%);
     outline: none;
+  }
+  .sticky {
+    position: sticky;
+    top: 7em;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
   }
   @media (max-width: 768px) {
     .sidenav {

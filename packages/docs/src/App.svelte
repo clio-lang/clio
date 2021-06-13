@@ -43,7 +43,7 @@
   });
 </script>
 
-<Nav bind:menuOpen {metaVariant} />
+<Nav bind:menuOpen {metaVariant} {currentVariant} />
 
 <div class="page">
   <SideNav {menuOpen} {metaVariant} bind:currentVariant />
@@ -86,7 +86,7 @@
   }
   .sticky {
     position: sticky;
-    top: 6em;
+    top: 7em;
     display: flex;
     flex-direction: column;
   }
@@ -103,7 +103,7 @@
     border-bottom: 1px solid rgba(0, 0, 0, 0.8);
   }
   a.active {
-    color: rgb(204, 42, 64);
+    color: #4f29f0;
   }
   @media (max-width: 768px) {
     .headnav {
