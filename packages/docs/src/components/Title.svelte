@@ -85,6 +85,9 @@
     scroll-margin-top: 100px;
     outline: none;
   }
+  a:hover {
+    color: #4f29f0;
+  }
   a:not(:first-child) {
     margin-top: 2em;
   }

@@ -14,7 +14,7 @@
   </button>
   <div class="logo-container">
     <img src="/logo-512x512.png" alt="Clio" class="logo" />
-    <h1>Clio</h1>
+    <a href="/"><h1>Clio</h1></a>
   </div>
   <div class="spacer" />
   <Search {metaVariant} />
@@ -60,6 +60,9 @@
     text-decoration: none;
     margin-left: 2em;
     transition: cubic-bezier(0.23, 1, 0.32, 1) all 0.17s;
+  }
+  .logo-container a {
+    margin-left: 0;
   }
   a:hover {
     color: #4f29f0;
