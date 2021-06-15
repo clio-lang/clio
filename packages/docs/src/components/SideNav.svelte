@@ -43,7 +43,7 @@
   };
 
   let tree;
-  $: if (routes) tree = treeify(routes)[currentVariant];
+  $: if (routes && routes.length) tree = treeify(routes)[currentVariant];
 </script>
 
 <div class="sidenav" class:open={menuOpen}>

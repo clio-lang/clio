@@ -12,7 +12,6 @@
   const langClass = `language-${language}`;
 
   onMount(() => Prism.highlightAll());
-
 </script>
 
 <pre class={langClass}><code class={langClass}>{code}</code></pre>
@@ -23,6 +22,7 @@
     box-sizing: border-box;
     width: 100%;
     white-space: pre;
+    font-family: "Fira Code";
   }
   code:not(:last-child) {
     margin-bottom: 2em;
@@ -30,5 +30,4 @@
   code:not(:first-child) {
     margin-top: 1em;
   }
-
 </style>

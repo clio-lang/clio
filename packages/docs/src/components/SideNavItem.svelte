@@ -12,7 +12,9 @@
     });
   };
 
-  const toggleExpand = () => (expanded = !expanded);
+  const toggleExpand = () => {
+    expanded = !expanded;
+  };
 
   let observer;
   let active;
@@ -20,7 +22,7 @@
   let { pathname } = window.location;
 
   $: active = pathname.startsWith(tree.__meta?.href);
-  $: expanded = active;
+  $: expanded = expanded || active;
 
   onMount(() => {
     observer = new MutationObserver(() => {
@@ -41,38 +43,57 @@
   <a href={tree.__meta.href} class:active class:inner={level}>
     {tree.__meta.title}
   </a>
-{:else}
-  <a
-    class="expandable"
-    href={tree.__meta.href}
-    class:active
-    class:inner={level}
-    on:click={toggleExpand}
-  >
-    <span>{tree.__meta.title}</span>
+{:else if tree.__meta}
+  <div class="expandable" class:expanded>
+    <div class="head">
+      <a href={tree.__meta.href} class:active class:inner={level}>
+        <span>{tree.__meta.title}</span>
+      </a>
+      {#if expanded}
+        <img
+          src="/chevron-down-light.svg"
+          alt="Expanded"
+          on:click={toggleExpand}
+        />
+      {:else}
+        <img
+          src="/chevron-right-light.svg"
+          alt="Expand"
+          on:click={toggleExpand}
+        />
+      {/if}
+    </div>
     {#if expanded}
-      <img src="/chevron-down-light.svg" alt="Expanded" />
-    {:else}
-      <img src="/chevron-right-light.svg" alt="Expand" />
+      {#each keysOf(tree) as key}
+        <svelte:self tree={tree.__subtree[key]} level={level + 1} />
+      {/each}
     {/if}
-  </a>
-  {#if expanded}
-    {#each keysOf(tree) as key}
-      <svelte:self tree={tree.__subtree[key]} level={level + 1} />
-    {/each}
-  {/if}
+  </div>
+{:else}
+  {#each keysOf(tree) as key}
+    <svelte:self tree={tree.__subtree[key]} {level} />
+  {/each}
 {/if}
 
 <style>
-  a {
-    text-decoration: none;
-    padding: 0.75em;
+  .expandable {
+    display: flex;
+    flex-direction: column;
+    min-width: 280px;
+  }
+  .expandable .head {
     display: flex;
     align-items: center;
-    padding-right: 4em;
-    padding-left: 2em;
+    padding: 1em;
+  }
+  .expanded {
+    padding-bottom: 1em;
+  }
+  a {
+    text-decoration: none;
+    display: flex;
+    align-items: center;
     z-index: 2;
-    position: relative;
     color: #555;
     width: 100%;
     box-sizing: border-box;
@@ -85,13 +106,8 @@
   }
   img {
     height: 1em;
-    position: absolute;
-    right: 1em;
-    pointer-events: none;
     opacity: 0.7;
-  }
-  .active img {
-    opacity: 1;
+    margin-left: 2em;
   }
   .inner {
     margin-left: 1em;

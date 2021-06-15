@@ -80,6 +80,7 @@
     background: #eee;
     padding: 2em;
     box-sizing: border-box;
+    min-width: 280px;
   }
   .headnav > .sticky > a {
     margin-bottom: 0.5em;

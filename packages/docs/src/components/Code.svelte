@@ -26,6 +26,14 @@
     border: 1px solid #333;
     margin-bottom: 1em;
   }
+  code {
+    background: #263238;
+    color: #eee;
+    font-family: "Fira Code";
+    padding: 0.25em 0.75em;
+    border-radius: 4px;
+    margin: 0 0.5em;
+  }
   @media (max-width: 960px) {
     .playground {
       width: 100%;
