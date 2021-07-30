@@ -1,2 +1,3 @@
 sphinx_panels
 sphinxext-opengraph
+furo
