@@ -1,0 +1,82 @@
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code&display=swap");
+
+iframe.playground {
+  border-radius: 5px;
+  margin-bottom: 1em;
+  animation: fade-in linear 0.2s;
+  box-shadow: 0px 0px 20px 0px rgb(0 0 0 / 40%);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.tabbed-content {
+  box-shadow: none;
+}
+
+.tabbed-label {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.5em !important;
+  justify-content: flex-start !important;
+  padding: 0.65em 0.2em !important;
+  margin-right: 1em !important;
+}
+
+.tabbed-label > svg + span {
+  margin-top: -4px;
+}
+
+video {
+  margin-bottom: 1em !important;
+  box-shadow: 0px 0px 20px 0px rgb(0 0 0 / 40%);
+  border-radius: 5px;
+}
+
+img.logo {
+  border-radius: 10px !important;
+}
+
+.github-button svg {
+  height: 1em;
+}
+
+.github-button {
+  display: flex;
+  gap: 0.5em;
+  padding: 0.5em;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.05);
+  font-size: 1em;
+  color: var(--color-toc-item-text);
+  text-decoration: none;
+  justify-content: center;
+  align-items: center;
+}
+
+.github-button-wrap {
+  display: flex;
+  align-items: center;
+  padding-left: 1.5em;
+  margin-top: 2em;
+}
+
+body[data-theme="dark"] .github-button {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .github-button {
+    background: rgba(255, 255, 255, 0.05);
+  }
+}
+
+.no-toc:not(.toc-overlay-icon) {
+  display: initial;
+}
