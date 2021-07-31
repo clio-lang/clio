@@ -13,7 +13,7 @@
     "test:nocov": "jest --no-coverage"
   },
   "engines": {
-    "node": ">=13.0.0",
+    "node": ">=14.14.0",
     "npm": ">=6.12.0"
   },
   "author": "Pouya Eghbali",

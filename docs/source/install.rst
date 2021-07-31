@@ -14,6 +14,8 @@ After installing Node and NPM, you can install Clio by running:
 Check your installation by running ``clio`` in your local shell. You’re
 good to go!
 
+.. note:: Your Node version needs to be at least v14.14.0.
+
 Install via Arch User Repository
 --------------------------------
 
