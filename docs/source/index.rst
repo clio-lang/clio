@@ -25,6 +25,9 @@ history and you can learn how to use it.
         -> * [await] |fib|
         -> * (console.log @it)
 
+Click on the run button to run the above example,
+or continue reading on this article to learn more about the language!
+
 .. attention::
    Clio was recently rewritten from scratch, some
    parts of this document have been updated to reflect the new changes, but
