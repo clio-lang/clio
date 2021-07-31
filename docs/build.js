@@ -11,12 +11,25 @@ process.cwd(resolve(__dirname));
 rmSync("./build", { recursive: true });
 mkdirSync("./build");
 
+const pyVersionsStr = ['"develop"', ...versions.map((v) => `"${v}"`)].join(",");
+const pyVersionsArray = `[${pyVersionsStr}]`;
+
+const pyVersions = () =>
+  writeFileSync("./source/versions.py", `versions = ${pyVersionsArray}`);
+
+const build = (target) =>
+  execSync(`sphinx-build -b html source build/html/versions/${target}`);
+
+const generate = (tag, target = tag) => {
+  checkout(tag);
+  pyVersions();
+  build(target);
+};
+
+const checkout = (tag) => execSync(`git checkout ${tag}`);
+
 for (const version of versions) {
-  execSync(`git checkout docs-v${version}`);
-  writeFileSync("./build/versions.py", `versions = ${versions}`);
-  execSync(`sphinx-build -b html source build/html/versions/${version}`);
+  generate(`docs-v${version}`, version);
 }
 
-execSync(`git checkout develop`);
-writeFileSync("./build/versions.py", `versions = ${versions}`);
-execSync(`sphinx-build -b html source build/html/versions/develop`);
+generate("develop");

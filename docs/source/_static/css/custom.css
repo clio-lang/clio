@@ -80,3 +80,23 @@ body[data-theme="dark"] .github-button {
 .no-toc:not(.toc-overlay-icon) {
   display: initial;
 }
+
+.version-select-wrap {
+  display: flex;
+  align-items: center;
+  padding-left: 1.5em;
+  margin-top: 1em;
+}
+
+.version-select {
+  padding: 0.5em;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.05);
+  font-size: 1em;
+  color: var(--color-toc-item-text);
+  text-decoration: none;
+  justify-content: center;
+  align-items: center;
+  border: none;
+  outline: none;
+}

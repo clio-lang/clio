@@ -10,11 +10,13 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-from versions import versions
 import os
 import sys
-sys.path.append(os.path.abspath("./_ext"))
 
+sys.path.append(os.path.abspath("./_ext"))
+sys.path.append(os.path.abspath("."))
+
+from versions import versions
 
 # -- Project information -----------------------------------------------------
 
@@ -73,7 +75,9 @@ html_context = {
     "show_license": True,
     "license_display": f"Clio Docs (Licensed under {license})",
     "furo_hide_toc": False,
-    "versions": versions
+    "versions": versions,
+    "display_versions": True,
+    "root_url": "https://docs.clio-lang.org"
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
@@ -88,7 +92,7 @@ html_css_files = [
 html_favicon = '_static/images/logo-512x512.png'
 html_logo = '_static/images/logo.png'
 
-pygments_dark_style = "monokai"
+pygments_dark_style = "native"
 
 ogp_site_url = "https://docs.clio-lang.org/"
 ogp_type = "article"
