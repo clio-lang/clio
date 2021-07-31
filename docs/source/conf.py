@@ -17,6 +17,8 @@ sys.path.append(os.path.abspath("./_ext"))
 sys.path.append(os.path.abspath("."))
 
 from versions import versions
+from versions import current_version
+
 
 # -- Project information -----------------------------------------------------
 
@@ -94,5 +96,5 @@ html_logo = '_static/images/logo.png'
 
 pygments_dark_style = "native"
 
-ogp_site_url = "https://docs.clio-lang.org/"
+ogp_site_url = f"https://docs.clio-lang.org/versions/{current_version}/"
 ogp_type = "article"

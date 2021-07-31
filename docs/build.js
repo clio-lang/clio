@@ -14,15 +14,18 @@ mkdirSync("./build");
 const pyVersionsStr = ['"develop"', ...versions.map((v) => `"${v}"`)].join(",");
 const pyVersionsArray = `[${pyVersionsStr}]`;
 
-const pyVersions = () =>
-  writeFileSync("./source/versions.py", `versions = ${pyVersionsArray}`);
+const pyVersions = (version) =>
+  writeFileSync(
+    "./source/versions.py",
+    `versions = ${pyVersionsArray}\ncurrent_version = "${version}`
+  );
 
 const build = (target) =>
   execSync(`sphinx-build -b html source build/html/versions/${target}`);
 
 const generate = (tag, target = tag) => {
   checkout(tag);
-  pyVersions();
+  pyVersions(target);
   build(target);
 };
 
