@@ -69,7 +69,11 @@ Thank you to all the people who already contributed to Clio!
 
 ## Backers
 
-![Clio backers](https://opencollective.com/clio/backers.svg?width=890)
+<a href="https://opencollective.com/clio">
+  <img src="https://opencollective.com/clio/backers.svg?width=890" />
+</a>
+
+Thank you all for supporting Clio! Read [backers.md](./backers.md) to learn more.
 
 ## License
 
