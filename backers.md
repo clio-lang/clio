@@ -19,4 +19,6 @@ project owner) are spent on promoting and developing Clio.
 
 [Ivo Balbaert](https://www.packtpub.com/authors/ivo-balbaert)
 
-![Clio backers](https://opencollective.com/clio/backers.svg?width=890)
+<a href="https://opencollective.com/clio">
+  <img src="https://opencollective.com/clio/backers.svg?width=890" />
+</a>
