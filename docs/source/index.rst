@@ -20,7 +20,7 @@ history and you can learn how to use it.
     else: (fib n - 1)
           + (fib n - 2)
 
-    export fn main argv:
+  export fn main argv:
     [39 40 41 42]
         -> * [await] |fib|
         -> * (console.log @it)
