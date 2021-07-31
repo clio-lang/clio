@@ -17,7 +17,7 @@ const pyVersionsArray = `[${pyVersionsStr}]`;
 const pyVersions = (version) =>
   writeFileSync(
     "./source/versions.py",
-    `versions = ${pyVersionsArray}\ncurrent_version = "${version}`
+    `versions = ${pyVersionsArray}\ncurrent_version = "${version}"`
   );
 
 const build = (target) =>
