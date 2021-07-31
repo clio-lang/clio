@@ -13,8 +13,10 @@ mkdirSync("./build");
 
 for (const version of versions) {
   execSync(`git checkout docs-v${version}`);
-  writeFileSync("./build/versions.py", `versions = ${versions}`)
+  writeFileSync("./build/versions.py", `versions = ${versions}`);
   execSync(`sphinx-build -b html source build/html/versions/${version}`);
 }
 
 execSync(`git checkout develop`);
+writeFileSync("./build/versions.py", `versions = ${versions}`);
+execSync(`sphinx-build -b html source build/html/versions/develop`);
