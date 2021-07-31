@@ -13,7 +13,7 @@ website, you will find numerous useful information about Clio, its
 history and you can learn how to use it.
 
 .. playground::
-  :height: 440
+  :height: 640
 
   fn fib n:
     if n < 2: n
