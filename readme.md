@@ -1,11 +1,10 @@
 [![npm version](https://badge.fury.io/js/clio.svg)](https://badge.fury.io/js/clio)
-[![Telegram](https://img.shields.io/badge/Telegram-Chat-blue)](https://t.me/joinchat/K2tN9kkVldcinF4U08lcfQ)
 ![Travis (.org)](https://img.shields.io/travis/clio-lang/clio.svg)
-[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fclio-lang%2Fclio.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fclio-lang%2Fclio?ref=badge_shield)
+[![Documentation Status](https://readthedocs.org/projects/clio/badge/?version=latest)](https://docs.clio-lang.org/en/latest/?badge=latest)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/7ea4361c03b94375a58cb020328d8fd8)](https://www.codacy.com/gh/clio-lang/clio?utm_source=github.com&utm_medium=referral&utm_content=clio-lang/clio&utm_campaign=Badge_Grade)
 [![codecov](https://codecov.io/gh/clio-lang/clio/branch/develop/graph/badge.svg?token=DizAOgNw8A)](https://codecov.io/gh/clio-lang/clio)
-[![Inline docs](http://inch-ci.org/github/clio-lang/clio.svg?branch=develop)](http://inch-ci.org/github/clio-lang/clio)
-[![Kanban Board](https://img.shields.io/badge/Kanban%20Board-v0.2.0-1abc9c.svg)](https://github.com/orgs/clio-lang/projects/1)
+[![Telegram](https://img.shields.io/badge/Telegram-Chat-blue)](https://t.me/joinchat/K2tN9kkVldcinF4U08lcfQ)
+[![Share on Twitter](https://img.shields.io/badge/twitter-share-acf)](https://twitter.com/intent/tweet?text=Clio%20is%20a%20functional,%20parallel,%20distributed%20programming%20language%20that%20compiles%20to%20JavaScript!%20Check%20it%20out%20here:%20https://github.com/clio-lang/clio)
 
 ![Clio Logo](https://raw.githubusercontent.com/clio-lang/media/master/logo-128x128.png)
 
@@ -68,8 +67,14 @@ Thank you to all the people who already contributed to Clio!
   <img src="https://contributors-img.firebaseapp.com/image?repo=clio-lang/clio" />
 </a>
 
+## Backers
+
+<a href="https://opencollective.com/clio">
+  <img src="https://opencollective.com/clio/backers.svg?width=890" />
+</a>
+
+Thank you all for supporting Clio! Read [backers.md](./backers.md) to learn more.
+
 ## License
 
 Apache-2.0
-
-[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fclio-lang%2Fclio.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fclio-lang%2Fclio?ref=badge_large)

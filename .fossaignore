@@ -1,0 +1,8 @@
+docs/
+*.md
+
+*.json
+*.log
+*.sh
+.DS_Store
+.Trashes
