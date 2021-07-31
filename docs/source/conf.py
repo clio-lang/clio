@@ -10,6 +10,7 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
+from versions import versions
 import os
 import sys
 sys.path.append(os.path.abspath("./_ext"))
@@ -20,7 +21,7 @@ sys.path.append(os.path.abspath("./_ext"))
 project = "Clio"
 license = "Apache 2.0"
 author = "Pouya Eghbali"
-version = "0.8"
+version = "0.8.1"
 
 
 # -- General configuration ---------------------------------------------------
@@ -71,7 +72,8 @@ html_context = {
     "show_copyright": False,
     "show_license": True,
     "license_display": f"Clio Docs (Licensed under {license})",
-    "furo_hide_toc": False
+    "furo_hide_toc": False,
+    "versions": versions
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,

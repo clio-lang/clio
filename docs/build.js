@@ -1,6 +1,6 @@
 const { execSync } = require("child_process");
 const { resolve } = require("path");
-const { rmSync, mkdirSync } = require("fs");
+const { rmSync, mkdirSync, writeFileSync } = require("fs");
 
 const tags = execSync("git tag").toString().split("\n").filter(Boolean);
 const versions = tags
@@ -13,6 +13,7 @@ mkdirSync("./build");
 
 for (const version of versions) {
   execSync(`git checkout docs-v${version}`);
+  writeFileSync("./build/versions.py", `versions = ${versions}`)
   execSync(`sphinx-build -b html source build/html/versions/${version}`);
 }
 
