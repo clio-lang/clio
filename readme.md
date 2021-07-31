@@ -1,6 +1,5 @@
 [![npm version](https://badge.fury.io/js/clio.svg)](https://badge.fury.io/js/clio)
 ![Travis (.org)](https://img.shields.io/travis/clio-lang/clio.svg)
-[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fclio-lang%2Fclio.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fclio-lang%2Fclio?ref=badge_shield)
 [![Documentation Status](https://readthedocs.org/projects/clio/badge/?version=latest)](https://docs.clio-lang.org/en/latest/?badge=latest)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/7ea4361c03b94375a58cb020328d8fd8)](https://www.codacy.com/gh/clio-lang/clio?utm_source=github.com&utm_medium=referral&utm_content=clio-lang/clio&utm_campaign=Badge_Grade)
 [![codecov](https://codecov.io/gh/clio-lang/clio/branch/develop/graph/badge.svg?token=DizAOgNw8A)](https://codecov.io/gh/clio-lang/clio)
@@ -68,8 +67,10 @@ Thank you to all the people who already contributed to Clio!
   <img src="https://contributors-img.firebaseapp.com/image?repo=clio-lang/clio" />
 </a>
 
+## Backers
+
+![Clio backers](https://opencollective.com/clio/backers.svg?width=890)
+
 ## License
 
 Apache-2.0
-
-[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fclio-lang%2Fclio.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fclio-lang%2Fclio?ref=badge_large)
