@@ -41,7 +41,7 @@ const copyDir = async (src, dest) => {
       const absTarget = path.isAbsolute(target)
         ? target
         : path.resolve(path.dirname(srcPath), target);
-      if (fs.existsSync(absTarget)) copyDir(absTarget, destPath);
+      fs.symlinkSync(absTarget, destPath);
     } else if (entry.isDirectory()) {
       await copyDir(srcPath, destPath);
     } else {
@@ -295,16 +295,14 @@ const build = async (configPath, options = {}) => {
     );
     progress.succeed();
     progress.start("Linking dependencies");
-    rmdir(path.join(destination, "node_modules", "clio-run"));
-    await link(
-      path.resolve(process.env.CLIOPATH, "packages", "run"),
-      path.join(destination, "node_modules", "clio-run")
-    );
-    rmdir(path.join(destination, "node_modules", "clio-rpc"));
-    await link(
-      path.resolve(process.env.CLIOPATH, "packages", "rpc"),
-      path.join(destination, "node_modules", "clio-rpc")
-    );
+
+    const linkToDest = (name, internalName, unlinks) =>
+      link(name, internalName, destination, unlinks);
+
+    await linkToDest("clio-run", "run", ["clio-lang-internals", "clio-rpc"]);
+    await linkToDest("clio-rpc", "rpc", ["clio-lang-internals"]);
+    await linkToDest("clio-lang-internals", "internals");
+
     progress.succeed();
   }
 
@@ -320,8 +318,28 @@ const build = async (configPath, options = {}) => {
  * Link local internals package as a dependency
  * @param {string} destination Full path to destination directory
  */
-async function link(source, destination) {
-  await copyDir(source, destination);
+async function link(name, internalName, destination, unlinks = []) {
+  const modulePath = path.join(destination, "node_modules", name);
+  const internalPath = path.resolve(
+    process.env.CLIOPATH,
+    "packages",
+    internalName
+  );
+  rmdir(modulePath);
+  await copyDir(internalPath, modulePath);
+  unlinkNodeModules(modulePath, ...unlinks);
+}
+
+/**
+ * Unlink local internals package as a dependency
+ * @param {string} destination Full path to destination directory
+ */
+function unlinkNodeModules(destination, ...names) {
+  for (const name of names) {
+    fs.rmSync(path.join(destination, "node_modules", name), {
+      recursive: true,
+    });
+  }
 }
 
 const command = "build [config]";
