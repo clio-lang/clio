@@ -18,7 +18,7 @@ history and you can learn how to use it.
   fn fib n:
     if n < 2: n
     else: (fib n - 1)
-          + (fib n - 2)
+        + (fib n - 2)
 
   export fn main argv:
     [39 40 41 42]
