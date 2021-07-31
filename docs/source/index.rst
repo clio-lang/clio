@@ -12,13 +12,18 @@ advantage of the JavaScript ecosystem, tools and libraries. On this
 website, you will find numerous useful information about Clio, its
 history and you can learn how to use it.
 
-.. figure:: _static/images/parallel-fib.png
-   :alt: Clio Parallel Fib Example
+.. playground::
+  :height: 440
 
-   Clio Parallel Fib Example
+  fn fib n:
+    if n < 2: n
+    else: (fib n - 1)
+          + (fib n - 2)
 
-Click `here`_ to run this example on the playground, click next to get
-started with Clio.
+    export fn main argv:
+    [39 40 41 42]
+        -> * [await] |fib|
+        -> * (console.log @it)
 
 .. attention::
    Clio was recently rewritten from scratch, some
