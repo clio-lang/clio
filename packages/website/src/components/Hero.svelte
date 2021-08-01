@@ -9,14 +9,17 @@
 
     <div class="install">
       Looking for the installation guide?
-      <a class="btn" href="https://docs.clio-lang.org/install">
+      <a
+        class="btn"
+        href="https://docs.clio-lang.org/versions/develop/install.html"
+      >
         Get started now
       </a>
     </div>
 
     <div class="learn-more">
       Visit our
-      <a href="https://docs.clio-lang.org/learn/official-tutorial"
+      <a href="https://docs.clio-lang.org/versions/develop/tutorial/index.html"
         >tutorial page</a
       >
       to learn Clio, or read the

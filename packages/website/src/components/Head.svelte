@@ -6,7 +6,9 @@
   <div class="spacer" />
   <nav class="nav">
     <a href="https://docs.clio-lang.org"> Docs </a>
-    <a href="https://docs.clio-lang.org/links/links/community"> Community </a>
+    <a href="https://docs.clio-lang.org/versions/develop/links/community.html">
+      Community
+    </a>
     <a href="https://github.com/clio-lang/clio">
       <img src="/github.png" alt="Github" />
     </a>
@@ -64,5 +66,4 @@
       padding: 1em;
     }
   }
-
 </style>

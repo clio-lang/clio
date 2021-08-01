@@ -1,6 +1,5 @@
 <script>
   import Card from "./Card.svelte";
-
 </script>
 
 <div class="title">
@@ -18,7 +17,10 @@
       </p>
       <div class="spacer" />
       <div class="actions">
-        <a class="btn" href="https://docs.clio-lang.org/reference/parallelism">
+        <a
+          class="btn"
+          href="https://docs.clio-lang.org/versions/develop/reference/manifest/parallel.html"
+        >
           Learn more
         </a>
       </div>
@@ -50,7 +52,10 @@
       </p>
       <div class="spacer" />
       <div class="actions">
-        <a class="btn" href="https://docs.clio-lang.org/install">
+        <a
+          class="btn"
+          href="https://docs.clio-lang.org/versions/develop/install.html"
+        >
           Install now
         </a>
       </div>
@@ -145,5 +150,4 @@
       margin: 0.5em;
     }
   }
-
 </style>

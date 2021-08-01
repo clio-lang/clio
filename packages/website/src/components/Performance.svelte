@@ -77,7 +77,6 @@
       options,
     });
   });
-
 </script>
 
 <div class="title">
@@ -107,7 +106,7 @@
         <div class="actions">
           <a
             class="btn"
-            href="https://docs.clio-lang.org/reference/performance"
+            href="https://docs.clio-lang.org/versions/develop/reference/performance.html"
           >
             Learn more!
           </a>
@@ -207,5 +206,4 @@
       margin: 0.5em;
     }
   }
-
 </style>
