@@ -1,6 +1,6 @@
 {
   "name": "clio-playground",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "scripts": {
     "build": "npm run worker && rollup -c",
     "worker": "rollup -c worker.rollup.config.js",
