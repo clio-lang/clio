@@ -9,8 +9,8 @@ keyword can be used in flows:
 .. tabbed:: Browser
 
   .. attention::
-    The ``fetch`` function is a browser only function, switch to the Node tab
-    to see how you can run this example when targetting Node.
+    The ``fetch`` function used in the example below is a browser only function,
+    switch to the Node tab to see how you can run this example when targetting Node.
 
   .. playground::
     :height: 400
@@ -49,8 +49,8 @@ It can also be used outside flows:
 .. tabbed:: Browser
 
   .. attention::
-    The ``fetch`` function is a browser only function, switch to the Node tab
-    to see how you can run this example when targetting Node.
+    The ``fetch`` function used in the example below is a browser only function,
+    switch to the Node tab to see how you can run this example when targetting Node.
 
   .. playground::
     :height: 400
@@ -90,8 +90,8 @@ Clio also supports ``[await]`` keyword, which translates to
 .. tabbed:: Browser
 
   .. attention::
-    The ``fetch`` function is a browser only function, switch to the Node tab
-    to see how you can run this example when targetting Node.
+    The ``fetch`` function used in the example below is a browser only function,
+    switch to the Node tab to see how you can run this example when targetting Node.
 
   .. playground::
     :height: 600
