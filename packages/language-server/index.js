@@ -5,7 +5,7 @@ const doc = require("vscode-languageserver-textdocument");
 const url = require("url");
 const util = require("util");
 const { parse, tokenize } = require("clio-core");
-const { parsingError } = require("clio-core/errors");
+const { parsingError, ParsingError } = require("clio-core/errors");
 
 const DEBUG_MODE = false;
 
@@ -15,9 +15,13 @@ const documents = new ls.TextDocuments(doc.TextDocument);
 const parses = new Map();
 
 function errorToDiagnostic(error) {
-  const { message, line, column } = error;
+  const { line, column } = error.meta;
+  const message =
+    error instanceof ParsingError
+      ? error.meta.message.split("\n").pop()
+      : error.meta.message;
   const pos = {
-    line,
+    line: line - 1,
     character: column,
   };
   const range = { start: pos, end: { ...pos, character: 512 } }; // The end character is just an arbitrary large number
@@ -40,19 +44,20 @@ function updateParse(uri, source) {
   try {
     const fileName = url.fileURLToPath(uri);
     const tokens = tokenize(source, fileName);
-    const parsed = parse(source, tokens);
 
-    parses[uri] = linkedListToArray(parsed);
+    parses.set(uri, linkedListToArray(tokens));
+
+    const parsed = parse(tokens);
 
     if (DEBUG_MODE) {
       connection.console.log(util.inspect(parsed));
     }
 
     if (parsed.first.item.type !== "clio") {
-      throw parsingError(source, file, fileName);
+      throw parsingError(source, fileName, parsed);
     }
   } catch (e) {
-    const trace = errorToDiagnostic(e.message);
+    const trace = errorToDiagnostic(e);
     if (trace) {
       diagnostics.push(trace);
     }
@@ -86,7 +91,6 @@ connection.onInitialize(() => {
 
 connection.onCompletion((params) => {
   const keywordCompletions = [
-    "#",
     "fn",
     "and",
     "or",
@@ -103,16 +107,17 @@ connection.onCompletion((params) => {
     kind: ls.CompletionItemKind.Keyword,
   }));
 
-  const stored = parses[params.textDocument.uri];
+  const stored = parses.get(params.textDocument.uri);
+
   let functionCompletions = [];
   if (stored) {
     const symbols = [
       ...new Set(
-        stored.filter((tok) => tok.name === "Symbol").map((tok) => tok.raw)
+        stored.filter((tok) => tok.type === "symbol").map((tok) => tok.value)
       ),
     ];
-    functionCompletions = symbols.map((raw) => ({
-      label: raw,
+    functionCompletions = symbols.map((value) => ({
+      label: value,
       kind: ls.CompletionItemKind.Function,
     }));
   }
@@ -122,14 +127,14 @@ connection.onCompletion((params) => {
 
 connection.onHover((params) => {
   const pos = params.position;
-  const stored = parses[params.textDocument.uri];
+  const stored = parses.get(params.textDocument.uri);
   if (!stored) return null;
 
   const token = stored.tokens.find(
     (tok) =>
       tok.line - 1 === pos.line &&
       pos.character >= tok.column &&
-      pos.character < tok.column + tok.raw.length
+      pos.character < tok.column + tok.value.length
   );
   if (!token) return null;
 
@@ -140,7 +145,10 @@ connection.onHover((params) => {
     },
     range: {
       start: { line: token.line - 1, character: token.column },
-      end: { line: token.line - 1, character: token.column + token.raw.length },
+      end: {
+        line: token.line - 1,
+        character: token.column + token.value.length,
+      },
     },
   };
 });

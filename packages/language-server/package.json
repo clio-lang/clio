@@ -7,6 +7,9 @@
     "start": "node ./index.js --stdio",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "bin": {
+    "clio-language-server": "./index.js"
+  },
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
