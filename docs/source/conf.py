@@ -25,7 +25,7 @@ from versions import current_version
 project = "Clio"
 license = "Apache 2.0"
 author = "Pouya Eghbali"
-version = "0.8.2"
+version = "0.8.4"
 
 
 # -- General configuration ---------------------------------------------------
