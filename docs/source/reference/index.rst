@@ -12,4 +12,5 @@ This book serves as the primary reference for the Clio programming language
    :maxdepth: 2
    :caption: Contents
    
+   performance
    manifest/index
