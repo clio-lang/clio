@@ -1,4 +1,5 @@
 const { list } = require("bean-parser");
+const { LexingError } = require("./errors");
 
 const strPattern = /^(?:"(?:[^"]|\\")*"|'(?:[^']|\\')*')/;
 const numPattern = /^-?(?:[0-9][\d_]*)(?:\.[\d_]+)?(?:[eE][+-]?[\d_]+)?/;
@@ -123,7 +124,14 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
         source = source.slice(2);
       }
       if (!open) break;
-      if (!source) throw "Imbalanced comment blocks"; // FIXME
+      if (!source) {
+        throw new LexingError({
+          message: "Imbalanced comment blocks",
+          line,
+          column,
+          file,
+        }); // FIXME
+      }
     }
     const man = source.match(manPattern);
     /* istanbul ignore next */
@@ -158,7 +166,12 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
     // insert outdent / indent token
     if (level < currLevel) {
       if (levels.indexOf(level) == -1)
-        throw new Error("Inconsistent indentation");
+        throw new LexingError({
+          message: "Inconsistent indentation",
+          line,
+          file,
+          column,
+        });
       while (levels[0] != level) {
         levels.shift();
         token("outdent");
@@ -242,7 +255,13 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
         token("rCurly", char, 1);
         token("groupEnd", "", 0);
         curlies--;
-        if (curlies < 0) throw new Error("Imbalanced curly braces");
+        if (curlies < 0)
+          throw new LexintError({
+            message: "Imbalanced curly braces",
+            file,
+            line,
+            column,
+          });
         break;
       case "[":
         if (!awaitAll()) {
@@ -255,7 +274,13 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
         token("rSquare", char, 1);
         token("groupEnd", "", 0);
         squares--;
-        if (squares < 0) throw new Error("Imbalanced square braces");
+        if (squares < 0)
+          throw new LexintError({
+            message: "Imbalanced square braces",
+            file,
+            line,
+            column,
+          });
         break;
       case "(":
         token("groupStart", "", 0);
@@ -267,7 +292,13 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
         token("rParen", char, 1);
         token("groupEnd", "", 0);
         parens--;
-        if (parens < 0) throw new Error("Imbalanced parentheses");
+        if (parens < 0)
+          throw new LexingError({
+            message: "Imbalanced parentheses",
+            file,
+            line,
+            column,
+          });
         break;
       case ":":
         token("colon", char, 1);
@@ -342,7 +373,12 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
         break;
       default:
         if (!keyword() && !parameter() && !symbol())
-          throw new Error(`Unsupported character ${char}!`);
+          throw new LexingError({
+            message: `Unsupported character ${char}!`,
+            file,
+            line,
+            column,
+          });
         break;
     }
     zeroSpace();

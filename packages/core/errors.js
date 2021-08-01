@@ -16,7 +16,7 @@ const opens = [
 /* istanbul ignore next */
 const whites = ["lineBreak", "indent", "outdent"];
 
-const getMessage = (file, line, start, column, source, expecting, rhs) => {
+const getMessage = ({ file, line, start, column, source, expecting, rhs }) => {
   const code = source.split("\n").slice(start, line).join("\n");
   return [
     `Parsing error at ${file}[${line}:${column}]\n`,
@@ -25,6 +25,20 @@ const getMessage = (file, line, start, column, source, expecting, rhs) => {
     `\nExpecting one of ${expecting} but encountered ${rhs.item.type}`,
   ].join("\n");
 };
+
+class ParsingError extends Error {
+  constructor(meta) {
+    meta.message = getMessage(meta);
+    super(meta.message);
+    this.meta = meta;
+  }
+}
+class LexingError extends Error {
+  constructor(meta) {
+    super(meta.message);
+    this.meta = meta;
+  }
+}
 
 /* istanbul ignore next */
 const parsingError = (source, file, tokens) => {
@@ -45,8 +59,17 @@ const parsingError = (source, file, tokens) => {
   const start = Math.max(0, rhs.item.line - 3);
   const location = rhs.item.meta?.location || rhs.item;
   const { line, column } = location;
-  const message = getMessage(file, line, start, column, source, expecting, rhs);
-  return new Error(message);
+  return new ParsingError({
+    file,
+    line,
+    start,
+    column,
+    source,
+    expecting,
+    rhs,
+  });
 };
 
 module.exports.parsingError = parsingError;
+module.exports.ParsingError = ParsingError;
+module.exports.LexingError = LexingError;
