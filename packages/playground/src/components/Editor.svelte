@@ -3,6 +3,10 @@
   export let share = false;
   export let query = "";
 
+  let showConsole = true;
+  let showRun = true;
+  let showExamples = true;
+
   import FontFaceObserver from "fontfaceobserver";
 
   const font = new FontFaceObserver("Fira Code");
@@ -98,8 +102,28 @@
 
   function getIsHorizontal() {
     const hz = new URLSearchParams(window.location.search).get("hz");
-    if (hz) return hz === "true";
+    if (hz) return hz === "true" || hz === "yes";
     return window.innerWidth < 720;
+  }
+
+  function parseQueryParams() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const examples = urlParams.get("examples");
+    if (examples === "false" || examples === "no") {
+      showExamples = false;
+    }
+    const _console = urlParams.get("console");
+    if (_console === "false" || _console === "no") {
+      showConsole = false;
+    }
+    const run = urlParams.get("run");
+    if (run === "false" || run === "no") {
+      showRun = false;
+    }
+    const _share = urlParams.get("share");
+    if (_share === "false" || _share === "no") {
+      share = false;
+    }
   }
 
   let editor;
@@ -156,6 +180,7 @@
   };
 
   const makeEditor = async () => {
+    parseQueryParams();
     isHorizontal = getIsHorizontal();
     const monaco = window.monaco || (await loadMonaco());
     monaco.languages.register({ id: "clio" });
@@ -180,7 +205,6 @@
   };
 
   font.load().then(makeEditor);
-
 </script>
 
 <div class="container">
@@ -188,21 +212,29 @@
     <img src="/logo-128x128.png" class="logo" alt="logo" />
     <span class="title">{title}</span>
     <div class="spacer" />
-    <select class="sample" on:change={setSampleCode}>
-      <option selected value="parallelFib">Parallel Fib</option>
-      <option value="parallelFibAlternate"> Parallel Fib (Alternate) </option>
-      <option value="fib">Fib</option>
-      <option value="filter">Filter</option>
-      <option value="reduce">Reduce</option>
-      <option value="express">Express</option>
-    </select>
+    {#if showExamples}
+      <select class="sample" on:change={setSampleCode}>
+        <option selected value="parallelFib">Parallel Fib</option>
+        <option value="parallelFibAlternate"> Parallel Fib (Alternate) </option>
+        <option value="fib">Fib</option>
+        <option value="filter">Filter</option>
+        <option value="reduce">Reduce</option>
+        <option value="express">Express</option>
+      </select>
+    {/if}
     {#if share}
       <a href="#?" class="btn share" on:click={copyShareURL}> Share </a>
     {/if}
-    <a href="#?" class="btn" on:click={compileAndRun}> Run </a>
+    {#if showRun}
+      <a href="#?" class="btn" on:click={compileAndRun}> Run </a>
+    {/if}
   </div>
   <div class="sep" />
-  <div class="editor {isHorizontal ? 'horizontal' : ''}">
+  <div
+    class="editor"
+    class:horizontal={isHorizontal}
+    class:no-console={!showConsole}
+  >
     <div id="clio-pane" />
     <div id="console-pane" />
   </div>
@@ -248,7 +280,7 @@
     padding: 0.55em 1em;
     margin-bottom: -0.15em;
   }
-  .share {
+  .toolbar > *:not(:last-child) {
     margin-right: 1em;
   }
   .sep {
@@ -272,6 +304,9 @@
   .editor.horizontal #console-pane {
     padding-top: 1em;
     border-top: 1px solid #404040;
+  }
+  .editor.no-console #console-pane {
+    display: none;
   }
   .editor > div {
     flex: 1;
@@ -310,5 +345,4 @@
   .copied.isActive {
     animation: appear 4s ease-in forwards;
   }
-
 </style>
