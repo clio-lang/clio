@@ -118,7 +118,7 @@ Clio also supports ``[await]`` keyword, which translates to
       clio deps add --npm node-fetch
 
   .. playground::
-    :height: 300
+    :height: 400
     :no-interactive:
 
     import "js:node-fetch"
