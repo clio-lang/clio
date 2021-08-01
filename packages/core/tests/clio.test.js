@@ -499,3 +499,8 @@ shouldThrow("Imbalanced curly braces", "}{}}", "Imbalanced curly braces");
 shouldThrow("Imbalanced square braces", "][]]", "Imbalanced square braces");
 shouldThrow("Imbalanced parentheses", ")())", "Imbalanced parentheses");
 shouldThrow("Unsupported character", "!", "Unsupported character !");
+shouldThrow(
+  "Calling an integer",
+  "xyz -> 123",
+  "Expecting one of call, symbol, parallelFn, method, propertyAccess, wrapped, parameter, awaited but encountered number"
+);
