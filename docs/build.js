@@ -39,6 +39,4 @@ for (const version of versions) {
   generate(`docs-v${version}`, version);
 }
 
-generate("develop");
-
-execSync(`git checkout ${currentBranch}`);
+generate(currentBranch, "develop");
