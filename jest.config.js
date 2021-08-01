@@ -12,6 +12,7 @@ module.exports = {
     "!jest-puppeteer.config.js",
     "!host/**/*",
     "!tests/**/*",
+    "!docs/**/*",
   ],
   testPathIgnorePatterns: [
     "<rootDir>/jest.config.js",
