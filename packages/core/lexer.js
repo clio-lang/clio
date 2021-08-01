@@ -135,7 +135,7 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
     // check if we're in an array or parentheses
     if (squares || curlies || parens) return;
     // check if this isn't an empty line
-    const isEmpty = source.match(/^ *(?=\r?\n)/);
+    const isEmpty = source.match(/^ *(?=[\r\n])/);
     if (isEmpty) return;
     // check if it's a comment line
     const isComment = source.match(/^ *--/);
