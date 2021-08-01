@@ -2,6 +2,10 @@ const { execSync } = require("child_process");
 const { resolve } = require("path");
 const { rmSync, mkdirSync, writeFileSync } = require("fs");
 
+const currentBranch = execSync("git branch --show-current")
+  .toString()
+  .trimEnd();
+
 const tags = execSync("git tag").toString().split("\n").filter(Boolean);
 const versions = tags
   .filter((tag) => tag.startsWith("docs-v"))
@@ -36,3 +40,5 @@ for (const version of versions) {
 }
 
 generate("develop");
+
+execSync(`git checkout ${currentBranch}`);
