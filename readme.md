@@ -1,10 +1,10 @@
 [![npm version](https://badge.fury.io/js/clio.svg)](https://badge.fury.io/js/clio)
 ![Travis (.org)](https://img.shields.io/travis/clio-lang/clio.svg)
-[![Documentation Status](https://readthedocs.org/projects/clio/badge/?version=latest)](https://docs.clio-lang.org/en/latest/?badge=latest)
+[![Documentation Status](https://img.shields.io/badge/docs-passing-brightgreen)](https://docs.clio-lang.org)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/7ea4361c03b94375a58cb020328d8fd8)](https://www.codacy.com/gh/clio-lang/clio?utm_source=github.com&utm_medium=referral&utm_content=clio-lang/clio&utm_campaign=Badge_Grade)
 [![codecov](https://codecov.io/gh/clio-lang/clio/branch/develop/graph/badge.svg?token=DizAOgNw8A)](https://codecov.io/gh/clio-lang/clio)
-[![Telegram](https://img.shields.io/badge/Telegram-Chat-blue)](https://t.me/joinchat/K2tN9kkVldcinF4U08lcfQ)
-[![Share on Twitter](https://img.shields.io/badge/twitter-share-acf)](https://twitter.com/intent/tweet?text=Clio%20is%20a%20functional,%20parallel,%20distributed%20programming%20language%20that%20compiles%20to%20JavaScript!%20Check%20it%20out%20here:%20https://github.com/clio-lang/clio)
+[![Telegram](https://img.shields.io/badge/telegram-chat-blue)](https://t.me/joinchat/K2tN9kkVldcinF4U08lcfQ)
+[![Share on Twitter](https://img.shields.io/badge/twitter-share-blue)](https://twitter.com/intent/tweet?text=Clio%20is%20a%20functional,%20parallel,%20distributed%20programming%20language%20that%20compiles%20to%20JavaScript!%20Check%20it%20out%20here:%20https://github.com/clio-lang/clio)
 
 ![Clio Logo](https://raw.githubusercontent.com/clio-lang/media/master/logo-128x128.png)
 
