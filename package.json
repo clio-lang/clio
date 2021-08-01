@@ -1,6 +1,6 @@
 {
   "name": "clio",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "Clio Programming Language",
   "main": "packages/cli/index.js",
   "scripts": {
