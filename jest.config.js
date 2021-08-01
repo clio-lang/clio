@@ -26,6 +26,7 @@ module.exports = {
     "<rootDir>/packages/website",
     "<rootDir>/packages/playground",
     "<rootDir>/packages/highlight",
+    "<rootDir>/packages/language-server",
   ],
   moduleFileExtensions: ["js", "json", "jsx", "ts", "tsx", "node", "toml"],
   testEnvironment: "node",
