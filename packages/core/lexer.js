@@ -256,7 +256,7 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
         token("groupEnd", "", 0);
         curlies--;
         if (curlies < 0)
-          throw new LexintError({
+          throw new LexingError({
             message: "Imbalanced curly braces",
             file,
             line,
@@ -274,13 +274,14 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
         token("rSquare", char, 1);
         token("groupEnd", "", 0);
         squares--;
-        if (squares < 0)
-          throw new LexintError({
+        if (squares < 0) {
+          throw new LexingError({
             message: "Imbalanced square braces",
             file,
             line,
             column,
           });
+        }
         break;
       case "(":
         token("groupStart", "", 0);
