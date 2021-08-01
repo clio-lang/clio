@@ -44,9 +44,9 @@ test programs exist, it is not recommended to use in production.
 
 - [Clio Website](http://clio-lang.org)
 - [Documentation](http://docs.clio-lang.org)
-- [Clio on Rosetta Code](http://rosettacode.org/wiki/Clio)
-- [Web IDE](https://clio-lang.github.io/clio-editor/)
+- [Playground](https://playground.clio-lang.org)
 - [Clio Telegram Chat](https://t.me/clio_lang)
+- [Clio on Rosetta Code](http://rosettacode.org/wiki/Clio)
 
 ## Examples
 

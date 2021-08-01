@@ -7,9 +7,9 @@ const keywordPattern =
   /^(?:if|else|fn|await|import|as|from|export|and|or|not|by|in)(?=\s|$)|^else(?=:)|^await(?=])/;
 const symbolPattern = /^(?:[a-z_$][0-9a-z_$]*)/i; // Should we allow unicode?
 const parameterPattern = /^@(?:[a-z_$][0-9a-z_$]*)/i; // Should we allow unicode?
-const commentPattern = /^--.*?(?=\n|$)/;
+const commentPattern = /^--.*?(?=\r?\n|$)/;
 const blockCommentPattern = /^([^+-]|\+[^-]|-[^+])+?(?=(-\+|\+-))/;
-const manPattern = /^ *(\n|\n\r|\r\n)(fn |export fn )/;
+const manPattern = /^ *(\r?\n)(fn |export fn )/;
 const awaitAllPattern = /^\[await\]/;
 
 const whites = ["space", "lineBreak", "indent", "outdent", "slicer", "format"];
@@ -173,7 +173,7 @@ const lex = (source, file, startLine = 1, startColumn = 0) => {
   };
   // match an indented hash
   const hashIndent = () => {
-    const isIndented = source.match(/^ *(?:[a-z_$][0-9a-z_$]*) *: *\n/);
+    const isIndented = source.match(/^ *(?:[a-z_$][0-9a-z_$]*) *: *\r?\n/);
     if (isIndented) {
       levels.unshift(levels[0] + 2);
       /* istanbul ignore next */
