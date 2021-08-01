@@ -4,7 +4,8 @@ Range
 Clio supports range literals. To define them, you can write:
 
 .. playground::
-  :height: 300
+  :height: 180
+  :no-interactive:
 
   export fn main argv:
     start..end by step

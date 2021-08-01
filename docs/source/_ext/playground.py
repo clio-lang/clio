@@ -39,9 +39,11 @@ def lazy_iframe(iframe):
     """
 
 
-def playground(code, height):
+def playground(code, height, interactive):
     query = urllib.parse.urlencode({"code": code})
     src = f'https://playground.clio-lang.org/?hz=true&{query}'
+    if not interactive:
+        src += "&run=no&examples=no&share=no&console=no"
     params = 'class="playground" loading="lazy" allow="clipboard-read; clipboard-write"'
     iframe = f'<iframe {params} src="{src}" width="100%" height="{height}px" frameborder="no"></iframe>'
     return lazy_iframe(iframe)
@@ -52,12 +54,14 @@ class Playground(Directive):
     has_content = True
     required_arguments = 0
     optional_arguments = 0
-    option_spec = {'height': directives.nonnegative_int}
+    option_spec = {'height': directives.nonnegative_int,
+                   'no-interactive': directives.flag}
 
     def run(self):
         code = "\n".join(self.content)
         height = 'height' in self.options and self.options['height'] or 540
-        raw = playground(code, height)
+        interactive = 'no-interactive' not in self.options
+        raw = playground(code, height, interactive)
         node = nodes.raw("", raw, format='html')
         return [node]
 
