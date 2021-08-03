@@ -8,7 +8,7 @@ the `package on VSCode marketplace`_.
 .. image:: ../_static/images/vscode.png
 
 Contributors
-============
+------------
 
 Special thanks to `Michele Riva`_ for creating the initial version of this
 extension and special thanks to `FW`_ for his great work on the Clio language
