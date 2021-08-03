@@ -1,6 +1,6 @@
-const lightbox = GLightbox({
-    touchNavigation: true,
-    loop: true,
-    autoplayVideos: true,
-    selector: ".figure img"
-});
+(() => {
+  mediumZoom(".figure img", {
+    margin: 24,
+    background: '#000000b0',
+  });
+})();

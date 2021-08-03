@@ -87,12 +87,11 @@ html_context = {
 html_static_path = ["_static"]
 
 html_css_files = [
-    'https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css',
     'css/custom.css',
 ]
 
 html_js_files = [
-    'https://cdn.jsdelivr.net/gh/mcstudios/glightbox/dist/js/glightbox.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/medium-zoom/1.0.6/medium-zoom.min.js',
     'js/custom.js',
 ]
 

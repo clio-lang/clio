@@ -116,14 +116,10 @@ body[data-theme="dark"] .version-select {
   padding: 0 4em;
 }
 
-.glightbox-clean .gslide-media {
-  box-shadow: none !important;
+.medium-zoom-overlay {
+  z-index: 99999;
 }
 
-.glightbox-clean .gdesc-inner {
-  padding: 0 1em !important;
-}
-
-.glightbox-clean .gslide-description {
-  display: none;
+.medium-zoom-image--opened {
+  z-index: 999999;
 }
