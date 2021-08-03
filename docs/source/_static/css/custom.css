@@ -125,10 +125,5 @@ body[data-theme="dark"] .version-select {
 }
 
 .glightbox-clean .gslide-description {
-  border-top-left-radius: 5px;
-  border-top-right-radius: 5px;
-}
-
-.glightbox-clean .gslide-description h4 {
-  text-transform: none !important;
+  display: none;
 }
