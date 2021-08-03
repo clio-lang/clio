@@ -112,10 +112,6 @@ body[data-theme="dark"] .version-select {
   }
 }
 
-.code-block-caption, article p.caption, table>caption {
-  padding: 0 4em;
-}
-
 .medium-zoom-overlay {
   z-index: 99999;
 }
