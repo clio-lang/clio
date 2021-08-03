@@ -116,22 +116,6 @@ body[data-theme="dark"] .version-select {
   padding: 0 4em;
 }
 
-/* Lightbox */
-
-label input.hidden {
-  display: none;
-}
-
-.chocolat-wrapper {
-  z-index: 99999999;
-}
-
-body[data-theme="dark"] .chocolat-overlay {
-  background: rgba(0,0,0,.8);
-}
-
-@media (prefers-color-scheme: dark) {
-  body:not([data-theme="light"]) .chocolat-overlay {
-    background: rgba(0,0,0,.8);
-  }
+.glightbox-clean .gslide-media {
+  box-shadow: none !important;
 }

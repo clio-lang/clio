@@ -87,12 +87,12 @@ html_context = {
 html_static_path = ["_static"]
 
 html_css_files = [
-    'https://cdnjs.cloudflare.com/ajax/libs/chocolat/1.0.4/css/chocolat.min.css',
+    'https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css',
     'css/custom.css',
 ]
 
 html_js_files = [
-    'https://cdnjs.cloudflare.com/ajax/libs/chocolat/1.0.4/js/chocolat.js',
+    'https://cdn.jsdelivr.net/gh/mcstudios/glightbox/dist/js/glightbox.min.js',
     'js/custom.js',
 ]
 
