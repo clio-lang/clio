@@ -111,3 +111,27 @@ body[data-theme="dark"] .version-select {
     background: rgba(255, 255, 255, 0.05);
   }
 }
+
+.code-block-caption, article p.caption, table>caption {
+  padding: 0 4em;
+}
+
+/* Lightbox */
+
+label input.hidden {
+  display: none;
+}
+
+.chocolat-wrapper {
+  z-index: 99999999;
+}
+
+body[data-theme="dark"] .chocolat-overlay {
+  background: rgba(0,0,0,.8);
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .chocolat-overlay {
+    background: rgba(0,0,0,.8);
+  }
+}

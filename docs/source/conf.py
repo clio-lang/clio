@@ -16,9 +16,8 @@ import sys
 sys.path.append(os.path.abspath("./_ext"))
 sys.path.append(os.path.abspath("."))
 
-from versions import versions
 from versions import current_version
-
+from versions import versions
 
 # -- Project information -----------------------------------------------------
 
@@ -88,8 +87,15 @@ html_context = {
 html_static_path = ["_static"]
 
 html_css_files = [
+    'https://cdnjs.cloudflare.com/ajax/libs/chocolat/1.0.4/css/chocolat.min.css',
     'css/custom.css',
 ]
+
+html_js_files = [
+    'https://cdnjs.cloudflare.com/ajax/libs/chocolat/1.0.4/js/chocolat.js',
+    'js/custom.js',
+]
+
 
 html_favicon = '_static/images/logo-512x512.png'
 html_logo = '_static/images/logo.png'

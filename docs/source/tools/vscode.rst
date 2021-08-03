@@ -5,7 +5,28 @@ Clio Language Support for Visual Studio code adds syntax highlighting, code comp
 suggestions and debugging features to VSCode. You can check the `source here`_ or check
 the `package on VSCode marketplace`_.
 
-.. image:: ../_static/images/vscode.png
+.. figure:: ../_static/images/vscode.png
+   :alt: Clio syntax highlighting for Visual Studio Code
+
+   Clio code highlighting in VSCode using the official Clio VSCode extension
+
+Language Server
+---------------
+
+You can install the Clio language server to get better code completion on VSCode. To enable
+the Clio language server, first you need to install it using npm:
+
+.. code-block:: bash
+   
+   npm i -g clio-language-server
+
+Then, you need to head on to the Clio extension settings in VSCode and activate the feature:
+
+.. figure:: ../_static/images/vscode-settings.png
+   :alt: Visual Studio Code Clio configuration
+
+   Find "Clio configuration" in your VSCode settings, then click on
+   "Clio > Language Server: Enabled" to enable the language server support.
 
 Contributors
 ------------
