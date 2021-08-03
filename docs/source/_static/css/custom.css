@@ -119,3 +119,12 @@ body[data-theme="dark"] .version-select {
 .glightbox-clean .gslide-media {
   box-shadow: none !important;
 }
+
+.glightbox-clean .gdesc-inner {
+  padding: 0 1em !important;
+}
+
+.glightbox-clean .gslide-description {
+  border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
+}
