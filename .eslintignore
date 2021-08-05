@@ -19,4 +19,4 @@ packages/website
 packages/playground
 
 # FIXME: Find a solution for this:
-packages/run/src/runners/ww.js
+packages/run/src/lib/worker-path.mjs

@@ -48,6 +48,7 @@ or continue reading on this article to learn more about the language!
    cli/index
    modules/index
    tools/index
+   debug/index
    reference/index
    development/index
    links/index
