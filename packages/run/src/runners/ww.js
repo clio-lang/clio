@@ -18,7 +18,8 @@ const workers = async (file, server, { count }) => {
   for (let i = 0; i < workerCount; i++) {
     // TODO: parcel can't handle url parameters
     // FIXME: this only runs with parcel
-    const worker = new Worker(new URL("../workers/ww.js", import.meta.url), {
+    const { workerPath } = await import("../lib/worker-path.mjs");
+    const worker = new Worker(workerPath, {
       type: "module",
     });
     server.addWorker(worker);

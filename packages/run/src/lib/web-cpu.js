@@ -11,11 +11,12 @@ const workerFn = function () {
   });
 };
 
-const blobUrl = URL.createObjectURL(
-  new Blob(["(", workerFn.toString(), ")()"], {
-    type: "application/javascript",
-  })
-);
+const blobUrl = () =>
+  URL.createObjectURL(
+    new Blob(["(", workerFn.toString(), ")()"], {
+      type: "application/javascript",
+    })
+  );
 
 function sample(max, samples, numWorkers) {
   return new Promise((resolve) => {
@@ -39,7 +40,7 @@ function map(numWorkers, callback) {
   const workers = [];
   const results = [];
   for (let i = 0; i < numWorkers; ++i) {
-    const worker = new Worker(blobUrl);
+    const worker = new Worker(blobUrl());
     worker.addEventListener("message", function (e) {
       results.push(e.data);
       if (results.length === numWorkers) {
