@@ -16,18 +16,16 @@ const unfinished = [
   "fnOpen",
 ];
 
+const addLineNumber = (start, length) => (line, index) =>
+  " " + (index + start + 1).toString().padStart(length, " ") + " | " + line;
+
 const getMessage = ({ file, line, start, column, source, expecting, rhs }) => {
   const rawCode = source.split("\n").slice(start, line).join("\n");
   const highlighted = colorize(rawCode);
   const encountered = chalk.red(getRuleName(rhs.item.type));
   const lines = highlighted.split("\n");
-  const { length } = (start + lines.length).toString();
-  const code = lines
-    .map(
-      (line, index) =>
-        " " + (index + start).toString().padStart(length, " ") + " | " + line
-    )
-    .join("\n");
+  const { length } = (start + 1 + lines.length).toString();
+  const code = lines.map(addLineNumber(start, length)).join("\n");
   const parseError = `Expecting one of:\n\n${expecting}\n\nbut encountered ${encountered}`;
   const message = [
     `Parsing error at ${file}[${line}:${column}]\n`,
