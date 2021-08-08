@@ -17,9 +17,7 @@ const parses = new Map();
 function errorToDiagnostic(error) {
   const { line, column } = error.meta;
   const message =
-    error instanceof ParsingError
-      ? error.meta.message.split("\n").pop()
-      : error.meta.message;
+    error instanceof ParsingError ? error.meta.parseError : error.meta.message;
   const pos = {
     line: line - 1,
     character: column,
