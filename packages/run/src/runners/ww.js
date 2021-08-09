@@ -15,10 +15,10 @@ const getCPUCount = async () => {
 
 const workers = async (file, server, { count }) => {
   const workerCount = count === "cpu" ? await getCPUCount() : count;
+  const { workerPath } = await import("../lib/worker-path.mjs");
   for (let i = 0; i < workerCount; i++) {
     // TODO: parcel can't handle url parameters
     // FIXME: this only runs with parcel
-    const { workerPath } = await import("../lib/worker-path.mjs");
     const worker = new Worker(workerPath, {
       type: "module",
     });
