@@ -2,7 +2,6 @@ const rules = require("./rules");
 const { colorize } = require("clio-highlight");
 const chalk = require("chalk");
 
-/* istanbul ignore next */
 const unfinished = [
   "blockOpen",
   "addLhs",
@@ -52,7 +51,6 @@ class LexingError extends Error {
   }
 }
 
-/* istanbul ignore next */
 const findFirstUnfinished = (tokens) => {
   let lhs = tokens.first;
   let rhs = tokens.first.next;
@@ -69,7 +67,6 @@ const findFirstUnfinished = (tokens) => {
   return { lhs, rhs };
 };
 
-/* istanbul ignore next */
 const ruleNames = {
   lineBreak: "White Space",
   ranger: "Range",
@@ -83,7 +80,6 @@ const ruleNames = {
   parallelFn: "Parallel Function",
 };
 
-/* istanbul ignore next */
 const ruleGroups = {
   true: "Built-ins",
   false: "Built-ins",
@@ -105,13 +101,9 @@ const ruleGroups = {
   parameter: "Names",
 };
 
-/* istanbul ignore next */
 const titleCase = (name) => name[0].toUpperCase() + name.slice(1);
-
-/* istanbul ignore next */
 const getRuleName = (rule) => ruleNames[rule] || titleCase(rule);
 
-/* istanbul ignore next */
 const formatExpectedRules = (expectedRules) => {
   const groups = {};
   for (const rule of expectedRules) {
@@ -138,7 +130,6 @@ const formatExpectedRules = (expectedRules) => {
     .join("\n");
 };
 
-/* istanbul ignore next */
 const parsingError = (source, file, tokens) => {
   const { lhs, rhs } = findFirstUnfinished(tokens);
   const expectedRules = Object.keys(rules[lhs.item.type] || {});
