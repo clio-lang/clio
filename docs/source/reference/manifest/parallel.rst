@@ -77,6 +77,16 @@ execution:
     count = "cpu" # or a number
     server = "default"
 
+.. note::
+  The ``count`` option specifies how many workers you want to spawn for multi-processing
+  purposes. It can either be set to ``"cpu"`` or to a positive non-zero finite number.
+  The behavior of the ``"cpu"`` value is dependant on the runtime environment. If ``"cpu"``
+  is provided as the value for this option, Clio uses the ``os.cpus()`` function on Node to
+  determine the CPU count of the runtime environment. On the browsers Clio uses the
+  ``navigator.hardwareConcurrency`` value, if that value isn't available (for example,
+  on Safari) then Clio uses an estimation method based on web workers. Please note that
+  the web worker estimation method is not very accurate, but it is the fastest estimation
+  method available.
 
 Executor
 --------

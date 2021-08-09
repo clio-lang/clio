@@ -17,3 +17,6 @@ build
 packages/run/src/workers/ww.js
 packages/website
 packages/playground
+
+# FIXME: Find a solution for this:
+packages/run/src/lib/worker-path.mjs

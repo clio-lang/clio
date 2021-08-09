@@ -43,11 +43,13 @@ or continue reading on this article to learn more about the language!
    self
    install
    quick
+   platforms
    medium
    tutorial/index
    cli/index
    modules/index
    tools/index
+   debug/index
    reference/index
    development/index
    links/index

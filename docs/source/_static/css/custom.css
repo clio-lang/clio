@@ -119,3 +119,20 @@ body[data-theme="dark"] .version-select {
 .medium-zoom-image--opened {
   z-index: 999999;
 }
+
+.inline-icon {
+  height: 1em;
+  width: 1em;
+  display: inline-block;
+  transform: translateY(2px);
+  margin-right: .25em;
+}
+
+.footnote dd {
+  margin-inline-start: .5em;
+}
+
+.footnote p, dt {
+  margin: 0;
+  margin-top: 0 !important;
+}

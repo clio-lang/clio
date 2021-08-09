@@ -178,6 +178,7 @@ const build = async (configPath, options = {}) => {
       const contents = fs.readFileSync(file, "utf8");
       const { code, map } = await asyncCompile(contents, relativeFile).catch(
         (compileError) => {
+          progress.fail();
           console.error(compileError.message);
           process.exit(1);
         }
