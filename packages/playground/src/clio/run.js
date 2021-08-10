@@ -3,9 +3,10 @@ import { Dispatcher } from "clio-rpc/dispatcher";
 import { Executor } from "clio-rpc/executor";
 import WebWorker from "clio-rpc/transports/web-worker";
 import { getModule } from "./common";
+import { getCPUCount } from "clio-run/src/lib/web-cpu";
 
 export default async (src) => {
-  const numCPUs = navigator.hardwareConcurrency;
+  const numCPUs = await getCPUCount();
   const main = await getModule(src);
   const encoded = encodeURIComponent(src.replace(/%/g, "~~mod~~"));
 

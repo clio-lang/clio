@@ -34,7 +34,7 @@ The following browsers and platforms are officially supported:
 Browsers
 --------
 
-The default browser template for Clio uses Parcel_ for bundling the generated code,
+The default browser template for Clio uses Rollup_ and Babel_ for bundling the generated code,
 minimum supported browser versions can be set in project's ``clio.toml``. The default
 value is ``["defaults", "not IE 11"]``.
 
@@ -59,4 +59,5 @@ value is ``["defaults", "not IE 11"]``.
 .. |node| image:: ./_static/images/node.svg
   :class: inline-icon
 
-.. _Parcel: https://parceljs.org
+.. _Rollup: https://rollupjs.org
+.. _Babel: https://babeljs.io

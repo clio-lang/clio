@@ -1,7 +1,8 @@
 const { run } = require("../index");
 const { Executor } = require("clio-rpc/executor");
 const WebWorker = require("clio-rpc/transports/web-worker");
-const webCPU = require("../lib/web-cpu");
+const { getCPUCount } = require("../lib/web-cpu");
+const workerPath = require("worker.clio.js");
 
 const server = async (dispatcher, options) => {
   const serverTransport = new WebWorker.Server();
@@ -9,19 +10,12 @@ const server = async (dispatcher, options) => {
   return serverTransport;
 };
 
-const getCPUCount = async () => {
-  return window.navigator.hardwareConcurrency || webCPU.sample([], 10, 16);
-};
-
 const workers = async (file, server, { count }) => {
   const workerCount = count === "cpu" ? await getCPUCount() : count;
-  const { workerPath } = await import("../lib/worker-path.mjs");
   for (let i = 0; i < workerCount; i++) {
     // TODO: parcel can't handle url parameters
     // FIXME: this only runs with parcel
-    const worker = new Worker(workerPath, {
-      type: "module",
-    });
+    const worker = new Worker(workerPath, { type: "module" });
     server.addWorker(worker);
   }
 };

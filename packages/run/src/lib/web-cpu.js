@@ -1,6 +1,8 @@
 // https://stackoverflow.com/a/21818781
 // create worker concurrency estimation code as blob
 
+const cpu = {};
+
 const workerFn = function () {
   self.addEventListener("message", () => {
     // run worker for 4 ms
@@ -84,4 +86,12 @@ function reduce(numWorkers, results) {
   }, 0);
 }
 
-module.exports.sample = sample;
+async function getCPUCount() {
+  if (!cpu.count) {
+    cpu.count =
+      window.navigator.hardwareConcurrency || (await sample([], 10, 16));
+  }
+  return cpu.count;
+}
+
+module.exports.getCPUCount = getCPUCount;
