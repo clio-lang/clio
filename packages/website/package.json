@@ -1,6 +1,6 @@
 {
   "name": "clio-website",
-  "version": "1.5.4",
+  "version": "1.5.5",
   "scripts": {
     "worker": "mkdir -p public/build && cd ../playground && npm run worker && cp public/build/worker* ../website/public/build",
     "build": "npm run worker && rollup -c",
@@ -22,7 +22,7 @@
   "dependencies": {
     "@rollup/plugin-alias": "^3.1.2",
     "chart.js": "^3.3.0",
-    "clio-playground": "^0.5.4",
+    "clio-playground": "^0.5.5",
     "sirv-cli": "^1.0.12"
   }
 }

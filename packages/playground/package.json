@@ -1,6 +1,6 @@
 {
   "name": "clio-playground",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "scripts": {
     "build": "npm run worker && rollup -c",
     "worker": "rollup -c worker.rollup.config.js",
@@ -23,9 +23,9 @@
   },
   "dependencies": {
     "@surma/rollup-plugin-off-main-thread": "^2.2.2",
-    "clio-core": "^0.8.0",
+    "clio-core": "^0.8.1",
     "clio-rpc": "^0.6.1",
-    "clio-run": "^0.7.0",
+    "clio-run": "^0.7.1",
     "fontfaceobserver": "^2.1.0",
     "object-inspect": "^1.10.3",
     "sirv-cli": "^1.0.12"

@@ -1,6 +1,6 @@
 {
   "name": "clio-core",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -15,6 +15,6 @@
     "source-map": "^0.7.3"
   },
   "devDependencies": {
-    "clio-run": "^0.7.0"
+    "clio-run": "^0.7.1"
   }
 }
