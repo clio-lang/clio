@@ -154,7 +154,6 @@
   };
 
   const compileAndRun = (event) => {
-    const { log } = console;
     event.preventDefault();
     (async () => {
       const lines = [];
