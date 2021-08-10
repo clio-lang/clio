@@ -41,11 +41,12 @@ Templates
 
 Clio uses templates for creating the projects. Official templates are
 “`web`_” and “`node`_”. The “web” template is setup to bundle your
-project for the web, using `Parcel`_ bundler. You can use any git
+project for the web, using Babel_ and Rollup_ bundler. You can use any git
 repository as a template, just pass the clone address of the git to the
 ``--template`` flag (in form of ``https://address/of/git/repo`` or
 ``git@host:repo`` ).
 
 .. _web: https://github.com/clio-lang/template-web
 .. _node: https://github.com/clio-lang/template-node
-.. _Parcel: https://parceljs.org/
+.. _Rollup: https://rollupjs.org
+.. _Babel: https://babeljs.io
