@@ -345,4 +345,9 @@
   .copied.isActive {
     animation: appear 4s ease-in forwards;
   }
+  @media only screen and (max-width: 600px) {
+    .sample {
+      display: none;
+    }
+  }
 </style>
