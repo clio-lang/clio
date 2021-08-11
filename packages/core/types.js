@@ -3,13 +3,25 @@ const { SourceNode } = require("source-map");
 const { existsSync, lstatSync } = require("fs");
 const { join: joinPath, dirname, relative, resolve } = require("path");
 
+class ImportError extends Error {
+  constructor(meta) {
+    super(meta.message);
+    this.meta = meta;
+  }
+}
+
 const ensureClioExtension = (path) =>
   path.endsWith(".clio") ? path : path + ".clio";
 
-const getModulePath = (sourceDir, file, path) => {
+const getModulePath = (sourceDir, file, path, line, column) => {
   if (!sourceDir) {
     return ensureClioExtension(path) + ".js";
   }
+  const error = new ImportError({
+    message: `Cannot find module "${path}"`,
+    line,
+    column,
+  });
   const currDir = dirname(joinPath(sourceDir, file));
   let resolvePath = path.startsWith(".")
     ? resolve(currDir, path)
@@ -19,12 +31,10 @@ const getModulePath = (sourceDir, file, path) => {
     if (!resolvePath.endsWith(".clio")) {
       resolvePath += ".clio";
       if (!existsSync(resolvePath)) {
-        console.log(`Cannot find module "${path}"`);
-        throw `Cannot find module "${path}"`;
+        throw error;
       }
     } else {
-      console.log(`Cannot find module "${path}"`);
-      throw `Cannot find module "${path}"`;
+      throw error;
     }
   }
   const isDirectory = lstatSync(resolvePath).isDirectory();
@@ -32,8 +42,7 @@ const getModulePath = (sourceDir, file, path) => {
     ? joinPath(resolvePath, "main.clio")
     : ensureClioExtension(resolvePath);
   if (!existsSync(resolvePath)) {
-    console.log(`Cannot find module "${path}"`);
-    throw `Cannot find module "${path}"`;
+    throw error;
   }
   return relative(currDir, resolvePath) + ".js";
 };
@@ -367,7 +376,9 @@ const types = {
       const modulePath = getModulePath(
         node.import.sourceDir,
         node.import.file,
-        path
+        path,
+        node.path.line,
+        node.path.column
       );
 
       require = new SourceNode(
@@ -784,6 +795,7 @@ const get = (node) => {
   return result;
 };
 
+module.exports.ImportError = ImportError;
 module.exports.checkLambda = checkLambda;
 module.exports.types = types;
 module.exports.get = get;
