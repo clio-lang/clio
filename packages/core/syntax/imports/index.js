@@ -4,36 +4,55 @@ const { wrap } = require("../common");
 module.exports = {
   // Import
   import: {
+    string: wrap((lhs, rhs) => {
+      return { type: "importStatement", import: lhs, path: rhs };
+    }),
+  },
+  from: {
+    string: wrap((lhs, rhs) => {
+      return {
+        type: "fromPath",
+        path: rhs,
+        from: lhs,
+        items: [],
+      };
+    }, 30),
+  },
+  fromPath: {
+    import: wrap((lhs, rhs) => {
+      return {
+        ...lhs,
+        import: rhs,
+        type: "importFromOpen",
+      };
+    }, 29),
+  },
+  importFromOpen: {
     ...map(
       ["asClause", "symbol"],
       wrap((lhs, rhs) => {
-        return { type: "importOpen", items: [rhs], import: lhs };
-      }, 17)
+        return {
+          ...lhs,
+          items: [rhs],
+          type: "importFromTail",
+        };
+      }, 31)
     ),
-    string: wrap((lhs, rhs) => {
-      return { type: "imported", import: lhs, path: rhs };
-    }),
   },
-  importOpen: {
+  importFromTail: {
     ...map(
       ["asClause", "symbol"],
       wrap((lhs, rhs) => {
         lhs.items.push(rhs);
         return lhs;
-      }, 18)
+      }, 31)
     ),
-    from: wrap((lhs, rhs) => {
-      lhs.from = rhs;
-      lhs.type = "importFromOpen";
-      return lhs;
-    }),
-  },
-  importFromOpen: {
-    string: wrap((lhs, rhs) => {
-      lhs.path = rhs;
-      lhs.type = "imported";
-      return lhs;
-    }),
+    lineBreak: wrap((lhs) => {
+      return {
+        ...lhs,
+        type: "importStatement",
+      };
+    }, 99),
   },
   ...map(["symbol", "mulOp"], {
     as: wrap((lhs, rhs) => {

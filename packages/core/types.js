@@ -286,7 +286,7 @@ const types = {
     sn.insertBefore = [value.insertBefore, value].filter(Boolean);
     return sn;
   },
-  imported(node) {
+  importStatement(node) {
     /* each import has 2 parts:
         1. import
         2. assign

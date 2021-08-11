@@ -406,7 +406,7 @@ testStr(
 testStr("Import (JS)", `import "js:test"`, `const test=require("test")`);
 testStr(
   "Import (Multiple)",
-  `import a b c from "sub/test"`,
+  `from "sub/test" import a b c`,
   `const{a,b,c}=await require("sub/test.clio.js").exports(clio)`
 );
 testStr(
@@ -416,17 +416,17 @@ testStr(
 );
 testStr(
   "Import (As)",
-  `import a as b from "js:test"`,
+  `from "js:test" import a as b`,
   `const{a:b}=require("test")`
 );
 testStr(
   "Import (All as)",
-  `import * as b from "js:test"`,
+  `from "js:test" import * as b`,
   `const b=require("test")`
 );
 testStr(
   "Import (Complex)",
-  `import a b c as d * as t from "js:test"`,
+  `from "js:test" import a b c as d * as t`,
   `const{a,b,c:d,...t}=require("test")`
 );
 testStr(
