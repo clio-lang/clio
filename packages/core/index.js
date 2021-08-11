@@ -5,8 +5,8 @@ const rules = require("./rules");
 const { parsingError } = require("./errors");
 
 const parse = (tokens) => bean(tokens, rules);
-const compile = (source, file, debug = false) => {
-  const tokens = lex(source, file);
+const compile = (source, file, { sourceDir, debug = false }) => {
+  const tokens = lex(source, { file, sourceDir });
   /* istanbul ignore next */
   if (debug) console.dir(tokens.current, { depth: null });
   const result = parse(tokens);

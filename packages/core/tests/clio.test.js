@@ -3,7 +3,7 @@ const fs = require("fs");
 
 const testStr = (name, src, expected, file = "<mem>") => {
   return test(name, () => {
-    const { code } = compile(src, file);
+    const { code } = compile(src, file, { sourceDir: null });
     expected =
       "module.exports.exports=async(clio)=>{const{emitter,channel,range,slice,remote,register,man,includes,f}=clio;" +
       expected +
@@ -475,7 +475,7 @@ testFile(
 );
 testFile(
   "express",
-  'const express=await require("express.clio.js").exports(clio);const hello=register(`express.clio/hello`,(req,res)=>{return res.send(`Hello world`)});const setup=register(`express.clio/setup`,(app)=>{app.get(`/`,hello);return app.listen(3000)});const main=register(`express.clio/main`,(argv)=>{const setup=express();return setup});clio.exports.main=main'
+  'const express=require("express");const hello=register(`express.clio/hello`,(req,res)=>{return res.send(`Hello world`)});const setup=register(`express.clio/setup`,(app)=>{app.get(`/`,hello);return app.listen(3000)});const main=register(`express.clio/main`,(argv)=>{const setup=express();return setup});clio.exports.main=main'
 );
 testFile(
   "hello",

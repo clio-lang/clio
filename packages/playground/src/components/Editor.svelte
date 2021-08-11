@@ -164,7 +164,7 @@
       console.error = console.log;
       try {
         const src = editor.getValue();
-        const { code } = compile(src, "main.clio");
+        const { code } = compile(src, "main.clio", { sourceDir: null });
         const main = await run(code);
         const now = performance.now();
         await main();

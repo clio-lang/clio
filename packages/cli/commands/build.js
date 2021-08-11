@@ -176,13 +176,13 @@ const build = async (configPath, options = {}) => {
       const destFile = `${destFileClio}.js`;
       const destDir = path.dirname(destFile);
       const contents = fs.readFileSync(file, "utf8");
-      const { code, map } = await asyncCompile(contents, relativeFile).catch(
-        (compileError) => {
-          progress.fail();
-          console.error(compileError.message);
-          process.exit(1);
-        }
-      );
+      const { code, map } = await asyncCompile(contents, relativeFile, {
+        sourceDir,
+      }).catch((compileError) => {
+        progress.fail();
+        console.error(compileError.message);
+        process.exit(1);
+      });
       mkdir(destDir);
       await fs.promises.writeFile(destFileClio, contents, "utf8");
       await fs.promises.writeFile(destFile, code, "utf8");
@@ -245,12 +245,12 @@ const build = async (configPath, options = {}) => {
           .replace(ENV_NAME, "node_modules");
         const destFile = `${destFileClio}.js`;
         const contents = await fs.promises.readFile(file, "utf8");
-        const { code, map } = await asyncCompile(contents, relativeFile).catch(
-          (compileError) => {
-            console.error(compileError.message);
-            process.exit(1);
-          }
-        );
+        const { code, map } = await asyncCompile(contents, relativeFile, {
+          sourceDir,
+        }).catch((compileError) => {
+          console.error(compileError.message);
+          process.exit(1);
+        });
         const destDir = path.dirname(destFile);
         mkdir(destDir);
         await fs.promises.writeFile(destFileClio, contents, "utf8");

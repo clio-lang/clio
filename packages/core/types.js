@@ -1,5 +1,42 @@
 const { mapfn, map } = require("bean-parser");
 const { SourceNode } = require("source-map");
+const { existsSync, lstatSync } = require("fs");
+const { join: joinPath, dirname, relative, resolve } = require("path");
+
+const ensureClioExtension = (path) =>
+  path.endsWith(".clio") ? path : path + ".clio";
+
+const getModulePath = (sourceDir, file, path) => {
+  if (!sourceDir) {
+    return ensureClioExtension(path) + ".js";
+  }
+  const currDir = dirname(joinPath(sourceDir, file));
+  let resolvePath = path.startsWith(".")
+    ? resolve(currDir, path)
+    : joinPath(sourceDir, ".clio", "modules", path);
+  if (!existsSync(resolvePath)) {
+    // try adding .clio
+    if (!resolvePath.endsWith(".clio")) {
+      resolvePath += ".clio";
+      if (!existsSync(resolvePath)) {
+        console.log(`Cannot find module "${path}"`);
+        throw `Cannot find module "${path}"`;
+      }
+    } else {
+      console.log(`Cannot find module "${path}"`);
+      throw `Cannot find module "${path}"`;
+    }
+  }
+  const isDirectory = lstatSync(resolvePath).isDirectory();
+  resolvePath = isDirectory
+    ? joinPath(resolvePath, "main.clio")
+    : ensureClioExtension(resolvePath);
+  if (!existsSync(resolvePath)) {
+    console.log(`Cannot find module "${path}"`);
+    throw `Cannot find module "${path}"`;
+  }
+  return relative(currDir, resolvePath) + ".js";
+};
 
 const join = (arr, sep) => new SourceNode(null, null, null, arr).join(sep);
 const asIs = (token) =>
@@ -317,16 +354,27 @@ const types = {
         ["require(", '"', path, '")']
       );
     } /* istanbul ignore next */ else if (protocol === "clio") {
+      /*
+        Resolve imports:
+
+          1. Check if import is relative or not
+          2. Check if import path exists
+          3. Check if import path is a directory or not
+          4. Check if we need to append .clio to the import path
+      
+      */
+
+      const modulePath = getModulePath(
+        node.import.sourceDir,
+        node.import.file,
+        path
+      );
+
       require = new SourceNode(
         node.import.line,
         node.import.column,
         node.import.file,
-        [
-          "await require(",
-          '"',
-          path + (path.endsWith(".clio") ? ".js" : ".clio.js"),
-          '").exports(clio)',
-        ]
+        ["await require(", '"', modulePath, '").exports(clio)']
       );
     } else {
       require = new SourceNode(
