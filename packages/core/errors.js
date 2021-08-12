@@ -41,7 +41,7 @@ const getImportErrorMessage = ({
   start,
   column,
   source,
-  parseError,
+  importError,
 }) => {
   const rawCode = source.split("\n").slice(start, line).join("\n");
   const highlighted = colorize(rawCode);
@@ -52,9 +52,9 @@ const getImportErrorMessage = ({
     `Import error at ${file}[${line}:${column}]\n`,
     code,
     " ".repeat(column + length + 4) + "^",
-    `\n${parseError}`,
+    `\n${importError}`,
   ].join("\n");
-  return { message, parseError };
+  return { message };
 };
 
 class ParsingError extends Error {
@@ -181,14 +181,14 @@ const parsingError = (source, file, tokens) => {
 
 const importError = (source, file, error) => {
   const { line, column } = error.meta;
-  const parseError = error.meta.message;
+  const importError = error.meta.message;
   const start = Math.max(0, line - 3);
   return new ImportError({
     source,
     file,
     line,
     column,
-    parseError,
+    importError,
     start,
   });
 };

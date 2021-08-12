@@ -21,7 +21,9 @@ const testFile = (name, expected) => {
 
 const shouldThrow = (name, src, err, file = "<mem>") => {
   return test(name, () => {
-    expect(() => compile(src, file)).toThrowError();
+    expect(() => compile(src, file, { sourceDir: null })).toThrowError(
+      new RegExp(err)
+    );
   });
 };
 
@@ -499,4 +501,4 @@ shouldThrow("Imbalanced curly braces", "}{}}", "Imbalanced curly braces");
 shouldThrow("Imbalanced square braces", "][]]", "Imbalanced square braces");
 shouldThrow("Imbalanced parentheses", ")())", "Imbalanced parentheses");
 shouldThrow("Unsupported character", "!", "Unsupported character !");
-shouldThrow("Calling an integer", "xyz -> 123", "but encountered Number");
+shouldThrow("Calling an integer", "xyz -> 123", "but encountered .*Number");

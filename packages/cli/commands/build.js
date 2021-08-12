@@ -178,6 +178,7 @@ const build = async (configPath, options = {}) => {
       const contents = fs.readFileSync(file, "utf8");
       const { code, map } = await asyncCompile(contents, relativeFile, {
         sourceDir,
+        root: process.cwd(),
       }).catch((compileError) => {
         progress.fail();
         console.error(compileError.message);
@@ -247,6 +248,7 @@ const build = async (configPath, options = {}) => {
         const contents = await fs.promises.readFile(file, "utf8");
         const { code, map } = await asyncCompile(contents, relativeFile, {
           sourceDir,
+          root: process.cwd(),
         }).catch((compileError) => {
           console.error(compileError.message);
           process.exit(1);

@@ -17,7 +17,7 @@ const whites = ["space", "lineBreak", "indent", "outdent", "slicer", "format"];
 const wraps = ["lCurly", "lSquare", "lParen"];
 const zsIgnore = [...whites, "dot", "ranger", ...wraps];
 
-const lex = (source, { file, sourceDir }, startLine = 1, startColumn = 0) => {
+const lex = (source, { file, ...meta }, startLine = 1, startColumn = 0) => {
   const tokens = list([]);
   const levels = [0];
   let line = startLine; // Mozilla SourceMap library is 1-based, unfortunately
@@ -26,7 +26,7 @@ const lex = (source, { file, sourceDir }, startLine = 1, startColumn = 0) => {
   let curlies = 0;
   let parens = 0;
   const token = (type, value = "", length = value.length) => {
-    tokens.push({ type, value, line, column, file, sourceDir });
+    tokens.push({ type, value, line, column, file, ...meta });
     source = source.slice(length);
     column += length;
   };

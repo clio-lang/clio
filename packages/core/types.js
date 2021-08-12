@@ -13,38 +13,43 @@ class ImportError extends Error {
 const ensureClioExtension = (path) =>
   path.endsWith(".clio") ? path : path + ".clio";
 
-const getModulePath = (sourceDir, file, path, line, column) => {
+const getModulePath = (root, sourceDir, file, path, line, column) => {
   if (!sourceDir) {
     return ensureClioExtension(path) + ".js";
   }
-  const error = new ImportError({
-    message: `Cannot find module "${path}"`,
+  const currDir = dirname(joinPath(root, sourceDir, file));
+  const possiblePaths = [];
+  const resolvePath = path.match(/\.{1,2}\//)
+    ? resolve(currDir, path)
+    : joinPath(root, sourceDir, ".clio", "modules", path);
+
+  if (!resolvePath.endsWith(".clio")) {
+    possiblePaths.push(resolvePath + ".clio");
+  } else {
+    possiblePaths.push(resolvePath);
+  }
+  possiblePaths.push(joinPath(resolvePath, "main.clio"));
+
+  for (const path of possiblePaths) {
+    if (existsSync(path)) {
+      if (path.match(/\.{1,2}\//)) {
+        return path + ".js";
+      }
+      const relativePath = relative(currDir, path) + ".js";
+      return relativePath.match(/\.{1,2}\//)
+        ? relativePath
+        : "./" + relativePath;
+    }
+  }
+
+  throw new ImportError({
+    message: [
+      `Cannot find module "${path}" in any of the following locations:\n`,
+      ...possiblePaths.map((path) => `  - ${relative(root, path)}`),
+    ].join("\n"),
     line,
     column,
   });
-  const currDir = dirname(joinPath(sourceDir, file));
-  let resolvePath = path.startsWith(".")
-    ? resolve(currDir, path)
-    : joinPath(sourceDir, ".clio", "modules", path);
-  if (!existsSync(resolvePath)) {
-    // try adding .clio
-    if (!resolvePath.endsWith(".clio")) {
-      resolvePath += ".clio";
-      if (!existsSync(resolvePath)) {
-        throw error;
-      }
-    } else {
-      throw error;
-    }
-  }
-  const isDirectory = lstatSync(resolvePath).isDirectory();
-  resolvePath = isDirectory
-    ? joinPath(resolvePath, "main.clio")
-    : ensureClioExtension(resolvePath);
-  if (!existsSync(resolvePath)) {
-    throw error;
-  }
-  return relative(currDir, resolvePath) + ".js";
 };
 
 const join = (arr, sep) => new SourceNode(null, null, null, arr).join(sep);
@@ -374,6 +379,7 @@ const types = {
       */
 
       const modulePath = getModulePath(
+        node.import.root,
         node.import.sourceDir,
         node.import.file,
         path,
