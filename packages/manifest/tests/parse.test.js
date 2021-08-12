@@ -12,5 +12,10 @@ describe("pkgr/utils/parse", () => {
         tag,
       });
     });
+    test("Should throw on faulty git addr", () => {
+      expect(() => parsePackageId(url)).toThrowError(
+        "Failed to parse the package id"
+      );
+    });
   });
 });

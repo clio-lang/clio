@@ -32,6 +32,5 @@ module.exports = {
         data: lhs,
       };
     }),
-    ender: wrap((lhs) => lhs),
   },
 };

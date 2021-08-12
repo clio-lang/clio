@@ -23,7 +23,7 @@ class Range {
   take(n) {
     return new Range(
       this.start,
-      this.start + n * this.step - this.step,
+      this.start + n * this.step,
       this.step,
       this.mapfn
     );
