@@ -33,21 +33,6 @@ function hasClioDependencies(configPath) {
 const logNoClioDeps = (configPath) =>
   console.log(`No dependencies found in ${configPath}`);
 
-/**
- * Returns true if the project has at least one dependency listed in the package
- * config file.
- *
- * @params {string[]} depId - [id, version] of the dependency to check
- * @returns {bool}
- */
-function hasClioDependency(configPath, [depId, depVersion]) {
-  const found = getPackageDependencies(configPath).find(
-    ({ name, version }) => name === depId && version === depVersion
-  );
-
-  return found !== undefined;
-}
-
 /* Dependency fetching */
 
 /**

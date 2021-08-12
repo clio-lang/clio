@@ -1,9 +1,7 @@
 const path = require("path");
-const fs = require("fs");
 
 const { installDependency } = require("clio-manifest");
 const { error } = require("../../lib/colors");
-const { configPrompt } = require("../../lib/config");
 
 exports.command = "add <source> [project] [options]";
 exports.desc = "Add a new dependency";
