@@ -1,6 +1,6 @@
 const { mapfn, map } = require("bean-parser");
 const { SourceNode } = require("source-map");
-const { existsSync, lstatSync } = require("fs");
+const { existsSync } = require("fs");
 const { join: joinPath, dirname, relative, resolve } = require("path");
 
 class ImportError extends Error {
