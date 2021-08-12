@@ -233,42 +233,6 @@ const build = async (configPath, options = {}) => {
       error(e, "Dependency Install");
       // process.exit(4);
     }
-
-    // Build clio deps
-    // TODO: FIXME
-    if (fs.existsSync(path.join(sourceDir, ENV_NAME))) {
-      progress.start("Compiling Clio dependencies...");
-      const files = getClioFiles(path.join(sourceDir, ENV_NAME));
-      for (const file of files) {
-        const relativeFile = path.relative(sourceDir, file);
-        const destFileClio = path
-          .join(destination, relativeFile)
-          .replace(ENV_NAME, "node_modules");
-        const destFile = `${destFileClio}.js`;
-        const contents = await fs.promises.readFile(file, "utf8");
-        const { code, map } = await asyncCompile(contents, relativeFile, {
-          sourceDir,
-          root: path.dirname(configPath),
-        }).catch((compileError) => {
-          console.error(compileError.message);
-          process.exit(1);
-        });
-        const destDir = path.dirname(destFile);
-        mkdir(destDir);
-        await fs.promises.writeFile(destFileClio, contents, "utf8");
-        await fs.promises.writeFile(destFile, code, "utf8");
-        await fs.promises.writeFile(`${destFile}.map`, map, "utf8");
-      }
-      progress.succeed();
-
-      // Build package.json files
-      progress.start("Linking Clio dependencies...");
-      const clioDepDirs = fs.readdirSync(path.join(sourceDir, ENV_NAME));
-      for (const depDir of clioDepDirs) {
-        buildPackageJson(sourceDir, depDir, destination);
-      }
-      progress.succeed();
-    }
   } catch (e) {
     progress.fail(`Error: ${e}`);
     error(e, "Compilation");
