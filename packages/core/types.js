@@ -15,7 +15,7 @@ const ensureClioExtension = (path) =>
   path.endsWith(".clio") ? path : path + ".clio";
 
 const resolveRelativeModule = (meta, path, line, column) => {
-  const currDir = dirname(joinPath(meta.root, meta.sourceDir, file));
+  const currDir = dirname(joinPath(meta.root, meta.sourceDir, meta.file));
   const possiblePaths = [];
   const resolvePath = resolve(currDir, path);
 
