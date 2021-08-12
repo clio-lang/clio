@@ -7,7 +7,7 @@ class Range {
     this.index = 0;
   }
   get length() {
-    return Math.floor((this.start - this.end) / this.step);
+    return Math.floor((this.end - this.start) / this.step);
   }
   map(fn) {
     const mapfn = this.mapfn
