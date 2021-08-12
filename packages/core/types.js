@@ -417,6 +417,7 @@ const types = {
       .replace(/\.[^.]*$/, "")
       .split("/")
       .pop()
+      .replace(/@.*$/, "")
       .split(/[-._]+/)
       .filter(Boolean)
       .map((v, i) => (i > 0 ? v[0].toUpperCase() + v.slice(1) : v))
