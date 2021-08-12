@@ -3,7 +3,10 @@ const fs = require("fs");
 
 const testStr = (name, src, expected, file = "<mem>") => {
   return test(name, () => {
-    const { code } = compile(src, file, { sourceDir: null });
+    const { code } = compile(src, file, {
+      sourceDir: null,
+      rpcPrefix: "test",
+    });
     expected =
       "module.exports.exports=async(clio)=>{const{emitter,channel,range,slice,remote,register,man,includes,f}=clio;" +
       expected +
@@ -102,7 +105,7 @@ testStr(
 testStr(
   "Hashmap (As Arg Returned)",
   `fn test:\n  add # title: title checked: false`,
-  "const test=register(`<mem>/test`,()=>{return add({title:title,checked:false})})"
+  "const test=register(`test://<mem>/test`,()=>{return add({title:title,checked:false})})"
 );
 testStr(
   "Hashmap (Multiline)",
@@ -144,60 +147,60 @@ testStr("Not (Chained)", "not a > b and not b < c", "(!((a>b)))&&(!((b<c)))");
 testStr(
   "Functions",
   "fn add a b:\n  a + b",
-  "const add=register(`<mem>/add`,(a,b)=>{return a+b})"
+  "const add=register(`test://<mem>/add`,(a,b)=>{return a+b})"
 );
 testStr(
   "Functions (One line, Range)",
   `fn row: (x - 1) .. (x + 2) -> .toArray -> .filter (@it >= 0)`,
-  "const row=register(`<mem>/row`,()=>{return range((x-1),(x+2),null).toArray().filter(((it)=>(it>=0)))})"
+  "const row=register(`test://<mem>/row`,()=>{return range((x-1),(x+2),null).toArray().filter(((it)=>(it>=0)))})"
 );
 testStr(
   "Functions (With Man)",
   "-- Adds a and b!\nfn add a b:\n  a + b",
-  "const add=register(`<mem>/add`,(a,b)=>{return a+b});add.__doc__=`-- Adds a and b!`"
+  "const add=register(`test://<mem>/add`,(a,b)=>{return a+b});add.__doc__=`-- Adds a and b!`"
 );
 testStr(
   "Functions (With Block Man)",
   "+- Adds a and b!-+\nfn add a b:\n  a + b",
-  "const add=register(`<mem>/add`,(a,b)=>{return a+b});add.__doc__=`+- Adds a and b!-+`"
+  "const add=register(`test://<mem>/add`,(a,b)=>{return a+b});add.__doc__=`+- Adds a and b!-+`"
 );
 testStr(
   "Functions (With Nested Block Man)",
   "+- Adds +- a -+ and b!-+\nfn add a b:\n  a + b",
-  "const add=register(`<mem>/add`,(a,b)=>{return a+b});add.__doc__=`+- Adds +- a -+ and b!-+`"
+  "const add=register(`test://<mem>/add`,(a,b)=>{return a+b});add.__doc__=`+- Adds +- a -+ and b!-+`"
 );
 testStr(
   "Functions (Expression)",
   "fn add a b: a + b",
-  "const add=register(`<mem>/add`,(a,b)=>{return a+b})"
+  "const add=register(`test://<mem>/add`,(a,b)=>{return a+b})"
 );
 testStr(
   "Functions (Return Assignment)",
   "fn add a b:\n  c = a + b",
-  "const add=register(`<mem>/add`,(a,b)=>{const c=a+b;return c})"
+  "const add=register(`test://<mem>/add`,(a,b)=>{const c=a+b;return c})"
 );
 testStr(
   "Functions (Return Flow Assignment)",
   "fn add a b:\n  a + b => c",
-  "const add=register(`<mem>/add`,(a,b)=>{const c=a+b;return c})"
+  "const add=register(`test://<mem>/add`,(a,b)=>{const c=a+b;return c})"
 );
 testStr(
   "Functions (Return Mixed Assignment)",
   "fn add a b:\n  c = a + b => sum -> mul 4",
-  "const add=register(`<mem>/add`,(a,b)=>{const sum=a+b;const c=mul(sum,4);return c})"
+  "const add=register(`test://<mem>/add`,(a,b)=>{const sum=a+b;const c=mul(sum,4);return c})"
 );
 testStr(
   "Functions (Async)",
   `fn test a b:
   await |add| a b`,
-  "const test=register(`<mem>/test`,async(a,b)=>{return (await add.parallel(a,b))})"
+  "const test=register(`test://<mem>/test`,async(a,b)=>{return (await add.parallel(a,b))})"
 );
 testStr(
   "Functions (Nested Async)",
   `fn outer x:
   fn inner a b:
   await |add| a b`,
-  "const outer=register(`<mem>/outer`,(x)=>{const inner=register(`<mem>/inner`,async(a,b)=>{return (await add.parallel(a,b))});return inner})"
+  "const outer=register(`test://<mem>/outer`,(x)=>{const inner=register(`test://<mem>/inner`,async(a,b)=>{return (await add.parallel(a,b))});return inner})"
 );
 testStr("Map", "a -> * double", "a.map(double)");
 testStr(
@@ -242,12 +245,12 @@ testStr(
 testStr(
   "Conditionals (return)",
   "fn testStr a b:\n  if a > b:\n    c\n  else if a == b:\n    d\n  else:\n    x",
-  "const testStr=register(`<mem>/testStr`,(a,b)=>{if((a>b)){return c}else if((a===b)){return d}else{return x}})"
+  "const testStr=register(`test://<mem>/testStr`,(a,b)=>{if((a>b)){return c}else if((a===b)){return d}else{return x}})"
 );
 testStr(
   "Quick Fn (return)",
   "fn add a:\n  (a + @b)",
-  "const add=register(`<mem>/add`,(a)=>{return ((b)=>a+b)})"
+  "const add=register(`test://<mem>/add`,(a)=>{return ((b)=>a+b)})"
 );
 testStr("Method Call", ".push b c", "b.push(c)");
 testStr("Flow", "a -> double", "double(a)");
@@ -388,12 +391,12 @@ testStr("Assignment (Fat Arrow Call)", `double a => b`, "const b=double(a);b");
 testStr(
   "Export (Function)",
   `export fn test a b:\n  add a b`,
-  "const test=register(`<mem>/test`,(a,b)=>{return add(a,b)});clio.exports.test=test"
+  "const test=register(`test://<mem>/test`,(a,b)=>{return add(a,b)});clio.exports.test=test"
 );
 testStr(
   "Export (Function With Man)",
   `-- Adds a and b!\nexport fn test a b:\n  add a b`,
-  "const test=register(`<mem>/test`,(a,b)=>{return add(a,b)});test.__doc__=`-- Adds a and b!`;clio.exports.test=test"
+  "const test=register(`test://<mem>/test`,(a,b)=>{return add(a,b)});test.__doc__=`-- Adds a and b!`;clio.exports.test=test"
 );
 testStr(
   "Export (Constant)",
@@ -448,12 +451,12 @@ testStr("Correctly compiles groups", `await filter [a]`, "(await filter([a]))");
 testStr(
   "Ignore \\r",
   "fn add a b:\r\n  a + b",
-  "const add=register(`<mem>/add`,(a,b)=>{return a+b})"
+  "const add=register(`test://<mem>/add`,(a,b)=>{return a+b})"
 );
 testStr(
   "Ignore \\n at start and end of file",
   "\nfn add a b:\r\n  a + b\n",
-  "const add=register(`<mem>/add`,(a,b)=>{return a+b})"
+  "const add=register(`test://<mem>/add`,(a,b)=>{return a+b})"
 );
 testStr(
   "Ignore indents on comment lines",
@@ -461,31 +464,31 @@ testStr(
   5 -> console.log
 -- D between code-lines
   "Hello" -> console.log`,
-  "const main=register(`<mem>/main`,(argv)=>{console.log(5);return console.log(`Hello`)});clio.exports.main=main"
+  "const main=register(`test://<mem>/main`,(argv)=>{console.log(5);return console.log(`Hello`)});clio.exports.main=main"
 );
 testFile(
   "fib",
-  "const fib=register(`fib.clio/fib`,(n)=>{if((n<=2)){return n}else{return (fib(n-1))+(fib(n-2))}})"
+  "const fib=register(`test://fib.clio/fib`,(n)=>{if((n<=2)){return n}else{return (fib(n-1))+(fib(n-2))}})"
 );
 testFile(
   "fib.parallel",
-  "const fib=register(`fib.parallel.clio/fib`,(n)=>{if((n<2)){return n}else{return (fib(n-1))+(fib(n-2))}});const main=register(`fib.parallel.clio/main`,async(argv)=>{return (await Promise.all([39,40,41,42].map(fib.parallel))).map(((it)=>console.log(it)))});clio.exports.main=main"
+  "const fib=register(`test://fib.parallel.clio/fib`,(n)=>{if((n<2)){return n}else{return (fib(n-1))+(fib(n-2))}});const main=register(`test://fib.parallel.clio/main`,async(argv)=>{return (await Promise.all([39,40,41,42].map(fib.parallel))).map(((it)=>console.log(it)))});clio.exports.main=main"
 );
 testFile(
   "fizzbuzz",
-  "const fizzbuzz=register(`fizzbuzz.clio/fizzbuzz`,(current,last)=>{const buzz=!(current%5);const fizz=!(current%3);if((fizz)&&(buzz)){console.log(`Fizz Buzz`)}else if(fizz){console.log(`Fizz`)}else if(buzz){console.log(`Buzz`)}else{console.log(current)};if(!((current===last))){return fizzbuzz((current+1),last)}})"
+  "const fizzbuzz=register(`test://fizzbuzz.clio/fizzbuzz`,(current,last)=>{const buzz=!(current%5);const fizz=!(current%3);if((fizz)&&(buzz)){console.log(`Fizz Buzz`)}else if(fizz){console.log(`Fizz`)}else if(buzz){console.log(`Buzz`)}else{console.log(current)};if(!((current===last))){return fizzbuzz((current+1),last)}})"
 );
 testFile(
   "express",
-  'const express=require("express");const hello=register(`express.clio/hello`,(req,res)=>{return res.send(`Hello world`)});const setup=register(`express.clio/setup`,(app)=>{app.get(`/`,hello);return app.listen(3000)});const main=register(`express.clio/main`,(argv)=>{const setup=express();return setup});clio.exports.main=main'
+  'const express=require("express");const hello=register(`test://express.clio/hello`,(req,res)=>{return res.send(`Hello world`)});const setup=register(`test://express.clio/setup`,(app)=>{app.get(`/`,hello);return app.listen(3000)});const main=register(`test://express.clio/main`,(argv)=>{const setup=express();return setup});clio.exports.main=main'
 );
 testFile(
   "hello",
-  "const main=register(`hello.clio/main`,(argv)=>{return [`game`,`web`,`tools`,`science`,`systems`,`GUI`,`mobile`].map(((area)=>console.log(f(`Hello, `,area,` developers!`))))})"
+  "const main=register(`test://hello.clio/main`,(argv)=>{return [`game`,`web`,`tools`,`science`,`systems`,`GUI`,`mobile`].map(((area)=>console.log(f(`Hello, `,area,` developers!`))))})"
 );
 testFile(
   "persons",
-  "const person=register(`persons.clio/person`,(name,age)=>{return {name:name,age:age}});const people=[(person(`John`,45)),(person(`Kate`,30))];persons.map(((person)=>f(person.name,` is `,person.age,` years old`))).map(print)"
+  "const person=register(`test://persons.clio/person`,(name,age)=>{return {name:name,age:age}});const people=[(person(`John`,45)),(person(`Kate`,30))];persons.map(((person)=>f(person.name,` is `,person.age,` years old`))).map(print)"
 );
 shouldThrow(
   "Imbalanced comment blocks",
