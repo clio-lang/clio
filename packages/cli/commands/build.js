@@ -143,6 +143,7 @@ const build = async (configPath, options = {}) => {
 
   const modulesDir = path.join(sourceDir, MODULES_PATH);
   const modulesDestDir = path.join(destination, MODULES_PATH);
+  const rpcPrefix = `${config.title}@${config.version}`;
 
   const progress = new Progress(silent);
   try {
@@ -161,6 +162,8 @@ const build = async (configPath, options = {}) => {
         sourceDir,
         modulesDir,
         modulesDestDir,
+        rpcPrefix,
+        destFile,
       }).catch((compileError) => {
         progress.fail();
         console.error(compileError.message);
@@ -210,6 +213,8 @@ const build = async (configPath, options = {}) => {
             modulesDir,
             modulesDestDir,
             sourceDir: rawSource,
+            rpcPrefix: dependency,
+            destFile,
           }).catch((compileError) => {
             progress.fail();
             console.error(compileError.message);

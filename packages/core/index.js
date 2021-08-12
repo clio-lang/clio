@@ -16,18 +16,8 @@ const parse = (tokens, source, file) => {
   }
 };
 
-const compile = (
-  source,
-  file,
-  { sourceDir, root, modulesDir, modulesDestDir, debug = false }
-) => {
-  const tokens = lex(source, {
-    file,
-    sourceDir,
-    root,
-    modulesDir,
-    modulesDestDir,
-  });
+const compile = (source, file, { debug = false, ...meta }) => {
+  const tokens = lex(source, { file, ...meta });
   /* istanbul ignore next */
   if (debug) console.dir(tokens.current, { depth: null });
   const result = parse(tokens, source, file);

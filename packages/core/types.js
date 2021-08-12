@@ -90,7 +90,8 @@ const resolveModule = (meta, path, line, column) => {
       if (path.destination.match(/^\.{1,2}\//)) {
         return path + ".js";
       }
-      const relativePath = relative(currDir, path.destination) + ".js";
+      const relativePath =
+        relative(dirname(meta.destFile), path.destination) + ".js";
       return relativePath.match(/\.{1,2}\//)
         ? relativePath
         : "./" + relativePath;
@@ -361,7 +362,9 @@ const types = {
       ...(name ? ["const ", name, "="] : []),
       ...(name ? ["register"] : []),
       "(",
-      ...(name ? ["`", start.file, "/", name, "`,"] : []),
+      ...(name
+        ? ["`", start.rpcPrefix, "://", start.file, "/", name, "`,"]
+        : []),
       node.body.needsAsync ? "async" : "",
       "(",
       new SourceNode(null, null, null, params).join(","),

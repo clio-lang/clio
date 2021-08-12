@@ -103,6 +103,9 @@ function updateParse(uri, source) {
       root,
       modulesDir,
       modulesDestDir,
+      // These don't make any difference to us:
+      destFile: fileName,
+      rpcPrefix: "vscode",
     });
 
     parses.set(uri, linkedListToArray(tokens));
