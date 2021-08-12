@@ -32,6 +32,11 @@ test("Runs a project with dependencies", async () => {
     project: dir.name,
     source: "https://github.com/clio-lang/math@master",
   });
+  const configPath = path.join(dir.name, "clio.toml");
+  packageConfig.addNpmDependency(configPath, ["uuid", "latest"], {});
+  packageConfig.addNpmDependency(configPath, ["rimraf", "latest"], {
+    dev: true,
+  });
   await deps.handler({ project: dir.name });
   const process = await run({ project: dir.name });
   await new Promise((resolve) => process.on("close", resolve));
@@ -40,5 +45,13 @@ test("Runs a project with dependencies", async () => {
       .readdirSync(path.join(dir.name, "build", packageConfig.MODULES_PATH))
       .toString()
   ).toContain("fib@master");
+  const nodeModules = fs.readdirSync(
+    path.join(dir.name, "build", "node_modules")
+  );
+  expect(nodeModules).toContain("uuid");
+  expect(nodeModules).toContain("rimraf");
+  const packageJson = require(path.join(dir.name, "build", "package.json"));
+  expect(Object.keys(packageJson.dependencies)).toContain("uuid");
+  expect(Object.keys(packageJson.devDependencies)).toContain("rimraf");
   dir.removeCallback();
-});
+}, 60000);
