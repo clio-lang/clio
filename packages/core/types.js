@@ -49,7 +49,6 @@ const resolveRelativeModule = (meta, path, line, column) => {
 };
 
 const resolveModule = (meta, path, line, column) => {
-  const currDir = dirname(joinPath(meta.root, meta.sourceDir, meta.file));
   const [moduleName, subPath = ""] = path.match(/(.*?)(?:$|\/(.*))/).slice(1);
   const modulePath = joinPath(meta.modulesDir, moduleName);
   if (!existsSync(modulePath)) {
