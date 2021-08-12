@@ -33,8 +33,8 @@ test("Runs a project with dependencies", async () => {
     source: "https://github.com/clio-lang/math@master",
   });
   const configPath = path.join(dir.name, "clio.toml");
-  packageConfig.addNpmDependency(configPath, ["uuid", "latest"], {});
-  packageConfig.addNpmDependency(configPath, ["rimraf", "latest"], {
+  await packageConfig.installNpmDependency(configPath, "uuid@latest", {});
+  await packageConfig.installNpmDependency(configPath, "rimraf", {
     dev: true,
   });
   await deps.handler({ project: dir.name });
