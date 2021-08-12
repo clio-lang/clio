@@ -1,19 +1,4 @@
-const { GITHUB_PREFIX, REGISTRY_NAME, URL_PREFIX } = require("../config");
-
-// see https://github.com/clio-lang/clio-docs/tree/dev/dev/dependency_parser
-const GITHUB_ZIP_RE =
-  /(github\.com\/((?:(?:\w|\d|_|-)+\/(?:\w|\d|_|-)+){1}))\/archive\/(?:v((?:\d\.?){1,3})|((?:\w|\d|_|-)+))(?:\.zip)$/i;
-const GITHUB_URI_RE =
-  /(github\.com\/((?:(?:\w|\d|_|-)+\/(?:\w|\d|_|-)+){1}))(?:@(?:((?:\d\.?){1,3})|((?:\w|\d|_|-)+)))?$/i;
-const GITHUB_PATH_RE =
-  /^((?:(?:\w|\d|_|-)+\/(?:\w|\d|_|-)+){1})(?:@(?:((?:\d\.?){1,3})|((?:\w|\d|_|-)+)))?$/i;
-const NAME_RE =
-  /^((?:\w|\d|_|-)+)(?:@(?:((?:\d\.?){1,3})|((?:\w|\d|_|-)+)))?$/i;
-const URL_RE = /https?:\/\/.+/gi;
-
-const prefixes = `${GITHUB_PREFIX}|${REGISTRY_NAME}|${URL_PREFIX}`;
-const prefix_re = new RegExp(`(${prefixes}):(.+)`, "i");
-
+const GIT_URL_RE = /(.*?)(?:@([^@]*$))/;
 /**
  * Returns an object whose properties represent significant elements
  * of the provided string.
@@ -24,98 +9,14 @@ const prefix_re = new RegExp(`(${prefixes}):(.+)`, "i");
  * @example (see tests)
  */
 const parsePackageId = (input) => {
-  let parsed = { input };
-  let id = input;
-
-  const prefixExec = prefix_re.exec(input);
-  if (prefixExec) {
-    id = prefixExec[2];
+  const match = input.match(GIT_URL_RE);
+  if (!match) {
+    throw "Failed to parse the package id";
   }
-
-  // also valid for url:*
-  const urlMatch = id.match(URL_RE);
-  if (urlMatch) {
-    parsed.source = `${URL_PREFIX}:${urlMatch[0]}`;
-    parsed.url = urlMatch[0];
-
-    const ghZipExec = GITHUB_ZIP_RE.exec(id);
-    if (ghZipExec) {
-      return {
-        ...parsed,
-        branch: ghZipExec[3] ? `v${ghZipExec[3]}` : ghZipExec[4] || "master",
-        githubPath: ghZipExec[2],
-        githubURI: ghZipExec[1],
-        isVersioned: !!ghZipExec[3],
-        name: ghZipExec[2],
-        source: `${GITHUB_PREFIX}:${ghZipExec[2]}`,
-        version: ghZipExec[3] || "latest",
-      };
-    }
-
-    return parsed;
-  }
-
-  const ghUriExec = GITHUB_URI_RE.exec(id);
-  if (ghUriExec) {
-    return {
-      ...parsed,
-      branch: ghUriExec[3] ? `v${ghUriExec[3]}` : ghUriExec[4] || "master",
-      githubPath: ghUriExec[2],
-      githubURI: ghUriExec[1],
-      isVersioned: !!ghUriExec[3],
-      name: ghUriExec[2],
-      source: `${GITHUB_PREFIX}:${ghUriExec[2]}`,
-      version: ghUriExec[3] || "latest",
-    };
-  }
-
-  // also valid for github:*
-  const ghPathExec = GITHUB_PATH_RE.exec(id);
-  if (ghPathExec) {
-    return {
-      ...parsed,
-      branch: ghPathExec[2] ? `v${ghPathExec[2]}` : ghPathExec[3] || "master",
-      githubPath: ghPathExec[1],
-      githubURI: `github.com/${ghPathExec[1]}`,
-      isVersioned: !!ghPathExec[2],
-      name: ghPathExec[1],
-      source: `${GITHUB_PREFIX}:${ghPathExec[1]}`,
-      version: ghPathExec[2] || "latest",
-    };
-  }
-
-  // also valid for hub:*
-  const nameExec = NAME_RE.exec(id);
-  if (nameExec) {
-    return {
-      ...parsed,
-      branch: nameExec[2] ? `v${nameExec[2]}` : nameExec[3] || "master",
-      name: nameExec[1],
-      source: `${REGISTRY_NAME}:${nameExec[1]}`,
-      isVersioned: !!nameExec[2],
-      version: nameExec[2] || "latest",
-    };
-  }
+  const [url, tag] = match.slice(1);
+  return { url, tag };
 };
 
-/**
- * Returns true if the provided string is a Clio dependency.
- * 
- * @param {string} source
- * @returns {boolean}
- * 
- * @example
-isClioSource('github:foo/bar') // true
-isClioSource('hub:stdlib') // true
-isClioSource('stdlib') // false
- */
-const isClioSource = (input) => prefix_re.exec(input) !== null;
-
 module.exports = {
-  GITHUB_PATH_RE,
-  GITHUB_URI_RE,
-  GITHUB_ZIP_RE,
-  NAME_RE,
-  isClioSource,
   parsePackageId,
 };

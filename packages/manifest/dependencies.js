@@ -1,11 +1,6 @@
 const { addDependency, getPackageConfig } = require("./packageConfig");
-const {
-  fetchFromClioPackages,
-  fetchGitHubZipArchive,
-  fetchZipArchive,
-  logFetching,
-} = require("./utils/fetch");
-const { isClioSource, parsePackageId } = require("./utils/parse");
+const { fetchPackageFromGit } = require("./utils/fetch");
+const { parsePackageId } = require("./utils/parse");
 const { installNpmDependency } = require("./npm_dependencies");
 
 /* Package getters */
@@ -67,9 +62,9 @@ function fetchDependencies(configPath) {
   }
 
   return Promise.all(
-    getPackageDependencies(configPath)
-      .filter((dep) => isClioSource(dep.name))
-      .map((dep) => installDependency(configPath, dep.name))
+    getPackageDependencies(configPath).map((dep) =>
+      installDependency(configPath, `${dep.name}@${dep.version}`)
+    )
   );
 }
 
@@ -78,44 +73,39 @@ function fetchDependencies(configPath) {
 /**
  * Install a Clio dependency
  *
- * @param {object} argv
- * @param {string} argv.source - url, uri or id (name[@version]) of the package to fetch
+ * @param {string} configPath - path to the clio.toml config file
+ * @param {string} id - git url and tag (url[@tag]) of the package to fetch
+ * @param {object} flags - install command flags
  * @returns {promise}
  */
-function installDependency(configPath, id, flags = {}) {
-  if (flags.npm) return installNpmDependency(configPath, id, flags);
-
-  const { url, branch, githubURI, source, version, name } = parsePackageId(id);
-
-  if (url && !githubURI) {
-    logFetching(url);
-
-    return fetchZipArchive(configPath, url).then((successful) => {
-      if (successful && !hasClioDependency(configPath, [source, "latest"])) {
-        addDependency(configPath, [source, "latest"]);
-      }
-    });
+async function installDependency(configPath, id, flags = {}) {
+  if (flags.npm) {
+    return installNpmDependency(configPath, id, flags);
   }
-
-  if (githubURI) {
-    return fetchGitHubZipArchive(configPath, { branch, uri: githubURI }).then(
-      (successful) => {
-        if (successful && !hasClioDependency(configPath, [source, version])) {
-          addDependency(configPath, [source, version]);
-        }
-      }
-    );
-  }
-
-  // not github, not an URL
-  // fetch pkg info from clio-lang/packages by package id (name[@version])
-  return fetchFromClioPackages(configPath, { branch, name }).then(
-    (successful) => {
-      if (successful && !hasClioDependency(configPath, [source, version])) {
-        addDependency(configPath, [source, version]);
-      }
-    }
+  const { url, tag } = parsePackageId(id);
+  const dependencyCfg = await fetchPackageFromGit(
+    configPath,
+    { url, tag },
+    flags.force
   );
+  addDependency(configPath, [url, tag]);
+  // install dependencies of dependencies, and their dependencies
+  const toInstall = [];
+  const queueDeps = (cfg) => {
+    for (const { name, version } of cfg.dependencies || []) {
+      toInstall.push({ url: name, tag: version });
+    }
+  };
+  queueDeps(dependencyCfg);
+  while (toInstall.length) {
+    const { url, tag } = toInstall.pop();
+    const dependencyCfg = await fetchPackageFromGit(
+      configPath,
+      { url, tag },
+      flags.force
+    );
+    queueDeps(dependencyCfg);
+  }
 }
 
 module.exports = {

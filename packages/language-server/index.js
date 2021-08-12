@@ -8,7 +8,7 @@ const path = require("path");
 const fs = require("fs");
 const { parse, tokenize } = require("clio-core");
 const { parsingError, ParsingError, ImportError } = require("clio-core/errors");
-const { getPackageConfig } = require("clio-manifest");
+const { getPackageConfig, MODULES_PATH } = require("clio-manifest");
 
 const DEBUG_MODE = false;
 
@@ -51,14 +51,32 @@ function linkedListToArray(ll) {
 function getProjectRoot(file) {
   const dirname = path.dirname(file);
   let currdir = dirname;
-  while (currdir) {
+  while (true) {
     const up = path.resolve(currdir, "..");
+    if (up === currdir) {
+      return "";
+    }
     if (fs.existsSync(path.join(up, "clio.toml"))) {
       return up;
     }
     currdir = up;
   }
-  return "";
+}
+
+function getParentProjectRoot(file) {
+  const dirname = path.dirname(file);
+  let currdir = dirname;
+  let lastProjectDir = "";
+  while (true) {
+    const up = path.resolve(currdir, "..");
+    if (up === currdir) {
+      return lastProjectDir;
+    }
+    if (fs.existsSync(path.join(up, "clio.toml"))) {
+      lastProjectDir = up;
+    }
+    currdir = up;
+  }
 }
 
 function updateParse(uri, source) {
@@ -70,10 +88,21 @@ function updateParse(uri, source) {
     const config = getPackageConfig(path.join(root, "clio.toml"));
     const sourceDir = config.build.source;
 
+    const parent = getParentProjectRoot(fileName);
+    const parentConfig = getPackageConfig(path.join(parent, "clio.toml"));
+
+    const modulesDir = path.join(parentConfig.build.source, MODULES_PATH);
+    const modulesDestDir = path.join(
+      parentConfig.build.destination,
+      MODULES_PATH
+    );
+
     const tokens = tokenize(source, {
       file: path.relative(sourceDir, fileName),
       sourceDir,
       root,
+      modulesDir,
+      modulesDestDir,
     });
 
     parses.set(uri, linkedListToArray(tokens));

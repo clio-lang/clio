@@ -2,6 +2,7 @@ const { mapfn, map } = require("bean-parser");
 const { SourceNode } = require("source-map");
 const { existsSync } = require("fs");
 const { join: joinPath, dirname, relative, resolve } = require("path");
+const { getPackageConfig } = require("clio-manifest");
 
 class ImportError extends Error {
   constructor(meta) {
@@ -13,15 +14,10 @@ class ImportError extends Error {
 const ensureClioExtension = (path) =>
   path.endsWith(".clio") ? path : path + ".clio";
 
-const getModulePath = (root, sourceDir, file, path, line, column) => {
-  if (!sourceDir) {
-    return ensureClioExtension(path) + ".js";
-  }
-  const currDir = dirname(joinPath(root, sourceDir, file));
+const resolveRelativeModule = (meta, path, line, column) => {
+  const currDir = dirname(joinPath(meta.root, meta.sourceDir, file));
   const possiblePaths = [];
-  const resolvePath = path.match(/\.{1,2}\//)
-    ? resolve(currDir, path)
-    : joinPath(root, sourceDir, ".clio", "modules", path);
+  const resolvePath = resolve(currDir, path);
 
   if (!resolvePath.endsWith(".clio")) {
     possiblePaths.push(resolvePath + ".clio");
@@ -36,6 +32,65 @@ const getModulePath = (root, sourceDir, file, path, line, column) => {
         return path + ".js";
       }
       const relativePath = relative(currDir, path) + ".js";
+      return relativePath.match(/^\.{1,2}\//)
+        ? relativePath
+        : "./" + relativePath;
+    }
+  }
+
+  throw new ImportError({
+    message: [
+      `Cannot find module "${path}" in any of the following locations:\n`,
+      ...possiblePaths.map((path) => `  - ${relative(meta.root, path)}`),
+    ].join("\n"),
+    line,
+    column,
+  });
+};
+
+const resolveModule = (meta, path, line, column) => {
+  const currDir = dirname(joinPath(meta.root, meta.sourceDir, meta.file));
+  const [moduleName, subPath = ""] = path.match(/(.*?)(?:$|\/(.*))/).slice(1);
+  const modulePath = joinPath(meta.modulesDir, moduleName);
+  if (!existsSync(modulePath)) {
+    throw new ImportError({
+      message: [
+        `Cannot find module "${moduleName}" in your project.`,
+        "Are you sure it is installed?",
+      ].join("\n"),
+      line,
+      column,
+    });
+  }
+
+  const configPath = joinPath(meta.root, "clio.toml");
+  const config = getPackageConfig(configPath);
+  const { source, destination } = config.build;
+  const possiblePaths = [];
+  const getResolvePath = (subPath) => {
+    return {
+      source: resolve(meta.modulesDir, moduleName, source, subPath),
+      destination: resolve(
+        meta.modulesDestDir,
+        moduleName,
+        destination,
+        subPath
+      ),
+    };
+  };
+  if (!subPath.endsWith(".clio")) {
+    possiblePaths.push(getResolvePath(subPath + ".clio"));
+  } else {
+    possiblePaths.push(getResolvePath(subPath));
+  }
+  possiblePaths.push(getResolvePath(joinPath(subPath, "main.clio")));
+
+  for (const path of possiblePaths) {
+    if (existsSync(path.source)) {
+      if (path.destination.match(/^\.{1,2}\//)) {
+        return path + ".js";
+      }
+      const relativePath = relative(currDir, path.destination) + ".js";
       return relativePath.match(/\.{1,2}\//)
         ? relativePath
         : "./" + relativePath;
@@ -45,11 +100,22 @@ const getModulePath = (root, sourceDir, file, path, line, column) => {
   throw new ImportError({
     message: [
       `Cannot find module "${path}" in any of the following locations:\n`,
-      ...possiblePaths.map((path) => `  - ${relative(root, path)}`),
+      ...possiblePaths.map((path) => `  - ${relative(meta.root, path)}`),
     ].join("\n"),
     line,
     column,
   });
+};
+
+const getModulePath = (meta, path, line, column) => {
+  if (!meta.sourceDir) {
+    return ensureClioExtension(path) + ".js";
+  }
+  if (path.match(/\.{1,2}\//)) {
+    return resolveRelativeModule(meta, path, line, column);
+  } else {
+    return resolveModule(meta, path, line, column);
+  }
 };
 
 const join = (arr, sep) => new SourceNode(null, null, null, arr).join(sep);
@@ -379,9 +445,7 @@ const types = {
       */
 
       const modulePath = getModulePath(
-        node.import.root,
-        node.import.sourceDir,
-        node.import.file,
+        node.import,
         path,
         node.path.line,
         node.path.column

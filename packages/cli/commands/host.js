@@ -1,19 +1,16 @@
 const path = require("path");
-const fs = require("fs");
 const { getPlatform } = require("../lib/platforms");
 const { getBuildTarget, getDestinationFromConfig, build } = require("./build");
 const { getPackageConfig } = require("clio-manifest");
 const { error } = require("../lib/colors");
-const { configPrompt } = require("../lib/config");
-const { isClioConfig, isDir } = require("./build"); // TODO: Move to lib
 
-exports.command = "host [config]";
+exports.command = "host [project]";
 
 exports.describe = "Compile and host Clio file";
 
 exports.builder = {
-  config: {
-    describe: "Config file, or a directory to read configs from.",
+  project: {
+    describe: "Project root directory, where your clio.toml file is.",
     type: "string",
     default: path.resolve("."),
   },
@@ -33,14 +30,7 @@ exports.handler = (argv) => {
 
 async function host(argv, args) {
   try {
-    const configFiles = isDir(argv.config)
-      ? fs.readdirSync(argv.config).filter(isClioConfig)
-      : [argv.config];
-
-    const configPath =
-      configFiles.length == 1
-        ? configFiles[0]
-        : await configPrompt(configFiles);
+    const configPath = path.join(argv.project, "clio.toml");
 
     await build(configPath, {
       skipBundle: true,
