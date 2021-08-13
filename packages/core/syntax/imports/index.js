@@ -7,6 +7,13 @@ module.exports = {
     string: wrap((lhs, rhs) => {
       return { type: "importStatement", import: lhs, path: rhs };
     }),
+    stringAsClause: wrap((lhs, rhs) => {
+      return {
+        ...rhs,
+        import: lhs,
+        type: "importStatement",
+      };
+    }, 99),
   },
   from: {
     string: wrap((lhs, rhs) => {
@@ -64,6 +71,20 @@ module.exports = {
       lhs.rhs = rhs;
       lhs.type = "asClause";
       return lhs;
+    }, 33),
+  },
+  string: {
+    as: wrap((lhs, rhs) => {
+      return { type: "stringAsOpen", path: lhs, as: rhs };
+    }, 32),
+  },
+  stringAsOpen: {
+    symbol: wrap((lhs, rhs) => {
+      return {
+        type: "stringAsClause",
+        path: lhs.path,
+        items: [{ type: "asClause", as: lhs.as, rhs, lhs: { type: "mulOp" } }],
+      };
     }, 33),
   },
 };

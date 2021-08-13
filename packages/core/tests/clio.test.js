@@ -424,8 +424,9 @@ testStr(
   `from "js:test" import a as b`,
   `const{a:b}=require("test")`
 );
+testStr("Import (All as)", `import "js:test" as b`, `const b=require("test")`);
 testStr(
-  "Import (All as)",
+  "Import (All as alternate)",
   `from "js:test" import * as b`,
   `const b=require("test")`
 );
