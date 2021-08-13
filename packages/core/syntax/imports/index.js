@@ -1,5 +1,5 @@
 const { map } = require("bean-parser");
-const { wrap } = require("../common");
+const { wrap, ignore } = require("../common");
 
 module.exports = {
   // Import
@@ -45,6 +45,29 @@ module.exports = {
         };
       }, 31)
     ),
+    indent: wrap((lhs) => {
+      lhs.type = "importFromIndented";
+      lhs.items = [];
+      return lhs;
+    }, 80),
+  },
+  importFromIndented: {
+    ...map(
+      ["asClause", "symbol"],
+      wrap((lhs, rhs) => {
+        return {
+          ...lhs,
+          items: [...lhs.items, rhs],
+        };
+      }, 31)
+    ),
+    outdent: wrap((lhs) => {
+      return {
+        ...lhs,
+        type: "importStatement",
+      };
+    }),
+    ...ignore("lineBreak"),
   },
   importFromTail: {
     ...map(

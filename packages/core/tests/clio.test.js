@@ -431,6 +431,13 @@ testStr(
   `const b=require("test")`
 );
 testStr(
+  "Import As (Indented)",
+  `from "./greetings" import
+      bye
+      hello`,
+  `const{bye,hello}=await require("./greetings.clio.js").exports(clio)`
+);
+testStr(
   "Import (Complex)",
   `from "js:test" import a b c as d * as t`,
   `const{a,b,c:d,...t}=require("test")`

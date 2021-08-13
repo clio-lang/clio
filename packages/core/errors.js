@@ -13,9 +13,6 @@ const unfinished = [
   "logicalOpen",
   "export",
   "fnOpen",
-  "importAsOpen",
-  "asOpen",
-  "stringAsOpen",
 ];
 
 const addLineNumber = (start, length) => (line, index) =>
