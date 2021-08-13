@@ -21,10 +21,10 @@ like this:
   :height: 400
   :no-interactive:
 
-   import hello from "./my_module"
+  from "./my_module" import hello
 
-   export fn main argv:
-     'world' -> hello
+  export fn main argv:
+    'world' -> hello
 
 In Clio, imports are relative and by path, there is no support for
 absolute imports. Clio recognises the following import path formats:

@@ -27,7 +27,7 @@ Let's define a function and host it:
 
   .. code-block:: toml
 
-    title = "template-node"
+    title = "host-example"
     description = ""
     version = "0.1.0"
     license = "MIT"
@@ -73,7 +73,7 @@ We can import this in another project:
 .. playground::
   :height: 740
 
-  import pingPong from "ws:localhost:1337/main.clio"
+  import pingPong from "ws:localhost:1337/host-example@0.1.0/main.clio"
 
   fn onPong:
     console.log "Pong received"

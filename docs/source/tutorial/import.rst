@@ -10,7 +10,7 @@ When making a big project, you don't want to store everything in one file, or in
   .. playground::
     :height: 360
 
-    import "greetings"
+    import "./greetings"
 
     export fn main argv:
       "World" -> greetings.hello
@@ -24,6 +24,9 @@ When making a big project, you don't want to store everything in one file, or in
       console.log "Hello" arg
 
 
+Clio will guess the module name base on its path.
+The default strategy is to get the file name, remove extensions,
+remove any version number, and convert kebab case to pascalCase (replace dashes).
 If you want to rename the module, you can do:
 
 .. tabbed:: main.clio
@@ -31,10 +34,12 @@ If you want to rename the module, you can do:
   .. playground::
     :height: 360
 
-    import * as my_module from "greetings"
+    import "./greetings" as g
+    -- OR
+    from "greetings" import * as g
 
     export fn main argv:
-      "World" -> my_module.hello
+      "World" -> g.hello
 
 .. tabbed:: greetings.clio
 
@@ -51,7 +56,7 @@ If you only want to import only one function from the module, you can do:
   .. playground::
     :height: 360
 
-    import hello from "greetings"
+    from "./greetings" import hello
 
     export fn main argv:
       "World" -> hello
@@ -71,7 +76,7 @@ If you want to rename the imported function, you can do:
   .. playground::
     :height: 360
 
-    import hello as my_function from "greetings"
+    from "./greetings" import hello as my_function
 
     export fn main argv:
       "World" -> my_function
@@ -91,7 +96,7 @@ To import several functions, you can do:
   .. playground::
     :height: 360
 
-    import hello bye from "greetings"
+    from "./greetings" import hello bye
 
     export fn main argv:
       "World" -> hello
@@ -114,10 +119,9 @@ You can also use indents to format your imports:
   .. playground::
     :height: 500
 
-    import
+    from "./greetings" import
       hello
       bye
-    from "greetings"
 
     export fn main argv:
       "World" -> hello
@@ -140,10 +144,9 @@ To rename multiple imports, do:
   .. playground::
     :height: 500
 
-    import
+    from "./greetings" import
       hello as my_function
       bye
-    from "greetings"
 
     export fn main argv:
       "World" -> my_function
@@ -161,16 +164,14 @@ To rename multiple imports, do:
 
 To import a function, and rest of the module in a separate namespace do:
 
-
 .. tabbed:: main.clio
 
   .. playground::
     :height: 500
 
-    import
+    from "./greetings" import
       bye
       * as greetings
-    from "greetings"
 
     export fn main argv:
       "World" -> greetings.hello

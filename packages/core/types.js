@@ -361,9 +361,7 @@ const types = {
       ...(name ? ["const ", name, "="] : []),
       ...(name ? ["register"] : []),
       "(",
-      ...(name
-        ? ["`", start.rpcPrefix, "://", start.file, "/", name, "`,"]
-        : []),
+      ...(name ? ["`", start.rpcPrefix, "/", start.file, "/", name, "`,"] : []),
       node.body.needsAsync ? "async" : "",
       "(",
       new SourceNode(null, null, null, params).join(","),
