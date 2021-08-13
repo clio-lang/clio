@@ -36,7 +36,7 @@ If you want to rename the module, you can do:
 
     import "./greetings" as g
     -- OR
-    from "greetings" import * as g
+    from "./greetings" import * as g
 
     export fn main argv:
       "World" -> g.hello

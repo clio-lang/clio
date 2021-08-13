@@ -73,7 +73,7 @@ We can import this in another project:
 .. playground::
   :height: 740
 
-  import pingPong from "ws:localhost:1337/host-example@0.1.0/main.clio"
+  from "ws:localhost:1337/host-example@0.1.0/main.clio" import pingPong
 
   fn onPong:
     console.log "Pong received"
