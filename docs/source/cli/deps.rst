@@ -4,14 +4,13 @@ clio deps
 List dependencies
 -----------------
 
-Use ``clio deps`` to show a Clio project dependencies:
+Use ``clio deps`` or ``clio deps show`` to show a Clio project dependencies:
 
 .. code:: console
 
    $ clio deps
    
-   ~> stdlib: latest
-   ~> rethinkdb: 2.3.3
+   ~> https://github.com/clio-lang/fib: master
 
 Command Syntax and Options
 --------------------------
@@ -20,91 +19,34 @@ Command Syntax and Options
 
    $ clio deps --help
 
-   clio deps
-
    Manage clio dependencies
 
    Commands:
-     clio deps add <source> [config]           Add a new dependency
-     [options]
-     clio deps get [config]                    Download every dependency listed in
-                                               the package config file
+   clio deps add <source> [project]          Add a new dependency
+   [options]
+   clio deps get [project]                   Download every dependency listed in
+                                             the package config file
+   clio deps show [project]                  Show a list of dependencies for the
+                                             project                    [default]
 
    Options:
-         --version       Show version number                              [boolean]
-     -h, --help, --help  Show help                                        [boolean]
+         --version       Show version number                            [boolean]
+         --project       Project root directory, where your clio.toml file is.
+                                                          [string] [default: "."]
+   -h, --help, --help  Show help                                        [boolean]
+
 
 Add dependencies
 ----------------
 
-You can install from a url (compressed package), a git repository
-(@version eg. ``@1.2.2`` is supported) or from the official Clio
-repository. For a list of packages that exist in the official repository
-you can visit the `official package index repo`_.
+You can install from a git url and a git tag, commit hash or branch name.
+Check `Clio modules`_ section for more info.
 
-Use ``clio deps add`` to fetch and install the dependencies.
-
-Github format
-~~~~~~~~~~~~~
-
-To install from the master branch of a Github repository:
+Use ``clio deps add`` to fetch and install the dependencies:
 
 .. code:: bash
 
-   clio deps add github.com/clio-lang/rethinkdb
-
-To install from a specific branch of a Github repository:
-
-.. code:: bash
-
-   clio deps add github.com/foo/bar@tagname
-
-For example this,
-
-.. code:: bash
-
-   clio deps add github.com/clio-lang/rethinkdb@v2.3.3
-
-installs the .zip file listed at
-https://github.com/clio-lang/rethinkdb/releases/tag/v2.3.3
-(https://github.com/clio-lang/rethinkdb/archive/v2.3.3.zip).
-
-URL format
-~~~~~~~~~~
-
-To install from a generic URL:
-
-.. code:: bash
-
-   clio deps add https://a-domain.com/path/to/content.zip
-
-To install from a specific Github tag URL:
-
-.. code:: bash
-
-   clio deps add https://github.com/clio-lang/rethinkdb@v2.3.3.zip
-
-Package id
-~~~~~~~~~~
-
-If a package is listed in the `Clio packages repository`_, you can just
-use its name:
-
-.. code:: bash
-
-   clio deps add package_name
-
-You can choose to install a particular tag using this syntax:
-
-.. code:: bash
-
-   clio deps add package_name@tag_id
-
-For example to install `greeter`_:
-
-.. code:: bash
-
-   clio deps add greeter
+   clio deps add https://github.com/clio-lang/fib@master
 
 Npm packages
 ~~~~~~~~~~~~
@@ -131,6 +73,4 @@ To fetch all of the dependencies listed in the package config file:
 
    clio deps get
 
-.. _official package index repo: https://github.com/clio-lang/packages/
-.. _Clio packages repository: https://github.com/clio-lang/packages
-.. _greeter: https://github.com/clio-lang/packages/blob/master/packages/greeter.json
+.. _Clio modules: ../modules/clio.html

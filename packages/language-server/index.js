@@ -4,8 +4,11 @@ const ls = require("vscode-languageserver/node");
 const doc = require("vscode-languageserver-textdocument");
 const url = require("url");
 const util = require("util");
+const path = require("path");
+const fs = require("fs");
 const { parse, tokenize } = require("clio-core");
-const { parsingError, ParsingError } = require("clio-core/errors");
+const { parsingError, ParsingError, ImportError } = require("clio-core/errors");
+const { getPackageConfig, MODULES_PATH } = require("clio-manifest");
 
 const DEBUG_MODE = false;
 
@@ -14,10 +17,19 @@ const documents = new ls.TextDocuments(doc.TextDocument);
 
 const parses = new Map();
 
+const getMessageFromError = (error) => {
+  if (error instanceof ParsingError) {
+    return error.meta.parseError;
+  }
+  if (error instanceof ImportError) {
+    return error.meta.importError;
+  }
+  return error.message;
+};
+
 function errorToDiagnostic(error) {
   const { line, column } = error.meta;
-  const message =
-    error instanceof ParsingError ? error.meta.parseError : error.meta.message;
+  const message = getMessageFromError(error);
   const pos = {
     line: line - 1,
     character: column,
@@ -36,16 +48,69 @@ function linkedListToArray(ll) {
   return arr;
 }
 
+function getProjectRoot(file) {
+  const dirname = path.dirname(file);
+  let currdir = dirname;
+  while (true) {
+    const up = path.resolve(currdir, "..");
+    if (up === currdir) {
+      return "";
+    }
+    if (fs.existsSync(path.join(up, "clio.toml"))) {
+      return up;
+    }
+    currdir = up;
+  }
+}
+
+function getParentProjectRoot(file) {
+  const dirname = path.dirname(file);
+  let currdir = dirname;
+  let lastProjectDir = "";
+  while (true) {
+    const up = path.resolve(currdir, "..");
+    if (up === currdir) {
+      return lastProjectDir;
+    }
+    if (fs.existsSync(path.join(up, "clio.toml"))) {
+      lastProjectDir = up;
+    }
+    currdir = up;
+  }
+}
+
 function updateParse(uri, source) {
   connection.console.info(`Parsing ${uri}...`);
   const diagnostics = [];
   try {
     const fileName = url.fileURLToPath(uri);
-    const tokens = tokenize(source, fileName);
+    const root = getProjectRoot(fileName);
+    const config = getPackageConfig(path.join(root, "clio.toml"));
+    const sourceDir = config.build.source;
+
+    const parent = getParentProjectRoot(fileName);
+    const parentConfig = getPackageConfig(path.join(parent, "clio.toml"));
+
+    const modulesDir = path.join(parentConfig.build.source, MODULES_PATH);
+    const modulesDestDir = path.join(
+      parentConfig.build.destination,
+      MODULES_PATH
+    );
+
+    const tokens = tokenize(source, {
+      file: path.relative(sourceDir, fileName),
+      sourceDir,
+      root,
+      modulesDir,
+      modulesDestDir,
+      // These don't make any difference to us:
+      destFile: fileName,
+      rpcPrefix: "vscode",
+    });
 
     parses.set(uri, linkedListToArray(tokens));
 
-    const parsed = parse(tokens);
+    const parsed = parse(tokens, source, fileName);
 
     if (DEBUG_MODE) {
       connection.console.log(util.inspect(parsed));

@@ -6,10 +6,9 @@ const { getPlatform } = require("../lib/platforms");
 const { Progress } = require("../lib/progress");
 
 const {
-  ENV_NAME,
+  MODULES_PATH,
   fetchNpmDependencies,
   getPackageConfig,
-  hasInstalledNpmDependencies,
   getParsedNpmDependencies,
   getParsedNpmDevDependencies,
   makeStartScript,
@@ -21,7 +20,10 @@ const flatten = (arr) => arr.reduce((acc, val) => acc.concat(val), []);
 
 const isDir = (dir) => fs.lstatSync(dir).isDirectory();
 const readDir = (dir) => fs.readdirSync(dir);
-const walkDir = (dir) => readDir(dir).map((f) => walk(path.join(dir, f)));
+const walkDir = (dir) =>
+  readDir(dir)
+    .filter((name) => name !== ".clio")
+    .map((f) => walk(path.join(dir, f)));
 const walk = (dir) => (isDir(dir) ? flatten(walkDir(dir)) : [dir]);
 
 const isClioFile = (file) => file.endsWith(".clio");
@@ -118,31 +120,6 @@ function getSourceFromConfig(configPath, config) {
 }
 
 /**
- * Generates a package.json for a clio module.
- * Reads the configuration file of the module and builds a package.json file containing all nessessary fields
- *
- * @param {string} source source root directory of clio project
- * @param {string} dependency name of the dependency being compiled
- * @param {string} destination destination for package.json
- */
-const buildPackageJson = (source, dependency, destination) => {
-  const configPath = path.join(source, ENV_NAME, dependency, "clio.toml");
-  const config = getPackageConfig(configPath);
-  const packageJson = {
-    main: config.main,
-    title: config.title,
-    clio: { config },
-  };
-  const destFilePath = path.join(
-    destination,
-    "node_modules",
-    path.basename(dependency),
-    "package.json"
-  );
-  fs.writeFileSync(destFilePath, JSON.stringify(packageJson));
-};
-
-/**
  *
  * @param {string} configPath Path to the project config file
  * @param {Object} options Options to build
@@ -164,6 +141,10 @@ const build = async (configPath, options = {}) => {
     fs.rmSync(destination, { recursive: true });
   }
 
+  const modulesDir = path.join(sourceDir, MODULES_PATH);
+  const modulesDestDir = path.join(destination, MODULES_PATH);
+  const rpcPrefix = `${config.title}@${config.version}`;
+
   const progress = new Progress(silent);
   try {
     progress.start("Compiling source...");
@@ -176,24 +157,94 @@ const build = async (configPath, options = {}) => {
       const destFile = `${destFileClio}.js`;
       const destDir = path.dirname(destFile);
       const contents = fs.readFileSync(file, "utf8");
-      const { code, map } = await asyncCompile(contents, relativeFile).catch(
-        (compileError) => {
-          progress.fail();
-          console.error(compileError.message);
-          process.exit(1);
-        }
-      );
+      const { code, map } = await asyncCompile(contents, relativeFile, {
+        root: path.dirname(configPath),
+        sourceDir,
+        modulesDir,
+        modulesDestDir,
+        rpcPrefix,
+        destFile,
+      }).catch((compileError) => {
+        progress.fail();
+        console.trace(compileError);
+        console.error(compileError.message);
+        process.exit(1);
+      });
       mkdir(destDir);
       await fs.promises.writeFile(destFileClio, contents, "utf8");
       await fs.promises.writeFile(destFile, code, "utf8");
       await fs.promises.writeFile(`${destFile}.map`, map, "utf8");
     }
 
-    mkdir(path.join(destination, ".clio"));
+    // Copy resources
+    const nonClioFiles = getNonClioFiles(sourceDir);
+    for (const file of nonClioFiles) {
+      const relativeFile = path.relative(sourceDir, file);
+      const destFile = path.join(destination, relativeFile);
+      const destDir = path.dirname(destFile);
+      mkdir(destDir);
+      await fs.promises.copyFile(file, destFile);
+    }
     progress.succeed();
 
+    progress.start("Compiling dependencies...");
+
+    const depsNpmDependencies = {};
+
+    // Build dependencies
+    if (fs.existsSync(modulesDir)) {
+      for (const dependency of fs.readdirSync(modulesDir)) {
+        const modulePath = path.join(modulesDir, dependency);
+        const moduleDestPath = path.join(modulesDestDir, dependency);
+        const configPath = path.join(modulePath, "clio.toml");
+        const config = getPackageConfig(configPath);
+        const rawDest = getDestinationFromConfig(configPath, config);
+        const destination = path.join(moduleDestPath, rawDest);
+        const rawSource = getSourceFromConfig(configPath, config);
+        const sourceDir = path.join(modulePath, rawSource);
+        const files = getClioFiles(sourceDir);
+        for (const file of files) {
+          const relativeFile = path.relative(sourceDir, file);
+          const destFileClio = path.join(destination, relativeFile);
+          const destFile = `${destFileClio}.js`;
+          const destDir = path.dirname(destFile);
+          const contents = fs.readFileSync(file, "utf8");
+          const { code, map } = await asyncCompile(contents, relativeFile, {
+            root: path.dirname(configPath),
+            modulesDir,
+            modulesDestDir,
+            sourceDir: rawSource,
+            rpcPrefix: dependency,
+            destFile,
+          }).catch((compileError) => {
+            progress.fail();
+            console.error(compileError.message);
+            process.exit(1);
+          });
+          mkdir(destDir);
+          await fs.promises.writeFile(destFileClio, contents, "utf8");
+          await fs.promises.writeFile(destFile, code, "utf8");
+          await fs.promises.writeFile(`${destFile}.map`, map, "utf8");
+        }
+
+        // Copy resources
+        const nonClioFiles = getNonClioFiles(sourceDir);
+        for (const file of nonClioFiles) {
+          const relativeFile = path.relative(sourceDir, file);
+          const destFile = path.join(destination, relativeFile);
+          const destDir = path.dirname(destFile);
+          mkdir(destDir);
+          await fs.promises.copyFile(file, destFile);
+        }
+
+        // Get npm deps:
+        const dependencies = getParsedNpmDependencies(configPath);
+        Object.assign(depsNpmDependencies, dependencies);
+      }
+    }
     // Add index.js file
     progress.start("Adding Clio start script...");
+    mkdir(path.join(destination, ".clio"));
     makeStartScript(config, target, destination);
     progress.succeed();
 
@@ -209,7 +260,7 @@ const build = async (configPath, options = {}) => {
       const packageJsonContent = {
         ...packageInfo,
         main: `./main.clio.js`,
-        dependencies,
+        dependencies: { ...depsNpmDependencies, ...dependencies },
         devDependencies,
         ...config.npmOverride,
       };
@@ -218,71 +269,16 @@ const build = async (configPath, options = {}) => {
         JSON.stringify(packageJsonContent, null, 2),
         { flag: "w" }
       );
-
-      if (!skipNpmInstall) {
-        progress.start(
-          "Installing npm dependencies (this may take a while)..."
-        );
-        await fetchNpmDependencies(destination, silent);
-        progress.succeed();
-      }
     } catch (e) {
-      console.trace(e);
       progress.fail(`Error: ${e.message}`);
       error(e, "Dependency Install");
-      // process.exit(4);
-    }
-
-    // Build clio deps
-    // TODO: FIXME
-    if (fs.existsSync(path.join(sourceDir, ENV_NAME))) {
-      progress.start("Compiling Clio dependencies...");
-      const files = getClioFiles(path.join(sourceDir, ENV_NAME));
-      for (const file of files) {
-        const relativeFile = path.relative(sourceDir, file);
-        const destFileClio = path
-          .join(destination, relativeFile)
-          .replace(ENV_NAME, "node_modules");
-        const destFile = `${destFileClio}.js`;
-        const contents = await fs.promises.readFile(file, "utf8");
-        const { code, map } = await asyncCompile(contents, relativeFile).catch(
-          (compileError) => {
-            console.error(compileError.message);
-            process.exit(1);
-          }
-        );
-        const destDir = path.dirname(destFile);
-        mkdir(destDir);
-        await fs.promises.writeFile(destFileClio, contents, "utf8");
-        await fs.promises.writeFile(destFile, code, "utf8");
-        await fs.promises.writeFile(`${destFile}.map`, map, "utf8");
-      }
-      progress.succeed();
-
-      // Build package.json files
-      progress.start("Linking Clio dependencies...");
-      const clioDepDirs = fs.readdirSync(path.join(sourceDir, ENV_NAME));
-      for (const depDir of clioDepDirs) {
-        buildPackageJson(sourceDir, depDir, destination);
-      }
-      progress.succeed();
     }
   } catch (e) {
     progress.fail(`Error: ${e}`);
     error(e, "Compilation");
-    // process.exit(3);
   }
 
-  const nonClioFiles = getNonClioFiles(sourceDir);
-  for (const file of nonClioFiles) {
-    const relativeFile = path.relative(sourceDir, file);
-    const destFile = path.join(destination, relativeFile);
-    const destDir = path.dirname(destFile);
-    mkdir(destDir);
-    await fs.promises.copyFile(file, destFile);
-  }
-
-  if (!skipNpmInstall && !hasInstalledNpmDependencies(destination)) {
+  if (!skipNpmInstall) {
     progress.start("Installing npm dependencies (this may take a while)...");
     await fetchNpmDependencies(destination, silent);
     progress.succeed();
@@ -343,7 +339,7 @@ function unlinkNodeModules(destination, ...names) {
   }
 }
 
-const command = "build [config]";
+const command = "build [project]";
 const desc = "Build a Clio project";
 
 const handler = (argv) => {
@@ -352,16 +348,12 @@ const handler = (argv) => {
     skipNpmInstall: argv["skip-npm-install"],
     silent: argv.silent,
   };
-  const configs = isDir(argv.config)
-    ? fs.readdirSync(argv.config).filter(isClioConfig)
-    : [argv.config];
-  if (!configs.length)
-    error(new Error(`No config file found in ${argv.config}`));
-  for (const config of configs) build(config, options);
+  const config = path.join(argv.project, "clio.toml");
+  build(config, options);
 };
 const builder = {
-  config: {
-    describe: "Config file, or a directory to read configs from.",
+  project: {
+    describe: "Project root directory, where your clio.toml file is.",
     type: "string",
     default: path.resolve("."),
   },

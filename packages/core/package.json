@@ -12,7 +12,8 @@
     "bean-parser": "2.0.0",
     "chalk": "4.1.2",
     "clio-highlight": "^1.2.1",
-    "source-map": "^0.7.3"
+    "source-map": "^0.7.3",
+    "clio-manifest": "^0.6.1"
   },
   "devDependencies": {
     "clio-run": "^0.7.1"

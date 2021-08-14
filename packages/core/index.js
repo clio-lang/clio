@@ -2,14 +2,25 @@ const { bean } = require("bean-parser");
 const lex = require("./lexer");
 const types = require("./types");
 const rules = require("./rules");
-const { parsingError } = require("./errors");
+const { parsingError, importError } = require("./errors");
 
-const parse = (tokens) => bean(tokens, rules);
-const compile = (source, file, debug = false) => {
-  const tokens = lex(source, file);
+const parse = (tokens, source, file) => {
+  try {
+    const result = bean(tokens, rules);
+    return result;
+  } catch (error) {
+    if (error instanceof types.ImportError) {
+      throw importError(source, file, error);
+    }
+    throw error;
+  }
+};
+
+const compile = (source, file, { debug = false, ...meta }) => {
+  const tokens = lex(source, { file, ...meta });
   /* istanbul ignore next */
   if (debug) console.dir(tokens.current, { depth: null });
-  const result = parse(tokens);
+  const result = parse(tokens, source, file);
   /* istanbul ignore next */
   if (debug) console.dir(result, { depth: null });
   /* istanbul ignore next */

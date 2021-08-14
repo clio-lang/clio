@@ -35,6 +35,28 @@ const getMessage = ({ file, line, start, column, source, expecting, rhs }) => {
   return { message, parseError };
 };
 
+const getImportErrorMessage = ({
+  file,
+  line,
+  start,
+  column,
+  source,
+  importError,
+}) => {
+  const rawCode = source.split("\n").slice(start, line).join("\n");
+  const highlighted = colorize(rawCode);
+  const lines = highlighted.split("\n");
+  const { length } = (start + 1 + lines.length).toString();
+  const code = lines.map(addLineNumber(start, length)).join("\n");
+  const message = [
+    `Import error at ${file}[${line}:${column}]\n`,
+    code,
+    " ".repeat(column + length + 4) + "^",
+    `\n${importError}`,
+  ].join("\n");
+  return { message };
+};
+
 class ParsingError extends Error {
   constructor(meta) {
     const { message, parseError } = getMessage(meta);
@@ -42,6 +64,15 @@ class ParsingError extends Error {
     this.meta = meta;
     this.meta.message = message;
     this.meta.parseError = parseError;
+  }
+}
+
+class ImportError extends Error {
+  constructor(meta) {
+    const { message } = getImportErrorMessage(meta);
+    super(message);
+    this.meta = meta;
+    this.meta.message = message;
   }
 }
 class LexingError extends Error {
@@ -148,6 +179,22 @@ const parsingError = (source, file, tokens) => {
   });
 };
 
+const importError = (source, file, error) => {
+  const { line, column } = error.meta;
+  const importError = error.meta.message;
+  const start = Math.max(0, line - 3);
+  return new ImportError({
+    source,
+    file,
+    line,
+    column,
+    importError,
+    start,
+  });
+};
+
+module.exports.importError = importError;
+module.exports.ImportError = ImportError;
 module.exports.parsingError = parsingError;
 module.exports.ParsingError = ParsingError;
 module.exports.LexingError = LexingError;

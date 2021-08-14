@@ -61,7 +61,7 @@ const topLevels = [
   "assignment",
   "arrowAssignment",
   ...expressions,
-  "imported",
+  "importStatement",
 ];
 
 const lexerTokens = [

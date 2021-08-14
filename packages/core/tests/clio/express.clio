@@ -1,5 +1,5 @@
 -- Note: this code doesn't run in the browser!
-import "express"
+import "js:express"
 
 fn hello req res:
   "Hello world" -> res.send

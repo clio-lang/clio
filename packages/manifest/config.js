@@ -1,8 +1,5 @@
 module.exports = {
   CONFIGFILE_NAME: "clio.toml",
-  ENV_NAME: "clio_env",
+  MODULES_PATH: ".clio/modules",
   SOURCE_NAME: "src",
-  GITHUB_PREFIX: "github",
-  REGISTRY_NAME: "hub",
-  URL_PREFIX: "url",
 };

@@ -1,5 +1,122 @@
 const { mapfn, map } = require("bean-parser");
 const { SourceNode } = require("source-map");
+const { existsSync } = require("fs");
+const { join: joinPath, dirname, relative, resolve } = require("path");
+const { getPackageConfig } = require("clio-manifest");
+
+class ImportError extends Error {
+  constructor(meta) {
+    super(meta.message);
+    this.meta = meta;
+  }
+}
+
+const ensureClioExtension = (path) =>
+  path.endsWith(".clio") ? path : path + ".clio";
+
+const resolveRelativeModule = (meta, path, line, column) => {
+  const currDir = dirname(joinPath(meta.root, meta.sourceDir, meta.file));
+  const possiblePaths = [];
+  const resolvePath = resolve(currDir, path);
+
+  if (!resolvePath.endsWith(".clio")) {
+    possiblePaths.push(resolvePath + ".clio");
+  } else {
+    possiblePaths.push(resolvePath);
+  }
+  possiblePaths.push(joinPath(resolvePath, "main.clio"));
+
+  for (const path of possiblePaths) {
+    if (existsSync(path)) {
+      if (path.match(/\.{1,2}\//)) {
+        return path + ".js";
+      }
+      const relativePath = relative(currDir, path) + ".js";
+      return relativePath.match(/^\.{1,2}\//)
+        ? relativePath
+        : "./" + relativePath;
+    }
+  }
+
+  throw new ImportError({
+    message: [
+      `Cannot find module "${path}" in any of the following locations:\n`,
+      ...possiblePaths.map((path) => `  - ${relative(meta.root, path)}`),
+    ].join("\n"),
+    line,
+    column,
+  });
+};
+
+const resolveModule = (meta, path, line, column) => {
+  const [moduleName, subPath = ""] = path.match(/(.*?)(?:$|\/(.*))/).slice(1);
+  const modulePath = joinPath(meta.modulesDir, moduleName);
+  if (!existsSync(modulePath)) {
+    throw new ImportError({
+      message: [
+        `Cannot find module "${moduleName}" in your project.`,
+        "Are you sure it is installed?",
+      ].join("\n"),
+      line,
+      column,
+    });
+  }
+
+  const configPath = joinPath(meta.root, "clio.toml");
+  const config = getPackageConfig(configPath);
+  const { source, destination } = config.build;
+  const possiblePaths = [];
+  const getResolvePath = (subPath) => {
+    return {
+      source: resolve(meta.modulesDir, moduleName, source, subPath),
+      destination: resolve(
+        meta.modulesDestDir,
+        moduleName,
+        destination,
+        subPath
+      ),
+    };
+  };
+  if (!subPath.endsWith(".clio")) {
+    possiblePaths.push(getResolvePath(subPath + ".clio"));
+  } else {
+    possiblePaths.push(getResolvePath(subPath));
+  }
+  possiblePaths.push(getResolvePath(joinPath(subPath, "main.clio")));
+
+  for (const path of possiblePaths) {
+    if (existsSync(path.source)) {
+      if (path.destination.match(/^\.{1,2}\//)) {
+        return path + ".js";
+      }
+      const relativePath =
+        relative(dirname(meta.destFile), path.destination) + ".js";
+      return relativePath.match(/\.{1,2}\//)
+        ? relativePath
+        : "./" + relativePath;
+    }
+  }
+
+  throw new ImportError({
+    message: [
+      `Cannot find module "${path}" in any of the following locations:\n`,
+      ...possiblePaths.map((path) => `  - ${relative(meta.root, path)}`),
+    ].join("\n"),
+    line,
+    column,
+  });
+};
+
+const getModulePath = (meta, path, line, column) => {
+  if (!meta.sourceDir) {
+    return ensureClioExtension(path) + ".js";
+  }
+  if (path.match(/\.{1,2}\//)) {
+    return resolveRelativeModule(meta, path, line, column);
+  } else {
+    return resolveModule(meta, path, line, column);
+  }
+};
 
 const join = (arr, sep) => new SourceNode(null, null, null, arr).join(sep);
 const asIs = (token) =>
@@ -66,6 +183,59 @@ const getCallFn = (node) => {
     };
   }
   return node.fn;
+};
+
+const checkRecursive = (node) => {
+  // Checks for recursive calls
+  const lastNode = node.content[node.content.length - 1];
+  if (conditionals.includes(lastNode.type)) {
+    const bodies = [
+      lastNode.if.body,
+      ...lastNode.elseIfs.map((elseIf) => elseIf.body),
+      lastNode.else?.body,
+    ].filter(Boolean);
+    return bodies
+      .map((body) => ({ ...body, recursefn: node.recursefn }))
+      .some(checkRecursive);
+  }
+  // This is an infinite recursion:
+  else if (lastNode.type === "call") {
+    return (
+      lastNode.fn.type === "symbol" &&
+      get(lastNode.fn).toString() === node.recursefn?.name?.toString()
+    );
+  }
+  return false;
+};
+
+const toProperCall = (node) => {
+  const lastNode = node.content[node.content.length - 1];
+  if (conditionals.includes(lastNode.type)) {
+    const bodies = [
+      lastNode.if.body,
+      ...lastNode.elseIfs.map((elseIf) => elseIf.body),
+      lastNode.else?.body,
+    ].filter(Boolean);
+    bodies
+      .map((body) => {
+        body.recursefn = node.recursefn;
+        return body;
+      })
+      .map(toProperCall);
+  } else if (lastNode.type === "call") {
+    if (
+      lastNode.fn.type === "symbol" &&
+      get(lastNode.fn).toString() === node.recursefn?.name?.toString()
+    ) {
+      lastNode.type = "properCall";
+      lastNode.paramNames = node.recursefn.params.map((param) =>
+        param.toString()
+      );
+      lastNode.optimized = true;
+      node.optimized = true;
+    }
+  }
+  return node;
 };
 
 const types = {
@@ -146,6 +316,28 @@ const types = {
       fun.needsAsync;
     return sn;
   },
+  properCall(node) {
+    const params = node.paramNames;
+    const recurseArgs = params.map((param, i) => {
+      let recurseArg = "undefined";
+      if (node.args[i]) {
+        const value = get(node.args[i]);
+        if (value.toString()) {
+          recurseArg = value;
+        }
+      }
+      return new SourceNode(null, null, null, [`__${param}=`, recurseArg, ";"]);
+    });
+    const properArgs = params.map((param) => `${param}=__${param};`);
+    return new SourceNode(null, null, null, [
+      recurseArgs,
+      properArgs,
+      `__recurse=true;`,
+      `continue __`,
+      get(node.fn),
+      ";",
+    ]);
+  },
   call(node) {
     if (node.isMap) {
       node.type = "mapCall";
@@ -206,18 +398,50 @@ const types = {
     sn.needsAsync = content.some((item) => item.needsAsync);
     return sn;
   },
+  recursiveReturn(node) {
+    const params = node.recursefn.params.map((param) => param.toString());
+    const recursionParams = params.length
+      ? `let ` + params.map((param) => `__${param}`).join(",") + ";"
+      : "";
+    // Convert all recursive calls to proper calls
+    const proper = toProperCall(node);
+    proper.type = "return";
+    proper.optimized = true;
+    const properCode = get(proper);
+    const sn = new SourceNode(null, null, null, [
+      `${recursionParams}let __recurse = true;`,
+      `__${node.recursefn.name}: while(__recurse) {`,
+      `__recurse = false;`,
+      properCode,
+      `}`,
+    ]);
+    sn.needsAsync = properCode.needsAsync;
+    return sn;
+  },
   return(node) {
+    if (!node.optimized && checkRecursive(node)) {
+      node.type = "recursiveReturn";
+      return get(node);
+    }
     let lastNode = node.content.pop();
-    let addReturn = true;
+    let addReturn = !node.optimized && !lastNode.optimized;
     const content = node.content
       .map(get)
       .map((node) => [node.insertBefore, node])
       .flat()
       .filter(Boolean);
     if (conditionals.includes(lastNode.type)) {
-      lastNode.if.body.type = "return";
-      lastNode.elseIfs.map((elseIf) => (elseIf.body.type = "return"));
-      if (lastNode.else) lastNode.else.body.type = "return";
+      if (!lastNode.if.body.optimized) {
+        lastNode.if.body.type = "return";
+      }
+      lastNode.elseIfs.forEach((elseIf) => {
+        if (!elseIf.body.optimized) {
+          elseIf.body.type = "return";
+        }
+      });
+      if (lastNode.else && !lastNode.else.body.optimized) {
+        lastNode.else.body.type = "return";
+      }
       addReturn = false;
     } else if (lastNode.type === "assignment") {
       if (lastNode.value.insertBefore)
@@ -244,7 +468,7 @@ const types = {
       ...(name ? ["const ", name, "="] : []),
       ...(name ? ["register"] : []),
       "(",
-      ...(name ? ["`", start.file, "/", name, "`,"] : []),
+      ...(name ? ["`", start.rpcPrefix, "/", start.file, "/", name, "`,"] : []),
       node.body.needsAsync ? "async" : "",
       "(",
       new SourceNode(null, null, null, params).join(","),
@@ -286,7 +510,7 @@ const types = {
     sn.insertBefore = [value.insertBefore, value].filter(Boolean);
     return sn;
   },
-  imported(node) {
+  importStatement(node) {
     /* each import has 2 parts:
         1. import
         2. assign
@@ -298,6 +522,7 @@ const types = {
       .replace(/\.[^.]*$/, "")
       .split("/")
       .pop()
+      .replace(/@.*$/, "")
       .split(/[-._]+/)
       .filter(Boolean)
       .map((v, i) => (i > 0 ? v[0].toUpperCase() + v.slice(1) : v))
@@ -317,16 +542,28 @@ const types = {
         ["require(", '"', path, '")']
       );
     } /* istanbul ignore next */ else if (protocol === "clio") {
+      /*
+        Resolve imports:
+
+          1. Check if import is relative or not
+          2. Check if import path exists
+          3. Check if import path is a directory or not
+          4. Check if we need to append .clio to the import path
+      
+      */
+
+      const modulePath = getModulePath(
+        node.import,
+        path,
+        node.path.line,
+        node.path.column
+      );
+
       require = new SourceNode(
         node.import.line,
         node.import.column,
         node.import.file,
-        [
-          "await require(",
-          '"',
-          path + (path.endsWith(".clio") ? ".js" : ".clio.js"),
-          '").exports(clio)',
-        ]
+        ["await require(", '"', modulePath, '").exports(clio)']
       );
     } else {
       require = new SourceNode(
@@ -714,7 +951,10 @@ const types = {
   },
   strEscape(node) {
     node.value = node.value.slice(1);
-    return new SourceNode(null, null, null, ["`", asIs(node), "`"]);
+    const value = asIs(node);
+    return "{}".includes(value.toString())
+      ? new SourceNode(null, null, null, ["`", asIs(node), "`"])
+      : new SourceNode(null, null, null, ["`\\", asIs(node), "`"]);
   },
   clio(node) {
     const content = node.content
@@ -736,6 +976,7 @@ const get = (node) => {
   return result;
 };
 
+module.exports.ImportError = ImportError;
 module.exports.checkLambda = checkLambda;
 module.exports.types = types;
 module.exports.get = get;

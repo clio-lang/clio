@@ -15,16 +15,17 @@ Command Syntax and Options
 
   $ clio build --help
 
-  clio build [config]
+  clio build [project]
 
   Build a Clio project
 
   Options:
         --version           Show version number                          [boolean]
-        --config            Config file, or a directory to read configs from.
+        --project           Project root directory, where your clio.toml file is.
                                                            [string] [default: "."]
         --skip-bundle       Does not produces a bundle for browsers.     [boolean]
         --skip-npm-install  Skips npm install. Useful for tests.         [boolean]
         --silent            Mutes messages from the command.             [boolean]
         --clean             Wipe the build directory before build        [boolean]
     -h, --help              Show help                                    [boolean]
+

@@ -164,7 +164,7 @@
       console.error = console.log;
       try {
         const src = editor.getValue();
-        const { code } = compile(src, "main.clio");
+        const { code } = compile(src, "main.clio", { sourceDir: null });
         const main = await run(code);
         const now = performance.now();
         await main();
@@ -344,5 +344,10 @@
   }
   .copied.isActive {
     animation: appear 4s ease-in forwards;
+  }
+  @media only screen and (max-width: 600px) {
+    .sample {
+      display: none;
+    }
   }
 </style>
