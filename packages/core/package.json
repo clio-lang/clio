@@ -1,6 +1,6 @@
 {
   "name": "clio-core",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -12,10 +12,10 @@
     "bean-parser": "2.0.0",
     "chalk": "4.1.2",
     "clio-highlight": "^1.2.1",
-    "source-map": "^0.7.3",
-    "clio-manifest": "^0.6.1"
+    "clio-manifest": "^0.7.0",
+    "source-map": "^0.7.3"
   },
   "devDependencies": {
-    "clio-run": "^0.7.1"
+    "clio-run": "^0.8.0"
   }
 }
