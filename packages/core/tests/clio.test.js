@@ -152,7 +152,7 @@ testStr(
 testStr(
   "Functions (Infinite loop)",
   "fn loop:\n  loop ()",
-  "const loop=register(`test/<mem>/loop`,()=>{let __recurse = true;__loop: while(__recurse) {__recurse = false;return __recurse=true;continue __loop;}})"
+  "const loop=register(`test/<mem>/loop`,()=>{let __recurse = true;__loop: while(__recurse) {__recurse = false;__recurse=true;continue __loop;}})"
 );
 testStr(
   "Functions (One line, Range)",

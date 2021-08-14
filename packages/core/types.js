@@ -231,6 +231,7 @@ const toProperCall = (node) => {
       lastNode.paramNames = node.recursefn.params.map((param) =>
         param.toString()
       );
+      lastNode.optimized = true;
       node.optimized = true;
     }
   }
@@ -318,7 +319,13 @@ const types = {
   properCall(node) {
     const params = node.paramNames;
     const recurseArgs = params.map((param, i) => {
-      const recurseArg = node.args[i] ? get(node.args[i]) : "undefined";
+      let recurseArg = "undefined";
+      if (node.args[i]) {
+        const value = get(node.args[i]);
+        if (value.toString()) {
+          recurseArg = value;
+        }
+      }
       return new SourceNode(null, null, null, [`__${param}=`, recurseArg, ";"]);
     });
     const properArgs = params.map((param) => `${param}=__${param};`);
@@ -401,13 +408,15 @@ const types = {
     proper.type = "return";
     proper.optimized = true;
     const properCode = get(proper);
-    return new SourceNode(null, null, null, [
+    const sn = new SourceNode(null, null, null, [
       `${recursionParams}let __recurse = true;`,
       `__${node.recursefn.name}: while(__recurse) {`,
       `__recurse = false;`,
       properCode,
       `}`,
     ]);
+    sn.needsAsync = properCode.needsAsync;
+    return sn;
   },
   return(node) {
     if (!node.optimized && checkRecursive(node)) {
@@ -415,7 +424,7 @@ const types = {
       return get(node);
     }
     let lastNode = node.content.pop();
-    let addReturn = true;
+    let addReturn = !node.optimized && !lastNode.optimized;
     const content = node.content
       .map(get)
       .map((node) => [node.insertBefore, node])
@@ -942,7 +951,10 @@ const types = {
   },
   strEscape(node) {
     node.value = node.value.slice(1);
-    return new SourceNode(null, null, null, ["`", asIs(node), "`"]);
+    const value = asIs(node);
+    return "{}".includes(value.toString())
+      ? new SourceNode(null, null, null, ["`", asIs(node), "`"])
+      : new SourceNode(null, null, null, ["`\\", asIs(node), "`"]);
   },
   clio(node) {
     const content = node.content

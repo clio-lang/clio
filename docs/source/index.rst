@@ -27,6 +27,7 @@ history and you can learn how to use it.
 
 Click on the run button to run the above example,
 or continue reading on this article to learn more about the language!
+Check out the `change log`_ to learn what's new in this release.
 
 .. attention::
    Clio was recently rewritten from scratch, some
@@ -53,6 +54,7 @@ or continue reading on this article to learn more about the language!
    reference/index
    development/index
    links/index
+   changes
    support
 
 
@@ -61,3 +63,5 @@ Indices and tables
 
 * :ref:`genindex`
 * :ref:`search`
+
+.. _`change log`: ./changes.html
