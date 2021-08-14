@@ -42,7 +42,7 @@
     "@iarna/toml": "^2.2.5",
     "bean-parser": "2.0.0",
     "chalk": "4.1.2",
-    "clio-lang-cli": "0.9.1",
+    "clio-lang-cli": "0.10.0",
     "decompress": "^4.2.1",
     "del": "6.0.0",
     "enquirer": "^2.3.6",
