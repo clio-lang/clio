@@ -11,6 +11,7 @@
   "devDependencies": {
     "@rollup/plugin-alias": "^3.1.2",
     "@rollup/plugin-commonjs": "^19.0.0",
+    "@rollup/plugin-json": "^4.1.0",
     "@rollup/plugin-node-resolve": "^13.0.0",
     "babel-plugin-module-resolver": "^4.1.0",
     "rollup": "^2.50.2",

@@ -6,6 +6,7 @@ import { terser } from "rollup-plugin-terser";
 import nodePolyfills from "rollup-plugin-polyfill-node";
 import css from "rollup-plugin-css-only";
 import alias from "@rollup/plugin-alias";
+import json from "@rollup/plugin-json";
 import path from "path";
 
 const production = !process.env.ROLLUP_WATCH;
@@ -73,6 +74,8 @@ export default {
       browser: true,
       dedupe: ["svelte"],
     }),
+
+    json(),
 
     // In dev mode, call `npm run start` once
     // the bundle has been generated
