@@ -393,15 +393,16 @@ const types = {
   },
   recursiveReturn(node) {
     const params = node.recursefn.params.map((param) => param.toString());
-    const recursionParams =
-      `let ` + params.map((param) => `__${param}`).join(",") + ";";
+    const recursionParams = params.length
+      ? `let ` + params.map((param) => `__${param}`).join(",") + ";"
+      : "";
     // Convert all recursive calls to proper calls
     const proper = toProperCall(node);
     proper.type = "return";
     proper.optimized = true;
     const properCode = get(proper);
     return new SourceNode(null, null, null, [
-      `${recursionParams};let __recurse = true;`,
+      `${recursionParams}let __recurse = true;`,
       `__${node.recursefn.name}: while(__recurse) {`,
       `__recurse = false;`,
       properCode,

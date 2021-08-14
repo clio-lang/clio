@@ -150,6 +150,11 @@ testStr(
   "const add=register(`test/<mem>/add`,(a,b)=>{return a+b})"
 );
 testStr(
+  "Functions (Infinite loop)",
+  "fn loop:\n  loop ()",
+  "const loop=register(`test/<mem>/loop`,()=>{let __recurse = true;__loop: while(__recurse) {__recurse = false;return __recurse=true;continue __loop;}})"
+);
+testStr(
   "Functions (One line, Range)",
   `fn row: (x - 1) .. (x + 2) -> .toArray -> .filter (@it >= 0)`,
   "const row=register(`test/<mem>/row`,()=>{return range((x-1),(x+2),null).toArray().filter(((it)=>(it>=0)))})"
@@ -484,7 +489,7 @@ testFile(
 );
 testFile(
   "fizzbuzz",
-  "const fizzbuzz=register(`test/fizzbuzz.clio/fizzbuzz`,(current,last)=>{let __current,__last;;let __recurse = true;__fizzbuzz: while(__recurse) {__recurse = false;const buzz=!(current%5);const fizz=!(current%3);if((fizz)&&(buzz)){console.log(`Fizz Buzz`)}else if(fizz){console.log(`Fizz`)}else if(buzz){console.log(`Buzz`)}else{console.log(current)};if(!((current===last))){__current=(current+1);__last=last;current=__current;last=__last;__recurse=true;continue __fizzbuzz;}}})"
+  "const fizzbuzz=register(`test/fizzbuzz.clio/fizzbuzz`,(current,last)=>{let __current,__last;let __recurse = true;__fizzbuzz: while(__recurse) {__recurse = false;const buzz=!(current%5);const fizz=!(current%3);if((fizz)&&(buzz)){console.log(`Fizz Buzz`)}else if(fizz){console.log(`Fizz`)}else if(buzz){console.log(`Buzz`)}else{console.log(current)};if(!((current===last))){__current=(current+1);__last=last;current=__current;last=__last;__recurse=true;continue __fizzbuzz;}}})"
 );
 testFile(
   "express",
