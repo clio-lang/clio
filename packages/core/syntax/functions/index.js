@@ -24,6 +24,7 @@ module.exports = {
     block: wrap((lhs, rhs) => {
       lhs.type = "function";
       rhs.type = "return";
+      rhs.recursefn = lhs;
       lhs.body = types.get(rhs);
       return lhs;
     }, 10),

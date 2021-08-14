@@ -185,6 +185,58 @@ const getCallFn = (node) => {
   return node.fn;
 };
 
+const checkRecursive = (node) => {
+  // Checks for recursive calls
+  const lastNode = node.content[node.content.length - 1];
+  if (conditionals.includes(lastNode.type)) {
+    const bodies = [
+      lastNode.if.body,
+      ...lastNode.elseIfs.map((elseIf) => elseIf.body),
+      lastNode.else?.body,
+    ].filter(Boolean);
+    return bodies
+      .map((body) => ({ ...body, recursefn: node.recursefn }))
+      .some(checkRecursive);
+  }
+  // This is an infinite recursion:
+  else if (lastNode.type === "call") {
+    return (
+      lastNode.fn.type === "symbol" &&
+      get(lastNode.fn).toString() === node.recursefn?.name?.toString()
+    );
+  }
+  return false;
+};
+
+const toProperCall = (node) => {
+  const lastNode = node.content[node.content.length - 1];
+  if (conditionals.includes(lastNode.type)) {
+    const bodies = [
+      lastNode.if.body,
+      ...lastNode.elseIfs.map((elseIf) => elseIf.body),
+      lastNode.else?.body,
+    ].filter(Boolean);
+    bodies
+      .map((body) => {
+        body.recursefn = node.recursefn;
+        return body;
+      })
+      .map(toProperCall);
+  } else if (lastNode.type === "call") {
+    if (
+      lastNode.fn.type === "symbol" &&
+      get(lastNode.fn).toString() === node.recursefn?.name?.toString()
+    ) {
+      lastNode.type = "properCall";
+      lastNode.paramNames = node.recursefn.params.map((param) =>
+        param.toString()
+      );
+      node.optimized = true;
+    }
+  }
+  return node;
+};
+
 const types = {
   symbol(node) {
     return asIs(node);
@@ -263,6 +315,22 @@ const types = {
       fun.needsAsync;
     return sn;
   },
+  properCall(node) {
+    const params = node.paramNames;
+    const recurseArgs = params.map((param, i) => {
+      const recurseArg = node.args[i] ? get(node.args[i]) : "undefined";
+      return new SourceNode(null, null, null, [`__${param}=`, recurseArg, ";"]);
+    });
+    const properArgs = params.map((param) => `${param}=__${param};`);
+    return new SourceNode(null, null, null, [
+      recurseArgs,
+      properArgs,
+      `__recurse=true;`,
+      `continue __`,
+      get(node.fn),
+      ";",
+    ]);
+  },
   call(node) {
     if (node.isMap) {
       node.type = "mapCall";
@@ -323,7 +391,28 @@ const types = {
     sn.needsAsync = content.some((item) => item.needsAsync);
     return sn;
   },
+  recursiveReturn(node) {
+    const params = node.recursefn.params.map((param) => param.toString());
+    const recursionParams =
+      `let ` + params.map((param) => `__${param}`).join(",") + ";";
+    // Convert all recursive calls to proper calls
+    const proper = toProperCall(node);
+    proper.type = "return";
+    proper.optimized = true;
+    const properCode = get(proper);
+    return new SourceNode(null, null, null, [
+      `${recursionParams};let __recurse = true;`,
+      `__${node.recursefn.name}: while(__recurse) {`,
+      `__recurse = false;`,
+      properCode,
+      `}`,
+    ]);
+  },
   return(node) {
+    if (!node.optimized && checkRecursive(node)) {
+      node.type = "recursiveReturn";
+      return get(node);
+    }
     let lastNode = node.content.pop();
     let addReturn = true;
     const content = node.content
@@ -332,9 +421,17 @@ const types = {
       .flat()
       .filter(Boolean);
     if (conditionals.includes(lastNode.type)) {
-      lastNode.if.body.type = "return";
-      lastNode.elseIfs.map((elseIf) => (elseIf.body.type = "return"));
-      if (lastNode.else) lastNode.else.body.type = "return";
+      if (!lastNode.if.body.optimized) {
+        lastNode.if.body.type = "return";
+      }
+      lastNode.elseIfs.forEach((elseIf) => {
+        if (!elseIf.body.optimized) {
+          elseIf.body.type = "return";
+        }
+      });
+      if (lastNode.else && !lastNode.else.body.optimized) {
+        lastNode.else.body.type = "return";
+      }
       addReturn = false;
     } else if (lastNode.type === "assignment") {
       if (lastNode.value.insertBefore)

@@ -166,6 +166,7 @@ const build = async (configPath, options = {}) => {
         destFile,
       }).catch((compileError) => {
         progress.fail();
+        console.trace(compileError);
         console.error(compileError.message);
         process.exit(1);
       });
@@ -269,7 +270,6 @@ const build = async (configPath, options = {}) => {
         { flag: "w" }
       );
     } catch (e) {
-      console.trace(e);
       progress.fail(`Error: ${e.message}`);
       error(e, "Dependency Install");
     }

@@ -484,7 +484,7 @@ testFile(
 );
 testFile(
   "fizzbuzz",
-  "const fizzbuzz=register(`test/fizzbuzz.clio/fizzbuzz`,(current,last)=>{const buzz=!(current%5);const fizz=!(current%3);if((fizz)&&(buzz)){console.log(`Fizz Buzz`)}else if(fizz){console.log(`Fizz`)}else if(buzz){console.log(`Buzz`)}else{console.log(current)};if(!((current===last))){return fizzbuzz((current+1),last)}})"
+  "const fizzbuzz=register(`test/fizzbuzz.clio/fizzbuzz`,(current,last)=>{let __current,__last;;let __recurse = true;__fizzbuzz: while(__recurse) {__recurse = false;const buzz=!(current%5);const fizz=!(current%3);if((fizz)&&(buzz)){console.log(`Fizz Buzz`)}else if(fizz){console.log(`Fizz`)}else if(buzz){console.log(`Buzz`)}else{console.log(current)};if(!((current===last))){__current=(current+1);__last=last;current=__current;last=__last;__recurse=true;continue __fizzbuzz;}}})"
 );
 testFile(
   "express",
