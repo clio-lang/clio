@@ -963,7 +963,7 @@ const types = {
       .filter(Boolean);
     const inner = new SourceNode(null, null, null, content).join(";");
     return new SourceNode(null, null, null, [
-      "module.exports.exports=async(clio)=>{const{emitter,channel,range,slice,remote,register,man,includes,f}=clio;",
+      "module.exports.exports=async(clio)=>{const{emitter,range,slice,remote,register,man,includes,f}=clio;",
       inner,
       ";return clio.exports}",
     ]);
