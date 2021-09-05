@@ -76,7 +76,7 @@ class Worker {
     this.sendResult(result, id, source);
   }
   serialize(data) {
-    return Buffer.from([...this.sia.serialize(data)]);
+    return Buffer.from(this.sia.serialize(data));
   }
   deserialize(buf) {
     return this.desia.deserialize(buf);
