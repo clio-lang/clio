@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "clio-lang-internals": "^0.8.0",
+    "sializer": "^0.1.0",
     "ws": "^7.4.6"
   },
   "scripts": {

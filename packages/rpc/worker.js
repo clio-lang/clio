@@ -1,17 +1,43 @@
-const { randomId, EventEmitter } = require("./common");
+const { randomId } = require("./common");
+const { Sia, DeSia } = require("sializer");
+const { Payload, Packet, TYPES, SIA_TYPES } = require("./lib");
 
+const { RESULT, PATH, CALL, GET, REGISTER } = TYPES;
+const { PACKET, PAYLOAD } = SIA_TYPES;
 class Worker {
   constructor(transport) {
     this.transport = transport;
-    this.transport.on("message", (data) => this.handleData(data));
+    this.transport.on("message", (packet) => this.onPacket(packet));
     this.transport.on("connect", () => this.handleConnect());
     this.transport.on("error", (error) => this.onError(error));
     this.functions = new Map();
     this.emitters = new Map();
     this.retries = 10;
-    this.id = "worker." + randomId(64);
+    this.id = "worker://" + randomId(64);
+    this.setupSia();
+    this.packets = 0;
+    this.transport.register(this.id, this);
+  }
+  setupSia() {
+    const constructors = [
+      {
+        constructor: Packet,
+        code: PACKET,
+        build: (...args) => args,
+        args: (item) => [item.source, item.destination, item.payload],
+      },
+      {
+        constructor: Payload,
+        code: PAYLOAD,
+        build: (...args) => args,
+        args: (item) => [item.id, item.type, item.data],
+      },
+    ];
+    this.sia = new Sia({ constructors });
+    this.desia = new DeSia({ constructors });
   }
   register({ path, fn }) {
+    this.transport.register(path, this);
     this.functions.set(path, fn);
   }
   getFn(path) {
@@ -31,68 +57,37 @@ class Worker {
   }
   handleConnect() {
     this.retries = 10;
-    const id = randomId(64);
+    const id = this.packets++;
     const paths = [...this.functions.keys()];
-    this.send(
-      {
-        instruction: "registerWorker",
-        details: JSON.stringify({ paths }),
-      },
-      id
-    );
+    const payload = this.serialize(new Payload(id, REGISTER, paths));
+    const packet = this.serialize(new Packet(this.id, null, payload));
+    this.send(packet);
   }
-  handleData(data) {
-    const { instruction, details, id, clientId, toClient } = data;
-    // TODO: there must be a better way to do this
-    if (toClient !== this.id) return;
-    if (instruction == "call")
-      this.handleCallInstruction(details, id, clientId);
-    else if (instruction == "event")
-      this.handleEventInstruction(details, id, clientId);
+  onPacket(packet) {
+    const [source, destination, payload] = packet;
+    const [id, type, data] = this.deserialize(payload);
+    if (type === CALL) {
+      this.handleCallInstruction(destination, data, id, source);
+    }
   }
-  async handleCallInstruction(details, id, clientId) {
-    const { path, args } = JSON.parse(details);
+  async handleCallInstruction(path, data, id, source) {
     const fn = this.getFn(path);
-    const result = await fn(...args);
-    this.sendResult(result, id, clientId);
+    const result = await fn(...data);
+    this.sendResult(result, id, source);
   }
-  async handleEventInstruction(details, id, clientId) {
-    const { id: emitterId, event, args } = JSON.parse(details);
-    const { emitter, send } = this.emitters.get(emitterId);
-    emitter.emitUnless(send, event, ...args);
+  serialize(data) {
+    return Buffer.from([...this.sia.serialize(data)]);
   }
-  serialize(data, clientId) {
-    const replacer = (_, value) => {
-      if (value instanceof EventEmitter) {
-        const { id } = value;
-        const send = (event, ...args) => {
-          const data = {
-            instruction: "event",
-            details: this.serialize({ id, event, args }),
-            toClient: clientId,
-          };
-          this.send(data);
-        };
-        value.on(/.*/, send);
-        this.emitters.set(id, { emitter: value, send });
-        // TODO: kill the emitter on client close
-        return { "@type": "EventEmitter", clientId: this.id, id };
-      }
-      return value;
-    };
-    return JSON.stringify(data, replacer);
+  deserialize(buf) {
+    return this.desia.deserialize(buf);
   }
-  async sendResult(result, id, clientId) {
-    result = await result;
-    const data = {
-      instruction: "result",
-      details: this.serialize({ result }, clientId),
-      toClient: clientId,
-    };
-    this.send(data, id);
+  sendResult(result, id, destination) {
+    const payload = this.serialize(new Payload(id, RESULT, result));
+    const packet = this.serialize(new Packet(this.id, destination, payload));
+    this.send(packet);
   }
-  send(data, id) {
-    this.transport.send({ ...data, clientId: this.id, id });
+  send(data) {
+    this.transport.send(data);
   }
 }
 
