@@ -1,9 +1,8 @@
 const { randomId } = require("./common");
 const { Sia, DeSia } = require("sializer");
-const { Payload, Packet, TYPES, SIA_TYPES } = require("./lib");
+const { TYPES } = require("./lib");
 
-const { RESULT, PATH, CALL, GET, REGISTER } = TYPES;
-const { PACKET, PAYLOAD } = SIA_TYPES;
+const { RESULT, CALL, REGISTER } = TYPES;
 class Worker {
   constructor(transport) {
     this.transport = transport;
@@ -19,22 +18,8 @@ class Worker {
     this.transport.register(this.id, this);
   }
   setupSia() {
-    const constructors = [
-      {
-        constructor: Packet,
-        code: PACKET,
-        build: (...args) => args,
-        args: (item) => [item.source, item.destination, item.payload],
-      },
-      {
-        constructor: Payload,
-        code: PAYLOAD,
-        build: (...args) => args,
-        args: (item) => [item.id, item.type, item.data],
-      },
-    ];
-    this.sia = new Sia({ constructors });
-    this.desia = new DeSia({ constructors });
+    this.sia = new Sia();
+    this.desia = new DeSia();
   }
   register({ path, fn }) {
     this.transport.register(path, this);

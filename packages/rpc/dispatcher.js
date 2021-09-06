@@ -1,9 +1,8 @@
 const { EventEmitter } = require("./common");
-const { Sia, DeSia } = require("sializer");
-const { Payload, Packet, TYPES, SIA_TYPES } = require("./lib");
+const { sia, desia, DeSia } = require("sializer");
+const { TYPES } = require("./lib");
 
 const { PATH, REGISTER } = TYPES;
-const { PACKET, PAYLOAD } = SIA_TYPES;
 
 class Dispatcher extends EventEmitter {
   constructor() {
@@ -17,29 +16,13 @@ class Dispatcher extends EventEmitter {
     this.setupSia();
   }
   setupSia() {
-    const constructors = [
-      {
-        constructor: Packet,
-        code: PACKET,
-        build: (...args) => args,
-        args: (item) => [item.source, item.destination, item.payload],
-      },
-      {
-        constructor: Payload,
-        code: PAYLOAD,
-        build: (...args) => args,
-        args: (item) => [item.id, item.type, item.data],
-      },
-    ];
-    this.sia = new Sia({ constructors });
-    this.desia = new DeSia({ constructors });
+    this.desia = new DeSia();
   }
   deserialize(buf) {
-    const result = this.desia.deserialize(buf);
-    return result;
+    return desia(buf);
   }
   serialize(item) {
-    return Buffer.from(this.sia.serialize(item));
+    return Buffer.from(sia(item));
   }
   kill() {
     for (const transport of this.transports) {

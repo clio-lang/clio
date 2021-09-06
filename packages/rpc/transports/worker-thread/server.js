@@ -1,32 +1,14 @@
 const { WorkerThreadSocket } = require("./socket");
 const { EventEmitter } = require("../../common");
 
-const { Sia, DeSia } = require("sializer");
-const { Payload, Packet, TYPES, SIA_TYPES } = require("../../lib");
-
-const { RESULT, PATH, CALL, GET, REGISTER } = TYPES;
-const { PACKET, PAYLOAD } = SIA_TYPES;
+const { desia } = require("sializer");
 
 class inSocket {
   constructor(socket) {
     this.socket = socket;
-    this.setupSia();
-  }
-  setupSia() {
-    const constructors = [
-      {
-        constructor: Packet,
-        code: PACKET,
-        build: (...args) => args,
-        args: (item) => [item.source, item.destination, item.payload],
-      },
-    ];
-    this.sia = new Sia({ constructors });
-    this.desia = new DeSia({ constructors });
   }
   send(buf) {
-    const packet = this.desia.deserialize(buf);
-    this.socket.emit("message", packet);
+    this.socket.emit("message", desia(buf));
   }
 }
 
