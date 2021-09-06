@@ -11,7 +11,6 @@ class Client extends EventEmitter {
     super();
     this.tcpConfig = config || Server.defaultTCPConfig();
     this.map = new Map();
-    this.id = Math.random();
   }
   register(id, instance) {
     this.map.set(id, instance);
@@ -26,7 +25,7 @@ class Client extends EventEmitter {
   }
   send(data) {
     header.writeUInt16LE(data.length, 0);
-    this.socket.write(header);
+    this.socket.write(Buffer.from(header));
     this.socket.write(data);
   }
   deserialize(buf) {

@@ -9,7 +9,7 @@ class TCPSocket extends EventEmitter {
   }
   send(data) {
     header.writeUInt16LE(data.length, 0);
-    this.socket.write(header);
+    this.socket.write(Buffer.from(header));
     this.socket.write(data);
   }
 }
