@@ -1,4 +1,4 @@
-const readline = require("readline");
+const { PacketParser } = require("../../lib");
 const net = require("net");
 const { TCPSocket } = require("./socket");
 const { EventEmitter } = require("../../common");
@@ -25,9 +25,8 @@ class Server extends EventEmitter {
     this.emit("listening");
   }
   onTCPConnect(socket) {
-    socket.rl = readline.createInterface(socket);
-    socket.rl.on("line", (data) => this.handleIncoming(socket, data));
-    socket.on("close", () => socket.rl.close());
+    socket.parser = new PacketParser(socket);
+    socket.parser.on("message", (data) => this.handleIncoming(socket, data));
   }
   handleIncoming(socket, data) {
     const tcpSocket = new TCPSocket(socket);
