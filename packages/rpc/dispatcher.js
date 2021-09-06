@@ -51,11 +51,23 @@ class Dispatcher extends EventEmitter {
     transport.on("message", (socket, buf) => this.onMessage(socket, buf));
     transport.start();
   }
+  getRouteInfo(packet) {
+    this.desia.reset();
+    this.desia.buffer = packet;
+    this.desia.readInt8();
+    this.desia.readInt8();
+    const source = this.desia.readBlock();
+    const destination = this.desia.readBlock();
+    return [source, destination];
+  }
+  getPayload() {
+    return this.desia.readBlock();
+  }
   onMessage(socket, packet) {
-    const [source, destination, payload] = this.deserialize(packet);
+    const [source, destination] = this.getRouteInfo(packet);
     this.clients.set(source, socket);
     if (!destination) {
-      this.routeSelf(socket, source, payload);
+      this.routeSelf(socket, source, this.getPayload());
     } else if (destination.startsWith("worker://")) {
       this.routeToSocket(destination, packet);
     } else if (destination.startsWith("executor://")) {
@@ -82,8 +94,8 @@ class Dispatcher extends EventEmitter {
     const [id, type, data] = this.deserialize(payload);
     if (type === PATH) {
       const paths = [...this.workers.keys()].filter((p) => p.startsWith(data));
-      const payload = this.serialize(new Payload(id, type, paths));
-      const packet = this.serialize(new Packet(null, source, payload));
+      const payload = this.serialize([id, type, paths]);
+      const packet = this.serialize([null, source, payload]);
       socket.send(packet);
     } else if (type === REGISTER) {
       if (!data.length) return;
@@ -107,13 +119,14 @@ class Dispatcher extends EventEmitter {
     const currentJobs = this.jobs.get(path) || [];
     this.jobs.set(path, [...currentJobs, args]);
   }
-  random(high) {
-    return Math.round(Math.random() * high);
+  schedule(length) {
+    this.index = this.index + 1 >= length ? 0 : this.index + 1;
+    return this.index;
   }
   getWorker(path) {
     const workers = this.workers.get(path);
     if (!workers) return;
-    const index = this.random(workers.length - 1);
+    const index = this.schedule(workers.length);
     return workers[index];
   }
   expectWorkers(n) {

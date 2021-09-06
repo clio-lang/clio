@@ -59,8 +59,8 @@ class Executor {
     const promise = new Promise((resolve) => {
       this.promises.set(id, { resolve });
     });
-    const payload = this.serialize(new Payload(id, CALL, args));
-    const packet = this.serialize(new Packet(this.id, path, payload));
+    const payload = this.serialize([id, CALL, args]);
+    const packet = this.serialize([this.id, path, payload]);
     this.send(packet);
     return promise;
   }
@@ -72,8 +72,8 @@ class Executor {
     const promise = new Promise((resolve) => {
       this.promises.set(id, { resolve });
     });
-    const payload = this.serialize(new Payload(id, GET, path));
-    const packet = this.serialize(new Packet(this.id, null, payload));
+    const payload = this.serialize([id, GET, path]);
+    const packet = this.serialize([this.id, null, payload]);
     this.send(packet);
     const paths = await promise;
     const fns = {};

@@ -59,8 +59,8 @@ class Worker {
     this.retries = 10;
     const id = this.packets++;
     const paths = [...this.functions.keys()];
-    const payload = this.serialize(new Payload(id, REGISTER, paths));
-    const packet = this.serialize(new Packet(this.id, null, payload));
+    const payload = this.serialize([id, REGISTER, paths]);
+    const packet = this.serialize([this.id, null, payload]);
     this.send(packet);
   }
   onPacket(packet) {
@@ -82,8 +82,8 @@ class Worker {
     return this.desia.deserialize(buf);
   }
   sendResult(result, id, destination) {
-    const payload = this.serialize(new Payload(id, RESULT, result));
-    const packet = this.serialize(new Packet(this.id, destination, payload));
+    const payload = this.serialize([id, RESULT, result]);
+    const packet = this.serialize([this.id, destination, payload]);
     this.send(packet);
   }
   send(data) {
