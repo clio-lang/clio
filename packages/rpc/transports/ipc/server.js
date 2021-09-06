@@ -33,11 +33,11 @@ class Server extends EventEmitter {
     this.emit("listening");
   }
   onIPCConnect(socket) {
-    socket.parser = new PacketParser(socket);
-    socket.parser.on("message", (data) => this.handleIncoming(socket, data));
-  }
-  handleIncoming(socket, data) {
+    const parser = new PacketParser(socket);
     const ipcSocket = new IPCSocket(socket);
+    parser.on("message", (data) => this.handleIncoming(ipcSocket, data));
+  }
+  handleIncoming(ipcSocket, data) {
     this.emit("message", ipcSocket, data);
   }
   start() {

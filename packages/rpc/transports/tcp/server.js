@@ -25,11 +25,11 @@ class Server extends EventEmitter {
     this.emit("listening");
   }
   onTCPConnect(socket) {
-    socket.parser = new PacketParser(socket);
-    socket.parser.on("message", (data) => this.handleIncoming(socket, data));
-  }
-  handleIncoming(socket, data) {
+    const parser = new PacketParser(socket);
     const tcpSocket = new TCPSocket(socket);
+    parser.on("message", (data) => this.handleIncoming(tcpSocket, data));
+  }
+  handleIncoming(tcpSocket, data) {
     this.emit("message", tcpSocket, data);
   }
   start() {
