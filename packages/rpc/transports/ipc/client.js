@@ -3,6 +3,7 @@ const { desia } = require("sializer");
 const net = require("net");
 const { Server } = require("./server");
 const { EventEmitter } = require("../../common");
+const { Buffer } = require("../../lib");
 
 const header = Buffer.alloc(2);
 

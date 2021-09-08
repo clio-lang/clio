@@ -1,6 +1,7 @@
 const WebSocket = require("ws");
 const { Server } = require("./server");
 const { EventEmitter } = require("../../common");
+const { Buffer } = require("../../lib");
 const { desia } = require("sializer");
 
 class Client extends EventEmitter {

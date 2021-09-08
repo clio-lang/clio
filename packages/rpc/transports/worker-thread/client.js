@@ -1,5 +1,6 @@
 const { EventEmitter } = require("../../common");
 const { desia } = require("sializer");
+const { Buffer } = require("../../lib");
 
 class Client extends EventEmitter {
   constructor({ parentPort }) {

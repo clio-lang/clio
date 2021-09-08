@@ -1,4 +1,5 @@
 const { EventEmitter } = require("../../common");
+const { Buffer } = require("../../lib");
 
 const header = Buffer.alloc(2);
 

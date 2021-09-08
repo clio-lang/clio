@@ -1,6 +1,6 @@
 const { randomId } = require("./common");
 const { Sia, DeSia } = require("sializer");
-const { TYPES } = require("./lib");
+const { TYPES, Buffer } = require("./lib");
 
 const { RESULT, CALL, REGISTER } = TYPES;
 class Worker {

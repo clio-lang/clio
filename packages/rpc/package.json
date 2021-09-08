@@ -7,8 +7,9 @@
     "test": "test"
   },
   "dependencies": {
+    "buffer": "^5.7.1",
     "clio-lang-internals": "^0.8.0",
-    "sializer": "^0.1.0",
+    "sializer": "^0.1.1",
     "ws": "^7.4.6"
   },
   "scripts": {

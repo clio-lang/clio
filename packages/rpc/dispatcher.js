@@ -1,6 +1,6 @@
 const { EventEmitter } = require("./common");
 const { sia, desia, DeSia } = require("sializer");
-const { TYPES } = require("./lib");
+const { TYPES, Buffer } = require("./lib");
 
 const { PATH, REGISTER } = TYPES;
 
@@ -26,7 +26,7 @@ class Dispatcher extends EventEmitter {
   }
   kill() {
     for (const transport of this.transports) {
-      transport.kill?.();
+      if (transport.kill) transport.kill();
     }
   }
   addTransport(transport) {

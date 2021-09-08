@@ -1,5 +1,6 @@
 const { WorkerThreadSocket } = require("./socket");
 const { EventEmitter } = require("../../common");
+const { Buffer } = require("../../lib");
 
 const { desia } = require("sializer");
 
