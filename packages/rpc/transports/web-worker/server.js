@@ -33,6 +33,11 @@ class Server extends EventEmitter {
     this.workers = [];
     this.ready = false;
   }
+  kill() {
+    for (const worker of this.workers) {
+      worker.kill();
+    }
+  }
   start() {
     this.emit("listening");
     this.ready = true;

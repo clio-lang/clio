@@ -6,6 +6,9 @@ class WebWorkerSocket extends EventEmitter {
     this.worker = worker;
     this.connect();
   }
+  kill() {
+    this.worker.terminate();
+  }
   connect() {
     this.worker.onmessage = (event) => this.handleWorkerMessage(event.data);
     this.emit("connect");

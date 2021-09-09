@@ -169,7 +169,7 @@
           config: {},
           rpcPrefix: "playground",
         });
-        const main = await run(code);
+        const { main, dispatcher } = await run(code);
         const now = performance.now();
         await main();
         const end = performance.now();
@@ -177,6 +177,7 @@
         lines.push("-".repeat(time));
         lines.push(time);
         domConsole.setValue(lines.join("\n"));
+        dispatcher.kill();
       } catch (error) {
         console.trace(error);
         console.error(error);
