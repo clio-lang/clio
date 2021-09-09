@@ -14,7 +14,7 @@ class WorkerThreadSocket extends EventEmitter {
     this.emit("message", data);
   }
   send(data) {
-    this.worker.postMessage(data);
+    this.worker.postMessage(data, [data.buffer]);
   }
 }
 

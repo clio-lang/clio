@@ -25,7 +25,7 @@ class Client extends EventEmitter {
     dest.onPacket(packet);
   }
   send(data) {
-    this.postMessage(data);
+    this.postMessage(data, [data.buffer]);
   }
 }
 
