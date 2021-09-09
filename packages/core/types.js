@@ -2,7 +2,6 @@ const { mapfn, map } = require("bean-parser");
 const { SourceNode } = require("source-map");
 const { existsSync } = require("fs");
 const { join: joinPath, dirname, relative, resolve } = require("path");
-const { getPackageConfig } = require("clio-manifest");
 
 class ImportError extends Error {
   constructor(meta) {
@@ -62,9 +61,7 @@ const resolveModule = (meta, path, line, column) => {
     });
   }
 
-  const configPath = joinPath(meta.root, "clio.toml");
-  const config = getPackageConfig(configPath);
-  const { source, destination } = config.build;
+  const { source, destination } = meta.config.build;
   const possiblePaths = [];
   const getResolvePath = (subPath) => {
     return {

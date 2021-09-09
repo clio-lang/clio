@@ -159,6 +159,7 @@ const build = async (configPath, options = {}) => {
       const contents = fs.readFileSync(file, "utf8");
       const { code, map } = await asyncCompile(contents, relativeFile, {
         root: path.dirname(configPath),
+        config,
         sourceDir,
         modulesDir,
         modulesDestDir,
@@ -211,6 +212,7 @@ const build = async (configPath, options = {}) => {
           const contents = fs.readFileSync(file, "utf8");
           const { code, map } = await asyncCompile(contents, relativeFile, {
             root: path.dirname(configPath),
+            config,
             modulesDir,
             modulesDestDir,
             sourceDir: rawSource,
