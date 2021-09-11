@@ -2,7 +2,7 @@ const { EventEmitter } = require("./common");
 const { sia, desia, DeSia } = require("sializer");
 const { TYPES, Buffer } = require("./lib");
 
-const { PATH, REGISTER } = TYPES;
+const { GET, REGISTER, PATH } = TYPES;
 
 class Dispatcher extends EventEmitter {
   constructor() {
@@ -75,9 +75,9 @@ class Dispatcher extends EventEmitter {
   }
   routeSelf(socket, source, payload) {
     const [id, type, data] = this.deserialize(payload);
-    if (type === PATH) {
+    if (type === GET) {
       const paths = [...this.workers.keys()].filter((p) => p.startsWith(data));
-      const payload = this.serialize([id, type, paths]);
+      const payload = this.serialize([id, PATH, paths]);
       const packet = this.serialize([null, source, payload]);
       socket.send(packet);
     } else if (type === REGISTER) {
