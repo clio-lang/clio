@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { compile } = require("clio-core");
 const { error, info, warn } = require("../lib/colors");
-const { getPlatform } = require("../lib/platforms");
+const { getPlatform, npmCommand } = require("../lib/platforms");
 const { Progress } = require("../lib/progress");
 
 const {
@@ -302,6 +302,11 @@ const build = async (configPath, options = {}) => {
     await linkToDest("clio-rpc", "rpc", ["clio-lang-internals"]);
     await linkToDest("clio-lang-internals", "internals");
 
+    // Install third party dependencies
+    installExternal("sializer", destination);
+    installExternal("buffer", destination);
+    installExternal("ws", destination);
+
     progress.succeed();
   }
 
@@ -327,6 +332,14 @@ async function link(name, internalName, destination, unlinks = []) {
   rmdir(modulePath);
   await copyDir(internalPath, modulePath);
   unlinkNodeModules(modulePath, ...unlinks);
+}
+
+/**
+ * Install external package into destination
+ * @param {string} destination Full path to destination directory
+ */
+function installExternal(name, destination) {
+  return npmCommand("install", destination, name);
 }
 
 /**

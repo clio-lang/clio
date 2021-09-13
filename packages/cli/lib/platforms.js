@@ -1,9 +1,9 @@
-const { spawn } = require("child_process");
+const { spawnSync } = require("child_process");
 
 const npmCommand = (command, destination, args, forkOptions = {}) => {
   const argv = args && args.length ? ["--", ...args] : [];
   const npm = process.platform == "win32" ? "npm.cmd" : "npm";
-  return spawn(npm, ["run", command, ...argv], {
+  return spawnSync(npm, ["run", command, ...argv], {
     cwd: destination,
     stdio: "inherit",
     ...forkOptions,
@@ -29,3 +29,4 @@ function getPlatform(name) {
 }
 
 exports.getPlatform = getPlatform;
+exports.npmCommand = npmCommand;
