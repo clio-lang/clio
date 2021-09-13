@@ -24,9 +24,13 @@ const testFile = (name, expected) => {
 
 const shouldThrow = (name, src, err, file = "<mem>") => {
   return test(name, () => {
-    expect(() => compile(src, file, { sourceDir: null })).toThrowError(
-      new RegExp(err)
-    );
+    expect(() =>
+      compile(src, file, {
+        sourceDir: null,
+        config: {},
+        rpcPrefix: "test",
+      })
+    ).toThrowError(new RegExp(err));
   });
 };
 

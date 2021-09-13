@@ -50,6 +50,7 @@
     "node-fetch": "^2.6.1",
     "npm-registry-fetch": "^10.1.2",
     "ora": "^5.4.0",
+    "sializer": "^0.1.1",
     "source-map": "^0.7.3",
     "tmp": "0.2.1",
     "ws": "^7.4.6",
