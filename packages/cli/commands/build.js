@@ -295,17 +295,19 @@ const build = async (configPath, options = {}) => {
     progress.succeed();
     progress.start("Linking dependencies");
 
+    // Install third party dependencies
+    const install = (...names) =>
+      names.forEach((name) => installExternal(name, destination));
+
+    install("sializer", "buffer", "ws");
+
+    // Link local dependencies
     const linkToDest = (name, internalName, unlinks) =>
       link(name, internalName, destination, unlinks);
 
     await linkToDest("clio-run", "run", ["clio-lang-internals", "clio-rpc"]);
     await linkToDest("clio-rpc", "rpc", ["clio-lang-internals"]);
     await linkToDest("clio-lang-internals", "internals");
-
-    // Install third party dependencies
-    installExternal("sializer", destination);
-    installExternal("buffer", destination);
-    installExternal("ws", destination);
 
     progress.succeed();
   }
