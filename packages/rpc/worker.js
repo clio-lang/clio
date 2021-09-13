@@ -13,7 +13,7 @@ class Worker {
     this.functions = new Map();
     this.emitters = new Map();
     this.retries = 10;
-    this.id = "worker://" + randomId(64);
+    this.id = "worker://" + randomId();
     this.setupSia();
     this.packets = 0;
     this.transport.register(this.id, this);
