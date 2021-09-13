@@ -13,7 +13,7 @@ class PacketParser extends EventEmitter {
         this.size = data.readUInt16LE();
         this.data = data.slice(2);
       }
-      if (this.data.length >= this.size) {
+      while (this.size && this.data.length >= this.size) {
         const packet = Buffer.from(this.data.slice(0, this.size));
         if (this.data.length > this.size) {
           const remaining = this.data.slice(this.size + 2);
