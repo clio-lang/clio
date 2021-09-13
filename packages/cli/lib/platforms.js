@@ -11,7 +11,13 @@ const npmCommand = (command, destination, args, forkOptions = {}) => {
 };
 
 const npmRun = (command, destination, args, forkOptions = {}) => {
-  return npmCommand(["run", ...command], destination, args, forkOptions);
+  const argv = args && args.length ? ["--", ...args] : [];
+  const npm = process.platform == "win32" ? "npm.cmd" : "npm";
+  return spawnSync(npm, ["run", command, ...argv], {
+    cwd: destination,
+    stdio: "inherit",
+    ...forkOptions,
+  });
 };
 
 const js = {
