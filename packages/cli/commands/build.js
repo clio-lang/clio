@@ -339,7 +339,7 @@ async function link(name, internalName, destination, unlinks = []) {
  * @param {string} destination Full path to destination directory
  */
 function installExternal(name, destination) {
-  return npmCommand("install", destination, name);
+  return npmCommand("install", destination, [name]);
 }
 
 /**
