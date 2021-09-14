@@ -12,14 +12,15 @@ class PacketParser extends EventEmitter {
         this.size = this.data.readUInt16LE();
         this.data = this.data.slice(2);
       }
-      while (this.size && this.data && this.data.length >= this.size) {
+      while (this.size && this.data.length >= this.size) {
         const packet = this.data.slice(0, this.size);
         this.emit("message", packet);
-        this.data = this.data.slice(this.size);
-        if (this.data.length >= 2) {
-          this.size = this.data.readUInt16LE();
-          this.data = this.data.slice(2);
+        if (this.data.length >= this.size + 2) {
+          const size = this.data.readUInt16LE(this.size);
+          this.data = this.data.slice(this.size + 2);
+          this.size = size;
         } else {
+          this.data = this.data.slice(this.size);
           this.size = 0;
         }
       }
