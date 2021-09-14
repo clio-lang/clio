@@ -5,25 +5,23 @@ class PacketParser extends EventEmitter {
     super();
     this.socket = socket;
     this.size = 0;
-    this.data = Buffer.alloc(0);
+    this.data = null;
     this.socket.on("data", (data) => {
-      if (this.size) {
-        this.data = Buffer.concat([this.data, data]);
-      } else {
-        this.size = data.readUInt16LE();
-        this.data = data.slice(2);
+      this.data = this.data ? Buffer.concat([this.data, data]) : data;
+      if (this.size === 0 && this.data.length >= 2) {
+        this.size = this.data.readUInt16LE();
+        this.data = this.data.slice(2);
       }
-      while (this.size && this.data.length >= this.size) {
-        const packet = Buffer.from(this.data.slice(0, this.size));
-        if (this.data.length > this.size) {
-          const remaining = this.data.slice(this.size + 2);
-          this.size = this.data.readUInt16LE(this.size);
-          this.data = remaining;
+      while (this.size && this.data && this.data.length >= this.size) {
+        const packet = this.data.slice(0, this.size);
+        this.emit("message", packet);
+        this.data = this.data.slice(this.size);
+        if (this.data.length >= 2) {
+          this.size = this.data.readUInt16LE();
+          this.data = this.data.slice(2);
         } else {
           this.size = 0;
-          this.data = Buffer.alloc(0);
         }
-        this.emit("message", packet);
       }
     });
   }
