@@ -299,7 +299,7 @@ const build = async (configPath, options = {}) => {
     const install = (...names) =>
       names.forEach((name) => installExternal(name, destination));
 
-    install("sializer", "buffer", "ws");
+    install("sializer", "buffer", "bufferutil", "ws");
 
     // Link local dependencies
     const linkToDest = (name, internalName, unlinks) =>
