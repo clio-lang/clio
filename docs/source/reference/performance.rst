@@ -15,7 +15,7 @@ than 1ms is not justified.
 Thanks to the network based parallelism, Clio lets you use network
 resources and take advantage of the machines available on your network,
 or are available to you over the internet. One downside of this is the
-latency. A network delay of under 10ms is achievable, however it is not
+latency. A network delay of under 1ms is achievable, however it is not
 always available. It’s up to the developers to decide which functions
 are justified to be called over network.
 
@@ -26,8 +26,10 @@ Links
 -  `Speed, Speed, Speed: JavaScript vs C++ vs WebAssembly - Franziska
    Hinkelmann, Google`_
 -  `Clio benchmarks (repo)`_
+-  `Clio vs C (repo)`_
 
 .. _very fast: https://www.youtube.com/watch?v=aC_QLLilwso
 .. _Node js versus C++ g++ fastest programs: https://benchmarksgame-team.pages.debian.net/benchmarksgame/fastest/node-gpp.html
 .. _`Speed, Speed, Speed: JavaScript vs C++ vs WebAssembly - Franziska Hinkelmann, Google`: https://www.youtube.com/watch?v=aC_QLLilwso
 .. _Clio benchmarks (repo): https://github.com/clio-lang/examples/tree/master/benchmarks
+.. _Clio vs C (repo): https://github.com/clio-lang/benchmark
