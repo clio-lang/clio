@@ -4,7 +4,7 @@
   </div>
   <div class="body">
     <div class="motto">
-      Clio is a functional, functional programming language!
+      Clio is a fast, distributed, functional programming language!
     </div>
 
     <div class="install">

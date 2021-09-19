@@ -7,47 +7,42 @@
     CategoryScale,
     LinearScale,
     BarElement,
-    Legend,
     Tooltip,
   } from "chart.js";
+  import ChartDataLabels from "chartjs-plugin-datalabels";
+
+  import { PastelOne9 as colors } from "../colorschemes/colorschemes.brewer";
 
   Chart.register(
     BarController,
     CategoryScale,
     LinearScale,
     BarElement,
-    Legend,
-    Tooltip
+    Tooltip,
+    ChartDataLabels
   );
 
+  Chart.defaults.set("plugins.datalabels", {
+    anchor: "end",
+    align: "end",
+    formatter(value) {
+      return (
+        Math.floor(value / 1000) +
+        "," +
+        (value % 1000).toString().padStart(3, "0") +
+        "ns"
+      );
+    },
+  });
+
   const data = {
-    labels: ["Find Primes", "Jimp", "Fib"],
+    labels: ["C", "Clio", "JavaScript", "PyPy", "Python"],
     datasets: [
       {
-        label: "Clio",
-        data: [42, 5.3, 4.1],
+        label: "Fib(1000)",
+        data: [1011, 1082, 9961, 22888, 161886],
         borderColor: "rgba(68,71,90,1)",
-        backgroundColor: "#2b82d4cc",
-        borderRadius: {
-          topLeft: 3,
-          topRight: 3,
-        },
-      },
-      {
-        label: "Clio (Parallel)",
-        data: [139, 23.6, 10.2],
-        borderColor: "rgba(68,71,90,1)",
-        backgroundColor: "#4f29f0cc",
-        borderRadius: {
-          topLeft: 3,
-          topRight: 3,
-        },
-      },
-      {
-        label: "JavaScript",
-        data: [41, 5.2, 3.9],
-        borderColor: "rgba(68,71,90,1)",
-        backgroundColor: "#b5cea7cc",
+        backgroundColor: colors,
         borderRadius: {
           topLeft: 3,
           topRight: 3,
@@ -62,9 +57,14 @@
       tooltip: {
         callbacks: {
           label(context) {
-            return [context.dataset.label, context.raw, "ops/s"].join(" ");
+            return [context.dataset.label, context.raw, "ns"].join(" ");
           },
         },
+      },
+    },
+    scales: {
+      y: {
+        suggestedMax: 165000,
       },
     },
   };
@@ -87,20 +87,35 @@
   <Card>
     <div class="inner">
       <div class="chart">
+        <h3>Fib(1000) best of 10k loops</h3>
         <canvas id="chart" />
+        <div class="footer">
+          <div class="compilers">
+            Clang 12.0.5, Clio 0.11.0, Node 16.9.1, PyPy 7.3.5, Python 3.9.7
+          </div>
+        </div>
       </div>
       <div class="body">
         <h3>Clio is fast!</h3>
         <div class="explanation">
           <p>
-            About the same performance as Node.js, more or less. In addition,
-            using Clio's microservices and parallelism features lets you boost
-            the performance by a few hundred to a few thousand percents!
+            A lot of time and effort has been spent on optimizing Clio and
+            making it faster. Clio compiler applies compile time optimizations
+            to the generated code, furthermore this generated code is JIT
+            compiled using the V8 engine, making Clio a super fast language.
           </p>
           <p>
-            Clio uses worker threads on Node.js and web workers on the browsers.
-            Additionally, you can use network resources over WebSockets, TCP,
-            Unix sockets and several other protocols.
+            In the performance chart you can see how fast Clio realy is. This
+            result is accomplished thanks to the tail call optimizations applied
+            to the Fibonacci function, making it almost as fast as the C
+            implementation.
+          </p>
+          <p>
+            Additionally, Clio offers easy to use multi-threading, distributed
+            programming, micro-services and function-as-a-service on both the
+            browser and the server side. You can use all resources on the local
+            machine, as well as resources available to you over the network;
+            Clio scales indefinitely.
           </p>
         </div>
         <div class="actions">
@@ -180,8 +195,18 @@
     box-sizing: border-box;
     padding: 1em;
   }
+  h3 {
+    margin: 0;
+    margin-bottom: 0.5em;
+  }
   .btn:hover {
     transform: scale(1.1);
+  }
+  .compilers {
+    color: #777;
+    font-size: 0.8em;
+    margin: 1em;
+    font-style: italic;
   }
   @media (max-width: 960px) {
     .performance {
