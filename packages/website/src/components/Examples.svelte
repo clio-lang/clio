@@ -1,6 +1,5 @@
 <script>
   import Card from "./Card.svelte";
-
 </script>
 
 <div class="title">
@@ -179,5 +178,4 @@
       margin: 0.5em;
     }
   }
-
 </style>
