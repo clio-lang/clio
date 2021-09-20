@@ -1,6 +1,13 @@
 Change Log
 ==========
 
+v0.11.0
+-------
+
+- Switched to Sia for serialization.
+- Added default values for WebSocket RPC configuration.
+- Fixed memory leak issues on the browser and TCP/IPC backends.
+
 v0.10.0
 -------
 
