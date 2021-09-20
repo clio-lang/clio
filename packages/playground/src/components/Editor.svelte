@@ -164,8 +164,12 @@
       console.error = console.log;
       try {
         const src = editor.getValue();
-        const { code } = compile(src, "main.clio", { sourceDir: null });
-        const main = await run(code);
+        const { code } = compile(src, "main.clio", {
+          sourceDir: null,
+          config: {},
+          rpcPrefix: "playground",
+        });
+        const { main, dispatcher } = await run(code);
         const now = performance.now();
         await main();
         const end = performance.now();
@@ -173,7 +177,9 @@
         lines.push("-".repeat(time));
         lines.push(time);
         domConsole.setValue(lines.join("\n"));
+        dispatcher.kill();
       } catch (error) {
+        console.trace(error);
         console.error(error);
       }
     })();

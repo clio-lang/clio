@@ -37,7 +37,8 @@ extensions = [
     "playground",
     "video",
     "sphinx_panels",
-    "sphinxext.opengraph"
+    "sphinxext.opengraph",
+    "sphinxcontrib.mermaid"
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -104,3 +105,5 @@ pygments_dark_style = "tokyo_night.TokyoNightStyle"
 
 ogp_site_url = f"https://docs.clio-lang.org/versions/{current_version}/"
 ogp_type = "article"
+
+mermaid_init_js = "mermaid.initialize({startOnLoad:true,theme:'dark',sequence:{showSequenceNumbers:true}});"

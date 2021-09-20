@@ -1,4 +1,4 @@
-const { randomId, EventEmitter } = require("clio-lang-internals");
+const { EventEmitter } = require("clio-lang-internals");
 
-module.exports.randomId = randomId;
+module.exports.randomId = () => Math.floor(Math.random() * 0xffffffff);
 module.exports.EventEmitter = EventEmitter;

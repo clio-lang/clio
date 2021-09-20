@@ -140,3 +140,10 @@ body[data-theme="dark"] .version-select {
 .highlight .go {
   background: transparent !important;
 }
+
+.mermaid svg {
+  max-width: 650px;
+  padding: 1em;
+  background: #1f2020;
+  border-radius: 7px;
+}

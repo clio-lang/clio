@@ -14,3 +14,4 @@ This book serves as the primary reference for the Clio programming language
    
    performance
    manifest/index
+   rpc/index

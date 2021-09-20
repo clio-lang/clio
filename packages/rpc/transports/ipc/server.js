@@ -1,4 +1,4 @@
-const readline = require("readline");
+const { PacketParser } = require("../../lib");
 const net = require("net");
 const path = require("path");
 const { IPCSocket } = require("./socket");
@@ -33,12 +33,11 @@ class Server extends EventEmitter {
     this.emit("listening");
   }
   onIPCConnect(socket) {
-    socket.rl = readline.createInterface(socket);
-    socket.rl.on("line", (data) => this.handleIncoming(socket, data));
-    socket.on("close", () => socket.rl.close());
-  }
-  handleIncoming(socket, data) {
+    const parser = new PacketParser(socket);
     const ipcSocket = new IPCSocket(socket);
+    parser.on("message", (data) => this.handleIncoming(ipcSocket, data));
+  }
+  handleIncoming(ipcSocket, data) {
     this.emit("message", ipcSocket, data);
   }
   start() {

@@ -18,7 +18,7 @@ and to import it in Clio:
 .. playground::
   :height: 300
 
-  from "./my_module.js" import hello
+  from "js:./my_module.js" import hello
 
 When importing JavaScript files it’s better to include ``.js`` in the
 file name. Same as Clio modules, these imports are relative and
@@ -38,4 +38,4 @@ Then you can import it in your Clio file:
   .. playground::
     :height: 300
 
-    import "express"
+    import "js:express"

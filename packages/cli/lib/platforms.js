@@ -1,6 +1,15 @@
-const { spawn } = require("child_process");
+const { spawnSync, spawn } = require("child_process");
 
 const npmCommand = (command, destination, args, forkOptions = {}) => {
+  const npm = process.platform == "win32" ? "npm.cmd" : "npm";
+  return spawnSync(npm, [command, ...args], {
+    cwd: destination,
+    stdio: "inherit",
+    ...forkOptions,
+  });
+};
+
+const npmRun = (command, destination, args, forkOptions = {}) => {
   const argv = args && args.length ? ["--", ...args] : [];
   const npm = process.platform == "win32" ? "npm.cmd" : "npm";
   return spawn(npm, ["run", command, ...argv], {
@@ -13,10 +22,10 @@ const npmCommand = (command, destination, args, forkOptions = {}) => {
 const js = {
   async build() {},
   async run(destination, args, forkOptions) {
-    return npmCommand("start", destination, args, forkOptions);
+    return npmRun("start", destination, args, forkOptions);
   },
   async host(destination, args) {
-    return npmCommand("host", destination, args);
+    return npmRun("host", destination, args);
   },
 };
 
@@ -29,3 +38,4 @@ function getPlatform(name) {
 }
 
 exports.getPlatform = getPlatform;
+exports.npmCommand = npmCommand;

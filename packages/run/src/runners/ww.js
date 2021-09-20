@@ -13,8 +13,6 @@ const workers = async (file, server, { count }) => {
   const workerCount = count === "cpu" ? await getCPUCount() : count;
   const workerPath = require("worker.clio.js");
   for (let i = 0; i < workerCount; i++) {
-    // TODO: parcel can't handle url parameters
-    // FIXME: this only runs with parcel
     const worker = new Worker(workerPath, { type: "module" });
     server.addWorker(worker);
   }
@@ -24,7 +22,6 @@ const executor = async (_, dispatcher, server, __, { wait_for }, options) => {
   if (options.noMain) return;
   const workerCount = wait_for === "cpu" ? await getCPUCount() : wait_for;
   dispatcher.expectWorkers(workerCount).then(async () => {
-    // TODO: this locks us to parcel
     const main = require("main.clio.js");
     const clientTransport = server.getTransport();
     const executor = new Executor(clientTransport);

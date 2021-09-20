@@ -1,26 +1,15 @@
 const { WorkerThreadSocket } = require("./socket");
 const { EventEmitter } = require("../../common");
+const { Buffer } = require("../../lib");
 
-class WrappedWorkerThread extends EventEmitter {
-  constructor(worker) {
-    super();
-    this.worker = worker;
-    this.worker.on("message", (message) => this.emit("message", message));
-  }
-  postMessage(message) {
-    this.worker.postMessage(message);
-  }
-  kill() {
-    this.worker.terminate();
-  }
-}
+const { desia } = require("sializer");
 
 class inSocket {
   constructor(socket) {
     this.socket = socket;
   }
-  send(data) {
-    this.socket.emit("message", data);
+  send(buf) {
+    this.socket.emit("message", desia(buf));
   }
 }
 
@@ -28,14 +17,16 @@ class inSocket {
 class Socket extends EventEmitter {
   constructor(server) {
     super();
+    this.socketId = Math.random();
     this.server = server;
     this.inSocket = new inSocket(this);
   }
+  register() {}
   connect() {
     this.emit("connect");
   }
-  send(data) {
-    this.server.handleIncoming(this.inSocket, JSON.stringify(data));
+  send(packet) {
+    this.server.handleIncoming(this.inSocket, packet);
   }
 }
 
@@ -53,18 +44,17 @@ class Server extends EventEmitter {
     this.ready = true;
   }
   addWorker(worker) {
-    const wrappedWorker = new WrappedWorkerThread(worker);
-    const socket = new WorkerThreadSocket(wrappedWorker);
-    this.workers.push(wrappedWorker);
-    wrappedWorker.on("message", (data) => {
-      this.handleIncoming(socket, data);
+    const socket = new WorkerThreadSocket(worker);
+    this.workers.push(socket);
+    socket.on("message", (data) => {
+      this.handleIncoming(socket, Buffer.from(data));
     });
   }
   getTransport() {
     return new Socket(this);
   }
-  handleIncoming(socket, data) {
-    this.emit("message", socket, data);
+  handleIncoming(socket, packet) {
+    this.emit("message", socket, packet);
   }
 }
 

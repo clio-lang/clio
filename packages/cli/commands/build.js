@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { compile } = require("clio-core");
 const { error, info, warn } = require("../lib/colors");
-const { getPlatform } = require("../lib/platforms");
+const { getPlatform, npmCommand } = require("../lib/platforms");
 const { Progress } = require("../lib/progress");
 
 const {
@@ -159,6 +159,7 @@ const build = async (configPath, options = {}) => {
       const contents = fs.readFileSync(file, "utf8");
       const { code, map } = await asyncCompile(contents, relativeFile, {
         root: path.dirname(configPath),
+        config,
         sourceDir,
         modulesDir,
         modulesDestDir,
@@ -211,6 +212,7 @@ const build = async (configPath, options = {}) => {
           const contents = fs.readFileSync(file, "utf8");
           const { code, map } = await asyncCompile(contents, relativeFile, {
             root: path.dirname(configPath),
+            config,
             modulesDir,
             modulesDestDir,
             sourceDir: rawSource,
@@ -293,6 +295,13 @@ const build = async (configPath, options = {}) => {
     progress.succeed();
     progress.start("Linking dependencies");
 
+    // Install third party dependencies
+    const install = (...names) =>
+      names.forEach((name) => installExternal(name, destination));
+
+    install("sializer", "buffer", "bufferutil", "ws");
+
+    // Link local dependencies
     const linkToDest = (name, internalName, unlinks) =>
       link(name, internalName, destination, unlinks);
 
@@ -325,6 +334,14 @@ async function link(name, internalName, destination, unlinks = []) {
   rmdir(modulePath);
   await copyDir(internalPath, modulePath);
   unlinkNodeModules(modulePath, ...unlinks);
+}
+
+/**
+ * Install external package into destination
+ * @param {string} destination Full path to destination directory
+ */
+function installExternal(name, destination) {
+  return npmCommand("install", destination, [name], { stdio: "ignore" });
 }
 
 /**

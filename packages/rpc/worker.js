@@ -1,17 +1,59 @@
 const { randomId, EventEmitter } = require("./common");
+const { Sia, DeSia } = require("sializer");
+const { constructors: builtinConstructors } = require("sializer");
+const { TYPES, Buffer } = require("./lib");
 
+const { RESULT, CALL, REGISTER, EVENT } = TYPES;
 class Worker {
   constructor(transport) {
     this.transport = transport;
-    this.transport.on("message", (data) => this.handleData(data));
+    this.transport.on("message", (packet) => this.onPacket(packet));
     this.transport.on("connect", () => this.handleConnect());
     this.transport.on("error", (error) => this.onError(error));
     this.functions = new Map();
     this.emitters = new Map();
     this.retries = 10;
-    this.id = "worker." + randomId(64);
+    this.id = "worker://" + randomId();
+    this.setupSia();
+    this.packets = 0;
+    this.transport.register(this.id, this);
+  }
+  setupSia() {
+    const constructors = [
+      ...builtinConstructors,
+      {
+        constructor: EventEmitter,
+        code: 17,
+        args: (item) => {
+          const { destination } = this;
+          const send = (event, ...args) => {
+            const payload = this.serialize([item.id, EVENT, event, args]);
+            const packet = this.serialize([this.id, destination, payload]);
+            this.send(packet);
+          };
+          item.on(/.*/, send);
+          this.emitters.set(item.id, { emitter: item, send });
+          return [item.id, this.id];
+        },
+        build: (id, clientId) => {
+          if (this.emitters.has(id)) return this.emitters.get(id);
+          const emitter = new EventEmitter(id);
+          const send = (event, ...args) => {
+            const payload = this.serialize([id, EVENT, event, args]);
+            const packet = this.serialize([this.id, clientId, payload]);
+            this.send(packet);
+          };
+          emitter.on(/.*/, send);
+          this.emitters.set(id, { emitter, send });
+          return emitter;
+        },
+      },
+    ];
+    this.sia = new Sia({ constructors });
+    this.desia = new DeSia({ constructors });
   }
   register({ path, fn }) {
+    this.transport.register(path, this);
     this.functions.set(path, fn);
   }
   getFn(path) {
@@ -31,68 +73,42 @@ class Worker {
   }
   handleConnect() {
     this.retries = 10;
-    const id = randomId(64);
+    const id = this.packets++;
     const paths = [...this.functions.keys()];
-    this.send(
-      {
-        instruction: "registerWorker",
-        details: JSON.stringify({ paths }),
-      },
-      id
-    );
+    const payload = this.serialize([id, REGISTER, paths]);
+    const packet = this.serialize([this.id, null, payload]);
+    this.send(packet);
   }
-  handleData(data) {
-    const { instruction, details, id, clientId, toClient } = data;
-    // TODO: there must be a better way to do this
-    if (toClient !== this.id) return;
-    if (instruction == "call")
-      this.handleCallInstruction(details, id, clientId);
-    else if (instruction == "event")
-      this.handleEventInstruction(details, id, clientId);
+  onPacket(packet) {
+    const [source, destination, payload] = packet;
+    const deserialized = this.deserialize(payload);
+    const [id, type] = deserialized;
+    if (type === CALL) {
+      this.handleCallInstruction(destination, deserialized[2], id, source);
+    } else if (type === EVENT) {
+      const { emitter, send } = this.emitters.get(id);
+      emitter.emitUnless(send, deserialized[2], ...deserialized[3]);
+    }
   }
-  async handleCallInstruction(details, id, clientId) {
-    const { path, args } = JSON.parse(details);
+  async handleCallInstruction(path, data, id, source) {
     const fn = this.getFn(path);
-    const result = await fn(...args);
-    this.sendResult(result, id, clientId);
+    const result = await fn(...data);
+    this.sendResult(result, id, source);
   }
-  async handleEventInstruction(details, id, clientId) {
-    const { id: emitterId, event, args } = JSON.parse(details);
-    const { emitter, send } = this.emitters.get(emitterId);
-    emitter.emitUnless(send, event, ...args);
+  serialize(data) {
+    return Buffer.from(this.sia.serialize(data));
   }
-  serialize(data, clientId) {
-    const replacer = (_, value) => {
-      if (value instanceof EventEmitter) {
-        const { id } = value;
-        const send = (event, ...args) => {
-          const data = {
-            instruction: "event",
-            details: this.serialize({ id, event, args }),
-            toClient: clientId,
-          };
-          this.send(data);
-        };
-        value.on(/.*/, send);
-        this.emitters.set(id, { emitter: value, send });
-        // TODO: kill the emitter on client close
-        return { "@type": "EventEmitter", clientId: this.id, id };
-      }
-      return value;
-    };
-    return JSON.stringify(data, replacer);
+  deserialize(buf) {
+    return this.desia.deserialize(buf);
   }
-  async sendResult(result, id, clientId) {
-    result = await result;
-    const data = {
-      instruction: "result",
-      details: this.serialize({ result }, clientId),
-      toClient: clientId,
-    };
-    this.send(data, id);
+  sendResult(result, id, destination) {
+    this.destination = destination;
+    const payload = this.serialize([id, RESULT, result]);
+    const packet = this.serialize([this.id, destination, payload]);
+    this.send(packet);
   }
-  send(data, id) {
-    this.transport.send({ ...data, clientId: this.id, id });
+  send(data) {
+    this.transport.send(data);
   }
 }
 

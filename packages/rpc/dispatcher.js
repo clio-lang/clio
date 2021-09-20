@@ -1,4 +1,8 @@
 const { EventEmitter } = require("./common");
+const { sia, desia, DeSia } = require("sializer");
+const { TYPES, Buffer } = require("./lib");
+
+const { GET, REGISTER, PATH } = TYPES;
 
 class Dispatcher extends EventEmitter {
   constructor() {
@@ -6,116 +10,107 @@ class Dispatcher extends EventEmitter {
     this.workers = new Map();
     this.clients = new Map();
     this.jobs = new Map();
-    this.rr = new Map();
     this.connectedWorkers = [];
     this.transports = [];
     this.index = 0;
+    this.setupSia();
+  }
+  setupSia() {
+    this.desia = new DeSia();
+  }
+  deserialize(buf) {
+    return desia(buf);
+  }
+  serialize(item) {
+    return Buffer.from(sia(item));
   }
   kill() {
-    this.transports.forEach((transport) => {
+    for (const transport of this.transports) {
       if (transport.kill) transport.kill();
-    });
+    }
   }
   addTransport(transport) {
     this.transports.push(transport);
-    transport.on("message", (...args) => this.handleTransportMessage(...args));
+    transport.on("message", (socket, buf) => this.onMessage(socket, buf));
     transport.start();
   }
-  handleTransportMessage(socket, data) {
-    const { instruction, details, id, clientId, ...rest } = JSON.parse(data);
-    this.clients.set(clientId, socket);
-    const args = [socket, details, id, clientId, rest];
-    if (instruction == "call") this.call(...args);
-    else if (instruction == "result") this.result(...args);
-    else if (instruction == "getPaths") this.getPaths(...args);
-    else if (instruction == "registerWorker") this.registerWorker(...args);
-    else if (instruction == "event") this.event(...args);
+  getRouteInfo(packet) {
+    this.desia.reset();
+    this.desia.buffer = packet;
+    this.desia.readInt8();
+    this.desia.readInt8();
+    const source = this.desia.readBlock();
+    const destination = this.desia.readBlock();
+    return [source, destination];
   }
-  event(inSocket, details, id, clientId, { toClient }) {
-    const socket = this.clients.get(toClient);
-    this.send(
-      socket,
-      { instruction: "event", details, clientId, toClient },
-      id
-    );
+  getPayload() {
+    return this.desia.readBlock();
   }
-  call(socket, details, id, clientId, { path }) {
+  onMessage(socket, packet) {
+    const [source, destination] = this.getRouteInfo(packet);
+    this.clients.set(source, socket);
+    if (!destination) {
+      this.routeSelf(socket, source, this.getPayload());
+    } else if (destination.startsWith("worker://")) {
+      this.routeToSocket(destination, packet);
+    } else if (destination.startsWith("executor://")) {
+      this.routeToSocket(destination, packet);
+    } else {
+      this.routePath(destination, packet);
+    }
+  }
+  routeToSocket(destination, packet) {
+    const socket = this.clients.get(destination);
+    if (socket) {
+      socket.send(packet);
+    }
+  }
+  routePath(path, packet) {
     const worker = this.getWorker(path);
     if (worker) {
-      const toClient = worker.clientId;
-      this.send(
-        worker,
-        {
-          instruction: "call",
-          details,
-          clientId,
-          toClient,
-        },
-        id
-      );
+      worker.send(packet);
     } else {
-      this.addJob(socket, details, id, clientId, { path });
+      this.addJob(path, packet);
     }
   }
-  result(inSocket, details, id, clientId, { toClient }) {
-    const socket = this.clients.get(toClient);
-    this.send(
-      socket,
-      { instruction: "result", details, clientId, toClient },
-      id
-    );
-  }
-  getPaths(socket, details, id, clientId) {
-    const { path } = JSON.parse(details);
-    const paths = [...this.workers.keys()].filter((p) => p.startsWith(path));
-    this.send(
-      socket,
-      {
-        instruction: "paths",
-        details: JSON.stringify({ paths }),
-        clientId,
-        toClient: clientId,
-      },
-      id
-    );
-  }
-  registerWorker(worker, details, id, clientId) {
-    const { paths } = JSON.parse(details);
-    if (!paths.length) return;
-    // TODO: there must be a better way to do this
-    worker.clientId = clientId;
-    for (const path of paths)
-      this.workers.set(path, [...(this.workers.get(path) || []), worker]);
-    for (const path of paths) {
-      const jobs = this.jobs.get(path) || [];
-      this.jobs.set(path, []);
-      for (const job of jobs) this.call(...job);
+  routeSelf(socket, source, payload) {
+    const [id, type, data] = this.deserialize(payload);
+    if (type === GET) {
+      const paths = [...this.workers.keys()].filter((p) => p.startsWith(data));
+      const payload = this.serialize([id, PATH, paths]);
+      const packet = this.serialize([null, source, payload]);
+      socket.send(packet);
+    } else if (type === REGISTER) {
+      if (!data.length) return;
+      for (const path of data) {
+        const currentWorkers = this.workers.get(path) || [];
+        this.workers.set(path, [...currentWorkers, socket]);
+      }
+      for (const path of data) {
+        const jobs = this.jobs.get(path) || [];
+        this.jobs.set(path, []);
+        for (const job of jobs) {
+          this.routePath(...job);
+        }
+      }
+      this.connectedWorkers.push(socket);
+      const listeners = this.listeners.workerConnected || [];
+      listeners.forEach((fn) => fn.call(this, socket));
     }
-    this.connectedWorkers.push(worker);
-    const listeners = this.listeners.workerConnected || [];
-    listeners.forEach((fn) => fn.call(this, worker));
   }
-  addJob(socket, details, id, clientId, path) {
-    this.jobs.set(path, [
-      ...(this.jobs.get(path) || []),
-      [socket, details, id, clientId, path],
-    ]);
+  addJob(...args) {
+    const currentJobs = this.jobs.get(path) || [];
+    this.jobs.set(path, [...currentJobs, args]);
   }
-  schedule(path, length) {
-    const stored = this.rr.get(path);
-    const curr = Number.isInteger(stored) ? stored : 0;
-    const next = curr + 1 >= length ? 0 : curr + 1;
-    this.rr.set(path, next);
-    return next;
+  schedule(length) {
+    this.index = this.index + 1 >= length ? 0 : this.index + 1;
+    return this.index;
   }
   getWorker(path) {
     const workers = this.workers.get(path);
     if (!workers) return;
-    const index = this.schedule(path, workers.length);
+    const index = this.schedule(workers.length);
     return workers[index];
-  }
-  send(socket, data, id) {
-    socket.send({ ...data, id });
   }
   expectWorkers(n) {
     return new Promise((resolve) => {

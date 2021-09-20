@@ -3,12 +3,11 @@ const { Executor } = require("clio-rpc/executor");
 const WS = require("clio-rpc/transports/ws");
 const path = require("path");
 
-const child_process = require("child_process");
+const { fork } = require("child_process");
 const os = require("os");
 
-const server = async (dispatcher, { host, port }) => {
-  const location = host === "0.0.0.0" ? "127.0.0.1" : host;
-  const url = `ws://${location}:${port}`;
+const server = async (dispatcher, { host = "127.0.0.1", port = 9123 }) => {
+  const url = `ws://${host}:${port}`;
   const transport = new WS.Server({ port, url });
   dispatcher.addTransport(transport);
   return new Promise((resolve) => {
@@ -16,20 +15,17 @@ const server = async (dispatcher, { host, port }) => {
   });
 };
 
-const workers = (file, server, { url, count }) => {
+const workers = (file, server, { url = "ws://localhost:9123", count }) => {
   const workerCount = count === "cpu" ? os.cpus().length : count;
   for (let i = 0; i < workerCount; i++) {
-    child_process.fork(path.resolve(__dirname, "../workers/ws.js"), [
-      url,
-      file,
-    ]);
+    fork(path.resolve(__dirname, "../workers/ws.js"), [url, file]);
   }
 };
 
 const executor = (file, dispatcher, server, monitor, config, options) => {
   if (options.noMain) return;
-  const { url, wait_for } = config;
-  const workerCount = wait_for === "cpu" ? os.cpus().length : wait_for;
+  const { url = "ws://localhost:9123", wait_for: waitFor } = config;
+  const workerCount = waitFor === "cpu" ? os.cpus().length : waitFor;
   dispatcher.expectWorkers(workerCount).then(async () => {
     const main = require(file);
     const transport = new WS.Client({ url });

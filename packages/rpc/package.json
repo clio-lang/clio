@@ -7,7 +7,10 @@
     "test": "test"
   },
   "dependencies": {
+    "buffer": "^5.7.1",
+    "bufferutil": "^4.0.3",
     "clio-lang-internals": "^0.8.0",
+    "sializer": "^0.1.1",
     "ws": "^7.4.6"
   },
   "scripts": {

@@ -10,7 +10,6 @@ const packageConfig = require("clio-manifest");
 test("Runs hello world", async () => {
   const dir = tmp.dirSync({ unsafeCleanup: true });
   await createPackage(dir.name);
-  console.log(dir.name);
   const process = await run({ project: dir.name }, [], {
     stdio: "pipe",
   });

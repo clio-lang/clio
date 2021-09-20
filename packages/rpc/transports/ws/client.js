@@ -1,11 +1,17 @@
 const WebSocket = require("ws");
 const { Server } = require("./server");
 const { EventEmitter } = require("../../common");
+const { Buffer } = require("../../lib");
+const { desia } = require("sializer");
 
 class Client extends EventEmitter {
   constructor(config) {
     super();
     this.wsConfig = config || Server.defaultWSConfig();
+    this.map = new Map();
+  }
+  register(id, instance) {
+    this.map.set(id, instance);
   }
   connect() {
     const { url } = this.wsConfig;
@@ -14,12 +20,16 @@ class Client extends EventEmitter {
     this.socket.on("error", (error) => this.emit("error", error));
     this.socket.on("message", (data) => this.onData(data));
   }
+  deserialize(buf) {
+    return desia(buf);
+  }
   send(data) {
-    this.socket.send(JSON.stringify(data));
+    this.socket.send(data);
   }
   onData(data) {
-    const deserialized = JSON.parse(data);
-    this.emit("message", deserialized);
+    const packet = this.deserialize(Buffer.from(data));
+    const dest = this.map.get(packet[1]);
+    dest.onPacket(packet);
   }
 }
 
