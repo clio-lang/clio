@@ -5,11 +5,10 @@ const strPattern = /^(?:"(?:[^"]|\\")*"|'(?:[^']|\\')*')/;
 const numPattern = /^-?(?:[0-9][\d_]*)(?:\.[\d_]+)?(?:[eE][+-]?[\d_]+)?/;
 
 const keywordPattern =
-  /^(?:if|else|fn|await|import|as|from|export|and|or|not|by|in)(?=\s|$)|^else(?=:)|^await(?=])/;
+  /^(?:struct|if|else|fn|await|import|as|from|export|and|or|not|by|in)(?=\s|$)|^else(?=:)|^await(?=])/;
 const symbolPattern = /^(?:[a-z_$][0-9a-z_$]*)/i; // Should we allow unicode?
 const parameterPattern = /^@(?:[a-z_$][0-9a-z_$]*)/i; // Should we allow unicode?
 const commentPattern = /^--.*?(?=\r?\n|$)/;
-const blockCommentPattern = /^([^+-]|\+[^-]|-[^+])+?(?=(-\+|\+-))/;
 const manPattern = /^ *(\r?\n)(fn |export fn )/;
 const awaitAllPattern = /^\[await\]/;
 
@@ -104,39 +103,6 @@ const lex = (source, { file, ...meta }, startLine = 1, startColumn = 0) => {
       if (man) token("comment", match[0], 0);
     }
     return !!match;
-  };
-  const blockComment = () => {
-    let comment = source.slice(0, 2);
-    source = source.slice(2);
-    let open = 1;
-    while (true) {
-      const match = source.match(blockCommentPattern);
-      if (match) {
-        comment += match[0];
-        source = source.slice(match[0].length);
-      } else if (source.slice(0, 2) == "-+") {
-        open--;
-        comment += "-+";
-        source = source.slice(2);
-      } else {
-        open++;
-        comment += "+-";
-        source = source.slice(2);
-      }
-      if (!open) break;
-      if (!source) {
-        throw new LexingError({
-          message: "Imbalanced comment blocks",
-          line,
-          column,
-          file,
-        }); // FIXME
-      }
-    }
-    const man = source.match(manPattern);
-    /* istanbul ignore next */
-    if (man) token("comment", comment, 0);
-    return true;
   };
   // indent / outdent
   const indents = () => {
@@ -316,11 +282,7 @@ const lex = (source, { file, ...meta }, startLine = 1, startColumn = 0) => {
         }
         break;
       case "+":
-        if (source[1] == "-") {
-          blockComment();
-        } else {
-          token("addOp", char, 1);
-        }
+        token("addOp", char, 1);
         break;
       case ">":
         if (source[1] == "=") token("gte", ">=", 2);

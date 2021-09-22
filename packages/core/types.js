@@ -953,6 +953,23 @@ const types = {
       ? new SourceNode(null, null, null, ["`", asIs(node), "`"])
       : new SourceNode(null, null, null, ["`\\", asIs(node), "`"]);
   },
+  structDef(node) {
+    const { line, column, file } = node.start;
+    return new SourceNode(line, column, file, [
+      "const ",
+      node.name,
+      "=new Proxy(class ",
+      node.name,
+      "{constructor(",
+      new SourceNode(null, null, null, node.members).join(","),
+      "){",
+      ...node.members.map(
+        (member) =>
+          new SourceNode(null, null, null, ["this.", member, "=", member, ";"])
+      ),
+      "}},{apply(target,_,args){return new target(...args)}});",
+    ]);
+  },
   clio(node) {
     const content = node.content
       .map((node) => [node.insertBefore, node])

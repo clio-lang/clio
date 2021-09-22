@@ -169,16 +169,6 @@ testStr(
   "const add=register(`test/<mem>/add`,(a,b)=>{return a+b});add.__doc__=`-- Adds a and b!`"
 );
 testStr(
-  "Functions (With Block Man)",
-  "+- Adds a and b!-+\nfn add a b:\n  a + b",
-  "const add=register(`test/<mem>/add`,(a,b)=>{return a+b});add.__doc__=`+- Adds a and b!-+`"
-);
-testStr(
-  "Functions (With Nested Block Man)",
-  "+- Adds +- a -+ and b!-+\nfn add a b:\n  a + b",
-  "const add=register(`test/<mem>/add`,(a,b)=>{return a+b});add.__doc__=`+- Adds +- a -+ and b!-+`"
-);
-testStr(
   "Functions (Expression)",
   "fn add a b: a + b",
   "const add=register(`test/<mem>/add`,(a,b)=>{return a+b})"
@@ -506,11 +496,6 @@ testFile(
 testFile(
   "persons",
   "const person=register(`test/persons.clio/person`,(name,age)=>{return {name:name,age:age}});const people=[(person(`John`,45)),(person(`Kate`,30))];persons.map(((person)=>f(person.name,` is `,person.age,` years old`))).map(print)"
-);
-shouldThrow(
-  "Imbalanced comment blocks",
-  "+- +- -+ +-",
-  "Imbalanced comment blocks"
 );
 shouldThrow(
   "Inconsistent indentation",
