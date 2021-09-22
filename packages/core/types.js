@@ -335,6 +335,9 @@ const types = {
       ";",
     ]);
   },
+  parameterCall(node) {
+    return get({ ...node, type: "call" });
+  },
   call(node) {
     if (node.isMap) {
       node.type = "mapCall";
@@ -457,6 +460,61 @@ const types = {
     ]);
     sn.needsAsync = last.needsAsync || content.some((item) => item.needsAsync);
     return sn;
+  },
+  decoratedFunction(node) {
+    const { start, doc, name } = node;
+    const fn = get({ ...node, type: "function", name: null });
+    let decorated = fn;
+    for (const decorator of node.decorators) {
+      if (decorator.type === "parameter") {
+        const symbol = {
+          ...decorator,
+          type: "symbol",
+          value: decorator.value.slice(1),
+        };
+        decorated = new SourceNode(null, null, null, [
+          get(symbol),
+          "(",
+          decorated,
+          ")",
+        ]);
+      } else if (decorator.type === "parameterCall") {
+        if (decorator.fn.type === "propertyAccess") {
+          const parameter = decorator.fn.lhs;
+          const symbol = {
+            ...parameter,
+            type: "symbol",
+            value: parameter.value.slice(1),
+          };
+          decorator.fn.lhs = symbol;
+          decorator.type = "call";
+          decorator.args.push({ type: "asIs", value: decorated });
+          decorated = get(decorator);
+        } else {
+          const parameter = decorator.fn;
+          const symbol = {
+            ...parameter,
+            type: "symbol",
+            value: parameter.value.slice(1),
+          };
+          decorator.fn = symbol;
+          decorator.type = "call";
+          decorator.args.push({ type: "asIs", value: decorated });
+          decorated = get(decorator);
+        }
+      }
+    }
+    const sn = new SourceNode(start.line, start.column, start.file, [
+      "const ",
+      name,
+      "=",
+      decorated,
+    ]);
+    sn.fn = { doc, name };
+    return sn;
+  },
+  asIs(node) {
+    return node.value;
   },
   function(node) {
     const { start, name, params, body } = node;

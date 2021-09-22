@@ -6,6 +6,7 @@ const wrap = (fn, priority) =>
     result.lambda = result.lambda || [];
     for (const it of [lhs, rhs]) {
       if (it.type == "wrapped") continue;
+      if (it.type == "decorator") continue;
       if (it.type == "parameter") result.lambda.push(it);
       else if (it.lambda?.length) result.lambda.push(...it.lambda);
     }
@@ -51,12 +52,14 @@ const expressions = [
   "logical",
   "logicalNot",
   "call",
+  "parameterCall",
   "arrowAssignment",
 ];
 const controls = ["conditional", "fullConditional"];
 const topLevels = [
   ...controls,
   "function",
+  "decoratedFunction",
   ...values,
   "assignment",
   "arrowAssignment",

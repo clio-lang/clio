@@ -38,18 +38,25 @@ module.exports = merge(
       ...map(
         ["lineBreak", "ender"],
         wrap((lhs) => {
-          lhs.type = "call";
+          const isParameter =
+            lhs.fn.type === "parameter" ||
+            (lhs.fn.type === "propertyAccess" &&
+              lhs.fn.lhs.type === "parameter");
+          lhs.type = isParameter ? "parameterCall" : "call";
           return lhs;
         }, 1)
       ),
     },
     pipeOpen: {
-      call: wrap((lhs, rhs) => {
-        rhs.args.unshift(lhs.data);
-        rhs.isMap = lhs.isMap;
-        rhs.isFlow = true;
-        return rhs;
-      }),
+      ...map(
+        ["call", "parameterCall"],
+        wrap((lhs, rhs) => {
+          rhs.args.unshift(lhs.data);
+          rhs.isMap = lhs.isMap;
+          rhs.isFlow = true;
+          return rhs;
+        })
+      ),
       ...map(
         [
           "symbol",
