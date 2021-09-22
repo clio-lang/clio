@@ -953,7 +953,11 @@ const types = {
       ? new SourceNode(null, null, null, ["`", asIs(node), "`"])
       : new SourceNode(null, null, null, ["`\\", asIs(node), "`"]);
   },
-  structDef(node) {
+  typeDef(node) {
+    if (node.extends) {
+      node.type = "typeDefExtends";
+      return get(node);
+    }
     const { line, column, file } = node.start;
     return new SourceNode(line, column, file, [
       "const ",
@@ -963,11 +967,53 @@ const types = {
       "{constructor(",
       new SourceNode(null, null, null, node.members).join(","),
       "){",
-      ...node.members.map(
-        (member) =>
-          new SourceNode(null, null, null, ["this.", member, "=", member, ";"])
-      ),
-      "}},{apply(target,_,args){return new target(...args)}});",
+      ...node.members.map((member) => {
+        return new SourceNode(null, null, null, [
+          "this.",
+          member,
+          "=",
+          member,
+          ";",
+        ]);
+      }),
+      "} static get members(){return ",
+      node.members.length.toString(),
+      "}},{apply(target,_,args){return new target(...args)}})",
+    ]);
+  },
+  typeDefExtends(node) {
+    const { line, column, file } = node.start;
+    return new SourceNode(line, column, file, [
+      "const ",
+      node.name,
+      "=new Proxy(class ",
+      node.name,
+      " extends ",
+      node.extends,
+      "{constructor(...$args){",
+      "super(...",
+      "$args.slice(0,",
+      node.extends,
+      ".members));",
+      "const [",
+      new SourceNode(null, null, null, node.members).join(","),
+      "]=$args.slice(",
+      node.extends,
+      ".members);",
+      ...node.members.map((member) => {
+        return new SourceNode(null, null, null, [
+          "this.",
+          member,
+          "=",
+          member,
+          ";",
+        ]);
+      }),
+      "} static get members(){return ",
+      node.extends,
+      ".members+",
+      node.members.length.toString(),
+      "}},{apply(target,_,args){return new target(...args)}})",
     ]);
   },
   clio(node) {

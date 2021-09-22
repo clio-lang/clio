@@ -25,7 +25,7 @@ const rules = merge(
   require("./syntax/exports/index"),
   require("./syntax/imports/index"),
   require("./syntax/in/index"),
-  require("./syntax/structs/index"),
+  require("./syntax/types/index"),
   require("./syntax/clio/index"),
   require("./syntax/boosters/index")
 );

@@ -62,7 +62,7 @@ const topLevels = [
   "arrowAssignment",
   ...expressions,
   "importStatement",
-  "structDef",
+  "typeDef",
 ];
 
 const lexerTokens = [
@@ -127,7 +127,8 @@ const lexerTokens = [
   "lineBreak",
   "groupOpen",
   "groupClose",
-  "struct",
+  "type",
+  "is",
 ];
 
 module.exports.wrap = wrap;
