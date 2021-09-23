@@ -56,6 +56,60 @@ function getPackageConfig(filepath) {
   return parsedConfig;
 }
 
+function getDestinationFromConfig(configPath, config) {
+  if (!config) {
+    throw new Error('You must pass the location of the "clio.toml" file.');
+  }
+
+  if (!config.build) {
+    throw new Error(
+      `No build configuration has been found. Please add a [build] section to your "${configPath}" file.`
+    );
+  }
+
+  if (!config.build.destination) {
+    throw new Error(
+      `The build directory is missing on your "${configPath}".\n\nExample:\n\n[build]\ndestination = "build"\n`
+    );
+  }
+
+  return config.build.destination;
+}
+
+function getBuildTarget(configPath, config) {
+  if (!config) {
+    throw new Error('You must pass the location of the "clio.toml" file.');
+  }
+
+  if (!config.build) {
+    throw new Error(
+      `No build configuration has been found. Please add a [build] section to your "${configPath}" file.`
+    );
+  }
+
+  if (!config.build.target) {
+    throw new Error(`"target" field is missing in your "${configPath}" file.`);
+  }
+
+  return config.build.target;
+}
+
+function getSourceFromConfig(configPath, config) {
+  if (!config.build) {
+    throw new Error(
+      `No build configuration has been found. It is a "[build]" section on your "${configPath}" file.`
+    );
+  }
+
+  if (!config.build.source) {
+    throw new Error(
+      `Could not find a source directory for build in your ${configPath} file.`
+    );
+  }
+
+  return config.build.source;
+}
+
 function removeKeys(object, ...keys) {
   const clone = { ...object };
   for (const key of keys) delete clone[key];
@@ -156,4 +210,7 @@ module.exports = {
   addNpmDependency,
   getPackageConfig,
   writePackageConfig,
+  getDestinationFromConfig,
+  getBuildTarget,
+  getSourceFromConfig,
 };

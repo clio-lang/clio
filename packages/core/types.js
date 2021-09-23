@@ -462,7 +462,31 @@ const types = {
     return sn;
   },
   decoratedFunction(node) {
-    const { start, doc, name } = node;
+    const { start, name } = node;
+    const docLines = [];
+    for (const decorator of node.decorators) {
+      if (decorator.type === "parameterCall") {
+        const { fn, args } = decorator;
+        switch (fn.value) {
+          case "@describe":
+            const line = args
+              .filter((arg) => ["string", "number"].includes(arg.type))
+              .map((arg) => {
+                const compiled = get(arg).toString();
+                return arg.type === "string" ? compiled.slice(1, -1) : compiled;
+              })
+              .join(" ");
+            if (line) {
+              docLines.push(line);
+            }
+            break;
+
+          default:
+            break;
+        }
+      }
+    }
+    const doc = docLines.join("\n");
     const fn = get({ ...node, type: "function", name: null });
     let decorated = fn;
     for (const decorator of node.decorators) {
@@ -518,7 +542,6 @@ const types = {
   },
   function(node) {
     const { start, name, params, body } = node;
-    const doc = node.doc ? [`;`, name, ".__doc__=`", asIs(node.doc), "`"] : [];
     const sn = new SourceNode(start.line, start.column, start.file, [
       ...(name ? ["const ", name, "="] : []),
       ...(name ? ["register"] : []),
@@ -531,15 +554,11 @@ const types = {
       "{",
       body,
       "})",
-      ...doc,
     ]);
     sn.needsAsync = false;
     sn.returnAs = new SourceNode(null, null, null, name);
     sn.returnAs.insertBefore = sn;
-    sn.fn = {
-      doc: node.doc,
-      name,
-    };
+    sn.fn = { name };
     return sn;
   },
   exportedFunction(node) {
@@ -1080,8 +1099,10 @@ const types = {
       .flat()
       .filter(Boolean);
     const inner = new SourceNode(null, null, null, content).join(";");
+    const builtins =
+      "emitter,range,slice,remote,register,help,describe,includes,f";
     return new SourceNode(null, null, null, [
-      "module.exports.exports=async(clio)=>{const{emitter,range,slice,remote,register,man,includes,f}=clio;",
+      `module.exports.exports=async(clio)=>{const{${builtins}}=clio;`,
       inner,
       ";return clio.exports}",
     ]);
