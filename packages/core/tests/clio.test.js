@@ -164,11 +164,6 @@ testStr(
   "const row=register(`test/<mem>/row`,()=>{return range((x-1),(x+2),null).toArray().filter(((it)=>(it>=0)))})"
 );
 testStr(
-  "Functions (With Man)",
-  "-- Adds a and b!\nfn add a b:\n  a + b",
-  "const add=register(`test/<mem>/add`,(a,b)=>{return a+b});add.__doc__=`-- Adds a and b!`"
-);
-testStr(
   "Functions (Expression)",
   "fn add a b: a + b",
   "const add=register(`test/<mem>/add`,(a,b)=>{return a+b})"
@@ -391,11 +386,6 @@ testStr(
   "Export (Function)",
   `export fn test a b:\n  add a b`,
   "const test=register(`test/<mem>/test`,(a,b)=>{return add(a,b)});clio.exports.test=test"
-);
-testStr(
-  "Export (Function With Man)",
-  `-- Adds a and b!\nexport fn test a b:\n  add a b`,
-  "const test=register(`test/<mem>/test`,(a,b)=>{return add(a,b)});test.__doc__=`-- Adds a and b!`;clio.exports.test=test"
 );
 testStr(
   "Export (Constant)",
