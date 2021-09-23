@@ -185,6 +185,16 @@ const lex = (source, { file, ...meta }, startLine = 1, startColumn = 0) => {
     if (match) token("symbol", match[0]);
     return !!match;
   };
+  // match a decorator
+  const decorator = () => {
+    // check if before a function
+    const isDecorator = source.match(/(\s*@.*?\r?\n)+\s*fn\s+/);
+    if (isDecorator) {
+      const match = source.match(parameterPattern);
+      token("decorator", match[0]);
+    }
+    return isDecorator;
+  };
   // match a parameter
   const parameter = () => {
     const match = source.match(parameterPattern);
@@ -334,8 +344,11 @@ const lex = (source, { file, ...meta }, startLine = 1, startColumn = 0) => {
         column = 0;
         indents();
         break;
+      case "@":
+        decorator() || parameter();
+        break;
       default:
-        if (!keyword() && !parameter() && !symbol())
+        if (!keyword() && !symbol())
           throw new LexingError({
             message: `Unsupported character ${char}!`,
             file,

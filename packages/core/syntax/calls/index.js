@@ -12,6 +12,8 @@ module.exports = merge(
         "method",
         "wrapped",
         "parameter",
+        "decorator",
+        "decoratorAccess",
       ],
       {
         ...map(
@@ -38,18 +40,16 @@ module.exports = merge(
       ...map(
         ["lineBreak", "ender"],
         wrap((lhs) => {
-          const isParameter =
-            lhs.fn.type === "parameter" ||
-            (lhs.fn.type === "propertyAccess" &&
-              lhs.fn.lhs.type === "parameter");
-          lhs.type = isParameter ? "parameterCall" : "call";
+          const isDecorator =
+            lhs.fn.type === "decorator" || lhs.fn.type === "decoratorAccess";
+          lhs.type = isDecorator ? "decoratorCall" : "call";
           return lhs;
         }, 1)
       ),
     },
     pipeOpen: {
       ...map(
-        ["call", "parameterCall"],
+        ["call", "decoratorCall"],
         wrap((lhs, rhs) => {
           rhs.args.unshift(lhs.data);
           rhs.isMap = lhs.isMap;

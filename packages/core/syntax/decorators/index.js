@@ -3,7 +3,7 @@ const { map } = require("bean-parser");
 
 module.exports = {
   // Export
-  parameterCall: {
+  decoratorCall: {
     ...ignore("lineBreak"),
     function: wrap((lhs, rhs) => {
       rhs.type = "decoratedFunction";
@@ -11,16 +11,16 @@ module.exports = {
       return rhs;
     }),
     ...map(
-      ["parameterCall", "parameter"],
+      ["decoratorCall", "decorator", "decoratorAccess"],
       wrap((lhs, rhs) => {
         return {
-          type: "decorator",
+          type: "decorators",
           decorators: [lhs, rhs],
         };
-      })
+      }, 0)
     ),
   },
-  parameter: {
+  ...map(["decorator", "decoratorAccess"], {
     ...ignore("lineBreak"),
     function: wrap((lhs, rhs) => {
       rhs.type = "decoratedFunction";
@@ -28,16 +28,16 @@ module.exports = {
       return rhs;
     }),
     ...map(
-      ["parameterCall", "parameter"],
+      ["decoratorCall", "decorator", "decoratorAccess"],
       wrap((lhs, rhs) => {
         return {
-          type: "decorator",
+          type: "decorators",
           decorators: [lhs, rhs],
         };
-      })
+      }, 0)
     ),
-  },
-  decorator: {
+  }),
+  decorators: {
     ...ignore("lineBreak"),
     function: wrap((lhs, rhs) => {
       rhs.type = "decoratedFunction";
@@ -45,11 +45,11 @@ module.exports = {
       return rhs;
     }),
     ...map(
-      ["parameterCall", "parameter"],
+      ["decoratorCall", "decorator", "decoratorAccess"],
       wrap((lhs, rhs) => {
         lhs.decorators.push(rhs);
         return lhs;
-      })
+      }, 0)
     ),
   },
 };

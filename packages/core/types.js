@@ -465,7 +465,7 @@ const types = {
     const { start, name } = node;
     const docLines = [];
     for (const decorator of node.decorators) {
-      if (decorator.type === "parameterCall") {
+      if (decorator.type === "decoratorCall") {
         const { fn, args } = decorator;
         switch (fn.value) {
           case "@describe":
@@ -490,7 +490,7 @@ const types = {
     const fn = get({ ...node, type: "function", name: null });
     let decorated = fn;
     for (const decorator of node.decorators) {
-      if (decorator.type === "parameter") {
+      if (decorator.type === "decorator") {
         const symbol = {
           ...decorator,
           type: "symbol",
@@ -502,19 +502,23 @@ const types = {
           decorated,
           ")",
         ]);
-      } else if (decorator.type === "parameterCall") {
-        if (decorator.fn.type === "propertyAccess") {
-          const parameter = decorator.fn.lhs;
-          const symbol = {
-            ...parameter,
-            type: "symbol",
-            value: parameter.value.slice(1),
-          };
-          decorator.fn.lhs = symbol;
-          decorator.type = "call";
-          decorator.args.push({ type: "asIs", value: decorated });
-          decorated = get(decorator);
-        } else {
+      } else if (decorator.type === "decoratorAccess") {
+        const { lhs } = decorator;
+        const symbol = {
+          ...lhs,
+          type: "symbol",
+          value: lhs.value.slice(1),
+        };
+        decorator.lhs = symbol;
+        decorator.type = "propertyAccess";
+        decorated = new SourceNode(null, null, null, [
+          get(decorator),
+          "(",
+          decorated,
+          ")",
+        ]);
+      } else if (decorator.type === "decoratorCall") {
+        if (decorator.fn.type === "decorator") {
           const parameter = decorator.fn;
           const symbol = {
             ...parameter,
@@ -522,6 +526,18 @@ const types = {
             value: parameter.value.slice(1),
           };
           decorator.fn = symbol;
+          decorator.type = "call";
+          decorator.args.push({ type: "asIs", value: decorated });
+          decorated = get(decorator);
+        } else {
+          const { lhs } = decorator.fn;
+          const symbol = {
+            ...lhs,
+            type: "symbol",
+            value: lhs.value.slice(1),
+          };
+          decorator.fn.lhs = symbol;
+          decorator.fn.type = "propertyAccess";
           decorator.type = "call";
           decorator.args.push({ type: "asIs", value: decorated });
           decorated = get(decorator);

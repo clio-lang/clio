@@ -6,7 +6,7 @@ const wrap = (fn, priority) =>
     result.lambda = result.lambda || [];
     for (const it of [lhs, rhs]) {
       if (it.type == "wrapped") continue;
-      if (it.type == "decorator") continue;
+      if (it.type == "decorators") continue;
       if (it.type == "parameter") result.lambda.push(it);
       else if (it.lambda?.length) result.lambda.push(...it.lambda);
     }
