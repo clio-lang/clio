@@ -10,6 +10,11 @@ module.exports = {
       rhs.decorators = [lhs];
       return rhs;
     }),
+    exportedFunction: wrap((lhs, rhs) => {
+      rhs.type = "decoratedExportedFunction";
+      rhs.value.decorators = [lhs];
+      return rhs;
+    }),
     ...map(
       ["decoratorCall", "decorator", "decoratorAccess"],
       wrap((lhs, rhs) => {
@@ -27,6 +32,11 @@ module.exports = {
       rhs.decorators = [lhs];
       return rhs;
     }),
+    exportedFunction: wrap((lhs, rhs) => {
+      rhs.type = "decoratedExportedFunction";
+      rhs.value.decorators = [lhs];
+      return rhs;
+    }),
     ...map(
       ["decoratorCall", "decorator", "decoratorAccess"],
       wrap((lhs, rhs) => {
@@ -42,6 +52,11 @@ module.exports = {
     function: wrap((lhs, rhs) => {
       rhs.type = "decoratedFunction";
       rhs.decorators = lhs.decorators;
+      return rhs;
+    }),
+    exportedFunction: wrap((lhs, rhs) => {
+      rhs.type = "decoratedExportedFunction";
+      rhs.value.decorators = lhs.decorators;
       return rhs;
     }),
     ...map(

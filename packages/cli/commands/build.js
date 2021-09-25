@@ -1,12 +1,11 @@
 const fs = require("fs");
 const path = require("path");
-const { compile } = require("clio-core");
+const { compileFile } = require("clio-core");
 const { error, info, warn } = require("../lib/colors");
 const { getPlatform, npmCommand } = require("../lib/platforms");
 const { Progress } = require("../lib/progress");
 
 const {
-  MODULES_PATH,
   fetchNpmDependencies,
   getPackageConfig,
   getParsedNpmDependencies,
@@ -15,9 +14,8 @@ const {
   getDestinationFromConfig,
   getBuildTarget,
   getSourceFromConfig,
+  MODULES_PATH,
 } = require("clio-manifest");
-
-const asyncCompile = async (...args) => compile(...args);
 
 const flatten = (arr) => arr.reduce((acc, val) => acc.concat(val), []);
 
@@ -67,6 +65,8 @@ const mkdir = (directory) => {
   if (!fs.existsSync(directory)) fs.mkdirSync(directory, { recursive: true });
 };
 
+const asyncCompile = async (...args) => compileFile(...args);
+
 /**
  *
  * @param {string} configPath Path to the project config file
@@ -82,6 +82,9 @@ const build = async (configPath, options = {}) => {
   const destination = getDestinationFromConfig(configPath, config);
   const sourceDir = getSourceFromConfig(configPath, config);
 
+  const modulesDir = path.join(sourceDir, MODULES_PATH);
+  const modulesDestDir = path.join(destination, MODULES_PATH);
+
   if (!silent) info(`Creating build for target "${target}"`);
 
   if (clean && fs.existsSync(destination)) {
@@ -89,43 +92,28 @@ const build = async (configPath, options = {}) => {
     fs.rmSync(destination, { recursive: true });
   }
 
-  const modulesDir = path.join(sourceDir, MODULES_PATH);
-  const modulesDestDir = path.join(destination, MODULES_PATH);
-  const rpcPrefix = `${config.title}@${config.version}`;
-
   const progress = new Progress(silent);
+  progress.start("Compiling from source...");
+
+  const main = path.join(sourceDir, "main.clio");
+  const result = await asyncCompile(
+    main,
+    config,
+    configPath,
+    modulesDir,
+    modulesDestDir
+  ).catch((compileError) => {
+    progress.fail();
+    console.trace(compileError);
+    console.error(compileError.message);
+    process.exit(1);
+  });
+
+  progress.succeed();
+
   try {
-    progress.start("Compiling source...");
-
-    // Build source
-    const files = getClioFiles(sourceDir);
-    for (const file of files) {
-      const relativeFile = path.relative(sourceDir, file);
-      const destFileClio = path.join(destination, relativeFile);
-      const destFile = `${destFileClio}.js`;
-      const destDir = path.dirname(destFile);
-      const contents = fs.readFileSync(file, "utf8");
-      const { code, map } = await asyncCompile(contents, relativeFile, {
-        root: path.dirname(configPath),
-        config,
-        sourceDir,
-        modulesDir,
-        modulesDestDir,
-        rpcPrefix,
-        destFile,
-      }).catch((compileError) => {
-        progress.fail();
-        console.trace(compileError);
-        console.error(compileError.message);
-        process.exit(1);
-      });
-      mkdir(destDir);
-      await fs.promises.writeFile(destFileClio, contents, "utf8");
-      await fs.promises.writeFile(destFile, code, "utf8");
-      await fs.promises.writeFile(`${destFile}.map`, map, "utf8");
-    }
-
     // Copy resources
+    progress.start("Copying over the resource files...");
     const nonClioFiles = getNonClioFiles(sourceDir);
     for (const file of nonClioFiles) {
       const relativeFile = path.relative(sourceDir, file);
@@ -136,68 +124,13 @@ const build = async (configPath, options = {}) => {
     }
     progress.succeed();
 
-    progress.start("Compiling dependencies...");
-
-    const depsNpmDependencies = {};
-
-    // Build dependencies
-    if (fs.existsSync(modulesDir)) {
-      for (const dependency of fs.readdirSync(modulesDir)) {
-        const modulePath = path.join(modulesDir, dependency);
-        const moduleDestPath = path.join(modulesDestDir, dependency);
-        const configPath = path.join(modulePath, "clio.toml");
-        const config = getPackageConfig(configPath);
-        const rawDest = getDestinationFromConfig(configPath, config);
-        const destination = path.join(moduleDestPath, rawDest);
-        const rawSource = getSourceFromConfig(configPath, config);
-        const sourceDir = path.join(modulePath, rawSource);
-        const files = getClioFiles(sourceDir);
-        for (const file of files) {
-          const relativeFile = path.relative(sourceDir, file);
-          const destFileClio = path.join(destination, relativeFile);
-          const destFile = `${destFileClio}.js`;
-          const destDir = path.dirname(destFile);
-          const contents = fs.readFileSync(file, "utf8");
-          const { code, map } = await asyncCompile(contents, relativeFile, {
-            root: path.dirname(configPath),
-            config,
-            modulesDir,
-            modulesDestDir,
-            sourceDir: rawSource,
-            rpcPrefix: dependency,
-            destFile,
-          }).catch((compileError) => {
-            progress.fail();
-            console.error(compileError.message);
-            process.exit(1);
-          });
-          mkdir(destDir);
-          await fs.promises.writeFile(destFileClio, contents, "utf8");
-          await fs.promises.writeFile(destFile, code, "utf8");
-          await fs.promises.writeFile(`${destFile}.map`, map, "utf8");
-        }
-
-        // Copy resources
-        const nonClioFiles = getNonClioFiles(sourceDir);
-        for (const file of nonClioFiles) {
-          const relativeFile = path.relative(sourceDir, file);
-          const destFile = path.join(destination, relativeFile);
-          const destDir = path.dirname(destFile);
-          mkdir(destDir);
-          await fs.promises.copyFile(file, destFile);
-        }
-
-        // Get npm deps:
-        const dependencies = getParsedNpmDependencies(configPath);
-        Object.assign(depsNpmDependencies, dependencies);
-      }
-    }
     // Add index.js file
     progress.start("Adding Clio start script...");
     mkdir(path.join(destination, ".clio"));
     makeStartScript(config, target, destination);
     progress.succeed();
 
+    const { depsNpmDependencies } = result;
     // Init npm modules
     try {
       const packageJsonPath = path.join(destination, "package.json");

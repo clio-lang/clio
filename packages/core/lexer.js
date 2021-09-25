@@ -5,7 +5,7 @@ const strPattern = /^(?:"(?:[^"]|\\")*"|'(?:[^']|\\')*')/;
 const numPattern = /^-?(?:[0-9][\d_]*)(?:\.[\d_]+)?(?:[eE][+-]?[\d_]+)?/;
 
 const keywordPattern =
-  /^(?:type|is|if|else|fn|await|import|as|from|export|and|or|not|by|in)(?=\s|$)|^else(?=:)|^await(?=])/;
+  /^(?:collection|type|is|if|else|fn|await|import|as|from|export|and|or|not|by|in)(?=\s|$)|^else(?=:)|^await(?=])/;
 const symbolPattern = /^(?:[a-z_$][0-9a-z_$]*)/i; // Should we allow unicode?
 const parameterPattern = /^@(?:[a-z_$][0-9a-z_$]*)/i; // Should we allow unicode?
 const commentPattern = /^--.*?(?=\r?\n|$)/;
@@ -188,7 +188,7 @@ const lex = (source, { file, ...meta }, startLine = 1, startColumn = 0) => {
   // match a decorator
   const decorator = () => {
     // check if before a function
-    const isDecorator = source.match(/(\s*@.*?\r?\n)+\s*fn\s+/);
+    const isDecorator = source.match(/(\s*@.*?\r?\n)+\s*(export\s+)?fn\s+/);
     if (isDecorator) {
       const match = source.match(parameterPattern);
       token("decorator", match[0]);

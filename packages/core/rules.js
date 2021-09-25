@@ -26,6 +26,7 @@ const rules = merge(
   require("./syntax/imports/index"),
   require("./syntax/in/index"),
   require("./syntax/types/index"),
+  require("./syntax/collections/index"),
   require("./syntax/decorators/index"),
   require("./syntax/clio/index"),
   require("./syntax/boosters/index")

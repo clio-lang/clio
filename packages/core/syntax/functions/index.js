@@ -5,8 +5,15 @@ const { expressions, wrap, values, ignore } = require("../common");
 module.exports = {
   // Functions
   fn: {
-    symbol: wrap((lhs, rhs) => {
-      return { start: lhs, type: "fnOpen", params: [], name: types.get(rhs) };
+    symbol: wrap((lhs, rhs, context) => {
+      const outerScope = { ...context.scope };
+      return {
+        start: lhs,
+        type: "fnOpen",
+        params: [],
+        name: types.get(rhs),
+        outerScope,
+      };
     }, 10),
   },
   fnOpen: {
@@ -25,14 +32,14 @@ module.exports = {
       lhs.type = "function";
       rhs.type = "return";
       rhs.recursefn = lhs;
-      lhs.body = types.get(rhs);
+      lhs.body = rhs;
       return lhs;
     }, 10),
     ...map(
       [...expressions, ...values],
       wrap((lhs, rhs) => {
         lhs.type = "function";
-        lhs.body = types.get({ type: "return", content: [rhs] });
+        lhs.body = { type: "return", content: [rhs] };
         return lhs;
       }, 0)
     ),

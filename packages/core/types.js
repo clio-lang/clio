@@ -2,6 +2,7 @@ const { mapfn, map } = require("bean-parser");
 const { SourceNode } = require("source-map");
 const { existsSync } = require("fs");
 const { join: joinPath, dirname, relative, resolve } = require("path");
+const { getPackageConfig } = require("clio-manifest");
 
 class ImportError extends Error {
   constructor(meta) {
@@ -13,8 +14,15 @@ class ImportError extends Error {
 const ensureClioExtension = (path) =>
   path.endsWith(".clio") ? path : path + ".clio";
 
-const resolveRelativeModule = (meta, path, line, column) => {
-  const currDir = dirname(joinPath(meta.root, meta.sourceDir, meta.file));
+const ensureRelative = (curr, path) => {
+  const relativePath = relative(curr, path);
+  return relativePath.match(/^\.{1,2}\//) ? relativePath : "./" + relativePath;
+};
+
+const resolveRelativeModule = (context, path, line, column) => {
+  const currDir = dirname(
+    joinPath(context.root, context.sourceDir, context.file)
+  );
   const possiblePaths = [];
   const resolvePath = resolve(currDir, path);
 
@@ -28,28 +36,26 @@ const resolveRelativeModule = (meta, path, line, column) => {
   for (const path of possiblePaths) {
     if (existsSync(path)) {
       if (path.match(/\.{1,2}\//)) {
-        return path + ".js";
+        return { source: path, require: path + ".js" };
       }
-      const relativePath = relative(currDir, path) + ".js";
-      return relativePath.match(/^\.{1,2}\//)
-        ? relativePath
-        : "./" + relativePath;
+      const relativePath = ensureRelative(currDir, path);
+      return { source: relativePath, require: relativePath + ".js" };
     }
   }
 
   throw new ImportError({
     message: [
       `Cannot find module "${path}" in any of the following locations:\n`,
-      ...possiblePaths.map((path) => `  - ${relative(meta.root, path)}`),
+      ...possiblePaths.map((path) => `  - ${relative(context.root, path)}`),
     ].join("\n"),
     line,
     column,
   });
 };
 
-const resolveModule = (meta, path, line, column) => {
+const resolveModule = (context, path, line, column) => {
   const [moduleName, subPath = ""] = path.match(/(.*?)(?:$|\/(.*))/).slice(1);
-  const modulePath = joinPath(meta.modulesDir, moduleName);
+  const modulePath = joinPath(context.modulesDir, moduleName);
   if (!existsSync(modulePath)) {
     throw new ImportError({
       message: [
@@ -61,13 +67,13 @@ const resolveModule = (meta, path, line, column) => {
     });
   }
 
-  const { source, destination } = meta.config.build;
+  const { source, destination } = context.config.build;
   const possiblePaths = [];
   const getResolvePath = (subPath) => {
     return {
-      source: resolve(meta.modulesDir, moduleName, source, subPath),
+      source: resolve(context.modulesDir, moduleName, source, subPath),
       destination: resolve(
-        meta.modulesDestDir,
+        context.modulesDestDir,
         moduleName,
         destination,
         subPath
@@ -84,34 +90,38 @@ const resolveModule = (meta, path, line, column) => {
   for (const path of possiblePaths) {
     if (existsSync(path.source)) {
       if (path.destination.match(/^\.{1,2}\//)) {
-        return path + ".js";
+        return { source: path.source, require: path.destination + ".js" };
       }
-      const relativePath =
-        relative(dirname(meta.destFile), path.destination) + ".js";
-      return relativePath.match(/\.{1,2}\//)
-        ? relativePath
-        : "./" + relativePath;
+      const requirePath =
+        ensureRelative(dirname(context.destFile), path.destination) + ".js";
+      const sourcePath = ensureRelative(context.sourceDir, path.source);
+
+      return {
+        source: sourcePath,
+        require: requirePath,
+      };
     }
   }
 
   throw new ImportError({
     message: [
       `Cannot find module "${path}" in any of the following locations:\n`,
-      ...possiblePaths.map((path) => `  - ${relative(meta.root, path)}`),
+      ...possiblePaths.map((path) => `  - ${relative(context.root, path)}`),
     ].join("\n"),
     line,
     column,
   });
 };
 
-const getModulePath = (meta, path, line, column) => {
-  if (!meta.sourceDir) {
-    return ensureClioExtension(path) + ".js";
+const getImportPath = (context, path, line, column) => {
+  if (!context.sourceDir) {
+    const source = ensureClioExtension(path);
+    return { source, require: source + ".js" };
   }
   if (path.match(/\.{1,2}\//)) {
-    return resolveRelativeModule(meta, path, line, column);
+    return resolveRelativeModule(context, path, line, column);
   } else {
-    return resolveModule(meta, path, line, column);
+    return resolveModule(context, path, line, column);
   }
 };
 
@@ -418,15 +428,15 @@ const types = {
     sn.needsAsync = properCode.needsAsync;
     return sn;
   },
-  return(node) {
+  return(node, context) {
     if (!node.optimized && checkRecursive(node)) {
       node.type = "recursiveReturn";
-      return get(node);
+      return get(node, context);
     }
     let lastNode = node.content.pop();
     let addReturn = !node.optimized && !lastNode.optimized;
     const content = node.content
-      .map(get)
+      .map((content) => get(content, context))
       .map((node) => [node.insertBefore, node])
       .flat()
       .filter(Boolean);
@@ -446,10 +456,10 @@ const types = {
     } else if (lastNode.type === "assignment") {
       if (lastNode.value.insertBefore)
         content.push(lastNode.value.insertBefore);
-      content.push(get(lastNode));
+      content.push(get(lastNode, context));
       lastNode = lastNode.name;
     }
-    let last = lastNode.type ? get(lastNode) : lastNode;
+    let last = lastNode.type ? get(lastNode, context) : lastNode;
     if (last.returnAs) last = last.returnAs;
     const sn = new SourceNode(null, null, null, [
       new SourceNode(null, null, null, content).join(";"),
@@ -461,7 +471,20 @@ const types = {
     sn.needsAsync = last.needsAsync || content.some((item) => item.needsAsync);
     return sn;
   },
-  decoratedFunction(node) {
+  decoratedExportedFunction(node, context) {
+    node.value.type = "decoratedFunction";
+    const fn = get(node.value, context);
+    const sn = new SourceNode(
+      node.export.line,
+      node.export.column,
+      node.export.file,
+      ["clio.exports.", node.name, "=", node.name]
+    );
+    sn.insertBefore = [fn.insertBefore, fn].filter(Boolean);
+    sn.fn = fn.fn;
+    return sn;
+  },
+  decoratedFunction(node, context) {
     const { start, name } = node;
     const docLines = [];
     for (const decorator of node.decorators) {
@@ -472,7 +495,7 @@ const types = {
             const line = args
               .filter((arg) => ["string", "number"].includes(arg.type))
               .map((arg) => {
-                const compiled = get(arg).toString();
+                const compiled = get(arg, context).toString();
                 return arg.type === "string" ? compiled.slice(1, -1) : compiled;
               })
               .join(" ");
@@ -481,13 +504,18 @@ const types = {
             }
             break;
 
+          case "@returns":
+            const type = get(args[0], context).toString();
+            node.outerScope[name] = type;
+            break;
+
           default:
             break;
         }
       }
     }
     const doc = docLines.join("\n");
-    const fn = get({ ...node, type: "function", name: null });
+    const fn = get({ ...node, type: "function", name: null }, context);
     let decorated = fn;
     for (const decorator of node.decorators) {
       if (decorator.type === "decorator") {
@@ -497,7 +525,7 @@ const types = {
           value: decorator.value.slice(1),
         };
         decorated = new SourceNode(null, null, null, [
-          get(symbol),
+          get(symbol, context),
           "(",
           decorated,
           ")",
@@ -512,7 +540,7 @@ const types = {
         decorator.lhs = symbol;
         decorator.type = "propertyAccess";
         decorated = new SourceNode(null, null, null, [
-          get(decorator),
+          get(decorator, context),
           "(",
           decorated,
           ")",
@@ -528,7 +556,7 @@ const types = {
           decorator.fn = symbol;
           decorator.type = "call";
           decorator.args.push({ type: "asIs", value: decorated });
-          decorated = get(decorator);
+          decorated = get(decorator, context);
         } else {
           const { lhs } = decorator.fn;
           const symbol = {
@@ -540,7 +568,7 @@ const types = {
           decorator.fn.type = "propertyAccess";
           decorator.type = "call";
           decorator.args.push({ type: "asIs", value: decorated });
-          decorated = get(decorator);
+          decorated = get(decorator, context);
         }
       }
     }
@@ -556,13 +584,16 @@ const types = {
   asIs(node) {
     return node.value;
   },
-  function(node) {
-    const { start, name, params, body } = node;
+  function(node, context) {
+    const { start, name, params } = node;
+    const body = get(node.body, context);
     const sn = new SourceNode(start.line, start.column, start.file, [
       ...(name ? ["const ", name, "="] : []),
       ...(name ? ["register"] : []),
       "(",
-      ...(name ? ["`", start.rpcPrefix, "/", start.file, "/", name, "`,"] : []),
+      ...(name
+        ? ["`", context.rpcPrefix, "/", start.file, "/", name, "`,"]
+        : []),
       node.body.needsAsync ? "async" : "",
       "(",
       new SourceNode(null, null, null, params).join(","),
@@ -575,10 +606,12 @@ const types = {
     sn.returnAs = new SourceNode(null, null, null, name);
     sn.returnAs.insertBefore = sn;
     sn.fn = { name };
+    // Restore scope
+    context.scope = node.outerScope;
     return sn;
   },
-  exportedFunction(node) {
-    const fn = get(node.value);
+  exportedFunction(node, context) {
+    const fn = get(node.value, context);
     const sn = new SourceNode(
       node.export.line,
       node.export.column,
@@ -600,7 +633,7 @@ const types = {
     sn.insertBefore = [value.insertBefore, value].filter(Boolean);
     return sn;
   },
-  importStatement(node) {
+  importStatement(node, context) {
     /* each import has 2 parts:
         1. import
         2. assign
@@ -620,10 +653,11 @@ const types = {
     const protocol =
       node.path.value.slice(1, -1).match(/^[^:]*(?=:)/)?.[0] || "clio";
     let require;
+    let importScope = {};
     /* We are clearly testing these in our unit tests,
        yet istanbul considers them untested branches,
        I have no idea why, I disabled istanbul checks
-       here until I figure out why? */
+       here until I figure out what is happening! */
     if (protocol === "js") {
       require = new SourceNode(
         node.import.line,
@@ -642,18 +676,53 @@ const types = {
       
       */
 
-      const modulePath = getModulePath(
-        node.import,
-        path,
-        node.path.line,
-        node.path.column
-      );
+      const { line, column } = node.path;
+      const importPath = getImportPath(context, path, line, column);
+
+      const isRelative = path.startsWith(".");
+      const filePath = joinPath(context.sourceDir, importPath.source);
+
+      const {
+        compileFile,
+        config,
+        configPath,
+        modulesDir,
+        modulesDestDir,
+        configs = {},
+      } = context;
+
+      if (isRelative) {
+        const { scope } = compileFile(
+          filePath,
+          config,
+          configPath,
+          modulesDir,
+          modulesDestDir
+        );
+        importScope = scope;
+      } else {
+        // we need to get the config file
+        const moduleName = path.split("/").shift();
+        const configPath = joinPath(modulesDir, moduleName, "clio.toml");
+        const config = configs[moduleName] || getPackageConfig(configPath);
+        configs[moduleName] = config;
+        context.configs = configs;
+        const { scope } = compileFile(
+          filePath,
+          config,
+          configPath,
+          modulesDir,
+          modulesDestDir,
+          moduleName
+        );
+        importScope = scope;
+      }
 
       require = new SourceNode(
         node.import.line,
         node.import.column,
         node.import.file,
-        ["await require(", '"', modulePath, '").exports(clio)']
+        ["await require(", '"', importPath.require, '").exports(clio)']
       );
     } else {
       require = new SourceNode(
@@ -666,20 +735,30 @@ const types = {
     let assign;
     if (!node.items) {
       assign = new SourceNode(null, null, null, ["const ", name, "="]);
+      context.scope[name] = importScope;
     } else {
       let parts = [];
       let rest;
       for (const part of node.items) {
         if (part.type === "symbol") {
-          parts.push(get(part));
+          const name = get(part);
+          parts.push(name);
+          if (importScope[name]) {
+            context.scope[name] = importScope[name];
+          }
         } else if (part.lhs.type === "symbol") {
+          const name = get(part.lhs);
+          const rename = get(part.rhs);
           parts.push(
             new SourceNode(part.as.line, part.as.column, part.as.file, [
-              get(part.lhs),
+              name,
               ":",
-              get(part.rhs),
+              rename,
             ])
           );
+          if (importScope[name]) {
+            context.scope[rename] = importScope[name];
+          }
         } else {
           const name = get(part.rhs);
           rest = new SourceNode(part.as.line, part.as.column, part.as.file, [
@@ -687,6 +766,7 @@ const types = {
             name,
           ]);
           rest.name = name;
+          context.scope[name] = importScope;
         }
       }
       if (rest) parts.push(rest);
@@ -987,7 +1067,23 @@ const types = {
     ]);
     sn.insertBefore = node.value.insertBefore;
     sn.needsAsync = node.value.needsAsync;
+    sn.name = name;
     return sn;
+  },
+  typedAssignment(node, context) {
+    const assignment = get(node.assignment);
+    // type check
+    const type = get(node.valueType).toString();
+    const { value } = node.assignment;
+    if (value.node.type === "call") {
+      const fnName = get(value.node.fn, context);
+      const fnType = context.scope[fnName];
+      if (fnType && fnType !== type) {
+        throw `Cannot assign value of type ${fnType} to variable ${assignment.name} of type ${type}`;
+      }
+    }
+    context.scope[assignment.name] = type;
+    return assignment;
   },
   arrowAssignment(node) {
     const name = get(node.name);
@@ -1109,14 +1205,26 @@ const types = {
       "}},{apply(target,_,args){return new target(...args)}})",
     ]);
   },
-  clio(node) {
+  collectionDef(node) {
+    const { line, column, file } = node.start;
+    return new SourceNode(line, column, file, [
+      "const ",
+      node.name,
+      "=[",
+      join(node.members, ","),
+      ...(node.extends ? [",...", node.extends] : []),
+      "]",
+    ]);
+  },
+  clio(node, context) {
     const content = node.content
+      .map((node) => get(node, context))
       .map((node) => [node.insertBefore, node])
       .flat()
       .filter(Boolean);
     const inner = new SourceNode(null, null, null, content).join(";");
     const builtins =
-      "emitter,range,slice,remote,register,help,describe,includes,f";
+      "emitter,range,slice,remote,register,help,describe,returns,includes,f";
     return new SourceNode(null, null, null, [
       `module.exports.exports=async(clio)=>{const{${builtins}}=clio;`,
       inner,
@@ -1125,8 +1233,8 @@ const types = {
   },
 };
 
-const get = (node) => {
-  const result = types[node.type](node);
+const get = (node, context) => {
+  const result = types[node.type](node, context);
   result.node = node;
   return result;
 };

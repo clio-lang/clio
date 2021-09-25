@@ -5,5 +5,11 @@ const describe = (description, fn) => {
   return fn;
 };
 
+const returns = (type, fn) => {
+  fn.__returns__ = type;
+  return fn;
+};
+
 module.exports.help = help;
 module.exports.describe = describe;
+module.exports.returns = returns;

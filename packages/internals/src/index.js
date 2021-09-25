@@ -12,3 +12,4 @@ module.exports.emitter = emitter;
 const doc = require("./doc");
 module.exports.help = doc.help;
 module.exports.describe = doc.describe;
+module.exports.returns = doc.returns;

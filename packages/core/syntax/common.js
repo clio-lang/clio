@@ -1,8 +1,8 @@
 const { rule, lPluck, map } = require("bean-parser");
 
 const wrap = (fn, priority) =>
-  rule((lhs, rhs) => {
-    const result = fn(lhs, rhs);
+  rule((lhs, rhs, context) => {
+    const result = fn(lhs, rhs, context);
     result.lambda = result.lambda || [];
     for (const it of [lhs, rhs]) {
       if (it.type == "wrapped") continue;
@@ -60,13 +60,18 @@ const topLevels = [
   ...controls,
   "function",
   "decoratedFunction",
+  "decoratedExportedFunction",
   ...values,
   "assignment",
   "arrowAssignment",
+  "typedAssignment",
   ...expressions,
   "importStatement",
   "typeDef",
+  "collectionDef",
 ];
+
+const rootLevels = [...topLevels, "exported", "exportedFunction"];
 
 const lexerTokens = [
   "if",
@@ -137,6 +142,7 @@ const lexerTokens = [
 module.exports.wrap = wrap;
 module.exports.ignore = ignore;
 module.exports.topLevels = topLevels;
+module.exports.rootLevels = rootLevels;
 module.exports.controls = controls;
 module.exports.expressions = expressions;
 module.exports.arrayLike = arrayLike;
