@@ -68,7 +68,7 @@ const topLevels = [
   ...expressions,
   "importStatement",
   "typeDef",
-  "collectionDef",
+  "listDef",
 ];
 
 const rootLevels = [...topLevels, "exported", "exportedFunction"];

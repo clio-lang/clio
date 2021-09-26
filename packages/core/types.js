@@ -1231,7 +1231,7 @@ const types = {
       "}},{apply(target,_,args){return new target(...args)}})",
     ]);
   },
-  collectionDef(node) {
+  listDef(node) {
     const { line, column, file } = node.start;
     return new SourceNode(line, column, file, [
       "const ",
