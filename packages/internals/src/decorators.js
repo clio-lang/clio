@@ -24,10 +24,10 @@ const checkType = (value, type) => {
     return value.every((item, index) => checkType(item, type[index]));
   }
   if (type === Number) {
-    return typeof value === "number";
+    return typeof value === "number" || value instanceof Number;
   }
   if (type === String) {
-    return typeof value === "string";
+    return typeof value === "string" || value instanceof String;
   }
   return value instanceof type;
 };
