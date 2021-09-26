@@ -1,5 +1,4 @@
 const { map, merge } = require("bean-parser");
-const types = require("../../types");
 const { expressions, wrap, values } = require("../common");
 
 module.exports = merge(
@@ -15,7 +14,7 @@ module.exports = merge(
         [...values, ...expressions],
         wrap((lhs, rhs) => {
           lhs.type = "assignment";
-          lhs.value = types.get(rhs);
+          lhs.value = rhs;
           return lhs;
         }, 0.001)
       ),

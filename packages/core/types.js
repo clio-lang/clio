@@ -254,6 +254,27 @@ const checkRecursive = (node) => {
   return false;
 };
 
+const getTypeOf = (node, scope) => {
+  if (node.type === "number") {
+    return "Number";
+  }
+  if (node.type === "string") {
+    return "String";
+  }
+  if (node.type === "array") {
+    return "Array";
+  }
+  if (node.type === "hashmap") {
+    return "Object"; // TODO: FIXME
+  }
+  if (node.type === "symbol") {
+    return scope[get(node)]?.type;
+  }
+  if (node.type === "propertyAccess") {
+    return scope[get(node)]?.type;
+  }
+};
+
 const compileImport = (path, importPath, context) => {
   if (context.sourceDir) {
     const isModule = !path.match(/^(\.{1,2})?\//);
@@ -358,6 +379,22 @@ const types = {
   mapCall(node, context) {
     const { awaited, all } = node;
     const fn = getCallFn(node);
+    const fnName = get(fn).toString();
+    const { accepts } = context.scope[fnName] || {};
+    if (accepts) {
+      for (let index = 0; index < node.args.length; index++) {
+        const arg = node.args[index];
+        const type = getTypeOf(arg, context);
+        const match = type === accepts[index];
+        if (!match) {
+          const argTypeName = type.split("/").pop();
+          const paramTypeName = accepts[index].split("/").pop();
+          throw new Error(
+            `Argument of type ${argTypeName} at position ${index} does not satisfy parameter of type ${paramTypeName}`
+          );
+        }
+      }
+    }
     const args = node.args.map(get);
     const insertBefore = args.map((arg) => arg.insertBefore).filter(Boolean);
     if (fn.insertBefore) insertBefore.unshift(fn.insertBefore);
@@ -428,8 +465,8 @@ const types = {
       ";",
     ]);
   },
-  parameterCall(node) {
-    return get({ ...node, type: "call" });
+  parameterCall(node, context) {
+    return get({ ...node, type: "call" }, context);
   },
   call(node, context) {
     if (node.isMap) {
@@ -440,7 +477,22 @@ const types = {
     const fn = getCallFn(node);
     const args = node.args.map(get);
     const insertBefore = args.map((arg) => arg.insertBefore).filter(Boolean);
-    const fun = get(fn);
+    const fun = get(fn, context);
+    const { accepts } = context.scope[fun] || {};
+    if (accepts) {
+      for (let index = 0; index < node.args.length; index++) {
+        const arg = node.args[index];
+        const type = getTypeOf(arg, context);
+        const match = type === accepts[index];
+        if (!match) {
+          const argTypeName = type.split("/").pop();
+          const paramTypeName = accepts[index].split("/").pop();
+          throw new Error(
+            `Argument of type ${argTypeName} at position ${index} does not satisfy parameter of type ${paramTypeName}`
+          );
+        }
+      }
+    }
     if (fun.insertBefore) insertBefore.unshift(fun.insertBefore);
     let sn = new SourceNode(fn.line, fn.column, fn.file, [
       fun,
@@ -599,7 +651,17 @@ const types = {
             const type = get(args[0], context).toString();
             context.scope[name] = {
               ...context.scope[name],
-              type: context.scope[type].id,
+              returns: context.scope[type].id,
+            };
+            break;
+
+          case "@params":
+            const types = args
+              .map((arg) => get(arg, context).toString())
+              .map((type) => context.scope[type].id);
+            context.scope[name] = {
+              ...context.scope[name],
+              accepts: types,
             };
             break;
 
@@ -1106,8 +1168,9 @@ const types = {
   },
   wrapped(node, context) {
     if (!node.content) return new SourceNode(null, null, null, "");
-    if (node.isFn && node.content.type === "call")
+    if (node.isFn && node.content.type === "call") {
       node.content.args.map((arg) => (arg.lambda = []));
+    }
     const content = checkLambda(
       node.content,
       node.content,
@@ -1124,27 +1187,28 @@ const types = {
     sn.needsAsync = content.needsAsync;
     return sn;
   },
-  assignment(node) {
-    const name = get(node.name);
+  assignment(node, context) {
+    const name = get(node.name, context);
+    const value = get(node.value, context);
     const sn = new SourceNode(null, null, null, [
       ...(node.name.type === "symbol" ? ["const", " "] : []),
       name,
       asIs(node.assign),
-      node.value,
+      value,
     ]);
-    sn.insertBefore = node.value.insertBefore;
-    sn.needsAsync = node.value.needsAsync;
+    sn.insertBefore = value.insertBefore;
+    sn.needsAsync = value.needsAsync;
     sn.name = name;
     return sn;
   },
   typedAssignment(node, context) {
-    const assignment = get(node.assignment);
+    const assignment = get(node.assignment, context);
     // type check
     const type = get(node.valueType).toString();
-    const { value } = node.assignment;
+    const value = get(node.assignment, context);
     if (value.node.type === "call") {
       const fnName = get(value.node.fn, context);
-      const fnType = context.scope[fnName].type;
+      const fnType = context.scope[fnName].returns;
       if (fnType && fnType !== type) {
         const typeName = fnType.split("/").pop();
         throw `Cannot assign value of type ${typeName} to variable ${assignment.name} of type ${type}`;
