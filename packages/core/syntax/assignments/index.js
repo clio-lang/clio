@@ -21,9 +21,11 @@ module.exports = merge(
       ),
     },
   },
-  map(["array", "symbol"], {
-    assignment: wrap((lhs, rhs) => {
-      return { type: "typedAssignment", assignment: rhs, valueType: lhs };
-    }),
-  })
+  {
+    symbol: {
+      assignment: wrap((lhs, rhs) => {
+        return { type: "typedAssignment", assignment: rhs, valueType: lhs };
+      }),
+    },
+  }
 );

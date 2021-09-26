@@ -1158,10 +1158,10 @@ const types = {
       ? new SourceNode(null, null, null, ["`", asIs(node), "`"])
       : new SourceNode(null, null, null, ["`\\", asIs(node), "`"]);
   },
-  typeDef(node) {
+  typeDef(node, context) {
     if (node.extends) {
       node.type = "typeDefExtends";
-      return get(node);
+      return get(node, context);
     }
     const { line, column, file } = node.start;
     return new SourceNode(line, column, file, [
@@ -1170,14 +1170,19 @@ const types = {
       "=new Proxy(class ",
       node.name,
       "{constructor(",
-      new SourceNode(null, null, null, node.members).join(","),
+      new SourceNode(
+        null,
+        null,
+        null,
+        node.members.map((member) => member.name)
+      ).join(","),
       "){",
       ...node.members.map((member) => {
         return new SourceNode(null, null, null, [
           "this.",
-          member,
+          member.name,
           "=",
-          member,
+          member.name,
           ";",
         ]);
       }),
@@ -1201,16 +1206,21 @@ const types = {
       node.extends,
       ".members));",
       "const [",
-      new SourceNode(null, null, null, node.members).join(","),
+      new SourceNode(
+        null,
+        null,
+        null,
+        node.members.map((member) => member.name)
+      ).join(","),
       "]=$args.slice(",
       node.extends,
       ".members);",
       ...node.members.map((member) => {
         return new SourceNode(null, null, null, [
           "this.",
-          member,
+          member.name,
           "=",
-          member,
+          member.name,
           ";",
         ]);
       }),
