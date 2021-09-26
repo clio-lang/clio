@@ -9,7 +9,9 @@ module.exports.f = require("./format");
 module.exports.EventEmitter = EventEmitter;
 module.exports.emitter = emitter;
 
-const doc = require("./doc");
-module.exports.help = doc.help;
-module.exports.describe = doc.describe;
-module.exports.returns = doc.returns;
+const decorators = require("./decorators");
+module.exports.help = decorators.help;
+module.exports.describe = decorators.describe;
+module.exports.returns = decorators.returns;
+module.exports.check = decorators.check;
+module.exports.params = decorators.params;
