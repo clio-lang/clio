@@ -37,6 +37,11 @@ test("Runs a project with dependencies", async () => {
     dev: true,
   });
   await deps.handler({ project: dir.name });
+  const main = path.join(dir.name, "src", "main.clio");
+  fs.writeFileSync(
+    main,
+    `from "math@master" import fib\n\nexport fn main:\n  fib 10 -> console.log`
+  );
   const process = await run({ project: dir.name });
   await new Promise((resolve) => process.on("close", resolve));
   expect(

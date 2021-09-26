@@ -131,15 +131,18 @@ const asIs = (token) =>
 
 const conditionals = ["fullConditional", "conditional"];
 
-const checkLambda = (node, body, getValue, getBody) => {
+const checkLambda = (node, body, context, getValue, getBody) => {
   if (node.lambda?.length) {
-    return get({
-      type: "lambda",
-      body: getBody ? get(body) : body,
-      params: node.lambda,
-    });
+    return get(
+      {
+        type: "lambda",
+        body: getBody ? get(body, context) : body,
+        params: node.lambda,
+      },
+      context
+    );
   }
-  return getValue ? get(node) : node;
+  return getValue ? get(node, context) : node;
 };
 
 const getCallFn = (node) => {
@@ -171,7 +174,7 @@ const getCallFn = (node) => {
         name: "",
         needsAsync: node.needsAsync,
         params: [get({ type: "symbol", value: "$item" })],
-        body: get({
+        body: {
           type: "return",
           content: [
             {
@@ -185,7 +188,7 @@ const getCallFn = (node) => {
               args: [],
             },
           ],
-        }),
+        },
       },
     };
   }
@@ -213,6 +216,50 @@ const checkRecursive = (node) => {
     );
   }
   return false;
+};
+
+const compileImport = (path, importPath, context) => {
+  if (context.sourceDir) {
+    const isRelative = path.startsWith(".");
+    const filePath = joinPath(context.sourceDir, importPath.source);
+
+    const {
+      compileFile,
+      config,
+      configPath,
+      modulesDir,
+      modulesDestDir,
+      configs = {},
+    } = context;
+
+    if (isRelative) {
+      const { scope } = compileFile(
+        filePath,
+        config,
+        configPath,
+        modulesDir,
+        modulesDestDir
+      );
+      return scope;
+    } else {
+      // we need to get the config file
+      const moduleName = path.split("/").shift();
+      const configPath = joinPath(modulesDir, moduleName, "clio.toml");
+      const config = configs[moduleName] || getPackageConfig(configPath);
+      configs[moduleName] = config;
+      context.configs = configs;
+      const { scope } = compileFile(
+        filePath,
+        config,
+        configPath,
+        modulesDir,
+        modulesDestDir,
+        moduleName
+      );
+      return scope;
+    }
+  }
+  return {};
 };
 
 const toProperCall = (node) => {
@@ -272,7 +319,7 @@ const types = {
     sn.needsAsync = true;
     return sn;
   },
-  mapCall(node) {
+  mapCall(node, context) {
     const { awaited, all } = node;
     const fn = getCallFn(node);
     const args = node.args.map(get);
@@ -286,13 +333,13 @@ const types = {
         needsAsync ? "async " : "",
         "($item",
         fn.dropMeta ? ")=>" : ", $index, $iterator)=>",
-        get(fn),
+        get(fn, context),
         fn.dropData ? "(" : "($item,",
         join(args, ","),
         fn.dropMeta ? ")" : ",$index,$iterator)",
       ]);
     } else {
-      fun = get(fn);
+      fun = get(fn, context);
     }
     if (fun.insertBefore) insertBefore.unshift(fun.insertBefore);
     let sn = new SourceNode(fn.line, fn.column, fn.file, [
@@ -348,10 +395,10 @@ const types = {
   parameterCall(node) {
     return get({ ...node, type: "call" });
   },
-  call(node) {
+  call(node, context) {
     if (node.isMap) {
       node.type = "mapCall";
-      return get(node);
+      return get(node, context);
     }
     const { awaited, all } = node;
     const fn = getCallFn(node);
@@ -594,7 +641,7 @@ const types = {
       ...(name
         ? ["`", context.rpcPrefix, "/", start.file, "/", name, "`,"]
         : []),
-      node.body.needsAsync ? "async" : "",
+      body.needsAsync ? "async" : "",
       "(",
       new SourceNode(null, null, null, params).join(","),
       ")=>",
@@ -679,44 +726,7 @@ const types = {
       const { line, column } = node.path;
       const importPath = getImportPath(context, path, line, column);
 
-      const isRelative = path.startsWith(".");
-      const filePath = joinPath(context.sourceDir, importPath.source);
-
-      const {
-        compileFile,
-        config,
-        configPath,
-        modulesDir,
-        modulesDestDir,
-        configs = {},
-      } = context;
-
-      if (isRelative) {
-        const { scope } = compileFile(
-          filePath,
-          config,
-          configPath,
-          modulesDir,
-          modulesDestDir
-        );
-        importScope = scope;
-      } else {
-        // we need to get the config file
-        const moduleName = path.split("/").shift();
-        const configPath = joinPath(modulesDir, moduleName, "clio.toml");
-        const config = configs[moduleName] || getPackageConfig(configPath);
-        configs[moduleName] = config;
-        context.configs = configs;
-        const { scope } = compileFile(
-          filePath,
-          config,
-          configPath,
-          modulesDir,
-          modulesDestDir,
-          moduleName
-        );
-        importScope = scope;
-      }
+      importScope = compileImport(path, importPath, context);
 
       require = new SourceNode(
         node.import.line,
@@ -1043,11 +1053,17 @@ const types = {
     sn.needsAsync = items.some((item) => item.needsAsync);
     return sn;
   },
-  wrapped(node) {
+  wrapped(node, context) {
     if (!node.content) return new SourceNode(null, null, null, "");
     if (node.isFn && node.content.type === "call")
       node.content.args.map((arg) => (arg.lambda = []));
-    const content = checkLambda(node.content, node.content, true, true);
+    const content = checkLambda(
+      node.content,
+      node.content,
+      context,
+      true,
+      true
+    );
     const sn = new SourceNode(null, null, null, [
       asIs(node.start),
       content,

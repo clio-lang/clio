@@ -92,8 +92,7 @@ const findFirstUnfinished = (tokens) => {
   while (rhs.next && !unfinished.includes(lhs.item.type)) step();
   if (rhs.item.type === "clio" && rhs.item.content[0]) {
     const { meta } = rhs.item;
-    const { node } = rhs.item.content[0];
-    rhs = { meta, item: node };
+    rhs = { meta, item: rhs.item.content[0] };
   }
   return { lhs, rhs };
 };
