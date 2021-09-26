@@ -19,5 +19,29 @@ module.exports = {
         export: lhs,
       };
     }),
+    typedAssignment: wrap((lhs, rhs) => {
+      return {
+        type: "exported",
+        name: rhs.assignment.name,
+        value: rhs,
+        export: lhs,
+      };
+    }),
+    typeDef: wrap((lhs, rhs) => {
+      return {
+        type: "exported",
+        name: rhs.name,
+        value: rhs,
+        export: lhs,
+      };
+    }),
+    listDef: wrap((lhs, rhs) => {
+      return {
+        type: "exported",
+        name: rhs.name,
+        value: rhs,
+        export: lhs,
+      };
+    }),
   },
 };

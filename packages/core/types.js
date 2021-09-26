@@ -713,14 +713,17 @@ const types = {
     sn.fn = fn.fn;
     return sn;
   },
-  exported(node) {
-    const value = get(node.value);
-    const sn = new SourceNode(
-      node.export.line,
-      node.export.column,
-      node.export.file,
-      ["clio.exports.", get(node.name), "=", get(node.name)]
-    );
+  exported(node, context) {
+    const value = get(node.value, context);
+    const name =
+      node.name instanceof SourceNode ? node.name : get(node.name, context);
+    const { line, column, file } = node.export;
+    const sn = new SourceNode(line, column, file, [
+      "clio.exports.",
+      name,
+      "=",
+      name,
+    ]);
     sn.insertBefore = [value.insertBefore, value].filter(Boolean);
     return sn;
   },
