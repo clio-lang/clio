@@ -35,7 +35,41 @@ const resolveRelativeModule = (context, path, line, column) => {
 
   for (const path of possiblePaths) {
     if (existsSync(path)) {
-      if (path.match(/\.{1,2}\//)) {
+      if (path.match(/^\.{1,2}\//)) {
+        return { source: path, require: path + ".js" };
+      }
+      const relativePath = ensureRelative(currDir, path);
+      return { source: relativePath, require: relativePath + ".js" };
+    }
+  }
+
+  throw new ImportError({
+    message: [
+      `Cannot find module "${path}" in any of the following locations:\n`,
+      ...possiblePaths.map((path) => `  - ${relative(context.root, path)}`),
+    ].join("\n"),
+    line,
+    column,
+  });
+};
+
+const resolveAbsoluteModule = (context, path, line, column) => {
+  const currDir = dirname(
+    joinPath(context.root, context.sourceDir, context.file)
+  );
+  const possiblePaths = [];
+  const resolvePath = resolve(context.root, context.sourceDir, path.slice(1));
+
+  if (!resolvePath.endsWith(".clio")) {
+    possiblePaths.push(resolvePath + ".clio");
+  } else {
+    possiblePaths.push(resolvePath);
+  }
+  possiblePaths.push(joinPath(resolvePath, "main.clio"));
+
+  for (const path of possiblePaths) {
+    if (existsSync(path)) {
+      if (path.match(/^\.{1,2}\//)) {
         return { source: path, require: path + ".js" };
       }
       const relativePath = ensureRelative(currDir, path);
@@ -118,8 +152,10 @@ const getImportPath = (context, path, line, column) => {
     const source = ensureClioExtension(path);
     return { source, require: source + ".js" };
   }
-  if (path.match(/\.{1,2}\//)) {
+  if (path.match(/^\.{1,2}\//)) {
     return resolveRelativeModule(context, path, line, column);
+  } else if (path.match(/^\//)) {
+    return resolveAbsoluteModule(context, path, line, column);
   } else {
     return resolveModule(context, path, line, column);
   }
@@ -220,7 +256,7 @@ const checkRecursive = (node) => {
 
 const compileImport = (path, importPath, context) => {
   if (context.sourceDir) {
-    const isRelative = path.startsWith(".");
+    const isModule = !path.match(/^(\.{1,2})?\//);
     const filePath = joinPath(context.sourceDir, importPath.source);
 
     const {
@@ -232,16 +268,7 @@ const compileImport = (path, importPath, context) => {
       configs = {},
     } = context;
 
-    if (isRelative) {
-      const { scope } = compileFile(
-        filePath,
-        config,
-        configPath,
-        modulesDir,
-        modulesDestDir
-      );
-      return scope;
-    } else {
+    if (isModule) {
       // we need to get the config file
       const moduleName = path.split("/").shift();
       const configPath = joinPath(modulesDir, moduleName, "clio.toml");
@@ -255,6 +282,15 @@ const compileImport = (path, importPath, context) => {
         modulesDir,
         modulesDestDir,
         moduleName
+      );
+      return scope;
+    } else {
+      const { scope } = compileFile(
+        filePath,
+        config,
+        configPath,
+        modulesDir,
+        modulesDestDir
       );
       return scope;
     }
@@ -501,12 +537,20 @@ const types = {
       }
       addReturn = false;
     } else if (lastNode.type === "assignment") {
-      if (lastNode.value.insertBefore)
+      if (lastNode.value.insertBefore) {
         content.push(lastNode.value.insertBefore);
+      }
       content.push(get(lastNode, context));
       lastNode = lastNode.name;
+    } else if (lastNode.type === "typedAssignment") {
+      if (lastNode.assignment.value.insertBefore) {
+        content.push(lastNode.assignment.value.insertBefore);
+      }
+      content.push(get(lastNode, context));
+      lastNode = lastNode.assignment.name;
     }
-    let last = lastNode.type ? get(lastNode, context) : lastNode;
+    let last =
+      lastNode instanceof SourceNode ? lastNode : get(lastNode, context);
     if (last.returnAs) last = last.returnAs;
     const sn = new SourceNode(null, null, null, [
       new SourceNode(null, null, null, content).join(";"),
