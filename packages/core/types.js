@@ -597,7 +597,10 @@ const types = {
 
           case "@returns":
             const type = get(args[0], context).toString();
-            node.outerScope[name] = type;
+            context.scope[name] = {
+              ...context.scope[name],
+              type: context.scope[type].id,
+            };
             break;
 
           default:
@@ -676,6 +679,7 @@ const types = {
     return node.value;
   },
   function(node, context) {
+    node.outerScope = context.scope;
     const { start, name, params } = node;
     const body = get(node.body, context);
     const sn = new SourceNode(start.line, start.column, start.file, [
@@ -1140,12 +1144,17 @@ const types = {
     const { value } = node.assignment;
     if (value.node.type === "call") {
       const fnName = get(value.node.fn, context);
-      const fnType = context.scope[fnName];
+      const fnType = context.scope[fnName].type;
       if (fnType && fnType !== type) {
-        throw `Cannot assign value of type ${fnType} to variable ${assignment.name} of type ${type}`;
+        const typeName = fnType.split("/").pop();
+        throw `Cannot assign value of type ${typeName} to variable ${assignment.name} of type ${type}`;
       }
     }
-    context.scope[assignment.name] = type;
+    const { rpcPrefix, file } = context;
+    context.scope[assignment.name] = {
+      type: context.scope[type].id,
+      id: [rpcPrefix, file, assignment.name].join("/"),
+    };
     return assignment;
   },
   arrowAssignment(node) {
@@ -1211,6 +1220,11 @@ const types = {
       return get(node, context);
     }
     const { line, column, file } = node.start;
+    const { rpcPrefix } = context;
+    context.scope[node.name] = {
+      type: "Type",
+      id: [rpcPrefix, file, node.name].join("/"),
+    };
     return new SourceNode(line, column, file, [
       "const ",
       node.name,
@@ -1238,8 +1252,13 @@ const types = {
       "}},{apply(target,_,args){return new target(...args)}})",
     ]);
   },
-  typeDefExtends(node) {
+  typeDefExtends(node, context) {
     const { line, column, file } = node.start;
+    const { rpcPrefix } = context;
+    context.scope[node.name] = {
+      type: "Type",
+      id: [rpcPrefix, file, node.name].join("/"),
+    };
     return new SourceNode(line, column, file, [
       "const ",
       node.name,
@@ -1278,8 +1297,13 @@ const types = {
       "}},{apply(target,_,args){return new target(...args)}})",
     ]);
   },
-  listDef(node) {
+  listDef(node, context) {
     const { line, column, file } = node.start;
+    const { rpcPrefix } = context;
+    context.scope[node.name] = {
+      type: "ListType",
+      id: [rpcPrefix, file, node.name].join("/"),
+    };
     return new SourceNode(line, column, file, [
       "const ",
       node.name,

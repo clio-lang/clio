@@ -5,14 +5,12 @@ const { expressions, wrap, values, ignore } = require("../common");
 module.exports = {
   // Functions
   fn: {
-    symbol: wrap((lhs, rhs, context) => {
-      const outerScope = { ...context.scope };
+    symbol: wrap((lhs, rhs) => {
       return {
         start: lhs,
         type: "fnOpen",
         params: [],
         name: types.get(rhs),
-        outerScope,
       };
     }, 10),
   },

@@ -25,9 +25,9 @@ const parse = (tokens, source, file, context) => {
 };
 
 const defaultScope = {
-  Number: "Number",
-  String: "String",
-  Array: "Array",
+  Number: { id: "Number" },
+  String: { id: "String" },
+  Array: { id: "Array" },
 };
 
 const compile = (source, file, { debug = false, ...ctx }) => {
