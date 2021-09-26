@@ -84,6 +84,26 @@ const compileFile = (
   const relativeFile = path.relative(sourceDir, file);
   const destFileClio = path.join(destination, relativeFile);
   const destFile = `${destFileClio}.js`;
+  const mapFile = `${destFile}.map`;
+  const scopeFile = `${destFileClio}.scope.json`;
+  const isPreviouslyCompiled = [destFile, scopeFile, mapFile]
+    .map((file) => fs.existsSync(file))
+    .every(Boolean);
+  if (isPreviouslyCompiled) {
+    const srcMTime = fs.statSync(file, { bigint: true }).mtimeMs;
+    const mapMTime = fs.statSync(mapFile, { bigint: true }).mtimeMs;
+    const destMTime = fs.statSync(destFile, { bigint: true }).mtimeMs;
+    const scopeMTime = fs.statSync(scopeFile, { bigint: true }).mtimeMs;
+    const notModified = [mapMTime, destMTime, scopeMTime]
+      .map((mtime) => mtime >= srcMTime)
+      .every(Boolean);
+    if (notModified) {
+      const map = fs.readFileSync(mapFile).toString();
+      const code = fs.readFileSync(destFile).toString();
+      const scope = fs.readFileSync(scopeFile).toString();
+      return { depsNpmDependencies: {}, code, map, scope: JSON.parse(scope) };
+    }
+  }
   const destDir = path.dirname(destFile);
   const contents = fs.readFileSync(file, "utf8");
   const { code, map, scope } = compile(contents, relativeFile, {
@@ -100,8 +120,9 @@ const compileFile = (
   });
   mkdir(destDir);
   fs.writeFileSync(destFileClio, contents, "utf8");
+  fs.writeFileSync(scopeFile, JSON.stringify(scope), "utf8");
   fs.writeFileSync(destFile, code, "utf8");
-  fs.writeFileSync(`${destFile}.map`, map, "utf8");
+  fs.writeFileSync(mapFile, map, "utf8");
   return { depsNpmDependencies: {}, code, map, scope };
 };
 
