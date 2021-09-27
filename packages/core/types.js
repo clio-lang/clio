@@ -286,6 +286,9 @@ const getTypeOf = (node, scope) => {
   if (node.type === "propertyAccess") {
     return scope[get(node)]?.type;
   }
+  if (node.type === "call" && node.fn.type === "symbol") {
+    return scope[get(node.fn)]?.returns;
+  }
 };
 
 const compileImport = (path, importPath, context) => {
@@ -896,7 +899,9 @@ const types = {
     let assign;
     if (!node.items) {
       assign = new SourceNode(null, null, null, ["const ", name, "="]);
-      context.scope[name] = importScope;
+      for (const key of Object.keys(importScope)) {
+        context.scope[`${name}.${key}`] = importScope[key];
+      }
     } else {
       let parts = [];
       let rest;
@@ -927,7 +932,22 @@ const types = {
             name,
           ]);
           rest.name = name;
-          context.scope[name] = importScope;
+          const importedNames = node.items
+            .filter(
+              (item) => item.type === "symbol" || item.lhs?.type === "symbol"
+            )
+            .map((item) => {
+              if (item.type === "symbol") {
+                return get(item, context).toString();
+              } else {
+                return get(item.rhs, context, toString);
+              }
+            });
+          for (const key of Object.keys(importScope)) {
+            if (!importedNames.includes(key)) {
+              context.scope[`${name}.${key}`] = importScope[key];
+            }
+          }
         }
       }
       if (rest) parts.push(rest);
@@ -1256,19 +1276,17 @@ const types = {
   typedAssignment(node, context) {
     const assignment = get(node.assignment, context);
     // type check
-    const type = get(node.valueType, context).toString();
-    const value = get(node.assignment, context);
-    if (value.node.type === "call") {
-      const fnName = get(value.node.fn, context);
-      const fnType = context.scope[fnName].returns;
-      if (fnType && fnType !== type) {
-        const typeName = fnType.split("/").pop();
-        throw `Cannot assign value of type ${typeName} to variable ${assignment.name} of type ${type}`;
-      }
+    const typeName = get(node.valueType, context).toString();
+    const type = context.scope[typeName];
+    const vType = getTypeOf(node.assignment.value, context.scope);
+    if (type && vType !== type.id) {
+      const vTypeName = vType ? vType.split("/").pop() : "Any";
+      const typeName = type.id.split("/").pop();
+      throw `Cannot assign value of type ${vTypeName} to variable ${assignment.name} of type ${typeName}`;
     }
     const { rpcPrefix, file } = context;
     context.scope[assignment.name] = {
-      type: context.scope[type].id,
+      type: type.id,
       id: [rpcPrefix, file, assignment.name].join("/"),
     };
     return assignment;

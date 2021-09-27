@@ -21,10 +21,10 @@ module.exports = merge(
     },
   },
   {
-    symbol: {
+    ...map(["symbol", "propertyAccess"], {
       assignment: wrap((lhs, rhs) => {
         return { type: "typedAssignment", assignment: rhs, valueType: lhs };
       }),
-    },
+    }),
   }
 );

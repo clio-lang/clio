@@ -1,4 +1,5 @@
 const { wrap, ignore } = require("../common");
+const { map } = require("bean-parser");
 
 module.exports = {
   // Functions
@@ -23,11 +24,14 @@ module.exports = {
     }, 10),
   },
   typeOpenIsOpen: {
-    symbol: wrap((type, rhs) => {
-      type.extends = rhs;
-      type.type = "typeOpenIs";
-      return type;
-    }),
+    ...map(
+      ["symbol", "propertyAccess"],
+      wrap((type, rhs) => {
+        type.extends = rhs;
+        type.type = "typeOpenIs";
+        return type;
+      })
+    ),
   },
   typeOpenIs: {
     colon: wrap((type) => {
@@ -40,21 +44,27 @@ module.exports = {
       type.type = "typeTailIndent";
       return type;
     }, 10),
-    symbol: wrap((type, rhs) => {
-      type.members.push({ type: "Any", name: rhs });
-      type.type = "typeTailSingle";
-      return type;
-    }, 10),
+    ...map(
+      ["symbol", "propertyAccess"],
+      wrap((type, rhs) => {
+        type.members.push({ type: "Any", name: rhs });
+        type.type = "typeTailSingle";
+        return type;
+      }, 10)
+    ),
   },
   typeTailSingle: {
     lineBreak: wrap((type) => {
       type.type = "typeDef";
       return type;
     }, 10),
-    symbol: wrap((type, rhs) => {
-      type.members.push({ type: "Any", name: rhs });
-      return type;
-    }, 10),
+    ...map(
+      ["symbol", "propertyAccess"],
+      wrap((type, rhs) => {
+        type.members.push({ type: "Any", name: rhs });
+        return type;
+      }, 10)
+    ),
   },
   typeTailIndent: {
     ...ignore("lineBreak"),
@@ -62,11 +72,14 @@ module.exports = {
       type.type = "typeDef";
       return type;
     }, 10),
-    symbol: wrap((type, rhs) => {
-      type.curr = rhs;
-      type.type = "typeTailIndentCurr";
-      return type;
-    }, 10),
+    ...map(
+      ["symbol", "propertyAccess"],
+      wrap((type, rhs) => {
+        type.curr = rhs;
+        type.type = "typeTailIndentCurr";
+        return type;
+      }, 10)
+    ),
   },
   typeTailIndentCurr: {
     lineBreak: wrap((type) => {
@@ -75,11 +88,14 @@ module.exports = {
       type.type = "typeTailIndent";
       return type;
     }),
-    symbol: wrap((type, rhs) => {
-      type.members.push({ type: type.curr, name: rhs });
-      type.curr = null;
-      type.type = "typeTailIndent";
-      return type;
-    }),
+    ...map(
+      ["symbol", "propertyAccess"],
+      wrap((type, rhs) => {
+        type.members.push({ type: type.curr, name: rhs });
+        type.curr = null;
+        type.type = "typeTailIndent";
+        return type;
+      })
+    ),
   },
 };

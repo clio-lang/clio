@@ -1,5 +1,5 @@
-const types = require("../../types");
 const { wrap, ignore } = require("../common");
+const { map } = require("bean-parser");
 
 module.exports = {
   list: {
@@ -23,11 +23,14 @@ module.exports = {
     }, 10),
   },
   listOpenIsOpen: {
-    symbol: wrap((list, rhs) => {
-      list.extends = rhs;
-      list.type = "listOpenIs";
-      return list;
-    }),
+    ...map(
+      ["symbol", "propertyAccess"],
+      wrap((list, rhs) => {
+        list.extends = rhs;
+        list.type = "listOpenIs";
+        return list;
+      })
+    ),
   },
   listOpenIs: {
     colon: wrap((list) => {
@@ -40,21 +43,27 @@ module.exports = {
       list.type = "listTailIndent";
       return list;
     }, 10),
-    symbol: wrap((list, rhs) => {
-      list.members.push(rhs);
-      list.type = "listTailSingle";
-      return list;
-    }, 10),
+    ...map(
+      ["symbol", "propertyAccess"],
+      wrap((list, rhs) => {
+        list.members.push(rhs);
+        list.type = "listTailSingle";
+        return list;
+      }, 10)
+    ),
   },
   listTailSingle: {
     lineBreak: wrap((list) => {
       list.type = "listDef";
       return list;
     }, 10),
-    symbol: wrap((list, rhs) => {
-      list.members.push(rhs);
-      return list;
-    }, 10),
+    ...map(
+      ["symbol", "propertyAccess"],
+      wrap((list, rhs) => {
+        list.members.push(rhs);
+        return list;
+      }, 10)
+    ),
   },
   listTailIndent: {
     ...ignore("lineBreak"),
@@ -62,9 +71,12 @@ module.exports = {
       list.type = "listDef";
       return list;
     }, 10),
-    symbol: wrap((list, rhs) => {
-      list.members.push(rhs);
-      return list;
-    }, 10),
+    ...map(
+      ["symbol", "propertyAccess"],
+      wrap((list, rhs) => {
+        list.members.push(rhs);
+        return list;
+      }, 10)
+    ),
   },
 };
