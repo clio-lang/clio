@@ -405,7 +405,7 @@ const types = {
       for (let index = 0; index < node.args.length; index++) {
         const arg = node.args[index];
         const type = getTypeOf(arg, context);
-        const match = type === accepts[index];
+        const match = type === accepts[index] || accepts[index] === "Any";
         if (!match) {
           const argTypeName = type.split("/").pop();
           const paramTypeName = accepts[index].split("/").pop();
@@ -503,7 +503,7 @@ const types = {
       for (let index = 0; index < node.args.length; index++) {
         const arg = node.args[index];
         const type = getTypeOf(arg, context);
-        const match = type === accepts[index];
+        const match = type === accepts[index] || accepts[index] === "Any";
         if (!match) {
           const argTypeName = type.split("/").pop();
           const paramTypeName = accepts[index].split("/").pop();
@@ -1365,9 +1365,14 @@ const types = {
     const { line, column, file } = node.start;
     const { rpcPrefix } = context;
     const name = get(node.name, context);
+    const id = [rpcPrefix, file, name].join("/");
     context.scope[name] = {
       type: "Type",
-      id: [rpcPrefix, file, name].join("/"),
+      id,
+      returns: id,
+      accepts: node.members.map(
+        (member) => context.scope[get(member.type, context)].id
+      ),
     };
     return new SourceNode(line, column, file, [
       "const ",

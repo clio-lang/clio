@@ -47,7 +47,10 @@ module.exports = {
     ...map(
       ["symbol", "propertyAccess"],
       wrap((type, rhs) => {
-        type.members.push({ type: "Any", name: rhs });
+        type.members.push({
+          type: { type: "symbol", value: "Any" },
+          name: rhs,
+        });
         type.type = "typeTailSingle";
         return type;
       }, 10)
@@ -61,7 +64,10 @@ module.exports = {
     ...map(
       ["symbol", "propertyAccess"],
       wrap((type, rhs) => {
-        type.members.push({ type: "Any", name: rhs });
+        type.members.push({
+          type: { type: "symbol", value: "Any" },
+          name: rhs,
+        });
         return type;
       }, 10)
     ),
@@ -83,7 +89,10 @@ module.exports = {
   },
   typeTailIndentCurr: {
     lineBreak: wrap((type) => {
-      type.members.push({ type: "Any", name: type.curr });
+      type.members.push({
+        type: { type: "symbol", value: "Any" },
+        name: type.curr,
+      });
       type.curr = null;
       type.type = "typeTailIndent";
       return type;

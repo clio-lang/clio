@@ -28,6 +28,7 @@ const defaultScope = {
   Number: { id: "Number" },
   String: { id: "String" },
   Array: { id: "Array" },
+  Any: { id: "Any" },
 };
 
 const compile = (source, file, { debug = false, ...ctx }) => {
