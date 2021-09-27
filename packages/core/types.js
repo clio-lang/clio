@@ -289,6 +289,9 @@ const getTypeOf = (node, scope) => {
   if (node.type === "call" && node.fn.type === "symbol") {
     return scope[get(node.fn)]?.returns;
   }
+  if (node.type === "call" && node.fn.type === "propertyAccess") {
+    return scope[get(node.fn)]?.returns;
+  }
 };
 
 const compileImport = (path, importPath, context) => {
