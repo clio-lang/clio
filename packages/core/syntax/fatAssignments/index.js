@@ -1,5 +1,4 @@
 const { rule, map } = require("bean-parser");
-const types = require("../../types");
 const { expressions, wrap, values, ignore } = require("../common");
 
 module.exports = {
@@ -10,7 +9,7 @@ module.exports = {
       return {
         type: "fatArrowOpen",
         arrow: rhs,
-        value: types.get(lhs),
+        value: lhs,
       };
     }, 0.31),
   }),

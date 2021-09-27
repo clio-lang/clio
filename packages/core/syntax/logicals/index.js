@@ -1,5 +1,4 @@
 const { map } = require("bean-parser");
-const types = require("../../types");
 const { expressions, wrap, values, ignore } = require("../common");
 
 module.exports = {
@@ -10,7 +9,7 @@ module.exports = {
       wrap((lhs, op) => {
         return {
           type: "logicalOpen",
-          lhs: types.get(lhs),
+          lhs: lhs,
           op,
           logicals: [],
         };
@@ -25,7 +24,7 @@ module.exports = {
         return {
           type: "logical",
           lhs: lhs.lhs,
-          logicals: [...lhs.logicals, { op: lhs.op, rhs: types.get(rhs) }],
+          logicals: [...lhs.logicals, { op: lhs.op, rhs: rhs }],
         };
       }, 3)
     ),
@@ -49,7 +48,7 @@ module.exports = {
     ...map(
       [...values, ...expressions],
       wrap((op, rhs) => {
-        return { type: "logicalNot", op, rhs: types.get(rhs) };
+        return { type: "logicalNot", op, rhs: rhs };
       }, 3.5)
     ),
   },

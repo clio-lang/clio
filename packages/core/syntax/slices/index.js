@@ -1,5 +1,4 @@
 const { map } = require("bean-parser");
-const types = require("../../types");
 const { arrayLike, wrap } = require("../common");
 
 module.exports = {
@@ -7,7 +6,7 @@ module.exports = {
   sliceOpen: {
     array: wrap((lhs, rhs) => {
       lhs.type = "slice";
-      lhs.slicer = types.get(rhs);
+      lhs.slicer = rhs;
       return lhs;
     }, 100),
   },
@@ -15,7 +14,7 @@ module.exports = {
     slicer: wrap((lhs) => {
       return {
         type: "sliceOpen",
-        slicee: types.get(lhs),
+        slicee: lhs,
       };
     }, 99),
   }),

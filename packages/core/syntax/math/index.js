@@ -11,23 +11,23 @@ module.exports = {
     of doing it.
   */
   ...map([...values, "math"], {
-    powOp: wrap((lhs, op, context) => {
-      return { type: "powLhs", lhs: types.get(lhs, context), op };
+    powOp: wrap((lhs, op) => {
+      return { type: "powLhs", lhs, op };
     }, 9),
-    mulOp: wrap((lhs, op, context) => {
-      return { type: "mulLhs", lhs: types.get(lhs, context), op };
+    mulOp: wrap((lhs, op) => {
+      return { type: "mulLhs", lhs, op };
     }, 8),
-    divOp: wrap((lhs, op, context) => {
-      return { type: "divLhs", lhs: types.get(lhs, context), op };
+    divOp: wrap((lhs, op) => {
+      return { type: "divLhs", lhs, op };
     }, 8),
-    addOp: wrap((lhs, op, context) => {
-      return { type: "addLhs", lhs: types.get(lhs, context), op };
+    addOp: wrap((lhs, op) => {
+      return { type: "addLhs", lhs, op };
     }, 7),
-    subOp: wrap((lhs, op, context) => {
-      return { type: "subLhs", lhs: types.get(lhs, context), op };
+    subOp: wrap((lhs, op) => {
+      return { type: "subLhs", lhs, op };
     }, 7),
-    modOp: wrap((lhs, op, context) => {
-      return { type: "modLhs", lhs: types.get(lhs), context, op };
+    modOp: wrap((lhs, op) => {
+      return { type: "modLhs", lhs, op };
     }, 7),
   }),
   ...mapfn(["add", "sub", "mul", "div", "pow", "mod"], (op) => [
@@ -36,18 +36,15 @@ module.exports = {
       ...ignore("lineBreak"),
       ...map(
         values,
-        wrap((lhs, rhs, context) => {
+        wrap((lhs, rhs) => {
           return {
             type: "math",
-            value: types.get(
-              {
-                type: op,
-                op: lhs.op,
-                lhs: lhs.lhs,
-                rhs: types.get(rhs, context),
-              },
-              context
-            ),
+            value: {
+              type: op,
+              op: lhs.op,
+              lhs: lhs.lhs,
+              rhs,
+            },
           };
         }, 10)
       ),

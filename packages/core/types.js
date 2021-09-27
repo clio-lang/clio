@@ -181,6 +181,17 @@ const checkLambda = (node, body, context, getValue, getBody) => {
   return getValue ? get(node, context) : node;
 };
 
+const getFnName = (node, context) => {
+  let callee = node;
+  if (node.type === "wrapped") {
+    callee = node.content;
+  }
+  if (callee.type === "function") {
+    return get(callee.name, context).toString();
+  }
+  return get(callee, context).toString();
+};
+
 const getCallFn = (node) => {
   if (node.fn.type === "method") {
     if (!node.isMap)
@@ -190,7 +201,7 @@ const getCallFn = (node) => {
         dot: node.fn.dot,
         rhs: node.fn.property,
       };
-    if (node.args.length > 1)
+    if (node.args.length > 1) {
       return {
         type: "propertyAccess",
         lhs: { type: "symbol", value: "$item" },
@@ -199,6 +210,7 @@ const getCallFn = (node) => {
         dropData: true,
         dropMeta: true,
       };
+    }
     return {
       type: "wrapped",
       start: { value: "(" },
@@ -207,9 +219,9 @@ const getCallFn = (node) => {
         type: "function",
         start: node.fn,
         noParallel: true,
-        name: "",
+        name: { type: "symbol", value: "" },
         needsAsync: node.needsAsync,
-        params: [get({ type: "symbol", value: "$item" })],
+        params: [{ type: "symbol", value: "$item" }],
         body: {
           type: "return",
           content: [
@@ -231,7 +243,7 @@ const getCallFn = (node) => {
   return node.fn;
 };
 
-const checkRecursive = (node) => {
+const checkRecursive = (node, context) => {
   // Checks for recursive calls
   const lastNode = node.content[node.content.length - 1];
   if (conditionals.includes(lastNode.type)) {
@@ -242,14 +254,15 @@ const checkRecursive = (node) => {
     ].filter(Boolean);
     return bodies
       .map((body) => ({ ...body, recursefn: node.recursefn }))
-      .some(checkRecursive);
+      .some((item) => checkRecursive(item, context));
   }
   // This is an infinite recursion:
   else if (lastNode.type === "call") {
-    return (
-      lastNode.fn.type === "symbol" &&
-      get(lastNode.fn).toString() === node.recursefn?.name?.toString()
-    );
+    const callee =
+      lastNode.fn.type === "symbol" && get(lastNode.fn, context).toString();
+    const recursefn =
+      node.recursefn?.name && get(node.recursefn?.name, context).toString();
+    return callee && callee === recursefn;
   }
   return false;
 };
@@ -319,7 +332,7 @@ const compileImport = (path, importPath, context) => {
   return {};
 };
 
-const toProperCall = (node) => {
+const toProperCall = (node, context) => {
   const lastNode = node.content[node.content.length - 1];
   if (conditionals.includes(lastNode.type)) {
     const bodies = [
@@ -332,15 +345,16 @@ const toProperCall = (node) => {
         body.recursefn = node.recursefn;
         return body;
       })
-      .map(toProperCall);
+      .map((item) => toProperCall(item, context));
   } else if (lastNode.type === "call") {
-    if (
-      lastNode.fn.type === "symbol" &&
-      get(lastNode.fn).toString() === node.recursefn?.name?.toString()
-    ) {
+    const callee =
+      lastNode.fn.type === "symbol" && get(lastNode.fn, context).toString();
+    const recursefn =
+      node.recursefn?.name && get(node.recursefn?.name, context).toString();
+    if (callee && callee === recursefn) {
       lastNode.type = "properCall";
       lastNode.paramNames = node.recursefn.params.map((param) =>
-        param.toString()
+        get(param, context).toString()
       );
       lastNode.optimized = true;
       node.optimized = true;
@@ -361,10 +375,10 @@ const types = {
       node.value.replace(/_/g, "")
     );
   },
-  awaited(node) {
+  awaited(node, context) {
     const value = node.all
-      ? ["Promise.all(", get(node.value), ")"]
-      : [get(node.value)];
+      ? ["Promise.all(", get(node.value, context), ")"]
+      : [get(node.value, context)];
     if (node.await.value.startsWith("["))
       node.await.value = node.await.value.slice(1, -1);
     const sn = new SourceNode(
@@ -379,7 +393,7 @@ const types = {
   mapCall(node, context) {
     const { awaited, all } = node;
     const fn = getCallFn(node);
-    const fnName = get(fn).toString();
+    const fnName = getFnName(fn, context);
     const { accepts } = context.scope[fnName] || {};
     if (accepts) {
       for (let index = 0; index < node.args.length; index++) {
@@ -395,7 +409,7 @@ const types = {
         }
       }
     }
-    const args = node.args.map(get);
+    const args = node.args.map((arg) => get(arg, context));
     const insertBefore = args.map((arg) => arg.insertBefore).filter(Boolean);
     if (fn.insertBefore) insertBefore.unshift(fn.insertBefore);
     const data = args.shift();
@@ -443,12 +457,12 @@ const types = {
       fun.needsAsync;
     return sn;
   },
-  properCall(node) {
+  properCall(node, context) {
     const params = node.paramNames;
     const recurseArgs = params.map((param, i) => {
       let recurseArg = "undefined";
       if (node.args[i]) {
-        const value = get(node.args[i]);
+        const value = get(node.args[i], context);
         if (value.toString()) {
           recurseArg = value;
         }
@@ -461,7 +475,7 @@ const types = {
       properArgs,
       `__recurse=true;`,
       `continue __`,
-      get(node.fn),
+      get(node.fn, context),
       ";",
     ]);
   },
@@ -475,7 +489,7 @@ const types = {
     }
     const { awaited, all } = node;
     const fn = getCallFn(node);
-    const args = node.args.map(get);
+    const args = node.args.map((item) => get(item, context));
     const insertBefore = args.map((arg) => arg.insertBefore).filter(Boolean);
     const fun = get(fn, context);
     const { accepts } = context.scope[fun] || {};
@@ -493,7 +507,9 @@ const types = {
         }
       }
     }
-    if (fun.insertBefore) insertBefore.unshift(fun.insertBefore);
+    if (fun.insertBefore) {
+      insertBefore.unshift(fun.insertBefore);
+    }
     let sn = new SourceNode(fn.line, fn.column, fn.file, [
       fun,
       "(",
@@ -512,28 +528,37 @@ const types = {
         ")",
       ]);
     }
-    if (insertBefore.length) sn.insertBefore = insertBefore;
+    if (insertBefore.length) {
+      sn.insertBefore = insertBefore;
+    }
     sn.needsAsync =
       awaited || args.some((arg) => arg.needsAsync) || fun.needsAsync;
     return sn;
   },
   ...mapfn(["add", "mul", "div", "sub", "mod", "pow"], (key) => [
     key,
-    (node) => {
-      const { op, lhs, rhs } = node;
-      return new SourceNode(null, null, null, [
+    (node, context) => {
+      const { op } = node;
+      const lhs = get(node.lhs, context);
+      const rhs = get(node.rhs, context);
+      const sn = new SourceNode(null, null, null, [
         lhs,
         new SourceNode(op.line, op.column, op.file, op.value),
         rhs,
       ]);
+      sn.needsAsync = lhs.needsAsync || rhs.needsAsync;
+      if (lhs.insertBefore || rhs.insertBefore) {
+        sn.insertBefore = [...lhs.insertBefore, ...rhs.insertBefore];
+      }
+      return sn;
     },
   ]),
-  math(node) {
-    return node.value;
+  math(node, context) {
+    return get(node.value, context);
   },
-  block(node) {
+  block(node, context) {
     const content = node.content
-      .map(get)
+      .map((item) => get(item, context))
       .map((node) => [node.insertBefore, node])
       .flat()
       .filter(Boolean);
@@ -543,19 +568,22 @@ const types = {
     sn.needsAsync = content.some((item) => item.needsAsync);
     return sn;
   },
-  recursiveReturn(node) {
-    const params = node.recursefn.params.map((param) => param.toString());
+  recursiveReturn(node, context) {
+    const params = node.recursefn.params.map((param) =>
+      get(param, context).toString()
+    );
     const recursionParams = params.length
       ? `let ` + params.map((param) => `__${param}`).join(",") + ";"
       : "";
     // Convert all recursive calls to proper calls
-    const proper = toProperCall(node);
+    const proper = toProperCall(node, context);
     proper.type = "return";
     proper.optimized = true;
-    const properCode = get(proper);
+    const properCode = get(proper, context);
+    const fnName = get(node.recursefn.name, context);
     const sn = new SourceNode(null, null, null, [
       `${recursionParams}let __recurse = true;`,
-      `__${node.recursefn.name}: while(__recurse) {`,
+      `__${fnName}: while(__recurse) {`,
       `__recurse = false;`,
       properCode,
       `}`,
@@ -564,13 +592,14 @@ const types = {
     return sn;
   },
   return(node, context) {
-    if (!node.optimized && checkRecursive(node)) {
+    if (!node.optimized && checkRecursive(node, context)) {
       node.type = "recursiveReturn";
       return get(node, context);
     }
-    let lastNode = node.content.pop();
+    let lastNode = node.content[node.content.length - 1];
     let addReturn = !node.optimized && !lastNode.optimized;
     const content = node.content
+      .slice(0, -1)
       .map((content) => get(content, context))
       .map((node) => [node.insertBefore, node])
       .flat()
@@ -589,20 +618,21 @@ const types = {
       }
       addReturn = false;
     } else if (lastNode.type === "assignment") {
-      if (lastNode.value.insertBefore) {
-        content.push(lastNode.value.insertBefore);
+      const compiled = get(lastNode, context);
+      if (compiled.insertBefore) {
+        content.push(compiled.insertBefore);
       }
-      content.push(get(lastNode, context));
+      content.push(compiled);
       lastNode = lastNode.name;
     } else if (lastNode.type === "typedAssignment") {
-      if (lastNode.assignment.value.insertBefore) {
-        content.push(lastNode.assignment.value.insertBefore);
+      const compiled = get(lastNode, context);
+      if (compiled.insertBefore) {
+        content.push(compiled.insertBefore);
       }
       content.push(get(lastNode, context));
       lastNode = lastNode.assignment.name;
     }
-    let last =
-      lastNode instanceof SourceNode ? lastNode : get(lastNode, context);
+    let last = get(lastNode, context);
     if (last.returnAs) last = last.returnAs;
     const sn = new SourceNode(null, null, null, [
       new SourceNode(null, null, null, content).join(";"),
@@ -617,18 +647,20 @@ const types = {
   decoratedExportedFunction(node, context) {
     node.value.type = "decoratedFunction";
     const fn = get(node.value, context);
+    const name = get(node.name, context);
     const sn = new SourceNode(
       node.export.line,
       node.export.column,
       node.export.file,
-      ["clio.exports.", node.name, "=", node.name]
+      ["clio.exports.", name, "=", name]
     );
     sn.insertBefore = [fn.insertBefore, fn].filter(Boolean);
     sn.fn = fn.fn;
     return sn;
   },
   decoratedFunction(node, context) {
-    const { start, name } = node;
+    const { start } = node;
+    const name = get(node.name, context);
     const docLines = [];
     for (const decorator of node.decorators) {
       if (decorator.type === "decoratorCall") {
@@ -671,7 +703,10 @@ const types = {
       }
     }
     const doc = docLines.join("\n");
-    const fn = get({ ...node, type: "function", name: null }, context);
+    const fn = get(
+      { ...node, type: "function", name: { type: "symbol", value: "" } },
+      context
+    );
     let decorated = fn;
     for (const decorator of node.decorators) {
       if (decorator.type === "decorator") {
@@ -742,13 +777,15 @@ const types = {
   },
   function(node, context) {
     node.outerScope = context.scope;
-    const { start, name, params } = node;
+    const { start } = node;
+    const name = get(node.name, context);
+    const params = node.params.map((item) => get(item, context));
     const body = get(node.body, context);
     const sn = new SourceNode(start.line, start.column, start.file, [
-      ...(name ? ["const ", name, "="] : []),
-      ...(name ? ["register"] : []),
+      ...(name.toString() ? ["const ", name, "="] : []),
+      ...(name.toString() ? ["register"] : []),
       "(",
-      ...(name
+      ...(name.toString()
         ? ["`", context.rpcPrefix, "/", start.file, "/", name, "`,"]
         : []),
       body.needsAsync ? "async" : "",
@@ -769,11 +806,12 @@ const types = {
   },
   exportedFunction(node, context) {
     const fn = get(node.value, context);
+    const name = get(node.value.name, context);
     const sn = new SourceNode(
       node.export.line,
       node.export.column,
       node.export.file,
-      ["clio.exports.", node.name, "=", node.name]
+      ["clio.exports.", name, "=", name]
     );
     sn.insertBefore = [fn.insertBefore, fn].filter(Boolean);
     sn.fn = fn.fn;
@@ -864,14 +902,14 @@ const types = {
       let rest;
       for (const part of node.items) {
         if (part.type === "symbol") {
-          const name = get(part);
+          const name = get(part, context);
           parts.push(name);
           if (importScope[name]) {
             context.scope[name] = importScope[name];
           }
         } else if (part.lhs.type === "symbol") {
-          const name = get(part.lhs);
-          const rename = get(part.rhs);
+          const name = get(part.lhs, context);
+          const rename = get(part.rhs, context);
           parts.push(
             new SourceNode(part.as.line, part.as.column, part.as.file, [
               name,
@@ -883,7 +921,7 @@ const types = {
             context.scope[rename] = importScope[name];
           }
         } else {
-          const name = get(part.rhs);
+          const name = get(part.rhs, context);
           rest = new SourceNode(part.as.line, part.as.column, part.as.file, [
             "...",
             name,
@@ -904,14 +942,14 @@ const types = {
     }
     return new SourceNode(null, null, null, [assign, require]);
   },
-  lambda(node) {
+  lambda(node, context) {
     const { body } = node;
     const params = [];
     const added = new Set();
     for (const param of node.params) {
       if (!added.has(param.value)) {
         added.add(param.value);
-        params.push(get(param));
+        params.push(get(param, context));
       }
     }
     const start = node.params[0];
@@ -925,51 +963,56 @@ const types = {
       body,
     ]);
   },
-  parallelFn(node) {
+  parallelFn(node, context) {
     const { start, fn } = node;
     return new SourceNode(start.line, start.column, start.file, [
-      fn,
+      get(fn, context),
       ".parallel",
     ]);
   },
-  comparison(node) {
+  comparison(node, context) {
     const nodes = [];
-    for (const { op } of node.comparisons)
+    for (const { op } of node.comparisons) {
       if (op.value === "==") op.value = "===";
+    }
     const first = node.comparisons.shift();
-    let needsAsync = node.lhs.needsAsync;
+    const lhs = get(node.lhs, context);
+    let needsAsync = lhs.needsAsync;
+    let rhs = get(first.rhs, context);
     nodes.push(
       "(",
-      node.lhs,
+      lhs,
       new SourceNode(
         first.op.line,
         first.op.column,
         first.op.file,
         first.op.value
       ),
-      first.rhs,
+      rhs,
       ")"
     );
-    let lhs = first.rhs;
+    let cmpLhs = rhs;
     for (const { op, rhs } of node.comparisons) {
-      needsAsync = needsAsync || lhs.needsAsync;
+      const cmpRhs = get(rhs, context);
+      needsAsync = needsAsync || rhs.needsAsync;
       nodes.push(
         "&&",
         "(",
-        lhs,
+        cmpLhs,
         new SourceNode(op.line, op.column, op.file, op.value),
-        rhs,
+        cmpRhs,
         ")"
       );
-      lhs = rhs;
+      cmpLhs = cmpRhs;
     }
     const sn = new SourceNode(null, null, null, nodes);
     sn.needsAsync = needsAsync;
     sn.lambda = node.lambda;
     return sn;
   },
-  logicalNot(node) {
-    const { rhs, op } = node;
+  logicalNot(node, context) {
+    const { op } = node;
+    const rhs = get(node.rhs, context);
     const sn = new SourceNode(op.line, op.column, op.file, [
       new SourceNode(op.line, op.column, op.file, "!"),
       "(",
@@ -979,8 +1022,11 @@ const types = {
     sn.needsAsync = rhs.needsAsync;
     return sn;
   },
-  logical(node) {
-    const { lhs, logicals } = node;
+  logical(node, context) {
+    const logicals = node.logicals.map((logical) => {
+      return { ...logical, rhs: get(logical.rhs, context) };
+    });
+    const lhs = get(node.lhs, context);
     const parts = [
       "(",
       lhs,
@@ -1004,13 +1050,13 @@ const types = {
       lhs.needsAsync || logicals.some(({ rhs }) => rhs.needsAsync);
     return sn;
   },
-  ifBlock(node) {
+  ifBlock(node, context) {
     const { start, condition } = node;
-    const body = get(node.body);
+    const body = get(node.body, context);
     const sn = new SourceNode(null, null, null, [
       asIs(start),
       "(",
-      condition,
+      get(condition, context),
       ")",
       "{",
       body,
@@ -1019,15 +1065,15 @@ const types = {
     sn.needsAsync = body.needsAsync;
     return sn;
   },
-  elseIfBlock(node) {
+  elseIfBlock(node, context) {
     const { start, condition } = node;
-    const body = get(node.body);
+    const body = get(node.body, context);
     const sn = new SourceNode(null, null, null, [
       asIs(start),
       " ",
       asIs(node.if),
       "(",
-      condition,
+      get(condition, context),
       ")",
       "{",
       body,
@@ -1036,8 +1082,8 @@ const types = {
     sn.needsAsync = body.needsAsync;
     return sn;
   },
-  elseBlock(node) {
-    const body = get(node.body);
+  elseBlock(node, context) {
+    const body = get(node.body, context);
     const sn = new SourceNode(null, null, null, [
       asIs(node.start),
       "{",
@@ -1047,18 +1093,18 @@ const types = {
     sn.needsAsync = body.needsAsync;
     return sn;
   },
-  conditional(node) {
-    const ifBlock = get(node.if);
-    const elseIfBlocks = node.elseIfs.map(get);
+  conditional(node, context) {
+    const ifBlock = get(node.if, context);
+    const elseIfBlocks = node.elseIfs.map((block) => get(block, context));
     const sn = new SourceNode(null, null, null, [ifBlock, ...elseIfBlocks]);
     sn.needsAsync =
       ifBlock.needsAsync || elseIfBlocks.some((block) => block.needsAsync);
     return sn;
   },
-  fullConditional(node) {
-    const ifBlock = get(node.if);
-    const elseIfBlocks = node.elseIfs.map(get);
-    const elseBlock = get(node.else);
+  fullConditional(node, context) {
+    const ifBlock = get(node.if, context);
+    const elseIfBlocks = node.elseIfs.map((block) => get(block, context));
+    const elseBlock = get(node.else, context);
     const sn = new SourceNode(null, null, null, [
       ifBlock,
       ...elseIfBlocks,
@@ -1070,8 +1116,9 @@ const types = {
       elseIfBlocks.some((block) => block.needsAsync);
     return sn;
   },
-  array(node) {
-    const { start, end, items } = node;
+  array(node, context) {
+    const { start, end } = node;
+    const items = node.items.map((item) => get(item, context));
     const sn = new SourceNode(null, null, null, [
       asIs(start),
       new SourceNode(null, null, null, items).join(","),
@@ -1087,9 +1134,11 @@ const types = {
     sn.needsAsync = items.some((item) => item.needsAsync);
     return sn;
   },
-  keyValue(node) {
-    const sn = new SourceNode(null, null, null, [node.key, ":", node.value]);
-    sn.needsAsync = node.value.needsAsync;
+  keyValue(node, context) {
+    const key = get(node.key, context);
+    const value = get(node.value, context);
+    const sn = new SourceNode(null, null, null, [key, ":", value]);
+    sn.needsAsync = value.needsAsync;
     return sn;
   },
   string(node) {
@@ -1100,29 +1149,30 @@ const types = {
     node.value = "`" + node.value + "`";
     return asIs(node);
   },
-  hashmap(node) {
+  hashmap(node, context) {
+    const keyValues = node.keyValues.map((kv) => get(kv, context));
     const sn = new SourceNode(
       node.start.line,
       node.start.column,
       node.start.file,
-      ["{", new SourceNode(null, null, null, node.keyValues).join(","), "}"]
+      ["{", new SourceNode(null, null, null, keyValues).join(","), "}"]
     );
-    sn.needsAsync = node.keyValues.some((kv) => kv.needsAsync);
+    sn.needsAsync = keyValues.some((kv) => kv.needsAsync);
     return sn;
   },
-  propertyAccess(node) {
-    const lhs = get(node.lhs);
-    const rhs = get(node.rhs);
+  propertyAccess(node, context) {
+    const lhs = get(node.lhs, context);
+    const rhs = get(node.rhs, context);
     const sn = new SourceNode(null, null, null, [lhs, asIs(node.dot), rhs]);
     sn.insertBefore = [lhs.insertBefore, rhs.insertBefore].filter(Boolean);
     sn.insertBefore = sn.insertBefore.length ? sn.insertBefore : null;
     sn.needsAsync = lhs.needsAsync || rhs.needsAsync;
     return sn;
   },
-  range(node) {
-    const start = node.start || "0";
-    const end = node.end || "Infinity";
-    const step = node.step || "null";
+  range(node, context) {
+    const start = node.start ? get(node.start, context) : "0";
+    const end = node.end ? get(node.end, context) : "Infinity";
+    const step = node.step ? get(node.step, context) : "null";
     const { location } = node;
     const sn = new SourceNode(location.line, location.column, location.file, [
       "range",
@@ -1138,21 +1188,23 @@ const types = {
       node.start?.needsAsync || node.end?.needsAsync || node.step?.needsAsync;
     return sn;
   },
-  ...map(["rangeFull", "byRange", "rangeBy"], (node) => {
+  ...map(["rangeFull", "byRange", "rangeBy"], (node, context) => {
     node.type = "range";
-    return get(node);
+    return get(node, context);
   }),
-  ranger(node) {
-    return get({ type: "range", location: node });
+  ranger(node, context) {
+    return get({ type: "range", location: node }, context);
   },
-  slice(node) {
-    const { slicer, slicee } = node;
+  slice(node, context) {
+    const slicer = get(node.slicer, context);
+    const slicee = get(node.slicee, context);
     const sn = new SourceNode(null, null, null, [slicee, slicer]);
     sn.needsAsync = slicer.needsAsync || slicee.needsAsync;
     return sn;
   },
-  set(node) {
-    const { start, items } = node;
+  set(node, context) {
+    const { start } = node;
+    const items = node.items.map((item) => get(item, context));
     const sn = new SourceNode(start.line, start.column, start.file, [
       "new",
       " ",
@@ -1204,7 +1256,7 @@ const types = {
   typedAssignment(node, context) {
     const assignment = get(node.assignment, context);
     // type check
-    const type = get(node.valueType).toString();
+    const type = get(node.valueType, context).toString();
     const value = get(node.assignment, context);
     if (value.node.type === "call") {
       const fnName = get(value.node.fn, context);
@@ -1221,22 +1273,23 @@ const types = {
     };
     return assignment;
   },
-  arrowAssignment(node) {
-    const name = get(node.name);
+  arrowAssignment(node, context) {
+    const name = get(node.name, context);
+    const value = get(node.value, context);
     const insertBefore = new SourceNode(null, null, null, [
       ...(node.name.type === "symbol" ? ["const", " "] : []),
       name,
       new SourceNode(node.arrow.line, node.arrow.column, node.arrow.file, "="),
-      node.value,
+      value,
     ]);
     const insertBefores = new SourceNode(
       null,
       null,
       null,
-      [node.value.insertBefore, insertBefore].filter(Boolean)
+      [value.insertBefore, insertBefore].filter(Boolean)
     ).join(";");
     name.insertBefore = insertBefores;
-    name.needsAsync = node.value.needsAsync;
+    name.needsAsync = value.needsAsync;
     return name;
   },
   parameter(node) {
@@ -1247,18 +1300,23 @@ const types = {
       node.value.slice(1)
     );
   },
-  inCheck(node) {
+  inCheck(node, context) {
     return new SourceNode(node.start.line, node.start.column, node.start.file, [
       "includes(",
-      get(node.lhs),
+      get(node.lhs, context),
       ",",
-      get(node.rhs),
+      get(node.rhs, context),
       ")",
     ]);
   },
-  formattedString(node) {
-    const fn = get(node.fn);
-    const args = new SourceNode(null, null, null, node.args.map(get));
+  formattedString(node, context) {
+    const fn = get(node.fn, context);
+    const args = new SourceNode(
+      null,
+      null,
+      null,
+      node.args.map((arg) => get(arg, context))
+    );
     return new SourceNode(null, null, null, [fn, "(", args.join(","), ")"]);
   },
   fmtStr(node) {
@@ -1268,8 +1326,8 @@ const types = {
       "`",
     ]);
   },
-  fmtExpr(node) {
-    return node.content || "undefined";
+  fmtExpr(node, context) {
+    return (node.content && get(node.content, context)) || "";
   },
   strEscape(node) {
     node.value = node.value.slice(1);
@@ -1285,29 +1343,31 @@ const types = {
     }
     const { line, column, file } = node.start;
     const { rpcPrefix } = context;
-    context.scope[node.name] = {
+    const name = get(node.name, context);
+    context.scope[name] = {
       type: "Type",
-      id: [rpcPrefix, file, node.name].join("/"),
+      id: [rpcPrefix, file, name].join("/"),
     };
     return new SourceNode(line, column, file, [
       "const ",
-      node.name,
+      name,
       "=new Proxy(class ",
-      node.name,
+      name,
       "{constructor(",
       new SourceNode(
         null,
         null,
         null,
-        node.members.map((member) => member.name)
+        node.members.map((member) => get(member.name, context))
       ).join(","),
       "){",
       ...node.members.map((member) => {
+        const name = get(member.name, context);
         return new SourceNode(null, null, null, [
           "this.",
-          member.name,
+          name,
           "=",
-          member.name,
+          name,
           ";",
         ]);
       }),
@@ -1319,43 +1379,46 @@ const types = {
   typeDefExtends(node, context) {
     const { line, column, file } = node.start;
     const { rpcPrefix } = context;
-    context.scope[node.name] = {
+    const name = get(node.name, context);
+    const parent = get(node.extends, context);
+    context.scope[name] = {
       type: "Type",
-      id: [rpcPrefix, file, node.name].join("/"),
+      id: [rpcPrefix, file, name].join("/"),
     };
     return new SourceNode(line, column, file, [
       "const ",
-      node.name,
+      name,
       "=new Proxy(class ",
-      node.name,
+      name,
       " extends ",
-      node.extends,
+      parent,
       "{constructor(...$args){",
       "super(...",
       "$args.slice(0,",
-      node.extends,
+      parent,
       ".members));",
       "const [",
       new SourceNode(
         null,
         null,
         null,
-        node.members.map((member) => member.name)
+        node.members.map((member) => get(member.name, context))
       ).join(","),
       "]=$args.slice(",
-      node.extends,
+      parent,
       ".members);",
       ...node.members.map((member) => {
+        const name = get(member.name, context);
         return new SourceNode(null, null, null, [
           "this.",
-          member.name,
+          name,
           "=",
-          member.name,
+          name,
           ";",
         ]);
       }),
       "} static get members(){return ",
-      node.extends,
+      parent,
       ".members+",
       node.members.length.toString(),
       "}},{apply(target,_,args){return new target(...args)}})",
@@ -1364,16 +1427,19 @@ const types = {
   listDef(node, context) {
     const { line, column, file } = node.start;
     const { rpcPrefix } = context;
-    context.scope[node.name] = {
+    const name = get(node.name, context);
+    const members = node.members.map((member) => get(member, context));
+    const parent = node.extends && get(node.extends, context);
+    context.scope[name] = {
       type: "ListType",
-      id: [rpcPrefix, file, node.name].join("/"),
+      id: [rpcPrefix, file, name].join("/"),
     };
     return new SourceNode(line, column, file, [
       "const ",
-      node.name,
+      name,
       "=[",
-      join(node.members, ","),
-      ...(node.extends ? [",...", node.extends] : []),
+      join(members, ","),
+      ...(parent ? [",...", parent] : []),
       "]",
     ]);
   },

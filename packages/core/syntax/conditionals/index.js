@@ -1,5 +1,4 @@
 const { map } = require("bean-parser");
-const types = require("../../types");
 const { expressions, wrap, values, ignore } = require("../common");
 
 module.exports = {
@@ -11,7 +10,7 @@ module.exports = {
         return {
           type: "ifOpen",
           start: lhs,
-          condition: types.get(rhs),
+          condition: rhs,
         };
       }, 0.05)
     ),
@@ -21,7 +20,7 @@ module.exports = {
         return {
           type: "ifOpen",
           start: lhs,
-          condition: types.get(rhs),
+          condition: rhs,
         };
       }, 0)
     ),
@@ -80,7 +79,7 @@ module.exports = {
       [...expressions, ...values],
       wrap((lhs, rhs) => {
         lhs.type = "ifElseIfOpen";
-        lhs.open.condition = types.get(rhs);
+        lhs.open.condition = rhs;
         return lhs;
       }, 0)
     ),

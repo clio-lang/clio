@@ -438,7 +438,7 @@ testStr(
 );
 testStr("Formatted String", `f"test {a -> double}"`, "f(`test `,double(a))");
 testStr("Formatted String (Single)", `f"a is {a}"`, "f(`a is `,a)");
-testStr("Formatted String (Empty)", `f"a is {}"`, "f(`a is `,undefined)");
+testStr("Formatted String (Empty)", `f"a is {}"`, "f(`a is `)");
 testStr(
   "Formatted String (Escape)",
   `f"test \n \\{a -> double}"`,

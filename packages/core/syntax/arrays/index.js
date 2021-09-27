@@ -1,5 +1,4 @@
 const { map } = require("bean-parser");
-const types = require("../../types");
 const { expressions, wrap, values, ignore } = require("../common");
 
 module.exports = {
@@ -9,7 +8,7 @@ module.exports = {
     ...map(
       [...values, ...expressions],
       wrap((lhs, rhs) => {
-        return { type: "arrayOpen", start: lhs, items: [types.get(rhs)] };
+        return { type: "arrayOpen", start: lhs, items: [rhs] };
       }, 4.1)
     ),
     rSquare: wrap((lhs, rhs) => {
@@ -21,7 +20,7 @@ module.exports = {
     ...map(
       [...values, ...expressions],
       wrap((lhs, rhs) => {
-        lhs.items.push(types.get(rhs));
+        lhs.items.push(rhs);
         return lhs;
       }, 4.1)
     ),

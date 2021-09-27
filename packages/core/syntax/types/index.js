@@ -1,4 +1,3 @@
-const types = require("../../types");
 const { wrap, ignore } = require("../common");
 
 module.exports = {
@@ -9,7 +8,7 @@ module.exports = {
         start: lhs,
         type: "typeOpen",
         members: [],
-        name: types.get(rhs),
+        name: rhs,
       };
     }, 10),
   },
@@ -25,7 +24,7 @@ module.exports = {
   },
   typeOpenIsOpen: {
     symbol: wrap((type, rhs) => {
-      type.extends = types.get(rhs);
+      type.extends = rhs;
       type.type = "typeOpenIs";
       return type;
     }),
@@ -42,7 +41,7 @@ module.exports = {
       return type;
     }, 10),
     symbol: wrap((type, rhs) => {
-      type.members.push({ type: "Any", name: types.get(rhs) });
+      type.members.push({ type: "Any", name: rhs });
       type.type = "typeTailSingle";
       return type;
     }, 10),
@@ -53,7 +52,7 @@ module.exports = {
       return type;
     }, 10),
     symbol: wrap((type, rhs) => {
-      type.members.push({ type: "Any", name: types.get(rhs) });
+      type.members.push({ type: "Any", name: rhs });
       return type;
     }, 10),
   },
@@ -64,7 +63,7 @@ module.exports = {
       return type;
     }, 10),
     symbol: wrap((type, rhs) => {
-      type.curr = types.get(rhs);
+      type.curr = rhs;
       type.type = "typeTailIndentCurr";
       return type;
     }, 10),
@@ -77,7 +76,7 @@ module.exports = {
       return type;
     }),
     symbol: wrap((type, rhs) => {
-      type.members.push({ type: type.curr, name: types.get(rhs) });
+      type.members.push({ type: type.curr, name: rhs });
       type.curr = null;
       type.type = "typeTailIndent";
       return type;

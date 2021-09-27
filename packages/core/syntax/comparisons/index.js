@@ -1,5 +1,4 @@
 const { map } = require("bean-parser");
-const types = require("../../types");
 const { expressions, wrap, values, ignore } = require("../common");
 
 module.exports = {
@@ -10,7 +9,7 @@ module.exports = {
       wrap((lhs, op) => {
         return {
           type: "comparisonOpen",
-          lhs: types.get(lhs),
+          lhs,
           op,
           comparisons: [],
         };
@@ -25,10 +24,7 @@ module.exports = {
         return {
           type: "comparison",
           lhs: lhs.lhs,
-          comparisons: [
-            ...lhs.comparisons,
-            { op: lhs.op, rhs: types.get(rhs) },
-          ],
+          comparisons: [...lhs.comparisons, { op: lhs.op, rhs }],
         };
       }, 6)
     ),

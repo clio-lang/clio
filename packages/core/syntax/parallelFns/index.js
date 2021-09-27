@@ -1,11 +1,10 @@
 const { wrap } = require("../common");
-const types = require("../../types");
 
 module.exports = {
   // Parallel functions
   pike: {
     symbol: wrap((pike, rhs) => {
-      return { type: "pikeOpen", fn: types.get(rhs), start: pike };
+      return { type: "pikeOpen", fn: rhs, start: pike };
     }),
   },
   pikeOpen: {

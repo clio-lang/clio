@@ -1,5 +1,4 @@
 const { map } = require("bean-parser");
-const types = require("../../types");
 const { expressions, wrap, values, ignore } = require("../common");
 
 module.exports = {
@@ -10,13 +9,13 @@ module.exports = {
         start: lhs,
         type: "fnOpen",
         params: [],
-        name: types.get(rhs),
+        name: rhs,
       };
     }, 10),
   },
   fnOpen: {
     symbol: wrap((fn, rhs) => {
-      fn.params.push(types.get(rhs));
+      fn.params.push(rhs);
       return fn;
     }, 10),
     colon: wrap((fn) => {

@@ -35,7 +35,7 @@ module.exports = {
     ...map(
       [...values, ...expressions],
       wrap((lhs, rhs) => {
-        return { type: "fmtExprOpen", start: lhs, content: types.get(rhs) };
+        return { type: "fmtExprOpen", start: lhs, content: rhs };
       }, 0.11)
     ),
     fmtExprEnd: wrap(() => {

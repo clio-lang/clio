@@ -8,7 +8,7 @@ module.exports = {
         start: lhs,
         type: "listOpen",
         members: [],
-        name: types.get(rhs),
+        name: rhs,
       };
     }, 10),
   },
@@ -24,7 +24,7 @@ module.exports = {
   },
   listOpenIsOpen: {
     symbol: wrap((list, rhs) => {
-      list.extends = types.get(rhs);
+      list.extends = rhs;
       list.type = "listOpenIs";
       return list;
     }),
@@ -41,7 +41,7 @@ module.exports = {
       return list;
     }, 10),
     symbol: wrap((list, rhs) => {
-      list.members.push(types.get(rhs));
+      list.members.push(rhs);
       list.type = "listTailSingle";
       return list;
     }, 10),
@@ -52,7 +52,7 @@ module.exports = {
       return list;
     }, 10),
     symbol: wrap((list, rhs) => {
-      list.members.push(types.get(rhs));
+      list.members.push(rhs);
       return list;
     }, 10),
   },
@@ -63,7 +63,7 @@ module.exports = {
       return list;
     }, 10),
     symbol: wrap((list, rhs) => {
-      list.members.push(types.get(rhs));
+      list.members.push(rhs);
       return list;
     }, 10),
   },

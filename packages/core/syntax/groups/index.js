@@ -51,10 +51,12 @@ module.exports = {
       lhs.open++;
       return lhs;
     }, 9999),
-    groupEnd: wrap((lhs) => {
+    groupEnd: wrap((lhs, context) => {
       lhs.open--;
       // FIXME: We need error checking here
-      return lhs.open ? lhs : bean(lhs.content, rules, true).first.item;
+      return lhs.open
+        ? lhs
+        : bean(lhs.content, rules, true, context).first.item;
     }, 9999),
   },
 };
