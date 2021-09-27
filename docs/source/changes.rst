@@ -24,7 +24,7 @@ v0.10.0
   rpc functions in their own namespace. It's now required to specify a namespace when importing
   functions over network.
 
-- Imports are now resolved on complie time. JavaScript bundlers like Parcel, Webpack, Rollup and
+- Imports are now resolved on compile time. JavaScript bundlers like Parcel, Webpack, Rollup and
   others know and recognize ``esm`` and ``cjs`` import systems, to keep Clio compatible with these
   tools we have to use ``esm`` and ``cjs`` import methods and not a custom import function. This
   makes module resolve impossible on runtime.
