@@ -502,7 +502,7 @@ const types = {
     if (accepts) {
       for (let index = 0; index < node.args.length; index++) {
         const arg = node.args[index];
-        const type = getTypeOf(arg, context);
+        const type = getTypeOf(arg, context.scope);
         const match = type === accepts[index] || accepts[index] === "Any";
         if (!match) {
           const argTypeName = type.split("/").pop();
@@ -709,10 +709,7 @@ const types = {
       }
     }
     const doc = docLines.join("\n");
-    const fn = get(
-      { ...node, type: "function", name: { type: "symbol", value: "" } },
-      context
-    );
+    const fn = get({ ...node, type: "function", skipName: true }, context);
     let decorated = fn;
     for (const decorator of node.decorators) {
       if (decorator.type === "decorator") {
@@ -782,16 +779,24 @@ const types = {
     return node.value;
   },
   function(node, context) {
-    node.outerScope = context.scope;
+    const outerScope = { ...context.scope };
     const { start } = node;
     const name = get(node.name, context);
     const params = node.params.map((item) => get(item, context));
+    const argTypes = context.scope[name]?.accepts;
+    if (argTypes) {
+      for (let index = 0; index < params.length; index++) {
+        const param = params[index];
+        const type = context.scope[argTypes[index]].id;
+        context.scope[param] = { type };
+      }
+    }
     const body = get(node.body, context);
     const sn = new SourceNode(start.line, start.column, start.file, [
-      ...(name.toString() ? ["const ", name, "="] : []),
-      ...(name.toString() ? ["register"] : []),
+      ...(!node.skipName && name.toString() ? ["const ", name, "="] : []),
+      ...(!node.skipName && name.toString() ? ["register"] : []),
       "(",
-      ...(name.toString()
+      ...(!node.skipName && name.toString()
         ? ["`", context.rpcPrefix, "/", start.file, "/", name, "`,"]
         : []),
       body.needsAsync ? "async" : "",
@@ -807,7 +812,7 @@ const types = {
     sn.returnAs.insertBefore = sn;
     sn.fn = { name };
     // Restore scope
-    context.scope = node.outerScope;
+    context.scope = outerScope;
     return sn;
   },
   exportedFunction(node, context) {
