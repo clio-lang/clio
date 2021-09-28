@@ -192,15 +192,16 @@ const getFnName = (node, context) => {
   return get(callee, context).toString();
 };
 
-const getCallFn = (node) => {
+const getCallFn = (node, scope) => {
   if (node.fn.type === "method") {
-    if (!node.isMap)
+    if (!node.isMap) {
       return {
         type: "propertyAccess",
         lhs: node.args.shift(),
         dot: node.fn.dot,
         rhs: node.fn.property,
       };
+    }
     if (node.args.length > 1) {
       return {
         type: "propertyAccess",
@@ -211,6 +212,12 @@ const getCallFn = (node) => {
         dropMeta: true,
       };
     }
+    const fn = {
+      type: "propertyAccess",
+      lhs: { type: "symbol", value: "$item" },
+      dot: node.fn.dot,
+      rhs: node.fn.property,
+    };
     return {
       type: "wrapped",
       start: { value: "(" },
@@ -224,15 +231,11 @@ const getCallFn = (node) => {
         params: [{ type: "symbol", value: "$item" }],
         body: {
           type: "return",
+          returnType: scope[get(fn)]?.returns,
           content: [
             {
               type: "call",
-              fn: {
-                type: "propertyAccess",
-                lhs: { type: "symbol", value: "$item" },
-                dot: node.fn.dot,
-                rhs: node.fn.property,
-              },
+              fn,
               args: [],
             },
           ],
@@ -398,7 +401,7 @@ const types = {
   },
   mapCall(node, context) {
     const { awaited, all } = node;
-    const fn = getCallFn(node);
+    const fn = getCallFn(node, context.scope);
     const fnName = getFnName(fn, context);
     const { accepts } = context.scope[fnName] || {};
     if (accepts) {
@@ -494,7 +497,7 @@ const types = {
       return get(node, context);
     }
     const { awaited, all } = node;
-    const fn = getCallFn(node);
+    const fn = getCallFn(node, context.scope);
     const args = node.args.map((item) => get(item, context));
     const insertBefore = args.map((arg) => arg.insertBefore).filter(Boolean);
     const fun = get(fn, context);
@@ -584,6 +587,7 @@ const types = {
     // Convert all recursive calls to proper calls
     const proper = toProperCall(node, context);
     proper.type = "return";
+    proper.returnType = node.returnType;
     proper.optimized = true;
     const properCode = get(proper, context);
     const fnName = get(node.recursefn.name, context);
@@ -613,14 +617,17 @@ const types = {
     if (conditionals.includes(lastNode.type)) {
       if (!lastNode.if.body.optimized) {
         lastNode.if.body.type = "return";
+        lastNode.if.body.returnType = node.returnType;
       }
       lastNode.elseIfs.forEach((elseIf) => {
         if (!elseIf.body.optimized) {
           elseIf.body.type = "return";
+          elseIf.body.returnType = node.returnType;
         }
       });
       if (lastNode.else && !lastNode.else.body.optimized) {
         lastNode.else.body.type = "return";
+        lastNode.else.body.returnType = node.returnType;
       }
       addReturn = false;
     } else if (lastNode.type === "assignment") {
@@ -637,6 +644,17 @@ const types = {
       }
       content.push(get(lastNode, context));
       lastNode = lastNode.assignment.name;
+    }
+    console.log(node.returnType);
+    if (addReturn && node.returnType) {
+      const vType = getTypeOf(lastNode, context.scope);
+      if (node.returnType !== vType) {
+        const vTypeName = vType ? vType.split("/").pop() : "Any";
+        const typeName = node.returnType.split("/").pop();
+        throw new Error(
+          `Cannot return value of type ${vTypeName} from a function of type ${typeName}`
+        );
+      }
     }
     let last = get(lastNode, context);
     if (last.returnAs) last = last.returnAs;
@@ -791,6 +809,8 @@ const types = {
         context.scope[param] = { type };
       }
     }
+    const returnType = context.scope[name]?.returns;
+    node.body.returnType = returnType;
     const body = get(node.body, context);
     const sn = new SourceNode(start.line, start.column, start.file, [
       ...(!node.skipName && name.toString() ? ["const ", name, "="] : []),
@@ -1290,7 +1310,9 @@ const types = {
     if (type && vType !== type.id) {
       const vTypeName = vType ? vType.split("/").pop() : "Any";
       const typeName = type.id.split("/").pop();
-      throw `Cannot assign value of type ${vTypeName} to variable ${assignment.name} of type ${typeName}`;
+      throw new Error(
+        `Cannot assign value of type ${vTypeName} to variable ${assignment.name} of type ${typeName}`
+      );
     }
     const { rpcPrefix, file } = context;
     context.scope[assignment.name] = {
