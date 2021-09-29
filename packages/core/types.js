@@ -270,6 +270,14 @@ const checkRecursive = (node, context) => {
   return false;
 };
 
+const traceType = (type, scope) => {
+  let current = type;
+  while (scope[current] && scope[current].id !== current) {
+    current = scope[current].id;
+  }
+  return current;
+};
+
 const getTypeOf = (node, scope) => {
   if (node.type === "number") {
     return "Number";
@@ -294,6 +302,32 @@ const getTypeOf = (node, scope) => {
   }
   if (node.type === "call" && node.fn.type === "propertyAccess") {
     return scope[get(node.fn)]?.returns;
+  }
+  if (node.type === "math") {
+    const { lhs, rhs } = node.value;
+    const lhsType = getTypeOf(lhs, scope);
+    const rhsType = getTypeOf(rhs, scope);
+    if (lhsType !== rhsType) {
+      throw `Cannot add ${lhsType} and ${rhsType}.`;
+    }
+    if (node.value.type === "add") {
+      if (!["Number", "String"].includes(lhsType)) {
+        throw `Cannot add ${lhsType} and ${rhsType}.`;
+      }
+    } else if (lhsType !== "Number") {
+      if (node.value.type === "pow") {
+        throw `Cannot calculate ${lhsType} to the power of ${rhsType}.`;
+      } else if (node.value.type === "mul") {
+        throw `Cannot multiply ${lhsType} and ${rhsType}.`;
+      } else if (node.value.type === "div") {
+        throw `Cannot divide ${lhsType} and ${rhsType}.`;
+      } else if (node.value.type === "sub") {
+        throw `Cannot substract ${lhsType} from ${rhsType}.`;
+      } else {
+        throw `Applying "${node.value.op}" not allowed on ${lhsType} and ${rhsType}`;
+      }
+    }
+    return lhsType;
   }
 };
 
@@ -1318,6 +1352,12 @@ const types = {
     // type check
     const typeName = get(node.valueType, context).toString();
     const type = context.scope[typeName];
+    const typeOfType = getTypeOf(node.valueType, context.scope) || "Any";
+    if (typeOfType !== "Type") {
+      throw new Error(
+        `Cannot use ${typeName} of type ${typeOfType} as a Type.`
+      );
+    }
     const vType = getTypeOf(node.assignment.value, context.scope);
     if (type && vType !== type.id) {
       const vTypeName = vType ? vType.split("/").pop() : "Any";

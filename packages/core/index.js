@@ -24,13 +24,13 @@ const parse = (tokens, source, file, context) => {
 };
 
 const defaultScope = {
-  Number: { id: "Number" },
-  String: { id: "String" },
-  Array: { id: "Array" },
-  Any: { id: "Any" },
-  Function: { id: "Function" },
-  Type: { id: "Type" },
-  ListType: { id: "ListType" },
+  Number: { id: "Number", type: "Type" },
+  String: { id: "String", type: "Type" },
+  Array: { id: "Array", type: "Type" },
+  Any: { id: "Any", type: "Type" },
+  Function: { id: "Function", type: "Type" },
+  Type: { id: "Type", type: "Type" },
+  ListType: { id: "ListType", type: "Type" },
 };
 
 const compile = (source, file, { debug = false, ...ctx }) => {
