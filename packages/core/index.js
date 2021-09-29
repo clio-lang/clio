@@ -7,7 +7,6 @@ const path = require("path");
 const fs = require("fs");
 
 const {
-  MODULES_PATH,
   getDestinationFromConfig,
   getSourceFromConfig,
 } = require("clio-manifest");
@@ -29,6 +28,9 @@ const defaultScope = {
   String: { id: "String" },
   Array: { id: "Array" },
   Any: { id: "Any" },
+  Function: { id: "Function" },
+  Type: { id: "Type" },
+  ListType: { id: "ListType" },
 };
 
 const compile = (source, file, { debug = false, ...ctx }) => {

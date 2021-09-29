@@ -498,6 +498,12 @@ const types = {
     }
     const { awaited, all } = node;
     const fn = getCallFn(node, context.scope);
+    const fnType = getTypeOf(fn, context.scope);
+    if (fnType && !["Function", "Any"].includes(fnType)) {
+      throw new Error(
+        `Value ${get(fn, context)} of type ${fnType} is not callable.`
+      );
+    }
     const args = node.args.map((item) => get(item, context));
     const insertBefore = args.map((arg) => arg.insertBefore).filter(Boolean);
     const fun = get(fn, context);
@@ -645,7 +651,6 @@ const types = {
       content.push(get(lastNode, context));
       lastNode = lastNode.assignment.name;
     }
-    console.log(node.returnType);
     if (addReturn && node.returnType) {
       const vType = getTypeOf(lastNode, context.scope);
       if (node.returnType !== vType) {
@@ -833,6 +838,13 @@ const types = {
     sn.fn = { name };
     // Restore scope
     context.scope = outerScope;
+    if (name.toString()) {
+      context.scope[name] = {
+        ...context.scope[name],
+        type: "Function",
+        id: [context.rpcPrefix, start.file, name.toString()].join("/"),
+      };
+    }
     return sn;
   },
   exportedFunction(node, context) {
