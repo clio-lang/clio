@@ -13,24 +13,10 @@ module.exports = {
     }, 10),
   },
   listOpen: {
-    is: wrap((list) => {
-      list.type = "listOpenIsOpen";
-      return list;
-    }),
     colon: wrap((list) => {
       list.type = "listTail";
       return list;
     }, 10),
-  },
-  listOpenIsOpen: {
-    ...map(
-      ["symbol", "propertyAccess"],
-      wrap((list, rhs) => {
-        list.extends = rhs;
-        list.type = "listOpenIs";
-        return list;
-      })
-    ),
   },
   listOpenIs: {
     colon: wrap((list) => {
@@ -46,7 +32,7 @@ module.exports = {
     ...map(
       ["symbol", "propertyAccess"],
       wrap((list, rhs) => {
-        list.members.push(rhs);
+        list.memberType = rhs;
         list.type = "listTailSingle";
         return list;
       }, 10)
@@ -57,26 +43,22 @@ module.exports = {
       list.type = "listDef";
       return list;
     }, 10),
+  },
+  listTailIndent: {
+    ...ignore("lineBreak"),
     ...map(
       ["symbol", "propertyAccess"],
       wrap((list, rhs) => {
-        list.members.push(rhs);
+        list.memberType = rhs;
+        list.type = "listTailIndentComplete";
         return list;
       }, 10)
     ),
   },
-  listTailIndent: {
-    ...ignore("lineBreak"),
+  listTailIndentComplete: {
     outdent: wrap((list) => {
       list.type = "listDef";
       return list;
     }, 10),
-    ...map(
-      ["symbol", "propertyAccess"],
-      wrap((list, rhs) => {
-        list.members.push(rhs);
-        return list;
-      }, 10)
-    ),
   },
 };

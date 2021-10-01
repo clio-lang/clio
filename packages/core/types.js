@@ -270,12 +270,12 @@ const checkRecursive = (node, context) => {
   return false;
 };
 
-const traceType = (type, scope) => {
-  let current = type;
-  while (scope[current] && scope[current].id !== current) {
-    current = scope[current].id;
+const getTypeById = (id, scope) => {
+  for (const key in scope) {
+    if (id === scope[key].id) {
+      return scope[key];
+    }
   }
-  return current;
 };
 
 const getTypeOf = (node, scope) => {
@@ -296,6 +296,9 @@ const getTypeOf = (node, scope) => {
   }
   if (node.type === "propertyAccess") {
     return scope[get(node)]?.type;
+  }
+  if (node.type === "wrapped") {
+    return getTypeOf(node.content, scope);
   }
   if (node.type === "call" && node.fn.type === "symbol") {
     return scope[get(node.fn)]?.returns;
@@ -439,9 +442,43 @@ const types = {
     const fnName = getFnName(fn, context);
     const { accepts } = context.scope[fnName] || {};
     if (accepts) {
-      for (let index = 0; index < node.args.length; index++) {
+      const firstArg = node.args[0];
+      const type = getTypeOf(firstArg, context.scope) || "Any";
+      // We're expecting Any, Array or a ListType
+      const typeInfoOfType = getTypeById(type, context.scope);
+      const typeOfType = typeInfoOfType?.type;
+      if (type !== "Any" && type !== "Array" && typeOfType !== "ListType") {
+        const typeName = type.split("/").pop();
+        throw new Error(
+          `Cannot map a function to an argument of type ${typeName}`
+        );
+      }
+      if (type === "Array") {
+        // Should loop over all members
+        for (let i = 0; i < firstArg.items.length; i++) {
+          const item = firstArg.items[i];
+          const itemType = getTypeOf(item, context.scope) || "Any";
+          if (itemType !== accepts[0]) {
+            const itemTypeName = itemType.split("/").pop();
+            const paramTypeName = accepts[0].split("/").pop();
+            throw new Error(
+              `Element ${i} of type ${itemTypeName} does not satisfy parameter of type ${paramTypeName}`
+            );
+          }
+        }
+      } else if (typeOfType === "ListType") {
+        const memberType = typeInfoOfType.accepts[0].id;
+        if (memberType !== accepts[0]) {
+          const memberTypeName = memberType.split("/").pop();
+          const paramTypeName = accepts[0].split("/").pop();
+          throw new Error(
+            `Items in array of type ${memberTypeName} do not satisfry parameter of type ${paramTypeName}`
+          );
+        }
+      }
+      for (let index = 1; index < node.args.length; index++) {
         const arg = node.args[index];
-        const type = getTypeOf(arg, context);
+        const type = getTypeOf(arg, context.scope) || "Any";
         const match = type === accepts[index] || accepts[index] === "Any";
         if (!match) {
           const argTypeName = type.split("/").pop();
@@ -533,7 +570,7 @@ const types = {
     const { awaited, all } = node;
     const fn = getCallFn(node, context.scope);
     const fnType = getTypeOf(fn, context.scope);
-    if (fnType && !["Function", "Any"].includes(fnType)) {
+    if (fnType && !["Function", "Any", "Type"].includes(fnType)) {
       throw new Error(
         `Value ${get(fn, context)} of type ${fnType} is not callable.`
       );
@@ -560,6 +597,7 @@ const types = {
       insertBefore.unshift(fun.insertBefore);
     }
     let sn = new SourceNode(fn.line, fn.column, fn.file, [
+      ...(fnType === "Type" ? ["new "] : []),
       fun,
       "(",
       join(args, ","),
@@ -1353,13 +1391,24 @@ const types = {
     const typeName = get(node.valueType, context).toString();
     const type = context.scope[typeName];
     const typeOfType = getTypeOf(node.valueType, context.scope) || "Any";
-    if (typeOfType !== "Type") {
+    if (!["Type", "ListType"].includes(typeOfType)) {
       throw new Error(
-        `Cannot use ${typeName} of type ${typeOfType} as a Type.`
+        `Identifier ${typeName} is of type ${typeOfType} and cannot be used as a Type.`
       );
     }
     const vType = getTypeOf(node.assignment.value, context.scope);
-    if (type && vType !== type.id) {
+    if (typeOfType === "ListType" && vType === "Array") {
+      const accepts = type.accepts[0].id;
+      for (const item of node.assignment.value.items) {
+        const itemType = getTypeOf(item, context.scope) || "Any";
+        if (itemType !== accepts) {
+          const itemTypeName = itemType.split("/").pop();
+          throw new Error(
+            `Cannot add item of type ${itemTypeName} to array ${assignment.name} of type ${typeName}`
+          );
+        }
+      }
+    } else if (type && vType !== type.id) {
       const vTypeName = vType ? vType.split("/").pop() : "Any";
       const typeName = type.id.split("/").pop();
       throw new Error(
@@ -1456,7 +1505,7 @@ const types = {
     return new SourceNode(line, column, file, [
       "const ",
       name,
-      "=new Proxy(class ",
+      "=class ",
       name,
       "{constructor(",
       new SourceNode(
@@ -1478,7 +1527,7 @@ const types = {
       }),
       "} static get members(){return ",
       node.members.length.toString(),
-      "}},{apply(target,_,args){return new target(...args)}})",
+      "}}",
     ]);
   },
   typeDefExtends(node, context) {
@@ -1493,7 +1542,7 @@ const types = {
     return new SourceNode(line, column, file, [
       "const ",
       name,
-      "=new Proxy(class ",
+      "=class ",
       name,
       " extends ",
       parent,
@@ -1526,25 +1575,26 @@ const types = {
       parent,
       ".members+",
       node.members.length.toString(),
-      "}},{apply(target,_,args){return new target(...args)}})",
+      "}}",
     ]);
   },
   listDef(node, context) {
     const { line, column, file } = node.start;
     const { rpcPrefix } = context;
     const name = get(node.name, context);
-    const members = node.members.map((member) => get(member, context));
-    const parent = node.extends && get(node.extends, context);
+    const members = get(node.memberType, context);
+    const id = [rpcPrefix, file, name].join("/");
     context.scope[name] = {
       type: "ListType",
-      id: [rpcPrefix, file, name].join("/"),
+      id,
+      returns: id,
+      accepts: [context.scope[members]],
     };
     return new SourceNode(line, column, file, [
       "const ",
       name,
       "=[",
-      join(members, ","),
-      ...(parent ? [",...", parent] : []),
+      members,
       "]",
     ]);
   },
