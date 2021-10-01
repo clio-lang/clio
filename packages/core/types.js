@@ -336,6 +336,14 @@ const getTypeOf = (node, context) => {
     const { lhs, rhs } = node.value;
     const lhsType = getTypeOf(lhs, context);
     const rhsType = getTypeOf(rhs, context);
+    if (lhsType === "Parameter") {
+      lhs.typeInfo = rhsType.type === "Parameter" ? "Any" : rhsType.type;
+      rhs.typeInfo = rhsType.type === "Parameter" ? "Any" : rhsType.type;
+      return lhs.typeInfo;
+    } else if (rhsType === "Parameter") {
+      rhs.typeInfo = lhsType.type;
+      return rhs.typeInfo;
+    }
     if (lhsType !== rhsType) {
       throw `Cannot add ${lhsType} and ${rhsType}.`;
     }
@@ -522,6 +530,9 @@ const types = {
             `Argument of type ${argTypeName} at position ${index} does not satisfy parameter of type ${paramTypeName}`
           );
         }
+        if (type === "Parameter") {
+          arg.typeInfo = accepts[index] || context.scope["Any"];
+        }
       }
     }
     const needsNew = fnType === "Type";
@@ -638,7 +649,7 @@ const types = {
           );
         }
         if (type === "Parameter") {
-          arg.typeInfo = accepts[index];
+          arg.typeInfo = accepts[index] || context.scope["Any"];
         }
       }
     }
