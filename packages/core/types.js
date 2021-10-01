@@ -278,6 +278,17 @@ const getTypeById = (id, scope) => {
   }
 };
 
+const getListTypesOf = (member, scope) => {
+  const types = [];
+  for (const key in scope) {
+    const type = scope[key];
+    if (type.type === "ListType" && type.accepts[0].id === member) {
+      types.push(type);
+    }
+  }
+  return types.length ? types : "Any";
+};
+
 const getTypeOf = (node, scope) => {
   if (node.type === "number") {
     return "Number";
@@ -305,6 +316,14 @@ const getTypeOf = (node, scope) => {
   }
   if (node.type === "call" && node.fn.type === "propertyAccess") {
     return scope[get(node.fn)]?.returns;
+  }
+  if (node.type === "mapCall" && node.fn.type === "symbol") {
+    const member = scope[get(node.fn)]?.returns;
+    return getListTypesOf(member, scope);
+  }
+  if (node.type === "mapCall" && node.fn.type === "propertyAccess") {
+    const member = scope[get(node.fn)]?.returns;
+    return getListTypesOf(member, scope);
   }
   if (node.type === "math") {
     const { lhs, rhs } = node.value;
@@ -440,6 +459,12 @@ const types = {
     const { awaited, all } = node;
     const fn = getCallFn(node, context.scope);
     const fnName = getFnName(fn, context);
+    const fnType = getTypeOf(fn, context.scope);
+    if (fnType && !["Function", "Any", "Type"].includes(fnType)) {
+      throw new Error(
+        `Value ${get(fn, context)} of type ${fnType} is not callable.`
+      );
+    }
     const { accepts } = context.scope[fnName] || {};
     if (accepts) {
       const firstArg = node.args[0];
@@ -489,6 +514,7 @@ const types = {
         }
       }
     }
+    const needsNew = fnType === "Type";
     const args = node.args.map((arg) => get(arg, context));
     const insertBefore = args.map((arg) => arg.insertBefore).filter(Boolean);
     if (fn.insertBefore) insertBefore.unshift(fn.insertBefore);
@@ -500,13 +526,20 @@ const types = {
         needsAsync ? "async " : "",
         "($item",
         fn.dropMeta ? ")=>" : ", $index, $iterator)=>",
+        needsNew ? "new " : "",
         get(fn, context),
         fn.dropData ? "(" : "($item,",
         join(args, ","),
         fn.dropMeta ? ")" : ",$index,$iterator)",
       ]);
     } else {
-      fun = get(fn, context);
+      fun = needsNew
+        ? new SourceNode(null, null, null, [
+            "((...args) => new ",
+            get(fn, context),
+            "(...args))",
+          ])
+        : get(fn, context);
     }
     if (fun.insertBefore) insertBefore.unshift(fun.insertBefore);
     let sn = new SourceNode(fn.line, fn.column, fn.file, [
@@ -1407,6 +1440,15 @@ const types = {
             `Cannot add item of type ${itemTypeName} to array ${assignment.name} of type ${typeName}`
           );
         }
+      }
+    } else if (typeOfType === "ListType" && Array.isArray(vType)) {
+      if (!vType.map((type) => type.id).includes(type.id)) {
+        const typeNames = vType
+          .map((type) => type.id.split("/").pop())
+          .join(" | ");
+        throw new Error(
+          `Cannot assign array of type ${typeNames} to identifier ${assignment.name} of type ${typeName}`
+        );
       }
     } else if (type && vType !== type.id) {
       const vTypeName = vType ? vType.split("/").pop() : "Any";
