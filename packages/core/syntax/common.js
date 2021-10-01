@@ -7,8 +7,11 @@ const wrap = (fn, priority) =>
     for (const it of [lhs, rhs]) {
       if (it.type == "wrapped") continue;
       if (it.type == "decorators") continue;
-      if (it.type == "parameter") result.lambda.push(it);
-      else if (it.lambda?.length) result.lambda.push(...it.lambda);
+      if (it.type == "parameter" && result.type !== "parameter") {
+        result.lambda.push(it);
+      } else if (it.lambda?.length && it !== result) {
+        result.lambda.push(...it.lambda);
+      }
     }
     result.meta = {
       location: lhs.meta?.location || {

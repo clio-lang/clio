@@ -289,7 +289,8 @@ const getListTypesOf = (member, scope) => {
   return types.length ? types : "Any";
 };
 
-const getTypeOf = (node, scope) => {
+const getTypeOf = (node, context) => {
+  const { scope } = context;
   if (node.type === "number") {
     return "Number";
   }
@@ -302,6 +303,9 @@ const getTypeOf = (node, scope) => {
   if (node.type === "hashmap") {
     return "Object"; // TODO: FIXME
   }
+  if (node.type === "parameter") {
+    return "Parameter";
+  }
   if (node.type === "symbol") {
     return scope[get(node)]?.type;
   }
@@ -309,13 +313,16 @@ const getTypeOf = (node, scope) => {
     return scope[get(node)]?.type;
   }
   if (node.type === "wrapped") {
-    return getTypeOf(node.content, scope);
+    return node.lambda.length ? "Function" : getTypeOf(node.content, context);
   }
   if (node.type === "call" && node.fn.type === "symbol") {
     return scope[get(node.fn)]?.returns;
   }
   if (node.type === "call" && node.fn.type === "propertyAccess") {
     return scope[get(node.fn)]?.returns;
+  }
+  if (node.type === "call" && node.fn.type === "wrapped") {
+    return get(node.fn, context).returns;
   }
   if (node.type === "mapCall" && node.fn.type === "symbol") {
     const member = scope[get(node.fn)]?.returns;
@@ -327,8 +334,8 @@ const getTypeOf = (node, scope) => {
   }
   if (node.type === "math") {
     const { lhs, rhs } = node.value;
-    const lhsType = getTypeOf(lhs, scope);
-    const rhsType = getTypeOf(rhs, scope);
+    const lhsType = getTypeOf(lhs, context);
+    const rhsType = getTypeOf(rhs, context);
     if (lhsType !== rhsType) {
       throw `Cannot add ${lhsType} and ${rhsType}.`;
     }
@@ -459,7 +466,7 @@ const types = {
     const { awaited, all } = node;
     const fn = getCallFn(node, context.scope);
     const fnName = getFnName(fn, context);
-    const fnType = getTypeOf(fn, context.scope);
+    const fnType = getTypeOf(fn, context);
     if (fnType && !["Function", "Any", "Type"].includes(fnType)) {
       throw new Error(
         `Value ${get(fn, context)} of type ${fnType} is not callable.`
@@ -468,7 +475,7 @@ const types = {
     const { accepts } = context.scope[fnName] || {};
     if (accepts) {
       const firstArg = node.args[0];
-      const type = getTypeOf(firstArg, context.scope) || "Any";
+      const type = getTypeOf(firstArg, context) || "Any";
       // We're expecting Any, Array or a ListType
       const typeInfoOfType = getTypeById(type, context.scope);
       const typeOfType = typeInfoOfType?.type;
@@ -482,7 +489,7 @@ const types = {
         // Should loop over all members
         for (let i = 0; i < firstArg.items.length; i++) {
           const item = firstArg.items[i];
-          const itemType = getTypeOf(item, context.scope) || "Any";
+          const itemType = getTypeOf(item, context) || "Any";
           if (itemType !== accepts[0]) {
             const itemTypeName = itemType.split("/").pop();
             const paramTypeName = accepts[0].split("/").pop();
@@ -503,8 +510,11 @@ const types = {
       }
       for (let index = 1; index < node.args.length; index++) {
         const arg = node.args[index];
-        const type = getTypeOf(arg, context.scope) || "Any";
-        const match = type === accepts[index] || accepts[index] === "Any";
+        const type = getTypeOf(arg, context) || "Any";
+        const match =
+          type === accepts[index] ||
+          accepts[index] === "Any" ||
+          type === "Parameter";
         if (!match) {
           const argTypeName = type.split("/").pop();
           const paramTypeName = accepts[index].split("/").pop();
@@ -602,7 +612,7 @@ const types = {
     }
     const { awaited, all } = node;
     const fn = getCallFn(node, context.scope);
-    const fnType = getTypeOf(fn, context.scope);
+    const fnType = getTypeOf(fn, context);
     if (fnType && !["Function", "Any", "Type"].includes(fnType)) {
       throw new Error(
         `Value ${get(fn, context)} of type ${fnType} is not callable.`
@@ -615,14 +625,20 @@ const types = {
     if (accepts) {
       for (let index = 0; index < node.args.length; index++) {
         const arg = node.args[index];
-        const type = getTypeOf(arg, context.scope);
-        const match = type === accepts[index] || accepts[index] === "Any";
+        const type = getTypeOf(arg, context);
+        const match =
+          type === accepts[index] ||
+          accepts[index] === "Any" ||
+          type === "Parameter";
         if (!match) {
           const argTypeName = type.split("/").pop();
           const paramTypeName = accepts[index].split("/").pop();
           throw new Error(
             `Argument of type ${argTypeName} at position ${index} does not satisfy parameter of type ${paramTypeName}`
           );
+        }
+        if (type === "Parameter") {
+          arg.typeInfo = accepts[index];
         }
       }
     }
@@ -757,7 +773,7 @@ const types = {
       lastNode = lastNode.assignment.name;
     }
     if (addReturn && node.returnType) {
-      const vType = getTypeOf(lastNode, context.scope);
+      const vType = getTypeOf(lastNode, context);
       if (node.returnType !== vType) {
         const vTypeName = vType ? vType.split("/").pop() : "Any";
         const typeName = node.returnType.split("/").pop();
@@ -1111,14 +1127,16 @@ const types = {
     const { body } = node;
     const params = [];
     const added = new Set();
+    const accepts = [];
     for (const param of node.params) {
       if (!added.has(param.value)) {
         added.add(param.value);
         params.push(get(param, context));
+        accepts.push(param.typeInfo || "Any");
       }
     }
     const start = node.params[0];
-    return new SourceNode(start.line, start.column, start.file, [
+    const sn = new SourceNode(start.line, start.column, start.file, [
       /* istanbul ignore next */
       body.needsAsync ? "async " : "",
       "(",
@@ -1127,6 +1145,9 @@ const types = {
       "=>",
       body,
     ]);
+    sn.accepts = accepts;
+    sn.returns = getTypeOf(body.node, context);
+    return sn;
   },
   parallelFn(node, context) {
     const { start, fn } = node;
@@ -1402,6 +1423,8 @@ const types = {
     ]);
     sn.insertBefore = content.insertBefore;
     sn.needsAsync = content.needsAsync;
+    sn.accepts = content.accepts;
+    sn.returns = content.returns;
     return sn;
   },
   assignment(node, context) {
@@ -1416,6 +1439,12 @@ const types = {
     sn.insertBefore = value.insertBefore;
     sn.needsAsync = value.needsAsync;
     sn.name = name;
+    if (node.value.type === "wrapped" && value.accepts) {
+      context.scope[name] = {
+        returns: value.returns,
+        accepts: value.accepts,
+      };
+    }
     return sn;
   },
   typedAssignment(node, context) {
@@ -1423,17 +1452,17 @@ const types = {
     // type check
     const typeName = get(node.valueType, context).toString();
     const type = context.scope[typeName];
-    const typeOfType = getTypeOf(node.valueType, context.scope) || "Any";
+    const typeOfType = getTypeOf(node.valueType, context) || "Any";
     if (!["Type", "ListType"].includes(typeOfType)) {
       throw new Error(
         `Identifier ${typeName} is of type ${typeOfType} and cannot be used as a Type.`
       );
     }
-    const vType = getTypeOf(node.assignment.value, context.scope);
+    const vType = getTypeOf(node.assignment.value, context);
     if (typeOfType === "ListType" && vType === "Array") {
       const accepts = type.accepts[0].id;
       for (const item of node.assignment.value.items) {
-        const itemType = getTypeOf(item, context.scope) || "Any";
+        const itemType = getTypeOf(item, context) || "Any";
         if (itemType !== accepts) {
           const itemTypeName = itemType.split("/").pop();
           throw new Error(
