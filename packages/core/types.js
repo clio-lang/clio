@@ -14,10 +14,7 @@ class ImportError extends Error {
 const ensureClioExtension = (path) =>
   path.endsWith(".clio") ? path : path + ".clio";
 
-const ensureRelative = (curr, path) => {
-  const relativePath = relative(curr, path);
-  return relativePath.match(/^\.{1,2}\//) ? relativePath : "./" + relativePath;
-};
+const toRelative = (path) => (path.match(/^\.{1,2}\//) ? path : "./" + path);
 
 const resolveRelativeModule = (context, path, line, column) => {
   const currDir = dirname(
@@ -38,8 +35,11 @@ const resolveRelativeModule = (context, path, line, column) => {
       if (path.match(/^\.{1,2}\//)) {
         return { source: path, require: path + ".js" };
       }
-      const relativePath = ensureRelative(currDir, path);
-      return { source: relativePath, require: relativePath + ".js" };
+      const relativePath = relative(currDir, path);
+      return {
+        source: relativePath,
+        require: toRelative(relativePath + ".js"),
+      };
     }
   }
 
@@ -78,8 +78,11 @@ const resolveAbsoluteModule = (context, path, line, column) => {
       if (path.match(/^\.{1,2}\//)) {
         return { source: path, require: path + ".js" };
       }
-      const relativePath = ensureRelative(currDir, path);
-      return { source: relativePath, require: relativePath + ".js" };
+      const relativePath = relative(currDir, path);
+      return {
+        source: relativePath,
+        require: toRelative(relativePath + ".js"),
+      };
     }
   }
 
@@ -133,9 +136,10 @@ const resolveModule = (context, path, line, column) => {
       if (path.destination.match(/^\.{1,2}\//)) {
         return { source: path.source, require: path.destination + ".js" };
       }
-      const requirePath =
-        ensureRelative(dirname(context.destFile), path.destination) + ".js";
-      const sourcePath = ensureRelative(sourceDir, path.source);
+      const requirePath = toRelative(
+        relative(dirname(context.destFile), path.destination) + ".js"
+      );
+      const sourcePath = relative(sourceDir, path.source);
 
       return {
         source: sourcePath,
