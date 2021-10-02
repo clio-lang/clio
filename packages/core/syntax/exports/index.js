@@ -11,6 +11,14 @@ module.exports = {
         export: lhs,
       };
     }),
+    symbol: wrap((lhs, rhs) => {
+      return {
+        type: "exported",
+        name: rhs,
+        value: rhs,
+        export: lhs,
+      };
+    }),
     assignment: wrap((lhs, rhs) => {
       return {
         type: "exported",
