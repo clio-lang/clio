@@ -1126,7 +1126,7 @@ const types = {
               if (item.type === "symbol") {
                 return get(item, context).toString();
               } else {
-                return get(item.rhs, context, toString);
+                return get(item.rhs, context).toString();
               }
             });
           for (const key of Object.keys(importScope)) {
