@@ -102,7 +102,8 @@ const build = async (configPath, options = {}) => {
     modulesDir,
     modulesDestDir,
     "",
-    ""
+    "",
+    {}
   ).catch((compileError) => {
     progress.fail();
     console.trace(compileError);
@@ -131,11 +132,18 @@ const build = async (configPath, options = {}) => {
     makeStartScript(config, target, destination);
     progress.succeed();
 
-    const { depsNpmDependencies } = result;
+    const { npmDeps } = result;
+
+    const depsNpmDependencies = Object.values(npmDeps).reduce(
+      (lhs, rhs) => ({ ...lhs, ...rhs }),
+      {}
+    );
+
     // Init npm modules
     try {
       const packageJsonPath = path.join(destination, "package.json");
       const dependencies = getParsedNpmDependencies(configPath);
+
       const devDependencies = getParsedNpmDevDependencies(configPath);
       dependencies["clio-run"] = "latest";
       const packageInfo = {};

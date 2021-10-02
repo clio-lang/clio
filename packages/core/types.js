@@ -2,7 +2,11 @@ const { mapfn, map } = require("bean-parser");
 const { SourceNode } = require("source-map");
 const { existsSync } = require("fs");
 const { join: joinPath, dirname, relative, resolve } = require("path");
-const { getPackageConfig } = require("clio-manifest");
+const {
+  getPackageConfig,
+  getParsedNpmDependencies,
+  getParsedNpmDevDependencies,
+} = require("clio-manifest");
 
 class ImportError extends Error {
   constructor(meta) {
@@ -393,6 +397,8 @@ const compileImport = (path, importPath, context) => {
       srcPrefix,
       destPrefix,
       configs = {},
+      npmDeps = {},
+      npmDevDeps = {},
     } = context;
 
     if (isModule) {
@@ -404,6 +410,14 @@ const compileImport = (path, importPath, context) => {
       context.configs = configs;
       const srcPrefix = joinPath(modulesDir, moduleName);
       const destPrefix = joinPath(modulesDestDir, moduleName);
+      if (!npmDeps[moduleName]) {
+        npmDeps[moduleName] = getParsedNpmDependencies(configPath);
+        context.npmDeps = npmDeps;
+      }
+      if (!npmDevDeps[moduleName]) {
+        npmDevDeps[moduleName] = getParsedNpmDevDependencies(configPath);
+        context.npmDevDeps = npmDevDeps;
+      }
       const { scope } = compileFile(
         filePath,
         config,
@@ -411,7 +425,8 @@ const compileImport = (path, importPath, context) => {
         modulesDir,
         modulesDestDir,
         srcPrefix,
-        destPrefix
+        destPrefix,
+        { npmDeps, npmDevDeps, configs }
       );
       return scope;
     } else {
@@ -422,7 +437,8 @@ const compileImport = (path, importPath, context) => {
         modulesDir,
         modulesDestDir,
         srcPrefix,
-        destPrefix
+        destPrefix,
+        { npmDeps, npmDevDeps, configs }
       );
       return scope;
     }

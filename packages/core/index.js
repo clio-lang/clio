@@ -54,7 +54,7 @@ const compile = (source, file, { debug = false, ...ctx }) => {
     return {
       code: code + `//# sourceMappingURL=${file}.js.map`,
       map: map.toString(),
-      scope: context.scope,
+      context,
     };
     /* istanbul ignore next */
   } else {
@@ -74,7 +74,8 @@ const compileFile = (
   modulesDir,
   modulesDestDir,
   srcPrefix,
-  destPrefix
+  destPrefix,
+  transfer
 ) => {
   const cfgDest = getDestinationFromConfig(configPath, config);
   const cfgSrc = getSourceFromConfig(configPath, config);
@@ -101,12 +102,18 @@ const compileFile = (
       const map = fs.readFileSync(mapFile).toString();
       const code = fs.readFileSync(destFile).toString();
       const scope = fs.readFileSync(scopeFile).toString();
-      return { depsNpmDependencies: {}, code, map, scope: JSON.parse(scope) };
+      return {
+        npmDeps: transfer.npmDeps || {},
+        npmDevDeps: transfer.npmDevDeps || {},
+        code,
+        map,
+        scope: JSON.parse(scope),
+      };
     }
   }
   const destDir = path.dirname(destFile);
   const contents = fs.readFileSync(file, "utf8");
-  const { code, map, scope } = compile(contents, relativeFile, {
+  const { code, map, context } = compile(contents, relativeFile, {
     root: path.dirname(configPath),
     file: relativeFile,
     config,
@@ -119,13 +126,20 @@ const compileFile = (
     configPath,
     srcPrefix,
     destPrefix,
+    ...transfer,
   });
   mkdir(destDir);
   fs.writeFileSync(destFileClio, contents, "utf8");
-  fs.writeFileSync(scopeFile, JSON.stringify(scope), "utf8");
+  fs.writeFileSync(scopeFile, JSON.stringify(context.scope), "utf8");
   fs.writeFileSync(destFile, code, "utf8");
   fs.writeFileSync(mapFile, map, "utf8");
-  return { depsNpmDependencies: {}, code, map, scope };
+  return {
+    npmDeps: context.npmDeps || {},
+    npmDevDeps: context.npmDevDeps || {},
+    code,
+    map,
+    scope: context.scope,
+  };
 };
 
 module.exports.parse = parse;
