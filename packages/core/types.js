@@ -21,7 +21,7 @@ const ensureRelative = (curr, path) => {
 
 const resolveRelativeModule = (context, path, line, column) => {
   const currDir = dirname(
-    joinPath(context.root, context.sourceDir, context.file)
+    joinPath(context.srcPrefix, context.sourceDir, context.file)
   );
   const possiblePaths = [];
   const resolvePath = resolve(currDir, path);
@@ -46,7 +46,9 @@ const resolveRelativeModule = (context, path, line, column) => {
   throw new ImportError({
     message: [
       `Cannot find module "${path}" in any of the following locations:\n`,
-      ...possiblePaths.map((path) => `  - ${relative(context.root, path)}`),
+      ...possiblePaths.map(
+        (path) => `  - ${relative(context.srcPrefix, path)}`
+      ),
     ].join("\n"),
     line,
     column,
@@ -55,10 +57,14 @@ const resolveRelativeModule = (context, path, line, column) => {
 
 const resolveAbsoluteModule = (context, path, line, column) => {
   const currDir = dirname(
-    joinPath(context.root, context.sourceDir, context.file)
+    joinPath(context.srcPrefix, context.sourceDir, context.file)
   );
   const possiblePaths = [];
-  const resolvePath = resolve(context.root, context.sourceDir, path.slice(1));
+  const resolvePath = resolve(
+    context.srcPrefix,
+    context.sourceDir,
+    path.slice(1)
+  );
 
   if (!resolvePath.endsWith(".clio")) {
     possiblePaths.push(resolvePath + ".clio");
@@ -102,10 +108,11 @@ const resolveModule = (context, path, line, column) => {
   }
 
   const { source, destination } = context.config.build;
+  const sourceDir = resolve(context.modulesDir, moduleName, source);
   const possiblePaths = [];
   const getResolvePath = (subPath) => {
     return {
-      source: resolve(context.modulesDir, moduleName, source, subPath),
+      source: resolve(sourceDir, subPath),
       destination: resolve(
         context.modulesDestDir,
         moduleName,
@@ -128,7 +135,7 @@ const resolveModule = (context, path, line, column) => {
       }
       const requirePath =
         ensureRelative(dirname(context.destFile), path.destination) + ".js";
-      const sourcePath = ensureRelative(context.sourceDir, path.source);
+      const sourcePath = ensureRelative(sourceDir, path.source);
 
       return {
         source: sourcePath,
@@ -371,7 +378,7 @@ const getTypeOf = (node, context) => {
 const compileImport = (path, importPath, context) => {
   if (context.sourceDir) {
     const isModule = !path.match(/^(\.{1,2})?\//);
-    const filePath = joinPath(context.sourceDir, importPath.source);
+    const filePath = importPath.source;
 
     const {
       compileFile,
@@ -379,6 +386,8 @@ const compileImport = (path, importPath, context) => {
       configPath,
       modulesDir,
       modulesDestDir,
+      srcPrefix,
+      destPrefix,
       configs = {},
     } = context;
 
@@ -389,13 +398,16 @@ const compileImport = (path, importPath, context) => {
       const config = configs[moduleName] || getPackageConfig(configPath);
       configs[moduleName] = config;
       context.configs = configs;
+      const srcPrefix = joinPath(modulesDir, moduleName);
+      const destPrefix = joinPath(modulesDestDir, moduleName);
       const { scope } = compileFile(
         filePath,
         config,
         configPath,
         modulesDir,
         modulesDestDir,
-        moduleName
+        srcPrefix,
+        destPrefix
       );
       return scope;
     } else {
@@ -404,7 +416,9 @@ const compileImport = (path, importPath, context) => {
         config,
         configPath,
         modulesDir,
-        modulesDestDir
+        modulesDestDir,
+        srcPrefix,
+        destPrefix
       );
       return scope;
     }

@@ -95,13 +95,14 @@ const build = async (configPath, options = {}) => {
   const progress = new Progress(silent);
   progress.start("Compiling from source...");
 
-  const main = path.join(sourceDir, "main.clio");
   const result = await asyncCompile(
-    main,
+    "main.clio",
     config,
     configPath,
     modulesDir,
-    modulesDestDir
+    modulesDestDir,
+    "",
+    ""
   ).catch((compileError) => {
     progress.fail();
     console.trace(compileError);

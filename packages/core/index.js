@@ -68,23 +68,20 @@ const mkdir = (directory) => {
 };
 
 const compileFile = (
-  file,
+  relativeFile,
   config,
   configPath,
   modulesDir,
   modulesDestDir,
-  moduleName
+  srcPrefix,
+  destPrefix
 ) => {
-  const configDestination = getDestinationFromConfig(configPath, config);
-  const configSourceDir = getSourceFromConfig(configPath, config);
-  const destination = moduleName
-    ? path.join(modulesDestDir, moduleName, configDestination)
-    : configDestination;
-  const sourceDir = moduleName
-    ? path.join(modulesDir, moduleName, configSourceDir)
-    : configSourceDir;
+  const cfgDest = getDestinationFromConfig(configPath, config);
+  const cfgSrc = getSourceFromConfig(configPath, config);
+  const destination = destPrefix ? path.join(destPrefix, cfgDest) : cfgDest;
+  const sourceDir = srcPrefix ? path.join(srcPrefix, cfgSrc) : cfgSrc;
+  const file = path.join(sourceDir, relativeFile);
   const rpcPrefix = `${config.title}@${config.version}`;
-  const relativeFile = path.relative(sourceDir, file);
   const destFileClio = path.join(destination, relativeFile);
   const destFile = `${destFileClio}.js`;
   const mapFile = `${destFile}.map`;
@@ -113,13 +110,15 @@ const compileFile = (
     root: path.dirname(configPath),
     file: relativeFile,
     config,
-    sourceDir,
+    sourceDir: cfgSrc,
     modulesDir,
     modulesDestDir,
     rpcPrefix,
     destFile,
-    destination,
+    destination: cfgDest,
     configPath,
+    srcPrefix,
+    destPrefix,
   });
   mkdir(destDir);
   fs.writeFileSync(destFileClio, contents, "utf8");
