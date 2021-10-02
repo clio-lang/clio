@@ -8,7 +8,7 @@ const testStr = (name, src, expected, file = "<mem>") => {
       rpcPrefix: "test",
     });
     expected =
-      "module.exports.exports=async(clio)=>{const{emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f}=clio;" +
+      "module.exports.exports=async(clio)=>{const{emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any}=clio;" +
       expected +
       ";return clio.exports}" +
       `//# sourceMappingURL=${file}.js.map`;

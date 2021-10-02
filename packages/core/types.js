@@ -1706,7 +1706,7 @@ const types = {
       .filter(Boolean);
     const inner = new SourceNode(null, null, null, content).join(";");
     const builtins =
-      "emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f";
+      "emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any";
     return new SourceNode(null, null, null, [
       `module.exports.exports=async(clio)=>{const{${builtins}}=clio;`,
       inner,

@@ -6,6 +6,7 @@ module.exports.range = require("./range").range;
 module.exports.randomId = require("./random");
 module.exports.slice = require("./slice");
 module.exports.f = require("./format");
+module.exports.Any = require("./types").Any;
 module.exports.EventEmitter = EventEmitter;
 module.exports.emitter = emitter;
 
