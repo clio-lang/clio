@@ -892,13 +892,24 @@ const types = {
 
           case "@returns":
             const type = get(args[0], context).toString();
+            const typeInfo = context.scope[type];
+            if (!typeInfo) {
+              throw new Error(`Identifier ${type} is not defined.`);
+            }
             context.scope[name] = {
               ...context.scope[name],
-              returns: context.scope[type].id,
+              returns: typeInfo.id,
             };
             break;
 
           case "@params":
+            for (const arg of args) {
+              const type = get(arg, context);
+              const typeInfo = context.scope[type];
+              if (!typeInfo) {
+                throw new Error(`Identifier ${type} is not defined.`);
+              }
+            }
             const types = args
               .map((arg) => get(arg, context).toString())
               .map((type) => context.scope[type].id);
