@@ -1,12 +1,12 @@
-const tmp = require("tmp");
-const path = require("path");
-const fs = require("fs");
-const toml = require("@iarna/toml");
+import { getPackageConfig, writePackageConfig } from "../index.js";
 
-const { getPackageConfig, writePackageConfig } = require("../index");
+import { dirSync } from "tmp";
+import { join } from "path";
+import { parse } from "@iarna/toml";
+import { readFileSync } from "fs";
 
 test("Import config file", () => {
-  const config = getPackageConfig(path.join(__dirname, "clio.test.toml"));
+  const config = getPackageConfig(join(__dirname, "clio.test.toml"));
   expect(config.title).toBeDefined();
 });
 
@@ -16,20 +16,20 @@ test("Write config file", () => {
     dependencies: [{ name: "Foo", version: "1.2.3" }],
   };
 
-  const tmpDir = tmp.dirSync({ unsafeCleanup: true });
-  const filePath = path.join(tmpDir.name, "clio.toml");
+  const tmpDir = dirSync({ unsafeCleanup: true });
+  const filePath = join(tmpDir.name, "clio.toml");
 
   writePackageConfig(filePath, config);
 
-  const file = fs.readFileSync(filePath);
-  const contents = toml.parse(file.toString());
+  const file = readFileSync(filePath);
+  const contents = parse(file.toString());
   expect(contents.title).toBe("test");
   expect(contents.dependencies).toEqual({ Foo: "1.2.3" });
   tmpDir.removeCallback();
 });
 
 test("Toml contains npm.dependencies", () => {
-  const config = getPackageConfig(path.join(__dirname, "clio.test.toml"));
+  const config = getPackageConfig(join(__dirname, "clio.test.toml"));
 
   expect(config.npm.dependencies).toContainEqual({
     name: "rickroll",
@@ -38,7 +38,7 @@ test("Toml contains npm.dependencies", () => {
 });
 
 test("Toml contains npm.devDependencies", () => {
-  const config = getPackageConfig(path.join(__dirname, "clio.test.toml"));
+  const config = getPackageConfig(join(__dirname, "clio.test.toml"));
 
   expect(config.npm.devDependencies).toContainEqual({
     name: "parcel",
@@ -47,7 +47,7 @@ test("Toml contains npm.devDependencies", () => {
 });
 
 test("Toml contains builds and targets", () => {
-  const config = getPackageConfig(path.join(__dirname, "clio.test.toml"));
+  const config = getPackageConfig(join(__dirname, "clio.test.toml"));
   expect(config.build).toBeDefined();
   expect(config.build.target).toBeDefined();
   expect(config.build.directory).toBeDefined();

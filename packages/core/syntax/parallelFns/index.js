@@ -1,6 +1,6 @@
-const { wrap } = require("../common");
+import { wrap } from "../common.js";
 
-module.exports = {
+export default {
   // Parallel functions
   pike: {
     symbol: wrap((pike, rhs) => {

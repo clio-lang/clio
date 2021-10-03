@@ -1,4 +1,4 @@
-const dependencies = require("../dependencies");
+import { logNoClioDeps } from "../dependencies.js";
 
 describe("logNoClioDeps", () => {
   test("stdout is being written to", () => {
@@ -7,7 +7,7 @@ describe("logNoClioDeps", () => {
 
     console["log"] = jest.fn(storeLog);
 
-    dependencies.logNoClioDeps();
+    logNoClioDeps();
     expect(outputData).not.toBe("");
   });
 });

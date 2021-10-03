@@ -1,5 +1,5 @@
-const { list } = require("bean-parser");
-const { LexingError } = require("./errors");
+import { LexingError } from "./errors.js";
+import { list } from "bean-parser";
 
 const strPattern = /^(?:"(?:[^"]|\\")*"|'(?:[^']|\\')*')/;
 const numPattern = /^-?(?:[0-9][\d_]*)(?:\.[\d_]+)?(?:[eE][+-]?[\d_]+)?/;
@@ -379,4 +379,4 @@ const lex = (source, { file, ...meta }, startLine = 1, startColumn = 0) => {
   return tokens;
 };
 
-module.exports = lex;
+export default lex;

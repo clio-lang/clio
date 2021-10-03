@@ -1,12 +1,13 @@
-const { mapfn, map } = require("bean-parser");
-const { SourceNode } = require("source-map");
-const { existsSync } = require("fs");
-const { join: joinPath, dirname, relative, resolve } = require("path");
-const {
+import { dirname, join as joinPath, relative, resolve } from "path";
+import {
   getPackageConfig,
   getParsedNpmDependencies,
   getParsedNpmDevDependencies,
-} = require("clio-manifest");
+} from "clio-manifest";
+import { map, mapfn } from "bean-parser";
+
+import { SourceNode } from "source-map";
+import { existsSync } from "fs";
 
 class ImportError extends Error {
   constructor(meta) {
@@ -1785,7 +1786,11 @@ const get = (node, context) => {
   return result;
 };
 
-module.exports.ImportError = ImportError;
-module.exports.checkLambda = checkLambda;
-module.exports.types = types;
-module.exports.get = get;
+const _ImportError = ImportError;
+export { _ImportError as ImportError };
+const _checkLambda = checkLambda;
+export { _checkLambda as checkLambda };
+const _types = types;
+export { _types as types };
+const _get = get;
+export { _get as get };

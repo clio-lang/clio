@@ -1,8 +1,9 @@
-const { map } = require("bean-parser");
-const { lPluck } = require("bean-parser");
-const { wrap, values } = require("../common");
+import { values, wrap } from "../common.js";
 
-module.exports = {
+import { lPluck } from "bean-parser";
+import { map } from "bean-parser";
+
+export default {
   // Hashmaps
   hash: {
     symbol: wrap((lhs, rhs) => {

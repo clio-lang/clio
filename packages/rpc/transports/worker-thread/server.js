@@ -1,8 +1,7 @@
-const { WorkerThreadSocket } = require("./socket");
-const { EventEmitter } = require("../../common");
-const { Buffer } = require("../../lib");
-
-const { desia } = require("sializer");
+import { Buffer } from "../../lib.js";
+import { EventEmitter } from "../../common.js";
+import { WorkerThreadSocket } from "./socket.js";
+import { desia } from "sializer";
 
 class inSocket {
   constructor(socket) {
@@ -30,7 +29,7 @@ class Socket extends EventEmitter {
   }
 }
 
-class Server extends EventEmitter {
+export class Server extends EventEmitter {
   constructor() {
     super();
     this.workers = [];
@@ -57,5 +56,3 @@ class Server extends EventEmitter {
     this.emit("message", socket, packet);
   }
 }
-
-module.exports.Server = Server;

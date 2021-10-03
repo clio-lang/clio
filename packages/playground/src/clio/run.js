@@ -1,9 +1,9 @@
-import { run } from "clio-run/src/index";
 import { Dispatcher } from "clio-rpc/dispatcher";
 import { Executor } from "clio-rpc/executor";
 import WebWorker from "clio-rpc/transports/web-worker";
-import { getModule } from "./common";
 import { getCPUCount } from "clio-run/src/lib/web-cpu";
+import { getModule } from "./common.js";
+import { run } from "clio-run/src/index";
 
 export default async (src) => {
   const numCPUs = await getCPUCount();

@@ -1,5 +1,6 @@
 {
   "name": "clio-language-server",
+  "type": "module",
   "version": "1.3.0",
   "description": "LSP server implementation for Clio",
   "main": "index.js",

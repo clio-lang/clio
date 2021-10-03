@@ -1,4 +1,4 @@
-const { range } = require("../range");
+import { range } from "../range.js";
 
 describe("Test Range functionality", () => {
   test("Range.toArray", () => {

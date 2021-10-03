@@ -1,16 +1,16 @@
-const help = (fn) => console.log(fn.__doc__);
+export const help = (fn) => console.log(fn.__doc__);
 
-const describe = (description, fn) => {
+export const describe = (description, fn) => {
   fn.__doc__ = description;
   return fn;
 };
 
-const returns = (type, fn) => {
+export const returns = (type, fn) => {
   fn.__returns__ = type;
   return fn;
 };
 
-const params = (...params) => {
+export const params = (...params) => {
   const fn = params.pop();
   fn.__paramTypes__ = params;
   return fn;
@@ -37,7 +37,7 @@ const nameOfType = (value) =>
 
 const typeName = (type) => type?.name || Object.prototype.toString.call(type);
 
-const check = (fn) => {
+export const check = (fn) => {
   const wrapped = (...args) => {
     for (let i = 0; i < args.length; i++) {
       const arg = args[i];
@@ -69,9 +69,3 @@ const check = (fn) => {
   wrapped.__returns__ = fn.__returns__;
   return wrapped;
 };
-
-module.exports.help = help;
-module.exports.describe = describe;
-module.exports.returns = returns;
-module.exports.check = check;
-module.exports.params = params;

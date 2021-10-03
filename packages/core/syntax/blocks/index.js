@@ -1,7 +1,8 @@
-const { topLevels, wrap, ignore } = require("../common");
-const { map } = require("bean-parser");
+import { ignore, topLevels, wrap } from "../common.js";
 
-module.exports = {
+import { map } from "bean-parser";
+
+export default {
   // Blocks
   lineBreak: {
     indent: wrap((_, rhs) => rhs, 99),

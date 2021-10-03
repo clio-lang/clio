@@ -1,6 +1,6 @@
-const { EventEmitter } = require("../../common");
+import { EventEmitter } from "../../common.js";
 
-class WSSocket extends EventEmitter {
+export class WSSocket extends EventEmitter {
   constructor(socket) {
     super();
     this.socket = socket;
@@ -9,5 +9,3 @@ class WSSocket extends EventEmitter {
     this.socket.send(data);
   }
 }
-
-module.exports.WSSocket = WSSocket;

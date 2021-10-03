@@ -1,7 +1,7 @@
-const { map, merge } = require("bean-parser");
-const { expressions, wrap, values } = require("../common");
+import { expressions, values, wrap } from "../common.js";
+import { map, merge } from "bean-parser";
 
-module.exports = merge(
+export default merge(
   {
     // Assignment
     ...map(["symbol", "propertyAccess", "slice"], {

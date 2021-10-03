@@ -1,4 +1,4 @@
-const random = require("../random");
+import random from "../random.js";
 
 describe("Test random functionality", () => {
   test("Random should make random string of length n", () => {

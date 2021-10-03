@@ -1,6 +1,8 @@
-const rules = require("./rules");
-const { colorize } = require("clio-highlight");
-const chalk = require("chalk");
+import chalk from "chalk";
+import { colorize } from "clio-highlight";
+import rules from "./rules.js";
+
+const { bold, red } = chalk;
 
 const unfinished = [
   "blockOpen",
@@ -21,7 +23,7 @@ const addLineNumber = (start, length) => (line, index) =>
 const getMessage = ({ file, line, start, column, source, expecting, rhs }) => {
   const rawCode = source.split("\n").slice(start, line).join("\n");
   const highlighted = colorize(rawCode);
-  const encountered = chalk.red(getRuleName(rhs.item.type));
+  const encountered = red(getRuleName(rhs.item.type));
   const lines = highlighted.split("\n");
   const { length } = (start + 1 + lines.length).toString();
   const code = lines.map(addLineNumber(start, length)).join("\n");
@@ -153,7 +155,7 @@ const formatExpectedRules = (expectedRules) => {
       return groupA.localeCompare(groupB);
     })
     .map(([group, rules]) => {
-      const groupText = chalk.bold(group);
+      const groupText = bold(group);
       const rulesText = rules.sort().join(", ");
       return `  ${groupText}:\t${rulesText}`;
     })
@@ -192,8 +194,13 @@ const importError = (source, file, error) => {
   });
 };
 
-module.exports.importError = importError;
-module.exports.ImportError = ImportError;
-module.exports.parsingError = parsingError;
-module.exports.ParsingError = ParsingError;
-module.exports.LexingError = LexingError;
+const _importError = importError;
+export { _importError as importError };
+const _ImportError = ImportError;
+export { _ImportError as ImportError };
+const _parsingError = parsingError;
+export { _parsingError as parsingError };
+const _ParsingError = ParsingError;
+export { _ParsingError as ParsingError };
+const _LexingError = LexingError;
+export { _LexingError as LexingError };

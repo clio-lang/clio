@@ -1,7 +1,8 @@
-const { map } = require("bean-parser");
-const { wrap, ranges, values } = require("../common");
+import { ranges, values, wrap } from "../common.js";
 
-module.exports = {
+import { map } from "bean-parser";
+
+export default {
   // Range
   ranger: {
     ...map(

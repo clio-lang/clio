@@ -1,4 +1,4 @@
-class Range {
+export class Range {
   constructor(start = 0, end = Infinity, step, mapfn) {
     this.start = start;
     this.end = end;
@@ -58,7 +58,4 @@ class Range {
   }
 }
 
-const range = (start, end, step) => new Range(start, end, step);
-
-module.exports.range = range;
-module.exports.Range = Range;
+export const range = (start, end, step) => new Range(start, end, step);

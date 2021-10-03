@@ -11,8 +11,8 @@
 
   const font = new FontFaceObserver("Fira Code");
 
-  import { clio, loadMonaco, pastelsOnDark } from "../monaco";
-  import run from "../clio/run";
+  import { clio, loadMonaco, pastelsOnDark } from "../monaco.js";
+  import run from "../clio/run.js";
 
   import { compile } from "clio-core";
   import inspect from "object-inspect";

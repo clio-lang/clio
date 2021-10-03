@@ -1,3 +1,1 @@
-module.exports = {
-  ...require("./versionUtils"),
-};
+export { isSupportedNodeVersion } from "./versionUtils.js";

@@ -1,5 +1,5 @@
 <script>
-  import Card from "./Card.svelte";
+  import Card from "./Card.svelte.js";
   import { onMount } from "svelte";
   import {
     Chart,
@@ -11,7 +11,7 @@
   } from "chart.js";
   import ChartDataLabels from "chartjs-plugin-datalabels";
 
-  import { PastelOne9 as colors } from "../colorschemes/colorschemes.brewer";
+  import { PastelOne9 as colors } from "../colorschemes/colorschemes.brewer.js";
 
   Chart.register(
     BarController,

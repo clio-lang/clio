@@ -1,7 +1,8 @@
-const { wrap, ignore } = require("../common");
-const { map } = require("bean-parser");
+import { ignore, wrap } from "../common.js";
 
-module.exports = {
+import { map } from "bean-parser";
+
+export default {
   list: {
     symbol: wrap((lhs, rhs) => {
       return {

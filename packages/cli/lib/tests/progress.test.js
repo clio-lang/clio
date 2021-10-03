@@ -1,4 +1,4 @@
-const { Progress } = require("../progress");
+import { Progress } from "../progress.js";
 
 describe("Progress", () => {
   test("progress", () => {

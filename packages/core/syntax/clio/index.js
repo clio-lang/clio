@@ -1,7 +1,8 @@
-const { map } = require("bean-parser");
-const { rootLevels, wrap } = require("../common");
+import { rootLevels, wrap } from "../common.js";
 
-module.exports = {
+import { map } from "bean-parser";
+
+export default {
   // Top level rule
   ...map(rootLevels, {
     eof: wrap((lhs) => {

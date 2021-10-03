@@ -1,19 +1,29 @@
 #!/usr/bin/env node
 
-const ls = require("vscode-languageserver/node");
-const doc = require("vscode-languageserver-textdocument");
-const url = require("url");
-const util = require("util");
-const path = require("path");
-const fs = require("fs");
-const { parse, tokenize } = require("clio-core");
-const { parsingError, ParsingError, ImportError } = require("clio-core/errors");
-const { getPackageConfig, MODULES_PATH } = require("clio-manifest");
+import {
+  CompletionItemKind,
+  Diagnostic,
+  DiagnosticSeverity,
+  MarkupKind,
+  ProposedFeatures,
+  TextDocumentSyncKind,
+  TextDocuments,
+  createConnection,
+} from "vscode-languageserver/node";
+import { ImportError, ParsingError, parsingError } from "clio-core/errors";
+import { MODULES_PATH, getPackageConfig } from "clio-manifest";
+import { dirname as _dirname, join, relative, resolve } from "path";
+import { parse, tokenize } from "clio-core";
+
+import { TextDocument } from "vscode-languageserver-textdocument";
+import { existsSync } from "fs";
+import { fileURLToPath } from "url";
+import { inspect } from "util";
 
 const DEBUG_MODE = false;
 
-const connection = ls.createConnection(ls.ProposedFeatures.all);
-const documents = new ls.TextDocuments(doc.TextDocument);
+const connection = createConnection(ProposedFeatures.all);
+const documents = new TextDocuments(TextDocument);
 
 const parses = new Map();
 
@@ -35,7 +45,7 @@ function errorToDiagnostic(error) {
     character: column,
   };
   const range = { start: pos, end: { ...pos, character: 512 } }; // The end character is just an arbitrary large number
-  return ls.Diagnostic.create(range, message, ls.DiagnosticSeverity.Error);
+  return Diagnostic.create(range, message, DiagnosticSeverity.Error);
 }
 
 function linkedListToArray(ll) {
@@ -49,14 +59,14 @@ function linkedListToArray(ll) {
 }
 
 function getProjectRoot(file) {
-  const dirname = path.dirname(file);
+  const dirname = _dirname(file);
   let currdir = dirname;
   while (true) {
-    const up = path.resolve(currdir, "..");
+    const up = resolve(currdir, "..");
     if (up === currdir) {
       return "";
     }
-    if (fs.existsSync(path.join(up, "clio.toml"))) {
+    if (existsSync(join(up, "clio.toml"))) {
       return up;
     }
     currdir = up;
@@ -64,15 +74,15 @@ function getProjectRoot(file) {
 }
 
 function getParentProjectRoot(file) {
-  const dirname = path.dirname(file);
+  const dirname = _dirname(file);
   let currdir = dirname;
   let lastProjectDir = "";
   while (true) {
-    const up = path.resolve(currdir, "..");
+    const up = resolve(currdir, "..");
     if (up === currdir) {
       return lastProjectDir;
     }
-    if (fs.existsSync(path.join(up, "clio.toml"))) {
+    if (existsSync(join(up, "clio.toml"))) {
       lastProjectDir = up;
     }
     currdir = up;
@@ -83,22 +93,19 @@ function updateParse(uri, source) {
   connection.console.info(`Parsing ${uri}...`);
   const diagnostics = [];
   try {
-    const fileName = url.fileURLToPath(uri);
+    const fileName = fileURLToPath(uri);
     const root = getProjectRoot(fileName);
-    const config = getPackageConfig(path.join(root, "clio.toml"));
+    const config = getPackageConfig(join(root, "clio.toml"));
     const sourceDir = config.build.source;
 
     const parent = getParentProjectRoot(fileName);
-    const parentConfig = getPackageConfig(path.join(parent, "clio.toml"));
+    const parentConfig = getPackageConfig(join(parent, "clio.toml"));
 
-    const modulesDir = path.join(parentConfig.build.source, MODULES_PATH);
-    const modulesDestDir = path.join(
-      parentConfig.build.destination,
-      MODULES_PATH
-    );
+    const modulesDir = join(parentConfig.build.source, MODULES_PATH);
+    const modulesDestDir = join(parentConfig.build.destination, MODULES_PATH);
 
     const tokens = tokenize(source, {
-      file: path.relative(sourceDir, fileName),
+      file: relative(sourceDir, fileName),
       sourceDir,
       root,
       modulesDir,
@@ -113,7 +120,7 @@ function updateParse(uri, source) {
     const parsed = parse(tokens, source, fileName);
 
     if (DEBUG_MODE) {
-      connection.console.log(util.inspect(parsed));
+      connection.console.log(inspect(parsed));
     }
 
     if (parsed.first.item.type !== "clio") {
@@ -145,7 +152,7 @@ connection.onInitialize(() => {
   connection.console.info("Initializing Clio language server");
   return {
     capabilities: {
-      textDocumentSync: ls.TextDocumentSyncKind.Incremental,
+      textDocumentSync: TextDocumentSyncKind.Incremental,
       completionProvider: {},
       hoverProvider: true,
     },
@@ -167,7 +174,7 @@ connection.onCompletion((params) => {
     "as",
   ].map((kw) => ({
     label: kw,
-    kind: ls.CompletionItemKind.Keyword,
+    kind: CompletionItemKind.Keyword,
   }));
 
   const stored = parses.get(params.textDocument.uri);
@@ -181,7 +188,7 @@ connection.onCompletion((params) => {
     ];
     functionCompletions = symbols.map((value) => ({
       label: value,
-      kind: ls.CompletionItemKind.Function,
+      kind: CompletionItemKind.Function,
     }));
   }
 
@@ -203,7 +210,7 @@ connection.onHover((params) => {
 
   return {
     contents: {
-      kind: ls.MarkupKind.PlainText,
+      kind: MarkupKind.PlainText,
       value: token.name,
     },
     range: {

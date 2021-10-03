@@ -1,11 +1,10 @@
-const { Monitor } = require("../index");
-const { Dispatcher } = require("clio-rpc/dispatcher");
-
-const ws = require("./ws");
-const wt = require("./wt");
-const ww = require("./ww");
-const tcp = require("./tcp");
-const ipc = require("./ipc");
+import { Dispatcher } from "clio-rpc/dispatcher";
+import { Monitor } from "../index.js";
+import ipc from "./ipc.js";
+import tcp from "./tcp.js";
+import ws from "./ws.js";
+import wt from "./wt.js";
+import ww from "./ww.js";
 
 const runners = { ws, wt, ww, tcp, ipc };
 
@@ -43,4 +42,4 @@ const start = async (file, options, isHost = false) => {
   );
 };
 
-module.exports = start;
+export default start;

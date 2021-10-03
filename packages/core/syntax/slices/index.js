@@ -1,7 +1,8 @@
-const { map } = require("bean-parser");
-const { arrayLike, wrap } = require("../common");
+import { arrayLike, wrap } from "../common.js";
 
-module.exports = {
+import { map } from "bean-parser";
+
+export default {
   // Slice
   sliceOpen: {
     array: wrap((lhs, rhs) => {

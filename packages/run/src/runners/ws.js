@@ -1,41 +1,54 @@
-const { run } = require("../index");
-const { Executor } = require("clio-rpc/executor");
-const WS = require("clio-rpc/transports/ws");
-const path = require("path");
+import { Client, Server } from "clio-rpc/transports/ws";
+import { dirname, resolve } from "path";
 
-const { fork } = require("child_process");
-const os = require("os");
+import { Executor } from "clio-rpc/executor";
+import { cpus } from "os";
+import { fileURLToPath } from "url";
+import { fork } from "child_process";
+import { run } from "../index.js";
 
-const server = async (dispatcher, { host = "127.0.0.1", port = 9123 }) => {
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+export const server = async (
+  dispatcher,
+  { host = "127.0.0.1", port = 9123 }
+) => {
   const url = `ws://${host}:${port}`;
-  const transport = new WS.Server({ port, url });
+  const transport = new Server({ port, url });
   dispatcher.addTransport(transport);
   return new Promise((resolve) => {
     transport.wsServer.on("listening", () => resolve(transport));
   });
 };
 
-const workers = (file, server, { url = "ws://localhost:9123", count }) => {
-  const workerCount = count === "cpu" ? os.cpus().length : count;
+export const workers = (
+  file,
+  server,
+  { url = "ws://localhost:9123", count }
+) => {
+  const workerCount = count === "cpu" ? cpus().length : count;
   for (let i = 0; i < workerCount; i++) {
-    fork(path.resolve(__dirname, "../workers/ws.js"), [url, file]);
+    fork(resolve(__dirname, "../workers/ws.js"), [url, file]);
   }
 };
 
-const executor = (file, dispatcher, server, monitor, config, options) => {
+export const executor = (
+  file,
+  dispatcher,
+  server,
+  monitor,
+  config,
+  options
+) => {
   if (options.noMain) return;
   const { url = "ws://localhost:9123", wait_for: waitFor } = config;
-  const workerCount = waitFor === "cpu" ? os.cpus().length : waitFor;
+  const workerCount = waitFor === "cpu" ? cpus().length : waitFor;
   dispatcher.expectWorkers(workerCount).then(async () => {
-    const main = require(file);
-    const transport = new WS.Client({ url });
+    const main = await import(file);
+    const transport = new Client({ url });
     const executor = new Executor(transport);
     if (!options.noExit) monitor.freeze();
     await run(main, { executor }, options);
     if (!options.noExit) monitor.exit();
   });
 };
-
-module.exports.server = server;
-module.exports.workers = workers;
-module.exports.executor = executor;

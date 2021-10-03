@@ -1,6 +1,6 @@
-const { EventEmitter } = require("../../common");
+import { EventEmitter } from "../../common.js";
 
-class WebWorkerSocket extends EventEmitter {
+export class WebWorkerSocket extends EventEmitter {
   constructor(worker) {
     super();
     this.worker = worker;
@@ -20,5 +20,3 @@ class WebWorkerSocket extends EventEmitter {
     this.worker.postMessage(data, [data.buffer]);
   }
 }
-
-module.exports.WebWorkerSocket = WebWorkerSocket;

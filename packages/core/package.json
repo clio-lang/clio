@@ -3,6 +3,7 @@
   "version": "0.11.0",
   "description": "",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Run this script on the root directory.\" && exit 1"
   },

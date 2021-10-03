@@ -1,8 +1,7 @@
-const { map, mapfn } = require("bean-parser");
-const types = require("../../types");
-const { wrap, values, ignore } = require("../common");
+import { ignore, values, wrap } from "../common.js";
+import { map, mapfn } from "bean-parser";
 
-module.exports = {
+export default {
   // Math
   /*
     Even though we're doing a 1:1 translation to JavaScript

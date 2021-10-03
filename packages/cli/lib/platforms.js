@@ -1,6 +1,6 @@
-const { spawnSync, spawn } = require("child_process");
+import { spawn, spawnSync } from "child_process";
 
-const npmCommand = (command, destination, args, forkOptions = {}) => {
+export const npmCommand = (command, destination, args, forkOptions = {}) => {
   const npm = process.platform == "win32" ? "npm.cmd" : "npm";
   return spawnSync(npm, [command, ...args], {
     cwd: destination,
@@ -31,11 +31,8 @@ const js = {
 
 const platforms = { js };
 
-function getPlatform(name) {
+export function getPlatform(name) {
   const platform = platforms[name];
   if (!platform) throw new Error(`Platform "${name}" is not supported`);
   return platform;
 }
-
-exports.getPlatform = getPlatform;
-exports.npmCommand = npmCommand;

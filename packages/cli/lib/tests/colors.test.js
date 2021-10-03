@@ -1,5 +1,8 @@
-const chalk = require("chalk");
-const { trace, error, warn, success, info, brightRed } = require("../colors");
+import { brightRed, error, info, success, trace, warn } from "../colors.js";
+
+import chalk from "chalk";
+
+const { blue, green, yellow } = chalk;
 
 describe("Colored messages", () => {
   const defaultConsoleError = console.error;
@@ -64,23 +67,21 @@ describe("Colored messages", () => {
     warn("Hey, be careful.");
 
     expect(console.warn).toHaveBeenCalledWith(
-      chalk.yellow("Warning: Hey, be careful.")
+      yellow("Warning: Hey, be careful.")
     );
   });
 
   test("success", () => {
     success("You did it!");
 
-    expect(console.log).toHaveBeenCalledWith(
-      chalk.green("Success: You did it!")
-    );
+    expect(console.log).toHaveBeenCalledWith(green("Success: You did it!"));
   });
 
   test("info", () => {
     info("Just looking around.");
 
     expect(console.log).toHaveBeenCalledWith(
-      chalk.blue("Info: Just looking around.")
+      blue("Info: Just looking around.")
     );
   });
 });

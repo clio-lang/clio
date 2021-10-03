@@ -1,10 +1,10 @@
-const WebSocket = require("ws");
-const { Server } = require("./server");
-const { EventEmitter } = require("../../common");
-const { Buffer } = require("../../lib");
-const { desia } = require("sializer");
+import { Buffer } from "../../lib.js";
+import { EventEmitter } from "../../common.js";
+import { Server } from "./server.js";
+import WebSocket from "ws";
+import { desia } from "sializer";
 
-class Client extends EventEmitter {
+export class Client extends EventEmitter {
   constructor(config) {
     super();
     this.wsConfig = config || Server.defaultWSConfig();
@@ -32,5 +32,3 @@ class Client extends EventEmitter {
     dest.onPacket(packet);
   }
 }
-
-module.exports.Client = Client;

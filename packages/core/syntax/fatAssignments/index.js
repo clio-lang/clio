@@ -1,7 +1,7 @@
-const { rule, map } = require("bean-parser");
-const { expressions, wrap, values, ignore } = require("../common");
+import { expressions, ignore, values, wrap } from "../common.js";
+import { map, rule } from "bean-parser";
 
-module.exports = {
+export default {
   // Fat arrow assignment
   ...map([...values, ...expressions], {
     ender: rule((lhs) => lhs, 0.5),

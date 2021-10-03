@@ -1,10 +1,11 @@
-const { EventEmitter } = require("./common");
-const { sia, desia, DeSia } = require("sializer");
-const { TYPES, Buffer } = require("./lib");
+import { Buffer, TYPES } from "./lib.js";
+import { DeSia, desia, sia } from "sializer";
+
+import { EventEmitter } from "./common.js";
 
 const { GET, REGISTER, PATH } = TYPES;
 
-class Dispatcher extends EventEmitter {
+export class Dispatcher extends EventEmitter {
   constructor() {
     super();
     this.workers = new Map();
@@ -126,5 +127,3 @@ class Dispatcher extends EventEmitter {
     });
   }
 }
-
-module.exports.Dispatcher = Dispatcher;

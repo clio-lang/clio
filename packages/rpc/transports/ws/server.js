@@ -1,8 +1,8 @@
-const WebSocket = require("ws");
-const { WSSocket } = require("./socket");
-const { EventEmitter } = require("../../common");
+import { EventEmitter } from "../../common.js";
+import { Server as WSServer } from "ws";
+import { WSSocket } from "./socket.js";
 
-class Server extends EventEmitter {
+export class Server extends EventEmitter {
   constructor(config) {
     super();
     this.wsConfig = config || Server.defaultWSConfig();
@@ -14,7 +14,7 @@ class Server extends EventEmitter {
   createWSServer() {
     if (!this.wsConfig) return;
     const { port } = this.wsConfig;
-    this.wsServer = new WebSocket.Server({ port });
+    this.wsServer = new WSServer({ port });
     this.wsServer.on("listening", () => this.onListening());
     this.wsServer.on("connection", (socket) => this.onWSConnect(socket));
   }
@@ -33,5 +33,3 @@ class Server extends EventEmitter {
     return this.createWSServer();
   }
 }
-
-module.exports.Server = Server;

@@ -1,14 +1,14 @@
-const fs = require("fs");
-const path = require("path");
+import { join } from "path";
+import { writeFileSync } from "fs";
 
-const makeStartScript = (config, target, destination) => {
+export const makeStartScript = (config, target, destination) => {
   const { servers, workers, executor } = config;
-  fs.writeFileSync(
-    path.join(destination, ".clio", "rpc.json"),
+  writeFileSync(
+    join(destination, ".clio", "rpc.json"),
     JSON.stringify({ servers, workers, executor }, null, 2)
   );
-  fs.writeFileSync(
-    path.join(destination, ".clio", "index.js"),
+  writeFileSync(
+    join(destination, ".clio", "index.js"),
     [
       `const path = require("path");`,
       `const run = require("clio-run/src/runners/auto.js");`,
@@ -16,8 +16,8 @@ const makeStartScript = (config, target, destination) => {
       `run(path.resolve(__dirname, "../main.clio.js"), config);`,
     ].join("\n")
   );
-  fs.writeFileSync(
-    path.join(destination, ".clio", "host.js"),
+  writeFileSync(
+    join(destination, ".clio", "host.js"),
     [
       `const path = require("path");`,
       `const run = require("clio-run/src/runners/auto.js");`,
@@ -27,4 +27,4 @@ const makeStartScript = (config, target, destination) => {
   );
 };
 
-module.exports.makeStartScript = makeStartScript;
+export default { makeStartScript };

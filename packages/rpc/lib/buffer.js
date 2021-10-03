@@ -1,3 +1,3 @@
-const { Buffer: BufferShim } = require("buffer/");
+import { Buffer as BufferShim } from "buffer/";
 
-module.exports.Buffer = typeof Buffer === "undefined" ? BufferShim : Buffer;
+export const Buffer = typeof Buffer === "undefined" ? BufferShim : Buffer;

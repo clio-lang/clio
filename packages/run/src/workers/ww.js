@@ -1,9 +1,11 @@
-const { run } = require("../index");
-const { Worker } = require("clio-rpc/worker");
-const { Executor } = require("clio-rpc/executor");
-const WebWorker = require("clio-rpc/transports/web-worker");
+import { Client } from "clio-rpc/transports/web-worker";
+import { Executor } from "clio-rpc/executor";
+import { Worker } from "clio-rpc/worker";
+// To be worked out by the bundler
+import main from "main.clio.js";
+import { run } from "../index.js";
 
-const transport = new WebWorker.Client({
+const transport = new Client({
   postMessage(data) {
     postMessage(data);
   },
@@ -14,6 +16,4 @@ const executor = new Executor(transport);
 
 onmessage = (message) => transport.onmessage(message);
 
-// To be worked out by the bundler
-const main = require("main.clio.js");
 run(main, { worker, executor }, { noMain: true }).then(() => worker.connect());

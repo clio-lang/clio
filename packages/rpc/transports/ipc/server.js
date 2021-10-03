@@ -1,10 +1,10 @@
-const { PacketParser } = require("../../lib");
-const net = require("net");
-const path = require("path");
-const { IPCSocket } = require("./socket");
-const { EventEmitter } = require("../../common");
+import { EventEmitter } from "../../common.js";
+import { IPCSocket } from "./socket.js";
+import { PacketParser } from "../../lib.js";
+import { createServer } from "net";
+import { join } from "path";
 
-class Server extends EventEmitter {
+export class Server extends EventEmitter {
   constructor(config) {
     super();
     this.ipcConfig = config || Server.defaultIPCConfig();
@@ -13,7 +13,7 @@ class Server extends EventEmitter {
   static getIPCPath({ name }) {
     const parts = [process?.cwd() || ".", name];
     if (process?.platform == "win32") parts.unshift("\\\\?\\pipe");
-    return path.join(...parts);
+    return join(...parts);
   }
   static defaultIPCConfig() {
     return {
@@ -23,7 +23,7 @@ class Server extends EventEmitter {
   createIPCServer() {
     if (!this.ipcConfig) return;
     const { path } = this.ipcConfig;
-    this.ipcServer = net.createServer();
+    this.ipcServer = createServer();
     this.ipcServer.on("listening", () => this.onListening());
     this.ipcServer.listen(path);
     this.ipcServer.on("connection", (socket) => this.onIPCConnect(socket));
@@ -44,5 +44,3 @@ class Server extends EventEmitter {
     return this.createIPCServer();
   }
 }
-
-module.exports.Server = Server;

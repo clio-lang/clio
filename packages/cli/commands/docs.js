@@ -1,21 +1,24 @@
-const path = require("path");
-const fs = require("fs");
-const { Toggle } = require("enquirer");
-const { AutoComplete } = require("../lib/prompt");
-const { parse, tokenize } = require("clio-core");
-const { parsingError } = require("clio-core/errors");
-const chalk = require("chalk");
-const {
+import {
   MODULES_PATH,
+  getDestinationFromConfig,
   getPackageConfig,
   getSourceFromConfig,
-  getDestinationFromConfig,
-} = require("clio-manifest");
+} from "clio-manifest";
+import { dirname, join, relative } from "path";
+import { lstatSync, readFileSync, readdirSync } from "fs";
+import { parse, tokenize } from "clio-core";
 
-exports.command = "docs [project]";
-exports.describe = "Show documentation for a Clio module";
+import { AutoComplete } from "../lib/prompt.js";
+import chalk from "chalk";
+import enquirer from "enquirer";
+import { parsingError } from "clio-core/errors.js";
 
-exports.builder = {
+const { blue, magenta, red, yellow } = chalk;
+
+export const command = "docs [project]";
+export const describe = "Show documentation for a Clio module";
+
+export const builder = {
   project: {
     describe: "Project root directory",
     type: "string",
@@ -23,16 +26,16 @@ exports.builder = {
   },
 };
 
-exports.handler = (argv) => {
+export function handler(argv) {
   entry(argv.project);
-};
+}
 
 function onSelect(root, prompt, configPath) {
   return async function onAnswer(answer) {
     await prompt.clear();
     return answer == ".."
-      ? docs(path.dirname(root), configPath)
-      : docs(path.join(root, answer), configPath);
+      ? docs(dirname(root), configPath)
+      : docs(join(root, answer), configPath);
   };
 }
 
@@ -40,7 +43,7 @@ function onFnSelect(root, fnMap, prompt, configPath) {
   return async function onAnswer(answer) {
     await prompt.clear();
     return answer == ".."
-      ? docs(path.dirname(root))
+      ? docs(dirname(root))
       : docsFn(root, answer, fnMap[answer], configPath);
   };
 }
@@ -76,23 +79,21 @@ function selectFile(root, choices, configPath) {
 function colorize(docs) {
   // TODO: imrpove highlighting
   return docs
-    .replace(/@[^\s]+/g, (matched) => chalk.blue(matched))
+    .replace(/@[^\s]+/g, (matched) => blue(matched))
     .replace(
       /({[^}]+})(\s+)([^\s]+)/g,
-      (_, type, spaces, name) => chalk.red(type) + spaces + chalk.magenta(name)
+      (_, type, spaces, name) => red(type) + spaces + magenta(name)
     );
 }
 
 function docsFn(root, name, docs, configPath) {
   const docsstr = docs.replace(/^\+-\s+/, "").replace(/\s+-\+$/, "");
   console.log(
-    [
-      chalk.yellow(`Showing docs for ${root}:${name}\n`),
-      colorize(docsstr),
-      "",
-    ].join("\n")
+    [yellow(`Showing docs for ${root}:${name}\n`), colorize(docsstr), ""].join(
+      "\n"
+    )
   );
-  const prompt = new Toggle({
+  const prompt = new enquirer.Toggle({
     name: "docs",
     message: "Exit?",
     enabled: "Yes",
@@ -109,20 +110,20 @@ function docsFn(root, name, docs, configPath) {
 }
 
 async function docsFile(file, configPath) {
-  const source = fs.readFileSync(file, { encoding: "utf-8" });
+  const source = readFileSync(file, { encoding: "utf-8" });
   const config = getPackageConfig(configPath);
   const sourceDir = getSourceFromConfig(configPath, config);
   const destination = getDestinationFromConfig(configPath, config);
-  const modulesDir = path.join(sourceDir, MODULES_PATH);
-  const modulesDestDir = path.join(destination, MODULES_PATH);
+  const modulesDir = join(sourceDir, MODULES_PATH);
+  const modulesDestDir = join(destination, MODULES_PATH);
   const rpcPrefix = `${config.title}@${config.version}`;
-  const relativeFile = path.relative(sourceDir, file);
-  const destFileClio = path.join(destination, relativeFile);
+  const relativeFile = relative(sourceDir, file);
+  const destFileClio = join(destination, relativeFile);
   const destFile = `${destFileClio}.js`;
 
   const tokens = tokenize(source, {
     file,
-    root: path.dirname(configPath),
+    root: dirname(configPath),
     config,
     sourceDir,
     modulesDir,
@@ -144,33 +145,38 @@ async function docsFile(file, configPath) {
 }
 
 function docsDirectory(projectPath, configPath) {
-  const choices = fs
-    .readdirSync(projectPath)
+  const choices = readdirSync(projectPath)
     .filter((dir) => !dir.startsWith("."))
     .filter((name) => {
-      const abs = path.join(projectPath, name);
+      const abs = join(projectPath, name);
       return isDirectory(abs) || isClioFile(name);
     });
   selectFile(projectPath, choices, configPath);
 }
 
 function isDirectory(dir) {
-  return fs.lstatSync(dir).isDirectory();
+  return lstatSync(dir).isDirectory();
 }
 
 function isClioFile(file) {
   return file.endsWith(".clio");
 }
 
-function docs(path, configPath) {
+export function docs(path, configPath) {
   return isDirectory(path)
     ? docsDirectory(path, configPath)
     : docsFile(path, configPath);
 }
 
 function entry(projectPath) {
-  const configPath = path.join(projectPath, "clio.toml");
+  const configPath = join(projectPath, "clio.toml");
   return docs(projectPath, configPath);
 }
 
-exports.docs = docs;
+export default {
+  command,
+  describe,
+  builder,
+  handler,
+  docs,
+};

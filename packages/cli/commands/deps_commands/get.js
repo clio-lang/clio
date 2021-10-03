@@ -1,22 +1,30 @@
-const path = require("path");
+import { join, resolve } from "path";
 
-const { fetchDependencies } = require("clio-manifest");
-const { error } = require("../../lib/colors");
+import { error } from "../../lib/colors.js";
+import { fetchDependencies } from "clio-manifest";
 
-exports.command = "get [project]";
-exports.desc = "Download every dependency listed in the package config file";
-exports.builder = {
+export const command = "get [project]";
+export const describe =
+  "Download every dependency listed in the package config file";
+export const builder = {
   project: {
     describe: "Project root directory, where your clio.toml file is.",
     type: "string",
-    default: path.resolve("."),
+    default: ".",
   },
 };
-exports.handler = async (argv) => {
+export async function handler(argv) {
   try {
-    const config = path.join(argv.project, "clio.toml");
+    const config = join(argv.project, "clio.toml");
     fetchDependencies(config);
   } catch (e) {
     error(e);
   }
+}
+
+export default {
+  command,
+  describe,
+  builder,
+  handler,
 };

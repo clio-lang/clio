@@ -1,8 +1,8 @@
-const { EventEmitter } = require("../../common");
-const { Buffer } = require("../../lib");
+import { Buffer } from "../../lib.js";
+import { EventEmitter } from "../../common.js";
 
 const header = Buffer.alloc(2);
-class IPCSocket extends EventEmitter {
+export class IPCSocket extends EventEmitter {
   constructor(socket) {
     super();
     this.socket = socket;
@@ -13,5 +13,3 @@ class IPCSocket extends EventEmitter {
     this.socket.write(data);
   }
 }
-
-module.exports.IPCSocket = IPCSocket;

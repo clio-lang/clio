@@ -8,7 +8,7 @@ const GIT_URL_RE = /(.*?)(?:@([^@]*$))/;
  *
  * @example (see tests)
  */
-const parsePackageId = (input) => {
+export const parsePackageId = (input) => {
   const match = input.match(GIT_URL_RE);
   if (!match) {
     throw "Failed to parse the package id";
@@ -17,6 +17,6 @@ const parsePackageId = (input) => {
   return { url, tag };
 };
 
-module.exports = {
+export default {
   parsePackageId,
 };

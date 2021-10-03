@@ -1,11 +1,10 @@
-const { randomId, EventEmitter } = require("./common");
-const { Sia, DeSia } = require("sializer");
-const { constructors: builtinConstructors } = require("sializer");
-const { TYPES, Buffer } = require("./lib");
+import { Buffer, TYPES } from "./lib.js";
+import { DeSia, Sia, constructors as builtinConstructors } from "sializer";
+import { EventEmitter, randomId } from "./common.js";
 
 const { EVENT, CALL, GET } = TYPES;
 
-class Executor {
+export class Executor {
   constructor(transport) {
     this.transport = transport;
     this.isConnected = false;
@@ -111,5 +110,3 @@ class Executor {
     }
   }
 }
-
-module.exports.Executor = Executor;

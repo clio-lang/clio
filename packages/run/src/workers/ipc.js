@@ -1,13 +1,12 @@
-const { run } = require("../index");
-const { Worker } = require("clio-rpc/worker");
-const { Executor } = require("clio-rpc/executor");
-const IPC = require("clio-rpc/transports/ipc");
+import { Client } from "clio-rpc/transports/ipc";
+import { Executor } from "clio-rpc/executor";
+import { Worker } from "clio-rpc/worker";
+import { run } from "../index.js";
 
 const [path, file] = process?.argv?.slice?.(2) || [];
 
-const transport = new IPC.Client({ path });
+const transport = new Client({ path });
 const worker = new Worker(transport);
 const executor = new Executor(transport);
 
-const main = require(file);
-run(main, { worker, executor });
+import(file).then((main) => run(main, { worker, executor }));

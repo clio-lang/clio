@@ -1,9 +1,16 @@
-const fs = require("fs");
-const path = require("path");
-const tmp = require("tmp");
-const { build, _new } = require("../");
-const { copyDir } = require("../build");
-const { getPackageConfig, writePackageConfig } = require("clio-manifest");
+import { _new, build } from "../.js";
+import {
+  existsSync,
+  promises,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "fs";
+import { getPackageConfig, writePackageConfig } from "clio-manifest";
+
+import { copyDir } from "../build.js";
+import { dirSync } from "tmp";
+import { join } from "path";
 
 jest.mock("clio-manifest/npm_dependencies");
 
@@ -11,24 +18,24 @@ process.exit = jest.fn();
 
 describe("Package.json generation", () => {
   test("Build generates package.json", async () => {
-    const dir = tmp.dirSync({ unsafeCleanup: true });
+    const dir = dirSync({ unsafeCleanup: true });
     await _new(dir.name, "js", "web");
-    const buildPath = path.join(dir.name, "build");
+    const buildPath = join(dir.name, "build");
     try {
-      if (fs.existsSync(buildPath)) {
+      if (existsSync(buildPath)) {
         deleteFolderRecursive(buildPath);
       }
     } catch (err) {
       console.error(err);
     }
 
-    await build(path.join(dir.name, "clio.toml"), {
+    await build(join(dir.name, "clio.toml"), {
       skipNpmInstall: true,
       skipBundle: true,
       silent: true,
     });
 
-    const file = fs.readFileSync(path.join(dir.name, "build", "package.json"));
+    const file = readFileSync(join(dir.name, "build", "package.json"));
     const pkgJsonObj = JSON.parse(file.toString());
     expect(pkgJsonObj.main).toBeDefined();
     expect(pkgJsonObj.dependencies).toBeDefined();
@@ -36,19 +43,19 @@ describe("Package.json generation", () => {
   });
 
   test("Overrides package.json if new dependency is added", async () => {
-    const dir = tmp.dirSync({ unsafeCleanup: true });
+    const dir = dirSync({ unsafeCleanup: true });
     await _new(dir.name, "js", "node");
-    await build(path.join(dir.name, "clio.toml"), {
+    await build(join(dir.name, "clio.toml"), {
       skipNpmInstall: true,
       skipBundle: true,
       silent: true,
     });
 
-    let file = fs.readFileSync(path.join(dir.name, "build", "package.json"));
+    let file = readFileSync(join(dir.name, "build", "package.json"));
     let pkgJsonObj = JSON.parse(file.toString());
     expect(pkgJsonObj.dependencies).toBeDefined();
 
-    const filePath = path.join(dir.name, "clio.toml");
+    const filePath = join(dir.name, "clio.toml");
     const oldConfig = getPackageConfig(filePath);
     const newConfig = {
       ...oldConfig,
@@ -68,7 +75,7 @@ describe("Package.json generation", () => {
       silent: true,
     });
 
-    file = fs.readFileSync(path.join(dir.name, "build", "package.json"));
+    file = readFileSync(join(dir.name, "build", "package.json"));
     pkgJsonObj = JSON.parse(file.toString());
     expect(pkgJsonObj.dependencies.express).toBeDefined();
 
@@ -76,15 +83,15 @@ describe("Package.json generation", () => {
   });
 
   test("npm dependencies are installed after build", async () => {
-    const dir = tmp.dirSync({ unsafeCleanup: true });
+    const dir = dirSync({ unsafeCleanup: true });
     await _new(dir.name, "js", "node");
-    await build(path.join(dir.name, "clio.toml"), {
+    await build(join(dir.name, "clio.toml"), {
       skipBundle: true,
       silent: true,
     });
 
-    const nodeModulesExists = fs.existsSync(
-      path.join(dir.name, "build", "node_modules")
+    const nodeModulesExists = existsSync(
+      join(dir.name, "build", "node_modules")
     );
     expect(nodeModulesExists).toBe(true);
   });
@@ -92,10 +99,10 @@ describe("Package.json generation", () => {
 
 describe("Web builds", () => {
   test("with defaults (clio build)", async () => {
-    const dir = tmp.dirSync({ unsafeCleanup: true });
+    const dir = dirSync({ unsafeCleanup: true });
     await _new(dir.name, "js", "web");
-    await build(path.join(dir.name, "clio.toml"), { silent: true });
-    const files = fs.readdirSync(path.join(dir.name, "build"));
+    await build(join(dir.name, "clio.toml"), { silent: true });
+    const files = readdirSync(join(dir.name, "build"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
   }, 20000);
@@ -103,11 +110,11 @@ describe("Web builds", () => {
 
 describe("Build copies non-clio files", () => {
   test("Copy dummy file to dest", async () => {
-    const dir = tmp.dirSync({ unsafeCleanup: true });
+    const dir = dirSync({ unsafeCleanup: true });
     await _new(dir.name, "js", "node");
-    fs.writeFileSync(path.join(dir.name, "src", "dummy"), "dummy");
-    await build(path.join(dir.name, "clio.toml"));
-    const files = fs.readdirSync(path.join(dir.name, "build"));
+    writeFileSync(join(dir.name, "src", "dummy"), "dummy");
+    await build(join(dir.name, "clio.toml"));
+    const files = readdirSync(join(dir.name, "build"));
     expect(files.includes("dummy")).toBe(true);
     dir.removeCallback();
   });
@@ -115,20 +122,20 @@ describe("Build copies non-clio files", () => {
 
 describe("Node builds", () => {
   test("with defaults (clio build)", async () => {
-    const dir = tmp.dirSync({ unsafeCleanup: true });
+    const dir = dirSync({ unsafeCleanup: true });
     await _new(dir.name, "js", "node");
-    await build(path.join(dir.name, "clio.toml"), { silent: true });
-    const files = fs.readdirSync(path.join(dir.name, "build"));
+    await build(join(dir.name, "clio.toml"), { silent: true });
+    const files = readdirSync(join(dir.name, "build"));
     expect(files.includes("main.clio.js")).toBe(true);
     dir.removeCallback();
   });
 
   test("with alternative target directory (clio build)", async () => {
-    const dir = tmp.dirSync({ unsafeCleanup: true });
+    const dir = dirSync({ unsafeCleanup: true });
     await _new(dir.name, "js", "node");
 
-    fs.writeFileSync(
-      path.join(dir.name, "clio.toml"),
+    writeFileSync(
+      join(dir.name, "clio.toml"),
       `[build]
 source = "src"
 target = "js"
@@ -136,9 +143,9 @@ destination = "build/alternative"
 `
     );
 
-    await build(path.join(dir.name, "clio.toml"), { silent: true });
+    await build(join(dir.name, "clio.toml"), { silent: true });
 
-    const files = fs.readdirSync(path.join(dir.name, "build", "alternative"));
+    const files = readdirSync(join(dir.name, "build", "alternative"));
     expect(files.includes("main.clio.js")).toBe(true);
 
     dir.removeCallback();
@@ -147,26 +154,26 @@ destination = "build/alternative"
 
 describe("copyDir", () => {
   test("copyDir to a new directory", async () => {
-    const tempSource = tmp.dirSync({ unsafeCleanup: true });
+    const tempSource = dirSync({ unsafeCleanup: true });
 
-    fs.writeFileSync(path.join(tempSource.name, "test"), "foo");
-    await copyDir(tempSource.name, path.join(tempSource.name, "out"));
+    writeFileSync(join(tempSource.name, "test"), "foo");
+    await copyDir(tempSource.name, join(tempSource.name, "out"));
     expect(
-      await fs.promises.readdir(path.join(tempSource.name, "out").toString())
+      await promises.readdir(join(tempSource.name, "out").toString())
     ).toEqual(["test"]);
 
     tempSource.removeCallback();
   });
 
   test("copyDir to an existing directory", async () => {
-    const tempSource = tmp.dirSync({ unsafeCleanup: true });
-    const tempTarget = tmp.dirSync({ unsafeCleanup: true });
+    const tempSource = dirSync({ unsafeCleanup: true });
+    const tempTarget = dirSync({ unsafeCleanup: true });
 
-    fs.writeFileSync(path.join(tempSource.name, "test"), "foo");
+    writeFileSync(join(tempSource.name, "test"), "foo");
     await copyDir(tempSource.name, tempTarget.name);
-    expect(
-      await fs.promises.readdir(path.join(tempTarget.name).toString())
-    ).toEqual(["test"]);
+    expect(await promises.readdir(join(tempTarget.name).toString())).toEqual([
+      "test",
+    ]);
 
     tempSource.removeCallback();
     tempTarget.removeCallback();

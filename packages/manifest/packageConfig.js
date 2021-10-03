@@ -1,7 +1,7 @@
-const fs = require("fs");
-const toml = require("@iarna/toml");
+import { parse, stringify } from "@iarna/toml";
+import { readFileSync, writeFileSync } from "fs";
 
-function parseDependencies(deps) {
+export function parseDependencies(deps) {
   return Object.entries(deps).map((dep) => {
     return { name: dep[0], version: dep[1] };
   });
@@ -12,9 +12,9 @@ function parseDependencies(deps) {
 /**
  * @param {string} filepath Optional name of file containing the configurations for the clio package in format `foo.toml`.
  */
-function getPackageConfig(filepath) {
-  const file = fs.readFileSync(filepath);
-  const config = toml.parse(file);
+export function getPackageConfig(filepath) {
+  const file = readFileSync(filepath);
+  const config = parse(file);
 
   const npmOverride = { ...config.npm };
   delete npmOverride.dependencies;
@@ -56,7 +56,7 @@ function getPackageConfig(filepath) {
   return parsedConfig;
 }
 
-function getDestinationFromConfig(configPath, config) {
+export function getDestinationFromConfig(configPath, config) {
   if (!config) {
     throw new Error('You must pass the location of the "clio.toml" file.');
   }
@@ -76,7 +76,7 @@ function getDestinationFromConfig(configPath, config) {
   return config.build.destination;
 }
 
-function getBuildTarget(configPath, config) {
+export function getBuildTarget(configPath, config) {
   if (!config) {
     throw new Error('You must pass the location of the "clio.toml" file.');
   }
@@ -94,7 +94,7 @@ function getBuildTarget(configPath, config) {
   return config.build.target;
 }
 
-function getSourceFromConfig(configPath, config) {
+export function getSourceFromConfig(configPath, config) {
   if (!config.build) {
     throw new Error(
       `No build configuration has been found. It is a "[build]" section on your "${configPath}" file.`
@@ -110,7 +110,7 @@ function getSourceFromConfig(configPath, config) {
   return config.build.source;
 }
 
-function removeKeys(object, ...keys) {
+export function removeKeys(object, ...keys) {
   const clone = { ...object };
   for (const key of keys) delete clone[key];
   return clone;
@@ -123,7 +123,7 @@ function removeKeys(object, ...keys) {
  *
  * @param {object} config
  */
-function writePackageConfig(configPath, config) {
+export function writePackageConfig(configPath, config) {
   const cfg = {};
 
   if (config.dependencies?.length) {
@@ -149,7 +149,7 @@ function writePackageConfig(configPath, config) {
     }
   }
 
-  const cfgStr = toml.stringify({
+  const cfgStr = stringify({
     ...removeKeys(config, "dependencies", "npmOverride"),
     ...cfg,
     npm: {
@@ -158,7 +158,7 @@ function writePackageConfig(configPath, config) {
     },
   });
 
-  fs.writeFileSync(configPath, cfgStr);
+  writeFileSync(configPath, cfgStr);
 }
 
 /**
@@ -166,7 +166,7 @@ function writePackageConfig(configPath, config) {
  *
  * @param {string[]} dep - [ name, version ]
  */
-function addDependency(configPath, dependency) {
+export function addDependency(configPath, dependency) {
   const config = getPackageConfig(configPath);
   const [name, version] = dependency;
 
@@ -186,7 +186,7 @@ function addDependency(configPath, dependency) {
  * @param {string[]} dep - [ name, version ]
  * @param {Object} flags - { dev }
  */
-function addNpmDependency(configPath, dependency, flags) {
+export function addNpmDependency(configPath, dependency, flags) {
   const config = getPackageConfig(configPath);
   const [name, version] = dependency;
 
@@ -205,7 +205,7 @@ function addNpmDependency(configPath, dependency, flags) {
   );
 }
 
-module.exports = {
+export default {
   addDependency,
   addNpmDependency,
   getPackageConfig,

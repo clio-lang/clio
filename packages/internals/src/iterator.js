@@ -33,4 +33,4 @@ class it {
   }
 }
 
-module.exports = it;
+export default it;

@@ -1,4 +1,4 @@
-const { rule, lPluck, map } = require("bean-parser");
+import { lPluck, map, rule } from "bean-parser";
 
 const wrap = (fn, priority) =>
   rule((lhs, rhs, context) => {
@@ -142,13 +142,23 @@ const lexerTokens = [
   "is",
 ];
 
-module.exports.wrap = wrap;
-module.exports.ignore = ignore;
-module.exports.topLevels = topLevels;
-module.exports.rootLevels = rootLevels;
-module.exports.controls = controls;
-module.exports.expressions = expressions;
-module.exports.arrayLike = arrayLike;
-module.exports.ranges = ranges;
-module.exports.values = values;
-module.exports.lexerTokens = lexerTokens;
+const _wrap = wrap;
+export { _wrap as wrap };
+const _ignore = ignore;
+export { _ignore as ignore };
+const _topLevels = topLevels;
+export { _topLevels as topLevels };
+const _rootLevels = rootLevels;
+export { _rootLevels as rootLevels };
+const _controls = controls;
+export { _controls as controls };
+const _expressions = expressions;
+export { _expressions as expressions };
+const _arrayLike = arrayLike;
+export { _arrayLike as arrayLike };
+const _ranges = ranges;
+export { _ranges as ranges };
+const _values = values;
+export { _values as values };
+const _lexerTokens = lexerTokens;
+export { _lexerTokens as lexerTokens };

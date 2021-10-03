@@ -1,1 +1,1 @@
-module.exports = (...args) => args.map((arg) => arg.toString()).join("");
+export default (...args) => args.map((arg) => arg.toString()).join("");

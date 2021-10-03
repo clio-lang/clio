@@ -1,18 +1,11 @@
-const { EventEmitter, emitter } = require("./emitter");
+export { EventEmitter, emitter } from "./emitter.js";
 
-module.exports.remote = require("./remote");
-module.exports.iterator = require("./iterator");
-module.exports.range = require("./range").range;
-module.exports.randomId = require("./random");
-module.exports.slice = require("./slice");
-module.exports.f = require("./format");
-module.exports.Any = require("./types").Any;
-module.exports.EventEmitter = EventEmitter;
-module.exports.emitter = emitter;
+export { default as remote } from "./remote.js";
+export { default as iterator } from "./iterator.js";
+export { default as randomId } from "./random.js";
+export { default as slice } from "./slice.js";
+export { default as f } from "./format.js";
 
-const decorators = require("./decorators");
-module.exports.help = decorators.help;
-module.exports.describe = decorators.describe;
-module.exports.returns = decorators.returns;
-module.exports.check = decorators.check;
-module.exports.params = decorators.params;
+export { Any } from "./types.js";
+export { range } from "./range.js";
+export { help, describe, returns, check, params } from "./decorators.js";

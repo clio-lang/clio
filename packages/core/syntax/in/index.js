@@ -1,7 +1,8 @@
-const { map } = require("bean-parser");
-const { expressions, wrap, values } = require("../common");
+import { expressions, values, wrap } from "../common.js";
 
-module.exports = {
+import { map } from "bean-parser";
+
+export default {
   // In check
   ...map([...expressions, ...values], {
     in: wrap((lhs, rhs) => {

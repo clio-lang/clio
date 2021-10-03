@@ -1,5 +1,6 @@
 {
   "name": "clio-utils",
+  "type": "module",
   "version": "0.5.0",
   "description": "",
   "main": "index.js",

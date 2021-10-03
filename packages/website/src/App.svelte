@@ -1,12 +1,12 @@
 <script>
   import Editor from "clio-playground/src/components/Editor.svelte";
-  import Head from "./components/Head.svelte";
-  import Hero from "./components/Hero.svelte";
-  import Features from "./components/Features.svelte";
-  import Examples from "./components/Examples.svelte";
-  import Social from "./components/Social.svelte";
-  import Footer from "./components/Footer.svelte";
-  import Performance from "./components/Performance.svelte";
+  import Head from "./components/Head.svelte.js";
+  import Hero from "./components/Hero.svelte.js";
+  import Features from "./components/Features.svelte.js";
+  import Examples from "./components/Examples.svelte.js";
+  import Social from "./components/Social.svelte.js";
+  import Footer from "./components/Footer.svelte.js";
+  import Performance from "./components/Performance.svelte.js";
 
 </script>
 

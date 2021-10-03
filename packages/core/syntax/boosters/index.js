@@ -1,7 +1,8 @@
-const { map, merge } = require("bean-parser");
-const { wrap } = require("../common");
+import { map, merge } from "bean-parser";
 
-module.exports = merge(
+import { wrap } from "../common.js";
+
+export default merge(
   {
     ...map(
       [

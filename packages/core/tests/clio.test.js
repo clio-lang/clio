@@ -1,5 +1,5 @@
-const { compile } = require("../index");
-const fs = require("fs");
+import { compile } from "../index.js";
+import { readFileSync } from "fs";
 
 const testStr = (name, src, expected, file = "<mem>") => {
   return test(name, () => {
@@ -18,7 +18,7 @@ const testStr = (name, src, expected, file = "<mem>") => {
 
 const testFile = (name, expected) => {
   const file = `${__dirname}/clio/${name}.clio`;
-  const src = fs.readFileSync(file, { encoding: "utf-8" });
+  const src = readFileSync(file, { encoding: "utf-8" });
   return testStr(`${name}.clio`, src, expected, `${name}.clio`);
 };
 
@@ -421,7 +421,7 @@ testStr(
 );
 testStr(
   "Import As (Indented)",
-  `from "./greetings" import
+  `from "./greetings.js" import
       bye
       hello`,
   `const{bye,hello}=await require("./greetings.clio.js").exports(clio)`

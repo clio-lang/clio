@@ -1,6 +1,6 @@
-const ora = require("ora");
+import ora from "ora";
 
-class Progress {
+export class Progress {
   constructor(silent = false, startingText = null) {
     this.silent = silent;
     this.progress = silent ? null : ora(startingText);
@@ -22,6 +22,6 @@ class Progress {
   }
 }
 
-module.exports = {
+export default {
   Progress,
 };

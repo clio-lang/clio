@@ -1,14 +1,15 @@
-const tmp = require("tmp");
-const path = require("path");
-const fs = require("fs");
-const { createPackage } = require("../new");
-const { run } = require("../run");
-const deps = require("../deps_commands/get");
-const addDeps = require("../deps_commands/add");
-const packageConfig = require("clio-manifest");
+import { MODULES_PATH, installNpmDependency } from "clio-manifest";
+import { readFileSync, readdirSync, writeFileSync } from "fs";
+
+import { handler as _handler } from "../deps_commands/add.js";
+import { createPackage } from "../new.js";
+import { dirSync } from "tmp";
+import { handler } from "../deps_commands/get.js";
+import { join } from "path";
+import { run } from "../run.js";
 
 test("Runs hello world", async () => {
-  const dir = tmp.dirSync({ unsafeCleanup: true });
+  const dir = dirSync({ unsafeCleanup: true });
   await createPackage(dir.name);
   const process = await run({ project: dir.name }, [], {
     stdio: "pipe",
@@ -25,36 +26,34 @@ test("Runs hello world", async () => {
 });
 
 test("Runs a project with dependencies", async () => {
-  const dir = tmp.dirSync({ unsafeCleanup: true });
+  const dir = dirSync({ unsafeCleanup: true });
   await createPackage(dir.name);
-  await addDeps.handler({
+  await _handler({
     project: dir.name,
     source: "https://github.com/clio-lang/math@master",
   });
-  const configPath = path.join(dir.name, "clio.toml");
-  await packageConfig.installNpmDependency(configPath, "uuid@latest", {});
-  await packageConfig.installNpmDependency(configPath, "rimraf", {
+  const configPath = join(dir.name, "clio.toml");
+  await installNpmDependency(configPath, "uuid@latest", {});
+  await installNpmDependency(configPath, "rimraf", {
     dev: true,
   });
-  await deps.handler({ project: dir.name });
-  const main = path.join(dir.name, "src", "main.clio");
-  fs.writeFileSync(
+  await handler({ project: dir.name });
+  const main = join(dir.name, "src", "main.clio");
+  writeFileSync(
     main,
     `from "math@master" import fib\n\nexport fn main:\n  fib 10 -> console.log`
   );
   const process = await run({ project: dir.name });
   await new Promise((resolve) => process.on("close", resolve));
   expect(
-    fs
-      .readdirSync(path.join(dir.name, "build", packageConfig.MODULES_PATH))
-      .toString()
+    readdirSync(join(dir.name, "build", MODULES_PATH)).toString()
   ).toContain("fib@master");
-  const nodeModules = fs.readdirSync(
-    path.join(dir.name, "build", "node_modules")
-  );
+  const nodeModules = readdirSync(join(dir.name, "build", "node_modules"));
   expect(nodeModules).toContain("uuid");
   expect(nodeModules).toContain("rimraf");
-  const packageJson = require(path.join(dir.name, "build", "package.json"));
+  const packageJson = JSON.parse(
+    readFileSync(join(dir.name, "build", "package.json")).toString()
+  );
   expect(Object.keys(packageJson.dependencies)).toContain("uuid");
   expect(Object.keys(packageJson.devDependencies)).toContain("rimraf");
   dir.removeCallback();

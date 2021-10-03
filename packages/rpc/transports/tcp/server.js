@@ -1,9 +1,9 @@
-const { PacketParser } = require("../../lib");
-const net = require("net");
-const { TCPSocket } = require("./socket");
-const { EventEmitter } = require("../../common");
+import { EventEmitter } from "../../common.js";
+import { PacketParser } from "../../lib.js";
+import { TCPSocket } from "./socket.js";
+import { createServer } from "net";
 
-class Server extends EventEmitter {
+export class Server extends EventEmitter {
   constructor(config) {
     super();
     this.tcpConfig = config || Server.defaultTCPConfig();
@@ -15,7 +15,7 @@ class Server extends EventEmitter {
   createTCPServer() {
     if (!this.tcpConfig) return;
     const { port, host } = this.tcpConfig;
-    this.tcpServer = net.createServer();
+    this.tcpServer = createServer();
     this.tcpServer.on("listening", () => this.onListening());
     this.tcpServer.listen(port, host);
     this.tcpServer.on("connection", (socket) => this.onTCPConnect(socket));
@@ -36,5 +36,3 @@ class Server extends EventEmitter {
     return this.createTCPServer();
   }
 }
-
-module.exports.Server = Server;

@@ -1,8 +1,8 @@
-const { EventEmitter } = require("../../common");
-const { desia } = require("sializer");
-const { Buffer } = require("../../lib");
+import { Buffer } from "../../lib.js";
+import { EventEmitter } from "../../common.js";
+import { desia } from "sializer";
 
-class Client extends EventEmitter {
+export class Client extends EventEmitter {
   constructor({ parentPort }) {
     super();
     this.parentPort = parentPort;
@@ -28,5 +28,3 @@ class Client extends EventEmitter {
     this.postMessage(data, [data.buffer]);
   }
 }
-
-module.exports.Client = Client;

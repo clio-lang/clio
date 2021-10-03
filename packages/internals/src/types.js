@@ -1,1 +1,1 @@
-module.exports.Any = Symbol("Any");
+export const Any = Symbol("Any");

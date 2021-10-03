@@ -1,14 +1,16 @@
-const { run } = require("../index");
-const { parentPort, workerData } = require("worker_threads");
-const { Worker } = require("clio-rpc/worker");
-const { Executor } = require("clio-rpc/executor");
-const WorkerThread = require("clio-rpc/transports/worker-thread");
+import { parentPort, workerData } from "worker_threads";
 
-const transport = new WorkerThread.Client({ parentPort });
+import { Client } from "clio-rpc/transports/worker-thread";
+import { Executor } from "clio-rpc/executor";
+import { Worker } from "clio-rpc/worker";
+import { run } from "../index.js";
+
+const transport = new Client({ parentPort });
 
 // worker and executor shouldn't share the same socket
 const worker = new Worker(transport);
 const executor = new Executor(transport);
 
-const main = require(workerData.file);
-run(main, { worker, executor }).then(() => worker.connect());
+import(workerData.file)
+  .then((main) => run(main, { worker, executor }))
+  .then(() => worker.connect());

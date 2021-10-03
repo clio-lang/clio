@@ -1,18 +1,23 @@
-const path = require("path");
-const { getPlatform } = require("../lib/platforms");
-const { getBuildTarget, getDestinationFromConfig, build } = require("./build");
-const { getPackageConfig } = require("clio-manifest");
-const { error } = require("../lib/colors");
+import {
+  getBuildTarget,
+  getDestinationFromConfig,
+  getPackageConfig,
+} from "clio-manifest";
+import { join, resolve } from "path";
 
-exports.command = "run [project]";
+import { build } from "./build.js";
+import { error } from "../lib/colors.js";
+import { getPlatform } from "../lib/platforms.js";
 
-exports.describe = "Compile and run Clio file";
+export const command = "run [project]";
 
-exports.builder = {
+export const describe = "Compile and run Clio file";
+
+export const builder = {
   project: {
     describe: "Project root directory, where your clio.toml file is.",
     type: "string",
-    default: path.resolve("."),
+    default: ".",
   },
   silent: {
     describe: "Mutes messages from the command.",
@@ -24,13 +29,13 @@ exports.builder = {
   },
 };
 
-exports.handler = (argv) => {
+export function handler(argv) {
   run(argv, argv._.slice(1));
-};
+}
 
-async function run(argv, args, forkOptions = {}) {
+export async function run(argv, args, forkOptions = {}) {
   try {
-    const configPath = path.join(argv.project, "clio.toml");
+    const configPath = join(argv.project, "clio.toml");
 
     await build(configPath, {
       skipBundle: true,
@@ -49,4 +54,10 @@ async function run(argv, args, forkOptions = {}) {
   }
 }
 
-exports.run = run;
+export default {
+  command,
+  describe,
+  builder,
+  handler,
+  run,
+};
