@@ -2,6 +2,8 @@ import { ignore, topLevels, wrap } from "../common.js";
 
 import { map } from "bean-parser";
 
+const blockLevels = topLevels.filter((tl) => tl !== "importStatement");
+
 export default {
   // Blocks
   lineBreak: {
@@ -9,7 +11,7 @@ export default {
   },
   indent: {
     ...map(
-      topLevels,
+      blockLevels,
       wrap((_, rhs) => {
         return { type: "blockOpen", content: [rhs] };
       }, 0)
@@ -18,7 +20,7 @@ export default {
   blockOpen: {
     ...ignore("lineBreak"),
     ...map(
-      topLevels,
+      blockLevels,
       wrap((lhs, rhs) => {
         lhs.content.push(rhs);
         return lhs;

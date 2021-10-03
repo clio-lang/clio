@@ -159,7 +159,8 @@ export const build = async (configPath, options = {}) => {
       if (config.authors) packageInfo.authors = config.authors;
       const packageJsonContent = {
         ...packageInfo,
-        main: `./main.clio.js`,
+        main: "./main.clio.js",
+        type: "module",
         dependencies: { ...depsNpmDependencies, ...dependencies },
         devDependencies,
         ...config.npmOverride,
