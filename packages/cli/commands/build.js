@@ -103,7 +103,8 @@ const build = async (configPath, options = {}) => {
     modulesDestDir,
     "",
     "",
-    {}
+    path.join(destination, ".clio", "cache"),
+    { configs: {}, npmDeps: {}, npmDevDeps: {} }
   ).catch((compileError) => {
     progress.fail();
     console.trace(compileError);
@@ -262,7 +263,7 @@ const builder = {
   project: {
     describe: "Project root directory, where your clio.toml file is.",
     type: "string",
-    default: path.resolve("."),
+    default: ".",
   },
   "skip-bundle": {
     describe: "Does not produces a bundle for browsers.",

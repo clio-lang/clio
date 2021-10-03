@@ -396,9 +396,11 @@ const compileImport = (path, importPath, context) => {
       modulesDestDir,
       srcPrefix,
       destPrefix,
+      cacheDir,
       configs = {},
       npmDeps = {},
       npmDevDeps = {},
+      imports = [],
     } = context;
 
     if (isModule) {
@@ -418,7 +420,7 @@ const compileImport = (path, importPath, context) => {
         npmDevDeps[moduleName] = getParsedNpmDevDependencies(configPath);
         context.npmDevDeps = npmDevDeps;
       }
-      const { scope } = compileFile(
+      const { scope, destFile, srcFile } = compileFile(
         filePath,
         config,
         configPath,
@@ -426,11 +428,18 @@ const compileImport = (path, importPath, context) => {
         modulesDestDir,
         srcPrefix,
         destPrefix,
+        cacheDir,
         { npmDeps, npmDevDeps, configs }
       );
+      imports.push({
+        module: moduleName,
+        src: srcFile,
+        dest: destFile,
+      });
+      context.imports = imports;
       return scope;
     } else {
-      const { scope } = compileFile(
+      const { scope, destFile, srcFile } = compileFile(
         filePath,
         config,
         configPath,
@@ -438,8 +447,15 @@ const compileImport = (path, importPath, context) => {
         modulesDestDir,
         srcPrefix,
         destPrefix,
+        cacheDir,
         { npmDeps, npmDevDeps, configs }
       );
+      imports.push({
+        module: "",
+        src: srcFile,
+        dest: destFile,
+      });
+      context.imports = imports;
       return scope;
     }
   }
