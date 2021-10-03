@@ -1,4 +1,4 @@
-import { Buffer, PacketParser } from "../../lib.js";
+import { Buffer, PacketParser } from "../../lib/index.js";
 
 import { EventEmitter } from "../../common.js";
 import { Server } from "./server.js";

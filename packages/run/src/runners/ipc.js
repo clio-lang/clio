@@ -1,7 +1,7 @@
-import { Client, Server } from "clio-rpc/transports/ipc";
+import { Client, Server } from "clio-rpc/transports/ipc/index.js";
 import { dirname, resolve } from "path";
 
-import { Executor } from "clio-rpc/executor";
+import { Executor } from "clio-rpc/executor.js";
 import { cpus } from "os";
 import { fileURLToPath } from "url";
 import { fork } from "child_process";
@@ -46,4 +46,10 @@ export const executor = (
     await run(main, { executor }, options);
     if (!options.noExit) monitor.exit();
   });
+};
+
+export default {
+  executor,
+  server,
+  workers,
 };

@@ -1,4 +1,4 @@
-import { Buffer, TYPES } from "./lib.js";
+import { Buffer, TYPES } from "./lib/index.js";
 import { DeSia, Sia, constructors as builtinConstructors } from "sializer";
 import { EventEmitter, randomId } from "./common.js";
 

@@ -1,6 +1,7 @@
+import * as builtins from "clio-lang-internals";
+
 import asyncHooks, { createHook } from "async_hooks";
 
-import builtins from "clio-lang-internals";
 import ipc from "./executors/ipc.js";
 import tcp from "./executors/tcp.js";
 import ws from "./executors/ws.js";
@@ -104,7 +105,7 @@ export const run = async (
     fn.parallel = clio.distributed.get(name);
     return fn;
   };
-  const { main } = await module.exports(clio);
+  const { main } = await module.default(clio);
   const argv = process?.argv || [];
   if (!worker && !noMain) {
     const result = await main(argv);
@@ -119,9 +120,9 @@ export const importClio = async (file) => {
   // This is probably added because of parcel
   const worker_threads = "worker_threads";
   const { Worker } = await import(worker_threads);
-  const { Dispatcher } = await import("clio-rpc/dispatcher");
-  const { Executor } = await import("clio-rpc/executor");
-  const WorkerThread = await import("clio-rpc/transports/worker-thread");
+  const { Dispatcher } = await import("clio-rpc/dispatcher.js");
+  const { Executor } = await import("clio-rpc/executor.js");
+  const WorkerThread = await import("clio-rpc/transports/worker-thread.js");
 
   const path = await import("path");
   const os = await import("os");

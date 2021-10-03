@@ -1,5 +1,5 @@
-import { Client } from "clio-rpc/transports/ipc";
-import { Executor } from "clio-rpc/executor";
+import { Client } from "clio-rpc/transports/ipc/index.js";
+import { Executor } from "clio-rpc/executor.js";
 
 export default async function (key, _, path) {
   const transport = new Client({ path });

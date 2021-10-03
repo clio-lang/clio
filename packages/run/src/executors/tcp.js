@@ -1,5 +1,5 @@
-import { Client } from "clio-rpc/transports/tcp";
-import { Executor } from "clio-rpc/executor";
+import { Client } from "clio-rpc/transports/tcp/index.js";
+import { Executor } from "clio-rpc/executor.js";
 
 export default async function (key, _, addr) {
   const [host, port] = addr.split(":");

@@ -1,5 +1,5 @@
 import { EventEmitter } from "../../common.js";
-import { PacketParser } from "../../lib.js";
+import { PacketParser } from "../../lib/index.js";
 import { TCPSocket } from "./socket.js";
 import { createServer } from "net";
 

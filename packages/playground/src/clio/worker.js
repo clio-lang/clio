@@ -1,8 +1,8 @@
-import { Executor } from "clio-rpc/executor";
-import WebWorker from "clio-rpc/transports/web-worker";
-import { Worker } from "clio-rpc/worker";
+import { Executor } from "clio-rpc/executor.js";
+import WebWorker from "clio-rpc/transports/web-worker.js";
+import { Worker } from "clio-rpc/worker.js";
 import { getModule } from "./common.js";
-import { run } from "clio-run/src/index";
+import { run } from "clio-run/src/index.js";
 
 const location = new URL(self.location);
 const encoded = location.searchParams.get("src");

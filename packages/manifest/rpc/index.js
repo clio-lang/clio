@@ -10,19 +10,25 @@ export const makeStartScript = (config, target, destination) => {
   writeFileSync(
     join(destination, ".clio", "index.js"),
     [
-      `const path = require("path");`,
-      `const run = require("clio-run/src/runners/auto.js");`,
-      `const config = require("./rpc.json");`,
-      `run(path.resolve(__dirname, "../main.clio.js"), config);`,
+      `import { resolve, dirname } from "path";`,
+      `import { fileURLToPath } from "url";`,
+      `import { readFileSync } from "fs";`,
+      `import run from "clio-run/src/runners/auto.js";`,
+      `const __dirname = dirname(fileURLToPath(import.meta.url));`,
+      `const config = JSON.parse(readFileSync(resolve(__dirname, "./rpc.json")).toString());`,
+      `run(resolve(__dirname, "../main.clio.js"), config);`,
     ].join("\n")
   );
   writeFileSync(
     join(destination, ".clio", "host.js"),
     [
-      `const path = require("path");`,
-      `const run = require("clio-run/src/runners/auto.js");`,
-      `const config = require("./rpc.json");`,
-      `run(path.resolve(__dirname, "../main.clio.js"), config, true);`,
+      `import { resolve, dirname } from "path";`,
+      `import { fileURLToPath } from "url";`,
+      `import { readFileSync } from "fs";`,
+      `import run from "clio-run/src/runners/auto.js";`,
+      `const __dirname = dirname(fileURLToPath(import.meta.url));`,
+      `const config = JSON.parse(readFileSync(resolve(__dirname, "./rpc.json")).toString());`,
+      `run(resolve(__dirname, "../main.clio.js"), config, true);`,
     ].join("\n")
   );
 };

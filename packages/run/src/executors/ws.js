@@ -1,5 +1,5 @@
-import { Client } from "clio-rpc/transports/ws";
-import { Executor } from "clio-rpc/executor";
+import { Client } from "clio-rpc/transports/ws/index.js";
+import { Executor } from "clio-rpc/executor.js";
 
 export default async function (key, protocol, host) {
   const transport = new Client({ url: `${protocol}://${host}` });

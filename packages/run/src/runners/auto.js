@@ -1,4 +1,4 @@
-import { Dispatcher } from "clio-rpc/dispatcher";
+import { Dispatcher } from "clio-rpc/dispatcher.js";
 import { Monitor } from "../index.js";
 import ipc from "./ipc.js";
 import tcp from "./tcp.js";

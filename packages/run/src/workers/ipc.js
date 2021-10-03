@@ -1,6 +1,6 @@
-import { Client } from "clio-rpc/transports/ipc";
-import { Executor } from "clio-rpc/executor";
-import { Worker } from "clio-rpc/worker";
+import { Client } from "clio-rpc/transports/ipc/index.js";
+import { Executor } from "clio-rpc/executor.js";
+import { Worker } from "clio-rpc/worker.js";
 import { run } from "../index.js";
 
 const [path, file] = process?.argv?.slice?.(2) || [];

@@ -1,5 +1,5 @@
-import { Executor } from "clio-rpc/executor";
-import { Server } from "clio-rpc/transports/web-worker";
+import { Executor } from "clio-rpc/executor.js";
+import { Server } from "clio-rpc/transports/web-worker/index.js";
 import { getCPUCount } from "../lib/web-cpu.js";
 import { run } from "../index.js";
 
@@ -34,4 +34,10 @@ export const executor = async (
     const executor = new Executor(clientTransport);
     await run(main, { executor });
   });
+};
+
+export default {
+  executor,
+  server,
+  workers,
 };

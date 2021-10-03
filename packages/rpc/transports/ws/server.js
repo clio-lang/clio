@@ -1,6 +1,6 @@
 import { EventEmitter } from "../../common.js";
-import { Server as WSServer } from "ws";
 import { WSSocket } from "./socket.js";
+import ws from "ws";
 
 export class Server extends EventEmitter {
   constructor(config) {
@@ -14,7 +14,7 @@ export class Server extends EventEmitter {
   createWSServer() {
     if (!this.wsConfig) return;
     const { port } = this.wsConfig;
-    this.wsServer = new WSServer({ port });
+    this.wsServer = new ws.Server({ port });
     this.wsServer.on("listening", () => this.onListening());
     this.wsServer.on("connection", (socket) => this.onWSConnect(socket));
   }

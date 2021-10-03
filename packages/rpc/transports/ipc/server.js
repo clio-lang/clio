@@ -1,6 +1,6 @@
 import { EventEmitter } from "../../common.js";
 import { IPCSocket } from "./socket.js";
-import { PacketParser } from "../../lib.js";
+import { PacketParser } from "../../lib/index.js";
 import { createServer } from "net";
 import { join } from "path";
 

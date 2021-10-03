@@ -1,4 +1,4 @@
-import { Buffer } from "../../lib.js";
+import { Buffer } from "../../lib/index.js";
 import { EventEmitter } from "../../common.js";
 import { WorkerThreadSocket } from "./socket.js";
 import { desia } from "sializer";

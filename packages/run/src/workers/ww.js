@@ -1,6 +1,6 @@
-import { Client } from "clio-rpc/transports/web-worker";
-import { Executor } from "clio-rpc/executor";
-import { Worker } from "clio-rpc/worker";
+import { Client } from "clio-rpc/transports/web-worker/index.js";
+import { Executor } from "clio-rpc/executor.js";
+import { Worker } from "clio-rpc/worker.js";
 // To be worked out by the bundler
 import main from "main.clio.js";
 import { run } from "../index.js";

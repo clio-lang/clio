@@ -10,7 +10,7 @@ import {
   TextDocuments,
   createConnection,
 } from "vscode-languageserver/node";
-import { ImportError, ParsingError, parsingError } from "clio-core/errors";
+import { ImportError, ParsingError, parsingError } from "clio-core/errors.js";
 import { MODULES_PATH, getPackageConfig } from "clio-manifest";
 import { dirname as _dirname, join, relative, resolve } from "path";
 import { parse, tokenize } from "clio-core";
