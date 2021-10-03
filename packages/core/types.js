@@ -1513,6 +1513,9 @@ const types = {
     // type check
     const typeName = get(node.valueType, context).toString();
     const type = context.scope[typeName];
+    if (!type) {
+      throw new Error(`Identifier ${type} is not defined.`);
+    }
     const typeOfType = getTypeOf(node.valueType, context) || "Any";
     if (!["Type", "ListType"].includes(typeOfType)) {
       throw new Error(
@@ -1622,6 +1625,13 @@ const types = {
       node.type = "typeDefExtends";
       return get(node, context);
     }
+    for (const member of node.members) {
+      const typeName = get(member.type, context);
+      const typeInfo = context.scope[typeName];
+      if (!typeInfo) {
+        throw new Error(`Identifier ${typeName} is not defined.`);
+      }
+    }
     const { line, column, file } = node.start;
     const { rpcPrefix } = context;
     const name = get(node.name, context);
@@ -1663,6 +1673,13 @@ const types = {
     ]);
   },
   typeDefExtends(node, context) {
+    for (const member of node.members) {
+      const typeName = get(member.name, context);
+      const type = context.scope[typeName];
+      if (!type) {
+        throw new Error(`Identifier ${typeName} is not defined.`);
+      }
+    }
     const { line, column, file } = node.start;
     const { rpcPrefix } = context;
     const name = get(node.name, context);
@@ -1715,6 +1732,10 @@ const types = {
     const { rpcPrefix } = context;
     const name = get(node.name, context);
     const members = get(node.memberType, context);
+    const typeInfo = context.scope[members];
+    if (!typeInfo) {
+      throw new Error(`Identifier ${members} is not defined.`);
+    }
     const id = [rpcPrefix, file, name].join("/");
     context.scope[name] = {
       type: "ListType",
