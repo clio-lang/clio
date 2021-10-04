@@ -108,6 +108,7 @@ export const build = async (configPath, options = {}) => {
     configPath,
     modulesDir,
     modulesDestDir,
+    dirname(configPath),
     "",
     "",
     join(destination, ".clio", "cache"),

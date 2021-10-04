@@ -20,7 +20,7 @@ import { bean } from "bean-parser";
 import lex from "./lexer.js";
 import rules from "./rules.js";
 
-const parse = (tokens, source, file, context) => {
+export const parse = (tokens, source, file, context) => {
   try {
     const result = bean(tokens, rules, true, context);
     return result;
@@ -32,7 +32,7 @@ const parse = (tokens, source, file, context) => {
   }
 };
 
-const defaultScope = {
+export const defaultScope = {
   Number: { id: "Number", type: "Type" },
   String: { id: "String", type: "Type" },
   Array: { id: "Array", type: "Type" },
@@ -42,7 +42,7 @@ const defaultScope = {
   ListType: { id: "ListType", type: "Type" },
 };
 
-const compile = (source, file, { debug = false, ...ctx }) => {
+export const compile = (source, file, { debug = false, ...ctx }) => {
   const context = {
     compile,
     compileFile,
@@ -72,11 +72,11 @@ const compile = (source, file, { debug = false, ...ctx }) => {
   }
 };
 
-const mkdir = (directory) => {
+export const mkdir = (directory) => {
   if (!existsSync(directory)) mkdirSync(directory, { recursive: true });
 };
 
-const isFileModified = (src, dest, map, cache) => {
+export const isFileModified = (src, dest, map, cache) => {
   if (!existsSync(dest)) return true;
   if (!existsSync(map)) return true;
   if (!existsSync(cache)) return true;
@@ -89,12 +89,13 @@ const isFileModified = (src, dest, map, cache) => {
     .every(Boolean);
 };
 
-const compileFile = (
+export const compileFile = (
   relativeFile,
   config,
   configPath,
   modulesDir,
   modulesDestDir,
+  root,
   srcPrefix,
   destPrefix,
   cacheDir,
@@ -102,14 +103,18 @@ const compileFile = (
 ) => {
   const cfgDest = getDestinationFromConfig(configPath, config);
   const cfgSrc = getSourceFromConfig(configPath, config);
-  const destination = destPrefix ? join(destPrefix, cfgDest) : cfgDest;
-  const sourceDir = srcPrefix ? join(srcPrefix, cfgSrc) : cfgSrc;
+  const destination = destPrefix
+    ? join(root, destPrefix, cfgDest)
+    : join(root, cfgDest);
+  const sourceDir = srcPrefix
+    ? join(root, srcPrefix, cfgSrc)
+    : join(root, cfgSrc);
   const file = join(sourceDir, relativeFile);
   const rpcPrefix = `${config.title}@${config.version}`;
   const destFileClio = join(destination, relativeFile);
   const destFile = `${destFileClio}.js`;
   const mapFile = `${destFile}.map`;
-  const cacheFile = join(cacheDir, `${destFile}.json`);
+  const cacheFile = join(root, cacheDir, `${destFile}.json`);
   const isModified = isFileModified(file, destFile, mapFile, cacheFile);
   if (!isModified) {
     const map = readFileSync(mapFile).toString();
@@ -123,8 +128,8 @@ const compileFile = (
       const { src, dest, module: moduleName } = importsToCheck.pop();
       // TODO: This can be cached
       const configPath = moduleName
-        ? join(modulesDir, moduleName, "clio.toml")
-        : "clio.toml"; // TODO: Need project root here
+        ? join(root, modulesDir, moduleName, "clio.toml")
+        : join(root, "clio.toml");
       if (!transfer.npmDeps[moduleName]) {
         transfer.npmDeps[moduleName] = getParsedNpmDependencies(configPath);
       }
@@ -133,7 +138,7 @@ const compileFile = (
           getParsedNpmDevDependencies(configPath);
       }
       const mapFile = `${dest}.map`;
-      const cacheFile = join(cacheDir, `${dest}.json`);
+      const cacheFile = join(root, cacheDir, `${dest}.json`);
       const isModified = isFileModified(src, dest, mapFile, cacheFile);
       if (!isModified) {
         const { imports = [] } = JSON.parse(readFileSync(cacheFile).toString());
@@ -151,7 +156,7 @@ const compileFile = (
         const relativeFile = relative(srcDir, src);
         const rpcPrefix = `${config.title}@${config.version}`;
         const { code, map, context } = compile(contents, relativeFile, {
-          root: dirname(configPath),
+          root,
           file: relativeFile,
           config,
           sourceDir: cfgSrc,
@@ -196,7 +201,7 @@ const compileFile = (
   }
   const contents = readFileSync(file, "utf8");
   const { code, map, context } = compile(contents, relativeFile, {
-    root: dirname(configPath),
+    root,
     file: relativeFile,
     config,
     sourceDir: cfgSrc,
@@ -232,10 +237,4 @@ const compileFile = (
   };
 };
 
-const _parse = parse;
-export { _parse as parse };
-const _compile = compile;
-export { _compile as compile };
 export const tokenize = lex;
-const _compileFile = compileFile;
-export { _compileFile as compileFile };

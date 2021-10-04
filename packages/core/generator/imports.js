@@ -21,6 +21,7 @@ const compileImport = (path, importPath, context) => {
     const filePath = importPath.source;
 
     const {
+      root,
       compileFile,
       config,
       configPath,
@@ -38,7 +39,7 @@ const compileImport = (path, importPath, context) => {
     if (isModule) {
       // we need to get the config file
       const moduleName = path.split("/").shift();
-      const configPath = joinPath(modulesDir, moduleName, "clio.toml");
+      const configPath = joinPath(root, modulesDir, moduleName, "clio.toml");
       const config = configs[moduleName] || getPackageConfig(configPath);
       configs[moduleName] = config;
       context.configs = configs;
@@ -58,6 +59,7 @@ const compileImport = (path, importPath, context) => {
         configPath,
         modulesDir,
         modulesDestDir,
+        root || dirname(configPath),
         srcPrefix,
         destPrefix,
         cacheDir,
@@ -77,6 +79,7 @@ const compileImport = (path, importPath, context) => {
         configPath,
         modulesDir,
         modulesDestDir,
+        root,
         srcPrefix,
         destPrefix,
         cacheDir,
@@ -101,7 +104,7 @@ const toRelative = (path) => (path.match(/^\.{1,2}\//) ? path : "./" + path);
 
 const resolveRelativeModule = (context, path, line, column) => {
   const currDir = dirname(
-    joinPath(context.srcPrefix, context.sourceDir, context.file)
+    joinPath(context.root, context.srcPrefix, context.sourceDir, context.file)
   );
   const possiblePaths = [];
   const resolvePath = resolve(currDir, path);
@@ -140,10 +143,11 @@ const resolveRelativeModule = (context, path, line, column) => {
 
 const resolveAbsoluteModule = (context, path, line, column) => {
   const currDir = dirname(
-    joinPath(context.srcPrefix, context.sourceDir, context.file)
+    joinPath(context.root, context.srcPrefix, context.sourceDir, context.file)
   );
   const possiblePaths = [];
   const resolvePath = resolve(
+    context.root,
     context.srcPrefix,
     context.sourceDir,
     path.slice(1)
@@ -181,7 +185,7 @@ const resolveAbsoluteModule = (context, path, line, column) => {
 
 const resolveModule = (context, path, line, column) => {
   const [moduleName, subPath = ""] = path.match(/(.*?)(?:$|\/(.*))/).slice(1);
-  const modulePath = joinPath(context.modulesDir, moduleName);
+  const modulePath = joinPath(context.root, context.modulesDir, moduleName);
   if (!existsSync(modulePath)) {
     throw new ImportError({
       message: [
@@ -194,7 +198,12 @@ const resolveModule = (context, path, line, column) => {
   }
 
   const { source, destination } = context.config.build;
-  const sourceDir = resolve(context.modulesDir, moduleName, source);
+  const sourceDir = resolve(
+    context.root,
+    context.modulesDir,
+    moduleName,
+    source
+  );
   const possiblePaths = [];
   const getResolvePath = (subPath) => {
     return {
@@ -409,7 +418,7 @@ export const esm = (node, context, get) => {
 };
 
 export const clio = (node, context, get) => {
-  const path = node.path.value.slice(1, -1).replace(/^[^:]*:/, "");
+  const path = node.path.value.slice(1, -1);
   const filename = path.split("/").pop();
   // Get the name, and make it pascalCase
   const name = filename
