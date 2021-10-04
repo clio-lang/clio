@@ -1,4 +1,3 @@
-import { ImportError, get } from "./types.js";
 import { dirname, join, relative } from "path";
 import {
   existsSync,
@@ -14,20 +13,18 @@ import {
   getParsedNpmDevDependencies,
   getSourceFromConfig,
 } from "clio-manifest";
-import { importError, parsingError } from "./errors.js";
 
 import { bean } from "bean-parser";
+import { get } from "./types.js";
 import lex from "./lexer.js";
+import { parsingError } from "./errors.js";
 import rules from "./rules.js";
 
-export const parse = (tokens, source, file, context) => {
+export const parse = (tokens, context) => {
   try {
     const result = bean(tokens, rules, true, context);
     return result;
   } catch (error) {
-    if (error instanceof ImportError) {
-      throw importError(source, file, error);
-    }
     throw error;
   }
 };
@@ -47,6 +44,7 @@ export const compile = (source, file, { debug = false, ...ctx }) => {
     compile,
     compileFile,
     scope: { ...defaultScope },
+    source,
     ...ctx,
   };
   const tokens = lex(source, { file });

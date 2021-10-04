@@ -7,13 +7,7 @@ import {
 
 import { SourceNode } from "source-map";
 import { existsSync } from "fs";
-
-export class ImportError extends Error {
-  constructor(meta) {
-    super(meta.message);
-    this.meta = meta;
-  }
-}
+import { importError } from "../errors.js";
 
 const compileImport = (path, importPath, context) => {
   if (context.sourceDir) {
@@ -129,11 +123,13 @@ const resolveRelativeModule = (context, path, line, column) => {
     }
   }
 
-  throw new ImportError({
+  throw importError({
+    file: context.file,
+    source: context.source,
     message: [
       `Cannot find module "${path}" in any of the following locations:\n`,
       ...possiblePaths.map(
-        (path) => `  - ${relative(context.srcPrefix, path)}`
+        (path) => `  - ${relative(context.srcPrefix, path.source)}`
       ),
     ].join("\n"),
     line,
@@ -173,10 +169,14 @@ const resolveAbsoluteModule = (context, path, line, column) => {
     }
   }
 
-  throw new ImportError({
+  throw importError({
+    file: context.file,
+    source: context.source,
     message: [
       `Cannot find module "${path}" in any of the following locations:\n`,
-      ...possiblePaths.map((path) => `  - ${relative(context.root, path)}`),
+      ...possiblePaths.map(
+        (path) => `  - ${relative(context.root, path.source)}`
+      ),
     ].join("\n"),
     line,
     column,
@@ -187,7 +187,9 @@ const resolveModule = (context, path, line, column) => {
   const [moduleName, subPath = ""] = path.match(/(.*?)(?:$|\/(.*))/).slice(1);
   const modulePath = join(context.root, context.modulesDir, moduleName);
   if (!existsSync(modulePath)) {
-    throw new ImportError({
+    throw importError({
+      file: context.file,
+      source: context.source,
       message: [
         `Cannot find module "${moduleName}" in your project.`,
         "Are you sure it is installed?",
@@ -240,10 +242,14 @@ const resolveModule = (context, path, line, column) => {
     }
   }
 
-  throw new ImportError({
+  throw importError({
+    file: context.file,
+    source: context.source,
     message: [
       `Cannot find module "${path}" in any of the following locations:\n`,
-      ...possiblePaths.map((path) => `  - ${relative(context.root, path)}`),
+      ...possiblePaths.map(
+        (path) => `  - ${relative(context.root, path.source)}`
+      ),
     ].join("\n"),
     line,
     column,

@@ -43,23 +43,23 @@ const getImportErrorMessage = ({
   start,
   column,
   source,
-  importError,
+  message,
 }) => {
   const rawCode = source.split("\n").slice(start, line).join("\n");
   const highlighted = colorize(rawCode);
   const lines = highlighted.split("\n");
   const { length } = (start + 1 + lines.length).toString();
   const code = lines.map(addLineNumber(start, length)).join("\n");
-  const message = [
+  const wrappedMessage = [
     `Import error at ${file}[${line}:${column}]\n`,
     code,
     " ".repeat(column + length + 4) + "^",
-    `\n${importError}`,
+    `\n${message}`,
   ].join("\n");
-  return { message };
+  return { message: wrappedMessage };
 };
 
-class ParsingError extends Error {
+export class ParsingError extends Error {
   constructor(meta) {
     const { message, parseError } = getMessage(meta);
     super(message);
@@ -69,7 +69,7 @@ class ParsingError extends Error {
   }
 }
 
-class ImportError extends Error {
+export class ImportError extends Error {
   constructor(meta) {
     const { message } = getImportErrorMessage(meta);
     super(message);
@@ -77,7 +77,8 @@ class ImportError extends Error {
     this.meta.message = message;
   }
 }
-class LexingError extends Error {
+
+export class LexingError extends Error {
   constructor(meta) {
     super(meta.message);
     this.meta = meta;
@@ -136,7 +137,7 @@ const ruleGroups = {
 const titleCase = (name) => name[0].toUpperCase() + name.slice(1);
 const getRuleName = (rule) => ruleNames[rule] || titleCase(rule);
 
-const formatExpectedRules = (expectedRules) => {
+export const formatExpectedRules = (expectedRules) => {
   const groups = {};
   for (const rule of expectedRules) {
     const name = getRuleName(rule);
@@ -162,7 +163,7 @@ const formatExpectedRules = (expectedRules) => {
     .join("\n");
 };
 
-const parsingError = (source, file, tokens) => {
+export const parsingError = (source, file, tokens) => {
   const { lhs, rhs } = findFirstUnfinished(tokens);
   const expectedRules = Object.keys(rules[lhs.item.type] || {});
   const expecting = formatExpectedRules(expectedRules);
@@ -180,27 +181,14 @@ const parsingError = (source, file, tokens) => {
   });
 };
 
-const importError = (source, file, error) => {
-  const { line, column } = error.meta;
-  const importError = error.meta.message;
+export const importError = ({ source, file, message, line, column }) => {
   const start = Math.max(0, line - 3);
   return new ImportError({
     source,
     file,
     line,
     column,
-    importError,
+    message,
     start,
   });
 };
-
-const _importError = importError;
-export { _importError as importError };
-const _ImportError = ImportError;
-export { _ImportError as ImportError };
-const _parsingError = parsingError;
-export { _parsingError as parsingError };
-const _ParsingError = ParsingError;
-export { _ParsingError as ParsingError };
-const _LexingError = LexingError;
-export { _LexingError as LexingError };
