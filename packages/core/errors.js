@@ -32,7 +32,7 @@ const getMessage = ({ file, line, start, column, source, expecting, rhs }) => {
     `Parsing error at ${file}[${line}:${column}]\n`,
     code,
     " ".repeat(column + length + 4) + "^",
-    `\n${parseError}`,
+    `${parseError}`,
   ].join("\n");
   return { message, parseError };
 };
@@ -47,7 +47,7 @@ const wrapMessage = ({ name, file, line, start, column, source, message }) => {
     `${name} at ${file}[${line}:${column}]\n`,
     code,
     " ".repeat(column + length + 4) + "^",
-    `\n${message}`,
+    `${message}`,
   ].join("\n");
   return { message: wrappedMessage };
 };
