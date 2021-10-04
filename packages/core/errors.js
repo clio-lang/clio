@@ -37,26 +37,27 @@ const getMessage = ({ file, line, start, column, source, expecting, rhs }) => {
   return { message, parseError };
 };
 
-const getImportErrorMessage = ({
-  file,
-  line,
-  start,
-  column,
-  source,
-  message,
-}) => {
+const wrapMessage = ({ name, file, line, start, column, source, message }) => {
   const rawCode = source.split("\n").slice(start, line).join("\n");
   const highlighted = colorize(rawCode);
   const lines = highlighted.split("\n");
   const { length } = (start + 1 + lines.length).toString();
   const code = lines.map(addLineNumber(start, length)).join("\n");
   const wrappedMessage = [
-    `Import error at ${file}[${line}:${column}]\n`,
+    `${name} at ${file}[${line}:${column}]\n`,
     code,
     " ".repeat(column + length + 4) + "^",
     `\n${message}`,
   ].join("\n");
   return { message: wrappedMessage };
+};
+
+const getImportErrorMessage = (meta) => {
+  return wrapMessage({ name: "Import error", ...meta });
+};
+
+const getTypeErrorMessage = (meta) => {
+  return wrapMessage({ name: "Type error", ...meta });
 };
 
 export class ParsingError extends Error {
@@ -72,6 +73,15 @@ export class ParsingError extends Error {
 export class ImportError extends Error {
   constructor(meta) {
     const { message } = getImportErrorMessage(meta);
+    super(message);
+    this.meta = meta;
+    this.meta.message = message;
+  }
+}
+
+export class TypeError extends Error {
+  constructor(meta) {
+    const { message } = getTypeErrorMessage(meta);
     super(message);
     this.meta = meta;
     this.meta.message = message;
@@ -184,6 +194,18 @@ export const parsingError = (source, file, tokens) => {
 export const importError = ({ source, file, message, line, column }) => {
   const start = Math.max(0, line - 3);
   return new ImportError({
+    source,
+    file,
+    line,
+    column,
+    message,
+    start,
+  });
+};
+
+export const typeError = ({ source, file, message, line, column }) => {
+  const start = Math.max(0, line - 3);
+  return new TypeError({
     source,
     file,
     line,

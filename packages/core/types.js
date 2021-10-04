@@ -2,6 +2,7 @@ import { cjs, clio as clioImport, esm, remote } from "./generator/imports.js";
 import { map, mapfn } from "bean-parser";
 
 import { SourceNode } from "source-map";
+import { typeError } from "./errors.js";
 
 const join = (arr, sep) => new SourceNode(null, null, null, arr).join(sep);
 const asIs = (token) =>
@@ -176,8 +177,8 @@ const getTypeOf = (node, context) => {
   }
   if (node.type === "math") {
     const { lhs, rhs } = node.value;
-    const lhsType = getTypeOf(lhs, context);
-    const rhsType = getTypeOf(rhs, context);
+    const lhsType = getTypeOf(lhs, context) || "Any";
+    const rhsType = getTypeOf(rhs, context) || "Any";
     if (lhsType === "Parameter") {
       lhs.typeInfo = rhsType.type === "Parameter" ? "Any" : rhsType.type;
       rhs.typeInfo = rhsType.type === "Parameter" ? "Any" : rhsType.type;
@@ -186,24 +187,66 @@ const getTypeOf = (node, context) => {
       rhs.typeInfo = lhsType.type;
       return rhs.typeInfo;
     }
-    if (lhsType !== rhsType) {
-      throw `Cannot add ${lhsType} and ${rhsType}.`;
+    if (lhsType !== "Any" && rhsType !== "Any" && lhsType !== rhsType) {
+      throw typeError({
+        source: context.source,
+        file: context.file,
+        line: node.value.op.line,
+        column: node.value.op.column,
+        message: `Cannot add ${lhsType} and ${rhsType}.`,
+      });
     }
     if (node.value.type === "add") {
-      if (!["Number", "String"].includes(lhsType)) {
-        throw `Cannot add ${lhsType} and ${rhsType}.`;
+      if (!["Number", "String", "Any"].includes(lhsType)) {
+        throw typeError({
+          source: context.source,
+          file: context.file,
+          line: node.value.op.line,
+          column: node.value.op.column,
+          message: `Cannot add ${lhsType} and ${rhsType}.`,
+        });
       }
-    } else if (lhsType !== "Number") {
+    } else if (!["Number", "Any"].includes(lhsType)) {
       if (node.value.type === "pow") {
-        throw `Cannot calculate ${lhsType} to the power of ${rhsType}.`;
+        throw typeError({
+          source: context.source,
+          file: context.file,
+          line: node.value.op.line,
+          column: node.value.op.column,
+          message: `Cannot calculate ${lhsType} to the power of ${rhsType}.`,
+        });
       } else if (node.value.type === "mul") {
-        throw `Cannot multiply ${lhsType} and ${rhsType}.`;
+        throw typeError({
+          source: context.source,
+          file: context.file,
+          line: node.value.op.line,
+          column: node.value.op.column,
+          message: `Cannot multiply ${lhsType} and ${rhsType}.`,
+        });
       } else if (node.value.type === "div") {
-        throw `Cannot divide ${lhsType} and ${rhsType}.`;
+        throw typeError({
+          source: context.source,
+          file: context.file,
+          line: node.value.op.line,
+          column: node.value.op.column,
+          message: `Cannot divide ${lhsType} and ${rhsType}.`,
+        });
       } else if (node.value.type === "sub") {
-        throw `Cannot substract ${lhsType} from ${rhsType}.`;
+        throw typeError({
+          source: context.source,
+          file: context.file,
+          line: node.value.op.line,
+          column: node.value.op.column,
+          message: `Cannot subtract ${lhsType} from ${rhsType}.`,
+        });
       } else {
-        throw `Applying "${node.value.op}" not allowed on ${lhsType} and ${rhsType}`;
+        throw typeError({
+          source: context.source,
+          file: context.file,
+          line: node.value.op.line,
+          column: node.value.op.column,
+          message: `Applying "${node.value.op}" not allowed on ${lhsType} and ${rhsType}`,
+        });
       }
     }
     return lhsType;
@@ -274,9 +317,16 @@ export const types = {
     const fnName = getFnName(fn, context);
     const fnType = getTypeOf(fn, context);
     if (fnType && !["Function", "Any", "Type"].includes(fnType)) {
-      throw new Error(
-        `Value ${get(fn, context)} of type ${fnType} is not callable.`
-      );
+      throw typeError({
+        source: context.source,
+        file: context.file,
+        line: fn.line,
+        column: fn.column,
+        message: `Value ${get(
+          fn,
+          context
+        )} is of type ${fnType} and is not callable.`,
+      });
     }
     const { accepts } = context.scope[fnName] || {};
     if (accepts) {
@@ -287,9 +337,13 @@ export const types = {
       const typeOfType = typeInfoOfType?.type;
       if (type !== "Any" && type !== "Array" && typeOfType !== "ListType") {
         const typeName = type.split("/").pop();
-        throw new Error(
-          `Cannot map a function to an argument of type ${typeName}`
-        );
+        throw typeError({
+          source: context.source,
+          file: context.file,
+          line: firstArg.line,
+          column: firstArg.column,
+          message: `Cannot map a function to an argument of type ${typeName}`,
+        });
       }
       if (type === "Array") {
         // Should loop over all members
@@ -299,9 +353,13 @@ export const types = {
           if (itemType !== accepts[0]) {
             const itemTypeName = itemType.split("/").pop();
             const paramTypeName = accepts[0].split("/").pop();
-            throw new Error(
-              `Element ${i} of type ${itemTypeName} does not satisfy parameter of type ${paramTypeName}`
-            );
+            throw typeError({
+              source: context.source,
+              file: context.file,
+              line: item.line,
+              column: item.column,
+              message: `Element ${i} of type ${itemTypeName} does not satisfy parameter of type ${paramTypeName}`,
+            });
           }
         }
       } else if (typeOfType === "ListType") {
@@ -309,9 +367,13 @@ export const types = {
         if (memberType !== accepts[0]) {
           const memberTypeName = memberType.split("/").pop();
           const paramTypeName = accepts[0].split("/").pop();
-          throw new Error(
-            `Items in array of type ${memberTypeName} do not satisfry parameter of type ${paramTypeName}`
-          );
+          throw typeError({
+            source: context.source,
+            file: context.file,
+            line: firstArg.line,
+            column: firstArg.column,
+            message: `Items in array of type ${memberTypeName} do not satisfry parameter of type ${paramTypeName}`,
+          });
         }
       }
       for (let index = 1; index < node.args.length; index++) {
@@ -324,9 +386,13 @@ export const types = {
         if (!match) {
           const argTypeName = type.split("/").pop();
           const paramTypeName = accepts[index].split("/").pop();
-          throw new Error(
-            `Argument of type ${argTypeName} at position ${index} does not satisfy parameter of type ${paramTypeName}`
-          );
+          throw typeError({
+            source: context.source,
+            file: context.file,
+            line: arg.line,
+            column: arg.column,
+            message: `Argument of type ${argTypeName} at position ${index} does not satisfy parameter of type ${paramTypeName}`,
+          });
         }
         if (type === "Parameter") {
           arg.typeInfo = accepts[index] || context.scope["Any"];
@@ -423,9 +489,16 @@ export const types = {
     const fn = getCallFn(node, context.scope);
     const fnType = getTypeOf(fn, context);
     if (fnType && !["Function", "Any", "Type"].includes(fnType)) {
-      throw new Error(
-        `Value ${get(fn, context)} of type ${fnType} is not callable.`
-      );
+      throw typeError({
+        source: context.source,
+        file: context.file,
+        line: fn.line,
+        column: fn.column,
+        message: `Value ${get(
+          fn,
+          context
+        )} is of type ${fnType} and is not callable.`,
+      });
     }
     const args = node.args.map((item) => get(item, context));
     const insertBefore = args.map((arg) => arg.insertBefore).filter(Boolean);
@@ -442,9 +515,13 @@ export const types = {
         if (!match) {
           const argTypeName = type.split("/").pop();
           const paramTypeName = accepts[index].split("/").pop();
-          throw new Error(
-            `Argument of type ${argTypeName} at position ${index} does not satisfy parameter of type ${paramTypeName}`
-          );
+          throw typeError({
+            source: context.source,
+            file: context.file,
+            line: arg.line,
+            column: arg.column,
+            message: `Argument of type ${argTypeName} at position ${index} does not satisfy parameter of type ${paramTypeName}`,
+          });
         }
         if (type === "Parameter") {
           arg.typeInfo = accepts[index] || context.scope["Any"];
@@ -499,6 +576,7 @@ export const types = {
     },
   ]),
   math(node, context) {
+    getTypeOf(node, context);
     return get(node.value, context);
   },
   block(node, context) {
@@ -586,9 +664,13 @@ export const types = {
       if (node.returnType !== vType) {
         const vTypeName = vType ? vType.split("/").pop() : "Any";
         const typeName = node.returnType.split("/").pop();
-        throw new Error(
-          `Cannot return value of type ${vTypeName} from a function of type ${typeName}`
-        );
+        throw typeError({
+          source: context.source,
+          file: context.file,
+          line: lastNode.line,
+          column: lastNode.column,
+          message: `Cannot return value of type ${vTypeName} from a function of type ${typeName}`,
+        });
       }
     }
     let last = get(lastNode, context);
@@ -642,7 +724,13 @@ export const types = {
             const type = get(args[0], context).toString();
             const typeInfo = context.scope[type];
             if (!typeInfo) {
-              throw new Error(`Identifier ${type} is not defined.`);
+              throw typeError({
+                source: context.source,
+                file: context.file,
+                line: args[0].line,
+                column: args[0].column,
+                message: `Identifier ${type} is not defined.`,
+              });
             }
             context.scope[name] = {
               ...context.scope[name],
@@ -655,7 +743,13 @@ export const types = {
               const type = get(arg, context);
               const typeInfo = context.scope[type];
               if (!typeInfo) {
-                throw new Error(`Identifier ${type} is not defined.`);
+                throw typeError({
+                  source: context.source,
+                  file: context.file,
+                  line: arg.line,
+                  column: arg.column,
+                  message: `Identifier ${type} is not defined.`,
+                });
               }
             }
             const types = args
@@ -1163,13 +1257,23 @@ export const types = {
     const typeName = get(node.valueType, context).toString();
     const type = context.scope[typeName];
     if (!type) {
-      throw new Error(`Identifier ${type} is not defined.`);
+      throw typeError({
+        source: context.source,
+        file: context.file,
+        line: node.valueType.line,
+        column: node.valueType.column,
+        message: `Identifier ${type} is not defined.`,
+      });
     }
     const typeOfType = getTypeOf(node.valueType, context) || "Any";
     if (!["Type", "ListType"].includes(typeOfType)) {
-      throw new Error(
-        `Identifier ${typeName} is of type ${typeOfType} and cannot be used as a Type.`
-      );
+      throw typeError({
+        source: context.source,
+        file: context.file,
+        line: node.valueType.line,
+        column: node.valueType.column,
+        message: `Identifier ${typeName} is of type ${typeOfType} and cannot be used as a Type.`,
+      });
     }
     const vType = getTypeOf(node.assignment.value, context);
     if (typeOfType === "ListType" && vType === "Array") {
@@ -1178,9 +1282,13 @@ export const types = {
         const itemType = getTypeOf(item, context) || "Any";
         if (itemType !== accepts) {
           const itemTypeName = itemType.split("/").pop();
-          throw new Error(
-            `Cannot add item of type ${itemTypeName} to array ${assignment.name} of type ${typeName}`
-          );
+          throw typeError({
+            source: context.source,
+            file: context.file,
+            line: item.line,
+            column: item.column,
+            message: `Cannot add item of type ${itemTypeName} to array ${assignment.name} of type ${typeName}`,
+          });
         }
       }
     } else if (typeOfType === "ListType" && Array.isArray(vType)) {
@@ -1188,16 +1296,24 @@ export const types = {
         const typeNames = vType
           .map((type) => type.id.split("/").pop())
           .join(" | ");
-        throw new Error(
-          `Cannot assign array of type ${typeNames} to identifier ${assignment.name} of type ${typeName}`
-        );
+        throw typeError({
+          source: context.source,
+          file: context.file,
+          line: node.assignment.assign.line,
+          column: node.assignment.assign.column,
+          message: `Cannot assign array of type ${typeNames} to identifier ${assignment.name} of type ${typeName}`,
+        });
       }
     } else if (type && vType !== type.id) {
       const vTypeName = vType ? vType.split("/").pop() : "Any";
       const typeName = type.id.split("/").pop();
-      throw new Error(
-        `Cannot assign value of type ${vTypeName} to variable ${assignment.name} of type ${typeName}`
-      );
+      throw typeError({
+        source: context.source,
+        file: context.file,
+        line: node.assignment.assign.line,
+        column: node.assignment.assign.column,
+        message: `Cannot assign value of type ${vTypeName} to identifier ${assignment.name} of type ${typeName}`,
+      });
     }
     const { rpcPrefix, file } = context;
     context.scope[assignment.name] = {
@@ -1278,7 +1394,13 @@ export const types = {
       const typeName = get(member.type, context);
       const typeInfo = context.scope[typeName];
       if (!typeInfo) {
-        throw new Error(`Identifier ${typeName} is not defined.`);
+        throw typeError({
+          source: context.source,
+          file: context.file,
+          line: member.line,
+          column: member.column,
+          message: `Identifier ${typeName} is not defined.`,
+        });
       }
     }
     const { line, column, file } = node.start;
@@ -1326,7 +1448,13 @@ export const types = {
       const typeName = get(member.name, context);
       const type = context.scope[typeName];
       if (!type) {
-        throw new Error(`Identifier ${typeName} is not defined.`);
+        throw typeError({
+          source: context.source,
+          file: context.file,
+          line: member.line,
+          column: member.column,
+          message: `Identifier ${typeName} is not defined.`,
+        });
       }
     }
     const { line, column, file } = node.start;
@@ -1383,7 +1511,13 @@ export const types = {
     const members = get(node.memberType, context);
     const typeInfo = context.scope[members];
     if (!typeInfo) {
-      throw new Error(`Identifier ${members} is not defined.`);
+      throw typeError({
+        source: context.source,
+        file: context.file,
+        line: members.line,
+        column: members.column,
+        message: `Identifier ${typeName} is not defined.`,
+      });
     }
     const id = [rpcPrefix, file, name].join("/");
     context.scope[name] = {
