@@ -329,6 +329,15 @@ export const cjs = (node, context, get) => {
 };
 
 export const esm = (node, context, get) => {
+  // check if there's rest
+  const hasRest =
+    node.items.length > 1 &&
+    node.items.filter((item) => item.lhs.type === "mulOp").length === 1;
+
+  if (hasRest) {
+    return cjs(node, context, get);
+  }
+
   const path = node.path.value.slice(1, -1).replace(/^[^:]*:/, "");
   const filename = path.split("/").pop();
   // Get the name, and make it pascalCase
@@ -378,13 +387,21 @@ export const esm = (node, context, get) => {
         rest.name = name;
       }
     }
-    if (rest) parts.push(rest);
-    assign = new SourceNode(null, null, null, [
-      "import{",
-      new SourceNode(null, null, null, parts).join(","),
-      "}",
-      require,
-    ]);
+    if (rest) {
+      assign = new SourceNode(null, null, null, [
+        "import ",
+        rest,
+        " ",
+        require,
+      ]);
+    } else {
+      assign = new SourceNode(null, null, null, [
+        "import{",
+        new SourceNode(null, null, null, parts).join(","),
+        "}",
+        require,
+      ]);
+    }
   }
   const sn = new SourceNode(null, null, null, "");
   sn.topLevel = assign;
