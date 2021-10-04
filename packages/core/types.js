@@ -193,7 +193,7 @@ const getTypeOf = (node, context) => {
         file: context.file,
         line: node.value.op.line,
         column: node.value.op.column,
-        message: `Cannot add ${lhsType} and ${rhsType}.`,
+        message: `Cannot add ${rhsType} to ${lhsType}.`,
       });
     }
     if (node.value.type === "add") {
@@ -203,7 +203,7 @@ const getTypeOf = (node, context) => {
           file: context.file,
           line: node.value.op.line,
           column: node.value.op.column,
-          message: `Cannot add ${lhsType} and ${rhsType}.`,
+          message: `Cannot add ${rhsType} to ${lhsType}.`,
         });
       }
     } else if (!["Number", "Any"].includes(lhsType)) {
@@ -221,7 +221,7 @@ const getTypeOf = (node, context) => {
           file: context.file,
           line: node.value.op.line,
           column: node.value.op.column,
-          message: `Cannot multiply ${lhsType} and ${rhsType}.`,
+          message: `Cannot multiply ${lhsType} by ${rhsType}.`,
         });
       } else if (node.value.type === "div") {
         throw typeError({
@@ -229,7 +229,7 @@ const getTypeOf = (node, context) => {
           file: context.file,
           line: node.value.op.line,
           column: node.value.op.column,
-          message: `Cannot divide ${lhsType} and ${rhsType}.`,
+          message: `Cannot divide ${lhsType} by ${rhsType}.`,
         });
       } else if (node.value.type === "sub") {
         throw typeError({
@@ -237,7 +237,7 @@ const getTypeOf = (node, context) => {
           file: context.file,
           line: node.value.op.line,
           column: node.value.op.column,
-          message: `Cannot subtract ${lhsType} from ${rhsType}.`,
+          message: `Cannot subtract ${rhsType} from ${lhsType}.`,
         });
       } else {
         throw typeError({
@@ -245,7 +245,7 @@ const getTypeOf = (node, context) => {
           file: context.file,
           line: node.value.op.line,
           column: node.value.op.column,
-          message: `Applying "${node.value.op}" not allowed on ${lhsType} and ${rhsType}`,
+          message: `Applying "${node.value.op}" is not allowed on ${lhsType} and ${rhsType}`,
         });
       }
     }
