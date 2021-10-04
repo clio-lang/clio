@@ -1,4 +1,4 @@
-import { dirname, join as joinPath, relative, resolve } from "path";
+import { dirname, join, relative, resolve } from "path";
 import {
   getPackageConfig,
   getParsedNpmDependencies,
@@ -39,12 +39,12 @@ const compileImport = (path, importPath, context) => {
     if (isModule) {
       // we need to get the config file
       const moduleName = path.split("/").shift();
-      const configPath = joinPath(root, modulesDir, moduleName, "clio.toml");
+      const configPath = join(root, modulesDir, moduleName, "clio.toml");
       const config = configs[moduleName] || getPackageConfig(configPath);
       configs[moduleName] = config;
       context.configs = configs;
-      const srcPrefix = joinPath(modulesDir, moduleName);
-      const destPrefix = joinPath(modulesDestDir, moduleName);
+      const srcPrefix = join(modulesDir, moduleName);
+      const destPrefix = join(modulesDestDir, moduleName);
       if (!npmDeps[moduleName]) {
         npmDeps[moduleName] = getParsedNpmDependencies(configPath);
         context.npmDeps = npmDeps;
@@ -104,7 +104,7 @@ const toRelative = (path) => (path.match(/^\.{1,2}\//) ? path : "./" + path);
 
 const resolveRelativeModule = (context, path, line, column) => {
   const currDir = dirname(
-    joinPath(context.root, context.srcPrefix, context.sourceDir, context.file)
+    join(context.root, context.srcPrefix, context.sourceDir, context.file)
   );
   const possiblePaths = [];
   const resolvePath = resolve(currDir, path);
@@ -114,7 +114,7 @@ const resolveRelativeModule = (context, path, line, column) => {
   } else {
     possiblePaths.push(resolvePath);
   }
-  possiblePaths.push(joinPath(resolvePath, "main.clio"));
+  possiblePaths.push(join(resolvePath, "main.clio"));
 
   for (const path of possiblePaths) {
     if (existsSync(path)) {
@@ -143,7 +143,7 @@ const resolveRelativeModule = (context, path, line, column) => {
 
 const resolveAbsoluteModule = (context, path, line, column) => {
   const currDir = dirname(
-    joinPath(context.root, context.srcPrefix, context.sourceDir, context.file)
+    join(context.root, context.srcPrefix, context.sourceDir, context.file)
   );
   const possiblePaths = [];
   const resolvePath = resolve(
@@ -158,7 +158,7 @@ const resolveAbsoluteModule = (context, path, line, column) => {
   } else {
     possiblePaths.push(resolvePath);
   }
-  possiblePaths.push(joinPath(resolvePath, "main.clio"));
+  possiblePaths.push(join(resolvePath, "main.clio"));
 
   for (const path of possiblePaths) {
     if (existsSync(path)) {
@@ -185,7 +185,7 @@ const resolveAbsoluteModule = (context, path, line, column) => {
 
 const resolveModule = (context, path, line, column) => {
   const [moduleName, subPath = ""] = path.match(/(.*?)(?:$|\/(.*))/).slice(1);
-  const modulePath = joinPath(context.root, context.modulesDir, moduleName);
+  const modulePath = join(context.root, context.modulesDir, moduleName);
   if (!existsSync(modulePath)) {
     throw new ImportError({
       message: [
@@ -221,7 +221,7 @@ const resolveModule = (context, path, line, column) => {
   } else {
     possiblePaths.push(getResolvePath(subPath));
   }
-  possiblePaths.push(getResolvePath(joinPath(subPath, "main.clio")));
+  possiblePaths.push(getResolvePath(join(subPath, "main.clio")));
 
   for (const path of possiblePaths) {
     if (existsSync(path.source)) {
