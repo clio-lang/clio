@@ -76,6 +76,7 @@ export class ImportError extends Error {
     const { message } = getImportErrorMessage(meta);
     super(message);
     this.meta = meta;
+    this.meta.importError = meta.message;
     this.meta.message = message;
   }
 }
@@ -85,6 +86,7 @@ export class TypeError extends Error {
     const { message } = getTypeErrorMessage(meta);
     super(message);
     this.meta = meta;
+    this.meta.typeError = meta.message;
     this.meta.message = message;
   }
 }

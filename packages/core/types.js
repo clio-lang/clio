@@ -193,7 +193,7 @@ const getTypeOf = (node, context) => {
         file: context.file,
         line: node.value.op.line,
         column: node.value.op.column,
-        message: `Cannot add ${rhsType} to ${lhsType}.`,
+        message: `Cannot add ${lhsType} and ${rhsType}.`,
       });
     }
     if (node.value.type === "add") {
@@ -203,7 +203,7 @@ const getTypeOf = (node, context) => {
           file: context.file,
           line: node.value.op.line,
           column: node.value.op.column,
-          message: `Cannot add ${rhsType} to ${lhsType}.`,
+          message: `Cannot add ${lhsType} and ${rhsType}.`,
         });
       }
     } else if (!["Number", "Any"].includes(lhsType)) {

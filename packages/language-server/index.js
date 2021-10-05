@@ -9,11 +9,11 @@ import {
   TextDocumentSyncKind,
   TextDocuments,
   createConnection,
-} from "vscode-languageserver/node";
-import { ImportError, ParsingError, parsingError } from "clio-core/errors.js";
+} from "vscode-languageserver/node.js";
+import { ImportError, ParsingError, TypeError } from "clio-core/errors.js";
 import { MODULES_PATH, getPackageConfig } from "clio-manifest";
-import { dirname as _dirname, join, relative, resolve } from "path";
-import { parse, tokenize } from "clio-core";
+import { compileFile, tokenize } from "clio-core";
+import { dirname, join, relative, resolve } from "path";
 
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { existsSync } from "fs";
@@ -34,6 +34,9 @@ const getMessageFromError = (error) => {
   if (error instanceof ImportError) {
     return error.meta.importError;
   }
+  if (error instanceof TypeError) {
+    return error.meta.typeError;
+  }
   return error.message;
 };
 
@@ -41,26 +44,15 @@ function errorToDiagnostic(error) {
   const { line, column } = error.meta;
   const message = getMessageFromError(error);
   const pos = {
-    line: line - 1,
-    character: column,
+    line: (line || 0) - 1,
+    character: column || 0,
   };
   const range = { start: pos, end: { ...pos, character: 512 } }; // The end character is just an arbitrary large number
   return Diagnostic.create(range, message, DiagnosticSeverity.Error);
 }
 
-function linkedListToArray(ll) {
-  const arr = [];
-  let curr = ll.first;
-  while (curr) {
-    arr.push(curr.item);
-    curr = curr.next;
-  }
-  return arr;
-}
-
 function getProjectRoot(file) {
-  const dirname = _dirname(file);
-  let currdir = dirname;
+  let currdir = dirname(file);
   while (true) {
     const up = resolve(currdir, "..");
     if (up === currdir) {
@@ -74,8 +66,7 @@ function getProjectRoot(file) {
 }
 
 function getParentProjectRoot(file) {
-  const dirname = _dirname(file);
-  let currdir = dirname;
+  let currdir = dirname(file);
   let lastProjectDir = "";
   while (true) {
     const up = resolve(currdir, "..");
@@ -89,42 +80,49 @@ function getParentProjectRoot(file) {
   }
 }
 
-function updateParse(uri, source) {
+function updateParse(uri) {
   connection.console.info(`Parsing ${uri}...`);
   const diagnostics = [];
   try {
     const fileName = fileURLToPath(uri);
     const root = getProjectRoot(fileName);
-    const config = getPackageConfig(join(root, "clio.toml"));
+    const configPath = join(root, "clio.toml");
+    const config = getPackageConfig(configPath);
     const sourceDir = config.build.source;
 
     const parent = getParentProjectRoot(fileName);
-    const parentConfig = getPackageConfig(join(parent, "clio.toml"));
+    const parentConfigPath = join(parent, "clio.toml");
+    const parentConfig = getPackageConfig(parentConfigPath);
 
+    const cacheDir = join(parentConfig.build.destination, ".clio", "cache");
     const modulesDir = join(parentConfig.build.source, MODULES_PATH);
     const modulesDestDir = join(parentConfig.build.destination, MODULES_PATH);
 
-    const tokens = tokenize(source, {
-      file: relative(sourceDir, fileName),
-      sourceDir,
-      root,
+    const relativeFile = relative(sourceDir, fileName);
+    const moduleName = `${config.title}@${config.version}`;
+
+    const srcPrefix =
+      parentConfigPath === configPath ? "" : join(modulesDir, moduleName);
+    const destPrefix =
+      parentConfigPath === configPath ? "" : join(modulesDestDir, moduleName);
+
+    const { scope } = compileFile(
+      relativeFile,
+      config,
+      configPath,
       modulesDir,
       modulesDestDir,
-      // These don't make any difference to us:
-      destFile: fileName,
-      rpcPrefix: "vscode",
-    });
+      root,
+      srcPrefix,
+      destPrefix,
+      cacheDir,
+      { configs: {}, npmDeps: {}, npmDevDeps: {} }
+    );
 
-    parses.set(uri, linkedListToArray(tokens));
-
-    const parsed = parse(tokens, source, fileName);
+    parses.set(uri, scope);
 
     if (DEBUG_MODE) {
-      connection.console.log(inspect(parsed));
-    }
-
-    if (parsed.first.item.type !== "clio") {
-      throw parsingError(source, fileName, parsed);
+      connection.console.log(inspect(scope));
     }
   } catch (e) {
     const trace = errorToDiagnostic(e);
@@ -177,41 +175,75 @@ connection.onCompletion((params) => {
     kind: CompletionItemKind.Keyword,
   }));
 
-  const stored = parses.get(params.textDocument.uri);
+  const stored = parses.get(params.textDocument.uri) || {};
+  const keys = Object.keys(stored);
 
-  let functionCompletions = [];
-  if (stored) {
-    const symbols = [
-      ...new Set(
-        stored.filter((tok) => tok.type === "symbol").map((tok) => tok.value)
-      ),
-    ];
-    functionCompletions = symbols.map((value) => ({
-      label: value,
+  const functionCompletions = keys
+    .filter((key) => stored[key].type === "Function")
+    .map((label) => ({
+      label,
       kind: CompletionItemKind.Function,
     }));
-  }
 
-  return [...keywordCompletions, ...functionCompletions];
+  const scopeSymbols = keys
+    .filter((key) => stored[key].type !== "Function")
+    .map((label) => ({
+      label,
+      kind: CompletionItemKind.Constant,
+    }));
+
+  return [...keywordCompletions, ...functionCompletions, ...scopeSymbols];
 });
 
+function linkedListToArray(ll) {
+  const arr = [];
+  let curr = ll.first;
+  while (curr) {
+    arr.push(curr.item);
+    curr = curr.next;
+  }
+  return arr;
+}
+
+const getHoverMarkdown = (name, info) => {
+  if (info.type === "Function") {
+    return [
+      `**Function ${name}**`,
+      info.returns ? `- @returns ${info.returns}` : null,
+      info.accepts ? `- @accepts ${info.accepts.join(" ")}` : null,
+      info.params.length ? `- @params ${info.params.join(" ")}` : null,
+      info.description ? `\n_${info.description}_` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+  return info.type;
+};
+
 connection.onHover((params) => {
-  const pos = params.position;
   const stored = parses.get(params.textDocument.uri);
   if (!stored) return null;
 
-  const token = stored.tokens.find(
+  const source = documents.get(params.textDocument.uri).getText();
+  const tokens = tokenize(source, { file: params.textDocument.uri });
+  const tokensArray = linkedListToArray(tokens);
+  const pos = params.position;
+  const token = tokensArray.find(
     (tok) =>
       tok.line - 1 === pos.line &&
       pos.character >= tok.column &&
       pos.character < tok.column + tok.value.length
   );
-  if (!token) return null;
+
+  const info = stored[token?.value];
+  if (!info) return null;
+
+  const markdown = getHoverMarkdown(token.value, info);
 
   return {
     contents: {
-      kind: MarkupKind.PlainText,
-      value: token.name,
+      kind: MarkupKind.Markdown,
+      value: markdown,
     },
     range: {
       start: { line: token.line - 1, character: token.column },

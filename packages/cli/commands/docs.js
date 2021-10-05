@@ -85,7 +85,7 @@ function docsFn(root, name, info, configPath) {
   const doc = [
     info.returns ? `@returns ${info.returns}` : null,
     info.accepts ? `@accepts ${info.accepts.join(" ")}` : null,
-    info.params ? `@params  ${info.params.join(" ")}` : null,
+    info.params.lengh ? `@params  ${info.params.join(" ")}` : null,
     " ",
     info.description,
   ]
