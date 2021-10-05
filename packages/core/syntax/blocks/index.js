@@ -2,7 +2,8 @@ import { ignore, topLevels, wrap } from "../common.js";
 
 import { map } from "bean-parser";
 
-const blockLevels = topLevels.filter((tl) => tl !== "importStatement");
+const forbidden = ["decoratedExportedFunction", "importStatement"];
+const blockLevels = topLevels.filter((tl) => !forbidden.includes(tl));
 
 export default {
   // Blocks

@@ -13,8 +13,9 @@ const unfinished = [
   "powLhs",
   "comparisonOpen",
   "logicalOpen",
-  "export",
   "fnOpen",
+  "fnTail",
+  "export",
 ];
 
 const addLineNumber = (start, length) => (line, index) =>
@@ -95,14 +96,15 @@ export class LexingError extends Error {
   }
 }
 
+const isUnfinished = (node) => unfinished.includes(node.item.type);
+
 const findFirstUnfinished = (tokens) => {
   let lhs = tokens.first;
   let rhs = tokens.first.next;
-  const step = () => {
+  while ((rhs.next && !isUnfinished(lhs)) || isUnfinished(rhs)) {
     lhs = rhs;
     rhs = lhs.next;
-  };
-  while (rhs.next && !unfinished.includes(lhs.item.type)) step();
+  }
   if (rhs.item.type === "clio" && rhs.item.content[0]) {
     const { meta } = rhs.item;
     rhs = { meta, item: rhs.item.content[0] };
@@ -110,8 +112,9 @@ const findFirstUnfinished = (tokens) => {
   return { lhs, rhs };
 };
 
+const ignoreRules = ["lineBreak", "outdent"];
+
 const ruleNames = {
-  lineBreak: "White Space",
   ranger: "Range",
   rangeFull: "Range",
   rangeBy: "Range",
@@ -121,6 +124,15 @@ const ruleNames = {
   propertyAccess: "Property",
   inCheck: "In Check",
   parallelFn: "Parallel Function",
+  typedAssignment: "Assignment",
+  arrowAssignment: "Assignment",
+  decoratedExportedFunction: "Export",
+  decoratedFunction: "Function",
+  fullConditional: "Conditional",
+  logicalNot: "Logical",
+  listDef: "List",
+  typeDef: "Type",
+  parameterCall: "Call",
 };
 
 const ruleGroups = {
@@ -142,6 +154,13 @@ const ruleGroups = {
   symbol: "Names",
   propertyAccess: "Names",
   parameter: "Names",
+  logical: "Control",
+  logicalNot: "Control",
+  fullConditional: "Control",
+  conditional: "Control",
+  comparison: "Control",
+  inCheck: "Control",
+  wrapped: "Structural",
 };
 
 const titleCase = (name) => name[0].toUpperCase() + name.slice(1);
@@ -150,6 +169,9 @@ const getRuleName = (rule) => ruleNames[rule] || titleCase(rule);
 export const formatExpectedRules = (expectedRules) => {
   const groups = {};
   for (const rule of expectedRules) {
+    if (ignoreRules.includes(rule)) {
+      continue;
+    }
     const name = getRuleName(rule);
     const group = ruleGroups[rule] || "Other";
     if (!groups[group]) {
