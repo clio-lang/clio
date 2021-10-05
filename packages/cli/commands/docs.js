@@ -6,10 +6,10 @@ import {
 } from "clio-manifest";
 import { dirname, join, relative } from "path";
 import { lstatSync, readFileSync, readdirSync } from "fs";
-import { parse, tokenize } from "clio-core";
 
 import { AutoComplete } from "../lib/prompt.js";
 import chalk from "chalk";
+import { compileFile } from "clio-core";
 import enquirer from "enquirer";
 import { parsingError } from "clio-core/errors.js";
 
@@ -49,12 +49,7 @@ function onFnSelect(root, fnMap, prompt, configPath) {
 }
 
 function selectFn(root, fns, configPath) {
-  const fnMap = Object.fromEntries(
-    fns.map((fn) => [
-      fn.name,
-      fn.doc || `No documentation available for ${fn.name}`,
-    ])
-  );
+  const fnMap = Object.fromEntries(fns.map((fn) => [fn.name, fn]));
   const prompt = new AutoComplete({
     name: "function",
     message: "Select a function",
@@ -86,12 +81,18 @@ function colorize(docs) {
     );
 }
 
-function docsFn(root, name, docs, configPath) {
-  const docsstr = docs.replace(/^\+-\s+/, "").replace(/\s+-\+$/, "");
+function docsFn(root, name, info, configPath) {
+  const doc = [
+    info.returns ? `@returns ${info.returns}` : null,
+    info.accepts ? `@accepts ${info.accepts.join(" ")}` : null,
+    info.params ? `@params  ${info.params.join(" ")}` : null,
+    " ",
+    info.description,
+  ]
+    .filter(Boolean)
+    .join("\n");
   console.log(
-    [yellow(`Showing docs for ${root}:${name}\n`), colorize(docsstr), ""].join(
-      "\n"
-    )
+    [yellow(`Showing docs for ${root}:${name}\n`), colorize(doc), ""].join("\n")
   );
   const prompt = new enquirer.Toggle({
     name: "docs",
@@ -110,38 +111,30 @@ function docsFn(root, name, docs, configPath) {
 }
 
 async function docsFile(file, configPath) {
-  const source = readFileSync(file, { encoding: "utf-8" });
   const config = getPackageConfig(configPath);
   const sourceDir = getSourceFromConfig(configPath, config);
   const destination = getDestinationFromConfig(configPath, config);
+  const cacheDir = join(destination, ".clio", "cache");
   const modulesDir = join(sourceDir, MODULES_PATH);
   const modulesDestDir = join(destination, MODULES_PATH);
-  const rpcPrefix = `${config.title}@${config.version}`;
   const relativeFile = relative(sourceDir, file);
-  const destFileClio = join(destination, relativeFile);
-  const destFile = `${destFileClio}.js`;
 
-  const tokens = tokenize(source, {
-    file,
-    root: dirname(configPath),
+  const { scope } = compileFile(
+    relativeFile,
     config,
-    sourceDir,
+    configPath,
     modulesDir,
     modulesDestDir,
-    rpcPrefix,
-    destFile,
-  });
-  const result = parse(tokens, source, file);
-  if (result.first.item.type == "clio") {
-    /* istanbul ignore next */
-    const fns = result.first.item.content
-      .map((item) => item.fn)
-      .filter(Boolean);
-    return selectFn(file, fns, configPath);
-  } else {
-    /* istanbul ignore next */
-    throw parsingError(source, file, result);
-  }
+    dirname(configPath),
+    "",
+    "",
+    cacheDir,
+    { configs: {}, npmDeps: {}, npmDevDeps: {} }
+  );
+  const fns = Object.entries(scope)
+    .filter(([_, info]) => info.description)
+    .map(([name, info]) => ({ ...info, name }));
+  return selectFn(file, fns, configPath);
 }
 
 function docsDirectory(projectPath, configPath) {

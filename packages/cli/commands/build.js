@@ -89,6 +89,7 @@ export const build = async (configPath, options = {}) => {
   const destination = getDestinationFromConfig(configPath, config);
   const sourceDir = getSourceFromConfig(configPath, config);
 
+  const cacheDir = join(destination, ".clio", "cache");
   const modulesDir = join(sourceDir, MODULES_PATH);
   const modulesDestDir = join(destination, MODULES_PATH);
 
@@ -111,7 +112,7 @@ export const build = async (configPath, options = {}) => {
     dirname(configPath),
     "",
     "",
-    join(destination, ".clio", "cache"),
+    cacheDir,
     { configs: {}, npmDeps: {}, npmDevDeps: {} }
   ).catch((compileError) => {
     progress.fail();

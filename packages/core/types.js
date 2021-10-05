@@ -767,6 +767,10 @@ export const types = {
       }
     }
     const doc = docLines.join("\n");
+    context.scope[name] = {
+      ...context.scope[name],
+      description: doc,
+    };
     const fn = get({ ...node, type: "function", skipName: true }, context);
     let decorated = fn;
     for (const decorator of node.decorators) {
@@ -878,6 +882,7 @@ export const types = {
         ...context.scope[name],
         type: "Function",
         id: [context.rpcPrefix, start.file, name.toString()].join("/"),
+        params: params.map((param) => param.toString()),
       };
     }
     return sn;
