@@ -1,6 +1,6 @@
 import { CONFIGFILE_NAME, getPackageConfig } from "clio-manifest";
 
-import { _new } from "...js";
+import { _new } from "../index.js";
 import { dirSync } from "tmp";
 import { join } from "path";
 import { readdirSync } from "fs";

@@ -1,6 +1,4 @@
-import { add, get } from "./deps_commands.js";
-
-import { showDependencies } from "./deps.js";
+import { add, get, show } from "./deps_commands/index";
 
 export { build } from "./build.js";
 export { run } from "./run.js";
@@ -10,7 +8,7 @@ export { docs } from "./docs.js";
 export { highlight } from "clio-highlight";
 
 export const deps = {
-  ...showDependencies,
+  show,
   add,
   get,
 };

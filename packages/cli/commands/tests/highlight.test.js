@@ -1,4 +1,4 @@
-import { _new, highlight } from "../.js";
+import { _new, highlight } from "../index.js";
 
 import { dirSync } from "tmp";
 import { join } from "path";

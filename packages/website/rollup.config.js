@@ -1,6 +1,8 @@
 import alias from "@rollup/plugin-alias";
 import commonjs from "@rollup/plugin-commonjs";
 import css from "rollup-plugin-css-only";
+import { dirname } from "path";
+import { fileURLToPath } from "url";
 import json from "@rollup/plugin-json";
 import livereload from "rollup-plugin-livereload";
 import nodePolyfills from "rollup-plugin-polyfill-node";
@@ -9,6 +11,8 @@ import resolve from "@rollup/plugin-node-resolve";
 import { spawn } from "child_process";
 import svelte from "rollup-plugin-svelte";
 import { terser } from "rollup-plugin-terser";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const production = !process.env.ROLLUP_WATCH;
 

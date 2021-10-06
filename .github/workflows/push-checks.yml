@@ -21,7 +21,7 @@ jobs:
           export CLIOPATH="$GITHUB_WORKSPACE"
           npm ci
           npm run link
-          npm test
+          NODE_OPTIONS=--experimental-vm-modules npm test
         env:
           CI: true
       - name: Codecov Action

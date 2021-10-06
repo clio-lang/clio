@@ -2,9 +2,13 @@ import * as builtins from "clio-lang-internals";
 
 import asyncHooks, { createHook } from "async_hooks";
 
+import { dirname } from "path";
+import { fileURLToPath } from "url";
 import ipc from "./executors/ipc.js";
 import tcp from "./executors/tcp.js";
 import ws from "./executors/ws.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const executors = { ws, ipc, tcp };
 

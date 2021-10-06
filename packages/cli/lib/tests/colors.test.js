@@ -1,6 +1,7 @@
 import { brightRed, error, info, success, trace, warn } from "../colors.js";
 
 import chalk from "chalk";
+import { jest } from "@jest/globals";
 
 const { blue, green, yellow } = chalk;
 

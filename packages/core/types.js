@@ -132,6 +132,8 @@ const getListTypesOf = (member, scope) => {
   return types.length ? types : "Any";
 };
 
+const clone = (item) => JSON.parse(JSON.stringify(item));
+
 const getTypeOf = (node, context) => {
   const { scope } = context;
   if (node.type === "number") {
@@ -150,29 +152,29 @@ const getTypeOf = (node, context) => {
     return "Parameter";
   }
   if (node.type === "symbol") {
-    return scope[get(node)]?.type;
+    return scope[get(node, context)]?.type;
   }
   if (node.type === "propertyAccess") {
-    return scope[get(node)]?.type;
+    return scope[get(clone(node), context)]?.type;
   }
   if (node.type === "wrapped") {
-    return node.lambda.length ? "Function" : getTypeOf(node.content, context);
+    return node.lambda?.length ? "Function" : getTypeOf(node.content, context);
   }
   if (node.type === "call" && node.fn.type === "symbol") {
-    return scope[get(node.fn)]?.returns;
+    return scope[get(node.fn, context)]?.returns;
   }
   if (node.type === "call" && node.fn.type === "propertyAccess") {
-    return scope[get(node.fn)]?.returns;
+    return scope[get(node.fn, context)]?.returns;
   }
   if (node.type === "call" && node.fn.type === "wrapped") {
-    return get(node.fn, context).returns;
+    return get(node.fn, context)?.returns;
   }
   if (node.type === "mapCall" && node.fn.type === "symbol") {
-    const member = scope[get(node.fn)]?.returns;
+    const member = scope[get(node.fn, context)]?.returns;
     return getListTypesOf(member, scope);
   }
   if (node.type === "mapCall" && node.fn.type === "propertyAccess") {
-    const member = scope[get(node.fn)]?.returns;
+    const member = scope[get(node.fn, context)]?.returns;
     return getListTypesOf(member, scope);
   }
   if (node.type === "math") {
@@ -1381,7 +1383,9 @@ export const types = {
     ]);
   },
   fmtExpr(node, context) {
-    return (node.content && get(node.content, context)) || "";
+    return node.content
+      ? get(node.content, context)
+      : new SourceNode(null, null, null, "null");
   },
   strEscape(node) {
     node.value = node.value.slice(1);
@@ -1551,8 +1555,8 @@ export const types = {
     const builtins =
       "emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any";
     return new SourceNode(null, null, null, [
-      outer.join(";"),
-      `;export default async(clio)=>{const{${builtins}}=clio;`,
+      ...(topLevels.length ? [outer.join(";"), ";"] : []),
+      `export default async(clio)=>{const{${builtins}}=clio;`,
       inner.join(";"),
       ";return clio.exports}",
     ]);

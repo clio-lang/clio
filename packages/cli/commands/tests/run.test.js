@@ -1,12 +1,15 @@
 import { MODULES_PATH, installNpmDependency } from "clio-manifest";
 import { readFileSync, readdirSync, writeFileSync } from "fs";
 
-import { handler as _handler } from "../deps_commands/add.js";
+import { handler as addHandler } from "../deps_commands/add.js";
 import { createPackage } from "../new.js";
 import { dirSync } from "tmp";
-import { handler } from "../deps_commands/get.js";
+import { handler as getHandler } from "../deps_commands/get.js";
+import { jest } from "@jest/globals";
 import { join } from "path";
 import { run } from "../run.js";
+
+jest.useFakeTimers();
 
 test("Runs hello world", async () => {
   const dir = dirSync({ unsafeCleanup: true });
@@ -28,7 +31,7 @@ test("Runs hello world", async () => {
 test("Runs a project with dependencies", async () => {
   const dir = dirSync({ unsafeCleanup: true });
   await createPackage(dir.name);
-  await _handler({
+  await addHandler({
     project: dir.name,
     source: "https://github.com/clio-lang/math@master",
   });
@@ -37,7 +40,7 @@ test("Runs a project with dependencies", async () => {
   await installNpmDependency(configPath, "rimraf", {
     dev: true,
   });
-  await handler({ project: dir.name });
+  await getHandler({ project: dir.name });
   const main = join(dir.name, "src", "main.clio");
   writeFileSync(
     main,

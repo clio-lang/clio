@@ -1,4 +1,4 @@
-import { _new, build } from "../.js";
+import { _new, build } from "../index.js";
 import {
   existsSync,
   promises,
@@ -10,9 +10,8 @@ import { getPackageConfig, writePackageConfig } from "clio-manifest";
 
 import { copyDir } from "../build.js";
 import { dirSync } from "tmp";
+import { jest } from "@jest/globals";
 import { join } from "path";
-
-jest.mock("clio-manifest/npm_dependencies");
 
 process.exit = jest.fn();
 

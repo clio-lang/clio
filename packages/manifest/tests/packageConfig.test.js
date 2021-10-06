@@ -1,9 +1,12 @@
+import { dirname, join } from "path";
 import { getPackageConfig, writePackageConfig } from "../index.js";
 
 import { dirSync } from "tmp";
-import { join } from "path";
+import { fileURLToPath } from "url";
 import { parse } from "@iarna/toml";
 import { readFileSync } from "fs";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 test("Import config file", () => {
   const config = getPackageConfig(join(__dirname, "clio.test.toml"));
