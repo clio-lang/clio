@@ -116,7 +116,6 @@ export const build = async (configPath, options = {}) => {
     { configs: {}, npmDeps: {}, npmDevDeps: {} }
   ).catch((compileError) => {
     progress.fail();
-    console.trace(compileError);
     console.error(compileError.message);
     process.exit(1);
   });

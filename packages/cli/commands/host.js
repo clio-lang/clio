@@ -3,11 +3,11 @@ import {
   getDestinationFromConfig,
   getPackageConfig,
 } from "clio-manifest";
-import { join, resolve } from "path";
 
 import { build } from "./build.js";
 import { error } from "../lib/colors.js";
 import { getPlatform } from "../lib/platforms.js";
+import { join } from "path";
 
 export const command = "host [project]";
 

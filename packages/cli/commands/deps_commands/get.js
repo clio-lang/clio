@@ -1,7 +1,6 @@
-import { join, resolve } from "path";
-
 import { error } from "../../lib/colors.js";
 import { fetchDependencies } from "clio-manifest";
+import { join } from "path";
 
 export const command = "get [project]";
 export const describe =

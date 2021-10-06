@@ -5,13 +5,12 @@ import {
   getSourceFromConfig,
 } from "clio-manifest";
 import { dirname, join, relative } from "path";
-import { lstatSync, readFileSync, readdirSync } from "fs";
+import { lstatSync, readdirSync } from "fs";
 
 import { AutoComplete } from "../lib/prompt.js";
 import chalk from "chalk";
 import { compileFile } from "clio-core";
 import enquirer from "enquirer";
-import { parsingError } from "clio-core/errors.js";
 
 const { blue, magenta, red, yellow } = chalk;
 

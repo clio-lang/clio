@@ -3,9 +3,9 @@ import {
   hasClioDependencies,
   logNoClioDeps,
 } from "clio-manifest";
-import { join, resolve } from "path";
 
 import { error } from "../../lib/colors.js";
+import { join } from "path";
 
 export const command = ["$0 [project]", "show [project]"];
 export const describe = "Show a list of dependencies for the project";

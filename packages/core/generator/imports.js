@@ -346,7 +346,7 @@ export const cjs = (node, context, get) => {
 export const esm = (node, context, get) => {
   // check if there's rest
   const hasRest =
-    node.items.length > 1 &&
+    node.items?.length > 1 &&
     node.items.filter((item) => item.lhs.type === "mulOp").length === 1;
 
   if (hasRest) {

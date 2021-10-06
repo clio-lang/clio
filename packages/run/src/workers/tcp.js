@@ -14,4 +14,4 @@ const transport = new Client(config);
 const worker = new Worker(transport);
 const executor = new Executor(transport);
 
-const main = import(file).then((main) => run(main, { worker, executor }));
+import(file).then((main) => run(main, { worker, executor }));

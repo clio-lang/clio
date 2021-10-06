@@ -135,11 +135,11 @@ function updateParse(uri) {
 }
 
 documents.onDidOpen((ev) => {
-  updateParse(ev.document.uri, ev.document.getText());
+  updateParse(ev.document.uri);
 });
 
 documents.onDidChangeContent((ev) => {
-  updateParse(ev.document.uri, ev.document.getText());
+  updateParse(ev.document.uri);
 });
 
 documents.onDidClose((ev) => {

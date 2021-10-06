@@ -21,12 +21,7 @@ import { parsingError } from "./errors.js";
 import rules from "./rules.js";
 
 export const parse = (tokens, context) => {
-  try {
-    const result = bean(tokens, rules, true, context);
-    return result;
-  } catch (error) {
-    throw error;
-  }
+  return bean(tokens, rules, true, context);
 };
 
 export const defaultScope = {
@@ -50,7 +45,7 @@ export const compile = (source, file, { debug = false, ...ctx }) => {
   const tokens = lex(source, { file });
   /* istanbul ignore next */
   if (debug) console.dir(tokens.current, { depth: null });
-  const result = parse(tokens, source, file, context);
+  const result = parse(tokens, context);
   /* istanbul ignore next */
   if (debug) console.dir(result, { depth: null });
   /* istanbul ignore next */

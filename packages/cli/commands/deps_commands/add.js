@@ -1,7 +1,6 @@
-import { join, resolve } from "path";
-
 import { error } from "../../lib/colors.js";
 import { installDependency } from "clio-manifest";
+import { join } from "path";
 
 export const command = "add <source> [project] [options]";
 export const describe = "Add a new dependency";

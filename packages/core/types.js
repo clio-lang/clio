@@ -107,7 +107,7 @@ const checkRecursive = (node, context) => {
     const callee =
       lastNode.fn.type === "symbol" && get(lastNode.fn, context).toString();
     const recursefn =
-      node.recursefn?.name && get(node.recursefn?.name, context).toString();
+      node.recursefn?.name && get(node.recursefn.name, context).toString();
     return callee && callee === recursefn;
   }
   return false;
@@ -273,7 +273,7 @@ const toProperCall = (node, context) => {
     const callee =
       lastNode.fn.type === "symbol" && get(lastNode.fn, context).toString();
     const recursefn =
-      node.recursefn?.name && get(node.recursefn?.name, context).toString();
+      node.recursefn?.name && get(node.recursefn.name, context).toString();
     if (callee && callee === recursefn) {
       lastNode.type = "properCall";
       lastNode.paramNames = node.recursefn.params.map((param) =>
@@ -1311,7 +1311,7 @@ export const types = {
           message: `Cannot assign array of type ${typeNames} to identifier ${assignment.name} of type ${typeName}`,
         });
       }
-    } else if (type && vType !== type.id) {
+    } else if (vType !== type.id) {
       const vTypeName = vType ? vType.split("/").pop() : "Any";
       const typeName = type.id.split("/").pop();
       throw typeError({
