@@ -132,8 +132,6 @@ const getListTypesOf = (member, scope) => {
   return types.length ? types : "Any";
 };
 
-const clone = (item) => JSON.parse(JSON.stringify(item));
-
 const getTypeOf = (node, context) => {
   const { scope } = context;
   if (node.type === "number") {
@@ -154,8 +152,8 @@ const getTypeOf = (node, context) => {
   if (node.type === "symbol") {
     return scope[get(node, context)]?.type;
   }
-  if (node.type === "propertyAccess") {
-    return scope[get(clone(node), context)]?.type;
+  if (node.type === "propertyAccess" && node.lhs.type !== "call") {
+    return scope[get(node, context)]?.type;
   }
   if (node.type === "wrapped") {
     return node.lambda?.length ? "Function" : getTypeOf(node.content, context);
@@ -913,7 +911,10 @@ export const types = {
       "=",
       name,
     ]);
-    sn.insertBefore = [value.insertBefore, value].filter(Boolean);
+    sn.insertBefore = [
+      value.insertBefore,
+      node.value.type === "symbol" ? null : value,
+    ].filter(Boolean);
     return sn;
   },
   importStatement(node, context) {
@@ -1454,7 +1455,7 @@ export const types = {
   },
   typeDefExtends(node, context) {
     for (const member of node.members) {
-      const typeName = get(member.name, context);
+      const typeName = get(member.type, context);
       const type = context.scope[typeName];
       if (!type) {
         throw typeError({
@@ -1549,7 +1550,12 @@ export const types = {
       .map((node) => [node.insertBefore, node])
       .flat()
       .filter(Boolean);
-    const inner = new SourceNode(null, null, null, content);
+    const inner = new SourceNode(
+      null,
+      null,
+      null,
+      content.filter((item) => item.toString().trim().length)
+    ).join(";");
     const topLevels = compiled.map((part) => part.topLevel).filter(Boolean);
     const outer = new SourceNode(null, null, null, topLevels);
     const builtins =
@@ -1557,8 +1563,8 @@ export const types = {
     return new SourceNode(null, null, null, [
       ...(topLevels.length ? [outer.join(";"), ";"] : []),
       `export default async(clio)=>{const{${builtins}}=clio;`,
-      inner.join(";"),
-      ";return clio.exports}",
+      ...(inner.toString().trim().length ? [inner, ";"] : []),
+      "return clio.exports}",
     ]);
   },
 };

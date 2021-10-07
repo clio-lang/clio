@@ -42,15 +42,4 @@ export default {
       }, 0)
     ),
   },
-  comment: {
-    ...ignore("lineBreak"),
-    function: wrap((lhs, rhs) => {
-      rhs.doc = lhs;
-      return rhs;
-    }, 2),
-    exportedFunction: wrap((lhs, rhs) => {
-      rhs.value.doc = lhs;
-      return rhs;
-    }, 2),
-  },
 };

@@ -21,7 +21,7 @@ export default {
       wrap((lhs, rhs) => {
         return {
           type: "decorators",
-          decorators: [lhs, rhs],
+          decorators: [rhs, lhs],
         };
       }, 0)
     ),
@@ -43,7 +43,7 @@ export default {
       wrap((lhs, rhs) => {
         return {
           type: "decorators",
-          decorators: [lhs, rhs],
+          decorators: [rhs, lhs],
         };
       }, 0)
     ),
@@ -63,7 +63,7 @@ export default {
     ...map(
       ["decoratorCall", "decorator", "decoratorAccess"],
       wrap((lhs, rhs) => {
-        lhs.decorators.push(rhs);
+        lhs.decorators.unshift(rhs);
         return lhs;
       }, 0)
     ),

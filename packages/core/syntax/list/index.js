@@ -19,12 +19,6 @@ export default {
       return list;
     }, 10),
   },
-  listOpenIs: {
-    colon: wrap((list) => {
-      list.type = "listTail";
-      return list;
-    }, 10),
-  },
   listTail: {
     indent: wrap((list) => {
       list.type = "listTailIndent";
@@ -57,6 +51,7 @@ export default {
     ),
   },
   listTailIndentComplete: {
+    ...ignore("lineBreak"),
     outdent: wrap((list) => {
       list.type = "listDef";
       return list;

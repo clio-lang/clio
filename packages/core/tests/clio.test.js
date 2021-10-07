@@ -397,6 +397,78 @@ testStr(
   `export pi = 3.14`,
   "const pi=3.14;clio.exports.pi=pi"
 );
+testStr("Export (Symbol)", `export pi`, "clio.exports.pi=pi");
+testStr(
+  "Export (Typed Assignment)",
+  `export Number pi = 3.14`,
+  "const pi=3.14;clio.exports.pi=pi"
+);
+testStr(
+  "Export (Type)",
+  `export type Point: x y`,
+  "const Point=class Point{constructor(x,y){this.x=x;this.y=y;} static get members(){return 2}};clio.exports.Point=Point"
+);
+testStr(
+  "Export (List)",
+  `export list Numbers: Number`,
+  "const Numbers=[Number];clio.exports.Numbers=Numbers"
+);
+testStr("List (Indented)", `list Numbers:\n  Number`, "const Numbers=[Number]");
+testStr(
+  "Type (Typed)",
+  `export type Point:\n  Number x\n  Number y`,
+  "const Point=class Point{constructor(x,y){this.x=x;this.y=y;} static get members(){return 2}};clio.exports.Point=Point"
+);
+testStr(
+  "Type (Indented)",
+  `export type Point:\n  x\n  y`,
+  "const Point=class Point{constructor(x,y){this.x=x;this.y=y;} static get members(){return 2}};clio.exports.Point=Point"
+);
+testStr(
+  "Type (Extend)",
+  `type Point: x y\nexport type Location is Point: name`,
+  "const Point=class Point{constructor(x,y){this.x=x;this.y=y;} static get members(){return 2}};const Location=class Location extends Point{constructor(...$args){super(...$args.slice(0,Point.members));const [name]=$args.slice(Point.members);this.name=name;} static get members(){return Point.members+1}};clio.exports.Location=Location"
+);
+testStr(
+  "Decorators",
+  `@silent\nfn print x: console.log(x)`,
+  "const print=silent(((x)=>{return console.log((x))}))"
+);
+testStr(
+  "Decorators (Exported)",
+  `@silent\nexport fn print x: console.log(x)`,
+  "const print=silent(((x)=>{return console.log((x))}));clio.exports.print=print"
+);
+testStr(
+  "Decorators (Args)",
+  `@silent true\nfn print x: console.log(x)`,
+  "const print=silent(true,((x)=>{return console.log((x))}))"
+);
+testStr(
+  "Decorators (Multiple)",
+  `@route "/"\n@silent\nfn print x: console.log(x)`,
+  "const print=route(`/`,silent(((x)=>{return console.log((x))})))"
+);
+testStr(
+  "Decorators (Multiple + Exported)",
+  `@route "/"\n@silent\nexport fn print x: console.log(x)`,
+  "const print=route(`/`,silent(((x)=>{return console.log((x))})));clio.exports.print=print"
+);
+testStr(
+  "Decorators (Multiple + Exported)",
+  `@silent\n@route "/"\nexport fn print x: console.log(x)`,
+  "const print=silent(route(`/`,((x)=>{return console.log((x))})));clio.exports.print=print"
+);
+testStr(
+  "Decorators (Property + Multiple + Exported)",
+  `@foo.bar\n@silent\n@route "/"\nexport fn print x: console.log(x)`,
+  "const print=foo.bar(silent(route(`/`,((x)=>{return console.log((x))}))));clio.exports.print=print"
+);
+testStr(
+  "Decorators (Args + Exported)",
+  `@silent true\nexport fn print x: console.log(x)`,
+  "const print=silent(true,((x)=>{return console.log((x))}));clio.exports.print=print"
+);
 testStr(
   "Import",
   `import "test"`,
@@ -405,9 +477,44 @@ testStr(
   false
 );
 testStr(
-  "Import (JS)",
+  "Import (CJS)",
   `import "cjs:test"`,
-  `import test from "test";export default async(clio)=>{const{emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any}=clio;;return clio.exports}//# sourceMappingURL=<mem>.js.map`,
+  `import test from "test";export default async(clio)=>{const{emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any}=clio;return clio.exports}//# sourceMappingURL=<mem>.js.map`,
+  "<mem>",
+  false
+);
+testStr(
+  "Import From (CJS)",
+  `from "cjs:test" import abc`,
+  `import defaultTest from "test";export default async(clio)=>{const{emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any}=clio;const{abc}=defaultTest;return clio.exports}//# sourceMappingURL=<mem>.js.map`,
+  "<mem>",
+  false
+);
+testStr(
+  "Import As From (CJS)",
+  `from "cjs:test" import abc as xyz`,
+  `import defaultTest from "test";export default async(clio)=>{const{emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any}=clio;const{abc:xyz}=defaultTest;return clio.exports}//# sourceMappingURL=<mem>.js.map`,
+  "<mem>",
+  false
+);
+testStr(
+  "Import (ESM)",
+  `import "esm:test"`,
+  `import test from "test";export default async(clio)=>{const{emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any}=clio;return clio.exports}//# sourceMappingURL=<mem>.js.map`,
+  "<mem>",
+  false
+);
+testStr(
+  "Import From (ESM)",
+  `from "esm:test" import abc`,
+  `import{abc}from "test";export default async(clio)=>{const{emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any}=clio;return clio.exports}//# sourceMappingURL=<mem>.js.map`,
+  "<mem>",
+  false
+);
+testStr(
+  "Import As From (ESM)",
+  `from "esm:test" import abc as xyz`,
+  `import{abc as xyz}from "test";export default async(clio)=>{const{emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any}=clio;return clio.exports}//# sourceMappingURL=<mem>.js.map`,
   "<mem>",
   false
 );
@@ -508,7 +615,7 @@ testFile(
 );
 testFile(
   "express",
-  'import express from "express";export default async(clio)=>{const{emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any}=clio;;const hello=register(`test/express.clio/hello`,(req,res)=>{return res.send(`Hello world`)});const setup=register(`test/express.clio/setup`,(app)=>{app.get(`/`,hello);return app.listen(3000)});const main=register(`test/express.clio/main`,(argv)=>{const setup=express();return setup});clio.exports.main=main;return clio.exports}//# sourceMappingURL=express.clio.js.map',
+  'import express from "express";export default async(clio)=>{const{emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any}=clio;const hello=register(`test/express.clio/hello`,(req,res)=>{return res.send(`Hello world`)});const setup=register(`test/express.clio/setup`,(app)=>{app.get(`/`,hello);return app.listen(3000)});const main=register(`test/express.clio/main`,(argv)=>{const setup=express();return setup});clio.exports.main=main;return clio.exports}//# sourceMappingURL=express.clio.js.map',
   false
 );
 testFile(

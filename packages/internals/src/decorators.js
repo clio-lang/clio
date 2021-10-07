@@ -12,7 +12,7 @@ export const returns = (type, fn) => {
 
 export const params = (...params) => {
   const fn = params.pop();
-  fn.__paramTypes__ = params;
+  fn.__accepts__ = params;
   return fn;
 };
 
@@ -21,7 +21,7 @@ const checkType = (value, type) => {
     if (!Array.isArray(value)) {
       return false;
     }
-    return value.every((item, index) => checkType(item, type[index]));
+    return value.every((item) => checkType(item, type[0]));
   }
   if (type === Number) {
     return typeof value === "number" || value instanceof Number;
@@ -33,22 +33,30 @@ const checkType = (value, type) => {
 };
 
 const nameOfType = (value) =>
-  value?.constructor?.name || Object.prototype.toString.call(value);
+  Array.isArray(value)
+    ? `Array[${nameOfType(value[0])}]`
+    : value?.constructor?.name ||
+      Object.prototype.toString.call(value).slice(8, -1);
 
-const typeName = (type) => type?.name || Object.prototype.toString.call(type);
+const typeName = (type) =>
+  Array.isArray(type)
+    ? `Array[${typeName(type[0])}]`
+    : type?.name || Object.prototype.toString.call(type).slice(8, -1);
 
 export const check = (fn) => {
   const wrapped = (...args) => {
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
-      const paramType = wrapped.__paramTypes__[i];
-      const match = checkType(arg, paramType);
-      if (!match) {
-        const vTypeName = nameOfType(arg);
-        const pTypeName = typeName(paramType);
-        throw new Error(
-          `Argument of type ${vTypeName} at position ${i} does not satisfy parameter of type ${pTypeName}`
-        );
+    if (wrapped.__accepts__) {
+      for (let i = 0; i < args.length; i++) {
+        const arg = args[i];
+        const paramType = wrapped.__accepts__[i];
+        const match = checkType(arg, paramType);
+        if (!match) {
+          const vTypeName = nameOfType(arg);
+          const pTypeName = typeName(paramType);
+          throw new Error(
+            `Argument of type ${vTypeName} at position ${i} does not satisfy parameter of type ${pTypeName}`
+          );
+        }
       }
     }
     const result = fn(...args);
@@ -64,7 +72,7 @@ export const check = (fn) => {
     }
     return result;
   };
-  wrapped.__paramTypes__ = fn.__paramTypes__;
+  wrapped.__accepts__ = fn.__accepts__;
   wrapped.__doc__ = fn.__doc__;
   wrapped.__returns__ = fn.__returns__;
   return wrapped;
