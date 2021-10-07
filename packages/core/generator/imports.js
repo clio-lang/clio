@@ -396,7 +396,7 @@ export const esm = (node, context, get) => {
       } else {
         const name = get(part.rhs, context);
         rest = new SourceNode(part.as.line, part.as.column, part.as.file, [
-          "* as",
+          "* as ",
           name,
         ]);
         rest.name = name;

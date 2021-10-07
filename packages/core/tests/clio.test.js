@@ -477,9 +477,50 @@ testStr(
   false
 );
 testStr(
+  "Import All As",
+  `from "test" import * as foo`,
+  `import defaultTest from "test.clio.js";export default async(clio)=>{const{emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any}=clio;const foo=await defaultTest(clio);return clio.exports}//# sourceMappingURL=<mem>.js.map`,
+  "<mem>",
+  false
+);
+testStr(
+  "Import All As + Destruct",
+  `from "test" import xyz as abc * as foo`,
+  `import defaultTest from "test.clio.js";export default async(clio)=>{const{emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any}=clio;const{xyz:abc,...foo}=await defaultTest(clio);return clio.exports}//# sourceMappingURL=<mem>.js.map`,
+  "<mem>",
+  false
+);
+testStr(
+  "Import (Remote)",
+  `import "ws:test"`,
+  `const test=await remote(clio,"ws://test")`
+);
+testStr(
+  "Import All As (Remote)",
+  `from "ws:test" import * as foo`,
+  `const foo=await remote(clio,"ws://test")`
+);
+testStr(
+  "Import From (Remote)",
+  `from "ws:test" import abc`,
+  `const{abc}=await remote(clio,"ws://test")`
+);
+testStr(
+  "Import As From (Remote)",
+  `from "ws:test" import abc as xyz`,
+  `const{abc:xyz}=await remote(clio,"ws://test")`
+);
+testStr(
   "Import (CJS)",
   `import "cjs:test"`,
   `import test from "test";export default async(clio)=>{const{emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any}=clio;return clio.exports}//# sourceMappingURL=<mem>.js.map`,
+  "<mem>",
+  false
+);
+testStr(
+  "Import All As (CJS)",
+  `from "cjs:test" import * as foo`,
+  `import defaultTest from "test";export default async(clio)=>{const{emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any}=clio;const foo=defaultTest;return clio.exports}//# sourceMappingURL=<mem>.js.map`,
   "<mem>",
   false
 );
@@ -501,6 +542,13 @@ testStr(
   "Import (ESM)",
   `import "esm:test"`,
   `import test from "test";export default async(clio)=>{const{emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any}=clio;return clio.exports}//# sourceMappingURL=<mem>.js.map`,
+  "<mem>",
+  false
+);
+testStr(
+  "Import All As (ESM)",
+  `from "esm:test" import * as foo`,
+  `import * as foo from "test";export default async(clio)=>{const{emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any}=clio;return clio.exports}//# sourceMappingURL=<mem>.js.map`,
   "<mem>",
   false
 );
