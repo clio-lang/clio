@@ -129,7 +129,7 @@ const resolveRelativeModule = (context, path, line, column) => {
     message: [
       `Cannot find module "${path}" in any of the following locations:\n`,
       ...possiblePaths.map(
-        (path) => `  - ${relative(context.srcPrefix, path.source)}`
+        (path) => `  - ${relative(context.srcPrefix, path)}`
       ),
     ].join("\n"),
     line,
@@ -174,9 +174,7 @@ const resolveAbsoluteModule = (context, path, line, column) => {
     source: context.source,
     message: [
       `Cannot find module "${path}" in any of the following locations:\n`,
-      ...possiblePaths.map(
-        (path) => `  - ${relative(context.root, path.source)}`
-      ),
+      ...possiblePaths.map((path) => `  - ${relative(context.root, path)}`),
     ].join("\n"),
     line,
     column,

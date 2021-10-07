@@ -187,17 +187,11 @@ const getTypeOf = (node, context) => {
       rhs.typeInfo = lhsType.type;
       return rhs.typeInfo;
     }
-    if (lhsType !== "Any" && rhsType !== "Any" && lhsType !== rhsType) {
-      throw typeError({
-        source: context.source,
-        file: context.file,
-        line: node.value.op.line,
-        column: node.value.op.column,
-        message: `Cannot add ${lhsType} and ${rhsType}.`,
-      });
+    if (lhsType === "Any" || rhsType === "Any") {
+      return "Any";
     }
     if (node.value.type === "add") {
-      if (!["Number", "String", "Any"].includes(lhsType)) {
+      if (lhsType !== rhsType || !["Number", "String"].includes(lhsType)) {
         throw typeError({
           source: context.source,
           file: context.file,
@@ -206,7 +200,7 @@ const getTypeOf = (node, context) => {
           message: `Cannot add ${lhsType} and ${rhsType}.`,
         });
       }
-    } else if (!["Number", "Any"].includes(lhsType)) {
+    } else if (lhsType !== rhsType || lhsType !== "Number") {
       if (node.value.type === "pow") {
         throw typeError({
           source: context.source,
@@ -1559,7 +1553,7 @@ export const types = {
     const topLevels = compiled.map((part) => part.topLevel).filter(Boolean);
     const outer = new SourceNode(null, null, null, topLevels);
     const builtins =
-      "emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any";
+      "emitter,range,remote,register,help,describe,returns,check,params,includes,f,Any";
     return new SourceNode(null, null, null, [
       ...(topLevels.length ? [outer.join(";"), ";"] : []),
       `export default async(clio)=>{const{${builtins}}=clio;`,

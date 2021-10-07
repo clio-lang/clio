@@ -1,0 +1,34 @@
+title = "template-node"
+description = ""
+version = "0.1.0"
+license = "MIT"
+authors = [ "Your Name <you@example.com>" ]
+keywords = ""
+
+[build]
+source = "src"
+destination = "build"
+target = "js"
+
+[scripts]
+test = "No tests specified"
+
+[[servers]]
+proto = "wt"
+name = "default"
+
+[[workers]]
+proto = "wt"
+count = "cpu"
+server = "default"
+
+[executor]
+proto = "wt"
+wait_for = "cpu"
+server = "default"
+
+# Npm specific configs
+
+[npm.scripts]
+start = "node .clio/index.js"
+host = "node .clio/host.js"

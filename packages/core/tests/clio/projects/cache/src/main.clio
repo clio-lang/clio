@@ -1,0 +1,4 @@
+from "/foo" import bar
+
+export fn main:
+  console.log "Hello there!"
