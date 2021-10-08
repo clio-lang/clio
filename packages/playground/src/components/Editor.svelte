@@ -174,12 +174,7 @@
           rpcPrefix: "playground",
         });
         const { main, dispatcher } = await run(code);
-        const now = performance.now();
         await main();
-        const end = performance.now();
-        const time = `Took ${Math.round((end - now) * 100) / 100}ms`;
-        lines.push("-".repeat(time));
-        lines.push(time);
         domConsole.setValue(lines.join("\n"));
         lastDispatcher = dispatcher;
       } catch (error) {
