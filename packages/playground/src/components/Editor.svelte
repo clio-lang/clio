@@ -153,7 +153,11 @@
     showMessage();
   };
 
+  let lastDispatcher;
+
   const compileAndRun = (event) => {
+    lastDispatcher?.kill();
+    domConsole.setValue("");
     event.preventDefault();
     (async () => {
       const lines = [];
@@ -177,7 +181,7 @@
         lines.push("-".repeat(time));
         lines.push(time);
         domConsole.setValue(lines.join("\n"));
-        dispatcher.kill();
+        lastDispatcher = dispatcher;
       } catch (error) {
         console.trace(error);
         console.error(error);
