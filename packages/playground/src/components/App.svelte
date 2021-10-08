@@ -1,6 +1,5 @@
 <script>
-  import Editor from "./Editor.svelte.js";
-
+  import Editor from "./Editor.svelte";
 </script>
 
 <main>
@@ -12,5 +11,4 @@
     height: 100vh;
     overflow: hidden;
   }
-
 </style>

@@ -15,6 +15,7 @@
     "@rollup/plugin-json": "^4.1.0",
     "@rollup/plugin-node-resolve": "^13.0.0",
     "babel-plugin-module-resolver": "^4.1.0",
+    "bluebird": "^3.7.2",
     "rollup": "^2.50.2",
     "rollup-plugin-css-only": "^3.1.0",
     "rollup-plugin-livereload": "^2.0.0",

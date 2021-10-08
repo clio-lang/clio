@@ -1,5 +1,5 @@
 <script>
-  import Card from "./Card.svelte.js";
+  import Card from "./Card.svelte";
   import { onMount } from "svelte";
   import {
     Chart,

@@ -125,7 +125,9 @@ export const importClio = async (file) => {
   const { Worker } = await import(worker_threads);
   const { Dispatcher } = await import("clio-rpc/dispatcher.js");
   const { Executor } = await import("clio-rpc/executor.js");
-  const WorkerThread = await import("clio-rpc/transports/worker-thread.js");
+  const WorkerThread = await import(
+    "clio-rpc/transports/worker-thread/index.js"
+  );
 
   const path = await import("path");
   const os = await import("os");

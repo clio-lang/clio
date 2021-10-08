@@ -1,5 +1,5 @@
 <script>
-  import Card from "./Card.svelte.js";
+  import Card from "./Card.svelte";
 </script>
 
 <div class="title">
