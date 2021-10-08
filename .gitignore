@@ -12,6 +12,7 @@ dist
 *.clio.js
 docs/build
 docs/source/versions.py
+!packages/run/src/lib/shim/*.clio.js
 
 # see package/config.js before renaming this
-clio_env 
+clio_env

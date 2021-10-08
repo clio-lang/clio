@@ -1,7 +1,6 @@
 import * as builtins from "clio-lang-internals";
 
-import asyncHooks, { createHook } from "async_hooks";
-
+import { createHook } from "async_hooks";
 import { dirname } from "path";
 import { fileURLToPath } from "url";
 import ipc from "./executors/ipc.js";
@@ -61,7 +60,7 @@ export class Monitor {
     this.active = new Set();
     this.frozen = new Set();
     const self = this;
-    if (!asyncHooks || !createHook) return;
+    if (!createHook) return;
     this.hook = createHook({
       init(asyncId, type) {
         if (type === "TIMERWRAP" || type === "PROMISE") return;
@@ -75,16 +74,16 @@ export class Monitor {
     this.hook.enable();
   }
   freeze() {
-    if (!asyncHooks || !createHook) return;
+    if (!createHook) return;
     this.frozen = new Set([...this.active]);
   }
   exit() {
-    if (!asyncHooks || !createHook) return;
+    if (!createHook) return;
     this.shouldExit = true;
     this.checkExit();
   }
   checkExit() {
-    if (!asyncHooks || !createHook) return;
+    if (!createHook) return;
     if (!this.shouldExit) return;
     if ([...this.active].every((handle) => this.frozen.has(handle))) {
       process?.exit(0);
