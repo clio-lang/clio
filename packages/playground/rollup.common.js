@@ -49,6 +49,10 @@ export const commonPlugins = () => [
   alias({
     entries: [
       {
+        find: "npm-registry-fetch",
+        replacement: path.join(__dirname, "src/shim/shim.js"),
+      },
+      {
         find: "async_hooks",
         replacement: path.join(__dirname, "src/shim/shim.js"),
       },

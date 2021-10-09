@@ -1,5 +1,5 @@
 export const getModule = async (src) => {
-  const module = { exports: {} };
-  eval(src);
-  return module.exports;
+  const dataUri =
+    "data:text/javascript;charset=utf-8," + encodeURIComponent(src);
+  return await import(dataUri);
 };

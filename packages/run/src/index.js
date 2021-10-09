@@ -7,8 +7,6 @@ import ipc from "./executors/ipc.js";
 import tcp from "./executors/tcp.js";
 import ws from "./executors/ws.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
 const executors = { ws, ipc, tcp };
 
 export class Distributed {
@@ -137,6 +135,7 @@ export const importClio = async (file) => {
 
   const dispatcher = new Dispatcher();
   const serverTransport = new WorkerThread.Server();
+  const __dirname = dirname(fileURLToPath(import.meta.url));
   const workerFile = path.resolve(__dirname, "./workers/wt.js");
 
   for (let i = 0; i < numCPUs; i++) {

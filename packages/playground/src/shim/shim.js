@@ -14,3 +14,4 @@ export const parse = null;
 export const spawn = null;
 export const mkdirSync = null;
 export const statSync = null;
+export const json = null;
