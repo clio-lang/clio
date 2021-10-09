@@ -57,6 +57,10 @@ Tutorial
    logicals
    comparison
    import
+   decorators
+   static
+   type
+   list
    comments
    host
 

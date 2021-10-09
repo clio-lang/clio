@@ -1478,9 +1478,9 @@ export const types = {
       parent,
       "{constructor(...$args){",
       "super(...",
-      "$args.slice(0,",
-      parent,
-      ".members));",
+      "$args.slice(",
+      node.members.length.toString(),
+      "));",
       "const [",
       new SourceNode(
         null,
@@ -1488,9 +1488,7 @@ export const types = {
         null,
         node.members.map((member) => get(member.name, context))
       ).join(","),
-      "]=$args.slice(",
-      parent,
-      ".members);",
+      "]=$args;",
       ...node.members.map((member) => {
         const name = get(member.name, context);
         return new SourceNode(null, null, null, [
@@ -1501,10 +1499,6 @@ export const types = {
           ";",
         ]);
       }),
-      "} static get members(){return ",
-      parent,
-      ".members+",
-      node.members.length.toString(),
       "}}",
     ]);
   },

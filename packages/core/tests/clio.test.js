@@ -465,7 +465,7 @@ testStr(
 testStr(
   "Type (Extend)",
   `type Point: x y\nexport type Location is Point: name`,
-  "const Point=class Point{constructor(x,y){this.x=x;this.y=y;} static get members(){return 2}};const Location=class Location extends Point{constructor(...$args){super(...$args.slice(0,Point.members));const [name]=$args.slice(Point.members);this.name=name;} static get members(){return Point.members+1}};clio.exports.Location=Location"
+  "const Point=class Point{constructor(x,y){this.x=x;this.y=y;} static get members(){return 2}};const Location=class Location extends Point{constructor(...$args){super(...$args.slice(1));const [name]=$args;this.name=name;}};clio.exports.Location=Location"
 );
 testStr(
   "Decorators",
