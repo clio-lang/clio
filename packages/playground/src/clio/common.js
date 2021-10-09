@@ -1,5 +1,4 @@
 export const getModule = async (src) => {
-  const dataUri =
-    "data:text/javascript;charset=utf-8," + encodeURIComponent(src);
-  return await import(dataUri);
+  const url = URL.createObjectURL(new Blob([src], { type: "text/javascript" }));
+  return await import(url);
 };

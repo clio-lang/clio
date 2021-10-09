@@ -172,6 +172,7 @@
           sourceDir: null,
           config: {},
           rpcPrefix: "playground",
+          file: "<Playground>",
         });
         const { main, dispatcher } = await run(code);
         await main();
@@ -179,7 +180,7 @@
         lastDispatcher = dispatcher;
       } catch (error) {
         console.trace(error);
-        console.error(error);
+        domConsole.setValue(error.message);
       }
     })();
   };

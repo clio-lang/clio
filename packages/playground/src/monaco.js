@@ -33,9 +33,11 @@ export const clio = {
     "and",
     "or",
     "not",
+    "type",
+    "list",
   ],
 
-  typeKeywords: [],
+  typeKeywords: ["Number", "String", "Function", "Array"],
 
   operators: [
     ">",
