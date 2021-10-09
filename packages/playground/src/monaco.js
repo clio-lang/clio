@@ -120,13 +120,6 @@ export const clio = {
       [/'/, { token: "string.quote", bracket: "@open", next: "@stringSingle" }],
     ],
 
-    comment: [
-      [/[^-+]+/, "comment"],
-      [/\+-/, "comment", "@push"], // nested comment
-      [/-\+/, "comment", "@pop"],
-      [/[-+]/, "comment"],
-    ],
-
     string: [
       [/[^\\"]+/, "string"],
       [/@escapes/, "string.escape"],
@@ -143,7 +136,6 @@ export const clio = {
 
     whitespace: [
       [/[ \t\r\n]+/, "white"],
-      [/\+-/, "comment", "@comment"],
       [/--.*$/, "comment"],
     ],
 
