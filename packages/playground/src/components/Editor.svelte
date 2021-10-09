@@ -96,7 +96,7 @@
     express() {
       return [
         "-- Note: this code doesn't run in the browser!",
-        'import "js:express"',
+        'import "cjs:express"',
         "",
         "fn hello req res:",
         '  "Hello world" -> res.send',

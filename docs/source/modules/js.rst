@@ -2,8 +2,7 @@ JS Modules
 ==========
 
 JavaScript files can be imported directly in your Clio code. For
-JavaScript files you need to use ``exports`` or ``module.exports``
-variables:
+Both ``cjs`` and ``esm`` are supported, for ``cjs`` you can do:
 
 .. tabbed:: my_module.js
 
@@ -18,7 +17,24 @@ and to import it in Clio:
 .. playground::
   :height: 300
 
-  from "js:./my_module.js" import hello
+  from "cjs:./my_module.js" import hello
+
+And for ``esm``, you can do:
+
+.. tabbed:: my_module.js
+
+  .. code:: js
+
+    export const hello = function(name) {
+        console.log(`Hello ${name}`);
+    }
+
+and to import it in Clio:
+
+.. playground::
+  :height: 300
+
+  from "esm:./my_module.js" import hello
 
 When importing JavaScript files it’s better to include ``.js`` in the
 file name. Same as Clio modules, these imports are relative and
@@ -38,4 +54,6 @@ Then you can import it in your Clio file:
   .. playground::
     :height: 300
 
-    import "js:express"
+    import "cjs:express"
+
+Both ``esm`` and ``cjs`` modules are supported.

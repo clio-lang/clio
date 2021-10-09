@@ -9,6 +9,7 @@ When making a big project, you don't want to store everything in one file, or in
 
   .. playground::
     :height: 360
+    :no-interactive:
 
     import "./greetings"
 
@@ -19,6 +20,7 @@ When making a big project, you don't want to store everything in one file, or in
 
   .. playground::
     :height: 360
+    :no-interactive:
 
     export fn hello arg:
       console.log "Hello" arg
@@ -33,6 +35,7 @@ If you want to rename the module, you can do:
 
   .. playground::
     :height: 360
+    :no-interactive:
 
     import "./greetings" as g
     -- OR
@@ -45,6 +48,7 @@ If you want to rename the module, you can do:
 
   .. playground::
     :height: 360
+    :no-interactive:
 
     export fn hello arg:
       console.log "Hello" arg
@@ -55,6 +59,7 @@ If you only want to import only one function from the module, you can do:
 
   .. playground::
     :height: 360
+    :no-interactive:
 
     from "./greetings" import hello
 
@@ -65,6 +70,7 @@ If you only want to import only one function from the module, you can do:
 
   .. playground::
     :height: 360
+    :no-interactive:
 
     export fn hello arg:
       console.log "Hello" arg
@@ -75,6 +81,7 @@ If you want to rename the imported function, you can do:
 
   .. playground::
     :height: 360
+    :no-interactive:
 
     from "./greetings" import hello as my_function
 
@@ -85,6 +92,7 @@ If you want to rename the imported function, you can do:
 
   .. playground::
     :height: 360
+    :no-interactive:
 
     export fn hello arg:
       console.log "Hello" arg
@@ -95,6 +103,7 @@ To import several functions, you can do:
 
   .. playground::
     :height: 360
+    :no-interactive:
 
     from "./greetings" import hello bye
 
@@ -105,6 +114,7 @@ To import several functions, you can do:
 
   .. playground::
     :height: 500
+    :no-interactive:
 
     export fn hello arg:
       console.log "Hello" arg
@@ -118,6 +128,7 @@ You can also use indents to format your imports:
 
   .. playground::
     :height: 500
+    :no-interactive:
 
     from "./greetings" import
       hello
@@ -130,6 +141,7 @@ You can also use indents to format your imports:
 
   .. playground::
     :height: 400
+    :no-interactive:
 
     export fn hello arg:
       console.log "Hello" arg
@@ -143,6 +155,7 @@ To rename multiple imports, do:
 
   .. playground::
     :height: 500
+    :no-interactive:
 
     from "./greetings" import
       hello as my_function
@@ -155,6 +168,7 @@ To rename multiple imports, do:
 
   .. playground::
     :height: 400
+    :no-interactive:
 
     export fn hello arg:
       console.log "Hello" arg
@@ -168,6 +182,7 @@ To import a function, and rest of the module in a separate namespace do:
 
   .. playground::
     :height: 500
+    :no-interactive:
 
     from "./greetings" import
       bye
@@ -180,6 +195,7 @@ To import a function, and rest of the module in a separate namespace do:
 
   .. playground::
     :height: 400
+    :no-interactive:
 
     export fn hello arg:
       console.log "Hello" arg
@@ -191,6 +207,10 @@ Constants can be exported as well:
 
 .. playground::
   :height: 400
+  :no-interactive:
   
   42 => export answer
   export pi = 3.14
+  
+  foo = "foo"
+  export foo
