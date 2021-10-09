@@ -4,7 +4,7 @@ Lists
 Lists define a list (or an Array) of items of a specific type, for example, a list of ``Points``:
 
 .. playground::
-  :height: 400
+  :height: 240
   :no-interactive:
 
   type Point: x y
@@ -13,7 +13,7 @@ Lists define a list (or an Array) of items of a specific type, for example, a li
 Lists are used for static (and dynamic) type checking:
 
 .. playground::
-  :height: 600
+  :height: 700
 
   type Point: x y
   list Points: Point

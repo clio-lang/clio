@@ -42,6 +42,7 @@ Tutorial
    intro
    prep
    hello
+   comments
    const
    functions
    pipes
@@ -61,7 +62,6 @@ Tutorial
    static
    type
    list
-   comments
    host
 
 .. _Creator’s official blog: https://medium.com/@pouyae
