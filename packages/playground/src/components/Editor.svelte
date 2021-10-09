@@ -75,6 +75,24 @@
         "         -> console.log",
       ].join("\n");
     },
+    gradual() {
+      return [
+        "@returns Number",
+        "@params Number Number",
+        "fn add a b: a + b",
+        "",
+        "export fn main argv:",
+        "  -- This will throw a type error:",
+        `  String foo = add 2 3`,
+      ].join("\n");
+    },
+    implicit() {
+      return [
+        "export fn main argv:",
+        "  -- This will throw a type error:",
+        `  Number foo = 2 + "3"`,
+      ].join("\n");
+    },
     express() {
       return [
         "-- Note: this code doesn't run in the browser!",
@@ -225,6 +243,8 @@
         <option value="fib">Fib</option>
         <option value="filter">Filter</option>
         <option value="reduce">Reduce</option>
+        <option value="gradual">Gradual Typing</option>
+        <option value="implicit">No Implicit Coercion</option>
         <option value="express">Express</option>
       </select>
     {/if}

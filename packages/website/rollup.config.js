@@ -58,8 +58,32 @@ export default {
     alias({
       entries: [
         {
+          find: "npm-registry-fetch",
+          replacement: path.join(__dirname, "src/shim/shim.js"),
+        },
+        {
           find: "async_hooks",
-          replacement: path.join(__dirname, "src/shim/async_hooks.js"),
+          replacement: path.join(__dirname, "src/shim/shim.js"),
+        },
+        {
+          find: "worker_threads",
+          replacement: path.join(__dirname, "src/shim/shim.js"),
+        },
+        {
+          find: "net",
+          replacement: path.join(__dirname, "src/shim/shim.js"),
+        },
+        {
+          find: "fs",
+          replacement: path.join(__dirname, "src/shim/shim.js"),
+        },
+        {
+          find: "url",
+          replacement: path.join(__dirname, "src/shim/shim.js"),
+        },
+        {
+          find: "child_process",
+          replacement: path.join(__dirname, "src/shim/shim.js"),
         },
       ],
     }),
