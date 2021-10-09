@@ -84,7 +84,7 @@ It can also be used outside flows:
         -> console.log
 
 
-Clio also supports ``[await]`` keyword, which translates to
+Clio also supports the ``[await]`` keyword, which translates to
 ``await Promise.all(...)``:
 
 .. tabbed:: Browser
