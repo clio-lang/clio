@@ -3,6 +3,7 @@ Medium articles
 
 - `[Re]introducing the Clio programming language`_
 - `Clio: extremely fast, multi-threaded code on the browser`_
+- `Meet Clio: A Language for Easy Multithreading and More That Compiles to JavaScript`_
 
 The following articles are outdated but kept here for the purposes of
 historical record:
@@ -16,3 +17,4 @@ historical record:
 .. _How to Make a Reactive To-do App With Clio: https://pouyae.medium.com/making-a-reactive-to-do-app-with-clio-ac7bf8b93959
 .. _`Clio: extremely fast, multi-threaded code on the browser`: https://medium.com/geekculture/clio-extremely-fast-multi-threaded-code-on-the-browser-e78b4ad77220
 .. _`Intro to Clio lang: Ship performance-critical JS with ease`: https://blog.logrocket.com/introduction-to-clio/
+.. _`Meet Clio: A Language for Easy Multithreading and More That Compiles to JavaScript`: https://javascript.plainenglish.io/clio-3bd586052d9f

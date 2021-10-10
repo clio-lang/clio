@@ -26,7 +26,12 @@ When making a big project, you don't want to store everything in one file, or in
       console.log "Hello" arg
 
 
-Clio will guess the module name base on its path.
+.. note::
+    Clio supports absolute imports from the root of the project.
+    Instead of writing import statements such as ``import "../../../lib/xyz"``
+    you can just do ``import "/lib/xyz"``.
+
+Clio will guess the module name based on its path.
 The default strategy is to get the file name, remove extensions,
 remove any version number, and convert kebab case to pascalCase (replace dashes).
 If you want to rename the module, you can do:

@@ -187,7 +187,26 @@ const lex = (source, { file, ...meta }, startLine = 1, startColumn = 0) => {
   };
   // match a decorator
   const decorator = () => {
-    // check if before a function
+    // Should not be inside curlies
+    if (squares || curlies || parens) return false;
+    // There should be a function on next line
+    const fnOnNextLine = source
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)[1]
+      .match(/\s*fn/);
+    if (!fnOnNextLine) return false;
+    // Should be on start of line
+    let last = tokens.last;
+    while (last) {
+      if (last.type === "lineBreak") break;
+      if (["space", "indent", "outdent"].includes(last.type)) {
+        last = last.prev;
+      } else {
+        return false;
+      }
+    }
+    // Matches decorator pattern?
     const isDecorator = source.match(/(\s*@.*?\r?\n)+\s*(export\s+)?fn\s+/);
     if (isDecorator) {
       const match = source.match(parameterPattern);
