@@ -1,7 +1,7 @@
-const { map } = require("bean-parser");
-const { wrap } = require("../common");
+import { map } from "bean-parser";
+import { wrap } from "../common.js";
 
-module.exports = {
+export default {
   // Method
   dot: {
     ...map(

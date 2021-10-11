@@ -11,8 +11,8 @@
 
   const font = new FontFaceObserver("Fira Code");
 
-  import { clio, loadMonaco, pastelsOnDark } from "../monaco";
-  import run from "../clio/run";
+  import { clio, loadMonaco, pastelsOnDark } from "../monaco.js";
+  import run from "../clio/run.js";
 
   import { compile } from "clio-core";
   import inspect from "object-inspect";
@@ -75,10 +75,28 @@
         "         -> console.log",
       ].join("\n");
     },
+    gradual() {
+      return [
+        "@returns Number",
+        "@params Number Number",
+        "fn add a b: a + b",
+        "",
+        "export fn main argv:",
+        "  -- This will throw a type error:",
+        `  String foo = add 2 3`,
+      ].join("\n");
+    },
+    implicit() {
+      return [
+        "export fn main argv:",
+        "  -- This will throw a type error:",
+        `  Number foo = 2 + "3"`,
+      ].join("\n");
+    },
     express() {
       return [
         "-- Note: this code doesn't run in the browser!",
-        'import "js:express"',
+        'import "cjs:express"',
         "",
         "fn hello req res:",
         '  "Hello world" -> res.send',
@@ -153,7 +171,11 @@
     showMessage();
   };
 
+  let lastDispatcher;
+
   const compileAndRun = (event) => {
+    lastDispatcher?.kill();
+    domConsole.setValue("");
     event.preventDefault();
     (async () => {
       const lines = [];
@@ -168,19 +190,15 @@
           sourceDir: null,
           config: {},
           rpcPrefix: "playground",
+          file: "<Playground>",
         });
         const { main, dispatcher } = await run(code);
-        const now = performance.now();
         await main();
-        const end = performance.now();
-        const time = `Took ${Math.round((end - now) * 100) / 100}ms`;
-        lines.push("-".repeat(time));
-        lines.push(time);
         domConsole.setValue(lines.join("\n"));
-        dispatcher.kill();
+        lastDispatcher = dispatcher;
       } catch (error) {
         console.trace(error);
-        console.error(error);
+        domConsole.setValue(error.message);
       }
     })();
   };
@@ -225,6 +243,8 @@
         <option value="fib">Fib</option>
         <option value="filter">Filter</option>
         <option value="reduce">Reduce</option>
+        <option value="gradual">Gradual Typing</option>
+        <option value="implicit">No Implicit Coercion</option>
         <option value="express">Express</option>
       </select>
     {/if}

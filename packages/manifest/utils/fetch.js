@@ -1,9 +1,9 @@
-const fs = require("fs");
-const path = require("path");
-const { execSync } = require("child_process");
-const { getPackageConfig } = require("../packageConfig");
+import { basename, join, resolve } from "path";
+import { existsSync, rmSync } from "fs";
 
-const { MODULES_PATH } = require("../config");
+import { MODULES_PATH } from "../config.js";
+import { execSync } from "child_process";
+import { getPackageConfig } from "../packageConfig.js";
 
 /**
  * Fetches a library zip archive from GitHub and saves its reference
@@ -12,16 +12,16 @@ const { MODULES_PATH } = require("../config");
  * @param {string} pkg - github uri of the package to be fetched
  * @returns {Promise}
  */
-async function fetchPackageFromGit(configPath, { url, tag }, force) {
+export async function fetchPackageFromGit(configPath, { url, tag }, force) {
   const cfg = getPackageConfig(configPath);
-  const source = path.resolve(cfg.build.source, MODULES_PATH);
-  const packageName = path.basename(url).replace(/\.git$/, "") + `@${tag}`;
-  const packagePath = path.join(source, packageName);
-  if (fs.existsSync(packagePath)) {
+  const source = resolve(cfg.build.source, MODULES_PATH);
+  const packageName = basename(url).replace(/\.git$/, "") + `@${tag}`;
+  const packagePath = join(source, packageName);
+  if (existsSync(packagePath)) {
     if (force) {
-      fs.rmSync(packagePath, { recursive: true });
+      rmSync(packagePath, { recursive: true });
     } else {
-      return getPackageConfig(path.join(packagePath, "clio.toml"));
+      return getPackageConfig(join(packagePath, "clio.toml"));
     }
   }
   try {
@@ -32,14 +32,14 @@ async function fetchPackageFromGit(configPath, { url, tag }, force) {
   }
   try {
     execSync(`git checkout ${tag}`, { cwd: packagePath, stdio: "ignore" });
-    fs.rmSync(path.join(packagePath, ".git"), { recursive: true });
+    rmSync(join(packagePath, ".git"), { recursive: true });
   } catch (error) {
-    fs.rmSync(packagePath, { recursive: true });
+    rmSync(packagePath, { recursive: true });
     throw `Failed to checkout ${tag}`;
   }
-  return getPackageConfig(path.join(packagePath, "clio.toml"));
+  return getPackageConfig(join(packagePath, "clio.toml"));
 }
 
-module.exports = {
+export default {
   fetchPackageFromGit,
 };

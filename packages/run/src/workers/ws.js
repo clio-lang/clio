@@ -1,13 +1,12 @@
-const { run } = require("../index");
-const { Worker } = require("clio-rpc/worker");
-const { Executor } = require("clio-rpc/executor");
-const WS = require("clio-rpc/transports/ws");
+import { Client } from "clio-rpc/transports/ws/index.js";
+import { Executor } from "clio-rpc/executor.js";
+import { Worker } from "clio-rpc/worker.js";
+import { run } from "../index.js";
 
 const [url, file] = process?.argv?.slice?.(2) || [];
 
-const transport = new WS.Client({ url });
+const transport = new Client({ url });
 const worker = new Worker(transport);
 const executor = new Executor(transport);
 
-const main = require(file);
-run(main, { worker, executor });
+import(file).then((main) => run(main, { worker, executor }));

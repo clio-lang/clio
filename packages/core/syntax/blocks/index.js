@@ -1,14 +1,18 @@
-const { topLevels, wrap, ignore } = require("../common");
-const { map } = require("bean-parser");
+import { ignore, topLevels, wrap } from "../common.js";
 
-module.exports = {
+import { map } from "bean-parser";
+
+const forbidden = ["decoratedExportedFunction", "importStatement"];
+const blockLevels = topLevels.filter((tl) => !forbidden.includes(tl));
+
+export default {
   // Blocks
   lineBreak: {
     indent: wrap((_, rhs) => rhs, 99),
   },
   indent: {
     ...map(
-      topLevels,
+      blockLevels,
       wrap((_, rhs) => {
         return { type: "blockOpen", content: [rhs] };
       }, 0)
@@ -17,7 +21,7 @@ module.exports = {
   blockOpen: {
     ...ignore("lineBreak"),
     ...map(
-      topLevels,
+      blockLevels,
       wrap((lhs, rhs) => {
         lhs.content.push(rhs);
         return lhs;

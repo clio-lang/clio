@@ -1,11 +1,11 @@
-const fs = require("fs");
-const path = require("path");
-const npmFetch = require("npm-registry-fetch");
+import { addNpmDependency, getPackageConfig } from "./packageConfig.js";
 
-const { spawn } = require("child_process");
-const { getPackageConfig, addNpmDependency } = require("./packageConfig");
+import { existsSync } from "fs";
+import { join } from "path";
+import { json } from "npm-registry-fetch";
+import { spawn } from "child_process";
 
-function fetchNpmDependencies(destination, silent = false) {
+export function fetchNpmDependencies(destination, silent = false) {
   return new Promise((resolve, reject) => {
     const args = ["install"];
     if (silent) args.push("--silent");
@@ -16,11 +16,11 @@ function fetchNpmDependencies(destination, silent = false) {
   });
 }
 
-function hasInstalledNpmDependencies(destination) {
-  return fs.existsSync(path.join(destination, "package-lock.json"));
+export function hasInstalledNpmDependencies(destination) {
+  return existsSync(join(destination, "package-lock.json"));
 }
 
-function getParsedNpmDependencies(configPath) {
+export function getParsedNpmDependencies(configPath) {
   const dependencies = {};
   const npmDependencies = getPackageConfig(configPath).npm.dependencies;
   if (npmDependencies) {
@@ -31,7 +31,7 @@ function getParsedNpmDependencies(configPath) {
   return dependencies;
 }
 
-function getParsedNpmDevDependencies(configPath) {
+export function getParsedNpmDevDependencies(configPath) {
   const dependencies = {};
   const npmDevDependencies = getPackageConfig(configPath).npm.devDependencies;
   if (npmDevDependencies) {
@@ -42,17 +42,17 @@ function getParsedNpmDevDependencies(configPath) {
   return dependencies;
 }
 
-async function installNpmDependency(configPath, id, flags) {
+export async function installNpmDependency(configPath, id, flags) {
   const [_, org, name, tag] = id.match(/^(?:@([^/]+)\/)?([^@]+)(?:@(.*))?/);
   const pkg = org ? `@${org}/${name}` : name;
-  const info = await npmFetch.json(pkg).catch((err) => err);
+  const info = await json(pkg).catch((err) => err);
   if (info.statusCode == 404)
     throw new Error(`Couldn't fetch package info for ${id}`);
   const selected = info["dist-tags"][tag || "latest"];
   addNpmDependency(configPath, [info.name, selected], flags);
 }
 
-module.exports = {
+export default {
   fetchNpmDependencies,
   hasInstalledNpmDependencies,
   getParsedNpmDependencies,

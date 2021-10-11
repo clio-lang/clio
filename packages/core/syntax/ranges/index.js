@@ -1,14 +1,14 @@
-const { map } = require("bean-parser");
-const types = require("../../types");
-const { wrap, ranges, values } = require("../common");
+import { ranges, values, wrap } from "../common.js";
 
-module.exports = {
+import { map } from "bean-parser";
+
+export default {
   // Range
   ranger: {
     ...map(
       values.filter((item) => !ranges.includes(item)),
       wrap((lhs, rhs) => {
-        return { type: "range", location: lhs, end: types.get(rhs) };
+        return { type: "range", location: lhs, end: rhs };
       }, 43)
     ),
     by: wrap((lhs, rhs) => {
@@ -19,7 +19,7 @@ module.exports = {
     values.filter((item) => !ranges.includes(item)),
     {
       ranger: wrap((lhs, rhs) => {
-        return { type: "range", start: types.get(lhs), location: rhs };
+        return { type: "range", start: lhs, location: rhs };
       }, 99.9),
     }
   ),
@@ -28,7 +28,7 @@ module.exports = {
       values.filter((item) => !ranges.includes(item)),
       wrap((lhs, rhs) => {
         lhs.type = "rangeFull";
-        lhs.end = types.get(rhs);
+        lhs.end = rhs;
         return lhs;
       }, 45)
     ),
@@ -45,7 +45,7 @@ module.exports = {
     ...map(
       values.filter((item) => !ranges.includes(item)),
       wrap((lhs, rhs) => {
-        return { type: "byRange", step: types.get(rhs), location: lhs };
+        return { type: "byRange", step: rhs, location: lhs };
       }, 47)
     ),
   },
@@ -53,7 +53,7 @@ module.exports = {
     ...map(
       values.filter((item) => !ranges.includes(item)),
       wrap((lhs, rhs) => {
-        return { ...lhs, type: "byRange", step: types.get(rhs), location: lhs };
+        return { ...lhs, type: "byRange", step: rhs, location: lhs };
       }, 47)
     ),
   },

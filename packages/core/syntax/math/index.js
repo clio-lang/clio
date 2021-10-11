@@ -1,8 +1,7 @@
-const { map, mapfn } = require("bean-parser");
-const types = require("../../types");
-const { wrap, values, ignore } = require("../common");
+import { ignore, values, wrap } from "../common.js";
+import { map, mapfn } from "bean-parser";
 
-module.exports = {
+export default {
   // Math
   /*
     Even though we're doing a 1:1 translation to JavaScript
@@ -12,22 +11,22 @@ module.exports = {
   */
   ...map([...values, "math"], {
     powOp: wrap((lhs, op) => {
-      return { type: "powLhs", lhs: types.get(lhs), op };
+      return { type: "powLhs", lhs, op };
     }, 9),
     mulOp: wrap((lhs, op) => {
-      return { type: "mulLhs", lhs: types.get(lhs), op };
+      return { type: "mulLhs", lhs, op };
     }, 8),
     divOp: wrap((lhs, op) => {
-      return { type: "divLhs", lhs: types.get(lhs), op };
+      return { type: "divLhs", lhs, op };
     }, 8),
     addOp: wrap((lhs, op) => {
-      return { type: "addLhs", lhs: types.get(lhs), op };
+      return { type: "addLhs", lhs, op };
     }, 7),
     subOp: wrap((lhs, op) => {
-      return { type: "subLhs", lhs: types.get(lhs), op };
+      return { type: "subLhs", lhs, op };
     }, 7),
     modOp: wrap((lhs, op) => {
-      return { type: "modLhs", lhs: types.get(lhs), op };
+      return { type: "modLhs", lhs, op };
     }, 7),
   }),
   ...mapfn(["add", "sub", "mul", "div", "pow", "mod"], (op) => [
@@ -39,12 +38,12 @@ module.exports = {
         wrap((lhs, rhs) => {
           return {
             type: "math",
-            value: types.get({
+            value: {
               type: op,
               op: lhs.op,
               lhs: lhs.lhs,
-              rhs: types.get(rhs),
-            }),
+              rhs,
+            },
           };
         }, 10)
       ),

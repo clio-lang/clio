@@ -1,4 +1,4 @@
-const { Range } = require("./range");
+import { Range } from "./range.js";
 
 const getIndex = (item, index) => {
   const isRange = item instanceof Range;
@@ -40,4 +40,4 @@ const slice = (arr, slicers) => {
   return arraySlice(arr, slicers);
 };
 
-module.exports = slice;
+export default slice;

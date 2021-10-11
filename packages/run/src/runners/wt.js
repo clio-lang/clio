@@ -1,31 +1,41 @@
-const { run } = require("../index");
-const { Worker } = require("worker_threads");
-const { Executor } = require("clio-rpc/executor");
-const WorkerThread = require("clio-rpc/transports/worker-thread");
-const path = require("path");
+import { dirname, resolve } from "path";
 
-const os = require("os");
+import { Executor } from "clio-rpc/executor.js";
+import { Server } from "clio-rpc/transports/worker-thread/index.js";
+import { Worker } from "worker_threads";
+import { cpus } from "os";
+import { fileURLToPath } from "url";
+import { run } from "../index.js";
 
-const server = async (dispatcher, options) => {
-  const serverTransport = new WorkerThread.Server();
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+export const server = async (dispatcher, options) => {
+  const serverTransport = new Server();
   dispatcher.addTransport(serverTransport);
   return serverTransport;
 };
 
-const workers = (file, server, { count }) => {
-  const workerCount = count === "cpu" ? os.cpus().length : count;
-  const workerFile = path.resolve(__dirname, "../workers/wt.js");
+export const workers = (file, server, { count }) => {
+  const workerCount = count === "cpu" ? cpus().length : count;
+  const workerFile = resolve(__dirname, "../workers/wt.js");
   for (let i = 0; i < workerCount; i++) {
     const worker = new Worker(workerFile, { workerData: { file } });
     server.addWorker(worker);
   }
 };
 
-const executor = (file, dispatcher, server, monitor, { wait_for }, options) => {
+export const executor = (
+  file,
+  dispatcher,
+  server,
+  monitor,
+  { wait_for },
+  options
+) => {
   if (options.noMain) return;
-  const workerCount = wait_for === "cpu" ? os.cpus().length : wait_for;
+  const workerCount = wait_for === "cpu" ? cpus().length : wait_for;
   dispatcher.expectWorkers(workerCount).then(async () => {
-    const main = require(file);
+    const main = await import(file);
     const clientTransport = server.getTransport();
     const executor = new Executor(clientTransport);
     if (!options.noExit) monitor.freeze();
@@ -34,6 +44,8 @@ const executor = (file, dispatcher, server, monitor, { wait_for }, options) => {
   });
 };
 
-module.exports.server = server;
-module.exports.workers = workers;
-module.exports.executor = executor;
+export default {
+  executor,
+  server,
+  workers,
+};

@@ -1,13 +1,13 @@
-const { PacketParser } = require("../../lib");
-const { desia } = require("sializer");
-const net = require("net");
-const { Server } = require("./server");
-const { EventEmitter } = require("../../common");
-const { Buffer } = require("../../lib");
+import { Buffer, PacketParser } from "../../lib/index.js";
+
+import { EventEmitter } from "../../common.js";
+import { Server } from "./server.js";
+import { connect as _connect } from "net";
+import { desia } from "sializer";
 
 const header = Buffer.alloc(2);
 
-class Client extends EventEmitter {
+export class Client extends EventEmitter {
   constructor(config) {
     super();
     this.ipcConfig = config || Server.defaultIPCConfig();
@@ -17,7 +17,7 @@ class Client extends EventEmitter {
     this.map.set(id, instance);
   }
   connect() {
-    this.socket = net.connect(this.ipcConfig.path);
+    this.socket = _connect(this.ipcConfig.path);
     this.parser = new PacketParser(this.socket);
     this.parser.on("message", (data) => this.onMessage(data));
     this.socket.on("connect", () => this.emit("connect"));
@@ -37,5 +37,3 @@ class Client extends EventEmitter {
     dest.onPacket(packet);
   }
 }
-
-module.exports.Client = Client;

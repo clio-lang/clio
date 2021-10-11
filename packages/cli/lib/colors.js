@@ -1,20 +1,28 @@
-const chalk = require("chalk");
+import chalk from "chalk";
 
-const brightRed = chalk.rgb(255, 80, 50);
+const { blue, green, yellow } = chalk;
 
-exports.brightRed = brightRed;
+export const brightRed = chalk.rgb(255, 80, 50);
 
-exports.trace = (e) => console.trace(brightRed(`Error: ${e.message}`));
+export function trace(e) {
+  return console.trace(brightRed(`Error: ${e.message}`));
+}
 
-exports.error = (e, prefix = "") => {
+export function error(e, prefix = "") {
   let message = `Error: ${e.message || e}`;
   if (prefix) message = `${prefix} `.concat(message);
   console.error(brightRed(message));
   process.exit(4);
-};
+}
 
-exports.warn = (message) => console.warn(chalk.yellow(`Warning: ${message}`));
+export function warn(message) {
+  return console.warn(yellow(`Warning: ${message}`));
+}
 
-exports.info = (message) => console.log(chalk.blue(`Info: ${message}`));
+export function info(message) {
+  return console.log(blue(`Info: ${message}`));
+}
 
-exports.success = (message) => console.log(chalk.green(`Success: ${message}`));
+export function success(message) {
+  return console.log(green(`Success: ${message}`));
+}

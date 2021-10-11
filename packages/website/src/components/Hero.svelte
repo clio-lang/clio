@@ -70,7 +70,7 @@
     text-decoration: none;
     background: #4f29f0;
     color: #fff;
-    border-radius: 2em;
+    border-radius: 10px;
     box-shadow: 0px 0px 16px 1px rgb(0 0 0 / 40%);
     transition: cubic-bezier(0.39, 0.575, 0.565, 1) all 0.2s;
     display: inline-block;

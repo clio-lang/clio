@@ -1,0 +1,17 @@
+export const AsyncResource = null;
+export const createHook = null;
+export const fork = null;
+export const Worker = null;
+export const createServer = null;
+export const connect = null;
+export const fileURLToPath = (url) => url.replace(/^.*?:\/\//, "");
+export const readFileSync = null;
+export const writeFileSync = null;
+export const existsSync = null;
+export const rmSync = null;
+export const execSync = null;
+export const parse = null;
+export const spawn = null;
+export const mkdirSync = null;
+export const statSync = null;
+export const json = null;

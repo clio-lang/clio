@@ -1,4 +1,4 @@
-import { commonPlugins } from "./rollup.common";
+import { commonPlugins } from "./rollup.common.js";
 
 export default {
   input: "src/clio/worker.js",

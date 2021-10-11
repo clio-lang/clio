@@ -1,7 +1,7 @@
-const { map, merge } = require("bean-parser");
-const { wrap, values, expressions } = require("../common");
+import { expressions, values, wrap } from "../common.js";
+import { map, merge } from "bean-parser";
 
-module.exports = merge(
+export default merge(
   {
     // Calls
     ...map(
@@ -12,6 +12,8 @@ module.exports = merge(
         "method",
         "wrapped",
         "parameter",
+        "decorator",
+        "decoratorAccess",
       ],
       {
         ...map(
@@ -38,18 +40,23 @@ module.exports = merge(
       ...map(
         ["lineBreak", "ender"],
         wrap((lhs) => {
-          lhs.type = "call";
+          const isDecorator =
+            lhs.fn.type === "decorator" || lhs.fn.type === "decoratorAccess";
+          lhs.type = isDecorator ? "decoratorCall" : "call";
           return lhs;
         }, 1)
       ),
     },
     pipeOpen: {
-      call: wrap((lhs, rhs) => {
-        rhs.args.unshift(lhs.data);
-        rhs.isMap = lhs.isMap;
-        rhs.isFlow = true;
-        return rhs;
-      }),
+      ...map(
+        ["call", "decoratorCall"],
+        wrap((lhs, rhs) => {
+          rhs.args.unshift(lhs.data);
+          rhs.isMap = lhs.isMap;
+          rhs.isFlow = true;
+          return rhs;
+        })
+      ),
       ...map(
         [
           "symbol",

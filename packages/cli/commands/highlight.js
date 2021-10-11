@@ -1,16 +1,26 @@
-const { highlight } = require("clio-highlight");
-const { error } = require("../lib/colors");
+import { error } from "../lib/colors.js";
+import { highlight } from "clio-highlight";
 
-exports.command = "highlight <source>";
-exports.desc = "Highlight a Clio file";
-exports.builder = {
+export const command = "highlight <source>";
+export const describe = "Highlight a Clio file";
+export const builder = {
   source: { describe: "source file to host", type: "string" },
 };
-exports.handler = function (argv) {
+export function handler(argv) {
   try {
     const colorized = highlight(argv.source);
     if (colorized) console.log(colorized);
   } catch (err) {
     error(err);
   }
+}
+
+export default {
+  command,
+  describe,
+  builder,
+  handler,
+  highlight,
 };
+
+export { highlight } from "clio-highlight";

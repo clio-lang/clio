@@ -1,10 +1,9 @@
-const { randomId, EventEmitter } = require("./common");
-const { Sia, DeSia } = require("sializer");
-const { constructors: builtinConstructors } = require("sializer");
-const { TYPES, Buffer } = require("./lib");
+import { Buffer, TYPES } from "./lib/index.js";
+import { DeSia, Sia, constructors as builtinConstructors } from "sializer";
+import { EventEmitter, randomId } from "./common.js";
 
 const { RESULT, CALL, REGISTER, EVENT } = TYPES;
-class Worker {
+export class Worker {
   constructor(transport) {
     this.transport = transport;
     this.transport.on("message", (packet) => this.onPacket(packet));
@@ -111,5 +110,3 @@ class Worker {
     this.transport.send(data);
   }
 }
-
-module.exports.Worker = Worker;

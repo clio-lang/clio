@@ -1,5 +1,6 @@
 {
   "name": "clio-run",
+  "type": "module",
   "version": "0.9.0",
   "description": "Internal functionality used by the Clio Programming Language core.",
   "main": "src/index.js",

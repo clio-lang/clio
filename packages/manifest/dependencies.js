@@ -1,7 +1,8 @@
-const { addDependency, getPackageConfig } = require("./packageConfig");
-const { fetchPackageFromGit } = require("./utils/fetch");
-const { parsePackageId } = require("./utils/parse");
-const { installNpmDependency } = require("./npm_dependencies");
+import { addDependency, getPackageConfig } from "./packageConfig.js";
+
+import { fetchPackageFromGit } from "./utils/fetch.js";
+import { installNpmDependency } from "./npm_dependencies.js";
+import { parsePackageId } from "./utils/parse.js";
 
 /* Package getters */
 
@@ -15,7 +16,7 @@ const { installNpmDependency } = require("./npm_dependencies");
   { name: 'github:clio-lang/rethinkdb', version: 'latest' }
 ]
  */
-function getPackageDependencies(configPath) {
+export function getPackageDependencies(configPath) {
   const config = getPackageConfig(configPath);
   return config.dependencies;
 }
@@ -25,12 +26,12 @@ function getPackageDependencies(configPath) {
  * config file.
  * @returns {bool}
  */
-function hasClioDependencies(configPath) {
+export function hasClioDependencies(configPath) {
   const dependencies = getPackageDependencies(configPath);
   return !!dependencies && !!Object.keys(dependencies).length;
 }
 
-const logNoClioDeps = (configPath) =>
+export const logNoClioDeps = (configPath) =>
   console.log(`No dependencies found in ${configPath}`);
 
 /* Dependency fetching */
@@ -40,7 +41,7 @@ const logNoClioDeps = (configPath) =>
  *
  * @returns {void|promise}
  */
-function fetchDependencies(configPath) {
+export function fetchDependencies(configPath) {
   if (!hasClioDependencies(configPath)) {
     logNoClioDeps(configPath);
     return;
@@ -63,7 +64,7 @@ function fetchDependencies(configPath) {
  * @param {object} flags - install command flags
  * @returns {promise}
  */
-async function installDependency(configPath, id, flags = {}) {
+export async function installDependency(configPath, id, flags = {}) {
   if (flags.npm) {
     return installNpmDependency(configPath, id, flags);
   }
@@ -93,7 +94,7 @@ async function installDependency(configPath, id, flags = {}) {
   }
 }
 
-module.exports = {
+export default {
   fetchDependencies,
   getPackageDependencies,
   hasClioDependencies,

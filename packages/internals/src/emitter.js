@@ -1,9 +1,9 @@
-const { AsyncResource } = require("async_hooks");
-const randomId = require("./random");
+import { AsyncResource } from "async_hooks";
+import randomId from "./random.js";
 
 const isRegExp = (o) => Object.prototype.toString.call(o) === "[object RegExp]";
 
-class EventEmitter {
+export class EventEmitter {
   constructor(id) {
     // TODO: this needs to be improved
     this.id = id || "emitter." + randomId(64);
@@ -46,5 +46,6 @@ class EventEmitter {
   }
 }
 
-module.exports.EventEmitter = EventEmitter;
-module.exports.emitter = () => new EventEmitter();
+export function emitter() {
+  return new EventEmitter();
+}

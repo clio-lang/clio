@@ -1,0 +1,27 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Make sure this directory matches what you defined as
+# build.directory in clio.toml file (default is build)
+build/
+
+# Clio specific cache directories
+src/.clio/modules
+.clio-cache
+
+# Dependency directories
+node_modules/
+
+.npm
+
+# Output of 'npm pack'
+*.tgz
+
+# dotenv environment variables file
+.env
+.env.test
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache

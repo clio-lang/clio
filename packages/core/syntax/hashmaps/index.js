@@ -1,15 +1,15 @@
-const { map } = require("bean-parser");
-const { lPluck } = require("bean-parser");
-const types = require("../../types");
-const { wrap, values } = require("../common");
+import { values, wrap } from "../common.js";
 
-module.exports = {
+import { lPluck } from "bean-parser";
+import { map } from "bean-parser";
+
+export default {
   // Hashmaps
   hash: {
     symbol: wrap((lhs, rhs) => {
       return {
         type: "hashOpen",
-        key: types.get(rhs),
+        key: rhs,
         start: lhs,
         keyValues: [],
       };
@@ -41,13 +41,11 @@ module.exports = {
       values,
       wrap((lhs, rhs) => {
         lhs.type = "hashmap";
-        lhs.keyValues.push(
-          types.get({
-            type: "keyValue",
-            key: lhs.key,
-            value: types.get(rhs),
-          })
-        );
+        lhs.keyValues.push({
+          type: "keyValue",
+          key: lhs.key,
+          value: rhs,
+        });
         return lhs;
       }, 4.1)
     ),
@@ -62,7 +60,7 @@ module.exports = {
   },
   hashmap: {
     symbol: wrap((lhs, rhs) => {
-      lhs.key = types.get(rhs);
+      lhs.key = rhs;
       lhs.type = "hashOpen";
       return lhs;
     }, 4.1),
@@ -85,13 +83,11 @@ module.exports = {
       values,
       wrap((lhs, rhs) => {
         lhs.type = "hashmapIndent";
-        lhs.keyValues.push(
-          types.get({
-            type: "keyValue",
-            key: lhs.key,
-            value: types.get(rhs),
-          })
-        );
+        lhs.keyValues.push({
+          type: "keyValue",
+          key: lhs.key,
+          value: rhs,
+        });
         return lhs;
       }, 4.1)
     ),
@@ -107,7 +103,7 @@ module.exports = {
   hashmapIndent: {
     ...map(["lineBreak"], wrap(lPluck, 3)),
     symbol: wrap((lhs, rhs) => {
-      lhs.key = types.get(rhs);
+      lhs.key = rhs;
       lhs.type = "hashIndentOpen";
       return lhs;
     }, 4.1),
@@ -120,13 +116,11 @@ module.exports = {
       lhs.type = "hashmap";
       parent.type =
         parent.type == "hashOpenColon" ? "hashmap" : "hashmapIndent";
-      parent.keyValues.push(
-        types.get({
-          type: "keyValue",
-          key: parent.key,
-          value: types.get(lhs),
-        })
-      );
+      parent.keyValues.push({
+        type: "keyValue",
+        key: parent.key,
+        value: lhs,
+      });
       return parent;
     }),
   },

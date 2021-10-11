@@ -1,13 +1,17 @@
-const { rule, lPluck, map } = require("bean-parser");
+import { lPluck, map, rule } from "bean-parser";
 
 const wrap = (fn, priority) =>
-  rule((lhs, rhs) => {
-    const result = fn(lhs, rhs);
+  rule((lhs, rhs, context) => {
+    const result = fn(lhs, rhs, context);
     result.lambda = result.lambda || [];
     for (const it of [lhs, rhs]) {
       if (it.type == "wrapped") continue;
-      if (it.type == "parameter") result.lambda.push(it);
-      else if (it.lambda?.length) result.lambda.push(...it.lambda);
+      if (it.type == "decorators") continue;
+      if (it.type == "parameter" && result.type !== "parameter") {
+        result.lambda.push(it);
+      } else if (it.lambda?.length && it !== result) {
+        result.lambda.push(...it.lambda);
+      }
     }
     result.meta = {
       location: lhs.meta?.location || {
@@ -51,18 +55,26 @@ const expressions = [
   "logical",
   "logicalNot",
   "call",
+  "parameterCall",
   "arrowAssignment",
 ];
 const controls = ["conditional", "fullConditional"];
 const topLevels = [
   ...controls,
   "function",
+  "decoratedFunction",
+  "decoratedExportedFunction",
   ...values,
   "assignment",
   "arrowAssignment",
+  "typedAssignment",
   ...expressions,
   "importStatement",
+  "typeDef",
+  "listDef",
 ];
+
+const rootLevels = [...topLevels, "exported", "exportedFunction"];
 
 const lexerTokens = [
   "if",
@@ -126,14 +138,27 @@ const lexerTokens = [
   "lineBreak",
   "groupOpen",
   "groupClose",
+  "type",
+  "is",
 ];
 
-module.exports.wrap = wrap;
-module.exports.ignore = ignore;
-module.exports.topLevels = topLevels;
-module.exports.controls = controls;
-module.exports.expressions = expressions;
-module.exports.arrayLike = arrayLike;
-module.exports.ranges = ranges;
-module.exports.values = values;
-module.exports.lexerTokens = lexerTokens;
+const _wrap = wrap;
+export { _wrap as wrap };
+const _ignore = ignore;
+export { _ignore as ignore };
+const _topLevels = topLevels;
+export { _topLevels as topLevels };
+const _rootLevels = rootLevels;
+export { _rootLevels as rootLevels };
+const _controls = controls;
+export { _controls as controls };
+const _expressions = expressions;
+export { _expressions as expressions };
+const _arrayLike = arrayLike;
+export { _arrayLike as arrayLike };
+const _ranges = ranges;
+export { _ranges as ranges };
+const _values = values;
+export { _values as values };
+const _lexerTokens = lexerTokens;
+export { _lexerTokens as lexerTokens };

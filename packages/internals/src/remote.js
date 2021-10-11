@@ -18,4 +18,4 @@ const remote = async (clio, location) => {
   return fns;
 };
 
-module.exports = remote;
+export default remote;

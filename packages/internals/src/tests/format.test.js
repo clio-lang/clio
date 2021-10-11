@@ -1,4 +1,4 @@
-const format = require("../format");
+import format from "../format.js";
 
 describe("Test format function", () => {
   test("format", () => {

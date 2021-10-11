@@ -36,7 +36,7 @@ keyword can be used in flows:
     :height: 300
     :no-interactive:
 
-    import "js:node-fetch"
+    import "esm:node-fetch"
 
     export fn main argv:
       "https://get.geojs.io/v1/ip/geo.json"
@@ -76,7 +76,7 @@ It can also be used outside flows:
     :height: 300
     :no-interactive:
 
-    import "js:node-fetch"
+    import "esm:node-fetch"
 
     export fn main argv:
       await nodeFetch "https://get.geojs.io/v1/ip/geo.json"
@@ -84,7 +84,7 @@ It can also be used outside flows:
         -> console.log
 
 
-Clio also supports ``[await]`` keyword, which translates to
+Clio also supports the ``[await]`` keyword, which translates to
 ``await Promise.all(...)``:
 
 .. tabbed:: Browser
@@ -121,7 +121,7 @@ Clio also supports ``[await]`` keyword, which translates to
     :height: 400
     :no-interactive:
 
-    import "js:node-fetch"
+    import "esm:node-fetch"
 
     export fn main argv:
       urls = [

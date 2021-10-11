@@ -1,27 +1,30 @@
-const fs = require("fs");
-const chalk = require("chalk");
+import { existsSync, readFileSync } from "fs";
 
-function highlight(source) {
+import chalk from "chalk";
+
+const { blue, cyan, gray, green, magenta, white, yellow } = chalk;
+
+export function highlight(source) {
   if (!source) {
     throw new Error("The path to the Clio souce file is required.");
   }
-  if (!fs.existsSync(source)) {
+  if (!existsSync(source)) {
     throw new Error("The provided Clio source file does not exist.");
   }
-  const contents = fs.readFileSync(source, "utf8");
+  const contents = readFileSync(source, "utf8");
   return colorize(contents);
 }
 
-function colorize(text) {
+export function colorize(text) {
   let patterns = [
     {
       pattern: /^fn +[a-z_][a-z_0-9]*/i,
       action: function (match, colorized) {
         let name = match.slice(2).trim(" ");
         let spaces = match.length - name.length - 2;
-        colorized.push(chalk.magenta("fn"));
-        colorized.push(chalk.white(" ".repeat(spaces)));
-        colorized.push(chalk.blue(name));
+        colorized.push(magenta("fn"));
+        colorized.push(white(" ".repeat(spaces)));
+        colorized.push(blue(name));
       },
     },
     {
@@ -29,9 +32,9 @@ function colorize(text) {
       action: function (match, colorized) {
         let name = match.slice(2).trim(" ");
         let spaces = match.length - name.length - 2;
-        colorized.push(chalk.magenta(match.slice(0, 2)));
-        colorized.push(chalk.white(" ".repeat(spaces)));
-        colorized.push(chalk.blue(name));
+        colorized.push(magenta(match.slice(0, 2)));
+        colorized.push(white(" ".repeat(spaces)));
+        colorized.push(blue(name));
       },
     },
     {
@@ -40,30 +43,30 @@ function colorize(text) {
         let name = match.match(/[a-z_][a-z_0-9]*/)[0];
         let operator = match.match(/-> *\*/)[0];
         let spaces = match.length - name.length - operator.length;
-        colorized.push(chalk.magenta(operator));
-        colorized.push(chalk.white(" ".repeat(spaces)));
-        colorized.push(chalk.blue(name));
+        colorized.push(magenta(operator));
+        colorized.push(white(" ".repeat(spaces)));
+        colorized.push(blue(name));
       },
     },
-    { color: chalk.gray, pattern: /^--.*?($|\n)/ },
-    { color: chalk.green, pattern: /^#[^\[\] \r\n]+/i },
+    { color: gray, pattern: /^--.*?($|\n)/ },
+    { color: green, pattern: /^#[^\[\] \r\n]+/i },
     {
-      color: chalk.magenta,
+      color: magenta,
       pattern: /^(export|fn|else|if|not|or|and|import|from|as)(?![a-zA-Z_-])/,
     },
-    { color: chalk.yellow, pattern: /^(true|false)/ },
-    { color: chalk.green, pattern: /^https?:[^ \r\n]+/ },
-    { color: chalk.cyan, pattern: /^(->|=>)/ },
-    { color: chalk.cyan, pattern: /^(!|!=|=|>|<|>=|<=)/ },
-    { color: chalk.cyan, pattern: /^([\[\]()])/ },
-    { color: chalk.cyan, pattern: /^[-+/*%^]/ },
-    { color: chalk.cyan, pattern: /^(([@][a-z][a-z0-9_]*)|[.:@])/i },
-    { color: chalk.yellow, pattern: /^(0|-?[1-9][0-9']*)(\.[0-9']+)?/ },
-    { color: chalk.white, pattern: /^[a-z_][a-z_0-9]*('s? )?/i },
-    { color: chalk.green, pattern: /^('([^\\]|\\.)*?'|:\S+)/ },
-    { color: chalk.white, pattern: /^\S+/ },
-    { color: chalk.white, pattern: /^(\r\n|[\r\n])/ },
-    { color: chalk.white, pattern: /\s+/ },
+    { color: yellow, pattern: /^(true|false)/ },
+    { color: green, pattern: /^https?:[^ \r\n]+/ },
+    { color: cyan, pattern: /^(->|=>)/ },
+    { color: cyan, pattern: /^(!|!=|=|>|<|>=|<=)/ },
+    { color: cyan, pattern: /^([\[\]()])/ },
+    { color: cyan, pattern: /^[-+/*%^]/ },
+    { color: cyan, pattern: /^(([@][a-z][a-z0-9_]*)|[.:@])/i },
+    { color: yellow, pattern: /^(0|-?[1-9][0-9']*)(\.[0-9']+)?/ },
+    { color: white, pattern: /^[a-z_][a-z_0-9]*('s? )?/i },
+    { color: green, pattern: /^('([^\\]|\\.)*?'|:\S+)/ },
+    { color: white, pattern: /^\S+/ },
+    { color: white, pattern: /^(\r\n|[\r\n])/ },
+    { color: white, pattern: /\s+/ },
   ];
   let colorized = [];
   let i = 0;
@@ -84,6 +87,3 @@ function colorize(text) {
   }
   return colorized.join("");
 }
-
-exports.highlight = highlight;
-exports.colorize = colorize;

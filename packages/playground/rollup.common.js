@@ -1,13 +1,17 @@
-import svelte from "rollup-plugin-svelte";
-import resolve from "@rollup/plugin-node-resolve";
-import commonjs from "@rollup/plugin-commonjs";
-import livereload from "rollup-plugin-livereload";
-import { terser } from "rollup-plugin-terser";
-import nodePolyfills from "rollup-plugin-polyfill-node";
 import alias from "@rollup/plugin-alias";
+import commonjs from "@rollup/plugin-commonjs";
 import css from "rollup-plugin-css-only";
+import { fileURLToPath } from "url";
 import json from "@rollup/plugin-json";
+import livereload from "rollup-plugin-livereload";
+import nodePolyfills from "rollup-plugin-polyfill-node";
 import path from "path";
+import resolve from "@rollup/plugin-node-resolve";
+import { spawn } from "child_process";
+import svelte from "rollup-plugin-svelte";
+import { terser } from "rollup-plugin-terser";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const production = !process.env.ROLLUP_WATCH;
 
@@ -21,14 +25,10 @@ function serve() {
   return {
     writeBundle() {
       if (server) return;
-      server = require("child_process").spawn(
-        "npm",
-        ["run", "start", "--", "--dev"],
-        {
-          stdio: ["ignore", "inherit", "inherit"],
-          shell: true,
-        }
-      );
+      server = spawn("npm", ["run", "start", "--", "--dev"], {
+        stdio: ["ignore", "inherit", "inherit"],
+        shell: true,
+      });
 
       process.on("SIGTERM", toExit);
       process.on("exit", toExit);
@@ -49,8 +49,36 @@ export const commonPlugins = () => [
   alias({
     entries: [
       {
+        find: "npm-registry-fetch",
+        replacement: path.join(__dirname, "src/shim/shim.js"),
+      },
+      {
         find: "async_hooks",
-        replacement: path.join(__dirname, "src/shim/async_hooks.js"),
+        replacement: path.join(__dirname, "src/shim/shim.js"),
+      },
+      {
+        find: "worker_threads",
+        replacement: path.join(__dirname, "src/shim/shim.js"),
+      },
+      {
+        find: "net",
+        replacement: path.join(__dirname, "src/shim/shim.js"),
+      },
+      {
+        find: "fs",
+        replacement: path.join(__dirname, "src/shim/shim.js"),
+      },
+      {
+        find: "url",
+        replacement: path.join(__dirname, "src/shim/shim.js"),
+      },
+      {
+        find: "child_process",
+        replacement: path.join(__dirname, "src/shim/shim.js"),
+      },
+      {
+        find: "ws",
+        replacement: path.join(__dirname, "src/shim/ws.js"),
       },
     ],
   }),

@@ -1,17 +1,22 @@
-const { map } = require("bean-parser");
-const types = require("../../types");
-const { expressions, wrap, values, ignore } = require("../common");
+import { expressions, ignore, values, wrap } from "../common.js";
 
-module.exports = {
+import { map } from "bean-parser";
+
+export default {
   // Functions
   fn: {
     symbol: wrap((lhs, rhs) => {
-      return { start: lhs, type: "fnOpen", params: [], name: types.get(rhs) };
+      return {
+        start: lhs,
+        type: "fnOpen",
+        params: [],
+        name: rhs,
+      };
     }, 10),
   },
   fnOpen: {
     symbol: wrap((fn, rhs) => {
-      fn.params.push(types.get(rhs));
+      fn.params.push(rhs);
       return fn;
     }, 10),
     colon: wrap((fn) => {
@@ -25,27 +30,16 @@ module.exports = {
       lhs.type = "function";
       rhs.type = "return";
       rhs.recursefn = lhs;
-      lhs.body = types.get(rhs);
+      lhs.body = rhs;
       return lhs;
     }, 10),
     ...map(
       [...expressions, ...values],
       wrap((lhs, rhs) => {
         lhs.type = "function";
-        lhs.body = types.get({ type: "return", content: [rhs] });
+        lhs.body = { type: "return", content: [rhs] };
         return lhs;
       }, 0)
     ),
-  },
-  comment: {
-    ...ignore("lineBreak"),
-    function: wrap((lhs, rhs) => {
-      rhs.doc = lhs;
-      return rhs;
-    }, 2),
-    exportedFunction: wrap((lhs, rhs) => {
-      rhs.value.doc = lhs;
-      return rhs;
-    }, 2),
   },
 };

@@ -7,7 +7,6 @@
   import Social from "./components/Social.svelte";
   import Footer from "./components/Footer.svelte";
   import Performance from "./components/Performance.svelte";
-
 </script>
 
 <Head />
@@ -45,5 +44,4 @@
       display: none;
     }
   }
-
 </style>

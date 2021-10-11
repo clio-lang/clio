@@ -42,6 +42,7 @@ Tutorial
    intro
    prep
    hello
+   comments
    const
    functions
    pipes
@@ -57,7 +58,10 @@ Tutorial
    logicals
    comparison
    import
-   comments
+   decorators
+   static
+   type
+   list
    host
 
 .. _Creator’s official blog: https://medium.com/@pouyae

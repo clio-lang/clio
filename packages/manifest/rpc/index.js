@@ -1,30 +1,32 @@
-const fs = require("fs");
-const path = require("path");
+import { join } from "path";
+import { writeFileSync } from "fs";
 
-const makeStartScript = (config, target, destination) => {
+export const makeStartScript = (config, target, destination) => {
   const { servers, workers, executor } = config;
-  fs.writeFileSync(
-    path.join(destination, ".clio", "rpc.json"),
-    JSON.stringify({ servers, workers, executor }, null, 2)
-  );
-  fs.writeFileSync(
-    path.join(destination, ".clio", "index.js"),
+  const rpc = JSON.stringify({ servers, workers, executor }, null, 2);
+  writeFileSync(join(destination, ".clio", "rpc.json"), rpc);
+  writeFileSync(
+    join(destination, ".clio", "index.js"),
     [
-      `const path = require("path");`,
-      `const run = require("clio-run/src/runners/auto.js");`,
-      `const config = require("./rpc.json");`,
-      `run(path.resolve(__dirname, "../main.clio.js"), config);`,
+      `import { resolve, dirname } from "path";`,
+      `import { fileURLToPath } from "url";`,
+      `import run from "clio-run/src/runners/auto.js";`,
+      `const __dirname = dirname(fileURLToPath(import.meta.url));`,
+      `const config = ${rpc};`,
+      `run(resolve(__dirname, "../main.clio.js"), config);`,
     ].join("\n")
   );
-  fs.writeFileSync(
-    path.join(destination, ".clio", "host.js"),
+  writeFileSync(
+    join(destination, ".clio", "host.js"),
     [
-      `const path = require("path");`,
-      `const run = require("clio-run/src/runners/auto.js");`,
-      `const config = require("./rpc.json");`,
-      `run(path.resolve(__dirname, "../main.clio.js"), config, true);`,
+      `import { resolve, dirname } from "path";`,
+      `import { fileURLToPath } from "url";`,
+      `import run from "clio-run/src/runners/auto.js";`,
+      `const __dirname = dirname(fileURLToPath(import.meta.url));`,
+      `const config = ${rpc};`,
+      `run(resolve(__dirname, "../main.clio.js"), config, true);`,
     ].join("\n")
   );
 };
 
-module.exports.makeStartScript = makeStartScript;
+export default { makeStartScript };

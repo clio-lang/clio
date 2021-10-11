@@ -1,15 +1,15 @@
-const { map } = require("bean-parser");
-const types = require("../../types");
-const { topLevels, wrap } = require("../common");
+import { rootLevels, wrap } from "../common.js";
 
-module.exports = {
+import { map } from "bean-parser";
+
+export default {
   // Top level rule
-  ...map([...topLevels, "exported", "exportedFunction"], {
+  ...map(rootLevels, {
     eof: wrap((lhs) => {
-      return { type: "clio", content: [types.get(lhs)] };
+      return { type: "clio", content: [lhs] };
     }, 0),
     clio: wrap((lhs, rhs) => {
-      rhs.content.unshift(types.get(lhs));
+      rhs.content.unshift(lhs);
       return rhs;
     }, 0),
   }),

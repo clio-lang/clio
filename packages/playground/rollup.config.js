@@ -1,4 +1,4 @@
-import { mainPlugins } from "./rollup.common";
+import { mainPlugins } from "./rollup.common.js";
 
 export default {
   input: "src/main.js",

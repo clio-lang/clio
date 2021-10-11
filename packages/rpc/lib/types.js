@@ -1,4 +1,4 @@
-const TYPES = {
+export const TYPES = {
   PACKET: 0,
   PAYLOAD: 1,
   REGISTER: 2,
@@ -9,9 +9,6 @@ const TYPES = {
   EVENT: 7,
 };
 
-const SIA_TYPES = Object.fromEntries(
+export const SIA_TYPES = Object.fromEntries(
   Object.entries(TYPES).map(([key, code]) => [key, 0xf + code])
 );
-
-module.exports.TYPES = TYPES;
-module.exports.SIA_TYPES = SIA_TYPES;

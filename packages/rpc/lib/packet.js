@@ -1,6 +1,6 @@
-const { EventEmitter } = require("../common");
+import { EventEmitter } from "../common.js";
 
-class PacketParser extends EventEmitter {
+export class PacketParser extends EventEmitter {
   constructor(socket) {
     super();
     this.socket = socket;
@@ -27,5 +27,3 @@ class PacketParser extends EventEmitter {
     });
   }
 }
-
-module.exports.PacketParser = PacketParser;

@@ -3,6 +3,7 @@
   "version": "0.11.0",
   "description": "Clio Programming Language",
   "main": "packages/cli/index.js",
+  "type": "module",
   "scripts": {
     "lint:check": "prettier --check . && eslint .",
     "lint:fix": "prettier --write .",
@@ -40,7 +41,7 @@
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",
-    "bean-parser": "2.0.0",
+    "bean-parser": "2.1.0",
     "chalk": "4.1.2",
     "clio-lang-cli": "0.11.0",
     "decompress": "^4.2.1",
@@ -49,7 +50,7 @@
     "merge": "2.1.1",
     "node-fetch": "^2.6.1",
     "npm-registry-fetch": "^10.1.2",
-    "ora": "^5.4.0",
+    "ora": "^5.4.1",
     "sializer": "^0.1.1",
     "source-map": "^0.7.3",
     "tmp": "0.2.1",
@@ -60,7 +61,7 @@
     "@types/jest": "^26.0.23",
     "eslint": "^7.27.0",
     "eslint-plugin-jest": "^24.3.6",
-    "jest": "^27.0.1",
+    "jest": "^27.2.4",
     "lerna": "^4.0.0",
     "prettier": "^2.3.0"
   }

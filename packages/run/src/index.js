@@ -1,13 +1,15 @@
-const asyncHooks = require("async_hooks");
-const builtins = require("clio-lang-internals");
+import * as builtins from "clio-lang-internals";
 
-const executors = {
-  ws: require("./executors/ws"),
-  ipc: require("./executors/ipc"),
-  tcp: require("./executors/tcp"),
-};
+import { createHook } from "async_hooks";
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+import ipc from "./executors/ipc.js";
+import tcp from "./executors/tcp.js";
+import ws from "./executors/ws.js";
 
-class Distributed {
+const executors = { ws, ipc, tcp };
+
+export class Distributed {
   constructor(isWorker, connection) {
     this.map = new Map();
     this.isWorker = isWorker;
@@ -28,7 +30,7 @@ class Distributed {
   }
 }
 
-const workerDist = (executor, worker) =>
+export const workerDist = (executor, worker) =>
   new Distributed(true, {
     register(path, fn) {
       return worker.register({ path, fn });
@@ -41,7 +43,7 @@ const workerDist = (executor, worker) =>
     },
   });
 
-const mainDist = (executor) =>
+export const mainDist = (executor) =>
   new Distributed(false, {
     getFunction(fn) {
       return executor.getFunction(fn);
@@ -51,13 +53,13 @@ const mainDist = (executor) =>
     },
   });
 
-class Monitor {
+export class Monitor {
   constructor() {
     this.active = new Set();
     this.frozen = new Set();
     const self = this;
-    if (!asyncHooks || !asyncHooks.createHook) return;
-    this.hook = asyncHooks.createHook({
+    if (!createHook) return;
+    this.hook = createHook({
       init(asyncId, type) {
         if (type === "TIMERWRAP" || type === "PROMISE") return;
         self.active.add(asyncId);
@@ -70,16 +72,16 @@ class Monitor {
     this.hook.enable();
   }
   freeze() {
-    if (!asyncHooks || !asyncHooks.createHook) return;
+    if (!createHook) return;
     this.frozen = new Set([...this.active]);
   }
   exit() {
-    if (!asyncHooks || !asyncHooks.createHook) return;
+    if (!createHook) return;
     this.shouldExit = true;
     this.checkExit();
   }
   checkExit() {
-    if (!asyncHooks || !asyncHooks.createHook) return;
+    if (!createHook) return;
     if (!this.shouldExit) return;
     if ([...this.active].every((handle) => this.frozen.has(handle))) {
       process?.exit(0);
@@ -87,7 +89,11 @@ class Monitor {
   }
 }
 
-const run = async (module, { worker, executor }, { noMain = false } = {}) => {
+export const run = async (
+  module,
+  { worker, executor },
+  { noMain = false } = {}
+) => {
   const clio = {
     distributed: worker ? workerDist(executor, worker) : mainDist(executor),
     isWorker: !!worker,
@@ -100,7 +106,7 @@ const run = async (module, { worker, executor }, { noMain = false } = {}) => {
     fn.parallel = clio.distributed.get(name);
     return fn;
   };
-  const { main } = await module.exports(clio);
+  const { main } = await module.default(clio);
   const argv = process?.argv || [];
   if (!worker && !noMain) {
     const result = await main(argv);
@@ -111,22 +117,25 @@ const run = async (module, { worker, executor }, { noMain = false } = {}) => {
   }
 };
 
-const importClio = (file) => {
+export const importClio = async (file) => {
   // This is probably added because of parcel
   const worker_threads = "worker_threads";
-  const { Worker } = require(worker_threads);
-  const { Dispatcher } = require("clio-rpc/dispatcher");
-  const { Executor } = require("clio-rpc/executor");
-  const WorkerThread = require("clio-rpc/transports/worker-thread");
+  const { Worker } = await import(worker_threads);
+  const { Dispatcher } = await import("clio-rpc/dispatcher.js");
+  const { Executor } = await import("clio-rpc/executor.js");
+  const WorkerThread = await import(
+    "clio-rpc/transports/worker-thread/index.js"
+  );
 
-  const path = require("path");
-  const os = require("os");
+  const path = await import("path");
+  const os = await import("os");
 
   const numCPUs = os.cpus().length;
-  const main = require(file);
+  const main = await import(file);
 
   const dispatcher = new Dispatcher();
   const serverTransport = new WorkerThread.Server();
+  const __dirname = dirname(fileURLToPath(import.meta.url));
   const workerFile = path.resolve(__dirname, "./workers/wt.js");
 
   for (let i = 0; i < numCPUs; i++) {
@@ -151,9 +160,3 @@ const importClio = (file) => {
     });
   });
 };
-
-module.exports.Distributed = Distributed;
-module.exports.Monitor = Monitor;
-
-module.exports.run = run;
-module.exports.importClio = importClio;

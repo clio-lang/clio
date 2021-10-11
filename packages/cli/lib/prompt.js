@@ -1,11 +1,11 @@
-const { AutoComplete } = require("enquirer");
-const utils = require("enquirer/lib/utils");
+import enquirer from "enquirer";
+import { hasColor } from "enquirer/lib/utils.js";
 
-class NicerAutoComplete extends AutoComplete {
+export class AutoComplete extends enquirer.AutoComplete {
   async pointer(choice, i) {
     let val = await this.element("pointer", choice, i);
 
-    if (typeof val === "string" && utils.hasColor(val)) {
+    if (typeof val === "string" && hasColor(val)) {
       return val;
     }
 
@@ -17,10 +17,8 @@ class NicerAutoComplete extends AutoComplete {
         val[focused ? "on" : "off"] || val,
         this.state
       );
-      let styled = !utils.hasColor(ele) ? style(ele) : ele;
+      let styled = !hasColor(ele) ? style(ele) : ele;
       return focused ? styled : " ".repeat(ele.length);
     }
   }
 }
-
-module.exports.AutoComplete = NicerAutoComplete;

@@ -1,8 +1,7 @@
-const { rule, map } = require("bean-parser");
-const { lPluck } = require("bean-parser");
-const { expressions, wrap, values, ignore } = require("../common");
+import { expressions, ignore, values, wrap } from "../common.js";
+import { lPluck, map, rule } from "bean-parser";
 
-module.exports = {
+export default {
   // Wrapped
   lParen: {
     ...map(["lineBreak"], rule(lPluck, 10)),

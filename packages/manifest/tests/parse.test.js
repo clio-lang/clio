@@ -1,4 +1,4 @@
-const { parsePackageId } = require("../utils/parse");
+import { parsePackageId } from "../utils/parse.js";
 
 const url = "https://github.com/clio-lang/fib";
 const tag = "master";

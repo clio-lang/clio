@@ -1,7 +1,8 @@
-const { map } = require("bean-parser");
-const { wrap, values } = require("../common");
+import { values, wrap } from "../common.js";
 
-module.exports = {
+import { map } from "bean-parser";
+
+export default {
   // Await
   await: {
     ...map(

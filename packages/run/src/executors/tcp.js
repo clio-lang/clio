@@ -1,12 +1,12 @@
-const { Executor } = require("clio-rpc/executor");
-const TCP = require("clio-rpc/transports/tcp");
+import { Client } from "clio-rpc/transports/tcp/index.js";
+import { Executor } from "clio-rpc/executor.js";
 
-module.exports = async function (key, _, addr) {
+export default async function (key, _, addr) {
   const [host, port] = addr.split(":");
-  const transport = new TCP.Client({ host, port });
+  const transport = new Client({ host, port });
   transport.connect();
   await new Promise((resolve) => transport.on("connect", resolve));
   const executor = new Executor(transport);
   this.executors.set(key, executor);
   return executor;
-};
+}

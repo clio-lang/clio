@@ -1,8 +1,8 @@
 "use strict";
 
-import * as brewer from "./colorschemes.brewer";
-import * as office from "./colorschemes.office";
-import * as tableau from "./colorschemes.tableau";
+import * as brewer from "./colorschemes.brewer.js";
+import * as office from "./colorschemes.office.js";
+import * as tableau from "./colorschemes.tableau.js";
 
 export default {
   brewer: brewer,

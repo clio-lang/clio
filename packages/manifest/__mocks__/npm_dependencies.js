@@ -1,22 +1,23 @@
-const fs = require("fs");
-const path = require("path");
-const { getPackageConfig } = require("../packageConfig");
+import { existsSync, promises } from "fs";
+
+import { getPackageConfig } from "../packageConfig.js";
+import { join } from "path";
 
 const fetchNpmDependencies = jest
   .fn()
   .mockImplementation(async (destination) => {
     console.log("Getting mock NPM dependencies...");
-    const fakeModulePath = path.join(destination, "node_modules", "rickroll");
-    await fs.promises.mkdir(fakeModulePath, { recursive: true });
-    return fs.promises.writeFile(
-      path.join(fakeModulePath, "rickroll.js"),
+    const fakeModulePath = join(destination, "node_modules", "rickroll");
+    await promises.mkdir(fakeModulePath, { recursive: true });
+    return promises.writeFile(
+      join(fakeModulePath, "rickroll.js"),
       "console.log()",
       {}
     );
   });
 
 function hasInstalledNpmDependencies(destination) {
-  return fs.existsSync(path.join(destination, "package-lock.json"));
+  return existsSync(join(destination, "package-lock.json"));
 }
 
 function getParsedNpmDependencies(configPath) {
@@ -41,7 +42,7 @@ function getParsedNpmDevDependencies(configPath) {
   return dependencies;
 }
 
-module.exports = {
+export default {
   fetchNpmDependencies,
   hasInstalledNpmDependencies,
   getParsedNpmDependencies,

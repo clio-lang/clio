@@ -1,16 +1,16 @@
-const { spawnSync } = require("child_process");
-const fs = require("fs");
-const path = require("path");
+import { basename, dirname } from "path";
+import { error, info, success } from "../lib/colors.js";
 
-const { fetchDependencies } = require("clio-manifest");
-const { error, info, success } = require("../lib/colors");
+import { fetchDependencies } from "clio-manifest";
+import { rmSync } from "fs";
+import { spawnSync } from "child_process";
 
 const TEMPLATES = ["node", "web"];
 const TARGETS = ["js"];
 
-exports.command = "new <project>";
-exports.desc = "Create a new Clio project";
-exports.builder = {
+export const command = "new <project>";
+export const describe = "Create a new Clio project";
+export const builder = {
   project: {
     describe: "name of the project",
     type: "string",
@@ -26,9 +26,9 @@ exports.builder = {
     default: "node",
   },
 };
-exports.handler = function (argv) {
+export function handler(argv) {
   createPackage(argv.project, targetAlias(argv.target), argv.template);
-};
+}
 
 function targetAlias(target) {
   if (!target) return "js";
@@ -66,11 +66,11 @@ async function createPackageJs(packageName, template) {
   const repoName = getRepoName(template);
   const repoAddr = getRepoAddr(repoName);
 
-  process.chdir(path.dirname(packageName));
+  process.chdir(dirname(packageName));
   spawnSync("git", ["clone", repoAddr, packageName]);
 
-  process.chdir(path.basename(packageName));
-  fs.rmSync(".git", { recursive: true });
+  process.chdir(basename(packageName));
+  rmSync(".git", { recursive: true });
 
   await fetchDependencies("./clio.toml");
   info("Added Clio dependencies");
@@ -86,7 +86,11 @@ async function createPackageJs(packageName, template) {
   );
 }
 
-async function createPackage(packageName, target = "js", template = "node") {
+export async function createPackage(
+  packageName,
+  target = "js",
+  template = "node"
+) {
   try {
     preValidations(packageName, target);
     if (target === "js") return await createPackageJs(packageName, template);
@@ -96,4 +100,15 @@ async function createPackage(packageName, target = "js", template = "node") {
   }
 }
 
-exports.createPackage = createPackage;
+export default {
+  command,
+  describe,
+  builder,
+  handler,
+  targetAlias,
+  preValidations,
+  getRepoName,
+  getRepoAddr,
+  createPackageJs,
+  createPackage,
+};

@@ -1,9 +1,9 @@
-const { EventEmitter } = require("../../common");
-const { Buffer } = require("../../lib");
+import { Buffer } from "../../lib/index.js";
+import { EventEmitter } from "../../common.js";
 
 const header = Buffer.alloc(2);
 
-class TCPSocket extends EventEmitter {
+export class TCPSocket extends EventEmitter {
   constructor(socket) {
     super();
     this.socket = socket;
@@ -14,5 +14,3 @@ class TCPSocket extends EventEmitter {
     this.socket.write(data);
   }
 }
-
-module.exports.TCPSocket = TCPSocket;

@@ -1,5 +1,4 @@
 export const getModule = async (src) => {
-  const module = { exports: {} };
-  eval(src);
-  return module.exports;
+  const url = URL.createObjectURL(new Blob([src], { type: "text/javascript" }));
+  return await import(url);
 };

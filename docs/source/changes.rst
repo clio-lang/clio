@@ -1,6 +1,24 @@
 Change Log
 ==========
 
+v0.12.0
+-------
+
+- Removed multi-line comments.
+- Added decorators.
+- Added decorator based documentation.
+- Added gradual static typing.
+- Added optional dynamic typing.
+- Added absolute imports (from the root of the project).
+- Added compiler cache.
+- Added scope and dependency tracing to the compiler.
+  The cli no longer compiles all Clio files found in the project source folder,
+  instead it follows the imports and compiles only the required files.
+- Clio source code is now full esm, and also compiles the Clio source to esm.
+- Added support for esm modules.
+- Symbol exports are now allows: ``export foo``.
+- A type system is implemented: ``type`` and ``list`` keywords are added.
+
 v0.11.0
 -------
 

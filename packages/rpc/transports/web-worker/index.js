@@ -1,5 +1,2 @@
-const { Server } = require("./server");
-const { Client } = require("./client");
-
-module.exports.Server = Server;
-module.exports.Client = Client;
+export { Client } from "./client.js";
+export { Server } from "./server.js";

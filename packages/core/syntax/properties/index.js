@@ -1,7 +1,7 @@
-const { map } = require("bean-parser");
-const { wrap } = require("../common");
+import { map } from "bean-parser";
+import { wrap } from "../common.js";
 
-module.exports = {
+export default {
   // Property Access
   ...map(["symbol", "propertyAccess", "slice", "parameter"], {
     dot: wrap((lhs, dot) => {
@@ -11,6 +11,16 @@ module.exports = {
   propertyAccessOpen: {
     symbol: wrap((lhs, rhs) => {
       return { ...lhs, type: "propertyAccess", rhs };
+    }, 913),
+  },
+  ...map(["decorator", "decoratorAccess"], {
+    dot: wrap((lhs, dot) => {
+      return { type: "decoratorAccessOpen", lhs, dot };
+    }, 912),
+  }),
+  decoratorAccessOpen: {
+    symbol: wrap((lhs, rhs) => {
+      return { ...lhs, type: "decoratorAccess", rhs };
     }, 913),
   },
 };

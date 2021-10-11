@@ -1,4 +1,4 @@
-const { EventEmitter } = require("../../common");
+import { EventEmitter } from "../../common.js";
 
 class WebSocketShim extends EventEmitter {
   constructor(...args) {
@@ -14,4 +14,4 @@ class WebSocketShim extends EventEmitter {
   }
 }
 
-module.exports = WebSocketShim;
+export default WebSocketShim;

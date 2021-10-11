@@ -1,15 +1,15 @@
-const { map } = require("bean-parser");
-const types = require("../../types");
-const { expressions, wrap, values, ignore } = require("../common");
+import { expressions, ignore, values, wrap } from "../common.js";
 
-module.exports = {
+import { map } from "bean-parser";
+
+export default {
   // Sets
   lCurly: {
     ...ignore("lineBreak"),
     ...map(
       [...values, ...expressions],
       wrap((lhs, rhs) => {
-        return { type: "setOpen", start: lhs, items: [types.get(rhs)] };
+        return { type: "setOpen", start: lhs, items: [rhs] };
       })
     ),
     rCurly: wrap((lhs, rhs) => {
@@ -21,7 +21,7 @@ module.exports = {
     ...map(
       [...values, ...expressions],
       wrap((lhs, rhs) => {
-        lhs.items.push(types.get(rhs));
+        lhs.items.push(rhs);
         return lhs;
       })
     ),

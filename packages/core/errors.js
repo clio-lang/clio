@@ -1,6 +1,8 @@
-const rules = require("./rules");
-const { colorize } = require("clio-highlight");
-const chalk = require("chalk");
+import chalk from "chalk";
+import { colorize } from "clio-highlight";
+import rules from "./rules.js";
+
+const { bold, red } = chalk;
 
 const unfinished = [
   "blockOpen",
@@ -11,8 +13,9 @@ const unfinished = [
   "powLhs",
   "comparisonOpen",
   "logicalOpen",
-  "export",
   "fnOpen",
+  "fnTail",
+  "export",
 ];
 
 const addLineNumber = (start, length) => (line, index) =>
@@ -21,7 +24,7 @@ const addLineNumber = (start, length) => (line, index) =>
 const getMessage = ({ file, line, start, column, source, expecting, rhs }) => {
   const rawCode = source.split("\n").slice(start, line).join("\n");
   const highlighted = colorize(rawCode);
-  const encountered = chalk.red(getRuleName(rhs.item.type));
+  const encountered = red(getRuleName(rhs.item.type));
   const lines = highlighted.split("\n");
   const { length } = (start + 1 + lines.length).toString();
   const code = lines.map(addLineNumber(start, length)).join("\n");
@@ -30,34 +33,35 @@ const getMessage = ({ file, line, start, column, source, expecting, rhs }) => {
     `Parsing error at ${file}[${line}:${column}]\n`,
     code,
     " ".repeat(column + length + 4) + "^",
-    `\n${parseError}`,
+    `${parseError}`,
   ].join("\n");
   return { message, parseError };
 };
 
-const getImportErrorMessage = ({
-  file,
-  line,
-  start,
-  column,
-  source,
-  importError,
-}) => {
+const wrapMessage = ({ name, file, line, start, column, source, message }) => {
   const rawCode = source.split("\n").slice(start, line).join("\n");
   const highlighted = colorize(rawCode);
   const lines = highlighted.split("\n");
   const { length } = (start + 1 + lines.length).toString();
   const code = lines.map(addLineNumber(start, length)).join("\n");
-  const message = [
-    `Import error at ${file}[${line}:${column}]\n`,
+  const wrappedMessage = [
+    `${name} at ${file}[${line}:${column}]\n`,
     code,
     " ".repeat(column + length + 4) + "^",
-    `\n${importError}`,
+    `${message}`,
   ].join("\n");
-  return { message };
+  return { message: wrappedMessage };
 };
 
-class ParsingError extends Error {
+const getImportErrorMessage = (meta) => {
+  return wrapMessage({ name: "Import error", ...meta });
+};
+
+const getTypeErrorMessage = (meta) => {
+  return wrapMessage({ name: "Type error", ...meta });
+};
+
+export class ParsingError extends Error {
   constructor(meta) {
     const { message, parseError } = getMessage(meta);
     super(message);
@@ -67,39 +71,52 @@ class ParsingError extends Error {
   }
 }
 
-class ImportError extends Error {
+export class ImportError extends Error {
   constructor(meta) {
     const { message } = getImportErrorMessage(meta);
     super(message);
     this.meta = meta;
+    this.meta.importError = meta.message;
     this.meta.message = message;
   }
 }
-class LexingError extends Error {
+
+export class TypeError extends Error {
+  constructor(meta) {
+    const { message } = getTypeErrorMessage(meta);
+    super(message);
+    this.meta = meta;
+    this.meta.typeError = meta.message;
+    this.meta.message = message;
+  }
+}
+
+export class LexingError extends Error {
   constructor(meta) {
     super(meta.message);
     this.meta = meta;
   }
 }
 
+const isUnfinished = (node) => unfinished.includes(node.item.type);
+
 const findFirstUnfinished = (tokens) => {
   let lhs = tokens.first;
   let rhs = tokens.first.next;
-  const step = () => {
+  while ((rhs.next && !isUnfinished(lhs)) || isUnfinished(rhs)) {
     lhs = rhs;
     rhs = lhs.next;
-  };
-  while (rhs.next && !unfinished.includes(lhs.item.type)) step();
+  }
   if (rhs.item.type === "clio" && rhs.item.content[0]) {
     const { meta } = rhs.item;
-    const { node } = rhs.item.content[0];
-    rhs = { meta, item: node };
+    rhs = { meta, item: rhs.item.content[0] };
   }
   return { lhs, rhs };
 };
 
+const ignoreRules = ["lineBreak", "outdent"];
+
 const ruleNames = {
-  lineBreak: "White Space",
   ranger: "Range",
   rangeFull: "Range",
   rangeBy: "Range",
@@ -109,6 +126,15 @@ const ruleNames = {
   propertyAccess: "Property",
   inCheck: "In Check",
   parallelFn: "Parallel Function",
+  typedAssignment: "Assignment",
+  arrowAssignment: "Assignment",
+  decoratedExportedFunction: "Export",
+  decoratedFunction: "Function",
+  fullConditional: "Conditional",
+  logicalNot: "Logical",
+  listDef: "List",
+  typeDef: "Type",
+  parameterCall: "Call",
 };
 
 const ruleGroups = {
@@ -130,14 +156,24 @@ const ruleGroups = {
   symbol: "Names",
   propertyAccess: "Names",
   parameter: "Names",
+  logical: "Control",
+  logicalNot: "Control",
+  fullConditional: "Control",
+  conditional: "Control",
+  comparison: "Control",
+  inCheck: "Control",
+  wrapped: "Structural",
 };
 
 const titleCase = (name) => name[0].toUpperCase() + name.slice(1);
 const getRuleName = (rule) => ruleNames[rule] || titleCase(rule);
 
-const formatExpectedRules = (expectedRules) => {
+export const formatExpectedRules = (expectedRules) => {
   const groups = {};
   for (const rule of expectedRules) {
+    if (ignoreRules.includes(rule)) {
+      continue;
+    }
     const name = getRuleName(rule);
     const group = ruleGroups[rule] || "Other";
     if (!groups[group]) {
@@ -154,14 +190,14 @@ const formatExpectedRules = (expectedRules) => {
       return groupA.localeCompare(groupB);
     })
     .map(([group, rules]) => {
-      const groupText = chalk.bold(group);
+      const groupText = bold(group);
       const rulesText = rules.sort().join(", ");
       return `  ${groupText}:\t${rulesText}`;
     })
     .join("\n");
 };
 
-const parsingError = (source, file, tokens) => {
+export const parsingError = (source, file, tokens) => {
   const { lhs, rhs } = findFirstUnfinished(tokens);
   const expectedRules = Object.keys(rules[lhs.item.type] || {});
   const expecting = formatExpectedRules(expectedRules);
@@ -179,22 +215,26 @@ const parsingError = (source, file, tokens) => {
   });
 };
 
-const importError = (source, file, error) => {
-  const { line, column } = error.meta;
-  const importError = error.meta.message;
+export const importError = ({ source, file, message, line, column }) => {
   const start = Math.max(0, line - 3);
   return new ImportError({
     source,
     file,
     line,
     column,
-    importError,
+    message,
     start,
   });
 };
 
-module.exports.importError = importError;
-module.exports.ImportError = ImportError;
-module.exports.parsingError = parsingError;
-module.exports.ParsingError = ParsingError;
-module.exports.LexingError = LexingError;
+export const typeError = ({ source, file, message, line, column }) => {
+  const start = Math.max(0, line - 3);
+  return new TypeError({
+    source,
+    file,
+    line,
+    column,
+    message,
+    start,
+  });
+};

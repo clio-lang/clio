@@ -1,6 +1,10 @@
-const { execSync } = require("child_process");
-const { resolve } = require("path");
-const { rmSync, mkdirSync, writeFileSync } = require("fs");
+import { dirname, resolve } from "path";
+import { mkdirSync, rmSync, writeFileSync } from "fs";
+
+import { execSync } from "child_process";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const currentBranch = execSync("git branch --show-current")
   .toString()
