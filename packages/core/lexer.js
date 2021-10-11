@@ -16,7 +16,13 @@ const whites = ["space", "lineBreak", "indent", "outdent", "slicer", "format"];
 const wraps = ["lCurly", "lSquare", "lParen"];
 const zsIgnore = [...whites, "dot", "ranger", ...wraps];
 
-const lex = (source, { file, ...meta }, startLine = 1, startColumn = 0) => {
+const lex = (
+  source,
+  { file, ...meta },
+  startLine = 1,
+  startColumn = 0,
+  nested = false
+) => {
   const tokens = list([]);
   const levels = [0];
   let line = startLine; // Mozilla SourceMap library is 1-based, unfortunately
@@ -68,7 +74,7 @@ const lex = (source, { file, ...meta }, startLine = 1, startColumn = 0) => {
           if (curls === 0) break;
         }
         token("fmtExprStart", "", 0);
-        const fmtTokens = lex(inner.slice(1, -1), file, line, column);
+        const fmtTokens = lex(inner.slice(1, -1), file, line, column, true);
         if (fmtTokens.last?.prev?.prev) {
           fmtTokens.last = fmtTokens.last.prev.prev;
           tokens.last.next = fmtTokens.first;
@@ -188,31 +194,11 @@ const lex = (source, { file, ...meta }, startLine = 1, startColumn = 0) => {
   // match a decorator
   const decorator = () => {
     // Should not be inside curlies
-    if (squares || curlies || parens) return false;
-    // There should be a function on next line
-    const fnOnNextLine = source
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)[1]
-      .match(/\s*fn/);
-    if (!fnOnNextLine) return false;
-    // Should be on start of line
-    let last = tokens.last;
-    while (last) {
-      if (last.type === "lineBreak") break;
-      if (["space", "indent", "outdent"].includes(last.type)) {
-        last = last.prev;
-      } else {
-        return false;
-      }
-    }
-    // Matches decorator pattern?
-    const isDecorator = source.match(/(\s*@.*?\r?\n)+\s*(export\s+)?fn\s+/);
-    if (isDecorator) {
-      const match = source.match(parameterPattern);
-      token("decorator", match[0]);
-    }
-    return isDecorator;
+    if (nested || squares || curlies || parens) return false;
+    // Anything else, anywhere else is a decorator
+    const match = source.match(parameterPattern);
+    if (match) token("decorator", match[0]);
+    return !!match;
   };
   // match a parameter
   const parameter = () => {
