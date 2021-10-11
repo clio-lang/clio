@@ -1,4 +1,4 @@
-import { Range } from "./range";
+import { Range } from "./range.js";
 
 const getIndex = (item, index) => {
   const isRange = item instanceof Range;
