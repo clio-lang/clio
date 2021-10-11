@@ -1547,7 +1547,7 @@ export const types = {
     const topLevels = compiled.map((part) => part.topLevel).filter(Boolean);
     const outer = new SourceNode(null, null, null, topLevels);
     const builtins =
-      "emitter,range,remote,register,help,describe,returns,check,params,includes,f,Any";
+      "emitter,range,slice,remote,register,help,describe,returns,check,params,includes,f,Any";
     return new SourceNode(null, null, null, [
       ...(topLevels.length ? [outer.join(";"), ";"] : []),
       `export default async(clio)=>{const{${builtins}}=clio;`,

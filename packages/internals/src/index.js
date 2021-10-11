@@ -1,5 +1,6 @@
 export { EventEmitter, emitter } from "./emitter.js";
 
+export { default as slice } from "./slice.js";
 export { default as remote } from "./remote.js";
 export { default as randomId } from "./random.js";
 export { default as f } from "./format.js";
