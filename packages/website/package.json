@@ -1,7 +1,7 @@
 {
   "name": "clio-website",
   "type": "module",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "scripts": {
     "worker": "mkdir -p public/build && cd ../playground && npm run worker && cp public/build/worker* ../website/public/build",
     "build": "npm run worker && rollup -c",
@@ -25,7 +25,7 @@
   "dependencies": {
     "chart.js": "^3.3.0",
     "chartjs-plugin-datalabels": "^2.0.0",
-    "clio-playground": "^0.6.0",
+    "clio-playground": "^0.7.0",
     "nice-color-palettes": "^3.0.0",
     "sirv-cli": "^1.0.12"
   }
