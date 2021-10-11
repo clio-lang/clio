@@ -44,6 +44,10 @@ together with the Node.js ``express`` library, the following can be accomplished
   export fn main argv:
     app.listen 3000
 
+.. note::
+  To run the above example you need to add express to your dependencies:
+  ``clio deps add --npm express``
+
 You can also document your functions with ``@describe``:
 
 .. playground::
