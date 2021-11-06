@@ -6,15 +6,15 @@ export const describe = "Highlight a Clio file";
 export const builder = {
   source: {
     describe: "source file to host",
-    type: "string"
+    type: "string",
   },
   debug: {
     describe: "Show stack traces instead of error messages",
-    type: "boolean"
-  }
+    type: "boolean",
+  },
 };
 export function handler(argv) {
-  const { debug } = argv
+  const { debug } = argv;
   const errorOrTrace = debug ? trace : error;
 
   try {

@@ -17,8 +17,8 @@ export const builder = {
   },
   debug: {
     describe: "Show stack traces instead of error messages",
-    type: "boolean"
-  }
+    type: "boolean",
+  },
 };
 export async function handler(argv) {
   try {

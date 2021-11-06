@@ -27,11 +27,16 @@ export const builder = {
   },
   debug: {
     describe: "Show stack traces instead of error messages",
-    type: "boolean"
-  }
+    type: "boolean",
+  },
 };
 export function handler(argv) {
-  createPackage(argv.project, targetAlias(argv.target), argv.template, argv.debug);
+  createPackage(
+    argv.project,
+    targetAlias(argv.target),
+    argv.template,
+    argv.debug
+  );
 }
 
 function targetAlias(target) {

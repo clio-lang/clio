@@ -261,7 +261,7 @@ export const handler = (argv) => {
     skipBundle: argv["skip-bundle"],
     skipNpmInstall: argv["skip-npm-install"],
     silent: argv.silent,
-    debug: argv.debug
+    debug: argv.debug,
   };
   const config = join(argv.project, "clio.toml");
   build(config, options);
@@ -291,8 +291,8 @@ const builder = {
   },
   debug: {
     describe: "Show stack traces instead of error messages",
-    type: "boolean"
-  }
+    type: "boolean",
+  },
 };
 
 export default {

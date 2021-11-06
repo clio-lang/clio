@@ -29,8 +29,8 @@ export const builder = {
   },
   debug: {
     describe: "Show stack traces instead of error messages",
-    type: "boolean"
-  }
+    type: "boolean",
+  },
 };
 
 export function handler(argv) {
@@ -45,7 +45,7 @@ export async function run(argv, args, forkOptions = {}) {
       skipBundle: true,
       silent: argv.silent,
       clean: argv.clean,
-      debug: argv.debug
+      debug: argv.debug,
     });
 
     const config = getPackageConfig(configPath);

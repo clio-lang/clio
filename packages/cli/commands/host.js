@@ -29,8 +29,8 @@ export const builder = {
   },
   debug: {
     describe: "Show stack traces instead of error messages",
-    type: "boolean"
-  }
+    type: "boolean",
+  },
 };
 
 export function handler(argv) {
@@ -59,7 +59,6 @@ export async function host(argv, args) {
     } else {
       error(e);
     }
-    
   }
 }
 
