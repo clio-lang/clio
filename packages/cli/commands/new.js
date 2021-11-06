@@ -1,5 +1,5 @@
 import { basename, dirname } from "path";
-import { error, info, success } from "../lib/colors.js";
+import { error, info, success, trace } from "../lib/colors.js";
 
 import { fetchDependencies } from "clio-manifest";
 import { rmSync } from "fs";
@@ -25,9 +25,13 @@ export const builder = {
     type: "string",
     default: "node",
   },
+  debug: {
+    describe: "Show stack traces instead of error messages",
+    type: "boolean"
+  }
 };
 export function handler(argv) {
-  createPackage(argv.project, targetAlias(argv.target), argv.template);
+  createPackage(argv.project, targetAlias(argv.target), argv.template, argv.debug);
 }
 
 function targetAlias(target) {
@@ -89,13 +93,14 @@ async function createPackageJs(packageName, template) {
 export async function createPackage(
   packageName,
   target = "js",
-  template = "node"
+  template = "node",
+  isDebugMode = false
 ) {
   try {
     preValidations(packageName, target);
     if (target === "js") return await createPackageJs(packageName, template);
   } catch (e) {
-    error(e);
+    (argv.debug ? trace : error)(e);
     process.exit(1);
   }
 }
