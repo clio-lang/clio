@@ -5,7 +5,7 @@ import {
 } from "clio-manifest";
 
 import { build } from "./build.js";
-import { error } from "../lib/colors.js";
+import { error, trace } from "../lib/colors.js";
 import { getPlatform } from "../lib/platforms.js";
 import { join } from "path";
 
@@ -27,6 +27,10 @@ export const builder = {
     describe: "Wipe the build directory before build",
     type: "boolean",
   },
+  debug: {
+    describe: "Show stack traces instead of error messages",
+    type: "boolean",
+  },
 };
 
 export function handler(argv) {
@@ -41,6 +45,7 @@ export async function run(argv, args, forkOptions = {}) {
       skipBundle: true,
       silent: argv.silent,
       clean: argv.clean,
+      debug: argv.debug,
     });
 
     const config = getPackageConfig(configPath);
@@ -50,7 +55,7 @@ export async function run(argv, args, forkOptions = {}) {
 
     return await platform.run(destination, args, forkOptions);
   } catch (e) {
-    error(e);
+    (argv.debug ? trace : error)(e);
   }
 }
 

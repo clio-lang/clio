@@ -1,4 +1,4 @@
-import { error } from "../../lib/colors.js";
+import { error, trace } from "../../lib/colors.js";
 import { fetchDependencies } from "clio-manifest";
 import { join } from "path";
 
@@ -11,13 +11,17 @@ export const builder = {
     type: "string",
     default: ".",
   },
+  debug: {
+    describe: "Show stack traces instead of error messages",
+    type: "boolean",
+  },
 };
 export async function handler(argv) {
   try {
     const config = join(argv.project, "clio.toml");
     fetchDependencies(config);
   } catch (e) {
-    error(e);
+    (argv.debug ? trace : error)(e);
   }
 }
 

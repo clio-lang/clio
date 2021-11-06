@@ -1,4 +1,4 @@
-import { error } from "../../lib/colors.js";
+import { error, trace } from "../../lib/colors.js";
 import { installDependency } from "clio-manifest";
 import { join } from "path";
 
@@ -17,13 +17,17 @@ export const builder = {
     describe: "Force fetching dependencies even if they're already fetched",
     type: "boolean",
   },
+  debug: {
+    describe: "Show stack traces instead of error messages",
+    type: "boolean",
+  },
 };
 export async function handler(argv) {
   try {
     const config = join(argv.project, "clio.toml");
     await installDependency(config, argv.source, argv);
   } catch (e) {
-    error(e);
+    (argv.debug ? trace : error)(e);
   }
 }
 

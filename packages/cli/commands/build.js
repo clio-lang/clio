@@ -22,7 +22,7 @@ import {
   writeFileSync,
 } from "fs";
 import { dirname, isAbsolute, join, relative, resolve } from "path";
-import { error, info, warn } from "../lib/colors.js";
+import { error, info, warn, trace } from "../lib/colors.js";
 import { getPlatform, npmCommand } from "../lib/platforms.js";
 
 import { Progress } from "../lib/progress.js";
@@ -80,7 +80,8 @@ export const asyncCompile = async (...args) => compileFile(...args);
  * @param {Object} options Options to build
  */
 export const build = async (configPath, options = {}) => {
-  const { skipBundle, skipNpmInstall, silent, clean } = options;
+  const { skipBundle, skipNpmInstall, silent, clean, debug } = options;
+  const errorOrTrace = debug ? trace : error;
 
   if (!silent) info(`Compiling from "${configPath}"`);
 
@@ -116,7 +117,7 @@ export const build = async (configPath, options = {}) => {
     { configs: {}, npmDeps: {}, npmDevDeps: {} }
   ).catch((compileError) => {
     progress.fail();
-    console.error(compileError.message);
+    errorOrTrace(compileError.message);
     process.exit(1);
   });
 
@@ -173,11 +174,11 @@ export const build = async (configPath, options = {}) => {
       );
     } catch (e) {
       progress.fail(`Error: ${e.message}`);
-      error(e, "Dependency Install");
+      errorOrTrace(e, "Dependency Install");
     }
   } catch (e) {
     progress.fail(`Error: ${e}`);
-    error(e, "Compilation");
+    errorOrTrace(e, "Compilation");
   }
 
   if (!skipNpmInstall) {
@@ -216,7 +217,7 @@ export const build = async (configPath, options = {}) => {
     const platform = getPlatform(target);
     await platform.build(destination, skipBundle);
   } catch (e) {
-    error(e, "Bundling");
+    errorOrTrace(e, "Bundling");
   }
 };
 
@@ -260,6 +261,7 @@ export const handler = (argv) => {
     skipBundle: argv["skip-bundle"],
     skipNpmInstall: argv["skip-npm-install"],
     silent: argv.silent,
+    debug: argv.debug,
   };
   const config = join(argv.project, "clio.toml");
   build(config, options);
@@ -285,6 +287,10 @@ const builder = {
   },
   clean: {
     describe: "Wipe the build directory before build",
+    type: "boolean",
+  },
+  debug: {
+    describe: "Show stack traces instead of error messages",
     type: "boolean",
   },
 };

@@ -5,7 +5,7 @@ import {
 } from "clio-manifest";
 
 import { build } from "./build.js";
-import { error } from "../lib/colors.js";
+import { error, trace } from "../lib/colors.js";
 import { getPlatform } from "../lib/platforms.js";
 import { join } from "path";
 
@@ -25,6 +25,10 @@ export const builder = {
   },
   clean: {
     describe: "Wipe the build directory before build",
+    type: "boolean",
+  },
+  debug: {
+    describe: "Show stack traces instead of error messages",
     type: "boolean",
   },
 };
@@ -50,7 +54,11 @@ export async function host(argv, args) {
 
     return await platform.host(destination, args);
   } catch (e) {
-    error(e);
+    if (argv.debug) {
+      trace(e);
+    } else {
+      error(e);
+    }
   }
 }
 

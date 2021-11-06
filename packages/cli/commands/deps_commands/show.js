@@ -4,7 +4,7 @@ import {
   logNoClioDeps,
 } from "clio-manifest";
 
-import { error } from "../../lib/colors.js";
+import { error, trace } from "../../lib/colors.js";
 import { join } from "path";
 
 export const command = ["$0 [project]", "show [project]"];
@@ -14,6 +14,10 @@ export const builder = {
     describe: "Project root directory, where your clio.toml file is.",
     type: "string",
     default: ".",
+  },
+  debug: {
+    describe: "Show stack traces instead of error messages",
+    type: "boolean",
   },
 };
 export async function handler(argv) {
@@ -30,7 +34,7 @@ export async function handler(argv) {
       .join("\n");
     console.log(formattedDeps);
   } catch (e) {
-    error(e);
+    (argv.debug ? trace : error)(e);
   }
 }
 

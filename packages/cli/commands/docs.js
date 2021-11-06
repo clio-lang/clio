@@ -11,6 +11,7 @@ import { AutoComplete } from "../lib/prompt.js";
 import chalk from "chalk";
 import { compileFile } from "clio-core";
 import enquirer from "enquirer";
+import { error, trace } from "../lib/colors.js";
 
 const { blue, magenta, red, yellow } = chalk;
 
@@ -23,10 +24,14 @@ export const builder = {
     type: "string",
     default: ".",
   },
+  debug: {
+    describe: "Show stack traces instead of error messages",
+    type: "boolean",
+  },
 };
 
 export function handler(argv) {
-  entry(argv.project);
+  entry(argv.project, argv.debug);
 }
 
 function onSelect(root, prompt, configPath) {
@@ -38,16 +43,17 @@ function onSelect(root, prompt, configPath) {
   };
 }
 
-function onFnSelect(root, fnMap, prompt, configPath) {
+function onFnSelect(root, fnMap, prompt, configPath, isDebugMode = false) {
   return async function onAnswer(answer) {
     await prompt.clear();
     return answer == ".."
       ? docs(dirname(root))
-      : docsFn(root, answer, fnMap[answer], configPath);
+      : docsFn(root, answer, fnMap[answer], configPath, isDebugMode);
   };
 }
 
-function selectFn(root, fns, configPath) {
+function selectFn(root, fns, configPath, isDebugMode = false) {
+  const errorOrTrace = isDebugMode ? trace : error;
   const fnMap = Object.fromEntries(fns.map((fn) => [fn.name, fn]));
   const prompt = new AutoComplete({
     name: "function",
@@ -56,17 +62,18 @@ function selectFn(root, fns, configPath) {
   });
   prompt
     .run()
-    .then(onFnSelect(root, fnMap, prompt, configPath))
-    .catch(console.error);
+    .then(onFnSelect(root, fnMap, prompt, configPath, isDebugMode))
+    .catch(errorOrTrace);
 }
 
-function selectFile(root, choices, configPath) {
+function selectFile(root, choices, configPath, isDebugMode = false) {
+  const errorOrTrace = isDebugMode ? trace : error;
   const prompt = new AutoComplete({
     name: "file",
     message: "Select a file or a directory",
     choices: ["..", ...choices],
   });
-  prompt.run().then(onSelect(root, prompt, configPath)).catch(console.error);
+  prompt.run().then(onSelect(root, prompt, configPath)).catch(errorOrTrace);
 }
 
 // TODO: move to clio-highlight
@@ -80,7 +87,8 @@ function colorize(docs) {
     );
 }
 
-function docsFn(root, name, info, configPath) {
+function docsFn(root, name, info, configPath, isDebugMode = false) {
+  const errorOrTrace = isDebugMode ? trace : error;
   const doc = [
     info.returns ? `@returns ${info.returns}` : null,
     info.accepts ? `@accepts ${info.accepts.join(" ")}` : null,
@@ -104,12 +112,12 @@ function docsFn(root, name, info, configPath) {
     .run()
     .then((answer) => {
       prompt.clear();
-      if (!answer) return docsFile(root, configPath);
+      if (!answer) return docsFile(root, configPath, isDebugMode);
     })
-    .catch(console.error);
+    .catch(errorOrTrace);
 }
 
-async function docsFile(file, configPath) {
+async function docsFile(file, configPath, isDebugMode) {
   const config = getPackageConfig(configPath);
   const sourceDir = getSourceFromConfig(configPath, config);
   const destination = getDestinationFromConfig(configPath, config);
@@ -133,17 +141,17 @@ async function docsFile(file, configPath) {
   const fns = Object.entries(scope)
     .filter(([_, info]) => info.description)
     .map(([name, info]) => ({ ...info, name }));
-  return selectFn(file, fns, configPath);
+  return selectFn(file, fns, configPath, isDebugMode);
 }
 
-function docsDirectory(projectPath, configPath) {
+function docsDirectory(projectPath, configPath, isDebugMode = false) {
   const choices = readdirSync(projectPath)
     .filter((dir) => !dir.startsWith("."))
     .filter((name) => {
       const abs = join(projectPath, name);
       return isDirectory(abs) || isClioFile(name);
     });
-  selectFile(projectPath, choices, configPath);
+  selectFile(projectPath, choices, configPath, isDebugMode);
 }
 
 function isDirectory(dir) {
@@ -154,15 +162,15 @@ function isClioFile(file) {
   return file.endsWith(".clio");
 }
 
-export function docs(path, configPath) {
+export function docs(path, configPath, isDebugMode = false) {
   return isDirectory(path)
-    ? docsDirectory(path, configPath)
-    : docsFile(path, configPath);
+    ? docsDirectory(path, configPath, isDebugMode)
+    : docsFile(path, configPath, isDebugMode);
 }
 
-function entry(projectPath) {
+function entry(projectPath, isDebugMode = false) {
   const configPath = join(projectPath, "clio.toml");
-  return docs(projectPath, configPath);
+  return docs(projectPath, configPath, isDebugMode);
 }
 
 export default {
