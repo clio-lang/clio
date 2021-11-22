@@ -1,4 +1,4 @@
-import chokidar from 'chokidar'
+import chokidar from "chokidar";
 
 import {
   MODULES_PATH,
@@ -10,7 +10,7 @@ import {
   getParsedNpmDevDependencies,
   getSourceFromConfig,
   makeStartScript,
-} from 'clio-manifest'
+} from "clio-manifest";
 import {
   constants,
   existsSync,
@@ -22,59 +22,59 @@ import {
   rmSync,
   symlinkSync,
   writeFileSync,
-} from 'fs'
-import { dirname, isAbsolute, join, relative, resolve } from 'path'
-import { error, info, warn } from '../lib/colors.js'
-import { getPlatform, npmCommand } from '../lib/platforms.js'
+} from "fs";
+import { dirname, isAbsolute, join, relative, resolve } from "path";
+import { error, info, warn } from "../lib/colors.js";
+import { getPlatform, npmCommand } from "../lib/platforms.js";
 
-import { Progress } from '../lib/progress.js'
-import { compileFile } from 'clio-core'
+import { Progress } from "../lib/progress.js";
+import { compileFile } from "clio-core";
 
-export const flatten = (arr) => arr.reduce((acc, val) => acc.concat(val), [])
+export const flatten = (arr) => arr.reduce((acc, val) => acc.concat(val), []);
 
-export const isDir = (dir) => lstatSync(dir).isDirectory()
-export const readDir = (dir) => readdirSync(dir)
+export const isDir = (dir) => lstatSync(dir).isDirectory();
+export const readDir = (dir) => readdirSync(dir);
 export const walkDir = (dir) =>
   readDir(dir)
-    .filter((name) => name !== '.clio')
-    .map((f) => walk(join(dir, f)))
-export const walk = (dir) => (isDir(dir) ? flatten(walkDir(dir)) : [dir])
+    .filter((name) => name !== ".clio")
+    .map((f) => walk(join(dir, f)));
+export const walk = (dir) => (isDir(dir) ? flatten(walkDir(dir)) : [dir]);
 
-export const isClioFile = (file) => file.endsWith('.clio')
-export const isClioConfig = (file) => file.match(/(^|[.\\])clio\.toml$/)
-export const isNotClioFile = (file) => !isClioFile(file)
-export const getClioFiles = (dir) => walk(dir).filter(isClioFile)
-export const getNonClioFiles = (dir) => walk(dir).filter(isNotClioFile)
+export const isClioFile = (file) => file.endsWith(".clio");
+export const isClioConfig = (file) => file.match(/(^|[.\\])clio\.toml$/);
+export const isNotClioFile = (file) => !isClioFile(file);
+export const getClioFiles = (dir) => walk(dir).filter(isClioFile);
+export const getNonClioFiles = (dir) => walk(dir).filter(isNotClioFile);
 
 export const copyDir = async (src, dest) => {
-  const entries = await promises.readdir(src, { withFileTypes: true })
-  mkdir(dest)
+  const entries = await promises.readdir(src, { withFileTypes: true });
+  mkdir(dest);
   for (let entry of entries) {
-    const srcPath = join(src, entry.name)
-    const destPath = join(dest, entry.name)
+    const srcPath = join(src, entry.name);
+    const destPath = join(dest, entry.name);
     if (entry.isSymbolicLink()) {
-      const target = readlinkSync(srcPath)
+      const target = readlinkSync(srcPath);
       const absTarget = isAbsolute(target)
         ? target
-        : resolve(dirname(srcPath), target)
-      symlinkSync(absTarget, destPath)
+        : resolve(dirname(srcPath), target);
+      symlinkSync(absTarget, destPath);
     } else if (entry.isDirectory()) {
-      await copyDir(srcPath, destPath)
+      await copyDir(srcPath, destPath);
     } else {
-      await promises.copyFile(srcPath, destPath, constants.COPYFILE_FICLONE)
+      await promises.copyFile(srcPath, destPath, constants.COPYFILE_FICLONE);
     }
   }
-}
+};
 
 export const rmdir = (directory) => {
-  if (existsSync(directory)) rmSync(directory, { recursive: true })
-}
+  if (existsSync(directory)) rmSync(directory, { recursive: true });
+};
 
 export const mkdir = (directory) => {
-  if (!existsSync(directory)) mkdirSync(directory, { recursive: true })
-}
+  if (!existsSync(directory)) mkdirSync(directory, { recursive: true });
+};
 
-export const asyncCompile = async (...args) => compileFile(...args)
+export const asyncCompile = async (...args) => compileFile(...args);
 
 /**
  *
@@ -82,174 +82,174 @@ export const asyncCompile = async (...args) => compileFile(...args)
  * @param {Object} options Options to build
  */
 export const build = async (configPath, options = {}) => {
-  const { skipBundle, skipNpmInstall, silent, clean, watch } = options
+  const { skipBundle, skipNpmInstall, silent, clean, watch } = options;
 
-  if (!silent) info(`Compiling from "${configPath}"`)
+  if (!silent) info(`Compiling from "${configPath}"`);
 
-  const config = getPackageConfig(configPath)
-  const target = getBuildTarget(configPath, config)
-  const destination = getDestinationFromConfig(configPath, config)
-  const sourceDir = getSourceFromConfig(configPath, config)
+  const config = getPackageConfig(configPath);
+  const target = getBuildTarget(configPath, config);
+  const destination = getDestinationFromConfig(configPath, config);
+  const sourceDir = getSourceFromConfig(configPath, config);
 
-  const cacheDir = join(destination, '.clio', 'cache')
-  const modulesDir = join(sourceDir, MODULES_PATH)
-  const modulesDestDir = join(destination, MODULES_PATH)
+  const cacheDir = join(destination, ".clio", "cache");
+  const modulesDir = join(sourceDir, MODULES_PATH);
+  const modulesDestDir = join(destination, MODULES_PATH);
 
-  if (!silent) info(`Creating build for target "${target}"`)
+  if (!silent) info(`Creating build for target "${target}"`);
 
   if (clean && existsSync(destination)) {
-    if (!silent) info(`Wiping the build directory`)
-    rmSync(destination, { recursive: true })
+    if (!silent) info(`Wiping the build directory`);
+    rmSync(destination, { recursive: true });
   }
 
-  const progress = new Progress(silent)
-  progress.start('Compiling from source...')
+  const progress = new Progress(silent);
+  progress.start("Compiling from source...");
 
   async function compile() {
     const result = await asyncCompile(
-      'main.clio',
+      "main.clio",
       config,
       configPath,
       modulesDir,
       modulesDestDir,
       dirname(configPath),
-      '',
-      '',
+      "",
+      "",
       cacheDir,
-      { configs: {}, npmDeps: {}, npmDevDeps: {} },
+      { configs: {}, npmDeps: {}, npmDevDeps: {} }
     ).catch((compileError) => {
-      progress.fail()
-      console.error(compileError.message)
-      process.exit(1)
-    })
+      progress.fail();
+      console.error(compileError.message);
+      process.exit(1);
+    });
 
-    progress.succeed()
+    progress.succeed();
 
     try {
       // Copy resources
-      progress.start('Copying over the resource files...')
-      const nonClioFiles = getNonClioFiles(sourceDir)
+      progress.start("Copying over the resource files...");
+      const nonClioFiles = getNonClioFiles(sourceDir);
       for (const file of nonClioFiles) {
-        const relativeFile = relative(sourceDir, file)
-        const destFile = join(destination, relativeFile)
-        const destDir = dirname(destFile)
-        mkdir(destDir)
-        await promises.copyFile(file, destFile)
+        const relativeFile = relative(sourceDir, file);
+        const destFile = join(destination, relativeFile);
+        const destDir = dirname(destFile);
+        mkdir(destDir);
+        await promises.copyFile(file, destFile);
       }
-      progress.succeed()
+      progress.succeed();
 
       // Add index.js file
-      progress.start('Adding Clio start script...')
-      mkdir(join(destination, '.clio'))
-      makeStartScript(config, target, destination)
-      progress.succeed()
+      progress.start("Adding Clio start script...");
+      mkdir(join(destination, ".clio"));
+      makeStartScript(config, target, destination);
+      progress.succeed();
 
-      const { npmDeps } = result
+      const { npmDeps } = result;
 
       const depsNpmDependencies = Object.values(npmDeps).reduce(
         (lhs, rhs) => ({ ...lhs, ...rhs }),
-        {},
-      )
+        {}
+      );
 
       // Init npm modules
       try {
-        const packageJsonPath = join(destination, 'package.json')
-        const dependencies = getParsedNpmDependencies(configPath)
+        const packageJsonPath = join(destination, "package.json");
+        const dependencies = getParsedNpmDependencies(configPath);
 
-        const devDependencies = getParsedNpmDevDependencies(configPath)
-        dependencies['clio-run'] = 'latest'
-        const packageInfo = {}
-        if (config.keywords) packageInfo.keywords = config.keywords
-        if (config.authors) packageInfo.authors = config.authors
+        const devDependencies = getParsedNpmDevDependencies(configPath);
+        dependencies["clio-run"] = "latest";
+        const packageInfo = {};
+        if (config.keywords) packageInfo.keywords = config.keywords;
+        if (config.authors) packageInfo.authors = config.authors;
         const packageJsonContent = {
           ...packageInfo,
-          main: './main.clio.js',
-          type: 'module',
+          main: "./main.clio.js",
+          type: "module",
           dependencies: { ...depsNpmDependencies, ...dependencies },
           devDependencies,
           ...config.npmOverride,
-        }
+        };
         writeFileSync(
           packageJsonPath,
           JSON.stringify(packageJsonContent, null, 2),
-          { flag: 'w' },
-        )
+          { flag: "w" }
+        );
       } catch (e) {
-        progress.fail(`Error: ${e.message}`)
-        error(e, 'Dependency Install')
+        progress.fail(`Error: ${e.message}`);
+        error(e, "Dependency Install");
       }
     } catch (e) {
-      progress.fail(`Error: ${e}`)
-      error(e, 'Compilation')
+      progress.fail(`Error: ${e}`);
+      error(e, "Compilation");
     }
   }
 
   if (watch) {
-    const cfgSrc = getSourceFromConfig(configPath, config)
-    const sourceDir = join(dirname(configPath), cfgSrc)
+    const cfgSrc = getSourceFromConfig(configPath, config);
+    const sourceDir = join(dirname(configPath), cfgSrc);
 
-    chokidar.watch(join(sourceDir, '*.clio')).on('all', async () => {
-      await compile()
+    chokidar.watch(join(sourceDir, "*.clio")).on("all", async () => {
+      await compile();
 
       try {
-        const platform = getPlatform(target)
-        await platform.build(destination, skipBundle)
+        const platform = getPlatform(target);
+        await platform.build(destination, skipBundle);
       } catch (e) {
-        error(e, 'Bundling')
+        error(e, "Bundling");
       }
-    })
-  } else await compile()
+    });
+  } else await compile();
 
   if (!skipNpmInstall) {
-    progress.start('Installing npm dependencies (this may take a while)...')
-    await fetchNpmDependencies(destination, silent)
-    progress.succeed()
+    progress.start("Installing npm dependencies (this may take a while)...");
+    await fetchNpmDependencies(destination, silent);
+    progress.succeed();
   }
 
   if (process.env.CLIOPATH) {
     // Link local internals
-    warn('Using local internals. This should only be used for debug purposes.')
+    warn("Using local internals. This should only be used for debug purposes.");
     warn(
-      'If you encounter any unwanted behavior, unset the CLIOPATH environment variable',
-    )
-    progress.succeed()
-    progress.start('Linking dependencies')
+      "If you encounter any unwanted behavior, unset the CLIOPATH environment variable"
+    );
+    progress.succeed();
+    progress.start("Linking dependencies");
 
     // Install third party dependencies
     const install = (...names) =>
-      names.forEach((name) => installExternal(name, destination))
+      names.forEach((name) => installExternal(name, destination));
 
-    install('sializer', 'buffer', 'bufferutil', 'ws')
+    install("sializer", "buffer", "bufferutil", "ws");
 
     // Link local dependencies
     const linkToDest = (name, internalName, unlinks) =>
-      link(name, internalName, destination, unlinks)
+      link(name, internalName, destination, unlinks);
 
-    await linkToDest('clio-run', 'run', ['clio-lang-internals', 'clio-rpc'])
-    await linkToDest('clio-rpc', 'rpc', ['clio-lang-internals'])
-    await linkToDest('clio-lang-internals', 'internals')
+    await linkToDest("clio-run", "run", ["clio-lang-internals", "clio-rpc"]);
+    await linkToDest("clio-rpc", "rpc", ["clio-lang-internals"]);
+    await linkToDest("clio-lang-internals", "internals");
 
-    progress.succeed()
+    progress.succeed();
   }
 
   try {
-    const platform = getPlatform(target)
-    await platform.build(destination, skipBundle)
+    const platform = getPlatform(target);
+    await platform.build(destination, skipBundle);
   } catch (e) {
-    error(e, 'Bundling')
+    error(e, "Bundling");
   }
-}
+};
 
 /**
  * Link local internals package as a dependency
  * @param {string} destination Full path to destination directory
  */
 export async function link(name, internalName, destination, unlinks = []) {
-  const modulePath = join(destination, 'node_modules', name)
-  const internalPath = resolve(process.env.CLIOPATH, 'packages', internalName)
-  rmdir(modulePath)
-  await copyDir(internalPath, modulePath)
-  unlinkNodeModules(modulePath, ...unlinks)
+  const modulePath = join(destination, "node_modules", name);
+  const internalPath = resolve(process.env.CLIOPATH, "packages", internalName);
+  rmdir(modulePath);
+  await copyDir(internalPath, modulePath);
+  unlinkNodeModules(modulePath, ...unlinks);
 }
 
 /**
@@ -257,7 +257,7 @@ export async function link(name, internalName, destination, unlinks = []) {
  * @param {string} destination Full path to destination directory
  */
 export function installExternal(name, destination) {
-  return npmCommand('install', destination, [name], { stdio: 'ignore' })
+  return npmCommand("install", destination, [name], { stdio: "ignore" });
 }
 
 /**
@@ -266,48 +266,48 @@ export function installExternal(name, destination) {
  */
 export function unlinkNodeModules(destination, ...names) {
   for (const name of names) {
-    rmSync(join(destination, 'node_modules', name), {
+    rmSync(join(destination, "node_modules", name), {
       recursive: true,
-    })
+    });
   }
 }
 
-const command = 'build [project]'
-const describe = 'Build a Clio project'
+const command = "build [project]";
+const describe = "Build a Clio project";
 
 export const handler = (argv) => {
   const options = {
-    skipBundle: argv['skip-bundle'],
-    skipNpmInstall: argv['skip-npm-install'],
+    skipBundle: argv["skip-bundle"],
+    skipNpmInstall: argv["skip-npm-install"],
     silent: argv.silent,
-  }
-  const config = join(argv.project, 'clio.toml')
-  build(config, options)
-}
+  };
+  const config = join(argv.project, "clio.toml");
+  build(config, options);
+};
 
 const builder = {
   project: {
-    describe: 'Project root directory, where your clio.toml file is.',
-    type: 'string',
-    default: '.',
+    describe: "Project root directory, where your clio.toml file is.",
+    type: "string",
+    default: ".",
   },
-  'skip-bundle': {
-    describe: 'Does not produces a bundle for browsers.',
-    type: 'boolean',
+  "skip-bundle": {
+    describe: "Does not produces a bundle for browsers.",
+    type: "boolean",
   },
-  'skip-npm-install': {
-    describe: 'Skips npm install. Useful for tests.',
-    type: 'boolean',
+  "skip-npm-install": {
+    describe: "Skips npm install. Useful for tests.",
+    type: "boolean",
   },
   silent: {
-    describe: 'Mutes messages from the command.',
-    type: 'boolean',
+    describe: "Mutes messages from the command.",
+    type: "boolean",
   },
   clean: {
-    describe: 'Wipe the build directory before build',
-    type: 'boolean',
+    describe: "Wipe the build directory before build",
+    type: "boolean",
   },
-}
+};
 
 export default {
   build,
@@ -320,4 +320,4 @@ export default {
   copyDir,
   isClioConfig,
   isDir,
-}
+};
