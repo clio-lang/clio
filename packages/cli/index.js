@@ -10,6 +10,7 @@ import host from "./commands/host.js";
 import { isSupportedNodeVersion } from "clio-utils";
 import newc from "./commands/new.js";
 import run from "./commands/run.js";
+import dev from "./commands/dev.js";
 import yargs from "yargs";
 
 const { yellow } = chalk;
@@ -24,6 +25,7 @@ yargs(hideBin(process.argv))
   .command(newc)
   .command(build)
   .command(run)
+  .command(dev)
   .command(host)
   .command(deps)
   .command(docs)

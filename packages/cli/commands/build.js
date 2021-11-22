@@ -1,3 +1,5 @@
+import chokidar from "chokidar";
+
 import {
   MODULES_PATH,
   fetchNpmDependencies,
@@ -80,7 +82,7 @@ export const asyncCompile = async (...args) => compileFile(...args);
  * @param {Object} options Options to build
  */
 export const build = async (configPath, options = {}) => {
-  const { skipBundle, skipNpmInstall, silent, clean } = options;
+  const { skipBundle, skipNpmInstall, silent, clean, watch } = options;
 
   if (!silent) info(`Compiling from "${configPath}"`);
 
@@ -103,82 +105,100 @@ export const build = async (configPath, options = {}) => {
   const progress = new Progress(silent);
   progress.start("Compiling from source...");
 
-  const result = await asyncCompile(
-    "main.clio",
-    config,
-    configPath,
-    modulesDir,
-    modulesDestDir,
-    dirname(configPath),
-    "",
-    "",
-    cacheDir,
-    { configs: {}, npmDeps: {}, npmDevDeps: {} }
-  ).catch((compileError) => {
-    progress.fail();
-    console.error(compileError.message);
-    process.exit(1);
-  });
+  async function compile() {
+    const result = await asyncCompile(
+      "main.clio",
+      config,
+      configPath,
+      modulesDir,
+      modulesDestDir,
+      dirname(configPath),
+      "",
+      "",
+      cacheDir,
+      { configs: {}, npmDeps: {}, npmDevDeps: {} }
+    ).catch((compileError) => {
+      progress.fail();
+      console.error(compileError.message);
+      process.exit(1);
+    });
 
-  progress.succeed();
-
-  try {
-    // Copy resources
-    progress.start("Copying over the resource files...");
-    const nonClioFiles = getNonClioFiles(sourceDir);
-    for (const file of nonClioFiles) {
-      const relativeFile = relative(sourceDir, file);
-      const destFile = join(destination, relativeFile);
-      const destDir = dirname(destFile);
-      mkdir(destDir);
-      await promises.copyFile(file, destFile);
-    }
     progress.succeed();
 
-    // Add index.js file
-    progress.start("Adding Clio start script...");
-    mkdir(join(destination, ".clio"));
-    makeStartScript(config, target, destination);
-    progress.succeed();
-
-    const { npmDeps } = result;
-
-    const depsNpmDependencies = Object.values(npmDeps).reduce(
-      (lhs, rhs) => ({ ...lhs, ...rhs }),
-      {}
-    );
-
-    // Init npm modules
     try {
-      const packageJsonPath = join(destination, "package.json");
-      const dependencies = getParsedNpmDependencies(configPath);
+      // Copy resources
+      progress.start("Copying over the resource files...");
+      const nonClioFiles = getNonClioFiles(sourceDir);
+      for (const file of nonClioFiles) {
+        const relativeFile = relative(sourceDir, file);
+        const destFile = join(destination, relativeFile);
+        const destDir = dirname(destFile);
+        mkdir(destDir);
+        await promises.copyFile(file, destFile);
+      }
+      progress.succeed();
 
-      const devDependencies = getParsedNpmDevDependencies(configPath);
-      dependencies["clio-run"] = "latest";
-      const packageInfo = {};
-      if (config.keywords) packageInfo.keywords = config.keywords;
-      if (config.authors) packageInfo.authors = config.authors;
-      const packageJsonContent = {
-        ...packageInfo,
-        main: "./main.clio.js",
-        type: "module",
-        dependencies: { ...depsNpmDependencies, ...dependencies },
-        devDependencies,
-        ...config.npmOverride,
-      };
-      writeFileSync(
-        packageJsonPath,
-        JSON.stringify(packageJsonContent, null, 2),
-        { flag: "w" }
+      // Add index.js file
+      progress.start("Adding Clio start script...");
+      mkdir(join(destination, ".clio"));
+      makeStartScript(config, target, destination);
+      progress.succeed();
+
+      const { npmDeps } = result;
+
+      const depsNpmDependencies = Object.values(npmDeps).reduce(
+        (lhs, rhs) => ({ ...lhs, ...rhs }),
+        {}
       );
+
+      // Init npm modules
+      try {
+        const packageJsonPath = join(destination, "package.json");
+        const dependencies = getParsedNpmDependencies(configPath);
+
+        const devDependencies = getParsedNpmDevDependencies(configPath);
+        dependencies["clio-run"] = "latest";
+        const packageInfo = {};
+        if (config.keywords) packageInfo.keywords = config.keywords;
+        if (config.authors) packageInfo.authors = config.authors;
+        const packageJsonContent = {
+          ...packageInfo,
+          main: "./main.clio.js",
+          type: "module",
+          dependencies: { ...depsNpmDependencies, ...dependencies },
+          devDependencies,
+          ...config.npmOverride,
+        };
+        writeFileSync(
+          packageJsonPath,
+          JSON.stringify(packageJsonContent, null, 2),
+          { flag: "w" }
+        );
+      } catch (e) {
+        progress.fail(`Error: ${e.message}`);
+        error(e, "Dependency Install");
+      }
     } catch (e) {
-      progress.fail(`Error: ${e.message}`);
-      error(e, "Dependency Install");
+      progress.fail(`Error: ${e}`);
+      error(e, "Compilation");
     }
-  } catch (e) {
-    progress.fail(`Error: ${e}`);
-    error(e, "Compilation");
   }
+
+  if (watch) {
+    const cfgSrc = getSourceFromConfig(configPath, config);
+    const sourceDir = join(dirname(configPath), cfgSrc);
+
+    chokidar.watch(join(sourceDir, "*.clio")).on("all", async () => {
+      await compile();
+
+      try {
+        const platform = getPlatform(target);
+        await platform.build(destination, skipBundle);
+      } catch (e) {
+        error(e, "Bundling");
+      }
+    });
+  } else await compile();
 
   if (!skipNpmInstall) {
     progress.start("Installing npm dependencies (this may take a while)...");

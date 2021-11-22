@@ -20,8 +20,13 @@ const npmRun = (command, destination, args, forkOptions = {}) => {
 };
 
 const js = {
-  async build() {},
+  async build(destination, args, forkOptions) {
+    return npmRun("build", destination, args, forkOptions);
+  },
   async run(destination, args, forkOptions) {
+    return npmRun("start", destination, args, forkOptions);
+  },
+  async dev(destination, args, forkOptions) {
     return npmRun("start", destination, args, forkOptions);
   },
   async host(destination, args) {
