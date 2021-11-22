@@ -1,38 +1,38 @@
-import { dirname, join, relative } from "path";
+import { dirname, join, relative } from 'path'
 import {
   existsSync,
   mkdirSync,
   readFileSync,
   statSync,
   writeFileSync,
-} from "fs";
+} from 'fs'
 import {
   getDestinationFromConfig,
   getPackageConfig,
   getParsedNpmDependencies,
   getParsedNpmDevDependencies,
   getSourceFromConfig,
-} from "clio-manifest";
+} from 'clio-manifest'
 
-import { bean } from "bean-parser";
-import { get } from "./types.js";
-import lex from "./lexer.js";
-import { parsingError } from "./errors.js";
-import rules from "./rules.js";
+import { bean } from 'bean-parser'
+import { get } from './types.js'
+import lex from './lexer.js'
+import { parsingError } from './errors.js'
+import rules from './rules.js'
 
 export const parse = (tokens, context) => {
-  return bean(tokens, rules, true, context);
-};
+  return bean(tokens, rules, true, context)
+}
 
 export const defaultScope = {
-  Number: { id: "Number", type: "Type" },
-  String: { id: "String", type: "Type" },
-  Array: { id: "Array", type: "Type" },
-  Any: { id: "Any", type: "Type" },
-  Function: { id: "Function", type: "Type" },
-  Type: { id: "Type", type: "Type" },
-  ListType: { id: "ListType", type: "Type" },
-};
+  Number: { id: 'Number', type: 'Type' },
+  String: { id: 'String', type: 'Type' },
+  Array: { id: 'Array', type: 'Type' },
+  Any: { id: 'Any', type: 'Type' },
+  Function: { id: 'Function', type: 'Type' },
+  Type: { id: 'Type', type: 'Type' },
+  ListType: { id: 'ListType', type: 'Type' },
+}
 
 export const compile = (source, file, { debug = false, ...ctx }) => {
   const context = {
@@ -41,46 +41,46 @@ export const compile = (source, file, { debug = false, ...ctx }) => {
     scope: { ...defaultScope },
     source,
     ...ctx,
-  };
-  const tokens = lex(source, { file });
+  }
+  const tokens = lex(source, { file })
   /* istanbul ignore next */
-  if (debug) console.dir(tokens.current, { depth: null });
-  const result = parse(tokens, context);
+  if (debug) console.dir(tokens.current, { depth: null })
+  const result = parse(tokens, context)
   /* istanbul ignore next */
-  if (debug) console.dir(result, { depth: null });
+  if (debug) console.dir(result, { depth: null })
   /* istanbul ignore next */
-  if (result.first.item.type == "clio") {
-    const clio = get(result.current.item, context);
-    const { code, map } = clio.toStringWithSourceMap();
-    map.setSourceContent(file, source);
+  if (result.first.item.type == 'clio') {
+    const clio = get(result.current.item, context)
+    const { code, map } = clio.toStringWithSourceMap()
+    map.setSourceContent(file, source)
     return {
       code: code + `//# sourceMappingURL=${file}.js.map`,
       map: map.toString(),
       context,
-    };
+    }
     /* istanbul ignore next */
   } else {
     /* istanbul ignore next */
-    throw parsingError(source, file, result);
+    throw parsingError(source, file, result)
   }
-};
+}
 
 export const mkdir = (directory) => {
-  if (!existsSync(directory)) mkdirSync(directory, { recursive: true });
-};
+  if (!existsSync(directory)) mkdirSync(directory, { recursive: true })
+}
 
 export const isFileModified = (src, dest, map, cache) => {
-  if (!existsSync(dest)) return true;
-  if (!existsSync(map)) return true;
-  if (!existsSync(cache)) return true;
-  const srcMTime = statSync(src, { bigint: true }).mtimeMs;
-  const destMTime = statSync(dest, { bigint: true }).mtimeMs;
-  const mapMTime = statSync(map, { bigint: true }).mtimeMs;
-  const cacheMTime = statSync(cache, { bigint: true }).mtimeMs;
+  if (!existsSync(dest)) return true
+  if (!existsSync(map)) return true
+  if (!existsSync(cache)) return true
+  const srcMTime = statSync(src, { bigint: true }).mtimeMs
+  const destMTime = statSync(dest, { bigint: true }).mtimeMs
+  const mapMTime = statSync(map, { bigint: true }).mtimeMs
+  const cacheMTime = statSync(cache, { bigint: true }).mtimeMs
   return [mapMTime, destMTime, cacheMTime]
     .map((mtime) => mtime <= srcMTime)
-    .every(Boolean);
-};
+    .every(Boolean)
+}
 
 export const compileFile = (
   relativeFile,
@@ -92,62 +92,63 @@ export const compileFile = (
   srcPrefix,
   destPrefix,
   cacheDir,
-  transfer
+  transfer,
 ) => {
-  const cfgDest = getDestinationFromConfig(configPath, config);
-  const cfgSrc = getSourceFromConfig(configPath, config);
+  const cfgDest = getDestinationFromConfig(configPath, config)
+  const cfgSrc = getSourceFromConfig(configPath, config)
   const destination = destPrefix
     ? join(root, destPrefix, cfgDest)
-    : join(root, cfgDest);
+    : join(root, cfgDest)
   const sourceDir = srcPrefix
     ? join(root, srcPrefix, cfgSrc)
-    : join(root, cfgSrc);
-  const file = join(sourceDir, relativeFile);
-  const rpcPrefix = `${config.title}@${config.version}`;
-  const destFileClio = join(destination, relativeFile);
-  const destFile = `${destFileClio}.js`;
-  const mapFile = `${destFile}.map`;
-  const cacheFile = join(root, cacheDir, `${destFile}.json`);
-  const isModified = isFileModified(file, destFile, mapFile, cacheFile);
+    : join(root, cfgSrc)
+  const file = join(sourceDir, relativeFile)
+  const rpcPrefix = `${config.title}@${config.version}`
+  const destFileClio = join(destination, relativeFile)
+  const destFile = `${destFileClio}.js`
+  const mapFile = `${destFile}.map`
+  const cacheFile = join(root, cacheDir, `${destFile}.json`)
+  const isModified = isFileModified(file, destFile, mapFile, cacheFile)
   if (!isModified) {
-    const map = readFileSync(mapFile).toString();
-    const code = readFileSync(destFile).toString();
+    const map = readFileSync(mapFile).toString()
+    const code = readFileSync(destFile).toString()
     const { scope, imports = [] } = JSON.parse(
-      readFileSync(cacheFile).toString()
-    );
+      readFileSync(cacheFile).toString(),
+    )
     // check if imports and configs are modified
-    const importsToCheck = [...imports];
+    const importsToCheck = [...imports]
     while (importsToCheck.length) {
-      const { src, dest, module: moduleName } = importsToCheck.pop();
+      const { src, dest, module: moduleName } = importsToCheck.pop()
       // TODO: This can be cached
       const configPath = moduleName
-        ? join(root, modulesDir, moduleName, "clio.toml")
-        : join(root, "clio.toml");
+        ? join(root, modulesDir, moduleName, 'clio.toml')
+        : join(root, 'clio.toml')
       if (!transfer.npmDeps[moduleName]) {
-        transfer.npmDeps[moduleName] = getParsedNpmDependencies(configPath);
+        transfer.npmDeps[moduleName] = getParsedNpmDependencies(configPath)
       }
       if (!transfer.npmDevDeps[moduleName]) {
-        transfer.npmDevDeps[moduleName] =
-          getParsedNpmDevDependencies(configPath);
+        transfer.npmDevDeps[moduleName] = getParsedNpmDevDependencies(
+          configPath,
+        )
       }
-      const mapFile = `${dest}.map`;
-      const cacheFile = join(root, cacheDir, `${dest}.json`);
-      const isModified = isFileModified(src, dest, mapFile, cacheFile);
+      const mapFile = `${dest}.map`
+      const cacheFile = join(root, cacheDir, `${dest}.json`)
+      const isModified = isFileModified(src, dest, mapFile, cacheFile)
       if (!isModified) {
-        const { imports = [] } = JSON.parse(readFileSync(cacheFile).toString());
-        importsToCheck.push(...imports);
+        const { imports = [] } = JSON.parse(readFileSync(cacheFile).toString())
+        importsToCheck.push(...imports)
       } else {
         // we need to compile it
         if (!transfer.configs[moduleName]) {
-          transfer.configs[moduleName] = getPackageConfig(configPath);
+          transfer.configs[moduleName] = getPackageConfig(configPath)
         }
-        const config = transfer.configs[moduleName];
-        const contents = readFileSync(src, "utf8");
-        const cfgDest = getDestinationFromConfig(configPath, config);
-        const cfgSrc = getSourceFromConfig(configPath, config);
-        const srcDir = join(dirname(configPath), cfgSrc);
-        const relativeFile = relative(srcDir, src);
-        const rpcPrefix = `${config.title}@${config.version}`;
+        const config = transfer.configs[moduleName]
+        const contents = readFileSync(src, 'utf8')
+        const cfgDest = getDestinationFromConfig(configPath, config)
+        const cfgSrc = getSourceFromConfig(configPath, config)
+        const srcDir = join(dirname(configPath), cfgSrc)
+        const relativeFile = relative(srcDir, src)
+        const rpcPrefix = `${config.title}@${config.version}`
         const { code, map, context } = compile(contents, relativeFile, {
           root,
           file: relativeFile,
@@ -159,26 +160,26 @@ export const compileFile = (
           destFile: dest,
           destination: cfgDest,
           configPath,
-          srcPrefix: moduleName ? join(modulesDir, moduleName, cfgSrc) : "src", // TODO: rip
+          srcPrefix: moduleName ? join(modulesDir, moduleName, cfgSrc) : 'src', // TODO: rip
           destPrefix: moduleName
             ? join(modulesDestDir, moduleName, cfgDest)
-            : "dest", // TODO: rip
+            : 'dest', // TODO: rip
           cacheDir,
           ...transfer,
-        });
-        mkdir(dirname(dest));
-        mkdir(dirname(cacheFile));
+        })
+        mkdir(dirname(dest))
+        mkdir(dirname(cacheFile))
         writeFileSync(
           cacheFile,
           JSON.stringify({
             scope: context.scope,
             imports: context.imports || [],
           }),
-          "utf8"
-        );
-        writeFileSync(dest, code, "utf8");
-        writeFileSync(mapFile, map, "utf8");
-        importsToCheck.push(...imports);
+          'utf8',
+        )
+        writeFileSync(dest, code, 'utf8')
+        writeFileSync(mapFile, map, 'utf8')
+        importsToCheck.push(...imports)
       }
     }
     return {
@@ -190,9 +191,9 @@ export const compileFile = (
       imports,
       destFile,
       srcFile: file,
-    };
+    }
   }
-  const contents = readFileSync(file, "utf8");
+  const contents = readFileSync(file, 'utf8')
   const { code, map, context } = compile(contents, relativeFile, {
     root,
     file: relativeFile,
@@ -208,16 +209,16 @@ export const compileFile = (
     destPrefix,
     cacheDir,
     ...transfer,
-  });
-  mkdir(dirname(destFile));
-  mkdir(dirname(cacheFile));
+  })
+  mkdir(dirname(destFile))
+  mkdir(dirname(cacheFile))
   writeFileSync(
     cacheFile,
     JSON.stringify({ scope: context.scope, imports: context.imports || [] }),
-    "utf8"
-  );
-  writeFileSync(destFile, code, "utf8");
-  writeFileSync(mapFile, map, "utf8");
+    'utf8',
+  )
+  writeFileSync(destFile, code, 'utf8')
+  writeFileSync(mapFile, map, 'utf8')
   return {
     npmDeps: context.npmDeps || {},
     npmDevDeps: context.npmDevDeps || {},
@@ -227,7 +228,7 @@ export const compileFile = (
     imports: context.imports,
     destFile,
     srcFile: file,
-  };
-};
+  }
+}
 
-export const tokenize = lex;
+export const tokenize = lex
