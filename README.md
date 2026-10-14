@@ -114,6 +114,6 @@ Support ongoing development through [Kalandra on Open Collective](https://openco
 
 ## Origins and license
 
-Kalandra continues the ideas of [Clio](https://github.com/clio-lang/clio). Its implementation starts fresh here. The website scaffold comes from [Tiramisu Docs](https://github.com/pouya-eghbali/tiramisu-docs).
+Kalandra continues the ideas of [Clio](https://clio-lang.org). Its implementation starts fresh here. The website scaffold comes from [Tiramisu Docs](https://github.com/pouya-eghbali/tiramisu-docs).
 
 Apache-2.0. See `LICENSE` and `NOTICE`.
