@@ -246,3 +246,11 @@ Before publishing the website:
 ## npm publication verified (2026-10-14)
 
 `@kalandra/cli@0.13.0` is public on npm. Registry SHA-1 `efba2347a9b136c6c8a260e6734c2c9326b6b5d3` matches the verified GitHub release archive. `bun run release:check --registry` passed fresh installation, executable bins, scaffolding, parallel run/build, watch, remote build, and language-server checks. Installation notices now reflect the published CLI; website deployment remains next.
+
+## Website deployment (2026-10-14)
+
+Production is deployed to the Vercel `outer-gods/kalandra` project at https://kalandra-gold.vercel.app. The repository-root `vercel.json` pins Bun 1.3.12 for installation and builds, publishes `apps/website/build`, and serves clean URLs. Static adapter output is explicit to avoid Vercel platform auto-detection changing the output directory.
+
+All 16 HTML routes, favicon, and social image returned HTTP 200. The live homepage parallel example returned `[2, 4, 6]` with no browser console errors.
+
+`kalandra.dev` is attached to the project; Cloudflare DNS still needs the Vercel-recommended apex A record `76.76.21.21`. Automatic Git deployments are not connected: Vercel could not access the renamed GitHub repository. Until that integration is configured, deploy from the repository root with `vercel deploy --prod --scope outer-gods`.

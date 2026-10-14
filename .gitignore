@@ -12,3 +12,5 @@ coverage/
 apps/website/static/playground/
 
 apps/website/src/docs/guide/
+
+.vercel/

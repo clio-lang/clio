@@ -20,7 +20,7 @@ This returns `[2, 4, 6]` through typed parallel calls. The browser playground us
 
 Kalandra 0.13.0 continues from Clio 0.12.0 with a rebuilt compiler, runtime, tooling, and Tiramisu documentation. Clio's commits, tags, and contributor history remain in this repository. The new language uses `.kalandra` files and does not provide a legacy migration layer.
 
-The CLI is available on npm as `@kalandra/cli@0.13.0`. The new website deployment is still being prepared; the site can be previewed locally with the development commands below.
+The CLI is available on npm as `@kalandra/cli@0.13.0`. The website is deployed at [kalandra-gold.vercel.app](https://kalandra-gold.vercel.app); the kalandra.dev DNS connection is pending.
 
 **Status: development preview; verified port milestone complete within its [recorded scope](docs/port-acceptance.md).** Kalandra compiles to JavaScript ESM with source maps. Typed parallel tasks run in bounded Bun subprocess pools and browser workers, with nested scheduling, cancellation and compiler-generated Sia schemas. Experimental authenticated services support checked remote imports and service chaining. The CLI provides offline project creation, build/run/watch, formatting, source documentation and terminal highlighting; the language server provides diagnostics and editing support.
 
