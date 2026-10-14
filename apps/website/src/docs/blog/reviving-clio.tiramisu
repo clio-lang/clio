@@ -4,7 +4,7 @@ meta { title = Kalandra: reviving Clio, order = 2, group = Blog }
 
 Clio is coming back as Kalandra. The name is new, the implementation has been rebuilt, and the question that started it still matters to me: how much of a distributed application should we have to assemble by hand?
 
-You can try the development preview in the browser today. The compiler and tools are available in the development workspace; npm packages are not published yet. This is an early preview, with experimental remote services and room for the language to change.
+You can try the development preview in the browser today. The compiler and tools are available on npm as @kalandra/cli@0.13.0. This is an early preview, with experimental remote services and room for the language to change.
 
 link { url = /docs/playground, Try Kalandra }
 link { url = /docs/getting-started, Work with the development toolchain }

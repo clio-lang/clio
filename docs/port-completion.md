@@ -242,3 +242,7 @@ Before publishing the website:
 `bun run release:pack` assembles the first public package, `@kalandra/cli@0.13.0`, from built JavaScript. It includes the compiler, protocol, local/browser runtime artifacts, watch worker, language server, license, provenance, and third-party notices. The executable names are `kalandra` and `kalandra-lsp`. The archive has no workspace dependencies or install scripts and requires Bun 1.3.12 or newer. Separate library packages remain private.
 
 `bun run release:check` installs the tarball into a temporary project and verifies executable resolution, version, scaffolding, parallel execution/build, watch mode, remote build artifacts, and language-server behavior. CI repeats this check. Publish the tested tarball with public access; verify a fresh registry installation before removing the pending-publication notices.
+
+## npm publication verified (2026-10-14)
+
+`@kalandra/cli@0.13.0` is public on npm. Registry SHA-1 `efba2347a9b136c6c8a260e6734c2c9326b6b5d3` matches the verified GitHub release archive. `bun run release:check --registry` passed fresh installation, executable bins, scaffolding, parallel run/build, watch, remote build, and language-server checks. Installation notices now reflect the published CLI; website deployment remains next.

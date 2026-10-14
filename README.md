@@ -20,15 +20,15 @@ This returns `[2, 4, 6]` through typed parallel calls. The browser playground us
 
 Kalandra 0.13.0 continues from Clio 0.12.0 with a rebuilt compiler, runtime, tooling, and Tiramisu documentation. Clio's commits, tags, and contributor history remain in this repository. The new language uses `.kalandra` files and does not provide a legacy migration layer.
 
-The npm release and new website deployment are being prepared. Until those steps are complete, public links may still show the previous project; the new site can be previewed locally with the development commands below.
+The CLI is available on npm as `@kalandra/cli@0.13.0`. The new website deployment is still being prepared; the site can be previewed locally with the development commands below.
 
 **Status: development preview; verified port milestone complete within its [recorded scope](docs/port-acceptance.md).** Kalandra compiles to JavaScript ESM with source maps. Typed parallel tasks run in bounded Bun subprocess pools and browser workers, with nested scheduling, cancellation and compiler-generated Sia schemas. Experimental authenticated services support checked remote imports and service chaining. The CLI provides offline project creation, build/run/watch, formatting, source documentation and terminal highlighting; the language server provides diagnostics and editing support.
 
-Explore the Tiramisu language guide and browser playground through `bun run dev`, or [create a local project](docs/new-project.md). The first revival release is being prepared. npm packages are not published yet; production remote deployment and the deferred language-design work remain ahead. See the [current limits](docs/language-design-backlog.md) and [release queue](docs/port-completion.md).
+Explore the Tiramisu language guide and browser playground through `bun run dev`, or [create a local project](docs/new-project.md). The first revival CLI release is available on npm; production remote deployment and the deferred language-design work remain ahead. See the [current limits](docs/language-design-backlog.md) and [release queue](docs/port-completion.md).
 
-## Installation (0.13.0 release preparation)
+## Installation
 
-The primary user installation will be from npm. These commands are the release target; packages are **not published yet**. They must pass clean packed-artifact and registry checks before the website launches.
+Install the CLI from npm. Version 0.13.0 has passed clean archive and registry-install checks.
 
 With Bun 1.3.12 or newer installed:
 

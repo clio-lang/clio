@@ -574,7 +574,7 @@
         </p>
         <p class="muted">
           This is a development preview. Start with the browser playground, or
-          build from source with Bun. npm packages are not published yet.
+          install the CLI from npm with Bun.
         </p>
         <div class="project-links">
           <a href="/docs/getting-started">Installation →</a><a

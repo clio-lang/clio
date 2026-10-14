@@ -10,6 +10,7 @@ import { verifyRemoteBuildCli } from "../tests/helpers/remote-build-cli.js";
 const { version: expectedVersion } = await Bun.file(
   new URL("../package.json", import.meta.url),
 ).json();
+const registry = process.argv[2] === "--registry";
 const archive = resolve(
   process.argv[2] ?? `dist/release/kalandra-cli-${expectedVersion}.tgz`,
 );
@@ -19,7 +20,9 @@ try {
     join(directory, "package.json"),
     JSON.stringify({
       private: true,
-      dependencies: { "@kalandra/cli": `file:${archive}` },
+      dependencies: {
+        "@kalandra/cli": registry ? expectedVersion : `file:${archive}`,
+      },
     }),
   );
   const install = Bun.spawn([process.execPath, "install", "--ignore-scripts"], {
@@ -27,7 +30,7 @@ try {
     stdout: "inherit",
     stderr: "inherit",
   });
-  assert.equal(await install.exited, 0, "Clean tarball install failed");
+  assert.equal(await install.exited, 0, "Clean release install failed");
   const cli = join(directory, "node_modules/.bin/kalandra");
   const version = Bun.spawnSync([cli, "--version"], { cwd: directory });
   assert.equal(version.exitCode, 0, version.stderr.toString());
@@ -48,7 +51,7 @@ try {
     directory,
   );
   console.log(
-    "Packed npm release passes clean installation, executable bins, scaffolding, parallel run/build, watch, remote build, and language-server checks.",
+    "npm release passes clean installation, executable bins, scaffolding, parallel run/build, watch, remote build, and language-server checks.",
   );
 } finally {
   await rm(directory, { recursive: true, force: true });

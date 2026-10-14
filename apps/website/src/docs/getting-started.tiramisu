@@ -2,7 +2,6 @@ meta { title = Installation, order = 2, group = Project }
 
 Install the Kalandra CLI from npm, create a project, and run your first parallel program. Kalandra 0.13.0 uses Bun to run its compiler, local workers, and remote services.
 
-callout { type = info, Release preparation: the npm commands below describe the planned 0.13.0 installation. The packages are not published yet. Until publication, try the browser playground. This notice will be removed after the published package is verified. }
 
 h2 { Install Bun }
 

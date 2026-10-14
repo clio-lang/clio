@@ -2,7 +2,7 @@ meta { title = Kalandra, order = 1, group = Project }
 
 Kalandra is a new language building on ideas from Clio: a functional language for parallel and distributed programming with JavaScript interoperability.
 
-callout { type = info, The compiler emits native JavaScript ESM and supports typed parallel execution through Bun subprocesses and browser workers. Declared records, typed data captures, and nested parallel scheduling are implemented. The verified port milestone is complete within its documented scope; the first revival release is being prepared. Experimental authenticated Bun services support compiler-checked imports from local contracts, service chaining, and acknowledged cancellation. npm packages are not published yet. }
+callout { type = info, The compiler emits native JavaScript ESM and supports typed parallel execution through Bun subprocesses and browser workers. Declared records, typed data captures, and nested parallel scheduling are implemented. The verified port milestone is complete within its documented scope; the first revival release is available. Experimental authenticated Bun services support compiler-checked imports from local contracts, service chaining, and acknowledged cancellation. Install @kalandra/cli@0.13.0 from npm using Bun. }
 
 h2 { Learn by running }
 
