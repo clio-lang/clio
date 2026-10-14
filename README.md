@@ -90,7 +90,7 @@ The separate `bun run test:network` and `bun run test:network --built` commands 
 | `tests`                    | Clio reference corpus, structural AST tests, toolchain and CLI checks                                                                     |
 | `docs`                     | Architecture decisions and staged roadmap                                                                                                 |
 
-All packages are private during bootstrap. Workspace exports point to TypeScript sources; `dist/` is verification output, not a release layout. npm packaging and website deployment remain release work. The repository is https://github.com/kalandra-lang/kalandra.
+Workspace packages stay private and export TypeScript sources for development. `bun run release:pack` builds a self-contained `@kalandra/cli` archive in `dist/release/`, including the compiler, runtimes, worker files, and language server. `bun run release:check` verifies a clean archive installation. npm publication and website deployment remain separate release steps. The repository is https://github.com/kalandra-lang/kalandra.
 
 Committed Clio syntax is the initial compatibility baseline. Deferred semantics and preserved quirks are recorded in the [language design backlog](docs/language-design-backlog.md). See the [compiler port inventory](docs/compiler-port.md) for coverage, provenance, and remaining work. Kalandra is a new language with no Clio migration contract: sources use `.kalandra`, projects use `kalandra.toml`, and installed packages live under `.kalandra/modules`. Original Clio fixtures are historical test evidence only.
 

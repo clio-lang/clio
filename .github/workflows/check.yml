@@ -18,3 +18,5 @@ jobs:
       - name: Bundled network runtime acceptance
         run: bun run test:network --built
         timeout-minutes: 2
+      - name: Pack and verify npm release
+        run: bun run release:pack && bun run release:check

@@ -236,3 +236,9 @@ Before publishing the website:
 - Publish the required packages in dependency order and repeat the installation, version, scaffold, check, run, and build steps against the registry.
 - Remove the pending-publication notice and reconcile unpublished-package wording in the homepage, overview, README, and revival post only after verification.
 - Keep the existing Git history when preparing the revival PR at `https://github.com/kalandra-lang/kalandra`; publish Git, npm, and website as separate reviewed release steps.
+
+## npm release assembly (2026-10-14)
+
+`bun run release:pack` assembles the first public package, `@kalandra/cli@0.13.0`, from built JavaScript. It includes the compiler, protocol, local/browser runtime artifacts, watch worker, language server, license, provenance, and third-party notices. The executable names are `kalandra` and `kalandra-lsp`. The archive has no workspace dependencies or install scripts and requires Bun 1.3.12 or newer. Separate library packages remain private.
+
+`bun run release:check` installs the tarball into a temporary project and verifies executable resolution, version, scaffolding, parallel execution/build, watch mode, remote build artifacts, and language-server behavior. CI repeats this check. Publish the tested tarball with public access; verify a fresh registry installation before removing the pending-publication notices.

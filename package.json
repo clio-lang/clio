@@ -27,7 +27,9 @@
     "test:browser": "bun scripts/verify-browser.ts",
     "lsp": "bun packages/language-server/src/stdio.ts",
     "test:playground": "bun scripts/verify-playground.ts",
-    "test:network": "bun scripts/verify-network.ts"
+    "test:network": "bun scripts/verify-network.ts",
+    "release:pack": "bun run build:packages && bun scripts/pack-release.ts",
+    "release:check": "bun scripts/verify-release.ts"
   },
   "devDependencies": {
     "@babel/generator": "^7.28.5",
