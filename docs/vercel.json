@@ -1,4 +1,0 @@
-{
-  "trailingSlash": true,
-  "redirects": [{ "source": "/", "destination": "/versions/develop" }]
-}

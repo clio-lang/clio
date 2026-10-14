@@ -1,0 +1,3 @@
+from "./invoice" import Line total
+
+export fn main: total (Line 3 "wrong")

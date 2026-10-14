@@ -1,0 +1,3 @@
+@params Number
+@returns Number
+export fn double n: n * 2
