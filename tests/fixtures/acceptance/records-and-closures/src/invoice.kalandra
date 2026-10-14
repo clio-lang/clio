@@ -1,0 +1,8 @@
+export type Line:
+  Number quantity
+  Number price
+
+@params Line
+@returns Number
+@check
+export fn total line: line.quantity * line.price

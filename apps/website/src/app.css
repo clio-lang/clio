@@ -1,0 +1,85 @@
+@import "@tiramisu-docs/kit/styles/theme.css";
+@import "@tiramisu-docs/kit/styles/components.css";
+@import "tailwindcss";
+@import "@fontsource-variable/fira-code";
+
+@source "../../../node_modules/@tiramisu-docs/kit";
+@source "../node_modules/@tiramisu-docs/kit";
+
+@theme {
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Fira Code Variable", ui-monospace, monospace;
+}
+
+/* Shared with the Tiramisu docs Open control and homepage actions. */
+.site-control {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  background: var(--background);
+  text-decoration: none;
+  transition:
+    background-color 150ms,
+    color 150ms;
+}
+.site-control:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+.site-control:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.site-control-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+.site-control-primary:hover {
+  background: color-mix(in oklab, var(--primary) 90%, var(--background));
+  color: var(--primary-foreground);
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-control {
+    transition: none;
+  }
+}
+
+/* Lexer-generated colors use the same dual-theme convention as Tiramisu/Shiki. */
+.kalandra-token {
+  color: var(--shiki-light);
+}
+.dark .kalandra-token {
+  color: var(--shiki-dark);
+}
+
+/* Shiki's JavaScript and shell snippets share the documentation theme pairing. */
+.syntax-code span {
+  color: var(--shiki-light);
+}
+.dark .syntax-code span {
+  color: var(--shiki-dark);
+}
+
+/* Keep operators intact in source; the font shapes their visual ligatures. */
+pre,
+code,
+kbd,
+samp,
+textarea,
+.font-mono {
+  font-family: var(--font-mono);
+  font-variant-ligatures: common-ligatures contextual;
+  font-feature-settings:
+    "calt" 1,
+    "liga" 1;
+}

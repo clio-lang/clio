@@ -1,22 +1,18 @@
 {
-  "name": "clio-language-server",
-  "type": "module",
-  "version": "1.4.0",
-  "description": "LSP server implementation for Clio",
-  "main": "index.js",
-  "scripts": {
-    "start": "node ./index.js --stdio",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "bin": {
-    "clio-language-server": "./index.js"
-  },
-  "author": "",
+  "name": "@kalandra/language-server",
+  "version": "0.13.0",
+  "private": true,
   "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
   "dependencies": {
-    "clio-core": "^0.12.0",
-    "clio-manifest": "^0.9.0",
-    "vscode-languageserver": "^7.0.0",
-    "vscode-languageserver-textdocument": "^1.0.1"
+    "@kalandra/compiler": "workspace:*",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12"
   }
 }

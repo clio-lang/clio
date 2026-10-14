@@ -1,0 +1,3 @@
+from "./tasks" import identity
+
+export fn main: await |identity| 42

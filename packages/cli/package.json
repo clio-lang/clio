@@ -1,21 +1,17 @@
 {
-  "name": "clio-lang-cli",
-  "type": "module",
-  "version": "0.12.0",
-  "description": "",
-  "main": "index.js",
-  "directories": {
-    "lib": "lib"
-  },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "Garrit Franke <garritfranke@gmail.com>",
+  "name": "@kalandra/cli",
+  "version": "0.13.0",
+  "private": true,
   "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
   "dependencies": {
-    "clio-core": "^0.12.0",
-    "clio-highlight": "^1.4.0",
-    "clio-manifest": "^0.9.0",
-    "clio-utils": "^0.6.0"
+    "@kalandra/compiler": "workspace:*",
+    "@kalandra/runtime": "workspace:*"
   }
 }

@@ -1,4 +1,0 @@
-sphinx_panels
-sphinxext-opengraph
-sphinxcontrib-mermaid
-furo

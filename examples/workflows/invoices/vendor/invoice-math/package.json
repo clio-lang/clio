@@ -1,0 +1,9 @@
+{
+  "name": "invoice-math",
+  "version": "1.0.0",
+  "type": "module",
+  "exports": "./index.js",
+  "kalandra": {
+    "types": "./kalandra.types.json"
+  }
+}

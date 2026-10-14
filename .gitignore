@@ -1,18 +1,14 @@
-node_modules
-coverage
-.clio-cache
-__pycache__
-.vscode
-.idea/
-/clio.iml
-.cache
+node_modules/
+dist/
+.svelte-kit/
+build/
+coverage/
+.env
+.env.*
+!.env.example
 .DS_Store
-.vercel
-dist
-*.clio.js
-docs/build
-docs/source/versions.py
-!packages/run/src/lib/shim/*.clio.js
+*.tsbuildinfo
 
-# see package/config.js before renaming this
-clio_env
+apps/website/static/playground/
+
+apps/website/src/docs/guide/
