@@ -101,8 +101,45 @@ RUN_OK("${COMPILER}" "${TEST_FIXTURES}/dynamic-projection.kalandra" -o "${OUTPUT
   --emit-llvm "${DYNAMIC_IR}" --test-entry reference ${EXTRA})
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror ${LINK_FLAGS} -ffp-contract=off -Wno-override-module
   "${HARNESS_SOURCE}" "${DYNAMIC_IR}" "${RUNTIME}" -o "${DYNAMIC_HARNESS}")
+file(READ "${DYNAMIC_IR}" DYNAMIC_LLVM)
+if(NOT DYNAMIC_LLVM MATCHES "fmul <4 x float>" OR
+   NOT DYNAMIC_LLVM MATCHES "fadd <4 x float>" OR
+   DYNAMIC_LLVM MATCHES "llvm[.]fma" OR
+   DYNAMIC_LLVM MATCHES "[ \t](fast|reassoc|contract|afn|nnan|ninf|nsz|arcp)[ \t]")
+  message(FATAL_ERROR "Four-lane matrix code lost strict SIMD arithmetic")
+endif()
+if(VARIANT STREQUAL "optimized")
+  RUN_OK("${CLANGXX}" -O2 -ffp-contract=off -Wno-override-module -S "${DYNAMIC_IR}"
+    -o "${OUTPUT_DIR}/dynamic.s")
+  file(READ "${OUTPUT_DIR}/dynamic.s" ASSEMBLY)
+  if(NOT ASSEMBLY MATCHES "fmul[.]4s" OR NOT ASSEMBLY MATCHES "fadd[.]4s" OR
+     ASSEMBLY MATCHES "[ \t](fmla|fmls|fmadd|fmsub)")
+    message(FATAL_ERROR "ARM64 kernel lost SIMD instructions or contracted arithmetic")
+  endif()
+endif()
+# Inspect every output cell, rather than only a final sum that could hide lane
+# permutations. The private tensor-result wrapper leaves output owned by context.
+get_filename_component(HARNESS_DIR "${HARNESS_SOURCE}" DIRECTORY)
+RUN_OK("${COMPILER}" "${TEST_FIXTURES}/matrix-result.kalandra" -o "${OUTPUT_DIR}/matrix-result"
+  --emit-llvm "${OUTPUT_DIR}/matrix-result.ll" --test-entry reference ${EXTRA})
+RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror ${LINK_FLAGS} -ffp-contract=off -Wno-override-module
+  "${HARNESS_DIR}/MatrixHarness.cpp" "${OUTPUT_DIR}/matrix-result.ll" "${RUNTIME}"
+  -o "${OUTPUT_DIR}/matrix-cells")
+RUN_OK("${OUTPUT_DIR}/matrix-cells")
+if(NOT OUTPUT MATCHES "Verified 693 per-cell matrix cases")
+  message(FATAL_ERROR "Matrix cell conformance missing: ${OUTPUT}")
+endif()
+RUN_OK("${COMPILER}" "${TEST_FIXTURES}/matrix-result.kalandra" -o "${OUTPUT_DIR}/matrix-shared"
+  --emit-llvm "${OUTPUT_DIR}/matrix-shared.ll" --test-entry shared ${EXTRA})
+RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror ${LINK_FLAGS} -ffp-contract=off -Wno-override-module
+  -DKALANDRA_MATRIX_SHARED "${HARNESS_DIR}/MatrixHarness.cpp" "${OUTPUT_DIR}/matrix-shared.ll"
+  "${RUNTIME}" -o "${OUTPUT_DIR}/matrix-shared-cells")
+RUN_OK("${OUTPUT_DIR}/matrix-shared-cells")
+if(NOT OUTPUT MATCHES "Verified 12 shared-input matrix cases")
+  message(FATAL_ERROR "Source-level shared matrix conformance missing: ${OUTPUT}")
+endif()
 RUN_OK("${DYNAMIC_HARNESS}" --sweep)
-if(NOT OUTPUT MATCHES "Verified 1029 runtime-shape/content cases; live=0")
+if(NOT OUTPUT MATCHES "Verified 1617 runtime-shape/content cases; live=0")
   message(FATAL_ERROR "Runtime conformance corpus failed: ${OUTPUT}")
 endif()
 # Per-cell reduction scratch used to allocate rows*columns times. Require a
@@ -242,4 +279,4 @@ foreach(CASE IN ITEMS
     message(FATAL_ERROR "${NAME} conformance failed: ${OUTPUT}")
   endif()
 endforeach()
-message(STATUS "1029 runtime cases, nested/shared tensors, call order, ranked reductions and failure cleanup pass")
+message(STATUS "1617 runtime cases, 705 per-cell matrix cases, nested/shared tensors, call order, ranked reductions and failure cleanup pass")

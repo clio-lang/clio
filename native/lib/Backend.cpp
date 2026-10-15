@@ -5,6 +5,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/InitAllExtensions.h"
@@ -153,12 +154,29 @@ private:
     return memref::AllocOp::create(builder_, loc, scratchType, ValueRange{count});
   }
   template <class Callback>
-  Value reduction(Location loc, Value count, Value scratch, Callback element) {
+  Value reduction(Location loc, Value count, Value scratch, Callback element, unsigned width = 1) {
     const auto z = index(loc, 0), one = index(loc, 1), two = index(loc, 2);
+    const auto vectorType = VectorType::get({width}, builder_.getF32Type());
+    const Type resultType = width == 1 ? Type(builder_.getF32Type()) : Type(vectorType);
+    const auto stride = index(loc, width);
+    const auto load = [&](Value i) -> Value {
+      if (width == 1)
+        return memref::LoadOp::create(builder_, loc, scratch, ValueRange{i});
+      auto offset = arith::MulIOp::create(builder_, loc, i, stride);
+      return vector::LoadOp::create(builder_, loc, vectorType, scratch, ValueRange{offset});
+    };
+    const auto store = [&](Value value, Value i) {
+      if (width == 1)
+        memref::StoreOp::create(builder_, loc, value, scratch, ValueRange{i});
+      else {
+        auto offset = arith::MulIOp::create(builder_, loc, i, stride);
+        vector::StoreOp::create(builder_, loc, value, scratch, ValueRange{offset});
+      }
+    };
     scf::ForOp::create(builder_, loc, z, count, one, ValueRange{},
                        [&](OpBuilder &, Location, Value i, ValueRange) {
                          auto value = element(i);
-                         memref::StoreOp::create(builder_, loc, value, scratch, ValueRange{i});
+                         store(value, i);
                          scf::YieldOp::create(builder_, loc);
                        });
     scf::WhileOp::create(
@@ -172,35 +190,36 @@ private:
           auto pairs = arith::DivUIOp::create(builder_, loc, length, two);
           auto odd = arith::RemUIOp::create(builder_, loc, length, two);
           auto next = arith::AddIOp::create(builder_, loc, pairs, odd);
-          scf::ForOp::create(
-              builder_, loc, z, pairs, one, ValueRange{},
-              [&](OpBuilder &, Location, Value i, ValueRange) {
-                auto first = arith::MulIOp::create(builder_, loc, i, two);
-                auto second = arith::AddIOp::create(builder_, loc, first, one);
-                auto a = memref::LoadOp::create(builder_, loc, scratch, ValueRange{first});
-                auto b = memref::LoadOp::create(builder_, loc, scratch, ValueRange{second});
-                auto sum = arith::AddFOp::create(builder_, loc, a, b);
-                memref::StoreOp::create(builder_, loc, sum, scratch, ValueRange{i});
-                scf::YieldOp::create(builder_, loc);
-              });
-          scf::IfOp::create(
-              builder_, loc, compare(loc, arith::CmpIPredicate::ne, odd, z),
-              [&](OpBuilder &, Location) {
-                auto last = arith::SubIOp::create(builder_, loc, length, one);
-                auto tail = memref::LoadOp::create(builder_, loc, scratch, ValueRange{last});
-                memref::StoreOp::create(builder_, loc, tail, scratch, ValueRange{pairs});
-                scf::YieldOp::create(builder_, loc);
-              });
+          scf::ForOp::create(builder_, loc, z, pairs, one, ValueRange{},
+                             [&](OpBuilder &, Location, Value i, ValueRange) {
+                               auto first = arith::MulIOp::create(builder_, loc, i, two);
+                               auto second = arith::AddIOp::create(builder_, loc, first, one);
+                               auto a = load(first);
+                               auto b = load(second);
+                               auto sum = arith::AddFOp::create(builder_, loc, a, b);
+                               store(sum, i);
+                               scf::YieldOp::create(builder_, loc);
+                             });
+          scf::IfOp::create(builder_, loc, compare(loc, arith::CmpIPredicate::ne, odd, z),
+                            [&](OpBuilder &, Location) {
+                              auto last = arith::SubIOp::create(builder_, loc, length, one);
+                              auto tail = load(last);
+                              store(tail, pairs);
+                              scf::YieldOp::create(builder_, loc);
+                            });
           scf::YieldOp::create(builder_, loc, ValueRange{next});
         });
-    auto result = scf::IfOp::create(builder_, loc, TypeRange{builder_.getF32Type()},
+    auto result = scf::IfOp::create(builder_, loc, TypeRange{resultType},
                                     compare(loc, arith::CmpIPredicate::eq, count, z), true, true);
     {
       OpBuilder::InsertionGuard guard(builder_);
       builder_.setInsertionPointToStart(&result.getThenRegion().front());
-      scf::YieldOp::create(builder_, loc, ValueRange{zero(loc)});
+      Value empty = zero(loc);
+      if (width != 1)
+        empty = vector::BroadcastOp::create(builder_, loc, vectorType, empty);
+      scf::YieldOp::create(builder_, loc, ValueRange{empty});
       builder_.setInsertionPointToStart(&result.getElseRegion().front());
-      auto value = memref::LoadOp::create(builder_, loc, scratch, ValueRange{z});
+      auto value = load(z);
       scf::YieldOp::create(builder_, loc, ValueRange{value});
     }
     return result.getResult(0);
@@ -218,7 +237,12 @@ private:
     auto noCells = compare(loc, arith::CmpIPredicate::eq, cells, z);
     auto scratchCount = arith::SelectOp::create(builder_, loc, noCells, z, left[1]);
     auto rowCount = arith::SelectOp::create(builder_, loc, noCells, z, left[0]);
-    auto scratch = reductionScratch(loc, scratchCount);
+    const auto four = index(loc, 4);
+    auto hasTile = compare(loc, arith::CmpIPredicate::uge, right[1], four);
+    auto width = arith::SelectOp::create(builder_, loc, hasTile, four, one);
+    auto scratch = reductionScratch(loc, checkedCount(loc, {scratchCount, width}));
+    auto remainder = arith::RemUIOp::create(builder_, loc, right[1], four);
+    auto tiledColumns = arith::SubIOp::create(builder_, loc, right[1], remainder);
     SmallVector<Value> dynamic;
     if (output.isDynamicDim(0))
       dynamic.push_back(left[0]);
@@ -232,8 +256,40 @@ private:
     auto rows = scf::ForOp::create(
         builder_, loc, z, rowCount, one, ValueRange{empty},
         [&](OpBuilder &, Location, Value row, ValueRange rowValues) {
+          // A 1x4 output tile uses independent SIMD lanes. Each lane follows
+          // exactly the scalar adjacent-pair reduction tree; no reassociation or
+          // fused multiply-add is permitted. Tail cells reuse the same scratch.
+          auto tiles = scf::ForOp::create(
+              builder_, loc, z, tiledColumns, four, rowValues,
+              [&](OpBuilder &, Location, Value column, ValueRange tileValues) {
+                const auto vectorType = VectorType::get({4}, builder_.getF32Type());
+                auto sum = reduction(
+                    loc, left[1], scratch,
+                    [&](Value k) -> Value {
+                      auto x = tensor::ExtractOp::create(builder_, loc, a, ValueRange{row, k});
+                      auto broadcast = vector::BroadcastOp::create(builder_, loc, vectorType, x);
+                      SmallVector<Value> values;
+                      for (unsigned lane = 0; lane < 4; ++lane) {
+                        auto col = arith::AddIOp::create(builder_, loc, column, index(loc, lane));
+                        values.push_back(
+                            tensor::ExtractOp::create(builder_, loc, b, ValueRange{k, col}));
+                      }
+                      auto packed =
+                          vector::FromElementsOp::create(builder_, loc, vectorType, values);
+                      return arith::MulFOp::create(builder_, loc, broadcast, packed);
+                    },
+                    4);
+                Value output = tileValues[0];
+                for (unsigned lane = 0; lane < 4; ++lane) {
+                  auto value = vector::ExtractOp::create(builder_, loc, sum, std::int64_t(lane));
+                  auto col = arith::AddIOp::create(builder_, loc, column, index(loc, lane));
+                  output =
+                      tensor::InsertOp::create(builder_, loc, value, output, ValueRange{row, col});
+                }
+                scf::YieldOp::create(builder_, loc, ValueRange{output});
+              });
           auto columns = scf::ForOp::create(
-              builder_, loc, z, right[1], one, rowValues,
+              builder_, loc, tiledColumns, right[1], one, tiles.getResults(),
               [&](OpBuilder &, Location, Value column, ValueRange columnValues) {
                 auto sum = reduction(loc, left[1], scratch, [&](Value k) -> Value {
                   auto x = tensor::ExtractOp::create(builder_, loc, a, ValueRange{row, k});
@@ -354,8 +410,8 @@ private:
   void testWrapper(const std::string &name) {
     auto found =
         std::ranges::find_if(input_.functions, [&](const auto &f) { return f.name == name; });
-    if (found == input_.functions.end() || found->resultType.tensor)
-      throw LoweringFailure{"test entry must name a float32-returning function"};
+    if (found == input_.functions.end())
+      throw LoweringFailure{"test entry must name a function"};
     const auto id = static_cast<FunctionId>(found - input_.functions.begin());
     SmallVector<Type> arguments;
     for (auto parameter : found->parameters) {
@@ -370,7 +426,7 @@ private:
     builder_.setInsertionPointToEnd(module_->getBody());
     auto function =
         func::FuncOp::create(builder_, location(found->declaration), "kalandra_test_entry",
-                             builder_.getFunctionType(arguments, {builder_.getF32Type()}));
+                             builder_.getFunctionType(arguments, functions_[id].getResultTypes()));
     function->setAttr("llvm.emit_c_interface", builder_.getUnitAttr());
     builder_.setInsertionPointToStart(function.addEntryBlock());
     SmallVector<Value> operands;
@@ -471,7 +527,8 @@ std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,
     }
     PassManager llvmPipeline(&context);
     llvmPipeline.enableVerifier(true);
-    if (failed(parsePassPipeline("convert-scf-to-cf,finalize-memref-to-llvm{use-generic-functions},"
+    if (failed(parsePassPipeline("convert-vector-to-llvm,convert-scf-to-cf,finalize-memref-to-llvm{"
+                                 "use-generic-functions},"
                                  "convert-to-llvm,reconcile-unrealized-casts",
                                  llvmPipeline)) ||
         failed(llvmPipeline.run(*module)))

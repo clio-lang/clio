@@ -234,7 +234,7 @@ int main(int argc, char **argv) {
   unsigned cases = 0;
   for (auto rows : {0, 1, 2, 3, 5, 8, 17})
     for (auto inner : {0, 1, 2, 3, 7, 16, 33})
-      for (auto columns : {0, 1, 2, 3, 5, 8, 17})
+      for (auto columns : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 17})
         for (unsigned mode = 0; mode < 3; ++mode) {
           char r[20], k[20], c[20], seed[20];
           std::snprintf(r, sizeof(r), "%d", rows);
