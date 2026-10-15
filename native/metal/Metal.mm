@@ -222,6 +222,8 @@ struct Bridge {
   // A serial encoder orders dispatches and tracked buffer accesses during reuse.
   struct ReductionScratch {
     std::array<std::shared_ptr<MetalAllocation>, 2> outputs{};
+    // Apple-family devices pack all words into counts[0]. Other GPUs retain
+    // separate offset-zero buffers rather than assuming Apple offset alignment.
     std::array<std::shared_ptr<MetalAllocation>, 32> counts{};
   };
   struct Frame {
@@ -275,6 +277,20 @@ struct Bridge {
       return nil;
     id<MTLBuffer> input = f.packet.input.storage_->metal->buffer;
     std::uint64_t length = f.packet.input.bytes() / 4;
+    const bool packedCounts = [state->devices[index] supportsFamily:MTLGPUFamilyApple1];
+    unsigned levels = 0;
+    for (auto remaining = length; remaining > 1; remaining = (remaining + 1) / 2)
+      ++levels;
+    if (levels && packedCounts) {
+      // Apple-family constant buffer offsets permit four-byte alignment. Each
+      // dispatch receives a distinct immutable word, retained until acknowledgement.
+      auto count = allocateMetal(state, index, levels * 4, true);
+      if (!count) {
+        f.error = count.error();
+        return nil;
+      }
+      f.scratch->counts[0] = *count;
+    }
     unsigned level = 0;
     while (length > 1) {
       const auto next = (length + 1) / 2;
@@ -288,14 +304,18 @@ struct Bridge {
         output = *allocated;
       }
       // Later levels only shrink. Never write into the input or the current read buffer.
-      auto count = allocateMetal(state, index, 4, true);
-      if (!count) {
-        f.error = count.error();
-        return nil;
+      if (!packedCounts) {
+        auto count = allocateMetal(state, index, 4, true);
+        if (!count) {
+          f.error = count.error();
+          return nil;
+        }
+        f.scratch->counts[level] = *count;
       }
-      f.scratch->counts[level] = *count;
       auto bits = std::uint32_t(length);
-      std::memcpy((*count)->buffer.contents, &bits, 4);
+      auto count = f.scratch->counts[packedCounts ? 0 : level]->buffer;
+      std::memcpy(static_cast<std::byte *>(count.contents) + (packedCounts ? level * 4 : 0), &bits,
+                  4);
       length = next;
       ++level;
     }
@@ -314,7 +334,9 @@ struct Bridge {
         const auto &output = f.scratch->outputs[i % 2];
         [encoder setBuffer:input offset:0 atIndex:0];
         [encoder setBuffer:output->buffer offset:0 atIndex:1];
-        [encoder setBuffer:f.scratch->counts[i]->buffer offset:0 atIndex:2];
+        [encoder setBuffer:f.scratch->counts[packedCounts ? 0 : i]->buffer
+                    offset:packedCounts ? i * 4 : 0
+                   atIndex:2];
         [encoder dispatchThreadgroups:MTLSizeMake((next + 63) / 64, 1, 1)
                 threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
         input = output->buffer;

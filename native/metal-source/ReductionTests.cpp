@@ -263,7 +263,7 @@ void lifecycle(m::Runtime &runtime, const m::Kernel &kernel, bool matrix = false
   runtime.failAllocationAt(0);
   run(true);
   auto attempts = runtime.stats().attempts;
-  CHECK(attempts > 20);
+  CHECK(attempts > 8);
   for (std::uint64_t i = 1; i <= attempts; ++i) {
     runtime.failAllocationAt(i);
     run(false);
@@ -281,8 +281,13 @@ void lifecycle(m::Runtime &runtime, const m::Kernel &kernel, bool matrix = false
     until(*core, [&] { return core->stats().externalPending == 1; });
     // 65 -> 33 -> 17 -> 9 -> 5 -> 3 -> 2 -> 1 reuses 33- and 17-word outputs.
     // Seven immutable parameter words and one scalar readback remain live.
-    CHECK(runtime.stats().bytes == baseline + 200 + 28 + 4 && runtime.stats().stagingBuffers == 8 &&
-          runtime.stats().metalBuffers == 11);
+    // Apple-family devices share one parameter allocation; other GPUs keep
+    // offset-zero bindings. The payload budget is identical for either layout.
+    auto device = runtime.device();
+    CHECK(device);
+    const auto staging = device->name().starts_with("Apple") ? 2u : 8u;
+    CHECK(runtime.stats().bytes == baseline + 200 + 28 + 4 &&
+          runtime.stats().stagingBuffers == staging && runtime.stats().metalBuffers == 3 + staging);
     if (scenario < 2)
       CHECK(core->cancel(group, scenario == 1));
     runtime.holdCompletions(false);

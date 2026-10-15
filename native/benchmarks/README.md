@@ -232,3 +232,16 @@ python3 native/benchmarks/gpu.py \
 ```
 
 Use `--baseline-adaptive-matmul` only for earlier runtimes that already implement the current adaptive profile. Omitting it preserves the older scalar-baseline comparison behavior. The direct reduction control still uses separate encoders and fresh output buffers, so it does not measure managed batching. Historical concurrent-candidate source is reconstructed by applying [concurrent.patch](reduction-batching/concurrent.patch) to `0f994fc`; the report records its distinct protocol and hashes.
+
+The [packed reduction parameter comparison](../../benchmarks/results/native-gpu-2026-10-16-reduction-parameters.md) compares the serial runtime before and after Apple-family count-buffer packing:
+
+```sh
+mkdir -p benchmarks/.build/native-gpu/pre-parameters
+git show 0240ec8:native/metal/Metal.mm > benchmarks/.build/native-gpu/pre-parameters/Metal.mm
+python3 native/benchmarks/gpu.py \
+  --baseline-metal-source benchmarks/.build/native-gpu/pre-parameters/Metal.mm \
+  --baseline-adaptive-matmul --warmups 5 --samples 21 \
+  --output benchmarks/results/gpu-reduction-parameters-reproduction.json
+```
+
+The direct reduction control is unchanged and does not use managed parameter packing. Buffer-object counts are measured separately from requested payload bytes and warm call latency.
