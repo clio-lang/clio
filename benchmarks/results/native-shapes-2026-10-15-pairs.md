@@ -1,5 +1,7 @@
 # Narrow matrix dispatch and two-lane tails
 
+Follow-up: [cache-layout research](native-cache-2026-10-15.md) now evaluates larger rectangles and candidate layouts. The compiler implementation measured here remains the current default.
+
 Width selection now happens once per matrix. One-column outputs use a scalar row kernel; two/three-column outputs use paired lanes with an optional scalar last column; wider outputs retain four-lane tiles with paired and scalar tails. Narrow rows never enter an empty four-column loop. Pair/singleton tails no longer require output-column loops.
 
 Against the four-lane-only compiler, tall three-column work is **1.45–1.46× faster**, tall seven-column work **1.22–1.26×**, and tall one-column work **1.08–1.11×** across two complete experiments. The seven/eight-column cliff is reduced, not eliminated: confirmation takes 1,200.83 µs for seven columns versus 999.71 µs for eight, about 20% more despite less work. Seven columns still combine a four-lane tile, a pair, and a scalar column.
