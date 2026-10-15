@@ -1,0 +1,58 @@
+# Kalandra native development
+
+The fresh compiler is written in **C++23**, with direct LLVM/MLIR C++ integration. CMake configures the build, Ninja builds it, and CTest runs the tests. Bun and Node are not dependencies of this native development path.
+
+The `native` branch contains the fresh language design and compiler. The released JavaScript prototype and Tiramisu website are separate from this build. The handwritten lexer/parser, [semantic stage](../docs/design/semantics.md), and [native source compiler](../docs/design/native-codegen.md) support float32 arithmetic and ranked dense float32 tensors. [Local tasks](../docs/design/native-tasks.md) support parallel blocks, spawn, await, and TaskError propagation through native continuations. The scheduler currently has one worker; simultaneous CPU execution is not implemented. See the [frontend grammar and limits](../docs/design/frontend.md).
+
+## Build and test
+
+On the currently validated macOS ARM64 setup:
+
+```sh
+cmake --preset native
+cmake --build --preset native
+ctest --preset native
+```
+
+The [toolchain lock](toolchain-proof/toolchain.json) selects LLVM/MLIR/Clang 22.1.8. CMake uses its installed Homebrew keg without changing global PATH. Override the location on initial configure with `-DKALANDRA_LLVM_ROOT=/path/to/llvm-22.1.8` or the corresponding environment variable. An existing CMake cache takes precedence over an environment change.
+
+CMake 3.28 or newer and Ninja are required; the development machine has CMake 4.4.2 and Ninja 1.13.2. Matching compiler and LLVM/MLIR library versions are checked during configuration. A compiler that cannot build the required C++23 facilities fails the build rather than selecting an older language mode. Debug and release configurations must preserve the numerical contract.
+
+A clean configure, build, and the original five toolchain CTest tests also pass with PATH restricted to `/usr/bin:/bin`, invoking CMake/Ninja by absolute paths. This verifies that the native path does not depend on Bun/Node being discoverable.
+
+## Implementation conventions
+
+- Use C++23 with compiler extensions disabled. Add standard-library features only after validating them with the supported compiler and platform library.
+- Prefer values, RAII, `std::unique_ptr` for unique ownership, and stable source-buffer ownership for any borrowed source spans. Raw pointers/references express documented non-owning access, not hidden ownership.
+- Use `std::expected` for recoverable frontend/IO diagnostics. Treat invalid source as a reported error, not an assertion failure. Unexpected process-level allocation failure needs a separate top-level policy before the compiler accepts arbitrary inputs.
+- Keep source locations, AST, resolution/type checking, and lowering separate. Build a focused lexer/parser for the fresh syntax; do not reproduce the prototype's parser ambiguities.
+- Keep MLIR contexts/modules under their owning API wrappers, verify constructed IR, and preserve shape, failure, and numerical semantics through lowering.
+- Keep templates and abstractions small and useful. C++ implementation complexity should not become language syntax or user-facing memory management.
+- Test behavior and diagnostics through CTest. Use sanitizers for relevant native memory paths, while keeping their coverage limits explicit.
+
+Compiler implementation ownership is separate from Kalandra's automatic memory model. Using RAII inside the compiler does not require Kalandra authors to write destructors, allocators, or lifetime annotations.
+
+## Current targets
+
+| Target                    | Purpose                                                                                   |
+| ------------------------- | ----------------------------------------------------------------------------------------- |
+| `kalandrac`               | Compile the checked CPU subset through MLIR/LLVM into a native executable                 |
+| `kalandra-backend`        | Native MLIR construction, verified passes, LLVM translation                               |
+| `kalandra-native-runtime` | Invocation storage, checked faults, bounded task scheduler, and development entry wrapper |
+| `kalandra-check`          | Symbol/type/shape checking and `--dump-ir` inspection                                     |
+| `kalandra-semantics`      | Typed values, resolved calls, shape facts/guards, strict numeric metadata                 |
+| `kalandra-parse`          | Handwritten lexer/parser CLI with source diagnostics (syntax only)                        |
+| `kalandra-syntax`         | Source ownership, tokens, AST, lexer, recursive-descent/Pratt parser                      |
+| `kalandra-mlir-check`     | C++23 tool that parses/verifies MLIR through linked native APIs                           |
+| `kalandra-proof-cases`    | Independent scalar numerical reference and fixed-seed input generator                     |
+| `native-toolchain-proof`  | Bufferization, ownership lowering, LLVM translation, and three native proof binaries      |
+
+Read the [toolchain proof](toolchain-proof/README.md) for evidence and limits. The sequential CPU conformance sweep and initial source task integration pass. The 25 CTest tests include debug, optimized, and ASan/UBSan variants. Next is native TaskError recovery (`catch` and typed inspection), followed by multiple-worker execution. The [CPU milestone](../docs/design/cpu-milestone.md) and [task contract](../docs/design/native-tasks.md) track the remaining gates.
+
+C++ formatting uses the root `.clang-format` with LLVM style. For the current C++ sources:
+
+```sh
+/opt/homebrew/Cellar/llvm/22.1.8/bin/clang-format --dry-run --Werror \
+  native/tools/*.cpp native/lib/*.cpp native/include/kalandra/*.h \
+  native/tests/*.cpp native/toolchain-proof/cases.cpp
+```

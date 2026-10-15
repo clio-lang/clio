@@ -1,0 +1,125 @@
+# Native CPU source compilation
+
+Implemented first source-to-native path — 2026-10-15. The C++23 compiler now lowers the [checked IR](semantics.md) through MLIR's native C++ API, bufferization, ownership/deallocation, explicit loops, LLVM translation, and native linking. The [projection source](fixtures/cpu-projection.kalandra) builds into an executable that prints 163.
+
+This is the float32 CPU subset on macOS ARM64. It now includes a first [source task subset](native-tasks.md#compiled-source-task-subset) on the single-worker core. Multiple workers, devices, remote execution, general arrays/records, integer arithmetic, and the final application IO/runtime APIs remain pending.
+
+## Compile and run
+
+Prerequisites are macOS ARM64 with the Apple command-line SDK, CMake 3.28 or newer, Ninja, and the exact LLVM/MLIR/Clang **22.1.8** release in the [toolchain lock](../../native/toolchain-proof/toolchain.json). The validated installations are CMake 4.4.2 and Ninja 1.13.2. The default LLVM prefix is `/opt/homebrew/Cellar/llvm/22.1.8`; an installation elsewhere must be selected with `-DKALANDRA_LLVM_ROOT=/path/to/llvm-22.1.8` during configuration. LLVM headers, libraries, CMake packages, mlir-opt, and mlir-translate must all come from that release. An unversioned Homebrew upgrade is not a substitute for the pinned release.
+
+From the repository root:
+
+```sh
+cmake --preset native
+cmake --build --preset native
+build/native/native/kalandrac docs/design/fixtures/cpu-projection.kalandra \
+  -o build/native/projection
+build/native/projection
+ctest --preset native
+```
+
+The executable prints `163` and a newline. Its application dependencies are libc++ and the macOS system library; it does not load LLVM, MLIR, Bun, Node, or a JavaScript engine.
+
+The development entry convention is a parameterless main returning float32. The linked wrapper prints that value with round-trip precision. This is a milestone harness, not a finalized language printing/exit-code API.
+
+Compiler options:
+
+| Option                  | Behavior                                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| `-o path`               | Required executable destination                                                                         |
+| `--emit-mlir path`      | Save generated, verified tensor-level MLIR                                                              |
+| `--emit-llvm path`      | Save translated, verified LLVM IR                                                                       |
+| `-O0` / `-O2`           | Native optimization setting; default O0; both preserve strict numerical policy                          |
+| `--sanitize`            | Instrument generated code/runtime with AddressSanitizer and available UndefinedBehaviorSanitizer checks |
+| `--test-entry function` | Add a private C-interface wrapper for runtime-input tests; not a public FFI                             |
+
+The compiler invokes the pinned Clang directly with an argument vector, using a unique temporary LLVM file and executable output. It publishes the executable only after successful linking. Source/output collisions are rejected, and invalid source leaves an existing executable destination unchanged. Saved IR files are explicit diagnostic artifacts and may be written before linking succeeds.
+
+The compiler currently expects its CMake-built runtime archives at their build locations. Installing or distributing the compiler is subsequent packaging work; this is reproducible development tooling from a built checkout.
+
+## MLIR lowering
+
+User functions get compiler-owned native symbols. Parameters and result types are built from checked types; compatible tensor casts reconcile precise local shape facts with declared function signatures. Ordered statement roots and operands preserve once-only, left-to-right evaluation. Compiler-owned source locations accompany generated operations.
+
+The verified pipeline is:
+
+1. Build tensor/arith/func/scf/memref operations through C++ APIs and verify the module.
+2. Bufferize function boundaries, then lower linalg operations introduced by tensor generation to loops.
+3. Insert ownership-based buffer deallocation and convert remaining bufferization operations to memref operations.
+4. Lower memref copies to explicit rank-aware loops, including copies required when an input tensor is returned as an independently owned result.
+5. Lower structured control flow, memory, arithmetic, and function operations into LLVM dialect operations; reconcile conversions.
+6. Translate into LLVM IR, apply the checked invocation ABI to every generated function and allocation/free/fault site, verify the resulting module, and link it with the minimal native runtime.
+
+Intermediate ownership conventions may copy an input returned by a function. That is valid immutable behavior; removing unnecessary copies is later optimization work. Returning an input and using both its original and returned values is covered by an executable regression test.
+
+Source functions currently carry noinline in the LLVM baseline so tensor returns and argument lifetimes are tested across real call boundaries. Inlining and more aggressive tensor optimization can follow after this baseline. The backend initially registers the stock dialect/extension/pass set required by the pinned toolchain; narrowing compiler registration and deployment size is also later work.
+
+## Internal CPU ABI and ownership
+
+This ABI is private to the pinned compiler/toolchain. It is not a stable external contract.
+
+- Each generated function receives an explicit invocation-context pointer as its final parameter, including the private C wrappers. Scalars are LLVM float values. Tensor function arguments/results use MLIR's ranked memref descriptor convention after bufferization: allocated and aligned pointers, an element offset, then signed 64-bit sizes and strides for each dimension. A scalar result stays a scalar.
+- Source tensors are immutable. A callee borrows input storage during the call and does not release caller-owned input buffers. Passing one source value twice, binding another name to it, and retaining it after a call are valid.
+- A returned tensor must outlive the callee. Bufferization may transfer newly allocated backing storage or insert a copy when returning borrowed input; ownership lowering determines the eventual release. Callers must not assume pointer identity or a particular copy count.
+- Scratch storage belongs to the generated operation and is released after use. A fault stops the current call chain through checked status; the invocation boundary settles its own outstanding owners, including earlier tensor results and nested-call buffers. Other invocations retain their own storage.
+- The private C test wrapper accepts ranked descriptors by pointer plus the final invocation context and returns float32. The caller must inspect context status before using that float; a failure return is not a successful value. Its inputs have independently owned, contiguous, row-major storage for the duration of the call. The wrapper validates dimensions/counts, but the harness must guarantee valid backing pointers and storage capacities. Language-level repeated arguments are tested inside Kalandra functions, without violating the wrapper's independent-input promise.
+
+The compiler verifies MLIR and LLVM IR against their internal types. These checks do not turn an arbitrary external descriptor into safe input. Public FFI validation, stable ABI versioning, non-contiguous external views, and concurrent ownership remain separate work.
+
+## Strict arithmetic and reductions
+
+Float32 literals use the exact bits from semantic analysis. Scalar operations have no fast-math flags. Native linking disables floating contraction; tests also inspect optimized assembly for unexpected fused multiply-add instructions.
+
+Matmul generates each output element from separately rounded products. A scratch buffer holds the products, then sequential loops combine adjacent pairs, carrying an odd tail unchanged. ReduceSum flattens logical indices in row-major order and uses the same balanced tree. Nonempty reductions introduce no extra zero; empty reductions return additive positive zero. Rank-zero tensors reduce their single element.
+
+This is a correctness baseline. Allocating per-dot-product scratch is intentionally simple and is not competitive tuned matrix code. Performance claims, fusion, vectorization, scratch reuse, and relaxed numerical policies require separate measured work.
+
+## Shapes and memory
+
+Generated guards check unresolved inner dimensions and dynamic-to-static refinements before their affected operations. Dimension/product checks enforce supported indexing and byte-count ranges before allocations. Empty dimensions are handled without overflowing irrelevant products or reading empty buffers. A zero-sized output does not execute or allocate per-element dot-product scratch.
+
+MLIR's ownership/deallocation pipeline determines normal releases. The runtime now uses explicit `Invocation` contexts with independent ownership ledgers, a latched fault code/source location, allocation-failure injection, and deterministic settlement. There is no process-global or thread-local current invocation. A context is accessed exclusively; it can later migrate with its continuation rather than belonging to a worker identity.
+
+A backing allocation has a reference count and an embedded initial owner; additional retained owners have their own ledger entries. `retainFrom` establishes a dependency in another context while the source owner is valid. Releasing or faulting one context drops only its owners. A retained tensor backing can survive its creating context and be released by its final owner. Reference counts use atomic operations; context-ledger access and publication still require the future scheduler's synchronization. This is the acyclic scalar/tensor foundation, not a general cycle collector or a claim that arbitrary runtime operations are thread-safe.
+
+The compiler applies the private checked ABI after LLVM translation, covering allocations introduced by bufferization and ownership-generated clones as well as explicit scratch. Every generated callee receives the context; callers check its latched status before using results. Allocation hooks record Allocation faults and return null only to generated code which immediately branches to the failure return path. Guard sites record their source location and return through the call chain. Failures do not enter subsequent source operations or publish successful values. The failure return's zero placeholder has no source value semantics.
+
+Allocation, release, fault recording, and status use revisioned `kalandra_*_v1` symbols. The old context-free allocation hooks and process-exiting fault symbol are absent from final source-generated LLVM IR. Unrecognized external and indirect calls are rejected by the checked-ABI pass rather than assumed safe. Saved tensor MLIR is an earlier debugging artifact; its fault calls are rewritten in final LLVM IR.
+
+No C++ exceptions or longjmp cross generated frames. Runtime context operations are nonthrowing. Fault recording and settlement do not allocate diagnostic strings. Context failure is sticky, first-fault metadata is retained, and a settled context cannot be re-entered for execution. Allocation/retain construction failure leaves earlier owners available for settlement.
+
+The CLI entry and private command-line test harness remain reporting boundaries: they settle a failed invocation, report ShapeFault (exit 87) or allocation/internal runtime faults (exit 86), and exit. The generated call itself returns a failed status without exiting the process. An embedding supervisor can instead inspect and settle that context while other contexts continue. This is checked-fault containment, not containment of unsafe crashes or corrupted native memory.
+
+Private test hooks can fail an allocation/retained-owner construction at a selected attempt and report cleanup counters. Counters count established/released ownership entries; they are not global process-allocation or retained-byte measurements. Input descriptor wrappers check dimensions and size requirements, but raw-pointer ownership/aliasing must be established by the trusted native harness. Arbitrary foreign pointers or forged storage capacities are outside a public memory-safe FFI claim.
+
+Source parallel/spawn/await now lower to typed LLVM continuations on the [single-worker task core](native-tasks.md#compiled-source-task-subset). TaskError propagation, cached outcomes, bounded admission, tensor handoff, and nested group settlement have source executable tests. CPU kernels still run one at a time; multiple workers and generated loop cancellation polls remain pending.
+
+## Verification
+
+The 25-test CTest suite retains frontend and handwritten toolchain evidence and adds three source-compilation suites: debug, optimized, and sanitized. Each compiles the actual Kalandra fixture rather than substituting hand-written MLIR.
+
+Each source suite verifies:
+
+- Standalone output 163 with JS/compiler tool directories absent from runtime PATH and no compiler/JS runtime linked.
+- 49 runtime-content datasets against the independent C++ float32 reference, including rounding-sensitive products and reductions, signed zero, subnormals, infinities, and NaNs. NaN payload identity is not promised.
+- 10,000 calls through the source-compiled reference function, preserving input contents and balancing generated allocations/releases. The current canonical runtime-input path performs 60,000 allocations and releases across that run.
+- Failure injection at every allocation position in one runtime-input invocation, including failures after earlier allocations succeeded, with zero tracked allocations remaining.
+- 1,029 runtime shape/content combinations: rows and columns in {0, 1, 2, 3, 5, 8, 17}, contraction lengths in {0, 1, 2, 3, 7, 16, 33}, each with sequential values, seeded finite values, and seeded IEEE edge mixtures. Each case runs twice, compares bits against an independent host reference, preserves inputs, and leaves no tracked storage live. NaN payload identity is excluded. A separate zero-sized case retains an otherwise very large valid dimension.
+- Invalid inner dimensions, negative/oversized descriptors, and a shape refinement that fails after real projection allocation, all with cleanup.
+- Repeated immutable arguments, local aliases, nested identity/tensor-return calls, and two retained matrix results. This program runs 1,000 times, with failure injection at every allocation position in a separate invocation and complete cleanup each time.
+- Fault isolation after real source-compiled allocation: retained parent inputs survive child settlement, allocation failures at every generated position leave no child owners, and a fresh invocation returns 163 in the same process.
+- Left-to-right call-argument evaluation, using two independently failing shape refinements and checking the first fault's source location.
+- Scalar arithmetic, rank-zero/one/three and empty reductions, preservation of a singleton negative zero, invalid-source diagnostics, and artifact preservation.
+
+Three dedicated invocation-runtime suites additionally compile both tests and runtime in debug, optimized, and ASan/UBSan variants. They exercise 1,000 parent/child/sibling/result handoffs, fault latching, 10,000 duplicate retains with iterative cleanup, each allocation/retained-owner failure position, size overflow, zero-byte backing, invalid owner release, and rejection of settled-context execution. These tests keep several contexts alive simultaneously; they do not imply a concurrent scheduler exists.
+
+AddressSanitizer instruments generated memory accesses and the runtime. UndefinedBehaviorSanitizer instruments runtime/harness C++ and the checks available during LLVM IR compilation; it is not a substitute for explicit overflow validation in already-lowered integer IR. Allocation counters cover the tracked generated buffers, not every process allocation. These tests are evidence for this subset, not a proof of future resource, GPU, or concurrent runtime safety.
+
+## CPU conformance status
+
+The conformance sweep passes in debug, optimized, and sanitized builds. No additional backend defect was exposed by this expanded corpus. The first sequential float32 CPU milestone is complete within its declared scope; this does not mean that all accepted numeric types or the full language are implemented.
+
+A fresh source-only copy also configures, builds, and passes the full 16-test suite with PATH restricted to `/usr/bin:/bin`, CMake/Ninja selected by absolute path, and the pinned toolchain already installed. No cached compiler outputs, prototype packages, Bun, or Node are used. This verifies a clean development build on the current host, not dependency installation on a blank machine. Automated toolchain provisioning, CI on another host, compiler distribution, and performance tuning remain tooling work.
+
+The [native local-task contract](native-tasks.md) now defines the next ABI/runtime direction. Checked invocation contexts and managed tensor ownership now implement its first gate. The single-worker core now passes its synthetic-entry tests. Source task typing/ownership checks and continuation lowering now pass their executable suites. Next complete native TaskError handling and failure conformance before adding multiple workers. GPU and remote execution follow their separate capability and deployment gates.

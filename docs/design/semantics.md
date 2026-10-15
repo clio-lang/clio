@@ -1,0 +1,86 @@
+# Native resolution and typed IR
+
+Implemented first CPU semantic subset — 2026-10-15. The handwritten C++23 frontend now resolves symbols, checks calls and tensor shapes, and constructs a typed IR for the [projection fixture](fixtures/cpu-projection.kalandra). This completes the initial semantic gate of the [CPU milestone](cpu-milestone.md). The [native backend](native-codegen.md) now consumes this IR to compile the projection source.
+
+## Inspect the checked program
+
+```sh
+cmake --build --preset native
+ctest --preset native
+build/native/native/kalandra-check docs/design/fixtures/cpu-projection.kalandra
+build/native/native/kalandra-check --dump-ir docs/design/fixtures/cpu-projection.kalandra
+```
+
+The canonical fixture checks as four functions and 26 typed values. The check command prints source diagnostics and exits nonzero on failure. Dump mode emits no partial IR after an error.
+
+The projection retains a tensor operation rather than becoming scalar loops at this stage:
+
+```text
+fn @0 project($0 samples: Tensor[float32, ?d1, 3], $1 weights: Tensor[float32, 3, 2]) -> Tensor[float32, ?d1, 2] {
+  %0 : Tensor[float32, ?d1, 3] = read $0
+  %1 : Tensor[float32, 3, 2] = read $1
+  %2 : Tensor[float32, ?d1, 2] = matmul strict_f32 balanced_adjacent separately_rounded_products %0, %1 check_inner=0 check_allocation=1
+  statement %2
+  return %2
+}
+```
+
+Names such as `?d1` are internal extent identities in a debug dump, not additional source syntax. Here the output row count is the input row count. No inner-dimension guard is needed because both contraction extents are statically 3. Output allocation size still depends on runtime rows and must be checked by the eventual lowering before allocation.
+
+## Symbols and function results
+
+Function signatures are registered before checking bodies, so a function can call a later declaration. Parameters and locals resolve to stable symbol IDs; calls resolve to function IDs. Duplicate function/parameter/local names, unknown values/functions, wrong arity, and attempts to call a scalar/tensor are diagnosed.
+
+A local name becomes visible after its initializer. Its binding cannot overwrite a parameter or an earlier local. Function names and builtins may be shadowed by a local value; calling that value does not silently fall back to the hidden function. Ordinary first-class function values and indirect calls are not in this subset.
+
+A function can infer its result from a checked body. Recursive result inference needs an annotation to establish a concrete type; a recursive cycle anchored by a declared result can be checked. There is no Any or guessed numeric fallback. Declared result types and more precise body result facts are retained separately.
+
+## Numeric typing
+
+The first semantic representation supports float32 scalars and ranked float32 tensors. Other accepted language types receive an explicit unsupported-subset diagnostic. In particular, an unconstrained integer literal still requires int64 and an unconstrained decimal requires float64; neither silently becomes float32 because this compiler stage supports only float32.
+
+Parameter types, binding annotations, declared return types, and a known scalar operand can provide float32 literal context. Literal spelling is converted directly to IEEE binary32 through LLVM APFloat with nearest/ties-to-even rounding. The IR stores exact bits. Finite literal overflow is a diagnostic; representable subnormals and underflow rounding to zero remain valid. Unary minus stays explicit, preserving negative zero.
+
+Scalar `+`, `-`, `*`, and `/` remain strict float32 operations. They are not silently fused or reassociated, and are not evaluated by this checker. `%` is rejected in this float32 subset because the accepted operator is integer remainder. Numeric conversions, integer arithmetic, and float64 arithmetic remain subsequent implementation work.
+
+## Tensor literals and shapes
+
+A tensor constructor currently needs explicit Tensor[float32,...] context and one literal argument. Rectangular nested arrays become row-major scalar operands; ragged shape, rank mismatch, and incompatible known extents are diagnosed. General array values and runtime flat-data/shape constructors are not implemented.
+
+The nesting of the literal determines its rank. For example, `tensor([[], []])` can construct a contextual float32 tensor of shape `[2, 0]`. `tensor([])` has shape `[0]`; an annotation cannot silently turn it into `[0, 3]`. Constructing that latter shape from flat data needs the later explicit-shape constructor. Rank-zero scalar construction remains distinct from a scalar result.
+
+Matmul requires two rank-two float32 tensors. Known incompatible inner dimensions fail compilation. Independent `?` extents are distinct facts, so unresolved compatibility records an inner-dimension guard. Output rows and columns retain their relationships to the operands.
+
+A dynamic tensor passed to a fixed-shape parameter or assigned a fixed-shape annotation gets a ShapeCheck IR node. Only the checked value is refined; the source binding retains its original facts. Inferred relationships substitute through ordinary calls, allowing a known input row count to become a known result row count. Unknown result dimensions not tied to parameters get fresh identities per invocation.
+
+Completed functions summarize shape equalities involving parameter extents and constants. Calls reject statically incompatible requirements even through ordinary wrappers, and propagate unresolved parameter requirements. Recursive calls under analysis conservatively retain runtime guards instead of assuming an unfinished summary is complete.
+
+Known dimensions must fit the supported signed 64-bit indexing range. Complete static element/byte-count products are checked for overflow, including zero-sized shapes without overflowing irrelevant products. Unknown products remain runtime validation obligations. Input descriptor validation belongs to the native ABI/lowering stage; a typed signature is not proof that an external descriptor is valid.
+
+## IR and execution obligations
+
+The IR contains explicit float32 literals, symbol reads, scalar operations, tensor literals, resolved calls, matmul, reduceSum, and shape checks. Matmul records separately rounded products and balanced adjacent reduction. ReduceSum records balanced reduction over row-major logical elements. Later lowering must implement the accepted odd-tail, empty, rounding, and cleanup behavior.
+
+Value IDs occupy a flat arena. Functions own their values and ordered statement roots. Arena insertion order is not an execution schedule: lowering must follow statement order and ordered operands/arguments to preserve once-only, left-to-right evaluation. Pipelines become ordinary resolved calls with the left-hand expression inserted once as the first argument.
+
+Runtime guard metadata is not an executed runtime check yet. The next stage must lower shape checks and dynamic allocation-size checks before the affected allocation/computation and preserve immutable storage ownership. Publishing a typed module does not establish that the native runtime is complete.
+
+## Failure and resource limits
+
+Syntax errors pass through unchanged and prevent semantic analysis. Semantic errors retain source spans and prevent publication of the entire typed module; diagnostics may accumulate across independent functions. There is no invalid/dynamic placeholder type in successful IR.
+
+The checker bounds expression/function analysis depth, typed values, literal elements, numeric spelling length, shape-requirement work, and diagnostics. Defaults are depth 128, 300,000 values, 200,000 tensor elements, 4,096 bytes per numeric literal, 100,000 shape-requirement steps, and 32 diagnostics. These are configurable implementation limits, not new language type/rank rules. A syntax-valid chain can currently exceed the semantic recursion budget and receive a diagnostic; eliminating that limit through an iterative checker is later performance work.
+
+## Verification and native lowering
+
+The 13-test CTest suite includes syntax and semantic tests with AddressSanitizer/UndefinedBehaviorSanitizer, CLI success/error checks, and the existing native MLIR proof. Semantic cases check exact literal rounding at ties, subnormals and overflow, forward/recursive calls, pipelines without duplicated calls, immutable bindings, tensor construction, known/dynamic shapes, call-result extent substitution, wrapper requirements, overflow-safe shape metadata, and bounded failures. Tests validate symbol/value ownership and refuse partial IR.
+
+[Native MLIR/LLVM lowering](native-codegen.md) now compiles this checked IR into an executable, including runtime guards and ownership cleanup. The native CPU conformance sweep passes; the handwritten proof remains independent reference evidence.
+
+## Task and TaskError checking
+
+The initial local task subset adds explicit task-operation and parallel-block IR. Value metadata distinguishes a group-owned handle, a completed value, and a fallible TaskError result without replacing concrete scalar/tensor payloads with Any. Aliases retain the original task identity. A successful group must observe all its child identities; handles cannot be returned, passed as ordinary payloads, or escape through a group result. Nested block bindings remain lexical.
+
+Await produces the child's concrete success type with a TaskError channel, flattening that same error family for an already fallible child. Try requires a fallible value and a lexical parallel or explicitly fallible function boundary. Discarded expected-error results and implicit use of a result as a success value are diagnosed. Named TaskError functions require an explicit error-channel annotation in this initial subset. Broader error inference, arbitrary application error families, unions, and catch/match handling remain future implementation work.
+
+Checks cover inline and repeated awaits, observation through aliases, use outside groups, discarded results, handle escapes, and missing propagation. [Native source task tests](native-tasks.md#compiled-source-task-subset) now exercise these checked operations through actual continuation lowering, tensor kernels, and runtime settlement. The complete native suite contains 25 CTest tests.

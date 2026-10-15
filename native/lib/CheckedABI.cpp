@@ -1,0 +1,117 @@
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Module.h"
+#include <optional>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+namespace kalandra {
+// Apply after bufferization/LLVM translation, so allocations and clones
+// introduced by ownership lowering receive the same checked convention too.
+std::optional<std::string> addCheckedInvocationABI(llvm::Module &module) {
+  using namespace llvm;
+  auto &context = module.getContext();
+  auto *pointer = PointerType::getUnqual(context);
+  auto *i64 = Type::getInt64Ty(context);
+  auto *voidType = Type::getVoidTy(context);
+  auto allocate = module.getOrInsertFunction("kalandra_alloc_v1", pointer, pointer, i64);
+  auto release = module.getOrInsertFunction("kalandra_free_v1", voidType, pointer, pointer);
+  auto fault = module.getOrInsertFunction("kalandra_fault_v1", voidType, pointer, i64, i64, i64);
+  auto status = module.getOrInsertFunction("kalandra_status_v1", i64, pointer);
+  std::vector<Function *> originals;
+  for (auto &function : module)
+    if (!function.isDeclaration())
+      originals.push_back(&function);
+  std::unordered_map<Function *, Function *> checked;
+  for (auto *old : originals) {
+    auto name = old->getName().str();
+    old->setName(name + ".unchecked");
+    std::vector<Type *> parameters(old->getFunctionType()->params().begin(),
+                                   old->getFunctionType()->params().end());
+    parameters.push_back(pointer);
+    auto *function = Function::Create(FunctionType::get(old->getReturnType(), parameters, false),
+                                      old->getLinkage(), name, module);
+    function->setAttributes(old->getAttributes());
+    function->setCallingConv(old->getCallingConv());
+    function->splice(function->begin(), old);
+    for (auto &argument : old->args())
+      argument.replaceAllUsesWith(function->getArg(argument.getArgNo()));
+    function->getArg(function->arg_size() - 1)->setName("invocation");
+    checked.emplace(old, function);
+  }
+  for (auto *old : originals) {
+    auto *function = checked.at(old);
+    auto *invocation = function->getArg(function->arg_size() - 1);
+    auto *failed = BasicBlock::Create(context, "invocation.failed", function);
+    IRBuilder<> failure(failed);
+    if (function->getReturnType()->isVoidTy())
+      failure.CreateRetVoid();
+    else
+      failure.CreateRet(Constant::getNullValue(function->getReturnType()));
+    std::vector<CallInst *> calls;
+    for (auto &block : *function)
+      for (auto &instruction : block)
+        if (auto *call = dyn_cast<CallInst>(&instruction))
+          calls.push_back(call);
+    for (auto *call : calls) {
+      auto *target = call->getCalledFunction();
+      if (!target)
+        return "indirect call has no checked invocation convention";
+      IRBuilder<> builder(call);
+      std::vector<Value *> arguments(call->args().begin(), call->args().end());
+      FunctionCallee callee;
+      bool alwaysFail = false;
+      if (auto found = checked.find(target); found != checked.end()) {
+        callee = found->second;
+        arguments.push_back(invocation);
+      } else if (target->getName() == "_mlir_memref_to_llvm_alloc") {
+        callee = allocate;
+        arguments.insert(arguments.begin(), invocation);
+      } else if (target->getName() == "_mlir_memref_to_llvm_free") {
+        callee = release;
+        arguments.insert(arguments.begin(), invocation);
+      } else if (target->getName() == "kalandra_fault") {
+        callee = fault;
+        arguments.insert(arguments.begin(), invocation);
+        alwaysFail = true;
+      } else if (target->isIntrinsic())
+        continue;
+      else
+        return "external call has no checked invocation convention: " + target->getName().str();
+      auto *replacement = builder.CreateCall(callee, arguments);
+      replacement->setCallingConv(call->getCallingConv());
+      call->replaceAllUsesWith(replacement);
+      call->eraseFromParent();
+      auto *block = replacement->getParent();
+      auto *continuation =
+          block->splitBasicBlock(std::next(replacement->getIterator()), "invocation.continue");
+      block->getTerminator()->eraseFromParent();
+      builder.SetInsertPoint(block);
+      if (alwaysFail)
+        builder.CreateBr(failed);
+      else {
+        auto *code = builder.CreateCall(status, {invocation});
+        builder.CreateCondBr(builder.CreateICmpNE(code, ConstantInt::get(i64, 0)), failed,
+                             continuation);
+      }
+    }
+    // Re-entering an already faulted context cannot execute source operations.
+    auto *entry = &function->getEntryBlock();
+    auto *start = entry->splitBasicBlock(entry->getFirstInsertionPt(), "invocation.start");
+    entry->getTerminator()->eraseFromParent();
+    IRBuilder<> builder(entry);
+    auto *code = builder.CreateCall(status, {invocation});
+    builder.CreateCondBr(builder.CreateICmpNE(code, ConstantInt::get(i64, 0)), failed, start);
+  }
+  for (auto *old : originals)
+    old->eraseFromParent();
+  for (const auto *name :
+       {"kalandra_fault", "_mlir_memref_to_llvm_alloc", "_mlir_memref_to_llvm_free"})
+    if (auto *old = module.getFunction(name); old && old->use_empty())
+      old->eraseFromParent();
+  return std::nullopt;
+}
+} // namespace kalandra

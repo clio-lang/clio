@@ -1,0 +1,221 @@
+# Native local task contract
+
+Implementation design — 2026-10-15. This makes the accepted [execution model](execution.md), [error channels](variants.md), and [automatic lifetimes](memory.md) concrete for the native runtime. It is the next implementation contract after the [sequential float32 CPU milestone](native-codegen.md), not a stable public ABI. The checked invocation/ownership foundation (gate 1) and single-worker task core (gate 2) are implemented and tested. The first source task subset (gate 3) now compiles into these resumable frames. Multiple workers and broader error handling remain pending.
+
+Keep the source model small: immutable values, a parallel group, spawn, and await. Scheduling frames, buffer owners, cancellation tokens, and cleanup machinery remain compiler/runtime details. No allocator parameters, moves, lifetime annotations, or new decorators are introduced.
+
+## First executable task slice
+
+```kalandra
+fn combine(
+  left: Tensor[float32, ?, ?],
+  right: Tensor[float32, ?, ?],
+) -> float32 ! TaskError:
+  try parallel:
+    first = spawn reduceSum(left)
+    second = spawn reduceSum(right)
+    a = try await first
+    b = try await second
+    a + b
+```
+
+Both submissions happen before observation; awaiting first does not stop second from running. The ordinary reduceSum remains sequential and preserves the CPU milestone's strict reduction tree. Parallelizing independent calls does not permit reassociating their arithmetic.
+
+Implement local CPU execution first: concrete float32 scalars and ranked dense host tensors, statically resolved named functions and supported built-ins, nested groups, and TaskError. GPU, remote placement, general closures, task collections, resources, arbitrary application error declarations, and a public FFI remain separate increments. Preserve room for typed application errors in the internal outcome from the beginning; do not pretend those language features are implemented by reserving their representation.
+
+An omitted target means local CPU. Accepting devices.cpu() explicitly requires the corresponding selector/type checking; until that exists, diagnose unsupported placement. Never accept a GPU/remote clause and run it on the CPU as a stub.
+
+## Source evaluation and observation
+
+Evaluate the callable, arguments, and optional target once, left to right, in the submitting invocation. Argument evaluation completes before submission. A fault during that evaluation belongs to the parent invocation; no child has been admitted. A submission retains a complete immutable argument packet before making the child runnable. Spawn does not wait for an await to start execution, and does not guarantee the child has started when spawn returns.
+
+A handle identifies one task in its owning group. Aliases identify the same task, not additional invocations. Await observes that task's cached immutable outcome. Repeated await neither reruns it nor consumes its result; each resulting tensor value establishes its own managed storage dependency.
+
+The compiler checks observation by task identity through aliases and supported helpers, rather than requiring every handle variable to be read. Every successful path must observe every child; failure paths may leave observation to mandatory cancellation/join cleanup. Escaping a handle, dropping a spawned expression, or ending a successful group with unobserved work is diagnosed. Initially reject ownership flows the checker cannot establish instead of silently detaching work. A runtime invariant check supplements the compiler; it does not replace static diagnostics.
+
+Prefix grouping remains `try (await (spawn f(args)))`. Ordinary calls and pipelines retain their sequential, once-only evaluation rules. No implicit parallel map is added.
+
+## Ownership objects
+
+| Object                 | Owns or retains                                                                                | Release boundary                                                               |
+| ---------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Root execution         | Scheduler configuration, shared admission budget, root cancellation state                      | All descendant groups and invocations have settled                             |
+| Parallel group         | Child records, completion count, body continuation, tentative body result, failure diagnostics | Body has stopped and all admitted descendants have settled                     |
+| Invocation             | Argument packet, execution frame, outstanding allocations and nested groups                    | Execution and all nested cleanup have finished                                 |
+| Settled task record    | One initialized immutable outcome, observation bookkeeping                                     | Group teardown, after copying/retaining values still needed by the body        |
+| Managed tensor backing | Allocation and initialized contents, retained storage dependencies                             | Final reader/owner releases it; no running task or live value can still use it |
+
+Group ownership and tensor ownership are different. A task handle cannot escape; an awaited tensor can leave a successfully settled group and remain valid. A caller can keep using an input while several children read it. Neither submission nor cancellation invalidates that input.
+
+Use reference-counted backing records for this first acyclic scalar/tensor task subset. Retains/releases that cross threads are synchronized; immutable element data are published before readers receive a reference. Reference counting here does not select the full language's collector or establish cycle reclamation for future closures/records.
+
+Each invocation has an allocation ledger, separate from every sibling and parent. A newly allocated backing has a local owner recorded before any subsequent fallible operation. Sharing across invocations retains the backing rather than transferring its allocation-list node. On publication of a tensor outcome, establish the outcome's ownership before releasing local owners. Fault cleanup releases only that invocation's ownership entries; it never frees another invocation's storage merely because it was allocated earlier.
+
+Within synchronous calls, borrow arguments for the call interval and preserve the existing tensor-return guarantees. Before arguments cross a task boundary, turn any borrowed views into retained managed dependencies or an independently owned copy. Never put a callee-stack address or a naked borrowed memref into a queued packet. The old private test descriptors require trusted ownership; they are not automatically managed task inputs.
+
+Compiler-owned scratch may stay private to a call and use simpler allocation where proven safe. All fault paths must still know which allocations were initialized and which owners were transferred. Partial initialization releases only initialized fields, exactly once. Cleanup is iterative/bounded in stack use, including nested task records.
+
+## Private task ABI
+
+Version the compiler/runtime task interface together, initially as internal revision 1. Reject a revision mismatch at link/startup rather than interpreting incompatible frames. These are logical interface requirements; exact C++ layouts and symbol names follow in the implementation header and are not an external binary contract.
+
+A compiler-generated entry descriptor contains:
+
+- Internal revision, concrete argument/result/error layout identities, sizes, and alignments.
+- Checked frame/packet construction and destruction operations, including retain/release operations for managed fields.
+- A resume entry taking an invocation context and compiler-owned continuation frame.
+- Source metadata and capability/effect requirements sufficient to reject unsupported execution.
+
+Entry identities are resolved within this executable. They are not serializable function pointers or remote deployment contracts. Validate packet size/alignment arithmetic before allocation. A failed packet construction cannot expose a runnable child.
+
+A resume operation reports one of these internal control states:
+
+| State     | Meaning                                                                                      |
+| --------- | -------------------------------------------------------------------------------------------- |
+| Completed | A fully initialized success or typed application-error outcome is ready                      |
+| Suspended | The frame is retained and registered on a dependency; there is no published task outcome yet |
+| Faulted   | A checked fault terminates this invocation; no success value is initialized                  |
+| Cancelled | Cooperative stop acknowledged; no success value is initialized                               |
+
+These control states are not source error variants. The supervisor converts Faulted/Cancelled into the declared TaskError outcome only after nested work and invocation cleanup settle. A tagged initialized outcome has exactly one success, application-error, or TaskError payload. It has concrete layout identity and type-directed cleanup, not Any or an unchecked byte dictionary. Awaiting a nonfallible child exposes `T ! TaskError`; a fallible child will expose `T ! (E | TaskError)` when that frontend support is added.
+
+Synchronous leaf kernels need no resumable heap frame solely because they can be spawned. An entry adapter calls them with a checked execution context. Calls which may suspend must preserve their callers' continuation state: infer this internal property through the call graph and lower those call paths into resumable frames. It is not a user-written effect annotation.
+
+## Fault propagation must change before threads
+
+The initial CPU runtime used a process-global allocation registry and a noreturn fault handler that freed the registry and exited. Gate 1 has replaced this on source-generated paths with explicit contexts/status and independent ownership ledgers. Keep the existing numerical tests as a baseline. The separate handwritten toolchain proof remains a historical backend fixture, not a task-capable runtime.
+
+The task-capable calling convention passes an execution context and an explicit control status through every reachable checked call. Result storage is initialized only on the success path. Generated guards branch to compiler-generated cleanup/return paths. A caller must inspect status before reading a result. For a suspending call it also preserves and resumes its continuation. Rewrite all task-reachable callees, allocation hooks, and guard sites together; a legacy callee which can exit the process is not task-safe.
+
+The context follows the invocation, including when its continuation resumes on another worker. A worker-thread identity or thread-local allocation list is not an ownership identity. Context-free MLIR allocation/free hooks are rewritten through context-aware checked adapters on these paths; returning null to generated code that assumes allocation succeeded is invalid. Scheduler locks are not held while invoking generated code or running user-visible cleanup.
+
+Use explicit status propagation, not setjmp/longjmp across C++ objects or a C++ exception thrown through LLVM frames without generated unwind support. Task safety must not depend on an unwinding mechanism the backend never emitted. Runtime entry points must contain unexpected C++ exceptions at their own boundary and report an internal failure; cleanup/destruction paths must be nonthrowing.
+
+An Allocation fault must be reportable without allocating its diagnostic. Reserve minimal task/group control and failure storage before admission; bound textual diagnostics and secondary failures. If even minimal parent-side control cannot be allocated, take the parent's checked Allocation fault path and settle its existing children. Do not promise admission can always manufacture another heap-allocated failed handle under out-of-memory conditions.
+
+Diagnostics retained in a completed outcome must outlive the originating frame and group like any other managed value. Emergency diagnostic storage cannot be a pointer into reclaimed stack/frame memory.
+
+A checked arithmetic/shape/bounds/allocation fault is recoverable by the supervisor after terminating the faulting invocation. Segmentation faults, memory corruption, unsafe foreign crashes, and process death do not acquire this guarantee. Do not catch a native signal and continue using potentially corrupted shared memory. A process-isolated executor is separate future work.
+
+A checked fault in a group's body still belongs to the containing invocation: settle its children, then propagate that fault to its enclosing supervisor (or the root program boundary). The group's ordinary catch does not turn a body arithmetic fault into an expected error. A checked fault in a child instead produces TaskError.Fault and fails the child's owning group, as already specified in the language design.
+
+## Lifecycle and publication
+
+Child execution advances through Prepared → Queued → Running, with Running allowed to suspend and become runnable again. It then enters Settling and finally Settled. Cancelling a queued task may skip Running, but still passes through settlement. No transition revives a settled task or admits its invocation twice.
+
+Cancellation is a separate sticky request flag; requesting it is not a terminal state. A running task cannot be marked settled while it still accesses arguments, scratch, results, or descendants.
+
+Before Settled becomes visible:
+
+1. Stop executing source operations and settle all nested groups.
+2. Establish ownership of the complete outcome, or install a bounded failure outcome.
+3. Release invocation-local owners and packet dependencies no longer required by the outcome.
+4. Publish the outcome with synchronization, decrement outstanding group work once, and wake registered continuations.
+
+An early child fault notification can close group admission and request sibling cancellation before step 4. That notification does not authorize reclaiming the faulting child's live frame. All bookkeeping transitions, wakeups, and cancellation races must be synchronized. Never resume a frame concurrently or destroy it while it is queued, running, or registered as a waiter.
+
+## Bounded scheduling and nested progress
+
+Use a fixed-size local worker pool with a bounded ready queue. Await and group join suspend the current continuation and return the worker to the scheduler; they do not park that worker waiting for queued children. This applies transitively through helper calls and nested groups. One worker can therefore execute a parent until it waits, run its child, then resume the parent. The root caller may block while the pool continues, but a worker must not become an untracked blocking root waiter.
+
+Root configuration bounds admitted unfinished tasks, ready-queue capacity, nesting depth, retained packet/frame bytes, and worker count. Nested groups share root budgets rather than creating new pools. Allocation sizing and quotas are checked before admission, with reservations released on every construction/queue failure.
+
+For the first runtime, submission is nonblocking: if a queue or admission budget cannot accept work, produce TaskError.AdmissionRejected and close that group for further submission. It does not silently queue unbounded work or deadlock a worker waiting for capacity. Use pre-reserved failure/control state; inability to establish that state follows the parent Allocation fault rule above. An admitted child which fails validation before execution publishes its failure without invoking the function.
+
+A rejected submission still has a settled group-owned handle when control storage is available, so the source spawn/await shape remains consistent. Admission rejection is a group execution failure; handling that handle inside the group does not reopen admission. A retry belongs outside the settled failed group.
+
+Bounded admission does not guarantee success for arbitrary nesting under arbitrary small quotas. A root limit of one unfinished task can reject a child's own submission while that parent is active. The single-worker progress test must provide adequate task/frame budgets and prove scheduling progress independently of this deliberate quota failure policy.
+
+Fairly revisit runnable continuations and cancellation requests; do not indefinitely drain a single producer's submissions. Arbitrary blocking foreign calls are excluded from the first worker entries. A later blocking executor needs its own bounded resource policy.
+
+## Cancellation, group exit, and error precedence
+
+Insert cooperative cancellation checks at invocation entry, call boundaries, generated loop backedges, and continuation resumption. Include tensor fill/copy and reduction loops. Polling must not change strict arithmetic order on successful completion. Long-running leaf kernels may continue until their next poll; deadlines cannot promise immediate termination.
+
+Cancel queued tasks without executing their function, release their captured dependencies, and publish Cancelled after cleanup. A running child acknowledges cancellation through its normal checked cleanup path. A cancelled child with an active nested group first cancels and settles those descendants. No thread is forcibly killed and no borrowed input is freed early.
+
+| Event                                                 | Required behavior                                                                                                     |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Body and all observed children succeed                | Retain the body result; settle children; publish group success                                                        |
+| Child returns an expected application error           | Cache its original typed error; siblings continue until the parent handles or propagates it                           |
+| Body propagates an expected error                     | Close admission, request descendant cancellation, join, then return that typed error                                  |
+| Child has an execution fault or admission is rejected | Immediately close admission, request sibling cancellation, settle, then return TaskError                              |
+| Parent cancellation or deadline                       | Close admission and propagate the request throughout the descendant tree; settle before returning the execution error |
+| Body faults                                           | Settle children, then continue the containing invocation's fault path                                                 |
+
+A body result is tentative until the group settles. A child fault discovered before group settlement prevents success even if another result was already awaited. Catching a child's TaskError inside a failing group cannot erase the sticky group failure. Recovery is outside the settled group. Application errors deliberately handled inside the group do not poison it.
+
+Choose one primary failure under the group's synchronized failure latch; do not promise which concurrent failure wins. Once chosen, sibling Cancelled acknowledgements generated by that failure do not replace it. Preserve bounded secondary diagnostics. If external cancellation/deadline causes failure first, preserve Cancelled/DeadlineExceeded respectively. Resource/cleanup diagnostics must not replace an existing primary failure.
+
+Cancellation is not rollback. No automatic retry, exactly-once effect guarantee, or permission to reclaim storage before completion is introduced. The first CPU slice has no public deadline/cancellation API; internal test controls exercise the same request and settlement protocol before such APIs are exposed.
+
+## Implementation sequence and gates
+
+1. **Checked invocation foundation — implemented.** Replace global cleanup/process exit on task-capable paths with explicit context/status, per-invocation ownership, managed tensor crossing rules, and nonallocating fault reporting. Preserve all sequential numerical evidence. Test multiple simultaneously live contexts before adding threads.
+2. **Single-worker task core — implemented.** Implement entry/packet/frame descriptors, group/child state machines, continuation wait registration, bounded admission, publication, and cancellation using runtime tests with synthetic entries. Prove nested progress and race-safe wake registration; no source concurrency claims yet.
+3. **Frontend and lowering — first local subset implemented.** Add parallel/spawn/await grammar with accepted precedence, contextual typed results, observation/escape checks, internal suspension analysis, and continuation lowering. Initially expose only local float32/tensor entries and TaskError; diagnose unimplemented constructs explicitly.
+4. **Multiple workers.** Enable shared storage, queue/group synchronization, cancellation polling, and deterministic stress tests. Run ThreadSanitizer separately from AddressSanitizer where the pinned toolchain supports it. Resolve runtime races before performance work.
+5. **Source conformance.** Compile the two-child example and nested source programs; preserve strict numeric bits and all lifetime/failure guarantees in debug, optimized, and sanitizer variants.
+
+Required evidence includes:
+
+- Both calls submitted before either await; once-only ordered argument evaluation; cached repeated await.
+- Returned tensors surviving group teardown; parent/sibling shared inputs remaining unchanged; nested tensor-result reuse.
+- Static rejection of escaped/unobserved handles and unsupported captures/placement; no dynamic untyped payload escape hatch.
+- Nested groups completing with one worker and sufficient quotas; bounded rejection with insufficient quotas; no leaked reservation or phantom child on admission failure.
+- Cancellation before dequeue, while running, after publication, and racing await registration; exactly one terminal publication and wakeup protocol in each case.
+- Child shape/allocation faults with siblings holding live buffers, descendant cleanup, and an outer group handler; a body fault retaining its containing-invocation classification.
+- Application-error preservation/handling once that frontend feature is implemented; no blanket conversion of application errors into Fault.
+- Allocation failure at every packet/frame/backing/control construction point; retained bytes and owners returning to baseline after repeated success, rejection, failure, and cancellation.
+- Parent continuation resuming on a different worker without losing its invocation context; cleanup never touching a sibling's ledger.
+- Concurrent independent groups, primary-failure races, bounded diagnostics, and a full source build with no JavaScript runtime dependency.
+
+Gates 1 and 2 are implemented. The [checked CPU invocation ABI](native-codegen.md) supplies independent storage/fault contexts; [Tasks.h](../../native/runtime/Tasks.h) and [Tasks.cpp](../../native/runtime/Tasks.cpp) now supply the single-worker task core. The first source integration now implements local parallel/spawn/await, TaskError propagation, and continuation lowering. Complete the remaining native error-handling surface before the multiple-worker gate.
+
+## Implemented single-worker core
+
+TaskCore owns stable, generation-checked task/group records and a bounded FIFO ready queue. Its create operation reserves group/task bookkeeping and one emergency rejection record per group. If that initial reservation fails, creation returns failure without a partially initialized scheduler. Entry descriptors are trusted, immutable, and must remain valid for the core's use interval; this is not an arbitrary plugin/FFI loader.
+
+Revision-1 entries describe their concrete packet layout, frame size/alignment, construction/destruction, resume entry, and immutable result layout with type-directed copy/destruction. The runtime checks descriptor revision, packet identity/size/alignment, sizes, and quotas before invoking construction. Constructors copy/retain arguments synchronously before submission returns. Mutable continuation frames remain internal; published result payloads are immutable. An unexpected exception from entry construction/resumption becomes a checked Native fault. Destruction and value-copy callbacks are required to be nonthrowing.
+
+The current limits cover normal task records, group records, unfinished invocations, physical ready-queue slots, nesting depth, and retained frame/result bytes. Pre-reserved control arrays are separately bounded by record/group/queue counts. Tensor backing bytes and allocator overhead are not charged against the frame/result byte limit; it is not a bound on total process memory. Arbitrary over-aligned packet/frame/result layouts beyond max_align_t are rejected by this initial private adapter. No tensor-rank restriction is introduced by this scheduler.
+
+Submission rejects without blocking when a quota is full. Each group has pre-reserved rejection bookkeeping so exhausted normal task slots do not require allocating another error handle. Subsequent submissions into the same failed group may return that same settled rejection identity; no child invocation is admitted or run for those attempts. Admission construction failure instead publishes an Allocation fault and releases any partial frame/result reservations. Failure to obtain nested group-control storage faults the owning invocation; exceeding the configured nesting quota fails its group with AdmissionRejected.
+
+Await and group join register a dependency and return from the resume callback. The event loop serializes completion and wait registration; it tests readiness both on registration and during settlement, covering completion-before-wait and wait-before-completion without losing a wakeup. A suspended parent consumes a task record/frame, but does not hold the executor. If the bounded queue is full when an already admitted continuation becomes runnable, its record retains that state and a rotating scan feeds it into the queue as space opens. Waking existing work does not require a new admission or an unbounded queue.
+
+Settlement is iterative over the bounded tables. A failing group closes admission, marks its descendants for cancellation, and retains the first failure. A queued or suspended cancelled invocation is resumed only for runtime settlement, without re-entering its source callback. A parent cannot publish completion while its owned groups still have unfinished children. Packet/frame destruction and invocation ledger settlement precede task publication. Result backing owners stay with the cached outcome until group release, and reading a result retains its dependencies into the reader's context. Repeated reads do not rerun work.
+
+Successful group closure checks that its task identities were observed. Stale task/group handles are rejected through generation checks when slots are reused. A failure in an inner group can be handled by its owner after join without poisoning the outer group; an unhandled group or checked body fault still settles descendants before the owning task's failure is published. Dropping the core cancels and settles its remaining work before releasing records.
+
+This is a single-thread event loop driven by step/drain, not a background thread pool. It is not safe for simultaneous calls from several threads. Cancellation is tested before entry/resumption and at synthetic yield boundaries; generated CPU loop polling, physical deadlines, external blocking calls, application-error payloads, and source-level TaskError conversion are not implemented here. Test-only deadline requests exercise the distinct DeadlineExceeded group outcome without claiming a timer service exists. Multithreaded synchronization and ThreadSanitizer evidence belong to gate 4.
+
+The three task-core CTest suites compile both runtime and tests in debug, optimized, and ASan/UBSan modes. They cover 100 repeated nine-level nested calculations, twelve-level chains with a one-slot queue, waits before/after completion, cached repeated reads, failure handling after nested settlement, queued/yielded/waiting-parent cancellation, admission allocation failure, partial managed packet/outcome construction, tensor results outliving group teardown, record/queue/unfinished/byte/depth/group-control limits, stale handles, abandoned results, unexpected host exceptions, and core teardown with retained arguments. Frame/result bytes, retained owner entries, unfinished work, and records/groups return to baseline. These are native runtime tests with synthetic entries, not evidence that .kalandra spawn/await compiles yet.
+
+## Compiled source task subset
+
+The [scalar program](../../native/tests/fixtures/task-scalars.kalandra) compiles repeated and inline awaits to 16. The [tensor program](../../native/tests/fixtures/task-tensors.kalandra) returns a completed tensor across a group/function boundary and reduces it to 163. The [nested program](../../native/tests/fixtures/task-nested.kalandra) spawns functions which create their own groups and returns 40. [Shared inputs](../../native/tests/fixtures/task-aliases.kalandra) survive two child readers and a completed group, returning 20. [Lexically nested groups](../../native/tests/fixtures/task-lexical.kalandra) in one invocation return 10.
+
+```sh
+cmake --build --preset native
+build/native/native/kalandrac native/tests/fixtures/task-nested.kalandra \
+  -o build/native/task-nested
+build/native/task-nested
+ctest --preset native
+```
+
+The parser accepts parallel blocks, spawn, await, try, and the explicit `! TaskError` return channel. Prefix operations group right-to-left around a parenthesized invocation. The checker tracks task identity through aliases, requires observation of every child on a successful group path, rejects handle escapes/value uses, and rejects discarded or implicitly unwrapped error results. The first task subset requires explicit TaskError channels on named fallible functions; it does not silently infer a nonfallible signature. Bindings in parallel blocks have lexical scope.
+
+Task IR distinguishes handles, completed values, and fallible results while retaining the concrete float32/tensor payload. A spawned function's TaskError result stays an expected result; it is not automatically turned into a child execution fault. Try propagates to the innermost lexical parallel boundary or the fallible function boundary. Propagation closes admission and joins cancelled descendants before returning the original TaskError. A body's own checked fault remains a fault of its invocation; a supervised child fault becomes TaskError.Fault. CLI expected TaskErrors exit 88, distinct from the existing checked-fault exits. These are development reporting conventions.
+
+The C++ compiler emits native LLVM continuation callbacks with a program counter, typed frame slots, group/child handles, and immutable tagged result layouts. Await/join save the resume point and return the worker to the core when pending. Ordinary supported helper calls are expanded into the caller's continuation while preserving their own expected-error boundary; they do not become implicit spawned tasks. Captured arguments are evaluated once before submission and retained into the child context. Repeated awaits read the settled cached outcome. Tensor result copies establish managed backing dependencies before the producer/frame/group can be reclaimed.
+
+Tensor primitives retain the existing MLIR bufferization/ownership/strict reduction pipeline. The compiler creates typed kernel helpers for those operations, then emits native continuation control through LLVM's C++ API. It verifies the final LLVM module and links it directly; there is no interpreter, generated JavaScript, generated C++ source, or runtime compiler. In a task program, saved tensor MLIR describes its numerical kernels; final LLVM includes the continuation control and entry/layout descriptors.
+
+Groups now retain explicit lexical parents as well as task owners. Cancellation of an outer block reaches inner blocks owned by the same invocation, and outer settlement waits for those inner groups. This also applies when an ordinary helper creates its own group within an outer block. The synthetic runtime regression confirms an inner queued entry never runs after outer cancellation.
+
+Three source-task CTest suites run in debug, optimized, and ASan/UBSan variants. They execute the five source fixtures above, distinguish parent allocation faults from child TaskError.Fault, preserve TaskError through a fallible child which creates nested work, and verify typed AdmissionRejected when a source program exceeds the bounded queue. Syntax/semantic sanitizer suites also check task forms, typed IR dependencies, repeated alias observation, propagation requirements, and rejected escapes/unobserved results. The complete native suite now has 25 tests.
+
+This remains a single-worker execution baseline: submitted work can progress while a parent is suspended, but CPU kernels do not yet execute simultaneously. No performance speedup is claimed. Supported task values are float32 scalars and ranked dense float32 tensors; entries are statically named functions, matmul, or reduceSum. Bare source placement clauses, arbitrary captures/closures, public runtime-input task wrappers, general application errors, error unions, catch/match handlers, and recursive calls in task-enabled modules are explicitly unsupported. The latter is an implementation limit of the initial continuation expansion, not a new language recursion rule. Compilation bounds each frame to 20,000 value slots and the whole continuation plan to 300,000; scheduler frame/record quotas remain checked at admission.
+
+Next complete native TaskError handling (catch and typed inspection) and task failure conformance, then add multiple-worker synchronization and cancellation polling in generated CPU loops. A single-worker scheduler is not a substitute for that concurrency gate.

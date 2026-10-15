@@ -1,0 +1,6 @@
+{
+  "llvmVersion": "22.1.8",
+  "homebrewFormula": "llvm",
+  "initialTarget": "arm64-apple-darwin",
+  "defaultLlvmRoot": "/opt/homebrew/Cellar/llvm/22.1.8"
+}
