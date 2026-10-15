@@ -1,5 +1,7 @@
 # Kalandra local benchmark suite
 
+For the fresh native compiler, use the separate [native CPU scaling suite](../native/benchmarks/README.md). The measurements below concern the JavaScript prototype.
+
 This is a reproducible microbenchmark suite, not a general ranking of programming languages. Start with [the measured report](results/2026-10-13.md). Raw samples, commands, toolchain versions and source hashes are saved beside it.
 
 ## Reproduce
