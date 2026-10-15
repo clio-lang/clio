@@ -35,6 +35,8 @@ struct Record {
   const TaskEntry *entry = nullptr;
   void *frame = nullptr, *value = nullptr;
   bool initialized = false, valueInitialized = false, observed = false, queued = false;
+  bool pending = false;
+  std::uint32_t pendingPrevious = UINT32_MAX, pendingNext = UINT32_MAX;
   bool counted = false, executing = false, cleaning = false;
   std::uint32_t readers = 0;
   std::atomic<bool> cancel{false};
@@ -113,7 +115,8 @@ struct TaskCore::Impl {
   std::unique_ptr<Record[]> tasks;
   std::unique_ptr<Group[]> groups;
   std::unique_ptr<TaskHandle[]> queue;
-  std::uint32_t queueHead = 0, queueCount = 0, cursor = 0;
+  std::uint32_t queueHead = 0, queueCount = 0;
+  std::uint32_t pendingHead = UINT32_MAX, pendingTail = UINT32_MAX, pendingCount = 0;
   std::uint64_t attempts = 0, failAt = 0;
   std::mutex mutex;
   std::condition_variable workerChanged, controllerChanged;
@@ -244,14 +247,63 @@ struct TaskCore::Impl {
     }
     return pointer;
   }
-  void enqueue(std::uint32_t index) {
+  void unlinkPending(std::uint32_t index) {
     auto &record = tasks[index];
-    if (!record.queued && record.state == State::Runnable && !record.executing &&
-        queueCount < limits.ready) {
-      queue[(queueHead + queueCount) % limits.ready] = handle(index);
-      ++queueCount;
-      record.queued = true;
+    if (!record.pending)
+      return;
+    if (record.pendingPrevious != UINT32_MAX)
+      tasks[record.pendingPrevious].pendingNext = record.pendingNext;
+    else
+      pendingHead = record.pendingNext;
+    if (record.pendingNext != UINT32_MAX)
+      tasks[record.pendingNext].pendingPrevious = record.pendingPrevious;
+    else
+      pendingTail = record.pendingPrevious;
+    record.pending = false;
+    record.pendingPrevious = record.pendingNext = UINT32_MAX;
+    --pendingCount;
+  }
+  void pushReady(std::uint32_t index) {
+    queue[(queueHead + queueCount) % limits.ready] = handle(index);
+    ++queueCount;
+    tasks[index].queued = true;
+    TASK_PROBE(readyPushes, 1);
+  }
+  void fillReady() {
+    while (queueCount < limits.ready && pendingHead != UINT32_MAX) {
+      const auto index = pendingHead;
+      auto &record = tasks[index];
+      unlinkPending(index);
+      // Membership is removed before settlement/reclamation, never recovered
+      // by scanning reusable slots. Ring entries still carry generations.
+      if (record.state != State::Runnable || record.executing || record.queued)
+        continue;
+      pushReady(index);
+      TASK_PROBE(pendingPromotions, 1);
     }
+  }
+  void enqueue(std::uint32_t index, bool admission = false) {
+    auto &record = tasks[index];
+    if (record.queued || record.pending || record.state != State::Runnable || record.executing)
+      return;
+    TASK_PROBE(runnableEvents, 1);
+    if ((admission || pendingHead == UINT32_MAX) && queueCount < limits.ready) {
+      pushReady(index);
+      return;
+    }
+    // Existing admitted tasks may resume while the ready ring is full. Track
+    // them once in a record-bounded FIFO, ahead of later deferred resumptions.
+    record.pending = true;
+    record.pendingPrevious = pendingTail;
+    if (pendingTail != UINT32_MAX)
+      tasks[pendingTail].pendingNext = index;
+    else
+      pendingHead = index;
+    pendingTail = index;
+    ++pendingCount;
+#ifdef KALANDRA_TASK_PROFILE
+    profile.peakPending = std::max<std::uint64_t>(profile.peakPending, pendingCount);
+#endif
   }
   void wake(std::uint32_t index) {
     auto &record = tasks[index];
@@ -406,7 +458,7 @@ struct TaskCore::Impl {
       failGroup(h, task.failure);
     } else {
       task.state = State::Runnable;
-      enqueue(slot);
+      enqueue(slot, true);
     }
     return handle(slot);
   }
@@ -460,6 +512,7 @@ struct TaskCore::Impl {
       acquire(lock);
       if (task.entry)
         freeBytes(task.value, task.entry->result->bytes);
+      unlinkPending(i);
       const auto generation = task.generation + 1;
       task.~Record();
       new (&task) Record;
@@ -568,6 +621,7 @@ struct TaskCore::Impl {
           acquire(lock);
         }
         task.cleaning = false;
+        unlinkPending(i);
         task.state = State::Settled;
         if (task.counted) {
           --get(task.group)->outstanding;
@@ -583,6 +637,7 @@ struct TaskCore::Impl {
   }
   void finish(std::uint32_t slot, Failure failure) {
     auto &task = tasks[slot];
+    unlinkPending(slot);
     task.failure = failure;
     task.state = State::Settling;
     if (failure.kind != TaskFailure::None) {
@@ -608,15 +663,15 @@ struct TaskCore::Impl {
       }
     } pump(*this);
     maintain(lock);
-    TASK_PROBE(readyVisits, limits.records);
-    for (std::uint32_t n = 0; n < limits.records; ++n)
-      enqueue((cursor + n) % limits.records);
+    fillReady();
     if (!queueCount)
       return false;
     pump.progressed = true;
     const auto h = queue[queueHead];
     queueHead = (queueHead + 1) % limits.ready;
     --queueCount;
+    // Keep the dispatch vacancy available during the callback. With a one-slot
+    // ring a child must still be admissible while its parent is deferred.
     auto *record = get(h);
     if (!record)
       return true;
@@ -625,7 +680,6 @@ struct TaskCore::Impl {
     // complete changes the scheduling state. Never re-enter a live callback.
     if (record->executing || record->state != State::Runnable)
       return true;
-    cursor = (h.slot + 1) % limits.records;
     record->state = State::Running;
     if (record->cancel.load())
       finish(h.slot, {TaskFailure::Cancelled});
@@ -656,8 +710,12 @@ struct TaskCore::Impl {
         finish(h.slot, {TaskFailure::Cancelled});
       else if (record->state == State::Running)
         finish(h.slot, {TaskFailure::Fault, 3});
+      // Yield/dependency wakeups observed during a live callback cannot queue
+      // its frame until this execution lease has actually returned.
+      enqueue(h.slot);
     }
     maintain(lock);
+    fillReady();
     return true;
   }
 };
@@ -782,6 +840,8 @@ bool TaskCore::drain(std::size_t steps) noexcept {
 TaskStats TaskCore::stats() const noexcept {
   std::lock_guard lock(impl_->mutex);
   auto stats = impl_->stats;
+  stats.ready = impl_->queueCount;
+  stats.pending = impl_->pendingCount;
   for (std::uint32_t i = 0; i < impl_->limits.records + impl_->limits.groups; ++i)
     stats.retainedOwners += impl_->tasks[i].execution.live() + impl_->tasks[i].outcome.live();
   return stats;

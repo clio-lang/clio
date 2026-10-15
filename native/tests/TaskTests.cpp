@@ -324,7 +324,7 @@ static const TaskEntry lexicalEntry{1,
 static void empty(TaskCore &core) {
   auto stats = core.stats();
   CHECK(stats.unfinished == 0 && stats.records == 0 && stats.groups == 0 &&
-        stats.retainedBytes == 0 && stats.retainedOwners == 0);
+        stats.retainedBytes == 0 && stats.retainedOwners == 0 && !stats.ready && !stats.pending);
 }
 int main() {
   CHECK(!TaskCore::create({0, 1, 1, 1, 1, 1}));

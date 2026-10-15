@@ -71,7 +71,7 @@ static std::array<double, 5> batch(TaskCore &core, unsigned hops) {
 #endif
   auto stats = core.stats();
   check(!stats.records && !stats.groups && !stats.unfinished && !stats.retainedOwners &&
-        !stats.retainedBytes);
+        !stats.retainedBytes && !stats.ready && !stats.pending);
   std::array<double, 5> elapsed;
   for (unsigned i = 0; i < elapsed.size(); ++i)
     elapsed[i] = std::chrono::duration<double, std::micro>(time[i + 1] - time[i]).count();
@@ -97,7 +97,8 @@ int main(int argc, char **argv) {
   auto s = core->stats();
   auto p = core->profile();
   check(s.resumes == 16 * hops && s.publications == 16 && p.allocationAttempts == 32 &&
-        p.frees == 32 && p.steps >= s.resumes && p.recordVisits && p.readyVisits);
+        p.frees == 32 && p.steps >= s.resumes && p.recordVisits && !p.readyVisits &&
+        p.readyPushes == s.resumes && p.runnableEvents == s.resumes);
   check(p.notifications == p.workerSignals + p.workerBroadcasts + p.controllerSignals);
   if (limits.workers > 1)
     check(p.workerBroadcasts == 1 && p.controllerSignals && p.controllerWaitReturns);
@@ -109,7 +110,9 @@ int main(int argc, char **argv) {
               "\"maintenance_passes\":%llu,\"record_visits\":%llu,\"group_visits\":%llu,"
               "\"ready_visits\":%llu,\"steps\":%llu,\"resumes\":%llu,"
               "\"worker_signals\":%llu,\"worker_broadcasts\":%llu,\"controller_signals\":%llu,"
-              "\"worker_wait_returns\":%llu,\"controller_wait_returns\":%llu}\n",
+              "\"worker_wait_returns\":%llu,\"controller_wait_returns\":%llu,"
+              "\"runnable_events\":%llu,\"ready_pushes\":%llu,\"pending_promotions\":%llu,\"peak_"
+              "pending\":%llu}\n",
               (unsigned long long)p.locks, (unsigned long long)p.contendedLocks,
               (unsigned long long)p.lockWaitNs, (unsigned long long)p.notifications,
               (unsigned long long)p.waits, (unsigned long long)p.waitReturns,
@@ -120,7 +123,9 @@ int main(int argc, char **argv) {
               (unsigned long long)p.steps, (unsigned long long)s.resumes,
               (unsigned long long)p.workerSignals, (unsigned long long)p.workerBroadcasts,
               (unsigned long long)p.controllerSignals, (unsigned long long)p.workerWaitReturns,
-              (unsigned long long)p.controllerWaitReturns);
+              (unsigned long long)p.controllerWaitReturns, (unsigned long long)p.runnableEvents,
+              (unsigned long long)p.readyPushes, (unsigned long long)p.pendingPromotions,
+              (unsigned long long)p.peakPending);
 #else
   for (unsigned i = 0; i < 10; ++i)
     batch(*core, hops);

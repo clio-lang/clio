@@ -1,5 +1,7 @@
 # Targeted native worker/controller wakeups — 2026-10-15
 
+The subsequent [runnable tracking comparison](native-scheduler-2026-10-15-runnable.md) replaces ready-table sweeps with explicit bounded tracking.
+
 The native runtime now separates worker and controller waiters. Workers receive targeted progress notifications; the drain controller is notified when its quiescence condition is satisfied. The measured default eight-worker, sixteen-task batch is **1.48× faster**, and the execution phase itself improves. Idle-operation/empty-drain suppression from the preceding step remains in place.
 
 ## Implementation and progress guarantees

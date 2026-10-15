@@ -104,7 +104,8 @@ static double batch(Data &data, TaskCore *core) {
     check(result == data.expected);
   if (core) {
     const auto s = core->stats();
-    check(!s.retainedBytes && !s.retainedOwners && !s.unfinished && !s.records && !s.groups);
+    check(!s.retainedBytes && !s.retainedOwners && !s.unfinished && !s.records && !s.groups &&
+          !s.ready && !s.pending);
   }
   return elapsed;
 }

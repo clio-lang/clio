@@ -1,4 +1,5 @@
 #include "../runtime/Tasks.h"
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -116,7 +117,7 @@ static Packet packet(const Input &in) { return {88, &in, sizeof(in)}; }
 static void clean(TaskCore &core) {
   const auto stats = core.stats();
   CHECK(!stats.retainedBytes && !stats.retainedOwners && !stats.unfinished && !stats.records &&
-        !stats.groups);
+        !stats.groups && !stats.ready && !stats.pending);
 }
 static void observe(TaskCore &core, TaskHandle task, float expected) {
   Invocation destination;
@@ -338,6 +339,80 @@ static void activeAdmissions() {
     clean(*core);
   }
 }
+// Three live callbacks yield behind a full one-slot ring. Returning leases
+// must preserve every admitted continuation without expanding admission quota.
+static void runnableOverflow() {
+  for (unsigned repetition = 0; repetition < 10; ++repetition)
+    for (unsigned action = 0; action < 3; ++action) {
+      TaskLimits limits;
+      limits.workers = 4;
+      limits.records = 8;
+      limits.groups = 4;
+      limits.ready = 1;
+      auto core = TaskCore::create(limits);
+      CHECK(core);
+      Shared a{core.get(), Mode::YieldLease}, b{core.get(), Mode::YieldLease},
+          c{core.get(), Mode::YieldLease}, d{core.get()};
+      Shared *shared[] = {&a, &b, &c, &d};
+      auto root = core->openRoot();
+      std::array<TaskHandle, 4> jobs;
+      std::array<std::jthread, 3> leases;
+      for (unsigned i = 0; i < 3; ++i) {
+        Input input{shared[i], float(10 + i)};
+        jobs[i] = core->submit(root, entry, packet(input));
+        leases[i] = std::jthread([&] { CHECK(core->step()); });
+        until([&] { return shared[i]->held.load(); });
+      }
+      Input last{&d, 13};
+      jobs[3] = core->submit(root, entry, packet(last));
+      for (unsigned i = 0; i < 3; ++i) {
+        shared[i]->release = true;
+        leases[i].join();
+      }
+      CHECK(core->stats().ready == 1 && core->stats().pending == 3);
+      // A new submission still sees the full ready ring and cannot bypass it.
+      auto rejected = core->openRoot();
+      auto extra = core->submit(rejected, entry, packet(last));
+      CHECK(core->failure(extra).kind == TaskFailure::AdmissionRejected);
+      CHECK(core->stats().pending == 3);
+      if (action == 2) {
+        CHECK(core->cancel(root, true) && core->drain());
+        CHECK(core->failure(root).kind == TaskFailure::DeadlineExceeded && !d.runs);
+        for (auto job : jobs)
+          CHECK(core->failure(job).kind == TaskFailure::Cancelled);
+      } else {
+        CHECK(core->step() && core->settled(jobs[3]));
+        CHECK(a.runs == 1 && b.runs == 1 && c.runs == 1);
+        CHECK(core->stats().ready == 1 && core->stats().pending == 2);
+        observe(*core, jobs[3], 13);
+        CHECK(core->step() && core->settled(jobs[0]) && b.runs == 1 && c.runs == 1);
+        observe(*core, jobs[0], 10);
+        if (action == 1)
+          CHECK(core->cancel(root));
+        CHECK(core->drain());
+        for (unsigned i = 1; i < 3; ++i)
+          if (action == 1)
+            CHECK(core->failure(jobs[i]).kind == TaskFailure::Cancelled && shared[i]->runs == 1);
+          else
+            observe(*core, jobs[i], float(10 + i));
+        if (!action)
+          CHECK(core->close(root) && core->drain());
+      }
+      CHECK(core->release(root) && core->release(rejected));
+      clean(*core);
+      // Reuse the same slots after backlog cancellation/completion. Old handles
+      // must not observe or schedule a new generation occupying those slots.
+      auto fresh = core->openRoot();
+      auto next = core->submit(fresh, entry, packet(last));
+      Invocation stale;
+      Value value{};
+      CHECK(!core->observe(jobs[0], layout, stale, &value) && stale.status() == 3);
+      CHECK(core->drain());
+      observe(*core, next, 13);
+      CHECK(core->close(fresh) && core->drain() && core->release(fresh));
+      clean(*core);
+    }
+}
 static void racingFaults() {
   TaskLimits limits;
   limits.workers = 2;
@@ -520,6 +595,7 @@ int main() {
   boundedDrain();
   idleAndBudgetWakeups();
   activeAdmissions();
+  runnableOverflow();
   racingFaults();
   pinnedRead();
   nestedProgress();

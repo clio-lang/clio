@@ -58,6 +58,7 @@ struct TaskStats {
   std::size_t retainedBytes = 0, peakBytes = 0;
   std::uint64_t retainedOwners = 0;
   std::uint32_t unfinished = 0, records = 0, groups = 0;
+  std::uint32_t ready = 0, pending = 0;
   std::uint64_t resumes = 0, publications = 0, migrations = 0;
   std::uint32_t peakRunning = 0;
 };
@@ -71,6 +72,7 @@ struct TaskProfile {
   std::uint64_t allocationAttempts = 0, frees = 0, allocatorNs = 0;
   std::uint64_t maintenancePasses = 0, recordVisits = 0, groupVisits = 0;
   std::uint64_t readyVisits = 0, steps = 0;
+  std::uint64_t runnableEvents = 0, readyPushes = 0, pendingPromotions = 0, peakPending = 0;
 };
 #endif
 // Host controls are synchronized; drain has one controller. Destruction is not
