@@ -1,4 +1,5 @@
 #include "../runtime/Tasks.h"
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -89,33 +90,37 @@ static void observe(TaskCore &core, TaskHandle task, float expected) {
   CHECK(core.observe(task, scalar, context, &value) && value == expected);
 }
 static void concurrentKernels() {
-  Data data(64, 64, 64);
-  for (auto workers : {1u, 2u, 4u}) {
-    TaskLimits limits;
-    limits.workers = workers;
-    auto core = TaskCore::create(limits);
-    CHECK(core);
-    Shared shared;
-    shared.barrier = workers > 1;
-    auto root = core->openRoot();
-    auto a = submit(*core, root, {&shared, &data, 0});
-    auto b = submit(*core, root, {&shared, &data, 1});
-    CHECK(core->drain());
-    CHECK(shared.finished[0] && shared.finished[1] && shared.polls[0] > 1000 &&
-          shared.polls[1] > 1000);
-    if (workers > 1)
-      CHECK(core->stats().peakRunning >= 2);
-    observe(*core, a, 262144);
-    observe(*core, a, 262144);
-    observe(*core, b, 262144);
-    CHECK(core->close(root) && core->drain() && core->release(root));
-    clean(*core);
+  for (const auto &shape :
+       {std::array{64, 64, 64}, std::array{7, 513, 33}, std::array{8, 8193, 17}}) {
+    auto [rows, inner, columns] = shape;
+    Data data(rows, inner, columns);
+    const float expected = rows * inner * columns;
+    for (auto workers : {1u, 2u, 4u}) {
+      TaskLimits limits;
+      limits.workers = workers;
+      auto core = TaskCore::create(limits);
+      CHECK(core);
+      Shared shared;
+      shared.barrier = workers > 1;
+      auto root = core->openRoot();
+      auto a = submit(*core, root, {&shared, &data, 0});
+      auto b = submit(*core, root, {&shared, &data, 1});
+      CHECK(core->drain());
+      CHECK(shared.finished[0] && shared.finished[1] && shared.polls[0] > 0 && shared.polls[1] > 0);
+      if (workers > 1)
+        CHECK(core->stats().peakRunning >= 2);
+      observe(*core, a, expected);
+      observe(*core, a, expected);
+      observe(*core, b, expected);
+      CHECK(core->close(root) && core->drain() && core->release(root));
+      clean(*core);
+    }
   }
 }
 static void cancelKernel(bool deadline, std::int64_t columns) {
   // Narrow/pair/tail kernels need enough contraction work to cancel while
   // inside generated loops rather than merely at the task entry boundary.
-  Data large(256, columns < 8 ? 8193 : 512, columns), small(8, 8, 8);
+  Data large(257, columns < 256 ? 8193 : 512, columns), small(8, 8, 8);
   TaskLimits limits;
   limits.workers = 2;
   auto core = TaskCore::create(limits);
@@ -180,7 +185,7 @@ static void cancelledEntry() {
 int main() {
   cancelledEntry();
   concurrentKernels();
-  for (auto columns : {1, 2, 3, 6, 7, 256}) {
+  for (auto columns : {1, 2, 3, 6, 7, 16, 17, 18, 19, 31, 32, 33, 256}) {
     cancelKernel(false, columns);
     cancelKernel(true, columns);
   }

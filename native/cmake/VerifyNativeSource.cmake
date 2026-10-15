@@ -106,6 +106,8 @@ if(NOT DYNAMIC_LLVM MATCHES "fmul <4 x float>" OR
    NOT DYNAMIC_LLVM MATCHES "fadd <4 x float>" OR
    NOT DYNAMIC_LLVM MATCHES "fmul <2 x float>" OR
    NOT DYNAMIC_LLVM MATCHES "fadd <2 x float>" OR
+   NOT DYNAMIC_LLVM MATCHES "fmul <64 x float>" OR
+   NOT DYNAMIC_LLVM MATCHES "fadd <64 x float>" OR
    DYNAMIC_LLVM MATCHES "llvm[.]fma" OR
    DYNAMIC_LLVM MATCHES "[ \t](fast|reassoc|contract|afn|nnan|ninf|nsz|arcp)[ \t]")
   message(FATAL_ERROR "Matrix code lost strict two/four-lane SIMD arithmetic")
@@ -129,8 +131,19 @@ RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror ${LINK_FLAGS} -ffp-contract
   "${HARNESS_DIR}/MatrixHarness.cpp" "${OUTPUT_DIR}/matrix-result.ll" "${RUNTIME}"
   -o "${OUTPUT_DIR}/matrix-cells")
 RUN_OK("${OUTPUT_DIR}/matrix-cells")
-if(NOT OUTPUT MATCHES "Verified 693 per-cell matrix cases")
+if(NOT OUTPUT MATCHES "Verified 3681 per-cell matrix cases")
   message(FATAL_ERROR "Matrix cell conformance missing: ${OUTPUT}")
+endif()
+if(VARIANT STREQUAL "optimized")
+  RUN_OK("${CLANGXX}" -std=c++23 -O2 -Dkalandra_alloc_v1=kalandra_probe_alloc_v1
+    -c "${HARNESS_DIR}/../runtime/Runtime.cpp" -o "${OUTPUT_DIR}/probe-runtime.o")
+  RUN_OK("${CLANGXX}" -std=c++23 -O2 -Wall -Wextra -Werror -ffp-contract=off -Wno-override-module
+    "${HARNESS_DIR}/MatrixAllocationProbe.cpp" "${OUTPUT_DIR}/matrix-result.ll"
+    "${OUTPUT_DIR}/probe-runtime.o" -o "${OUTPUT_DIR}/matrix-allocation-probe")
+  RUN_OK("${OUTPUT_DIR}/matrix-allocation-probe")
+  if(NOT OUTPUT MATCHES "Verified 506 actual matrix allocation payloads")
+    message(FATAL_ERROR "Matrix scratch payload conformance missing: ${OUTPUT}")
+  endif()
 endif()
 RUN_OK("${COMPILER}" "${TEST_FIXTURES}/matrix-result.kalandra" -o "${OUTPUT_DIR}/matrix-shared"
   --emit-llvm "${OUTPUT_DIR}/matrix-shared.ll" --test-entry shared ${EXTRA})
@@ -138,7 +151,7 @@ RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror ${LINK_FLAGS} -ffp-contract
   -DKALANDRA_MATRIX_SHARED "${HARNESS_DIR}/MatrixHarness.cpp" "${OUTPUT_DIR}/matrix-shared.ll"
   "${RUNTIME}" -o "${OUTPUT_DIR}/matrix-shared-cells")
 RUN_OK("${OUTPUT_DIR}/matrix-shared-cells")
-if(NOT OUTPUT MATCHES "Verified 24 shared-input matrix cases")
+if(NOT OUTPUT MATCHES "Verified 46 shared-input matrix cases")
   message(FATAL_ERROR "Source-level shared matrix conformance missing: ${OUTPUT}")
 endif()
 RUN_OK("${DYNAMIC_HARNESS}" --sweep)
@@ -282,4 +295,4 @@ foreach(CASE IN ITEMS
     message(FATAL_ERROR "${NAME} conformance failed: ${OUTPUT}")
   endif()
 endforeach()
-message(STATUS "1617 runtime cases, 717 per-cell matrix cases, nested/shared tensors, call order, ranked reductions and failure cleanup pass")
+message(STATUS "1617 runtime cases, 3727 per-cell matrix cases, nested/shared tensors, call order, ranked reductions and failure cleanup pass")

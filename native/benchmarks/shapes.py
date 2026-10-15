@@ -22,7 +22,7 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def decode(output, rounds):
+def decode(output, rounds, jobs=16):
     records = [json.loads(line) for line in output.splitlines()]
     cases = {r['case']: r for r in records if 'expected_bits' in r}
     assert cases and len(cases) == sum('expected_bits' in r for r in records)
@@ -31,7 +31,7 @@ def decode(output, rounds):
         for workers in WORKERS:
             samples = [r for r in records if r['case'] == name and r.get('workers') == workers]
             assert len(samples) == rounds and {r['round'] for r in samples} == set(range(rounds))
-            assert all(r['jobs'] == 16 and r['ms'] > 0 for r in samples)
+            assert all(r['jobs'] == jobs and r['ms'] > 0 for r in samples)
     assert len(records) == len(cases) * (1 + len(WORKERS) * rounds)
     return records, cases
 
@@ -43,6 +43,8 @@ def main():
     parser.add_argument('--compiler', type=pathlib.Path, default=ROOT / 'build/native/native/kalandrac')
     parser.add_argument('--output', type=pathlib.Path,
                         default=ROOT / f'benchmarks/results/native-shapes-{datetime.date.today().isoformat()}.json')
+    parser.add_argument('--suite', choices=['shapes', 'blocking'], default='shapes',
+                        help='Original 37 shapes, or larger blocking rectangles with four-job batches')
     parser.add_argument('--sanitize-check', action='store_true',
                         help='Verify the full current suite under generated-code ASan and C++ ASan/UBSan first')
     args = parser.parse_args()
@@ -50,6 +52,7 @@ def main():
     if (not args.baseline_llvm.is_file() or
             args.baseline_llvm in (BUILD / 'current.ll', BUILD / 'sanitized.ll')):
         parser.error('--baseline-llvm must name an existing LLVM file outside current output paths')
+    jobs, rounds = (4, 5) if args.suite == 'blocking' else (16, 9)
     BUILD.mkdir(parents=True, exist_ok=True)
     # Freeze the supplied IR before invoking the compiler or rebuilding executables.
     baseline_bytes = args.baseline_llvm.read_bytes()
@@ -74,7 +77,9 @@ def main():
 
     def compile_variant(name, flags):
         execute([clang, '-std=c++23', '-Wall', '-Wextra', '-Werror', *flags,
-                 '-ffp-contract=off', '-Wno-override-module', ROOT / 'native/benchmarks/ShapeScaling.cpp',
+                 '-ffp-contract=off', '-Wno-override-module',
+                 *(['-DKALANDRA_BLOCKING_SHAPES'] if args.suite == 'blocking' else []),
+                 ROOT / 'native/benchmarks/ShapeScaling.cpp',
                  BUILD / (name + '.ll'), ROOT / 'native/runtime/Runtime.cpp',
                  ROOT / 'native/runtime/Tasks.cpp', '-o', BUILD / name])
 
@@ -85,7 +90,7 @@ def main():
     expected = None
     for name in ('baseline', 'current'):
         print(f'Verifying {name} shape suite', flush=True)
-        records, cases = decode(execute([BUILD / name, '--verify']), 1)
+        records, cases = decode(execute([BUILD / name, '--verify']), 1, jobs)
         signature = {key: {k: v for k, v in row.items() if k not in ('allocations', 'releases')}
                      for key, row in cases.items()}
         if expected is None:
@@ -101,7 +106,7 @@ def main():
                  BUILD / 'sanitized.ll', '-o', BUILD / 'instrumented.ll'])
         assert '__asan_report_load' in (BUILD / 'instrumented.ll').read_text()
         print('Verifying current shape suite with ASan/UBSan', flush=True)
-        records, cases = decode(execute([BUILD / 'sanitized', '--verify']), 1)
+        records, cases = decode(execute([BUILD / 'sanitized', '--verify']), 1, jobs)
         assert {key: {k: v for k, v in row.items() if k not in ('allocations', 'releases')}
                 for key, row in cases.items()} == expected
         verification['sanitized'] = records
@@ -114,7 +119,7 @@ def main():
             variants.reverse()
         for name, destination in variants:
             print(f'Shape trial {trial + 1}/3: {name}', flush=True)
-            records, cases = decode(execute([BUILD / name, '--seed', 20261015 + trial]), 9)
+            records, cases = decode(execute([BUILD / name, '--seed', 20261015 + trial]), rounds, jobs)
             assert {key: {k: v for k, v in row.items() if k not in ('allocations', 'releases')}
                     for key, row in cases.items()} == expected
             destination.append(records)
@@ -138,7 +143,7 @@ def main():
         except subprocess.CalledProcessError:
             cpu[key] = 'unavailable'
     assert all(digest(ROOT / p) == h for p, h in hashes.items()), 'Sources changed during measurement'
-    result = dict(schema_version=1, timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    result = dict(schema_version=1, suite=args.suite, jobs=jobs, samples=rounds, timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                   platform=platform.platform(), cpu=cpu, revision=run(['git', 'rev-parse', 'HEAD']).strip(),
                   worktree_status=run(['git', 'status', '--short']), source_sha256=hashes,
                   compiler_sha256=digest(args.compiler), clang=run([clang, '--version']).strip(),

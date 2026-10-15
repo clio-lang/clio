@@ -34,6 +34,18 @@ struct Shape {
   int rows, inner, columns;
   bool control = false;
 };
+#ifdef KALANDRA_BLOCKING_SHAPES
+static constexpr Shape shapes[] = {
+    {"control-32", 32, 32, 32},           {"control-96", 96, 96, 96},
+    {"wide-512", 64, 256, 512},           {"square-256", 256, 256, 256},
+    {"tall-512", 512, 128, 256},          {"deep-1024", 128, 1024, 128},
+    {"deep-tail", 128, 1025, 131},        {"wide-1024", 64, 64, 1024},
+    {"mixed-tail", 65, 257, 259},         {"deep-4097", 32, 4097, 67},
+    {"deep-8193", 16, 8193, 257},         {"square-512", 512, 512, 512},
+    {"large-rectangle", 128, 1024, 1024}, {"streaming-wide", 8, 1025, 8193}};
+static constexpr unsigned jobs = 4, warmups = 2, samples = 5;
+#else
+static constexpr unsigned jobs = 16, warmups = 3, samples = 9;
 static constexpr Shape shapes[] = {{"control", 0, 0, 0, true},
                                    {"empty-rows", 0, 9, 7},
                                    {"empty-inner", 3, 0, 7},
@@ -71,6 +83,7 @@ static constexpr Shape shapes[] = {{"control", 0, 0, 0, true},
                                    {"square-eight", 8, 8, 8},
                                    {"square-thirty-two", 32, 32, 32},
                                    {"square-ninety-six", 96, 96, 96}};
+#endif
 // Independent host reference. Materialize products and build new adjacent-pair
 // levels, forcing float32 rounding at each operation. A double grand total is
 // insufficient once rectangular/odd shapes expose different rounding trees.
@@ -147,7 +160,6 @@ static void resume(Task &task) {
 static const TaskEntry entry{
     1,         2,       sizeof(Data *), alignof(Data *), sizeof(Data *), alignof(Data *),
     construct, nothing, resume,         &scalar};
-static constexpr unsigned jobs = 16;
 static double batch(Data &data, TaskCore *core) {
   std::array<float, jobs> results{};
   const auto start = Clock::now();
@@ -224,13 +236,13 @@ int main(int argc, char **argv) {
                 (unsigned long long)diagnostic.allocations(),
                 (unsigned long long)diagnostic.releases());
     for (unsigned i = 0; i < workers.size(); ++i)
-      for (int warmup = 0; warmup < (verify ? 0 : 3); ++warmup)
+      for (unsigned warmup = 0; warmup < (verify ? 0 : warmups); ++warmup)
         batch(data, pools[i].get());
     std::array<unsigned, 5> order{0, 1, 2, 3, 4};
-    for (int round = 0; round < (verify ? 1 : 9); ++round) {
+    for (unsigned round = 0; round < (verify ? 1 : samples); ++round) {
       std::shuffle(order.begin(), order.end(), random);
       for (const auto i : order)
-        std::printf("{\"case\":\"%s\",\"workers\":%u,\"round\":%d,\"jobs\":%u,\"ms\":%.9f}\n",
+        std::printf("{\"case\":\"%s\",\"workers\":%u,\"round\":%u,\"jobs\":%u,\"ms\":%.9f}\n",
                     shape.name, workers[i], round, jobs, batch(data, pools[i].get()));
     }
     data.unchanged();

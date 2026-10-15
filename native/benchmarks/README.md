@@ -134,3 +134,20 @@ Verification covers 6,468 shape/content cases per strict variant, with per-cell 
 Each sample times **one direct matmul plus final reduction**, including result/scratch allocation, release, invocation settlement, and lightweight result/status checks. Three warmups precede seven interleaved measured rounds per shape/variant, using seeded shuffles of shapes and variant order. Summary time is the median of three process medians. Reference construction, per-cell checking, input copies, and input-immutability checks are outside the timed interval. Reused immutable inputs model warm repeated work; no worker pool, CPU affinity, frequency control, or hardware cache-miss measurement is involved. Do not compare these per-operation times directly to the older sixteen-operation batch reports.
 
 `product_scratch_bytes` is a computed payload, not observed RSS or a hardware cache measurement. Native scratch follows its current width policy; C++ scratch includes full tile capacity plus block roots; `-1` means opaque BLAS workspace. `output_and_sum_bytes` separately counts the two result/reduction buffers and does not establish their live-overlap in generated code. C++ prototypes use ordinary RAII storage and omit checked-descriptor/size-guard and TaskError lowering. Compare layouts within C++, and use native/BLAS times for context; cross-implementation ratios do not predict the speedup of a compiler port.
+
+## Matched MLIR blocking comparison
+
+The [MLIR port report](../../benchmarks/results/native-mlir-blocking-2026-10-15.md) compares actual generated code before and after the 4×16/K256 implementation. Save/recreate the dynamic projection LLVM from `cc8d086` (also unchanged in `30f1e2f`), then build the current compiler and run:
+
+```sh
+python3 native/benchmarks/shapes.py \
+  --baseline-llvm /path/to/pre-blocking.ll --sanitize-check \
+  --output benchmarks/results/mlir-blocking-shapes-reproduction.json
+python3 native/benchmarks/shapes.py --suite blocking \
+  --baseline-llvm /path/to/pre-blocking.ll --sanitize-check \
+  --output benchmarks/results/mlir-blocking-large-reproduction.json
+```
+
+The default suite retains the original 37 shapes, sixteen-job batches, three warmups and nine samples. The blocking suite uses fourteen larger shapes, **four-job batches**, two warmups and five samples; direct and 1/2/4/8-worker capacities produce seventy configurations. A four-job batch cannot occupy all eight workers simultaneously. It includes the thirteen C++ research shapes plus `8×1025 @ 1025×8193`, whose right-hand input alone exceeds the reported 16 MiB performance-core L2. These are still repeated warm inputs, not a controlled cold-cache experiment.
+
+Both LLVM versions are rebuilt against identical current harness/runtime/flags. Each experiment alternates process order across three fresh pairs, using matched seeds and retaining all raw observations, source/LLVM/binary hashes, allocation diagnostics, and separate ASan/UBSan verification. Summary time is the median of three process medians. Compare versions within a suite; do not compare four-job batch times directly with sixteen-job batches or the C++ study's single-operation samples. Allocation forwarding probes belong only to CTest, not timing builds.

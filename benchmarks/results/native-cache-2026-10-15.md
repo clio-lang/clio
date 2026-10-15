@@ -1,5 +1,7 @@
 # Cache-layout evaluation: reuse rows, then bound the product scratch
 
+Follow-up: [the MLIR port](native-mlir-blocking-2026-10-15.md) now implements and measures the selected layout. This report preserves the earlier C++ research and decision.
+
 The next compiler implementation should evaluate **4×16 output tiles**, keeping the existing narrow/small-shape paths, with **power-of-two K256 subtrees for deeper contractions**. Among the tested C++ layouts, this combines useful right-hand input reuse with a substantially smaller product working set than an unblocked 4×16 tile. K64 remains a tuning alternative: it wins the odd 1,025-element contraction but is not consistently faster elsewhere. These measurements do not establish a globally optimal tile or target-independent threshold.
 
 **This commit adds research tools and evidence. Compiler lowering and runtime sources are unchanged.** The best C++ prototype is roughly 1.9–2.8× faster than current generated code across this grid; that is a cross-implementation observation, not an implemented or promised compiler speedup. Porting the layout into checked MLIR and measuring it is the next step.

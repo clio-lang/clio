@@ -1,4 +1,5 @@
 #include "../runtime/Runtime.h"
+#include <array>
 #include <atomic>
 #include <bit>
 #include <cmath>
@@ -99,6 +100,7 @@ static unsigned verify(std::int64_t rows, std::int64_t inner, std::int64_t colum
     check(!std::memcmp(a.data(), originalA.data(), a.size() * sizeof(float)) &&
           !std::memcmp(b.data(), originalB.data(), b.size() * sizeof(float)));
     allocations = context.allocations();
+    check(allocations <= 2); // One product/root scratch plus one output, independent of tile count.
     context.settle();
     check(!context.live() && context.allocations() == context.releases());
   }
@@ -114,6 +116,20 @@ int main() {
           verify(rows, inner, columns, mode);
           ++cases;
         }
+  for (auto rows : {4, 5, 6, 7, 8, 9})
+    for (auto inner : {0, 1, 3, 255, 256, 257, 511, 512, 513, 767, 768, 769, 1023, 1024, 1025})
+      for (auto columns : {16, 17, 18, 19, 20, 21, 22, 23, 31, 32, 33})
+        for (unsigned mode = 0; mode < 3; ++mode) {
+          verify(rows, inner, columns, mode);
+          ++cases;
+        }
+  // Many block roots plus every small-lane column edge, with all row edges.
+  for (auto rows : {4, 7})
+    for (auto columns : {17, 31, 33})
+      for (unsigned mode = 0; mode < 3; ++mode) {
+        verify(rows, 8193, columns, mode);
+        ++cases;
+      }
   // Exercise every allocation failure for scalar-only, pair-only, full tiles,
   // both tail forms, and empty contractions/outputs.
   for (auto inner : {0, 7})
@@ -122,15 +138,25 @@ int main() {
       for (unsigned position = 1; position <= allocations; ++position)
         verify(3, inner, columns, 1, false, position);
     }
+  for (const auto &shape : {std::array{4, 0, 16}, std::array{4, 256, 16}, std::array{4, 257, 16},
+                            std::array{5, 257, 17}, std::array{6, 513, 18}, std::array{7, 8193, 31},
+                            std::array{8, 257, 32}, std::array{7, 257, 33}}) {
+    auto [rows, inner, columns] = shape;
+    auto allocations = verify(rows, inner, columns, 1);
+    for (unsigned position = 1; position <= allocations; ++position)
+      verify(rows, inner, columns, 1, false, position);
+  }
 #else
   // The source shared() helper uses a twice; its two wrapper inputs are still
   // independently owned, respecting bufferization's restricted-input contract.
-  for (auto n : {2, 3, 4, 5, 6, 7, 8, 9})
+  for (auto n : {2, 3, 4, 5, 6, 7, 8, 9, 16, 17, 18, 19, 31, 32, 33})
     for (unsigned mode = 0; mode < 3; ++mode) {
       verify(n, n, n, mode, true);
       ++cases;
     }
-  for (auto n : {2, 3, 5, 6, 7}) {
+  verify(257, 257, 257, 1, true);
+  ++cases;
+  for (auto n : {2, 3, 5, 6, 7, 16, 17, 257}) {
     auto allocations = verify(n, n, n, 1, true);
     for (unsigned position = 1; position <= allocations; ++position)
       verify(n, n, n, 1, true, position);
