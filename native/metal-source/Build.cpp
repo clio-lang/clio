@@ -40,6 +40,19 @@ void buildMetalProgram(const std::filesystem::path &directory,
     run({"/usr/bin/xcrun", "--toolchain", KALANDRA_GPU_METAL_TOOLCHAIN, "metal", base + ".air",
          "-o", base + ".metallib"});
   }
+  // Each entry is independently validated/lowered before offline linking.
+  // Runtime loading verifies all entry interfaces before publishing the bundle.
+  for (const auto &[name, contents] : outputs) {
+    (void)contents;
+    if (!name.starts_with("kernel") || !name.ends_with(".mlir"))
+      continue;
+    auto stem = std::filesystem::path(name).stem().string();
+    if (!outputs.contains(stem + "-rows2.mlir"))
+      continue;
+    auto base = (directory / stem).string();
+    run({"/usr/bin/xcrun", "--toolchain", KALANDRA_GPU_METAL_TOOLCHAIN, "metal", base + ".air",
+         base + "-rows2.air", base + "-quad.air", "-o", base + ".metallib"});
+  }
   llvm::SmallString<256> temporary;
   int descriptor = -1;
   auto executable = directory / "program";

@@ -23,6 +23,25 @@ if(NOT RAW MATCHES "kalandra_matmul" OR NOT RAW MATCHES "arith.mulf" OR NOT RAW 
    OR STRICT MATCHES "arith\\.(addf|mulf|divf)" OR SPIRV MATCHES "spirv\\.(FAdd|FMul|FDiv)|Fma|FPFastMathMode")
   message(FATAL_ERROR "Matmul strict product/tree lowering changed")
 endif()
+foreach(TILE IN ITEMS rows2 quad)
+  file(READ "${OUTPUT_DIR}/source/kernel0-${TILE}.mlir" TILE_RAW)
+  file(READ "${OUTPUT_DIR}/source/kernel0-${TILE}.lowered.mlir" TILE_STRICT)
+  file(READ "${OUTPUT_DIR}/source/kernel0-${TILE}.kernel.mlir" TILE_SPIRV)
+  if(NOT TILE_RAW MATCHES "kalandra_matmul_2x" OR TILE_STRICT MATCHES "arith\\.(addf|mulf|divf)"
+      OR TILE_SPIRV MATCHES "spirv\\.(FAdd|FMul|FDiv)|Fma|FPFastMathMode")
+    message(FATAL_ERROR "Matmul register tile strict artifact changed")
+  endif()
+endforeach()
+# Runtime relocation needs only the executable and linked library, not the
+# standalone tile libraries or compiler intermediates used during packaging.
+file(MAKE_DIRECTORY "${OUTPUT_DIR}/relocated")
+file(COPY "${OUTPUT_DIR}/source/program" "${OUTPUT_DIR}/source/kernel0.metallib"
+  DESTINATION "${OUTPUT_DIR}/relocated")
+execute_process(COMMAND "${OUTPUT_DIR}/relocated/program"
+  RESULT_VARIABLE RELOCATED_STATUS OUTPUT_VARIABLE RELOCATED_OUT ERROR_VARIABLE RELOCATED_ERROR)
+if(NOT RELOCATED_STATUS EQUAL 0 OR NOT RELOCATED_OUT STREQUAL "43230000\n")
+  message(FATAL_ERROR "Linked matmul bundle relocation failed: ${RELOCATED_STATUS} ${RELOCATED_OUT} ${RELOCATED_ERROR}")
+endif()
 string(REPLACE "fn main() -> float32" "fn main() -> Tensor[float32, 2, 2]" MATRIX "${SOURCE}")
 string(REPLACE "    total(host)" "    forward(host)" MATRIX "${MATRIX}")
 run(matrix-result "${MATRIX}" "[41b00000,41e00000,42440000,42800000]" --sanitize)

@@ -8,6 +8,7 @@ import os
 import pathlib
 import platform
 import statistics
+import shutil
 import subprocess
 import time
 
@@ -27,6 +28,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compiler', type=pathlib.Path, default=ROOT / 'build/native/native/kalandrac')
     parser.add_argument('--output', type=pathlib.Path)
+    parser.add_argument('--suite', choices=['initial', 'selection'], default='initial')
+    parser.add_argument('--baseline-metal-source', type=pathlib.Path,
+                        help='Rebuild an earlier Metal.mm against the same harness, forcing scalar matmul in its direct control')
     parser.add_argument('--baseline-dir', type=pathlib.Path,
                         help='Saved directory containing scaling and kernels/kernel{0,1}.metallib')
     parser.add_argument('--processes', type=int, default=3)
@@ -43,6 +47,10 @@ def main():
     output = args.output or (build / 'smoke.json' if args.smoke else ROOT / f'benchmarks/results/native-gpu-{datetime.date.today().isoformat()}.json')
     if output.exists() and not args.smoke:
         parser.error('output already exists; choose a new path to preserve previous measurements')
+    if args.baseline_dir and args.baseline_metal_source:
+        parser.error('choose a saved baseline directory or a baseline Metal source, not both')
+    if args.baseline_metal_source and not args.baseline_metal_source.is_file():
+        parser.error('baseline Metal source is missing')
     baseline_artifacts = {}
     if args.baseline_dir:
         args.baseline_dir = args.baseline_dir.resolve()
@@ -69,10 +77,33 @@ def main():
             extra += ['-Wno-override-module']
         commands.append([clang, *flags, *extra, '-c', source, '-o', obj])
     commands.append([clang, '-O2', *objects, '-framework', 'Foundation', '-framework', 'Metal', '-o', binary])
+    if args.baseline_metal_source:
+        args.baseline_dir = build / 'baseline-controlled'
+        args.baseline_dir.mkdir(parents=True, exist_ok=True)
+        baseline_objects = []
+        for index, source in enumerate([ROOT / 'native/benchmarks/GpuScaling.mm', args.baseline_metal_source.resolve(),
+                                       ROOT / 'native/runtime/Runtime.cpp', ROOT / 'native/runtime/Tasks.cpp', bundle / 'cpu.ll']):
+            obj = args.baseline_dir / f'unit-{index}.o'
+            baseline_objects.append(obj)
+            extra = ['-fobjc-arc', '-fblocks'] if source.suffix == '.mm' else []
+            if index == 0:
+                extra += ['-DKALANDRA_BENCH_SCALAR_MATMUL=1']
+            if index == 1:
+                extra += ['-I', ROOT / 'native/metal']
+            if source.suffix == '.ll':
+                extra += ['-Wno-override-module']
+            commands.append([clang, *flags, *extra, '-c', source, '-o', obj])
+        commands.append([clang, '-O2', *baseline_objects, '-framework', 'Foundation', '-framework', 'Metal', '-o', args.baseline_dir / 'scaling'])
     start = time.monotonic()
     for command in commands:
         run(command)
     build_seconds = time.monotonic() - start
+    if args.baseline_metal_source:
+        (args.baseline_dir / 'kernels').mkdir(exist_ok=True)
+        for index in [0, 1]:
+            shutil.copyfile(bundle / f'kernel{index}.metallib', args.baseline_dir / 'kernels' / f'kernel{index}.metallib')
+        baseline_artifacts = {str(p): digest(p) for p in [args.baseline_dir / 'scaling',
+            args.baseline_dir / 'kernels/kernel0.metallib', args.baseline_dir / 'kernels/kernel1.metallib', args.baseline_metal_source.resolve()]}
     env = os.environ.copy()
     for name in ['MTL_DEBUG_LAYER', 'MTL_SHADER_VALIDATION', 'DYLD_INSERT_LIBRARIES']:
         if env.get(name) not in (None, '', '0'):
@@ -87,7 +118,7 @@ def main():
                 variants.reverse()
         for name, executable, kernels, observations in variants:
             print(f'Native GPU {name} process {process + 1}/{args.processes}', flush=True)
-            lines = [json.loads(line) for line in run([executable, kernels, args.warmups, args.samples, process], env=env).splitlines()]
+            lines = [json.loads(line) for line in run([executable, kernels, args.warmups, args.samples, process, *(['selection'] if args.suite == 'selection' else [])], env=env).splitlines()]
             assert len(lines) == 1 + 9 * 4 * args.samples
             observations.append(dict(metadata=lines[0]['metadata'], samples=lines[1:]))
             order.append(dict(variant=name, process=process))
@@ -112,22 +143,24 @@ def main():
 
     summary = summarize(trials)
     sources = ['native/benchmarks/GpuScaling.mm', 'native/benchmarks/gpu.py', 'native/benchmarks/gpu.kalandra',
-               'native/metal/Metal.h', 'native/metal/Metal.mm', 'native/runtime/Tensor.h', 'native/runtime/Runtime.h', 'native/runtime/Runtime.cpp',
+               'native/metal/Metal.h', 'native/metal/Metal.mm', 'native/metal/MatmulLayout.h', 'native/runtime/Tensor.h', 'native/runtime/Runtime.h', 'native/runtime/Runtime.cpp',
                'native/runtime/Tasks.h', 'native/runtime/Tasks.cpp', 'native/lib/Backend.cpp', 'native/lib/CheckedABI.cpp',
-               'native/metal-source/Compiler.cpp', 'native/metal-source/MatmulShader.h', 'native/metal-source/Build.cpp',
+               'native/metal-source/Compiler.cpp', 'native/metal-source/MatmulShader.h', 'native/metal-source/MatmulTiles.h', 'native/metal-source/Build.cpp',
                'native/lib/StrictFloat.cpp', 'native/metal-proof/FloatOracle.h', 'native/metal-proof/Strict.cpp', 'native/metal-proof/Extract.cpp', 'native/toolchain-proof/toolchain.json']
     artifacts = [binary, args.compiler, bundle / 'cpu.ll', bundle / 'cpu.mlir']
     for index in [0, 1]:
         artifacts += [bundle / f'kernel{index}.{suffix}' for suffix in ['mlir', 'lowered.mlir', 'spv', 'metallib']]
+    for tile in ['rows2', 'quad']:
+        artifacts += [bundle / f'kernel0-{tile}.{suffix}' for suffix in ['mlir', 'lowered.mlir', 'spv', 'metallib']]
     machine = {}
     for key in ['machdep.cpu.brand_string', 'hw.logicalcpu', 'hw.perflevel0.logicalcpu', 'hw.perflevel1.logicalcpu', 'hw.memsize']:
         machine[key] = run(['sysctl', '-n', key]).strip()
     result = dict(timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                   platform=platform.platform(), machine=machine, revision=run(['git', 'rev-parse', 'HEAD']).strip(),
                   worktree_status=run(['git', 'status', '--short']),
-                  protocol=dict(processes=args.processes, warmups=args.warmups, samples=args.samples,
+                  protocol=dict(suite=args.suite, controlled_scalar_baseline=bool(args.baseline_metal_source), processes=args.processes, warmups=args.warmups, samples=args.samples,
                                 shuffled_modes_each_round=True, shuffled_workloads_each_process=True,
-                                workers=1, optimized=True, sanitizers=False, metal_validation=False, jit=False,
+                                workers=1, managed_max_bytes=(512 if args.suite == 'selection' else 64) * 1024 * 1024, optimized=True, sanitizers=False, metal_validation=False, jit=False,
                                 gpu_timing='MTLCommandBuffer GPUStartTime/GPUEndTime: compute command only, no validation readback',
                                 cpu_timing='checked C-interface call plus Invocation construction; output retained for validation',
                                 task_timing='group admission, execution, observation and retirement; output retained for validation',

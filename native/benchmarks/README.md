@@ -184,7 +184,7 @@ python3 native/benchmarks/gpu.py \
 
 ## Strict GPU matmul layout study
 
-The [layout comparison](../../benchmarks/results/native-gpu-2026-10-15-tiling.md) implements an 8×8 cooperative shared-memory candidate and 2×2/2×1 register candidates as isolated MLIR research kernels. Register tiles improve some larger dense shapes but regress small/narrow shapes; production selection remains unchanged.
+The [layout comparison](../../benchmarks/results/native-gpu-2026-10-15-tiling.md) implements an 8×8 cooperative shared-memory candidate and 2×2/2×1 register candidates as isolated MLIR research kernels. Register tiles improved some larger dense shapes but regressed small/narrow shapes; that initial study retained scalar production selection. The subsequent crossover and managed integration below qualify the bounded M2 Max profile.
 
 ```sh
 python3 native/benchmarks/gpu_tiling.py \
@@ -192,3 +192,28 @@ python3 native/benchmarks/gpu_tiling.py \
 ```
 
 The runner requires the existing optional Apple GPU toolchain. It qualifies all four layouts against APFloat in optimized and ASan/UBSan host builds, with Metal API validation, before running three interleaved timing processes. The eight workloads use two excluded warmups and seven samples per layout/process. Commands time preallocated resident GPU work only; transfers, runtime task lifecycle and CPU performance are not measured. Raw samples, qualification counts, toolchain/build commands and source/artifact hashes are retained. Existing reports are preserved. See the report for exact boundaries and why these eight shapes are insufficient to choose production dispatch thresholds.
+
+## Matmul crossover and managed selection
+
+The broader layout sweep uses 49 shapes, including odd output/contraction dimensions, long and short contractions and extreme aspect ratios:
+
+```sh
+python3 native/benchmarks/gpu_tiling.py --suite crossover \
+  --output benchmarks/results/gpu-crossover-reproduction.json
+```
+
+It retains the original optimized/sanitized APFloat and guard qualification, then runs three interleaved timing processes with two excluded warmups and seven samples per shape/layout. The singleton-contraction reference preserves the product's signed zero instead of adding an initial positive zero.
+
+The managed selection suite separately compares CPU calls, device commands, resident tasks and transfers. To rebuild the former scalar runtime with the same current harness, CPU LLVM, task core and shader library:
+
+```sh
+mkdir -p benchmarks/.build/native-gpu/scalar-source
+git show d6f40c6:native/metal/Metal.mm > benchmarks/.build/native-gpu/scalar-source/Metal.mm
+python3 native/benchmarks/gpu.py --suite selection \
+  --baseline-metal-source benchmarks/.build/native-gpu/scalar-source/Metal.mm \
+  --output benchmarks/results/gpu-selection-reproduction.json
+```
+
+The baseline direct control uses the scalar entry; its runtime source also selects scalar matmul. The current direct control uses the same profile as managed execution. Both binaries load identical linked libraries and use identical generated CPU code. Library/pipeline initialization remains outside timing. Baseline/current process order alternates. This is a controlled kernel/runtime selection comparison, not a full historical checkout rebuild. The source hash of the earlier Metal implementation and all compiler/harness/artifact hashes are recorded.
+
+The nine selection workloads include small, singleton-row, short-contraction and outside-profile scalar controls, regular/odd two-row and quad cases, and a reduction control. Both sides explicitly use a 512 MiB managed payload budget to accommodate the largest input's host, staging and device copies; the ordinary initial suite retains the 64 MiB default. Production runtime defaults are unchanged. Every warmup/sample validates results, inputs and resource retirement. Raw output keeps all phases and sample ranges; device-command intervals are not application speedups.

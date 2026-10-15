@@ -16,6 +16,7 @@ from gpu import ROOT, digest, run
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compiler', type=pathlib.Path, default=ROOT / 'build/native/native/kalandrac')
+    parser.add_argument('--suite', choices=['initial', 'crossover'], default='initial')
     parser.add_argument('--output', type=pathlib.Path, required=True)
     args = parser.parse_args()
     if args.output.exists():
@@ -87,8 +88,8 @@ def main():
     trials = []
     for process in range(3):
         print(f'Timing process {process+1}/3', flush=True)
-        lines = [json.loads(line) for line in run([binaries[0], kernels, 2, 7, process], timeout=600, env=env).splitlines()]
-        assert len(lines) == 1 + 8 * 4 * 7
+        lines = [json.loads(line) for line in run([binaries[0], kernels, 2, 7, process, *(['crossover'] if args.suite == 'crossover' else [])], timeout=600, env=env).splitlines()]
+        assert len(lines) == 1 + (49 if args.suite == 'crossover' else 8) * 4 * 7
         trials.append(dict(metadata=lines[0]['metadata'], samples=lines[1:]))
     assert all(t['metadata'] == trials[0]['metadata'] for t in trials)
     summary = []
@@ -115,7 +116,7 @@ def main():
         artifacts += [kernels / f'{name}.{suffix}' for suffix in ['mlir', 'lowered.mlir', 'spv', 'metallib']]
     machine = {key: run(['sysctl', '-n', key]).strip() for key in ['machdep.cpu.brand_string', 'hw.logicalcpu', 'hw.memsize']}
     result = dict(platform=platform.platform(), machine=machine, clang=run([llvm / 'bin/clang++', '--version']).strip(), timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(), revision=run(['git', 'rev-parse', 'HEAD']).strip(),
-                  worktree_status=run(['git', 'status', '--short']), production_policy_changed=False, strict_spirv_audit_passed=True, build_seconds=build_seconds,
+                  worktree_status=run(['git', 'status', '--short']), suite=args.suite, production_policy_changed=False, strict_spirv_audit_passed=True, build_seconds=build_seconds,
                   protocol=dict(processes=3, warmups=2, samples=7, shuffled_variants_each_round=True, shuffled_workloads_each_process=True,
                                 timing='preallocated resident compute command GPU timestamps; encode/submit/wait wall; validation readback separate and untimed',
                                 shader_policy='strict integer binary32, separately rounded products, fixed adjacent tree',

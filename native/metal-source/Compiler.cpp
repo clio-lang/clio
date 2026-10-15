@@ -1,5 +1,6 @@
 #include "Build.h"
 #include "MatmulShader.h"
+#include "MatmulTiles.h"
 #include "kalandra/Backend.h"
 #include "kalandra/MetalSource.h"
 #include "kalandra/Semantics.h"
@@ -832,8 +833,14 @@ public:
     if (entries.empty())
       reject(fn.span, "no GPU placement in source");
     std::map<std::string, std::string> outputs;
-    for (auto [function, index] : entries)
-      outputs["kernel" + std::to_string(index) + ".mlir"] = shader(function);
+    for (auto [function, index] : entries) {
+      auto base = "kernel" + std::to_string(index);
+      outputs[base + ".mlir"] = shader(function);
+      if (matrixFunction(function)) {
+        outputs[base + "-rows2.mlir"] = matmulRows2Shader;
+        outputs[base + "-quad.mlir"] = matmulQuadShader;
+      }
+    }
     mlir::DialectRegistry registry;
     mlir::registerAllDialects(registry);
     mlir::MLIRContext context(registry);

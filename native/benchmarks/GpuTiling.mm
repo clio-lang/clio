@@ -193,7 +193,7 @@ void qualify(id<MTLDevice> device, const std::array<id<MTLComputePipelineState>,
 }
 int main(int argc, char **argv) {
   @autoreleasepool {
-    CHECK(argc == 3 || argc == 5);
+    CHECK(argc == 3 || argc == 5 || argc == 6);
     auto device = MTLCreateSystemDefaultDevice();
     CHECK(device);
     std::array<id<MTLComputePipelineState>, 4> pipelines;
@@ -223,6 +223,29 @@ int main(int argc, char **argv) {
         {"matmul-96", true, 96, 96, 96},      {"matmul-256", true, 256, 256, 256},
         {"matmul-512", true, 512, 512, 512},  {"matmul-deep-tail", true, 32, 1025, 65},
         {"matmul-wide", true, 128, 256, 512}, {"matmul-tall", true, 512, 256, 128}};
+    std::vector<std::string> labels;
+    if (argc == 6) {
+      CHECK(std::string(argv[5]) == "crossover");
+      shapes.clear();
+      // Output occupancy, K depth, pair/quad tails and extreme aspect ratios.
+      const std::vector<std::array<std::int64_t, 3>> sweep = {
+          {128, 128, 128},  {128, 256, 128},  {128, 512, 128},  {181, 256, 181},  {256, 128, 256},
+          {256, 255, 256},  {256, 256, 256},  {256, 257, 256},  {256, 511, 256},  {256, 512, 256},
+          {256, 513, 256},  {256, 1025, 256}, {255, 256, 255},  {255, 256, 257},  {257, 256, 255},
+          {257, 256, 257},  {256, 1, 256},    {256, 8, 256},    {256, 32, 256},   {256, 64, 256},
+          {384, 256, 384},  {511, 256, 511},  {512, 256, 512},  {513, 256, 513},  {511, 512, 511},
+          {512, 511, 512},  {512, 512, 512},  {512, 513, 512},  {513, 512, 513},  {128, 256, 512},
+          {512, 256, 128},  {64, 256, 1024},  {1024, 256, 64},  {8, 256, 8192},   {8192, 256, 8},
+          {2, 256, 32768},  {32768, 256, 2},  {1, 256, 65536},  {65536, 256, 1},  {16, 1025, 4096},
+          {4096, 1025, 16}, {128, 1025, 512}, {512, 1025, 128}, {256, 256, 1024}, {1024, 256, 256},
+          {127, 256, 513},  {513, 256, 127},  {128, 256, 511},  {511, 256, 128}};
+      labels.reserve(sweep.size());
+      for (auto dims : sweep)
+        labels.push_back("m" + std::to_string(dims[0]) + "-k" + std::to_string(dims[1]) + "-n" +
+                         std::to_string(dims[2]));
+      for (std::size_t i = 0; i < sweep.size(); ++i)
+        shapes.push_back({labels[i].c_str(), true, sweep[i][0], sweep[i][1], sweep[i][2]});
+    }
     std::mt19937 rng(0x562214u + process);
     std::shuffle(shapes.begin(), shapes.end(), rng);
     for (auto shape : shapes) {
@@ -238,8 +261,9 @@ int main(int argc, char **argv) {
             auto t = variants[i].sample(data);
             if (round >= warmups)
               std::printf("{\"workload\":\"%s\",\"variant\":\"%s\",\"round\":%u,\"wall_ms\":%.9f,"
-                          "\"gpu_ms\":%.9f}\n",
-                          shape.name, names[i], round - warmups, t.wall, t.gpu);
+                          "\"gpu_ms\":%.9f,\"rows\":%lld,\"inner\":%lld,\"columns\":%lld}\n",
+                          shape.name, names[i], round - warmups, t.wall, t.gpu,
+                          (long long)shape.rows, (long long)shape.inner, (long long)shape.columns);
           }
         }
         data.immutable();

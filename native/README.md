@@ -6,6 +6,8 @@ The `native` branch contains the fresh language design and compiler. The release
 
 The [Apple GPU comparison](../benchmarks/results/native-gpu-2026-10-15-normalization.md) measures strict arithmetic after replacing per-bit normalization loops with five integer stages. It reduces 256-square matmul GPU command latency by 3.09× on the tested M2 Max; CPU still has lower latency on the tested matmul shapes.
 
+The [shape-selected GPU matmul report](../benchmarks/results/native-gpu-2026-10-15-selection.md) now qualifies automatic two-row/quad entry selection for a conservative M2 Max profile. Other shapes/devices retain the strict scalar GPU entry. Both resident and transfer-inclusive comparisons retain raw timing/control variability.
+
 ## Build and test
 
 On the currently validated macOS ARM64 setup:

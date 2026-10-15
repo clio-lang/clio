@@ -1,4 +1,5 @@
 #include "Metal.h"
+#include "MatmulLayout.h"
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #include <algorithm>
@@ -100,6 +101,7 @@ struct KernelState {
   id<MTLComputePipelineState> pipeline;
   bool elementwise, reduction, matrix;
   std::optional<ElementwiseSignature> signature;
+  std::array<id<MTLComputePipelineState>, 2> matrixTiles{};
 };
 namespace {
 std::expected<std::uint64_t, Error> tensorBytes(std::span<const std::int64_t> shape,
@@ -494,7 +496,15 @@ struct Bridge {
             task.fault(std::int64_t(Error::Allocation));
             return;
           }
-          [encoder setComputePipelineState:kernel->pipeline];
+          auto layout = MatmulLayout::Scalar;
+          if (matrix && kernel->matrixTiles[0] && kernel->matrixTiles[1])
+            layout = selectMatmulLayout(std::uint32_t(matrixShape[0]),
+                                        std::uint32_t(source->dimensions[1]),
+                                        std::uint32_t(matrixShape[1]));
+          auto pipeline = layout == MatmulLayout::Rows2  ? kernel->matrixTiles[0]
+                          : layout == MatmulLayout::Quad ? kernel->matrixTiles[1]
+                                                         : kernel->pipeline;
+          [encoder setComputePipelineState:pipeline];
           [encoder
               setBuffer:matrix && !source->size ? (*result)->metal->buffer : source->metal->buffer
                  offset:0
@@ -518,7 +528,8 @@ struct Bridge {
             parameters[1] = std::uint32_t(f.packet.operation);
           std::memcpy(f.staging->buffer.contents, parameters.data(), parameterBytes);
           [encoder setBuffer:f.staging->buffer offset:0 atIndex:tensors + 1];
-          const auto lanes = matrix ? f.result.bytes() / 4 : std::uint64_t(parameters[0]);
+          const auto lanes = matrix ? matmulWorkItems(layout, parameters[0], parameters[2])
+                                    : std::uint64_t(parameters[0]);
           [encoder dispatchThreadgroups:MTLSizeMake((lanes + 63) / 64, 1, 1)
                   threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
           [encoder endEncoding];
@@ -835,55 +846,75 @@ std::expected<Kernel, Error> Runtime::loadKernel(std::string_view path, Device d
                                                       error:&error];
       if (!library)
         return std::unexpected(Error::Invalid);
-      id<MTLFunction> function = [library
-          newFunctionWithName:matrix      ? @"kalandra_matmul"
-                              : reduction ? @"kalandra_reduce_sum"
-                              : signature
-                                  ? @"kalandra_elementwise_v2"
-                                  : (elementwise ? @"kalandra_elementwise" : @"strict_binary32")];
-      if (!function)
-        return std::unexpected(Error::Invalid);
-      MTLComputePipelineReflection *reflection = nil;
-      id<MTLComputePipelineState> pipeline = [state_->devices[device.index_]
-          newComputePipelineStateWithFunction:function
-                                      options:MTLPipelineOptionBufferTypeInfo |
-                                              MTLPipelineOptionBindingInfo
-                                   reflection:&reflection
-                                        error:&error];
-      if (!pipeline || pipeline.maxTotalThreadsPerThreadgroup < 64)
-        return std::unexpected(Error::Unavailable);
-      // Validate the private dynamic-array ABI, not the numerical contents of arbitrary shaders.
-      const auto tensors = signature ? signature->tensors : 2;
-      const auto parameterIndex = tensors + 1, bindingCount = tensors + 2;
-      const auto words = matrix ? 3 : signature ? signature->scalars + 1 : 2;
-      if (reflection.bindings.count != bindingCount)
-        return std::unexpected(Error::Invalid);
-      bool seen[4] = {};
-      for (id<MTLBinding> argument in reflection.bindings) {
-        if (argument.type != MTLBindingTypeBuffer || argument.index >= bindingCount ||
-            seen[argument.index] ||
-            ((id<MTLBufferBinding>)argument).bufferDataSize !=
-                (argument.index == parameterIndex ? 4 * words : 4))
+      auto prepare = [&](NSString *entry) -> std::expected<id<MTLComputePipelineState>, Error> {
+        id<MTLFunction> function = [library newFunctionWithName:entry];
+        if (!function)
           return std::unexpected(Error::Invalid);
-        id<MTLBufferBinding> binding = (id<MTLBufferBinding>)argument;
-        auto members = binding.bufferStructType.members;
-        if (binding.bufferAlignment != 4 || members.count != 1)
+        MTLComputePipelineReflection *reflection = nil;
+        id<MTLComputePipelineState> pipeline = [state_->devices[device.index_]
+            newComputePipelineStateWithFunction:function
+                                        options:MTLPipelineOptionBufferTypeInfo |
+                                                MTLPipelineOptionBindingInfo
+                                     reflection:&reflection
+                                          error:&error];
+        if (!pipeline || pipeline.maxTotalThreadsPerThreadgroup < 64)
+          return std::unexpected(Error::Unavailable);
+        // Validate the private dynamic-array ABI, not the numerical contents of arbitrary shaders.
+        const auto tensors = signature ? signature->tensors : 2;
+        const auto parameterIndex = tensors + 1, bindingCount = tensors + 2;
+        const auto words = matrix ? 3 : signature ? signature->scalars + 1 : 2;
+        if (reflection.bindings.count != bindingCount)
           return std::unexpected(Error::Invalid);
-        MTLStructMember *member = members[0];
-        MTLArrayType *array = member.arrayType;
-        if (member.offset != 0 || member.dataType != MTLDataTypeArray || !array ||
-            array.stride != 4 ||
-            array.arrayLength != (argument.index == parameterIndex ? words : 1) ||
-            array.elementType !=
-                (argument.index == parameterIndex ? MTLDataTypeUInt : MTLDataTypeFloat))
-          return std::unexpected(Error::Invalid);
-        seen[argument.index] = true;
+        bool seen[4] = {};
+        for (id<MTLBinding> argument in reflection.bindings) {
+          if (argument.type != MTLBindingTypeBuffer || argument.index >= bindingCount ||
+              seen[argument.index] ||
+              ((id<MTLBufferBinding>)argument).bufferDataSize !=
+                  (argument.index == parameterIndex ? 4 * words : 4))
+            return std::unexpected(Error::Invalid);
+          id<MTLBufferBinding> binding = (id<MTLBufferBinding>)argument;
+          auto members = binding.bufferStructType.members;
+          if (binding.bufferAlignment != 4 || members.count != 1)
+            return std::unexpected(Error::Invalid);
+          MTLStructMember *member = members[0];
+          MTLArrayType *array = member.arrayType;
+          if (member.offset != 0 || member.dataType != MTLDataTypeArray || !array ||
+              array.stride != 4 ||
+              array.arrayLength != (argument.index == parameterIndex ? words : 1) ||
+              array.elementType !=
+                  (argument.index == parameterIndex ? MTLDataTypeUInt : MTLDataTypeFloat))
+            return std::unexpected(Error::Invalid);
+          seen[argument.index] = true;
+        }
+        return pipeline;
+      };
+      auto prepared = prepare(matrix        ? @"kalandra_matmul"
+                              : reduction   ? @"kalandra_reduce_sum"
+                              : signature   ? @"kalandra_elementwise_v2"
+                              : elementwise ? @"kalandra_elementwise"
+                                            : @"strict_binary32");
+      if (!prepared)
+        return std::unexpected(prepared.error());
+      auto pipeline = *prepared;
+      std::array<id<MTLComputePipelineState>, 2> matrixTiles{};
+      // Performance profile qualified on this device. Other Apple GPUs retain
+      // the strict scalar entry until their crossover measurements exist.
+      if (matrix && [state_->devices[device.index_].name isEqualToString:@"Apple M2 Max"]) {
+        const std::array<NSString *, 2> names{@"kalandra_matmul_2x1", @"kalandra_matmul_2x2"};
+        for (unsigned i = 0; i < names.size(); ++i) {
+          if (!state_->permit())
+            return std::unexpected(Error::Allocation);
+          auto tile = prepare(names[i]);
+          if (!tile)
+            return std::unexpected(tile.error());
+          matrixTiles[i] = *tile;
+        }
       }
       if (!state_->permit())
         return std::unexpected(Error::Allocation);
       Kernel kernel;
       kernel.state_ = std::make_shared<KernelState>(state_, device.index_, pipeline, elementwise,
-                                                    reduction, matrix, signature);
+                                                    reduction, matrix, signature, matrixTiles);
       return kernel;
     } catch (...) {
       return std::unexpected(Error::Allocation);

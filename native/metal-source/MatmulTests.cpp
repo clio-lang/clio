@@ -2,6 +2,7 @@
 #include "host.cpp"
 #undef main
 #include "../metal-proof/FloatOracle.h"
+#include "../metal/MatmulLayout.h"
 #include <chrono>
 #include <thread>
 #define CHECK(x)                                                                                   \
@@ -217,13 +218,19 @@ void conformance(m::Runtime &runtime, const m::Kernel &kernel) {
     auto m = 1 + random() % 7, k = random() % 258, n = 1 + random() % 11;
     run(m, k, n, 0);
   }
+  // Actual managed dispatch across both profile paths, with partial tiles.
+  run(257, 128, 257, 5);
+  run(513, 256, 512, 5);
   empty(runtime);
   std::printf("Matmul: %llu cases, %llu cells, %llu products matched CPU/GPU/APFloat\n",
               (unsigned long long)cases, (unsigned long long)cells, (unsigned long long)products);
 }
-void lifecycle(m::Runtime &runtime, const m::Kernel &kernel) {
-  auto a = upload(runtime, std::vector<std::uint32_t>(15, 0x3f800000u), {3, 5}),
-       b = upload(runtime, std::vector<std::uint32_t>(35, 0x3f800000u), {5, 7});
+void lifecycle(m::Runtime &runtime, const m::Kernel &kernel, unsigned rows = 3, unsigned inner = 5,
+               unsigned columns = 7) {
+  auto a = upload(runtime, std::vector<std::uint32_t>(rows * inner, 0x3f800000u), {rows, inner}),
+       b = upload(runtime, std::vector<std::uint32_t>(inner * columns, 0x3f800000u),
+                  {inner, columns});
+  const auto bytes = std::uint64_t(rows) * columns * 4;
   auto baseline = runtime.stats().bytes;
   auto run = [&](bool success) {
     auto core = TaskCore::create();
@@ -233,7 +240,7 @@ void lifecycle(m::Runtime &runtime, const m::Kernel &kernel) {
     CHECK(task && core->drain());
     if (success) {
       auto result = observe(*core, task);
-      CHECK(result.bytes() == 84);
+      CHECK(result.bytes() == bytes);
     } else
       CHECK(core->failure(task).kind == TaskFailure::Fault && core->failure(task).code == 2);
     retire(*core, group);
@@ -259,7 +266,7 @@ void lifecycle(m::Runtime &runtime, const m::Kernel &kernel) {
     auto task = runtime.matmul(*core, group, kernel, a, b);
     CHECK(task);
     until(*core, [&] { return core->stats().externalPending == 1; });
-    CHECK(runtime.stats().bytes == baseline + 84 + 12 && runtime.stats().stagingBuffers == 1);
+    CHECK(runtime.stats().bytes == baseline + bytes + 12 && runtime.stats().stagingBuffers == 1);
     if (scenario < 2)
       CHECK(core->cancel(group, scenario == 1));
     runtime.holdCompletions(false);
@@ -436,15 +443,56 @@ void limitsAndOwners(const char *directory) {
   core.reset();
   CHECK(result.onDevice() && result.bytes() == 4);
 }
+void selection() {
+  using L = m::MatmulLayout;
+  CHECK(m::selectMatmulLayout(256, 128, 256) == L::Rows2);
+  CHECK(m::selectMatmulLayout(257, 257, 257) == L::Rows2);
+  CHECK(m::selectMatmulLayout(512, 256, 512) == L::Quad);
+  CHECK(m::selectMatmulLayout(513, 513, 513) == L::Quad);
+  CHECK(m::selectMatmulLayout(256, 127, 256) == L::Scalar);
+  CHECK(m::selectMatmulLayout(256, 1026, 256) == L::Scalar);
+  CHECK(m::selectMatmulLayout(255, 256, 257) == L::Scalar);
+  CHECK(m::selectMatmulLayout(514, 256, 514) == L::Scalar);
+  CHECK(m::selectMatmulLayout(1, 256, 65536) == L::Scalar);
+  CHECK(m::selectMatmulLayout(65536, 256, 1) == L::Rows2);
+  CHECK(m::selectMatmulLayout(512, 128, 512) == L::Rows2);
+  CHECK(m::matmulWorkItems(L::Rows2, 257, 257) == 129 * 257);
+  CHECK(m::matmulWorkItems(L::Quad, 513, 513) == 257 * 257);
+  CHECK(m::matmulWorkItems(L::Scalar, 0xffffffffu, 1) == 0xffffffffu);
+  CHECK(m::matmulWorkItems(L::Quad, 0xffffffffu, 1) == 0x80000000ull);
+}
+void bundleFailures(m::Runtime &runtime, const char *directory, m::Device device) {
+  const auto path = std::string(directory) + "/kernel0.metallib";
+  runtime.failAllocationAt(0);
+  {
+    auto value = runtime.loadMatmulKernel(path, device);
+    CHECK(value);
+  }
+  auto attempts = runtime.stats().attempts;
+  CHECK(attempts >= 2);
+  for (std::uint64_t i = 1; i <= attempts; ++i) {
+    runtime.failAllocationAt(i);
+    auto failed = runtime.loadMatmulKernel(path, device);
+    CHECK(!failed && failed.error() == m::Error::Allocation);
+  }
+  runtime.failAllocationAt(0);
+  {
+    auto value = runtime.loadMatmulKernel(path, device);
+    CHECK(value);
+  }
+  std::printf("Matmul bundle preparation checkpoints swept: %llu\n", (unsigned long long)attempts);
+}
 int main(int argc, char **argv) {
   CHECK(argc == 2 && generated_main(argc, argv) == 0);
   auto made = m::Runtime::create();
   CHECK(made);
   auto &r = **made;
   sourceChecks(r, argv[1]);
+  selection();
   auto device = r.device();
   CHECK(device);
   auto path = std::string(argv[1]) + "/kernel0.metallib";
+  bundleFailures(r, argv[1], *device);
   auto kernel = r.loadMatmulKernel(path, *device);
   CHECK(kernel);
   CHECK(!r.loadElementwiseKernel(path, *device) && !r.loadReductionKernel(path, *device));
@@ -453,6 +501,8 @@ int main(int argc, char **argv) {
   limitsAndOwners(argv[1]);
   conformance(r, *kernel);
   lifecycle(r, *kernel);
+  lifecycle(r, *kernel, 256, 128, 256);
+  lifecycle(r, *kernel, 512, 256, 512);
   empty(r);
   std::puts("Strict GPU matmul and rank-two source bridge checks passed");
 }

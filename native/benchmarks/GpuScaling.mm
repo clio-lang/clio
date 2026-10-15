@@ -1,3 +1,4 @@
+#include "../metal/MatmulLayout.h"
 #include "../metal/Metal.h"
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
@@ -52,7 +53,9 @@ struct Data {
           double sum = 0;
           for (std::int64_t k = 0; k < s.inner; ++k)
             sum += double(a[row * s.inner + k]) * double(b[k * s.columns + col]);
-          expected[row * s.columns + col] = float(sum);
+          // A singleton contraction has no initial +0 addition: preserve -0.
+          expected[row * s.columns + col] =
+              s.inner == 1 ? float(double(a[row]) * double(b[col])) : float(sum);
         }
     else {
       double sum = 0;
@@ -107,8 +110,10 @@ struct Direct {
   id<MTLComputePipelineState> pipeline;
   id<MTLBuffer> a, b, output, parameters, readback;
   std::vector<id<MTLBuffer>> levels, counts;
-  Direct(id<MTLDevice> device, id<MTLComputePipelineState> p, const Data &data)
-      : queue([device newCommandQueue]), pipeline(p) {
+  m::MatmulLayout matrixLayout;
+  Direct(id<MTLDevice> device, id<MTLComputePipelineState> p, const Data &data,
+         m::MatmulLayout layout = m::MatmulLayout::Scalar)
+      : queue([device newCommandQueue]), pipeline(p), matrixLayout(layout) {
     CHECK(queue);
     auto make = [&](std::size_t bytes, bool shared) -> id<MTLBuffer> {
       auto value = [device newBufferWithLength:bytes
@@ -169,7 +174,11 @@ struct Direct {
         [encoder setBuffer:right offset:0 atIndex:1];
       [encoder setBuffer:out offset:0 atIndex:data.shape.matrix ? 2 : 1];
       [encoder setBuffer:params offset:0 atIndex:data.shape.matrix ? 3 : 2];
-      [encoder dispatchThreadgroups:MTLSizeMake((lanes + 63) / 64, 1, 1)
+      const auto workItems = data.shape.matrix
+                                 ? m::matmulWorkItems(matrixLayout, std::uint32_t(data.shape.rows),
+                                                      std::uint32_t(data.shape.columns))
+                                 : lanes;
+      [encoder dispatchThreadgroups:MTLSizeMake((workItems + 63) / 64, 1, 1)
               threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
       [encoder endEncoding];
     };
@@ -338,12 +347,12 @@ Timing managed(m::Runtime &r, TaskCore &core, m::Kernel kernel, m::Device device
 }
 int main(int argc, char **argv) {
   @autoreleasepool {
-    CHECK(argc == 5);
+    CHECK(argc == 5 || argc == 6);
     const std::string directory = argv[1];
     unsigned warmups = std::stoul(argv[2]), samples = std::stoul(argv[3]),
              process = std::stoul(argv[4]);
     CHECK(warmups && samples);
-    auto made = m::Runtime::create();
+    auto made = m::Runtime::create({.maxBytes = (argc == 6 ? 512ull : 64ull) * 1024 * 1024});
     CHECK(made);
     auto runtime = std::move(*made);
     auto selected = runtime->device();
@@ -376,6 +385,14 @@ int main(int argc, char **argv) {
                                  {"sum-4097", false, 0, 4097, 0},
                                  {"sum-65536", false, 0, 65536, 0},
                                  {"sum-1048576", false, 0, 1048576, 0}};
+    if (argc == 6) {
+      CHECK(std::string(argv[5]) == "selection");
+      shapes = {{"small-scalar", true, 32, 256, 32},  {"narrow-scalar", true, 1, 256, 65536},
+                {"short-scalar", true, 256, 8, 256},  {"rows2-256", true, 256, 256, 256},
+                {"rows2-odd", true, 257, 257, 257},   {"quad-512", true, 512, 512, 512},
+                {"quad-odd", true, 513, 513, 513},    {"outside-profile", true, 514, 256, 514},
+                {"sum-control", false, 0, 1048576, 0}};
+    }
     std::mt19937 rng(0x562214u + process);
     std::shuffle(shapes.begin(), shapes.end(), rng);
     for (auto shape : shapes) {
@@ -390,12 +407,18 @@ int main(int argc, char **argv) {
             newLibraryWithURL:[NSURL fileURLWithPath:[NSString stringWithUTF8String:path.c_str()]]
                         error:&error];
         CHECK(library);
-        auto function = [library
-            newFunctionWithName:shape.matrix ? @"kalandra_matmul" : @"kalandra_reduce_sum"];
+        auto layout = m::MatmulLayout::Scalar;
+#ifndef KALANDRA_BENCH_SCALAR_MATMUL
+        if (shape.matrix && [device.name isEqualToString:@"Apple M2 Max"])
+          layout = m::selectMatmulLayout(std::uint32_t(shape.rows), std::uint32_t(shape.inner),
+                                         std::uint32_t(shape.columns));
+#endif
+        auto function = [library newFunctionWithName:shape.matrix ? @(m::matmulEntryName(layout))
+                                                                  : @"kalandra_reduce_sum"];
         CHECK(function);
         auto pipeline = [device newComputePipelineStateWithFunction:function error:&error];
         CHECK(pipeline && pipeline.maxTotalThreadsPerThreadgroup >= 64);
-        Direct gpu(device, pipeline, data);
+        Direct gpu(device, pipeline, data, layout);
         std::array<std::int64_t, 2> aShape{shape.rows, shape.inner},
             bShape{shape.inner, shape.columns};
         auto ha = host(*runtime, data.a,
