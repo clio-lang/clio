@@ -2,6 +2,12 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#ifdef KALANDRA_TASK_PROFILE
+#include <chrono>
+#define TASK_PROBE(field, amount) profile.field += (amount)
+#else
+#define TASK_PROBE(field, amount) ((void)0)
+#endif
 #include <cstdlib>
 #include <limits>
 #include <mutex>
@@ -60,6 +66,43 @@ Failure invocationFailure(const Invocation &context) {
 struct TaskCore::Impl {
   TaskLimits limits;
   TaskStats stats;
+#ifdef KALANDRA_TASK_PROFILE
+  TaskProfile profile;
+  using ProfileClock = std::chrono::steady_clock;
+  static std::uint64_t nanos(ProfileClock::time_point start) {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(ProfileClock::now() - start)
+        .count();
+  }
+#endif
+  void acquire(std::unique_lock<std::mutex> &lock) {
+#ifdef KALANDRA_TASK_PROFILE
+    bool contended = !lock.try_lock();
+    std::uint64_t elapsed = 0;
+    if (contended) {
+      const auto start = ProfileClock::now();
+      lock.lock();
+      elapsed = nanos(start);
+    }
+    ++profile.locks;
+    profile.contendedLocks += contended;
+    profile.lockWaitNs += elapsed;
+#else
+    lock.lock();
+#endif
+  }
+  template <class Predicate> void wait(std::unique_lock<std::mutex> &lock, Predicate ready) {
+#ifdef KALANDRA_TASK_PROFILE
+    while (!ready()) {
+      ++profile.waits;
+      const auto start = ProfileClock::now();
+      changed.wait(lock);
+      ++profile.waitReturns;
+      profile.waitNs += nanos(start);
+    }
+#else
+    changed.wait(lock, ready);
+#endif
+  }
   std::unique_ptr<Record[]> tasks;
   std::unique_ptr<Group[]> groups;
   std::unique_ptr<TaskHandle[]> queue;
@@ -75,10 +118,13 @@ struct TaskCore::Impl {
   struct Guard {
     Impl &core;
     std::unique_lock<std::mutex> lock;
-    explicit Guard(Impl &core) : core(core), lock(core.mutex) {}
+    explicit Guard(Impl &core) : core(core), lock(core.mutex, std::defer_lock) {
+      core.acquire(lock);
+    }
     ~Guard() { core.signal(); }
   };
   void signal() {
+    TASK_PROBE(notifications, 1);
     ++revision;
     changed.notify_all();
   }
@@ -98,9 +144,10 @@ struct TaskCore::Impl {
       workers.reserve(limits.workers);
       for (std::uint32_t i = 0; i < limits.workers; ++i)
         workers.emplace_back([this] {
-          std::unique_lock lock(mutex);
+          std::unique_lock lock(mutex, std::defer_lock);
+          acquire(lock);
           while (!stopping) {
-            changed.wait(lock, [&] { return stopping || draining; });
+            wait(lock, [&] { return stopping || draining; });
             if (stopping)
               break;
             if (!remaining || !stats.unfinished) {
@@ -119,7 +166,7 @@ struct TaskCore::Impl {
               continue;
             }
             const auto seen = revision;
-            changed.wait(lock, [&] { return stopping || !draining || revision != seen; });
+            wait(lock, [&] { return stopping || !draining || revision != seen; });
           }
         });
       return true;
@@ -148,15 +195,25 @@ struct TaskCore::Impl {
   }
   void freeBytes(void *&pointer, std::size_t bytes) {
     if (pointer) {
+#ifdef KALANDRA_TASK_PROFILE
+      const auto start = ProfileClock::now();
+#endif
       std::free(pointer);
+      TASK_PROBE(frees, 1);
+      TASK_PROBE(allocatorNs, nanos(start));
       pointer = nullptr;
       stats.retainedBytes -= bytes;
     }
   }
   void *allocate(std::size_t bytes) {
+    TASK_PROBE(allocationAttempts, 1);
     if (++attempts == failAt || bytes > limits.bytes - stats.retainedBytes)
       return nullptr;
+#ifdef KALANDRA_TASK_PROFILE
+    const auto start = ProfileClock::now();
+#endif
     auto *pointer = std::malloc(std::max(std::size_t(1), bytes));
+    TASK_PROBE(allocatorNs, nanos(start));
     if (pointer) {
       stats.retainedBytes += bytes;
       stats.peakBytes = std::max(stats.peakBytes, stats.retainedBytes);
@@ -315,7 +372,7 @@ struct TaskCore::Impl {
       }
       if (!task.initialized)
         task.execution.fault(3);
-      lock.lock();
+      acquire(lock);
       task.runner = {};
     }
     --preparing;
@@ -354,7 +411,7 @@ struct TaskCore::Impl {
     ++task->readers;
     lock.unlock();
     const auto copied = layout.copy(destination, output, task->outcome, task->value);
-    lock.lock();
+    acquire(lock);
     --task->readers;
     if (!copied)
       destination.fault(3);
@@ -376,7 +433,7 @@ struct TaskCore::Impl {
       if (task.valueInitialized)
         task.entry->result->destroy(task.value);
       task.outcome.settle();
-      lock.lock();
+      acquire(lock);
       if (task.entry)
         freeBytes(task.value, task.entry->result->bytes);
       const auto generation = task.generation + 1;
@@ -395,6 +452,9 @@ struct TaskCore::Impl {
     bool changed;
     do {
       changed = false;
+      TASK_PROBE(maintenancePasses, 1);
+      TASK_PROBE(recordVisits, limits.records);
+      TASK_PROBE(groupVisits, limits.groups);
       for (std::uint32_t i = 0; i < limits.groups; ++i) {
         auto &group = groups[i];
         if (!group.used || !group.closed || group.settled || group.outstanding)
@@ -462,14 +522,14 @@ struct TaskCore::Impl {
           task.entry->destroy(task.frame);
           task.initialized = false;
         }
-        lock.lock();
+        acquire(lock);
         freeBytes(task.frame, task.entry->frameBytes);
         for (std::uint32_t j = 0; j < limits.groups; ++j)
           if (groups[j].used && groups[j].owner == handle(i))
             dispose(groupHandle(j), lock);
         lock.unlock();
         task.execution.settle();
-        lock.lock();
+        acquire(lock);
         // A completion is not public until cleanup finishes. Cancellation can
         // arrive while destructors run outside the lock; acknowledge it before
         // publishing rather than expose a success that never became settled.
@@ -481,7 +541,7 @@ struct TaskCore::Impl {
             task.valueInitialized = false;
           }
           task.outcome.settle();
-          lock.lock();
+          acquire(lock);
         }
         task.cleaning = false;
         task.state = State::Settled;
@@ -509,6 +569,7 @@ struct TaskCore::Impl {
     }
   }
   bool step(std::unique_lock<std::mutex> &lock) {
+    TASK_PROBE(steps, 1);
     struct Pump {
       Impl &core;
       std::uint64_t publications;
@@ -523,6 +584,7 @@ struct TaskCore::Impl {
       }
     } pump(*this);
     maintain(lock);
+    TASK_PROBE(readyVisits, limits.records);
     for (std::uint32_t n = 0; n < limits.records; ++n)
       enqueue((cursor + n) % limits.records);
     if (!queueCount)
@@ -559,7 +621,7 @@ struct TaskCore::Impl {
       } catch (...) {
         record->execution.fault(3);
       }
-      lock.lock();
+      acquire(lock);
       record->executing = false;
       record->runner = {};
       --running;
@@ -682,8 +744,8 @@ bool TaskCore::drain(std::size_t steps) noexcept {
     impl_->remaining = steps;
     impl_->draining = true;
     impl_->signal();
-    impl_->changed.wait(guard.lock,
-                        [&] { return !impl_->draining && !impl_->pumping && !impl_->preparing; });
+    impl_->wait(guard.lock,
+                [&] { return !impl_->draining && !impl_->pumping && !impl_->preparing; });
   }
   impl_->controlling = false;
   return !impl_->stats.unfinished;
@@ -695,6 +757,12 @@ TaskStats TaskCore::stats() const noexcept {
     stats.retainedOwners += impl_->tasks[i].execution.live() + impl_->tasks[i].outcome.live();
   return stats;
 }
+#ifdef KALANDRA_TASK_PROFILE
+TaskProfile TaskCore::profile() const noexcept {
+  std::lock_guard lock(impl_->mutex);
+  return impl_->profile;
+}
+#endif
 void TaskCore::failAllocationAt(std::uint64_t attempt) noexcept {
   Impl::Guard guard(*impl_);
   impl_->attempts = 0;
@@ -811,7 +879,7 @@ void Task::complete(const void *value) noexcept {
   if (aligned(value, layout.alignment)) {
     guard.lock.unlock();
     copied = layout.copy(task.outcome, task.value, context(), value);
-    guard.lock.lock();
+    core_.acquire(guard.lock);
   }
   if (!copied) {
     task.execution.fault(task.outcome.status() ? task.outcome.status() : 3);

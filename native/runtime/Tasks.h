@@ -61,6 +61,16 @@ struct TaskStats {
   std::uint64_t resumes = 0, publications = 0, migrations = 0;
   std::uint32_t peakRunning = 0;
 };
+#ifdef KALANDRA_TASK_PROFILE
+// Private, opt-in diagnostics. Never enabled in performance timing builds.
+struct TaskProfile {
+  std::uint64_t locks = 0, contendedLocks = 0, lockWaitNs = 0;
+  std::uint64_t notifications = 0, waits = 0, waitReturns = 0, waitNs = 0;
+  std::uint64_t allocationAttempts = 0, frees = 0, allocatorNs = 0;
+  std::uint64_t maintenancePasses = 0, recordVisits = 0, groupVisits = 0;
+  std::uint64_t readyVisits = 0, steps = 0;
+};
+#endif
 // Host controls are synchronized; drain has one controller. Destruction is not
 // concurrent with host calls. Entry callbacks may not recursively drive/destroy
 // their core. Invocation and frame access belong to the active execution lease.
@@ -83,6 +93,10 @@ public:
   bool step() noexcept;
   bool drain(std::size_t steps = 100000) noexcept;
   TaskStats stats() const noexcept;
+#ifdef KALANDRA_TASK_PROFILE
+  // Cumulative snapshot; sampling itself is not counted.
+  TaskProfile profile() const noexcept;
+#endif
   // Deterministic admission allocation failure, separate from invocation buffers.
   void failAllocationAt(std::uint64_t attempt) noexcept;
 

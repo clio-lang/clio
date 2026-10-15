@@ -218,3 +218,18 @@ if(BUILD_TESTING)
     set_tests_properties(native-compiled-workers-${VARIANT} PROPERTIES TIMEOUT 60)
   endforeach()
 endif()
+
+if(BUILD_TESTING)
+  # Diagnostic probes are excluded from ordinary runtime/performance builds.
+  # Validate their counters and synchronization separately under TSan.
+  add_executable(kalandra-scheduler-profile-tests
+    benchmarks/Scheduler.cpp runtime/Tasks.cpp runtime/Runtime.cpp)
+  target_link_libraries(kalandra-scheduler-profile-tests PRIVATE Threads::Threads)
+  target_compile_definitions(kalandra-scheduler-profile-tests PRIVATE KALANDRA_TASK_PROFILE)
+  target_compile_options(kalandra-scheduler-profile-tests PRIVATE
+    -Wall -Wextra -Werror -O1 -g -fsanitize=thread -fno-omit-frame-pointer)
+  target_link_options(kalandra-scheduler-profile-tests PRIVATE -fsanitize=thread)
+  add_test(NAME native-scheduler-profile-thread-sanitized
+    COMMAND kalandra-scheduler-profile-tests 4 128 32 8)
+  set_tests_properties(native-scheduler-profile-thread-sanitized PROPERTIES TIMEOUT 30)
+endif()
