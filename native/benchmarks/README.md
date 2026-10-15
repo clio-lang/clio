@@ -90,3 +90,24 @@ The [occupancy-indexed maintenance comparison](../../benchmarks/results/native-s
 The [task-maintenance fast-path comparison](../../benchmarks/results/native-scheduler-2026-10-15-dense.md) adds 32/1 and 33/1 capacity controls to the existing grid. Pass `--reference` alongside `--baseline` to compare an older saved executable too; the runner rotates reference/baseline/current order over three trials so each runs in every process position. It retains reference samples, phase summaries, and the reference executable hash separately. The additional modes use the same sixteen-task workload and warmup/sampling protocol.
 
 The [four-column SIMD comparison](../../benchmarks/results/native-cpu-2026-10-15-simd.md) uses the same saved/current numerical workload and runtime to isolate code generation. It records arithmetic/assembly evidence, scratch-size tradeoffs, per-cell tail conformance, and paired before/after samples. No scheduler timing change or general BLAS/GEMM performance claim is implied.
+
+## Rectangular, tiny, and tail-heavy shapes
+
+The [shape report](../../benchmarks/results/native-shapes-2026-10-15.md) adds 37 synthetic matrix shapes across direct and 1/2/4/8-worker execution. It includes singleton contractions, narrow rows, tall/narrow outputs, wide outputs, deep odd contractions, all scalar-tail widths, old square controls, true empty matrices, and a separate no-kernel control. This is workload-shaped kernel evidence, not an application trace or a comparison with BLAS/GPU libraries.
+
+```sh
+python3 native/benchmarks/shapes.py \
+  --baseline-llvm benchmarks/.build/native-cpu/kernels-before-simd.ll \
+  --sanitize-check \
+  --output benchmarks/results/native-shapes-2026-10-15.json
+```
+
+The saved scalar LLVM comes from `0fac4c0` (generate the dynamic projection fixture with `--test-entry reference --emit-llvm path -O2` using that compiler). Recreate it from that source revision if the ignored artifact is unavailable. The runner copies the supplied IR into its own ignored `benchmarks/.build/native-shapes/` directory and rebuilds **both** versions with the same [shape harness](ShapeScaling.cpp), runtime, and flags. The old square-only benchmark is unchanged.
+
+Both variants first run every shape/mode with `--verify`; results compare by float32 bits against independently materialized, separately rounded products and newly constructed adjacent-pair levels. Expected values are not a double-precision grand total. Empty matrices actually call the generated kernel and return positive zero; only the explicit control bypasses it and returns 1. Arrays remain unchanged, cached results are checked, and all task/owner/frame/queue/maintenance counts settle to zero. Diagnostics record managed allocations/releases per case.
+
+`--sanitize-check` additionally builds current LLVM with compiler-generated ASan attributes and C++ ASan/UBSan, checks post-Clang memory instrumentation, and verifies all 37 shapes in all five execution modes before performance begins. The older scalar LLVM is verified numerically but is not retroactively sanitizer-instrumented. Sanitized verification samples are retained separately and excluded from timing summaries.
+
+Three fresh baseline/current process pairs alternate order. Each pair uses an identical seed to shuffle shape order and measured execution-mode order. Each shape/mode warms three batches and records nine single-batch samples, each containing sixteen calls/tasks. Summaries use the median of three process medians. Pool creation, reference/input construction, verification, warmup, allocation diagnostics, and quiescent statistics checks are excluded. Reported time includes normal computation and the selected task lifecycle. Caller/platform scheduling and the extra idle pools remain part of the environment; no affinity or frequency control is applied.
+
+The [untimed poll probe](ShapePolls.cpp) accepts `rows inner columns`. Compile it against each saved LLVM file and `runtime/Runtime.cpp` with the same pinned Clang and `-O2 -ffp-contract=off`; the [probe artifact](../../benchmarks/results/native-shapes-2026-10-15-polls.json) retains every build/query command and hash. Its atomic poll counts must not be inserted into throughput runs or used as percentages of wall time.

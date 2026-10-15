@@ -1,5 +1,7 @@
 # Native CPU: four-column SIMD microtiles
 
+Follow-up: [rectangular, tiny, and tail-heavy measurements](native-shapes-2026-10-15.md) extend this square-only comparison and identify the next specialization. This report retains its original observations.
+
 The compiler now emits a 1×4 column tile for float32 matrix multiplication. On the measured Apple M2 Max, a sixteen-projection 96×96 batch improves **16.12 → 6.27 ms** directly (**2.57×**) and **2.55 → 1.01 ms** with eight workers (**2.53×**). Strict per-cell arithmetic, cancellation, and ownership checks pass. The measured projection still uses three managed allocations, with larger bounded scratch for SIMD tiles.
 
 ## What changed
