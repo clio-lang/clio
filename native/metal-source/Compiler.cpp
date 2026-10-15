@@ -34,7 +34,7 @@ struct Value {
   std::size_t slot = 0;
   bool gpu = false;
   std::uint32_t device = 0;
-  std::size_t length = 0;
+  std::optional<std::uint64_t> length = {};
 };
 class Compiler {
   Module syntax;
@@ -117,6 +117,8 @@ class Compiler {
       reject(t.span, dynamicOnly
                          ? "GPU kernel parameters/results currently require Tensor[float32, ?]"
                          : "the Metal source slice requires a rank-one float32 tensor");
+    if (t.dimensions[0].extent && *t.dimensions[0].extent > std::uint64_t(INT64_MAX) / 4)
+      reject(t.span, "rank-one float32 tensor extent exceeds the checked allocation range");
     return t.dimensions[0].extent;
   }
   std::uint32_t bits(ExprId id) const {
@@ -142,6 +144,17 @@ class Compiler {
     if (negative)
       value.changeSign();
     return std::uint32_t(value.bitcastToAPInt().getZExtValue());
+  }
+  void requireLength(const Value &value, std::uint64_t extent, SourceSpan span) {
+    if (value.length) {
+      if (*value.length != extent)
+        reject(span, "tensor shape mismatch");
+    } else {
+      auto [line, column] = syntax.source->location(span.begin);
+      steps.push_back("if (" + ref(value) + ".shape().size()!=1 || " + ref(value) +
+                      ".shape()[0]!=" + std::to_string(extent) + ") { task.fault(1," +
+                      std::to_string(line) + "," + std::to_string(column) + "); return; }\n");
+    }
   }
   Value expression(ExprId id, const TypeSyntax *annotation = nullptr) {
     if (depth >= 128)
@@ -202,11 +215,11 @@ class Compiler {
           data += std::to_string(bits(item)) + "u,";
         data += " }";
         steps.push_back(
-            "static const std::array<std::uint32_t," + std::to_string(value.length) +
+            "static const std::array<std::uint32_t," + std::to_string(*value.length) +
             "> data = " + data +
             ";\n"
             "const std::int64_t length = " +
-            std::to_string(value.length) +
+            std::to_string(*value.length) +
             ";\n"
             "auto *allocation = task.context().allocate(data.size() * 4);\n"
             "if (!allocation) { task.fault(2); return; }\n"
@@ -245,8 +258,11 @@ class Compiler {
         const auto &fn = cpu.functions[found->second];
         if (call->arguments.size() != fn.parameters.size())
           reject(span, "CPU function argument count mismatch");
-        auto out = field("float");
-        Value value{Value::Scalar, next - 1};
+        const bool tensorResult = fn.resultType.tensor;
+        auto out = field(tensorResult ? "m::Buffer" : "float");
+        Value value{tensorResult ? Value::Tensor : Value::Scalar, next - 1};
+        if (tensorResult)
+          value.length = fn.resultType.shape[0].constant;
         std::string step, arguments;
         for (std::size_t i = 0; i < call->arguments.size(); ++i) {
           auto input = expression(call->arguments[i]);
@@ -256,7 +272,7 @@ class Compiler {
               reject(span, "CPU tensor arguments require an explicit transfer to devices.cpu()");
             if (type.shape.size() != 1)
               reject(span, "CPU bridge currently accepts rank-one float32 tensors");
-            if (type.shape[0].constant && *type.shape[0].constant != input.length)
+            if (type.shape[0].constant && input.length && type.shape[0].constant != input.length)
               reject(span, "CPU argument shape mismatch");
             auto local = "argument" + std::to_string(i);
             step += "auto " + local + " = r.toCpu<1>(task.context(), " + ref(input) + ");\n";
@@ -268,10 +284,21 @@ class Compiler {
             arguments += ref(input) + ",";
           }
         }
-        step += "f." + out + " = _mlir_ciface_kalandra_cpu_" + std::to_string(found->second) + "(" +
-                arguments + "&task.context());\n";
+        if (tensorResult)
+          step += "Float32Tensor<1> result{};\n";
+        step += (tensorResult ? "" : "f." + out + " = ") +
+                std::string("_mlir_ciface_kalandra_cpu_") + std::to_string(found->second) + "(" +
+                (tensorResult ? "&result," : "") + arguments + "&task.context());\n";
         step += "if (task.context().status()) { task.fault(task.context().status(), "
                 "task.context().line(), task.context().column()); return; }\n";
+        if (tensorResult) {
+          // Acquire the immutable backing lease before releasing the returned memref owner.
+          // The buffer-deallocation pipeline gives C-interface tensor results owned storage.
+          step += "auto imported = r.fromCpu(task.context(), result.view());\n";
+          step += "task.context().release(result.allocated);\n";
+          step += "if (!imported) { " + error("imported.error()") + " }\n";
+          step += "f." + out + " = *imported;\n";
+        }
         for (std::size_t i = 0; i < fn.parameters.size(); ++i)
           if (cpu.symbols[fn.parameters[i]].type.tensor)
             step += "task.context().release(argument" + std::to_string(i) + "->allocated);\n";
@@ -319,12 +346,19 @@ class Compiler {
         if (left.kind != Value::Tensor || right.kind != Value::Tensor || !left.gpu || !right.gpu ||
             left.device != target.device || right.device != target.device)
           reject(span, "GPU arguments must be explicitly transferred to the selected device");
-        if (left.length != right.length)
+        if (left.length && right.length && left.length != right.length)
           reject(span, "elementwise argument shapes differ");
+        if (!left.length || !right.length) {
+          auto [line, column] = syntax.source->location(span.begin);
+          steps.push_back("if (" + ref(left) + ".shape()[0]!=" + ref(right) +
+                          ".shape()[0]) { task.fault(1," + std::to_string(line) + "," +
+                          std::to_string(column) + "); return; }\n");
+        }
         auto [entry, inserted] = entries.emplace(found->second, entries.size());
         (void)inserted;
         auto kernel = field("m::Kernel"), out = field("TaskHandle");
-        Value result{Value::Task, next - 1, true, target.device, left.length};
+        Value result{Value::Task, next - 1, true, target.device,
+                     left.length ? left.length : right.length};
         steps.push_back("auto target = " + device(target) + ";\nif (!target) { " +
                         error("target.error()") +
                         " }\n"
@@ -518,9 +552,12 @@ public:
       if (!gpuNames.contains(name)) {
         if (!cpuFunctions.emplace(name, hostModule.functions.size()).second)
           reject(fn.name, "duplicate CPU function");
-        if (!fn.result || fn.result->tensor || text(fn.result->name) != "float32" || fn.taskError)
-          reject(fn.span,
-                 "CPU bridge functions currently require a float32 result and no error channel");
+        if (!fn.result || fn.taskError)
+          reject(fn.span, "CPU bridge functions require an explicit result and no error channel");
+        if (fn.result->tensor)
+          tensorType(*fn.result);
+        else if (text(fn.result->name) != "float32")
+          reject(fn.result->span, "CPU bridge results require float32 or rank-one float32 tensors");
         for (const auto &parameter : fn.parameters) {
           if (parameter.type.tensor)
             tensorType(parameter.type);
@@ -567,7 +604,10 @@ public:
       cpu = std::move(*checkedCpu.module);
       for (std::size_t i = 0; i < cpu.functions.size(); ++i) {
         const auto &f = cpu.functions[i];
-        declarations += "extern \"C\" float _mlir_ciface_kalandra_cpu_" + std::to_string(i) + "(";
+        declarations += std::string("extern \"C\" ") + (f.resultType.tensor ? "void" : "float") +
+                        " _mlir_ciface_kalandra_cpu_" + std::to_string(i) + "(";
+        if (f.resultType.tensor)
+          declarations += "Float32Tensor<1>*,";
         for (auto parameter : f.parameters) {
           const auto &type = cpu.symbols[parameter].type;
           if (type.tensor && type.shape.size() != 1)
@@ -603,12 +643,15 @@ public:
         reject(*s.binding, "duplicate immutable binding");
       result = expression(s.expression, s.annotation ? &*s.annotation : nullptr);
       if (s.annotation) {
-        auto extent =
-            s.annotation->tensor ? tensorType(*s.annotation) : std::optional<std::uint64_t>{};
-        if (s.annotation->tensor
-                ? (result.kind != Value::Tensor || (extent && *extent != result.length))
-                : (text(s.annotation->name) != "float32" || result.kind != Value::Scalar))
-          reject(s.span, "tensor annotation mismatch");
+        if (s.annotation->tensor) {
+          if (result.kind != Value::Tensor)
+            reject(s.span, "tensor annotation mismatch");
+          if (auto extent = tensorType(*s.annotation)) {
+            requireLength(result, *extent, s.span);
+            result.length = extent;
+          }
+        } else if (text(s.annotation->name) != "float32" || result.kind != Value::Scalar)
+          reject(s.span, "scalar annotation mismatch");
       }
       if (s.binding)
         locals.emplace(text(*s.binding), result);
@@ -616,8 +659,8 @@ public:
     if (scalarResult ? result.kind != Value::Scalar : (result.kind != Value::Tensor || result.gpu))
       reject(fn.span, "main must return a completed host tensor; explicitly transfer the result to "
                       "devices.cpu()");
-    if (declared && *declared != result.length)
-      reject(fn.span, "main result shape mismatch");
+    if (declared)
+      requireLength(result, *declared, fn.span);
     for (auto task : tasks)
       if (!observed.contains(task))
         reject(fn.span, "every admitted child task must be observed with try await");
