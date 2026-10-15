@@ -1,5 +1,7 @@
 # Native CPU scaling benchmark
 
+Apple GPU measurements have a separate [CPU/Metal baseline](../../benchmarks/results/native-gpu-2026-10-15.md) and [runner](#apple-gpu-baseline).
+
 This measures the fresh C++/LLVM implementation, separately from the released JavaScript prototype's [language comparisons](../../benchmarks/README.md). See the [initial report](../../benchmarks/results/native-cpu-2026-10-15.md) and [scratch reuse comparison](../../benchmarks/results/native-cpu-2026-10-15-scratch.md).
 
 Build the compiler first, then run:
@@ -151,3 +153,19 @@ python3 native/benchmarks/shapes.py --suite blocking \
 The default suite retains the original 37 shapes, sixteen-job batches, three warmups and nine samples. The blocking suite uses fourteen larger shapes, **four-job batches**, two warmups and five samples; direct and 1/2/4/8-worker capacities produce seventy configurations. A four-job batch cannot occupy all eight workers simultaneously. It includes the thirteen C++ research shapes plus `8×1025 @ 1025×8193`, whose right-hand input alone exceeds the reported 16 MiB performance-core L2. These are still repeated warm inputs, not a controlled cold-cache experiment.
 
 Both LLVM versions are rebuilt against identical current harness/runtime/flags. Each experiment alternates process order across three fresh pairs, using matched seeds and retaining all raw observations, source/LLVM/binary hashes, allocation diagnostics, and separate ASan/UBSan verification. Summary time is the median of three process medians. Compare versions within a suite; do not compare four-job batch times directly with sixteen-job batches or the C++ study's single-operation samples. Allocation forwarding probes belong only to CTest, not timing builds.
+
+## Apple GPU baseline
+
+Build the native compiler with both Metal options enabled, then run:
+
+```sh
+cmake --preset native -DKALANDRA_BUILD_METAL_RUNTIME=ON -DKALANDRA_BUILD_METAL_PROOF=ON
+cmake --build --preset native
+python3 native/benchmarks/gpu.py
+```
+
+This requires the existing optional shader toolchain and an actual Apple GPU. The runner builds its own optimized, uninstrumented CPU/Metal timing executable; a Debug CMake runtime archive is not measured. A quick build/validation run is available with `--smoke` and writes an ignored smoke report. The full run defaults to three processes, two warmups and seven samples per workload/mode. Use `--processes`, `--warmups`, `--samples` and `--output` to select another protocol/path. Existing full reports are not overwritten. Performance runs reject enabled Metal validation or injected libraries.
+
+Nine workloads cover square/odd rectangular matmul and rank-one reductions. Four modes separate CPU checked-call wall time, a preallocated GPU command interval and its host wall time, managed tasks with resident device inputs, and managed tasks including uploads and downloads from existing host values. All outputs and input immutability are checked, with resource retirement assertions. Allocation, readback and result-lifetime boundaries differ between controls; see the [report](../../benchmarks/results/native-gpu-2026-10-15.md#what-is-timed) before interpreting ratios. There is no JIT; compilation, pipeline creation, input/reference construction and excluded dispatch warmups precede measured samples. No production compiler/runtime profiling hooks or performance test thresholds are introduced.
+
+The baseline executable and its two Metal libraries must be preserved together for later comparisons: the executable loads kernels from the directory passed on its command line. Before a kernel change, copy both `scaling` and `kernels/kernel*.metallib` from the ignored build directory into a separate baseline directory. Invoke the saved executable with `scaling kernels-directory warmup-count sample-count process-index`; the benchmark uses the same actual source-generated CPU functions and GPU artifacts whose hashes are retained in JSON. New experiments should use a distinct output report and match harness, data, runtime, flags and timing boundaries. Kernel changes must retain their own correctness and sanitizer gates; a successful timing run on exact finite inputs does not replace IEEE conformance.
