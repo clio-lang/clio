@@ -105,8 +105,18 @@ RUN_OK("${DYNAMIC_HARNESS}" --sweep)
 if(NOT OUTPUT MATCHES "Verified 1029 runtime-shape/content cases; live=0")
   message(FATAL_ERROR "Runtime conformance corpus failed: ${OUTPUT}")
 endif()
+# Per-cell reduction scratch used to allocate rows*columns times. Require a
+# bounded number even across repeated odd-sized contractions, without tying
+# this gate to an exact count that would prevent further allocation removal.
+RUN_OK("${DYNAMIC_HARNESS}" --rows 17 --inner 33 --columns 17 --verify --repeat 2)
+string(JSON SCRATCH_ALLOCATIONS GET "${OUTPUT}" allocations)
+string(JSON SCRATCH_RELEASES GET "${OUTPUT}" releases)
+if(SCRATCH_ALLOCATIONS GREATER 6 OR NOT SCRATCH_ALLOCATIONS EQUAL SCRATCH_RELEASES)
+  message(FATAL_ERROR "Matrix reduction scratch is not reused/settled: ${OUTPUT}")
+endif()
 foreach(CASE IN ITEMS "3|5|4|1168932864" "1|1|1|1065353216" "1|7|3|1150484480"
-  "2|0|2|0" "0|3|2|0" "2|3|0|0" "0|9223372036854775807|0|0")
+  "2|0|2|0" "0|3|2|0" "2|3|0|0" "0|9223372036854775807|0|0"
+  "9223372036854775807|0|0|0")
   string(REPLACE "|" ";" FIELDS "${CASE}")
   list(GET FIELDS 0 ROWS)
   list(GET FIELDS 1 INNER)

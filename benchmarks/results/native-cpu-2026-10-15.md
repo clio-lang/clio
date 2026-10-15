@@ -1,5 +1,7 @@
 # Native CPU scaling — 2026-10-15
 
+This is the initial baseline. The subsequent [scratch reuse comparison](native-cpu-2026-10-15-scratch.md) records the first measured kernel optimization.
+
 The generated CPU kernels scale when each task has enough work. Tiny tasks lose to scheduling overhead. This is a baseline for the fresh native implementation, not a language ranking or a comparison with the JavaScript prototype.
 
 Machine: Apple M2 Max, 12 logical CPUs (8 performance and 4 efficiency), 96 GiB RAM, macOS ARM64. Clang/LLVM 22.1.8; generated code and runtime both `-O2`, strict float32 arithmetic with contraction disabled. The raw file records the exact OS, commands, compiler/source/LLVM hashes and baseline revision. The harness was newly added on top of that revision; its hashes identify the measured uncommitted files.

@@ -147,10 +147,13 @@ private:
       return value;
     return tensor::CastOp::create(builder_, loc, target, value);
   }
-  template <class Callback> Value reduction(Location loc, Value count, Callback element) {
+  Value reductionScratch(Location loc, Value count) {
     checkedCount(loc, {count});
     auto scratchType = MemRefType::get({ShapedType::kDynamic}, builder_.getF32Type());
-    auto scratch = memref::AllocOp::create(builder_, loc, scratchType, ValueRange{count});
+    return memref::AllocOp::create(builder_, loc, scratchType, ValueRange{count});
+  }
+  template <class Callback>
+  Value reduction(Location loc, Value count, Value scratch, Callback element) {
     const auto z = index(loc, 0), one = index(loc, 1), two = index(loc, 2);
     scf::ForOp::create(builder_, loc, z, count, one, ValueRange{},
                        [&](OpBuilder &, Location, Value i, ValueRange) {
@@ -208,29 +211,50 @@ private:
     auto left = dimensions(loc, a), right = dimensions(loc, b);
     if (operation.checkInnerExtent)
       guard(loc, compare(loc, arith::CmpIPredicate::eq, left[1], right[0]), 1);
-    checkedCount(loc, {left[0], right[1]});
+    auto cells = checkedCount(loc, {left[0], right[1]});
+    const auto z = index(loc, 0), one = index(loc, 1);
+    // Empty outputs never evaluate a contraction. Do not size scratch from an
+    // unused inner extent (which may otherwise overflow allocation arithmetic).
+    auto noCells = compare(loc, arith::CmpIPredicate::eq, cells, z);
+    auto scratchCount = arith::SelectOp::create(builder_, loc, noCells, z, left[1]);
+    auto rowCount = arith::SelectOp::create(builder_, loc, noCells, z, left[0]);
+    auto scratch = reductionScratch(loc, scratchCount);
     SmallVector<Value> dynamic;
     if (output.isDynamicDim(0))
       dynamic.push_back(left[0]);
     if (output.isDynamicDim(1))
       dynamic.push_back(right[1]);
-    auto generated = tensor::GenerateOp::create(
-        builder_, loc, output, dynamic, [&](OpBuilder &, Location, ValueRange coordinates) {
-          auto sum = reduction(loc, left[1], [&](Value k) -> Value {
-            auto x = tensor::ExtractOp::create(builder_, loc, a, ValueRange{coordinates[0], k});
-            auto y = tensor::ExtractOp::create(builder_, loc, b, ValueRange{k, coordinates[1]});
-            return arith::MulFOp::create(builder_, loc, x, y);
-          });
-          tensor::YieldOp::create(builder_, loc, sum);
+    auto empty =
+        tensor::EmptyOp::create(builder_, loc, output.getShape(), builder_.getF32Type(), dynamic);
+    // Explicit serial loops own one scratch buffer. A tensor.generate region
+    // may evaluate cells independently; sharing mutable scratch there would
+    // make later parallel lowering unsafe. Each invocation owns its own buffer.
+    auto rows = scf::ForOp::create(
+        builder_, loc, z, rowCount, one, ValueRange{empty},
+        [&](OpBuilder &, Location, Value row, ValueRange rowValues) {
+          auto columns = scf::ForOp::create(
+              builder_, loc, z, right[1], one, rowValues,
+              [&](OpBuilder &, Location, Value column, ValueRange columnValues) {
+                auto sum = reduction(loc, left[1], scratch, [&](Value k) -> Value {
+                  auto x = tensor::ExtractOp::create(builder_, loc, a, ValueRange{row, k});
+                  auto y = tensor::ExtractOp::create(builder_, loc, b, ValueRange{k, column});
+                  return arith::MulFOp::create(builder_, loc, x, y);
+                });
+                auto inserted = tensor::InsertOp::create(builder_, loc, sum, columnValues[0],
+                                                         ValueRange{row, column});
+                scf::YieldOp::create(builder_, loc, ValueRange{inserted});
+              });
+          scf::YieldOp::create(builder_, loc, columns.getResults());
         });
-    return generated.getResult();
+    return rows.getResult(0);
   }
   Value reduce(Location loc, Value tensor, const ReduceSum &operation) {
     if (operation.order != ReductionOrder::BalancedAdjacent || !operation.rowMajor)
       throw LoweringFailure{"unsupported reduction numerical policy"};
     auto shape = dimensions(loc, tensor);
     auto count = checkedCount(loc, shape);
-    return reduction(loc, count, [&](Value linear) -> Value {
+    auto scratch = reductionScratch(loc, count);
+    return reduction(loc, count, scratch, [&](Value linear) -> Value {
       SmallVector<Value> indices(shape.size());
       for (std::size_t axis = shape.size(); axis > 0; --axis) {
         indices[axis - 1] = arith::RemUIOp::create(builder_, loc, linear, shape[axis - 1]);

@@ -1,6 +1,6 @@
 # Native CPU scaling benchmark
 
-This measures the fresh C++/LLVM implementation, separately from the released JavaScript prototype's [language comparisons](../../benchmarks/README.md). See the [measured report](../../benchmarks/results/native-cpu-2026-10-15.md).
+This measures the fresh C++/LLVM implementation, separately from the released JavaScript prototype's [language comparisons](../../benchmarks/README.md). See the [initial report](../../benchmarks/results/native-cpu-2026-10-15.md) and [scratch reuse comparison](../../benchmarks/results/native-cpu-2026-10-15-scratch.md).
 
 Build the compiler first, then run:
 
@@ -27,3 +27,19 @@ Timing includes invocation setup/cleanup for direct calls. Scheduled batches inc
 Each fresh process runs three warmup batches per configuration and nine measured rounds per workload. Configuration order is deterministically shuffled within each round. Three independent processes repeat this protocol. Tables report the median of the three process medians. JSON retains all 27 batch samples per cell, each process median, extrema, startup observations, allocation counters, cumulative peak-running/frame-result-byte statistics, toolchain/build commands, source/compiler/LLVM hashes, revision, and worktree status. Processes and workloads run sequentially. No CPU pinning, frequency control, timer subtraction, GC, or minimum-sample selection is used.
 
 This benchmarks real generated numerical code behind a private C++ TaskEntry adapter. It does **not** time source-generated spawn/await continuation machinery, nested scheduling, cancellation latency, remote/GPU execution, or compare against another language. There is no JIT; warmups address pool readiness, allocator state, and caches. Desktop scheduling, mixed performance/efficiency cores, thermal behavior, and the tiny sample times limit generalization. No performance thresholds are added to CTest.
+
+## Compare a compiler change
+
+Save the baseline executable before rebuilding the compiler, then pass that copy to the runner:
+
+```sh
+# After running the baseline version of the suite:
+cp benchmarks/.build/native-cpu/scaling benchmarks/.build/native-cpu/scaling-baseline
+# Make the compiler change, then rebuild it:
+cmake --build --preset native --parallel 2
+python3 native/benchmarks/run.py \
+  --baseline benchmarks/.build/native-cpu/scaling-baseline \
+  --output benchmarks/results/native-cpu-comparison.json
+```
+
+Use matching harness/workloads/runtime build options in both binaries. The runner rejects using the output executable itself as the baseline, since compilation overwrites that file. It runs baseline/current, current/baseline, baseline/current as sequential fresh-process pairs, retaining both sets of samples and executable hashes. This alternation reduces ordering bias; it does not control CPU placement or thermal state. Compiler lowering and checked-ABI source hashes are also recorded for the current build. Keep the original baseline report to identify its source/toolchain/LLVM provenance. An existing saved executable is optional; ordinary single-version runs still work.
