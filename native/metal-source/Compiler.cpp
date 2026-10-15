@@ -35,6 +35,7 @@ struct Value {
   bool gpu = false;
   std::uint32_t device = 0;
   std::optional<std::uint64_t> length = {};
+  bool scalarTask = false;
 };
 class Compiler {
   Module syntax;
@@ -154,6 +155,17 @@ class Compiler {
                       ".shape()[0]!=" + std::to_string(extent) + ") { task.fault(1," +
                       std::to_string(line) + "," + std::to_string(column) + "); return; }\n");
     }
+  }
+  bool reduction(std::size_t function) const {
+    const auto &fn = cpu.functions[function];
+    if (fn.resultType.tensor || fn.parameters.size() != 1 ||
+        !cpu.symbols[fn.parameters[0]].type.tensor || fn.body.size() != 1 || fn.body[0].binding)
+      return false;
+    auto *sum = std::get_if<ReduceSum>(&cpu.expressions[fn.result].operation);
+    if (!sum || sum->order != ReductionOrder::BalancedAdjacent || !sum->rowMajor)
+      return false;
+    auto *input = std::get_if<SymbolRead>(&cpu.expressions[sum->input].operation);
+    return input && input->symbol == fn.parameters[0];
   }
   Value expression(ExprId id, const TypeSyntax *annotation = nullptr) {
     if (depth >= 128)
@@ -338,14 +350,15 @@ class Compiler {
         auto input = expression(wait->operand);
         if (input.kind != Value::Task)
           reject(span, "await requires an owned task");
-        auto out = field("m::Buffer");
+        auto out = field(input.scalarTask ? "float" : "m::Buffer");
         auto value = input;
-        value.kind = Value::Tensor;
+        value.kind = input.scalarTask ? Value::Scalar : Value::Tensor;
+        if (input.scalarTask)
+          value.gpu = false;
         value.slot = next - 1;
         observed.insert(input.slot);
-        steps.push_back("if (!task.await(" + ref(input) +
-                        ")) return;\n"
-                        "if (!readBuffer(task, " +
+        steps.push_back("if (!task.await(" + ref(input) + ")) return;\n" +
+                        (input.scalarTask ? "if (!readScalar(task, " : "if (!readBuffer(task, ") +
                         ref(input) + ", f." + out + ")) return;\n");
         return value;
       }
@@ -360,9 +373,12 @@ class Compiler {
         if (found == cpuFunctions.end() || locals.contains(name) || name == "main")
           reject(span, "unknown or shadowed GPU function");
         const auto &entryFunction = cpu.functions[found->second];
-        if (call->arguments.size() != entryFunction.parameters.size() ||
-            !entryFunction.resultType.tensor)
-          reject(span, "GPU call arguments must match a tensor-returning function");
+        const bool sum = reduction(found->second);
+        if (call->arguments.size() != entryFunction.parameters.size())
+          reject(span, "GPU call argument count mismatch");
+        if (!entryFunction.resultType.tensor && !sum)
+          reject(span,
+                 "GPU scalar entries currently require a direct reduceSum of one tensor parameter");
         std::vector<Value> tensors, scalars;
         for (std::size_t i = 0; i < call->arguments.size(); ++i) {
           auto value = expression(call->arguments[i]);
@@ -404,18 +420,19 @@ class Compiler {
         auto kernel = field("m::Kernel"), out = field("TaskHandle");
         Value result{Value::Task, next - 1, true, target.device,
                      left.length ? left.length : right.length};
-        steps.push_back(
-            "auto target = " + device(target) + ";\nif (!target) { " + error("target.error()") +
-            " }\n"
-            "auto kernel = r.loadElementwiseKernel(f.directory + \"/kernel" +
-            std::to_string(entry->second) + ".metallib\", *target" + (legacy ? "" : signature) +
-            ");\n"
-            "if (!kernel) { " +
-            error("kernel.error()") + " }\nf." + kernel +
-            " = *kernel;\n"
-            "f." +
-            out + " = r.elementwise(task, f.group, f." + kernel + ", " + arguments + ");\n" +
-            check("f." + out));
+        steps.push_back("auto target = " + device(target) + ";\nif (!target) { " +
+                        error("target.error()") + " }\n" + std::string("auto kernel = r.") +
+                        (sum ? "loadReductionKernel" : "loadElementwiseKernel") +
+                        "(f.directory + \"/kernel" + std::to_string(entry->second) +
+                        ".metallib\", *target" + (legacy || sum ? "" : signature) +
+                        ");\n"
+                        "if (!kernel) { " +
+                        error("kernel.error()") + " }\nf." + kernel +
+                        " = *kernel;\n"
+                        "f." +
+                        out + " = r." + (sum ? "reduceSum" : "elementwise") + "(task, f.group, f." +
+                        kernel + ", " + (sum ? ref(left) : arguments) + ");\n" + check("f." + out));
+        result.scalarTask = sum;
         tasks.insert(result.slot);
         return result;
       }
@@ -424,6 +441,42 @@ class Compiler {
     reject(span, "unsupported expression in the Metal source supervisor");
   }
   std::string shader(std::size_t function) const {
+    if (reduction(function))
+      return R"(module attributes {gpu.container_module,
+  spirv.target_env = #spirv.target_env<#spirv.vce<v1.0, [Shader, Int64], [SPV_KHR_storage_buffer_storage_class]>, #spirv.resource_limits<>>} {
+  gpu.module @kernels {
+    gpu.func @kalandra_reduce_sum(%input: memref<?xf32>, %output: memref<?xf32>, %parameters: memref<1xi32>)
+      kernel attributes {spirv.entry_point_abi = #spirv.entry_point_abi<workgroup_size = [64, 1, 1]>} {
+      %block = gpu.block_id x
+      %thread = gpu.thread_id x
+      %width = gpu.block_dim x
+      %base = arith.muli %block, %width : index
+      %i = arith.addi %base, %thread : index
+      %zero = arith.constant 0 : index
+      %one = arith.constant 1 : index
+      %two = arith.constant 2 : index
+      %count = memref.load %parameters[%zero] : memref<1xi32>
+      %n = arith.index_cast %count : i32 to index
+      %left = arith.muli %i, %two : index
+      %valid = arith.cmpi ult, %left, %n : index
+      scf.if %valid {
+        %a = memref.load %input[%left] : memref<?xf32>
+        %right = arith.addi %left, %one : index
+        %paired = arith.cmpi ult, %right, %n : index
+        %result = scf.if %paired -> f32 {
+          %b = memref.load %input[%right] : memref<?xf32>
+          %sum = arith.addf %a, %b : f32
+          scf.yield %sum : f32
+        } else {
+          scf.yield %a : f32
+        }
+        memref.store %result, %output[%i] : memref<?xf32>
+      }
+      gpu.return
+    }
+  }
+}
+)";
     // Emit scalar typed SSA once per lane. Source names never become IR identifiers.
     std::ostringstream code;
     std::size_t counter = 0, callDepth = 0;
@@ -685,13 +738,7 @@ using namespace kalandra::runtime;
 namespace m = kalandra::runtime::metal;
  )" << declarations;
     if (scalarResult)
-      host << R"(
-bool copyScalar(Invocation &, void *out, const Invocation &, const void *in) noexcept {
-  std::memcpy(out,in,sizeof(float)); return true;
-}
-void destroyScalar(void *) noexcept {}
-const ValueLayout scalarLayout{0x4b414c46533332,sizeof(float),alignof(float),copyScalar,destroyScalar};
-)";
+      host << "const ValueLayout &scalarLayout=m::Runtime::scalarLayout();\n";
     host << R"(struct PacketData { m::Runtime *runtime; const char *directory; };
 struct Frame { m::Runtime *runtime; std::string directory; GroupHandle group; unsigned pc=0;
 )";
@@ -709,6 +756,11 @@ bool readBuffer(Task &task, TaskHandle child, m::Buffer &output) {
   alignas(m::Buffer) std::byte slot[sizeof(m::Buffer)];
   if (!task.read(child,m::Runtime::bufferLayout(),slot)) return false;
   auto *value=std::launder(reinterpret_cast<m::Buffer *>(slot)); output=*value; value->~Buffer(); return true;
+}
+bool readScalar(Task &task,TaskHandle child,float &output) {
+  auto failure=task.failure(child);
+  if(failure.kind!=TaskFailure::None) {task.fault(failure.code ? failure.code : std::int64_t(m::Error::Device)); return false;}
+  return task.read(child,m::Runtime::scalarLayout(),&output);
 }
 void resume(Task &task) {
   auto &f=*static_cast<Frame *>(task.frame()); auto &r=*f.runtime;

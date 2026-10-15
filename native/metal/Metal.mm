@@ -98,7 +98,7 @@ struct KernelState {
   std::shared_ptr<State> registry;
   std::uint32_t index;
   id<MTLComputePipelineState> pipeline;
-  bool elementwise;
+  bool elementwise, reduction;
   std::optional<ElementwiseSignature> signature;
 };
 namespace {
@@ -204,7 +204,7 @@ std::expected<std::shared_ptr<Storage>, Error> allocateStorage(const std::shared
 }
 } // namespace
 struct Bridge {
-  enum class Kind { Upload, Download, Compute, Elementwise };
+  enum class Kind { Upload, Download, Compute, Elementwise, Reduce };
   struct PacketData {
     std::shared_ptr<State> state;
     Buffer input;
@@ -216,9 +216,15 @@ struct Bridge {
     std::array<std::uint32_t, 8> scalarBits{};
     std::uint32_t tensorCount = 2, scalarCount = 0;
   };
+  // uint32 indexing permits at most 32 tree levels, each with output and count storage.
+  struct ReductionScratch {
+    std::array<std::shared_ptr<MetalAllocation>, 64> retained{};
+  };
   struct Frame {
     PacketData packet;
     Buffer result;
+    float scalar = 0;
+    std::unique_ptr<ReductionScratch> scratch;
     std::shared_ptr<MetalAllocation> staging;
     Error error = Error::Device;
     bool succeeded = false, started = false, active = false;
@@ -239,7 +245,77 @@ struct Bridge {
   }
   static void destroy(void *frame) noexcept { static_cast<Frame *>(frame)->~Frame(); }
   static const ValueLayout layout;
-  static const TaskEntry entry;
+  static bool copyScalar(Invocation &, void *out, const Invocation &, const void *in) noexcept {
+    std::memcpy(out, in, sizeof(float));
+    return true;
+  }
+  static void destroyScalar(void *) noexcept {}
+  static const ValueLayout scalarLayout;
+  static const TaskEntry entry, reductionEntry;
+  static id<MTLCommandBuffer> reductionCommand(Frame &f) {
+    auto state = f.packet.state;
+    auto index = f.packet.kernel.state_->index;
+    if (!state->permit())
+      return nil;
+    f.scratch.reset(new (std::nothrow) ReductionScratch{});
+    if (!f.scratch)
+      return nil;
+    auto readback = allocateMetal(state, index, 4, true);
+    if (!readback) {
+      f.error = readback.error();
+      return nil;
+    }
+    f.staging = *readback;
+    id<MTLCommandBuffer> command = state->permit() ? [state->queues[index] commandBuffer] : nil;
+    if (!command)
+      return nil;
+    id<MTLBuffer> input = f.packet.input.storage_->metal->buffer;
+    std::uint64_t length = f.packet.input.bytes() / 4;
+    unsigned retained = 0;
+    while (length > 1) {
+      const auto next = (length + 1) / 2;
+      auto output = allocateMetal(state, index, next * 4, false);
+      if (!output) {
+        f.error = output.error();
+        return nil;
+      }
+      f.scratch->retained[retained++] = *output;
+      auto count = allocateMetal(state, index, 4, true);
+      if (!count) {
+        f.error = count.error();
+        return nil;
+      }
+      f.scratch->retained[retained++] = *count;
+      auto bits = std::uint32_t(length);
+      std::memcpy((*count)->buffer.contents, &bits, 4);
+      id<MTLComputeCommandEncoder> encoder =
+          state->permit() ? [command computeCommandEncoder] : nil;
+      if (!encoder)
+        return nil;
+      [encoder setComputePipelineState:f.packet.kernel.state_->pipeline];
+      [encoder setBuffer:input offset:0 atIndex:0];
+      [encoder setBuffer:(*output)->buffer offset:0 atIndex:1];
+      [encoder setBuffer:(*count)->buffer offset:0 atIndex:2];
+      [encoder dispatchThreadgroups:MTLSizeMake((next + 63) / 64, 1, 1)
+              threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
+      [encoder endEncoding];
+      input = (*output)->buffer;
+      length = next;
+    }
+    // Only the final scalar crosses back to the host. No CPU arithmetic fallback.
+    id<MTLBlitCommandEncoder> blit = state->permit() ? [command blitCommandEncoder] : nil;
+    if (!blit)
+      return nil;
+    [blit copyFromBuffer:input
+             sourceOffset:0
+                 toBuffer:f.staging->buffer
+        destinationOffset:0
+                     size:4];
+    [blit endEncoding];
+    if (!state->permit())
+      return nil;
+    return command;
+  }
   static void resume(Task &task) {
     @autoreleasepool {
       auto &f = *static_cast<Frame *>(task.frame());
@@ -251,11 +327,15 @@ struct Bridge {
             auto *destination = const_cast<Storage *>(f.result.storage_.get());
             std::memcpy(destination->host.data(), f.staging->buffer.contents, destination->size);
           }
+          if (f.packet.kind == Kind::Reduce)
+            std::memcpy(&f.scalar, f.staging->buffer.contents, 4);
           f.staging.reset();
+          f.scratch.reset();
           f.packet.input = Buffer{};
           f.packet.right = Buffer{};
           f.packet.kernel = Kernel{};
-          task.complete(&f.result);
+          task.complete(f.packet.kind == Kind::Reduce ? static_cast<const void *>(&f.scalar)
+                                                      : &f.result);
         } else {
           task.fault(static_cast<std::int64_t>(f.error));
         }
@@ -270,12 +350,32 @@ struct Bridge {
       std::uint32_t index = source->deviceIndex;
       const bool compute = f.packet.kind == Kind::Compute || f.packet.kind == Kind::Elementwise;
       const bool upload = f.packet.kind == Kind::Upload;
+      const bool reduce = f.packet.kind == Kind::Reduce;
+      if (reduce) {
+        const auto &kernel = f.packet.kernel.state_;
+        if (!kernel || !kernel->reduction || source->format != Format::Float32 ||
+            source->rank != 1 || source->size / 4 > UINT32_MAX) {
+          task.fault(std::int64_t(Error::Invalid));
+          return;
+        }
+        index = kernel->index;
+        if (kernel->registry != state || !source->device || source->state != state ||
+            source->deviceIndex != index) {
+          task.fault(std::int64_t(Error::Residency));
+          return;
+        }
+        if (!source->size) {
+          task.complete(&f.scalar);
+          return;
+        }
+      }
       if (compute) {
         const auto &kernel = f.packet.kernel.state_;
         const auto &right = f.packet.right.storage_;
         const auto signature =
             kernel && kernel->signature ? *kernel->signature : ElementwiseSignature{2, 0};
-        if (!kernel || kernel->elementwise != (f.packet.kind == Kind::Elementwise) ||
+        if (!kernel || kernel->reduction ||
+            kernel->elementwise != (f.packet.kind == Kind::Elementwise) ||
             f.packet.tensorCount != signature.tensors ||
             f.packet.scalarCount != signature.scalars || std::uint32_t(f.packet.operation) > 2 ||
             source->format != Format::Float32 || source->rank != 1 ||
@@ -303,11 +403,11 @@ struct Bridge {
           task.fault(std::int64_t(Error::Residency));
           return;
         }
-      } else if (source->device && source->state != state) {
+      } else if (!reduce && source->device && source->state != state) {
         task.fault(std::int64_t(Error::Residency));
         return;
       }
-      if (!compute && source->device == upload) {
+      if (!compute && !reduce && source->device == upload) {
         task.complete(&f.packet.input);
         return;
       }
@@ -319,101 +419,112 @@ struct Bridge {
         }
       } while (!state->inFlight.compare_exchange_weak(count, count + 1));
       f.active = true;
-      auto result =
-          allocateStorage(state, f.packet.input.shape(), source->format, upload || compute, index);
-      if (!result) {
-        task.fault(std::int64_t(result.error()));
-        return;
-      }
-      f.result = Buffer(*result);
-      if (!source->size) {
-        task.complete(&f.result);
-        return;
-      }
       id<MTLCommandBuffer> command = nil;
-      if (compute) {
-        const auto &kernel = f.packet.kernel.state_;
-        const auto tensors = kernel->signature ? kernel->signature->tensors : 2;
-        const auto parameterBytes = kernel->signature ? 4 * (1 + kernel->signature->scalars) : 8;
-        auto parametersBuffer = allocateMetal(state, index, parameterBytes, true);
-        if (!parametersBuffer) {
-          task.fault(std::int64_t(parametersBuffer.error()));
-          return;
-        }
-        f.staging = *parametersBuffer;
-        if (!state->permit() || !(command = [state->queues[index] commandBuffer])) {
-          task.fault(std::int64_t(Error::Allocation));
-          return;
-        }
-        id<MTLComputeCommandEncoder> encoder =
-            state->permit() ? [command computeCommandEncoder] : nil;
-        if (!encoder) {
-          task.fault(std::int64_t(Error::Allocation));
-          return;
-        }
-        [encoder setComputePipelineState:kernel->pipeline];
-        [encoder setBuffer:source->metal->buffer offset:0 atIndex:0];
-        if (tensors == 2)
-          [encoder setBuffer:f.packet.right.storage_->metal->buffer offset:0 atIndex:1];
-        [encoder setBuffer:(*result)->metal->buffer offset:0 atIndex:tensors];
-        std::array<std::uint32_t, 9> parameters{};
-        parameters[0] = std::uint32_t(source->size / 4);
-        if (kernel->signature)
-          std::copy_n(f.packet.scalarBits.begin(), f.packet.scalarCount, parameters.begin() + 1);
-        else
-          parameters[1] = std::uint32_t(f.packet.operation);
-        std::memcpy(f.staging->buffer.contents, parameters.data(), parameterBytes);
-        [encoder setBuffer:f.staging->buffer offset:0 atIndex:tensors + 1];
-        [encoder dispatchThreadgroups:MTLSizeMake((std::uint64_t(parameters[0]) + 63) / 64, 1, 1)
-                threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
-        [encoder endEncoding];
-        if (!state->permit()) {
-          task.fault(std::int64_t(Error::Allocation));
-          return;
-        }
-      } else {
-        auto staging = allocateMetal(state, index, source->size, true);
-        if (!staging) {
-          task.fault(std::int64_t(staging.error()));
-          return;
-        }
-        f.staging = *staging;
-        if (upload)
-          std::memcpy(f.staging->buffer.contents, source->hostView().data(), source->size);
-        if (!state->permit()) {
-          task.fault(std::int64_t(Error::Allocation));
-          return;
-        }
-        command = [state->queues[index] commandBuffer];
+      if (reduce) {
+        f.error = Error::Allocation;
+        command = reductionCommand(f);
         if (!command) {
-          task.fault(std::int64_t(Error::Allocation));
+          task.fault(std::int64_t(f.error));
           return;
         }
-        if (!state->permit()) {
-          task.fault(std::int64_t(Error::Allocation));
+        f.error = Error::Device;
+      } else {
+        auto result = allocateStorage(state, f.packet.input.shape(), source->format,
+                                      upload || compute, index);
+        if (!result) {
+          task.fault(std::int64_t(result.error()));
           return;
         }
-        id<MTLBlitCommandEncoder> blit = [command blitCommandEncoder];
-        if (!blit) {
-          task.fault(std::int64_t(Error::Allocation));
+        f.result = Buffer(*result);
+        if (!source->size) {
+          task.complete(&f.result);
           return;
         }
-        if (upload)
-          [blit copyFromBuffer:f.staging->buffer
-                   sourceOffset:0
-                       toBuffer:(*result)->metal->buffer
-              destinationOffset:0
-                           size:source->size];
-        else
-          [blit copyFromBuffer:source->metal->buffer
-                   sourceOffset:0
-                       toBuffer:f.staging->buffer
-              destinationOffset:0
-                           size:source->size];
-        [blit endEncoding];
-        if (!state->permit()) {
-          task.fault(std::int64_t(Error::Allocation));
-          return;
+
+        if (compute) {
+          const auto &kernel = f.packet.kernel.state_;
+          const auto tensors = kernel->signature ? kernel->signature->tensors : 2;
+          const auto parameterBytes = kernel->signature ? 4 * (1 + kernel->signature->scalars) : 8;
+          auto parametersBuffer = allocateMetal(state, index, parameterBytes, true);
+          if (!parametersBuffer) {
+            task.fault(std::int64_t(parametersBuffer.error()));
+            return;
+          }
+          f.staging = *parametersBuffer;
+          if (!state->permit() || !(command = [state->queues[index] commandBuffer])) {
+            task.fault(std::int64_t(Error::Allocation));
+            return;
+          }
+          id<MTLComputeCommandEncoder> encoder =
+              state->permit() ? [command computeCommandEncoder] : nil;
+          if (!encoder) {
+            task.fault(std::int64_t(Error::Allocation));
+            return;
+          }
+          [encoder setComputePipelineState:kernel->pipeline];
+          [encoder setBuffer:source->metal->buffer offset:0 atIndex:0];
+          if (tensors == 2)
+            [encoder setBuffer:f.packet.right.storage_->metal->buffer offset:0 atIndex:1];
+          [encoder setBuffer:(*result)->metal->buffer offset:0 atIndex:tensors];
+          std::array<std::uint32_t, 9> parameters{};
+          parameters[0] = std::uint32_t(source->size / 4);
+          if (kernel->signature)
+            std::copy_n(f.packet.scalarBits.begin(), f.packet.scalarCount, parameters.begin() + 1);
+          else
+            parameters[1] = std::uint32_t(f.packet.operation);
+          std::memcpy(f.staging->buffer.contents, parameters.data(), parameterBytes);
+          [encoder setBuffer:f.staging->buffer offset:0 atIndex:tensors + 1];
+          [encoder dispatchThreadgroups:MTLSizeMake((std::uint64_t(parameters[0]) + 63) / 64, 1, 1)
+                  threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
+          [encoder endEncoding];
+          if (!state->permit()) {
+            task.fault(std::int64_t(Error::Allocation));
+            return;
+          }
+        } else {
+          auto staging = allocateMetal(state, index, source->size, true);
+          if (!staging) {
+            task.fault(std::int64_t(staging.error()));
+            return;
+          }
+          f.staging = *staging;
+          if (upload)
+            std::memcpy(f.staging->buffer.contents, source->hostView().data(), source->size);
+          if (!state->permit()) {
+            task.fault(std::int64_t(Error::Allocation));
+            return;
+          }
+          command = [state->queues[index] commandBuffer];
+          if (!command) {
+            task.fault(std::int64_t(Error::Allocation));
+            return;
+          }
+          if (!state->permit()) {
+            task.fault(std::int64_t(Error::Allocation));
+            return;
+          }
+          id<MTLBlitCommandEncoder> blit = [command blitCommandEncoder];
+          if (!blit) {
+            task.fault(std::int64_t(Error::Allocation));
+            return;
+          }
+          if (upload)
+            [blit copyFromBuffer:f.staging->buffer
+                     sourceOffset:0
+                         toBuffer:(*result)->metal->buffer
+                destinationOffset:0
+                             size:source->size];
+          else
+            [blit copyFromBuffer:source->metal->buffer
+                     sourceOffset:0
+                         toBuffer:f.staging->buffer
+                destinationOffset:0
+                             size:source->size];
+          [blit endEncoding];
+          if (!state->permit()) {
+            task.fault(std::int64_t(Error::Allocation));
+            return;
+          }
         }
       }
       auto completion = task.suspendExternal();
@@ -452,6 +563,18 @@ const TaskEntry Bridge::entry{1,
                               Bridge::destroy,
                               Bridge::resume,
                               &Bridge::layout};
+const ValueLayout Bridge::scalarLayout{0x4b414c46533332, sizeof(float), alignof(float),
+                                       Bridge::copyScalar, Bridge::destroyScalar};
+const TaskEntry Bridge::reductionEntry{1,
+                                       0x4d4554414c03,
+                                       sizeof(PacketData),
+                                       alignof(PacketData),
+                                       sizeof(Frame),
+                                       alignof(Frame),
+                                       Bridge::construct,
+                                       Bridge::destroy,
+                                       Bridge::resume,
+                                       &Bridge::scalarLayout};
 Device::Device(std::shared_ptr<State> state, std::uint32_t index) noexcept
     : state_(std::move(state)), index_(index) {}
 std::uint64_t Device::identity() const noexcept {
@@ -641,9 +764,10 @@ Runtime::loadElementwiseKernel(std::string_view path, Device device,
                                ElementwiseSignature signature) noexcept {
   return loadKernel(path, std::move(device), true, signature);
 }
-std::expected<Kernel, Error>
-Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
-                    std::optional<ElementwiseSignature> signature) noexcept {
+std::expected<Kernel, Error> Runtime::loadKernel(std::string_view path, Device device,
+                                                 bool elementwise,
+                                                 std::optional<ElementwiseSignature> signature,
+                                                 bool reduction) noexcept {
   @autoreleasepool {
     if (signature && (!elementwise || signature->tensors < 1 || signature->tensors > 2 ||
                       signature->scalars > 8))
@@ -667,7 +791,8 @@ Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
       if (!library)
         return std::unexpected(Error::Invalid);
       id<MTLFunction> function = [library
-          newFunctionWithName:signature
+          newFunctionWithName:reduction ? @"kalandra_reduce_sum"
+                              : signature
                                   ? @"kalandra_elementwise_v2"
                                   : (elementwise ? @"kalandra_elementwise" : @"strict_binary32")];
       if (!function)
@@ -711,14 +836,34 @@ Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
       if (!state_->permit())
         return std::unexpected(Error::Allocation);
       Kernel kernel;
-      kernel.state_ =
-          std::make_shared<KernelState>(state_, device.index_, pipeline, elementwise, signature);
+      kernel.state_ = std::make_shared<KernelState>(state_, device.index_, pipeline, elementwise,
+                                                    reduction, signature);
       return kernel;
     } catch (...) {
       return std::unexpected(Error::Allocation);
     }
   }
 }
+std::expected<Kernel, Error> Runtime::loadReductionKernel(std::string_view path,
+                                                          Device device) noexcept {
+  return loadKernel(path, std::move(device), true, ElementwiseSignature{1, 0}, true);
+}
+TaskHandle Runtime::reduceSum(TaskCore &core, GroupHandle group, Kernel kernel,
+                              Buffer input) noexcept {
+  Bridge::PacketData packet{
+      state_, std::move(input), {}, Bridge::Kind::Reduce, std::move(kernel), BinaryOperation::Add,
+      {}};
+  return core.submit(group, Bridge::reductionEntry,
+                     {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::reduceSum(Task &task, GroupHandle group, Kernel kernel, Buffer input) noexcept {
+  Bridge::PacketData packet{
+      state_, std::move(input), {}, Bridge::Kind::Reduce, std::move(kernel), BinaryOperation::Add,
+      {}};
+  return task.spawn(group, Bridge::reductionEntry,
+                    {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
+}
+const ValueLayout &Runtime::scalarLayout() noexcept { return Bridge::scalarLayout; }
 TaskHandle Runtime::compute(TaskCore &core, GroupHandle group, Kernel kernel,
                             BinaryOperation operation, Buffer left, Buffer right) noexcept {
   Bridge::PacketData packet{
