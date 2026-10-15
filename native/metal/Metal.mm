@@ -88,6 +88,11 @@ struct Storage {
       --state->hostBackings;
   }
 };
+struct KernelState {
+  std::shared_ptr<State> registry;
+  std::uint32_t index;
+  id<MTLComputePipelineState> pipeline;
+};
 namespace {
 std::expected<std::uint64_t, Error> tensorBytes(std::span<const std::int64_t> shape,
                                                 Format format) {
@@ -191,11 +196,15 @@ std::expected<std::shared_ptr<Storage>, Error> allocateStorage(const std::shared
 }
 } // namespace
 struct Bridge {
+  enum class Kind { Upload, Download, Compute };
   struct PacketData {
     std::shared_ptr<State> state;
     Buffer input;
     Device target;
-    bool upload;
+    Kind kind;
+    Kernel kernel;
+    BinaryOperation operation = BinaryOperation::Add;
+    Buffer right;
   };
   struct Frame {
     PacketData packet;
@@ -228,12 +237,14 @@ struct Bridge {
       if (f.started) {
         if (f.succeeded) {
           // Materialize a host result on the scheduler, never in the Metal callback.
-          if (!f.packet.upload) {
+          if (f.packet.kind == Kind::Download) {
             auto *destination = const_cast<Storage *>(f.result.storage_.get());
             std::memcpy(destination->host.data(), f.staging->buffer.contents, destination->size);
           }
           f.staging.reset();
           f.packet.input = Buffer{};
+          f.packet.right = Buffer{};
+          f.packet.kernel = Kernel{};
           task.complete(&f.result);
         } else {
           task.fault(static_cast<std::int64_t>(f.error));
@@ -247,7 +258,26 @@ struct Bridge {
         return;
       }
       std::uint32_t index = source->deviceIndex;
-      if (f.packet.upload) {
+      const bool compute = f.packet.kind == Kind::Compute;
+      const bool upload = f.packet.kind == Kind::Upload;
+      if (compute) {
+        const auto &kernel = f.packet.kernel.state_;
+        const auto &right = f.packet.right.storage_;
+        if (!kernel || !right || std::uint32_t(f.packet.operation) > 2 ||
+            source->format != Format::Float32 || right->format != Format::Float32 ||
+            source->rank != 1 || right->rank != 1 || source->size != right->size ||
+            source->size / 4 > UINT32_MAX) {
+          task.fault(std::int64_t(Error::Invalid));
+          return;
+        }
+        index = kernel->index;
+        if (kernel->registry != state || !source->device || !right->device ||
+            source->state != state || right->state != state || source->deviceIndex != index ||
+            right->deviceIndex != index) {
+          task.fault(std::int64_t(Error::Residency));
+          return;
+        }
+      } else if (upload) {
         if (f.packet.target.state_ != state) {
           task.fault(std::int64_t(Error::Residency));
           return;
@@ -261,7 +291,7 @@ struct Bridge {
         task.fault(std::int64_t(Error::Residency));
         return;
       }
-      if (source->device == f.packet.upload) {
+      if (!compute && source->device == upload) {
         task.complete(&f.packet.input);
         return;
       }
@@ -274,7 +304,7 @@ struct Bridge {
       } while (!state->inFlight.compare_exchange_weak(count, count + 1));
       f.active = true;
       auto result =
-          allocateStorage(state, f.packet.input.shape(), source->format, f.packet.upload, index);
+          allocateStorage(state, f.packet.input.shape(), source->format, upload || compute, index);
       if (!result) {
         task.fault(std::int64_t(result.error()));
         return;
@@ -284,48 +314,84 @@ struct Bridge {
         task.complete(&f.result);
         return;
       }
-      auto staging = allocateMetal(state, index, source->size, true);
-      if (!staging) {
-        task.fault(std::int64_t(staging.error()));
-        return;
-      }
-      f.staging = *staging;
-      if (f.packet.upload)
-        std::memcpy(f.staging->buffer.contents, source->host.data(), source->size);
-      if (!state->permit()) {
-        task.fault(std::int64_t(Error::Allocation));
-        return;
-      }
-      id<MTLCommandBuffer> command = [state->queues[index] commandBuffer];
-      if (!command) {
-        task.fault(std::int64_t(Error::Allocation));
-        return;
-      }
-      if (!state->permit()) {
-        task.fault(std::int64_t(Error::Allocation));
-        return;
-      }
-      id<MTLBlitCommandEncoder> blit = [command blitCommandEncoder];
-      if (!blit) {
-        task.fault(std::int64_t(Error::Allocation));
-        return;
-      }
-      if (f.packet.upload)
-        [blit copyFromBuffer:f.staging->buffer
-                 sourceOffset:0
-                     toBuffer:(*result)->metal->buffer
-            destinationOffset:0
-                         size:source->size];
-      else
-        [blit copyFromBuffer:source->metal->buffer
-                 sourceOffset:0
-                     toBuffer:f.staging->buffer
-            destinationOffset:0
-                         size:source->size];
-      [blit endEncoding];
-      if (!state->permit()) {
-        task.fault(std::int64_t(Error::Allocation));
-        return;
+      id<MTLCommandBuffer> command = nil;
+      if (compute) {
+        auto parametersBuffer = allocateMetal(state, index, 8, true);
+        if (!parametersBuffer) {
+          task.fault(std::int64_t(parametersBuffer.error()));
+          return;
+        }
+        f.staging = *parametersBuffer;
+        if (!state->permit() || !(command = [state->queues[index] commandBuffer])) {
+          task.fault(std::int64_t(Error::Allocation));
+          return;
+        }
+        id<MTLComputeCommandEncoder> encoder =
+            state->permit() ? [command computeCommandEncoder] : nil;
+        if (!encoder) {
+          task.fault(std::int64_t(Error::Allocation));
+          return;
+        }
+        const auto &kernel = f.packet.kernel.state_;
+        [encoder setComputePipelineState:kernel->pipeline];
+        [encoder setBuffer:source->metal->buffer offset:0 atIndex:0];
+        [encoder setBuffer:f.packet.right.storage_->metal->buffer offset:0 atIndex:1];
+        [encoder setBuffer:(*result)->metal->buffer offset:0 atIndex:2];
+        const std::uint32_t parameters[] = {std::uint32_t(source->size / 4),
+                                            std::uint32_t(f.packet.operation)};
+        std::memcpy(f.staging->buffer.contents, parameters, sizeof(parameters));
+        [encoder setBuffer:f.staging->buffer offset:0 atIndex:3];
+        [encoder dispatchThreadgroups:MTLSizeMake((std::uint64_t(parameters[0]) + 63) / 64, 1, 1)
+                threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
+        [encoder endEncoding];
+        if (!state->permit()) {
+          task.fault(std::int64_t(Error::Allocation));
+          return;
+        }
+      } else {
+        auto staging = allocateMetal(state, index, source->size, true);
+        if (!staging) {
+          task.fault(std::int64_t(staging.error()));
+          return;
+        }
+        f.staging = *staging;
+        if (upload)
+          std::memcpy(f.staging->buffer.contents, source->host.data(), source->size);
+        if (!state->permit()) {
+          task.fault(std::int64_t(Error::Allocation));
+          return;
+        }
+        command = [state->queues[index] commandBuffer];
+        if (!command) {
+          task.fault(std::int64_t(Error::Allocation));
+          return;
+        }
+        if (!state->permit()) {
+          task.fault(std::int64_t(Error::Allocation));
+          return;
+        }
+        id<MTLBlitCommandEncoder> blit = [command blitCommandEncoder];
+        if (!blit) {
+          task.fault(std::int64_t(Error::Allocation));
+          return;
+        }
+        if (upload)
+          [blit copyFromBuffer:f.staging->buffer
+                   sourceOffset:0
+                       toBuffer:(*result)->metal->buffer
+              destinationOffset:0
+                           size:source->size];
+        else
+          [blit copyFromBuffer:source->metal->buffer
+                   sourceOffset:0
+                       toBuffer:f.staging->buffer
+              destinationOffset:0
+                           size:source->size];
+        [blit endEncoding];
+        if (!state->permit()) {
+          task.fault(std::int64_t(Error::Allocation));
+          return;
+        }
       }
       auto completion = task.suspendExternal();
       if (!completion)
@@ -445,19 +511,102 @@ std::expected<Buffer, Error> Runtime::hostTensor(std::span<const std::byte> data
 }
 TaskHandle Runtime::upload(TaskCore &core, GroupHandle group, Buffer buffer,
                            Device target) noexcept {
-  Bridge::PacketData packet{state_, std::move(buffer), std::move(target), true};
+  Bridge::PacketData packet{
+      state_, std::move(buffer), std::move(target), Bridge::Kind::Upload, {}, BinaryOperation::Add,
+      {}};
   return core.submit(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
 }
 TaskHandle Runtime::download(TaskCore &core, GroupHandle group, Buffer buffer) noexcept {
-  Bridge::PacketData packet{state_, std::move(buffer), {}, false};
+  Bridge::PacketData packet{state_, std::move(buffer),    {}, Bridge::Kind::Download,
+                            {},     BinaryOperation::Add, {}};
   return core.submit(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
 }
 TaskHandle Runtime::upload(Task &task, GroupHandle group, Buffer buffer, Device target) noexcept {
-  Bridge::PacketData packet{state_, std::move(buffer), std::move(target), true};
+  Bridge::PacketData packet{
+      state_, std::move(buffer), std::move(target), Bridge::Kind::Upload, {}, BinaryOperation::Add,
+      {}};
   return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
 }
 TaskHandle Runtime::download(Task &task, GroupHandle group, Buffer buffer) noexcept {
-  Bridge::PacketData packet{state_, std::move(buffer), {}, false};
+  Bridge::PacketData packet{state_, std::move(buffer),    {}, Bridge::Kind::Download,
+                            {},     BinaryOperation::Add, {}};
+  return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
+}
+std::expected<Kernel, Error> Runtime::loadBinary32Kernel(std::string_view path,
+                                                         Device device) noexcept {
+  @autoreleasepool {
+    if (device.state_ != state_)
+      return std::unexpected(Error::Residency);
+    if (path.empty() || path.find('\0') != std::string_view::npos)
+      return std::unexpected(Error::Invalid);
+    try {
+      if (!state_->permit())
+        return std::unexpected(Error::Allocation);
+      NSString *name = [[NSString alloc] initWithBytes:path.data()
+                                                length:path.size()
+                                              encoding:NSUTF8StringEncoding];
+      if (!name)
+        return std::unexpected(Error::Invalid);
+      NSError *error = nil;
+      id<MTLLibrary> library =
+          [state_->devices[device.index_] newLibraryWithURL:[NSURL fileURLWithPath:name]
+                                                      error:&error];
+      if (!library)
+        return std::unexpected(Error::Invalid);
+      id<MTLFunction> function = [library newFunctionWithName:@"strict_binary32"];
+      if (!function)
+        return std::unexpected(Error::Invalid);
+      MTLComputePipelineReflection *reflection = nil;
+      id<MTLComputePipelineState> pipeline = [state_->devices[device.index_]
+          newComputePipelineStateWithFunction:function
+                                      options:MTLPipelineOptionBufferTypeInfo |
+                                              MTLPipelineOptionBindingInfo
+                                   reflection:&reflection
+                                        error:&error];
+      if (!pipeline || pipeline.maxTotalThreadsPerThreadgroup < 64)
+        return std::unexpected(Error::Unavailable);
+      // Validate the private dynamic-array ABI, not the numerical contents of arbitrary shaders.
+      if (reflection.bindings.count != 4)
+        return std::unexpected(Error::Invalid);
+      bool seen[4] = {};
+      for (id<MTLBinding> argument in reflection.bindings) {
+        if (argument.type != MTLBindingTypeBuffer || argument.index >= 4 || seen[argument.index] ||
+            ((id<MTLBufferBinding>)argument).bufferDataSize != (argument.index == 3 ? 8 : 4))
+          return std::unexpected(Error::Invalid);
+        id<MTLBufferBinding> binding = (id<MTLBufferBinding>)argument;
+        auto members = binding.bufferStructType.members;
+        if (binding.bufferAlignment != 4 || members.count != 1)
+          return std::unexpected(Error::Invalid);
+        MTLStructMember *member = members[0];
+        MTLArrayType *array = member.arrayType;
+        if (member.offset != 0 || member.dataType != MTLDataTypeArray || !array ||
+            array.stride != 4 || array.arrayLength != (argument.index == 3 ? 2 : 1) ||
+            array.elementType != (argument.index == 3 ? MTLDataTypeUInt : MTLDataTypeFloat))
+          return std::unexpected(Error::Invalid);
+        seen[argument.index] = true;
+      }
+      if (!state_->permit())
+        return std::unexpected(Error::Allocation);
+      Kernel kernel;
+      kernel.state_ = std::make_shared<KernelState>(state_, device.index_, pipeline);
+      return kernel;
+    } catch (...) {
+      return std::unexpected(Error::Allocation);
+    }
+  }
+}
+TaskHandle Runtime::compute(TaskCore &core, GroupHandle group, Kernel kernel,
+                            BinaryOperation operation, Buffer left, Buffer right) noexcept {
+  Bridge::PacketData packet{
+      state_,    std::move(left), {}, Bridge::Kind::Compute, std::move(kernel),
+      operation, std::move(right)};
+  return core.submit(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::compute(Task &task, GroupHandle group, Kernel kernel, BinaryOperation operation,
+                            Buffer left, Buffer right) noexcept {
+  Bridge::PacketData packet{
+      state_,    std::move(left), {}, Bridge::Kind::Compute, std::move(kernel),
+      operation, std::move(right)};
   return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
 }
 const ValueLayout &Runtime::bufferLayout() noexcept { return Bridge::layout; }

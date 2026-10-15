@@ -11,6 +11,7 @@ namespace kalandra::runtime::metal {
 struct State;
 struct Storage;
 struct Bridge;
+struct KernelState;
 enum class Error : std::int64_t {
   Allocation = 2,
   Invalid = 3,
@@ -61,6 +62,18 @@ private:
   friend class Runtime;
   friend struct Bridge;
 };
+// Trusted, compiler-produced binary32 kernel artifact; not an arbitrary shader API.
+enum class BinaryOperation : std::uint32_t { Add, Multiply, MultiplyAddLeft };
+class Kernel final {
+public:
+  Kernel() = default;
+  explicit operator bool() const noexcept { return bool(state_); }
+
+private:
+  std::shared_ptr<KernelState> state_;
+  friend class Runtime;
+  friend struct Bridge;
+};
 class Runtime final {
 public:
   static std::expected<std::unique_ptr<Runtime>, Error> create(Options = {}) noexcept;
@@ -73,6 +86,9 @@ public:
   TaskHandle download(TaskCore &, GroupHandle, Buffer) noexcept;
   TaskHandle upload(Task &, GroupHandle, Buffer, Device) noexcept;
   TaskHandle download(Task &, GroupHandle, Buffer) noexcept;
+  std::expected<Kernel, Error> loadBinary32Kernel(std::string_view metallib, Device) noexcept;
+  TaskHandle compute(TaskCore &, GroupHandle, Kernel, BinaryOperation, Buffer, Buffer) noexcept;
+  TaskHandle compute(Task &, GroupHandle, Kernel, BinaryOperation, Buffer, Buffer) noexcept;
   static const ValueLayout &bufferLayout() noexcept;
   Stats stats() const noexcept;
   // Private, synchronized test controls. Reset allocation failure only when

@@ -115,6 +115,24 @@ add_custom_command(OUTPUT "${OUT}/strict.lowered.mlir" "${OUT}/strict.metallib" 
   COMMAND xcrun --toolchain "${KALANDRA_METAL_TOOLCHAIN}" metal "${OUT}/strict.air" -o "${OUT}/strict.metallib"
   DEPENDS strict-gpu.mlir kalandra-metal-strict kalandra-metal-extract toolchain.json
   BYPRODUCTS "${OUT}/strict.converted.mlir" "${OUT}/strict.kernel.mlir" "${OUT}/strict.spv" "${OUT}/strict.air" VERBATIM)
+add_custom_command(OUTPUT "${OUT}/runtime.lowered.mlir" "${OUT}/runtime.metallib" "${OUT}/runtime.spvasm" "${OUT}/runtime.reflection.json" "${OUT}/runtime.metal"
+  COMMAND $<TARGET_FILE:kalandra-metal-strict> "${CMAKE_CURRENT_SOURCE_DIR}/runtime-gpu.mlir" "${OUT}/runtime.lowered.mlir"
+  COMMAND "${MLIR_OPT}" "${OUT}/runtime.lowered.mlir" --verify-each
+    "--pass-pipeline=builtin.module(canonicalize,cse,convert-gpu-to-spirv,spirv.module(spirv-lower-abi-attrs,spirv-update-vce))"
+    -o "${OUT}/runtime.converted.mlir"
+  COMMAND $<TARGET_FILE:kalandra-metal-extract> "${OUT}/runtime.converted.mlir" "${OUT}/runtime.kernel.mlir" --metal-compiler-rounding
+  COMMAND "${MLIR_TRANSLATE}" --no-implicit-module --serialize-spirv "${OUT}/runtime.kernel.mlir" -o "${OUT}/runtime.spv"
+  COMMAND "${VALIDATOR}" --target-env vulkan1.0 "${OUT}/runtime.spv"
+  COMMAND "${DISASSEMBLER}" "${OUT}/runtime.spv" -o "${OUT}/runtime.spvasm"
+  COMMAND "${CROSS}" "${OUT}/runtime.spv" --reflect --output "${OUT}/runtime.reflection.json"
+  COMMAND "${CROSS}" "${OUT}/runtime.spv" --msl --msl-version "${LOCK_strictMslVersion}" --output "${OUT}/runtime.metal"
+  COMMAND xcrun --toolchain "${KALANDRA_METAL_TOOLCHAIN}" --sdk macosx metal
+    "-std=${LOCK_strictMetalLanguageVersion}" -fno-fast-math -ffp-contract=off "-fmodules-cache-path=${OUT}/module-cache"
+    -c "${OUT}/runtime.metal" -o "${OUT}/runtime.air"
+  COMMAND xcrun --toolchain "${KALANDRA_METAL_TOOLCHAIN}" metal "${OUT}/runtime.air" -o "${OUT}/runtime.metallib"
+  DEPENDS runtime-gpu.mlir kalandra-metal-strict kalandra-metal-extract toolchain.json
+  BYPRODUCTS "${OUT}/runtime.converted.mlir" "${OUT}/runtime.kernel.mlir" "${OUT}/runtime.spv" "${OUT}/runtime.air" VERBATIM)
+add_custom_target(native-metal-runtime-shader ALL DEPENDS "${OUT}/runtime.metallib")
 add_custom_command(OUTPUT "${OUT}/strict-cpu.ll"
   COMMAND $<TARGET_FILE:kalandra-metal-strict> "${CMAKE_CURRENT_SOURCE_DIR}/strict-cpu.mlir" "${OUT}/strict-cpu.lowered.mlir"
   COMMAND "${MLIR_OPT}" "${OUT}/strict-cpu.lowered.mlir" --verify-each --canonicalize --cse
@@ -157,4 +175,9 @@ add_custom_target(native-metal-strict ALL DEPENDS ${STRICT_OUTPUTS})
 if(BUILD_TESTING)
   add_test(NAME metal-strict-artifacts COMMAND "${CMAKE_COMMAND}" "-DOUTPUT_DIR=${OUT}" -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyStrict.cmake")
   add_test(NAME metal-strict-rejected COMMAND "${CMAKE_COMMAND}" "-DLOWERER=$<TARGET_FILE:kalandra-metal-strict>" "-DOUTPUT_DIR=${OUT}" -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyStrictRejected.cmake")
+endif()
+
+if(BUILD_TESTING)
+  add_test(NAME metal-runtime-artifacts COMMAND "${CMAKE_COMMAND}" "-DOUTPUT_DIR=${OUT}"
+    -DKERNEL_PREFIX=runtime -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyStrict.cmake")
 endif()

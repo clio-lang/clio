@@ -1,6 +1,6 @@
-# Apple device and transfer runtime
+# Apple device, transfer, and compute runtime
 
-This optional native C++23/Objective-C++ library implements retained tensor storage and asynchronous CPU↔Metal transfers through the existing task scheduler. It has been exercised on an Apple M2 Max. No GPU arithmetic or `.kalandra` device-placement lowering is introduced here.
+This optional native C++23/Objective-C++ library implements retained tensor storage and asynchronous CPU↔Metal transfers through the existing task scheduler. It has been exercised on an Apple M2 Max. It also dispatches a private strict binary32 elementwise kernel through managed tasks. `.kalandra` device-placement lowering is not implemented yet.
 
 ## Build
 
@@ -14,7 +14,7 @@ ctest --preset native
 
 The runtime does not require SPIRV-Cross, SPIRV-Tools, or the offline Metal shader compiler. Those are dependencies of the separate [shader toolchain proof](../metal-proof/README.md). Both options default to off in a fresh CPU-only configuration. Execution of the Metal tests requires access to an actual Metal device; missing device access is a test failure, not a skip or CPU fallback.
 
-The default suite has 43 tests, including four new platform-independent external-completion suites. Enabling the transfer runtime adds four tests; enabling both Metal options gives 63 tests. The transfer tests build the bridge, scheduler, and harness in debug, optimized, ASan/UBSan, and separate TSan variants. Metal API validation is enabled. Host sanitizers do not instrument GPU/driver accesses, and no shader executes in the transfer tests.
+The default suite has 43 tests, including four new platform-independent external-completion suites. Enabling the transfer runtime adds four tests; enabling both Metal options gives 68 tests, including four managed compute variants and a dynamic-kernel artifact check. The transfer tests build the bridge, scheduler, and harness in debug, optimized, ASan/UBSan, and separate TSan variants. Metal API validation is enabled. Host sanitizers do not instrument GPU/driver accesses, and no shader executes in the transfer tests. The separate compute tests execute the MLIR-generated strict shader on the GPU.
 
 ## Private native interface
 
@@ -28,13 +28,31 @@ The default suite has 43 tests, including four new platform-independent external
 
 The first bridge is a trusted compiler/runtime C++ interface. Input spans must actually reference valid memory; checking their declared length cannot validate forged native pointers. It is not a public memory-safe FFI or a stable compiler-generated GPU ABI. Its Buffer ownership is implemented by retained opaque backings and the task value-layout destructor; it does not pretend that device buffers are allocations in the CPU `Invocation` ledger.
 
+## Managed compute
+
+With both Metal options enabled, the build produces `native/metal-proof/runtime.metallib` through the existing strict integer MLIR → SPIR-V → SPIRV-Cross → Metal pipeline. Its dynamic arrays replace the numerical proof fixture's fixed capacity. The runtime itself still loads precompiled libraries and does not depend on shader compiler tools at execution time.
+
+```sh
+cmake --preset native -DKALANDRA_BUILD_METAL_RUNTIME=ON -DKALANDRA_BUILD_METAL_PROOF=ON
+cmake --build --preset native
+ctest --preset native -R 'native-metal|metal-runtime-artifacts'
+```
+
+`loadBinary32Kernel(path, device)` loads the trusted generated artifact and checks its entry point, four buffer bindings, element layouts, and minimum workgroup capacity using Metal reflection. The artifact test separately checks the SPIR-V entry/workgroup, runtime-array layout, Int64 operations, and absence of floating arithmetic. Reflection cannot prove an arbitrary shader's numerical behavior or memory safety. This is a private compiler/runtime interface, not an untrusted shader loader or a stable extension ABI.
+
+`compute(core, group, kernel, operation, left, right)` and the native-task overload return ordinary buffer-valued tasks. The first subset accepts equal-length rank-one float32 device buffers in the kernel's own runtime/device registry. It supports addition, multiplication, and separately rounded `(left * right) + left`; these private operation selectors are not new language syntax. Wrong ranks, formats, shapes, operation tags, empty handles, host inputs, and foreign registries fail explicitly before command submission. There is no upload or CPU fallback inside compute. Length is bounded by uint32 indexing, the byte budget, and Metal buffer limits; no 4,096-element fixture limit remains.
+
+Every result has a fresh immutable device backing. Await/read does not download it; an explicit download is required for host access. Empty vectors produce an empty device result without dispatch. Nonempty dispatches use guarded 64-thread workgroups and an eight-byte retained parameter buffer charged to the same byte budget as tensor/staging storage. Compute and transfer tasks share command limits and the external-completion protocol below. Inputs, pipeline, parameters, and unpublished output remain alive through acknowledgement, including parent cancellation and core destruction.
+
+The shader preserves strict float32 through integer arithmetic. This establishes correctness for the tested subset, not a GPU performance claim. General tensor operations, source-generated placed functions, source error mapping, and CPU tensor ABI integration remain subsequent work.
+
 ## Completion and lifetime
 
-A transfer prepares all storage and encoders before reserving an external completion lease. The scheduler checks cancellation at that reservation under its mutex: a cancellation already recorded prevents submission; after reservation the backend owes an acknowledgement, even if cancellation arrives before the driver receives the command. This is the submission decision's linearization point. There is no claim that cancellation can retract a subsequent Metal commit or preempt submitted work.
+A transfer or compute task prepares all storage and encoders before reserving an external completion lease. The scheduler checks cancellation at that reservation under its mutex: a cancellation already recorded prevents submission; after reservation the backend owes an acknowledgement, even if cancellation arrives before the driver receives the command. This is the submission decision's linearization point. There is no claim that cancellation can retract a subsequent Metal commit or preempt submitted work.
 
 The completion handler records command status and signals the one-shot capability. It does not execute Kalandra code, perform the download's host copy, or reclaim a task frame. The scheduler resumes the task only after its earlier execution lease has returned. Successful downloads materialize the host result on that resumed worker; only then can the result be published. Failure/cancellation paths discard unpublished results and staging during scheduler cleanup. The private completion-hold probe can deliberately block test callbacks; normal callbacks do not wait for GPU execution or task settlement.
 
-Frame pinning protects inputs, staging, and destination storage until the command has finished. Cancellation/deadlines prevent successful publication and group settlement until acknowledgement and cleanup. Buffers can outlive their producing group or the Runtime facade because they retain their registry/backing. Dropping the Runtime facade also does not invalidate an admitted transfer packet. Core destruction cancels unfinished groups and waits for outstanding external acknowledgements. A backend must always signal a reserved token; losing it would prevent settlement.
+Frame pinning protects inputs, pipeline/parameters, staging, and destination storage until the command has finished. Cancellation/deadlines prevent successful publication and group settlement until acknowledgement and cleanup. Buffers can outlive their producing group or the Runtime facade because they retain their registry/backing. Dropping the Runtime facade also does not invalidate an admitted transfer packet. Core destruction cancels unfinished groups and waits for outstanding external acknowledgements. A backend must always signal a reserved token; losing it would prevent settlement.
 
 The scheduler uses one event flag/epoch per admitted record and its existing bounded ready/deferred queues. Signals neither allocate an event queue nor create a thread per transfer. Duplicate, stale-generation, previous-epoch, and post-destruction tokens are rejected. A late token holds only a weak reference to scheduler state. `step` stays nonblocking; `drain` may wait on a condition variable for external completion when it still has a step budget. CPU worker threads are free to run other tasks. External waiting has no wall-clock timeout guarantee.
 
@@ -56,4 +74,10 @@ Native supervisors spawn upload and download children, suspend through await/joi
 
 [External-completion tests](../tests/ExternalTaskTests.cpp) separately cover worker availability, completion arriving before resume returns, cancellation before reservation, cancellation/deadline/fault while pinned, repeated suspension epochs, duplicate/stale tokens, and destruction racing a foreign completion thread. Both suites include TSan without suppressing bridge or scheduler races.
 
-The [Apple GPU contract](../../docs/design/apple-gpu.md) tracks the next gates. Transfer correctness does not fix the original hardware shader's strict float32 failures. A separate [integer arithmetic lowering](../../docs/design/strict-gpu-float32.md) now passes scalar add/multiply checks; it is not yet connected to compute tasks. Kernel admission, source placement/transfer lowering, general tensor/CPU ABI interoperation, GPU compute, and NVIDIA support remain unimplemented.
+The [Apple GPU contract](../../docs/design/apple-gpu.md) tracks the next gates. Transfer correctness does not fix the original hardware shader's strict float32 failures. The [integer arithmetic lowering](../../docs/design/strict-gpu-float32.md) is now connected to managed compute tasks through the private ABI described above. Source placement/transfer lowering, general tensor/CPU ABI interoperation, GPU matmul/reductions, and NVIDIA support remain unimplemented.
+
+[Compute conformance](ComputeTests.cpp) runs the complete 583,238-pair IEEE corpus against APFloat for all three operations through actual managed uploads, dispatches, and downloads. Prefix/tail cases span zero to 8,193 elements with 1/2/4 workers, nested CPU supervisors, and a one-slot ready queue. Repeated observations and results retained after group release bring the total to 2,121,882 APFloat comparisons per build variant, with zero mismatches. NaNs compare by classification; other outputs compare exact bits. Input buffers are downloaded and checked unchanged. The debug, optimized, ASan/UBSan, and TSan harnesses use the same generated shader; sanitizers instrument host code, not the GPU or prebuilt LLVM reference library.
+
+Compute tests also cover incompatible fixed-capacity artifacts, invalid paths/device registries, explicit admission failures, every compute allocation/encoder checkpoint, failed completion, parameter-byte and command budgets, 16 concurrent commands, cancellation/deadline acknowledgement, nested parent cancellation, pending core destruction, dropped facade/kernel/input handles, and counter cleanup. Group deadline failures remain `DeadlineExceeded`; their cancelled children follow the existing `Cancelled` task outcome contract. These are conformance runs, not benchmarks.
+
+The [recorded compute evidence](../metal-proof/evidence/managed-compute-2026-10-15.json) identifies the tested sources, generated artifacts, toolchain, comparison counts, and complete 68-test run.

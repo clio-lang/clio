@@ -1,6 +1,6 @@
 # Strict binary32 arithmetic on the GPU
 
-Status: scalar float32 addition and multiplication now have an integer MLIR lowering, verified through both CPU LLVM and Metal on an Apple M2 Max. Separately rounded multiply-then-add passes the same checks. This is a numerical backend component and toolchain proof; source-level GPU placement, compute tasks, tensor kernels, and general GPU arithmetic admission are not enabled by it.
+Status: scalar float32 addition and multiplication now have an integer MLIR lowering, verified through both CPU LLVM and Metal on an Apple M2 Max. Separately rounded multiply-then-add passes the same checks. This numerical backend component now also feeds private managed elementwise compute tasks. Source-level GPU placement, matmul/reduction kernels, and general GPU arithmetic admission remain unimplemented.
 
 ## Why an integer lowering
 
@@ -44,7 +44,7 @@ The deterministic corpus contains **583,238 pairs**:
 
 Each CPU variant executes add, multiply, and separately rounded multiply-then-add: **1,749,714 comparisons**. The GPU variants additionally repeat prefixes at zero, small sizes, and workgroup boundaries, giving **1,787,832 comparisons in 489 command submissions per run**. All results match both references, with NaNs compared by classification. Inputs, prefix/suffix sentinels, and inactive output tails remain unchanged.
 
-The GPU harness uses private buffers and explicit staging copies, a 64-thread workgroup, and a fixed maximum of 4,096 values per dispatch. That capacity is a proof fixture limit, not a language tensor limit. Its host semaphore is a harness wait; the separate [managed transfer runtime](../../native/metal/README.md) retains its scheduler completion mechanism. This proof does not yet connect kernel dispatch to that runtime.
+The GPU harness uses private buffers and explicit staging copies, a 64-thread workgroup, and a fixed maximum of 4,096 values per dispatch. That capacity is a proof fixture limit, not a language tensor limit. Its host semaphore is a harness wait; the separate [managed transfer runtime](../../native/metal/README.md) retains its scheduler completion mechanism. A subsequent dynamic-array artifact, `runtime-gpu.mlir`, now connects the same arithmetic lowering to managed compute tasks through a separate private ABI. It runs the full corpus plus zero/tail/beyond-4,096 cases through task uploads, dispatches, and downloads; see the [runtime conformance](../../native/metal/README.md#managed-compute). The original fixed-size proof remains an independent numerical control.
 
 ## Verification and reproducibility
 
