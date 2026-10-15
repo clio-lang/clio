@@ -117,7 +117,7 @@ static Packet packet(const Input &in) { return {88, &in, sizeof(in)}; }
 static void clean(TaskCore &core) {
   const auto stats = core.stats();
   CHECK(!stats.retainedBytes && !stats.retainedOwners && !stats.unfinished && !stats.records &&
-        !stats.groups && !stats.ready && !stats.pending);
+        !stats.groups && !stats.ready && !stats.pending && !stats.maintenanceTasks);
 }
 static void observe(TaskCore &core, TaskHandle task, float expected) {
   Invocation destination;
@@ -159,9 +159,10 @@ static void probe(Task &task) {
 static const TaskEntry probeEntry{
     1,         88,      sizeof(Input), alignof(Input), sizeof(Frame), alignof(Frame),
     construct, destroy, probe,         &layout};
-static void leases(Mode mode) {
+static void leases(Mode mode, unsigned records) {
   TaskLimits limits;
   limits.workers = 4;
+  limits.records = records;
   auto core = TaskCore::create(limits);
   CHECK(core);
   Shared shared{core.get(), mode};
@@ -172,6 +173,8 @@ static void leases(Mode mode) {
   std::jthread runner([&] { CHECK(core->drain()); });
   until([&] { return shared.probeDone.load(); });
   CHECK(shared.runs == 1 && !core->settled(task));
+  until([&] { return core->settled(other); });
+  CHECK(core->stats().maintenanceTasks == (mode == Mode::CompleteLease ? 1U : 0U));
   // Only the probe is allowed to have been destroyed so far.
   CHECK(shared.destroyed <= 1);
   shared.release = true;
@@ -313,30 +316,33 @@ static void idleAndBudgetWakeups() {
 // New submissions must wake workers, not the blocked drain controller.
 static void activeAdmissions() {
   for (unsigned repeat = 0; repeat < 10; ++repeat) {
-    TaskLimits limits;
-    limits.workers = 4;
-    auto core = TaskCore::create(limits);
-    CHECK(core);
-    Shared blocked{core.get(), Mode::Poll}, parallel{core.get(), Mode::Overlap};
-    Input blocking{&blocked, 0}, input{&parallel, 71};
-    auto root = core->openRoot();
-    auto waiting = core->submit(root, entry, packet(blocking));
-    std::jthread controller([&] { CHECK(core->drain()); });
-    until([&] { return blocked.entered.load() == 1; });
-    auto independent = core->openRoot();
-    auto a = core->submit(independent, entry, packet(input));
-    auto b = core->submit(independent, entry, packet(input));
-    until([&] { return core->settled(a) && core->settled(b); });
-    CHECK(parallel.entered == 2 && !core->settled(waiting));
-    observe(*core, a, 71);
-    observe(*core, b, 71);
-    CHECK(core->close(independent));
-    until([&] { return core->settled(independent); });
-    CHECK(core->release(independent) && core->cancel(root));
-    controller.join();
-    CHECK(blocked.acknowledged && core->failure(waiting).kind == TaskFailure::Cancelled);
-    CHECK(core->release(root));
-    clean(*core);
+    for (unsigned records : {4U, 128U}) {
+      TaskLimits limits;
+      limits.workers = 4;
+      limits.records = records;
+      auto core = TaskCore::create(limits);
+      CHECK(core);
+      Shared blocked{core.get(), Mode::Poll}, parallel{core.get(), Mode::Overlap};
+      Input blocking{&blocked, 0}, input{&parallel, 71};
+      auto root = core->openRoot();
+      auto waiting = core->submit(root, entry, packet(blocking));
+      std::jthread controller([&] { CHECK(core->drain()); });
+      until([&] { return blocked.entered.load() == 1; });
+      auto independent = core->openRoot();
+      auto a = core->submit(independent, entry, packet(input));
+      auto b = core->submit(independent, entry, packet(input));
+      until([&] { return core->settled(a) && core->settled(b); });
+      CHECK(parallel.entered == 2 && !core->settled(waiting));
+      observe(*core, a, 71);
+      observe(*core, b, 71);
+      CHECK(core->close(independent));
+      until([&] { return core->settled(independent); });
+      CHECK(core->release(independent) && core->cancel(root));
+      controller.join();
+      CHECK(blocked.acknowledged && core->failure(waiting).kind == TaskFailure::Cancelled);
+      CHECK(core->release(root));
+      clean(*core);
+    }
   }
 }
 // Three live callbacks yield behind a full one-slot ring. Returning leases
@@ -585,8 +591,10 @@ static void pinnedRead() {
 }
 int main() {
   overlap();
-  leases(Mode::YieldLease);
-  leases(Mode::CompleteLease);
+  for (unsigned records : {4U, 128U})
+    leases(Mode::YieldLease, records);
+  for (unsigned records : {4U, 128U})
+    leases(Mode::CompleteLease, records);
   migration();
   cancellation(false);
   cancellation(true);

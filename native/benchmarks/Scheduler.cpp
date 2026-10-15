@@ -71,7 +71,7 @@ static std::array<double, 5> batch(TaskCore &core, unsigned hops) {
 #endif
   auto stats = core.stats();
   check(!stats.records && !stats.groups && !stats.unfinished && !stats.retainedOwners &&
-        !stats.retainedBytes && !stats.ready && !stats.pending);
+        !stats.retainedBytes && !stats.ready && !stats.pending && !stats.maintenanceTasks);
   std::array<double, 5> elapsed;
   for (unsigned i = 0; i < elapsed.size(); ++i)
     elapsed[i] = std::chrono::duration<double, std::micro>(time[i + 1] - time[i]).count();
@@ -100,9 +100,9 @@ int main(int argc, char **argv) {
   check(s.resumes == 16 * hops && s.publications == 16 && p.allocationAttempts == 32 &&
         p.frees == 32 && p.steps >= s.resumes && p.recordVisits && !p.readyVisits &&
         p.readyPushes == s.resumes && p.runnableEvents == s.resumes);
-  // This workload has at most sixteen unfinished records and one live group.
-  // Spare capacity must not count as a visited task/group entry.
-  check(p.recordVisits <= 16 * p.maintenancePasses && p.groupVisits <= p.maintenancePasses);
+  // Task scans are needed only while a waiter or settlement is present.
+  check(p.taskPasses + p.idleTaskPasses == p.maintenancePasses && p.idleTaskPasses &&
+        p.recordVisits <= 16 * p.taskPasses && p.groupVisits <= p.maintenancePasses);
   check(p.notifications == p.workerSignals + p.workerBroadcasts + p.controllerSignals);
   if (limits.workers > 1)
     check(p.workerBroadcasts == 1 && p.controllerSignals && p.controllerWaitReturns);
@@ -111,7 +111,8 @@ int main(int argc, char **argv) {
   std::printf("{\"locks\":%llu,\"contended_locks\":%llu,\"lock_wait_ns\":%llu,"
               "\"notifications\":%llu,\"waits\":%llu,\"wait_returns\":%llu,\"wait_ns\":%llu,"
               "\"allocation_attempts\":%llu,\"frees\":%llu,\"allocator_ns\":%llu,"
-              "\"maintenance_passes\":%llu,\"record_visits\":%llu,\"group_visits\":%llu,"
+              "\"maintenance_passes\":%llu,\"task_passes\":%llu,\"idle_task_passes\":%llu,"
+              "\"record_visits\":%llu,\"group_visits\":%llu,"
               "\"ready_visits\":%llu,\"steps\":%llu,\"resumes\":%llu,"
               "\"worker_signals\":%llu,\"worker_broadcasts\":%llu,\"controller_signals\":%llu,"
               "\"worker_wait_returns\":%llu,\"controller_wait_returns\":%llu,"
@@ -122,7 +123,8 @@ int main(int argc, char **argv) {
               (unsigned long long)p.waits, (unsigned long long)p.waitReturns,
               (unsigned long long)p.waitNs, (unsigned long long)p.allocationAttempts,
               (unsigned long long)p.frees, (unsigned long long)p.allocatorNs,
-              (unsigned long long)p.maintenancePasses, (unsigned long long)p.recordVisits,
+              (unsigned long long)p.maintenancePasses, (unsigned long long)p.taskPasses,
+              (unsigned long long)p.idleTaskPasses, (unsigned long long)p.recordVisits,
               (unsigned long long)p.groupVisits, (unsigned long long)p.readyVisits,
               (unsigned long long)p.steps, (unsigned long long)s.resumes,
               (unsigned long long)p.workerSignals, (unsigned long long)p.workerBroadcasts,

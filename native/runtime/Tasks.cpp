@@ -70,7 +70,12 @@ public:
     if (start >= size_)
       return size_;
     auto word = start / 64;
-    auto bits = words_[word] & (~std::uint64_t{0} << (start % 64));
+    auto bits = words_[word] >> (start % 64);
+    // Contiguous occupied slots (and a lone group) need no bit-position decode.
+    if (bits & 1)
+      return start;
+    if (bits)
+      return start + std::countr_zero(bits);
     while (!bits) {
       if (++word == words_.size())
         return size_;
@@ -336,6 +341,7 @@ struct TaskCore::Impl {
     auto &record = tasks[index];
     if (record.state == State::WaitingTask || record.state == State::WaitingGroup) {
       record.state = State::Runnable;
+      --stats.maintenanceTasks;
       record.dependency = {};
       record.groupDependency = {};
     }
@@ -487,6 +493,7 @@ struct TaskCore::Impl {
     if (task.execution.status()) {
       task.failure = invocationFailure(task.execution);
       task.state = State::Settling;
+      ++stats.maintenanceTasks;
       failGroup(h, task.failure);
     } else {
       task.state = State::Runnable;
@@ -585,6 +592,13 @@ struct TaskCore::Impl {
         group.settled = true;
         changed = true;
       }
+      // Runnable, running and prepared records cannot advance maintenance.
+      // Keep group settlement above independent of this task-only shortcut.
+      if (!stats.maintenanceTasks) {
+        TASK_PROBE(idleTaskPasses, 1);
+        continue;
+      }
+      TASK_PROBE(taskPasses, 1);
       for (auto i = unfinishedTasks.next(0); i < unfinishedTasks.size();
            i = unfinishedTasks.next(i + 1)) {
         TASK_PROBE(recordVisits, 1);
@@ -658,6 +672,7 @@ struct TaskCore::Impl {
         task.cleaning = false;
         unlinkPending(i);
         task.state = State::Settled;
+        --stats.maintenanceTasks;
         unfinishedTasks.erase(i);
         if (task.counted) {
           --get(task.group)->outstanding;
@@ -675,6 +690,9 @@ struct TaskCore::Impl {
     auto &task = tasks[slot];
     unlinkPending(slot);
     task.failure = failure;
+    if (task.state != State::Settling && task.state != State::WaitingTask &&
+        task.state != State::WaitingGroup)
+      ++stats.maintenanceTasks;
     task.state = State::Settling;
     if (failure.kind != TaskFailure::None) {
       failGroup(task.group, failure);
@@ -921,6 +939,7 @@ bool Task::await(TaskHandle h) noexcept {
   auto &task = core_.tasks[slot_];
   task.dependency = h;
   task.state = State::WaitingTask;
+  ++core_.stats.maintenanceTasks;
   return false;
 }
 bool Task::join(GroupHandle h) noexcept {
@@ -941,6 +960,7 @@ bool Task::join(GroupHandle h) noexcept {
   auto &task = core_.tasks[slot_];
   task.groupDependency = h;
   task.state = State::WaitingGroup;
+  ++core_.stats.maintenanceTasks;
   return false;
 }
 bool Task::read(TaskHandle h, const ValueLayout &layout, void *output) noexcept {

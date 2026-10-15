@@ -1,5 +1,7 @@
 # Native scheduler: occupancy-indexed maintenance
 
+Follow-up: [task-maintenance fast path](native-scheduler-2026-10-15-dense.md) addresses the small-table regression. This report retains the preceding measurements.
+
 Primary maintenance now skips empty reserved slots and already-settled task records. At the default 128-record/32-group capacity, the paired single-worker sixteen-task batch improves **11.99 → 6.99 µs**. At 1024/256 with eight resumes per task it improves **226.69 → 22.36 µs**. Fully occupied minimum-size tables show a bookkeeping regression; this is not an across-the-board speedup.
 
 ## Implementation and bounds

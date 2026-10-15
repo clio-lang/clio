@@ -25,7 +25,16 @@ def main():
                         default=ROOT / f'benchmarks/results/native-scheduler-{datetime.date.today().isoformat()}.json')
     parser.add_argument('--baseline', type=pathlib.Path,
                         help='Saved timing executable for alternating before/after processes')
+    parser.add_argument('--reference', type=pathlib.Path,
+                        help='Optional older executable for a three-way regression comparison')
     args = parser.parse_args()
+    if args.reference:
+        args.reference = args.reference.resolve()
+        if not args.baseline:
+            parser.error('--reference requires --baseline')
+        if (args.reference == (BUILD / 'timing').resolve() or not args.reference.is_file()
+                or args.reference == args.baseline.resolve()):
+            parser.error('--reference must be a distinct existing saved executable')
     if args.baseline:
         args.baseline = args.baseline.resolve()
         if args.baseline == (BUILD / 'timing').resolve() or not args.baseline.is_file():
@@ -40,7 +49,7 @@ def main():
                    ROOT / 'native/runtime/Runtime.cpp', '-o', BUILD / name]
         run(command)
         commands.append(list(map(str, command)))
-    configs = list(itertools.product([1, 2, 4, 8], [(16, 1), (128, 1), (16, 32), (128, 32), (1024, 256)], [1, 8]))
+    configs = list(itertools.product([1, 2, 4, 8], [(16, 1), (32, 1), (33, 1), (128, 1), (16, 32), (128, 32), (1024, 256)], [1, 8]))
     randomizer = random.Random(20261015)
     trials = []
     for trial in range(3):
@@ -52,7 +61,10 @@ def main():
             variants = [('current', BUILD / 'timing')]
             if args.baseline:
                 variants.insert(0, ('baseline', args.baseline))
-                if trial % 2:
+                if args.reference:
+                    variants.insert(0, ('reference', args.reference))
+                    variants = variants[trial:] + variants[:trial]
+                elif trial % 2:
                     variants.reverse()
             for name, binary in variants:
                 observations[name] = [json.loads(line) for line in run([binary, *arguments]).splitlines()]
@@ -60,7 +72,8 @@ def main():
             profile = json.loads(run([BUILD / 'profile', *arguments]))
             trials.append(dict(trial=trial, workers=workers, records=records, groups=groups,
                                hops=hops, samples=samples, profile=profile,
-                               **({'baseline_samples': observations['baseline']} if args.baseline else {})))
+                               **({'baseline_samples': observations['baseline']} if args.baseline else {}),
+                               **({'reference_samples': observations['reference']} if args.reference else {})))
     phases = ['admit_us', 'execute_us', 'observe_us', 'close_us', 'release_us']
     summary = []
     for workers, (records, groups), hops in sorted(configs):
@@ -72,13 +85,15 @@ def main():
                    median_us=statistics.median(medians), process_medians_us=medians)
         row['phases_us'] = {p: statistics.median(statistics.median(s[p] for s in t['samples'])
                                                 for t in observations) for p in phases}
-        if args.baseline:
-            baseline_medians = [statistics.median(sum(s[p] for p in phases) for s in t['baseline_samples'])
-                                for t in observations]
-            row['baseline_median_us'] = statistics.median(baseline_medians)
-            row['baseline_process_medians_us'] = baseline_medians
-            row['baseline_phases_us'] = {
-                p: statistics.median(statistics.median(s[p] for s in t['baseline_samples'])
+        for name, enabled in [('baseline', args.baseline), ('reference', args.reference)]:
+            if not enabled:
+                continue
+            other_medians = [statistics.median(sum(s[p] for p in phases) for s in t[name + '_samples'])
+                             for t in observations]
+            row[name + '_median_us'] = statistics.median(other_medians)
+            row[name + '_process_medians_us'] = other_medians
+            row[name + '_phases_us'] = {
+                p: statistics.median(statistics.median(s[p] for s in t[name + '_samples'])
                                      for t in observations) for p in phases}
         summary.append(row)
         print(f'{workers} workers {records}/{groups} slots {hops} resumes: {row["median_us"]:.2f} us')
@@ -102,6 +117,9 @@ def main():
                                      baseline=(dict(path=str(args.baseline),
                                                     binary_sha256=hashlib.sha256(args.baseline.read_bytes()).hexdigest())
                                                if args.baseline else None),
+                                     reference=(dict(path=str(args.reference),
+                                                     binary_sha256=hashlib.sha256(args.reference.read_bytes()).hexdigest())
+                                                if args.reference else None),
                                      source_sha256={p: hashlib.sha256((ROOT / p).read_bytes()).hexdigest()
                                                     for p in sources}, trials=trials, summary=summary),
                                  indent=2) + '\n')

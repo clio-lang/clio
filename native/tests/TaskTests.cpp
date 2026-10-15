@@ -324,7 +324,8 @@ static const TaskEntry lexicalEntry{1,
 static void empty(TaskCore &core) {
   auto stats = core.stats();
   CHECK(stats.unfinished == 0 && stats.records == 0 && stats.groups == 0 &&
-        stats.retainedBytes == 0 && stats.retainedOwners == 0 && !stats.ready && !stats.pending);
+        stats.retainedBytes == 0 && stats.retainedOwners == 0 && !stats.ready && !stats.pending &&
+        !stats.maintenanceTasks);
 }
 int main() {
   CHECK(!TaskCore::create({0, 1, 1, 1, 1, 1}));
@@ -351,24 +352,57 @@ int main() {
     CHECK(!core->observe(task, scalar, stale, &value) && stale.status() == 3);
     empty(*core);
   }
-  for (unsigned depth : {12U, 70U}) {
-    for (bool yield : {false, true}) {
-      TaskLimits limits;
-      limits.ready = 1;
-      limits.groups = 128;
-      limits.inFlight = 128;
-      limits.depth = 100;
-      auto narrow = TaskCore::create(limits);
-      auto root = narrow->openRoot();
-      ChainInput input{depth, yield};
-      auto task = narrow->submit(root, chainEntry(), {40, &input, sizeof(input)});
-      CHECK(narrow->drain());
-      float result = 0;
-      Invocation receiver;
-      CHECK(narrow->observe(task, scalar, receiver, &result) && result == depth + 1);
-      CHECK(narrow->close(root) && narrow->drain() && narrow->release(root));
-      empty(*narrow);
+  for (unsigned capacity : {16U, 32U, 33U, 128U}) {
+    for (unsigned depth : {12U, 20U, 70U}) {
+      if (depth >= capacity)
+        continue;
+      for (bool yield : {false, true}) {
+        TaskLimits limits;
+        limits.records = capacity;
+        limits.ready = 1;
+        limits.groups = 128;
+        limits.inFlight = 128;
+        limits.depth = 100;
+        auto narrow = TaskCore::create(limits);
+        auto root = narrow->openRoot();
+        ChainInput input{depth, yield};
+        auto task = narrow->submit(root, chainEntry(), {40, &input, sizeof(input)});
+        CHECK(narrow->drain());
+        float result = 0;
+        Invocation receiver;
+        CHECK(narrow->observe(task, scalar, receiver, &result) && result == depth + 1);
+        CHECK(narrow->close(root) && narrow->drain() && narrow->release(root));
+        empty(*narrow);
+      }
     }
+  }
+  // Only waits and unpublished settlements keep task maintenance active.
+  // Cancellation wakes a waiting parent without losing or duplicating the count.
+  for (unsigned action = 0; action < 3; ++action) {
+    TaskLimits limits;
+    limits.records = 16;
+    auto small = TaskCore::create(limits);
+    auto root = small->openRoot();
+    ChainInput input{1, false};
+    auto task = small->submit(root, chainEntry(), {40, &input, sizeof(input)});
+    CHECK(small->stats().maintenanceTasks == 0);
+    CHECK(small->step() && small->stats().maintenanceTasks == 1);
+    if (action) {
+      CHECK(small->cancel(root, action == 2));
+      CHECK(small->stats().maintenanceTasks == 0);
+      CHECK(small->drain());
+      CHECK(small->failure(root).kind ==
+            (action == 2 ? TaskFailure::DeadlineExceeded : TaskFailure::Cancelled));
+    } else {
+      CHECK(small->step() && small->stats().maintenanceTasks == 0);
+      CHECK(small->drain());
+      Invocation receiver;
+      float result = 0;
+      CHECK(small->observe(task, scalar, receiver, &result) && result == 2);
+      CHECK(small->close(root) && small->drain());
+    }
+    CHECK(small->release(root));
+    empty(*small);
   }
   // Sparse high slots cross bitmap words, including the emergency rejection
   // records. Reuse cleared words and reject stale handles after every cycle.
