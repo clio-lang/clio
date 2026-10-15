@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Separate uninstrumented scheduler phase timings from optional diagnostic probes."""
+import argparse
 import datetime
 import hashlib
 import itertools
@@ -19,6 +20,16 @@ def run(command):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--output', type=pathlib.Path,
+                        default=ROOT / f'benchmarks/results/native-scheduler-{datetime.date.today().isoformat()}.json')
+    parser.add_argument('--baseline', type=pathlib.Path,
+                        help='Saved timing executable for alternating before/after processes')
+    args = parser.parse_args()
+    if args.baseline:
+        args.baseline = args.baseline.resolve()
+        if args.baseline == (BUILD / 'timing').resolve() or not args.baseline.is_file():
+            parser.error('--baseline must be an existing saved copy of the timing executable')
     BUILD.mkdir(parents=True, exist_ok=True)
     lock = json.loads((ROOT / 'native/toolchain-proof/toolchain.json').read_text())
     clang = pathlib.Path(lock['defaultLlvmRoot']) / 'bin/clang++'
@@ -37,10 +48,19 @@ def main():
         randomizer.shuffle(configs)
         for workers, (records, groups), hops in configs:
             arguments = [workers, records, groups, hops]
-            samples = [json.loads(line) for line in run([BUILD / 'timing', *arguments]).splitlines()]
+            observations = {}
+            variants = [('current', BUILD / 'timing')]
+            if args.baseline:
+                variants.insert(0, ('baseline', args.baseline))
+                if trial % 2:
+                    variants.reverse()
+            for name, binary in variants:
+                observations[name] = [json.loads(line) for line in run([binary, *arguments]).splitlines()]
+            samples = observations['current']
             profile = json.loads(run([BUILD / 'profile', *arguments]))
             trials.append(dict(trial=trial, workers=workers, records=records, groups=groups,
-                               hops=hops, samples=samples, profile=profile))
+                               hops=hops, samples=samples, profile=profile,
+                               **({'baseline_samples': observations['baseline']} if args.baseline else {})))
     phases = ['admit_us', 'execute_us', 'observe_us', 'close_us', 'release_us']
     summary = []
     for workers, (records, groups), hops in sorted(configs):
@@ -52,6 +72,14 @@ def main():
                    median_us=statistics.median(medians), process_medians_us=medians)
         row['phases_us'] = {p: statistics.median(statistics.median(s[p] for s in t['samples'])
                                                 for t in observations) for p in phases}
+        if args.baseline:
+            baseline_medians = [statistics.median(sum(s[p] for p in phases) for s in t['baseline_samples'])
+                                for t in observations]
+            row['baseline_median_us'] = statistics.median(baseline_medians)
+            row['baseline_process_medians_us'] = baseline_medians
+            row['baseline_phases_us'] = {
+                p: statistics.median(statistics.median(s[p] for s in t['baseline_samples'])
+                                     for t in observations) for p in phases}
         summary.append(row)
         print(f'{workers} workers {records}/{groups} slots {hops} resumes: {row["median_us"]:.2f} us')
     sources = ['native/benchmarks/Scheduler.cpp', 'native/benchmarks/scheduler.py',
@@ -63,12 +91,17 @@ def main():
             cpu[key] = run(['sysctl', '-n', key]).strip()
         except subprocess.CalledProcessError:
             cpu[key] = 'unavailable'
-    output = ROOT / f'benchmarks/results/native-scheduler-{datetime.date.today().isoformat()}.json'
+    output = args.output
+    output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(dict(timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                                      platform=platform.platform(), cpu=cpu,
                                      revision=run(['git', 'rev-parse', 'HEAD']).strip(),
                                      worktree_status=run(['git', 'status', '--short']),
                                      clang=run([clang, '--version']).strip(), commands=commands,
+                                     binary_sha256=hashlib.sha256((BUILD / 'timing').read_bytes()).hexdigest(),
+                                     baseline=(dict(path=str(args.baseline),
+                                                    binary_sha256=hashlib.sha256(args.baseline.read_bytes()).hexdigest())
+                                               if args.baseline else None),
                                      source_sha256={p: hashlib.sha256((ROOT / p).read_bytes()).hexdigest()
                                                     for p in sources}, trials=trials, summary=summary),
                                  indent=2) + '\n')

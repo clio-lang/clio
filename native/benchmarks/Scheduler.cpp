@@ -40,13 +40,22 @@ static const TaskEntry entry{
 static std::array<double, 5> batch(TaskCore &core, unsigned hops) {
   std::array<Clock::time_point, 6> time;
   time[0] = Clock::now();
+#ifdef KALANDRA_TASK_PROFILE
+  const auto beforeAdmission = core.profile().notifications;
+#endif
   auto group = core.openRoot();
   std::array<TaskHandle, 16> jobs;
   for (auto &job : jobs)
     job = core.submit(group, entry, {2, &hops, sizeof(hops)});
   time[1] = Clock::now();
+#ifdef KALANDRA_TASK_PROFILE
+  check(core.profile().notifications == beforeAdmission);
+#endif
   check(core.drain());
   time[2] = Clock::now();
+#ifdef KALANDRA_TASK_PROFILE
+  const auto afterExecution = core.profile().notifications;
+#endif
   for (auto job : jobs) {
     Invocation reader;
     float result = 0;
@@ -57,6 +66,9 @@ static std::array<double, 5> batch(TaskCore &core, unsigned hops) {
   time[4] = Clock::now();
   check(core.release(group));
   time[5] = Clock::now();
+#ifdef KALANDRA_TASK_PROFILE
+  check(core.profile().notifications == afterExecution);
+#endif
   auto stats = core.stats();
   check(!stats.records && !stats.groups && !stats.unfinished && !stats.retainedOwners &&
         !stats.retainedBytes);
@@ -79,6 +91,8 @@ int main(int argc, char **argv) {
 #ifdef KALANDRA_TASK_PROFILE
   // Fresh-core diagnostic: creation/initial worker waits are included. No
   // profiling clocks/counters are used for the separate latency samples.
+  check(core->drain(0));
+  check(core->profile().notifications == 0);
   batch(*core, hops);
   auto s = core->stats();
   auto p = core->profile();

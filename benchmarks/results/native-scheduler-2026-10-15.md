@@ -1,5 +1,7 @@
 # Native small-task scheduler profile — 2026-10-15
 
+This is the initial profile. The subsequent [idle-wakeup comparison](native-scheduler-2026-10-15-wakeups.md) records the first scheduler optimization.
+
 The measurements identify two separate targets: full-table scanning in serial scheduling, and coordination overhead with several workers. Frame/result allocation remains a possible later target, but these observations do not justify starting with an allocator or lock-free queue rewrite. **No scheduling optimization or default-capacity reduction is implemented in this step.**
 
 ## Experiment

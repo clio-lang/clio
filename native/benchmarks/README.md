@@ -46,7 +46,7 @@ Use matching harness/workloads/runtime build options in both binaries. The runne
 
 ## Scheduler diagnostics
 
-See the [measured scheduler report](../../benchmarks/results/native-scheduler-2026-10-15.md).
+See the [initial scheduler profile](../../benchmarks/results/native-scheduler-2026-10-15.md) and [idle-wakeup comparison](../../benchmarks/results/native-scheduler-2026-10-15-wakeups.md).
 
 ```sh
 python3 native/benchmarks/scheduler.py
@@ -68,3 +68,15 @@ Probe meanings and limits:
 - `allocationAttempts`/`frees` concern scheduler frame/result buffers. `allocatorNs` brackets their malloc/free calls, excluding invocation owners, core/table/vector/thread allocations, user allocators, context initialization, and cleanup callbacks.
 
 Clock probes and `try_lock` change scheduling in the diagnostic build. Per-thread wait intervals overlap and must not be added together, divided by uninstrumented wall time, or presented as a percentage breakdown. Use event counts, uninstrumented phase timings, and capacity controls together to select the next experiment. Detailed OS profiling is still needed to attribute thread wakeups versus context switches. Raw observations, build commands, source hashes, machine metadata, and summaries are retained in `benchmarks/results/native-scheduler-YYYY-MM-DD.json` (overwritten on another run that day).
+
+For a scheduler before/after comparison, save `benchmarks/.build/scheduler/timing` before changing the runtime, then pass the saved copy and a distinct report path:
+
+```sh
+cp benchmarks/.build/scheduler/timing benchmarks/.build/scheduler/timing-baseline
+# Change/rebuild the runtime, then:
+python3 native/benchmarks/scheduler.py \
+  --baseline benchmarks/.build/scheduler/timing-baseline \
+  --output benchmarks/results/native-scheduler-comparison.json
+```
+
+The runner rebuilds both current timing/profiling executables, then alternates saved/current and current/saved process order across the three passes for each configuration. Baseline and current phase samples, summaries, and executable hashes are retained together. A saved executable must use the same timing harness/workloads. `--output` defaults to the dated scheduler report; use a distinct path to preserve an earlier baseline. The updated diagnostic harness also asserts that idle admission, observation, close/release, and an initially empty drain emit no broadcasts. Its extra initial empty-drain proof is outside performance timing; it contributes one maintenance pass to current diagnostic scan counts.

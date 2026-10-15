@@ -124,9 +124,14 @@ struct TaskCore::Impl {
     ~Guard() { core.signal(); }
   };
   void signal() {
-    TASK_PROBE(notifications, 1);
     ++revision;
-    changed.notify_all();
+    // Idle workers wait only for draining or shutdown. Preserve broadcasts for
+    // an active controller even after draining stops: it may still be waiting
+    // for an execution/cleanup/construction lease to return.
+    if (draining || controlling || stopping) {
+      TASK_PROBE(notifications, 1);
+      changed.notify_all();
+    }
   }
   ~Impl() { stop(); }
   void stop() {
@@ -735,6 +740,10 @@ bool TaskCore::drain(std::size_t steps) noexcept {
       return false;
   impl_->controlling = true;
   impl_->maintain(guard.lock);
+  if (!impl_->stats.unfinished && !impl_->pumping && !impl_->preparing) {
+    impl_->controlling = false;
+    return true;
+  }
   if (impl_->limits.workers == 1) {
     impl_->draining = true;
     while (steps-- && impl_->step(guard.lock)) {

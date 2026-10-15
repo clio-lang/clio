@@ -262,6 +262,52 @@ static void boundedDrain() {
   CHECK(core->close(group) && core->drain() && core->release(group));
   clean(*core);
 }
+// A stopped budget must still wake its controller after the last execution
+// or cleanup lease unwinds. Empty drains must also settle closed empty groups.
+static void idleAndBudgetWakeups() {
+  for (auto workers : {1u, 4u}) {
+    TaskLimits limits;
+    limits.workers = workers;
+    auto core = TaskCore::create(limits);
+    CHECK(core);
+    for (unsigned i = 0; i < 50; ++i) {
+      CHECK(core->drain(0));
+      auto group = core->openRoot();
+      CHECK(core->close(group) && core->drain(0) && core->settled(group));
+      CHECK(core->release(group));
+    }
+    clean(*core);
+  }
+  for (unsigned i = 0; i < 10; ++i)
+    for (auto mode : {Mode::YieldLease, Mode::CompleteLease, Mode::CleanupLease}) {
+      TaskLimits limits;
+      limits.workers = 4;
+      auto core = TaskCore::create(limits);
+      CHECK(core);
+      Shared shared{core.get(), mode};
+      Input input{&shared, 19};
+      auto group = core->openRoot();
+      auto job = core->submit(group, entry, packet(input));
+      std::atomic<bool> returned{false};
+      bool drained = false;
+      std::jthread controller([&] {
+        drained = core->drain(1);
+        returned = true;
+      });
+      until([&] { return shared.held.load(); });
+      CHECK(!returned && !core->settled(job));
+      // Other workers can exhaust the budget while this lease is still held.
+      for (unsigned turn = 0; turn < 32; ++turn)
+        std::this_thread::yield();
+      shared.release = true;
+      controller.join();
+      CHECK(drained == (mode != Mode::YieldLease));
+      CHECK(core->drain());
+      observe(*core, job, 19);
+      CHECK(core->close(group) && core->drain(0) && core->release(group));
+      clean(*core);
+    }
+}
 static void racingFaults() {
   TaskLimits limits;
   limits.workers = 2;
@@ -442,6 +488,7 @@ int main() {
   cancellationBeforePublication(Mode::CompleteLease);
   cancellationBeforePublication(Mode::CleanupLease);
   boundedDrain();
+  idleAndBudgetWakeups();
   racingFaults();
   pinnedRead();
   nestedProgress();
