@@ -87,11 +87,14 @@ std::string dumpTypedIR(const TypedModule &module) {
             else if constexpr (std::is_same_v<T, ScalarUnary>) {
               out << (operation.operation == TokenKind::Minus ? "neg.f32 " : "pos.f32 ");
               value(operation.operand);
-            } else if constexpr (std::is_same_v<T, ScalarBinary>) {
+            } else if constexpr (std::is_same_v<T, ScalarBinary> ||
+                                 std::is_same_v<T, TensorBinary>) {
               const char *name = operation.operation == TokenKind::Plus    ? "add.f32"
                                  : operation.operation == TokenKind::Minus ? "sub.f32"
                                  : operation.operation == TokenKind::Star  ? "mul.f32"
                                                                            : "div.f32";
+              if constexpr (std::is_same_v<T, TensorBinary>)
+                out << "elementwise ";
               out << name << " strict ";
               value(operation.left);
               out << ", ";

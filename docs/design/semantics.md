@@ -49,6 +49,8 @@ A tensor constructor currently needs explicit Tensor[float32,...] context and on
 
 The nesting of the literal determines its rank. For example, `tensor([[], []])` can construct a contextual float32 tensor of shape `[2, 0]`. `tensor([])` has shape `[0]`; an annotation cannot silently turn it into `[0, 3]`. Constructing that latter shape from flat data needs the later explicit-shape constructor. Rank-zero scalar construction remains distinct from a scalar result.
 
+Elementwise float32 `+` and `*` now produce a TensorBinary IR node when either operand is a tensor. Scalar operands lift across all elements on either side; tensor operands must have identical rank and extents. Tensor-axis broadcasting, elementwise subtraction/division, and implicit numeric conversions are not implemented. Known shape mismatches fail compilation; dynamic equality requirements are retained in the function summary and checked at runtime by native lowering. Scalar lifting does not allow a scalar argument where a function parameter requires a tensor. Unary `+` preserves a completed tensor value; tensor negation remains unsupported.
+
 Matmul requires two rank-two float32 tensors. Known incompatible inner dimensions fail compilation. Independent `?` extents are distinct facts, so unresolved compatibility records an inner-dimension guard. Output rows and columns retain their relationships to the operands.
 
 A dynamic tensor passed to a fixed-shape parameter or assigned a fixed-shape annotation gets a ShapeCheck IR node. Only the checked value is refined; the source binding retains its original facts. Inferred relationships substitute through ordinary calls, allowing a known input row count to become a known result row count. Unknown result dimensions not tied to parameters get fresh identities per invocation.
@@ -59,7 +61,7 @@ Known dimensions must fit the supported signed 64-bit indexing range. Complete s
 
 ## IR and execution obligations
 
-The IR contains explicit float32 literals, symbol reads, scalar operations, tensor literals, resolved calls, matmul, reduceSum, and shape checks. Matmul records separately rounded products and balanced adjacent reduction. ReduceSum records balanced reduction over row-major logical elements. Later lowering must implement the accepted odd-tail, empty, rounding, and cleanup behavior.
+The IR contains explicit float32 literals, symbol reads, scalar operations, elementwise tensor operations, tensor literals, resolved calls, matmul, reduceSum, and shape checks. Matmul records separately rounded products and balanced adjacent reduction. ReduceSum records balanced reduction over row-major logical elements. Later lowering must implement the accepted odd-tail, empty, rounding, and cleanup behavior.
 
 Value IDs occupy a flat arena. Functions own their values and ordered statement roots. Arena insertion order is not an execution schedule: lowering must follow statement order and ordered operands/arguments to preserve once-only, left-to-right evaluation. Pipelines become ordinary resolved calls with the left-hand expression inserted once as the first argument.
 
@@ -92,3 +94,5 @@ Fallback tensor dimensions merge with success dimensions; a different dynamic ex
 Arbitrary application error families, unions, general variants, and broader error inference remain future implementation work. Built-in message/reason fields can be bound and aliased as String values; general string literals, operations, and String function signatures remain outside this numerical subset.
 
 Checks cover inline and repeated awaits, observation through aliases, use outside groups, discarded results, handle escapes, and missing propagation. [Native source task tests](native-tasks.md#compiled-source-task-subset) now exercise these checked operations through actual continuation lowering, tensor kernels, and runtime settlement. The complete native suite contains 25 CTest tests.
+
+The [shared CPU/GPU helper path](apple-gpu.md#shared-cpugpu-helpers) now consumes the same checked tensor/scalar function bodies for both targets. GPU capability admission is separate from type correctness: unsupported GPU operations are rejected even when the function is valid on CPU. Supervisor task placement and residency remain target-specific checks.

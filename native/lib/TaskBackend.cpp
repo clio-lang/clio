@@ -57,7 +57,7 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
         using T = std::decay_t<decltype(op)>;
         if constexpr (std::is_same_v<T, TensorLiteral>)
           return op.elements;
-        else if constexpr (std::is_same_v<T, Matmul>)
+        else if constexpr (std::is_same_v<T, Matmul> || std::is_same_v<T, TensorBinary>)
           return {op.left, op.right};
         else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, ShapeCheck>)
           return {op.input};
@@ -169,6 +169,9 @@ private:
     else if (auto *multiply = std::get_if<Matmul>(&op)) {
       multiply->left = reads[0];
       multiply->right = reads[1];
+    } else if (auto *elementwise = std::get_if<TensorBinary>(&op)) {
+      elementwise->left = reads[0];
+      elementwise->right = reads[1];
     } else if (auto *reduce = std::get_if<ReduceSum>(&op))
       reduce->input = reads[0];
     else if (auto *shape = std::get_if<ShapeCheck>(&op))

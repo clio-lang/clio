@@ -38,13 +38,13 @@ struct Value {
 };
 class Compiler {
   Module syntax;
-  TypedModule scalar;
   std::map<std::string, std::size_t> cpuFunctions;
   TypedModule cpu;
   std::vector<std::string> cpuExports;
   std::set<std::string> gpuNames;
   std::string declarations;
-  // Discover placement roots and their ordinary helper calls before partitioning.
+  // Discover GPU placement roots and their transitive helper closure. All functions
+  // retain the same checked tensor/scalar types on both targets.
   void discover(ExprId id, bool gpu = false) {
     if (depth >= 128)
       reject(node(id).span, "function discovery depth exceeded");
@@ -73,7 +73,6 @@ class Compiler {
         discover(statement.expression, gpu);
   }
 
-  std::map<std::string, std::size_t> functions;
   std::unordered_map<std::string, Value> locals;
   std::set<std::size_t> observed, tasks;
   std::map<std::size_t, std::size_t> entries;
@@ -264,6 +263,7 @@ class Compiler {
         if (tensorResult)
           value.length = fn.resultType.shape[0].constant;
         std::string step, arguments;
+        std::map<ExtentId, Value> extentArguments;
         for (std::size_t i = 0; i < call->arguments.size(); ++i) {
           auto input = expression(call->arguments[i]);
           const auto &type = cpu.symbols[fn.parameters[i]].type;
@@ -274,6 +274,8 @@ class Compiler {
               reject(span, "CPU bridge currently accepts rank-one float32 tensors");
             if (type.shape[0].constant && input.length && type.shape[0].constant != input.length)
               reject(span, "CPU argument shape mismatch");
+            if (!type.shape[0].constant)
+              extentArguments.emplace(type.shape[0].identity, input);
             auto local = "argument" + std::to_string(i);
             step += "auto " + local + " = r.toCpu<1>(task.context(), " + ref(input) + ");\n";
             step += "if (!" + local + ") { " + error(local + ".error()") + " }\n";
@@ -284,6 +286,27 @@ class Compiler {
             arguments += ref(input) + ",";
           }
         }
+        std::string guards;
+        for (const auto &requirement : fn.preconditions) {
+          const auto known = [&](Extent extent) {
+            return extent.constant ? extent.constant : extentArguments.at(extent.identity).length;
+          };
+          const auto render = [&](Extent extent) {
+            return extent.constant ? std::to_string(*extent.constant)
+                                   : ref(extentArguments.at(extent.identity)) + ".shape()[0]";
+          };
+          auto left = known(requirement.left), right = known(requirement.right);
+          if (left && right) {
+            if (left != right)
+              reject(span, "CPU call violates a known tensor shape requirement");
+          } else {
+            auto [line, column] = syntax.source->location(span.begin);
+            guards += "if (" + render(requirement.left) + "!=" + render(requirement.right) +
+                      ") { task.fault(1," + std::to_string(line) + "," + std::to_string(column) +
+                      "); return; }\n";
+          }
+        }
+        step = guards + step;
         if (tensorResult)
           step += "Float32Tensor<1> result{};\n";
         step += (tensorResult ? "" : "f." + out + " = ") +
@@ -333,11 +356,16 @@ class Compiler {
         if (!call)
           reject(span, "spawn requires a named function call");
         auto name = named(call->callee);
-        auto found = functions.find(name);
-        if (found == functions.end() || locals.contains(name) || name == "main")
+        auto found = cpuFunctions.find(name);
+        if (found == cpuFunctions.end() || locals.contains(name) || name == "main")
           reject(span, "unknown or shadowed GPU function");
-        if (call->arguments.size() != 2)
-          reject(span, "the first GPU entry ABI requires two tensor arguments");
+        const auto &entryFunction = cpu.functions[found->second];
+        if (call->arguments.size() != 2 || entryFunction.parameters.size() != 2 ||
+            !entryFunction.resultType.tensor ||
+            !cpu.symbols[entryFunction.parameters[0]].type.tensor ||
+            !cpu.symbols[entryFunction.parameters[1]].type.tensor)
+          reject(span,
+                 "the first GPU entry ABI requires two tensor parameters and a tensor result");
         auto left = expression(call->arguments[0]);
         auto right = expression(call->arguments[1]);
         auto target = expression(*task->placement);
@@ -378,58 +406,6 @@ class Compiler {
     }
     reject(span, "unsupported expression in the Metal source supervisor");
   }
-  void validateKernelShapes(const Function &fn) const {
-    std::map<std::string, bool> values;
-    for (const auto &p : fn.parameters)
-      values.emplace(text(p.name), true);
-    std::size_t nesting = 0;
-    std::function<bool(ExprId)> infer = [&](ExprId id) -> bool {
-      if (nesting >= 128)
-        reject(node(id).span, "GPU shape analysis depth exceeded");
-      Depth guard(nesting);
-      const auto &expr = node(id);
-      if (auto *name = std::get_if<NameExpr>(&expr.value)) {
-        auto found = values.find(text(name->name));
-        if (found == values.end())
-          reject(expr.span, "unknown GPU value");
-        return found->second;
-      }
-      if (std::holds_alternative<NumberExpr>(expr.value))
-        return false;
-      if (auto *unary = std::get_if<UnaryExpr>(&expr.value))
-        return infer(unary->operand);
-      if (auto *binary = std::get_if<BinaryExpr>(&expr.value)) {
-        if (binary->operation != TokenKind::Plus && binary->operation != TokenKind::Star)
-          reject(expr.span, "GPU strict arithmetic currently supports only + and *");
-        bool left = infer(binary->left), right = infer(binary->right);
-        return left || right;
-      }
-      if (auto *call = std::get_if<CallExpr>(&expr.value)) {
-        auto name = named(call->callee);
-        if (values.contains(name) || !functions.contains(name) || call->arguments.size() != 2)
-          reject(expr.span, "GPU calls require a statically known two-tensor helper");
-        for (auto arg : call->arguments)
-          if (!infer(arg))
-            reject(node(arg).span, "a tensor parameter cannot receive a scalar; scalar lifting "
-                                   "applies to arithmetic only");
-        return true;
-      }
-      reject(expr.span, "unsupported operation in GPU function");
-    };
-    bool result = false;
-    for (const auto &statement : fn.body) {
-      result = infer(statement.expression);
-      if (statement.annotation) {
-        tensorType(*statement.annotation, true);
-        if (!result)
-          reject(statement.span, "tensor binding cannot receive a scalar");
-      }
-      if (statement.binding && !values.emplace(text(*statement.binding), result).second)
-        reject(*statement.binding, "duplicate immutable binding");
-    }
-    if (!result)
-      reject(fn.span, "GPU tensor function must return a tensor");
-  }
   std::string shader(std::size_t function) const {
     // Emit scalar typed SSA once per lane. Source names never become IR identifiers.
     std::ostringstream code;
@@ -443,7 +419,7 @@ class Compiler {
     };
     std::function<std::string(std::size_t, const std::vector<std::string> &)> invoke;
     invoke = [&](std::size_t fnId, const std::vector<std::string> &args) -> std::string {
-      const auto &fn = scalar.functions.at(fnId);
+      const auto &fn = cpu.functions.at(fnId);
       if (callDepth >= 128 || !active.insert(fnId).second)
         reject(fn.declaration, "recursive GPU helper calls are not implemented");
       Depth guard(callDepth);
@@ -454,7 +430,7 @@ class Compiler {
       std::function<std::string(ValueId)> emit = [&](ValueId id) -> std::string {
         if (auto found = values.find(id); found != values.end())
           return found->second;
-        const auto &n = scalar.expressions.at(id);
+        const auto &n = cpu.expressions.at(id);
         std::string result;
         if (auto *read = std::get_if<SymbolRead>(&n.operation))
           result = symbols.at(read->symbol);
@@ -464,14 +440,25 @@ class Compiler {
           code << "        " << integer << " = arith.constant " << std::int32_t(literal->bits)
                << " : i32\n";
           code << "        " << result << " = arith.bitcast " << integer << " : i32 to f32\n";
-        } else if (auto *binary = std::get_if<ScalarBinary>(&n.operation)) {
-          if (binary->operation != TokenKind::Plus && binary->operation != TokenKind::Star)
+        } else if (std::holds_alternative<ScalarBinary>(n.operation) ||
+                   std::holds_alternative<TensorBinary>(n.operation)) {
+          auto operation = std::holds_alternative<ScalarBinary>(n.operation)
+                               ? std::get<ScalarBinary>(n.operation).operation
+                               : std::get<TensorBinary>(n.operation).operation;
+          auto left = std::holds_alternative<ScalarBinary>(n.operation)
+                          ? std::get<ScalarBinary>(n.operation).left
+                          : std::get<TensorBinary>(n.operation).left;
+          auto right = std::holds_alternative<ScalarBinary>(n.operation)
+                           ? std::get<ScalarBinary>(n.operation).right
+                           : std::get<TensorBinary>(n.operation).right;
+
+          if (operation != TokenKind::Plus && operation != TokenKind::Star)
             reject(n.span, "GPU strict arithmetic currently supports only + and *");
-          auto a = emit(binary->left), b = emit(binary->right);
+          auto a = emit(left), b = emit(right);
           result = temporary();
           dependencies[result] = dependencies[a] | dependencies[b];
           code << "        " << result << " = arith."
-               << (binary->operation == TokenKind::Plus ? "addf " : "mulf ") << a << ", " << b
+               << (operation == TokenKind::Plus ? "addf " : "mulf ") << a << ", " << b
                << " : f32\n";
         } else if (auto *unary = std::get_if<ScalarUnary>(&n.operation)) {
           if (unary->operation != TokenKind::Plus)
@@ -498,7 +485,7 @@ class Compiler {
     };
     auto result = invoke(function, {"%x", "%y"});
     if (dependencies[result] != 3)
-      reject(scalar.functions[function].declaration,
+      reject(cpu.functions[function].declaration,
              "the initial two-input GPU ABI requires both inputs to contribute to the result");
     return R"(module attributes {gpu.container_module,
   spirv.target_env = #spirv.target_env<#spirv.vce<v1.0, [Shader, Int64], [SPV_KHR_storage_buffer_storage_class]>, #spirv.resource_limits<>>} {
@@ -535,92 +522,49 @@ public:
           discover(statement.expression);
     Module hostModule = syntax;
     hostModule.functions.clear();
-    Module kernels = syntax;
-    kernels.functions.clear();
     std::optional<std::size_t> main;
     for (std::size_t i = 0; i < syntax.functions.size(); ++i) {
       const auto &fn = syntax.functions[i];
       auto name = text(fn.name);
       if (name == "main") {
-        if (main)
-          reject(fn.name, "duplicate main");
         main = i;
         continue;
       }
       if (name == "devices" || name == "tensor" || name == "transfer")
         reject(fn.name, "this GPU source slice reserves standard placement/transfer names");
-      if (!gpuNames.contains(name)) {
-        if (!cpuFunctions.emplace(name, hostModule.functions.size()).second)
-          reject(fn.name, "duplicate CPU function");
-        if (!fn.result || fn.taskError)
-          reject(fn.span, "CPU bridge functions require an explicit result and no error channel");
-        if (fn.result->tensor)
-          tensorType(*fn.result);
-        else if (text(fn.result->name) != "float32")
-          reject(fn.result->span, "CPU bridge results require float32 or rank-one float32 tensors");
-        for (const auto &parameter : fn.parameters) {
-          if (parameter.type.tensor)
-            tensorType(parameter.type);
-          else if (text(parameter.type.name) != "float32")
-            reject(parameter.type.span,
-                   "CPU bridge parameters require float32 or rank-one float32 tensors");
-        }
-        cpuExports.push_back(name);
-        hostModule.functions.push_back(fn);
-        continue;
+      if (!fn.result || fn.taskError)
+        reject(fn.span, "mixed source functions require an explicit result and no error channel");
+      if (fn.result->tensor)
+        tensorType(*fn.result, gpuNames.contains(name));
+      else if (text(fn.result->name) != "float32")
+        reject(fn.result->span, "mixed source results require float32 or rank-one float32 tensors");
+      for (const auto &p : fn.parameters) {
+        if (p.type.tensor)
+          tensorType(p.type, gpuNames.contains(name));
+        else if (text(p.type.name) != "float32")
+          reject(p.type.span,
+                 "mixed source parameters require float32 or rank-one float32 tensors");
       }
-      if (!functions.emplace(name, kernels.functions.size()).second)
-        reject(fn.name, "duplicate GPU function");
-      if (fn.parameters.size() != 2 || !fn.result || fn.taskError)
-        reject(
-            fn.span,
-            "GPU functions require two tensor parameters, a tensor result, and no error channel");
-      Function converted = fn;
-      auto scalarize = [&](TypeSyntax &type) {
-        tensorType(type, true);
-        type.tensor = false;
-        type.name = *type.element;
-        type.element = {};
-        type.dimensions.clear();
-      };
-      for (auto &p : converted.parameters)
-        scalarize(p.type);
-      scalarize(*converted.result);
-      // Bindings may have explicit tensor context; each lane receives scalar context.
-      for (auto &s : converted.body)
-        if (s.annotation)
-          scalarize(*s.annotation);
-      kernels.functions.push_back(std::move(converted));
+      cpuFunctions.emplace(name, hostModule.functions.size());
+      cpuExports.push_back(name);
+      hostModule.functions.push_back(fn);
     }
     if (!main)
       reject({}, "missing main");
-    for (const auto &fn : syntax.functions)
-      if (gpuNames.contains(text(fn.name)))
-        validateKernelShapes(fn);
-    if (!cpuExports.empty()) {
-      auto checkedCpu = kalandra::check({std::move(hostModule), {}});
-      if (!checkedCpu.ok())
-        throw Rejected{checkedCpu.diagnostics.front()};
-      cpu = std::move(*checkedCpu.module);
-      for (std::size_t i = 0; i < cpu.functions.size(); ++i) {
-        const auto &f = cpu.functions[i];
-        declarations += std::string("extern \"C\" ") + (f.resultType.tensor ? "void" : "float") +
-                        " _mlir_ciface_kalandra_cpu_" + std::to_string(i) + "(";
-        if (f.resultType.tensor)
-          declarations += "Float32Tensor<1>*,";
-        for (auto parameter : f.parameters) {
-          const auto &type = cpu.symbols[parameter].type;
-          if (type.tensor && type.shape.size() != 1)
-            reject(f.declaration, "CPU bridge currently accepts rank-one float32 tensors");
-          declarations += type.tensor ? "Float32Tensor<1>*," : "float,";
-        }
-        declarations += "Invocation*);\n";
-      }
-    }
-    auto checked = kalandra::check({std::move(kernels), {}});
+    auto checked = kalandra::check({std::move(hostModule), {}});
     if (!checked.ok())
       throw Rejected{checked.diagnostics.front()};
-    scalar = std::move(*checked.module);
+    cpu = std::move(*checked.module);
+    for (std::size_t i = 0; i < cpu.functions.size(); ++i) {
+      const auto &f = cpu.functions[i];
+      declarations += std::string("extern \"C\" ") + (f.resultType.tensor ? "void" : "float") +
+                      " _mlir_ciface_kalandra_cpu_" + std::to_string(i) + "(";
+      if (f.resultType.tensor)
+        declarations += "Float32Tensor<1>*,";
+      for (auto parameter : f.parameters)
+        declarations += cpu.symbols[parameter].type.tensor ? "Float32Tensor<1>*," : "float,";
+      declarations += "Invocation*);\n";
+    }
     const auto &fn = syntax.functions[*main];
     if (!fn.parameters.empty() || !fn.result || !fn.taskError)
       reject(fn.span,

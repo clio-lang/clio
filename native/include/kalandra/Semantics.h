@@ -41,6 +41,12 @@ struct ScalarBinary {
   ValueId left;
   ValueId right;
 };
+// Elementwise strict float32 arithmetic. Scalar operands lift across the tensor;
+// tensor operands require identical ranks and extents (no array broadcasting).
+struct TensorBinary {
+  TokenKind operation;
+  ValueId left, right;
+};
 struct TensorLiteral {
   std::vector<ValueId> elements;
 }; // Flattened row-major scalar values.
@@ -110,9 +116,9 @@ struct FailOperation {
 struct TypedExpr {
   SourceSpan span;
   ValueType type; // Only float32 and ranked Tensor[float32,...] in this semantic subset.
-  std::variant<Float32Literal, SymbolRead, ScalarUnary, ScalarBinary, TensorLiteral, FunctionCall,
-               Matmul, ReduceSum, ShapeCheck, TaskOperation, ParallelOperation, CatchOperation,
-               MatchOperation, ErrorFieldRead, FailOperation>
+  std::variant<Float32Literal, SymbolRead, ScalarUnary, ScalarBinary, TensorBinary, TensorLiteral,
+               FunctionCall, Matmul, ReduceSum, ShapeCheck, TaskOperation, ParallelOperation,
+               CatchOperation, MatchOperation, ErrorFieldRead, FailOperation>
       operation;
 };
 struct ShapeEquality {

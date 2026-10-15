@@ -398,6 +398,10 @@ private:
     auto operand = expression(frame, unary.operand, expected);
     if (!operand)
       return {};
+    if (unary.operation == TokenKind::Plus && node(*operand).type.tensor &&
+        !node(*operand).type.task && !node(*operand).type.fallible &&
+        node(*operand).type.builtin == BuiltinValue::Numeric)
+      return operand;
     if (node(*operand).type.tensor || node(*operand).type.task || node(*operand).type.fallible ||
         node(*operand).type.builtin != BuiltinValue::Numeric) {
       error("S017", "arithmetic requires completed float32 scalar values", span);
@@ -427,27 +431,66 @@ private:
             span);
       return {};
     }
+    const auto operand = [&](ExprId id, std::optional<ValueType> context) {
+      if (literal_[id]) {
+        if (context && context->tensor && context->builtin == BuiltinValue::Numeric)
+          context = ValueType{};
+        return expression(frame, id, context);
+      }
+      const auto *call = std::get_if<CallExpr>(&syntax_.expressions[id].value);
+      const auto *callee =
+          call ? std::get_if<NameExpr>(&syntax_.expressions[call->callee].value) : nullptr;
+      if (callee && name(callee->name) == "tensor")
+        return expression(frame, id, context);
+      return expression(frame, id);
+    };
     std::optional<ValueId> left, right;
     if (expected && !expected->tensor) {
       left = expression(frame, binary.left, expected);
       right = expression(frame, binary.right, expected);
     } else if (literal_[binary.left] && !literal_[binary.right]) {
-      right = expression(frame, binary.right);
+      right = operand(binary.right, expected);
       if (right)
-        left = expression(frame, binary.left, node(*right).type);
+        left = operand(binary.left, node(*right).type);
     } else {
-      left = expression(frame, binary.left);
+      left = operand(binary.left, expected);
       if (left)
-        right = expression(frame, binary.right, node(*left).type);
+        right = operand(binary.right, node(*left).type);
     }
     if (!left || !right)
       return {};
-    if (node(*left).type.tensor || node(*right).type.tensor || node(*left).type.task ||
-        node(*right).type.task || node(*left).type.fallible || node(*right).type.fallible ||
-        node(*left).type.builtin != BuiltinValue::Numeric ||
-        node(*right).type.builtin != BuiltinValue::Numeric) {
-      error("S017", "arithmetic requires completed float32 scalar values", span);
+    const auto a = node(*left).type, b = node(*right).type;
+    if (a.task || b.task || a.fallible || b.fallible || a.builtin != BuiltinValue::Numeric ||
+        b.builtin != BuiltinValue::Numeric) {
+      error("S017", "arithmetic requires completed float32 values", span);
       return {};
+    }
+    if (a.tensor || b.tensor) {
+      if (binary.operation != TokenKind::Plus && binary.operation != TokenKind::Star) {
+        error("S017", "elementwise float32 arithmetic currently supports only + and *", span);
+        return {};
+      }
+      auto result = a.tensor ? a : b;
+      if (a.tensor && b.tensor) {
+        if (a.shape.size() != b.shape.size()) {
+          error("S017", "elementwise operands must have equal ranks", span);
+          return {};
+        }
+        for (std::size_t axis = 0; axis < a.shape.size(); ++axis) {
+          if (a.shape[axis].constant && b.shape[axis].constant &&
+              a.shape[axis].constant != b.shape[axis].constant) {
+            error("S011", "elementwise operand extents differ", span);
+            return {};
+          }
+          if (!requireEqual(frame, a.shape[axis], b.shape[axis]))
+            return {};
+          if (b.shape[axis].constant)
+            result.shape[axis] = b.shape[axis];
+        }
+      }
+      if (!validSize(result, span))
+        return {};
+      return add(frame, result, span, TensorBinary{binary.operation, *left, *right});
     }
     return add(frame, {}, span, ScalarBinary{binary.operation, *left, *right});
   }

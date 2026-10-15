@@ -3,6 +3,9 @@
 #undef main
 #include <chrono>
 #include <thread>
+#ifdef KALANDRA_SHARED_HELPERS
+#include "../metal-proof/FloatOracle.h"
+#endif
 #define CHECK(x)                                                                                   \
   do {                                                                                             \
     if (!(x)) {                                                                                    \
@@ -42,7 +45,11 @@ void verify(const m::Buffer &value) {
   CHECK(bytes && bytes->size() == 12);
   std::array<std::uint32_t, 3> bits{};
   std::memcpy(bits.data(), bytes->data(), 12);
+#ifdef KALANDRA_SHARED_HELPERS
+  CHECK((bits == std::array<std::uint32_t, 3>{0x41300000u, 0x41c80000u, 0x422c0000u}));
+#else
   CHECK((bits == std::array<std::uint32_t, 3>{0x40a00000u, 0x41400000u, 0x41a80000u}));
+#endif
 }
 template <class F> void until(TaskCore &core, F condition) {
   auto end = std::chrono::steady_clock::now() + std::chrono::seconds(10);
@@ -52,6 +59,96 @@ template <class F> void until(TaskCore &core, F condition) {
     std::this_thread::yield();
   }
 }
+#ifdef KALANDRA_SHARED_HELPERS
+void sharedConformance(m::Runtime &runtime, const char *directory) {
+  auto selected = runtime.device();
+  CHECK(selected);
+  std::array<m::Kernel, 3> kernels;
+  for (std::size_t i = 0; i < 3; ++i) {
+    auto kernel = runtime.loadElementwiseKernel(
+        std::string(directory) + "/kernel" + std::to_string(i) + ".metallib", *selected);
+    CHECK(kernel);
+    kernels[i] = *kernel;
+  }
+  auto corpus = float_proof::corpus();
+  std::uint64_t comparisons = 0;
+  auto run = [&](std::span<const float_proof::Pair> pairs) {
+    Invocation context;
+    const auto n = std::int64_t(pairs.size());
+    auto *a = static_cast<float *>(context.allocate(n * 4));
+    auto *b = static_cast<float *>(context.allocate(n * 4));
+    CHECK(a && b);
+    for (std::size_t i = 0; i < pairs.size(); ++i) {
+      std::memcpy(a + i, &pairs[i].a, 4);
+      std::memcpy(b + i, &pairs[i].b, 4);
+    }
+    Float32Tensor<1> left{a, a, 0, {n}, {1}}, right{b, b, 0, {n}, {1}};
+    auto ha = runtime.fromCpu(context, left.view()), hb = runtime.fromCpu(context, right.view());
+    CHECK(ha && hb);
+    auto core = TaskCore::create();
+    auto group = core->openRoot();
+    auto ta = runtime.upload(*core, group, *ha, *selected),
+         tb = runtime.upload(*core, group, *hb, *selected);
+    CHECK(core->drain());
+    auto da = observe(*core, ta), db = observe(*core, tb);
+    for (unsigned op = 0; op < 3; ++op) {
+      Float32Tensor<1> result{};
+      if (op == 0)
+        _mlir_ciface_kalandra_cpu_3(&result, &left, &right, &context);
+      else if (op == 1)
+        _mlir_ciface_kalandra_cpu_1(&result, &left, &right, &context);
+      else
+        _mlir_ciface_kalandra_cpu_2(&result, &left, &right, &context);
+      CHECK(!context.status() && result.sizes[0] == n && result.strides[0] == 1);
+      auto work = runtime.elementwise(*core, group, kernels[op], da, db);
+      CHECK(core->drain());
+      auto device = observe(*core, work);
+      auto download = runtime.download(*core, group, device);
+      CHECK(core->drain());
+      auto gpu = observe(*core, download);
+      auto bytes = gpu.hostBytes();
+      CHECK(bytes && bytes->size() == pairs.size() * 4);
+      for (std::size_t i = 0; i < pairs.size(); ++i) {
+        std::uint32_t cpuBits, gpuBits, oldA, oldB;
+        std::memcpy(&cpuBits, result.aligned + result.offset + i, 4);
+        std::memcpy(&gpuBits, bytes->data() + 4 * i, 4);
+        std::memcpy(&oldA, a + i, 4);
+        std::memcpy(&oldB, b + i, 4);
+        auto expected =
+            op == 0 ? float_proof::oracle({float_proof::oracle(pairs[i], 2), 0x3f000000u}, 0)
+                    : float_proof::oracle(pairs[i], op == 1 ? 0 : 1);
+        CHECK(float_proof::equal(cpuBits, expected) && float_proof::equal(gpuBits, expected));
+        CHECK(float_proof::equal(cpuBits, gpuBits));
+        CHECK(oldA == pairs[i].a && oldB == pairs[i].b);
+        ++comparisons;
+      }
+      context.release(result.allocated);
+    }
+    retire(*core, group);
+    context.release(a);
+    context.release(b);
+    CHECK(!context.status() && !context.live() && context.allocations() == context.releases());
+  };
+  for (std::size_t n : {0u, 1u, 2u, 63u, 64u, 65u, 4097u, 8193u})
+    run(std::span(corpus).first(n));
+  for (std::size_t i = 0; i < corpus.size(); i += 8193)
+    run(std::span(corpus).subspan(i, std::min<std::size_t>(8193, corpus.size() - i)));
+  empty(runtime);
+  // Runtime equality guards run before reading mismatched tensor operands.
+  Invocation context;
+  auto *a = static_cast<float *>(context.allocate(12)),
+       *b = static_cast<float *>(context.allocate(8));
+  CHECK(a && b);
+  Float32Tensor<1> left{a, a, 0, {3}, {1}}, right{b, b, 0, {2}, {1}}, result{};
+  _mlir_ciface_kalandra_cpu_3(&result, &left, &right, &context);
+  CHECK(context.status() == 1);
+  context.settle();
+  CHECK(!context.live());
+  std::printf(
+      "Shared helper: %llu CPU/GPU pairs matched APFloat; NaNs compared by classification\n",
+      (unsigned long long)comparisons);
+}
+#endif
 int main(int argc, char **argv) {
   CHECK(argc == 2 && generated_main(argc, argv) == 0);
   auto made = m::Runtime::create();
@@ -145,6 +242,9 @@ int main(int argc, char **argv) {
     retire(*core, group);
     empty(*runtime);
   }
+#ifdef KALANDRA_SHARED_HELPERS
+  sharedConformance(*runtime, argv[1]);
+#endif
   // The retained CPU results share the registry budget with transfers and GPU work.
   auto limited = m::Runtime::create({.maxBytes = 16});
   CHECK(limited);

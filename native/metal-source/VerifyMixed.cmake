@@ -29,6 +29,8 @@ string(REPLACE "  reduceSum(values)\n\nfn finish" "  exact(values)\n\nfn finish"
 # Move the first CPU call after the GPU download so the fault crosses both boundaries.
 string(REPLACE "    baseline = total(left)\n" "" FAULT "${FAULT}")
 string(REPLACE "finish(total(host), baseline)" "total(host)" FAULT "${FAULT}")
+set(FAULT "fn forward(values: Tensor[float32, ?]) -> Tensor[float32, ?]:\n  values\n\n${FAULT}")
+string(REPLACE "total(host)" "total(forward(host))" FAULT "${FAULT}")
 build_run(cpu-shape-fault "${FAULT}" "" TRUE)
 # Same mixed source can still return a host tensor after ordinary CPU calls.
 string(REPLACE "fn main() -> float32" "fn main() -> Tensor[float32, 3]" TENSOR "${SOURCE}")

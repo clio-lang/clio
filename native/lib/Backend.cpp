@@ -538,6 +538,43 @@ private:
       return tensor::ExtractOp::create(builder_, loc, tensor, indices);
     });
   }
+  Value elementwise(Location loc, Value a, Value b, RankedTensorType output, TokenKind op) {
+    const bool tensorA = isa<RankedTensorType>(a.getType());
+    const bool tensorB = isa<RankedTensorType>(b.getType());
+    auto shape = dimensions(loc, tensorA ? a : b);
+    if (tensorA && tensorB) {
+      auto other = dimensions(loc, b);
+      for (std::size_t axis = 0; axis < shape.size(); ++axis)
+        guard(loc, compare(loc, arith::CmpIPredicate::eq, shape[axis], other[axis]), 1);
+    }
+    checkedCount(loc, shape);
+    SmallVector<Value> dynamic;
+    for (std::size_t axis = 0; axis < shape.size(); ++axis)
+      if (output.isDynamicDim(axis))
+        dynamic.push_back(shape[axis]);
+    Value empty =
+        tensor::EmptyOp::create(builder_, loc, output.getShape(), builder_.getF32Type(), dynamic);
+    SmallVector<Value> indices;
+    const auto zero = index(loc, 0), one = index(loc, 1);
+    std::function<Value(std::size_t, Value)> loop = [&](std::size_t axis, Value tensor) -> Value {
+      if (axis == shape.size()) {
+        Value left = tensorA ? tensor::ExtractOp::create(builder_, loc, a, indices).getResult() : a;
+        Value right =
+            tensorB ? tensor::ExtractOp::create(builder_, loc, b, indices).getResult() : b;
+        auto result = binary(loc, op == TokenKind::Plus ? "arith.addf" : "arith.mulf", left, right);
+        return tensor::InsertOp::create(builder_, loc, result, tensor, indices);
+      }
+      auto iteration = scf::ForOp::create(builder_, loc, zero, shape[axis], one, ValueRange{tensor},
+                                          [&](OpBuilder &, Location, Value i, ValueRange args) {
+                                            indices.push_back(i);
+                                            auto result = loop(axis + 1, args[0]);
+                                            indices.pop_back();
+                                            scf::YieldOp::create(builder_, loc, ValueRange{result});
+                                          });
+      return iteration.getResult(0);
+    };
+    return loop(0, empty);
+  }
   struct Frame {
     std::unordered_map<ValueId, Value> values;
     std::unordered_map<SymbolId, Value> symbols;
@@ -567,6 +604,10 @@ private:
                                : operation.operation == TokenKind::Star  ? "arith.mulf"
                                                                          : "arith.divf";
             return binary(loc, name, a, b);
+          } else if constexpr (std::is_same_v<T, TensorBinary>) {
+            auto a = expression(frame, operation.left), b = expression(frame, operation.right);
+            return elementwise(loc, a, b, cast<RankedTensorType>(type(node.type)),
+                               operation.operation);
           } else if constexpr (std::is_same_v<T, TensorLiteral>) {
             SmallVector<Value> elements;
             for (auto child : operation.elements)

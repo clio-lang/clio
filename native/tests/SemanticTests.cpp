@@ -55,7 +55,8 @@ void validIR(const TypedModule &module) {
                     "bad symbol resolution");
           } else if constexpr (std::is_same_v<T, ScalarUnary>)
             operand(op.operand);
-          else if constexpr (std::is_same_v<T, ScalarBinary> || std::is_same_v<T, Matmul>) {
+          else if constexpr (std::is_same_v<T, ScalarBinary> || std::is_same_v<T, TensorBinary> ||
+                             std::is_same_v<T, Matmul>) {
             operand(op.left);
             operand(op.right);
           } else if constexpr (std::is_same_v<T, TensorLiteral>) {
@@ -316,6 +317,28 @@ void tensorLiterals() {
   rejected("fn main() -> Tensor[float32,0,?]:\n  tensor([])\n", "S010");
   rejected("fn main():\n  tensor([[1]])\n", "S026");
 }
+void elementwiseArithmetic() {
+  auto result = analyze(
+      "fn add(a: Tensor[float32,?], b: Tensor[float32,?]) -> Tensor[float32,?]:\n  a+b\n"
+      "fn lift(a: Tensor[float32,?], scale: float32) -> Tensor[float32,?]:\n  (a*scale)+0.5\n");
+  accepted(result);
+  validIR(*result.module);
+  require(std::holds_alternative<TensorBinary>(returned(*result.module, 0).operation),
+          "elementwise typed operation lost");
+  require(result.module->functions[0].preconditions.size() == 1,
+          "dynamic shape equality not recorded");
+  require(dumpTypedIR(*result.module).find("elementwise add.f32 strict") != std::string::npos,
+          "elementwise strict policy missing");
+  accepted(analyze("fn lift(a: Tensor[float32,2,3]) -> Tensor[float32,2,3]:\n  0.5+a*2\n"));
+  rejected("fn f(a: Tensor[float32,2], b: Tensor[float32,3]) -> Tensor[float32,2]:\n  a+b\n",
+           "S011");
+  rejected("fn f(a: Tensor[float32,2], b: Tensor[float32,1,2]) -> Tensor[float32,2]:\n  a*b\n",
+           "S017");
+  rejected("fn add(a: Tensor[float32,?], b: Tensor[float32,?]) -> Tensor[float32,?]:\n  a+b\n"
+           "fn bad(a: Tensor[float32,2], b: Tensor[float32,3]) -> Tensor[float32,2]:\n  add(a,b)\n",
+           "S033");
+  rejected("fn f(a: Tensor[float32,2]) -> Tensor[float32,2]:\n  a/2\n", "S017");
+}
 void diagnostics() {
   const std::vector<std::pair<std::string, std::string>> cases{
       {"fn f() -> float64:\n  1\n", "S003"},
@@ -339,7 +362,7 @@ void diagnostics() {
       {"fn f(x: Tensor[float32,2,3]) -> float32:\n  x\n", "S010"},
       {"fn f(x: Tensor[float32,2,3]) -> Tensor[float32,3,2]:\n  x\n", "S011"},
       {"fn f(x: Tensor[float32,2,3]) -> Tensor[float32,6]:\n  x\n", "S010"},
-      {"fn f(x: Tensor[float32,2,3]) -> Tensor[float32,2,3]:\n  x + x\n", "S017"},
+      {"fn f(x: Tensor[float32,2,3]) -> Tensor[float32,2,3]:\n  x / x\n", "S017"},
       {"fn f(a: Tensor[float32,9223372036854775808,0]) -> float32:\n  1\n", "S001"},
       {"fn f(a: Tensor[float32,4294967296,4294967296]) -> float32:\n  1\n", "S002"},
       {"fn f(a: Tensor[float32,2305843009213693952]) -> float32:\n  1\n", "S002"},
@@ -409,6 +432,7 @@ int main(int argc, char **argv) {
     resolutionAndCalls();
     shapeFactsAndGuards();
     tensorLiterals();
+    elementwiseArithmetic();
     diagnostics();
     limitsAndRobustness();
     require(argc == 2, "expected canonical fixture");
