@@ -308,6 +308,36 @@ static void idleAndBudgetWakeups() {
       clean(*core);
     }
 }
+// Add work after the pool has parked spare workers around a running callback.
+// New submissions must wake workers, not the blocked drain controller.
+static void activeAdmissions() {
+  for (unsigned repeat = 0; repeat < 10; ++repeat) {
+    TaskLimits limits;
+    limits.workers = 4;
+    auto core = TaskCore::create(limits);
+    CHECK(core);
+    Shared blocked{core.get(), Mode::Poll}, parallel{core.get(), Mode::Overlap};
+    Input blocking{&blocked, 0}, input{&parallel, 71};
+    auto root = core->openRoot();
+    auto waiting = core->submit(root, entry, packet(blocking));
+    std::jthread controller([&] { CHECK(core->drain()); });
+    until([&] { return blocked.entered.load() == 1; });
+    auto independent = core->openRoot();
+    auto a = core->submit(independent, entry, packet(input));
+    auto b = core->submit(independent, entry, packet(input));
+    until([&] { return core->settled(a) && core->settled(b); });
+    CHECK(parallel.entered == 2 && !core->settled(waiting));
+    observe(*core, a, 71);
+    observe(*core, b, 71);
+    CHECK(core->close(independent));
+    until([&] { return core->settled(independent); });
+    CHECK(core->release(independent) && core->cancel(root));
+    controller.join();
+    CHECK(blocked.acknowledged && core->failure(waiting).kind == TaskFailure::Cancelled);
+    CHECK(core->release(root));
+    clean(*core);
+  }
+}
 static void racingFaults() {
   TaskLimits limits;
   limits.workers = 2;
@@ -489,6 +519,7 @@ int main() {
   cancellationBeforePublication(Mode::CleanupLease);
   boundedDrain();
   idleAndBudgetWakeups();
+  activeAdmissions();
   racingFaults();
   pinnedRead();
   nestedProgress();

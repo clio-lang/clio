@@ -1,5 +1,7 @@
 # Idle-worker notifications and empty drains — 2026-10-15
 
+The next [targeted-wakeup comparison](native-scheduler-2026-10-15-targeted.md) measures separate worker/controller notification channels.
+
 The native runtime now avoids broadcasts to fully idle workers and avoids activating the pool for an empty drain. The default eight-worker, sixteen-task batch improves by about **2.2×** in the same-session comparison. Most of the recovered time is outside task execution; the active execution phase still needs work.
 
 ## Runtime change and safety

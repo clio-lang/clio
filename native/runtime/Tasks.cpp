@@ -90,17 +90,24 @@ struct TaskCore::Impl {
     lock.lock();
 #endif
   }
-  template <class Predicate> void wait(std::unique_lock<std::mutex> &lock, Predicate ready) {
+  template <class Predicate>
+  void wait(std::unique_lock<std::mutex> &lock, std::condition_variable &condition, Predicate ready,
+            bool controller = false) {
+#ifndef KALANDRA_TASK_PROFILE
+    (void)controller;
+#endif
 #ifdef KALANDRA_TASK_PROFILE
     while (!ready()) {
       ++profile.waits;
       const auto start = ProfileClock::now();
-      changed.wait(lock);
+      condition.wait(lock);
       ++profile.waitReturns;
+      profile.controllerWaitReturns += controller;
+      profile.workerWaitReturns += !controller;
       profile.waitNs += nanos(start);
     }
 #else
-    changed.wait(lock, ready);
+    condition.wait(lock, ready);
 #endif
   }
   std::unique_ptr<Record[]> tasks;
@@ -109,7 +116,7 @@ struct TaskCore::Impl {
   std::uint32_t queueHead = 0, queueCount = 0, cursor = 0;
   std::uint64_t attempts = 0, failAt = 0;
   std::mutex mutex;
-  std::condition_variable changed;
+  std::condition_variable workerChanged, controllerChanged;
   std::vector<std::jthread> workers;
   std::uint64_t revision = 0;
   std::size_t remaining = 0;
@@ -123,14 +130,26 @@ struct TaskCore::Impl {
     }
     ~Guard() { core.signal(); }
   };
-  void signal() {
+  void signal(bool activate = false) {
     ++revision;
-    // Idle workers wait only for draining or shutdown. Preserve broadcasts for
-    // an active controller even after draining stops: it may still be waiting
-    // for an execution/cleanup/construction lease to return.
-    if (draining || controlling || stopping) {
+    if (limits.workers > 1 && (stopping || (draining && activate))) {
+      TASK_PROBE(workerBroadcasts, 1);
       TASK_PROBE(notifications, 1);
-      changed.notify_all();
+      workerChanged.notify_all();
+    } else if (limits.workers > 1 && draining) {
+      // One progress event needs one waiter to re-check ready/dependency state.
+      // The draining worker keeps making progress too. Drain activation wakes
+      // the whole pool so long numerical callbacks can overlap immediately.
+      TASK_PROBE(workerSignals, 1);
+      TASK_PROBE(notifications, 1);
+      workerChanged.notify_one();
+    }
+    // A worker notification cannot be stolen by the controller (or vice versa).
+    // In particular, budget exhaustion may stop draining before leases unwind.
+    if (limits.workers > 1 && controlling && !draining && !pumping && !preparing) {
+      TASK_PROBE(controllerSignals, 1);
+      TASK_PROBE(notifications, 1);
+      controllerChanged.notify_one();
     }
   }
   ~Impl() { stop(); }
@@ -152,7 +171,7 @@ struct TaskCore::Impl {
           std::unique_lock lock(mutex, std::defer_lock);
           acquire(lock);
           while (!stopping) {
-            wait(lock, [&] { return stopping || draining; });
+            wait(lock, workerChanged, [&] { return stopping || draining; });
             if (stopping)
               break;
             if (!remaining || !stats.unfinished) {
@@ -161,7 +180,7 @@ struct TaskCore::Impl {
               continue;
             }
             if ((--remaining, step(lock))) {
-              signal();
+              // The step's Pump signals after its lease has fully unwound.
               continue;
             }
             ++remaining;
@@ -171,7 +190,7 @@ struct TaskCore::Impl {
               continue;
             }
             const auto seen = revision;
-            wait(lock, [&] { return stopping || !draining || revision != seen; });
+            wait(lock, workerChanged, [&] { return stopping || !draining || revision != seen; });
           }
         });
       return true;
@@ -752,9 +771,10 @@ bool TaskCore::drain(std::size_t steps) noexcept {
   } else {
     impl_->remaining = steps;
     impl_->draining = true;
-    impl_->signal();
-    impl_->wait(guard.lock,
-                [&] { return !impl_->draining && !impl_->pumping && !impl_->preparing; });
+    impl_->signal(true);
+    impl_->wait(
+        guard.lock, impl_->controllerChanged,
+        [&] { return !impl_->draining && !impl_->pumping && !impl_->preparing; }, true);
   }
   impl_->controlling = false;
   return !impl_->stats.unfinished;

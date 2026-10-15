@@ -66,6 +66,8 @@ struct TaskStats {
 struct TaskProfile {
   std::uint64_t locks = 0, contendedLocks = 0, lockWaitNs = 0;
   std::uint64_t notifications = 0, waits = 0, waitReturns = 0, waitNs = 0;
+  std::uint64_t workerSignals = 0, workerBroadcasts = 0, controllerSignals = 0;
+  std::uint64_t workerWaitReturns = 0, controllerWaitReturns = 0;
   std::uint64_t allocationAttempts = 0, frees = 0, allocatorNs = 0;
   std::uint64_t maintenancePasses = 0, recordVisits = 0, groupVisits = 0;
   std::uint64_t readyVisits = 0, steps = 0;

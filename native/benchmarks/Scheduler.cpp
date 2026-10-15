@@ -98,11 +98,18 @@ int main(int argc, char **argv) {
   auto p = core->profile();
   check(s.resumes == 16 * hops && s.publications == 16 && p.allocationAttempts == 32 &&
         p.frees == 32 && p.steps >= s.resumes && p.recordVisits && p.readyVisits);
+  check(p.notifications == p.workerSignals + p.workerBroadcasts + p.controllerSignals);
+  if (limits.workers > 1)
+    check(p.workerBroadcasts == 1 && p.controllerSignals && p.controllerWaitReturns);
+  else
+    check(!p.notifications && !p.workerWaitReturns && !p.controllerWaitReturns);
   std::printf("{\"locks\":%llu,\"contended_locks\":%llu,\"lock_wait_ns\":%llu,"
               "\"notifications\":%llu,\"waits\":%llu,\"wait_returns\":%llu,\"wait_ns\":%llu,"
               "\"allocation_attempts\":%llu,\"frees\":%llu,\"allocator_ns\":%llu,"
               "\"maintenance_passes\":%llu,\"record_visits\":%llu,\"group_visits\":%llu,"
-              "\"ready_visits\":%llu,\"steps\":%llu,\"resumes\":%llu}\n",
+              "\"ready_visits\":%llu,\"steps\":%llu,\"resumes\":%llu,"
+              "\"worker_signals\":%llu,\"worker_broadcasts\":%llu,\"controller_signals\":%llu,"
+              "\"worker_wait_returns\":%llu,\"controller_wait_returns\":%llu}\n",
               (unsigned long long)p.locks, (unsigned long long)p.contendedLocks,
               (unsigned long long)p.lockWaitNs, (unsigned long long)p.notifications,
               (unsigned long long)p.waits, (unsigned long long)p.waitReturns,
@@ -110,7 +117,10 @@ int main(int argc, char **argv) {
               (unsigned long long)p.frees, (unsigned long long)p.allocatorNs,
               (unsigned long long)p.maintenancePasses, (unsigned long long)p.recordVisits,
               (unsigned long long)p.groupVisits, (unsigned long long)p.readyVisits,
-              (unsigned long long)p.steps, (unsigned long long)s.resumes);
+              (unsigned long long)p.steps, (unsigned long long)s.resumes,
+              (unsigned long long)p.workerSignals, (unsigned long long)p.workerBroadcasts,
+              (unsigned long long)p.controllerSignals, (unsigned long long)p.workerWaitReturns,
+              (unsigned long long)p.controllerWaitReturns);
 #else
   for (unsigned i = 0; i < 10; ++i)
     batch(*core, hops);
