@@ -242,3 +242,19 @@ The private `kalandra_elementwise_v2` ABI packs tensor bindings first, followed 
 [Conformance checks](../../native/metal-source/ScalarEntryChecks.h) check five CPU/GPU helpers in **676,900 cases per build variant**, using APFloat for arithmetic and exact bits for identity, including empty/tail workgroups, subnormals, signed zeros, infinities and NaNs. Identity additionally preserves exact input bits, including NaN payloads. Tests change caller capture arrays immediately after submission, reject incompatible signatures/counts/residency before dispatch, and run supervisor allocation failures, cancellation, deadlines, completion failure and cleanup in debug, optimized, ASan/UBSan and TSan builds. [CLI checks](../../native/metal-source/VerifyScalarEntry.cmake) cover CPU execution, unused scalars, placement and diagnostics without modifying existing output on rejection. [Evidence](../../native/metal-proof/evidence/gpu-entry-signatures-2026-10-15.json) records the run and artifact hashes.
 
 Strict arithmetic implementation and its qualification are unchanged. GPU performance is unmeasured. Placement/task/residency lowering still uses the target-specific supervisor.
+
+## Tracked follow-up: general GPU parameter layouts (GPU-ABI-001)
+
+Status: open. The current two-tensor/eight-scalar cap is a temporary compiler/runtime implementation restriction on GPU-placed user functions, not a language rule. It comes from fixed tensor slots and a fixed scalar capture array. Ordinary CPU functions do not inherit this GPU cap. Remove the arbitrary counts as the GPU interface becomes general.
+
+Completion requires:
+
+- Derive the argument layout from the checked function signature, preserving source evaluation order and allowing any ordering of supported parameter types.
+- Replace fixed tensor slots and scalar arrays with bounded, owned argument storage sized for that signature. Retain tensor owners and copy scalar values at submission; preserve cancellation, allocation-failure cleanup and resource accounting.
+- Generate and validate matching artifact metadata, shader bindings and scalar layouts. Handle target resource limits where practical; diagnose actual unsupported types, device capabilities or resource limits instead of imposing a universal language parameter count.
+- Derive shape requirements from the function's operations. Equal lengths and the requirement that every tensor contribute to the result belong to the current elementwise implementation, not to general function signatures.
+- Exercise more than two tensors and more than eight scalars, mixed ordering, unused arguments, invalid layouts, allocation failures and cancellation in the numerical and sanitizer suites.
+
+This does not imply that every language type can immediately execute on every GPU. Type and operation support must expand explicitly, with capability checks and numerical evidence.
+
+The next tensor-kernel milestone is rank-one GPU `reduceSum`, including scalar task results, the accepted deterministic reduction tree, empty/tail inputs, and cancellation-safe intermediate storage. It should let a program reduce data on the device instead of downloading the entire tensor for a CPU sum. GPU-ABI-001 remains a separate open requirement; reduction support must not turn the current argument counts into language semantics.
