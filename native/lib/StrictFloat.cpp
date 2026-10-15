@@ -58,24 +58,20 @@ class IntegerFloat {
             eq(magnitude, c(0x7f800000)),
             eq(magnitude, c(0))};
   }
-  // A bounded normalization loop, stopping at the subnormal exponent floor.
-  std::pair<Value, Value> normalize(Value sig, Value exponent, unsigned bit, unsigned steps,
-                                    std::int64_t floor) {
-    auto zero = arith::ConstantIndexOp::create(b, loc, 0);
-    auto end = arith::ConstantIndexOp::create(b, loc, steps);
-    auto one = arith::ConstantIndexOp::create(b, loc, 1);
-    auto loop = scf::ForOp::create(
-        b, loc, zero, end, one, ValueRange{sig, exponent},
-        [&](OpBuilder &body, Location here, Value, ValueRange args) {
-          OpBuilder::InsertionGuard guard(b);
-          b.setInsertionPoint(body.getInsertionBlock(), body.getInsertionPoint());
-          auto shift = all(all(nonzero(args[0]), lt(args[0], c(std::uint64_t{1} << bit))),
-                           slt(c(floor), args[1]));
-          auto next = choose(shift, shl(args[0], c(1)), args[0]);
-          auto exp = choose(shift, sub(args[1], c(1)), args[1]);
-          scf::YieldOp::create(b, here, ValueRange{next, exp});
-        });
-    return {loop.getResult(0), loop.getResult(1)};
+  // Normalize in logarithmic steps. A shift is allowed only if it cannot
+  // overshoot the target bit or cross the subnormal exponent floor. Zero
+  // keeps its exponent, just as in the original bounded one-bit loop.
+  std::pair<Value, Value> normalize(Value sig, Value exponent, unsigned bit, std::int64_t floor) {
+    for (unsigned shift = 16; shift != 0; shift >>= 1) {
+      if (shift > bit)
+        continue;
+      auto fits = lt(sig, c(std::uint64_t{1} << (bit - shift + 1)));
+      auto room = cmp(arith::CmpIPredicate::sge, exponent, c(floor + shift));
+      auto move = all(all(nonzero(sig), fits), room);
+      sig = choose(move, shl(sig, c(shift)), sig);
+      exponent = choose(move, sub(exponent, c(shift)), exponent);
+    }
+    return {sig, exponent};
   }
   Value pack(Value sig, Value exponent, Value sign) {
     // Three low bits are guard/round/sticky. The retained odd bit breaks ties.
@@ -104,7 +100,7 @@ class IntegerFloat {
     auto carry = cmp(arith::CmpIPredicate::uge, sig, c(0x8000000));
     sig = choose(carry, jam(sig, c(1)), sig);
     expA = choose(carry, add(expA, c(1)), expA);
-    auto [normal, exponent] = normalize(sig, expA, 26, 26, 1);
+    auto [normal, exponent] = normalize(sig, expA, 26, 1);
     auto zeroSign = bitAnd(a.sign, d.sign);
     auto result = choose(eq(normal, c(0)), zeroSign, pack(normal, exponent, sign));
     result = choose(d.isInf, d.bits, result);
@@ -113,8 +109,8 @@ class IntegerFloat {
     return choose(bitOr(bitOr(a.isNan, d.isNan), invalid), c(0x7fc00000), result);
   }
   Value multiplication(Parts a, Parts d) {
-    auto [sigA, expA] = normalize(a.significand, a.exponent, 23, 23, -22);
-    auto [sigB, expB] = normalize(d.significand, d.exponent, 23, 23, -22);
+    auto [sigA, expA] = normalize(a.significand, a.exponent, 23, -22);
+    auto [sigB, expB] = normalize(d.significand, d.exponent, 23, -22);
     auto product = arith::MulIOp::create(b, loc, sigA, sigB);
     auto high = nonzero(bitAnd(product, c(std::uint64_t{1} << 47)));
     auto sig = jam(product, choose(high, c(21), c(20)));

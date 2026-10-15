@@ -64,3 +64,5 @@ The [recorded reports and artifact hashes](evidence/2026-10-15.json) retain thes
 ## Strict binary32 follow-up
 
 The optional proof build now also produces `native-metal-strict`: an integer MLIR lowering for scalar float32 add/multiply, a CPU LLVM reference fixture, and a Metal artifact. Eight additional tests compare it with LLVM APFloat and CPU hardware, verify generated arithmetic/interfaces, and reject unsupported operations. The strict shader requires MSL 2.2/Int64; the original hardware controls above retain their MSL 2.1 profile and recorded mismatches. See the [implementation and results](../../docs/design/strict-gpu-float32.md). No arithmetic policy is relaxed and no performance claim is made.
+
+The strict lowering now uses five bounded integer normalization stages instead of per-bit loops. The current scalar proof corpus also covers every subnormal leading-bit position and cancellation distance across all finite exponent fields; historical reports retain the earlier corpus. Artifact checks reject normalization loops in the scalar fixtures. See the [optimization and qualification](../../docs/design/apple-gpu.md#strict-normalization-optimization).

@@ -169,3 +169,15 @@ This requires the existing optional shader toolchain and an actual Apple GPU. Th
 Nine workloads cover square/odd rectangular matmul and rank-one reductions. Four modes separate CPU checked-call wall time, a preallocated GPU command interval and its host wall time, managed tasks with resident device inputs, and managed tasks including uploads and downloads from existing host values. All outputs and input immutability are checked, with resource retirement assertions. Allocation, readback and result-lifetime boundaries differ between controls; see the [report](../../benchmarks/results/native-gpu-2026-10-15.md#what-is-timed) before interpreting ratios. There is no JIT; compilation, pipeline creation, input/reference construction and excluded dispatch warmups precede measured samples. No production compiler/runtime profiling hooks or performance test thresholds are introduced.
 
 The baseline executable and its two Metal libraries must be preserved together for later comparisons: the executable loads kernels from the directory passed on its command line. Before a kernel change, copy both `scaling` and `kernels/kernel*.metallib` from the ignored build directory into a separate baseline directory. Invoke the saved executable with `scaling kernels-directory warmup-count sample-count process-index`; the benchmark uses the same actual source-generated CPU functions and GPU artifacts whose hashes are retained in JSON. New experiments should use a distinct output report and match harness, data, runtime, flags and timing boundaries. Kernel changes must retain their own correctness and sanitizer gates; a successful timing run on exact finite inputs does not replace IEEE conformance.
+
+See the [strict normalization comparison](../../benchmarks/results/native-gpu-2026-10-15-normalization.md) for the first matched compiler optimization.
+
+### Compare a GPU compiler change
+
+```sh
+python3 native/benchmarks/gpu.py \
+  --baseline-dir benchmarks/.build/native-gpu/baseline-2026-10-15 \
+  --output benchmarks/results/native-gpu-comparison.json
+```
+
+`--baseline-dir` requires the saved `scaling` executable and both `kernels/kernel0.metallib` and `kernel1.metallib`. Use matching harness, inputs, runtime, build flags, ABI and dispatch geometry. The runner alternates fresh-process order baseline/current, current/baseline, baseline/current, with matching shuffle seeds. It retains both sets of raw samples, per-process medians, process order and baseline artifact hashes, and checks that both use the same device and that saved artifacts remain unchanged. This reduces ordering bias without controlling clocks, thermals or desktop load. The original baseline report identifies its source/toolchain provenance.

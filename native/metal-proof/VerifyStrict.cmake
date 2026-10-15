@@ -8,6 +8,11 @@ file(READ "${OUTPUT_DIR}/strict-cpu.ll" LLVM)
 if(LOWERED MATCHES "arith\\.(addf|mulf|divf)" OR SPIRV MATCHES "OpF(Add|Mul|Div)|Fma|FPFastMathMode" OR MSL MATCHES "fma[ \t]*\\(" OR LLVM MATCHES "(fadd|fmul|fdiv|llvm.fma)")
   message(FATAL_ERROR "Strict integer arithmetic retained or introduced a floating operation")
 endif()
+# These fixtures contain no source loops. Normalization must stay a bounded
+# straight-line sequence rather than reintroducing per-bit shader loops.
+if(LOWERED MATCHES "scf\\.(for|while)" OR SPIRV MATCHES "OpLoopMerge")
+  message(FATAL_ERROR "Strict scalar normalization unexpectedly introduced a loop")
+endif()
 if(NOT SPIRV MATCHES "OpCapability Int64" OR NOT SPIRV MATCHES "OpIMul" OR NOT SPIRV MATCHES "OpIAdd")
   message(FATAL_ERROR "Expected 64-bit integer arithmetic missing")
 endif()

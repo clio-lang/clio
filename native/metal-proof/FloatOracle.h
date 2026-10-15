@@ -52,6 +52,18 @@ inline std::vector<Pair> corpus() {
         pairs.push_back(
             {((signs & 1) ? 0x80000000u : 0u) | (a << 23) | ((a & 1) ? 0x7fffffu : 1u),
              ((signs & 2) ? 0x80000000u : 0u) | (b << 23) | ((b & 1) ? 0x400001u : 0x3fffffu)});
+  // Exercise every subnormal leading-bit position and cancellation distance,
+  // including shifts that stop at the exponent floor rather than the hidden bit.
+  for (unsigned bit = 0; bit < 23; ++bit)
+    for (std::uint32_t sign : {0u, 0x80000000u}) {
+      const auto subnormal = sign | (1u << bit);
+      for (std::uint32_t scale : {0x00800000u, 0x3f000000u, 0x3f800000u, 0x40000000u})
+        pairs.push_back({subnormal, scale});
+      for (std::uint32_t exponent = 1; exponent < 255; ++exponent) {
+        const auto base = exponent << 23;
+        pairs.push_back({sign | base | (1u << bit), (sign ^ 0x80000000u) | base});
+      }
+    }
   std::uint32_t seed = 0x42514e49;
   auto next = [&] {
     seed ^= seed << 13;

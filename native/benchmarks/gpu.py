@@ -27,6 +27,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compiler', type=pathlib.Path, default=ROOT / 'build/native/native/kalandrac')
     parser.add_argument('--output', type=pathlib.Path)
+    parser.add_argument('--baseline-dir', type=pathlib.Path,
+                        help='Saved directory containing scaling and kernels/kernel{0,1}.metallib')
     parser.add_argument('--processes', type=int, default=3)
     parser.add_argument('--samples', type=int, default=7)
     parser.add_argument('--warmups', type=int, default=2)
@@ -41,6 +43,15 @@ def main():
     output = args.output or (build / 'smoke.json' if args.smoke else ROOT / f'benchmarks/results/native-gpu-{datetime.date.today().isoformat()}.json')
     if output.exists() and not args.smoke:
         parser.error('output already exists; choose a new path to preserve previous measurements')
+    baseline_artifacts = {}
+    if args.baseline_dir:
+        args.baseline_dir = args.baseline_dir.resolve()
+        paths = [args.baseline_dir / 'scaling', *[args.baseline_dir / 'kernels' / f'kernel{i}.metallib' for i in [0, 1]]]
+        rebuilt = {build / 'scaling', *[build / 'kernels' / f'kernel{i}.metallib' for i in [0, 1]]}
+        if (not all(p.is_file() for p in paths) or
+                any(p.resolve() in {q.resolve() for q in rebuilt} for p in paths)):
+            parser.error('baseline must be a separate saved directory with executable and both Metal libraries')
+        baseline_artifacts = {str(p): digest(p) for p in paths}
     lock = json.loads((ROOT / 'native/toolchain-proof/toolchain.json').read_text())
     clang = pathlib.Path(lock['defaultLlvmRoot']) / 'bin/clang++'
     bundle = build / 'kernels'
@@ -67,32 +78,44 @@ def main():
         if env.get(name) not in (None, '', '0'):
             parser.error(f'{name} is enabled; performance runs require validation/injection disabled')
         env.pop(name, None)
-    trials = []
+    trials, baseline_trials, order = [], [], []
     for process in range(args.processes):
-        print(f'Native GPU process {process + 1}/{args.processes}', flush=True)
-        lines = [json.loads(line) for line in run([binary, bundle, args.warmups, args.samples, process], env=env).splitlines()]
-        assert len(lines) == 1 + 9 * 4 * args.samples
-        trials.append(dict(metadata=lines[0]['metadata'], samples=lines[1:]))
-    assert all(t['metadata']['registry_id'] == trials[0]['metadata']['registry_id'] for t in trials)
-    summary = []
-    for workload in sorted({r['workload'] for r in trials[0]['samples']}):
-        for mode in ['cpu', 'device', 'resident', 'transfers']:
-            rows = [[r for r in trial['samples'] if r['workload'] == workload and r['mode'] == mode] for trial in trials]
-            assert all(len(r) == args.samples for r in rows)
-            cell = dict(workload=workload, mode=mode)
-            for metric in ['wall_ms', 'gpu_ms', 'upload_ms', 'compute_ms', 'download_ms', 'retire_ms']:
-                values = [[r[metric] for r in process if r[metric] is not None] for process in rows]
-                medians = [statistics.median(v) for v in values if v]
-                cell[metric] = statistics.median(medians) if medians else None
-                cell[metric + '_process_medians'] = medians
-                cell[metric + '_min'] = min((min(v) for v in values if v), default=None)
-                cell[metric + '_max'] = max((max(v) for v in values if v), default=None)
-            summary.append(cell)
+        variants = [('current', binary, bundle, trials)]
+        if args.baseline_dir:
+            variants.insert(0, ('baseline', args.baseline_dir / 'scaling', args.baseline_dir / 'kernels', baseline_trials))
+            if process % 2:
+                variants.reverse()
+        for name, executable, kernels, observations in variants:
+            print(f'Native GPU {name} process {process + 1}/{args.processes}', flush=True)
+            lines = [json.loads(line) for line in run([executable, kernels, args.warmups, args.samples, process], env=env).splitlines()]
+            assert len(lines) == 1 + 9 * 4 * args.samples
+            observations.append(dict(metadata=lines[0]['metadata'], samples=lines[1:]))
+            order.append(dict(variant=name, process=process))
+    assert all(t['metadata']['registry_id'] == trials[0]['metadata']['registry_id'] for t in trials + baseline_trials)
+
+    def summarize(trials):
+        summary = []
+        for workload in sorted({r['workload'] for r in trials[0]['samples']}):
+            for mode in ['cpu', 'device', 'resident', 'transfers']:
+                rows = [[r for r in trial['samples'] if r['workload'] == workload and r['mode'] == mode] for trial in trials]
+                assert all(len(r) == args.samples for r in rows)
+                cell = dict(workload=workload, mode=mode)
+                for metric in ['wall_ms', 'gpu_ms', 'upload_ms', 'compute_ms', 'download_ms', 'retire_ms']:
+                    values = [[r[metric] for r in process if r[metric] is not None] for process in rows]
+                    medians = [statistics.median(v) for v in values if v]
+                    cell[metric] = statistics.median(medians) if medians else None
+                    cell[metric + '_process_medians'] = medians
+                    cell[metric + '_min'] = min((min(v) for v in values if v), default=None)
+                    cell[metric + '_max'] = max((max(v) for v in values if v), default=None)
+                summary.append(cell)
+        return summary
+
+    summary = summarize(trials)
     sources = ['native/benchmarks/GpuScaling.mm', 'native/benchmarks/gpu.py', 'native/benchmarks/gpu.kalandra',
                'native/metal/Metal.h', 'native/metal/Metal.mm', 'native/runtime/Tensor.h', 'native/runtime/Runtime.h', 'native/runtime/Runtime.cpp',
                'native/runtime/Tasks.h', 'native/runtime/Tasks.cpp', 'native/lib/Backend.cpp', 'native/lib/CheckedABI.cpp',
                'native/metal-source/Compiler.cpp', 'native/metal-source/MatmulShader.h', 'native/metal-source/Build.cpp',
-               'native/metal-proof/Strict.cpp', 'native/metal-proof/Extract.cpp', 'native/toolchain-proof/toolchain.json']
+               'native/lib/StrictFloat.cpp', 'native/metal-proof/FloatOracle.h', 'native/metal-proof/Strict.cpp', 'native/metal-proof/Extract.cpp', 'native/toolchain-proof/toolchain.json']
     artifacts = [binary, args.compiler, bundle / 'cpu.ll', bundle / 'cpu.mlir']
     for index in [0, 1]:
         artifacts += [bundle / f'kernel{index}.{suffix}' for suffix in ['mlir', 'lowered.mlir', 'spv', 'metallib']]
@@ -115,7 +138,11 @@ def main():
                   build_seconds=build_seconds, build_commands=[[str(x) for x in c] for c in commands],
                   clang=run([clang, '--version']).strip(),
                   source_sha256={name: digest(ROOT / name) for name in sources},
-                  artifacts_sha256={str(p.relative_to(ROOT)): digest(p) for p in artifacts}, trials=trials, summary=summary)
+                  process_order=order, artifacts_sha256={str(p.relative_to(ROOT)): digest(p) for p in artifacts}, trials=trials, summary=summary)
+    if args.baseline_dir:
+        assert all(digest(p) == value for p, value in baseline_artifacts.items())
+        result['baseline'] = dict(directory=str(args.baseline_dir), artifacts_sha256=baseline_artifacts,
+                                  trials=baseline_trials, summary=summarize(baseline_trials))
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(result, indent=2) + '\n')
     for row in summary:

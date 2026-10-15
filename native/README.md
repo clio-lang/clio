@@ -4,6 +4,8 @@ The fresh compiler is written in **C++23**, with direct LLVM/MLIR C++ integratio
 
 The `native` branch contains the fresh language design and compiler. The released JavaScript prototype and Tiramisu website are separate from this build. The handwritten lexer/parser, [semantic stage](../docs/design/semantics.md), and [native source compiler](../docs/design/native-codegen.md) support float32 arithmetic and ranked dense float32 tensors. [Local tasks](../docs/design/native-tasks.md) support parallel blocks, spawn, await, and TaskError propagation through native continuations. A bounded pool now executes independent CPU tasks concurrently; set `KALANDRA_WORKERS=1..64` to override the detected count (capped at eight by default). Generated loops cooperate with cancellation. The [CPU scaling benchmark](benchmarks/README.md) now measures warmed generated kernels and scheduling overhead; results depend strongly on task size. See the [frontend grammar and limits](../docs/design/frontend.md).
 
+The [Apple GPU comparison](../benchmarks/results/native-gpu-2026-10-15-normalization.md) measures strict arithmetic after replacing per-bit normalization loops with five integer stages. It reduces 256-square matmul GPU command latency by 3.09× on the tested M2 Max; CPU still has lower latency on the tested matmul shapes.
+
 ## Build and test
 
 On the currently validated macOS ARM64 setup:
