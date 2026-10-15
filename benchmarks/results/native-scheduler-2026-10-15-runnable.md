@@ -1,5 +1,7 @@
 # Bounded native runnable tracking — 2026-10-15
 
+Follow-up: [occupancy-indexed maintenance](native-scheduler-2026-10-15-maintenance.md) reduces the remaining capacity scans. This report retains the earlier observations.
+
 The scheduler no longer scans the entire record table to rediscover runnable tasks before each dispatch. Admission completion, wait wakeups, and execution-lease return now update the ready structures explicitly. A bounded deferred FIFO retains already-admitted continuations when the configured ready ring is full.
 
 The measured gains are strongest with large tables and frequent yields. The serial 1024-record/eight-resume batch improves from **484 to 220 µs** (about **2.19×** throughput). Default-capacity changes are smaller, and large numerical-kernel timings are mixed. This is not a general CPU-kernel speedup claim.

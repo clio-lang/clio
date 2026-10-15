@@ -351,19 +351,76 @@ int main() {
     CHECK(!core->observe(task, scalar, stale, &value) && stale.status() == 3);
     empty(*core);
   }
-  for (bool yield : {false, true}) {
+  for (unsigned depth : {12U, 70U}) {
+    for (bool yield : {false, true}) {
+      TaskLimits limits;
+      limits.ready = 1;
+      limits.groups = 128;
+      limits.inFlight = 128;
+      limits.depth = 100;
+      auto narrow = TaskCore::create(limits);
+      auto root = narrow->openRoot();
+      ChainInput input{depth, yield};
+      auto task = narrow->submit(root, chainEntry(), {40, &input, sizeof(input)});
+      CHECK(narrow->drain());
+      float result = 0;
+      Invocation receiver;
+      CHECK(narrow->observe(task, scalar, receiver, &result) && result == depth + 1);
+      CHECK(narrow->close(root) && narrow->drain() && narrow->release(root));
+      empty(*narrow);
+    }
+  }
+  // Sparse high slots cross bitmap words, including the emergency rejection
+  // records. Reuse cleared words and reject stale handles after every cycle.
+  {
     TaskLimits limits;
-    limits.ready = 1;
-    auto narrow = TaskCore::create(limits);
-    auto root = narrow->openRoot();
-    ChainInput input{12, yield};
-    auto task = narrow->submit(root, chainEntry(), {40, &input, sizeof(input)});
-    CHECK(narrow->drain());
-    float result = 0;
-    Invocation receiver;
-    CHECK(narrow->observe(task, scalar, receiver, &result) && result == 13);
-    CHECK(narrow->close(root) && narrow->drain() && narrow->release(root));
-    empty(*narrow);
+    limits.records = limits.groups = limits.ready = limits.inFlight = 130;
+    auto sparse = TaskCore::create(limits);
+    TaskHandle staleTask;
+    GroupHandle staleGroup;
+    for (unsigned cycle = 0; cycle < 3; ++cycle) {
+      GroupHandle roots[70];
+      TaskHandle tasks[70];
+      Input input{7, 0, 0, &runs};
+      for (unsigned i = 0; i < 70; ++i) {
+        roots[i] = sparse->openRoot();
+        tasks[i] = sparse->submit(roots[i], leaf, packet(input));
+        CHECK(roots[i] && tasks[i]);
+      }
+      CHECK(!staleTask || sparse->failure(staleTask).kind == TaskFailure::Fault);
+      CHECK(!staleGroup || sparse->failure(staleGroup).kind == TaskFailure::Fault);
+      for (unsigned i = 0; i < 65; ++i)
+        CHECK(sparse->step());
+      Invocation receiver;
+      float result = 0;
+      for (unsigned i = 0; i < 65; ++i) {
+        CHECK(sparse->observe(tasks[i], scalar, receiver, &result) && result == 7);
+        CHECK(sparse->close(roots[i]));
+      }
+      CHECK(!sparse->drain(0));
+      for (unsigned i = 0; i < 65; ++i)
+        CHECK(sparse->release(roots[i]));
+      CHECK(sparse->stats().records == 5 && sparse->stats().groups == 5);
+      CHECK(sparse->cancel(roots[66]) && sparse->cancel(roots[68], true));
+      auto malformed = packet(input);
+      malformed.layout = 999;
+      const auto rejected = sparse->submit(roots[69], leaf, malformed);
+      CHECK(rejected.slot >= limits.records && sparse->settled(rejected));
+      CHECK(sparse->drain());
+      for (unsigned i : {65U, 67U}) {
+        CHECK(sparse->observe(tasks[i], scalar, receiver, &result) && result == 7);
+        CHECK(sparse->close(roots[i]));
+      }
+      CHECK(sparse->failure(tasks[66]).kind == TaskFailure::Cancelled);
+      CHECK(sparse->failure(roots[68]).kind == TaskFailure::DeadlineExceeded);
+      CHECK(sparse->failure(rejected).kind == TaskFailure::AdmissionRejected);
+      CHECK(sparse->drain());
+      for (unsigned i = 65; i < 70; ++i)
+        CHECK(sparse->release(roots[i]));
+      staleTask = tasks[0];
+      staleGroup = roots[0];
+      empty(*sparse);
+    }
   }
   // Descriptor/packet failures cannot invoke the task or retain payload storage.
   for (const auto *entry : {&partialPacket, &partialOutcome}) {

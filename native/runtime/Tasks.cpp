@@ -1,6 +1,7 @@
 #include "Tasks.h"
 #include <algorithm>
 #include <atomic>
+#include <bit>
 #include <condition_variable>
 #ifdef KALANDRA_TASK_PROFILE
 #include <chrono>
@@ -53,6 +54,31 @@ struct Group {
   GroupHandle parent;
   std::uint32_t depth = 0, outstanding = 0;
   Failure failure;
+};
+// Fixed storage, allocated once with the core. Read the current bitmap on every
+// advance: callbacks can unlock the core and allow other slots to be recycled.
+// Increasing slot order preserves the old sweep's settlement/failure ordering.
+class Slots {
+  std::uint32_t size_;
+  std::vector<std::uint64_t> words_;
+
+public:
+  explicit Slots(std::uint32_t size) : size_(size), words_((std::size_t(size) + 63) / 64) {}
+  void insert(std::uint32_t slot) { words_[slot / 64] |= std::uint64_t{1} << (slot % 64); }
+  void erase(std::uint32_t slot) { words_[slot / 64] &= ~(std::uint64_t{1} << (slot % 64)); }
+  std::uint32_t next(std::uint32_t start) const {
+    if (start >= size_)
+      return size_;
+    auto word = start / 64;
+    auto bits = words_[word] & (~std::uint64_t{0} << (start % 64));
+    while (!bits) {
+      if (++word == words_.size())
+        return size_;
+      bits = words_[word];
+    }
+    return word * 64 + std::countr_zero(bits);
+  }
+  std::uint32_t size() const { return size_; }
 };
 bool aligned(const void *pointer, std::size_t alignment) {
   return pointer && reinterpret_cast<std::uintptr_t>(pointer) % alignment == 0;
@@ -115,6 +141,7 @@ struct TaskCore::Impl {
   std::unique_ptr<Record[]> tasks;
   std::unique_ptr<Group[]> groups;
   std::unique_ptr<TaskHandle[]> queue;
+  Slots liveTasks, unfinishedTasks, liveGroups;
   std::uint32_t queueHead = 0, queueCount = 0;
   std::uint32_t pendingHead = UINT32_MAX, pendingTail = UINT32_MAX, pendingCount = 0;
   std::uint64_t attempts = 0, failAt = 0;
@@ -204,8 +231,8 @@ struct TaskCore::Impl {
   }
   explicit Impl(TaskLimits l)
       : limits(l), tasks(std::make_unique<Record[]>(std::size_t(l.records) + l.groups)),
-        groups(std::make_unique<Group[]>(l.groups)),
-        queue(std::make_unique<TaskHandle[]>(l.ready)) {}
+        groups(std::make_unique<Group[]>(l.groups)), queue(std::make_unique<TaskHandle[]>(l.ready)),
+        liveTasks(l.records + l.groups), unfinishedTasks(l.records), liveGroups(l.groups) {}
   TaskHandle handle(std::uint32_t index) const { return {index, tasks[index].generation}; }
   GroupHandle groupHandle(std::uint32_t index) const { return {index, groups[index].generation}; }
   Record *get(TaskHandle h) const {
@@ -336,6 +363,7 @@ struct TaskCore::Impl {
       auto &group = groups[i];
       if (!group.used) {
         group.used = true;
+        liveGroups.insert(i);
         group.owner = owner;
         group.parent = parent;
         if (auto *ancestor = get(parent); ancestor && ancestor->failure.kind != TaskFailure::None) {
@@ -362,7 +390,8 @@ struct TaskCore::Impl {
     bool changed;
     do {
       changed = false;
-      for (std::uint32_t i = 0; i < limits.records; ++i) {
+      for (auto i = unfinishedTasks.next(0); i < unfinishedTasks.size();
+           i = unfinishedTasks.next(i + 1)) {
         auto &task = tasks[i];
         auto *parent = get(task.group);
         if (task.state != State::Free && task.state != State::Settled && parent &&
@@ -372,7 +401,7 @@ struct TaskCore::Impl {
           changed = true;
         }
       }
-      for (std::uint32_t i = 0; i < limits.groups; ++i) {
+      for (auto i = liveGroups.next(0); i < liveGroups.size(); i = liveGroups.next(i + 1)) {
         auto &nested = groups[i];
         auto *owner = get(nested.owner);
         auto *parent = get(nested.parent);
@@ -390,6 +419,7 @@ struct TaskCore::Impl {
     auto &record = tasks[limits.records + h.slot];
     if (record.state == State::Free) {
       record.state = State::Settled;
+      liveTasks.insert(limits.records + h.slot);
       record.group = h;
       record.failure = failure;
       ++stats.records;
@@ -425,6 +455,8 @@ struct TaskCore::Impl {
       return rejected(h, {TaskFailure::AdmissionRejected});
     auto &task = tasks[slot];
     task.state = State::Prepared;
+    liveTasks.insert(slot);
+    unfinishedTasks.insert(slot);
     ++preparing;
     task.group = h;
     task.entry = &entry;
@@ -497,11 +529,11 @@ struct TaskCore::Impl {
     auto *group = get(h);
     if (!group || !group->settled)
       return false;
-    for (std::uint32_t i = 0; i < limits.records + limits.groups; ++i)
+    for (auto i = liveTasks.next(0); i < liveTasks.size(); i = liveTasks.next(i + 1))
       if (tasks[i].state != State::Free && tasks[i].group == h && tasks[i].readers)
         return false;
     group->disposing = true;
-    for (std::uint32_t i = 0; i < limits.records + limits.groups; ++i) {
+    for (auto i = liveTasks.next(0); i < liveTasks.size(); i = liveTasks.next(i + 1)) {
       auto &task = tasks[i];
       if (task.state == State::Free || task.group != h)
         continue;
@@ -514,12 +546,14 @@ struct TaskCore::Impl {
         freeBytes(task.value, task.entry->result->bytes);
       unlinkPending(i);
       const auto generation = task.generation + 1;
+      liveTasks.erase(i);
       task.~Record();
       new (&task) Record;
       task.generation = generation;
       --stats.records;
     }
     const auto generation = group->generation + 1;
+    liveGroups.erase(h.slot);
     *group = Group{};
     group->generation = generation;
     --stats.groups;
@@ -530,20 +564,19 @@ struct TaskCore::Impl {
     do {
       changed = false;
       TASK_PROBE(maintenancePasses, 1);
-      TASK_PROBE(recordVisits, limits.records);
-      TASK_PROBE(groupVisits, limits.groups);
-      for (std::uint32_t i = 0; i < limits.groups; ++i) {
+      for (auto i = liveGroups.next(0); i < liveGroups.size(); i = liveGroups.next(i + 1)) {
+        TASK_PROBE(groupVisits, 1);
         auto &group = groups[i];
         if (!group.used || !group.closed || group.settled || group.outstanding)
           continue;
         bool pendingNested = false;
-        for (std::uint32_t j = 0; j < limits.groups; ++j)
+        for (auto j = liveGroups.next(0); j < liveGroups.size(); j = liveGroups.next(j + 1))
           pendingNested |=
               groups[j].used && groups[j].parent == groupHandle(i) && !groups[j].settled;
         if (pendingNested)
           continue;
         if (group.failure.kind == TaskFailure::None)
-          for (std::uint32_t j = 0; j < limits.records + limits.groups; ++j)
+          for (auto j = liveTasks.next(0); j < liveTasks.size(); j = liveTasks.next(j + 1))
             if (tasks[j].state != State::Free && tasks[j].group == groupHandle(i) &&
                 !tasks[j].observed) {
               group.failure = {TaskFailure::Fault, 3};
@@ -552,7 +585,9 @@ struct TaskCore::Impl {
         group.settled = true;
         changed = true;
       }
-      for (std::uint32_t i = 0; i < limits.records; ++i) {
+      for (auto i = unfinishedTasks.next(0); i < unfinishedTasks.size();
+           i = unfinishedTasks.next(i + 1)) {
+        TASK_PROBE(recordVisits, 1);
         auto &task = tasks[i];
         if (task.state == State::WaitingTask) {
           auto *dependency = get(task.dependency);
@@ -570,7 +605,7 @@ struct TaskCore::Impl {
         if (task.state != State::Settling || task.executing || task.cleaning)
           continue;
         bool pending = false;
-        for (std::uint32_t j = 0; j < limits.groups; ++j) {
+        for (auto j = liveGroups.next(0); j < liveGroups.size(); j = liveGroups.next(j + 1)) {
           auto &nested = groups[j];
           if (!nested.used || nested.owner != handle(i))
             continue;
@@ -601,7 +636,7 @@ struct TaskCore::Impl {
         }
         acquire(lock);
         freeBytes(task.frame, task.entry->frameBytes);
-        for (std::uint32_t j = 0; j < limits.groups; ++j)
+        for (auto j = liveGroups.next(0); j < liveGroups.size(); j = liveGroups.next(j + 1))
           if (groups[j].used && groups[j].owner == handle(i))
             dispose(groupHandle(j), lock);
         lock.unlock();
@@ -623,6 +658,7 @@ struct TaskCore::Impl {
         task.cleaning = false;
         unlinkPending(i);
         task.state = State::Settled;
+        unfinishedTasks.erase(i);
         if (task.counted) {
           --get(task.group)->outstanding;
           --stats.unfinished;
@@ -642,7 +678,7 @@ struct TaskCore::Impl {
     task.state = State::Settling;
     if (failure.kind != TaskFailure::None) {
       failGroup(task.group, failure);
-      for (std::uint32_t i = 0; i < limits.groups; ++i)
+      for (auto i = liveGroups.next(0); i < liveGroups.size(); i = liveGroups.next(i + 1))
         if (groups[i].used && groups[i].owner == handle(slot))
           failGroup(groupHandle(i), {TaskFailure::Cancelled});
     }

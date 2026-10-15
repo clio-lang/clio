@@ -92,13 +92,17 @@ int main(int argc, char **argv) {
   // Fresh-core diagnostic: creation/initial worker waits are included. No
   // profiling clocks/counters are used for the separate latency samples.
   check(core->drain(0));
-  check(core->profile().notifications == 0);
+  check(core->profile().notifications == 0 && core->profile().recordVisits == 0 &&
+        core->profile().groupVisits == 0);
   batch(*core, hops);
   auto s = core->stats();
   auto p = core->profile();
   check(s.resumes == 16 * hops && s.publications == 16 && p.allocationAttempts == 32 &&
         p.frees == 32 && p.steps >= s.resumes && p.recordVisits && !p.readyVisits &&
         p.readyPushes == s.resumes && p.runnableEvents == s.resumes);
+  // This workload has at most sixteen unfinished records and one live group.
+  // Spare capacity must not count as a visited task/group entry.
+  check(p.recordVisits <= 16 * p.maintenancePasses && p.groupVisits <= p.maintenancePasses);
   check(p.notifications == p.workerSignals + p.workerBroadcasts + p.controllerSignals);
   if (limits.workers > 1)
     check(p.workerBroadcasts == 1 && p.controllerSignals && p.controllerWaitReturns);
