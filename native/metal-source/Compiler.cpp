@@ -471,11 +471,8 @@ class Compiler {
           const bool tensor = type.tensor;
           if (value.kind != (tensor ? Value::Tensor : Value::Scalar))
             reject(node(call->arguments[i]).span, "GPU argument type mismatch");
-          if (tensor && (value.rank != type.shape.size() || (!matrix && !sum && value.rank != 1)))
-            reject(
-                span,
-                "GPU tensor ranks must match their parameters; rank-two entries require matmul or "
-                "reduceSum");
+          if (tensor && value.rank != type.shape.size())
+            reject(span, "GPU tensor ranks must match their parameters");
           (tensor ? tensors : scalars).push_back(value);
         }
         if (tensors.empty() || tensors.size() > 2 || scalars.size() > 8)
@@ -487,16 +484,23 @@ class Compiler {
           if (!value.gpu || value.device != target.device)
             reject(span, "GPU arguments must be explicitly transferred to the selected device");
         auto left = tensors[0], right = tensors.back();
-        const unsigned leftAxis = matrix ? 1 : 0;
-        auto aExtent = extent(left, leftAxis), bExtent = extent(right, 0);
-        if (aExtent && bExtent && aExtent != bExtent)
-          reject(span,
-                 matrix ? "matmul inner dimensions differ" : "elementwise argument shapes differ");
-        if (tensors.size() == 2 && (!aExtent || !bExtent)) {
-          auto [line, column] = syntax.source->location(span.begin);
-          steps.push_back("if(" + ref(left) + ".shape()[" + std::to_string(leftAxis) +
-                          "]!=" + ref(right) + ".shape()[0]) {task.fault(1," +
-                          std::to_string(line) + "," + std::to_string(column) + ");return;}\n");
+        if (tensors.size() == 2) {
+          if (!matrix && left.rank != right.rank)
+            reject(span, "elementwise argument ranks differ");
+          for (unsigned axis = 0; axis < (matrix ? 1u : left.rank); ++axis) {
+            const unsigned leftAxis = matrix ? 1 : axis;
+            auto aExtent = extent(left, leftAxis), bExtent = extent(right, axis);
+            if (aExtent && bExtent && aExtent != bExtent)
+              reject(span, matrix ? "matmul inner dimensions differ"
+                                  : "elementwise argument shapes differ");
+            if (!aExtent || !bExtent) {
+              auto [line, column] = syntax.source->location(span.begin);
+              steps.push_back("if(" + ref(left) + ".shape()[" + std::to_string(leftAxis) +
+                              "]!=" + ref(right) + ".shape()[" + std::to_string(axis) +
+                              "]) {task.fault(1," + std::to_string(line) + "," +
+                              std::to_string(column) + ");return;}\n");
+            }
+          }
         }
         const bool legacy = tensors.size() == 2 && scalars.empty();
         auto signature = ", m::ElementwiseSignature{" + std::to_string(tensors.size()) + "," +
@@ -516,10 +520,8 @@ class Compiler {
                      matrix        ? left.length
                      : left.length ? left.length
                                    : right.length};
-        if (matrix) {
-          result.rank = 2;
-          result.width = right.width;
-        }
+        result.rank = left.rank;
+        result.width = matrix ? right.width : left.width;
         steps.push_back("auto target = " + device(target) + ";\nif (!target) { " +
                         error("target.error()") + " }\n" + std::string("auto kernel = r.") +
                         (matrix ? "loadMatmulKernel"
@@ -599,10 +601,11 @@ class Compiler {
     invoke = [&](std::size_t fnId, const std::vector<std::string> &args) -> std::string {
       const auto &fn = cpu.functions.at(fnId);
       for (auto parameter : fn.parameters)
-        if (cpu.symbols[parameter].type.tensor && cpu.symbols[parameter].type.shape.size() != 1)
-          reject(fn.declaration, "elementwise GPU helpers require rank-one tensors");
-      if (fn.resultType.tensor && fn.resultType.shape.size() != 1)
-        reject(fn.declaration, "elementwise GPU helpers require rank-one results");
+        if (cpu.symbols[parameter].type.tensor && (cpu.symbols[parameter].type.shape.empty() ||
+                                                   cpu.symbols[parameter].type.shape.size() > 2))
+          reject(fn.declaration, "elementwise GPU helpers require rank-one or rank-two tensors");
+      if (fn.resultType.tensor && (fn.resultType.shape.empty() || fn.resultType.shape.size() > 2))
+        reject(fn.declaration, "elementwise GPU helpers require rank-one or rank-two results");
       if (callDepth >= 128 || !active.insert(fnId).second)
         reject(fn.declaration, "recursive GPU helper calls are not implemented");
       Depth guard(callDepth);

@@ -86,9 +86,11 @@ The [common compiler and CPU tensor ABI](../../docs/design/apple-gpu.md#common-c
 
 ## Source kernel signatures
 
-The source compiler also emits `kalandra_elementwise_v2` for one or two rank-one float32 inputs with up to eight float32 scalar parameters. Use `loadElementwiseKernel(path, device, ElementwiseSignature{tensorCount, scalarCount})` and the `elementwise` overload taking tensor/scalar spans. Submission copies both Buffer owners and scalar bits; the spans may be released or changed immediately afterward. Counts must match the loaded signature. All tensors must reside on its device and have equal extents.
+The source compiler also emits `kalandra_elementwise_v2` for one or two dense rank-one/rank-two float32 inputs with up to eight float32 scalar parameters. Use `loadElementwiseKernel(path, device, ElementwiseSignature{tensorCount, scalarCount})` and the `elementwise` overload taking tensor/scalar spans. Submission copies both Buffer owners and scalar bits; the spans may be released or changed immediately afterward. Counts must match the loaded signature. All tensors must reside on its device and have equal ranks and complete shapes, not just equal byte lengths. Outputs preserve that shape. The older private `compute` operation interface remains rank-one.
 
 Bindings contain packed tensor inputs, output, then a uint32 array with element count and scalar bits. Reflection checks the declared signature. Parameter storage is four bytes plus four per scalar, charged to the shared budget and retained until completion acknowledgement. Empty outputs require no encoded command. The existing two-input/no-scalar source ABI and proof kernel remain supported by their original overloads. See the [source scope and conformance](../../docs/design/apple-gpu.md#gpu-entry-scalar-parameters).
+
+See [matrix helpers and resident pipeline qualification](../../docs/design/apple-gpu.md#rank-two-gpu-elementwise-helpers) for strict scalar lifting, transitive helpers, per-axis guards and source/runtime conformance.
 
 ## Reduction tasks and scalar outcomes
 

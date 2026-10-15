@@ -417,10 +417,14 @@ struct Bridge {
             kernel->elementwise != (f.packet.kind == Kind::Elementwise) ||
             f.packet.tensorCount != signature.tensors ||
             f.packet.scalarCount != signature.scalars || std::uint32_t(f.packet.operation) > 2 ||
-            source->format != Format::Float32 || source->rank != 1 ||
+            source->format != Format::Float32 ||
+            (source->rank != 1 && (!kernel->elementwise || source->rank != 2)) ||
             source->size / 4 > UINT32_MAX ||
-            (signature.tensors == 2 && (!right || right->format != Format::Float32 ||
-                                        right->rank != 1 || source->size != right->size))) {
+            (signature.tensors == 2 &&
+             (!right || right->format != Format::Float32 || right->rank != source->rank ||
+              source->size != right->size ||
+              !std::equal(source->dimensions.begin(), source->dimensions.begin() + source->rank,
+                          right->dimensions.begin())))) {
           task.fault(std::int64_t(Error::Invalid));
           return;
         }
