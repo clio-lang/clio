@@ -23,7 +23,7 @@ bun run cli build ../my-kalandra-app/src/main.kalandra -o ../my-kalandra-app/bui
 
 The starter returns [2, 4, 6] using a typed parallel function imported from a second module. It includes a manifest, Bun version pin, README and ignore rules. Creation is offline and does not install packages or initialize Git. Choose a new directory with an existing parent; existing paths are never overwritten.
 
-The development CLI is not yet a published npm installation. From the new project directory, use `bun /absolute/path/to/kalandra.dev/packages/cli/src/index.ts` as the CLI prefix, or the built `dist/cli/index.js` with its sibling packages. The generated README includes run, build, watch and inspection commands. The workspace script `bun run cli` belongs to the toolchain repository, not the generated project.
+To run the CLI directly from this checkout, use `bun /absolute/path/to/kalandra.dev/packages/cli/src/index.ts` as the CLI prefix, or the built `dist/cli/index.js` with its sibling packages. The generated README includes run, build, watch and inspection commands. The workspace script `bun run cli` belongs to the toolchain repository, not the generated project.
 
 h2 { Preview the website }
 

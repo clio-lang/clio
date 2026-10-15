@@ -20,15 +20,13 @@ This returns `[2, 4, 6]` through typed parallel calls. The browser playground us
 
 Kalandra 0.13.0 continues from Clio 0.12.0 with a rebuilt compiler, runtime, tooling, and Tiramisu documentation. Clio's commits, tags, and contributor history remain in this repository. The new language uses `.kalandra` files and does not provide a legacy migration layer.
 
-The CLI is available on npm as `@kalandra/cli@0.13.0`. The website is deployed at [kalandra-gold.vercel.app](https://kalandra-gold.vercel.app); the kalandra.dev DNS connection is pending.
+**Development preview.** Kalandra compiles to JavaScript ESM with source maps. Typed parallel tasks run in bounded Bun subprocess pools and browser workers, with nested scheduling, cancellation and compiler-generated Sia schemas. Experimental authenticated services support checked remote imports and service chaining. The CLI provides offline project creation, build/run/watch, formatting, source documentation and terminal highlighting; the language server provides diagnostics and editing support.
 
-**Status: development preview; verified port milestone complete within its [recorded scope](docs/port-acceptance.md).** Kalandra compiles to JavaScript ESM with source maps. Typed parallel tasks run in bounded Bun subprocess pools and browser workers, with nested scheduling, cancellation and compiler-generated Sia schemas. Experimental authenticated services support checked remote imports and service chaining. The CLI provides offline project creation, build/run/watch, formatting, source documentation and terminal highlighting; the language server provides diagnostics and editing support.
-
-Explore the Tiramisu language guide and browser playground through `bun run dev`, or [create a local project](docs/new-project.md). The first revival CLI release is available on npm; production remote deployment and the deferred language-design work remain ahead. See the [current limits](docs/language-design-backlog.md) and [release queue](docs/port-completion.md).
+Explore the Tiramisu language guide and browser playground through `bun run dev`, or [create a local project](docs/new-project.md). See the [current limits](docs/language-design-backlog.md) and [roadmap](docs/roadmap.md).
 
 ## Installation
 
-Install the CLI from npm. Version 0.13.0 has passed clean archive and registry-install checks.
+Install the CLI from npm.
 
 With Bun 1.3.12 or newer installed:
 
@@ -52,7 +50,7 @@ bun run check
 bun run dev
 ```
 
-The website development server prints its local address. `bun run dev` starts the Tiramisu Docs site, not a Kalandra program runner. Use it while editing the website. For production preview, stop any existing preview process, run `bun run build:website`, then start `bun run --filter @kalandra/website preview`. Reload open preview tabs after rebuilding: old pages reference the previous build’s hashed JavaScript chunks. Do not rebuild underneath a running preview server.
+The website development server prints its local address. `bun run dev` starts the Tiramisu Docs site, not a Kalandra program runner. Use it while editing the website. To preview a production build locally, run `bun run build:website`, then `bun run --filter @kalandra/website preview`.
 
 | Command                                       | Purpose                                                         |
 | --------------------------------------------- | --------------------------------------------------------------- |
@@ -90,7 +88,7 @@ The separate `bun run test:network` and `bun run test:network --built` commands 
 | `tests`                    | Clio reference corpus, structural AST tests, toolchain and CLI checks                                                                     |
 | `docs`                     | Architecture decisions and staged roadmap                                                                                                 |
 
-Workspace packages stay private and export TypeScript sources for development. `bun run release:pack` builds a self-contained `@kalandra/cli` archive in `dist/release/`, including the compiler, runtimes, worker files, and language server. `bun run release:check` verifies a clean archive installation. npm publication and website deployment remain separate release steps. The repository is https://github.com/kalandra-lang/kalandra.
+Workspace packages stay private and export TypeScript sources for development. `bun run release:pack` builds a self-contained `@kalandra/cli` archive in `dist/release/`, including the compiler, runtimes, worker files, and language server. `bun run release:check` verifies a clean archive installation. The repository is https://github.com/kalandra-lang/kalandra.
 
 Committed Clio syntax is the initial compatibility baseline. Deferred semantics and preserved quirks are recorded in the [language design backlog](docs/language-design-backlog.md). See the [compiler port inventory](docs/compiler-port.md) for coverage, provenance, and remaining work. Kalandra is a new language with no Clio migration contract: sources use `.kalandra`, projects use `kalandra.toml`, and installed packages live under `.kalandra/modules`. Original Clio fixtures are historical test evidence only.
 

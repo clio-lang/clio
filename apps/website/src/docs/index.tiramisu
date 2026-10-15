@@ -14,7 +14,7 @@ link { url = /docs/playground, Try Kalandra in your browser }
 
 h2 { Work locally }
 
-Install the CLI from npm using Bun, then create and run a project. The installation page includes the current publication status and the commands for Kalandra 0.13.0.
+Follow the installation guide to install the CLI with Bun and create your first Kalandra project.
 
 link { url = /docs/getting-started, Install Kalandra }
 

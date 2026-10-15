@@ -225,32 +225,20 @@ Validation on 2026-10-13: invoice CLI execution returned [35.91, 18] after insta
 
 Homepage review follow-up: the hero now explicitly names parallel and distributed computing, workers, and remote services. The invoice walkthrough was replaced by the canonical remote-batch client source and a main → local worker → remote service diagram; experimental service limitations remain visible. JavaScript output, the JavaScript package helper, and CLI commands now use build-time Shiki highlighting with light/dark colors. Source-preservation and escaping tests cover both added languages. This supersedes the invoice-section description above; the invoice workflow remains in the guide.
 
-## npm-first documentation and publication gates (2026-10-14)
+## Installation
 
-The public Installation page at `/docs/getting-started` now defines the intended 0.13.0 user path: `bun add --global @kalandra/cli@0.13.0`, then `kalandra new`, `check`, `run`, and `build`. Source instructions live at `/docs/development`. These are release-target instructions, not a claim that registry installation already works.
-
-Before publishing the website:
-
-- Package `@kalandra/cli` with a `kalandra` executable that launches with Bun; configure public package files, exports, and dependency versions. Current manifests remain private and point to source.
-- Validate the documented install flow using packed artifacts in a clean directory, including worker/watch assets and execution outside the checkout.
-- Publish the required packages in dependency order and repeat the installation, version, scaffold, check, run, and build steps against the registry.
-- Remove the pending-publication notice and reconcile unpublished-package wording in the homepage, overview, README, and revival post only after verification.
-- Keep the existing Git history when preparing the revival PR at `https://github.com/kalandra-lang/kalandra`; publish Git, npm, and website as separate reviewed release steps.
+The [installation guide](../apps/website/src/docs/getting-started.tiramisu) covers installing `@kalandra/cli`, creating a project, and using `check`, `run`, and `build`. The [development guide](../apps/website/src/docs/development.tiramisu) covers working from source.
 
 ## npm release assembly (2026-10-14)
 
 `bun run release:pack` assembles the first public package, `@kalandra/cli@0.13.0`, from built JavaScript. It includes the compiler, protocol, local/browser runtime artifacts, watch worker, language server, license, provenance, and third-party notices. The executable names are `kalandra` and `kalandra-lsp`. The archive has no workspace dependencies or install scripts and requires Bun 1.3.12 or newer. Separate library packages remain private.
 
-`bun run release:check` installs the tarball into a temporary project and verifies executable resolution, version, scaffolding, parallel execution/build, watch mode, remote build artifacts, and language-server behavior. CI repeats this check. Publish the tested tarball with public access; verify a fresh registry installation before removing the pending-publication notices.
+`bun run release:check` installs the tarball into a temporary project and verifies executable resolution, version, scaffolding, parallel execution/build, watch mode, remote build artifacts, and language-server behavior. CI repeats this check.
 
 ## npm publication verified (2026-10-14)
 
-`@kalandra/cli@0.13.0` is public on npm. Registry SHA-1 `efba2347a9b136c6c8a260e6734c2c9326b6b5d3` matches the verified GitHub release archive. `bun run release:check --registry` passed fresh installation, executable bins, scaffolding, parallel run/build, watch, remote build, and language-server checks. Installation notices now reflect the published CLI; website deployment remains next.
+`@kalandra/cli@0.13.0` is public on npm. Registry SHA-1 `efba2347a9b136c6c8a260e6734c2c9326b6b5d3` matches the verified GitHub release archive. `bun run release:check --registry` passed fresh installation, executable bins, scaffolding, parallel run/build, watch, remote build, and language-server checks. Installation instructions now use the published CLI.
 
-## Website deployment (2026-10-14)
+## Website
 
-Production is deployed to the Vercel `outer-gods/kalandra` project at https://kalandra-gold.vercel.app. The repository-root `vercel.json` pins Bun 1.3.12 for installation and builds, publishes `apps/website/build`, and serves clean URLs. Static adapter output is explicit to avoid Vercel platform auto-detection changing the output directory.
-
-All 16 HTML routes, favicon, and social image returned HTTP 200. The live homepage parallel example returned `[2, 4, 6]` with no browser console errors.
-
-`kalandra.dev` is attached to the project; Cloudflare DNS still needs the Vercel-recommended apex A record `76.76.21.21`. Automatic Git deployments are not connected: Vercel could not access the renamed GitHub repository. Until that integration is configured, deploy from the repository root with `vercel deploy --prod --scope outer-gods`.
+The public website, documentation, and playground are at [kalandra.dev](https://kalandra.dev). Website source lives in `apps/website` and uses Tiramisu Docs with SvelteKit. Run `bun run dev` for local development or `bun run build:website` for a static build.
