@@ -58,3 +58,7 @@ C++ formatting uses the root `.clang-format` with LLVM style. For the current C+
 ```
 
 Use `kalandrac --sanitize` for generated AddressSanitizer checks plus the ASan/UBSan runtime, or `--thread-sanitize` for a separate fully instrumented ThreadSanitizer build. These options cannot be combined. The emitted LLVM functions carry the required sanitizer attributes; conformance verifies that Clang emits actual memory checks. The C++ task-core configuration defaults to one worker for deterministic tests; compiled programs use the bounded pool described above.
+
+## Apple GPU toolchain proof
+
+An opt-in [Metal proof](metal-proof/README.md) now runs MLIR GPU kernels through SPIR-V and SPIRV-Cross on Apple Silicon. It validates buffer bindings, explicit copies, partial workgroups, and completion. IEEE edge probes expose a strict float32 compatibility gap, so this is not yet Kalandra GPU source support. The [backend contract](../docs/design/apple-gpu.md) records the implementation gates; CPU builds do not require the optional shader tools.

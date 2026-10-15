@@ -233,3 +233,8 @@ if(BUILD_TESTING)
     COMMAND kalandra-scheduler-profile-tests 4 128 32 8)
   set_tests_properties(native-scheduler-profile-thread-sanitized PROPERTIES TIMEOUT 30)
 endif()
+
+option(KALANDRA_BUILD_METAL_PROOF "Build the isolated Apple GPU toolchain proof" OFF)
+if(KALANDRA_BUILD_METAL_PROOF)
+  add_subdirectory(metal-proof)
+endif()
