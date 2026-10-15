@@ -2,7 +2,7 @@
 
 The fresh compiler is written in **C++23**, with direct LLVM/MLIR C++ integration. CMake configures the build, Ninja builds it, and CTest runs the tests. Bun and Node are not dependencies of this native development path.
 
-The `native` branch contains the fresh language design and compiler. The released JavaScript prototype and Tiramisu website are separate from this build. The handwritten lexer/parser, [semantic stage](../docs/design/semantics.md), and [native source compiler](../docs/design/native-codegen.md) support float32 arithmetic and ranked dense float32 tensors. [Local tasks](../docs/design/native-tasks.md) support parallel blocks, spawn, await, and TaskError propagation through native continuations. The scheduler currently has one worker; simultaneous CPU execution is not implemented. See the [frontend grammar and limits](../docs/design/frontend.md).
+The `native` branch contains the fresh language design and compiler. The released JavaScript prototype and Tiramisu website are separate from this build. The handwritten lexer/parser, [semantic stage](../docs/design/semantics.md), and [native source compiler](../docs/design/native-codegen.md) support float32 arithmetic and ranked dense float32 tensors. [Local tasks](../docs/design/native-tasks.md) support parallel blocks, spawn, await, and TaskError propagation through native continuations. A bounded pool now executes independent CPU tasks concurrently; set `KALANDRA_WORKERS=1..64` to override the detected count (capped at eight by default). Generated loops cooperate with cancellation. This is a correctness baseline; parallel speedup has not been measured. See the [frontend grammar and limits](../docs/design/frontend.md).
 
 ## Build and test
 
@@ -47,7 +47,7 @@ Compiler implementation ownership is separate from Kalandra's automatic memory m
 | `kalandra-proof-cases`    | Independent scalar numerical reference and fixed-seed input generator                     |
 | `native-toolchain-proof`  | Bufferization, ownership lowering, LLVM translation, and three native proof binaries      |
 
-Read the [toolchain proof](toolchain-proof/README.md) for evidence and limits. The sequential CPU conformance sweep and initial source task integration pass. The 28 CTest tests include debug, optimized, and ASan/UBSan variants. Native TaskError recovery (`catch`, typed matching/fields, and handler-local propagation) now also passes its compiled conformance suites. Multiple-worker execution and CPU-loop cancellation polling are next. The [CPU milestone](../docs/design/cpu-milestone.md) and [task contract](../docs/design/native-tasks.md) track the remaining gates.
+Read the [toolchain proof](toolchain-proof/README.md) for evidence and limits. The sequential CPU conformance sweep and initial source task integration pass. The 38 CTest tests include debug, optimized, ASan/UBSan, and separate ThreadSanitizer variants. Native TaskError recovery (`catch`, typed matching/fields, and handler-local propagation) now also passes its compiled conformance suites. Multi-worker execution, execution leases, and CPU-loop cancellation polling now pass their concurrency suites. Next measure CPU scaling and scheduling/kernel overhead. The [CPU milestone](../docs/design/cpu-milestone.md) and [task contract](../docs/design/native-tasks.md) track the remaining gates.
 
 C++ formatting uses the root `.clang-format` with LLVM style. For the current C++ sources:
 
@@ -56,3 +56,5 @@ C++ formatting uses the root `.clang-format` with LLVM style. For the current C+
   native/tools/*.cpp native/lib/*.cpp native/include/kalandra/*.h \
   native/tests/*.cpp native/toolchain-proof/cases.cpp
 ```
+
+Use `kalandrac --sanitize` for generated AddressSanitizer checks plus the ASan/UBSan runtime, or `--thread-sanitize` for a separate fully instrumented ThreadSanitizer build. These options cannot be combined. The emitted LLVM functions carry the required sanitizer attributes; conformance verifies that Clang emits actual memory checks. The C++ task-core configuration defaults to one worker for deterministic tests; compiled programs use the bounded pool described above.

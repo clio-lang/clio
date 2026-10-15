@@ -1,4 +1,7 @@
+#include "llvm/Analysis/LoopInfo.h"
+#include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
@@ -20,7 +23,7 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module) {
   auto allocate = module.getOrInsertFunction("kalandra_alloc_v1", pointer, pointer, i64);
   auto release = module.getOrInsertFunction("kalandra_free_v1", voidType, pointer, pointer);
   auto fault = module.getOrInsertFunction("kalandra_fault_v1", voidType, pointer, i64, i64, i64);
-  auto status = module.getOrInsertFunction("kalandra_status_v1", i64, pointer);
+  auto status = module.getOrInsertFunction("kalandra_poll_v1", i64, pointer);
   std::vector<Function *> originals;
   for (auto &function : module)
     if (!function.isDeclaration())
@@ -98,7 +101,40 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module) {
                              continuation);
       }
     }
-    // Re-entering an already faulted context cannot execute source operations.
+    // Poll every generated loop header, including bufferization/copy loops.
+    // Cancellation exits through the checked ABI; the invocation ledger owns
+    // any live buffers until its task acknowledges and settles the request.
+    DominatorTree dominators(*function);
+    LoopInfo loops(dominators);
+    std::vector<Loop *> pending(loops.begin(), loops.end());
+    std::vector<Loop *> headers;
+    while (!pending.empty()) {
+      auto *loop = pending.back();
+      pending.pop_back();
+      headers.push_back(loop);
+      pending.insert(pending.end(), loop->begin(), loop->end());
+    }
+    for (auto *loop : headers) {
+      auto *header = loop->getHeader();
+      IRBuilder<> counter(header, header->getFirstInsertionPt());
+      auto *tick = counter.CreatePHI(i64, pred_size(header), "poll.tick");
+      auto *nextTick = counter.CreateAdd(tick, ConstantInt::get(i64, 1), "poll.next");
+      for (auto *predecessor : predecessors(header))
+        tick->addIncoming(loop->contains(predecessor) ? nextTick : ConstantInt::get(i64, 0),
+                          predecessor);
+      auto *body = header->splitBasicBlock(header->getFirstInsertionPt(), "loop.body");
+      header->getTerminator()->eraseFromParent();
+      auto *pollBlock = BasicBlock::Create(context, "loop.poll", function);
+      IRBuilder<> gate(header);
+      // Bound response latency without a runtime call for every scalar element.
+      auto *due = gate.CreateICmpEQ(gate.CreateAnd(tick, ConstantInt::get(i64, 255)),
+                                    ConstantInt::get(i64, 0));
+      gate.CreateCondBr(due, pollBlock, body);
+      IRBuilder<> poll(pollBlock);
+      auto *code = poll.CreateCall(status, {invocation});
+      poll.CreateCondBr(poll.CreateICmpNE(code, ConstantInt::get(i64, 0)), failed, body);
+    }
+    // Re-entering an already faulted/cancelled context cannot execute source operations.
     auto *entry = &function->getEntryBlock();
     auto *start = entry->splitBasicBlock(entry->getFirstInsertionPt(), "invocation.start");
     entry->getTerminator()->eraseFromParent();

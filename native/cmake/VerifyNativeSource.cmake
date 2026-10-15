@@ -28,7 +28,7 @@ if(NOT LLVM_IR MATCHES "call [^\n]*@kalandra_fn_" OR
    NOT LLVM_IR MATCHES "noinline" OR NOT LLVM_IR MATCHES "@kalandra_free_v1" OR
    LLVM_IR MATCHES "@kalandra_fault[(]" OR
    LLVM_IR MATCHES "@_mlir_memref_to_llvm_(alloc|free)" OR
-   NOT LLVM_IR MATCHES "@kalandra_status_v1" OR
+   NOT LLVM_IR MATCHES "@kalandra_poll_v1" OR
    LLVM_IR MATCHES "[ \t](fast|reassoc|contract|afn|nnan|ninf|nsz|arcp)[ \t]")
   message(FATAL_ERROR "Source compiler lost function/ownership/numerical contract")
 endif()

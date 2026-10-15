@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #include <cstdint>
 
 namespace kalandra::runtime {
@@ -11,6 +12,15 @@ public:
   ~Invocation();
   Invocation(const Invocation &) = delete;
   Invocation &operator=(const Invocation &) = delete;
+  void bindCancellation(const std::atomic<bool> *token) noexcept { cancellation_ = token; }
+  // Private test probe; its atomic counter must outlive this invocation.
+  void watchPolls(std::atomic<std::uint64_t> *counter) noexcept { pollCounter_ = counter; }
+  std::int64_t poll() noexcept {
+    if (pollCounter_)
+      pollCounter_->fetch_add(1, std::memory_order_relaxed);
+    const auto code = executionStatus();
+    return code ? code : cancellation_ && cancellation_->load(std::memory_order_acquire) ? -1 : 0;
+  }
   void *allocate(std::uint64_t bytes) noexcept;
   bool retainFrom(const Invocation &source, void *buffer) noexcept;
   void release(void *buffer) noexcept;
@@ -35,7 +45,10 @@ public:
 
 private:
   Owner *head_ = nullptr;
-  std::uint64_t live_ = 0, allocations_ = 0, releases_ = 0, attempts_ = 0, failAt_ = 0;
+  std::atomic<std::uint64_t> live_{0};
+  const std::atomic<bool> *cancellation_ = nullptr;
+  std::atomic<std::uint64_t> *pollCounter_ = nullptr;
+  std::uint64_t allocations_ = 0, releases_ = 0, attempts_ = 0, failAt_ = 0;
   std::int64_t code_ = 0, line_ = 0, column_ = 0;
   bool settled_ = false;
   std::int64_t taskError_ = 0, expectedCode_ = 0, expectedLine_ = 0, expectedColumn_ = 0;
@@ -56,5 +69,6 @@ void *kalandra_alloc_v1(kalandra::runtime::Invocation *, std::uint64_t bytes) no
 void kalandra_free_v1(kalandra::runtime::Invocation *, void *buffer) noexcept;
 void kalandra_fault_v1(kalandra::runtime::Invocation *, std::int64_t code, std::int64_t line,
                        std::int64_t column) noexcept;
+std::int64_t kalandra_poll_v1(kalandra::runtime::Invocation *) noexcept;
 std::int64_t kalandra_status_v1(kalandra::runtime::Invocation *) noexcept;
 }

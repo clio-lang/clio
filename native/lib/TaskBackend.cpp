@@ -601,6 +601,14 @@ private:
     builder.CreateRetVoid();
     builder.SetInsertPoint(abort);
     auto *status = call("kalandra_status_v1", i64, {ctx});
+    auto *cancelled = call("kalandra_task_cancelled_v1", boolean, {task});
+    auto *cancelExit = Block::Create(context, "cancelled", resume);
+    auto *faultExit = Block::Create(context, "checked.fault", resume);
+    builder.CreateCondBr(builder.CreateAnd(cancelled, builder.CreateICmpEQ(status, c64(0))),
+                         cancelExit, faultExit);
+    builder.SetInsertPoint(cancelExit);
+    builder.CreateRetVoid();
+    builder.SetInsertPoint(faultExit);
     status = builder.CreateSelect(builder.CreateICmpEQ(status, c64(0)), c64(3), status);
     call("kalandra_task_fault_v1", voidType, {task, status, c64(0), c64(0)});
     builder.CreateRetVoid();
@@ -616,7 +624,7 @@ private:
       builder.SetInsertPoint(blocks[n]);
       auto *next = n + 1 < blocks.size() ? blocks[n + 1] : abort;
       auto check = [&] {
-        auto *status = call("kalandra_status_v1", i64, {ctx});
+        auto *status = call("kalandra_poll_v1", i64, {ctx});
         builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), next, abort);
       };
       auto wait = [&](Value *ready) {
@@ -689,7 +697,7 @@ private:
         auto *value = builder.CreateCall(fn, arguments);
         if (!type.tensor) {
           auto *good = Block::Create(context, "kernel.result", resume);
-          auto *status = call("kalandra_status_v1", i64, {ctx});
+          auto *status = call("kalandra_poll_v1", i64, {ctx});
           builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), good, abort);
           builder.SetInsertPoint(good);
           builder.CreateStore(value, payload(instruction.output));

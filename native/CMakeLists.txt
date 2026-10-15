@@ -1,3 +1,4 @@
+find_package(Threads REQUIRED)
 find_package(MLIR REQUIRED CONFIG PATHS "${KALANDRA_LLVM_ROOT}/lib/cmake/mlir" NO_DEFAULT_PATH)
 if(NOT LLVM_PACKAGE_VERSION VERSION_EQUAL KALANDRA_LLVM_VERSION)
   message(FATAL_ERROR "MLIR/LLVM libraries must match ${KALANDRA_LLVM_VERSION}")
@@ -91,10 +92,16 @@ target_include_directories(kalandra-backend SYSTEM PRIVATE ${MLIR_INCLUDE_DIRS} 
 target_link_libraries(kalandra-backend PUBLIC kalandra-semantics PRIVATE MLIR LLVM)
 target_compile_options(kalandra-backend PRIVATE -Wall -Wextra -Werror)
 add_library(kalandra-native-runtime STATIC runtime/Runtime.cpp runtime/Tasks.cpp runtime/TaskABI.cpp runtime/Entry.cpp)
+target_link_libraries(kalandra-native-runtime PUBLIC Threads::Threads)
 target_compile_options(kalandra-native-runtime PRIVATE -Wall -Wextra -Werror)
 add_library(kalandra-native-runtime-sanitized STATIC runtime/Runtime.cpp runtime/Tasks.cpp runtime/TaskABI.cpp runtime/Entry.cpp)
+target_link_libraries(kalandra-native-runtime-sanitized PUBLIC Threads::Threads)
 target_compile_options(kalandra-native-runtime-sanitized PRIVATE -Wall -Wextra -Werror
   -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+add_library(kalandra-native-runtime-thread-sanitized STATIC runtime/Runtime.cpp runtime/Tasks.cpp runtime/TaskABI.cpp runtime/Entry.cpp)
+target_link_libraries(kalandra-native-runtime-thread-sanitized PUBLIC Threads::Threads)
+target_compile_options(kalandra-native-runtime-thread-sanitized PRIVATE -Wall -Wextra -Werror -O1 -g
+  -fsanitize=thread -fno-omit-frame-pointer)
 add_executable(kalandrac tools/compile.cpp)
 target_include_directories(kalandrac SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
 target_link_libraries(kalandrac PRIVATE kalandra-backend LLVM MLIR)
@@ -102,8 +109,9 @@ target_compile_options(kalandrac PRIVATE -Wall -Wextra -Werror)
 target_compile_definitions(kalandrac PRIVATE
   KALANDRA_CLANGXX="${CMAKE_CXX_COMPILER}"
   KALANDRA_RUNTIME="$<TARGET_FILE:kalandra-native-runtime>"
-  KALANDRA_SANITIZED_RUNTIME="$<TARGET_FILE:kalandra-native-runtime-sanitized>")
-add_dependencies(kalandrac kalandra-native-runtime kalandra-native-runtime-sanitized)
+  KALANDRA_SANITIZED_RUNTIME="$<TARGET_FILE:kalandra-native-runtime-sanitized>"
+  KALANDRA_THREAD_SANITIZED_RUNTIME="$<TARGET_FILE:kalandra-native-runtime-thread-sanitized>")
+add_dependencies(kalandrac kalandra-native-runtime kalandra-native-runtime-sanitized kalandra-native-runtime-thread-sanitized)
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug optimized sanitized)
     if(VARIANT STREQUAL "sanitized")
@@ -160,7 +168,7 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-  foreach(VARIANT IN ITEMS debug optimized sanitized)
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
     add_test(NAME native-source-tasks-${VARIANT}
       COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
         "-DFIXTURES=${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures" "-DVARIANT=${VARIANT}"
@@ -171,12 +179,42 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-  foreach(VARIANT IN ITEMS debug optimized sanitized)
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
     add_test(NAME native-task-recovery-${VARIANT}
       COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
         "-DFIXTURES=${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures" "-DVARIANT=${VARIANT}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/task-recovery-${VARIANT}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyTaskRecovery.cmake")
     set_tests_properties(native-task-recovery-${VARIANT} PROPERTIES TIMEOUT 60)
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_executable(kalandra-worker-tests-${VARIANT} tests/WorkerTests.cpp runtime/Runtime.cpp runtime/Tasks.cpp)
+    target_link_libraries(kalandra-worker-tests-${VARIANT} PRIVATE Threads::Threads)
+    target_compile_options(kalandra-worker-tests-${VARIANT} PRIVATE -Wall -Wextra -Werror)
+    if(VARIANT STREQUAL "sanitized")
+      target_compile_options(kalandra-worker-tests-${VARIANT} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+      target_link_options(kalandra-worker-tests-${VARIANT} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all)
+    elseif(VARIANT STREQUAL "thread-sanitized")
+      target_compile_options(kalandra-worker-tests-${VARIANT} PRIVATE -O1 -g -fsanitize=thread -fno-omit-frame-pointer)
+      target_link_options(kalandra-worker-tests-${VARIANT} PRIVATE -fsanitize=thread)
+    elseif(VARIANT STREQUAL "optimized")
+      target_compile_options(kalandra-worker-tests-${VARIANT} PRIVATE -O2)
+    endif()
+    add_test(NAME native-workers-${VARIANT} COMMAND kalandra-worker-tests-${VARIANT})
+    set_tests_properties(native-workers-${VARIANT} PROPERTIES TIMEOUT 60)
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-compiled-workers-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>" "-DCLANGXX=${CMAKE_CXX_COMPILER}"
+        "-DSOURCE_ROOT=${PROJECT_SOURCE_DIR}" "-DVARIANT=${VARIANT}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/compiled-workers-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyCompiledWorkers.cmake")
+    set_tests_properties(native-compiled-workers-${VARIANT} PROPERTIES TIMEOUT 60)
   endforeach()
 endif()

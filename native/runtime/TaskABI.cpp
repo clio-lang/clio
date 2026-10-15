@@ -1,11 +1,15 @@
 #include "Tasks.h"
+#include <algorithm>
 #include <cstddef>
+#include <cstdlib>
+#include <thread>
 using namespace kalandra::runtime;
 static_assert(sizeof(Failure) == 32 && offsetof(Failure, code) == 8);
 static_assert(sizeof(TaskHandle) == 16 && sizeof(GroupHandle) == 16);
 static_assert(sizeof(Packet) == 32 && offsetof(Packet, source) == 24);
 static_assert(sizeof(TaskEntry) == 80 && sizeof(ValueLayout) == 40);
 extern "C" {
+bool kalandra_task_cancelled_v1(Task *task) noexcept { return task->cancelled(); }
 void *kalandra_task_frame_v1(Task *task) noexcept { return task->frame(); }
 Invocation *kalandra_task_context_v1(Task *task) noexcept { return &task->context(); }
 void kalandra_task_open_v1(Task *task, const GroupHandle *parent, GroupHandle *group) noexcept {
@@ -45,7 +49,18 @@ void kalandra_task_fault_v1(Task *task, std::int64_t code, std::int64_t line,
 }
 void kalandra_run_task_v1(const TaskEntry *entry, const Packet *packet, void *output,
                           Invocation *context, Failure *failure) noexcept {
-  auto core = TaskCore::create();
+  TaskLimits limits;
+  limits.workers = std::clamp(std::thread::hardware_concurrency(), 1u, 8u);
+  if (const auto *configured = std::getenv("KALANDRA_WORKERS")) {
+    char *end = nullptr;
+    const auto count = std::strtoul(configured, &end, 10);
+    if (end == configured || *end || count < 1 || count > 64) {
+      *failure = {TaskFailure::AdmissionRejected};
+      return;
+    }
+    limits.workers = static_cast<std::uint32_t>(count);
+  }
+  auto core = TaskCore::create(limits);
   if (!core) {
     *failure = {TaskFailure::Fault, 2};
     return;

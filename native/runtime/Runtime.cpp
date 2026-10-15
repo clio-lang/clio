@@ -158,7 +158,7 @@ void Invocation::expectedTaskError(std::int64_t kind, std::int64_t code, std::in
   settle();
   if (std::getenv("KALANDRA_TEST_REPORT_CLEANUP"))
     std::fprintf(stderr, "cleanup: live=%llu allocations=%llu releases=%llu\n",
-                 static_cast<unsigned long long>(live_),
+                 static_cast<unsigned long long>(live_.load()),
                  static_cast<unsigned long long>(allocations_),
                  static_cast<unsigned long long>(releases_));
   std::exit(taskError_ ? 88 : code_ == 1 ? 87 : 86);
@@ -188,4 +188,8 @@ extern "C" void kalandra_expected_task_error_v1(kalandra::runtime::Invocation *c
                                                 std::int64_t kind, std::int64_t code,
                                                 std::int64_t line, std::int64_t column) noexcept {
   context->expectedTaskError(kind, code, line, column);
+}
+
+extern "C" std::int64_t kalandra_poll_v1(kalandra::runtime::Invocation *context) noexcept {
+  return context->poll();
 }

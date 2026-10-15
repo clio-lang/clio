@@ -1,7 +1,11 @@
 #include "kalandra/Backend.h"
+#include "llvm/AsmParser/Parser.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/Program.h"
+#include "llvm/Support/SourceMgr.h"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -19,12 +23,12 @@ int main(int argc, char **argv) {
   const std::span<char *> arguments(argv, static_cast<std::size_t>(argc));
   if (arguments.size() < 2) {
     std::cerr << "usage: kalandrac source.kalandra -o executable [--emit-mlir file] [--emit-llvm "
-                 "file] [--test-entry function] [--sanitize] [-O0|-O2]\n";
+                 "file] [--test-entry function] [--sanitize|--thread-sanitize] [-O0|-O2]\n";
     return 2;
   }
   std::filesystem::path output, mlirPath, llvmPath;
   std::optional<std::string> testEntry;
-  bool sanitize = false;
+  bool sanitize = false, threadSanitize = false;
   std::string optimization = "-O0";
   for (std::size_t i = 2; i < arguments.size(); ++i) {
     const std::string option = arguments[i];
@@ -42,12 +46,18 @@ int main(int argc, char **argv) {
         testEntry = value;
     } else if (option == "--sanitize")
       sanitize = true;
+    else if (option == "--thread-sanitize")
+      threadSanitize = true;
     else if (option == "-O0" || option == "-O2")
       optimization = option;
     else {
       std::cerr << "unknown or incomplete option: " << option << '\n';
       return 2;
     }
+  }
+  if (sanitize && threadSanitize) {
+    std::cerr << "--sanitize and --thread-sanitize are separate builds\n";
+    return 2;
   }
   if (output.empty()) {
     std::cerr << "missing -o executable\n";
@@ -86,6 +96,24 @@ int main(int argc, char **argv) {
     std::cerr << "native lowering: " << lowered.error() << '\n';
     return 1;
   }
+  if (sanitize || threadSanitize) {
+    llvm::LLVMContext context;
+    llvm::SMDiagnostic diagnostic;
+    auto module = llvm::parseAssemblyString(lowered->llvm, diagnostic, context);
+    if (!module) {
+      std::cerr << "cannot prepare LLVM sanitizer attributes\n";
+      return 1;
+    }
+    for (auto &function : *module)
+      if (!function.isDeclaration())
+        function.addFnAttr(threadSanitize ? llvm::Attribute::SanitizeThread
+                                          : llvm::Attribute::SanitizeAddress);
+    if (llvm::verifyModule(*module, &llvm::errs()))
+      return 1;
+    lowered->llvm.clear();
+    llvm::raw_string_ostream outputIR(lowered->llvm);
+    module->print(outputIR, nullptr);
+  }
   if (!mlirPath.empty() && !write(mlirPath, lowered->mlir)) {
     std::cerr << "cannot write MLIR\n";
     return 1;
@@ -123,13 +151,17 @@ int main(int argc, char **argv) {
                                    "-ffp-contract=off",
                                    "-Wno-override-module",
                                    std::string(temporary),
-                                   sanitize ? KALANDRA_SANITIZED_RUNTIME : KALANDRA_RUNTIME,
+                                   threadSanitize ? KALANDRA_THREAD_SANITIZED_RUNTIME
+                                   : sanitize     ? KALANDRA_SANITIZED_RUNTIME
+                                                  : KALANDRA_RUNTIME,
                                    "-o",
                                    std::string(linkedOutput)};
   if (sanitize) {
     command.push_back("-fsanitize=address,undefined");
     command.push_back("-fno-sanitize-recover=all");
   }
+  if (threadSanitize)
+    command.push_back("-fsanitize=thread");
   std::vector<llvm::StringRef> invocation(command.begin(), command.end());
   std::string error;
   const auto status = llvm::sys::ExecuteAndWait(command[0], invocation, {}, {}, 0, 0, &error);

@@ -50,6 +50,7 @@ struct TaskEntry {
   const ValueLayout *result;
 };
 struct TaskLimits {
+  std::uint32_t workers = 1;
   std::uint32_t records = 128, groups = 32, ready = 32, inFlight = 64, depth = 16;
   std::size_t bytes = 1024 * 1024;
 };
@@ -57,8 +58,12 @@ struct TaskStats {
   std::size_t retainedBytes = 0, peakBytes = 0;
   std::uint64_t retainedOwners = 0;
   std::uint32_t unfinished = 0, records = 0, groups = 0;
-  std::uint64_t resumes = 0, publications = 0;
+  std::uint64_t resumes = 0, publications = 0, migrations = 0;
+  std::uint32_t peakRunning = 0;
 };
+// Host controls are synchronized; drain has one controller. Destruction is not
+// concurrent with host calls. Entry callbacks may not recursively drive/destroy
+// their core. Invocation and frame access belong to the active execution lease.
 class TaskCore final {
 public:
   static std::unique_ptr<TaskCore> create(TaskLimits limits = {}) noexcept;
