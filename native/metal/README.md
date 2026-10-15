@@ -14,7 +14,7 @@ ctest --preset native
 
 The runtime does not require SPIRV-Cross, SPIRV-Tools, or the offline Metal shader compiler. Those are dependencies of the separate [shader toolchain proof](../metal-proof/README.md). Both options default to off in a fresh CPU-only configuration. Execution of the Metal tests requires access to an actual Metal device; missing device access is a test failure, not a skip or CPU fallback.
 
-The default suite has 43 tests, including four new platform-independent external-completion suites. Enabling the transfer runtime adds four tests; enabling both Metal options gives 55 tests. The transfer tests build the bridge, scheduler, and harness in debug, optimized, ASan/UBSan, and separate TSan variants. Metal API validation is enabled. Host sanitizers do not instrument GPU/driver accesses, and no shader executes in the transfer tests.
+The default suite has 43 tests, including four new platform-independent external-completion suites. Enabling the transfer runtime adds four tests; enabling both Metal options gives 63 tests. The transfer tests build the bridge, scheduler, and harness in debug, optimized, ASan/UBSan, and separate TSan variants. Metal API validation is enabled. Host sanitizers do not instrument GPU/driver accesses, and no shader executes in the transfer tests.
 
 ## Private native interface
 
@@ -48,7 +48,7 @@ Synchronized diagnostic counters track managed backings, Metal buffer wrappers, 
 
 ## Verification
 
-The combined 55-test suite passes on the M2 Max. The optimized external-completion and transfer tests also pass with an explicitly optimized scheduler core.
+The combined native suite passes on the M2 Max. The optimized external-completion and transfer tests also pass with an explicitly optimized scheduler core.
 
 [Transfer tests](Tests.cpp) cover exact round trips for zero through 8,193 elements with 1/2/4 CPU workers, retaining float32 bit patterns including both zeros, subnormals, infinities, quiet/signaling NaN encodings, and arbitrary bits. No floating arithmetic is performed. They also cover odd-sized uint8 copies, uint32 metadata, invalid shapes/ranks/byte lengths, immutable aliases, cached task observations, device results outliving groups, and same-residency transfers without commands.
 
@@ -56,4 +56,4 @@ Native supervisors spawn upload and download children, suspend through await/joi
 
 [External-completion tests](../tests/ExternalTaskTests.cpp) separately cover worker availability, completion arriving before resume returns, cancellation before reservation, cancellation/deadline/fault while pinned, repeated suspension epochs, duplicate/stale tokens, and destruction racing a foreign completion thread. Both suites include TSan without suppressing bridge or scheduler races.
 
-The [Apple GPU contract](../../docs/design/apple-gpu.md) tracks the next gates. Transfer correctness does not fix the shader proof's strict float32 arithmetic failures. Kernel admission, source placement/transfer lowering, general tensor/CPU ABI interoperation, GPU compute, and NVIDIA support remain unimplemented.
+The [Apple GPU contract](../../docs/design/apple-gpu.md) tracks the next gates. Transfer correctness does not fix the original hardware shader's strict float32 failures. A separate [integer arithmetic lowering](../../docs/design/strict-gpu-float32.md) now passes scalar add/multiply checks; it is not yet connected to compute tasks. Kernel admission, source placement/transfer lowering, general tensor/CPU ABI interoperation, GPU compute, and NVIDIA support remain unimplemented.

@@ -1,5 +1,5 @@
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/toolchain.json" METAL_LOCK)
-foreach(KEY IN ITEMS spirvCrossRoot spirvToolsRoot metalToolchain metalCompilerVersion metalLanguageVersion mslVersion)
+foreach(KEY IN ITEMS spirvCrossRoot spirvToolsRoot metalToolchain metalCompilerVersion metalLanguageVersion mslVersion strictMetalLanguageVersion strictMslVersion)
   string(JSON LOCK_${KEY} GET "${METAL_LOCK}" "${KEY}")
 endforeach()
 set(KALANDRA_SPIRV_CROSS_ROOT "${LOCK_spirvCrossRoot}" CACHE PATH "Pinned SPIRV-Cross")
@@ -87,4 +87,74 @@ if(BUILD_TESTING)
   add_test(NAME metal-proof-extract-errors COMMAND "${CMAKE_COMMAND}"
     "-DEXTRACTOR=$<TARGET_FILE:kalandra-metal-extract>" "-DOUTPUT_DIR=${OUT}"
     -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyRejected.cmake")
+endif()
+
+add_library(kalandra-strict-float STATIC ../lib/StrictFloat.cpp)
+target_include_directories(kalandra-strict-float PUBLIC ../include)
+target_include_directories(kalandra-strict-float SYSTEM PUBLIC ${MLIR_INCLUDE_DIRS} ${LLVM_INCLUDE_DIRS})
+target_compile_options(kalandra-strict-float PRIVATE -Wall -Wextra -Werror)
+target_link_libraries(kalandra-strict-float PUBLIC MLIR LLVM)
+add_executable(kalandra-metal-strict Strict.cpp)
+target_link_libraries(kalandra-metal-strict PRIVATE kalandra-strict-float)
+target_compile_options(kalandra-metal-strict PRIVATE -Wall -Wextra -Werror)
+
+add_custom_command(OUTPUT "${OUT}/strict.lowered.mlir" "${OUT}/strict.metallib" "${OUT}/strict.spvasm" "${OUT}/strict.reflection.json" "${OUT}/strict.metal"
+  COMMAND $<TARGET_FILE:kalandra-metal-strict> "${CMAKE_CURRENT_SOURCE_DIR}/strict-gpu.mlir" "${OUT}/strict.lowered.mlir"
+  COMMAND "${MLIR_OPT}" "${OUT}/strict.lowered.mlir" --verify-each
+    "--pass-pipeline=builtin.module(canonicalize,cse,convert-gpu-to-spirv,spirv.module(spirv-lower-abi-attrs,spirv-update-vce))"
+    -o "${OUT}/strict.converted.mlir"
+  COMMAND $<TARGET_FILE:kalandra-metal-extract> "${OUT}/strict.converted.mlir" "${OUT}/strict.kernel.mlir" --metal-compiler-rounding
+  COMMAND "${MLIR_TRANSLATE}" --no-implicit-module --serialize-spirv "${OUT}/strict.kernel.mlir" -o "${OUT}/strict.spv"
+  COMMAND "${VALIDATOR}" --target-env vulkan1.0 "${OUT}/strict.spv"
+  COMMAND "${DISASSEMBLER}" "${OUT}/strict.spv" -o "${OUT}/strict.spvasm"
+  COMMAND "${CROSS}" "${OUT}/strict.spv" --reflect --output "${OUT}/strict.reflection.json"
+  COMMAND "${CROSS}" "${OUT}/strict.spv" --msl --msl-version "${LOCK_strictMslVersion}" --output "${OUT}/strict.metal"
+  COMMAND xcrun --toolchain "${KALANDRA_METAL_TOOLCHAIN}" --sdk macosx metal
+    "-std=${LOCK_strictMetalLanguageVersion}" -fno-fast-math -ffp-contract=off "-fmodules-cache-path=${OUT}/module-cache"
+    -c "${OUT}/strict.metal" -o "${OUT}/strict.air"
+  COMMAND xcrun --toolchain "${KALANDRA_METAL_TOOLCHAIN}" metal "${OUT}/strict.air" -o "${OUT}/strict.metallib"
+  DEPENDS strict-gpu.mlir kalandra-metal-strict kalandra-metal-extract toolchain.json
+  BYPRODUCTS "${OUT}/strict.converted.mlir" "${OUT}/strict.kernel.mlir" "${OUT}/strict.spv" "${OUT}/strict.air" VERBATIM)
+add_custom_command(OUTPUT "${OUT}/strict-cpu.ll"
+  COMMAND $<TARGET_FILE:kalandra-metal-strict> "${CMAKE_CURRENT_SOURCE_DIR}/strict-cpu.mlir" "${OUT}/strict-cpu.lowered.mlir"
+  COMMAND "${MLIR_OPT}" "${OUT}/strict-cpu.lowered.mlir" --verify-each --canonicalize --cse
+    --convert-scf-to-cf --convert-to-llvm --reconcile-unrealized-casts -o "${OUT}/strict-cpu.llvm.mlir"
+  COMMAND "${MLIR_TRANSLATE}" --mlir-to-llvmir "${OUT}/strict-cpu.llvm.mlir" -o "${OUT}/strict-cpu.ll"
+  DEPENDS strict-cpu.mlir kalandra-metal-strict
+  BYPRODUCTS "${OUT}/strict-cpu.lowered.mlir" "${OUT}/strict-cpu.llvm.mlir" VERBATIM)
+set(STRICT_OUTPUTS "${OUT}/strict.metallib" "${OUT}/strict-cpu.ll" "${OUT}/strict.spvasm" "${OUT}/strict.reflection.json" "${OUT}/strict.metal")
+foreach(VARIANT IN ITEMS debug optimized sanitized)
+  if(VARIANT STREQUAL "debug")
+    set(FLAGS -O0)
+  elseif(VARIANT STREQUAL "optimized")
+    set(FLAGS -O2)
+  else()
+    set(FLAGS -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+  endif()
+  set(CPU_BINARY "${OUT}/strict-cpu-${VARIANT}")
+  set(GPU_BINARY "${OUT}/strict-gpu-${VARIANT}")
+  add_custom_command(OUTPUT "${CPU_BINARY}"
+    COMMAND "${CMAKE_CXX_COMPILER}" -std=c++23 -Wall -Wextra -Werror ${FLAGS}
+      -ffp-contract=off -Wno-override-module -isystem "${KALANDRA_LLVM_ROOT}/include"
+      "${CMAKE_CURRENT_SOURCE_DIR}/StrictCpu.cpp" "${OUT}/strict-cpu.ll"
+      "-L${KALANDRA_LLVM_ROOT}/lib" "-Wl,-rpath,${KALANDRA_LLVM_ROOT}/lib" -lLLVM -o "${CPU_BINARY}"
+    DEPENDS StrictCpu.cpp FloatOracle.h "${OUT}/strict-cpu.ll" VERBATIM)
+  add_custom_command(OUTPUT "${GPU_BINARY}"
+    COMMAND "${CMAKE_CXX_COMPILER}" -std=c++23 -Wall -Wextra -Werror ${FLAGS}
+      -ffp-contract=off -fobjc-arc -fblocks -isystem "${KALANDRA_LLVM_ROOT}/include"
+      "${CMAKE_CURRENT_SOURCE_DIR}/StrictGpu.mm" -framework Foundation -framework Metal
+      "-L${KALANDRA_LLVM_ROOT}/lib" "-Wl,-rpath,${KALANDRA_LLVM_ROOT}/lib" -lLLVM -o "${GPU_BINARY}"
+    DEPENDS StrictGpu.mm FloatOracle.h VERBATIM)
+  list(APPEND STRICT_OUTPUTS "${CPU_BINARY}" "${GPU_BINARY}")
+  if(BUILD_TESTING)
+    add_test(NAME "metal-strict-cpu-${VARIANT}" COMMAND "${CPU_BINARY}")
+    add_test(NAME "metal-strict-gpu-${VARIANT}" COMMAND "${GPU_BINARY}" "${OUT}/strict.metallib" "${OUT}/strict-${VARIANT}.json")
+    set_tests_properties("metal-strict-cpu-${VARIANT}" "metal-strict-gpu-${VARIANT}" PROPERTIES TIMEOUT 120)
+    set_tests_properties("metal-strict-gpu-${VARIANT}" PROPERTIES RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endif()
+endforeach()
+add_custom_target(native-metal-strict ALL DEPENDS ${STRICT_OUTPUTS})
+if(BUILD_TESTING)
+  add_test(NAME metal-strict-artifacts COMMAND "${CMAKE_COMMAND}" "-DOUTPUT_DIR=${OUT}" -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyStrict.cmake")
+  add_test(NAME metal-strict-rejected COMMAND "${CMAKE_COMMAND}" "-DLOWERER=$<TARGET_FILE:kalandra-metal-strict>" "-DOUTPUT_DIR=${OUT}" -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyStrictRejected.cmake")
 endif()

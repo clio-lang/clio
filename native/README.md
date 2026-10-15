@@ -66,3 +66,7 @@ An opt-in [Metal proof](metal-proof/README.md) now runs MLIR GPU kernels through
 ## Apple device and transfer runtime
 
 The optional [Metal runtime](metal/README.md) now provides immutable host/device buffers and upload/download tasks integrated with CPU task groups. External completion leases keep pending GPU resources alive through cancellation and resume tasks without blocking workers. Transfer tests include nested groups, exact bit preservation, resource budgets, allocation failures, and sanitizer coverage. This bridge does not yet implement source-level GPU placement or arithmetic.
+
+## Strict GPU float32 arithmetic
+
+An optional [integer MLIR lowering](../docs/design/strict-gpu-float32.md) now implements scalar float32 add/multiply with gradual underflow, signed zero, and nearest/ties-to-even rounding. CPU LLVM and M2 Max Metal results match independent APFloat and CPU references, including separately rounded multiply-then-add. Other arithmetic and source GPU execution remain unsupported; the integer path is a correctness baseline with unmeasured performance.

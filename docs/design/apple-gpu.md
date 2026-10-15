@@ -2,7 +2,7 @@
 
 Status: executable shader toolchain evidence plus an optional managed device/transfer runtime. Apple Silicon/Metal is the first GPU target; NVIDIA/CUDA on Windows follows. The released JavaScript prototype and existing native CPU implementation do not gain GPU source support from this document.
 
-This implements the direction in [placement and transfers](placement.md), [tensor semantics](tensors.md), and [numeric semantics](numbers.md). Those language contracts remain authoritative. The [Metal toolchain proof](../../native/metal-proof/README.md) now executes generated shaders on an Apple M2 Max; it exposes a strict float32 compatibility gap rather than resolving it.
+This implements the direction in [placement and transfers](placement.md), [tensor semantics](tensors.md), and [numeric semantics](numbers.md). Those language contracts remain authoritative. The [Metal toolchain proof](../../native/metal-proof/README.md) now executes generated shaders on an Apple M2 Max; its direct hardware path exposes a strict float32 compatibility gap. A separate [integer lowering](strict-gpu-float32.md) now passes scalar add/multiply conformance on that device.
 
 ## Compiler boundary
 
@@ -38,19 +38,21 @@ The scheduler completion reservation is the submission decision: cancellation al
 
 Allocation, upload, pipeline creation, submission, and command-completion failures map to the established task/fault model while retaining backend diagnostics at the reporting boundary. Do not invent shader-side C++ exceptions or treat a failed command as a valid zero tensor. Size guards and shape errors occur before execution wherever possible. General device-reset/crash containment is not established by successful command-error reporting.
 
-## Strict arithmetic is a blocking capability gate
+## Strict arithmetic remains an explicit capability gate
 
 The accepted baseline preserves float32 subnormals, signed zero, infinities, NaN classification, separate product rounding, and the specified reduction tree. The M2 Max proof passes finite/separate-rounding samples but fails subnormal arithmetic. Its decorated SPIRV-Cross path also changes a signed-zero case. The compiler-controlled diagnostic fixes that case, but still fails subnormal samples even with fast math and contraction disabled.
 
-Consequently, neither proof variant qualifies as an implementation of general strict float32 arithmetic. The source compiler must not admit it as one. This is a backend capability failure, not a reason to change the numeric design implicitly or inspect only current runtime inputs and assume the rest are safe.
+Consequently, neither direct hardware proof variant qualifies as an implementation of general strict float32 arithmetic. The source compiler must not admit it as one. This is a backend capability failure, not a reason to change the numeric design implicitly or inspect only current runtime inputs and assume the rest are safe.
 
-A subsequent numerical implementation must either preserve the existing contract through a verified lowering, including any necessary exceptional-value handling/emulation, or wait for an explicitly designed and accepted alternative numerical policy. Hardware/software correction costs need measurement before claiming a fast strict backend. Merely offering a fused operation, accepting flush-to-zero as a default, or substituting a vendor matmul would change semantics and is not authorized by this proof.
+The subsequent [strict binary32 lowering](strict-gpu-float32.md) now implements scalar add/multiply through integer MLIR operations, including gradual underflow, signed zero, nonfinite cases, and nearest/ties-to-even rounding. CPU LLVM and Metal differential tests pass against LLVM APFloat and CPU hardware. It requires the strict artifact's Int64/MSL 2.2 profile. This numerical component is not yet wired to source placement or compute tasks, and it does not admit unsupported arithmetic or tensor kernels.
+
+The integer implementation preserves the existing contract for its tested subset; no alternative numerical policy is selected. Further operations require corresponding lowering and evidence. Hardware/software correction costs still need measurement before claiming a fast strict backend. Merely offering a fused operation, accepting flush-to-zero as a default, or substituting a vendor matmul would change semantics and is not authorized by this proof.
 
 ## Implementation sequence and acceptance
 
 1. **Toolchain proof — complete.** Actual MLIR GPU → SPIR-V → Metal compilation and execution, reflected binding checks, explicit copies, partial workgroups, unchanged inputs, host sanitizer coverage, and recorded strict-arithmetic failures. No speed claim.
 2. **Device/storage runtime — implemented as a private native bridge.** Stable device selection, opaque retained buffers, checked sizes, explicit upload/download tasks, zero-sized tensors, scheduler completion capabilities, and transactional failure cleanup now have native tests, including nested groups, cancellation/deadline acknowledgement, dropped owners, budgets, and failure injection. ASan/UBSan and separate TSan cover host/bridge/scheduler code. Source-level transfers and the general tensor ABI remain a later gate.
-3. **Numeric compatibility.** Resolve strict float32 operations, beginning with add/multiply and IEEE edge cases. Reuse an independent CPU reference and inspect generated artifacts. Capability rejection remains in effect until this passes.
+3. **Numeric compatibility — scalar add/multiply implemented.** Integer lowering now passes IEEE edge, exponent/sign strata, cancellation, and random-value checks on CPU LLVM and Metal, including separately rounded multiplication then addition. Independent APFloat/CPU references and artifact inspection gate this subset. Other operations/types remain unsupported, and performance is unmeasured.
 4. **First source vertical slice.** Compile a placed elementwise function from `.kalandra`, transfer inputs, spawn, await, download, and compare the actual source-generated result. Validate aliases, repeated calls, failure injection, cancellation/deadlines, and group cleanup. A handwritten shader is not this milestone.
 5. **Tensor kernels and measurement.** Add matmul/reductions with the accepted tree and rounding, then measure kernel-only and end-to-end transfer/dispatch/completion costs separately, including retained device inputs. Do not extrapolate GPU speed from CPU results.
 6. **NVIDIA/Windows.** Add CUDA/NVVM lowering and Windows runtime/toolchain integration behind the same source placement, ownership, transfer, and numeric contracts. Validate on the RTX 5090; passing Metal tests does not establish CUDA support.

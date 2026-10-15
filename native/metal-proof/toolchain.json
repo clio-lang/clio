@@ -6,5 +6,7 @@
   "metalToolchain": "com.apple.dt.toolchain.Metal.32023.864",
   "metalCompilerVersion": "32023.864",
   "metalLanguageVersion": "macos-metal2.1",
-  "mslVersion": 20100
+  "mslVersion": 20100,
+  "strictMslVersion": 20200,
+  "strictMetalLanguageVersion": "macos-metal2.2"
 }
