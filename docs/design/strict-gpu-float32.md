@@ -1,6 +1,6 @@
 # Strict binary32 arithmetic on the GPU
 
-Status: scalar float32 addition and multiplication now have an integer MLIR lowering, verified through both CPU LLVM and Metal on an Apple M2 Max. Separately rounded multiply-then-add passes the same checks. This numerical backend component now also feeds private managed elementwise compute tasks. Source-level GPU placement, matmul/reduction kernels, and general GPU arithmetic admission remain unimplemented.
+Status: scalar float32 addition and multiplication now have an integer MLIR lowering, verified through both CPU LLVM and Metal on an Apple M2 Max. Separately rounded multiply-then-add passes the same checks. This numerical backend component now also feeds private managed elementwise compute tasks. A first optional source compiler now uses it for placed rank-one elementwise functions. Matmul/reduction kernels and general GPU arithmetic admission remain unimplemented.
 
 ## Why an integer lowering
 
@@ -66,4 +66,4 @@ The [recorded results and hashes](../../native/metal-proof/evidence/strict-float
 
 This is a correctness implementation using integer work for every operation. It has not been benchmarked against a hardware float32 path, so it establishes no throughput, latency, or end-to-end speed claim. The test duration includes references, transfers, validation, and synchronization and must not be presented as a kernel benchmark. Retain this strict path as a correctness baseline when evaluating any faster lowering; do not silently relax the numeric policy to obtain a better result.
 
-The next gate is to connect checked kernel artifacts and completion handling to the native runtime, then compile a first placed elementwise function from Kalandra source. Source admission must still reject operations or types outside the implemented subset. Matmul/reductions, further numeric operations, hardware fast paths, and NVIDIA/Windows validation follow separately.
+Checked compute tasks and a [first source-to-Metal compiler slice](apple-gpu.md#first-source-to-metal-compiler-slice) now use this path, including real source-generated kernels, explicit transfers, and a standalone build driver. General CPU/GPU tensor ABI integration remains the next compiler gate. Source admission must still reject operations or types outside the implemented subset. Matmul/reductions, further numeric operations, hardware fast paths, and NVIDIA/Windows validation follow separately.

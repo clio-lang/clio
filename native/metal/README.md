@@ -1,6 +1,6 @@
 # Apple device, transfer, and compute runtime
 
-This optional native C++23/Objective-C++ library implements retained tensor storage and asynchronous CPU↔Metal transfers through the existing task scheduler. It has been exercised on an Apple M2 Max. It also dispatches a private strict binary32 elementwise kernel through managed tasks. `.kalandra` device-placement lowering is not implemented yet.
+This optional native C++23/Objective-C++ library implements retained tensor storage and asynchronous CPU↔Metal transfers through the existing task scheduler. It has been exercised on an Apple M2 Max. It also dispatches a private strict binary32 elementwise kernel through managed tasks. A separate optional source compiler now uses this bridge for a first bounded `.kalandra` placement slice.
 
 ## Build
 
@@ -14,7 +14,7 @@ ctest --preset native
 
 The runtime does not require SPIRV-Cross, SPIRV-Tools, or the offline Metal shader compiler. Those are dependencies of the separate [shader toolchain proof](../metal-proof/README.md). Both options default to off in a fresh CPU-only configuration. Execution of the Metal tests requires access to an actual Metal device; missing device access is a test failure, not a skip or CPU fallback.
 
-The default suite has 43 tests, including four new platform-independent external-completion suites. Enabling the transfer runtime adds four tests; enabling both Metal options gives 68 tests, including four managed compute variants and a dynamic-kernel artifact check. The transfer tests build the bridge, scheduler, and harness in debug, optimized, ASan/UBSan, and separate TSan variants. Metal API validation is enabled. Host sanitizers do not instrument GPU/driver accesses, and no shader executes in the transfer tests. The separate compute tests execute the MLIR-generated strict shader on the GPU.
+The default suite has 43 tests, including four new platform-independent external-completion suites. Enabling the transfer runtime adds four tests; enabling both Metal options also builds the optional source compiler and its source/CLI conformance suites. The transfer tests build the bridge, scheduler, and harness in debug, optimized, ASan/UBSan, and separate TSan variants. Metal API validation is enabled. Host sanitizers do not instrument GPU/driver accesses, and no shader executes in the transfer tests. The separate compute tests execute the MLIR-generated strict shader on the GPU.
 
 ## Private native interface
 
@@ -44,7 +44,7 @@ ctest --preset native -R 'native-metal|metal-runtime-artifacts'
 
 Every result has a fresh immutable device backing. Await/read does not download it; an explicit download is required for host access. Empty vectors produce an empty device result without dispatch. Nonempty dispatches use guarded 64-thread workgroups and an eight-byte retained parameter buffer charged to the same byte budget as tensor/staging storage. Compute and transfer tasks share command limits and the external-completion protocol below. Inputs, pipeline, parameters, and unpublished output remain alive through acknowledgement, including parent cancellation and core destruction.
 
-The shader preserves strict float32 through integer arithmetic. This establishes correctness for the tested subset, not a GPU performance claim. General tensor operations, source-generated placed functions, source error mapping, and CPU tensor ABI integration remain subsequent work.
+The shader preserves strict float32 through integer arithmetic. This establishes correctness for the tested subset, not a GPU performance claim. A narrow source compiler now generates placed functions against a separate `kalandra_elementwise` kernel entry through `loadElementwiseKernel`/`elementwise`. It shares the checked buffer geometry and completion protocol, without the numerical proof's operation selector. General tensor operations, complete source error mapping, and CPU tensor ABI integration remain subsequent work.
 
 ## Completion and lifetime
 
@@ -74,7 +74,7 @@ Native supervisors spawn upload and download children, suspend through await/joi
 
 [External-completion tests](../tests/ExternalTaskTests.cpp) separately cover worker availability, completion arriving before resume returns, cancellation before reservation, cancellation/deadline/fault while pinned, repeated suspension epochs, duplicate/stale tokens, and destruction racing a foreign completion thread. Both suites include TSan without suppressing bridge or scheduler races.
 
-The [Apple GPU contract](../../docs/design/apple-gpu.md) tracks the next gates. Transfer correctness does not fix the original hardware shader's strict float32 failures. The [integer arithmetic lowering](../../docs/design/strict-gpu-float32.md) is now connected to managed compute tasks through the private ABI described above. Source placement/transfer lowering, general tensor/CPU ABI interoperation, GPU matmul/reductions, and NVIDIA support remain unimplemented.
+The [Apple GPU contract](../../docs/design/apple-gpu.md) tracks the next gates. Transfer correctness does not fix the original hardware shader's strict float32 failures. The [integer arithmetic lowering](../../docs/design/strict-gpu-float32.md) is now connected to managed compute tasks through the private ABI described above. A [first optional source compiler slice](../../docs/design/apple-gpu.md#first-source-to-metal-compiler-slice) now lowers explicit source transfers and placed rank-one float32 calls through this bridge. General tensor/CPU ABI interoperation, GPU matmul/reductions, and NVIDIA support remain unimplemented.
 
 [Compute conformance](ComputeTests.cpp) runs the complete 583,238-pair IEEE corpus against APFloat for all three operations through actual managed uploads, dispatches, and downloads. Prefix/tail cases span zero to 8,193 elements with 1/2/4 workers, nested CPU supervisors, and a one-slot ready queue. Repeated observations and results retained after group release bring the total to 2,121,882 APFloat comparisons per build variant, with zero mismatches. NaNs compare by classification; other outputs compare exact bits. Input buffers are downloaded and checked unchanged. The debug, optimized, ASan/UBSan, and TSan harnesses use the same generated shader; sanitizers instrument host code, not the GPU or prebuilt LLVM reference library.
 

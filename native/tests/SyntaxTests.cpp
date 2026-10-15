@@ -49,6 +49,8 @@ void validTree(const ParseResult &result) {
               id(argument);
           } else if constexpr (std::is_same_v<T, TaskExpr>) {
             id(value.operand);
+            if (value.placement)
+              id(*value.placement);
           } else if constexpr (std::is_same_v<T, ParallelExpr>) {
             for (const auto &statement : value.body) {
               span(statement.span);
@@ -277,6 +279,27 @@ void limitsAndOwnership() {
   require(longChain.ok() && longChain.module.expressions.size() == 40001, "long flat chain failed");
   validTree(longChain);
 }
+void placementSyntax() {
+  auto result =
+      syntax("fn main():\n  try parallel:\n    try await spawn project(a, b) on devices.gpu(1)\n");
+  require(result.ok(), "placement syntax failed");
+  validTree(result);
+  auto &m = result.module;
+  auto outer = std::get<TaskExpr>(m.expressions[m.functions[0].body[0].expression].value);
+  auto block = std::get<ParallelExpr>(m.expressions[outer.operand].value);
+  auto attempt = std::get<TaskExpr>(m.expressions[block.body[0].expression].value);
+  auto wait = std::get<TaskExpr>(m.expressions[attempt.operand].value);
+  auto spawn = std::get<TaskExpr>(m.expressions[wait.operand].value);
+  require(outer.prefix == TaskPrefix::Try && attempt.prefix == TaskPrefix::Try &&
+              wait.prefix == TaskPrefix::Await && spawn.prefix == TaskPrefix::Spawn &&
+              spawn.placement,
+          "on must attach to spawn inside try await");
+  auto target = std::get<CallExpr>(m.expressions[*spawn.placement].value);
+  auto name = std::get<NameExpr>(m.expressions[target.callee].value);
+  require(m.source->slice(name.name) == "devices.gpu" && target.arguments.size() == 1,
+          "device selector lost qualification or index");
+  require(!syntax("fn main():\n  spawn f() on\n").ok(), "missing placement target accepted");
+}
 void malformedCorpus() {
   constexpr std::string_view alphabet = "fn():[]{} +-*/?,=\n\t#\".123ab!>@";
   std::uint32_t state = 0x4b414c41;
@@ -316,6 +339,7 @@ int main(int argc, char **argv) {
         {"types and bindings", typesAndBindings},
         {"recovery", parserFailuresAndRecovery},
         {"limits and source ownership", limitsAndOwnership},
+        {"placement grouping", placementSyntax},
         {"malformed corpus", malformedCorpus}};
     for (const auto &[name, test] : tests) {
       test();

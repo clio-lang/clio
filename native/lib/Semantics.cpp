@@ -468,6 +468,13 @@ private:
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const TaskExpr &operation,
                                const std::optional<ValueType> &expected) {
+    if (operation.placement) {
+      error("S045",
+            "placed calls require the optional Metal source compiler; CPU lowering does not ignore "
+            "placement",
+            span);
+      return {};
+    }
     if (operation.prefix == TaskPrefix::Spawn && frame.groups.empty()) {
       error("S037", "spawn requires an owning parallel group", span);
       return {};

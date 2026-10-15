@@ -445,14 +445,29 @@ private:
         auto prefix = text == "spawn"   ? TaskPrefix::Spawn
                       : text == "await" ? TaskPrefix::Await
                                         : TaskPrefix::Try;
-        return add({{token.span.begin, node(*operand).span.end}, TaskExpr{prefix, *operand}});
+        std::optional<ExprId> placement;
+        if (prefix == TaskPrefix::Spawn && word("on")) {
+          advance();
+          placement = parseExpression(40);
+          if (!placement)
+            return {};
+        }
+        return add({{token.span.begin, node(placement.value_or(*operand)).span.end},
+                    TaskExpr{prefix, *operand, placement}});
       }
       if (text == "fn" || text == "catch") {
         error("P011", "this construct is not implemented in the first frontend", token.span);
         return {};
       }
       advance();
-      return add({token.span, NameExpr{token.span}});
+      auto span = token.span;
+      if (text == "devices" && consume(TokenKind::Dot)) {
+        auto member = expect(TokenKind::Identifier, "expected device selector name");
+        if (!member)
+          return {};
+        span.end = member->span.end;
+      }
+      return add({span, NameExpr{span}});
     }
     if (consume(TokenKind::Plus) || consume(TokenKind::Minus)) {
       auto value = parseExpression(40);

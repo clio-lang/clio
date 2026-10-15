@@ -87,6 +87,9 @@ public:
   TaskHandle upload(Task &, GroupHandle, Buffer, Device) noexcept;
   TaskHandle download(Task &, GroupHandle, Buffer) noexcept;
   std::expected<Kernel, Error> loadBinary32Kernel(std::string_view metallib, Device) noexcept;
+  std::expected<Kernel, Error> loadElementwiseKernel(std::string_view metallib, Device) noexcept;
+  TaskHandle elementwise(TaskCore &, GroupHandle, Kernel, Buffer, Buffer) noexcept;
+  TaskHandle elementwise(Task &, GroupHandle, Kernel, Buffer, Buffer) noexcept;
   TaskHandle compute(TaskCore &, GroupHandle, Kernel, BinaryOperation, Buffer, Buffer) noexcept;
   TaskHandle compute(Task &, GroupHandle, Kernel, BinaryOperation, Buffer, Buffer) noexcept;
   static const ValueLayout &bufferLayout() noexcept;
@@ -100,5 +103,6 @@ public:
 private:
   std::shared_ptr<State> state_;
   explicit Runtime(std::shared_ptr<State>) noexcept;
+  std::expected<Kernel, Error> loadKernel(std::string_view, Device, bool elementwise) noexcept;
 };
 } // namespace kalandra::runtime::metal

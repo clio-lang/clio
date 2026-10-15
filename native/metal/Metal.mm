@@ -92,6 +92,7 @@ struct KernelState {
   std::shared_ptr<State> registry;
   std::uint32_t index;
   id<MTLComputePipelineState> pipeline;
+  bool elementwise;
 };
 namespace {
 std::expected<std::uint64_t, Error> tensorBytes(std::span<const std::int64_t> shape,
@@ -196,7 +197,7 @@ std::expected<std::shared_ptr<Storage>, Error> allocateStorage(const std::shared
 }
 } // namespace
 struct Bridge {
-  enum class Kind { Upload, Download, Compute };
+  enum class Kind { Upload, Download, Compute, Elementwise };
   struct PacketData {
     std::shared_ptr<State> state;
     Buffer input;
@@ -258,15 +259,15 @@ struct Bridge {
         return;
       }
       std::uint32_t index = source->deviceIndex;
-      const bool compute = f.packet.kind == Kind::Compute;
+      const bool compute = f.packet.kind == Kind::Compute || f.packet.kind == Kind::Elementwise;
       const bool upload = f.packet.kind == Kind::Upload;
       if (compute) {
         const auto &kernel = f.packet.kernel.state_;
         const auto &right = f.packet.right.storage_;
-        if (!kernel || !right || std::uint32_t(f.packet.operation) > 2 ||
-            source->format != Format::Float32 || right->format != Format::Float32 ||
-            source->rank != 1 || right->rank != 1 || source->size != right->size ||
-            source->size / 4 > UINT32_MAX) {
+        if (!kernel || !right || kernel->elementwise != (f.packet.kind == Kind::Elementwise) ||
+            std::uint32_t(f.packet.operation) > 2 || source->format != Format::Float32 ||
+            right->format != Format::Float32 || source->rank != 1 || right->rank != 1 ||
+            source->size != right->size || source->size / 4 > UINT32_MAX) {
           task.fault(std::int64_t(Error::Invalid));
           return;
         }
@@ -534,6 +535,14 @@ TaskHandle Runtime::download(Task &task, GroupHandle group, Buffer buffer) noexc
 }
 std::expected<Kernel, Error> Runtime::loadBinary32Kernel(std::string_view path,
                                                          Device device) noexcept {
+  return loadKernel(path, std::move(device), false);
+}
+std::expected<Kernel, Error> Runtime::loadElementwiseKernel(std::string_view path,
+                                                            Device device) noexcept {
+  return loadKernel(path, std::move(device), true);
+}
+std::expected<Kernel, Error> Runtime::loadKernel(std::string_view path, Device device,
+                                                 bool elementwise) noexcept {
   @autoreleasepool {
     if (device.state_ != state_)
       return std::unexpected(Error::Residency);
@@ -553,7 +562,8 @@ std::expected<Kernel, Error> Runtime::loadBinary32Kernel(std::string_view path,
                                                       error:&error];
       if (!library)
         return std::unexpected(Error::Invalid);
-      id<MTLFunction> function = [library newFunctionWithName:@"strict_binary32"];
+      id<MTLFunction> function =
+          [library newFunctionWithName:elementwise ? @"kalandra_elementwise" : @"strict_binary32"];
       if (!function)
         return std::unexpected(Error::Invalid);
       MTLComputePipelineReflection *reflection = nil;
@@ -588,7 +598,7 @@ std::expected<Kernel, Error> Runtime::loadBinary32Kernel(std::string_view path,
       if (!state_->permit())
         return std::unexpected(Error::Allocation);
       Kernel kernel;
-      kernel.state_ = std::make_shared<KernelState>(state_, device.index_, pipeline);
+      kernel.state_ = std::make_shared<KernelState>(state_, device.index_, pipeline, elementwise);
       return kernel;
     } catch (...) {
       return std::unexpected(Error::Allocation);
@@ -607,6 +617,28 @@ TaskHandle Runtime::compute(Task &task, GroupHandle group, Kernel kernel, Binary
   Bridge::PacketData packet{
       state_,    std::move(left), {}, Bridge::Kind::Compute, std::move(kernel),
       operation, std::move(right)};
+  return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::elementwise(TaskCore &core, GroupHandle group, Kernel kernel, Buffer left,
+                                Buffer right) noexcept {
+  Bridge::PacketData packet{state_,
+                            std::move(left),
+                            {},
+                            Bridge::Kind::Elementwise,
+                            std::move(kernel),
+                            BinaryOperation::Add,
+                            std::move(right)};
+  return core.submit(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::elementwise(Task &task, GroupHandle group, Kernel kernel, Buffer left,
+                                Buffer right) noexcept {
+  Bridge::PacketData packet{state_,
+                            std::move(left),
+                            {},
+                            Bridge::Kind::Elementwise,
+                            std::move(kernel),
+                            BinaryOperation::Add,
+                            std::move(right)};
   return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
 }
 const ValueLayout &Runtime::bufferLayout() noexcept { return Bridge::layout; }

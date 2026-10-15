@@ -127,6 +127,7 @@ enum class TaskPrefix { Spawn, Await, Try };
 struct TaskExpr {
   TaskPrefix prefix;
   ExprId operand;
+  std::optional<ExprId> placement;
 };
 struct ParallelExpr {
   std::vector<Statement> body;

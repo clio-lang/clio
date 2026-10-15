@@ -272,3 +272,7 @@ option(KALANDRA_BUILD_METAL_RUNTIME "Build the Apple device and transfer runtime
 if(KALANDRA_BUILD_METAL_RUNTIME)
   add_subdirectory(metal)
 endif()
+
+if(KALANDRA_BUILD_METAL_PROOF AND KALANDRA_BUILD_METAL_RUNTIME)
+  add_subdirectory(metal-source)
+endif()
