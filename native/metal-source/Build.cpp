@@ -67,6 +67,10 @@ void buildMetalProgram(const std::filesystem::path &directory,
     core = KALANDRA_GPU_CORE_THREAD_SANITIZED;
   } else
     command.push_back("-O0");
+  if (outputs.contains("cpu.ll")) {
+    command.push_back("-Wno-override-module");
+    command.push_back((directory / "cpu.ll").string());
+  }
   command.insert(command.end(),
                  {(directory / "host.cpp").string(), metal, core, "-framework", "Foundation",
                   "-framework", "Metal", "-o", std::string(temporary)});

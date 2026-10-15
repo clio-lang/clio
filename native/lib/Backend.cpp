@@ -34,7 +34,8 @@ class Lowerer {
 public:
   Lowerer(const TypedModule &input, MLIRContext &context)
       : input_(input), builder_(&context), module_(ModuleOp::create(builder_.getUnknownLoc())) {}
-  OwningOpRef<ModuleOp> run(const std::optional<std::string> &testEntry) {
+  OwningOpRef<ModuleOp> run(const std::optional<std::string> &testEntry,
+                            const std::vector<std::string> &exports) {
     builder_.setInsertionPointToEnd(module_->getBody());
     auto fault = func::FuncOp::create(
         builder_, builder_.getUnknownLoc(), "kalandra_fault",
@@ -56,6 +57,11 @@ public:
         functions_[id]->setAttr("llvm.emit_c_interface", builder_.getUnitAttr());
       body(id);
     }
+    if (!exports.empty()) {
+      for (std::size_t i = 0; i < exports.size(); ++i)
+        interfaceWrapper(exports[i], "kalandra_cpu_" + std::to_string(i));
+      return std::move(module_);
+    }
     auto main =
         std::ranges::find_if(input_.functions, [](const auto &f) { return f.name == "main"; });
     if (main == input_.functions.end() || !main->parameters.empty() || main->resultType.tensor)
@@ -69,7 +75,7 @@ public:
     auto call = func::CallOp::create(builder_, entry.getLoc(), functions_[mainId], ValueRange{});
     func::ReturnOp::create(builder_, entry.getLoc(), call.getResults());
     if (testEntry)
-      testWrapper(*testEntry);
+      interfaceWrapper(*testEntry);
     return std::move(module_);
   }
 
@@ -620,11 +626,12 @@ private:
     auto value = castTensor(function.getLoc(), result, function.getResultTypes()[0]);
     func::ReturnOp::create(builder_, function.getLoc(), value);
   }
-  void testWrapper(const std::string &name) {
+  void interfaceWrapper(const std::string &name,
+                        const std::string &symbol = "kalandra_test_entry") {
     auto found =
         std::ranges::find_if(input_.functions, [&](const auto &f) { return f.name == name; });
     if (found == input_.functions.end())
-      throw LoweringFailure{"test entry must name a function"};
+      throw LoweringFailure{"interface entry must name a function"};
     const auto id = static_cast<FunctionId>(found - input_.functions.begin());
     SmallVector<Type> arguments;
     for (auto parameter : found->parameters) {
@@ -638,7 +645,7 @@ private:
     }
     builder_.setInsertionPointToEnd(module_->getBody());
     auto function =
-        func::FuncOp::create(builder_, location(found->declaration), "kalandra_test_entry",
+        func::FuncOp::create(builder_, location(found->declaration), symbol,
                              builder_.getFunctionType(arguments, functions_[id].getResultTypes()));
     function->setAttr("llvm.emit_c_interface", builder_.getUnitAttr());
     builder_.setInsertionPointToStart(function.addEntryBlock());
@@ -678,15 +685,19 @@ private:
 };
 } // namespace
 std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,
-                                                      std::optional<std::string> testEntry) {
+                                                      std::optional<std::string> testEntry,
+                                                      const std::vector<std::string> &exports) {
   if (std::ranges::any_of(input.functions, [](const auto &f) { return f.resultType.fallible; }) ||
       std::ranges::any_of(input.expressions, [](const auto &e) {
         return std::holds_alternative<TaskOperation>(e.operation) ||
                std::holds_alternative<ParallelOperation>(e.operation) ||
                std::holds_alternative<CatchOperation>(e.operation) ||
                std::holds_alternative<MatchOperation>(e.operation);
-      }))
+      })) {
+    if (!exports.empty())
+      return std::unexpected("CPU bridge exports require ordinary synchronous functions");
     return lowerTaskNative(input, testEntry);
+  }
   DialectRegistry registry;
   registerAllDialects(registry);
   registerAllExtensions(registry);
@@ -696,7 +707,7 @@ std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,
   static std::once_flag passRegistration;
   std::call_once(passRegistration, [] { registerAllPasses(); });
   try {
-    auto module = Lowerer(input, context).run(testEntry);
+    auto module = Lowerer(input, context).run(testEntry, exports);
     if (failed(verify(*module)))
       return std::unexpected("generated tensor MLIR failed verification");
     BackendOutput result;

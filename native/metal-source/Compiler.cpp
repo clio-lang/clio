@@ -1,4 +1,5 @@
 #include "Build.h"
+#include "kalandra/Backend.h"
 #include "kalandra/MetalSource.h"
 #include "kalandra/Semantics.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -6,9 +7,12 @@
 #include "mlir/InitAllDialects.h"
 #include "mlir/Parser/Parser.h"
 #include "llvm/ADT/APFloat.h"
+#include "llvm/AsmParser/Parser.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FileUtilities.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_ostream.h"
 #include <charconv>
 #include <filesystem>
@@ -26,7 +30,7 @@ struct Rejected {
   Diagnostic diagnostic;
 };
 struct Value {
-  enum Kind { Tensor, Target, Task } kind;
+  enum Kind { Tensor, Target, Task, Scalar } kind;
   std::size_t slot = 0;
   bool gpu = false;
   std::uint32_t device = 0;
@@ -35,6 +39,40 @@ struct Value {
 class Compiler {
   Module syntax;
   TypedModule scalar;
+  std::map<std::string, std::size_t> cpuFunctions;
+  TypedModule cpu;
+  std::vector<std::string> cpuExports;
+  std::set<std::string> gpuNames;
+  std::string declarations;
+  // Discover placement roots and their ordinary helper calls before partitioning.
+  void discover(ExprId id, bool gpu = false) {
+    if (depth >= 128)
+      reject(node(id).span, "function discovery depth exceeded");
+    Depth guard(depth);
+    const auto &v = node(id).value;
+    if (auto *t = std::get_if<TaskExpr>(&v)) {
+      discover(t->operand, gpu || t->prefix == TaskPrefix::Spawn);
+      if (t->placement)
+        discover(*t->placement);
+    } else if (auto *c = std::get_if<CallExpr>(&v)) {
+      auto name = named(c->callee);
+      if (gpu && gpuNames.insert(name).second)
+        for (const auto &fn : syntax.functions)
+          if (text(fn.name) == name)
+            for (auto &statement : fn.body)
+              discover(statement.expression, true);
+      for (auto a : c->arguments)
+        discover(a, gpu);
+    } else if (auto *b = std::get_if<BinaryExpr>(&v)) {
+      discover(b->left, gpu);
+      discover(b->right, gpu);
+    } else if (auto *u = std::get_if<UnaryExpr>(&v))
+      discover(u->operand, gpu);
+    else if (auto *p = std::get_if<ParallelExpr>(&v))
+      for (auto &statement : p->body)
+        discover(statement.expression, gpu);
+  }
+
   std::map<std::string, std::size_t> functions;
   std::unordered_map<std::string, Value> locals;
   std::set<std::size_t> observed, tasks;
@@ -116,6 +154,14 @@ class Compiler {
         reject(span, "unknown value '" + text(n->name) + "'");
       return found->second;
     }
+    if (std::holds_alternative<NumberExpr>(node(id).value) ||
+        std::holds_alternative<UnaryExpr>(node(id).value)) {
+      auto out = field("float");
+      Value value{Value::Scalar, next - 1};
+      steps.push_back("f." + out + " = std::bit_cast<float>(std::uint32_t(" +
+                      std::to_string(bits(id)) + "u));\n");
+      return value;
+    }
     if (const auto *call = std::get_if<CallExpr>(&node(id).value)) {
       auto name = named(call->callee);
       if (locals.contains(name))
@@ -195,7 +241,44 @@ class Compiler {
         tasks.insert(result.slot);
         return result;
       }
-      reject(span, "unsupported host call in the first Metal source slice");
+      if (auto found = cpuFunctions.find(name); found != cpuFunctions.end()) {
+        const auto &fn = cpu.functions[found->second];
+        if (call->arguments.size() != fn.parameters.size())
+          reject(span, "CPU function argument count mismatch");
+        auto out = field("float");
+        Value value{Value::Scalar, next - 1};
+        std::string step, arguments;
+        for (std::size_t i = 0; i < call->arguments.size(); ++i) {
+          auto input = expression(call->arguments[i]);
+          const auto &type = cpu.symbols[fn.parameters[i]].type;
+          if (type.tensor) {
+            if (input.kind != Value::Tensor || input.gpu)
+              reject(span, "CPU tensor arguments require an explicit transfer to devices.cpu()");
+            if (type.shape.size() != 1)
+              reject(span, "CPU bridge currently accepts rank-one float32 tensors");
+            if (type.shape[0].constant && *type.shape[0].constant != input.length)
+              reject(span, "CPU argument shape mismatch");
+            auto local = "argument" + std::to_string(i);
+            step += "auto " + local + " = r.toCpu<1>(task.context(), " + ref(input) + ");\n";
+            step += "if (!" + local + ") { " + error(local + ".error()") + " }\n";
+            arguments += "&*" + local + ",";
+          } else {
+            if (input.kind != Value::Scalar)
+              reject(span, "CPU argument requires float32");
+            arguments += ref(input) + ",";
+          }
+        }
+        step += "f." + out + " = _mlir_ciface_kalandra_cpu_" + std::to_string(found->second) + "(" +
+                arguments + "&task.context());\n";
+        step += "if (task.context().status()) { task.fault(task.context().status(), "
+                "task.context().line(), task.context().column()); return; }\n";
+        for (std::size_t i = 0; i < fn.parameters.size(); ++i)
+          if (cpu.symbols[fn.parameters[i]].type.tensor)
+            step += "task.context().release(argument" + std::to_string(i) + "->allocated);\n";
+        steps.push_back(step);
+        return value;
+      }
+      reject(span, "unsupported host call in the Metal source slice");
     }
     if (const auto *task = std::get_if<TaskExpr>(&node(id).value)) {
       if (task->prefix == TaskPrefix::Try) {
@@ -408,6 +491,16 @@ class Compiler {
 public:
   explicit Compiler(Module module) : syntax(std::move(module)) {}
   std::map<std::string, std::string> run() {
+    std::set<std::string> names;
+    for (const auto &fn : syntax.functions)
+      if (!names.insert(text(fn.name)).second)
+        reject(fn.name, "duplicate function");
+    for (const auto &fn : syntax.functions)
+      if (text(fn.name) == "main")
+        for (const auto &statement : fn.body)
+          discover(statement.expression);
+    Module hostModule = syntax;
+    hostModule.functions.clear();
     Module kernels = syntax;
     kernels.functions.clear();
     std::optional<std::size_t> main;
@@ -422,6 +515,23 @@ public:
       }
       if (name == "devices" || name == "tensor" || name == "transfer")
         reject(fn.name, "this GPU source slice reserves standard placement/transfer names");
+      if (!gpuNames.contains(name)) {
+        if (!cpuFunctions.emplace(name, hostModule.functions.size()).second)
+          reject(fn.name, "duplicate CPU function");
+        if (!fn.result || fn.result->tensor || text(fn.result->name) != "float32" || fn.taskError)
+          reject(fn.span,
+                 "CPU bridge functions currently require a float32 result and no error channel");
+        for (const auto &parameter : fn.parameters) {
+          if (parameter.type.tensor)
+            tensorType(parameter.type);
+          else if (text(parameter.type.name) != "float32")
+            reject(parameter.type.span,
+                   "CPU bridge parameters require float32 or rank-one float32 tensors");
+        }
+        cpuExports.push_back(name);
+        hostModule.functions.push_back(fn);
+        continue;
+      }
       if (!functions.emplace(name, kernels.functions.size()).second)
         reject(fn.name, "duplicate GPU function");
       if (fn.parameters.size() != 2 || !fn.result || fn.taskError)
@@ -448,16 +558,37 @@ public:
     if (!main)
       reject({}, "missing main");
     for (const auto &fn : syntax.functions)
-      if (text(fn.name) != "main")
+      if (gpuNames.contains(text(fn.name)))
         validateKernelShapes(fn);
+    if (!cpuExports.empty()) {
+      auto checkedCpu = kalandra::check({std::move(hostModule), {}});
+      if (!checkedCpu.ok())
+        throw Rejected{checkedCpu.diagnostics.front()};
+      cpu = std::move(*checkedCpu.module);
+      for (std::size_t i = 0; i < cpu.functions.size(); ++i) {
+        const auto &f = cpu.functions[i];
+        declarations += "extern \"C\" float _mlir_ciface_kalandra_cpu_" + std::to_string(i) + "(";
+        for (auto parameter : f.parameters) {
+          const auto &type = cpu.symbols[parameter].type;
+          if (type.tensor && type.shape.size() != 1)
+            reject(f.declaration, "CPU bridge currently accepts rank-one float32 tensors");
+          declarations += type.tensor ? "Float32Tensor<1>*," : "float,";
+        }
+        declarations += "Invocation*);\n";
+      }
+    }
     auto checked = kalandra::check({std::move(kernels), {}});
     if (!checked.ok())
       throw Rejected{checked.diagnostics.front()};
     scalar = std::move(*checked.module);
     const auto &fn = syntax.functions[*main];
     if (!fn.parameters.empty() || !fn.result || !fn.taskError)
-      reject(fn.span, "Metal main requires no parameters, a tensor result, and ! TaskError");
-    auto declared = tensorType(*fn.result);
+      reject(fn.span,
+             "Metal main requires no parameters, a float32 or tensor result, and ! TaskError");
+    bool scalarResult = !fn.result->tensor;
+    if (scalarResult && text(fn.result->name) != "float32")
+      reject(fn.span, "Metal main requires float32 or a rank-one float32 tensor");
+    auto declared = scalarResult ? std::optional<std::uint64_t>{} : tensorType(*fn.result);
     if (fn.body.size() != 1 || fn.body[0].binding)
       reject(fn.span, "Metal main must contain a single try parallel block");
     const auto *attempt = std::get_if<TaskExpr>(&node(fn.body[0].expression).value);
@@ -472,14 +603,17 @@ public:
         reject(*s.binding, "duplicate immutable binding");
       result = expression(s.expression, s.annotation ? &*s.annotation : nullptr);
       if (s.annotation) {
-        auto extent = tensorType(*s.annotation);
-        if (result.kind != Value::Tensor || (extent && *extent != result.length))
+        auto extent =
+            s.annotation->tensor ? tensorType(*s.annotation) : std::optional<std::uint64_t>{};
+        if (s.annotation->tensor
+                ? (result.kind != Value::Tensor || (extent && *extent != result.length))
+                : (text(s.annotation->name) != "float32" || result.kind != Value::Scalar))
           reject(s.span, "tensor annotation mismatch");
       }
       if (s.binding)
         locals.emplace(text(*s.binding), result);
     }
-    if (result.kind != Value::Tensor || result.gpu)
+    if (scalarResult ? result.kind != Value::Scalar : (result.kind != Value::Tensor || result.gpu))
       reject(fn.span, "main must return a completed host tensor; explicitly transfer the result to "
                       "devices.cpu()");
     if (declared && *declared != result.length)
@@ -501,9 +635,17 @@ public:
       if (!parsed || mlir::failed(mlir::verify(*parsed)))
         reject(fn.span, "generated GPU IR failed verification");
     }
+    if (!cpuExports.empty()) {
+      auto lowered = lowerNative(cpu, {}, cpuExports);
+      if (!lowered)
+        reject(fn.span, lowered.error());
+      outputs["cpu.mlir"] = lowered->mlir;
+      outputs["cpu.ll"] = lowered->llvm;
+    }
     std::ostringstream host;
     host << R"(#include "Metal.h"
 #include <array>
+#include <bit>
 #include <charconv>
 #include <cstdio>
 #include <cstdlib>
@@ -513,7 +655,16 @@ public:
 #include <string>
 using namespace kalandra::runtime;
 namespace m = kalandra::runtime::metal;
-struct PacketData { m::Runtime *runtime; const char *directory; };
+ )" << declarations;
+    if (scalarResult)
+      host << R"(
+bool copyScalar(Invocation &, void *out, const Invocation &, const void *in) noexcept {
+  std::memcpy(out,in,sizeof(float)); return true;
+}
+void destroyScalar(void *) noexcept {}
+const ValueLayout scalarLayout{0x4b414c46533332,sizeof(float),alignof(float),copyScalar,destroyScalar};
+)";
+    host << R"(struct PacketData { m::Runtime *runtime; const char *directory; };
 struct Frame { m::Runtime *runtime; std::string directory; GroupHandle group; unsigned pc=0;
 )";
     for (auto &f : fields)
@@ -547,7 +698,8 @@ void resume(Task &task) {
             "}\ntask.complete(&"
          << ref(result) << "); return;\n}\ndefault: task.fault(3);\n}\n}\n";
     host
-        << R"(const TaskEntry entry{1,0x4b414c47505501,sizeof(PacketData),alignof(PacketData),sizeof(Frame),alignof(Frame),construct,destroy,resume,&m::Runtime::bufferLayout()};
+        << R"(const TaskEntry entry{1,0x4b414c47505501,sizeof(PacketData),alignof(PacketData),sizeof(Frame),alignof(Frame),construct,destroy,resume,)"
+        << (scalarResult ? "&scalarLayout" : "&m::Runtime::bufferLayout()") << R"(};
 int main(int argc,char **argv) {
   if (argc!=1 && argc!=2) { std::fprintf(stderr,"expected optional shader directory\n"); return 2; }
   const auto directory=argc==2 ? std::string(argv[1]) : std::filesystem::absolute(argv[0]).parent_path().string();
@@ -568,7 +720,13 @@ int main(int argc,char **argv) {
   int status=0;
   if (failure.kind!=TaskFailure::None) { std::fprintf(stderr,"Metal task failed: %d/%lld\n",int(failure.kind),(long long)failure.code); status=1; }
   else {
-    Invocation context; alignas(m::Buffer) std::byte slot[sizeof(m::Buffer)];
+)";
+    if (scalarResult)
+      host << R"(    Invocation context; float value=0;
+    if (!core->observe(child,scalarLayout,context,&value)) return 1;
+    std::printf("%08x\n",std::bit_cast<std::uint32_t>(value));)";
+    else
+      host << R"(    Invocation context; alignas(m::Buffer) std::byte slot[sizeof(m::Buffer)];
     if (!core->observe(child,m::Runtime::bufferLayout(),context,slot)) return 1;
     auto *value=std::launder(reinterpret_cast<m::Buffer *>(slot));
     auto cpu=runtime->toCpu<1>(context,*value);
@@ -576,7 +734,8 @@ int main(int argc,char **argv) {
     else { std::printf("["); for (std::int64_t i=0;i<cpu->sizes[0];++i) {
       std::uint32_t bits; std::memcpy(&bits,cpu->aligned+i,4); std::printf(i ? ",%08x" : "%08x",bits);
     } std::puts("]"); context.release(cpu->allocated); }
-    value->~Buffer();
+    value->~Buffer();)";
+    host << R"(
   }
   core->close(group); if (!core->drain() || !core->release(group)) return 1;
   auto s=runtime->stats(); auto t=core->stats();
@@ -631,6 +790,20 @@ int kalandra::compileMetalCommand(int argc, char **argv) {
       return 1;
     }
     auto outputs = Compiler(std::move(parsed.module)).run();
+    if (outputs.contains("cpu.ll") && (variant == "sanitized" || variant == "thread-sanitized")) {
+      llvm::LLVMContext context;
+      llvm::SMDiagnostic diagnostic;
+      auto module = llvm::parseAssemblyString(outputs.at("cpu.ll"), diagnostic, context);
+      if (!module)
+        throw std::runtime_error("cannot prepare CPU sanitizer attributes");
+      for (auto &function : *module)
+        if (!function.isDeclaration())
+          function.addFnAttr(variant == "sanitized" ? llvm::Attribute::SanitizeAddress
+                                                    : llvm::Attribute::SanitizeThread);
+      outputs["cpu.ll"].clear();
+      llvm::raw_string_ostream stream(outputs["cpu.ll"]);
+      module->print(stream, nullptr);
+    }
     std::filesystem::path directory = argv[3];
     std::vector<std::string> paths;
     for (const auto &[name, contents] : outputs) {

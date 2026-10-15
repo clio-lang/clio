@@ -105,11 +105,11 @@ The diagnostic entry prints exact float32 bits: `[40a00000,41400000,41a80000]`, 
 ### Implemented scope
 
 - GPU entries/helpers have two `Tensor[float32, ?]` parameters and the same rank-one result type. Both inputs must contribute to the entry's result for this first reflected two-input ABI. Operations are strict `+` and `*`, including float32 literals lifted across tensor arithmetic. No annotations or duplicate GPU implementations are needed to select placement.
-- `main` has no parameters and a rank-one float32 tensor result with `! TaskError`. Its body is one `try parallel` block. It constructs explicitly typed flat host literals, selects CPU/default/indexed GPU targets, submits transfers and placed calls, observes children with `try await`, and explicitly downloads its final tensor. Immutable aliases and repeated calls are supported. Device indices are constant uint32 values in this slice.
+- `main` has no parameters and a float32 or rank-one float32 tensor result with `! TaskError`. Its body is one `try parallel` block. It constructs explicitly typed flat host literals, selects CPU/default/indexed GPU targets, submits transfers and placed calls, observes children with `try await`, and explicitly downloads any tensor consumed by a CPU function or returned from main. Immutable aliases and repeated calls are supported. Device indices are constant uint32 values in this slice.
 - Kernel inputs/results retain dynamic array lengths in the native device ABI. The supervisor currently obtains its input data from literals, so source-level shape/residency checks are statically known; native kernel conformance separately exercises runtime-sized buffers. This does not claim general external tensor inputs or dynamic residency analysis in the common typed IR.
 - Known shape mismatches, missing transfers/downloads, unobserved children, escaping task results, unsupported operations/types, and scalar arguments passed to tensor helper parameters are diagnosed. Scalar lifting is an arithmetic rule, not permission to erase a tensor parameter's type.
 - The supervisor and its child commands use existing task/memory limits. Two uploads submitted before either is awaited need two ready admissions. Insufficient queue or device budgets fail visibly and settle their owners; no automatic admission backpressure is introduced here. A successful run requires only one CPU worker.
-- `try await` propagates failures to the top-level run. Source-level recovery/matching, full placement-specific TaskError payloads, arbitrary host calls, nested source parallel blocks, CPU-placed calls in this path, general tensor operations, and arbitrary mixed CPU/GPU source lowering remain unimplemented. The checked native descriptor bridge described below now interoperates with CPU invocation storage. The ordinary native compiler reports an explicit diagnostic for `on`; it never treats a placed invocation as an ordinary CPU spawn.
+- `try await` propagates failures to the top-level run. Source-level recovery/matching, full placement-specific TaskError payloads, CPU functions returning tensors or spawning tasks, nested source parallel blocks, CPU-placed calls in this path, general tensor operations, and arbitrary mixed CPU/GPU source lowering remain unimplemented. The checked native descriptor bridge described below now interoperates with CPU invocation storage. The ordinary native compiler reports an explicit diagnostic for `on`; it never treats a placed invocation as an ordinary CPU spawn.
 
 ### Source conformance
 
@@ -142,3 +142,39 @@ An imported view charges the complete retained CPU allocation payload to the Met
 CPU-only configuration/build and compiler smoke checks still pass without Metal/shader dependencies. Full mixed-source type/effect checking, device residency in the shared typed IR, richer CPU/GPU entry parameters, and general tensor kernels remain subsequent implementation work. This bridge establishes safe interoperability; it does not establish GPU performance.
 
 The [tensor interoperability evidence](../../native/metal-proof/evidence/tensor-interop-2026-10-15.json) records the compiler/ABI sources and executable hashes, 24 CPU→GPU→compiled-CPU cases per build variant, CPU-only build checks, and the complete 89-test run.
+
+### Mixed CPU/GPU source programs
+
+The [mixed source fixture](../../native/metal-source/mixed.kalandra) defines CPU and GPU functions in one file. Ordinary calls run on the CPU; `spawn ... on devices.gpu()` selects the GPU. No function annotation is needed. In this first slice, GPU placement roots and their helper closure use the GPU checker; the remaining functions use the existing CPU type checker and MLIR/LLVM lowering. This is a source integration step, not yet a shared placement-aware typed IR.
+
+```kalandra
+fn total(values: Tensor[float32, ?]) -> float32:
+  reduceSum(values)
+
+fn combine(left: Tensor[float32, ?], right: Tensor[float32, ?]) -> Tensor[float32, ?]:
+  product = left * right
+  product + left
+
+fn main() -> float32 ! TaskError:
+  try parallel:
+    left: Tensor[float32, 3] = tensor([1, 2, 3])
+    right: Tensor[float32, 3] = tensor([4, 5, 6])
+    gpu = devices.gpu()
+    a = try await transfer(left, gpu)
+    b = try await transfer(right, gpu)
+    result = try await spawn combine(a, b) on gpu
+    host = try await transfer(result, devices.cpu())
+    total(host)
+```
+
+This returns 38. `total(result)` is rejected: awaiting GPU work leaves its result on the device. The download stays explicit. The executable currently prints scalar float32 bits in hexadecimal, as it does for tensor elements.
+
+CPU bridge functions accept float32 scalars and rank-one float32 tensors and return float32. They can call other CPU functions, including checked shape-constrained helpers. Calls run synchronously on the current worker; compiled loops poll cancellation. Each tensor argument is copied from a completed host Buffer into an invocation-owned CPU descriptor, then released after the call. This keeps ownership explicit internally; it does not claim a zero-copy CPU call path. CPU allocation/shape faults propagate through the owning task and settle the invocation. Scalar results use a separate immutable task result layout; main can still return a host tensor.
+
+The bundle includes `cpu.mlir` and `cpu.ll`, and links the CPU object code into the same executable as the supervisor. CPU exports use checked invocation interfaces and do not synthesize a second main. Sanitizer variants instrument the generated CPU LLVM for ASan or TSan, alongside the existing host/runtime sanitizer builds; UBSan covers C++ host/runtime code, not arithmetic already lowered to LLVM. There is no compiler-library dependency in the executable.
+
+Current limits: CPU bridge functions cannot return tensors or tasks; CPU and GPU helper closures are separate (calling the same helper on both targets remains unsupported); CPU placement/spawn in this supervisor remains unimplemented. General tensor operations and a common placement-aware typed IR are still subsequent work. Existing strict GPU arithmetic qualification is unchanged, and performance is unmeasured.
+
+[Mixed-source conformance](../../native/metal-source/MixedTests.cpp) checks results and repeated observation with one, two, and four workers, every supervisor invocation allocation failure up to the successful run, cancellation while GPU completion retains the frame, and resource retirement. It runs in debug, optimized, ASan/UBSan, and TSan variants. CLI tests cover empty tensors, CPU shape faults after GPU download, tensor-valued main, and executable/shader relocation. Source diagnostics reject CPU access to device tensors, bad CPU arguments, shapes, duplicate names, and shadowed function calls before writing output.
+
+The [mixed-source evidence](../../native/metal-proof/evidence/mixed-source-2026-10-15.json) records source and artifact hashes, CPU-only smoke checks, and the complete 94-test passing run.
