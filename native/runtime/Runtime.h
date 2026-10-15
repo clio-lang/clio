@@ -1,9 +1,31 @@
 #pragma once
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <span>
 
 namespace kalandra::runtime {
 struct Owner;
+struct Backing;
+// A read-only retained allocation independent of any invocation's owner list.
+// Move-only: shared values retain their enclosing backing, not this lease itself.
+class AllocationLease final {
+public:
+  AllocationLease() = default;
+  ~AllocationLease();
+  AllocationLease(AllocationLease &&) noexcept;
+  AllocationLease &operator=(AllocationLease &&) noexcept;
+  AllocationLease(const AllocationLease &) = delete;
+  AllocationLease &operator=(const AllocationLease &) = delete;
+  explicit operator bool() const noexcept { return backing_ != nullptr; }
+  std::span<const std::byte> bytes() const noexcept;
+
+private:
+  Backing *backing_ = nullptr;
+  explicit AllocationLease(Backing *backing) noexcept : backing_(backing) {}
+  friend class Invocation;
+};
 // One execution unit. Access to a context is exclusive, even if its execution
 // later migrates between workers. Backing references can cross contexts.
 class Invocation final {
@@ -24,6 +46,10 @@ public:
   void *allocate(std::uint64_t bytes) noexcept;
   bool retainFrom(const Invocation &source, void *buffer) noexcept;
   void release(void *buffer) noexcept;
+  // Requires exclusive source-context access, like retainFrom. Reject unknown,
+  // faulted or settled contexts before acquiring a backing reference.
+  bool usable() const noexcept { return !settled_ && !code_ && !taskError_; }
+  std::optional<AllocationLease> lease(const void *allocated) const noexcept;
   void fault(std::int64_t code, std::int64_t line = 0, std::int64_t column = 0) noexcept;
   void settle() noexcept;
   void expectedTaskError(std::int64_t kind, std::int64_t code, std::int64_t line,

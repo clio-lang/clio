@@ -1,4 +1,7 @@
 #include "kalandra/Backend.h"
+#ifdef KALANDRA_HAS_METAL_SOURCE
+#include "kalandra/MetalSource.h"
+#endif
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
@@ -6,6 +9,7 @@
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/SourceMgr.h"
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -20,10 +24,55 @@ bool write(const std::filesystem::path &path, const std::string &contents) {
 }
 } // namespace
 int main(int argc, char **argv) {
-  const std::span<char *> arguments(argv, static_cast<std::size_t>(argc));
+  std::vector<char *> filtered{argv[0]};
+  std::string target = "cpu";
+  bool selectedTarget = false;
+  for (int i = 1; i < argc; ++i) {
+    const std::string_view option = argv[i];
+    if (option == "--target") {
+      if (selectedTarget || i + 1 >= argc) {
+        std::cerr << "one complete --target option is required\n";
+        return 2;
+      }
+      selectedTarget = true;
+      target = argv[++i];
+    } else {
+      filtered.push_back(argv[i]);
+      if ((option == "-o" || option == "--emit-mlir" || option == "--emit-llvm" ||
+           option == "--test-entry") &&
+          i + 1 < argc)
+        filtered.push_back(argv[++i]);
+    }
+  }
+  if (target == "metal") {
+#ifdef KALANDRA_HAS_METAL_SOURCE
+    char build[] = "--build";
+    bool hasBuild = false;
+    for (std::size_t i = 1; i < filtered.size(); ++i) {
+      std::string_view option = filtered[i];
+      if (option == "-o" && i + 1 < filtered.size())
+        ++i;
+      else if (option == "--build")
+        hasBuild = true;
+    }
+    if (!hasBuild)
+      filtered.push_back(build);
+    return kalandra::compileMetalCommand(static_cast<int>(filtered.size()), filtered.data());
+#else
+    std::cerr << "Metal source support is disabled; configure both KALANDRA_BUILD_METAL_RUNTIME "
+                 "and KALANDRA_BUILD_METAL_PROOF\n";
+    return 2;
+#endif
+  }
+  if (target != "cpu") {
+    std::cerr << "unsupported native target: " << target << '\n';
+    return 2;
+  }
+  const std::span<char *> arguments(filtered);
   if (arguments.size() < 2) {
     std::cerr << "usage: kalandrac source.kalandra -o executable [--emit-mlir file] [--emit-llvm "
-                 "file] [--test-entry function] [--sanitize|--thread-sanitize] [-O0|-O2]\n";
+                 "file] [--test-entry function] [--sanitize|--thread-sanitize] [-O0|-O2] [--target "
+                 "cpu|metal]\n";
     return 2;
   }
   std::filesystem::path output, mlirPath, llvmPath;

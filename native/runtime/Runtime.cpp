@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <limits>
 #include <new>
+#include <utility>
 
 namespace kalandra::runtime {
 struct Backing;
@@ -17,7 +18,48 @@ struct Owner {
 struct alignas(std::max_align_t) Backing {
   std::atomic<std::uint64_t> references{1};
   Owner initial{nullptr, nullptr, this, true};
+  std::uint64_t bytes = 0;
 };
+namespace {
+void releaseBacking(Backing *backing) noexcept {
+  if (backing && backing->references.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+    backing->~Backing();
+    std::free(backing);
+  }
+}
+} // namespace
+AllocationLease::~AllocationLease() { releaseBacking(backing_); }
+AllocationLease::AllocationLease(AllocationLease &&other) noexcept
+    : backing_(std::exchange(other.backing_, nullptr)) {}
+AllocationLease &AllocationLease::operator=(AllocationLease &&other) noexcept {
+  if (this != &other) {
+    releaseBacking(backing_);
+    backing_ = std::exchange(other.backing_, nullptr);
+  }
+  return *this;
+}
+std::span<const std::byte> AllocationLease::bytes() const noexcept {
+  return backing_ ? std::span<const std::byte>(reinterpret_cast<const std::byte *>(backing_ + 1),
+                                               backing_->bytes)
+                  : std::span<const std::byte>{};
+}
+std::optional<AllocationLease> Invocation::lease(const void *allocated) const noexcept {
+  if (!usable() || !allocated)
+    return {};
+  auto *owner = head_;
+  while (owner && owner->backing + 1 != allocated)
+    owner = owner->next;
+  if (!owner)
+    return {};
+  auto *backing = owner->backing;
+  auto references = backing->references.load(std::memory_order_relaxed);
+  do {
+    if (references == std::numeric_limits<std::uint64_t>::max())
+      return {};
+  } while (!backing->references.compare_exchange_weak(references, references + 1,
+                                                      std::memory_order_relaxed));
+  return AllocationLease(backing);
+}
 Invocation::Invocation() noexcept {
   if (const auto *text = std::getenv("KALANDRA_TEST_FAIL_ALLOC_AT")) {
     char *end = nullptr;
@@ -66,10 +108,7 @@ void Invocation::remove(Owner *owner) noexcept {
     owner->~Owner();
     std::free(owner);
   }
-  if (backing->references.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-    backing->~Backing();
-    std::free(backing);
-  }
+  releaseBacking(backing);
   --live_;
   ++releases_;
 }
@@ -86,6 +125,7 @@ void *Invocation::allocate(std::uint64_t bytes) noexcept {
     return nullptr;
   }
   auto *backing = new (storage) Backing;
+  backing->bytes = bytes;
   attach(&backing->initial);
   return backing + 1;
 }

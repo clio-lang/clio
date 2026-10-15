@@ -70,6 +70,11 @@ struct Storage {
   bool device = false;
   std::uint64_t size = 0, hostReserved = 0;
   std::vector<std::byte> host;
+  AllocationLease cpu;
+  std::uint64_t cpuOffset = 0;
+  std::span<const std::byte> hostView() const noexcept {
+    return cpu ? cpu.bytes().subspan(cpuOffset, size) : std::span<const std::byte>(host);
+  }
   std::shared_ptr<MetalAllocation> metal;
   Storage(std::shared_ptr<State> s, bool d) : state(std::move(s)), device(d) {
     if (device)
@@ -357,7 +362,7 @@ struct Bridge {
         }
         f.staging = *staging;
         if (upload)
-          std::memcpy(f.staging->buffer.contents, source->host.data(), source->size);
+          std::memcpy(f.staging->buffer.contents, source->hostView().data(), source->size);
         if (!state->permit()) {
           task.fault(std::int64_t(Error::Allocation));
           return;
@@ -451,7 +456,7 @@ std::expected<std::span<const std::byte>, Error> Buffer::hostBytes() const noexc
     return std::unexpected(Error::Invalid);
   if (storage_->device)
     return std::unexpected(Error::Residency);
-  return std::span<const std::byte>(storage_->host);
+  return storage_->hostView();
 }
 Runtime::Runtime(std::shared_ptr<State> state) noexcept : state_(std::move(state)) {}
 std::expected<std::unique_ptr<Runtime>, Error> Runtime::create(Options options) noexcept {
@@ -509,6 +514,79 @@ std::expected<Buffer, Error> Runtime::hostTensor(std::span<const std::byte> data
   if (*bytes)
     std::memcpy((*storage)->host.data(), data.data(), *bytes);
   return Buffer(*storage);
+}
+std::expected<Buffer, Error> Runtime::fromCpu(const Invocation &context,
+                                              CpuTensorView view) noexcept {
+  auto size = tensorBytes(view.sizes, Format::Float32);
+  if (!context.usable() || !size || view.sizes.size() != view.strides.size() || view.offset < 0)
+    return std::unexpected(Error::Invalid);
+  // Empty tensors never dereference or retain descriptor addresses.
+  if (!*size)
+    return hostTensor({}, view.sizes, Format::Float32);
+  std::uint64_t stride = 1;
+  for (std::size_t axis = view.sizes.size(); axis-- > 0;) {
+    if (view.strides[axis] < 0 || std::uint64_t(view.strides[axis]) != stride)
+      return std::unexpected(Error::Invalid);
+    if (std::uint64_t(view.sizes[axis]) > UINT64_MAX / stride)
+      return std::unexpected(Error::Invalid);
+    stride *= std::uint64_t(view.sizes[axis]);
+  }
+  auto lease = context.lease(view.allocated);
+  if (!lease)
+    return std::unexpected(Error::Invalid);
+  auto allocation = lease->bytes();
+  auto base = reinterpret_cast<std::uintptr_t>(view.allocated);
+  auto aligned = reinterpret_cast<std::uintptr_t>(view.aligned);
+  if (aligned < base || aligned % alignof(float) || aligned - base > allocation.size())
+    return std::unexpected(Error::Invalid);
+  auto displacement = aligned - base;
+  if (std::uint64_t(view.offset) > (allocation.size() - displacement) / 4)
+    return std::unexpected(Error::Invalid);
+  displacement += std::uint64_t(view.offset) * 4;
+  if (*size > allocation.size() - displacement)
+    return std::unexpected(Error::Invalid);
+  if (!state_->permit())
+    return std::unexpected(Error::Allocation);
+  try {
+    auto storage = std::make_shared<Storage>(state_, false);
+    if (!state_->reserve(allocation.size()))
+      return std::unexpected(Error::Budget);
+    storage->hostReserved = allocation.size(); // Charge the complete retained allocation.
+    storage->cpu = std::move(*lease);
+    storage->cpuOffset = displacement;
+    storage->size = *size;
+    storage->rank = view.sizes.size();
+    std::copy(view.sizes.begin(), view.sizes.end(), storage->dimensions.begin());
+    return Buffer(std::move(storage));
+  } catch (...) {
+    return std::unexpected(Error::Allocation);
+  }
+}
+std::expected<void *, Error> Runtime::exportCpu(Invocation &context, const Buffer &buffer,
+                                                std::span<std::int64_t> sizes,
+                                                std::span<std::int64_t> strides) noexcept {
+  if (!context.usable() || !buffer || buffer.format() != Format::Float32 ||
+      sizes.size() != buffer.shape().size() || strides.size() != sizes.size())
+    return std::unexpected(Error::Invalid);
+  auto bytes = buffer.hostBytes();
+  if (!bytes)
+    return std::unexpected(bytes.error()); // A device result must be explicitly downloaded.
+  std::uint64_t stride = 1;
+  for (std::size_t axis = sizes.size(); axis-- > 0;) {
+    if (stride > INT64_MAX)
+      return std::unexpected(Error::Invalid);
+    sizes[axis] = buffer.shape()[axis];
+    strides[axis] = stride;
+    if (sizes[axis] && stride > UINT64_MAX / std::uint64_t(sizes[axis]))
+      return std::unexpected(Error::Invalid);
+    stride *= std::uint64_t(sizes[axis]);
+  }
+  auto *result = context.allocate(bytes->size());
+  if (!result)
+    return std::unexpected(Error::Allocation);
+  if (!bytes->empty())
+    std::memcpy(result, bytes->data(), bytes->size());
+  return result;
 }
 TaskHandle Runtime::upload(TaskCore &core, GroupHandle group, Buffer buffer,
                            Device target) noexcept {

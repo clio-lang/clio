@@ -1,4 +1,5 @@
 #include "Build.h"
+#include "kalandra/MetalSource.h"
 #include "kalandra/Semantics.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Verifier.h"
@@ -154,16 +155,22 @@ class Compiler {
         for (auto item : array->elements)
           data += std::to_string(bits(item)) + "u,";
         data += " }";
-        steps.push_back("static const std::array<std::uint32_t," + std::to_string(value.length) +
-                        "> data = " + data +
-                        ";\n"
-                        "const std::int64_t length = " +
-                        std::to_string(value.length) +
-                        ";\n"
-                        "auto value = r.hostTensor(std::as_bytes(std::span(data)), {&length,1}, "
-                        "m::Format::Float32);\n"
-                        "if (!value) { " +
-                        error("value.error()") + " }\nf." + out + " = *value;\n");
+        steps.push_back(
+            "static const std::array<std::uint32_t," + std::to_string(value.length) +
+            "> data = " + data +
+            ";\n"
+            "const std::int64_t length = " +
+            std::to_string(value.length) +
+            ";\n"
+            "auto *allocation = task.context().allocate(data.size() * 4);\n"
+            "if (!allocation) { task.fault(2); return; }\n"
+            "if (!data.empty()) std::memcpy(allocation, data.data(), data.size() * 4);\n"
+            "Float32Tensor<1> descriptor{static_cast<float *>(allocation), static_cast<float "
+            "*>(allocation), 0, {length}, {1}};\n"
+            "auto value = r.fromCpu(task.context(), descriptor.view());\n"
+            "task.context().release(allocation);\n"
+            "if (!value) { " +
+            error("value.error()") + " }\nf." + out + " = *value;\n");
         return value;
       }
       if (name == "transfer") {
@@ -563,11 +570,12 @@ int main(int argc,char **argv) {
   else {
     Invocation context; alignas(m::Buffer) std::byte slot[sizeof(m::Buffer)];
     if (!core->observe(child,m::Runtime::bufferLayout(),context,slot)) return 1;
-    auto *value=std::launder(reinterpret_cast<m::Buffer *>(slot)); auto bytes=value->hostBytes();
-    if (!bytes) status=1;
-    else { std::printf("["); for (std::size_t i=0;i<bytes->size()/4;++i) {
-      std::uint32_t bits; std::memcpy(&bits,bytes->data()+i*4,4); std::printf(i ? ",%08x" : "%08x",bits);
-    } std::puts("]"); }
+    auto *value=std::launder(reinterpret_cast<m::Buffer *>(slot));
+    auto cpu=runtime->toCpu<1>(context,*value);
+    if (!cpu) status=1;
+    else { std::printf("["); for (std::int64_t i=0;i<cpu->sizes[0];++i) {
+      std::uint32_t bits; std::memcpy(&bits,cpu->aligned+i,4); std::printf(i ? ",%08x" : "%08x",bits);
+    } std::puts("]"); context.release(cpu->allocated); }
     value->~Buffer();
   }
   core->close(group); if (!core->drain() || !core->release(group)) return 1;
@@ -582,7 +590,7 @@ int main(int argc,char **argv) {
   }
 };
 } // namespace
-int main(int argc, char **argv) {
+int kalandra::compileMetalCommand(int argc, char **argv) {
   if (argc < 4 || std::string_view(argv[2]) != "-o") {
     std::cerr << "usage: kalandra-metal-source source.kalandra -o directory [--build "
                  "[-O2|--sanitize|--thread-sanitize]]\n";

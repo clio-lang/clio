@@ -1,5 +1,6 @@
 #pragma once
 #include "../runtime/Tasks.h"
+#include "../runtime/Tensor.h"
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -82,6 +83,22 @@ public:
   std::expected<Device, Error> device(std::uint32_t index) const noexcept;
   std::expected<Buffer, Error> hostTensor(std::span<const std::byte>, std::span<const std::int64_t>,
                                           Format) noexcept;
+  std::expected<Buffer, Error> fromCpu(const Invocation &, CpuTensorView) noexcept;
+  template <std::size_t Rank>
+  std::expected<Float32Tensor<Rank>, Error> toCpu(Invocation &context,
+                                                  const Buffer &buffer) noexcept {
+    Float32Tensor<Rank> descriptor;
+    std::span<std::int64_t> sizes, strides;
+    if constexpr (Rank != 0) {
+      sizes = descriptor.sizes;
+      strides = descriptor.strides;
+    }
+    auto data = exportCpu(context, buffer, sizes, strides);
+    if (!data)
+      return std::unexpected(data.error());
+    descriptor.allocated = descriptor.aligned = static_cast<float *>(*data);
+    return descriptor;
+  }
   TaskHandle upload(TaskCore &, GroupHandle, Buffer, Device) noexcept;
   TaskHandle download(TaskCore &, GroupHandle, Buffer) noexcept;
   TaskHandle upload(Task &, GroupHandle, Buffer, Device) noexcept;
@@ -103,6 +120,9 @@ public:
 private:
   std::shared_ptr<State> state_;
   explicit Runtime(std::shared_ptr<State>) noexcept;
+  std::expected<void *, Error> exportCpu(Invocation &, const Buffer &,
+                                         std::span<std::int64_t> sizes,
+                                         std::span<std::int64_t> strides) noexcept;
   std::expected<Kernel, Error> loadKernel(std::string_view, Device, bool elementwise) noexcept;
 };
 } // namespace kalandra::runtime::metal
