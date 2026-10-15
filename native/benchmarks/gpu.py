@@ -30,7 +30,9 @@ def main():
     parser.add_argument('--output', type=pathlib.Path)
     parser.add_argument('--suite', choices=['initial', 'selection'], default='initial')
     parser.add_argument('--baseline-metal-source', type=pathlib.Path,
-                        help='Rebuild an earlier Metal.mm against the same harness, forcing scalar matmul in its direct control')
+                        help='Rebuild an earlier Metal.mm against the same harness; direct matmul defaults to scalar')
+    parser.add_argument('--baseline-adaptive-matmul', action='store_true',
+                        help='Use the current adaptive direct-matmul policy when rebuilding a matching baseline runtime')
     parser.add_argument('--baseline-dir', type=pathlib.Path,
                         help='Saved directory containing scaling and kernels/kernel{0,1}.metallib')
     parser.add_argument('--processes', type=int, default=3)
@@ -51,6 +53,8 @@ def main():
         parser.error('choose a saved baseline directory or a baseline Metal source, not both')
     if args.baseline_metal_source and not args.baseline_metal_source.is_file():
         parser.error('baseline Metal source is missing')
+    if args.baseline_adaptive_matmul and not args.baseline_metal_source:
+        parser.error('--baseline-adaptive-matmul requires --baseline-metal-source')
     baseline_artifacts = {}
     if args.baseline_dir:
         args.baseline_dir = args.baseline_dir.resolve()
@@ -86,7 +90,7 @@ def main():
             obj = args.baseline_dir / f'unit-{index}.o'
             baseline_objects.append(obj)
             extra = ['-fobjc-arc', '-fblocks'] if source.suffix == '.mm' else []
-            if index == 0:
+            if index == 0 and not args.baseline_adaptive_matmul:
                 extra += ['-DKALANDRA_BENCH_SCALAR_MATMUL=1']
             if index == 1:
                 extra += ['-I', ROOT / 'native/metal']
@@ -158,7 +162,8 @@ def main():
     result = dict(timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                   platform=platform.platform(), machine=machine, revision=run(['git', 'rev-parse', 'HEAD']).strip(),
                   worktree_status=run(['git', 'status', '--short']),
-                  protocol=dict(suite=args.suite, controlled_scalar_baseline=bool(args.baseline_metal_source), processes=args.processes, warmups=args.warmups, samples=args.samples,
+                  protocol=dict(suite=args.suite, controlled_scalar_baseline=bool(args.baseline_metal_source) and not args.baseline_adaptive_matmul,
+                                controlled_adaptive_baseline=bool(args.baseline_metal_source) and args.baseline_adaptive_matmul, processes=args.processes, warmups=args.warmups, samples=args.samples,
                                 shuffled_modes_each_round=True, shuffled_workloads_each_process=True,
                                 workers=1, managed_max_bytes=(512 if args.suite == 'selection' else 64) * 1024 * 1024, optimized=True, sanitizers=False, metal_validation=False, jit=False,
                                 gpu_timing='MTLCommandBuffer GPUStartTime/GPUEndTime: compute command only, no validation readback',

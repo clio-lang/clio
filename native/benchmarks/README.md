@@ -219,3 +219,16 @@ The baseline direct control uses the scalar entry; its runtime source also selec
 The nine selection workloads include small, singleton-row, short-contraction and outside-profile scalar controls, regular/odd two-row and quad cases, and a reduction control. Both sides explicitly use a 512 MiB managed payload budget to accommodate the largest input's host, staging and device copies; the ordinary initial suite retains the 64 MiB default. Production runtime defaults are unchanged. Every warmup/sample validates results, inputs and resource retirement. Raw output keeps all phases and sample ranges; device-command intervals are not application speedups.
 
 The [GPU reduction scratch reuse comparison](../../benchmarks/results/native-gpu-2026-10-15-reduction-reuse.md) measures the managed runtime against the preserved preceding executable. The direct Metal reduction harness keeps its original allocation scheme as an unchanged control; it does not exercise the managed scratch reuse.
+
+The [reduction encoder batching comparison](../../benchmarks/results/native-gpu-2026-10-16-reduction-batching.md) rebuilds the preceding runtime with the same adaptive matmul control on both sides:
+
+```sh
+mkdir -p benchmarks/.build/native-gpu/pre-batching
+git show 0f994fc:native/metal/Metal.mm > benchmarks/.build/native-gpu/pre-batching/Metal.mm
+python3 native/benchmarks/gpu.py \
+  --baseline-metal-source benchmarks/.build/native-gpu/pre-batching/Metal.mm \
+  --baseline-adaptive-matmul --warmups 5 --samples 21 \
+  --output benchmarks/results/gpu-reduction-batching-reproduction.json
+```
+
+Use `--baseline-adaptive-matmul` only for earlier runtimes that already implement the current adaptive profile. Omitting it preserves the older scalar-baseline comparison behavior. The direct reduction control still uses separate encoders and fresh output buffers, so it does not measure managed batching. Historical concurrent-candidate source is reconstructed by applying [concurrent.patch](reduction-batching/concurrent.patch) to `0f994fc`; the report records its distinct protocol and hashes.
