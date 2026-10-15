@@ -36,9 +36,11 @@ std::uint32_t scalar(TaskCore &core, TaskHandle task) {
   CHECK(core.observe(task, m::Runtime::scalarLayout(), context, &value));
   return std::bit_cast<std::uint32_t>(value);
 }
-m::Buffer upload(m::Runtime &runtime, std::span<const std::uint32_t> bits) {
+m::Buffer upload(m::Runtime &runtime, std::span<const std::uint32_t> bits,
+                 std::span<const std::int64_t> shape = {}) {
   const std::int64_t n = bits.size();
-  auto host = runtime.hostTensor(std::as_bytes(bits), {&n, 1}, m::Format::Float32);
+  auto host = runtime.hostTensor(std::as_bytes(bits), shape.empty() ? std::span{&n, 1} : shape,
+                                 m::Format::Float32);
   CHECK(host);
   auto core = TaskCore::create();
   CHECK(core);
@@ -111,9 +113,11 @@ void sourceChecks(m::Runtime &runtime, const char *directory) {
 }
 void conformance(m::Runtime &runtime, const m::Kernel &kernel) {
   std::uint64_t cases = 0, elements = 0;
-  auto run = [&](std::vector<std::uint32_t> values) {
+  auto run = [&](std::vector<std::uint32_t> values,
+                 std::optional<std::array<std::int64_t, 2>> shape = {}) {
     const auto expected = oracle(values);
-    auto input = upload(runtime, values);
+    auto input =
+        upload(runtime, values, shape ? std::span(*shape) : std::span<const std::int64_t>{});
     auto core = TaskCore::create();
     CHECK(core);
     auto group = core->openRoot();
@@ -132,8 +136,14 @@ void conformance(m::Runtime &runtime, const m::Kernel &kernel) {
     CHECK(data);
     if (n)
       std::memcpy(data, values.data(), n * 4);
-    Float32Tensor<1> descriptor{data, data, 0, {n}, {1}};
-    auto cpu = _mlir_ciface_kalandra_cpu_0(&descriptor, &context);
+    float cpu;
+    if (shape) {
+      Float32Tensor<2> descriptor{data, data, 0, {(*shape)[0], (*shape)[1]}, {(*shape)[1], 1}};
+      cpu = _mlir_ciface_kalandra_cpu_3(&descriptor, &context);
+    } else {
+      Float32Tensor<1> descriptor{data, data, 0, {n}, {1}};
+      cpu = _mlir_ciface_kalandra_cpu_0(&descriptor, &context);
+    }
     CHECK(!context.status());
     CHECK(float_proof::equal(std::bit_cast<std::uint32_t>(cpu), expected));
     CHECK(!n || std::memcmp(data, values.data(), n * 4) == 0);
@@ -152,8 +162,10 @@ void conformance(m::Runtime &runtime, const m::Kernel &kernel) {
   const std::array<std::uint32_t, 10> edges{0u,          0x80000000u, 1u,          0x80000001u,
                                             0x007fffffu, 0x00800000u, 0x7f800000u, 0xff800000u,
                                             0x7fc12345u, 0x7f800001u};
-  for (auto bits : edges)
+  for (auto bits : edges) {
     run({bits});
+    run({bits}, std::array<std::int64_t, 2>{1, 1});
+  }
   for (auto a : edges)
     for (auto b : edges)
       run({a, b});
@@ -197,13 +209,42 @@ void conformance(m::Runtime &runtime, const m::Kernel &kernel) {
     }
     run(std::move(values));
   }
+  const std::vector<std::uint32_t> crossing{0x60ad78ecu, 0x3f800000u, 0xe0ad78ecu,
+                                            0x3f800000u, 0x3f800000u, 0x3f800000u};
+  CHECK(oracle(crossing) == 0x40000000u); // Per-row reduction would incorrectly yield 3.
+  run(crossing, std::array<std::int64_t, 2>{2, 3});
+  // Flat adjacent pairs cross row boundaries when columns are odd; never sum each row first.
+  for (auto shape :
+       {std::array{0, 0}, std::array{0, 7}, std::array{7, 0}, std::array{1, 1}, std::array{1, 65},
+        std::array{65, 1}, std::array{2, 3}, std::array{3, 3}, std::array{3, 5}, std::array{17, 65},
+        std::array{65, 17}, std::array{257, 513}}) {
+    for (unsigned pattern = 0; pattern < 6; ++pattern) {
+      std::vector<std::uint32_t> values(shape[0] * shape[1]);
+      for (std::size_t i = 0; i < values.size(); ++i) {
+        auto bits = random();
+        if (pattern == 0)
+          bits = (bits & 0x807fffffu) | ((120u + bits % 15u) << 23);
+        if (pattern == 1)
+          bits = 0x80000000u;
+        if (pattern == 2)
+          bits &= 0x807fffffu;
+        if (pattern == 3)
+          bits = std::array{0x60ad78ecu, 0x3f800000u, 0xe0ad78ecu, 0x3f800000u}[i % 4];
+        if (pattern == 4)
+          bits = edges[i % edges.size()];
+        values[i] = bits; // Pattern 5 includes arbitrary encodings and NaN payloads.
+      }
+      run(std::move(values), std::array<std::int64_t, 2>{shape[0], shape[1]});
+    }
+  }
   empty(runtime);
   std::printf("Reduction: %llu CPU/GPU/reference cases, %llu input elements, zero mismatches\n",
               (unsigned long long)cases, (unsigned long long)elements);
 }
-void lifecycle(m::Runtime &runtime, const m::Kernel &kernel) {
+void lifecycle(m::Runtime &runtime, const m::Kernel &kernel, bool matrix = false) {
   std::vector<std::uint32_t> values(65, 0x3f800000u);
-  auto input = upload(runtime, values);
+  const std::array<std::int64_t, 2> shape{5, 13};
+  auto input = upload(runtime, values, matrix ? std::span(shape) : std::span<const std::int64_t>{});
   const auto baseline = runtime.stats().bytes;
   auto run = [&](bool success) {
     auto core = TaskCore::create();
@@ -276,11 +317,13 @@ void lifecycle(m::Runtime &runtime, const m::Kernel &kernel) {
     CHECK(runtime.stats().bytes == baseline && !runtime.stats().inFlight &&
           !runtime.stats().stagingBuffers);
   }
-  std::printf("Reduction allocation checkpoints swept: %llu\n", (unsigned long long)attempts);
+  std::printf("Reduction rank-%u allocation checkpoints swept: %llu\n", matrix ? 2 : 1,
+              (unsigned long long)attempts);
 }
 void concurrent(m::Runtime &runtime, const m::Kernel &kernel) {
   auto a = upload(runtime, std::vector<std::uint32_t>(65, 0x3f800000u));
-  auto b = upload(runtime, std::vector<std::uint32_t>(129, 0x40000000u));
+  const std::array<std::int64_t, 2> shape{3, 43};
+  auto b = upload(runtime, std::vector<std::uint32_t>(129, 0x40000000u), shape);
   const auto baseline = runtime.stats().bytes;
   auto first = TaskCore::create(), second = TaskCore::create();
   CHECK(first && second);
@@ -314,11 +357,16 @@ void admission(m::Runtime &runtime, const m::Kernel &kernel, const char *directo
   auto host =
       runtime.hostTensor(std::as_bytes(std::span(bits)), {shape + 1, 1}, m::Format::Float32);
   CHECK(host);
-  auto ranked = runtime.hostTensor(std::as_bytes(std::span(bits)), shape, m::Format::Float32);
+  const std::int64_t unsupportedShape[] = {1, 1, 2};
+  auto ranked =
+      runtime.hostTensor(std::as_bytes(std::span(bits)), unsupportedShape, m::Format::Float32);
   CHECK(ranked);
   auto integers =
       runtime.hostTensor(std::as_bytes(std::span(bits)), {shape + 1, 1}, m::Format::UInt32);
   CHECK(integers);
+  auto scalarHost =
+      runtime.hostTensor(std::as_bytes(std::span(bits).first(1)), {}, m::Format::Float32);
+  CHECK(scalarHost);
   auto valid = upload(runtime, bits);
   auto reject = [&](m::Kernel pipeline, m::Buffer input, std::int64_t code) {
     auto core = TaskCore::create();
@@ -340,7 +388,9 @@ void admission(m::Runtime &runtime, const m::Kernel &kernel, const char *directo
   auto group = core->openRoot();
   auto a = runtime.upload(*core, group, *ranked, *device),
        b = runtime.upload(*core, group, *integers, *device);
+  auto c = runtime.upload(*core, group, *scalarHost, *device);
   CHECK(core->drain());
+  reject(kernel, buffer(*core, c), 3);
   reject(kernel, buffer(*core, a), 3);
   reject(kernel, buffer(*core, b), 3);
   retire(*core, group);
@@ -399,6 +449,7 @@ int main(int argc, char **argv) {
   droppedOwners(argv[1]);
   conformance(runtime, *kernel);
   lifecycle(runtime, *kernel);
+  lifecycle(runtime, *kernel, true);
   concurrent(runtime, *kernel);
   empty(runtime);
   // Force the scratch/readback budget after upload, without charging dead upload staging.

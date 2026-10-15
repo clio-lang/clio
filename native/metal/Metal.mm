@@ -393,7 +393,7 @@ struct Bridge {
       if (reduce) {
         const auto &kernel = f.packet.kernel.state_;
         if (!kernel || !kernel->reduction || kernel->matrix || source->format != Format::Float32 ||
-            source->rank != 1 || source->size / 4 > UINT32_MAX) {
+            (source->rank != 1 && source->rank != 2) || source->size / 4 > UINT32_MAX) {
           task.fault(std::int64_t(Error::Invalid));
           return;
         }

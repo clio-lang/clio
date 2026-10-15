@@ -181,8 +181,9 @@ class Compiler {
   bool reduction(std::size_t function) const {
     const auto &fn = cpu.functions[function];
     if (fn.resultType.tensor || fn.parameters.size() != 1 ||
-        cpu.symbols[fn.parameters[0]].type.shape.size() != 1 || fn.body.size() != 1 ||
-        fn.body[0].binding)
+        (cpu.symbols[fn.parameters[0]].type.shape.size() != 1 &&
+         cpu.symbols[fn.parameters[0]].type.shape.size() != 2) ||
+        fn.body.size() != 1 || fn.body[0].binding)
       return false;
     auto *sum = std::get_if<ReduceSum>(&cpu.expressions[fn.result].operation);
     if (!sum || sum->order != ReductionOrder::BalancedAdjacent || !sum->rowMajor)
@@ -470,10 +471,11 @@ class Compiler {
           const bool tensor = type.tensor;
           if (value.kind != (tensor ? Value::Tensor : Value::Scalar))
             reject(node(call->arguments[i]).span, "GPU argument type mismatch");
-          if (tensor && (value.rank != type.shape.size() || (!matrix && value.rank != 1)))
+          if (tensor && (value.rank != type.shape.size() || (!matrix && !sum && value.rank != 1)))
             reject(
                 span,
-                "rank-two GPU entries currently require a direct matmul of two matrix parameters");
+                "GPU tensor ranks must match their parameters; rank-two entries require matmul or "
+                "reduceSum");
           (tensor ? tensors : scalars).push_back(value);
         }
         if (tensors.empty() || tensors.size() > 2 || scalars.size() > 8)
