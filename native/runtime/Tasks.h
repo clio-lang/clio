@@ -40,6 +40,7 @@ struct ValueLayout {
   void (*destroy)(void *) noexcept;
 };
 class Task;
+class ExternalCompletion;
 struct TaskEntry {
   std::uint32_t revision;
   std::uint64_t packetLayout;
@@ -58,7 +59,7 @@ struct TaskStats {
   std::size_t retainedBytes = 0, peakBytes = 0;
   std::uint64_t retainedOwners = 0;
   std::uint32_t unfinished = 0, records = 0, groups = 0;
-  std::uint32_t ready = 0, pending = 0, maintenanceTasks = 0;
+  std::uint32_t ready = 0, pending = 0, maintenanceTasks = 0, externalPending = 0;
   std::uint64_t resumes = 0, publications = 0, migrations = 0;
   std::uint32_t peakRunning = 0;
 };
@@ -107,8 +108,26 @@ public:
 
 private:
   struct Impl;
-  std::unique_ptr<Impl> impl_;
-  explicit TaskCore(std::unique_ptr<Impl>) noexcept;
+  std::shared_ptr<Impl> impl_;
+  explicit TaskCore(std::shared_ptr<Impl>) noexcept;
+  friend class ExternalCompletion;
+  friend class Task;
+};
+// A one-shot completion capability. Copies are safe on foreign callback threads.
+// Signal after external access ends, including on errors. The owning frame stays
+// pinned until signal; cancellation cannot reclaim it early. Stale/duplicate
+// tokens are rejected. Signalling queues progress, never executes source code.
+class ExternalCompletion final {
+public:
+  ExternalCompletion() = default;
+  bool signal() const noexcept;
+  explicit operator bool() const noexcept { return bool(handle_); }
+
+private:
+  std::weak_ptr<TaskCore::Impl> core_;
+  TaskHandle handle_;
+  std::uint64_t epoch_ = 0;
+  ExternalCompletion(const std::shared_ptr<TaskCore::Impl> &, TaskHandle, std::uint64_t) noexcept;
   friend class Task;
 };
 class Task final {
@@ -126,6 +145,7 @@ public:
   bool cancel(GroupHandle, bool deadline = false) noexcept;
   bool failGroup(GroupHandle, Failure) noexcept;
   bool cancelled() const noexcept;
+  ExternalCompletion suspendExternal() noexcept;
   void yield() noexcept;
   void complete(const void *value) noexcept;
   void fault(std::int64_t code, std::int64_t line = 0, std::int64_t column = 0) noexcept;

@@ -26,6 +26,7 @@ enum class State {
   Running,
   WaitingTask,
   WaitingGroup,
+  WaitingExternal,
   Settling,
   Settled
 };
@@ -40,6 +41,8 @@ struct Record {
   std::uint32_t pendingPrevious = UINT32_MAX, pendingNext = UINT32_MAX;
   bool counted = false, executing = false, cleaning = false;
   std::uint32_t readers = 0;
+  bool externalPending = false;
+  std::uint64_t externalEpoch = 0;
   std::atomic<bool> cancel{false};
   std::thread::id runner{}, lastRunner{};
   Invocation execution, outcome;
@@ -96,7 +99,7 @@ Failure invocationFailure(const Invocation &context) {
           context.column()};
 }
 } // namespace
-struct TaskCore::Impl {
+struct TaskCore::Impl : std::enable_shared_from_this<TaskCore::Impl> {
   TaskLimits limits;
   TaskStats stats;
 #ifdef KALANDRA_TASK_PROFILE
@@ -157,6 +160,7 @@ struct TaskCore::Impl {
   std::size_t remaining = 0;
   std::uint32_t running = 0, pumping = 0, preparing = 0;
   bool draining = false, controlling = false, stopping = false;
+  bool externalControllerWaiting = false;
   struct Guard {
     Impl &core;
     std::unique_lock<std::mutex> lock;
@@ -181,7 +185,8 @@ struct TaskCore::Impl {
     }
     // A worker notification cannot be stolen by the controller (or vice versa).
     // In particular, budget exhaustion may stop draining before leases unwind.
-    if (limits.workers > 1 && controlling && !draining && !pumping && !preparing) {
+    if ((limits.workers == 1 && controlling && externalControllerWaiting) ||
+        (limits.workers > 1 && controlling && !draining && !pumping && !preparing)) {
       TASK_PROBE(controllerSignals, 1);
       TASK_PROBE(notifications, 1);
       controllerChanged.notify_one();
@@ -219,7 +224,7 @@ struct TaskCore::Impl {
               continue;
             }
             ++remaining;
-            if (!pumping && !preparing) {
+            if (!pumping && !preparing && !stats.externalPending) {
               draining = false;
               signal();
               continue;
@@ -339,7 +344,10 @@ struct TaskCore::Impl {
   }
   void wake(std::uint32_t index) {
     auto &record = tasks[index];
-    if (record.state == State::WaitingTask || record.state == State::WaitingGroup) {
+    if (record.externalPending)
+      return;
+    if (record.state == State::WaitingTask || record.state == State::WaitingGroup ||
+        record.state == State::WaitingExternal) {
       record.state = State::Runnable;
       --stats.maintenanceTasks;
       record.dependency = {};
@@ -616,7 +624,8 @@ struct TaskCore::Impl {
             changed = true;
           }
         }
-        if (task.state != State::Settling || task.executing || task.cleaning)
+        if (task.state != State::Settling || task.executing || task.cleaning ||
+            task.externalPending)
           continue;
         bool pending = false;
         for (auto j = liveGroups.next(0); j < liveGroups.size(); j = liveGroups.next(j + 1)) {
@@ -691,7 +700,7 @@ struct TaskCore::Impl {
     unlinkPending(slot);
     task.failure = failure;
     if (task.state != State::Settling && task.state != State::WaitingTask &&
-        task.state != State::WaitingGroup)
+        task.state != State::WaitingGroup && task.state != State::WaitingExternal)
       ++stats.maintenanceTasks;
     task.state = State::Settling;
     if (failure.kind != TaskFailure::None) {
@@ -779,7 +788,7 @@ std::unique_ptr<TaskCore> TaskCore::create(TaskLimits limits) noexcept {
       std::uint64_t(limits.records) + limits.groups >= UINT32_MAX || !limits.bytes)
     return {};
   try {
-    auto impl = std::make_unique<Impl>(limits);
+    auto impl = std::make_shared<Impl>(limits);
     if (!impl->start())
       return {};
     return std::unique_ptr<TaskCore>(new TaskCore(std::move(impl)));
@@ -787,7 +796,7 @@ std::unique_ptr<TaskCore> TaskCore::create(TaskLimits limits) noexcept {
     return {};
   }
 }
-TaskCore::TaskCore(std::unique_ptr<Impl> impl) noexcept : impl_(std::move(impl)) {}
+TaskCore::TaskCore(std::shared_ptr<Impl> impl) noexcept : impl_(std::move(impl)) {}
 TaskCore::~TaskCore() {
   {
     Impl::Guard guard(*impl_);
@@ -877,7 +886,18 @@ bool TaskCore::drain(std::size_t steps) noexcept {
   }
   if (impl_->limits.workers == 1) {
     impl_->draining = true;
-    while (steps-- && impl_->step(guard.lock)) {
+    while (steps) {
+      if (impl_->step(guard.lock)) {
+        --steps;
+      } else if (impl_->stats.externalPending) {
+        const auto seen = impl_->revision;
+        impl_->externalControllerWaiting = true;
+        impl_->wait(
+            guard.lock, impl_->controllerChanged, [&] { return impl_->revision != seen; }, true);
+        impl_->externalControllerWaiting = false;
+      } else {
+        break;
+      }
     }
     impl_->draining = false;
   } else {
@@ -999,6 +1019,44 @@ bool Task::failGroup(GroupHandle group, Failure failure) noexcept {
 }
 bool Task::cancelled() const noexcept {
   return core_.tasks[slot_].cancel.load(std::memory_order_acquire);
+}
+ExternalCompletion::ExternalCompletion(const std::shared_ptr<TaskCore::Impl> &core,
+                                       TaskHandle handle, std::uint64_t epoch) noexcept
+    : core_(core), handle_(handle), epoch_(epoch) {}
+bool ExternalCompletion::signal() const noexcept {
+  auto core = core_.lock();
+  if (!core)
+    return false;
+  TaskCore::Impl::Guard guard(*core);
+  auto *record = core->get(handle_);
+  if (!record || !record->externalPending || record->externalEpoch != epoch_)
+    return false;
+  record->externalPending = false;
+  --core->stats.externalPending;
+  core->wake(handle_.slot);
+  return true;
+}
+ExternalCompletion Task::suspendExternal() noexcept {
+  TaskCore::Impl::Guard guard(core_);
+  auto &record = core_.tasks[slot_];
+  if (record.state != State::Running || record.externalPending ||
+      record.externalEpoch == UINT64_MAX) {
+    context().fault(3);
+    return {};
+  }
+  // This reservation is the external submission decision. A cancellation
+  // already recorded wins; after reservation, completion must acknowledge
+  // that external access has ended even if cancellation arrives immediately.
+  if (record.cancel.load()) {
+    core_.finish(slot_, {TaskFailure::Cancelled});
+    return {};
+  }
+  record.externalPending = true;
+  record.state = State::WaitingExternal;
+  ++record.externalEpoch;
+  ++core_.stats.externalPending;
+  ++core_.stats.maintenanceTasks;
+  return ExternalCompletion(core_.shared_from_this(), core_.handle(slot_), record.externalEpoch);
 }
 void Task::yield() noexcept {
   TaskCore::Impl::Guard guard(core_);

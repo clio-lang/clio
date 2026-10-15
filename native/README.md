@@ -62,3 +62,7 @@ Use `kalandrac --sanitize` for generated AddressSanitizer checks plus the ASan/U
 ## Apple GPU toolchain proof
 
 An opt-in [Metal proof](metal-proof/README.md) now runs MLIR GPU kernels through SPIR-V and SPIRV-Cross on Apple Silicon. It validates buffer bindings, explicit copies, partial workgroups, and completion. IEEE edge probes expose a strict float32 compatibility gap, so this is not yet Kalandra GPU source support. The [backend contract](../docs/design/apple-gpu.md) records the implementation gates; CPU builds do not require the optional shader tools.
+
+## Apple device and transfer runtime
+
+The optional [Metal runtime](metal/README.md) now provides immutable host/device buffers and upload/download tasks integrated with CPU task groups. External completion leases keep pending GPU resources alive through cancellation and resume tasks without blocking workers. Transfer tests include nested groups, exact bit preservation, resource budgets, allocation failures, and sanitizer coverage. This bridge does not yet implement source-level GPU placement or arithmetic.

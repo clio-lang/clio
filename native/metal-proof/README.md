@@ -14,7 +14,7 @@ cmake --build --preset native --target native-metal-proof
 ctest --preset native -R '^metal-proof-'
 ```
 
-The proof is opt-in; ordinary native builds retain their existing dependencies and 39-test suite. Override `KALANDRA_SPIRV_CROSS_ROOT` and `KALANDRA_SPIRV_TOOLS_ROOT` for the same tool releases installed elsewhere. `KALANDRA_METAL_TOOLCHAIN` selects the Apple toolchain identifier; its compiler version is checked at configuration. The verified compiler is Apple Metal 32023.864, component 17C7003j, with macOS SDK 26.2 on macOS 26.5. The explicit toolchain selector avoids relying on the default `xcrun metal` shim finding an installed component.
+The proof is opt-in. The default native build has no shader-tool dependency and now has 43 tests, including external-completion coverage. Override `KALANDRA_SPIRV_CROSS_ROOT` and `KALANDRA_SPIRV_TOOLS_ROOT` for the same tool releases installed elsewhere. `KALANDRA_METAL_TOOLCHAIN` selects the Apple toolchain identifier; its compiler version is checked at configuration. The verified compiler is Apple Metal 32023.864, component 17C7003j, with macOS SDK 26.2 on macOS 26.5. The explicit toolchain selector avoids relying on the default `xcrun metal` shim finding an installed component.
 
 Execution requires access to a real Metal device. A sandbox that hides GPU services reports “no Metal device available”; this is a failure, not a skipped test or CPU fallback. Build products, intermediate IR, shader sources, reflection, version information, and per-run JSON reports live under ignored `build/native/native/metal-proof/`.
 
@@ -48,7 +48,7 @@ Eight CTest tests cover both shaders with debug/optimized/ASan+UBSan host harnes
 
 ## Result and numerical gate
 
-All eight Metal proof tests pass on the recorded M2 Max. The full optional build also passes all 47 tests (39 existing native tests plus these eight), including the existing separate ThreadSanitizer suites. Both variants pass normal finite, separate-rounding, input-preservation, and guard checks. IEEE edge differences are **observations recorded by passing toolchain probes**, not numerical conformance successes:
+All eight Metal proof tests pass on the recorded M2 Max. At the original shader-proof milestone, the full optional build passed all 47 tests (39 existing native tests plus these eight), including the existing separate ThreadSanitizer suites. Both variants pass normal finite, separate-rounding, input-preservation, and guard checks. IEEE edge differences are **observations recorded by passing toolchain probes**, not numerical conformance successes:
 
 | Shader                       | IEEE edge mismatches per run | Strict float32 sample |
 | ---------------------------- | ---------------------------: | --------------------- |
