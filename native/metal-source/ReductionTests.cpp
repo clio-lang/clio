@@ -238,8 +238,10 @@ void lifecycle(m::Runtime &runtime, const m::Kernel &kernel) {
     auto task = runtime.reduceSum(*core, group, kernel, input);
     CHECK(task);
     until(*core, [&] { return core->stats().externalPending == 1; });
-    // 65 -> 33 -> 17 -> 9 -> 5 -> 3 -> 2 -> 1. Seven parameter words and a scalar readback.
-    CHECK(runtime.stats().bytes == baseline + 280 + 28 + 4 && runtime.stats().stagingBuffers == 8);
+    // 65 -> 33 -> 17 -> 9 -> 5 -> 3 -> 2 -> 1 reuses 33- and 17-word outputs.
+    // Seven immutable parameter words and one scalar readback remain live.
+    CHECK(runtime.stats().bytes == baseline + 200 + 28 + 4 && runtime.stats().stagingBuffers == 8 &&
+          runtime.stats().metalBuffers == 11);
     if (scenario < 2)
       CHECK(core->cancel(group, scenario == 1));
     runtime.holdCompletions(false);
@@ -257,7 +259,7 @@ void lifecycle(m::Runtime &runtime, const m::Kernel &kernel) {
     CHECK(runtime.stats().bytes == baseline && !runtime.stats().stagingBuffers &&
           !runtime.stats().inFlight);
   }
-  // Destruction waits for acknowledgement even when a task owns all intermediate levels.
+  // Destruction waits for acknowledgement while a task owns reused scratch buffers.
   {
     auto core = TaskCore::create();
     CHECK(core);
@@ -275,6 +277,31 @@ void lifecycle(m::Runtime &runtime, const m::Kernel &kernel) {
           !runtime.stats().stagingBuffers);
   }
   std::printf("Reduction allocation checkpoints swept: %llu\n", (unsigned long long)attempts);
+}
+void concurrent(m::Runtime &runtime, const m::Kernel &kernel) {
+  auto a = upload(runtime, std::vector<std::uint32_t>(65, 0x3f800000u));
+  auto b = upload(runtime, std::vector<std::uint32_t>(129, 0x40000000u));
+  const auto baseline = runtime.stats().bytes;
+  auto first = TaskCore::create(), second = TaskCore::create();
+  CHECK(first && second);
+  auto ga = first->openRoot(), gb = second->openRoot();
+  runtime.holdCompletions(true);
+  auto ta = runtime.reduceSum(*first, ga, kernel, a);
+  auto tb = runtime.reduceSum(*second, gb, kernel, b);
+  CHECK(ta && tb);
+  until(*first, [&] { return first->stats().externalPending == 1; });
+  until(*second, [&] { return second->stats().externalPending == 1; });
+  // Simultaneous invocations own independent output pairs (33/17 and 65/33 words).
+  CHECK(runtime.stats().bytes == baseline + 232 + 428 && runtime.stats().inFlight == 2);
+  CHECK(first->cancel(ga));
+  runtime.holdCompletions(false);
+  CHECK(first->drain() && second->drain());
+  CHECK(first->failure(ta).kind == TaskFailure::Cancelled);
+  CHECK(scalar(*second, tb) == 0x43810000u);
+  retire(*first, ga);
+  retire(*second, gb);
+  CHECK(runtime.stats().bytes == baseline && !runtime.stats().stagingBuffers &&
+        !runtime.stats().inFlight);
 }
 void admission(m::Runtime &runtime, const m::Kernel &kernel, const char *directory) {
   auto device = runtime.device();
@@ -372,6 +399,7 @@ int main(int argc, char **argv) {
   droppedOwners(argv[1]);
   conformance(runtime, *kernel);
   lifecycle(runtime, *kernel);
+  concurrent(runtime, *kernel);
   empty(runtime);
   // Force the scratch/readback budget after upload, without charging dead upload staging.
   auto limited = m::Runtime::create({.maxBytes = 1024});
@@ -380,10 +408,11 @@ int main(int argc, char **argv) {
   CHECK(ld);
   auto lk = (*limited)->loadReductionKernel(path, *ld);
   CHECK(lk);
-  {
+  for (unsigned paddingBytes : {532u, 533u}) {
     std::vector<std::uint32_t> values(65, 0x3f800000u);
     auto input = upload(**limited, values);
-    std::array<std::byte, 512> padding{};
+    // Input 260 + padding 532 + two outputs 200 + seven counts 28 + readback 4 = 1024.
+    std::vector<std::byte> padding(paddingBytes);
     const std::int64_t n = padding.size();
     auto held = (*limited)->hostTensor(padding, {&n, 1}, m::Format::UInt8);
     CHECK(held);
@@ -392,9 +421,12 @@ int main(int argc, char **argv) {
     auto group = core->openRoot();
     auto task = (*limited)->reduceSum(*core, group, *lk, input);
     CHECK(task && core->drain());
-    CHECK(core->failure(task).kind == TaskFailure::Fault && core->failure(task).code == 6);
+    if (paddingBytes == 532)
+      CHECK(scalar(*core, task) == 0x42820000u);
+    else
+      CHECK(core->failure(task).kind == TaskFailure::Fault && core->failure(task).code == 6);
     retire(*core, group);
-    CHECK((*limited)->stats().bytes == 772 && !(*limited)->stats().stagingBuffers);
+    CHECK((*limited)->stats().bytes == 260 + paddingBytes && !(*limited)->stats().stagingBuffers);
   }
   empty(**limited);
   auto bounded = m::Runtime::create({.maxInFlight = 1});

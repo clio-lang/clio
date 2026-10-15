@@ -218,9 +218,11 @@ struct Bridge {
     std::array<std::uint32_t, 8> scalarBits{};
     std::uint32_t tensorCount = 2, scalarCount = 0;
   };
-  // uint32 indexing permits at most 32 tree levels, each with output and count storage.
+  // Each invocation owns two alternating outputs and up to 32 immutable count words.
+  // Separate, ordered encoders let Metal track dependencies when an output is reused.
   struct ReductionScratch {
-    std::array<std::shared_ptr<MetalAllocation>, 64> retained{};
+    std::array<std::shared_ptr<MetalAllocation>, 2> outputs{};
+    std::array<std::shared_ptr<MetalAllocation>, 32> counts{};
   };
   struct Frame {
     PacketData packet;
@@ -273,21 +275,25 @@ struct Bridge {
       return nil;
     id<MTLBuffer> input = f.packet.input.storage_->metal->buffer;
     std::uint64_t length = f.packet.input.bytes() / 4;
-    unsigned retained = 0;
+    unsigned level = 0;
     while (length > 1) {
       const auto next = (length + 1) / 2;
-      auto output = allocateMetal(state, index, next * 4, false);
+      auto &output = f.scratch->outputs[level % 2];
       if (!output) {
-        f.error = output.error();
-        return nil;
+        auto allocated = allocateMetal(state, index, next * 4, false);
+        if (!allocated) {
+          f.error = allocated.error();
+          return nil;
+        }
+        output = *allocated;
       }
-      f.scratch->retained[retained++] = *output;
+      // Later levels only shrink. Never write into the input or the current read buffer.
       auto count = allocateMetal(state, index, 4, true);
       if (!count) {
         f.error = count.error();
         return nil;
       }
-      f.scratch->retained[retained++] = *count;
+      f.scratch->counts[level] = *count;
       auto bits = std::uint32_t(length);
       std::memcpy((*count)->buffer.contents, &bits, 4);
       id<MTLComputeCommandEncoder> encoder =
@@ -296,13 +302,14 @@ struct Bridge {
         return nil;
       [encoder setComputePipelineState:f.packet.kernel.state_->pipeline];
       [encoder setBuffer:input offset:0 atIndex:0];
-      [encoder setBuffer:(*output)->buffer offset:0 atIndex:1];
+      [encoder setBuffer:output->buffer offset:0 atIndex:1];
       [encoder setBuffer:(*count)->buffer offset:0 atIndex:2];
       [encoder dispatchThreadgroups:MTLSizeMake((next + 63) / 64, 1, 1)
               threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
       [encoder endEncoding];
-      input = (*output)->buffer;
+      input = output->buffer;
       length = next;
+      ++level;
     }
     // Only the final scalar crosses back to the host. No CPU arithmetic fallback.
     id<MTLBlitCommandEncoder> blit = state->permit() ? [command blitCommandEncoder] : nil;
