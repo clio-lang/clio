@@ -114,20 +114,27 @@ int main() {
           verify(rows, inner, columns, mode);
           ++cases;
         }
-  auto allocations = verify(3, 7, 7, 1);
-  for (unsigned position = 1; position <= allocations; ++position)
-    verify(3, 7, 7, 1, false, position);
+  // Exercise every allocation failure for scalar-only, pair-only, full tiles,
+  // both tail forms, and empty contractions/outputs.
+  for (auto inner : {0, 7})
+    for (auto columns : {0, 1, 2, 3, 4, 6, 7}) {
+      auto allocations = verify(3, inner, columns, 1);
+      for (unsigned position = 1; position <= allocations; ++position)
+        verify(3, inner, columns, 1, false, position);
+    }
 #else
   // The source shared() helper uses a twice; its two wrapper inputs are still
   // independently owned, respecting bufferization's restricted-input contract.
-  for (auto n : {4, 5, 8, 9})
+  for (auto n : {2, 3, 4, 5, 6, 7, 8, 9})
     for (unsigned mode = 0; mode < 3; ++mode) {
       verify(n, n, n, mode, true);
       ++cases;
     }
-  auto allocations = verify(5, 5, 5, 1, true);
-  for (unsigned position = 1; position <= allocations; ++position)
-    verify(5, 5, 5, 1, true, position);
+  for (auto n : {2, 3, 5, 6, 7}) {
+    auto allocations = verify(n, n, n, 1, true);
+    for (unsigned position = 1; position <= allocations; ++position)
+      verify(n, n, n, 1, true, position);
+  }
 #endif
   std::atomic<bool> cancelled{true};
   Invocation context;

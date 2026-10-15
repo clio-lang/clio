@@ -1,5 +1,7 @@
 # Native matrix shapes: narrow dispatch and tails before larger cache blocks
 
+Follow-up: [narrow dispatch and paired tails](native-shapes-2026-10-15-pairs.md) are now implemented and measured; this report preserves the earlier baseline and decision.
+
 The 37-shape benchmark preserves the broad **~2.5×** SIMD gain for wide, tall/wide, and balanced rectangular work. It also exposes two concrete gaps: scalar-only narrow outputs can regress, and three scalar tail columns can make a seven-column matrix slower than an eight-column matrix. **The next compiler step should be narrow-column dispatch and two-lane output/tail kernels, before broader cache blocking.**
 
 This change adds a benchmark, an untimed diagnostic probe, and documentation. Compiler and runtime implementation sources remain unchanged. These are synthetic kernel shapes, not application traces or a comparison with BLAS/GPU libraries.

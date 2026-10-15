@@ -112,8 +112,10 @@ static void concurrentKernels() {
     clean(*core);
   }
 }
-static void cancelKernel(bool deadline) {
-  Data large(256, 512, 256), small(8, 8, 8);
+static void cancelKernel(bool deadline, std::int64_t columns) {
+  // Narrow/pair/tail kernels need enough contraction work to cancel while
+  // inside generated loops rather than merely at the task entry boundary.
+  Data large(256, columns < 8 ? 8193 : 512, columns), small(8, 8, 8);
   TaskLimits limits;
   limits.workers = 2;
   auto core = TaskCore::create(limits);
@@ -178,8 +180,10 @@ static void cancelledEntry() {
 int main() {
   cancelledEntry();
   concurrentKernels();
-  cancelKernel(false);
-  cancelKernel(true);
+  for (auto columns : {1, 2, 3, 6, 7, 256}) {
+    cancelKernel(false, columns);
+    cancelKernel(true, columns);
+  }
   faultCancelsKernel();
   std::puts("PASS generated CPU kernels across 1/2/4 workers, in-loop cancellation/deadlines, "
             "checked faults, unchanged inputs, and complete cleanup");

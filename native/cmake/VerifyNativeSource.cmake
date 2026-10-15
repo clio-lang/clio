@@ -104,15 +104,18 @@ RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror ${LINK_FLAGS} -ffp-contract
 file(READ "${DYNAMIC_IR}" DYNAMIC_LLVM)
 if(NOT DYNAMIC_LLVM MATCHES "fmul <4 x float>" OR
    NOT DYNAMIC_LLVM MATCHES "fadd <4 x float>" OR
+   NOT DYNAMIC_LLVM MATCHES "fmul <2 x float>" OR
+   NOT DYNAMIC_LLVM MATCHES "fadd <2 x float>" OR
    DYNAMIC_LLVM MATCHES "llvm[.]fma" OR
    DYNAMIC_LLVM MATCHES "[ \t](fast|reassoc|contract|afn|nnan|ninf|nsz|arcp)[ \t]")
-  message(FATAL_ERROR "Four-lane matrix code lost strict SIMD arithmetic")
+  message(FATAL_ERROR "Matrix code lost strict two/four-lane SIMD arithmetic")
 endif()
 if(VARIANT STREQUAL "optimized")
   RUN_OK("${CLANGXX}" -O2 -ffp-contract=off -Wno-override-module -S "${DYNAMIC_IR}"
     -o "${OUTPUT_DIR}/dynamic.s")
   file(READ "${OUTPUT_DIR}/dynamic.s" ASSEMBLY)
   if(NOT ASSEMBLY MATCHES "fmul[.]4s" OR NOT ASSEMBLY MATCHES "fadd[.]4s" OR
+     NOT ASSEMBLY MATCHES "fmul[.]2s" OR NOT ASSEMBLY MATCHES "fadd[.]2s" OR
      ASSEMBLY MATCHES "[ \t](fmla|fmls|fmadd|fmsub)")
     message(FATAL_ERROR "ARM64 kernel lost SIMD instructions or contracted arithmetic")
   endif()
@@ -135,7 +138,7 @@ RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror ${LINK_FLAGS} -ffp-contract
   -DKALANDRA_MATRIX_SHARED "${HARNESS_DIR}/MatrixHarness.cpp" "${OUTPUT_DIR}/matrix-shared.ll"
   "${RUNTIME}" -o "${OUTPUT_DIR}/matrix-shared-cells")
 RUN_OK("${OUTPUT_DIR}/matrix-shared-cells")
-if(NOT OUTPUT MATCHES "Verified 12 shared-input matrix cases")
+if(NOT OUTPUT MATCHES "Verified 24 shared-input matrix cases")
   message(FATAL_ERROR "Source-level shared matrix conformance missing: ${OUTPUT}")
 endif()
 RUN_OK("${DYNAMIC_HARNESS}" --sweep)
@@ -279,4 +282,4 @@ foreach(CASE IN ITEMS
     message(FATAL_ERROR "${NAME} conformance failed: ${OUTPUT}")
   endif()
 endforeach()
-message(STATUS "1617 runtime cases, 705 per-cell matrix cases, nested/shared tensors, call order, ranked reductions and failure cleanup pass")
+message(STATUS "1617 runtime cases, 717 per-cell matrix cases, nested/shared tensors, call order, ranked reductions and failure cleanup pass")

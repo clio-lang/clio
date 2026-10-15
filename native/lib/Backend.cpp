@@ -237,9 +237,11 @@ private:
     auto noCells = compare(loc, arith::CmpIPredicate::eq, cells, z);
     auto scratchCount = arith::SelectOp::create(builder_, loc, noCells, z, left[1]);
     auto rowCount = arith::SelectOp::create(builder_, loc, noCells, z, left[0]);
-    const auto four = index(loc, 4);
+    const auto two = index(loc, 2), four = index(loc, 4);
+    auto hasPair = compare(loc, arith::CmpIPredicate::uge, right[1], two);
+    auto narrowWidth = arith::SelectOp::create(builder_, loc, hasPair, two, one);
     auto hasTile = compare(loc, arith::CmpIPredicate::uge, right[1], four);
-    auto width = arith::SelectOp::create(builder_, loc, hasTile, four, one);
+    auto width = arith::SelectOp::create(builder_, loc, hasTile, four, narrowWidth);
     auto scratch = reductionScratch(loc, checkedCount(loc, {scratchCount, width}));
     auto remainder = arith::RemUIOp::create(builder_, loc, right[1], four);
     auto tiledColumns = arith::SubIOp::create(builder_, loc, right[1], remainder);
@@ -253,56 +255,113 @@ private:
     // Explicit serial loops own one scratch buffer. A tensor.generate region
     // may evaluate cells independently; sharing mutable scratch there would
     // make later parallel lowering unsafe. Each invocation owns its own buffer.
-    auto rows = scf::ForOp::create(
-        builder_, loc, z, rowCount, one, ValueRange{empty},
-        [&](OpBuilder &, Location, Value row, ValueRange rowValues) {
-          // A 1x4 output tile uses independent SIMD lanes. Each lane follows
-          // exactly the scalar adjacent-pair reduction tree; no reassociation or
-          // fused multiply-add is permitted. Tail cells reuse the same scratch.
-          auto tiles = scf::ForOp::create(
-              builder_, loc, z, tiledColumns, four, rowValues,
-              [&](OpBuilder &, Location, Value column, ValueRange tileValues) {
-                const auto vectorType = VectorType::get({4}, builder_.getF32Type());
-                auto sum = reduction(
-                    loc, left[1], scratch,
-                    [&](Value k) -> Value {
-                      auto x = tensor::ExtractOp::create(builder_, loc, a, ValueRange{row, k});
-                      auto broadcast = vector::BroadcastOp::create(builder_, loc, vectorType, x);
-                      SmallVector<Value> values;
-                      for (unsigned lane = 0; lane < 4; ++lane) {
-                        auto col = arith::AddIOp::create(builder_, loc, column, index(loc, lane));
-                        values.push_back(
-                            tensor::ExtractOp::create(builder_, loc, b, ValueRange{k, col}));
-                      }
-                      auto packed =
-                          vector::FromElementsOp::create(builder_, loc, vectorType, values);
-                      return arith::MulFOp::create(builder_, loc, broadcast, packed);
-                    },
-                    4);
-                Value output = tileValues[0];
-                for (unsigned lane = 0; lane < 4; ++lane) {
-                  auto value = vector::ExtractOp::create(builder_, loc, sum, std::int64_t(lane));
-                  auto col = arith::AddIOp::create(builder_, loc, column, index(loc, lane));
-                  output =
-                      tensor::InsertOp::create(builder_, loc, value, output, ValueRange{row, col});
-                }
-                scf::YieldOp::create(builder_, loc, ValueRange{output});
+    // Select once per matrix rather than branching between all kernel widths
+    // on every row. Each path keeps only the state needed by its row kernel.
+    const auto rowKernel = [&](unsigned lanes) -> Value {
+      auto rows = scf::ForOp::create(
+          builder_, loc, z, rowCount, one, ValueRange{empty},
+          [&](OpBuilder &, Location, Value row, ValueRange rowValues) {
+            // Lanes are independent output columns with the same scalar balanced
+            // tree and separately rounded products. Both widths reuse one buffer.
+            const auto tile = [&](Value column, Value input, unsigned lanes) -> Value {
+              const auto vectorType = VectorType::get({lanes}, builder_.getF32Type());
+              auto sum = reduction(
+                  loc, left[1], scratch,
+                  [&](Value k) -> Value {
+                    auto x = tensor::ExtractOp::create(builder_, loc, a, ValueRange{row, k});
+                    auto broadcast = vector::BroadcastOp::create(builder_, loc, vectorType, x);
+                    SmallVector<Value> values;
+                    for (unsigned lane = 0; lane < lanes; ++lane) {
+                      auto col = arith::AddIOp::create(builder_, loc, column, index(loc, lane));
+                      values.push_back(
+                          tensor::ExtractOp::create(builder_, loc, b, ValueRange{k, col}));
+                    }
+                    auto packed = vector::FromElementsOp::create(builder_, loc, vectorType, values);
+                    return arith::MulFOp::create(builder_, loc, broadcast, packed);
+                  },
+                  lanes);
+              Value result = input;
+              for (unsigned lane = 0; lane < lanes; ++lane) {
+                auto value = vector::ExtractOp::create(builder_, loc, sum, std::int64_t(lane));
+                auto col = arith::AddIOp::create(builder_, loc, column, index(loc, lane));
+                result =
+                    tensor::InsertOp::create(builder_, loc, value, result, ValueRange{row, col});
+              }
+              return result;
+            };
+            const auto scalar = [&](Value column, Value input) -> Value {
+              auto sum = reduction(loc, left[1], scratch, [&](Value k) -> Value {
+                auto x = tensor::ExtractOp::create(builder_, loc, a, ValueRange{row, k});
+                auto y = tensor::ExtractOp::create(builder_, loc, b, ValueRange{k, column});
+                return arith::MulFOp::create(builder_, loc, x, y);
               });
-          auto columns = scf::ForOp::create(
-              builder_, loc, tiledColumns, right[1], one, tiles.getResults(),
-              [&](OpBuilder &, Location, Value column, ValueRange columnValues) {
-                auto sum = reduction(loc, left[1], scratch, [&](Value k) -> Value {
-                  auto x = tensor::ExtractOp::create(builder_, loc, a, ValueRange{row, k});
-                  auto y = tensor::ExtractOp::create(builder_, loc, b, ValueRange{k, column});
-                  return arith::MulFOp::create(builder_, loc, x, y);
-                });
-                auto inserted = tensor::InsertOp::create(builder_, loc, sum, columnValues[0],
-                                                         ValueRange{row, column});
-                scf::YieldOp::create(builder_, loc, ValueRange{inserted});
-              });
-          scf::YieldOp::create(builder_, loc, columns.getResults());
-        });
-    return rows.getResult(0);
+              return tensor::InsertOp::create(builder_, loc, sum, input, ValueRange{row, column});
+            };
+            Value result = rowValues[0];
+            if (lanes == 4) {
+              auto tiles = scf::ForOp::create(
+                  builder_, loc, z, tiledColumns, four, ValueRange{result},
+                  [&](OpBuilder &, Location, Value column, ValueRange values) {
+                    scf::YieldOp::create(builder_, loc, ValueRange{tile(column, values[0], 4)});
+                  });
+              auto pair = scf::IfOp::create(builder_, loc, TypeRange{empty.getType()},
+                                            compare(loc, arith::CmpIPredicate::uge, remainder, two),
+                                            true, true);
+              {
+                OpBuilder::InsertionGuard guard(builder_);
+                builder_.setInsertionPointToStart(&pair.getThenRegion().front());
+                auto value = tile(tiledColumns, tiles.getResult(0), 2);
+                scf::YieldOp::create(builder_, loc, ValueRange{value});
+                builder_.setInsertionPointToStart(&pair.getElseRegion().front());
+                scf::YieldOp::create(builder_, loc, tiles.getResults());
+              }
+              result = pair.getResult(0);
+            } else if (lanes == 2)
+              result = tile(z, result, 2);
+            if (lanes == 1)
+              result = scalar(z, result);
+            else {
+              auto odd = arith::RemUIOp::create(builder_, loc, right[1], two);
+              auto tail =
+                  scf::IfOp::create(builder_, loc, TypeRange{empty.getType()},
+                                    compare(loc, arith::CmpIPredicate::ne, odd, z), true, true);
+              {
+                OpBuilder::InsertionGuard guard(builder_);
+                builder_.setInsertionPointToStart(&tail.getThenRegion().front());
+                auto column = arith::SubIOp::create(builder_, loc, right[1], one);
+                auto value = scalar(column, result);
+                scf::YieldOp::create(builder_, loc, ValueRange{value});
+                builder_.setInsertionPointToStart(&tail.getElseRegion().front());
+                scf::YieldOp::create(builder_, loc, ValueRange{result});
+              }
+              result = tail.getResult(0);
+            }
+            scf::YieldOp::create(builder_, loc, ValueRange{result});
+          });
+      return rows.getResult(0);
+    };
+    auto dispatch =
+        scf::IfOp::create(builder_, loc, TypeRange{empty.getType()}, hasTile, true, true);
+    {
+      OpBuilder::InsertionGuard guard(builder_);
+      builder_.setInsertionPointToStart(&dispatch.getThenRegion().front());
+      auto wide = rowKernel(4);
+      scf::YieldOp::create(builder_, loc, ValueRange{wide});
+      builder_.setInsertionPointToStart(&dispatch.getElseRegion().front());
+      auto narrow =
+          scf::IfOp::create(builder_, loc, TypeRange{empty.getType()}, hasPair, true, true);
+      {
+        OpBuilder::InsertionGuard guard(builder_);
+        builder_.setInsertionPointToStart(&narrow.getThenRegion().front());
+        auto pair = rowKernel(2);
+        scf::YieldOp::create(builder_, loc, ValueRange{pair});
+        builder_.setInsertionPointToStart(&narrow.getElseRegion().front());
+        auto single = rowKernel(1);
+        scf::YieldOp::create(builder_, loc, ValueRange{single});
+      }
+      scf::YieldOp::create(builder_, loc, narrow.getResults());
+    }
+    return dispatch.getResult(0);
   }
   Value reduce(Location loc, Value tensor, const ReduceSum &operation) {
     if (operation.order != ReductionOrder::BalancedAdjacent || !operation.rowMajor)
