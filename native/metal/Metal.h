@@ -114,6 +114,9 @@ public:
   std::expected<Kernel, Error> loadElementwiseKernel(std::string_view metallib, Device,
                                                      ElementwiseSignature) noexcept;
   std::expected<Kernel, Error> loadReductionKernel(std::string_view metallib, Device) noexcept;
+  std::expected<Kernel, Error> loadMatmulKernel(std::string_view metallib, Device) noexcept;
+  TaskHandle matmul(TaskCore &, GroupHandle, Kernel, Buffer, Buffer) noexcept;
+  TaskHandle matmul(Task &, GroupHandle, Kernel, Buffer, Buffer) noexcept;
   TaskHandle reduceSum(TaskCore &, GroupHandle, Kernel, Buffer) noexcept;
   TaskHandle reduceSum(Task &, GroupHandle, Kernel, Buffer) noexcept;
   static const ValueLayout &scalarLayout() noexcept;
@@ -141,6 +144,6 @@ private:
                                          std::span<std::int64_t> strides) noexcept;
   std::expected<Kernel, Error> loadKernel(std::string_view, Device, bool elementwise,
                                           std::optional<ElementwiseSignature> signature = {},
-                                          bool reduction = false) noexcept;
+                                          bool reduction = false, bool matrix = false) noexcept;
 };
 } // namespace kalandra::runtime::metal

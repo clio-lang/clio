@@ -119,3 +119,18 @@ string(REPLACE "spawn combine(a, b)" "spawn scalar(a, b)" BAD "${BAD}")
 reject_case(shared-scalar-gpu-entry "${BAD}")
 string(REPLACE "fn add(left: Tensor[float32, ?]" "fn add(left: Tensor[float32, 3]" BAD "${SHARED}")
 reject_case(shared-static-gpu-helper "${BAD}")
+
+# Exercise the new rank-two constructor and placement path in both compiler builds,
+# including the ASan/UBSan-instrumented compiler used by this script's second test.
+file(READ "${SOURCE_DIR}/matmul.kalandra" MATRIX)
+string(REPLACE "tensor([[1, 2, 3], [4, 5, 6]])" "tensor([[1, 2, 3], [4, 5]])" BAD "${MATRIX}")
+reject_case(matrix-ragged-literal "${BAD}")
+execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/matmul.kalandra" -o "${ROOT}/matrix-positive"
+  RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
+if(NOT STATUS EQUAL 0)
+  message(FATAL_ERROR "Rank-two source failed under compiler checks: ${OUT} ${ERROR}")
+endif()
+file(READ "${ROOT}/matrix-positive/kernel0.mlir" MATRIX_IR)
+if(NOT MATRIX_IR MATCHES "kalandra_matmul")
+  message(FATAL_ERROR "Rank-two source did not select the matrix kernel")
+endif()

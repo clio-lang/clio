@@ -98,7 +98,7 @@ struct KernelState {
   std::shared_ptr<State> registry;
   std::uint32_t index;
   id<MTLComputePipelineState> pipeline;
-  bool elementwise, reduction;
+  bool elementwise, reduction, matrix;
   std::optional<ElementwiseSignature> signature;
 };
 namespace {
@@ -204,7 +204,7 @@ std::expected<std::shared_ptr<Storage>, Error> allocateStorage(const std::shared
 }
 } // namespace
 struct Bridge {
-  enum class Kind { Upload, Download, Compute, Elementwise, Reduce };
+  enum class Kind { Upload, Download, Compute, Elementwise, Reduce, Matmul };
   struct PacketData {
     std::shared_ptr<State> state;
     Buffer input;
@@ -351,9 +351,39 @@ struct Bridge {
       const bool compute = f.packet.kind == Kind::Compute || f.packet.kind == Kind::Elementwise;
       const bool upload = f.packet.kind == Kind::Upload;
       const bool reduce = f.packet.kind == Kind::Reduce;
+      const bool matrix = f.packet.kind == Kind::Matmul;
+      std::array<std::int64_t, 2> matrixShape{};
+      if (matrix) {
+        const auto &kernel = f.packet.kernel.state_;
+        const auto &right = f.packet.right.storage_;
+        if (!kernel || !kernel->matrix || !right || source->format != Format::Float32 ||
+            right->format != Format::Float32 || source->rank != 2 || right->rank != 2 ||
+            source->dimensions[1] != right->dimensions[0] || source->size / 4 > UINT32_MAX ||
+            right->size / 4 > UINT32_MAX) {
+          task.fault(std::int64_t(Error::Invalid));
+          return;
+        }
+        for (auto dimension : {source->dimensions[0], source->dimensions[1], right->dimensions[1]})
+          if (std::uint64_t(dimension) > UINT32_MAX) {
+            task.fault(std::int64_t(Error::Invalid));
+            return;
+          }
+        matrixShape = {source->dimensions[0], right->dimensions[1]};
+        if (std::uint64_t(matrixShape[0]) * std::uint64_t(matrixShape[1]) > UINT32_MAX) {
+          task.fault(std::int64_t(Error::Invalid));
+          return;
+        }
+        index = kernel->index;
+        if (kernel->registry != state || !source->device || !right->device ||
+            source->state != state || right->state != state || source->deviceIndex != index ||
+            right->deviceIndex != index) {
+          task.fault(std::int64_t(Error::Residency));
+          return;
+        }
+      }
       if (reduce) {
         const auto &kernel = f.packet.kernel.state_;
-        if (!kernel || !kernel->reduction || source->format != Format::Float32 ||
+        if (!kernel || !kernel->reduction || kernel->matrix || source->format != Format::Float32 ||
             source->rank != 1 || source->size / 4 > UINT32_MAX) {
           task.fault(std::int64_t(Error::Invalid));
           return;
@@ -374,7 +404,7 @@ struct Bridge {
         const auto &right = f.packet.right.storage_;
         const auto signature =
             kernel && kernel->signature ? *kernel->signature : ElementwiseSignature{2, 0};
-        if (!kernel || kernel->reduction ||
+        if (!kernel || kernel->reduction || kernel->matrix ||
             kernel->elementwise != (f.packet.kind == Kind::Elementwise) ||
             f.packet.tensorCount != signature.tensors ||
             f.packet.scalarCount != signature.scalars || std::uint32_t(f.packet.operation) > 2 ||
@@ -407,7 +437,7 @@ struct Bridge {
         task.fault(std::int64_t(Error::Residency));
         return;
       }
-      if (!compute && !reduce && source->device == upload) {
+      if (!compute && !reduce && !matrix && source->device == upload) {
         task.complete(&f.packet.input);
         return;
       }
@@ -429,22 +459,25 @@ struct Bridge {
         }
         f.error = Error::Device;
       } else {
-        auto result = allocateStorage(state, f.packet.input.shape(), source->format,
-                                      upload || compute, index);
+        auto result = allocateStorage(
+            state, matrix ? std::span<const std::int64_t>(matrixShape) : f.packet.input.shape(),
+            source->format, upload || compute || matrix, index);
         if (!result) {
           task.fault(std::int64_t(result.error()));
           return;
         }
         f.result = Buffer(*result);
-        if (!source->size) {
+        if (!f.result.bytes()) {
           task.complete(&f.result);
           return;
         }
 
-        if (compute) {
+        if (compute || matrix) {
           const auto &kernel = f.packet.kernel.state_;
           const auto tensors = kernel->signature ? kernel->signature->tensors : 2;
-          const auto parameterBytes = kernel->signature ? 4 * (1 + kernel->signature->scalars) : 8;
+          const auto parameterBytes = matrix              ? 12
+                                      : kernel->signature ? 4 * (1 + kernel->signature->scalars)
+                                                          : 8;
           auto parametersBuffer = allocateMetal(state, index, parameterBytes, true);
           if (!parametersBuffer) {
             task.fault(std::int64_t(parametersBuffer.error()));
@@ -462,19 +495,31 @@ struct Bridge {
             return;
           }
           [encoder setComputePipelineState:kernel->pipeline];
-          [encoder setBuffer:source->metal->buffer offset:0 atIndex:0];
+          [encoder
+              setBuffer:matrix && !source->size ? (*result)->metal->buffer : source->metal->buffer
+                 offset:0
+                atIndex:0];
           if (tensors == 2)
-            [encoder setBuffer:f.packet.right.storage_->metal->buffer offset:0 atIndex:1];
+            [encoder
+                setBuffer:matrix && !f.packet.right.bytes() ? (*result)->metal->buffer
+                                                            : f.packet.right.storage_->metal->buffer
+                   offset:0
+                  atIndex:1];
           [encoder setBuffer:(*result)->metal->buffer offset:0 atIndex:tensors];
           std::array<std::uint32_t, 9> parameters{};
           parameters[0] = std::uint32_t(source->size / 4);
-          if (kernel->signature)
+          if (matrix) {
+            parameters[0] = std::uint32_t(matrixShape[0]);
+            parameters[1] = std::uint32_t(source->dimensions[1]);
+            parameters[2] = std::uint32_t(matrixShape[1]);
+          } else if (kernel->signature)
             std::copy_n(f.packet.scalarBits.begin(), f.packet.scalarCount, parameters.begin() + 1);
           else
             parameters[1] = std::uint32_t(f.packet.operation);
           std::memcpy(f.staging->buffer.contents, parameters.data(), parameterBytes);
           [encoder setBuffer:f.staging->buffer offset:0 atIndex:tensors + 1];
-          [encoder dispatchThreadgroups:MTLSizeMake((std::uint64_t(parameters[0]) + 63) / 64, 1, 1)
+          const auto lanes = matrix ? f.result.bytes() / 4 : std::uint64_t(parameters[0]);
+          [encoder dispatchThreadgroups:MTLSizeMake((lanes + 63) / 64, 1, 1)
                   threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
           [encoder endEncoding];
           if (!state->permit()) {
@@ -767,7 +812,7 @@ Runtime::loadElementwiseKernel(std::string_view path, Device device,
 std::expected<Kernel, Error> Runtime::loadKernel(std::string_view path, Device device,
                                                  bool elementwise,
                                                  std::optional<ElementwiseSignature> signature,
-                                                 bool reduction) noexcept {
+                                                 bool reduction, bool matrix) noexcept {
   @autoreleasepool {
     if (signature && (!elementwise || signature->tensors < 1 || signature->tensors > 2 ||
                       signature->scalars > 8))
@@ -791,7 +836,8 @@ std::expected<Kernel, Error> Runtime::loadKernel(std::string_view path, Device d
       if (!library)
         return std::unexpected(Error::Invalid);
       id<MTLFunction> function = [library
-          newFunctionWithName:reduction ? @"kalandra_reduce_sum"
+          newFunctionWithName:matrix      ? @"kalandra_matmul"
+                              : reduction ? @"kalandra_reduce_sum"
                               : signature
                                   ? @"kalandra_elementwise_v2"
                                   : (elementwise ? @"kalandra_elementwise" : @"strict_binary32")];
@@ -809,7 +855,7 @@ std::expected<Kernel, Error> Runtime::loadKernel(std::string_view path, Device d
       // Validate the private dynamic-array ABI, not the numerical contents of arbitrary shaders.
       const auto tensors = signature ? signature->tensors : 2;
       const auto parameterIndex = tensors + 1, bindingCount = tensors + 2;
-      const auto words = signature ? signature->scalars + 1 : 2;
+      const auto words = matrix ? 3 : signature ? signature->scalars + 1 : 2;
       if (reflection.bindings.count != bindingCount)
         return std::unexpected(Error::Invalid);
       bool seen[4] = {};
@@ -837,7 +883,7 @@ std::expected<Kernel, Error> Runtime::loadKernel(std::string_view path, Device d
         return std::unexpected(Error::Allocation);
       Kernel kernel;
       kernel.state_ = std::make_shared<KernelState>(state_, device.index_, pipeline, elementwise,
-                                                    reduction, signature);
+                                                    reduction, matrix, signature);
       return kernel;
     } catch (...) {
       return std::unexpected(Error::Allocation);
@@ -847,6 +893,32 @@ std::expected<Kernel, Error> Runtime::loadKernel(std::string_view path, Device d
 std::expected<Kernel, Error> Runtime::loadReductionKernel(std::string_view path,
                                                           Device device) noexcept {
   return loadKernel(path, std::move(device), true, ElementwiseSignature{1, 0}, true);
+}
+std::expected<Kernel, Error> Runtime::loadMatmulKernel(std::string_view path,
+                                                       Device device) noexcept {
+  return loadKernel(path, std::move(device), true, {}, false, true);
+}
+TaskHandle Runtime::matmul(TaskCore &core, GroupHandle group, Kernel kernel, Buffer left,
+                           Buffer right) noexcept {
+  Bridge::PacketData packet{state_,
+                            std::move(left),
+                            {},
+                            Bridge::Kind::Matmul,
+                            std::move(kernel),
+                            BinaryOperation::Add,
+                            std::move(right)};
+  return core.submit(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::matmul(Task &task, GroupHandle group, Kernel kernel, Buffer left,
+                           Buffer right) noexcept {
+  Bridge::PacketData packet{state_,
+                            std::move(left),
+                            {},
+                            Bridge::Kind::Matmul,
+                            std::move(kernel),
+                            BinaryOperation::Add,
+                            std::move(right)};
+  return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
 }
 TaskHandle Runtime::reduceSum(TaskCore &core, GroupHandle group, Kernel kernel,
                               Buffer input) noexcept {

@@ -1,4 +1,5 @@
 #include "Build.h"
+#include "MatmulShader.h"
 #include "kalandra/Backend.h"
 #include "kalandra/MetalSource.h"
 #include "kalandra/Semantics.h"
@@ -23,6 +24,7 @@
 #include <set>
 #include <sstream>
 #include <stdexcept>
+#include <tuple>
 #include <unordered_map>
 using namespace kalandra;
 namespace {
@@ -36,6 +38,8 @@ struct Value {
   std::uint32_t device = 0;
   std::optional<std::uint64_t> length = {};
   bool scalarTask = false;
+  unsigned rank = 1;
+  std::optional<std::uint64_t> width = {};
 };
 class Compiler {
   Module syntax;
@@ -111,14 +115,29 @@ class Compiler {
   std::string device(const Value &target) const {
     return "r.device(" + std::to_string(target.device) + ")";
   }
+  static std::optional<std::uint64_t> extent(const Value &value, unsigned axis) {
+    return axis == 0 ? value.length : value.width;
+  }
   std::optional<std::uint64_t> tensorType(const TypeSyntax &t, bool dynamicOnly = false) const {
-    if (!t.tensor || !t.element || text(*t.element) != "float32" || t.dimensions.size() != 1 ||
-        (dynamicOnly && t.dimensions[0].extent))
-      reject(t.span, dynamicOnly
-                         ? "GPU kernel parameters/results currently require Tensor[float32, ?]"
-                         : "the Metal source slice requires a rank-one float32 tensor");
-    if (t.dimensions[0].extent && *t.dimensions[0].extent > std::uint64_t(INT64_MAX) / 4)
-      reject(t.span, "rank-one float32 tensor extent exceeds the checked allocation range");
+    if (!t.tensor || !t.element || text(*t.element) != "float32" || t.dimensions.empty() ||
+        t.dimensions.size() > 2)
+      reject(t.span, "the Metal source bridge requires rank-one or rank-two float32 tensors");
+    std::uint64_t count = 1;
+    bool allKnown = true, empty = false;
+    for (const auto &d : t.dimensions) {
+      if (dynamicOnly && d.extent)
+        reject(t.span, "GPU tensor parameters/results currently require dynamic extents");
+      if (d.extent && *d.extent > std::uint64_t(INT64_MAX) / 4)
+        reject(t.span, "tensor extent exceeds the checked allocation range");
+      allKnown &= d.extent.has_value();
+      empty |= d.extent && *d.extent == 0;
+    }
+    if (allKnown && !empty)
+      for (const auto &d : t.dimensions) {
+        if (*d.extent > std::uint64_t(INT64_MAX) / 4 / count)
+          reject(t.span, "tensor shape exceeds the checked allocation range");
+        count *= *d.extent;
+      }
     return t.dimensions[0].extent;
   }
   std::uint32_t bits(ExprId id) const {
@@ -145,27 +164,46 @@ class Compiler {
       value.changeSign();
     return std::uint32_t(value.bitcastToAPInt().getZExtValue());
   }
-  void requireLength(const Value &value, std::uint64_t extent, SourceSpan span) {
-    if (value.length) {
-      if (*value.length != extent)
+  void requireLength(const Value &value, std::uint64_t wanted, SourceSpan span, unsigned axis = 0) {
+    auto known = extent(value, axis);
+    if (known) {
+      if (*known != wanted)
         reject(span, "tensor shape mismatch");
     } else {
       auto [line, column] = syntax.source->location(span.begin);
-      steps.push_back("if (" + ref(value) + ".shape().size()!=1 || " + ref(value) +
-                      ".shape()[0]!=" + std::to_string(extent) + ") { task.fault(1," +
-                      std::to_string(line) + "," + std::to_string(column) + "); return; }\n");
+      steps.push_back("if (" + ref(value) + ".shape().size()!=" + std::to_string(value.rank) +
+                      " || " + ref(value) + ".shape()[" + std::to_string(axis) +
+                      "]!=" + std::to_string(wanted) + ") { task.fault(1," + std::to_string(line) +
+                      "," + std::to_string(column) + "); return; }\n");
     }
   }
   bool reduction(std::size_t function) const {
     const auto &fn = cpu.functions[function];
     if (fn.resultType.tensor || fn.parameters.size() != 1 ||
-        !cpu.symbols[fn.parameters[0]].type.tensor || fn.body.size() != 1 || fn.body[0].binding)
+        cpu.symbols[fn.parameters[0]].type.shape.size() != 1 || fn.body.size() != 1 ||
+        fn.body[0].binding)
       return false;
     auto *sum = std::get_if<ReduceSum>(&cpu.expressions[fn.result].operation);
     if (!sum || sum->order != ReductionOrder::BalancedAdjacent || !sum->rowMajor)
       return false;
     auto *input = std::get_if<SymbolRead>(&cpu.expressions[sum->input].operation);
     return input && input->symbol == fn.parameters[0];
+  }
+  bool matrixFunction(std::size_t function) const {
+    const auto &fn = cpu.functions[function];
+    if (!fn.resultType.tensor || fn.resultType.shape.size() != 2 || fn.parameters.size() != 2 ||
+        fn.body.size() != 1 || fn.body[0].binding)
+      return false;
+    if (cpu.symbols[fn.parameters[0]].type.shape.size() != 2 ||
+        cpu.symbols[fn.parameters[1]].type.shape.size() != 2)
+      return false;
+    auto *product = std::get_if<Matmul>(&cpu.expressions[fn.result].operation);
+    if (!product || product->order != ReductionOrder::BalancedAdjacent ||
+        !product->separatelyRoundedProducts)
+      return false;
+    auto *left = std::get_if<SymbolRead>(&cpu.expressions[product->left].operation);
+    auto *right = std::get_if<SymbolRead>(&cpu.expressions[product->right].operation);
+    return left && right && left->symbol == fn.parameters[0] && right->symbol == fn.parameters[1];
   }
   Value expression(ExprId id, const TypeSyntax *annotation = nullptr) {
     if (depth >= 128)
@@ -211,36 +249,63 @@ class Compiler {
       if (name == "tensor") {
         if (!annotation)
           reject(span, "host tensor literals require Tensor[float32, ...] context");
-        auto extent = tensorType(*annotation);
+        tensorType(*annotation);
         if (call->arguments.size() != 1)
-          reject(span, "tensor requires one flat literal");
-        const auto *array = std::get_if<ArrayExpr>(&node(call->arguments[0]).value);
+          reject(span, "tensor requires one literal");
+        auto *array = std::get_if<ArrayExpr>(&node(call->arguments[0]).value);
         if (!array || array->elements.size() > 200000)
-          reject(span, "expected a bounded flat tensor literal");
-        if (extent && *extent != array->elements.size())
+          reject(span, "expected a bounded tensor literal");
+        const unsigned rank = annotation->dimensions.size();
+        const auto rows = array->elements.size();
+        std::size_t columns = rank == 1 ? 0 : annotation->dimensions[1].extent.value_or(0);
+        std::vector<ExprId> elements;
+        if (rank == 1)
+          elements = array->elements;
+        else
+          for (std::size_t i = 0; i < rows; ++i) {
+            auto *row = std::get_if<ArrayExpr>(&node(array->elements[i]).value);
+            if (!row)
+              reject(span, "rank-two tensor literals require nested rows");
+            if (i == 0 && !annotation->dimensions[1].extent)
+              columns = row->elements.size();
+            if (row->elements.size() != columns)
+              reject(span, "tensor literal row widths differ");
+            if (elements.size() + row->elements.size() > 200000)
+              reject(span, "tensor literal element limit exceeded");
+            elements.insert(elements.end(), row->elements.begin(), row->elements.end());
+          }
+        if (annotation->dimensions[0].extent && *annotation->dimensions[0].extent != rows)
+          reject(span, "tensor literal shape mismatch");
+        if (rank == 2 && annotation->dimensions[1].extent &&
+            *annotation->dimensions[1].extent != columns)
           reject(span, "tensor literal shape mismatch");
         auto out = field("m::Buffer");
-        Value value{Value::Tensor, next - 1, false, 0, array->elements.size()};
+        Value value{Value::Tensor, next - 1, false, 0, rows};
+        value.rank = rank;
+        if (rank == 2)
+          value.width = columns;
         std::string data = "{ ";
-        for (auto item : array->elements)
+        for (auto item : elements)
           data += std::to_string(bits(item)) + "u,";
         data += " }";
+        auto descriptor = rank == 1 ? "Float32Tensor<1> descriptor{allocation,allocation,0,{" +
+                                          std::to_string(rows) + "},{1}};\n"
+                                    : "Float32Tensor<2> descriptor{allocation,allocation,0,{" +
+                                          std::to_string(rows) + "," + std::to_string(columns) +
+                                          "},{" + std::to_string(columns) + ",1}};\n";
         steps.push_back(
-            "static const std::array<std::uint32_t," + std::to_string(*value.length) +
+            "static const std::array<std::uint32_t," + std::to_string(elements.size()) +
             "> data = " + data +
             ";\n"
-            "const std::int64_t length = " +
-            std::to_string(*value.length) +
+            "auto *allocation=static_cast<float*>(task.context().allocate(data.size()*4));\n"
+            "if(!allocation) {task.fault(2);return;}\n"
+            "if(!data.empty()) std::memcpy(allocation,data.data(),data.size()*4);\n" +
+            descriptor +
+            "auto "
+            "value=r.fromCpu(task.context(),descriptor.view());\ntask.context().release(allocation)"
             ";\n"
-            "auto *allocation = task.context().allocate(data.size() * 4);\n"
-            "if (!allocation) { task.fault(2); return; }\n"
-            "if (!data.empty()) std::memcpy(allocation, data.data(), data.size() * 4);\n"
-            "Float32Tensor<1> descriptor{static_cast<float *>(allocation), static_cast<float "
-            "*>(allocation), 0, {length}, {1}};\n"
-            "auto value = r.fromCpu(task.context(), descriptor.view());\n"
-            "task.context().release(allocation);\n"
-            "if (!value) { " +
-            error("value.error()") + " }\nf." + out + " = *value;\n");
+            "if(!value) {" +
+            error("value.error()") + "}\nf." + out + "=*value;\n");
         return value;
       }
       if (name == "transfer") {
@@ -254,6 +319,8 @@ class Compiler {
           reject(span, "cross-device transfers are not implemented");
         auto out = field("TaskHandle");
         Value result{Value::Task, next - 1, target.gpu, target.device, input.length};
+        result.rank = input.rank;
+        result.width = input.width;
         std::string step;
         if (target.gpu)
           step = "auto target = " + device(target) + ";\nif (!target) { " +
@@ -272,24 +339,32 @@ class Compiler {
         const bool tensorResult = fn.resultType.tensor;
         auto out = field(tensorResult ? "m::Buffer" : "float");
         Value value{tensorResult ? Value::Tensor : Value::Scalar, next - 1};
-        if (tensorResult)
+        if (tensorResult) {
           value.length = fn.resultType.shape[0].constant;
+          value.rank = fn.resultType.shape.size();
+          if (value.rank == 2)
+            value.width = fn.resultType.shape[1].constant;
+        }
         std::string step, arguments;
-        std::map<ExtentId, Value> extentArguments;
+        std::map<ExtentId, std::pair<Value, unsigned>> extentArguments;
+        std::vector<std::tuple<Value, std::uint64_t, unsigned>> fixedShapes;
         for (std::size_t i = 0; i < call->arguments.size(); ++i) {
           auto input = expression(call->arguments[i]);
           const auto &type = cpu.symbols[fn.parameters[i]].type;
           if (type.tensor) {
             if (input.kind != Value::Tensor || input.gpu)
               reject(span, "CPU tensor arguments require an explicit transfer to devices.cpu()");
-            if (type.shape.size() != 1)
-              reject(span, "CPU bridge currently accepts rank-one float32 tensors");
-            if (type.shape[0].constant && input.length && type.shape[0].constant != input.length)
-              reject(span, "CPU argument shape mismatch");
-            if (!type.shape[0].constant)
-              extentArguments.emplace(type.shape[0].identity, input);
+            if (type.shape.size() != input.rank)
+              reject(span, "CPU tensor argument rank mismatch");
+            for (unsigned axis = 0; axis < input.rank; ++axis) {
+              if (type.shape[axis].constant)
+                fixedShapes.emplace_back(input, *type.shape[axis].constant, axis);
+              else
+                extentArguments.emplace(type.shape[axis].identity, std::pair{input, axis});
+            }
             auto local = "argument" + std::to_string(i);
-            step += "auto " + local + " = r.toCpu<1>(task.context(), " + ref(input) + ");\n";
+            step += "auto " + local + " = r.toCpu<" + std::to_string(input.rank) +
+                    ">(task.context(), " + ref(input) + ");\n";
             step += "if (!" + local + ") { " + error(local + ".error()") + " }\n";
             arguments += "&*" + local + ",";
           } else {
@@ -298,14 +373,21 @@ class Compiler {
             arguments += ref(input) + ",";
           }
         }
+        for (const auto &[input, wanted, axis] : fixedShapes)
+          requireLength(input, wanted, span, axis);
         std::string guards;
         for (const auto &requirement : fn.preconditions) {
           const auto known = [&](Extent extent) {
-            return extent.constant ? extent.constant : extentArguments.at(extent.identity).length;
+            if (extent.constant)
+              return extent.constant;
+            const auto &argument = extentArguments.at(extent.identity);
+            return Compiler::extent(argument.first, argument.second);
           };
           const auto render = [&](Extent extent) {
-            return extent.constant ? std::to_string(*extent.constant)
-                                   : ref(extentArguments.at(extent.identity)) + ".shape()[0]";
+            return extent.constant
+                       ? std::to_string(*extent.constant)
+                       : ref(extentArguments.at(extent.identity).first) + ".shape()[" +
+                             std::to_string(extentArguments.at(extent.identity).second) + "]";
           };
           auto left = known(requirement.left), right = known(requirement.right);
           if (left && right) {
@@ -320,7 +402,7 @@ class Compiler {
         }
         step = guards + step;
         if (tensorResult)
-          step += "Float32Tensor<1> result{};\n";
+          step += "Float32Tensor<" + std::to_string(value.rank) + "> result{};\n";
         step += (tensorResult ? "" : "f." + out + " = ") +
                 std::string("_mlir_ciface_kalandra_cpu_") + std::to_string(found->second) + "(" +
                 (tensorResult ? "&result," : "") + arguments + "&task.context());\n";
@@ -374,6 +456,7 @@ class Compiler {
           reject(span, "unknown or shadowed GPU function");
         const auto &entryFunction = cpu.functions[found->second];
         const bool sum = reduction(found->second);
+        const bool matrix = matrixFunction(found->second);
         if (call->arguments.size() != entryFunction.parameters.size())
           reject(span, "GPU call argument count mismatch");
         if (!entryFunction.resultType.tensor && !sum)
@@ -382,9 +465,14 @@ class Compiler {
         std::vector<Value> tensors, scalars;
         for (std::size_t i = 0; i < call->arguments.size(); ++i) {
           auto value = expression(call->arguments[i]);
-          const bool tensor = cpu.symbols[entryFunction.parameters[i]].type.tensor;
+          const auto &type = cpu.symbols[entryFunction.parameters[i]].type;
+          const bool tensor = type.tensor;
           if (value.kind != (tensor ? Value::Tensor : Value::Scalar))
             reject(node(call->arguments[i]).span, "GPU argument type mismatch");
+          if (tensor && (value.rank != type.shape.size() || (!matrix && value.rank != 1)))
+            reject(
+                span,
+                "rank-two GPU entries currently require a direct matmul of two matrix parameters");
           (tensor ? tensors : scalars).push_back(value);
         }
         if (tensors.empty() || tensors.size() > 2 || scalars.size() > 8)
@@ -396,13 +484,16 @@ class Compiler {
           if (!value.gpu || value.device != target.device)
             reject(span, "GPU arguments must be explicitly transferred to the selected device");
         auto left = tensors[0], right = tensors.back();
-        if (left.length && right.length && left.length != right.length)
-          reject(span, "elementwise argument shapes differ");
-        if (tensors.size() == 2 && (!left.length || !right.length)) {
+        const unsigned leftAxis = matrix ? 1 : 0;
+        auto aExtent = extent(left, leftAxis), bExtent = extent(right, 0);
+        if (aExtent && bExtent && aExtent != bExtent)
+          reject(span,
+                 matrix ? "matmul inner dimensions differ" : "elementwise argument shapes differ");
+        if (tensors.size() == 2 && (!aExtent || !bExtent)) {
           auto [line, column] = syntax.source->location(span.begin);
-          steps.push_back("if (" + ref(left) + ".shape()[0]!=" + ref(right) +
-                          ".shape()[0]) { task.fault(1," + std::to_string(line) + "," +
-                          std::to_string(column) + "); return; }\n");
+          steps.push_back("if(" + ref(left) + ".shape()[" + std::to_string(leftAxis) +
+                          "]!=" + ref(right) + ".shape()[0]) {task.fault(1," +
+                          std::to_string(line) + "," + std::to_string(column) + ");return;}\n");
         }
         const bool legacy = tensors.size() == 2 && scalars.empty();
         auto signature = ", m::ElementwiseSignature{" + std::to_string(tensors.size()) + "," +
@@ -419,19 +510,31 @@ class Compiler {
         (void)inserted;
         auto kernel = field("m::Kernel"), out = field("TaskHandle");
         Value result{Value::Task, next - 1, true, target.device,
-                     left.length ? left.length : right.length};
+                     matrix        ? left.length
+                     : left.length ? left.length
+                                   : right.length};
+        if (matrix) {
+          result.rank = 2;
+          result.width = right.width;
+        }
         steps.push_back("auto target = " + device(target) + ";\nif (!target) { " +
                         error("target.error()") + " }\n" + std::string("auto kernel = r.") +
-                        (sum ? "loadReductionKernel" : "loadElementwiseKernel") +
+                        (matrix ? "loadMatmulKernel"
+                         : sum  ? "loadReductionKernel"
+                                : "loadElementwiseKernel") +
                         "(f.directory + \"/kernel" + std::to_string(entry->second) +
-                        ".metallib\", *target" + (legacy || sum ? "" : signature) +
+                        ".metallib\", *target" + (legacy || sum || matrix ? "" : signature) +
                         ");\n"
                         "if (!kernel) { " +
                         error("kernel.error()") + " }\nf." + kernel +
                         " = *kernel;\n"
                         "f." +
-                        out + " = r." + (sum ? "reduceSum" : "elementwise") + "(task, f.group, f." +
-                        kernel + ", " + (sum ? ref(left) : arguments) + ");\n" + check("f." + out));
+                        out + " = r." +
+                        (matrix ? "matmul"
+                         : sum  ? "reduceSum"
+                                : "elementwise") +
+                        "(task, f.group, f." + kernel + ", " + (sum ? ref(left) : arguments) +
+                        ");\n" + check("f." + out));
         result.scalarTask = sum;
         tasks.insert(result.slot);
         return result;
@@ -441,6 +544,8 @@ class Compiler {
     reject(span, "unsupported expression in the Metal source supervisor");
   }
   std::string shader(std::size_t function) const {
+    if (matrixFunction(function))
+      return matmulShader;
     if (reduction(function))
       return R"(module attributes {gpu.container_module,
   spirv.target_env = #spirv.target_env<#spirv.vce<v1.0, [Shader, Int64], [SPV_KHR_storage_buffer_storage_class]>, #spirv.resource_limits<>>} {
@@ -490,6 +595,11 @@ class Compiler {
     std::function<std::string(std::size_t, const std::vector<std::string> &)> invoke;
     invoke = [&](std::size_t fnId, const std::vector<std::string> &args) -> std::string {
       const auto &fn = cpu.functions.at(fnId);
+      for (auto parameter : fn.parameters)
+        if (cpu.symbols[parameter].type.tensor && cpu.symbols[parameter].type.shape.size() != 1)
+          reject(fn.declaration, "elementwise GPU helpers require rank-one tensors");
+      if (fn.resultType.tensor && fn.resultType.shape.size() != 1)
+        reject(fn.declaration, "elementwise GPU helpers require rank-one results");
       if (callDepth >= 128 || !active.insert(fnId).second)
         reject(fn.declaration, "recursive GPU helper calls are not implemented");
       Depth guard(callDepth);
@@ -631,13 +741,14 @@ public:
       if (fn.result->tensor)
         tensorType(*fn.result, gpuNames.contains(name));
       else if (text(fn.result->name) != "float32")
-        reject(fn.result->span, "mixed source results require float32 or rank-one float32 tensors");
+        reject(fn.result->span,
+               "mixed source results require float32 or rank-one/rank-two float32 tensors");
       for (const auto &p : fn.parameters) {
         if (p.type.tensor)
           tensorType(p.type, gpuNames.contains(name));
         else if (text(p.type.name) != "float32")
           reject(p.type.span,
-                 "mixed source parameters require float32 or rank-one float32 tensors");
+                 "mixed source parameters require float32 or rank-one/rank-two float32 tensors");
       }
       cpuFunctions.emplace(name, hostModule.functions.size());
       cpuExports.push_back(name);
@@ -654,9 +765,12 @@ public:
       declarations += std::string("extern \"C\" ") + (f.resultType.tensor ? "void" : "float") +
                       " _mlir_ciface_kalandra_cpu_" + std::to_string(i) + "(";
       if (f.resultType.tensor)
-        declarations += "Float32Tensor<1>*,";
+        declarations += "Float32Tensor<" + std::to_string(f.resultType.shape.size()) + ">*,";
       for (auto parameter : f.parameters)
-        declarations += cpu.symbols[parameter].type.tensor ? "Float32Tensor<1>*," : "float,";
+        declarations += cpu.symbols[parameter].type.tensor
+                            ? "Float32Tensor<" +
+                                  std::to_string(cpu.symbols[parameter].type.shape.size()) + ">*,"
+                            : "float,";
       declarations += "Invocation*);\n";
     }
     const auto &fn = syntax.functions[*main];
@@ -665,8 +779,9 @@ public:
              "Metal main requires no parameters, a float32 or tensor result, and ! TaskError");
     bool scalarResult = !fn.result->tensor;
     if (scalarResult && text(fn.result->name) != "float32")
-      reject(fn.span, "Metal main requires float32 or a rank-one float32 tensor");
-    auto declared = scalarResult ? std::optional<std::uint64_t>{} : tensorType(*fn.result);
+      reject(fn.span, "Metal main requires float32 or a rank-one/rank-two float32 tensor");
+    if (!scalarResult)
+      tensorType(*fn.result);
     if (fn.body.size() != 1 || fn.body[0].binding)
       reject(fn.span, "Metal main must contain a single try parallel block");
     const auto *attempt = std::get_if<TaskExpr>(&node(fn.body[0].expression).value);
@@ -684,10 +799,17 @@ public:
         if (s.annotation->tensor) {
           if (result.kind != Value::Tensor)
             reject(s.span, "tensor annotation mismatch");
-          if (auto extent = tensorType(*s.annotation)) {
-            requireLength(result, *extent, s.span);
-            result.length = extent;
-          }
+          tensorType(*s.annotation);
+          if (result.rank != s.annotation->dimensions.size())
+            reject(s.span, "tensor annotation rank mismatch");
+          for (unsigned axis = 0; axis < result.rank; ++axis)
+            if (auto wanted = s.annotation->dimensions[axis].extent) {
+              requireLength(result, *wanted, s.span, axis);
+              if (axis == 0)
+                result.length = wanted;
+              else
+                result.width = wanted;
+            }
         } else if (text(s.annotation->name) != "float32" || result.kind != Value::Scalar)
           reject(s.span, "scalar annotation mismatch");
       }
@@ -697,8 +819,13 @@ public:
     if (scalarResult ? result.kind != Value::Scalar : (result.kind != Value::Tensor || result.gpu))
       reject(fn.span, "main must return a completed host tensor; explicitly transfer the result to "
                       "devices.cpu()");
-    if (declared)
-      requireLength(result, *declared, fn.span);
+    if (!scalarResult) {
+      if (result.rank != fn.result->dimensions.size())
+        reject(fn.span, "main tensor result rank mismatch");
+      for (unsigned axis = 0; axis < result.rank; ++axis)
+        if (auto wanted = fn.result->dimensions[axis].extent)
+          requireLength(result, *wanted, fn.span, axis);
+    }
     for (auto task : tasks)
       if (!observed.contains(task))
         reject(fn.span, "every admitted child task must be observed with try await");
@@ -809,9 +936,10 @@ int main(int argc,char **argv) {
       host << R"(    Invocation context; alignas(m::Buffer) std::byte slot[sizeof(m::Buffer)];
     if (!core->observe(child,m::Runtime::bufferLayout(),context,slot)) return 1;
     auto *value=std::launder(reinterpret_cast<m::Buffer *>(slot));
-    auto cpu=runtime->toCpu<1>(context,*value);
+    auto cpu=runtime->toCpu<)"
+           << fn.result->dimensions.size() << R"(>(context,*value);
     if (!cpu) status=1;
-    else { std::printf("["); for (std::int64_t i=0;i<cpu->sizes[0];++i) {
+    else { std::printf("["); for (std::uint64_t i=0;i<value->bytes()/4;++i) {
       std::uint32_t bits; std::memcpy(&bits,cpu->aligned+i,4); std::printf(i ? ",%08x" : "%08x",bits);
     } std::puts("]"); context.release(cpu->allocated); }
     value->~Buffer();)";
