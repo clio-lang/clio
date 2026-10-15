@@ -11,11 +11,13 @@ struct Extent {
   ExtentId identity =
       0; // Nonzero identity for a dynamic extent, never an implicit equality of '?'.
 };
+enum class BuiltinValue { Numeric, TaskError, FaultKind, String };
 struct ValueType {
   bool tensor = false;
   std::vector<Extent> shape;
   bool task = false, fallible = false;
   std::size_t identity = 0;
+  BuiltinValue builtin = BuiltinValue::Numeric;
 };
 struct Symbol {
   std::string name;
@@ -82,11 +84,35 @@ struct ParallelOperation {
   ValueId result;
   std::size_t group;
 };
+struct CatchOperation {
+  ValueId operand;
+  SymbolId parameter;
+  std::vector<TypedStatement> body;
+  ValueId result;
+};
+struct MatchCase {
+  std::optional<unsigned> tag;
+  std::vector<TypedStatement> body;
+  ValueId result;
+};
+struct MatchOperation {
+  ValueId subject;
+  std::vector<MatchCase> cases;
+};
+enum class ErrorField { Kind, Message, Reason };
+struct ErrorFieldRead {
+  ValueId subject;
+  ErrorField field;
+};
+struct FailOperation {
+  ValueId error;
+};
 struct TypedExpr {
   SourceSpan span;
   ValueType type; // Only float32 and ranked Tensor[float32,...] in this semantic subset.
   std::variant<Float32Literal, SymbolRead, ScalarUnary, ScalarBinary, TensorLiteral, FunctionCall,
-               Matmul, ReduceSum, ShapeCheck, TaskOperation, ParallelOperation>
+               Matmul, ReduceSum, ShapeCheck, TaskOperation, ParallelOperation, CatchOperation,
+               MatchOperation, ErrorFieldRead, FailOperation>
       operation;
 };
 struct ShapeEquality {

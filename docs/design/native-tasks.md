@@ -170,7 +170,7 @@ Required evidence includes:
 - Parent continuation resuming on a different worker without losing its invocation context; cleanup never touching a sibling's ledger.
 - Concurrent independent groups, primary-failure races, bounded diagnostics, and a full source build with no JavaScript runtime dependency.
 
-Gates 1 and 2 are implemented. The [checked CPU invocation ABI](native-codegen.md) supplies independent storage/fault contexts; [Tasks.h](../../native/runtime/Tasks.h) and [Tasks.cpp](../../native/runtime/Tasks.cpp) now supply the single-worker task core. The first source integration now implements local parallel/spawn/await, TaskError propagation, and continuation lowering. Complete the remaining native error-handling surface before the multiple-worker gate.
+Gates 1 and 2 are implemented. The [checked CPU invocation ABI](native-codegen.md) supplies independent storage/fault contexts; [Tasks.h](../../native/runtime/Tasks.h) and [Tasks.cpp](../../native/runtime/Tasks.cpp) now supply the single-worker task core. The first source integration now implements local parallel/spawn/await, TaskError propagation, and continuation lowering. Built-in TaskError recovery now also has compiled conformance tests; the multiple-worker gate is next.
 
 ## Implemented single-worker core
 
@@ -214,8 +214,34 @@ Tensor primitives retain the existing MLIR bufferization/ownership/strict reduct
 
 Groups now retain explicit lexical parents as well as task owners. Cancellation of an outer block reaches inner blocks owned by the same invocation, and outer settlement waits for those inner groups. This also applies when an ordinary helper creates its own group within an outer block. The synthetic runtime regression confirms an inner queued entry never runs after outer cancellation.
 
-Three source-task CTest suites run in debug, optimized, and ASan/UBSan variants. They execute the five source fixtures above, distinguish parent allocation faults from child TaskError.Fault, preserve TaskError through a fallible child which creates nested work, and verify typed AdmissionRejected when a source program exceeds the bounded queue. Syntax/semantic sanitizer suites also check task forms, typed IR dependencies, repeated alias observation, propagation requirements, and rejected escapes/unobserved results. The complete native suite now has 25 tests.
+Three source-task CTest suites run in debug, optimized, and ASan/UBSan variants. They execute the five source fixtures above, distinguish parent allocation faults from child TaskError.Fault, preserve TaskError through a fallible child which creates nested work, and verify typed AdmissionRejected when a source program exceeds the bounded queue. Syntax/semantic sanitizer suites also check task forms, typed IR dependencies, repeated alias observation, propagation requirements, and rejected escapes/unobserved results. With the recovery suites below, the complete native suite now has 28 tests.
 
-This remains a single-worker execution baseline: submitted work can progress while a parent is suspended, but CPU kernels do not yet execute simultaneously. No performance speedup is claimed. Supported task values are float32 scalars and ranked dense float32 tensors; entries are statically named functions, matmul, or reduceSum. Bare source placement clauses, arbitrary captures/closures, public runtime-input task wrappers, general application errors, error unions, catch/match handlers, and recursive calls in task-enabled modules are explicitly unsupported. The latter is an implementation limit of the initial continuation expansion, not a new language recursion rule. Compilation bounds each frame to 20,000 value slots and the whole continuation plan to 300,000; scheduler frame/record quotas remain checked at admission.
+This remains a single-worker execution baseline: submitted work can progress while a parent is suspended, but CPU kernels do not yet execute simultaneously. No performance speedup is claimed. Supported task values are float32 scalars and ranked dense float32 tensors; entries are statically named functions, matmul, or reduceSum. Bare source placement clauses, arbitrary captures/closures, public runtime-input task wrappers, general application errors, error unions, general variants/closures, and recursive calls in task-enabled modules are explicitly unsupported. The latter is an implementation limit of the initial continuation expansion, not a new language recursion rule. Compilation bounds each frame to 20,000 value slots and the whole continuation plan to 300,000; scheduler frame/record quotas remain checked at admission.
 
-Next complete native TaskError handling (catch and typed inspection) and task failure conformance, then add multiple-worker synchronization and cancellation polling in generated CPU loops. A single-worker scheduler is not a substitute for that concurrency gate.
+Next add multiple-worker synchronization and cancellation polling in generated CPU loops. A single-worker scheduler is not a substitute for that concurrency gate.
+
+## Compiled TaskError recovery
+
+Catch handlers, exhaustive TaskError/FaultKind matches, named field binding/aliases, and re-propagation of an existing TaskError with `fail error` now lower to native continuation branches. Only the selected body executes. The match subject is evaluated once. A handler may return a float32/tensor fallback or a fallible result; its error channel is flattened with the original success channel. Try/fail within an anonymous handler return from that handler, leaving subsequent enclosing-function statements to run when the combined result is handled.
+
+```kalandra
+fn totalOrZero(samples: Tensor[float32, ?]) -> float32:
+  result = parallel:
+    work = spawn reduceSum(samples)
+    try await work
+  result catch fn(error):
+    match error:
+      TaskError.Fault { kind }:
+        match kind:
+          FaultKind.Allocation: 0
+          _: -1
+      _: -2
+```
+
+The outer handler runs after group settlement. Catching a failed child inside its already failed group cannot restore that group's success. Repeated awaits retain the same failure. A checked fault in the containing invocation or handler still terminates that invocation; catch does not intercept it.
+
+TaskError payloads remain typed values. Fault.kind maps the current shape/allocation/native fault codes to FaultKind.Shape/Allocation/Native. Arithmetic and Bounds cases are recognized for exhaustive matching but the current float32/tensor subset has no producer for those faults. Message/reason bindings reference bounded static diagnostic text (`tensor shape mismatch`, `allocation failed`, `native execution fault`, or `task admission rejected`), not arbitrary exception strings. Their storage has static lifetime. General String construction/operations and public String signatures are not implemented. General error declarations, construction, and unions remain separate future work.
+
+LLVM emits a success/error branch for catch, tag tests for match, and a local propagation exit for the handler. Tensor fallbacks use the existing managed ownership ledger. Conditional shape guards execute only in their selected body. A refinement applied to a fallible tensor copies the failure header and skips the numerical kernel on error; it never reads the missing tensor payload.
+
+Three recovery CTest suites cover debug, optimized, and ASan/UBSan builds. They exercise [tensor fallback with queued sibling cancellation](../../native/tests/fixtures/task-recovery.kalandra), [newly allocated fallback storage](../../native/tests/fixtures/task-recovery-allocated.kalandra), [different fallback tensor shapes](../../native/tests/fixtures/task-fallback-shape.kalandra), [typed re-propagation](../../native/tests/fixtures/task-repropagate.kalandra), [handler propagation boundaries](../../native/tests/fixtures/task-handler-boundary.kalandra), successful try inside a handler, repeated awaits of a failed child, sticky group failure, real admission rejection, lazy handler-only shape checks, and fallible tensor refinement. Caller and handler allocation faults retain their checked classification and report zero remaining owners. The frontend suites also verify exhaustiveness, invalid fields/types, immutable binders, conditional obligations, and merged fallback shapes.

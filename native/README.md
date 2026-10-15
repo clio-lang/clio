@@ -47,7 +47,7 @@ Compiler implementation ownership is separate from Kalandra's automatic memory m
 | `kalandra-proof-cases`    | Independent scalar numerical reference and fixed-seed input generator                     |
 | `native-toolchain-proof`  | Bufferization, ownership lowering, LLVM translation, and three native proof binaries      |
 
-Read the [toolchain proof](toolchain-proof/README.md) for evidence and limits. The sequential CPU conformance sweep and initial source task integration pass. The 25 CTest tests include debug, optimized, and ASan/UBSan variants. Next is native TaskError recovery (`catch` and typed inspection), followed by multiple-worker execution. The [CPU milestone](../docs/design/cpu-milestone.md) and [task contract](../docs/design/native-tasks.md) track the remaining gates.
+Read the [toolchain proof](toolchain-proof/README.md) for evidence and limits. The sequential CPU conformance sweep and initial source task integration pass. The 28 CTest tests include debug, optimized, and ASan/UBSan variants. Native TaskError recovery (`catch`, typed matching/fields, and handler-local propagation) now also passes its compiled conformance suites. Multiple-worker execution and CPU-loop cancellation polling are next. The [CPU milestone](../docs/design/cpu-milestone.md) and [task contract](../docs/design/native-tasks.md) track the remaining gates.
 
 C++ formatting uses the root `.clang-format` with LLVM style. For the current C++ sources:
 

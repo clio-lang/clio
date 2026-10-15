@@ -169,3 +169,14 @@ if(BUILD_TESTING)
     set_tests_properties(native-source-tasks-${VARIANT} PROPERTIES TIMEOUT 60)
   endforeach()
 endif()
+
+if(BUILD_TESTING)
+  foreach(VARIANT IN ITEMS debug optimized sanitized)
+    add_test(NAME native-task-recovery-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DFIXTURES=${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures" "-DVARIANT=${VARIANT}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/task-recovery-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyTaskRecovery.cmake")
+    set_tests_properties(native-task-recovery-${VARIANT} PROPERTIES TIMEOUT 60)
+  endforeach()
+endif()

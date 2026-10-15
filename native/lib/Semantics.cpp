@@ -20,6 +20,9 @@ class Checker {
     std::size_t depth = 0;
     std::shared_ptr<TaskChecks> tasks = std::make_shared<TaskChecks>();
     std::vector<std::size_t> groups;
+    std::shared_ptr<bool> handlerFallible;
+    std::size_t handlerDepth = 0;
+    bool conditional = false;
   };
   struct TensorData {
     std::vector<std::uint64_t> shape;
@@ -85,7 +88,7 @@ private:
             syntax_.functions[frame.function].name);
       return false;
     }
-    if (same(left, right) || !parameterExtent(frame.function, left) ||
+    if (frame.conditional || same(left, right) || !parameterExtent(frame.function, left) ||
         !parameterExtent(frame.function, right))
       return true;
     const auto key = [](const Extent &dimension) {
@@ -205,7 +208,7 @@ private:
     }
     ++functionDepth_;
     states_[id] = State::Checking;
-    Frame frame{id, {}, 0, std::make_shared<TaskChecks>(), {}};
+    Frame frame{id, {}, 0, std::make_shared<TaskChecks>(), {}, {}, 0, false};
     for (auto parameter : output_.functions[id].parameters)
       frame.locals.emplace(output_.symbols[parameter].name, parameter);
     const auto initialErrors = errorCount_;
@@ -298,7 +301,8 @@ private:
       error("S036", "expected task error requires try before using the success value", span);
       return {};
     }
-    if (actual.tensor != expected.tensor || actual.shape.size() != expected.shape.size()) {
+    if (actual.builtin != expected.builtin || actual.tensor != expected.tensor ||
+        actual.shape.size() != expected.shape.size()) {
       error("S010", "expected " + describeType(expected) + ", got " + describeType(actual), span);
       return {};
     }
@@ -350,7 +354,7 @@ private:
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const NumberExpr &literal,
                                const std::optional<ValueType> &expected) {
-    if (!expected || expected->tensor) {
+    if (!expected || expected->tensor || expected->builtin != BuiltinValue::Numeric) {
       error("S013",
             "unconstrained numeric literals use int64/float64; add float32 context for this first "
             "subset",
@@ -394,8 +398,9 @@ private:
     auto operand = expression(frame, unary.operand, expected);
     if (!operand)
       return {};
-    if (node(*operand).type.tensor || node(*operand).type.task || node(*operand).type.fallible) {
-      error("S017", "tensor unary arithmetic is not implemented in this subset", span);
+    if (node(*operand).type.tensor || node(*operand).type.task || node(*operand).type.fallible ||
+        node(*operand).type.builtin != BuiltinValue::Numeric) {
+      error("S017", "arithmetic requires completed float32 scalar values", span);
       return {};
     }
     return add(frame, {}, span, ScalarUnary{unary.operation, *operand});
@@ -438,8 +443,10 @@ private:
     if (!left || !right)
       return {};
     if (node(*left).type.tensor || node(*right).type.tensor || node(*left).type.task ||
-        node(*right).type.task || node(*left).type.fallible || node(*right).type.fallible) {
-      error("S017", "elementwise tensor arithmetic is not implemented in this subset", span);
+        node(*right).type.task || node(*left).type.fallible || node(*right).type.fallible ||
+        node(*left).type.builtin != BuiltinValue::Numeric ||
+        node(*right).type.builtin != BuiltinValue::Numeric) {
+      error("S017", "arithmetic requires completed float32 scalar values", span);
       return {};
     }
     return add(frame, {}, span, ScalarBinary{binary.operation, *left, *right});
@@ -510,11 +517,14 @@ private:
       error("S036", "try requires an expected-error result", span);
       return {};
     }
-    if (frame.groups.empty() && !syntax_.functions[frame.function].taskError) {
+    if (frame.groups.empty() && !frame.handlerFallible &&
+        !syntax_.functions[frame.function].taskError) {
       error("S036", "try propagation requires a TaskError return channel or parallel boundary",
             span);
       return {};
     }
+    if (frame.handlerFallible && frame.groups.size() == frame.handlerDepth)
+      *frame.handlerFallible = true;
     frame.tasks->handled.insert(result.identity);
     result.fallible = false;
     result.identity = 0;
@@ -570,6 +580,254 @@ private:
     resultType.fallible = true;
     resultType.identity = 0;
     return add(frame, resultType, span, ParallelOperation{std::move(statements), *result, group});
+  }
+  // Branch-local obligations must be discharged on the path which creates
+  // them. Conditional observation cannot discharge an incoming obligation.
+  void finishBranch(const TaskChecks &before, Frame &branch, ValueId result, SourceSpan span) {
+    if (node(result).type.fallible)
+      branch.tasks->handled.insert(node(result).type.identity);
+    for (auto pending : branch.tasks->pending)
+      if (!before.pending.contains(pending) && !branch.tasks->handled.contains(pending))
+        error("S036", "branch discards an expected error", span);
+    for (const auto &[group, children] : branch.tasks->children) {
+      auto old = before.children.find(group);
+      for (auto child : children) {
+        const bool incoming = old != before.children.end() &&
+                              std::ranges::find(old->second, child) != old->second.end();
+        if (!incoming && !branch.tasks->observed.contains(node(child).type.identity))
+          error("S038", "branch leaves an unobserved child", span);
+      }
+    }
+  }
+  std::optional<ValueId> suite(Frame &frame, const std::vector<Statement> &body,
+                               std::optional<ValueType> context,
+                               std::vector<TypedStatement> &statements,
+                               const std::unordered_set<std::string> &introduced = {}) {
+    auto bindings = introduced;
+    std::optional<ValueId> result;
+    for (std::size_t index = 0; index < body.size(); ++index) {
+      const auto &statement = body[index];
+      auto expected = index + 1 == body.size() ? context : std::optional<ValueType>{};
+      if (statement.annotation) {
+        expected = type(*statement.annotation);
+        if (!expected)
+          return {};
+      }
+      auto value = expression(frame, statement.expression, expected);
+      if (!value)
+        return {};
+      std::optional<SymbolId> symbol;
+      if (statement.binding) {
+        auto binding = name(*statement.binding);
+        if (!bindings.insert(binding).second) {
+          error("S008", "duplicate immutable binding", *statement.binding);
+          return {};
+        }
+        symbol = output_.symbols.size();
+        output_.symbols.push_back(
+            {binding, node(*value).type, *statement.binding, frame.function, false});
+        frame.locals[binding] = *symbol;
+      }
+      statements.push_back({statement.span, symbol, *value});
+      result = value;
+    }
+    return result;
+  }
+  std::optional<ValueId> infer(Frame &frame, SourceSpan span, const CatchExpr &handler,
+                               const std::optional<ValueType> &expected) {
+    auto context = expected;
+    if (context)
+      context->fallible = true;
+    auto operand = expression(frame, handler.operand, context);
+    if (!operand)
+      return {};
+    auto resultType = node(*operand).type;
+    if (resultType.task || !resultType.fallible) {
+      error("S039", "catch requires a completed expected-error result", span);
+      return {};
+    }
+    frame.tasks->handled.insert(resultType.identity);
+    const auto before = *frame.tasks;
+    auto nested = frame;
+    nested.tasks = std::make_shared<TaskChecks>(before);
+    nested.handlerFallible = std::make_shared<bool>(false);
+    nested.handlerDepth = nested.groups.size();
+    nested.conditional = true;
+    ValueType errorType;
+    errorType.builtin = BuiltinValue::TaskError;
+    const auto symbol = output_.symbols.size();
+    output_.symbols.push_back(
+        {name(handler.parameter), errorType, handler.parameter, frame.function, true});
+    nested.locals[name(handler.parameter)] = symbol;
+    std::vector<TypedStatement> body;
+    auto handlerContext = resultType;
+    // The success path's inferred extent is not a constraint on a fallback.
+    // Preserve explicit outer constraints; otherwise join differing extents.
+    if (expected)
+      handlerContext.shape = expected->shape;
+    else
+      for (auto &dimension : handlerContext.shape)
+        dimension = dynamic();
+    auto result = suite(nested, handler.body, handlerContext, body, {name(handler.parameter)});
+    if (!result)
+      return {};
+    finishBranch(before, nested, *result, span);
+    const auto handlerType = node(*result).type;
+    for (std::size_t axis = 0; axis < resultType.shape.size(); ++axis)
+      if (!same(resultType.shape[axis], handlerType.shape[axis]))
+        resultType.shape[axis] = dynamic();
+    resultType.fallible = handlerType.fallible || *nested.handlerFallible;
+    resultType.identity = 0;
+    return add(frame, resultType, span, CatchOperation{*operand, symbol, std::move(body), *result});
+  }
+  std::optional<ValueId> infer(Frame &frame, SourceSpan span, const FailExpr &failure,
+                               const std::optional<ValueType> &expected) {
+    auto value = expression(frame, failure.operand);
+    if (!value)
+      return {};
+    if (node(*value).type.builtin != BuiltinValue::TaskError || node(*value).type.fallible ||
+        node(*value).type.task) {
+      error("S039", "fail requires a typed TaskError value", span);
+      return {};
+    }
+    if (!expected || expected->builtin != BuiltinValue::Numeric || expected->task) {
+      error("S039", "fail needs a concrete success-type context in this subset", span);
+      return {};
+    }
+    if (frame.groups.empty() && !frame.handlerFallible &&
+        !syntax_.functions[frame.function].taskError) {
+      error("S036", "fail requires a fallible function, handler, or parallel boundary", span);
+      return {};
+    }
+    if (frame.handlerFallible && frame.groups.size() == frame.handlerDepth)
+      *frame.handlerFallible = true;
+    auto result = *expected;
+    result.fallible = true;
+    result.identity = 0;
+    return add(frame, result, span, FailOperation{*value});
+  }
+  std::optional<ValueId> infer(Frame &frame, SourceSpan span, const MatchExpr &match,
+                               const std::optional<ValueType> &expected) {
+    auto subject = expression(frame, match.subject);
+    if (!subject)
+      return {};
+    const auto subjectType = node(*subject).type;
+    const bool taskError = subjectType.builtin == BuiltinValue::TaskError;
+    if ((!taskError && subjectType.builtin != BuiltinValue::FaultKind) || subjectType.task ||
+        subjectType.fallible) {
+      error("S040", "match currently supports TaskError and FaultKind values", span);
+      return {};
+    }
+    const std::vector<std::string> names =
+        taskError
+            ? std::vector<std::string>{"Fault", "Cancelled", "DeadlineExceeded",
+                                       "AdmissionRejected"}
+            : std::vector<std::string>{"Arithmetic", "Bounds", "Shape", "Allocation", "Native"};
+    const auto family = taskError ? "TaskError" : "FaultKind";
+    std::unordered_set<unsigned> seen;
+    bool fallback = false;
+    std::vector<MatchCase> cases;
+    const auto before = *frame.tasks;
+    std::vector<std::shared_ptr<TaskChecks>> paths;
+    std::optional<ValueType> resultType;
+    auto context = expected;
+    if (context)
+      context->fallible = true;
+    for (const auto &arm : match.arms) {
+      std::optional<unsigned> tag;
+      if (arm.variant) {
+        auto found = std::ranges::find(names, name(*arm.variant));
+        if (name(*arm.family) != family || found == names.end()) {
+          error("S040", "unknown variant for " + std::string(family), arm.span);
+          return {};
+        }
+        tag = static_cast<unsigned>(found - names.begin()) + 1;
+        if (fallback || !seen.insert(*tag).second) {
+          error("S041", "duplicate or unreachable match case", arm.span);
+          return {};
+        }
+      } else {
+        if (fallback || seen.size() == names.size()) {
+          error("S041", "unreachable fallback", arm.span);
+          return {};
+        }
+        fallback = true;
+      }
+      auto branch = frame;
+      branch.conditional = true;
+      branch.tasks = std::make_shared<TaskChecks>(before);
+      std::vector<TypedStatement> statements;
+      std::unordered_set<std::string> fields, fieldBindings;
+      for (const auto &pattern : arm.fields) {
+        const auto fieldSpan = pattern.name;
+        const auto field = name(fieldSpan);
+        const auto binding = name(pattern.binding);
+        ErrorField fieldId;
+        ValueType fieldType;
+        if (taskError && tag == 1 && field == "kind") {
+          fieldId = ErrorField::Kind;
+          fieldType.builtin = BuiltinValue::FaultKind;
+        } else if (taskError && tag == 1 && field == "message") {
+          fieldId = ErrorField::Message;
+          fieldType.builtin = BuiltinValue::String;
+        } else if (taskError && tag == 4 && field == "reason") {
+          fieldId = ErrorField::Reason;
+          fieldType.builtin = BuiltinValue::String;
+        } else {
+          error("S042", "unknown field for selected variant", fieldSpan);
+          return {};
+        }
+        if (!fields.insert(field).second || !fieldBindings.insert(binding).second) {
+          error("S042", "duplicate pattern field", fieldSpan);
+          return {};
+        }
+        auto value = add(branch, fieldType, fieldSpan, ErrorFieldRead{*subject, fieldId});
+        if (!value)
+          return {};
+        const auto symbol = output_.symbols.size();
+        output_.symbols.push_back({binding, fieldType, pattern.binding, frame.function, false});
+        branch.locals[binding] = symbol;
+        statements.push_back({fieldSpan, symbol, *value});
+      }
+      auto value = suite(branch, arm.body, context, statements, fieldBindings);
+      if (!value)
+        return {};
+      auto actual = node(*value).type;
+      if (actual.task) {
+        error("S035", "match cannot return a task handle", arm.span);
+        return {};
+      }
+      if (resultType) {
+        if (actual.builtin != resultType->builtin || actual.tensor != resultType->tensor ||
+            actual.shape.size() != resultType->shape.size()) {
+          error("S043", "match branches need a common success type", arm.span);
+          return {};
+        }
+        resultType->fallible |= actual.fallible;
+        for (std::size_t axis = 0; axis < actual.shape.size(); ++axis)
+          if (!same(resultType->shape[axis], actual.shape[axis]))
+            resultType->shape[axis] = dynamic();
+      } else
+        resultType = actual;
+      finishBranch(before, branch, *value, arm.span);
+      paths.push_back(branch.tasks);
+      cases.push_back({tag, std::move(statements), *value});
+    }
+    if (!fallback && seen.size() != names.size()) {
+      error("S044", "non-exhaustive match over " + std::string(family), span);
+      return {};
+    }
+    for (auto pending : before.pending)
+      if (std::ranges::all_of(paths, [&](const auto &p) { return p->handled.contains(pending); }))
+        frame.tasks->handled.insert(pending);
+    for (const auto &[group, children] : before.children)
+      for (auto child : children)
+        if (std::ranges::all_of(paths, [&](const auto &p) {
+              return p->observed.contains(node(child).type.identity);
+            }))
+          frame.tasks->observed.insert(node(child).type.identity);
+    resultType->identity = 0;
+    return add(frame, *resultType, span, MatchOperation{*subject, std::move(cases)});
   }
   std::optional<TensorData> tensorData(ExprId id, const std::optional<ValueType> &context,
                                        std::size_t depth = 0) {

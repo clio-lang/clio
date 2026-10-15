@@ -77,4 +77,18 @@ The same unit suite runs with AddressSanitizer and UndefinedBehaviorSanitizer, i
 
 ## Local task syntax
 
-The parser now also accepts parallel blocks, spawn/await/try prefixes, and `! TaskError` function results. `try await spawn f(args)` groups as `try (await (spawn f(args)))`. A block consumes its indented suite and ending dedent; a following statement is not mistaken for a postfix continuation. Task nodes keep source spans and flat arena references, and parallel blocks retain ordered statement roots. Ownership and error-channel checks belong to [semantic analysis](semantics.md), while [native task lowering](native-tasks.md#compiled-source-task-subset) emits resumable frames. Other error families, catch/match, and placement remain outside this implemented syntax subset.
+The parser now also accepts parallel blocks, spawn/await/try prefixes, and `! TaskError` function results. `try await spawn f(args)` groups as `try (await (spawn f(args)))`. A block consumes its indented suite and ending dedent; a following statement is not mistaken for a postfix continuation. Task nodes keep source spans and flat arena references, and parallel blocks retain ordered statement roots. Ownership and error-channel checks belong to [semantic analysis](semantics.md), while [native task lowering](native-tasks.md#compiled-source-task-subset) emits resumable frames. The parser also accepts inline/block `catch fn(error): ...` handlers, `fail error`, and `match` with qualified variants, selected named fields, field-binding aliases, and a final `_` fallback. Semantic analysis currently restricts these to the built-in TaskError/FaultKind families. General enum/error declarations, variant construction, ordinary anonymous functions, other error families, and placement remain outside this implemented subset.
+
+Catch binds less tightly than pipelines (precedence 5 versus 10). A handler's inline body is a complete expression; use parentheses to apply another catch or pipeline to the combined result rather than to the handler body. Match subjects are expressions; arms contain an inline expression or an indented suite. Field patterns accept `{ kind, message }` and `{ kind: cause }`; omitted fields remain unbound. Pattern expressions, guards, and nested destructuring are not implemented.
+
+```kalandra
+result catch fn(error):
+  match error:
+    TaskError.Fault { kind }:
+      match kind:
+        FaultKind.Allocation: 0
+        _: -1
+    _: -2
+```
+
+The surrounding success type supplies the float32 literal context in this example. Match/catch bodies retain ordered statement roots and lexical bindings in the flat AST. The existing nesting, token, and node limits apply to these constructs too.

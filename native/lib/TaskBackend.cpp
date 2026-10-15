@@ -25,7 +25,12 @@ enum class Code {
   Try,
   Join,
   Label,
-  Return
+  Return,
+  Catch,
+  Case,
+  Jump,
+  Field,
+  Fail
 };
 struct Instruction {
   Code code;
@@ -253,6 +258,72 @@ private:
           env.boundary->jumps.push_back(index);
         }
       }
+    } else if (const auto *handler = std::get_if<CatchOperation>(&node.operation)) {
+      auto operand = expression(plan, handler->operand, env, stack);
+      ValueType errorType;
+      errorType.builtin = BuiltinValue::TaskError;
+      const auto error = slot(plan, errorType);
+      auto nested = env;
+      nested.symbols[handler->parameter] = error;
+      Boundary boundary{output, {}, {}};
+      nested.boundary = &boundary;
+      const auto dispatch = plan.code.size();
+      plan.code.push_back({Code::Catch, output, {operand, error}});
+      plan.code[dispatch].jump = plan.code.size();
+      Slot result = output;
+      for (const auto &statement : handler->body) {
+        result = expression(plan, statement.value, nested, stack);
+        if (statement.binding)
+          nested.symbols[*statement.binding] = result;
+      }
+      plan.code.push_back({Code::Copy, output, {result}});
+      const auto exit = plan.code.size();
+      plan.code.push_back({Code::Label, 0, {}});
+      plan.code[dispatch].target = exit;
+      for (auto jump : boundary.jumps)
+        plan.code[jump].jump = exit;
+    } else if (const auto *match = std::get_if<MatchOperation>(&node.operation)) {
+      auto subject = expression(plan, match->subject, env, stack);
+      std::vector<std::size_t> exits;
+      std::optional<std::size_t> previous;
+      for (const auto &arm : match->cases) {
+        if (previous)
+          plan.code[*previous].jump = plan.code.size();
+        previous.reset();
+        if (arm.tag) {
+          previous = plan.code.size();
+          plan.code.push_back({Code::Case, output, {subject}, *arm.tag});
+        }
+        auto branch = env;
+        Slot result = output;
+        for (const auto &statement : arm.body) {
+          result = expression(plan, statement.value, branch, stack);
+          if (statement.binding)
+            branch.symbols[*statement.binding] = result;
+        }
+        plan.code.push_back({Code::Copy, output, {result}});
+        exits.push_back(plan.code.size());
+        plan.code.push_back({Code::Jump, 0, {}});
+      }
+      // A corrupt internal tag is a checked fault, never an implicit wildcard.
+      if (previous)
+        plan.code[*previous].jump = SIZE_MAX;
+      const auto exit = plan.code.size();
+      plan.code.push_back({Code::Label, 0, {}});
+      for (auto jump : exits)
+        plan.code[jump].jump = exit;
+    } else if (const auto *field = std::get_if<ErrorFieldRead>(&node.operation)) {
+      auto subject = expression(plan, field->subject, env, stack);
+      plan.code.push_back({Code::Field, output, {subject}, static_cast<std::size_t>(field->field)});
+    } else if (const auto *failure = std::get_if<FailOperation>(&node.operation)) {
+      auto error = expression(plan, failure->error, env, stack);
+      const auto index = plan.code.size();
+      plan.code.push_back({Code::Fail,
+                           output,
+                           {error},
+                           env.boundary->output,
+                           env.boundary->group.value_or(SIZE_MAX)});
+      env.boundary->jumps.push_back(index);
     } else if (std::holds_alternative<Float32Literal>(node.operation))
       plan.code.push_back({Code::Literal, output, {}, 0, 0, 0, id});
     else if (const auto *unary = std::get_if<ScalarUnary>(&node.operation)) {
@@ -331,7 +402,7 @@ public:
     auto main = std::ranges::find_if(planner.input.functions,
                                      [](const auto &f) { return f.name == "main"; });
     if (main == planner.input.functions.end() || !main->parameters.empty() ||
-        main->resultType.tensor)
+        main->resultType.tensor || main->resultType.builtin != BuiltinValue::Numeric)
       throw std::runtime_error("native task entry requires parameterless float32 main");
     const auto id = std::size_t(main - planner.input.functions.begin());
     auto *entry = module.getFunction("_mlir_ciface_kalandra_entry");
@@ -402,15 +473,22 @@ private:
     return llvm::StructType::get(context, {pointer, pointer, i64, dims, dims});
   }
   std::string key(const ValueType &type) {
-    return type.task     ? "handle"
-           : type.tensor ? "tensor" + std::to_string(type.shape.size())
-                         : "scalar";
+    return type.builtin == BuiltinValue::TaskError   ? "TaskError"
+           : type.builtin == BuiltinValue::FaultKind ? "FaultKind"
+           : type.builtin == BuiltinValue::String    ? "String"
+           : type.task                               ? "handle"
+           : type.tensor                             ? "tensor" + std::to_string(type.shape.size())
+                                                     : "scalar";
   }
   llvm::StructType *valueType(const ValueType &type) {
     const auto name = key(type);
     if (auto found = values.find(name); found != values.end())
       return found->second;
-    Type *payload = type.task     ? static_cast<Type *>(handleType)
+    Type *payload = type.builtin == BuiltinValue::TaskError   ? static_cast<Type *>(failureType)
+                    : type.builtin == BuiltinValue::FaultKind ? i32
+                    : type.builtin == BuiltinValue::String
+                        ? static_cast<Type *>(llvm::StructType::get(context, {pointer, i64}))
+                    : type.task   ? static_cast<Type *>(handleType)
                     : type.tensor ? static_cast<Type *>(descriptor(type))
                                   : f32;
     return values[name] =
@@ -456,8 +534,11 @@ private:
     copy(fn->getArg(1), fn->getArg(3), wrapper);
     builder.CreateRet(builder.getTrue());
     auto *constant = llvm::ConstantStruct::get(
-        layoutType, {c64(type.tensor ? type.shape.size() + 2 : 1), c64(size(wrapper)),
-                     c64(alignment(wrapper)), fn, destroy});
+        layoutType,
+        {c64(type.builtin != BuiltinValue::Numeric ? 0x10000 + static_cast<unsigned>(type.builtin)
+             : type.tensor                         ? type.shape.size() + 2
+                                                   : 1),
+         c64(size(wrapper)), c64(alignment(wrapper)), fn, destroy});
     return layouts[name] = new llvm::GlobalVariable(module, layoutType, true,
                                                     llvm::GlobalValue::InternalLinkage, constant,
                                                     "value.layout." + name);
@@ -579,6 +660,22 @@ private:
         break;
       }
       case Code::Kernel: {
+        // A shape refinement on a result must preserve an error without reading
+        // its absent tensor payload. Only the success path enters the kernel.
+        if (std::holds_alternative<ShapeCheck>(
+                planner.input.expressions[instruction.source].operation) &&
+            plan.slots[instruction.args[0]].fallible) {
+          auto input = instruction.args[0];
+          auto *header = builder.CreateStructGEP(valueType(plan.slots[input]), slot(input), 0);
+          auto *error = Block::Create(context, "refine.error", resume);
+          auto *success = Block::Create(context, "refine.success", resume);
+          builder.CreateCondBr(hasFailure(header), error, success);
+          builder.SetInsertPoint(error);
+          copy(builder.CreateStructGEP(valueType(type), slot(instruction.output), 0), header,
+               failureType);
+          builder.CreateBr(next);
+          builder.SetInsertPoint(success);
+        }
         auto *fn =
             module.getFunction("_mlir_ciface_kalandra_fn_" + std::to_string(instruction.target));
         std::vector<Value *> arguments;
@@ -643,12 +740,17 @@ private:
         builder.CreateCondBr(ok, next, abort);
         break;
       }
+      case Code::Fail:
       case Code::Try: {
         auto *header = builder.CreateStructGEP(valueType(plan.slots[instruction.args[0]]),
-                                               slot(instruction.args[0]), 0);
+                                               slot(instruction.args[0]),
+                                               instruction.code == Code::Fail ? 1 : 0);
         auto *propagate = Block::Create(context, "try.propagate", resume);
         auto *success = Block::Create(context, "try.success", resume);
-        builder.CreateCondBr(hasFailure(header), propagate, success);
+        if (instruction.code == Code::Fail)
+          builder.CreateBr(propagate);
+        else
+          builder.CreateCondBr(hasFailure(header), propagate, success);
         builder.SetInsertPoint(propagate);
         if (instruction.group != SIZE_MAX)
           call("kalandra_task_fail_group_v1", voidType, {task, group(instruction.group), header});
@@ -659,6 +761,62 @@ private:
         builder.CreateBr(blocks[instruction.jump]);
         builder.SetInsertPoint(success);
         copy(slot(instruction.output), slot(instruction.args[0]), valueType(type));
+        builder.CreateBr(next);
+        break;
+      }
+      case Code::Catch: {
+        auto input = instruction.args[0];
+        auto *header = builder.CreateStructGEP(valueType(plan.slots[input]), slot(input), 0);
+        auto *handle = Block::Create(context, "catch.error", resume);
+        auto *success = Block::Create(context, "catch.success", resume);
+        builder.CreateCondBr(hasFailure(header), handle, success);
+        builder.SetInsertPoint(handle);
+        copy(payload(instruction.args[1]), header, failureType);
+        builder.CreateBr(blocks[instruction.jump]);
+        builder.SetInsertPoint(success);
+        copy(slot(instruction.output), slot(input), valueType(type));
+        builder.CreateBr(blocks[instruction.target]);
+        break;
+      }
+      case Code::Case: {
+        auto subject = instruction.args[0];
+        auto *tagAddress = plan.slots[subject].builtin == BuiltinValue::TaskError
+                               ? builder.CreateStructGEP(failureType, payload(subject), 0)
+                               : payload(subject);
+        auto *tag = builder.CreateLoad(i32, tagAddress);
+        builder.CreateCondBr(builder.CreateICmpEQ(tag, c32(instruction.target)), next,
+                             instruction.jump == SIZE_MAX ? abort : blocks[instruction.jump]);
+        break;
+      }
+      case Code::Jump:
+        builder.CreateBr(blocks[instruction.jump]);
+        break;
+      case Code::Field: {
+        auto *error = payload(instruction.args[0]);
+        auto *code = loadFailure(error, 1);
+        auto field = static_cast<ErrorField>(instruction.target);
+        if (field == ErrorField::Kind) {
+          auto *kind = builder.CreateSelect(
+              builder.CreateICmpEQ(code, c64(1)), c32(3),
+              builder.CreateSelect(builder.CreateICmpEQ(code, c64(2)), c32(4), c32(5)));
+          builder.CreateStore(kind, payload(instruction.output));
+        } else {
+          auto *textType = llvm::cast<llvm::StructType>(valueType(type)->getElementType(1));
+          auto text = [&](const char *message) -> Value * {
+            return llvm::ConstantStruct::get(
+                textType, {llvm::cast<llvm::Constant>(builder.CreateGlobalString(message)),
+                           c64(std::char_traits<char>::length(message))});
+          };
+          Value *message;
+          if (field == ErrorField::Reason)
+            message = text("task admission rejected");
+          else
+            message = builder.CreateSelect(
+                builder.CreateICmpEQ(code, c64(1)), text("tensor shape mismatch"),
+                builder.CreateSelect(builder.CreateICmpEQ(code, c64(2)), text("allocation failed"),
+                                     text("native execution fault")));
+          builder.CreateStore(message, payload(instruction.output));
+        }
         builder.CreateBr(next);
         break;
       }

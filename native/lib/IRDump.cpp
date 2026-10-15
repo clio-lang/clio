@@ -4,6 +4,10 @@
 
 namespace kalandra {
 std::string describeType(const ValueType &type) {
+  if (type.builtin != BuiltinValue::Numeric)
+    return type.builtin == BuiltinValue::TaskError   ? "TaskError"
+           : type.builtin == BuiltinValue::FaultKind ? "FaultKind"
+                                                     : "String";
   if (!type.tensor)
     return std::string(type.task ? "task<float32>" : "float32") +
            (type.fallible ? " ! TaskError" : "");
@@ -34,6 +38,16 @@ std::string dumpTypedIR(const TypedModule &module) {
       value(ids[i]);
     }
     out << ')';
+  };
+  const auto body = [&](const std::vector<TypedStatement> &statements) {
+    out << " body=[";
+    for (const auto &statement : statements) {
+      if (statement.binding)
+        out << '$' << *statement.binding << '=';
+      value(statement.value);
+      out << ';';
+    }
+    out << ']';
   };
   for (FunctionId id = 0; id < module.functions.size(); ++id) {
     const auto &function = module.functions[id];
@@ -106,6 +120,27 @@ std::string dumpTypedIR(const TypedModule &module) {
             } else if constexpr (std::is_same_v<T, ParallelOperation>) {
               out << "parallel group=" << operation.group << " result=";
               value(operation.result);
+              body(operation.body);
+            } else if constexpr (std::is_same_v<T, CatchOperation>) {
+              out << "result.catch ";
+              value(operation.operand);
+              out << " error=$" << operation.parameter << " result=";
+              value(operation.result);
+              body(operation.body);
+            } else if constexpr (std::is_same_v<T, MatchOperation>) {
+              out << "match ";
+              value(operation.subject);
+              for (const auto &arm : operation.cases) {
+                out << " case=" << (arm.tag ? std::to_string(*arm.tag) : "_") << " result=";
+                value(arm.result);
+                body(arm.body);
+              }
+            } else if constexpr (std::is_same_v<T, ErrorFieldRead>) {
+              out << "error.field " << static_cast<unsigned>(operation.field) << ' ';
+              value(operation.subject);
+            } else if constexpr (std::is_same_v<T, FailOperation>) {
+              out << "result.fail ";
+              value(operation.error);
             } else if constexpr (std::is_same_v<T, ShapeCheck>) {
               out << "shape.check ";
               value(operation.input);

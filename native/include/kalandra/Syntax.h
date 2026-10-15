@@ -131,10 +131,31 @@ struct TaskExpr {
 struct ParallelExpr {
   std::vector<Statement> body;
 };
+struct CatchExpr {
+  ExprId operand;
+  SourceSpan parameter;
+  std::vector<Statement> body;
+};
+struct PatternField {
+  SourceSpan name, binding;
+};
+struct MatchArm {
+  SourceSpan span;
+  std::optional<SourceSpan> family, variant;
+  std::vector<PatternField> fields;
+  std::vector<Statement> body;
+};
+struct MatchExpr {
+  ExprId subject;
+  std::vector<MatchArm> arms;
+};
+struct FailExpr {
+  ExprId operand;
+};
 struct Expr {
   SourceSpan span;
   std::variant<NameExpr, NumberExpr, UnaryExpr, BinaryExpr, CallExpr, ArrayExpr, TaskExpr,
-               ParallelExpr>
+               ParallelExpr, CatchExpr, MatchExpr, FailExpr>
       value;
 };
 struct Statement {

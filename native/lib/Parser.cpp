@@ -254,6 +254,28 @@ private:
         left = call;
         continue;
       }
+      if (word("catch") && minimum <= 5) {
+        advance();
+        if (!word("fn")) {
+          error("P013", "catch requires an explicit fn(error) handler", current().span);
+          return {};
+        }
+        advance();
+        if (!expect(TokenKind::LeftParen, "expected '(' before handler parameter"))
+          return {};
+        auto parameter = expect(TokenKind::Identifier, "expected handler parameter name");
+        if (!parameter || !expect(TokenKind::RightParen, "expected ')' after handler parameter") ||
+            !expect(TokenKind::Colon, "expected ':' before handler body"))
+          return {};
+        auto body = suite();
+        if (!body)
+          return {};
+        auto span = SourceSpan{node(*left).span.begin, body->back().span.end};
+        left = add({span, CatchExpr{*left, parameter->span, std::move(*body)}});
+        if (!left)
+          return {};
+        continue;
+      }
       const auto power = precedence(current().kind);
       if (power < minimum)
         break;
@@ -291,12 +313,107 @@ private:
       return {};
     return values;
   }
+  std::optional<std::vector<Statement>> suite() {
+    std::vector<Statement> body;
+    if (!consume(TokenKind::Newline)) {
+      auto value = parseExpression();
+      if (!value)
+        return {};
+      body.push_back({node(*value).span, {}, {}, *value});
+      return body;
+    }
+    if (!expect(TokenKind::Indent, "expected an indented body"))
+      return {};
+    while (!at(TokenKind::Dedent) && !at(TokenKind::End)) {
+      auto statement = parseStatement();
+      if (!statement)
+        return {};
+      body.push_back(std::move(*statement));
+    }
+    auto end = expect(TokenKind::Dedent, "expected end of body");
+    if (!end)
+      return {};
+    if (body.empty() || body.back().binding) {
+      error("P007", "body must end with a result expression", end->span);
+      return {};
+    }
+    return body;
+  }
   std::optional<ExprId> prefix() {
     const auto token = current();
     if (consume(TokenKind::Number))
       return add({token.span, NumberExpr{token.span}});
     if (at(TokenKind::Identifier)) {
       const auto text = source_->slice(token.span);
+      if (text == "match") {
+        advance();
+        auto subject = parseExpression();
+        if (!subject || !expect(TokenKind::Colon, "expected ':' after match subject") ||
+            !expect(TokenKind::Newline, "match cases start on a new line") ||
+            !expect(TokenKind::Indent, "expected indented match cases"))
+          return {};
+        std::vector<MatchArm> arms;
+        while (!at(TokenKind::Dedent) && !at(TokenKind::End)) {
+          MatchArm arm;
+          arm.span.begin = current().span.begin;
+          if (word("_"))
+            advance();
+          else {
+            auto family = expect(TokenKind::Identifier, "expected variant family or '_'");
+            if (!family || !expect(TokenKind::Dot, "expected qualified variant name"))
+              return {};
+            auto variant = expect(TokenKind::Identifier, "expected variant name");
+            if (!variant)
+              return {};
+            arm.family = family->span;
+            arm.variant = variant->span;
+            if (consume(TokenKind::LeftBrace)) {
+              if (!at(TokenKind::RightBrace)) {
+                do {
+                  auto field = expect(TokenKind::Identifier, "expected payload field name");
+                  if (!field)
+                    return {};
+                  auto binding = field;
+                  if (consume(TokenKind::Colon)) {
+                    binding = expect(TokenKind::Identifier, "expected field binding name");
+                    if (!binding)
+                      return {};
+                  }
+                  arm.fields.push_back({field->span, binding->span});
+                } while (consume(TokenKind::Comma) && !at(TokenKind::RightBrace));
+              }
+              if (!expect(TokenKind::RightBrace, "expected '}' after pattern fields"))
+                return {};
+            }
+          }
+          if (!expect(TokenKind::Colon, "expected ':' before match arm"))
+            return {};
+          auto body = suite();
+          if (!body)
+            return {};
+          arm.span.end = body->back().span.end;
+          arm.body = std::move(*body);
+          arms.push_back(std::move(arm));
+          if (tokens_[position_ - 1].kind != TokenKind::Dedent &&
+              !expect(TokenKind::Newline, "expected newline after match arm"))
+            return {};
+        }
+        if (!expect(TokenKind::Dedent, "expected end of match"))
+          return {};
+        if (arms.empty()) {
+          error("P014", "match requires cases", token.span);
+          return {};
+        }
+        auto span = SourceSpan{token.span.begin, arms.back().span.end};
+        return add({span, MatchExpr{*subject, std::move(arms)}});
+      }
+      if (text == "fail") {
+        advance();
+        auto operand = parseExpression(40);
+        if (!operand)
+          return {};
+        return add({{token.span.begin, node(*operand).span.end}, FailExpr{*operand}});
+      }
       if (text == "parallel") {
         advance();
         if (!expect(TokenKind::Colon, "expected ':' after parallel") ||
@@ -330,7 +447,7 @@ private:
                                         : TaskPrefix::Try;
         return add({{token.span.begin, node(*operand).span.end}, TaskExpr{prefix, *operand}});
       }
-      if (text == "match" || text == "fn" || text == "fail" || text == "catch") {
+      if (text == "fn" || text == "catch") {
         error("P011", "this construct is not implemented in the first frontend", token.span);
         return {};
       }

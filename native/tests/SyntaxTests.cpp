@@ -54,7 +54,33 @@ void validTree(const ParseResult &result) {
               span(statement.span);
               id(statement.expression);
             }
-          } else if constexpr (std::is_same_v<T, ArrayExpr>) {
+          } else if constexpr (std::is_same_v<T, CatchExpr>) {
+            id(value.operand);
+            span(value.parameter);
+            for (const auto &statement : value.body) {
+              span(statement.span);
+              id(statement.expression);
+            }
+          } else if constexpr (std::is_same_v<T, MatchExpr>) {
+            id(value.subject);
+            for (const auto &arm : value.arms) {
+              span(arm.span);
+              if (arm.family)
+                span(*arm.family);
+              if (arm.variant)
+                span(*arm.variant);
+              for (const auto &field : arm.fields) {
+                span(field.name);
+                span(field.binding);
+              }
+              for (const auto &statement : arm.body) {
+                span(statement.span);
+                id(statement.expression);
+              }
+            }
+          } else if constexpr (std::is_same_v<T, FailExpr>)
+            id(value.operand);
+          else if constexpr (std::is_same_v<T, ArrayExpr>) {
             for (auto element : value.elements)
               id(element);
           }

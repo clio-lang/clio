@@ -289,7 +289,11 @@ private:
           } else if constexpr (std::is_same_v<T, ReduceSum>)
             return reduce(loc, expression(frame, operation.input), operation);
           else if constexpr (std::is_same_v<T, TaskOperation> ||
-                             std::is_same_v<T, ParallelOperation>) {
+                             std::is_same_v<T, ParallelOperation> ||
+                             std::is_same_v<T, CatchOperation> ||
+                             std::is_same_v<T, MatchOperation> ||
+                             std::is_same_v<T, ErrorFieldRead> ||
+                             std::is_same_v<T, FailOperation>) {
             throw LoweringFailure{"task operation requires continuation lowering"};
           } else if constexpr (std::is_same_v<T, ShapeCheck>) {
             auto input = expression(frame, operation.input);
@@ -384,7 +388,9 @@ std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,
   if (std::ranges::any_of(input.functions, [](const auto &f) { return f.resultType.fallible; }) ||
       std::ranges::any_of(input.expressions, [](const auto &e) {
         return std::holds_alternative<TaskOperation>(e.operation) ||
-               std::holds_alternative<ParallelOperation>(e.operation);
+               std::holds_alternative<ParallelOperation>(e.operation) ||
+               std::holds_alternative<CatchOperation>(e.operation) ||
+               std::holds_alternative<MatchOperation>(e.operation);
       }))
     return lowerTaskNative(input, testEntry);
   DialectRegistry registry;

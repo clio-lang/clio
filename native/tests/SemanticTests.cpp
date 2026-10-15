@@ -73,11 +73,95 @@ void validIR(const TypedModule &module) {
             operand(op.result);
             for (const auto &statement : op.body)
               operand(statement.value);
-          } else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, ShapeCheck>)
+          } else if constexpr (std::is_same_v<T, CatchOperation>) {
+            operand(op.operand);
+            operand(op.result);
+            require(op.parameter < module.symbols.size(), "bad handler parameter");
+            for (const auto &statement : op.body)
+              operand(statement.value);
+          } else if constexpr (std::is_same_v<T, MatchOperation>) {
+            operand(op.subject);
+            for (const auto &arm : op.cases) {
+              operand(arm.result);
+              for (const auto &statement : arm.body)
+                operand(statement.value);
+            }
+          } else if constexpr (std::is_same_v<T, ErrorFieldRead>)
+            operand(op.subject);
+          else if constexpr (std::is_same_v<T, FailOperation>)
+            operand(op.error);
+          else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, ShapeCheck>)
             operand(op.input);
         },
         expression.operation);
   }
+}
+void taskRecovery() {
+  const std::string helper = "fn f() -> float32 ! TaskError:\n  1\n";
+  const std::string prefix =
+      helper + "fn main() -> float32:\n  f() catch fn(error):\n    match error:\n";
+  auto result =
+      analyze(prefix + "      TaskError.Fault { kind: cause, message: detail }:\n"
+                       "        match cause:\n"
+                       "          FaultKind.Arithmetic: 1\n          FaultKind.Bounds: 2\n"
+                       "          FaultKind.Shape: 3\n          FaultKind.Allocation: 4\n          "
+                       "FaultKind.Native: 5\n"
+                       "      TaskError.AdmissionRejected { reason }: 6\n"
+                       "      TaskError.Cancelled: 7\n      TaskError.DeadlineExceeded: 8\n");
+  accepted(result);
+  validIR(*result.module);
+  const auto ir = dumpTypedIR(*result.module);
+  require(ir.find("result.catch") != std::string::npos &&
+              ir.find("FaultKind") != std::string::npos && ir.find("String") != std::string::npos,
+          "typed errors missing from IR");
+  auto forwarding = analyze(helper + "fn main() -> float32:\n  result = f() catch fn(error): fail "
+                                     "error\n  result catch fn(error): 2\n");
+  accepted(forwarding);
+  validIR(*forwarding.module);
+  rejected(prefix + "      TaskError.Fault: 1\n", "S044");
+  rejected(prefix + "      _: 1\n      TaskError.Fault: 2\n", "S041");
+  rejected(prefix + "      TaskError.Fault: 1\n      TaskError.Fault: 2\n      _: 3\n", "S041");
+  rejected(prefix + "      TaskError.Unknown: 1\n      _: 2\n", "S040");
+  rejected(prefix + "      FaultKind.Shape: 1\n      _: 2\n", "S040");
+  rejected(prefix + "      TaskError.Fault { reason }: 1\n      _: 2\n", "S042");
+  rejected(prefix + "      TaskError.Fault { kind, kind }: 1\n      _: 2\n", "S042");
+  rejected(prefix + "      TaskError.Fault { kind: x, message: x }: 1\n      _: 2\n", "S042");
+  rejected(prefix + "      TaskError.Fault { kind }: kind + 1\n      _: 2\n", "S010");
+  rejected(prefix + "      TaskError.Fault { message }: message\n      _: 2\n", "S010");
+  rejected(helper + "fn main() -> float32:\n  f() catch fn(error): error + 1\n", "S010");
+  rejected(helper + "fn main() -> float32:\n  f() catch fn(error): fail error\n", "S036");
+  rejected("fn main() -> float32:\n  1 catch fn(error): 2\n", "S039");
+  rejected("fn main() -> float32:\n  match 1:\n    _: 2\n", "S013");
+  rejected(helper + "fn main() -> float32:\n  f() catch fn(error):\n    unused = f()\n    1\n",
+           "S036");
+  rejected(helper + "fn main() -> float32:\n  result = f() catch fn(error): 1\n  error\n", "S016");
+  rejected(
+      prefix +
+          "      TaskError.Fault { kind }:\n        kind: float32 = 1\n        2\n      _: 3\n",
+      "S008");
+  rejected(helper +
+               "fn main() -> float32:\n  f() catch fn(error):\n    error: float32 = 1\n    2\n",
+           "S008");
+  auto shapes = analyze(
+      "fn echo(a: Tensor[float32, ?]) -> Tensor[float32, ?]:\n  a\n"
+      "fn choose(a: Tensor[float32, ?], b: Tensor[float32, ?]) -> Tensor[float32, ?] ! TaskError:\n"
+      "  result = parallel:\n    work = spawn echo(a)\n    try await work\n"
+      "  result catch fn(error): b\n");
+  accepted(shapes);
+  validIR(*shapes.module);
+  const auto &chosen = shapes.module->functions[1].resultType.shape[0];
+  require(!chosen.constant &&
+              chosen.identity != shapes.module->symbols[shapes.module->functions[1].parameters[0]]
+                                     .type.shape[0]
+                                     .identity &&
+              chosen.identity != shapes.module->symbols[shapes.module->functions[1].parameters[1]]
+                                     .type.shape[0]
+                                     .identity,
+          "catch inherited one branch's shape");
+  // One conditional path cannot silently discharge a result from outside it.
+  rejected(helper + "fn main() -> float32:\n  other = f()\n  f() catch fn(error): other catch "
+                    "fn(nested): 1\n",
+           "S036");
 }
 void taskTypesAndOwnership() {
   const std::string helper = "fn twice(x: float32) -> float32:\n  x * 2\n";
@@ -319,6 +403,7 @@ void limitsAndRobustness() {
 } // namespace
 int main(int argc, char **argv) {
   try {
+    taskRecovery();
     taskTypesAndOwnership();
     literalContexts();
     resolutionAndCalls();
