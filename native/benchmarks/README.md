@@ -181,3 +181,14 @@ python3 native/benchmarks/gpu.py \
 ```
 
 `--baseline-dir` requires the saved `scaling` executable and both `kernels/kernel0.metallib` and `kernel1.metallib`. Use matching harness, inputs, runtime, build flags, ABI and dispatch geometry. The runner alternates fresh-process order baseline/current, current/baseline, baseline/current, with matching shuffle seeds. It retains both sets of raw samples, per-process medians, process order and baseline artifact hashes, and checks that both use the same device and that saved artifacts remain unchanged. This reduces ordering bias without controlling clocks, thermals or desktop load. The original baseline report identifies its source/toolchain provenance.
+
+## Strict GPU matmul layout study
+
+The [layout comparison](../../benchmarks/results/native-gpu-2026-10-15-tiling.md) implements an 8×8 cooperative shared-memory candidate and 2×2/2×1 register candidates as isolated MLIR research kernels. Register tiles improve some larger dense shapes but regress small/narrow shapes; production selection remains unchanged.
+
+```sh
+python3 native/benchmarks/gpu_tiling.py \
+  --output benchmarks/results/gpu-tiling-reproduction.json
+```
+
+The runner requires the existing optional Apple GPU toolchain. It qualifies all four layouts against APFloat in optimized and ASan/UBSan host builds, with Metal API validation, before running three interleaved timing processes. The eight workloads use two excluded warmups and seven samples per layout/process. Commands time preallocated resident GPU work only; transfers, runtime task lifecycle and CPU performance are not measured. Raw samples, qualification counts, toolchain/build commands and source/artifact hashes are retained. Existing reports are preserved. See the report for exact boundaries and why these eight shapes are insufficient to choose production dispatch thresholds.
