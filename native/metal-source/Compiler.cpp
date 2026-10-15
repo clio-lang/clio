@@ -360,45 +360,62 @@ class Compiler {
         if (found == cpuFunctions.end() || locals.contains(name) || name == "main")
           reject(span, "unknown or shadowed GPU function");
         const auto &entryFunction = cpu.functions[found->second];
-        if (call->arguments.size() != 2 || entryFunction.parameters.size() != 2 ||
-            !entryFunction.resultType.tensor ||
-            !cpu.symbols[entryFunction.parameters[0]].type.tensor ||
-            !cpu.symbols[entryFunction.parameters[1]].type.tensor)
-          reject(span,
-                 "the first GPU entry ABI requires two tensor parameters and a tensor result");
-        auto left = expression(call->arguments[0]);
-        auto right = expression(call->arguments[1]);
+        if (call->arguments.size() != entryFunction.parameters.size() ||
+            !entryFunction.resultType.tensor)
+          reject(span, "GPU call arguments must match a tensor-returning function");
+        std::vector<Value> tensors, scalars;
+        for (std::size_t i = 0; i < call->arguments.size(); ++i) {
+          auto value = expression(call->arguments[i]);
+          const bool tensor = cpu.symbols[entryFunction.parameters[i]].type.tensor;
+          if (value.kind != (tensor ? Value::Tensor : Value::Scalar))
+            reject(node(call->arguments[i]).span, "GPU argument type mismatch");
+          (tensor ? tensors : scalars).push_back(value);
+        }
+        if (tensors.empty() || tensors.size() > 2 || scalars.size() > 8)
+          reject(span, "GPU entries require one or two tensors and at most eight float32 scalars");
         auto target = expression(*task->placement);
         if (target.kind != Value::Target || !target.gpu)
           reject(span, "the Metal source path requires a GPU target");
-        if (left.kind != Value::Tensor || right.kind != Value::Tensor || !left.gpu || !right.gpu ||
-            left.device != target.device || right.device != target.device)
-          reject(span, "GPU arguments must be explicitly transferred to the selected device");
+        for (auto value : tensors)
+          if (!value.gpu || value.device != target.device)
+            reject(span, "GPU arguments must be explicitly transferred to the selected device");
+        auto left = tensors[0], right = tensors.back();
         if (left.length && right.length && left.length != right.length)
           reject(span, "elementwise argument shapes differ");
-        if (!left.length || !right.length) {
+        if (tensors.size() == 2 && (!left.length || !right.length)) {
           auto [line, column] = syntax.source->location(span.begin);
           steps.push_back("if (" + ref(left) + ".shape()[0]!=" + ref(right) +
                           ".shape()[0]) { task.fault(1," + std::to_string(line) + "," +
                           std::to_string(column) + "); return; }\n");
         }
+        const bool legacy = tensors.size() == 2 && scalars.empty();
+        auto signature = ", m::ElementwiseSignature{" + std::to_string(tensors.size()) + "," +
+                         std::to_string(scalars.size()) + "}";
+        auto pack = [&](const std::vector<Value> &values, std::string type) {
+          std::string result = "std::array<" + type + "," + std::to_string(values.size()) + ">{";
+          for (std::size_t i = 0; i < values.size(); ++i)
+            result += (i ? ", " : "") + ref(values[i]);
+          return result + "}";
+        };
+        auto arguments = legacy ? ref(left) + ", " + ref(right)
+                                : pack(tensors, "m::Buffer") + ", " + pack(scalars, "float");
         auto [entry, inserted] = entries.emplace(found->second, entries.size());
         (void)inserted;
         auto kernel = field("m::Kernel"), out = field("TaskHandle");
         Value result{Value::Task, next - 1, true, target.device,
                      left.length ? left.length : right.length};
-        steps.push_back("auto target = " + device(target) + ";\nif (!target) { " +
-                        error("target.error()") +
-                        " }\n"
-                        "auto kernel = r.loadElementwiseKernel(f.directory + \"/kernel" +
-                        std::to_string(entry->second) +
-                        ".metallib\", *target);\n"
-                        "if (!kernel) { " +
-                        error("kernel.error()") + " }\nf." + kernel +
-                        " = *kernel;\n"
-                        "f." +
-                        out + " = r.elementwise(task, f.group, f." + kernel + ", " + ref(left) +
-                        ", " + ref(right) + ");\n" + check("f." + out));
+        steps.push_back(
+            "auto target = " + device(target) + ";\nif (!target) { " + error("target.error()") +
+            " }\n"
+            "auto kernel = r.loadElementwiseKernel(f.directory + \"/kernel" +
+            std::to_string(entry->second) + ".metallib\", *target" + (legacy ? "" : signature) +
+            ");\n"
+            "if (!kernel) { " +
+            error("kernel.error()") + " }\nf." + kernel +
+            " = *kernel;\n"
+            "f." +
+            out + " = r.elementwise(task, f.group, f." + kernel + ", " + arguments + ");\n" +
+            check("f." + out));
         tasks.insert(result.slot);
         return result;
       }
@@ -411,7 +428,7 @@ class Compiler {
     std::ostringstream code;
     std::size_t counter = 0, callDepth = 0;
     std::set<std::size_t> active;
-    std::unordered_map<std::string, unsigned> dependencies{{"%x", 1}, {"%y", 2}};
+    std::unordered_map<std::string, unsigned> dependencies;
     auto temporary = [&] {
       if (counter >= 100000)
         reject({}, "GPU IR expansion limit exceeded");
@@ -483,14 +500,39 @@ class Compiler {
       active.erase(fnId);
       return result;
     };
-    auto result = invoke(function, {"%x", "%y"});
-    if (dependencies[result] != 3)
+    std::vector<std::string> args;
+    unsigned tensors = 0, scalars = 0;
+    std::string bindings, loads;
+    for (auto parameter : cpu.functions[function].parameters) {
+      if (cpu.symbols[parameter].type.tensor) {
+        auto buffer = "%a" + std::to_string(tensors), lane = "%lane" + std::to_string(tensors);
+        bindings += buffer + ": memref<?xf32>, ";
+        loads += "        " + lane + " = memref.load " + buffer + "[%i] : memref<?xf32>\n";
+        dependencies[lane] = 1u << tensors++;
+        args.push_back(lane);
+      } else
+        args.push_back("%scalar" + std::to_string(scalars++));
+    }
+    const bool legacy = tensors == 2 && scalars == 0;
+    auto parameters = "memref<" + std::to_string(legacy ? 2 : scalars + 1) + "xi32>";
+    for (unsigned i = 0; i < scalars; ++i) {
+      auto suffix = std::to_string(i);
+      loads +=
+          "        %index" + suffix + " = arith.constant " + std::to_string(i + 1) + " : index\n";
+      loads += "        %bits" + suffix + " = memref.load %parameters[%index" + suffix +
+               "] : " + parameters + "\n";
+      loads += "        %scalar" + suffix + " = arith.bitcast %bits" + suffix + " : i32 to f32\n";
+    }
+    auto result = invoke(function, args);
+    if (dependencies[result] != (1u << tensors) - 1)
       reject(cpu.functions[function].declaration,
-             "the initial two-input GPU ABI requires both inputs to contribute to the result");
+             "GPU tensor inputs must contribute to the result");
     return R"(module attributes {gpu.container_module,
   spirv.target_env = #spirv.target_env<#spirv.vce<v1.0, [Shader, Int64], [SPV_KHR_storage_buffer_storage_class]>, #spirv.resource_limits<>>} {
   gpu.module @kernels {
-    gpu.func @kalandra_elementwise(%a: memref<?xf32>, %b: memref<?xf32>, %out: memref<?xf32>, %parameters: memref<2xi32>)
+    gpu.func @)" +
+           std::string(legacy ? "kalandra_elementwise" : "kalandra_elementwise_v2") + "(" +
+           bindings + "%out: memref<?xf32>, %parameters: " + parameters + R"()
       kernel attributes {spirv.entry_point_abi = #spirv.entry_point_abi<workgroup_size = [64, 1, 1]>} {
       %block = gpu.block_id x
       %thread = gpu.thread_id x
@@ -498,14 +540,13 @@ class Compiler {
       %base = arith.muli %block, %width : index
       %i = arith.addi %base, %thread : index
       %zero = arith.constant 0 : index
-      %count = memref.load %parameters[%zero] : memref<2xi32>
+      %count = memref.load %parameters[%zero] : )" +
+           parameters + R"(
       %n = arith.index_cast %count : i32 to index
       %valid = arith.cmpi ult, %i, %n : index
       scf.if %valid {
-        %x = memref.load %a[%i] : memref<?xf32>
-        %y = memref.load %b[%i] : memref<?xf32>
-)" + code.str() +
-           "        memref.store " + result +
+)" + loads +
+           code.str() + "        memref.store " + result +
            ", %out[%i] : memref<?xf32>\n      }\n      gpu.return\n    }\n  }\n}\n";
   }
 

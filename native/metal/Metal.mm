@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <bit>
 #include <condition_variable>
 #include <cstring>
 #include <limits>
@@ -98,6 +99,7 @@ struct KernelState {
   std::uint32_t index;
   id<MTLComputePipelineState> pipeline;
   bool elementwise;
+  std::optional<ElementwiseSignature> signature;
 };
 namespace {
 std::expected<std::uint64_t, Error> tensorBytes(std::span<const std::int64_t> shape,
@@ -211,6 +213,8 @@ struct Bridge {
     Kernel kernel;
     BinaryOperation operation = BinaryOperation::Add;
     Buffer right;
+    std::array<std::uint32_t, 8> scalarBits{};
+    std::uint32_t tensorCount = 2, scalarCount = 0;
   };
   struct Frame {
     PacketData packet;
@@ -269,17 +273,23 @@ struct Bridge {
       if (compute) {
         const auto &kernel = f.packet.kernel.state_;
         const auto &right = f.packet.right.storage_;
-        if (!kernel || !right || kernel->elementwise != (f.packet.kind == Kind::Elementwise) ||
-            std::uint32_t(f.packet.operation) > 2 || source->format != Format::Float32 ||
-            right->format != Format::Float32 || source->rank != 1 || right->rank != 1 ||
-            source->size != right->size || source->size / 4 > UINT32_MAX) {
+        const auto signature =
+            kernel && kernel->signature ? *kernel->signature : ElementwiseSignature{2, 0};
+        if (!kernel || kernel->elementwise != (f.packet.kind == Kind::Elementwise) ||
+            f.packet.tensorCount != signature.tensors ||
+            f.packet.scalarCount != signature.scalars || std::uint32_t(f.packet.operation) > 2 ||
+            source->format != Format::Float32 || source->rank != 1 ||
+            source->size / 4 > UINT32_MAX ||
+            (signature.tensors == 2 && (!right || right->format != Format::Float32 ||
+                                        right->rank != 1 || source->size != right->size))) {
           task.fault(std::int64_t(Error::Invalid));
           return;
         }
         index = kernel->index;
-        if (kernel->registry != state || !source->device || !right->device ||
-            source->state != state || right->state != state || source->deviceIndex != index ||
-            right->deviceIndex != index) {
+        if (kernel->registry != state || !source->device || source->state != state ||
+            source->deviceIndex != index ||
+            (signature.tensors == 2 &&
+             (!right->device || right->state != state || right->deviceIndex != index))) {
           task.fault(std::int64_t(Error::Residency));
           return;
         }
@@ -322,7 +332,10 @@ struct Bridge {
       }
       id<MTLCommandBuffer> command = nil;
       if (compute) {
-        auto parametersBuffer = allocateMetal(state, index, 8, true);
+        const auto &kernel = f.packet.kernel.state_;
+        const auto tensors = kernel->signature ? kernel->signature->tensors : 2;
+        const auto parameterBytes = kernel->signature ? 4 * (1 + kernel->signature->scalars) : 8;
+        auto parametersBuffer = allocateMetal(state, index, parameterBytes, true);
         if (!parametersBuffer) {
           task.fault(std::int64_t(parametersBuffer.error()));
           return;
@@ -338,15 +351,19 @@ struct Bridge {
           task.fault(std::int64_t(Error::Allocation));
           return;
         }
-        const auto &kernel = f.packet.kernel.state_;
         [encoder setComputePipelineState:kernel->pipeline];
         [encoder setBuffer:source->metal->buffer offset:0 atIndex:0];
-        [encoder setBuffer:f.packet.right.storage_->metal->buffer offset:0 atIndex:1];
-        [encoder setBuffer:(*result)->metal->buffer offset:0 atIndex:2];
-        const std::uint32_t parameters[] = {std::uint32_t(source->size / 4),
-                                            std::uint32_t(f.packet.operation)};
-        std::memcpy(f.staging->buffer.contents, parameters, sizeof(parameters));
-        [encoder setBuffer:f.staging->buffer offset:0 atIndex:3];
+        if (tensors == 2)
+          [encoder setBuffer:f.packet.right.storage_->metal->buffer offset:0 atIndex:1];
+        [encoder setBuffer:(*result)->metal->buffer offset:0 atIndex:tensors];
+        std::array<std::uint32_t, 9> parameters{};
+        parameters[0] = std::uint32_t(source->size / 4);
+        if (kernel->signature)
+          std::copy_n(f.packet.scalarBits.begin(), f.packet.scalarCount, parameters.begin() + 1);
+        else
+          parameters[1] = std::uint32_t(f.packet.operation);
+        std::memcpy(f.staging->buffer.contents, parameters.data(), parameterBytes);
+        [encoder setBuffer:f.staging->buffer offset:0 atIndex:tensors + 1];
         [encoder dispatchThreadgroups:MTLSizeMake((std::uint64_t(parameters[0]) + 63) / 64, 1, 1)
                 threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
         [encoder endEncoding];
@@ -619,9 +636,18 @@ std::expected<Kernel, Error> Runtime::loadElementwiseKernel(std::string_view pat
                                                             Device device) noexcept {
   return loadKernel(path, std::move(device), true);
 }
-std::expected<Kernel, Error> Runtime::loadKernel(std::string_view path, Device device,
-                                                 bool elementwise) noexcept {
+std::expected<Kernel, Error>
+Runtime::loadElementwiseKernel(std::string_view path, Device device,
+                               ElementwiseSignature signature) noexcept {
+  return loadKernel(path, std::move(device), true, signature);
+}
+std::expected<Kernel, Error>
+Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
+                    std::optional<ElementwiseSignature> signature) noexcept {
   @autoreleasepool {
+    if (signature && (!elementwise || signature->tensors < 1 || signature->tensors > 2 ||
+                      signature->scalars > 8))
+      return std::unexpected(Error::Invalid);
     if (device.state_ != state_)
       return std::unexpected(Error::Residency);
     if (path.empty() || path.find('\0') != std::string_view::npos)
@@ -640,8 +666,10 @@ std::expected<Kernel, Error> Runtime::loadKernel(std::string_view path, Device d
                                                       error:&error];
       if (!library)
         return std::unexpected(Error::Invalid);
-      id<MTLFunction> function =
-          [library newFunctionWithName:elementwise ? @"kalandra_elementwise" : @"strict_binary32"];
+      id<MTLFunction> function = [library
+          newFunctionWithName:signature
+                                  ? @"kalandra_elementwise_v2"
+                                  : (elementwise ? @"kalandra_elementwise" : @"strict_binary32")];
       if (!function)
         return std::unexpected(Error::Invalid);
       MTLComputePipelineReflection *reflection = nil;
@@ -654,12 +682,17 @@ std::expected<Kernel, Error> Runtime::loadKernel(std::string_view path, Device d
       if (!pipeline || pipeline.maxTotalThreadsPerThreadgroup < 64)
         return std::unexpected(Error::Unavailable);
       // Validate the private dynamic-array ABI, not the numerical contents of arbitrary shaders.
-      if (reflection.bindings.count != 4)
+      const auto tensors = signature ? signature->tensors : 2;
+      const auto parameterIndex = tensors + 1, bindingCount = tensors + 2;
+      const auto words = signature ? signature->scalars + 1 : 2;
+      if (reflection.bindings.count != bindingCount)
         return std::unexpected(Error::Invalid);
       bool seen[4] = {};
       for (id<MTLBinding> argument in reflection.bindings) {
-        if (argument.type != MTLBindingTypeBuffer || argument.index >= 4 || seen[argument.index] ||
-            ((id<MTLBufferBinding>)argument).bufferDataSize != (argument.index == 3 ? 8 : 4))
+        if (argument.type != MTLBindingTypeBuffer || argument.index >= bindingCount ||
+            seen[argument.index] ||
+            ((id<MTLBufferBinding>)argument).bufferDataSize !=
+                (argument.index == parameterIndex ? 4 * words : 4))
           return std::unexpected(Error::Invalid);
         id<MTLBufferBinding> binding = (id<MTLBufferBinding>)argument;
         auto members = binding.bufferStructType.members;
@@ -668,15 +701,18 @@ std::expected<Kernel, Error> Runtime::loadKernel(std::string_view path, Device d
         MTLStructMember *member = members[0];
         MTLArrayType *array = member.arrayType;
         if (member.offset != 0 || member.dataType != MTLDataTypeArray || !array ||
-            array.stride != 4 || array.arrayLength != (argument.index == 3 ? 2 : 1) ||
-            array.elementType != (argument.index == 3 ? MTLDataTypeUInt : MTLDataTypeFloat))
+            array.stride != 4 ||
+            array.arrayLength != (argument.index == parameterIndex ? words : 1) ||
+            array.elementType !=
+                (argument.index == parameterIndex ? MTLDataTypeUInt : MTLDataTypeFloat))
           return std::unexpected(Error::Invalid);
         seen[argument.index] = true;
       }
       if (!state_->permit())
         return std::unexpected(Error::Allocation);
       Kernel kernel;
-      kernel.state_ = std::make_shared<KernelState>(state_, device.index_, pipeline, elementwise);
+      kernel.state_ =
+          std::make_shared<KernelState>(state_, device.index_, pipeline, elementwise, signature);
       return kernel;
     } catch (...) {
       return std::unexpected(Error::Allocation);
@@ -717,6 +753,40 @@ TaskHandle Runtime::elementwise(Task &task, GroupHandle group, Kernel kernel, Bu
                             std::move(kernel),
                             BinaryOperation::Add,
                             std::move(right)};
+  return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::elementwise(TaskCore &core, GroupHandle group, Kernel kernel,
+                                std::span<const Buffer> tensors,
+                                std::span<const float> scalars) noexcept {
+  Bridge::PacketData packet{state_,
+                            tensors.empty() ? Buffer{} : tensors[0],
+                            {},
+                            Bridge::Kind::Elementwise,
+                            std::move(kernel),
+                            BinaryOperation::Add,
+                            tensors.size() < 2 ? Buffer{} : tensors[1]};
+  packet.tensorCount = tensors.size() > 2 ? UINT32_MAX : std::uint32_t(tensors.size());
+  packet.scalarCount = scalars.size() > 8 ? UINT32_MAX : std::uint32_t(scalars.size());
+  if (scalars.size() <= 8)
+    for (std::size_t i = 0; i < scalars.size(); ++i)
+      packet.scalarBits[i] = std::bit_cast<std::uint32_t>(scalars[i]);
+  return core.submit(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::elementwise(Task &task, GroupHandle group, Kernel kernel,
+                                std::span<const Buffer> tensors,
+                                std::span<const float> scalars) noexcept {
+  Bridge::PacketData packet{state_,
+                            tensors.empty() ? Buffer{} : tensors[0],
+                            {},
+                            Bridge::Kind::Elementwise,
+                            std::move(kernel),
+                            BinaryOperation::Add,
+                            tensors.size() < 2 ? Buffer{} : tensors[1]};
+  packet.tensorCount = tensors.size() > 2 ? UINT32_MAX : std::uint32_t(tensors.size());
+  packet.scalarCount = scalars.size() > 8 ? UINT32_MAX : std::uint32_t(scalars.size());
+  if (scalars.size() <= 8)
+    for (std::size_t i = 0; i < scalars.size(); ++i)
+      packet.scalarBits[i] = std::bit_cast<std::uint32_t>(scalars[i]);
   return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
 }
 const ValueLayout &Runtime::bufferLayout() noexcept { return Bridge::layout; }

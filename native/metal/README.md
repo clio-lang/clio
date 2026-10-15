@@ -83,3 +83,9 @@ Compute tests also cover incompatible fixed-capacity artifacts, invalid paths/de
 The [recorded compute evidence](../metal-proof/evidence/managed-compute-2026-10-15.json) identifies the tested sources, generated artifacts, toolchain, comparison counts, and complete 68-test run.
 
 The [common compiler and CPU tensor ABI](../../docs/design/apple-gpu.md#common-compiler-entry-and-cpu-tensor-abi) documents `kalandrac --target metal`, ranked descriptors, retained CPU allocation leases, full-backing byte charges for imported views, and checked copies of downloaded results into CPU invocation storage. Nonempty imports validate actual allocation membership and bounds before payload access. A retained alias survives its source invocation; a copied CPU export survives the GPU group and buffers. These are trusted immutable compiler/runtime values, not a public mutable native-pointer API.
+
+## Source kernel signatures
+
+The source compiler also emits `kalandra_elementwise_v2` for one or two rank-one float32 inputs with up to eight float32 scalar parameters. Use `loadElementwiseKernel(path, device, ElementwiseSignature{tensorCount, scalarCount})` and the `elementwise` overload taking tensor/scalar spans. Submission copies both Buffer owners and scalar bits; the spans may be released or changed immediately afterward. Counts must match the loaded signature. All tensors must reside on its device and have equal extents.
+
+Bindings contain packed tensor inputs, output, then a uint32 array with element count and scalar bits. Reflection checks the declared signature. Parameter storage is four bytes plus four per scalar, charged to the shared budget and retained until completion acknowledgement. Empty outputs require no encoded command. The existing two-input/no-scalar source ABI and proof kernel remain supported by their original overloads. See the [source scope and conformance](../../docs/design/apple-gpu.md#gpu-entry-scalar-parameters).

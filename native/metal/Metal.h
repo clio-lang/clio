@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string_view>
 
@@ -75,6 +76,11 @@ private:
   friend class Runtime;
   friend struct Bridge;
 };
+// Trusted compiler-produced entry layout; scalar words preserve float32 bits.
+struct ElementwiseSignature {
+  std::uint32_t tensors = 1, scalars = 0;
+  bool operator==(const ElementwiseSignature &) const = default;
+};
 class Runtime final {
 public:
   static std::expected<std::unique_ptr<Runtime>, Error> create(Options = {}) noexcept;
@@ -105,6 +111,12 @@ public:
   TaskHandle download(Task &, GroupHandle, Buffer) noexcept;
   std::expected<Kernel, Error> loadBinary32Kernel(std::string_view metallib, Device) noexcept;
   std::expected<Kernel, Error> loadElementwiseKernel(std::string_view metallib, Device) noexcept;
+  std::expected<Kernel, Error> loadElementwiseKernel(std::string_view metallib, Device,
+                                                     ElementwiseSignature) noexcept;
+  TaskHandle elementwise(TaskCore &, GroupHandle, Kernel, std::span<const Buffer>,
+                         std::span<const float>) noexcept;
+  TaskHandle elementwise(Task &, GroupHandle, Kernel, std::span<const Buffer>,
+                         std::span<const float>) noexcept;
   TaskHandle elementwise(TaskCore &, GroupHandle, Kernel, Buffer, Buffer) noexcept;
   TaskHandle elementwise(Task &, GroupHandle, Kernel, Buffer, Buffer) noexcept;
   TaskHandle compute(TaskCore &, GroupHandle, Kernel, BinaryOperation, Buffer, Buffer) noexcept;
@@ -123,6 +135,8 @@ private:
   std::expected<void *, Error> exportCpu(Invocation &, const Buffer &,
                                          std::span<std::int64_t> sizes,
                                          std::span<std::int64_t> strides) noexcept;
-  std::expected<Kernel, Error> loadKernel(std::string_view, Device, bool elementwise) noexcept;
+  std::expected<Kernel, Error>
+  loadKernel(std::string_view, Device, bool elementwise,
+             std::optional<ElementwiseSignature> signature = {}) noexcept;
 };
 } // namespace kalandra::runtime::metal

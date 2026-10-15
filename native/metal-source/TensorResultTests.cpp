@@ -3,7 +3,7 @@
 #undef main
 #include <chrono>
 #include <thread>
-#ifdef KALANDRA_SHARED_HELPERS
+#if defined(KALANDRA_SHARED_HELPERS) || defined(KALANDRA_SCALAR_ENTRY)
 #include "../metal-proof/FloatOracle.h"
 #endif
 #define CHECK(x)                                                                                   \
@@ -45,7 +45,9 @@ void verify(const m::Buffer &value) {
   CHECK(bytes && bytes->size() == 12);
   std::array<std::uint32_t, 3> bits{};
   std::memcpy(bits.data(), bytes->data(), 12);
-#ifdef KALANDRA_SHARED_HELPERS
+#ifdef KALANDRA_SCALAR_ENTRY
+  CHECK((bits == std::array<std::uint32_t, 3>{0x41880000u, 0x41d00000u, 0x420c0000u}));
+#elif defined(KALANDRA_SHARED_HELPERS)
   CHECK((bits == std::array<std::uint32_t, 3>{0x41300000u, 0x41c80000u, 0x422c0000u}));
 #else
   CHECK((bits == std::array<std::uint32_t, 3>{0x40a00000u, 0x41400000u, 0x41a80000u}));
@@ -149,6 +151,9 @@ void sharedConformance(m::Runtime &runtime, const char *directory) {
       (unsigned long long)comparisons);
 }
 #endif
+#ifdef KALANDRA_SCALAR_ENTRY
+#include "ScalarEntryChecks.h"
+#endif
 int main(int argc, char **argv) {
   CHECK(argc == 2 && generated_main(argc, argv) == 0);
   auto made = m::Runtime::create();
@@ -190,7 +195,11 @@ int main(int argc, char **argv) {
       if (success)
         break;
     }
+#ifdef KALANDRA_SCALAR_ENTRY
+    CHECK(success && failures == 4);
+#else
     CHECK(success && failures >= 8);
+#endif
     std::printf("%u workers: %u CPU allocation failures unwound\n", workers, failures);
   }
   failureAttempt = 0;
@@ -227,12 +236,18 @@ int main(int argc, char **argv) {
     auto before = runtime->stats().completions, submissions = runtime->stats().submissions;
     auto task = core->submit(group, entry, {entry.packetLayout, &packet, sizeof(packet)});
     CHECK(task);
-    until(*core, [&] { return runtime->stats().completions >= before + 2; });
+#ifdef KALANDRA_SCALAR_ENTRY
+    constexpr unsigned uploads = 1;
+#else
+    constexpr unsigned uploads = 2;
+#endif
+    until(*core, [&] { return runtime->stats().completions >= before + uploads; });
     runtime->holdCompletions(true);
     if (scenario == 2)
       runtime->failNextCompletion();
     until(*core, [&] {
-      return runtime->stats().submissions == submissions + 3 && core->stats().externalPending == 1;
+      return runtime->stats().submissions == submissions + uploads + 1 &&
+             core->stats().externalPending == 1;
     });
     if (scenario < 2)
       CHECK(core->cancel(group, scenario == 1));
@@ -244,6 +259,9 @@ int main(int argc, char **argv) {
   }
 #ifdef KALANDRA_SHARED_HELPERS
   sharedConformance(*runtime, argv[1]);
+#endif
+#ifdef KALANDRA_SCALAR_ENTRY
+  scalarConformance(*runtime, argv[1]);
 #endif
   // The retained CPU results share the registry budget with transfers and GPU work.
   auto limited = m::Runtime::create({.maxBytes = 16});
