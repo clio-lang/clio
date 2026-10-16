@@ -44,7 +44,7 @@ struct Plan {
   Slot result = 0;
 };
 struct Options {
-  // Keep synchronous calls as backend dispatches instead of inlining CPU bodies.
+  // Preserve ordinary numeric calls; expand resumable helper bodies into the caller.
   bool preserveCalls = false;
   // Plan a selected entry; other function IDs retain their original positions.
   std::optional<FunctionId> entry = {};
@@ -57,6 +57,8 @@ struct ModulePlan {
   std::map<ValueId, FunctionId> kernelIds;
   explicit ModulePlan(const TypedModule &input) : input(input) {}
 };
+// Direct/transitive task or control effects require continuation lowering.
+[[nodiscard]] std::vector<bool> resumableFunctions(const TypedModule &input);
 [[nodiscard]] std::expected<ModulePlan, std::string> plan(const TypedModule &input,
                                                           Options options = {});
 [[nodiscard]] std::string dump(const ModulePlan &module);

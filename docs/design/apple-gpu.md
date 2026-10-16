@@ -647,7 +647,7 @@ The [source fixture](../../native/metal-source/recovery.kalandra) runs GPU work 
 
 [CLI checks](../../native/metal-source/VerifyRecovery.cmake) cover four build variants, lazy handlers, rethrows, successful/failing handler-local `try`, deferred fallible handler results, tensor fallbacks, dynamic post-recovery shapes, deterministic generation, and relocation. Rejection cases cover type/residency mismatch, invalid/non-exhaustive patterns, leaked bindings, unhandled errors and conditional task/error obligations. Host ASan/UBSan and TSan do not instrument GPU instructions. [Qualification evidence](../../native/metal-proof/evidence/recovery-2026-10-16.json) records the regression and artifacts. No performance improvement is claimed.
 
-The mixed target still requires a single outer `try parallel` in `main` and an actual GPU placement. Asynchronous CPU helper bodies, broader value types, and a shared placement-aware task/residency IR remain separate work. Distributed execution retains its design-review gate.
+At this milestone, the mixed target required a single outer `try parallel` in `main` and an actual GPU placement. Subsequent shared-IR and resumable-helper work below removes the main-only coordination restriction. Broader value types remain separate work. Distributed execution retains its design-review gate.
 
 ## Shared placement frontend
 
@@ -660,3 +660,10 @@ Mixed-program supervisor expressions now lower from the shared placement-aware t
 ## Common continuation planning
 
 CPU task lowering and the Metal supervisor now consume the same checked slot/group/branch plan. Scope settlement, recovery exits and selector/argument order are planned once; target emitters retain their numerical dispatch and value layouts. The [continuation design](continuations.md) describes the two call policies, inspection artifacts, conformance and remaining mixed helper scope.
+
+
+## Resumable mixed helper bodies
+
+[Direct resumable helpers](continuations.md#resumable-mixed-helper-bodies) can now own parallel scopes, submit CPU/GPU work, suspend for transfers/tasks, recover settled errors and return completed host values. Task coordination can live in transitive helper functions, including a nonfallible wrapper that catches a fallible helper's errors. Main no longer needs a single outer parallel block when its callees own their work. Pure numeric calls retain their checked CPU ABI and GPU kernel eligibility. An actual GPU placement is still required by the Metal target.
+
+Resumable helpers currently expand into their caller's continuation. Independently spawning such a helper is explicitly rejected until child frames and their ownership/cancellation behavior are implemented. Resident tensors, selectors and task handles retain their existing escape restrictions. The continuation design records examples, limits and lifecycle qualification.

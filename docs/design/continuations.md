@@ -11,9 +11,9 @@ The shared instruction set covers literals and arithmetic, numerical kernels, sy
 Two call policies preserve the current backend interfaces:
 
 - Ordinary CPU task compilation expands synchronous helper bodies into the caller's plan and extracts numeric operations into checked CPU kernels. Named CPU child entries and synthetic builtin entries retain their own plans. Existing recursion, expansion and frame-value limits still apply.
-- Mixed-program compilation preserves ordinary synchronous calls as checked target dispatches and plans its selected `main`. CPU calls use the existing checked export ABI; GPU calls and transfers use the Metal task runtime. A placed spawn contains evaluated argument slots plus a checked selector slot. Constant tensor data stays embedded instead of consuming one frame slot per literal element; nonconstant operands retain their evaluation order. Logical function IDs map explicitly to CPU export IDs. Other function IDs retain their positions rather than being renumbered around the selected entry.
+- Mixed-program compilation preserves ordinary numeric calls as checked target dispatches, expands resumable helpers into the caller, and plans its selected `main`. CPU calls use the existing checked export ABI; GPU calls and transfers use the Metal task runtime. A placed spawn contains evaluated argument slots plus a checked selector slot. Constant tensor data stays embedded instead of consuming one frame slot per literal element; nonconstant operands retain their evaluation order. Logical function IDs map explicitly to CPU export IDs. Other function IDs retain their positions rather than being renumbered around the selected entry.
 
-These are call-lowering policies within the same control-flow planner. They do not introduce asynchronous mixed helper bodies, new value types, a different scheduler, remote execution or new GPU capabilities.
+These are call-lowering policies within the same control-flow planner. They retain the existing value types, scheduler and GPU capabilities.
 
 ## Settlement and control flow
 
@@ -39,8 +39,35 @@ build/native/native/kalandra-check --placement --dump-plan native/metal-source/r
 
 `--dump-plan` and `--dump-ir` are mutually exclusive. Placement plan inspection selects `main`. The Metal compiler writes the exact same `continuation.plan` alongside its typed IR, generated supervisor and kernel artifacts. It is an inspection format, not a stable serialized program or supported compiler input. Symlink and source/output collision preflight cover this artifact too.
 
-[Planner tests](../../native/tests/ContinuationTests.cpp) check 20 mixed and two CPU fixtures normally and under ASan/UBSan. They verify group/failure/branch edges, typed targets and transfers, argument order for fresh selectors, deterministic output, CPU placement rejection, entry validation, recursion limits, synthetic builtin child plans and a 21,000-element embedded literal that must not exhaust continuation slots. [Artifact checks](../../native/metal-source/VerifyPlacement.cmake) compare 70 target plans with independent standalone planning. Existing compiled CPU/Metal tests exercise the common plan with worker variation, shape faults, recovery, cancellation/deadlines, admission races, allocation/completion failures and cleanup. Debug, optimized, ASan/UBSan and separate TSan variants remain required.
+[Planner tests](../../native/tests/ContinuationTests.cpp) check 21 mixed and two CPU fixtures normally and under ASan/UBSan. They verify group/failure/branch edges, typed targets and transfers, argument order for fresh selectors, deterministic output, CPU placement rejection, entry validation, recursion limits, synthetic builtin child plans and a 21,000-element embedded literal that must not exhaust continuation slots. [Artifact checks](../../native/metal-source/VerifyPlacement.cmake) compare 70 target plans with independent standalone planning. Existing compiled CPU/Metal tests exercise the common plan with worker variation, shape faults, recovery, cancellation/deadlines, admission races, allocation/completion failures and cleanup. Debug, optimized, ASan/UBSan and separate TSan variants remain required.
 
 The private generated GPU-await/group observation points let the lifecycle harness cancel a containing scope at a GPU wait without depending on a frame-field number or source program counter. They are not a public runtime ABI. [Evidence](../../native/metal-proof/evidence/common-continuations-2026-10-16.json) records the regression and artifact comparisons.
 
-Next, support resumable helper bodies in mixed programs using this shared representation. Broader language values, element types and devices remain separate work. Native distributed execution still requires its agreed design review.
+## Resumable mixed helper bodies
+
+A directly called helper can now open parallel scopes, submit CPU/GPU work, wait for transfers and tasks, catch settled failures, and return a completed host scalar or tensor. Helpers retain explicit float32 or rank-one/rank-two float32 tensor interfaces. A declared `! TaskError` channel is required when an expected error escapes; a helper that fully handles its errors can have an ordinary result signature.
+
+```kalandra
+fn scale(values: Tensor[float32, ?], factor: float32) -> Tensor[float32, ?]:
+  values * factor
+
+fn transform(values: Tensor[float32, ?], factor: float32) -> Tensor[float32, ?] ! TaskError:
+  try parallel:
+    gpu = devices.gpu()
+    input = try await transfer(values, gpu)
+    result = try await spawn scale(input, factor) on gpu
+    try await transfer(result, devices.cpu())
+
+fn main() -> Tensor[float32, ?] ! TaskError:
+  try transform(tensor([1, 2, 3]), 2)
+```
+
+The planner classifies direct control/task effects and propagates that classification through the resolved call graph. This includes nonfallible wrappers around helpers that catch their errors. The Metal compiler excludes those functions from the synchronous CPU export module. Pure numeric callees remain CPU exports or eligible GPU kernels.
+
+Each expanded invocation gets separate value slots, symbols, groups and a function error boundary. `try` exits that function boundary with an expected error; it does not skip settlement of any owning parallel scope. The caller can propagate or catch the result. A helper's own scope nests under the caller's active group when one exists. Main can also directly call a helper which owns its work without opening an outer scope itself. Repeated calls get distinct frame storage. Existing recursion/depth and frame-size limits bound expansion.
+
+Task handles and resident GPU tensors still cannot escape as function results. Selectors are not public parameter/result types. Fixed/dynamic shape checks and explicit transfers still apply. A source helper is not automatically a shader: placed functions still must satisfy the numeric GPU capability checks.
+
+**Remaining limit:** spawning a resumable mixed helper is rejected explicitly. Such a child needs its own resumable frame, capture/result ownership and cancellation integration. Direct calls already suspend their containing invocation. Adding independently scheduled resumable helpers is the next execution milestone; broader language values, element types and devices remain separate work. Native distributed execution still requires its agreed design review.
+
+The [helper fixture](../../native/metal-source/resumable-helpers.kalandra) exercises transitive helper calls, CPU tasks, GPU work and returned host tensors. It reuses the full recovery lifecycle harness in debug, optimized, ASan/UBSan and TSan builds: allocation-failure sweeps, held completions, scope/root cancellation and deadlines, failed completion recovery, bounded admission and budget rejection, with zero retained resources after cleanup. [CLI tests](../../native/metal-source/VerifyResumableHelpers.cmake) cover successful and failed helper paths, repeated calls, helper-owned scopes, deferred errors, identical standalone plans and normal/sanitized compiler emission, and transactional recursion/spawn/escape diagnostics. [Qualification evidence](../../native/metal-proof/evidence/resumable-helpers-2026-10-16.json) records the complete regression run.

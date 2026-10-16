@@ -1265,6 +1265,11 @@ public:
     for (const auto &fn : syntax.functions)
       if (!names.insert(text(fn.name)).second)
         reject(fn.name, "duplicate function");
+    auto checkedPlacement = kalandra::check({syntax, {}}, {}, {.placement = true});
+    if (!checkedPlacement.ok())
+      throw Rejected{checkedPlacement.diagnostics.front()};
+    placement = std::move(*checkedPlacement.module);
+    const auto resumable = continuation::resumableFunctions(placement);
     Module hostModule = syntax;
     hostModule.functions.clear();
     std::optional<std::size_t> main;
@@ -1277,8 +1282,8 @@ public:
       }
       if (name == "devices" || name == "tensor" || name == "transfer")
         reject(fn.name, "this GPU source slice reserves standard placement/transfer names");
-      if (!fn.result || fn.taskError)
-        reject(fn.span, "mixed source functions require an explicit result and no error channel");
+      if (!fn.result)
+        reject(fn.span, "mixed source functions require an explicit result");
       if (fn.result->tensor)
         tensorType(*fn.result);
       else if (text(fn.result->name) != "float32")
@@ -1291,6 +1296,8 @@ public:
           reject(p.type.span,
                  "mixed source parameters require float32 or rank-one/rank-two float32 tensors");
       }
+      if (resumable[i])
+        continue;
       cpuFunctions.emplace(name, hostModule.functions.size());
       cpuExports.push_back(name);
       hostModule.functions.push_back(fn);
@@ -1316,10 +1323,6 @@ public:
     }
     for (std::size_t i = 0; i < cpu.functions.size(); ++i)
       declareCpuFunction(i);
-    auto checkedPlacement = kalandra::check({syntax, {}}, {}, {.placement = true});
-    if (!checkedPlacement.ok())
-      throw Rejected{checkedPlacement.diagnostics.front()};
-    placement = std::move(*checkedPlacement.module);
     const auto &fn = syntax.functions[*main];
     if (!fn.parameters.empty() || !fn.result || !fn.taskError)
       reject(fn.span,
@@ -1329,8 +1332,6 @@ public:
       reject(fn.span, "Metal main requires float32 or a rank-one/rank-two float32 tensor");
     if (!scalarResult)
       tensorType(*fn.result);
-    if (fn.body.size() != 1 || fn.body[0].binding)
-      reject(fn.span, "Metal main must contain a single try parallel block");
     auto planned = continuation::plan(placement, {.preserveCalls = true, .entry = *main});
     if (!planned)
       reject(fn.span, planned.error());

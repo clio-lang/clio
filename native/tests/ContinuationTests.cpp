@@ -113,7 +113,8 @@ int main(int argc, char **argv) {
                              "recovery",
                              "reduction",
                              "matmul",
-                             "ir-supervisor"}) {
+                             "ir-supervisor",
+                             "resumable-helpers"}) {
       auto file =
           loadSource((root / "native/metal-source" / (std::string(name) + ".kalandra")).string());
       require(bool(file), "cannot read mixed fixture");
@@ -156,6 +157,34 @@ int main(int argc, char **argv) {
               "CPU plan contains target-only operations");
       ++fixtures;
     }
+    auto helpers = analyze("fn numeric(x:float32) -> float32:\n  x*2\n"
+                           "fn leaf(x:float32) -> float32 ! TaskError:\n  try parallel:\n"
+                           "    try await spawn numeric(x)\n"
+                           "fn recovered(x:float32) -> float32:\n  leaf(x) catch fn(error): 0\n"
+                           "fn wrapper(x:float32) -> float32:\n  recovered(x)\n"
+                           "fn main() -> float32:\n  wrapper(3)\n",
+                           true);
+    require(helpers.ok(), "helper effects fixture checking failed");
+    const auto effects = resumableFunctions(*helpers.module);
+    require(effects == std::vector<bool>({false, true, true, true, true}),
+            "resumable effects failed transitive/nonfallible classification");
+    auto helperPlan = plan(*helpers.module, {.preserveCalls = true, .entry = 4});
+    require(bool(helperPlan), "resumable helper planning failed");
+    verify(*helperPlan);
+    require(helperPlan->plans[4]->groups == 1 &&
+                std::ranges::none_of(
+                    helperPlan->plans[4]->code,
+                    [](const auto &op) { return op.code == Code::Call && op.target != 0; }),
+            "resumable helper escaped into a synchronous dispatch");
+    auto spawnedHelper = analyze("fn leaf() -> float32 ! TaskError:\n  try parallel:\n    1\n"
+                                 "fn main() -> float32 ! TaskError:\n  try parallel:\n"
+                                 "    try await spawn leaf()\n",
+                                 true);
+    require(spawnedHelper.ok(), "spawned helper checking failed");
+    auto unsupported = plan(*spawnedHelper.module, {.preserveCalls = true, .entry = 1});
+    require(!unsupported &&
+                unsupported.error().find("spawning resumable mixed helpers") != std::string::npos,
+            "resumable child admitted without a separate frame");
     auto recursive = analyze("fn loop(x:float32) -> float32:\n  loop(x)\nfn main() -> float32 ! "
                              "TaskError:\n  try parallel:\n    try await spawn loop(1)\n");
     require(recursive.ok() && !plan(*recursive.module), "recursive CPU expansion lost its limit");

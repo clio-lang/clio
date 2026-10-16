@@ -45,8 +45,9 @@ class Builder : public ModulePlan {
 public:
   std::size_t totalSlots = 0;
   Options options;
+  std::vector<bool> resumable;
   explicit Builder(const TypedModule &input, Options options)
-      : ModulePlan(input), options(options) {
+      : ModulePlan(input), options(options), resumable(resumableFunctions(input)) {
     if (options.entry && *options.entry >= input.functions.size())
       throw std::runtime_error("continuation entry function is out of range");
     if (hasPlacement(input) && !options.preserveCalls)
@@ -183,9 +184,10 @@ private:
       std::vector<Slot> args;
       for (auto arg : call->arguments)
         args.push_back(expression(plan, arg, env, stack));
-      auto value = options.preserveCalls ? slot(plan, node.type)
-                                         : function(plan, call->function, args, stack, env.group);
-      if (options.preserveCalls)
+      const bool preserve = options.preserveCalls && !resumable.at(call->function);
+      auto value =
+          preserve ? slot(plan, node.type) : function(plan, call->function, args, stack, env.group);
+      if (preserve)
         plan.code.push_back({Code::Call, value, args, call->function, 0, 0, id});
       env.values[id] = value;
       return value;
@@ -226,6 +228,9 @@ private:
         if (const auto *call = std::get_if<FunctionCall>(&invocation.operation)) {
           operands = call->arguments;
           target = call->function;
+          if (options.preserveCalls && resumable.at(target))
+            throw std::runtime_error(
+                "spawning resumable mixed helpers is not implemented; call the helper directly");
         } else {
           if (options.preserveCalls)
             throw std::runtime_error("mixed spawn requires a resolved function entry");
@@ -350,6 +355,38 @@ private:
   }
 };
 } // namespace
+std::vector<bool> resumableFunctions(const TypedModule &input) {
+  std::vector<bool> result(input.functions.size());
+  std::vector<std::vector<FunctionId>> callers(input.functions.size());
+  std::vector<FunctionId> pending;
+  for (FunctionId id = 0; id < input.functions.size(); ++id) {
+    result[id] = input.functions[id].resultType.fallible;
+    for (auto value : input.functions[id].expressions) {
+      const auto &op = input.expressions.at(value).operation;
+      if (const auto *call = std::get_if<FunctionCall>(&op))
+        callers.at(call->function).push_back(id);
+      if (std::holds_alternative<TaskOperation>(op) ||
+          std::holds_alternative<ParallelOperation>(op) ||
+          std::holds_alternative<CatchOperation>(op) ||
+          std::holds_alternative<MatchOperation>(op) || std::holds_alternative<FailOperation>(op) ||
+          std::holds_alternative<ErrorFieldRead>(op) ||
+          std::holds_alternative<DeviceSelection>(op) || std::holds_alternative<Transfer>(op))
+        result[id] = true;
+    }
+    if (result[id])
+      pending.push_back(id);
+  }
+  while (!pending.empty()) {
+    auto id = pending.back();
+    pending.pop_back();
+    for (auto caller : callers[id])
+      if (!result[caller]) {
+        result[caller] = true;
+        pending.push_back(caller);
+      }
+  }
+  return result;
+}
 std::expected<ModulePlan, std::string> plan(const TypedModule &input, Options options) {
   try {
     Builder builder(input, options);
