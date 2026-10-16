@@ -587,6 +587,19 @@ std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &inp
                                                           std::optional<std::string> testEntry) {
   if (auto error = numericCapabilityError(input, NumericTarget::Cpu))
     return std::unexpected(*error);
+  // Descriptor layout and cross-task ownership for 64-bit tensors are qualified separately.
+  const auto wideTensor = [](const ValueType &type) {
+    return type.tensor && (type.element == NumericType::Int64 || type.element == NumericType::UInt64);
+  };
+  for (const auto &fn : input.functions)
+    if (wideTensor(fn.resultType) || (fn.declaredResult && wideTensor(*fn.declaredResult)))
+      return std::unexpected("int64/uint64 tensor task modules are not implemented yet");
+  for (const auto &symbol : input.symbols)
+    if (wideTensor(symbol.type))
+      return std::unexpected("int64/uint64 tensor task modules are not implemented yet");
+  for (const auto &expression : input.expressions)
+    if (wideTensor(expression.type))
+      return std::unexpected("int64/uint64 tensor task modules are not implemented yet");
   if (hasPlacement(input))
     return std::unexpected("placement-aware IR requires a placement-capable execution backend");
   try {

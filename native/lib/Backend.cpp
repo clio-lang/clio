@@ -89,16 +89,16 @@ private:
     return FileLineColLoc::get(builder_.getContext(), input_.source->path(), line, column);
   }
   Type type(const ValueType &value) {
-    if (!value.tensor)
-      return (value.element == NumericType::Int64 || value.element == NumericType::UInt64) ? Type(builder_.getI64Type())
+    const Type element = (value.element == NumericType::Int64 || value.element == NumericType::UInt64) ? Type(builder_.getI64Type())
              : isInteger32(value.element) ? Type(builder_.getI32Type())
                                                 : Type(builder_.getF32Type());
+    if (!value.tensor)
+      return element;
     SmallVector<std::int64_t> shape;
     for (const auto &extent : value.shape)
       shape.push_back(extent.constant ? static_cast<std::int64_t>(*extent.constant)
                                       : ShapedType::kDynamic);
-    return RankedTensorType::get(shape, isInteger32(value.element)
-                                            ? Type(builder_.getI32Type()) : Type(builder_.getF32Type()));
+    return RankedTensorType::get(shape, element);
   }
   Value index(Location loc, std::int64_t value) {
     return arith::ConstantIndexOp::create(builder_, loc, value);
@@ -212,7 +212,7 @@ private:
       result.push_back(tensor::DimOp::create(builder_, loc, tensor, index(loc, axis)));
     return result;
   }
-  Value checkedCount(Location loc, ArrayRef<Value> dimensions) {
+  Value checkedCount(Location loc, ArrayRef<Value> dimensions, std::uint64_t elementBytes = 4) {
     auto z = index(loc, 0), one = index(loc, 1);
     Value hasZero = arith::ConstantIntOp::create(builder_, loc, 0, 1);
     for (auto d : dimensions) {
@@ -221,7 +221,7 @@ private:
                                      compare(loc, arith::CmpIPredicate::eq, d, z));
     }
     Value count = arith::SelectOp::create(builder_, loc, hasZero, z, one);
-    auto maximum = index(loc, std::numeric_limits<std::int64_t>::max() / 4);
+    auto maximum = index(loc, std::numeric_limits<std::int64_t>::max() / elementBytes);
     for (auto d : dimensions) {
       auto safe = arith::SelectOp::create(builder_, loc,
                                           compare(loc, arith::CmpIPredicate::eq, d, z), one, d);
@@ -675,7 +675,7 @@ private:
       for (std::size_t axis = 0; axis < shape.size(); ++axis)
         guard(loc, compare(loc, arith::CmpIPredicate::eq, shape[axis], other[axis]), 1);
     }
-    checkedCount(loc, shape);
+    checkedCount(loc, shape, describeNumeric(element)->bytes());
     SmallVector<Value> dynamic;
     for (std::size_t axis = 0; axis < shape.size(); ++axis)
       if (output.isDynamicDim(axis))
@@ -689,8 +689,8 @@ private:
         Value left = tensorA ? tensor::ExtractOp::create(builder_, loc, a, indices).getResult() : a;
         Value result;
         if (!b) {
-          result = output.getElementType().isInteger(32)
-                       ? integerUnary(loc, left, op, element == NumericType::UInt32)
+          result = isInteger(element)
+                       ? integerUnary(loc, left, op, isUnsigned(element))
                        : arith::NegFOp::create(builder_, loc, left).getResult();
         } else {
           Value right =
@@ -699,8 +699,8 @@ private:
                                    : op == TokenKind::Minus ? "arith.subf"
                                    : op == TokenKind::Slash ? "arith.divf"
                                                             : "arith.mulf";
-          result = output.getElementType().isInteger(32)
-                       ? integerBinary(loc, left, right, op, element == NumericType::UInt32)
+          result = isInteger(element)
+                       ? integerBinary(loc, left, right, op, isUnsigned(element))
                        : binary(loc, arithmetic, left, right);
         }
         return tensor::InsertOp::create(builder_, loc, result, tensor, indices);
@@ -860,7 +860,7 @@ private:
                           index(function.getLoc(), *t.shape[axis].constant)),
                   1);
         }
-        checkedCount(function.getLoc(), shape);
+        checkedCount(function.getLoc(), shape, describeNumeric(t.element)->bytes());
         auto tensorType = RankedTensorType::get(
             SmallVector<std::int64_t>(t.shape.size(), ShapedType::kDynamic),
             cast<RankedTensorType>(type(t)).getElementType());

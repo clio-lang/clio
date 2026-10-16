@@ -141,9 +141,8 @@ private:
     const auto numeric =
         syntax.tensor ? (syntax.element ? resolveNumeric(name(*syntax.element)) : std::nullopt)
                       : resolveNumeric(name(syntax.name));
-    if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu) ||
-        (syntax.tensor && (*numeric == NumericType::Int64 || *numeric == NumericType::UInt64))) {
-      error("S003", "only int32, uint32, int64/uint64 scalars, float32 and 32-bit tensors are implemented in this semantic subset",
+    if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu)) {
+      error("S003", "only int32, uint32, int64, uint64, float32 scalars and tensors are implemented in this semantic subset",
             syntax.span);
       return {};
     }
@@ -603,7 +602,7 @@ private:
     if (a.tensor || b.tensor) {
       if (binary.operation != TokenKind::Plus && binary.operation != TokenKind::Minus &&
           binary.operation != TokenKind::Star && binary.operation != TokenKind::Slash &&
-          !(isInteger32(a.element) && binary.operation == TokenKind::Percent)) {
+          !(isInteger(a.element) && binary.operation == TokenKind::Percent)) {
         error("S017", "elementwise float32 arithmetic currently supports only +, -, * and /", span);
         return {};
       }
@@ -1100,7 +1099,7 @@ private:
       return {};
     }
     if (!expected || !expected->tensor) {
-      error("S026", "tensor literals need Tensor[int32,...], Tensor[uint32,...] or Tensor[float32,...] context in this subset", span);
+      error("S026", "tensor literals need Tensor[int32,...], Tensor[uint32,...], Tensor[int64,...], Tensor[uint64,...] or Tensor[float32,...] context in this subset", span);
       return {};
     }
     if (arguments.size() == 2) {

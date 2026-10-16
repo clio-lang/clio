@@ -9,8 +9,10 @@ static void require(bool ok, const char *message) {
   if (!ok)
     throw std::runtime_error(message);
 }
+#include "Integer64TensorChecks.h"
 int main() {
   try {
+    checkInteger64Tensors("int64", true);
     for (const auto *value : {"9223372036854775807", "-9223372036854775808", "9007199254740993",
                               "+17", "-5 % 2", "5 % -2", "-9223372036854775808 % -1",
                               "3037000499 * 3037000499", "9223372036854775807 * 0"}) {
@@ -49,8 +51,7 @@ int main() {
     for (const auto *source :
          {"fn f(x:int32) -> int64:\n  x\n", "fn f(x:int64) -> int32:\n  x\n",
           "fn f(x:int64,y:uint32) -> int64:\n  x + y\n",
-          "fn f(x:int64,y:float32) -> int64:\n  x + y\n",
-          "fn f(x:Tensor[int64,?]) -> int64:\n  0\n", "fn f() -> uint16:\n  0\n",
+          "fn f(x:int64,y:float32) -> int64:\n  x + y\n", "fn f() -> uint16:\n  0\n",
           "fn f() -> float64:\n  1.0\n", "fn main() -> int:\n  x = 9223372036854775807\n  x + 1\n",
           "fn f(x:int64) -> int64:\n  z = 0\n  x / z\n"})
       require(!analyze(source).ok(), "unsupported conversion/type or known overflow accepted");
@@ -61,14 +62,6 @@ int main() {
     auto lowered = lowerNative(*task.module);
     require(bool(lowered) && lowered->llvm.find("value.layout.scalar.int64") != std::string::npos,
             "int64 task layout lost");
-    auto tensor =
-        analyze("fn f(x:Tensor[int32,?]) -> Tensor[int32,?]:\n  x\nfn main() -> int32:\n  0\n");
-    for (auto &expression : tensor.module->expressions)
-      if (expression.type.tensor)
-        expression.type.element = NumericType::Int64;
-    auto rejected = lowerNative(*tensor.module);
-    require(!rejected && rejected.error().find("int64 tensor") != std::string::npos,
-            "backend admitted unqualified int64 tensors");
 #endif
     require(bool(numericCapabilityError(*task.module, NumericTarget::AppleGpu)),
             "int64 GPU arithmetic enabled");

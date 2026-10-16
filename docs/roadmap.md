@@ -7,7 +7,7 @@ The native rewrite is a working CPU/Apple GPU compute subset, not yet the full a
 | Area | Current position | Remaining scope |
 | --- | --- | --- |
 | Toolchain, handwritten frontend and typed IR | Implemented for the native subset | Broader syntax/value forms and diagnostics |
-| Immutable tensor memory and CPU computation | Implemented with checked ownership/shapes, strict float32 tensors, checked int32 CPU scalars/tensors, reductions/matmul, and uint32 scalars/tensor elementwise arithmetic, reductions/matmul, retained worker handoff and checked int64/uint64 scalars | Additional source arithmetic types, general values and broader operations |
+| Immutable tensor memory and CPU computation | Implemented with checked ownership/shapes, strict float32 tensors, checked int32 CPU scalars/tensors, reductions/matmul, and uint32 scalars/tensor elementwise arithmetic, reductions/matmul, retained worker handoff and checked int64/uint64 scalars and synchronous tensor literals/elementwise arithmetic | Additional source arithmetic types, general values and broader operations |
 | Structured local execution | Bounded multi-worker tasks, independently spawned CPU/GPU coordinators, recovery, cancellation and settlement implemented | Broader control/value forms and library composition |
 | Apple GPU execution | Mixed CPU/GPU programs, explicit transfers, rank-one/rank-two kernels and strict arithmetic implemented | Wider kernels/types, capability breadth and further performance work |
 | Shared execution planning | CPU and Metal emitters consume the [common continuation planner](design/continuations.md), including reachable resumable children | Further backend/type integration |
@@ -15,7 +15,7 @@ The native rewrite is a working CPU/Apple GPU compute subset, not yet the full a
 | Native distributed execution | Pending the agreed design review | Contracts, transport, deployment, failure/cancellation and remote storage lifetimes |
 | Additional GPU targets | Apple first | NVIDIA/Windows follows Apple qualification |
 
-Next: shared int64/uint64 CPU tensor literals and checked elementwise arithmetic. Broader language/type support and native tooling follow their own design and qualification gates. Discuss distributed execution before implementing it. Prototype release completion does not count as native implementation coverage.
+Next: shared int64/uint64 CPU tensor worker captures/results and ownership qualification, followed by reductions and matmul. Broader language/type support and native tooling follow their own design and qualification gates. Discuss distributed execution before implementing it. Prototype release completion does not count as native implementation coverage.
 
 ## Native implementation record
 

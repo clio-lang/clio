@@ -52,8 +52,6 @@ std::string describeType(const ValueType &type) {
 }
 std::optional<std::string> numericCapabilityError(const TypedModule &module, NumericTarget target) {
   const auto error = [&](const ValueType &type) -> std::optional<std::string> {
-    if (type.builtin == BuiltinValue::Numeric && type.tensor && (type.element == NumericType::Int64 || type.element == NumericType::UInt64))
-      return std::string(describeNumeric(type.element)->name) + " tensor arithmetic is not implemented by this backend";
     if (type.builtin != BuiltinValue::Numeric ||
         numericArithmeticAvailable(type.element, target))
       return {};
@@ -76,12 +74,14 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
     if (auto failure = error(expression.type))
       return failure;
     if (const auto *reduce = std::get_if<ReduceSum>(&expression.operation)) {
-      if (expression.type.element != module.expressions[reduce->input].type.element ||
+      if ((isInteger(expression.type.element) && !isInteger32(expression.type.element)) ||
+          expression.type.element != module.expressions[reduce->input].type.element ||
           !numericArithmeticAvailable(expression.type.element, target))
         return "unsupported reduction element type";
     }
     if (const auto *multiply = std::get_if<Matmul>(&expression.operation)) {
-      if (expression.type.element != module.expressions[multiply->left].type.element ||
+      if ((isInteger(expression.type.element) && !isInteger32(expression.type.element)) ||
+          expression.type.element != module.expressions[multiply->left].type.element ||
           expression.type.element != module.expressions[multiply->right].type.element ||
           !numericArithmeticAvailable(expression.type.element, target))
         return "unsupported matmul element type";
@@ -159,7 +159,9 @@ std::string dumpTypedIR(const TypedModule &module) {
                   << (node.type.element == NumericType::UInt64 ? "u64 checked " : node.type.element == NumericType::Int64 ? "i64 checked " : node.type.element == NumericType::UInt32 ? "u32 checked " : node.type.element == NumericType::Int32 ? "i32 checked " : "f32 ");
               value(operation.operand);
             } else if constexpr (std::is_same_v<T, TensorUnary>) {
-              out << (node.type.element == NumericType::UInt32 ? "elementwise neg.u32 checked "
+              out << (node.type.element == NumericType::UInt64 ? "elementwise neg.u64 checked "
+                      : node.type.element == NumericType::Int64 ? "elementwise neg.i64 checked "
+                      : node.type.element == NumericType::UInt32 ? "elementwise neg.u32 checked "
                       : node.type.element == NumericType::Int32 ? "elementwise neg.i32 checked "
                                                             : "elementwise neg.f32 exact_sign_bit ");
               value(operation.operand);

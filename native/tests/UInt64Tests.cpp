@@ -9,8 +9,10 @@ static void require(bool ok, const char *message) {
   if (!ok)
     throw std::runtime_error(message);
 }
+#include "Integer64TensorChecks.h"
 int main() {
   try {
+    checkInteger64Tensors("uint64", true);
     for (const auto *value :
          {"0", "18446744073709551615", "9223372036854775808", "9007199254740993", "+17", "-0",
           "18446744073709551615 / 2", "18446744073709551615 % 2", "18446744073709551615 * 0",
@@ -51,8 +53,7 @@ int main() {
     for (const auto *source :
          {"fn f(x:uint64) -> int64:\n  x\n", "fn f(x:int64) -> uint64:\n  x\n",
           "fn f(x:uint64,y:uint32) -> uint64:\n  x + y\n",
-          "fn f(x:uint64,y:float32) -> uint64:\n  x + y\n",
-          "fn f(x:Tensor[uint64,?]) -> uint64:\n  0\n", "fn f() -> uint16:\n  0\n",
+          "fn f(x:uint64,y:float32) -> uint64:\n  x + y\n", "fn f() -> uint16:\n  0\n",
           "fn f() -> float64:\n  0\n", "fn main() -> uint:\n  value = 1\n  value\n",
           "fn main() -> uint:\n  value:uint = 18446744073709551615\n  value * value\n",
           "fn main() -> uint:\n  value:uint = 18446744073709551615\n  -value\n",
@@ -68,14 +69,6 @@ int main() {
             "uint64 task layout lost");
     require(dumpTypedIR(*task.module).find("u64 18446744073709551615") != std::string::npos,
             "unsigned literal lost full-range typed identity");
-    auto forged =
-        analyze("fn f(x:Tensor[uint32,?]) -> Tensor[uint32,?]:\n  x\nfn main() -> uint32:\n  0\n");
-    for (auto &expr : forged.module->expressions)
-      if (expr.type.tensor)
-        expr.type.element = NumericType::UInt64;
-    auto rejected = lowerNative(*forged.module);
-    require(!rejected && rejected.error().find("uint64 tensor") != std::string::npos,
-            "backend admitted uint64 tensors");
 #endif
     require(bool(numericCapabilityError(*task.module, NumericTarget::AppleGpu)),
             "uint64 GPU arithmetic enabled");
