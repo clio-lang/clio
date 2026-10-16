@@ -534,6 +534,8 @@ private:
 } // namespace
 std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &input,
                                                           std::optional<std::string> testEntry) {
+  if (auto error = numericCapabilityError(input, NumericTarget::Cpu))
+    return std::unexpected(*error);
   if (hasPlacement(input))
     return std::unexpected("placement-aware IR requires a placement-capable execution backend");
   if (testEntry)

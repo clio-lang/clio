@@ -121,18 +121,9 @@ std::expected<std::uint64_t, Error> tensorBytes(std::span<const std::int64_t> sh
                                                 Format format) {
   if (shape.size() > 8)
     return std::unexpected(Error::Invalid);
-  std::uint64_t width = 0;
-  switch (format) {
-  case Format::Float32:
-  case Format::UInt32:
-    width = 4;
-    break;
-  case Format::UInt8:
-    width = 1;
-    break;
-  default:
+  const auto type = storageNumericType(format);
+  if (!type)
     return std::unexpected(Error::Invalid);
-  }
   bool zero = false;
   for (auto dimension : shape) {
     if (dimension < 0)
@@ -141,15 +132,16 @@ std::expected<std::uint64_t, Error> tensorBytes(std::span<const std::int64_t> sh
   }
   if (zero)
     return 0;
-  auto n = width;
+  std::uint64_t n = 1;
   for (auto dimension : shape) {
     if (std::uint64_t(dimension) > UINT64_MAX / n)
       return std::unexpected(Error::Invalid);
     n *= std::uint64_t(dimension);
   }
-  if (n > std::numeric_limits<std::size_t>::max())
+  auto bytes = checkedNumericBytes(*type, n, std::numeric_limits<std::size_t>::max());
+  if (!bytes)
     return std::unexpected(Error::Invalid);
-  return n;
+  return *bytes;
 }
 std::expected<std::shared_ptr<MetalAllocation>, Error>
 allocateMetal(const std::shared_ptr<State> &state, std::uint32_t index, std::uint64_t n,

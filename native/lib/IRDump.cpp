@@ -28,11 +28,12 @@ std::string describeType(const ValueType &type) {
     return type.builtin == BuiltinValue::TaskError   ? "TaskError"
            : type.builtin == BuiltinValue::FaultKind ? "FaultKind"
                                                      : "String";
+  const auto description = describeNumeric(type.element);
+  const auto name = description ? std::string(description->name) : "<invalid numeric type>";
   if (!type.tensor)
-    return std::string(type.task ? "task<float32>" : "float32") +
-           (type.fallible ? " ! TaskError" : "");
+    return (type.task ? "task<" + name + ">" : name) + (type.fallible ? " ! TaskError" : "");
   std::ostringstream out;
-  out << "Tensor[float32";
+  out << "Tensor[" << name;
   for (const auto &dimension : type.shape) {
     out << ", ";
     if (dimension.constant)
@@ -48,6 +49,30 @@ std::string describeType(const ValueType &type) {
   if (type.fallible)
     out << " ! TaskError";
   return out.str();
+}
+std::optional<std::string> numericCapabilityError(const TypedModule &module, NumericTarget target) {
+  const auto error = [&](const ValueType &type) -> std::optional<std::string> {
+    if (type.builtin != BuiltinValue::Numeric || numericArithmeticAvailable(type.element, target))
+      return {};
+    const auto description = describeNumeric(type.element);
+    return "numeric type '" + (description ? std::string(description->name) : "<invalid>") +
+           "' is not implemented by the " + (target == NumericTarget::Cpu ? "CPU" : "Apple GPU") +
+           " backend";
+  };
+  for (const auto &fn : module.functions) {
+    if (auto failure = error(fn.resultType))
+      return failure;
+    if (fn.declaredResult)
+      if (auto failure = error(*fn.declaredResult))
+        return failure;
+  }
+  for (const auto &symbol : module.symbols)
+    if (auto failure = error(symbol.type))
+      return failure;
+  for (const auto &expression : module.expressions)
+    if (auto failure = error(expression.type))
+      return failure;
+  return {};
 }
 std::string dumpTypedIR(const TypedModule &module) {
   std::ostringstream out;

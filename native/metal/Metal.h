@@ -24,6 +24,18 @@ enum class Error : std::int64_t {
   Residency = 7
 };
 enum class Format { Float32, UInt32, UInt8 };
+// Storage descriptions do not enable source arithmetic for these private formats.
+constexpr std::optional<NumericType> storageNumericType(Format format) {
+  switch (format) {
+  case Format::Float32:
+    return NumericType::Float32;
+  case Format::UInt32:
+    return NumericType::UInt32;
+  case Format::UInt8:
+    return NumericType::UInt8;
+  }
+  return {};
+}
 struct Options {
   std::uint64_t maxBytes = 64 * 1024 * 1024;
   std::uint32_t maxInFlight = 64, defaultDevice = 0;

@@ -1,4 +1,5 @@
 #pragma once
+#include "kalandra/NumericType.h"
 #include "kalandra/Syntax.h"
 
 namespace kalandra {
@@ -21,6 +22,8 @@ struct ValueType {
   // Tensor residence, or the selection carried by a Device value. Null is CPU.
   // Scalar numeric results remain host values, including GPU reductions.
   std::optional<std::uint32_t> device = {};
+  // Scalar numeric identity, or the tensor element type; irrelevant to other builtins.
+  NumericType element = NumericType::Float32;
 };
 struct Symbol {
   std::string name;
@@ -183,4 +186,7 @@ struct CheckOptions {
                                 CheckOptions options = {});
 [[nodiscard]] std::string describeType(const ValueType &type);
 [[nodiscard]] std::string dumpTypedIR(const TypedModule &module);
+// Reject unsupported numeric IR before a backend can apply float32-specific lowering.
+[[nodiscard]] std::optional<std::string> numericCapabilityError(const TypedModule &module,
+                                                                NumericTarget target);
 } // namespace kalandra

@@ -741,6 +741,8 @@ private:
 std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,
                                                       std::optional<std::string> testEntry,
                                                       const std::vector<std::string> &exports) {
+  if (auto error = numericCapabilityError(input, NumericTarget::Cpu))
+    return std::unexpected(*error);
   if (hasPlacement(input))
     return std::unexpected("placement-aware IR requires a placement-capable execution backend");
   if (std::ranges::any_of(input.functions, [](const auto &f) { return f.resultType.fallible; }) ||

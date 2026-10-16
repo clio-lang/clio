@@ -127,7 +127,7 @@ private:
       }
       count *= *dimension.constant;
     }
-    if (count > maximum / sizeof(float)) {
+    if (!checkedNumericBytes(type.element, count, maximum)) {
       error("S002", "tensor allocation byte count overflows the supported range", span);
       return false;
     }
@@ -138,13 +138,16 @@ private:
            std::ranges::any_of(type.shape, [](const auto &d) { return !d.constant; });
   }
   std::optional<ValueType> type(const TypeSyntax &syntax) {
-    if ((!syntax.tensor && name(syntax.name) != "float32") ||
-        (syntax.tensor && (!syntax.element || name(*syntax.element) != "float32"))) {
+    const auto numeric =
+        syntax.tensor ? (syntax.element ? resolveNumeric(name(*syntax.element)) : std::nullopt)
+                      : resolveNumeric(name(syntax.name));
+    if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu)) {
       error("S003", "only float32 and Tensor[float32,...] are implemented in this semantic subset",
             syntax.span);
       return {};
     }
     ValueType result{syntax.tensor, {}};
+    result.element = *numeric;
     for (const auto &dimension : syntax.dimensions)
       result.shape.push_back(dimension.extent ? Extent{dimension.extent, 0} : dynamic());
     if (!validSize(result, syntax.span))
@@ -313,8 +316,9 @@ private:
       error("S036", "expected task error requires try before using the success value", span);
       return {};
     }
-    if (actual.builtin != expected.builtin || actual.tensor != expected.tensor ||
-        actual.shape.size() != expected.shape.size()) {
+    if (actual.builtin != expected.builtin ||
+        (actual.builtin == BuiltinValue::Numeric && actual.element != expected.element) ||
+        actual.tensor != expected.tensor || actual.shape.size() != expected.shape.size()) {
       error("S010", "expected " + describeType(expected) + ", got " + describeType(actual), span);
       return {};
     }
@@ -392,7 +396,9 @@ private:
       error("S015", "finite literal overflows float32", span);
       return {};
     }
-    return add(frame, {}, span,
+    ValueType output;
+    output.element = expected->element;
+    return add(frame, output, span,
                Float32Literal{static_cast<std::uint32_t>(value.bitcastToAPInt().getZExtValue())});
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const NameExpr &read,
@@ -426,7 +432,7 @@ private:
         return operand;
       return add(frame, type, span, TensorUnary{unary.operation, *operand});
     }
-    return add(frame, {}, span, ScalarUnary{unary.operation, *operand});
+    return add(frame, type, span, ScalarUnary{unary.operation, *operand});
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const BinaryExpr &binary,
                                const std::optional<ValueType> &expected) {
@@ -452,8 +458,11 @@ private:
     }
     const auto operand = [&](ExprId id, std::optional<ValueType> context) {
       if (literal_[id]) {
-        if (context && context->tensor && context->builtin == BuiltinValue::Numeric)
+        if (context && context->tensor && context->builtin == BuiltinValue::Numeric) {
+          const auto element = context->element;
           context = ValueType{};
+          context->element = element;
+        }
         return expression(frame, id, context);
       }
       const auto *call = std::get_if<CallExpr>(&syntax_.expressions[id].value);
@@ -480,7 +489,7 @@ private:
       return {};
     const auto a = node(*left).type, b = node(*right).type;
     if (a.task || b.task || a.fallible || b.fallible || a.builtin != BuiltinValue::Numeric ||
-        b.builtin != BuiltinValue::Numeric) {
+        b.builtin != BuiltinValue::Numeric || a.element != b.element) {
       error("S017", "arithmetic requires completed float32 values", span);
       return {};
     }
@@ -516,7 +525,7 @@ private:
         return {};
       return add(frame, result, span, TensorBinary{binary.operation, *left, *right});
     }
-    return add(frame, {}, span, ScalarBinary{binary.operation, *left, *right});
+    return add(frame, a, span, ScalarBinary{binary.operation, *left, *right});
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const CallExpr &call,
                                const std::optional<ValueType> &expected) {
@@ -902,7 +911,9 @@ private:
                 arm.span);
           return {};
         }
-        if (actual.builtin != resultType->builtin || actual.tensor != resultType->tensor ||
+        if (actual.builtin != resultType->builtin ||
+            (actual.builtin == BuiltinValue::Numeric && actual.element != resultType->element) ||
+            actual.tensor != resultType->tensor ||
             actual.shape.size() != resultType->shape.size()) {
           error("S043", "match branches need a common success type", arm.span);
           return {};
@@ -1014,6 +1025,7 @@ private:
         dimensions.push_back(value);
       }
       ValueType shapeType{true, {}};
+      shapeType.element = expected->element;
       for (auto dimension : dimensions)
         shapeType.shape.push_back({dimension, 0});
       if (!validSize(shapeType, span))
@@ -1040,13 +1052,16 @@ private:
       data->shape = std::move(dimensions);
     }
     ValueType output{true, {}};
+    output.element = expected->element;
     for (auto dimension : data->shape)
       output.shape.push_back({dimension, 0});
     if (!validSize(output, span))
       return {};
     std::vector<ValueId> elements;
     for (auto leaf : data->leaves) {
-      auto value = expression(frame, leaf, ValueType{});
+      ValueType scalar;
+      scalar.element = output.element;
+      auto value = expression(frame, leaf, scalar);
       if (!value)
         return {};
       elements.push_back(*value);
@@ -1077,8 +1092,11 @@ private:
             syntax_.expressions[arguments[0]].span);
       return {};
     }
-    if (callee == "reduceSum")
-      return add(frame, {}, span, ReduceSum{*left});
+    if (callee == "reduceSum") {
+      ValueType result;
+      result.element = leftType.element;
+      return add(frame, result, span, ReduceSum{*left});
+    }
     auto right = expression(frame, arguments[1]);
     if (!right)
       return {};
@@ -1099,7 +1117,12 @@ private:
             span);
       return {};
     }
+    if (leftType.element != rightType.element) {
+      error("S017", "matmul requires matching numeric element types", span);
+      return {};
+    }
     ValueType output{true, {leftType.shape[0], rightType.shape[1]}};
+    output.element = leftType.element;
     if (!validSize(output, span))
       return {};
     if (!requireEqual(frame, a, b))

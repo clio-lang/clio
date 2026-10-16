@@ -86,6 +86,14 @@ class Compiler {
       if (!visited.insert(function).second)
         continue;
       const auto &fn = cpu.functions[function];
+      const auto supported = [&](const ValueType &type) {
+        if (type.builtin == BuiltinValue::Numeric &&
+            !numericArithmeticAvailable(type.element, NumericTarget::AppleGpu))
+          reject(fn.declaration, "GPU kernel numeric type is not implemented");
+      };
+      supported(fn.resultType);
+      for (auto parameter : fn.parameters)
+        supported(cpu.symbols[parameter].type);
       auto dynamic = [&](const ValueType &type) {
         for (const auto &axis : type.shape)
           if (axis.constant)
@@ -145,19 +153,20 @@ class Compiler {
     if (!t.tensor || !t.element || text(*t.element) != "float32" || t.dimensions.empty() ||
         t.dimensions.size() > 2)
       reject(t.span, "the Metal source bridge requires rank-one or rank-two float32 tensors");
+    const auto bytes = describeNumeric(NumericType::Float32)->bytes();
     std::uint64_t count = 1;
     bool allKnown = true, empty = false;
     for (const auto &d : t.dimensions) {
       if (dynamicOnly && d.extent)
         reject(t.span, "GPU tensor parameters/results currently require dynamic extents");
-      if (d.extent && *d.extent > std::uint64_t(INT64_MAX) / 4)
+      if (d.extent && *d.extent > std::uint64_t(INT64_MAX) / bytes)
         reject(t.span, "tensor extent exceeds the checked allocation range");
       allKnown &= d.extent.has_value();
       empty |= d.extent && *d.extent == 0;
     }
     if (allKnown && !empty)
       for (const auto &d : t.dimensions) {
-        if (*d.extent > std::uint64_t(INT64_MAX) / 4 / count)
+        if (*d.extent > std::uint64_t(INT64_MAX) / bytes / count)
           reject(t.span, "tensor shape exceeds the checked allocation range");
         count *= *d.extent;
       }
@@ -803,6 +812,10 @@ class Compiler {
   std::vector<Value> plannedParameters;
   Value lowerPlan(const continuation::Plan &plan, FunctionId entryId) {
     using namespace continuation;
+    for (const auto &type : plan.slots)
+      if (type.builtin == BuiltinValue::Numeric &&
+          !numericArithmeticAvailable(type.element, NumericTarget::Cpu))
+        reject({}, "Metal supervisor frame storage requires implemented numeric types");
     std::map<Slot, Value> values;
     std::map<Slot, unsigned> payloadWrites;
     std::map<std::size_t, std::size_t> joins;

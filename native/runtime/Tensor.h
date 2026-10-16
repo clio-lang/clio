@@ -1,4 +1,5 @@
 #pragma once
+#include "../include/kalandra/NumericType.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -25,6 +26,7 @@ template <> struct Float32Tensor<0> {
   std::int64_t offset = 0;
   CpuTensorView view() const noexcept { return {allocated, aligned, offset, {}, {}}; }
 };
+static_assert(sizeof(float) == describeNumeric(NumericType::Float32)->bytes());
 static_assert(std::is_standard_layout_v<Float32Tensor<1>>);
 static_assert(sizeof(void *) == 8 && sizeof(Float32Tensor<0>) == 24);
 static_assert(sizeof(Float32Tensor<1>) == 40 && sizeof(Float32Tensor<2>) == 56);
