@@ -121,30 +121,45 @@ static void cancelKernel(bool deadline, std::int64_t columns) {
   // Narrow/pair/tail kernels need enough contraction work to cancel while
   // inside generated loops rather than merely at the task entry boundary.
   Data large(257, columns < 256 ? 8193 : 512, columns), small(8, 8, 8);
-  TaskLimits limits;
-  limits.workers = 2;
-  auto core = TaskCore::create(limits);
-  CHECK(core);
-  Shared shared;
-  auto root = core->openRoot(), independent = core->openRoot();
-  auto running = submit(*core, root, {&shared, &large, 0});
-  auto other = submit(*core, independent, {&shared, &small, 1});
-  std::jthread runner([&] { CHECK(core->drain()); });
-  until([&] { return shared.polls[0].load() >= 1000; });
-  CHECK(!shared.finished[0] && core->cancel(root, deadline));
-  runner.join();
-  CHECK(shared.stopped[0] && !shared.finished[0] &&
-        core->failure(running).kind == TaskFailure::Cancelled);
-  CHECK(core->failure(root).kind ==
-        (deadline ? TaskFailure::DeadlineExceeded : TaskFailure::Cancelled));
-  observe(*core, other, 512);
-  CHECK(core->close(independent) && core->drain());
-  CHECK(core->release(root) && core->release(independent));
-  clean(*core);
-  for (auto x : large.left)
-    CHECK(x == 1);
-  for (auto x : large.right)
-    CHECK(x == 1);
+  // A finite kernel can finish before the controller gets CPU time. Require
+  // a genuine interrupted invocation, without assuming a scheduling latency.
+  for (unsigned attempt = 0; attempt < 8; ++attempt) {
+    TaskLimits limits;
+    limits.workers = 2;
+    auto core = TaskCore::create(limits);
+    CHECK(core);
+    Shared shared;
+    auto root = core->openRoot(), independent = core->openRoot();
+    auto running = submit(*core, root, {&shared, &large, 0});
+    auto other = submit(*core, independent, {&shared, &small, 1});
+    std::jthread runner([&] { CHECK(core->drain()); });
+    until([&] { return shared.polls[0].load() >= 1000; });
+    CHECK(core->cancel(root, deadline));
+    runner.join();
+    if (shared.finished[0]) {
+      // The controller may be descheduled after observing a poll while the
+      // kernel completes. That run did not exercise in-loop cancellation.
+      // Settle it and retry; never count successful completion as interruption.
+      CHECK(core->close(independent) && core->drain());
+      CHECK(core->release(root) && core->release(independent));
+      clean(*core);
+      continue;
+    }
+    CHECK(shared.stopped[0] && !shared.finished[0] &&
+          core->failure(running).kind == TaskFailure::Cancelled);
+    CHECK(core->failure(root).kind ==
+          (deadline ? TaskFailure::DeadlineExceeded : TaskFailure::Cancelled));
+    observe(*core, other, 512);
+    CHECK(core->close(independent) && core->drain());
+    CHECK(core->release(root) && core->release(independent));
+    clean(*core);
+    for (auto x : large.left)
+      CHECK(x == 1);
+    for (auto x : large.right)
+      CHECK(x == 1);
+    return;
+  }
+  CHECK(false); // No actual in-loop cancellation observed in the bounded retries.
 }
 static void faultCancelsKernel() {
   Data large(256, 512, 256), bad(8, 8, 8), small(8, 8, 8);

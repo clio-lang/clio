@@ -74,9 +74,9 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
     if (auto failure = error(expression.type))
       return failure;
     if (const auto *reduce = std::get_if<ReduceSum>(&expression.operation)) {
-      if (expression.type.element != NumericType::Float32 ||
-          module.expressions[reduce->input].type.element != NumericType::Float32)
-        return "integer reductions are not implemented by the CPU backend";
+      if (expression.type.element != module.expressions[reduce->input].type.element ||
+          !numericArithmeticAvailable(expression.type.element, target))
+        return "unsupported reduction element type";
     }
     if (const auto *multiply = std::get_if<Matmul>(&expression.operation)) {
       if (expression.type.element != NumericType::Float32 ||

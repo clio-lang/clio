@@ -62,15 +62,7 @@ foreach(WORKERS IN ITEMS 1 2 4)
       "${OUTPUT_DIR}/recovery-harness" "${WORKERS}" 5 3)
   endforeach()
 endforeach()
-# A source containing tensor tasks still rejects integer reductions and GPU use.
-file(READ "${OUTPUT_DIR}/nested.kalandra" SOURCE)
-string(REPLACE "    try await work" "    reduceSum(try await work)" BAD "${SOURCE}")
-file(WRITE "${OUTPUT_DIR}/unsupported-reduction.kalandra" "${BAD}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/unsupported-reduction.kalandra"
-  -o "${OUTPUT_DIR}/unsupported-reduction" RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1" OR NOT ERR MATCHES "S053" OR EXISTS "${OUTPUT_DIR}/unsupported-reduction")
-  message(FATAL_ERROR "Tensor task support accidentally enabled integer reductions: ${STATUS}: ${ERR}")
-endif()
+# Tensor tasks still reject GPU integer arithmetic.
 execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/nested.kalandra" --target metal
   -o "${OUTPUT_DIR}/unsupported-metal" RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
 if(NOT "${STATUS}" STREQUAL "1" OR NOT ERR MATCHES "float32" OR EXISTS "${OUTPUT_DIR}/unsupported-metal")

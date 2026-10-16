@@ -181,9 +181,9 @@ private:
       return value;
     return tensor::CastOp::create(builder_, loc, target, value);
   }
-  Value reductionScratch(Location loc, Value count) {
+  Value reductionScratch(Location loc, Value count, Type element = {}) {
     checkedCount(loc, {count});
-    auto scratchType = MemRefType::get({ShapedType::kDynamic}, builder_.getF32Type());
+    auto scratchType = MemRefType::get({ShapedType::kDynamic}, element ? element : builder_.getF32Type());
     return memref::AllocOp::create(builder_, loc, scratchType, ValueRange{count});
   }
   Value scratchLoad(Location loc, Value scratch, Value i, unsigned width, Value base = {}) {
@@ -208,8 +208,9 @@ private:
   Value scratchReduction(Location loc, Value count, Value scratch, unsigned width = 1,
                          Value base = {}) {
     const auto z = index(loc, 0), one = index(loc, 1), two = index(loc, 2);
-    const auto vectorType = VectorType::get({width}, builder_.getF32Type());
-    const Type resultType = width == 1 ? Type(builder_.getF32Type()) : Type(vectorType);
+    const auto elementType = cast<MemRefType>(scratch.getType()).getElementType();
+    const auto vectorType = VectorType::get({width}, elementType);
+    const Type resultType = width == 1 ? elementType : Type(vectorType);
     const auto load = [&](Value i) { return scratchLoad(loc, scratch, i, width, base); };
     const auto store = [&](Value value, Value i) {
       scratchStore(loc, value, scratch, i, width, base);
@@ -231,7 +232,9 @@ private:
                                auto second = arith::AddIOp::create(builder_, loc, first, one);
                                auto a = load(first);
                                auto b = load(second);
-                               auto sum = arith::AddFOp::create(builder_, loc, a, b);
+                               Value sum = elementType.isInteger(32)
+                                               ? integerBinary(loc, a, b, TokenKind::Plus)
+                                               : Value(arith::AddFOp::create(builder_, loc, a, b));
                                store(sum, i);
                                scf::YieldOp::create(builder_, loc);
                              });
@@ -249,7 +252,8 @@ private:
     {
       OpBuilder::InsertionGuard guard(builder_);
       builder_.setInsertionPointToStart(&result.getThenRegion().front());
-      Value empty = zero(loc);
+      Value empty = elementType.isInteger(32)
+                        ? Value(arith::ConstantIntOp::create(builder_, loc, 0, 32)) : zero(loc);
       if (width != 1)
         empty = vector::BroadcastOp::create(builder_, loc, vectorType, empty);
       scf::YieldOp::create(builder_, loc, ValueRange{empty});
@@ -555,7 +559,7 @@ private:
       throw LoweringFailure{"unsupported reduction numerical policy"};
     auto shape = dimensions(loc, tensor);
     auto count = checkedCount(loc, shape);
-    auto scratch = reductionScratch(loc, count);
+    auto scratch = reductionScratch(loc, count, cast<RankedTensorType>(tensor.getType()).getElementType());
     return reduction(loc, count, scratch, [&](Value linear) -> Value {
       SmallVector<Value> indices(shape.size());
       for (std::size_t axis = shape.size(); axis > 0; --axis) {
