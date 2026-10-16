@@ -17,9 +17,10 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
         using T = std::decay_t<decltype(op)>;
         if constexpr (std::is_same_v<T, TensorLiteral>)
           return op.elements;
-        else if constexpr (std::is_same_v<T, TensorUnary>)
+        else if constexpr (std::is_same_v<T, TensorUnary> || std::is_same_v<T, ScalarUnary>)
           return {op.operand};
-        else if constexpr (std::is_same_v<T, Matmul> || std::is_same_v<T, TensorBinary>)
+        else if constexpr (std::is_same_v<T, Matmul> || std::is_same_v<T, TensorBinary> ||
+                           std::is_same_v<T, ScalarBinary>)
           return {op.left, op.right};
         else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, ShapeCheck>)
           return {op.input};
@@ -168,6 +169,12 @@ private:
       reduce->input = reads[0];
     else if (auto *shape = std::get_if<ShapeCheck>(&op))
       shape->input = reads[0];
+    if (auto *unary = std::get_if<ScalarUnary>(&op))
+      unary->operand = reads[0];
+    else if (auto *binary = std::get_if<ScalarBinary>(&op)) {
+      binary->left = reads[0];
+      binary->right = reads[1];
+    }
     fn.result = kernels.expressions.size();
     fn.resultType = plain(source.type);
     fn.declaredResult = fn.resultType;
@@ -192,7 +199,7 @@ private:
   }
   bool constant(ValueId id) const {
     const auto &op = input.expressions[id].operation;
-    if (std::holds_alternative<Float32Literal>(op))
+    if (std::holds_alternative<Float32Literal>(op) || std::holds_alternative<Int32Literal>(op))
       return true;
     const auto *unary = std::get_if<ScalarUnary>(&op);
     return unary && constant(unary->operand);
@@ -356,9 +363,18 @@ private:
                            env.boundary->output,
                            env.boundary->group.value_or(SIZE_MAX)});
       env.boundary->jumps.push_back(index);
-    } else if (std::holds_alternative<Float32Literal>(node.operation))
+    } else if (std::holds_alternative<Float32Literal>(node.operation) ||
+               std::holds_alternative<Int32Literal>(node.operation))
       plan.code.push_back({Code::Literal, output, {}, 0, 0, 0, id});
-    else if (const auto *unary = std::get_if<ScalarUnary>(&node.operation)) {
+    else if (node.type.element == NumericType::Int32 &&
+             (std::holds_alternative<ScalarUnary>(node.operation) ||
+              std::holds_alternative<ScalarBinary>(node.operation))) {
+      std::vector<Slot> args;
+      for (auto arg : operands(node))
+        args.push_back(expression(plan, arg, env, stack));
+      plan.code.push_back({Code::Kernel, output, args,
+                           options.preserveCalls ? 0 : kernel(id), 0, 0, id});
+    } else if (const auto *unary = std::get_if<ScalarUnary>(&node.operation)) {
       auto arg = expression(plan, unary->operand, env, stack);
       plan.code.push_back({Code::Unary, output, {arg}, 0, 0, 0, id});
     } else if (const auto *binary = std::get_if<ScalarBinary>(&node.operation)) {

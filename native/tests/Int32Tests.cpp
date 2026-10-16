@@ -53,9 +53,8 @@ int main() {
                 "fn main() -> int32 ! TaskError:\n  try parallel:\n    try await spawn f(1)\n");
     require(task.ok(), "int32 task frontend regressed");
 #ifndef KALANDRA_INT32_FRONTEND_ONLY
-    auto rejected = lowerNative(*task.module);
-    require(!rejected && rejected.error().find("float32") != std::string::npos,
-            "unimplemented int32 task backend accepted");
+    auto loweredTask = lowerNative(*task.module);
+    require(bool(loweredTask), "int32 task backend rejected typed captures/results");
 #endif
     require(bool(numericCapabilityError(*functions.module, NumericTarget::AppleGpu)),
             "int32 GPU capability accidentally enabled");

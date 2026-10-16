@@ -74,10 +74,16 @@ public:
                                      [](const auto &f) { return f.name == "main"; });
     if (main == planner.input.functions.end() || !main->parameters.empty() ||
         main->resultType.tensor || main->resultType.builtin != BuiltinValue::Numeric)
-      throw std::runtime_error("native task entry requires parameterless float32 main");
+      throw std::runtime_error("native task entry requires parameterless float32 or int32 main");
     const auto id = std::size_t(main - planner.input.functions.begin());
     auto *entry = module.getFunction("_mlir_ciface_kalandra_entry");
-    entry->deleteBody();
+    if (main->resultType.element == NumericType::Int32) {
+      entry->eraseFromParent();
+      entry = Function::Create(llvm::FunctionType::get(i32, {pointer}, false),
+                               llvm::GlobalValue::ExternalLinkage,
+                               "_mlir_ciface_kalandra_int32_entry", module);
+    } else
+      entry->deleteBody();
     builder.SetInsertPoint(Block::Create(context, "entry", entry));
     auto *ctx = entry->getArg(0);
     auto *packet = builder.CreateAlloca(packetType);
@@ -98,13 +104,13 @@ public:
     call("kalandra_expected_task_error_v1", voidType,
          {ctx, builder.CreateZExt(rootKind, i64), loadFailure(failure, 1), loadFailure(failure, 2),
           loadFailure(failure, 3)});
-    builder.CreateRet(llvm::ConstantFP::get(f32, 0));
+    builder.CreateRet(llvm::Constant::getNullValue(scalarType(main->resultType)));
     builder.SetInsertPoint(checkedFault);
     Value *code = builder.CreateLoad(i64, builder.CreateStructGEP(failureType, failure, 1));
     code = builder.CreateSelect(builder.CreateICmpEQ(code, c64(0)), c64(3), code);
     call("kalandra_fault_v1", voidType,
          {ctx, code, loadFailure(failure, 2), loadFailure(failure, 3)});
-    builder.CreateRet(llvm::ConstantFP::get(f32, 0));
+    builder.CreateRet(llvm::Constant::getNullValue(scalarType(main->resultType)));
     builder.SetInsertPoint(ok);
     auto *expected = Block::Create(context, "root.expected_error", entry);
     auto *success = Block::Create(context, "root.success", entry);
@@ -115,10 +121,11 @@ public:
         builder.CreateLoad(i32, builder.CreateStructGEP(failureType, header, 0)), i64);
     call("kalandra_expected_task_error_v1", voidType,
          {ctx, kind, loadFailure(header, 1), loadFailure(header, 2), loadFailure(header, 3)});
-    builder.CreateRet(llvm::ConstantFP::get(f32, 0));
+    builder.CreateRet(llvm::Constant::getNullValue(scalarType(main->resultType)));
     builder.SetInsertPoint(success);
     builder.CreateRet(
-        builder.CreateLoad(f32, builder.CreateStructGEP(valueType(main->resultType), result, 1)));
+        builder.CreateLoad(scalarType(main->resultType),
+                           builder.CreateStructGEP(valueType(main->resultType), result, 1)));
   }
 
 private:
@@ -143,13 +150,16 @@ private:
     auto *dims = llvm::ArrayType::get(i64, type.shape.size());
     return llvm::StructType::get(context, {pointer, pointer, i64, dims, dims});
   }
+  Type *scalarType(const ValueType &type) const {
+    return type.element == NumericType::Int32 ? i32 : f32;
+  }
   std::string key(const ValueType &type) {
     return type.builtin == BuiltinValue::TaskError   ? "TaskError"
            : type.builtin == BuiltinValue::FaultKind ? "FaultKind"
            : type.builtin == BuiltinValue::String    ? "String"
            : type.task                               ? "handle"
            : type.tensor                             ? "tensor" + std::to_string(type.shape.size())
-                                                     : "scalar";
+                                                     : type.element == NumericType::Int32 ? "scalar.int32" : "scalar";
   }
   llvm::StructType *valueType(const ValueType &type) {
     const auto name = key(type);
@@ -161,7 +171,7 @@ private:
                         ? static_cast<Type *>(llvm::StructType::get(context, {pointer, i64}))
                     : type.task   ? static_cast<Type *>(handleType)
                     : type.tensor ? static_cast<Type *>(descriptor(type))
-                                  : f32;
+                                  : scalarType(type);
     return values[name] =
                llvm::StructType::create(context, {failureType, payload}, "result." + name);
   }
@@ -208,7 +218,8 @@ private:
         layoutType,
         {c64(type.builtin != BuiltinValue::Numeric ? 0x10000 + static_cast<unsigned>(type.builtin)
              : type.tensor                         ? type.shape.size() + 2
-                                                   : 1),
+                                                   : type.element == NumericType::Int32
+                                                       ? 0x20000 + static_cast<unsigned>(type.element) : 1),
          c64(size(wrapper)), c64(alignment(wrapper)), fn, destroy});
     return layouts[name] = new llvm::GlobalVariable(module, layoutType, true,
                                                     llvm::GlobalValue::InternalLinkage, constant,
@@ -307,8 +318,13 @@ private:
       const auto &type = plan.slots[instruction.output];
       switch (instruction.code) {
       case Code::Literal: {
-        auto bits =
-            std::get<Float32Literal>(planner.input.expressions[instruction.source].operation).bits;
+        const auto &literal = planner.input.expressions[instruction.source].operation;
+        if (const auto *integer = std::get_if<Int32Literal>(&literal)) {
+          builder.CreateStore(c32(static_cast<std::uint32_t>(integer->value)), payload(instruction.output));
+          builder.CreateBr(next);
+          break;
+        }
+        auto bits = std::get<Float32Literal>(literal).bits;
         builder.CreateStore(
             llvm::ConstantFP::get(
                 context, llvm::APFloat(llvm::APFloat::IEEEsingle(), llvm::APInt(32, bits))),
@@ -363,7 +379,7 @@ private:
         for (auto argument : instruction.args)
           arguments.push_back(plan.slots[argument].tensor
                                   ? payload(argument)
-                                  : builder.CreateLoad(f32, payload(argument)));
+                                  : builder.CreateLoad(scalarType(plan.slots[argument]), payload(argument)));
         arguments.push_back(ctx);
         auto *value = builder.CreateCall(fn, arguments);
         if (!type.tensor) {
@@ -477,7 +493,8 @@ private:
         if (field == ErrorField::Kind) {
           auto *kind = builder.CreateSelect(
               builder.CreateICmpEQ(code, c64(1)), c32(3),
-              builder.CreateSelect(builder.CreateICmpEQ(code, c64(2)), c32(4), c32(5)));
+              builder.CreateSelect(builder.CreateICmpEQ(code, c64(2)), c32(4),
+                                   builder.CreateSelect(builder.CreateICmpEQ(code, c64(4)), c32(1), c32(5))));
           builder.CreateStore(kind, payload(instruction.output));
         } else {
           auto *textType = llvm::cast<llvm::StructType>(valueType(type)->getElementType(1));
@@ -493,7 +510,9 @@ private:
             message = builder.CreateSelect(
                 builder.CreateICmpEQ(code, c64(1)), text("tensor shape mismatch"),
                 builder.CreateSelect(builder.CreateICmpEQ(code, c64(2)), text("allocation failed"),
-                                     text("native execution fault")));
+                                     builder.CreateSelect(builder.CreateICmpEQ(code, c64(4)),
+                                                          text("integer arithmetic fault"),
+                                                          text("native execution fault"))));
           builder.CreateStore(message, payload(instruction.output));
         }
         builder.CreateBr(next);
@@ -536,15 +555,6 @@ std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &inp
                                                           std::optional<std::string> testEntry) {
   if (auto error = numericCapabilityError(input, NumericTarget::Cpu))
     return std::unexpected(*error);
-  // Frame arithmetic is a separate capability from synchronous CPU arithmetic.
-  const auto unsupported = [](const ValueType &type) {
-    return type.builtin == BuiltinValue::Numeric && type.element != NumericType::Float32;
-  };
-  if (std::ranges::any_of(input.functions, [&](const auto &fn) {
-        return unsupported(fn.resultType) || (fn.declaredResult && unsupported(*fn.declaredResult));
-      }) || std::ranges::any_of(input.symbols, [&](const auto &s) { return unsupported(s.type); }) ||
-      std::ranges::any_of(input.expressions, [&](const auto &e) { return unsupported(e.type); }))
-    return std::unexpected("CPU task continuation arithmetic currently supports only float32");
   if (hasPlacement(input))
     return std::unexpected("placement-aware IR requires a placement-capable execution backend");
   if (testEntry)

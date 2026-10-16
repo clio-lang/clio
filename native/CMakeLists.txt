@@ -428,3 +428,14 @@ if(BUILD_TESTING)
     set_tests_properties(native-int32-runtime-${VARIANT} PROPERTIES TIMEOUT 180)
   endforeach()
 endif()
+
+if(BUILD_TESTING)
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-int32-tasks-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>" "-DVARIANT=${VARIANT}"
+        "-DFIXTURES=${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/int32-tasks-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyInt32Tasks.cmake")
+    set_tests_properties(native-int32-tasks-${VARIANT} PROPERTIES TIMEOUT 180)
+  endforeach()
+endif()
