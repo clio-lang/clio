@@ -31,8 +31,14 @@ void buildMetalProgram(const std::filesystem::path &directory,
     run({KALANDRA_GPU_TRANSLATE, "--no-implicit-module", "--serialize-spirv", base + ".kernel.mlir",
          "-o", base + ".spv"});
     run({KALANDRA_GPU_VALIDATE, "--target-env", "vulkan1.0", base + ".spv"});
-    run({KALANDRA_GPU_CROSS, base + ".spv", "--msl", "--msl-version", "20200", "--output",
-         base + ".metal"});
+    std::vector<std::string> cross{KALANDRA_GPU_CROSS, base + ".spv", "--msl",
+                                   "--msl-version",    "20200",       "--output",
+                                   base + ".metal"};
+    if (contents.find("@kalandra_elementwise_v3(") != std::string::npos)
+      cross.insert(cross.end(), {"--msl-argument-buffers", "--msl-argument-buffer-tier", "1",
+                                 "--msl-device-argument-buffer", "0",
+                                 "--msl-force-active-argument-buffer-resources"});
+    run(std::move(cross));
     run({"/usr/bin/xcrun", "--toolchain", KALANDRA_GPU_METAL_TOOLCHAIN, "--sdk", "macosx", "metal",
          "-std=macos-metal2.2", "-fno-fast-math", "-ffp-contract=off",
          "-fmodules-cache-path=" + (directory / "module-cache").string(), "-c", base + ".metal",

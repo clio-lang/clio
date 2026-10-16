@@ -108,6 +108,13 @@ struct KernelState {
   std::array<std::uint32_t, directBufferEntries - 2> reads{};
   std::uint32_t readCount = 2;
   bool projected = false;
+  std::vector<std::uint32_t> indirectReads;
+  id<MTLFunction> argumentFunction = nil;
+  std::uint64_t encodedBytes = 0;
+  bool indirect() const { return argumentFunction != nil; }
+  std::uint32_t tensorIndex(std::size_t i) const {
+    return indirect() ? indirectReads[i] : reads[i];
+  }
 };
 namespace {
 std::expected<std::uint64_t, Error> tensorBytes(std::span<const std::int64_t> shape,
@@ -293,7 +300,7 @@ struct Bridge {
     Buffer result;
     float scalar = 0;
     std::unique_ptr<ReductionScratch> scratch;
-    std::shared_ptr<MetalAllocation> staging;
+    std::shared_ptr<MetalAllocation> staging, resources;
     Error error = Error::Device;
     bool succeeded = false, started = false, active = false;
     explicit Frame(PacketData p) : packet(std::move(p)) {}
@@ -434,6 +441,7 @@ struct Bridge {
           if (f.packet.kind == Kind::Reduce)
             std::memcpy(&f.scalar, f.staging->buffer.contents, 4);
           f.staging.reset();
+          f.resources.reset();
           f.scratch.reset();
           f.packet.input = Buffer{};
           f.packet.right = Buffer{};
@@ -453,7 +461,7 @@ struct Bridge {
       }
       if (f.packet.arguments) {
         const auto &kernel = f.packet.kernel.state_;
-        f.packet.input = f.packet.arguments->tensors[kernel->reads[0]];
+        f.packet.input = f.packet.arguments->tensors[kernel->tensorIndex(0)];
       }
       const auto &source = f.packet.input.storage_;
       if (!source) {
@@ -519,8 +527,8 @@ struct Bridge {
             kernel && kernel->signature ? *kernel->signature : ElementwiseSignature{2, 0};
         if (!kernel || kernel->reduction || kernel->matrix ||
             kernel->elementwise != (f.packet.kind == Kind::Elementwise) ||
-            (!f.packet.arguments &&
-             (kernel->projected || signature.tensors != 2 || signature.scalars != 0)) ||
+            (!f.packet.arguments && (kernel->projected || kernel->indirect() ||
+                                     signature.tensors != 2 || signature.scalars != 0)) ||
             (f.packet.arguments && (f.packet.arguments->tensors.size() != signature.tensors ||
                                     f.packet.arguments->scalarBits.size() != signature.scalars)) ||
             std::uint32_t(f.packet.operation) > 2 || source->format != Format::Float32 ||
@@ -545,9 +553,11 @@ struct Bridge {
         if (f.packet.arguments)
           for (std::size_t i = 0; i < f.packet.arguments->tensors.size(); ++i) {
             const auto &other = f.packet.arguments->tensors[i].storage_;
-            const bool read =
-                std::find(kernel->reads.begin(), kernel->reads.begin() + kernel->readCount, i) !=
-                kernel->reads.begin() + kernel->readCount;
+            const auto reads =
+                kernel->indirect()
+                    ? std::span<const std::uint32_t>(kernel->indirectReads)
+                    : std::span<const std::uint32_t>(kernel->reads.data(), kernel->readCount);
+            const bool read = std::binary_search(reads.begin(), reads.end(), i);
             if (!other || other->format != Format::Float32 ||
                 (other->rank != 1 && other->rank != 2) ||
                 (read &&
@@ -624,6 +634,25 @@ struct Bridge {
             return;
           }
           f.staging = *parametersBuffer;
+          id<MTLArgumentEncoder> arguments = nil;
+          if (kernel->indirect()) {
+            auto resources = allocateMetal(state, index, kernel->encodedBytes, true);
+            if (!resources) {
+              task.fault(std::int64_t(resources.error()));
+              return;
+            }
+            f.resources = *resources;
+            // Argument encoders are invocation-local: their mutable destination cannot
+            // be shared by concurrent calls using the same immutable Kernel.
+            arguments = state->permit()
+                            ? [kernel->argumentFunction newArgumentEncoderWithBufferIndex:0]
+                            : nil;
+            if (!arguments) {
+              task.fault(std::int64_t(Error::Allocation));
+              return;
+            }
+            [arguments setArgumentBuffer:f.resources->buffer offset:0];
+          }
           if (!state->permit() || !(command = [state->queues[index] commandBuffer])) {
             task.fault(std::int64_t(Error::Allocation));
             return;
@@ -643,23 +672,25 @@ struct Bridge {
                           : layout == MatmulLayout::Quad ? kernel->matrixTiles[1]
                                                          : kernel->pipeline;
           [encoder setComputePipelineState:pipeline];
-          [encoder
-              setBuffer:matrix && !source->size ? (*result)->metal->buffer : source->metal->buffer
-                 offset:0
-                atIndex:0];
-          if (f.packet.arguments) {
-            for (std::size_t i = 0; i < tensors; ++i)
-              [encoder
-                  setBuffer:f.packet.arguments->tensors[kernel->reads[i]].storage_->metal->buffer
-                     offset:0
-                    atIndex:i];
-          } else if (tensors == 2)
+          if (!kernel->indirect()) {
             [encoder
-                setBuffer:matrix && !f.packet.right.bytes() ? (*result)->metal->buffer
-                                                            : f.packet.right.storage_->metal->buffer
+                setBuffer:matrix && !source->size ? (*result)->metal->buffer : source->metal->buffer
                    offset:0
-                  atIndex:1];
-          [encoder setBuffer:(*result)->metal->buffer offset:0 atIndex:tensors];
+                  atIndex:0];
+            if (f.packet.arguments) {
+              for (std::size_t i = 0; i < tensors; ++i)
+                [encoder setBuffer:f.packet.arguments->tensors[kernel->tensorIndex(i)]
+                                       .storage_->metal->buffer
+                            offset:0
+                           atIndex:i];
+            } else if (tensors == 2)
+              [encoder setBuffer:matrix && !f.packet.right.bytes()
+                                     ? (*result)->metal->buffer
+                                     : f.packet.right.storage_->metal->buffer
+                          offset:0
+                         atIndex:1];
+            [encoder setBuffer:(*result)->metal->buffer offset:0 atIndex:tensors];
+          }
           auto *parameters = static_cast<std::uint32_t *>(f.staging->buffer.contents);
           std::fill_n(parameters, parameterBytes / 4, 0u);
           parameters[0] = std::uint32_t(source->size / 4);
@@ -672,7 +703,21 @@ struct Bridge {
                       parameters + 1);
           else
             parameters[1] = std::uint32_t(f.packet.operation);
-          [encoder setBuffer:f.staging->buffer offset:0 atIndex:tensors + 1];
+          if (kernel->indirect()) {
+
+            for (std::size_t i = 0; i < tensors; ++i) {
+              auto buffer =
+                  f.packet.arguments->tensors[kernel->tensorIndex(i)].storage_->metal->buffer;
+              [arguments setBuffer:buffer offset:0 atIndex:i];
+              [encoder useResource:buffer usage:MTLResourceUsageRead];
+            }
+            [arguments setBuffer:(*result)->metal->buffer offset:0 atIndex:tensors];
+            [arguments setBuffer:f.staging->buffer offset:0 atIndex:tensors + 1];
+            [encoder useResource:(*result)->metal->buffer usage:MTLResourceUsageWrite];
+            [encoder useResource:f.staging->buffer usage:MTLResourceUsageRead];
+            [encoder setBuffer:f.resources->buffer offset:0 atIndex:0];
+          } else
+            [encoder setBuffer:f.staging->buffer offset:0 atIndex:tensors + 1];
           const auto lanes = matrix ? matmulWorkItems(layout, parameters[0], parameters[2])
                                     : std::uint64_t(parameters[0]);
           [encoder dispatchThreadgroups:MTLSizeMake((lanes + 63) / 64, 1, 1)
@@ -976,9 +1021,15 @@ Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
                     std::optional<std::span<const std::uint32_t>> reads) noexcept {
   @autoreleasepool {
     const auto physical = reads ? reads->size() : signature ? signature->tensors : 2;
+    const bool indirect = signature && signature->binding == ElementwiseBinding::ArgumentBuffer;
+    if ((signature &&
+         std::uint32_t(signature->binding) > std::uint32_t(ElementwiseBinding::ArgumentBuffer)) ||
+        (indirect && (reduction || matrix || !elementwise)))
+      return std::unexpected(Error::Invalid);
     if ((signature &&
          (!elementwise || signature->tensors == 0 || signature->scalars == UINT32_MAX)) ||
-        !directElementwiseLayout(physical, signature ? signature->scalars : 0))
+        !(indirect ? indirectElementwiseLayout(physical, signature->scalars)
+                   : directElementwiseLayout(physical, signature ? signature->scalars : 0)))
       return std::unexpected(Error::Invalid);
     if (reads) {
       if (!signature || reduction || matrix)
@@ -989,6 +1040,9 @@ Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
     }
     if (device.state_ != state_)
       return std::unexpected(Error::Residency);
+    if (indirect &&
+        state_->devices[device.index_].argumentBuffersSupport != MTLArgumentBuffersTier2)
+      return std::unexpected(Error::Unavailable);
     if (signature &&
         4ull * (1ull + signature->scalars) > state_->devices[device.index_].maxBufferLength)
       return std::unexpected(Error::Unavailable);
@@ -1008,6 +1062,8 @@ Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
                                                       error:&error];
       if (!library)
         return std::unexpected(Error::Invalid);
+      id<MTLFunction> argumentFunction = nil;
+      std::uint64_t encodedBytes = 0;
       auto prepare = [&](NSString *entry) -> std::expected<id<MTLComputePipelineState>, Error> {
         id<MTLFunction> function = [library newFunctionWithName:entry];
         if (!function)
@@ -1025,6 +1081,50 @@ Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
         const auto tensors = physical;
         const auto parameterIndex = tensors + 1, bindingCount = tensors + 2;
         const auto words = matrix ? 3 : signature ? signature->scalars + 1 : 2;
+        if (indirect) {
+          if (reflection.bindings.count != 1)
+            return std::unexpected(Error::Invalid);
+          id<MTLBufferBinding> root = (id<MTLBufferBinding>)reflection.bindings[0];
+          if (root.type != MTLBindingTypeBuffer || root.index != 0 ||
+              !root.bufferPointerType.elementIsArgumentBuffer ||
+              root.bufferDataType != MTLDataTypeStruct ||
+              root.bufferStructType.members.count != bindingCount)
+            return std::unexpected(Error::Invalid);
+          if (!state_->permit())
+            return std::unexpected(Error::Allocation);
+          auto encoder = [function newArgumentEncoderWithBufferIndex:0];
+          if (!encoder || encoder.encodedLength < sizeof(std::uint64_t) ||
+              encoder.encodedLength > state_->devices[device.index_].maxBufferLength)
+            return std::unexpected(Error::Unavailable);
+          if (encoder.encodedLength != root.bufferDataSize ||
+              encoder.alignment != root.bufferAlignment ||
+              encoder.alignment < alignof(std::uint64_t) ||
+              (encoder.alignment & (encoder.alignment - 1)))
+            return std::unexpected(Error::Invalid);
+          std::uint64_t last = 0;
+          for (std::size_t i = 0; i < bindingCount; ++i) {
+            MTLStructMember *member = root.bufferStructType.members[i];
+            auto pointer = member.pointerType;
+            auto fields = pointer.elementStructType.members;
+            const auto count = i == parameterIndex ? words : 1;
+            if (member.dataType != MTLDataTypePointer || member.argumentIndex != i ||
+                member.offset < last || member.offset % alignof(std::uint64_t) ||
+                member.offset > encoder.encodedLength - sizeof(std::uint64_t) || !pointer ||
+                pointer.elementIsArgumentBuffer || pointer.elementType != MTLDataTypeStruct ||
+                pointer.alignment != 4 || pointer.dataSize != 4ull * count || fields.count != 1)
+              return std::unexpected(Error::Invalid);
+            last = member.offset + sizeof(std::uint64_t);
+            MTLStructMember *field = fields[0];
+            auto array = field.arrayType;
+            if (field.offset != 0 || field.dataType != MTLDataTypeArray || !array ||
+                array.stride != 4 || array.arrayLength != count ||
+                array.elementType != (i == parameterIndex ? MTLDataTypeUInt : MTLDataTypeFloat))
+              return std::unexpected(Error::Invalid);
+          }
+          argumentFunction = function;
+          encodedBytes = encoder.encodedLength;
+          return pipeline;
+        }
         if (reflection.bindings.count != bindingCount)
           return std::unexpected(Error::Invalid);
         bool seen[directBufferEntries] = {};
@@ -1052,6 +1152,7 @@ Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
       };
       auto prepared = prepare(matrix        ? @"kalandra_matmul"
                               : reduction   ? @"kalandra_reduce_sum"
+                              : indirect    ? @"kalandra_elementwise_v3"
                               : signature   ? @"kalandra_elementwise_v2"
                               : elementwise ? @"kalandra_elementwise"
                                             : @"strict_binary32");
@@ -1079,8 +1180,17 @@ Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
                                                     reduction, matrix, signature, matrixTiles);
       metadata->readCount = physical;
       metadata->projected = reads.has_value();
-      for (std::uint32_t i = 0; i < physical; ++i)
-        metadata->reads[i] = reads ? (*reads)[i] : i;
+      if (indirect) {
+        if (!state_->permit())
+          return std::unexpected(Error::Allocation);
+        metadata->indirectReads.resize(physical);
+        metadata->argumentFunction = argumentFunction;
+        metadata->encodedBytes = encodedBytes;
+        for (std::uint32_t i = 0; i < physical; ++i)
+          metadata->indirectReads[i] = reads ? (*reads)[i] : i;
+      } else
+        for (std::uint32_t i = 0; i < physical; ++i)
+          metadata->reads[i] = reads ? (*reads)[i] : i;
       kernel.state_ = std::move(metadata);
       return kernel;
     } catch (...) {

@@ -5,7 +5,8 @@
 #include <thread>
 #if defined(KALANDRA_SHARED_HELPERS) || defined(KALANDRA_SCALAR_ENTRY) ||                          \
     defined(KALANDRA_MATRIX_ENTRY) || defined(KALANDRA_DIFFERENCES) ||                             \
-    defined(KALANDRA_ARGUMENTS) || defined(KALANDRA_UNUSED_INPUTS)
+    defined(KALANDRA_ARGUMENTS) || defined(KALANDRA_UNUSED_INPUTS) ||                              \
+    defined(KALANDRA_INDIRECT_ARGUMENTS)
 #include "../metal-proof/FloatOracle.h"
 #endif
 #define CHECK(x)                                                                                   \
@@ -42,14 +43,18 @@ m::Buffer observe(TaskCore &core, TaskHandle task) {
   return result;
 }
 void verify(const m::Buffer &value) {
-#if defined(KALANDRA_MATRIX_ENTRY) || defined(KALANDRA_DIFFERENCES) || defined(KALANDRA_ARGUMENTS)
+#if defined(KALANDRA_MATRIX_ENTRY) || defined(KALANDRA_DIFFERENCES) ||                             \
+    defined(KALANDRA_ARGUMENTS) || defined(KALANDRA_INDIRECT_ARGUMENTS)
   CHECK(!value.onDevice() && value.shape().size() == 2 && value.shape()[0] == 2 &&
         value.shape()[1] == 3);
   auto bytes = value.hostBytes();
   CHECK(bytes && bytes->size() == 24);
   std::array<std::uint32_t, 6> bits{};
   std::memcpy(bits.data(), bytes->data(), 24);
-#ifdef KALANDRA_ARGUMENTS
+#ifdef KALANDRA_INDIRECT_ARGUMENTS
+  CHECK((bits == std::array<std::uint32_t, 6>{0x42280000u, 0x42a40000u, 0x42f40000u, 0x43220000u,
+                                              0x434a0000u, 0x43720000u}));
+#elif defined(KALANDRA_ARGUMENTS)
   CHECK((bits == std::array<std::uint32_t, 6>{0x42180000u, 0x42300000u, 0x42480000u, 0x42600000u,
                                               0x42780000u, 0x42880000u}));
 #elif defined(KALANDRA_DIFFERENCES)
@@ -187,6 +192,9 @@ void sharedConformance(m::Runtime &runtime, const char *directory) {
 #ifdef KALANDRA_UNUSED_INPUTS
 #include "UnusedInputChecks.h"
 #endif
+#ifdef KALANDRA_INDIRECT_ARGUMENTS
+#include "IndirectArgumentChecks.h"
+#endif
 int main(int argc, char **argv) {
   CHECK(argc == 2 && generated_main(argc, argv) == 0);
   auto made = m::Runtime::create();
@@ -312,6 +320,11 @@ int main(int argc, char **argv) {
 #endif
 #ifdef KALANDRA_UNUSED_INPUTS
   unusedInputConformance(*runtime, argv[1]);
+#endif
+#ifdef KALANDRA_INDIRECT_ARGUMENTS
+  indirectConformance<1>(*runtime, argv[1]);
+  indirectConformance<2>(*runtime, argv[1]);
+  indirectLifecycle(*runtime, argv[1]);
 #endif
   // The retained CPU results share the registry budget with transfers and GPU work.
   auto limited = m::Runtime::create({.maxBytes = 16});

@@ -1,6 +1,7 @@
 #pragma once
 #include "../runtime/Tasks.h"
 #include "../runtime/Tensor.h"
+#include "ElementwiseLayout.h"
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -81,6 +82,7 @@ private:
 // Trusted compiler-produced entry layout; scalar words preserve float32 bits.
 struct ElementwiseSignature {
   std::uint32_t tensors = 1, scalars = 0;
+  ElementwiseBinding binding = ElementwiseBinding::Direct;
   bool operator==(const ElementwiseSignature &) const = default;
 };
 class Runtime final {

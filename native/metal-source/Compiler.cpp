@@ -535,9 +535,13 @@ class Compiler {
           }
         }
         const bool projected = reads.size() != tensors.size();
-        const bool legacy = !projected && tensors.size() == 2 && scalars.empty();
+        const bool indirect =
+            !sum && !matrix &&
+            !kalandra::runtime::metal::directElementwiseLayout(reads.size(), scalars.size());
+        const bool legacy = !projected && !indirect && tensors.size() == 2 && scalars.empty();
         auto signature = ", m::ElementwiseSignature{" + std::to_string(tensors.size()) + "," +
-                         std::to_string(scalars.size()) + "}";
+                         std::to_string(scalars.size()) +
+                         (indirect ? ",m::ElementwiseBinding::ArgumentBuffer}" : "}");
         if (projected) {
           signature += ", std::array<std::uint32_t," + std::to_string(reads.size()) + ">{";
           for (std::size_t i = 0; i < reads.size(); ++i)
@@ -752,16 +756,17 @@ class Compiler {
         for (const auto &operand : instructions[definition->second].operands)
           pending.push_back(operand);
     }
-    if (!kalandra::runtime::metal::directElementwiseLayout(used.size(), scalars))
-      reject(cpu.functions[function].declaration, "Metal direct binding table supports 31 buffers; "
-                                                  "output and parameters reserve two entries");
+    if (!kalandra::runtime::metal::indirectElementwiseLayout(used.size(), scalars))
+      reject(cpu.functions[function].declaration,
+             "GPU argument binding representation limit exceeded");
     if (readInputs)
       readInputs->assign(used.begin(), used.end());
     std::ostringstream code;
     for (const auto &instruction : instructions)
       if (live.contains(instruction.result))
         code << instruction.code;
-    const bool legacy = tensors == 2 && scalars == 0 && used.size() == tensors;
+    const bool indirect = !kalandra::runtime::metal::directElementwiseLayout(used.size(), scalars);
+    const bool legacy = !indirect && tensors == 2 && scalars == 0 && used.size() == tensors;
     auto parameters = "memref<" + std::to_string(legacy ? 2 : scalars + 1) + "xi32>";
     std::string bindings, loads;
     for (auto input : used) {
@@ -781,8 +786,10 @@ class Compiler {
   spirv.target_env = #spirv.target_env<#spirv.vce<v1.0, [Shader, Int64], [SPV_KHR_storage_buffer_storage_class]>, #spirv.resource_limits<>>} {
   gpu.module @kernels {
     gpu.func @)" +
-           std::string(legacy ? "kalandra_elementwise" : "kalandra_elementwise_v2") + "(" +
-           bindings + "%out: memref<?xf32>, %parameters: " + parameters + R"()
+           std::string(indirect ? "kalandra_elementwise_v3"
+                       : legacy ? "kalandra_elementwise"
+                                : "kalandra_elementwise_v2") +
+           "(" + bindings + "%out: memref<?xf32>, %parameters: " + parameters + R"()
       kernel attributes {spirv.entry_point_abi = #spirv.entry_point_abi<workgroup_size = [64, 1, 1]>} {
       %block = gpu.block_id x
       %thread = gpu.thread_id x
@@ -1069,6 +1076,11 @@ int main(int argc,char **argv) {
       std::string bindings;
       for (auto input : reads)
         bindings += (bindings.empty() ? "" : ",") + std::to_string(input);
+      manifest += prefix + "binding_layout=" +
+                  (kalandra::runtime::metal::directElementwiseLayout(reads.size(), scalars)
+                       ? "direct"
+                       : "argument_buffer_tier2") +
+                  "\n";
       manifest += prefix + "tensor_bindings=" + bindings + "\n";
       manifest += prefix + "tensors=" + std::to_string(tensors) + "\n" + prefix +
                   "scalars=" + std::to_string(scalars) + "\n" + prefix + "source_order=" + order +
