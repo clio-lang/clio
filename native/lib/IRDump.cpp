@@ -74,8 +74,6 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
     if (auto failure = error(expression.type))
       return failure;
     if (const auto *reduce = std::get_if<ReduceSum>(&expression.operation)) {
-      if (module.expressions[reduce->input].type.element == NumericType::UInt32)
-        return "uint32 reductions are not implemented by this backend";
       if (expression.type.element != module.expressions[reduce->input].type.element ||
           !numericArithmeticAvailable(expression.type.element, target))
         return "unsupported reduction element type";
@@ -195,7 +193,10 @@ std::string dumpTypedIR(const TypedModule &module) {
               out << " check_inner=" << operation.checkInnerExtent
                   << " check_allocation=" << operation.checkAllocationSize;
             } else if constexpr (std::is_same_v<T, ReduceSum>) {
-              out << "reduceSum strict_f32 balanced_adjacent row_major ";
+              out << "reduceSum "
+                  << (node.type.element == NumericType::UInt32 ? "checked_u32"
+                      : node.type.element == NumericType::Int32 ? "checked_i32" : "strict_f32")
+                  << " balanced_adjacent row_major ";
               value(operation.input);
             } else if constexpr (std::is_same_v<T, DeviceSelection>) {
               out << (operation.device ? "device.gpu " + std::to_string(*operation.device)

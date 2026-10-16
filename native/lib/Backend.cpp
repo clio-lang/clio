@@ -226,7 +226,7 @@ private:
       vector::StoreOp::create(builder_, loc, value, scratch, ValueRange{offset});
   }
   Value scratchReduction(Location loc, Value count, Value scratch, unsigned width = 1,
-                         Value base = {}) {
+                         Value base = {}, bool unsignedValue = false) {
     const auto z = index(loc, 0), one = index(loc, 1), two = index(loc, 2);
     const auto elementType = cast<MemRefType>(scratch.getType()).getElementType();
     const auto vectorType = VectorType::get({width}, elementType);
@@ -253,7 +253,7 @@ private:
                                auto a = load(first);
                                auto b = load(second);
                                Value sum = elementType.isInteger(32)
-                                               ? integerBinary(loc, a, b, TokenKind::Plus)
+                                               ? integerBinary(loc, a, b, TokenKind::Plus, unsignedValue)
                                                : Value(arith::AddFOp::create(builder_, loc, a, b));
                                store(sum, i);
                                scf::YieldOp::create(builder_, loc);
@@ -284,14 +284,14 @@ private:
     return result.getResult(0);
   }
   template <class Callback>
-  Value reduction(Location loc, Value count, Value scratch, Callback element, unsigned width = 1) {
+  Value reduction(Location loc, Value count, Value scratch, Callback element, unsigned width = 1, bool unsignedValue = false) {
     const auto z = index(loc, 0), one = index(loc, 1);
     scf::ForOp::create(builder_, loc, z, count, one, ValueRange{},
                        [&](OpBuilder &, Location, Value i, ValueRange) {
                          scratchStore(loc, element(i), scratch, i, width);
                          scf::YieldOp::create(builder_, loc);
                        });
-    return scratchReduction(loc, count, scratch, width);
+    return scratchReduction(loc, count, scratch, width, {}, unsignedValue);
   }
   Value blockCount(Location loc, Value count) {
     auto block = index(loc, 256);
@@ -616,7 +616,7 @@ private:
     }
     return dispatch.getResult(0);
   }
-  Value reduce(Location loc, Value tensor, const ReduceSum &operation) {
+  Value reduce(Location loc, Value tensor, const ReduceSum &operation, NumericType element) {
     if (operation.order != ReductionOrder::BalancedAdjacent || !operation.rowMajor)
       throw LoweringFailure{"unsupported reduction numerical policy"};
     auto shape = dimensions(loc, tensor);
@@ -629,7 +629,7 @@ private:
         linear = arith::DivUIOp::create(builder_, loc, linear, shape[axis - 1]);
       }
       return tensor::ExtractOp::create(builder_, loc, tensor, indices);
-    });
+    }, 1, element == NumericType::UInt32);
   }
   Value elementwise(Location loc, Value a, Value b, RankedTensorType output, TokenKind op, NumericType element) {
     const bool tensorA = isa<RankedTensorType>(a.getType());
@@ -742,7 +742,7 @@ private:
             auto a = expression(frame, operation.left), b = expression(frame, operation.right);
             return matmul(loc, a, b, cast<RankedTensorType>(type(node.type)), operation);
           } else if constexpr (std::is_same_v<T, ReduceSum>)
-            return reduce(loc, expression(frame, operation.input), operation);
+            return reduce(loc, expression(frame, operation.input), operation, node.type.element);
           else if constexpr (std::is_same_v<T, DeviceSelection> || std::is_same_v<T, Transfer> ||
                              std::is_same_v<T, TaskOperation> ||
                              std::is_same_v<T, ParallelOperation> ||

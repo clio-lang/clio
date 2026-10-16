@@ -39,7 +39,7 @@ int main() {
           "fn f(x:uint32) -> int32:\n  x\nfn main() -> int32:\n  f(1)\n",
           "fn f(x:uint32,y:int32) -> uint32:\n  x + y\nfn main() -> uint32:\n  f(1,1)\n",
           "fn f(x:uint32,y:float32) -> uint32:\n  x + y\nfn main() -> uint32:\n  f(1,1)\n",
-          "fn main() -> uint:\n  1\n", "fn f(x:Tensor[uint32,?]) -> uint32:\n  reduceSum(x)\n",
+          "fn main() -> uint:\n  1\n",
           "fn f(x:Tensor[uint32,?,?]) -> Tensor[uint32,?,?]:\n  matmul(x,x)\n",
           "fn f() -> Tensor[uint32,1]:\n  tensor([4294967296])\n",
           "fn f() -> Tensor[uint32,1]:\n  tensor([-1])\n",
@@ -48,7 +48,8 @@ int main() {
           "fn f(x:Tensor[uint32,?],y:Tensor[float32,?]) -> Tensor[uint32,?]:\n  x + y\n"})
       require(!analyze(source).ok(), "unsupported conversion/default/tensor accepted");
     for (const auto *source :
-         {"fn f() -> Tensor[uint32]:\n  tensor(4294967295)\n",
+         {"fn f(x:Tensor[uint32,?]) -> uint32:\n  reduceSum(x)\n",
+          "fn f() -> Tensor[uint32]:\n  tensor(4294967295)\n",
           "fn f() -> Tensor[uint32,2,0]:\n  tensor([],[2,0])\n",
           "fn f(x:Tensor[uint32,?],s:uint32) -> Tensor[uint32,?]:\n  s % (x + 1)\n",
           "fn f() -> Tensor[uint32,2,2]:\n  tensor([[0,4294967295],[2147483648,16777217]])\n"}) {
@@ -80,9 +81,17 @@ int main() {
     auto invalidExport = lowerNative(*tensorTask.module, "f");
     require(!invalidExport && invalidExport.error().find("parameterless") != std::string::npos,
             "private unsigned task export accepted unsupported parameter ABI");
+    auto reduction = analyze("fn f(x:Tensor[uint32,?]) -> uint32:\n  reduceSum(x)\n"
+                             "fn main() -> uint32:\n  0\n");
+    require(reduction.ok() && bool(lowerNative(*reduction.module)), "uint32 reduction rejected");
+    require(dumpTypedIR(*reduction.module).find("reduceSum checked_u32") != std::string::npos,
+            "unsigned reduction lost its typed numerical policy");
+    for (auto &expr : reduction.module->expressions)
+      if (std::holds_alternative<ReduceSum>(expr.operation))
+        expr.type.element = NumericType::Int32;
+    require(!lowerNative(*reduction.module), "backend accepted mismatched reduction element");
     for (const auto *source :
-         {"fn f(x:Tensor[float32,?]) -> float32:\n  reduceSum(x)\nfn main() -> float32:\n  0\n",
-          "fn f(x:Tensor[float32,?,?]) -> Tensor[float32,?,?]:\n  matmul(x,x)\nfn main() -> "
+         {"fn f(x:Tensor[float32,?,?]) -> Tensor[float32,?,?]:\n  matmul(x,x)\nfn main() -> "
           "float32:\n  0\n"}) {
       auto forged = analyze(source);
       for (auto &fn : forged.module->functions) {
@@ -96,7 +105,7 @@ int main() {
         expr.type.element = NumericType::UInt32;
       auto rejected = lowerNative(*forged.module);
       require(!rejected && rejected.error().find("uint32") != std::string::npos,
-              "backend enabled unqualified unsigned reduction/matmul");
+              "backend enabled unqualified unsigned matmul");
     }
 
 #endif

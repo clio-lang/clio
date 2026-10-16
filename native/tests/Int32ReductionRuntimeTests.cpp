@@ -2,41 +2,51 @@
 #include <array>
 #include <bit>
 #include <iostream>
+#include <limits>
 #include <thread>
+#include <type_traits>
 #include <vector>
 #ifndef TENSOR_RANK
 #define TENSOR_RANK 1
 #endif
 using namespace kalandra;
 using namespace kalandra::runtime;
-using Tensor = CpuTensor<NumericType::Int32, TENSOR_RANK>;
-extern "C" std::int32_t _mlir_ciface_kalandra_test_entry(Tensor *, Invocation *);
+#ifndef UNSIGNED_INPUT
+#define UNSIGNED_INPUT 0
+#endif
+constexpr auto element = UNSIGNED_INPUT ? NumericType::UInt32 : NumericType::Int32;
+using Cell = NumericValue<element>;
+using Wide = std::conditional_t<UNSIGNED_INPUT, std::uint64_t, std::int64_t>;
+constexpr auto minimum = std::numeric_limits<Cell>::min();
+constexpr auto maximum = std::numeric_limits<Cell>::max();
+using Tensor = CpuTensor<element, TENSOR_RANK>;
+extern "C" Cell _mlir_ciface_kalandra_test_entry(Tensor *, Invocation *);
 static unsigned cases = 0, faults = 0;
 template <std::size_t Rank>
-static bool verify(std::vector<std::int32_t> values, std::array<std::int64_t, Rank> shape,
+static bool verify(std::vector<Cell> values, std::array<std::int64_t, Rank> shape,
                    unsigned fail = 0, std::int64_t metadataFault = 0) {
   // Independent wider reference: adjacent pairs, with an unchanged odd tail.
   auto tree = values;
   bool overflow = false;
   while (tree.size() > 1 && !overflow) {
-    std::vector<std::int32_t> next;
+    std::vector<Cell> next;
     for (std::size_t i = 0; i < tree.size(); i += 2) {
-      const std::int64_t value = std::int64_t(tree[i]) + (i + 1 < tree.size() ? tree[i + 1] : 0);
-      if (value < INT32_MIN || value > INT32_MAX) {
+      const Wide value = Wide(tree[i]) + (i + 1 < tree.size() ? tree[i + 1] : 0);
+      if (value < minimum || value > maximum) {
         overflow = true;
         break;
       }
-      next.push_back(std::int32_t(value));
+      next.push_back(Cell(value));
     }
     tree = std::move(next);
   }
   const auto expected = tree.empty() ? 0 : tree[0];
   // Offset view with padded strides: do not assume contiguous foreign input.
-  std::vector<std::int32_t> storage(values.size() * 2 + 8, 1234567);
+  std::vector<Cell> storage(values.size() * 2 + 8, 1234567);
   for (std::size_t i = 0; i < values.size(); ++i)
     storage[3 + 2 * i] = values[i];
   auto before = storage;
-  CpuTensor<NumericType::Int32, Rank> input{};
+  CpuTensor<element, Rank> input{};
   input.allocated = storage.data();
   input.aligned = storage.data() + 1;
   input.offset = 2;
@@ -67,8 +77,8 @@ static bool verify(std::vector<std::int32_t> values, std::array<std::int64_t, Ra
 }
 template <std::size_t Rank> static bool cancelled() {
   const std::size_t count = Rank ? 1048576 : 1;
-  std::vector<std::int32_t> storage(count, 1);
-  CpuTensor<NumericType::Int32, Rank> input{};
+  std::vector<Cell> storage(count, 1);
+  CpuTensor<element, Rank> input{};
   input.allocated = input.aligned = storage.data();
   if constexpr (Rank > 0) {
     input.sizes.fill(1);
@@ -97,7 +107,7 @@ template <std::size_t Rank> static bool cancelled() {
 int main() {
   std::array<std::int64_t, TENSOR_RANK> shape{};
   shape.fill(1);
-  for (auto value : {INT32_MIN, INT32_MAX, 16777217, -1, 0, 1})
+  for (Cell value : {minimum, maximum, Cell(16777217), (UNSIGNED_INPUT ? Cell(2147483648u) : Cell(-1)), Cell(0), Cell(1)})
     if (!verify({value}, shape) || !verify({value}, shape, 1))
       return 1;
   if (!cancelled<TENSOR_RANK>())
@@ -106,20 +116,39 @@ int main() {
     for (auto size : {255, 256, 257, 1023, 1024, 1025, 32769}) {
       shape.fill(1);
       shape.back() = size;
-      std::vector<std::int32_t> values(size, 1);
+      std::vector<Cell> values(size, 1);
+      if (!verify(values, shape))
+        return 1;
+      values.back() = maximum;
       if (!verify(values, shape))
         return 1;
     }
-    for (auto values : {std::vector<std::int32_t>{},
-                        {INT32_MAX, 1, -1},
-                        {INT32_MIN, -1, 1},
-                        {INT32_MAX, 1, INT32_MIN, 0},
-                        {INT32_MAX, 0, 1, 0},
-                        {INT32_MIN, 0, -1, 0},
-                        {INT32_MAX, INT32_MIN, 1},
-                        {INT32_MAX, -1, 1},
-                        {16777217, 1, 2, 3, 4},
-                        {1, 2, 3, 4, 5, 6, 7}}) {
+    std::vector<std::vector<Cell>> boundaries;
+    if constexpr (UNSIGNED_INPUT)
+      boundaries = {{},
+                    {maximum, 1, 0},
+                    {maximum, 0, 1, 0},
+                    {maximum, 0},
+                    {0, maximum},
+                    {maximum - 1, 1},
+                    {Cell(2147483648u), 2147483647},
+                    {Cell(2147483648u), Cell(2147483648u)},
+                    {0, 0, maximum},
+                    {1, 0, maximum},
+                    {16777217, 1, 2, 3, 4},
+                    {1, 2, 3, 4, 5, 6, 7}};
+    else
+      boundaries = {{},
+                    {maximum, 1, Cell(-1)},
+                    {minimum, Cell(-1), 1},
+                    {maximum, 1, minimum, 0},
+                    {maximum, 0, 1, 0},
+                    {minimum, 0, Cell(-1), 0},
+                    {maximum, minimum, 1},
+                    {maximum, Cell(-1), 1},
+                    {16777217, 1, 2, 3, 4},
+                    {1, 2, 3, 4, 5, 6, 7}};
+    for (auto values : boundaries) {
       shape.fill(1);
       shape.back() = values.size();
       if (!verify(values, shape))
@@ -144,9 +173,13 @@ int main() {
         d = next() % 7;
         count *= d;
       }
-      std::vector<std::int32_t> values(count);
+      std::vector<Cell> values(count);
       for (auto &v : values)
-        v = trial % 2 ? std::bit_cast<std::int32_t>(next()) : std::int32_t(next() % 20001) - 10000;
+        if constexpr (UNSIGNED_INPUT)
+          v = trial % 2 ? next() : next() % 20001;
+        else
+          v = trial % 2 ? std::bit_cast<std::int32_t>(next())
+                        : std::int32_t(next() % 20001) - 10000;
       if (!verify(values, shape))
         return 1;
     }
@@ -158,7 +191,7 @@ int main() {
     if (!verify({1}, shape, 0, 2))
       return 1;
   }
-  std::cout << "Int32 reduction rank " << TENSOR_RANK << ": " << cases << " runtime inputs, "
-            << faults
+  std::cout << (UNSIGNED_INPUT ? "UInt32 reduction rank " : "Int32 reduction rank ") << TENSOR_RANK
+            << ": " << cases << " runtime inputs, " << faults
             << " checked faults; exact adjacent tree, offsets/strides and settled owners passed\n";
 }

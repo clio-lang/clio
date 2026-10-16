@@ -497,6 +497,14 @@ if(BUILD_TESTING)
         "-DHARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/Int32ReductionRuntimeTests.cpp"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyInt32Reductions.cmake")
     set_tests_properties(native-int32-reductions-${VARIANT} PROPERTIES TIMEOUT 240)
+    add_test(NAME native-uint32-reductions-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INT32_REDUCTION_RUNTIME}"
+        "-DVARIANT=${VARIANT}" "-DNUMERIC_TYPE=uint32"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/uint32-reductions-${VARIANT}"
+        "-DHARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/Int32ReductionRuntimeTests.cpp"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyInt32Reductions.cmake")
+    set_tests_properties(native-uint32-reductions-${VARIANT} PROPERTIES TIMEOUT 240)
   endforeach()
 endif()
 
