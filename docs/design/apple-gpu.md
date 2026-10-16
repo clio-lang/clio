@@ -585,4 +585,28 @@ The [source fixture](../../native/metal-source/cpu-spawn.kalandra) submits indep
 
 Direct generated-entry tests destroy submitting packets and source invocations before execution, mutate scalar packets after admission, reuse aliased inputs, preserve results beyond scheduler destruction, and reject a malformed fixed-shape child. A controlled two-worker test runs actual compiled CPU entries concurrently and cancels one independent group while preserving the other group's result. [CLI checks](../../native/metal-source/VerifyCpuSpawn.cmake) cover default/explicit/aliased CPU placement, zero-argument and twelve-scalar calls, vectors, empty matrices, GPU scalar results, deterministic generation, relocation, missing downloads, unobserved children, invalid targets/arity, static shape rejection and dynamic child shape faults. [Evidence](../../native/metal-proof/evidence/cpu-spawn-2026-10-16.json) records sources, artifacts and regression results. Host sanitizers do not instrument GPU instructions. No speedup is claimed.
 
-This increment supports pure ordinary float32 scalar/rank-one/rank-two CPU functions as children of the mixed program's existing single `try parallel` block. Nested task creation inside those functions, source-level failure recovery in the mixed supervisor, broader values, richer control flow, and shared placement-aware task IR remain separate work. The CPU-only compiler's placement handling is unchanged. A `--target metal` program still requires an actual GPU call; CPU-only programs use the ordinary CPU target. The compiled host keeps its runtime provider alive until every child and pending GPU completion has settled.
+This increment supports pure ordinary float32 scalar/rank-one/rank-two CPU functions as children of mixed-program parallel blocks; lexical nesting is supported by the subsequent increment below. Nested task creation inside those functions, source-level failure recovery in the mixed supervisor, broader values, richer control flow, and shared placement-aware task IR remain separate work. The CPU-only compiler's placement handling is unchanged. A `--target metal` program still requires an actual GPU call; CPU-only programs use the ordinary CPU target. The compiled host keeps its runtime provider alive until every child and pending GPU completion has settled.
+
+## Nested parallel scopes in mixed programs
+
+Mixed-program `main` now accepts lexically nested `try parallel` expressions. Each block opens a child group of its enclosing source group and joins it before continuing. CPU calls, GPU calls and transfers belong to the innermost group. Await and join suspend the supervisor continuation, leaving its worker available for other work; they do not recursively drain the scheduler or block a worker thread.
+
+```kalandra
+resident = try parallel:
+  host = try parallel:
+    try await spawn shift(values, 1)
+  input = try await transfer(host, gpu)
+  try await spawn scale(input, 2) on gpu
+
+host = try await transfer(resident, devices.cpu())
+```
+
+A block returns a completed float32 scalar or rank-one/rank-two tensor. Returning a tensor preserves its residency and ownership: the GPU value above remains on the GPU after the inner group closes. Downloading it is a separate explicit operation. An annotation on the surrounding binding supplies type/shape context for a final tensor literal inside the block. No implicit transfer, promotion or CPU fallback is introduced.
+
+Bindings are lexical. Inner bindings may shadow outer names, duplicate bindings within a block are rejected, and inner names disappear when the block finishes. Every task admitted in a block must be observed before that block closes; tasks and device selectors cannot escape as block results. An outer task may be observed inside an inner block owned by the same supervisor, and that observation satisfies the outer obligation. Completed tensors keep their existing immutable Buffer lease through group settlement.
+
+The existing task quotas apply to nested groups as well as tasks. Depth is measured from the runtime root, including the outer source parallel group. Group-control records remain allocated until their owning supervisor retires, so sequential scopes also count toward its configured group-storage budget. Exceeding a quota fails and settles the invocation; this increment does not introduce unbounded group storage or reclaim group records early.
+
+The [source fixture](../../native/metal-source/nested-parallel.kalandra) combines three levels of groups, inner shadowing, CPU children, a resident GPU result, a later explicit download, and observation of an outer task inside an inner scope. Its result is `48` (`42400000` float32 bits). [Runtime checks](../../native/metal-source/NestedParallelTests.cpp) cover 1/2/4 workers, cached observations, four parent CPU allocation failures per worker configuration, all 31 Metal preparation failure positions, depth/group/ready-queue limits, byte budgets, and cancellation/deadline/failure while nested GPU compute is pending. Scheduler and runtime resources return to zero after retirement. [CLI checks](../../native/metal-source/VerifyNestedParallel.cmake) add contextual literals, empty tensors, tensor results, deterministic generation, relocation, rejected task/selector/local escapes and unobserved work, and a dynamically failing CPU child in an inner group. Debug, optimized, host ASan/UBSan and separate host TSan variants are covered; GPU instructions are not sanitizer-instrumented. [Qualification evidence](../../native/metal-proof/evidence/nested-parallel-2026-10-16.json) records the regression and artifacts.
+
+This step adds lexical blocks in the mixed supervisor. Task creation inside ordinary CPU helper bodies, mixed-source `catch`/recovery, and a shared placement-aware task/residency IR remain separate work. An actual GPU placement is still required by this target. Distributed execution remains subject to its separate design review.

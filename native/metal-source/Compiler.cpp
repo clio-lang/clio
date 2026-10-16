@@ -50,6 +50,7 @@ class Compiler {
   std::vector<std::string> cpuExports;
   std::string declarations, cpuEntries;
   std::size_t cpuEntryCount = 0;
+  std::string activeGroup = "f.group";
   // Admit the placed function's typed closure, not CPU expressions used to
   // compute its arguments. CPU-only functions may keep fixed shape signatures.
   void admitGpuTypes(FunctionId root) const {
@@ -513,8 +514,8 @@ class Compiler {
                   "Resume,&m::Runtime::" + (tensorResult ? "bufferLayout" : "scalarLayout") +
                   "()};\n";
     auto taskField = field("TaskHandle");
-    steps.push_back(prefix + "Packet packet{" + captures + "};\nf." + taskField +
-                    "=task.spawn(f.group," + prefix + "Entry,{" + prefix +
+    steps.push_back(prefix + "Packet packet{" + captures + "};\nf." + taskField + "=task.spawn(" +
+                    activeGroup + "," + prefix + "Entry,{" + prefix +
                     "Entry.packetLayout,&packet,sizeof(packet),&task.context()});\n" +
                     check("f." + taskField));
     value.kind = Value::Task;
@@ -522,6 +523,63 @@ class Compiler {
     value.slot = next - 1;
     tasks.insert(value.slot);
     return value;
+  }
+  void requireObserved(std::size_t first, SourceSpan span) const {
+    for (auto task = tasks.lower_bound(first); task != tasks.end(); ++task)
+      if (!observed.contains(*task))
+        reject(span, "every admitted child task must be observed with try await");
+  }
+  Value suite(const std::vector<Statement> &body, const TypeSyntax *context = nullptr) {
+    Value result{Value::Target};
+    std::set<std::string> bindings;
+    for (std::size_t index = 0; index < body.size(); ++index) {
+      const auto &s = body[index];
+      if (s.binding && !bindings.insert(text(*s.binding)).second)
+        reject(*s.binding, "duplicate immutable binding");
+      result = expression(s.expression, s.annotation               ? &*s.annotation
+                                        : index + 1 == body.size() ? context
+                                                                   : nullptr);
+      if (s.annotation) {
+        if (s.annotation->tensor) {
+          if (result.kind != Value::Tensor)
+            reject(s.span, "tensor annotation mismatch");
+          tensorType(*s.annotation);
+          if (result.rank != s.annotation->dimensions.size())
+            reject(s.span, "tensor annotation rank mismatch");
+          for (unsigned axis = 0; axis < result.rank; ++axis)
+            if (auto wanted = s.annotation->dimensions[axis].extent) {
+              requireLength(result, *wanted, s.span, axis);
+              if (axis == 0)
+                result.length = wanted;
+              else
+                result.width = wanted;
+            }
+        } else if (text(s.annotation->name) != "float32" || result.kind != Value::Scalar)
+          reject(s.span, "scalar annotation mismatch");
+      }
+      if (s.binding)
+        locals.insert_or_assign(text(*s.binding), result);
+    }
+    return result;
+  }
+  Value nestedParallel(const ParallelExpr &parallel, SourceSpan span, const TypeSyntax *context) {
+    const auto first = next;
+    auto group = "f." + field("GroupHandle");
+    const auto parent = activeGroup;
+    steps.push_back(group + "=task.openGroup(" + parent + ");\n" + check(group));
+    auto outer = locals;
+    activeGroup = group;
+    auto result = suite(parallel.body, context);
+    requireObserved(first, span);
+    if (result.kind != Value::Scalar && result.kind != Value::Tensor)
+      reject(span, "parallel body must produce a completed numeric value; use try await");
+    steps.push_back(check("task.close(" + group + ")"));
+    steps.push_back("if(!task.join(" + group + ")) return;\nauto failure=task.failure(" + group +
+                    ");\nif(failure.kind!=TaskFailure::None){" +
+                    error("failure.code ? failure.code : std::int64_t(m::Error::Device)") + "}\n");
+    activeGroup = parent;
+    locals = std::move(outer);
+    return result;
   }
   Value expression(ExprId id, const TypeSyntax *annotation = nullptr) {
     if (depth >= 128)
@@ -668,10 +726,10 @@ class Compiler {
         std::string step;
         if (target.gpu)
           step = "auto target = " + device(target) + ";\nif (!target) { " +
-                 error("target.error()") + " }\nf." + out + " = r.upload(task, f.group, " +
-                 ref(input) + ", *target);\n";
+                 error("target.error()") + " }\nf." + out + " = r.upload(task, " + activeGroup +
+                 ", " + ref(input) + ", *target);\n";
         else
-          step = "f." + out + " = r.download(task, f.group, " + ref(input) + ");\n";
+          step = "f." + out + " = r.download(task, " + activeGroup + ", " + ref(input) + ");\n";
         steps.push_back(step + check("f." + out));
         tasks.insert(result.slot);
         return result;
@@ -693,9 +751,11 @@ class Compiler {
     }
     if (const auto *task = std::get_if<TaskExpr>(&node(id).value)) {
       if (task->prefix == TaskPrefix::Try) {
+        if (const auto *parallel = std::get_if<ParallelExpr>(&node(task->operand).value))
+          return nestedParallel(*parallel, span, annotation);
         const auto *wait = std::get_if<TaskExpr>(&node(task->operand).value);
         if (!wait || wait->prefix != TaskPrefix::Await)
-          reject(span, "this slice supports try await for task observation");
+          reject(span, "this slice supports try await and try parallel");
         auto input = expression(wait->operand);
         if (input.kind != Value::Task)
           reject(span, "await requires an owned task");
@@ -847,8 +907,8 @@ class Compiler {
                         (matrix ? "matmul"
                          : sum  ? "reduceSum"
                                 : "elementwise") +
-                        "(task, f.group, f." + kernel + ", " + (sum ? ref(left) : arguments) +
-                        ");\n" + check("f." + out));
+                        "(task, " + activeGroup + ", f." + kernel + ", " +
+                        (sum ? ref(left) : arguments) + ");\n" + check("f." + out));
         result.scalarTask = sum;
         tasks.insert(result.slot);
         return result;
@@ -1159,32 +1219,7 @@ public:
                                : nullptr;
     if (!parallel)
       reject(fn.span, "Metal main must contain a single try parallel block");
-    Value result{Value::Target};
-    for (const auto &s : parallel->body) {
-      if (s.binding && locals.contains(text(*s.binding)))
-        reject(*s.binding, "duplicate immutable binding");
-      result = expression(s.expression, s.annotation ? &*s.annotation : nullptr);
-      if (s.annotation) {
-        if (s.annotation->tensor) {
-          if (result.kind != Value::Tensor)
-            reject(s.span, "tensor annotation mismatch");
-          tensorType(*s.annotation);
-          if (result.rank != s.annotation->dimensions.size())
-            reject(s.span, "tensor annotation rank mismatch");
-          for (unsigned axis = 0; axis < result.rank; ++axis)
-            if (auto wanted = s.annotation->dimensions[axis].extent) {
-              requireLength(result, *wanted, s.span, axis);
-              if (axis == 0)
-                result.length = wanted;
-              else
-                result.width = wanted;
-            }
-        } else if (text(s.annotation->name) != "float32" || result.kind != Value::Scalar)
-          reject(s.span, "scalar annotation mismatch");
-      }
-      if (s.binding)
-        locals.emplace(text(*s.binding), result);
-    }
+    auto result = suite(parallel->body);
     if (scalarResult ? result.kind != Value::Scalar : (result.kind != Value::Tensor || result.gpu))
       reject(fn.span, "main must return a completed host tensor; explicitly transfer the result to "
                       "devices.cpu()");
@@ -1195,9 +1230,7 @@ public:
         if (auto wanted = fn.result->dimensions[axis].extent)
           requireLength(result, *wanted, fn.span, axis);
     }
-    for (auto task : tasks)
-      if (!observed.contains(task))
-        reject(fn.span, "every admitted child task must be observed with try await");
+    requireObserved(0, fn.span);
     if (entries.empty())
       reject(fn.span, "no GPU placement in source");
     std::map<std::string, std::string> outputs;

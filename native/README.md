@@ -84,3 +84,5 @@ The [signature-sized GPU argument path](../docs/design/apple-gpu.md#signature-si
 [Inline CPU expressions](../docs/design/apple-gpu.md#inline-cpu-expressions-in-mixed-programs) now compose with explicit GPU placement and transfers. Mixed-program `main` can directly calculate `reduceSum((matmul(host, weights) - 1) / 2)` using the shared checked CPU lowering. Device tensors still require a download before CPU arithmetic; this adds no automatic placement or transfer.
 
 [CPU tasks in mixed programs](../docs/design/apple-gpu.md#cpu-tasks-in-mixed-programs) now share the scheduler with GPU tasks. Use `spawn project(input, weights)` or `spawn project(input, weights) on devices.cpu()`, then observe the result with `try await`. Captures own their immutable inputs; CPU↔GPU transfers remain explicit.
+
+[Nested mixed parallel scopes](../docs/design/apple-gpu.md#nested-parallel-scopes-in-mixed-programs) now group CPU work, GPU work and explicit transfers within `try parallel` expressions in `main`. Inner blocks join before continuing, preserve tensor residency and ownership, and support lexical shadowing. The scheduler's depth, group and task budgets still apply.

@@ -153,9 +153,11 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-  foreach(FIXTURE IN ITEMS mixed tensor-results shared-helpers scalar-entry matrix-elementwise differences arguments unused-inputs indirect-arguments tensor-negation division host-expressions cpu-spawn reduction matmul)
+  foreach(FIXTURE IN ITEMS mixed tensor-results shared-helpers scalar-entry matrix-elementwise differences arguments unused-inputs indirect-arguments tensor-negation division host-expressions cpu-spawn nested-parallel reduction matmul)
     if(FIXTURE STREQUAL "mixed")
       set(HARNESS MixedTests.cpp)
+    elseif(FIXTURE STREQUAL "nested-parallel")
+      set(HARNESS NestedParallelTests.cpp)
     elseif(FIXTURE STREQUAL "cpu-spawn")
       set(HARNESS CpuSpawnTests.cpp)
     elseif(FIXTURE STREQUAL "host-expressions")
@@ -331,4 +333,11 @@ if(BUILD_TESTING)
     "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/cpu-spawn-cli"
     -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyCpuSpawn.cmake")
   set_tests_properties(native-cpu-spawn-cli PROPERTIES TIMEOUT 240 RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+endif()
+
+if(BUILD_TESTING)
+  add_test(NAME native-nested-parallel-cli COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+    "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/nested-parallel-cli"
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyNestedParallel.cmake")
+  set_tests_properties(native-nested-parallel-cli PROPERTIES TIMEOUT 240 RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
 endif()
