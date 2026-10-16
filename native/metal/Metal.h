@@ -26,11 +26,13 @@ enum class Format { Float32, UInt32, UInt8 };
 struct Options {
   std::uint64_t maxBytes = 64 * 1024 * 1024;
   std::uint32_t maxInFlight = 64, defaultDevice = 0;
+  std::uint64_t maxArgumentBytes = 1024 * 1024;
 };
 struct Stats {
   std::uint64_t bytes = 0, peakBytes = 0, hostBackings = 0, deviceBackings = 0;
   std::uint64_t metalBuffers = 0, stagingBuffers = 0, inFlight = 0;
   std::uint64_t submissions = 0, completions = 0, attempts = 0;
+  std::uint64_t argumentBytes = 0, peakArgumentBytes = 0, argumentPacks = 0;
 };
 class Device final {
 public:

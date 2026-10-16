@@ -226,6 +226,8 @@ The [shared-helper evidence](../../native/metal-proof/evidence/shared-helpers-20
 
 ## GPU entry scalar parameters
 
+This section records the initial entry milestone. Its fixed counts have since been removed by [signature-sized captures](#signature-sized-gpu-captures); the supported operation/type subset remains bounded.
+
 A GPU entry can accept **one or two rank-one dynamic float32 tensors and zero to eight float32 scalars**, in any parameter order. Its result remains a rank-one dynamic float32 tensor. The same function can run on CPU:
 
 ```kalandra
@@ -245,15 +247,17 @@ Strict arithmetic implementation and its qualification are unchanged. GPU perfor
 
 ## Tracked follow-up: general GPU parameter layouts (GPU-ABI-001)
 
-Status: open. The current two-tensor/eight-scalar cap is a temporary compiler/runtime implementation restriction on GPU-placed user functions, not a language rule. It comes from fixed tensor slots and a fixed scalar capture array. Ordinary CPU functions do not inherit this GPU cap. Remove the arbitrary counts as the GPU interface becomes general.
+Status: open, with signature-sized capture storage implemented. The former two-tensor/eight-scalar arrays have been removed from the general elementwise submission path. Layouts now derive tensor/scalar counts and source parameter order from checked signatures, copy scalar bits and retain every tensor owner in bounded arrays, and validate matching shader reflection. The current Metal direct-binding layout admits up to 29 tensor inputs (31 buffer entries minus output and parameter storage). Scalar capture size is governed by checked representation, device buffer size and memory budgets rather than an eight-value array.
+
+Remaining work includes unused tensor arguments, shape constraints derived from operations rather than a uniform elementwise domain, additional supported types and indirect binding layouts. These are implementation stages, not universal language parameter counts. Ordinary CPU functions do not inherit the Metal binding-table limit.
 
 Completion requires:
 
-- Derive the argument layout from the checked function signature, preserving source evaluation order and allowing any ordering of supported parameter types.
-- Replace fixed tensor slots and scalar arrays with bounded, owned argument storage sized for that signature. Retain tensor owners and copy scalar values at submission; preserve cancellation, allocation-failure cleanup and resource accounting.
-- Generate and validate matching artifact metadata, shader bindings and scalar layouts. Handle target resource limits where practical; diagnose actual unsupported types, device capabilities or resource limits instead of imposing a universal language parameter count.
+- Implemented for the current float32 subset: derive tensor/scalar layout from the checked function signature, preserving source evaluation order and mixed parameter ordering.
+- Implemented for general elementwise submission: bounded owned arrays retain tensor owners and copy scalar bits at submission, with separate capture-byte accounting and tested cancellation/allocation-failure cleanup.
+- Signature counts/source order are now emitted in artifact metadata, with reflected binding/scalar layouts checked at load. Direct Metal binding limits are diagnosed before output changes; indirect resource layouts and broader types remain future work.
 - Derive shape requirements from the function's operations. Equal lengths and the requirement that every tensor contribute to the result belong to the current elementwise implementation, not to general function signatures.
-- Exercise more than two tensors and more than eight scalars, mixed ordering, unused arguments, invalid layouts, allocation failures and cancellation in the numerical and sanitizer suites.
+- More than two tensors/eight scalars, mixed ordering, unused scalars, invalid layouts, failure sweeps and cancellation now have numerical/sanitizer evidence. Unused tensor arguments and richer operation-derived layouts remain unimplemented.
 
 This does not imply that every language type can immediately execute on every GPU. Type and operation support must expand explicitly, with capability checks and numerical evidence.
 
@@ -435,3 +439,17 @@ Subtraction uses the strict integer binary32 addition path after flipping the ri
 The same typed operation lowers through the existing CPU tensor loop and GPU lane kernel, with source evaluation order, output shapes, owned captures, byte/command budgets and cancellation acknowledgement unchanged. The private three-operation `compute(BinaryOperation)` proof interface is unchanged. GPU-ABI-001 remains open.
 
 The [extended strict scalar proof](strict-gpu-float32.md#source-subtraction-and-scalar-negation) qualifies subtraction and exact-bit negation against APFloat and CPU hardware. The [source fixture](../../native/metal-source/differences.kalandra) and [source conformance](../../native/metal-source/DifferenceChecks.h) exercise tensor/tensor subtraction, scalar lifting in either order, transitive scalar negation, aliases, IEEE edges, empty/odd shapes and the full reference corpus in both ranks. Debug, optimized, host ASan/UBSan and host TSan builds retain the existing lifecycle failure sweeps. [CLI checks](../../native/metal-source/VerifyDifferences.cmake) run with 1/2/4 workers, reject static/dynamic shape mismatches and relocate the eight-library bundle. [Qualification evidence](../../native/metal-proof/evidence/gpu-differences-2026-10-16.json) records counts and artifacts. No performance claim is made for this capability expansion.
+
+## Signature-sized GPU captures
+
+The general elementwise GPU entry path now derives its tensor/scalar layout from the checked signature. The [source fixture](../../native/metal-source/arguments.kalandra) uses three tensors and twelve interleaved scalar parameters for vectors and matrices. A separate entry exercises 29 tensor inputs. Scalar-only entries and unsupported element types are still outside this tensor subset.
+
+Submission builds immutable, owned tensor/scalar arrays before returning; it retains every tensor owner and copies float32 bits. Caller spans can be cleared immediately. Capture preparation failures become structured task faults, with partial arrays released before publishing the faulted task. Captures stay pinned through command acknowledgement, including cancellation, deadlines and core destruction. Successful nonempty commands release capture arrays before publishing the cached result. Empty calls and pre-commit dispatch failures retain their captures until task/frame retirement; they still obey the shared capture-byte budget. The original private two-input proof overloads remain available.
+
+`Options.maxArgumentBytes` separately bounds requested tensor-owner/scalar-bit array payload across the registry, defaulting to 1 MiB. `Stats.argumentBytes`, `peakArgumentBytes` and `argumentPacks` expose retained captures. This is separate from the existing tensor/staging payload budget, so a tensor is not charged again when an argument owner retains it. Array/container/control allocator overhead, driver memory and RSS are not included. Allocation-failure injection covers wrapper and array preparation checkpoints as well as the existing dispatch path. Zero-byte capture budgets reject these general submissions explicitly.
+
+The current Metal backend uses direct buffer bindings: tensor inputs, output, then a uint32 count/scalar array. [Apple's capability tables](https://developer.apple.com/metal/capabilities/) specify 31 direct buffer entries per kernel, including on Apple and Mac families. Reserving two leaves 29 inputs in this layout. This is a diagnosed backend-layout boundary, not a language-wide parameter limit. More inputs require a different resource layout. Scalars share one device buffer; there is no eight-scalar storage cap. Counts and byte arithmetic are checked, with capture budgets, device buffer length and compiler resource limits still applying.
+
+Generated `manifest.txt` now records each elementwise entry's tensor/scalar counts and source parameter type order. The generated host call and shader bindings derive from the same checked function. Runtime reflection checks every binding, element type, array extent, offset, stride, alignment and parameter byte length against that signature. Scalar evaluation order and packed scalar order are preserved. Every tensor in the current lane-kernel subset must still contribute and have the same complete shape; GPU-ABI-001 stays open for generalizing those rules.
+
+[Conformance](../../native/metal-source/ArgumentChecks.h) compares vector/matrix three-tensor/twelve-scalar CPU and GPU calls with APFloat, including IEEE edges, empty/odd shapes, aliases and mutated caller capture arrays. The 29-input boundary checks numerical results, all explicit capture/dispatch failures, exact capture-budget admission, cancellation/deadlines, concurrent invocation isolation and pending-core destruction. [CLI checks](../../native/metal-source/VerifyArguments.cmake) cover 1/2/4 workers, optimized and host sanitizer builds, manifest/layout agreement, rank-independent lane arithmetic, relocation and third-argument shape/residency faults. [Qualification evidence](../../native/metal-proof/evidence/gpu-arguments-2026-10-16.json) records counts and hashes. No throughput claim is made for this layout expansion.

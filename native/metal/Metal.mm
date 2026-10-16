@@ -1,4 +1,5 @@
 #include "Metal.h"
+#include "ElementwiseLayout.h"
 #include "MatmulLayout.h"
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
@@ -24,6 +25,7 @@ struct State {
   std::atomic<std::uint64_t> bytes{0}, peakBytes{0}, hostBackings{0}, deviceBackings{0};
   std::atomic<std::uint64_t> metalBuffers{0}, stagingBuffers{0}, inFlight{0}, submissions{0},
       completions{0};
+  std::atomic<std::uint64_t> argumentBytes{0}, peakArgumentBytes{0}, argumentPacks{0};
   std::atomic<std::uint64_t> attempts{0}, failAt{0};
   std::atomic<bool> failCompletion{false};
   std::mutex gateMutex;
@@ -205,6 +207,19 @@ std::expected<std::shared_ptr<Storage>, Error> allocateStorage(const std::shared
   return storage;
 }
 } // namespace
+// Immutable submission-owned captures. Requested array payload is budgeted
+// separately from tensor/staging bytes; vector/control allocator overhead is not.
+struct Arguments {
+  std::shared_ptr<State> state;
+  std::vector<Buffer> tensors;
+  std::vector<std::uint32_t> scalarBits;
+  std::uint64_t reserved = 0;
+  explicit Arguments(std::shared_ptr<State> s) : state(std::move(s)) { ++state->argumentPacks; }
+  ~Arguments() {
+    state->argumentBytes -= reserved;
+    --state->argumentPacks;
+  }
+};
 struct Bridge {
   enum class Kind { Upload, Download, Compute, Elementwise, Reduce, Matmul };
   struct PacketData {
@@ -215,9 +230,52 @@ struct Bridge {
     Kernel kernel;
     BinaryOperation operation = BinaryOperation::Add;
     Buffer right;
-    std::array<std::uint32_t, 8> scalarBits{};
-    std::uint32_t tensorCount = 2, scalarCount = 0;
+    std::shared_ptr<const Arguments> arguments{};
+    std::optional<Error> preparation{};
   };
+  static std::expected<std::shared_ptr<const Arguments>, Error>
+  capture(std::shared_ptr<State> state, const Kernel &kernel, std::span<const Buffer> tensors,
+          std::span<const float> scalars) noexcept {
+    const auto expected = kernel.state_ && kernel.state_->signature ? *kernel.state_->signature
+                                                                    : ElementwiseSignature{2, 0};
+    if (!kernel.state_ || !kernel.state_->elementwise || kernel.state_->reduction ||
+        kernel.state_->matrix || tensors.size() != expected.tensors ||
+        scalars.size() != expected.scalars ||
+        !directElementwiseLayout(tensors.size(), scalars.size()))
+      return std::unexpected(Error::Invalid);
+    if (kernel.state_->registry != state)
+      return std::unexpected(Error::Residency);
+    const auto bytes = std::uint64_t(tensors.size()) * sizeof(Buffer) +
+                       std::uint64_t(scalars.size()) * sizeof(std::uint32_t);
+    try {
+      if (!state->permit())
+        return std::unexpected(Error::Allocation);
+      auto result = std::make_shared<Arguments>(state);
+      auto used = state->argumentBytes.load();
+      do {
+        if (bytes > state->options.maxArgumentBytes - used)
+          return std::unexpected(Error::Budget);
+      } while (!state->argumentBytes.compare_exchange_weak(used, used + bytes));
+      result->reserved = bytes;
+      auto peak = state->peakArgumentBytes.load();
+      while (peak < used + bytes &&
+             !state->peakArgumentBytes.compare_exchange_weak(peak, used + bytes)) {
+      }
+      if (!state->permit())
+        return std::unexpected(Error::Allocation);
+      result->tensors.assign(tensors.begin(), tensors.end());
+      if (!scalars.empty()) {
+        if (!state->permit())
+          return std::unexpected(Error::Allocation);
+        result->scalarBits.resize(scalars.size());
+        for (std::size_t i = 0; i < scalars.size(); ++i)
+          result->scalarBits[i] = std::bit_cast<std::uint32_t>(scalars[i]);
+      }
+      return result;
+    } catch (...) {
+      return std::unexpected(Error::Allocation);
+    }
+  }
   // Each invocation owns two alternating outputs and up to 32 immutable count words.
   // A serial encoder orders dispatches and tracked buffer accesses during reuse.
   struct ReductionScratch {
@@ -376,6 +434,7 @@ struct Bridge {
           f.packet.input = Buffer{};
           f.packet.right = Buffer{};
           f.packet.kernel = Kernel{};
+          f.packet.arguments.reset();
           task.complete(f.packet.kind == Kind::Reduce ? static_cast<const void *>(&f.scalar)
                                                       : &f.result);
         } else {
@@ -384,6 +443,10 @@ struct Bridge {
         return;
       }
       f.started = true;
+      if (f.packet.preparation) {
+        task.fault(std::int64_t(*f.packet.preparation));
+        return;
+      }
       const auto &source = f.packet.input.storage_;
       if (!source) {
         task.fault(std::int64_t(Error::Invalid));
@@ -448,12 +511,13 @@ struct Bridge {
             kernel && kernel->signature ? *kernel->signature : ElementwiseSignature{2, 0};
         if (!kernel || kernel->reduction || kernel->matrix ||
             kernel->elementwise != (f.packet.kind == Kind::Elementwise) ||
-            f.packet.tensorCount != signature.tensors ||
-            f.packet.scalarCount != signature.scalars || std::uint32_t(f.packet.operation) > 2 ||
-            source->format != Format::Float32 ||
+            (!f.packet.arguments && (signature.tensors != 2 || signature.scalars != 0)) ||
+            (f.packet.arguments && (f.packet.arguments->tensors.size() != signature.tensors ||
+                                    f.packet.arguments->scalarBits.size() != signature.scalars)) ||
+            std::uint32_t(f.packet.operation) > 2 || source->format != Format::Float32 ||
             (source->rank != 1 && (!kernel->elementwise || source->rank != 2)) ||
             source->size / 4 > UINT32_MAX ||
-            (signature.tensors == 2 &&
+            (signature.tensors == 2 && !f.packet.arguments &&
              (!right || right->format != Format::Float32 || right->rank != source->rank ||
               source->size != right->size ||
               !std::equal(source->dimensions.begin(), source->dimensions.begin() + source->rank,
@@ -464,11 +528,26 @@ struct Bridge {
         index = kernel->index;
         if (kernel->registry != state || !source->device || source->state != state ||
             source->deviceIndex != index ||
-            (signature.tensors == 2 &&
+            (signature.tensors == 2 && !f.packet.arguments &&
              (!right->device || right->state != state || right->deviceIndex != index))) {
           task.fault(std::int64_t(Error::Residency));
           return;
         }
+        if (f.packet.arguments)
+          for (const auto &argument : f.packet.arguments->tensors) {
+            const auto &other = argument.storage_;
+            if (!other || other->format != Format::Float32 || other->rank != source->rank ||
+                other->size != source->size ||
+                !std::equal(source->dimensions.begin(), source->dimensions.begin() + source->rank,
+                            other->dimensions.begin())) {
+              task.fault(std::int64_t(Error::Invalid));
+              return;
+            }
+            if (!other->device || other->state != state || other->deviceIndex != index) {
+              task.fault(std::int64_t(Error::Residency));
+              return;
+            }
+          }
       } else if (upload) {
         if (f.packet.target.state_ != state) {
           task.fault(std::int64_t(Error::Residency));
@@ -521,9 +600,10 @@ struct Bridge {
         if (compute || matrix) {
           const auto &kernel = f.packet.kernel.state_;
           const auto tensors = kernel->signature ? kernel->signature->tensors : 2;
-          const auto parameterBytes = matrix              ? 12
-                                      : kernel->signature ? 4 * (1 + kernel->signature->scalars)
-                                                          : 8;
+          const auto parameterBytes = matrix ? 12
+                                      : kernel->signature
+                                          ? 4ull * (1ull + kernel->signature->scalars)
+                                          : 8;
           auto parametersBuffer = allocateMetal(state, index, parameterBytes, true);
           if (!parametersBuffer) {
             task.fault(std::int64_t(parametersBuffer.error()));
@@ -553,24 +633,30 @@ struct Bridge {
               setBuffer:matrix && !source->size ? (*result)->metal->buffer : source->metal->buffer
                  offset:0
                 atIndex:0];
-          if (tensors == 2)
+          if (f.packet.arguments) {
+            for (std::size_t i = 0; i < f.packet.arguments->tensors.size(); ++i)
+              [encoder setBuffer:f.packet.arguments->tensors[i].storage_->metal->buffer
+                          offset:0
+                         atIndex:i];
+          } else if (tensors == 2)
             [encoder
                 setBuffer:matrix && !f.packet.right.bytes() ? (*result)->metal->buffer
                                                             : f.packet.right.storage_->metal->buffer
                    offset:0
                   atIndex:1];
           [encoder setBuffer:(*result)->metal->buffer offset:0 atIndex:tensors];
-          std::array<std::uint32_t, 9> parameters{};
+          auto *parameters = static_cast<std::uint32_t *>(f.staging->buffer.contents);
+          std::fill_n(parameters, parameterBytes / 4, 0u);
           parameters[0] = std::uint32_t(source->size / 4);
           if (matrix) {
             parameters[0] = std::uint32_t(matrixShape[0]);
             parameters[1] = std::uint32_t(source->dimensions[1]);
             parameters[2] = std::uint32_t(matrixShape[1]);
-          } else if (kernel->signature)
-            std::copy_n(f.packet.scalarBits.begin(), f.packet.scalarCount, parameters.begin() + 1);
+          } else if (f.packet.arguments)
+            std::copy(f.packet.arguments->scalarBits.begin(), f.packet.arguments->scalarBits.end(),
+                      parameters + 1);
           else
             parameters[1] = std::uint32_t(f.packet.operation);
-          std::memcpy(f.staging->buffer.contents, parameters.data(), parameterBytes);
           [encoder setBuffer:f.staging->buffer offset:0 atIndex:tensors + 1];
           const auto lanes = matrix ? matmulWorkItems(layout, parameters[0], parameters[2])
                                     : std::uint64_t(parameters[0]);
@@ -869,11 +955,14 @@ std::expected<Kernel, Error> Runtime::loadKernel(std::string_view path, Device d
                                                  std::optional<ElementwiseSignature> signature,
                                                  bool reduction, bool matrix) noexcept {
   @autoreleasepool {
-    if (signature && (!elementwise || signature->tensors < 1 || signature->tensors > 2 ||
-                      signature->scalars > 8))
+    if (signature &&
+        (!elementwise || !directElementwiseLayout(signature->tensors, signature->scalars)))
       return std::unexpected(Error::Invalid);
     if (device.state_ != state_)
       return std::unexpected(Error::Residency);
+    if (signature &&
+        4ull * (1ull + signature->scalars) > state_->devices[device.index_].maxBufferLength)
+      return std::unexpected(Error::Unavailable);
     if (path.empty() || path.find('\0') != std::string_view::npos)
       return std::unexpected(Error::Invalid);
     try {
@@ -909,12 +998,12 @@ std::expected<Kernel, Error> Runtime::loadKernel(std::string_view path, Device d
         const auto words = matrix ? 3 : signature ? signature->scalars + 1 : 2;
         if (reflection.bindings.count != bindingCount)
           return std::unexpected(Error::Invalid);
-        bool seen[4] = {};
+        bool seen[directBufferEntries] = {};
         for (id<MTLBinding> argument in reflection.bindings) {
           if (argument.type != MTLBindingTypeBuffer || argument.index >= bindingCount ||
               seen[argument.index] ||
               ((id<MTLBufferBinding>)argument).bufferDataSize !=
-                  (argument.index == parameterIndex ? 4 * words : 4))
+                  (argument.index == parameterIndex ? 4ull * words : 4ull))
             return std::unexpected(Error::Invalid);
           id<MTLBufferBinding> binding = (id<MTLBufferBinding>)argument;
           auto members = binding.bufferStructType.members;
@@ -1057,11 +1146,11 @@ TaskHandle Runtime::elementwise(TaskCore &core, GroupHandle group, Kernel kernel
                             std::move(kernel),
                             BinaryOperation::Add,
                             tensors.size() < 2 ? Buffer{} : tensors[1]};
-  packet.tensorCount = tensors.size() > 2 ? UINT32_MAX : std::uint32_t(tensors.size());
-  packet.scalarCount = scalars.size() > 8 ? UINT32_MAX : std::uint32_t(scalars.size());
-  if (scalars.size() <= 8)
-    for (std::size_t i = 0; i < scalars.size(); ++i)
-      packet.scalarBits[i] = std::bit_cast<std::uint32_t>(scalars[i]);
+  auto arguments = Bridge::capture(state_, packet.kernel, tensors, scalars);
+  if (arguments)
+    packet.arguments = *arguments;
+  else
+    packet.preparation = arguments.error();
   return core.submit(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
 }
 TaskHandle Runtime::elementwise(Task &task, GroupHandle group, Kernel kernel,
@@ -1074,19 +1163,20 @@ TaskHandle Runtime::elementwise(Task &task, GroupHandle group, Kernel kernel,
                             std::move(kernel),
                             BinaryOperation::Add,
                             tensors.size() < 2 ? Buffer{} : tensors[1]};
-  packet.tensorCount = tensors.size() > 2 ? UINT32_MAX : std::uint32_t(tensors.size());
-  packet.scalarCount = scalars.size() > 8 ? UINT32_MAX : std::uint32_t(scalars.size());
-  if (scalars.size() <= 8)
-    for (std::size_t i = 0; i < scalars.size(); ++i)
-      packet.scalarBits[i] = std::bit_cast<std::uint32_t>(scalars[i]);
+  auto arguments = Bridge::capture(state_, packet.kernel, tensors, scalars);
+  if (arguments)
+    packet.arguments = *arguments;
+  else
+    packet.preparation = arguments.error();
   return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
 }
 const ValueLayout &Runtime::bufferLayout() noexcept { return Bridge::layout; }
 Stats Runtime::stats() const noexcept {
-  return {state_->bytes,          state_->peakBytes,    state_->hostBackings,
-          state_->deviceBackings, state_->metalBuffers, state_->stagingBuffers,
-          state_->inFlight,       state_->submissions,  state_->completions,
-          state_->attempts};
+  return {state_->bytes,          state_->peakBytes,     state_->hostBackings,
+          state_->deviceBackings, state_->metalBuffers,  state_->stagingBuffers,
+          state_->inFlight,       state_->submissions,   state_->completions,
+          state_->attempts,       state_->argumentBytes, state_->peakArgumentBytes,
+          state_->argumentPacks};
 }
 void Runtime::failAllocationAt(std::uint64_t attempt) noexcept {
   state_->attempts = 0;

@@ -1,3 +1,4 @@
+#include "../metal/ElementwiseLayout.h"
 #include "Build.h"
 #include "MatmulShader.h"
 #include "MatmulTiles.h"
@@ -475,8 +476,11 @@ class Compiler {
             reject(span, "GPU tensor ranks must match their parameters");
           (tensor ? tensors : scalars).push_back(value);
         }
-        if (tensors.empty() || tensors.size() > 2 || scalars.size() > 8)
-          reject(span, "GPU entries require one or two tensors and at most eight float32 scalars");
+        if (tensors.empty())
+          reject(span, "elementwise GPU entries currently require at least one tensor input");
+        if (!kalandra::runtime::metal::directElementwiseLayout(tensors.size(), scalars.size()))
+          reject(span, "Metal direct binding table supports 31 buffers; output and parameters "
+                       "reserve two entries");
         auto target = expression(*task->placement);
         if (target.kind != Value::Target || !target.gpu)
           reject(span, "the Metal source path requires a GPU target");
@@ -484,7 +488,8 @@ class Compiler {
           if (!value.gpu || value.device != target.device)
             reject(span, "GPU arguments must be explicitly transferred to the selected device");
         auto left = tensors[0], right = tensors.back();
-        if (tensors.size() == 2) {
+        for (std::size_t argument = 1; argument < tensors.size(); ++argument) {
+          auto right = tensors[argument];
           if (!matrix && left.rank != right.rank)
             reject(span, "elementwise argument ranks differ");
           for (unsigned axis = 0; axis < (matrix ? 1u : left.rank); ++axis) {
@@ -967,12 +972,35 @@ int main(int argc,char **argv) {
   }
   core->close(group); if (!core->drain() || !core->release(group)) return 1;
   auto s=runtime->stats(); auto t=core->stats();
-  if (s.bytes || s.metalBuffers || s.hostBackings || s.deviceBackings || s.inFlight || s.stagingBuffers || t.records || t.groups || t.externalPending || t.retainedBytes) return 1;
+  if (s.bytes || s.metalBuffers || s.hostBackings || s.deviceBackings || s.inFlight || s.stagingBuffers || s.argumentBytes || s.argumentPacks || t.records || t.groups || t.externalPending || t.retainedBytes) return 1;
   return status;
 }
 )";
     outputs["host.cpp"] = host.str();
-    outputs["manifest.txt"] = "kernel_count=" + std::to_string(entries.size()) + "\n";
+    std::string manifest = "kernel_count=" + std::to_string(entries.size()) + "\n";
+    for (auto [function, index] : entries) {
+      if (reduction(function) || matrixFunction(function))
+        continue;
+      unsigned tensors = 0, scalars = 0;
+      std::string order;
+      for (auto parameter : cpu.functions[function].parameters) {
+        const auto &type = cpu.symbols[parameter].type;
+        if (!order.empty())
+          order += ",";
+        if (type.tensor) {
+          ++tensors;
+          order += "tensor" + std::to_string(type.shape.size());
+        } else {
+          ++scalars;
+          order += "float32";
+        }
+      }
+      auto prefix = "kernel" + std::to_string(index) + ".";
+      manifest += prefix + "tensors=" + std::to_string(tensors) + "\n" + prefix +
+                  "scalars=" + std::to_string(scalars) + "\n" + prefix + "source_order=" + order +
+                  "\n";
+    }
+    outputs["manifest.txt"] = std::move(manifest);
     return outputs;
   }
 };

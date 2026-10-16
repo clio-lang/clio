@@ -4,7 +4,7 @@
 #include <chrono>
 #include <thread>
 #if defined(KALANDRA_SHARED_HELPERS) || defined(KALANDRA_SCALAR_ENTRY) ||                          \
-    defined(KALANDRA_MATRIX_ENTRY) || defined(KALANDRA_DIFFERENCES)
+    defined(KALANDRA_MATRIX_ENTRY) || defined(KALANDRA_DIFFERENCES) || defined(KALANDRA_ARGUMENTS)
 #include "../metal-proof/FloatOracle.h"
 #endif
 #define CHECK(x)                                                                                   \
@@ -22,7 +22,7 @@ bool injectedConstruct(Invocation &context, void *frame, const Packet &packet) {
 void empty(m::Runtime &runtime) {
   auto s = runtime.stats();
   CHECK(!s.bytes && !s.metalBuffers && !s.hostBackings && !s.deviceBackings && !s.inFlight &&
-        !s.stagingBuffers);
+        !s.stagingBuffers && !s.argumentBytes && !s.argumentPacks);
 }
 void retire(TaskCore &core, GroupHandle group) {
   CHECK(core.close(group));
@@ -41,14 +41,17 @@ m::Buffer observe(TaskCore &core, TaskHandle task) {
   return result;
 }
 void verify(const m::Buffer &value) {
-#if defined(KALANDRA_MATRIX_ENTRY) || defined(KALANDRA_DIFFERENCES)
+#if defined(KALANDRA_MATRIX_ENTRY) || defined(KALANDRA_DIFFERENCES) || defined(KALANDRA_ARGUMENTS)
   CHECK(!value.onDevice() && value.shape().size() == 2 && value.shape()[0] == 2 &&
         value.shape()[1] == 3);
   auto bytes = value.hostBytes();
   CHECK(bytes && bytes->size() == 24);
   std::array<std::uint32_t, 6> bits{};
   std::memcpy(bits.data(), bytes->data(), 24);
-#ifdef KALANDRA_DIFFERENCES
+#ifdef KALANDRA_ARGUMENTS
+  CHECK((bits == std::array<std::uint32_t, 6>{0x42180000u, 0x42300000u, 0x42480000u, 0x42600000u,
+                                              0x42780000u, 0x42880000u}));
+#elif defined(KALANDRA_DIFFERENCES)
   CHECK((bits == std::array<std::uint32_t, 6>{0xc0400000u, 0xc0400000u, 0xc0400000u, 0xc0400000u,
                                               0xc0400000u, 0xc0400000u}));
 #else
@@ -177,6 +180,9 @@ void sharedConformance(m::Runtime &runtime, const char *directory) {
 #ifdef KALANDRA_DIFFERENCES
 #include "DifferenceChecks.h"
 #endif
+#ifdef KALANDRA_ARGUMENTS
+#include "ArgumentChecks.h"
+#endif
 int main(int argc, char **argv) {
   CHECK(argc == 2 && generated_main(argc, argv) == 0);
   auto made = m::Runtime::create();
@@ -259,7 +265,9 @@ int main(int argc, char **argv) {
     auto before = runtime->stats().completions, submissions = runtime->stats().submissions;
     auto task = core->submit(group, entry, {entry.packetLayout, &packet, sizeof(packet)});
     CHECK(task);
-#ifdef KALANDRA_SCALAR_ENTRY
+#ifdef KALANDRA_ARGUMENTS
+    constexpr unsigned uploads = 3;
+#elif defined(KALANDRA_SCALAR_ENTRY)
     constexpr unsigned uploads = 1;
 #else
     constexpr unsigned uploads = 2;
@@ -292,6 +300,11 @@ int main(int argc, char **argv) {
 #ifdef KALANDRA_DIFFERENCES
   differenceConformance<1>(*runtime, argv[1]);
   differenceConformance<2>(*runtime, argv[1]);
+#endif
+#ifdef KALANDRA_ARGUMENTS
+  argumentConformance<1>(*runtime, argv[1]);
+  argumentConformance<2>(*runtime, argv[1]);
+  argumentLifecycle(*runtime, argv[1]);
 #endif
   // The retained CPU results share the registry budget with transfers and GPU work.
   auto limited = m::Runtime::create({.maxBytes = 16});
