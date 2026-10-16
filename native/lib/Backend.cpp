@@ -567,6 +567,7 @@ private:
               tensorB ? tensor::ExtractOp::create(builder_, loc, b, indices).getResult() : b;
           const char *arithmetic = op == TokenKind::Plus    ? "arith.addf"
                                    : op == TokenKind::Minus ? "arith.subf"
+                                   : op == TokenKind::Slash ? "arith.divf"
                                                             : "arith.mulf";
           result = binary(loc, arithmetic, left, right);
         }

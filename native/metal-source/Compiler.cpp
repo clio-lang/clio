@@ -687,14 +687,15 @@ class Compiler {
                            : std::get<TensorBinary>(n.operation).right;
 
           if (operation != TokenKind::Plus && operation != TokenKind::Minus &&
-              operation != TokenKind::Star)
-            reject(n.span, "GPU strict arithmetic currently supports only +, - and *");
+              operation != TokenKind::Star && operation != TokenKind::Slash)
+            reject(n.span, "GPU strict arithmetic currently supports only +, -, * and /");
           auto a = emit(left), b = emit(right);
           result = temporary();
           operands = {a, b};
           instruction << "        " << result << " = arith."
                       << (operation == TokenKind::Plus    ? "addf "
                           : operation == TokenKind::Minus ? "subf "
+                          : operation == TokenKind::Slash ? "divf "
                                                           : "mulf ")
                       << a << ", " << b << " : f32\n";
         } else if (std::holds_alternative<ScalarUnary>(n.operation) ||

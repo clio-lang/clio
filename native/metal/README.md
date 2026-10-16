@@ -119,3 +119,5 @@ For the private indirect entry ABI, use `ElementwiseSignature{tensorCount, scala
 
 
 [Whole-tensor unary arithmetic](../../docs/design/apple-gpu.md#whole-tensor-unary-arithmetic) now supports `-values` in rank-one/rank-two float32 GPU helpers. It changes only each element's sign bit, preserving payloads and shapes; double negation and unary plus preserve exact original bits. Source shape guards, owned captures, direct/Tier 2 layout selection and acknowledgement-safe cleanup remain in place.
+
+[Strict float32 division](../../docs/design/apple-gpu.md#strict-tensor-division) now supports tensor/tensor and either scalar/tensor order, including transitive scalar reciprocal helpers. Division retains separately rounded results rather than becoming multiplication by a reciprocal.

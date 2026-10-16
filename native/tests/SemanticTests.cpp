@@ -342,6 +342,15 @@ void elementwiseArithmetic() {
   require(dumpTypedIR(*result.module).find("elementwise add.f32 strict") != std::string::npos,
           "elementwise strict policy missing");
   accepted(analyze("fn lift(a: Tensor[float32,2,3]) -> Tensor[float32,2,3]:\n  0.5+a*2\n"));
+  auto division = analyze(
+      "fn quotient(a: Tensor[float32,?,?], b: Tensor[float32,?,?]) -> Tensor[float32,?,?]:\n  a/b\n"
+      "fn reverse(a: Tensor[float32,?]) -> Tensor[float32,?]:\n  1/a\n");
+  accepted(division);
+  validIR(*division.module);
+  require(std::get<TensorBinary>(returned(*division.module, 0).operation).operation ==
+                  TokenKind::Slash &&
+              division.module->functions[0].preconditions.size() == 2,
+          "tensor division lost its operation or axis constraints");
   rejected("fn f(a: Tensor[float32,2], b: Tensor[float32,3]) -> Tensor[float32,2]:\n  a+b\n",
            "S011");
   rejected("fn f(a: Tensor[float32,2], b: Tensor[float32,1,2]) -> Tensor[float32,2]:\n  a*b\n",
@@ -349,7 +358,7 @@ void elementwiseArithmetic() {
   rejected("fn add(a: Tensor[float32,?], b: Tensor[float32,?]) -> Tensor[float32,?]:\n  a+b\n"
            "fn bad(a: Tensor[float32,2], b: Tensor[float32,3]) -> Tensor[float32,2]:\n  add(a,b)\n",
            "S033");
-  rejected("fn f(a: Tensor[float32,2]) -> Tensor[float32,2]:\n  a/2\n", "S017");
+  rejected("fn f(a: Tensor[float32,2]) -> Tensor[float32,2]:\n  a%2\n", "S019");
 }
 void diagnostics() {
   const std::vector<std::pair<std::string, std::string>> cases{
@@ -374,7 +383,7 @@ void diagnostics() {
       {"fn f(x: Tensor[float32,2,3]) -> float32:\n  x\n", "S010"},
       {"fn f(x: Tensor[float32,2,3]) -> Tensor[float32,3,2]:\n  x\n", "S011"},
       {"fn f(x: Tensor[float32,2,3]) -> Tensor[float32,6]:\n  x\n", "S010"},
-      {"fn f(x: Tensor[float32,2,3]) -> Tensor[float32,2,3]:\n  x / x\n", "S017"},
+      {"fn f(x: Tensor[float32,2,3]) -> Tensor[float32,2,3]:\n  x % x\n", "S019"},
       {"fn f(a: Tensor[float32,9223372036854775808,0]) -> float32:\n  1\n", "S001"},
       {"fn f(a: Tensor[float32,4294967296,4294967296]) -> float32:\n  1\n", "S002"},
       {"fn f(a: Tensor[float32,2305843009213693952]) -> float32:\n  1\n", "S002"},

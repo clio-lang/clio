@@ -187,3 +187,15 @@ Shape, residency, capability, and contract checks happen before the affected ope
 The project owner accepted `spawn ... on target`, explicit tensor transfer, residency checks, deployment-bound remote execution, and bounded parallelMap, including default/indexed GPU selectors. Exact runtime payloads, callable residency contracts, and wire/deployment APIs still need specification before implementation.
 
 Review the [complete CPU/GPU/remote application example](compute-example.md), including its data movement, errors, and cleanup. Then scope the first CPU compiler milestone before implementing GPU or remote backends.
+
+## Deferred: direct execution and memory controls (LL-001)
+
+Track lower-level access as a later design area, after the safe compiler/runtime foundation is established. These are exploration goals, not accepted syntax or implemented capabilities:
+
+- Checked tensor/collection indexing and construction of updated immutable values, distinct from exposing raw pointers.
+- Explicit vector/SIMD operations for specialized CPU algorithms, alongside automatic compiler vectorization.
+- User-defined GPU kernels with controlled lane/workgroup access, bounds rules and data ownership.
+- Finer coordination primitives such as channels and barriers, with clear ordering, cancellation and deadlock behavior.
+- Specialized GPU memory/synchronization controls where measured workloads justify them.
+
+Keep ordinary functions, immutable values and structured tasks as the default experience. Direct access must have explicit safety and placement contracts; adding it does not authorize unrestricted shared writes or raw-pointer arithmetic. Any unsafe escape hatch needs a separate use case and design review. Preserve room for these features in compiler/runtime architecture, without fixing an API before those requirements are understood.

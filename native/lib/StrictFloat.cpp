@@ -127,6 +127,32 @@ class IntegerFloat {
     return choose(bitOr(bitOr(a.isNan, d.isNan), invalid), c(0x7fc00000), result);
   }
 
+  Value division(Parts a, Parts d) {
+    auto [sigA, expA] = normalize(a.significand, a.exponent, 23, -22);
+    auto [sigB, expB] = normalize(d.significand, d.exponent, 23, -22);
+    // Normalize the ratio to [1,2), retaining guard/round/sticky bits.
+    // The shifted numerator fits in 51 bits. Protect the integer divisor even
+    // for special operands: select arms may be evaluated eagerly.
+    auto belowOne = lt(sigA, sigB);
+    auto numerator = shl(sigA, choose(belowOne, c(27), c(26)));
+    auto divisor = choose(nonzero(sigB), sigB, c(1));
+    auto quotient = arith::DivUIOp::create(b, loc, numerator, divisor);
+    auto remainder = arith::RemUIOp::create(b, loc, numerator, divisor);
+    auto sticky = arith::ExtUIOp::create(b, loc, b.getI64Type(), nonzero(remainder));
+    auto sig = bitOr(quotient, sticky);
+    auto exponent =
+        sub(add(sub(expA, expB), c(127)), arith::ExtUIOp::create(b, loc, b.getI64Type(), belowOne));
+    auto tiny = slt(exponent, c(1));
+    sig = choose(tiny, jam(sig, sub(c(1), exponent)), sig);
+    exponent = choose(tiny, c(1), exponent);
+    auto sign = arith::XOrIOp::create(b, loc, a.sign, d.sign);
+    auto result = pack(sig, exponent, sign);
+    result = choose(bitOr(a.isZero, d.isInf), sign, result);
+    result = choose(bitOr(a.isInf, d.isZero), bitOr(sign, c(0x7f800000)), result);
+    auto invalid = bitOr(all(a.isZero, d.isZero), all(a.isInf, d.isInf));
+    return choose(bitOr(bitOr(a.isNan, d.isNan), invalid), c(0x7fc00000), result);
+  }
+
 public:
   explicit IntegerFloat(Operation *op) : b(op), loc(op->getLoc()) {}
   Value lower(Operation *op) {
@@ -142,7 +168,9 @@ public:
     if (isa<arith::SubFOp>(op))
       right = flipSign(right);
     auto a = unpack(op->getOperand(0)), d = unpack(right);
-    auto bits = isa<arith::MulFOp>(op) ? multiplication(a, d) : addition(a, d);
+    auto bits = isa<arith::DivFOp>(op)   ? division(a, d)
+                : isa<arith::MulFOp>(op) ? multiplication(a, d)
+                                         : addition(a, d);
     return arith::BitcastOp::create(b, loc, b.getF32Type(), narrow(bits));
   }
 };
@@ -164,12 +192,12 @@ mlir::LogicalResult lowerStrictFloat32(mlir::Operation *root) {
     if (!floating)
       return;
     if (mlir::isa<mlir::arith::AddFOp, mlir::arith::SubFOp, mlir::arith::MulFOp,
-                  mlir::arith::NegFOp>(op) &&
+                  mlir::arith::NegFOp, mlir::arith::DivFOp>(op) &&
         op->getResult(0).getType().isF32())
       operations.push_back(op);
     else {
-      op->emitError(
-          "strict binary32 lowering supports only scalar float32 add/subtract/multiply/negate");
+      op->emitError("strict binary32 lowering supports only scalar float32 "
+                    "add/subtract/multiply/divide/negate");
       valid = false;
     }
   });

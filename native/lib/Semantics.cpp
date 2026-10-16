@@ -468,8 +468,8 @@ private:
     }
     if (a.tensor || b.tensor) {
       if (binary.operation != TokenKind::Plus && binary.operation != TokenKind::Minus &&
-          binary.operation != TokenKind::Star) {
-        error("S017", "elementwise float32 arithmetic currently supports only +, - and *", span);
+          binary.operation != TokenKind::Star && binary.operation != TokenKind::Slash) {
+        error("S017", "elementwise float32 arithmetic currently supports only +, -, * and /", span);
         return {};
       }
       auto result = a.tensor ? a : b;

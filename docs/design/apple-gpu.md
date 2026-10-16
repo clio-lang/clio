@@ -214,7 +214,7 @@ Within a mixed program's parallel block, `local = combine(left, right)` executes
 
 The shared typed IR now has `TensorBinary` for strict float32 elementwise `+` and `*`. A scalar operand lifts across every tensor element, on either side of the operator. Tensor operands must have identical rank and extents; there is no tensor-axis broadcasting. Known mismatches are compilation errors. Unresolved equality requirements propagate through helper calls and become runtime guards. The mixed supervisor checks CPU helper preconditions before exporting descriptors or executing the call.
 
-CPU lowering allocates a fresh immutable result and emits ranked serial MLIR loops with separately rounded arithmetic. Allocation bounds, ownership, and loop cancellation use the existing checked invocation machinery. The task backend extracts these same operations as CPU kernels. GPU lowering emits one scalar lane from the typed tensor operation, then uses the existing integer implementation of strict binary32 arithmetic. Scalar helpers are permitted within the GPU closure when their operations are supported; a CPU-only helper may use scalar division, but placing a caller of that helper on GPU is explicitly rejected. There is no CPU fallback.
+CPU lowering allocates a fresh immutable result and emits ranked serial MLIR loops with separately rounded arithmetic. Allocation bounds, ownership, and loop cancellation use the existing checked invocation machinery. The task backend extracts these same operations as CPU kernels. GPU lowering emits one scalar lane from the typed tensor operation, then uses the existing integer implementation of strict binary32 arithmetic. Scalar helpers are permitted within the GPU closure when their operations are supported; scalar division is now supported inside these closures through the strict integer lowering. There is no CPU fallback.
 
 Elementwise and reduction GPU entries support rank-one/rank-two float32. The mixed bridge also supports rank-two float32 tensors for direct GPU matmul and ordinary CPU calls. Ordinary CPU elementwise lowering supports ranked tensors; tests include rank-two and empty dimensions. General elementwise entries use signature-sized captures and compact bindings for tensors that contribute to the result, described below. Elementwise GPU helpers cannot introduce tensor constructors, reductions, fixed-shape refinements, or other unsupported operations; direct scalar reduction entries are supported separately below. This milestone shares function typing and arithmetic IR, not placement/task/residency IR for the whole program. Performance is unmeasured.
 
@@ -514,3 +514,24 @@ Negation composes with supported arithmetic and transitive helpers. A function r
 The [source fixture](../../native/metal-source/tensor-negation.kalandra) runs negation, nested double negation, unary plus, and a negated sum in both ranks, then combines downloaded and CPU-produced tensors. [Conformance](../../native/metal-source/TensorNegationChecks.h) checks **68 cases and 3,177,168 CPU/GPU lanes per rank per build variant**, including **2,382,876 exact-bit comparisons** for the unary-only paths. It covers the full 595,106-pair corpus, aliases, zero axes, workgroup tails, unchanged inputs and propagated result shapes. Composed addition/negation is compared independently with APFloat, using NaN classification for the arithmetic result.
 
 Debug, optimized, host ASan/UBSan and host TSan variants retain the common source harness's allocation-failure, cached ownership, byte-budget, cancellation, deadline and failed-completion checks. [CLI qualification](../../native/metal-source/VerifyTensorNegation.cmake) runs with 1/2/4 workers, verifies rank-independent raw/strict/SPIR-V artifacts and relocated eight-library bundles, tests static/dynamic composed shape faults, rejects unary arithmetic on a pending task, and checks an empty outer matrix axis. It also runs ordinary CPU tasks with inline tensor negation and rank-three CPU lowering in optimized and host sanitizer builds. [Evidence](../../native/metal-proof/evidence/gpu-tensor-negation-2026-10-16.json) records sources, artifacts and regression results. Host sanitizers do not instrument GPU instructions. No performance claim is made.
+
+## Strict tensor division
+
+Dense rank-one/rank-two float32 GPU helpers now accept tensor/tensor division and scalar operands on either side. The same TensorBinary operation works in ranked CPU functions and CPU task extraction. Tensor operands require identical rank and every corresponding extent; no tensor-axis broadcasting or implicit transfer is introduced.
+
+```kalandra
+fn quotient(left: Tensor[float32, ?, ?], right: Tensor[float32, ?, ?]) -> Tensor[float32, ?, ?]:
+  left / right
+
+fn reciprocal(value: float32) -> float32:
+  1 / value
+
+fn scale(values: Tensor[float32, ?, ?], divisor: float32) -> Tensor[float32, ?, ?]:
+  values / divisor
+```
+
+Reachable scalar helpers can divide too. This does not admit arbitrary scalar-returning GPU entry points; their existing placement restrictions remain. The [strict integer lowering](strict-gpu-float32.md#strict-division) preserves nearest/ties-to-even rounding, gradual underflow, signed zero, infinity and canonical arithmetic NaN. Source evaluation order is preserved: division is not replaced with a separately rounded reciprocal and multiplication. Shape faults remain checked task failures, while floating division by zero follows IEEE result rules.
+
+The [fixture](../../native/metal-source/division.kalandra) and [conformance harness](../../native/metal-source/DivisionChecks.h) cover tensor/tensor division, both scalar orders, and multiplication through a transitive reciprocal helper. Each rank and build variant checks **436 cases and 3,499,236 CPU/GPU/APFloat lanes**, including the existing pair corpus and 98,304 additional directed division pairs, aliases, empty axes, odd tails, immutable inputs and cached ownership. Debug, optimized, host ASan/UBSan and host TSan variants retain common cancellation, deadlines, byte budgets, failed completion and allocation-failure checks; nine CPU allocation failures are unwound with each of 1/2/4 workers.
+
+[CLI checks](../../native/metal-source/VerifyDivision.cmake) verify strict artifacts, identical vector/matrix lane code, relocated eight-library bundles, complete-axis shape faults, CPU task division, and a GPU regression distinguishing `5 / 3` from `5 * (1 / 3)`. Host sanitizers do not instrument GPU instructions. [Qualification evidence](../../native/metal-proof/evidence/gpu-division-2026-10-16.json) records the sources, artifacts and test results. No performance claim is made.

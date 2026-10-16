@@ -6,7 +6,8 @@
 #if defined(KALANDRA_SHARED_HELPERS) || defined(KALANDRA_SCALAR_ENTRY) ||                          \
     defined(KALANDRA_MATRIX_ENTRY) || defined(KALANDRA_DIFFERENCES) ||                             \
     defined(KALANDRA_ARGUMENTS) || defined(KALANDRA_UNUSED_INPUTS) ||                              \
-    defined(KALANDRA_INDIRECT_ARGUMENTS) || defined(KALANDRA_TENSOR_NEGATION)
+    defined(KALANDRA_INDIRECT_ARGUMENTS) || defined(KALANDRA_TENSOR_NEGATION) ||                   \
+    defined(KALANDRA_DIVISION)
 #include "../metal-proof/FloatOracle.h"
 #endif
 #define CHECK(x)                                                                                   \
@@ -45,14 +46,17 @@ m::Buffer observe(TaskCore &core, TaskHandle task) {
 void verify(const m::Buffer &value) {
 #if defined(KALANDRA_MATRIX_ENTRY) || defined(KALANDRA_DIFFERENCES) ||                             \
     defined(KALANDRA_ARGUMENTS) || defined(KALANDRA_INDIRECT_ARGUMENTS) ||                         \
-    defined(KALANDRA_TENSOR_NEGATION)
+    defined(KALANDRA_TENSOR_NEGATION) || defined(KALANDRA_DIVISION)
   CHECK(!value.onDevice() && value.shape().size() == 2 && value.shape()[0] == 2 &&
         value.shape()[1] == 3);
   auto bytes = value.hostBytes();
   CHECK(bytes && bytes->size() == 24);
   std::array<std::uint32_t, 6> bits{};
   std::memcpy(bits.data(), bytes->data(), 24);
-#ifdef KALANDRA_TENSOR_NEGATION
+#ifdef KALANDRA_DIVISION
+  CHECK((bits == std::array<std::uint32_t, 6>{0x40c00000u, 0x40c00000u, 0x40c00000u, 0x40c00000u,
+                                              0x40c00000u, 0x40c00000u}));
+#elif defined(KALANDRA_TENSOR_NEGATION) || defined(KALANDRA_DIVISION)
   CHECK((bits == std::array<std::uint32_t, 6>{0xc0000000u, 0xc0800000u, 0xc0c00000u, 0xc1000000u,
                                               0xc1200000u, 0xc1400000u}));
 #elif defined(KALANDRA_INDIRECT_ARGUMENTS)
@@ -202,6 +206,9 @@ void sharedConformance(m::Runtime &runtime, const char *directory) {
 #ifdef KALANDRA_TENSOR_NEGATION
 #include "TensorNegationChecks.h"
 #endif
+#ifdef KALANDRA_DIVISION
+#include "DivisionChecks.h"
+#endif
 int main(int argc, char **argv) {
   CHECK(argc == 2 && generated_main(argc, argv) == 0);
   auto made = m::Runtime::create();
@@ -336,6 +343,10 @@ int main(int argc, char **argv) {
 #ifdef KALANDRA_TENSOR_NEGATION
   tensorNegationConformance<1>(*runtime, argv[1]);
   tensorNegationConformance<2>(*runtime, argv[1]);
+#endif
+#ifdef KALANDRA_DIVISION
+  divisionConformance<1>(*runtime, argv[1]);
+  divisionConformance<2>(*runtime, argv[1]);
 #endif
   // The retained CPU results share the registry budget with transfers and GPU work.
   auto limited = m::Runtime::create({.maxBytes = 16});

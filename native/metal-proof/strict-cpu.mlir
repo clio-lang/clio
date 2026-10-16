@@ -34,4 +34,11 @@ module {
     %bits = arith.bitcast %r : f32 to i32
     return %bits : i32
   }
+  func.func @strict_div(%a: i32, %b: i32) -> i32 {
+    %x = arith.bitcast %a : i32 to f32
+    %y = arith.bitcast %b : i32 to f32
+    %r = arith.divf %x, %y : f32
+    %bits = arith.bitcast %r : f32 to i32
+    return %bits : i32
+  }
 }

@@ -27,7 +27,7 @@ struct Harness {
   std::uint64_t comparisons = 0, cases = 0, submissions = 0;
   void run(std::span<const float_proof::Pair> pairs, unsigned operation) {
     @autoreleasepool {
-      check(pairs.size() <= capacity && operation < 5, "invalid trusted dispatch parameters");
+      check(pairs.size() <= capacity && operation < 6, "invalid trusted dispatch parameters");
       const unsigned n = pairs.size();
       auto *aBits = static_cast<std::uint32_t *>(uploadA.contents);
       auto *bBits = static_cast<std::uint32_t *>(uploadB.contents);
@@ -138,16 +138,23 @@ int main(int argc, char **argv) {
           "buffer allocation failed");
     auto corpus = float_proof::corpus();
     const std::span<const float_proof::Pair> pairs(corpus);
-    for (unsigned mode = 0; mode < 5; ++mode) {
+    for (unsigned mode = 0; mode < 6; ++mode) {
       for (unsigned n : {0u,   1u,   2u,   31u,  32u,  33u,   63u,   64u,   65u,   127u,
                          128u, 129u, 255u, 256u, 257u, 1023u, 1024u, 1025u, 4095u, 4096u})
         h.run(pairs.first(n), mode);
       for (std::size_t offset = 0; offset < pairs.size(); offset += capacity)
         h.run(pairs.subspan(offset, std::min<std::size_t>(capacity, pairs.size() - offset)), mode);
     }
+    auto directed = float_proof::divisionCases();
+    const std::span<const float_proof::Pair> divisionPairs(directed);
+    for (std::size_t offset = 0; offset < divisionPairs.size(); offset += capacity)
+      h.run(divisionPairs.subspan(offset,
+                                  std::min<std::size_t>(capacity, divisionPairs.size() - offset)),
+            5);
     NSDictionary *report = @{
       @"device" : h.device.name,
       @"pairs" : @(pairs.size()),
+      @"directed_division_pairs" : @(divisionPairs.size()),
       @"comparisons" : @(h.comparisons),
       @"cases" : @(h.cases),
       @"submissions" : @(h.submissions),
@@ -155,8 +162,8 @@ int main(int argc, char **argv) {
       @"input_and_guard_checks_pass" : @YES,
       @"rounding" : @"nearest-ties-to-even",
       @"reference" : @"LLVM APFloat plus CPU hardware",
-      @"scope" :
-          @"scalar binary32 add, subtract, multiply, negate, separately-rounded multiply-then-add",
+      @"scope" : @"scalar binary32 add, subtract, multiply, divide, negate, separately-rounded "
+                 @"multiply-then-add",
       @"arithmetic" : @"integer MLIR lowering; not hardware float32 arithmetic"
     };
     NSData *json =

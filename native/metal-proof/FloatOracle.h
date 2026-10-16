@@ -21,6 +21,8 @@ inline std::uint32_t oracle(Pair pair, unsigned operation) {
     result.subtract(b, llvm::APFloat::rmNearestTiesToEven);
   else if (operation == 4)
     result.changeSign();
+  else if (operation == 5)
+    result.divide(b, llvm::APFloat::rmNearestTiesToEven);
   else {
     result.multiply(b, llvm::APFloat::rmNearestTiesToEven);
     if (operation == 2)
@@ -36,10 +38,25 @@ inline std::uint32_t hardware(Pair pair, unsigned operation) {
     return std::bit_cast<std::uint32_t>(a - b);
   if (operation == 4)
     return std::bit_cast<std::uint32_t>(-a);
+  if (operation == 5)
+    return std::bit_cast<std::uint32_t>(a / b);
   volatile float product = a * b;
   if (operation == 1)
     return std::bit_cast<std::uint32_t>(float(product));
   return std::bit_cast<std::uint32_t>(product + a);
+}
+// Division-specific neighbors around underflow/overflow and quotient rounding.
+// Keep the established shared corpus stable for the other operation proofs.
+inline std::vector<Pair> divisionCases() {
+  std::vector<Pair> result;
+  for (unsigned signs = 0; signs < 4; ++signs)
+    for (std::uint32_t i = 0; i < 1024; ++i)
+      for (auto denominator : {0x3f000000u, 0x3f000001u, 0x3f7fffffu, 0x3f800001u, 0x40000000u,
+                               0x40000001u, 0x40400000u, 0x7f7fffffu})
+        for (auto numerator : {i + 1, 0x3f800000u + i, 0x7f7fffffu - i})
+          result.push_back({numerator | ((signs & 1) ? 0x80000000u : 0u),
+                            denominator | ((signs & 2) ? 0x80000000u : 0u)});
+  return result;
 }
 inline std::vector<Pair> corpus() {
   std::vector<Pair> pairs;
