@@ -561,7 +561,10 @@ private:
         Value left = tensorA ? tensor::ExtractOp::create(builder_, loc, a, indices).getResult() : a;
         Value right =
             tensorB ? tensor::ExtractOp::create(builder_, loc, b, indices).getResult() : b;
-        auto result = binary(loc, op == TokenKind::Plus ? "arith.addf" : "arith.mulf", left, right);
+        const char *arithmetic = op == TokenKind::Plus    ? "arith.addf"
+                                 : op == TokenKind::Minus ? "arith.subf"
+                                                          : "arith.mulf";
+        auto result = binary(loc, arithmetic, left, right);
         return tensor::InsertOp::create(builder_, loc, result, tensor, indices);
       }
       auto iteration = scf::ForOp::create(builder_, loc, zero, shape[axis], one, ValueRange{tensor},

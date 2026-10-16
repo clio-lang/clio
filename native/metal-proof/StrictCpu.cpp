@@ -5,18 +5,22 @@
 extern "C" std::uint32_t strict_add(std::uint32_t, std::uint32_t);
 extern "C" std::uint32_t strict_mul(std::uint32_t, std::uint32_t);
 extern "C" std::uint32_t strict_multiply_add(std::uint32_t, std::uint32_t);
+extern "C" std::uint32_t strict_sub(std::uint32_t, std::uint32_t);
+extern "C" std::uint32_t strict_neg(std::uint32_t, std::uint32_t);
 int main() {
   if (std::fegetround() != FE_TONEAREST)
     return 2;
   const auto pairs = float_proof::corpus();
   unsigned long long checked = 0;
   for (auto pair : pairs)
-    for (unsigned op = 0; op < 3; ++op) {
+    for (unsigned op = 0; op < 5; ++op) {
       auto expected = float_proof::oracle(pair, op);
       auto native = float_proof::hardware(pair, op);
       auto actual = op == 0   ? strict_add(pair.a, pair.b)
                     : op == 1 ? strict_mul(pair.a, pair.b)
-                              : strict_multiply_add(pair.a, pair.b);
+                    : op == 2 ? strict_multiply_add(pair.a, pair.b)
+                    : op == 3 ? strict_sub(pair.a, pair.b)
+                              : strict_neg(pair.a, pair.b);
       if (!float_proof::equal(expected, native) || !float_proof::equal(expected, actual)) {
         std::fprintf(
             stderr,
@@ -24,9 +28,15 @@ int main() {
             pair.a, pair.b, expected, native, actual);
         return 1;
       }
+      if (op == 4 &&
+          (actual != (pair.a ^ 0x80000000u) || actual != expected || native != expected)) {
+        std::fprintf(stderr, "Negation did not preserve exact payload bits\n");
+        return 1;
+      }
       ++checked;
     }
-  std::printf("Strict binary32 CPU: %llu add/multiply/composed comparisons passed against APFloat "
+  std::printf("Strict binary32 CPU: %llu add/subtract/multiply/negate/composed comparisons passed "
+              "against APFloat "
               "and hardware\n",
               checked);
 }

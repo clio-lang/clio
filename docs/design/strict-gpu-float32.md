@@ -1,6 +1,6 @@
 # Strict binary32 arithmetic on the GPU
 
-Status: scalar float32 addition and multiplication now have an integer MLIR lowering, verified through both CPU LLVM and Metal on an Apple M2 Max. Separately rounded multiply-then-add passes the same checks. This numerical backend component now also feeds private managed elementwise compute tasks. A first optional source compiler now uses it for placed rank-one elementwise functions. Strict rank-one reductions and rank-two matmul now share the lowering; general GPU arithmetic admission remains incomplete.
+Status: scalar float32 addition, subtraction, multiplication and scalar negation now have an integer MLIR lowering, verified through both CPU LLVM and Metal on an Apple M2 Max. Separately rounded multiply-then-add passes the same checks. This numerical backend component now also feeds private managed elementwise compute tasks. A first optional source compiler now uses it for placed rank-one elementwise functions. Strict rank-one reductions and rank-two matmul now share the lowering; general GPU arithmetic admission remains incomplete.
 
 ## Why an integer lowering
 
@@ -12,17 +12,19 @@ The proof's SPIR-V target enables Int64. SPIRV-Cross requires MSL 2.2 or later f
 
 ## Arithmetic contract
 
-The implemented operations round to binary32 with round-to-nearest, ties-to-even. They preserve gradual underflow and signed zero, produce infinity on finite overflow, and implement infinity/zero/NaN cases. NaN results are canonical quiet NaNs (`0x7fc00000`); payload and NaN sign preservation are not promised by the language's initial contract. Floating-point status flags and signaling exceptions are not exposed by this component.
+The implemented operations round to binary32 with round-to-nearest, ties-to-even. They preserve gradual underflow and signed zero, produce infinity on finite overflow, and implement infinity/zero/NaN cases. Arithmetic NaN results are canonical quiet NaNs (`0x7fc00000`); payload and NaN sign preservation are not promised by the language's initial contract. Scalar negation is an exact sign-bit flip, preserving every other bit including signaling/quiet NaN payloads and zero. Floating-point status flags and signaling exceptions are not exposed by this component.
 
 A multiplication followed by addition remains two separately rounded operations. The lowering packs the intermediate product into binary32 bits before the addition reads it. It neither introduces fused multiply-add nor changes the reduction-tree contract. GPU matmul and reduction kernels also schedule the accepted tree; correct scalar operations alone do not establish the tensor result.
 
-Unsupported floating arithmetic and formats are rejected before rewriting or writing output. This first pass accepts scalar float32 `arith.addf` and `arith.mulf`, with existing bitcasts and integer operations passing through. Float64, floating vectors, division, and other floating arithmetic are not admitted. Floating constants are not lowered by this initial pass; the tested kernels receive their float values from parameters or buffers. No width conversion or approximation is substituted.
+Unsupported floating arithmetic and formats are rejected before rewriting or writing output. The pass accepts scalar float32 `arith.addf`, `arith.subf`, `arith.mulf` and `arith.negf`, with existing bitcasts and integer operations passing through. Float64, floating vectors, division, and other floating arithmetic are not admitted. Floating constants are not lowered by this initial pass; the tested kernels receive their float values from parameters or buffers. No width conversion or approximation is substituted.
 
 ## Bit arithmetic
 
 Finite operands use an explicit significand and an effective exponent. Normal values supply the implicit leading bit; subnormals retain their smaller significand with the minimum effective exponent. Input classification uses the encoded bits, so subnormals are not lost to hardware floating arithmetic before classification.
 
 Addition orders magnitudes, aligns the smaller significand with a sticky right shift, and adds or subtracts according to signs. Three low bits retain guard/round/sticky information. A carry shifts the result right; cancellation normalizes left without crossing the subnormal exponent floor. Exact cancellation gives positive zero, except that adding two negative zeros preserves negative zero.
+
+Subtraction flips the second operand’s sign and then uses the same strict addition path. This preserves the subtraction zero-sign rules without introducing a separately rounded intermediate. Scalar negation lowers directly to a 32-bit integer XOR; it is not implemented as subtraction from zero.
 
 Multiplication first normalizes subnormal operands. Their 24-bit significands produce an exact product of at most 48 bits in an unsigned 64-bit integer. Exponent adjustment selects the product's leading bit. Sticky shifts retain the discarded information, including any further shift required for gradual underflow. The final sign is the operand-sign XOR, including rounded-to-zero results.
 
@@ -58,7 +60,7 @@ ctest --preset native -R '^metal-strict-'
 
 Eight tests cover CPU and GPU in debug/optimized/ASan+UBSan host variants, artifact inspection, and transactional rejection of unsupported arithmetic. CPU-generated integer code is compiled at the selected optimization level. The three GPU harness variants load the same Metal library; they are not three GPU compiler optimization modes. Host/CPU sanitizers do not instrument GPU shader accesses or the prebuilt LLVM reference library.
 
-Artifact checks reject normalization loops in scalar fixtures, surviving float add/multiply/divide, FMA, and fast-math decoration in the relevant lowered artifacts. They verify Int64 integer arithmetic and the reflected entry point/buffer layout. The generated CPU LLVM, SPIR-V, and Metal source are preserved in the ignored build directory. Negative tests reject float32 division, float64 addition, and vector multiplication without overwriting an existing output file.
+Artifact checks reject normalization loops in scalar fixtures, surviving float add/subtract/negate/multiply/divide, FMA, and fast-math decoration in the relevant lowered artifacts. They verify Int64 integer arithmetic and the reflected entry point/buffer layout. The generated CPU LLVM, SPIR-V, and Metal source are preserved in the ignored build directory. Negative tests reject float32 division, float64 addition, and vector multiplication without overwriting an existing output file.
 
 The [recorded results and hashes](../../native/metal-proof/evidence/strict-float32-2026-10-15.json) identify the source, toolchain, shader, and three GPU runs. Passing this corpus is strong differential evidence for this subset, not an exhaustive validation of all float pairs, drivers, devices, or future compiler transformations.
 
@@ -71,3 +73,11 @@ Checked compute tasks and a [first source-to-Metal compiler slice](apple-gpu.md#
 ## Normalization optimization
 
 The [shared lowering now uses five straight-line integer stages](apple-gpu.md#strict-normalization-optimization) in place of bounded per-bit normalization loops. The earlier qualification counts above describe the original evidence; the expanded corpus adds 11,868 pairs targeting every subnormal leading bit and cancellation distance across all finite exponent fields. The arithmetic policy is unchanged. CPU and actual Metal execution are requalified against APFloat, with separate performance measurements rather than timing the correctness harness.
+
+## Source subtraction and scalar negation
+
+Rank-one and rank-two float32 tensor subtraction now works on CPU and GPU, with tensor/tensor and either scalar/tensor order. Scalar negation is accepted inside transitive GPU helpers, including negated scalar parameters and negative literals. Source typing and CPU/GPU lowering share the same checked arithmetic nodes. Tensor shapes must still match completely; output shape, explicit transfers, immutability and task lifetimes are unchanged. Unary negation of an entire tensor remains outside this source subset; `0 - values` is elementwise subtraction, with arithmetic NaN behavior rather than bit-preserving scalar negation.
+
+The scalar proof now checks five modes: add, multiply, separately rounded multiply/add, subtract and negate. Each CPU variant checks **2,975,530 comparisons** over the current 595,106-pair corpus. Each GPU variant checks **3,039,060 comparisons in 830 cases**, including empty/tail dispatches and unchanged sentinels. Subtraction NaNs compare by classification; scalar negation compares all bits exactly, including NaN payloads and sign. These are differential correctness checks, not performance measurements.
+
+The [source fixture](../../native/metal-source/differences.kalandra) exercises vector and matrix subtraction, scalar-first subtraction and a shared scalar-negation helper on CPU and GPU. [Source conformance](../../native/metal-source/DifferenceChecks.h) compares both targets independently with APFloat, covering the full pair corpus, empty/odd shapes, aliases, scalar IEEE edges, input immutability and owned captures. CPU invocation allocation failures run with 1/2/4 workers. Metal preparation failures, cancellation, deadlines, failed completion and retained result ownership use the shared lifecycle harness. [CLI checks](../../native/metal-source/VerifyDifferences.cmake) inspect strict artifacts, compare vector/matrix lane code, relocate executable/library bundles, and verify static and dynamic shape failures. [Qualification evidence](../../native/metal-proof/evidence/gpu-differences-2026-10-16.json) records the counts and hashes. GPU-ABI-001 and broader arithmetic remain open.

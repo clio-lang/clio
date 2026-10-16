@@ -4,7 +4,7 @@
 #include <chrono>
 #include <thread>
 #if defined(KALANDRA_SHARED_HELPERS) || defined(KALANDRA_SCALAR_ENTRY) ||                          \
-    defined(KALANDRA_MATRIX_ENTRY)
+    defined(KALANDRA_MATRIX_ENTRY) || defined(KALANDRA_DIFFERENCES)
 #include "../metal-proof/FloatOracle.h"
 #endif
 #define CHECK(x)                                                                                   \
@@ -41,15 +41,20 @@ m::Buffer observe(TaskCore &core, TaskHandle task) {
   return result;
 }
 void verify(const m::Buffer &value) {
-#ifdef KALANDRA_MATRIX_ENTRY
+#if defined(KALANDRA_MATRIX_ENTRY) || defined(KALANDRA_DIFFERENCES)
   CHECK(!value.onDevice() && value.shape().size() == 2 && value.shape()[0] == 2 &&
         value.shape()[1] == 3);
   auto bytes = value.hostBytes();
   CHECK(bytes && bytes->size() == 24);
   std::array<std::uint32_t, 6> bits{};
   std::memcpy(bits.data(), bytes->data(), 24);
+#ifdef KALANDRA_DIFFERENCES
+  CHECK((bits == std::array<std::uint32_t, 6>{0xc0400000u, 0xc0400000u, 0xc0400000u, 0xc0400000u,
+                                              0xc0400000u, 0xc0400000u}));
+#else
   CHECK((bits == std::array<std::uint32_t, 6>{0x41a00000u, 0x41d80000u, 0x42080000u, 0x42240000u,
                                               0x42400000u, 0x425c0000u}));
+#endif
 #else
   CHECK(!value.onDevice() && value.shape().size() == 1 && value.shape()[0] == 3);
   auto bytes = value.hostBytes();
@@ -169,6 +174,9 @@ void sharedConformance(m::Runtime &runtime, const char *directory) {
 #ifdef KALANDRA_MATRIX_ENTRY
 #include "MatrixElementwiseChecks.h"
 #endif
+#ifdef KALANDRA_DIFFERENCES
+#include "DifferenceChecks.h"
+#endif
 int main(int argc, char **argv) {
   CHECK(argc == 2 && generated_main(argc, argv) == 0);
   auto made = m::Runtime::create();
@@ -280,6 +288,10 @@ int main(int argc, char **argv) {
 #endif
 #ifdef KALANDRA_SCALAR_ENTRY
   scalarConformance(*runtime, argv[1]);
+#endif
+#ifdef KALANDRA_DIFFERENCES
+  differenceConformance<1>(*runtime, argv[1]);
+  differenceConformance<2>(*runtime, argv[1]);
 #endif
   // The retained CPU results share the registry budget with transfers and GPU work.
   auto limited = m::Runtime::create({.maxBytes = 16});

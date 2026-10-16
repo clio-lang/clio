@@ -17,6 +17,10 @@ inline std::uint32_t oracle(Pair pair, unsigned operation) {
   auto result = a;
   if (operation == 0)
     result.add(b, llvm::APFloat::rmNearestTiesToEven);
+  else if (operation == 3)
+    result.subtract(b, llvm::APFloat::rmNearestTiesToEven);
+  else if (operation == 4)
+    result.changeSign();
   else {
     result.multiply(b, llvm::APFloat::rmNearestTiesToEven);
     if (operation == 2)
@@ -28,6 +32,10 @@ inline std::uint32_t hardware(Pair pair, unsigned operation) {
   float a = std::bit_cast<float>(pair.a), b = std::bit_cast<float>(pair.b);
   if (operation == 0)
     return std::bit_cast<std::uint32_t>(a + b);
+  if (operation == 3)
+    return std::bit_cast<std::uint32_t>(a - b);
+  if (operation == 4)
+    return std::bit_cast<std::uint32_t>(-a);
   volatile float product = a * b;
   if (operation == 1)
     return std::bit_cast<std::uint32_t>(float(product));

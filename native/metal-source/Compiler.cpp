@@ -638,18 +638,26 @@ class Compiler {
                            ? std::get<ScalarBinary>(n.operation).right
                            : std::get<TensorBinary>(n.operation).right;
 
-          if (operation != TokenKind::Plus && operation != TokenKind::Star)
-            reject(n.span, "GPU strict arithmetic currently supports only + and *");
+          if (operation != TokenKind::Plus && operation != TokenKind::Minus &&
+              operation != TokenKind::Star)
+            reject(n.span, "GPU strict arithmetic currently supports only +, - and *");
           auto a = emit(left), b = emit(right);
           result = temporary();
           dependencies[result] = dependencies[a] | dependencies[b];
           code << "        " << result << " = arith."
-               << (operation == TokenKind::Plus ? "addf " : "mulf ") << a << ", " << b
-               << " : f32\n";
+               << (operation == TokenKind::Plus    ? "addf "
+                   : operation == TokenKind::Minus ? "subf "
+                                                   : "mulf ")
+               << a << ", " << b << " : f32\n";
         } else if (auto *unary = std::get_if<ScalarUnary>(&n.operation)) {
-          if (unary->operation != TokenKind::Plus)
-            reject(n.span, "GPU unary arithmetic is not implemented");
           result = emit(unary->operand);
+          if (unary->operation == TokenKind::Minus) {
+            auto operand = result;
+            result = temporary();
+            dependencies[result] = dependencies[operand];
+            code << "        " << result << " = arith.negf " << operand << " : f32\n";
+          } else if (unary->operation != TokenKind::Plus)
+            reject(n.span, "GPU unary arithmetic is not implemented");
         } else if (auto *call = std::get_if<FunctionCall>(&n.operation)) {
           std::vector<std::string> inputs;
           for (auto arg : call->arguments)

@@ -414,3 +414,24 @@ Apple-family GPUs now store the tree's immutable count words in one shared buffe
 On Apple M2 Max, a 65-element reduction now creates four temporary Metal buffers instead of ten: two private outputs, one parameter buffer and one scalar readback. Its 232-byte temporary payload and exact budget boundary are unchanged. A million-element reduction needs four temporary buffers instead of twenty-three. Empty/singleton paths still create no count buffer. This reduces buffer-object creation; it does not reduce tensor payload bytes, tree dispatches or arithmetic work.
 
 The four reduction variants retain their 653-case CPU/GPU/APFloat corpus and now sweep 13 preparation checkpoints per rank. Cancellation, deadlines, failed completion, concurrent invocations and pending-core destruction retain their acknowledgement and cleanup gates. See the [matched timing report](../../benchmarks/results/native-gpu-2026-10-16-reduction-parameters.md) and [qualification evidence](../../native/metal-proof/evidence/gpu-reduction-parameters-2026-10-16.json). General GPU parameter layouts, source composition and GPU-ABI-001 remain separate work.
+
+## Strict tensor subtraction and scalar negation
+
+CPU and GPU helpers now support elementwise `-` alongside `+` and `*` for dense rank-one/rank-two float32 tensors. Both tensor operands must have equal ranks and every axis equal; a scalar may occur on either side. Scalar negation also works in reachable GPU helpers, including parameters and negative literals:
+
+```kalandra
+fn difference(left: Tensor[float32, ?, ?], right: Tensor[float32, ?, ?]) -> Tensor[float32, ?, ?]:
+  left - right
+
+fn negative(value: float32) -> float32:
+  -value
+
+fn centered(values: Tensor[float32, ?], mean: float32) -> Tensor[float32, ?]:
+  values + negative(mean)
+```
+
+Subtraction uses the strict integer binary32 addition path after flipping the right operand's sign. It preserves gradual underflow, zero signs, infinity handling and nearest/ties-to-even rounding. Scalar negation changes only the sign bit, preserving all other bits including NaN payloads. It does not use subtraction from zero. There is no hardware float arithmetic, FMA, reassociation, relaxed precision or implicit transfer. An entire tensor's unary `-` remains unsupported in the source subset; tensor subtraction is the newly admitted operation.
+
+The same typed operation lowers through the existing CPU tensor loop and GPU lane kernel, with source evaluation order, output shapes, owned captures, byte/command budgets and cancellation acknowledgement unchanged. The private three-operation `compute(BinaryOperation)` proof interface is unchanged. GPU-ABI-001 remains open.
+
+The [extended strict scalar proof](strict-gpu-float32.md#source-subtraction-and-scalar-negation) qualifies subtraction and exact-bit negation against APFloat and CPU hardware. The [source fixture](../../native/metal-source/differences.kalandra) and [source conformance](../../native/metal-source/DifferenceChecks.h) exercise tensor/tensor subtraction, scalar lifting in either order, transitive scalar negation, aliases, IEEE edges, empty/odd shapes and the full reference corpus in both ranks. Debug, optimized, host ASan/UBSan and host TSan builds retain the existing lifecycle failure sweeps. [CLI checks](../../native/metal-source/VerifyDifferences.cmake) run with 1/2/4 workers, reject static/dynamic shape mismatches and relocate the eight-library bundle. [Qualification evidence](../../native/metal-proof/evidence/gpu-differences-2026-10-16.json) records counts and artifacts. No performance claim is made for this capability expansion.

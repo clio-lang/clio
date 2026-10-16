@@ -130,8 +130,19 @@ class IntegerFloat {
 public:
   explicit IntegerFloat(Operation *op) : b(op), loc(op->getLoc()) {}
   Value lower(Operation *op) {
-    auto a = unpack(op->getOperand(0)), d = unpack(op->getOperand(1));
-    auto bits = isa<arith::AddFOp>(op) ? addition(a, d) : multiplication(a, d);
+    auto flipSign = [&](Value value) -> Value {
+      auto bits = arith::BitcastOp::create(b, loc, b.getI32Type(), value);
+      auto flipped = arith::XOrIOp::create(b, loc, bits, c(0x80000000, 32));
+      return arith::BitcastOp::create(b, loc, b.getF32Type(), flipped);
+    };
+    // Negation changes only the sign bit, including zero and NaN payloads.
+    if (isa<arith::NegFOp>(op))
+      return flipSign(op->getOperand(0));
+    auto right = op->getOperand(1);
+    if (isa<arith::SubFOp>(op))
+      right = flipSign(right);
+    auto a = unpack(op->getOperand(0)), d = unpack(right);
+    auto bits = isa<arith::MulFOp>(op) ? multiplication(a, d) : addition(a, d);
     return arith::BitcastOp::create(b, loc, b.getF32Type(), narrow(bits));
   }
 };
@@ -152,11 +163,13 @@ mlir::LogicalResult lowerStrictFloat32(mlir::Operation *root) {
       floating |= mlir::isa<mlir::FloatType>(mlir::getElementTypeOrSelf(type));
     if (!floating)
       return;
-    if (mlir::isa<mlir::arith::AddFOp, mlir::arith::MulFOp>(op) &&
+    if (mlir::isa<mlir::arith::AddFOp, mlir::arith::SubFOp, mlir::arith::MulFOp,
+                  mlir::arith::NegFOp>(op) &&
         op->getResult(0).getType().isF32())
       operations.push_back(op);
     else {
-      op->emitError("strict binary32 lowering supports only scalar float32 add/multiply");
+      op->emitError(
+          "strict binary32 lowering supports only scalar float32 add/subtract/multiply/negate");
       valid = false;
     }
   });

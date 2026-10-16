@@ -27,7 +27,7 @@ struct Harness {
   std::uint64_t comparisons = 0, cases = 0, submissions = 0;
   void run(std::span<const float_proof::Pair> pairs, unsigned operation) {
     @autoreleasepool {
-      check(pairs.size() <= capacity && operation < 3, "invalid trusted dispatch parameters");
+      check(pairs.size() <= capacity && operation < 5, "invalid trusted dispatch parameters");
       const unsigned n = pairs.size();
       auto *aBits = static_cast<std::uint32_t *>(uploadA.contents);
       auto *bBits = static_cast<std::uint32_t *>(uploadB.contents);
@@ -90,7 +90,8 @@ struct Harness {
       for (unsigned i = 0; i < slots; ++i) {
         if (i < guard || i >= guard + n)
           check(outBits[i] == sentinel, "guard or inactive output changed");
-        else if (!float_proof::equal(outBits[i], expected[i - guard])) {
+        else if ((!float_proof::equal(outBits[i], expected[i - guard]) ||
+                  (operation == 4 && outBits[i] != expected[i - guard]))) {
           const auto pair = pairs[i - guard];
           std::fprintf(stderr,
                        "Strict GPU mismatch op=%u a=%08x b=%08x expected=%08x actual=%08x\n",
@@ -137,7 +138,7 @@ int main(int argc, char **argv) {
           "buffer allocation failed");
     auto corpus = float_proof::corpus();
     const std::span<const float_proof::Pair> pairs(corpus);
-    for (unsigned mode = 0; mode < 3; ++mode) {
+    for (unsigned mode = 0; mode < 5; ++mode) {
       for (unsigned n : {0u,   1u,   2u,   31u,  32u,  33u,   63u,   64u,   65u,   127u,
                          128u, 129u, 255u, 256u, 257u, 1023u, 1024u, 1025u, 4095u, 4096u})
         h.run(pairs.first(n), mode);
@@ -154,7 +155,8 @@ int main(int argc, char **argv) {
       @"input_and_guard_checks_pass" : @YES,
       @"rounding" : @"nearest-ties-to-even",
       @"reference" : @"LLVM APFloat plus CPU hardware",
-      @"scope" : @"scalar binary32 add, multiply, separately-rounded multiply-then-add",
+      @"scope" :
+          @"scalar binary32 add, subtract, multiply, negate, separately-rounded multiply-then-add",
       @"arithmetic" : @"integer MLIR lowering; not hardware float32 arithmetic"
     };
     NSData *json =

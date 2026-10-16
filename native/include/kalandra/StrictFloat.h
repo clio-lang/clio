@@ -4,7 +4,8 @@ namespace mlir {
 class Operation;
 }
 namespace kalandra {
-// Scalar binary32 add/multiply -> integer IEEE round-to-nearest/ties-to-even.
-// No target precision relaxation. Other floating arith operations fail closed.
+// Scalar binary32 add/subtract/multiply and bit-preserving negation -> integer IEEE
+// round-to-nearest/ties-to-even. No target precision relaxation. Other floating arith operations
+// fail closed.
 mlir::LogicalResult lowerStrictFloat32(mlir::Operation *root);
 } // namespace kalandra

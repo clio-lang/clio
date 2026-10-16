@@ -1,4 +1,4 @@
-// Three arithmetic probes, selected through an integer parameter, not source-language syntax.
+// Five arithmetic probes, selected through an integer parameter, not source-language syntax.
 module attributes {gpu.container_module,
   spirv.target_env = #spirv.target_env<#spirv.vce<v1.0, [Shader, Int64], [SPV_KHR_storage_buffer_storage_class]>, #spirv.resource_limits<>>} {
   gpu.module @kernels {
@@ -26,15 +26,31 @@ module attributes {gpu.container_module,
           %sum = arith.addf %x, %y : f32
           scf.yield %sum : f32
         } else {
-          %product = arith.mulf %x, %y : f32
-          %multiply = arith.cmpi eq, %mode, %c1 : i32
-          %r = scf.if %multiply -> f32 {
-            scf.yield %product : f32
+          %c3 = arith.constant 3 : i32
+          %c4 = arith.constant 4 : i32
+          %subtract = arith.cmpi eq, %mode, %c3 : i32
+          %other = scf.if %subtract -> f32 {
+            %difference = arith.subf %x, %y : f32
+            scf.yield %difference : f32
           } else {
-            %sum = arith.addf %product, %x : f32
-            scf.yield %sum : f32
+            %negate = arith.cmpi eq, %mode, %c4 : i32
+            %chosen = scf.if %negate -> f32 {
+              %negative = arith.negf %x : f32
+              scf.yield %negative : f32
+            } else {
+              %product = arith.mulf %x, %y : f32
+              %multiply = arith.cmpi eq, %mode, %c1 : i32
+              %r = scf.if %multiply -> f32 {
+                scf.yield %product : f32
+              } else {
+                %sum = arith.addf %product, %x : f32
+                scf.yield %sum : f32
+              }
+              scf.yield %r : f32
+            }
+            scf.yield %chosen : f32
           }
-          scf.yield %r : f32
+          scf.yield %other : f32
         }
         memref.store %result, %out[%i] : memref<4096xf32>
       }

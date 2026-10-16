@@ -5,7 +5,7 @@ file(READ "${OUTPUT_DIR}/${KERNEL_PREFIX}.lowered.mlir" LOWERED)
 file(READ "${OUTPUT_DIR}/${KERNEL_PREFIX}.spvasm" SPIRV)
 file(READ "${OUTPUT_DIR}/${KERNEL_PREFIX}.metal" MSL)
 file(READ "${OUTPUT_DIR}/strict-cpu.ll" LLVM)
-if(LOWERED MATCHES "arith\\.(addf|mulf|divf)" OR SPIRV MATCHES "OpF(Add|Mul|Div)|Fma|FPFastMathMode" OR MSL MATCHES "fma[ \t]*\\(" OR LLVM MATCHES "(fadd|fmul|fdiv|llvm.fma)")
+if(LOWERED MATCHES "arith\\.(addf|subf|negf|mulf|divf)" OR SPIRV MATCHES "OpF(Add|Sub|Negate|Mul|Div)|Fma|FPFastMathMode" OR MSL MATCHES "fma[ \t]*\\(" OR LLVM MATCHES "(fadd|fsub|fneg|fmul|fdiv|llvm.fma)")
   message(FATAL_ERROR "Strict integer arithmetic retained or introduced a floating operation")
 endif()
 # These fixtures contain no source loops. Normalization must stay a bounded
