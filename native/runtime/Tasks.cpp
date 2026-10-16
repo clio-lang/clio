@@ -1092,6 +1092,18 @@ void Task::complete(const void *value) noexcept {
   task.valueInitialized = true;
   core_.finish(slot_, task.cancel.load() ? Failure{TaskFailure::Cancelled} : Failure{});
 }
+void Task::fail(Failure failure) noexcept {
+  TaskCore::Impl::Guard guard(core_);
+  auto &record = core_.tasks[slot_];
+  if (record.state != State::Running || failure.kind < TaskFailure::Fault ||
+      failure.kind > TaskFailure::AdmissionRejected)
+    context().fault(3);
+  if (context().status())
+    failure = invocationFailure(context());
+  else if (record.cancel.load())
+    failure = {TaskFailure::Cancelled};
+  core_.finish(slot_, failure);
+}
 void Task::fault(std::int64_t code, std::int64_t line, std::int64_t column) noexcept {
   TaskCore::Impl::Guard guard(core_);
   context().fault(code, line, column);

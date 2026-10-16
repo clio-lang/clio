@@ -585,7 +585,7 @@ The [source fixture](../../native/metal-source/cpu-spawn.kalandra) submits indep
 
 Direct generated-entry tests destroy submitting packets and source invocations before execution, mutate scalar packets after admission, reuse aliased inputs, preserve results beyond scheduler destruction, and reject a malformed fixed-shape child. A controlled two-worker test runs actual compiled CPU entries concurrently and cancels one independent group while preserving the other group's result. [CLI checks](../../native/metal-source/VerifyCpuSpawn.cmake) cover default/explicit/aliased CPU placement, zero-argument and twelve-scalar calls, vectors, empty matrices, GPU scalar results, deterministic generation, relocation, missing downloads, unobserved children, invalid targets/arity, static shape rejection and dynamic child shape faults. [Evidence](../../native/metal-proof/evidence/cpu-spawn-2026-10-16.json) records sources, artifacts and regression results. Host sanitizers do not instrument GPU instructions. No speedup is claimed.
 
-This increment supports pure ordinary float32 scalar/rank-one/rank-two CPU functions as children of mixed-program parallel blocks; lexical nesting is supported by the subsequent increment below. Nested task creation inside those functions, source-level failure recovery in the mixed supervisor, broader values, richer control flow, and shared placement-aware task IR remain separate work. The CPU-only compiler's placement handling is unchanged. A `--target metal` program still requires an actual GPU call; CPU-only programs use the ordinary CPU target. The compiled host keeps its runtime provider alive until every child and pending GPU completion has settled.
+This increment supports pure ordinary float32 scalar/rank-one/rank-two CPU functions as children of mixed-program parallel blocks; lexical nesting is supported by the subsequent increment below. Nested task creation inside those functions, broader values, richer control flow, and shared placement-aware task IR remain separate work; scoped recovery is covered below. The CPU-only compiler's placement handling is unchanged. A `--target metal` program still requires an actual GPU call; CPU-only programs use the ordinary CPU target. The compiled host keeps its runtime provider alive until every child and pending GPU completion has settled.
 
 ## Nested parallel scopes in mixed programs
 
@@ -609,4 +609,42 @@ The existing task quotas apply to nested groups as well as tasks. Depth is measu
 
 The [source fixture](../../native/metal-source/nested-parallel.kalandra) combines three levels of groups, inner shadowing, CPU children, a resident GPU result, a later explicit download, and observation of an outer task inside an inner scope. Its result is `48` (`42400000` float32 bits). [Runtime checks](../../native/metal-source/NestedParallelTests.cpp) cover 1/2/4 workers, cached observations, four parent CPU allocation failures per worker configuration, all 31 Metal preparation failure positions, depth/group/ready-queue limits, byte budgets, and cancellation/deadline/failure while nested GPU compute is pending. Scheduler and runtime resources return to zero after retirement. [CLI checks](../../native/metal-source/VerifyNestedParallel.cmake) add contextual literals, empty tensors, tensor results, deterministic generation, relocation, rejected task/selector/local escapes and unobserved work, and a dynamically failing CPU child in an inner group. Debug, optimized, host ASan/UBSan and separate host TSan variants are covered; GPU instructions are not sanitizer-instrumented. [Qualification evidence](../../native/metal-proof/evidence/nested-parallel-2026-10-16.json) records the regression and artifacts.
 
-This step adds lexical blocks in the mixed supervisor. Task creation inside ordinary CPU helper bodies, mixed-source `catch`/recovery, and a shared placement-aware task/residency IR remain separate work. An actual GPU placement is still required by this target. Distributed execution remains subject to its separate design review.
+This step adds lexical blocks in the mixed supervisor. Task creation inside ordinary CPU helper bodies and a shared placement-aware task/residency IR remain separate work; scoped `catch`/recovery follows below. An actual GPU placement is still required by this target. Distributed execution remains subject to its separate design review.
+
+## Scoped TaskError recovery in mixed programs
+
+Mixed `main` now supports completed expected-error results from `parallel` and `await`, `catch fn(error): ...`, exhaustive matching over `TaskError` and `FaultKind`, and handler-local `try`/`fail`. Results may be bound for later handling. Numeric operations, transfers, arguments and final results reject an unhandled expected error; discarding one is also diagnosed.
+
+```kalandra
+outcome = parallel:
+  work = spawn project(input, weights)
+  try await work
+
+projected = outcome catch fn(error):
+  match error:
+    TaskError.Fault {kind: cause, message: detail}:
+      match cause:
+        FaultKind.Shape: fallback
+        _: fallback
+    TaskError.Cancelled: fallback
+    TaskError.DeadlineExceeded: fallback
+    TaskError.AdmissionRejected {reason: explanation}: fallback
+```
+
+`try` inside a parallel block exits through that block's close/join continuation when a child fails. The handler runs only after every descendant and external GPU completion in the failed group has settled. Successful blocks skip their handlers entirely. A completed tensor keeps its immutable backing lease through the branch; no tensor payload copy or automatic host/device transfer is introduced by `catch`.
+
+A failed child still fails its containing group. Catching an individual `await` cannot heal that group; catch the completed `parallel` result to continue in a healthy enclosing scope. A direct CPU call, literal allocation, shape refinement, or kernel-loading fault in the supervisor remains an execution fault. Ordinary `catch` does not clear that invocation's fault or turn it into a value. External cancellation of the owning invocation also remains terminal. Faults in a supervised child are instead exposed through the settled group's `TaskError.Fault`.
+
+Handler and match results need a common float32 scalar or rank-one/rank-two tensor type, with the same residency and GPU index. Different inferred tensor extents join as dynamic dimensions; explicit surrounding annotations still constrain both paths. Shape checks after recovery validate dynamic dimensions before downstream work or final return. `TaskError.Fault` exposes `kind` and `message`; `AdmissionRejected` exposes `reason`. The current fault mapping follows the CPU target: shape code 1, allocation code 2, and Native for other execution faults. The message/reason fields are typed diagnostic text; general string operations are outside this target's current subset.
+
+Handler-local `try` and `fail error` return an expected error from that handler. A later `catch` may handle it, or a surrounding `try` may propagate it. `fail` needs a concrete numeric success-type context, inferred from the caught result when no explicit binding annotation is supplied. Propagation preserves the TaskError variant and source location. The runtime's compiler-facing `Task::fail(Failure)` validates the variant and gives an existing invocation fault or cancellation precedence; it never resets the invocation's status.
+
+Bindings introduced by handlers and match patterns stay local. Match cases are checked for known families, valid fields, duplicate/unreachable cases, and exhaustiveness. Tasks or expected errors created on a conditional path must be handled on that path. Handling an ancestor obligation only inside a fallback does not discharge it on the success path. Task handles, error objects and device selectors cannot become numeric branch results.
+
+Another worker may fail and settle a group between evaluating an argument and admitting the next child. Generated admission checks now inspect the failed group when admission returns an empty handle, preserving its original error and exiting through the group join. A failed group is not reported as an unrelated invalid handle. Runtime quota and admission rules are unchanged.
+
+The [source fixture](../../native/metal-source/recovery.kalandra) runs GPU work in a protected group, observes a CPU child shape failure, selects a typed fallback, and continues with GPU work in its healthy parent. It produces `180` (`43340000` float32 bits). [Runtime checks](../../native/metal-source/RecoveryTests.cpp) cover 1/2/4 workers, ten supervisor CPU allocation failures per worker configuration, all 53 nominal Metal preparation failure positions (19 recover, 34 stop safely), cached observations, failed GPU completion recovery, scope cancellation/deadline recovery, terminal owner cancellation, budgets, and zero-resource retirement. Scope cancellation yields once before resuming admissions, forcing the already-settled-group path without a timing assumption. [Task-core checks](../../native/tests/TaskTests.cpp) verify propagation of all four error variants and their locations, invalid tags, and precedence of an existing invocation fault.
+
+[CLI checks](../../native/metal-source/VerifyRecovery.cmake) cover four build variants, lazy handlers, rethrows, successful/failing handler-local `try`, deferred fallible handler results, tensor fallbacks, dynamic post-recovery shapes, deterministic generation, and relocation. Rejection cases cover type/residency mismatch, invalid/non-exhaustive patterns, leaked bindings, unhandled errors and conditional task/error obligations. Host ASan/UBSan and TSan do not instrument GPU instructions. [Qualification evidence](../../native/metal-proof/evidence/recovery-2026-10-16.json) records the regression and artifacts. No performance improvement is claimed.
+
+The mixed target still requires a single outer `try parallel` in `main` and an actual GPU placement. Asynchronous CPU helper bodies, broader value types, and a shared placement-aware task/residency IR remain separate work. Distributed execution retains its design-review gate.

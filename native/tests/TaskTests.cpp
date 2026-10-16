@@ -327,7 +327,55 @@ static void empty(TaskCore &core) {
         stats.retainedBytes == 0 && stats.retainedOwners == 0 && !stats.ready && !stats.pending &&
         !stats.maintenanceTasks);
 }
+struct PropagationInput {
+  Failure failure;
+  bool ownFault;
+};
+static bool constructPropagation(Invocation &, void *frame, const Packet &packet) {
+  new (frame) PropagationInput{*static_cast<const PropagationInput *>(packet.data)};
+  return true;
+}
+static void resumePropagation(Task &task) {
+  auto &input = *static_cast<PropagationInput *>(task.frame());
+  if (input.ownFault)
+    task.context().fault(2, 7, 8);
+  task.fail(input.failure);
+}
+static const TaskEntry propagation{1,
+                                   99,
+                                   sizeof(PropagationInput),
+                                   alignof(PropagationInput),
+                                   sizeof(PropagationInput),
+                                   alignof(PropagationInput),
+                                   constructPropagation,
+                                   nothing,
+                                   resumePropagation,
+                                   &scalar};
 int main() {
+  // Propagated errors preserve their variant and location. Recovery must never
+  // erase a fault already raised in the receiving invocation.
+  for (unsigned kind : {0u, 1u, 2u, 3u, 4u, 99u}) {
+    for (bool ownFault : {false, true}) {
+      auto core = TaskCore::create();
+      CHECK(core);
+      auto group = core->openRoot();
+      PropagationInput input{{TaskFailure(kind), 17, 19, 23}, ownFault};
+      auto task = core->submit(group, propagation, {99, &input, sizeof(input)});
+      CHECK(task && core->close(group) && core->drain());
+      auto failure = core->failure(task);
+      if (ownFault) {
+        CHECK(failure.kind == TaskFailure::Fault && failure.code == 2 && failure.line == 7 &&
+              failure.column == 8);
+      } else if (kind < 1 || kind > 4) {
+        CHECK(failure.kind == TaskFailure::Fault && failure.code == 3);
+      } else {
+        CHECK(failure.kind == TaskFailure(kind) && failure.code == 17 && failure.line == 19 &&
+              failure.column == 23);
+      }
+      CHECK(core->release(group));
+      CHECK(!core->stats().records && !core->stats().groups && !core->stats().retainedBytes);
+    }
+  }
   CHECK(!TaskCore::create({0, 1, 1, 1, 1, 1}));
   auto core = TaskCore::create();
   CHECK(core);

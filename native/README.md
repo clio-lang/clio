@@ -86,3 +86,5 @@ The [signature-sized GPU argument path](../docs/design/apple-gpu.md#signature-si
 [CPU tasks in mixed programs](../docs/design/apple-gpu.md#cpu-tasks-in-mixed-programs) now share the scheduler with GPU tasks. Use `spawn project(input, weights)` or `spawn project(input, weights) on devices.cpu()`, then observe the result with `try await`. Captures own their immutable inputs; CPU↔GPU transfers remain explicit.
 
 [Nested mixed parallel scopes](../docs/design/apple-gpu.md#nested-parallel-scopes-in-mixed-programs) now group CPU work, GPU work and explicit transfers within `try parallel` expressions in `main`. Inner blocks join before continuing, preserve tensor residency and ownership, and support lexical shadowing. The scheduler's depth, group and task budgets still apply.
+
+[Scoped mixed TaskError recovery](../docs/design/apple-gpu.md#scoped-taskerror-recovery-in-mixed-programs) now handles a completed `parallel` result with `catch`, exhaustive error matching and handler-local `try`/`fail`. Handlers run after group settlement; faults in the supervisor remain terminal. A recovered value can feed subsequent CPU or GPU work with explicit transfers.

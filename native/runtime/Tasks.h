@@ -148,6 +148,9 @@ public:
   ExternalCompletion suspendExternal() noexcept;
   void yield() noexcept;
   void complete(const void *value) noexcept;
+  // Propagate a settled child/group error without converting its variant to Fault.
+  // An existing invocation fault or cancellation still takes precedence.
+  void fail(Failure) noexcept;
   void fault(std::int64_t code, std::int64_t line = 0, std::int64_t column = 0) noexcept;
 
 private:

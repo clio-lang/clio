@@ -34,7 +34,7 @@ struct Rejected {
   Diagnostic diagnostic;
 };
 struct Value {
-  enum Kind { Tensor, Target, Task, Scalar } kind;
+  enum Kind { Tensor, Target, Task, Scalar, Error, FaultKind, Text } kind;
   std::size_t slot = 0;
   bool gpu = false;
   std::uint32_t device = 0;
@@ -42,6 +42,7 @@ struct Value {
   bool scalarTask = false;
   unsigned rank = 1;
   std::optional<std::uint64_t> width = {};
+  std::optional<std::size_t> failure = {};
 };
 class Compiler {
   Module syntax;
@@ -51,6 +52,110 @@ class Compiler {
   std::string declarations, cpuEntries;
   std::size_t cpuEntryCount = 0;
   std::string activeGroup = "f.group";
+  struct Boundary {
+    std::string group, failure;
+    std::vector<std::size_t> exits;
+  };
+  Boundary *boundary = nullptr;
+  Boundary *groupBoundary = nullptr;
+  SourceSpan numericName;
+  std::set<std::size_t> pending, handled;
+  struct Branch {
+    std::set<std::size_t> observed, handled, tasks, pending;
+  };
+  Branch branch() const { return {observed, handled, tasks, pending}; }
+  void finishBranch(const Branch &before, Value result, SourceSpan span) {
+    if (result.failure)
+      handled.insert(*result.failure);
+    for (auto id : tasks)
+      if (!before.tasks.contains(id) && !observed.contains(id))
+        reject(span, "branch leaves an unobserved child");
+    for (auto id : pending)
+      if (!before.pending.contains(id) && !handled.contains(id))
+        reject(span, "branch discards an expected error; use try or catch");
+  }
+  void mergeBranches(const Branch &before, const std::vector<Branch> &paths) {
+    observed = before.observed;
+    handled = before.handled;
+    for (const auto &path : paths) {
+      for (auto id : path.observed)
+        if (!before.tasks.contains(id))
+          observed.insert(id);
+      for (auto id : path.handled)
+        if (!before.pending.contains(id))
+          handled.insert(id);
+    }
+    for (auto id : before.tasks)
+      if (std::ranges::all_of(paths, [&](const auto &path) { return path.observed.contains(id); }))
+        observed.insert(id);
+    for (auto id : before.pending)
+      if (std::ranges::all_of(paths, [&](const auto &path) { return path.handled.contains(id); }))
+        handled.insert(id);
+  }
+  static std::string failureRef(const Value &value) {
+    return "f.v" + std::to_string(*value.failure);
+  }
+  void completed(const Value &value, SourceSpan span) const {
+    if (value.failure)
+      reject(span, "expected error result requires try or catch before use");
+  }
+  void patch(const std::vector<std::size_t> &exits, std::size_t target) {
+    for (auto index : exits) {
+      auto &step = steps.at(index);
+      const auto position = step.find("$exit");
+      if (position == std::string::npos)
+        reject({}, "missing continuation exit");
+      step.replace(position, 5, std::to_string(target + 1));
+    }
+  }
+  std::string admitted(const std::string &handle) {
+    std::string code = "if (!(" + handle + ")) { auto failure=task.failure(" + activeGroup +
+                       "); if(failure.kind!=TaskFailure::None){\n";
+    // Another worker can fail and settle the group between argument evaluation
+    // and admission. Preserve that error instead of faulting on an empty handle.
+    if (groupBoundary) {
+      groupBoundary->exits.push_back(steps.size());
+      code += "f.pc=$exit; continue;\n";
+    } else
+      code += "task.fail(failure); return;\n";
+    return code + "} " + error("m::Error::Invalid") + "}\n";
+  }
+  Value propagate(Value value, SourceSpan span) {
+    if (!value.failure)
+      reject(span, "try requires a completed expected-error result");
+    handled.insert(*value.failure);
+    const auto failure = failureRef(value);
+    std::string code = "if (" + failure + ".kind!=TaskFailure::None) {\n";
+    if (boundary) {
+      boundary->exits.push_back(steps.size());
+      if (!boundary->group.empty())
+        code += "task.failGroup(" + boundary->group + "," + failure + ");\n";
+      else
+        code += boundary->failure + "=" + failure + ";\n";
+      code += "f.pc=$exit; continue;\n";
+    } else
+      code += "task.fail(" + failure + "); return;";
+    steps.push_back(code + "}\n");
+    value.failure.reset();
+    return value;
+  }
+  Value common(Value left, const Value &right, SourceSpan span) const {
+    if ((left.kind != Value::Tensor && left.kind != Value::Scalar) || left.kind != right.kind ||
+        (left.kind == Value::Tensor && (left.rank != right.rank || left.gpu != right.gpu ||
+                                        (left.gpu && left.device != right.device))))
+      reject(span, "branches require a common numeric type and explicit matching residency");
+    if (left.length != right.length)
+      left.length.reset();
+    if (left.width != right.width)
+      left.width.reset();
+    return left;
+  }
+  Value resultSlot(Value value) {
+    field(value.kind == Value::Tensor ? "m::Buffer" : "float");
+    value.slot = next - 1;
+    value.failure.reset();
+    return value;
+  }
   // Admit the placed function's typed closure, not CPU expressions used to
   // compute its arguments. CPU-only functions may keep fixed shape signatures.
   void admitGpuTypes(FunctionId root) const {
@@ -237,6 +342,7 @@ class Compiler {
                         SourceSpan span) {
     std::string key = operation;
     for (const auto &input : inputs) {
+      completed(input, span);
       if ((input.kind != Value::Tensor && input.kind != Value::Scalar) || input.gpu)
         reject(span, "inline CPU expressions require completed host values; explicitly transfer "
                      "GPU tensors to devices.cpu() and observe tasks with try await");
@@ -381,6 +487,7 @@ class Compiler {
     std::vector<std::tuple<Value, std::uint64_t, unsigned>> fixedShapes;
     for (std::size_t i = 0; i < inputs.size(); ++i) {
       auto input = inputs[i];
+      completed(input, span);
       const auto &type = cpu.symbols[fn.parameters[i]].type;
       if (type.tensor) {
         if (input.kind != Value::Tensor || input.gpu)
@@ -517,7 +624,7 @@ class Compiler {
     steps.push_back(prefix + "Packet packet{" + captures + "};\nf." + taskField + "=task.spawn(" +
                     activeGroup + "," + prefix + "Entry,{" + prefix +
                     "Entry.packetLayout,&packet,sizeof(packet),&task.context()});\n" +
-                    check("f." + taskField));
+                    admitted("f." + taskField));
     value.kind = Value::Task;
     value.scalarTask = !tensorResult;
     value.slot = next - 1;
@@ -529,9 +636,9 @@ class Compiler {
       if (!observed.contains(*task))
         reject(span, "every admitted child task must be observed with try await");
   }
-  Value suite(const std::vector<Statement> &body, const TypeSyntax *context = nullptr) {
+  Value suite(const std::vector<Statement> &body, const TypeSyntax *context = nullptr,
+              std::set<std::string> bindings = {}) {
     Value result{Value::Target};
-    std::set<std::string> bindings;
     for (std::size_t index = 0; index < body.size(); ++index) {
       const auto &s = body[index];
       if (s.binding && !bindings.insert(text(*s.binding)).second)
@@ -548,7 +655,12 @@ class Compiler {
             reject(s.span, "tensor annotation rank mismatch");
           for (unsigned axis = 0; axis < result.rank; ++axis)
             if (auto wanted = s.annotation->dimensions[axis].extent) {
+              auto firstGuard = steps.size();
               requireLength(result, *wanted, s.span, axis);
+              if (result.failure)
+                for (auto index = firstGuard; index < steps.size(); ++index)
+                  steps[index] = "if(" + failureRef(result) + ".kind==TaskFailure::None){\n" +
+                                 steps[index] + "}\n";
               if (axis == 0)
                 result.length = wanted;
               else
@@ -563,29 +675,204 @@ class Compiler {
     return result;
   }
   Value nestedParallel(const ParallelExpr &parallel, SourceSpan span, const TypeSyntax *context) {
+    const auto before = branch();
     const auto first = next;
     auto group = "f." + field("GroupHandle");
+    auto failure = field("Failure");
+    const auto failureSlot = next - 1;
     const auto parent = activeGroup;
     steps.push_back(group + "=task.openGroup(" + parent + ");\n" + check(group));
     auto outer = locals;
+    auto *enclosing = boundary;
+    auto *enclosingGroup = groupBoundary;
+    Boundary scope{group, "f." + failure, {}};
+    boundary = &scope;
+    groupBoundary = &scope;
     activeGroup = group;
     auto result = suite(parallel.body, context);
     requireObserved(first, span);
+    completed(result, span);
+    finishBranch(before, result, span);
     if (result.kind != Value::Scalar && result.kind != Value::Tensor)
       reject(span, "parallel body must produce a completed numeric value; use try await");
+    patch(scope.exits, steps.size());
     steps.push_back(check("task.close(" + group + ")"));
-    steps.push_back("if(!task.join(" + group + ")) return;\nauto failure=task.failure(" + group +
-                    ");\nif(failure.kind!=TaskFailure::None){" +
-                    error("failure.code ? failure.code : std::int64_t(m::Error::Device)") + "}\n");
+    steps.push_back("if(!task.join(" + group + ")) return;\nf." + failure + "=task.failure(" +
+                    group + ");\n");
     activeGroup = parent;
+    boundary = enclosing;
+    groupBoundary = enclosingGroup;
     locals = std::move(outer);
+    result.failure = failureSlot;
+    pending.insert(failureSlot);
     return result;
+  }
+  Value recover(const CatchExpr &handler, SourceSpan span, const TypeSyntax *context) {
+    auto input = expression(handler.operand, context);
+    if (!input.failure)
+      reject(span, "catch requires a completed expected-error result");
+    handled.insert(*input.failure);
+    auto output = resultSlot(input);
+    auto failure = field("Failure");
+    const auto failureSlot = next - 1;
+    auto before = branch();
+    const auto dispatch = steps.size();
+    steps.push_back("if(" + failureRef(input) + ".kind==TaskFailure::None){" + ref(output) + "=" +
+                    ref(input) + "; f.pc=$exit; continue;}\n");
+    auto outer = locals;
+    locals.insert_or_assign(text(handler.parameter), Value{Value::Error, *input.failure});
+    auto *enclosing = boundary;
+    Boundary scope{"", "f." + failure, {}};
+    boundary = &scope;
+    TypeSyntax inferred{numericName, span, input.kind == Value::Tensor, {}, {}};
+    if (inferred.tensor) {
+      inferred.element = numericName;
+      inferred.dimensions.resize(input.rank);
+    }
+    auto result = suite(handler.body, context ? context : &inferred, {text(handler.parameter)});
+    finishBranch(before, result, span);
+    auto after = branch();
+    const bool fallible = result.failure || !scope.exits.empty();
+    output = common(output, result, span);
+    steps.push_back(ref(output) + "=" + ref(result) + ";\nf." + failure + "=" +
+                    (result.failure ? failureRef(result) : "Failure{}") + ";\n");
+    scope.exits.push_back(dispatch);
+    patch(scope.exits, steps.size());
+    steps.emplace_back();
+    boundary = enclosing;
+    locals = std::move(outer);
+    mergeBranches(before, {before, after});
+    if (fallible) {
+      output.failure = failureSlot;
+      pending.insert(failureSlot);
+    }
+    return output;
+  }
+  Value match(const MatchExpr &match, SourceSpan span, const TypeSyntax *context) {
+    auto subject = expression(match.subject);
+    if (subject.kind != Value::Error && subject.kind != Value::FaultKind)
+      reject(span, "match supports TaskError and FaultKind values");
+    const bool error = subject.kind == Value::Error;
+    const std::vector<std::string> names =
+        error ? std::vector<std::string>{"Fault", "Cancelled", "DeadlineExceeded",
+                                         "AdmissionRejected"}
+              : std::vector<std::string>{"Arithmetic", "Bounds", "Shape", "Allocation", "Native"};
+    const auto family = error ? "TaskError" : "FaultKind";
+    const auto before = branch();
+    const auto outer = locals;
+    std::vector<Branch> paths;
+    std::set<unsigned> seen;
+    std::vector<std::size_t> exits;
+    std::optional<std::size_t> previous;
+    std::optional<Value> output;
+    auto failure = field("Failure");
+    const auto failureSlot = next - 1;
+    bool fallback = false, fallible = false;
+    for (const auto &arm : match.arms) {
+      if (previous)
+        patch({*previous}, steps.size());
+      previous.reset();
+      std::optional<unsigned> tag;
+      if (arm.variant) {
+        auto found = std::ranges::find(names, text(*arm.variant));
+        if (text(*arm.family) != family || found == names.end())
+          reject(arm.span, "unknown variant for " + std::string(family));
+        tag = unsigned(found - names.begin()) + 1;
+        if (fallback || !seen.insert(*tag).second)
+          reject(arm.span, "duplicate or unreachable match case");
+        previous = steps.size();
+        steps.push_back("if(" + (error ? "unsigned(" + ref(subject) + ".kind)" : ref(subject)) +
+                        "!=" + std::to_string(*tag) + ") {f.pc=$exit; continue;}\n");
+      } else {
+        if (fallback || seen.size() == names.size())
+          reject(arm.span, "unreachable fallback");
+        fallback = true;
+      }
+      locals = outer;
+      observed = before.observed;
+      handled = before.handled;
+      auto armBefore = branch();
+      std::set<std::string> fields, bindings;
+      for (const auto &pattern : arm.fields) {
+        auto name = text(pattern.name), binding = text(pattern.binding);
+        if (!fields.insert(name).second || !bindings.insert(binding).second)
+          reject(pattern.name, "duplicate pattern field");
+        Value value{Value::Text};
+        std::string code;
+        if (error && tag == 1 && name == "kind") {
+          value.kind = Value::FaultKind;
+          code = ref(subject) + ".code==1 ? 3u : " + ref(subject) + ".code==2 ? 4u : 5u";
+        } else if (error && tag == 1 && name == "message")
+          code = ref(subject) + ".code==1 ? \"tensor shape mismatch\" : " + ref(subject) +
+                 ".code==2 ? \"allocation failed\" : \"native execution fault\"";
+        else if (error && tag == 4 && name == "reason")
+          code = "\"task admission rejected\"";
+        else
+          reject(pattern.name, "unknown field for selected variant");
+        auto out = field(value.kind == Value::FaultKind ? "unsigned" : "const char *");
+        value.slot = next - 1;
+        steps.push_back("f." + out + "=" + code + ";\n");
+        locals.insert_or_assign(binding, value);
+      }
+      auto result = suite(arm.body, context, bindings);
+      finishBranch(armBefore, result, arm.span);
+      paths.push_back(branch());
+      if (output)
+        *output = common(*output, result, arm.span);
+      else {
+        if (result.kind != Value::Tensor && result.kind != Value::Scalar)
+          reject(arm.span, "match branches require a numeric result");
+        output = resultSlot(result);
+      }
+      fallible |= result.failure.has_value();
+      steps.push_back(ref(*output) + "=" + ref(result) + ";\nf." + failure + "=" +
+                      (result.failure ? failureRef(result) : "Failure{}") + ";\n");
+      exits.push_back(steps.size());
+      steps.push_back("f.pc=$exit; continue;\n");
+    }
+    if (!fallback && seen.size() != names.size())
+      reject(span, "non-exhaustive match over " + std::string(family));
+    // Corrupt internal tags are faults, even for an exhaustive source match.
+    if (previous)
+      patch({*previous}, steps.size());
+    steps.push_back(this->error("m::Error::Invalid"));
+    patch(exits, steps.size());
+    steps.emplace_back();
+    mergeBranches(before, paths);
+    locals = outer;
+    if (fallible) {
+      output->failure = failureSlot;
+      pending.insert(failureSlot);
+    }
+    return *output;
   }
   Value expression(ExprId id, const TypeSyntax *annotation = nullptr) {
     if (depth >= 128)
       reject(node(id).span, "Metal source expression depth exceeded");
     Depth guard(depth);
     const auto span = node(id).span;
+    if (const auto *parallel = std::get_if<ParallelExpr>(&node(id).value))
+      return nestedParallel(*parallel, span, annotation);
+    if (const auto *handler = std::get_if<CatchExpr>(&node(id).value))
+      return recover(*handler, span, annotation);
+    if (const auto *cases = std::get_if<MatchExpr>(&node(id).value))
+      return match(*cases, span, annotation);
+    if (const auto *failure = std::get_if<FailExpr>(&node(id).value)) {
+      auto value = expression(failure->operand);
+      if (value.kind != Value::Error || !annotation)
+        reject(span, "fail requires a typed TaskError and a concrete success-type context");
+      Value result{annotation->tensor ? Value::Tensor : Value::Scalar};
+      if (annotation->tensor) {
+        result.length = tensorType(*annotation);
+        result.rank = annotation->dimensions.size();
+        if (result.rank == 2)
+          result.width = annotation->dimensions[1].extent;
+      } else if (text(annotation->name) != "float32")
+        reject(span, "fail requires numeric context");
+      result = resultSlot(result);
+      result.failure = value.slot;
+      return propagate(result, span);
+    }
     if (const auto *n = std::get_if<NameExpr>(&node(id).value)) {
       auto found = locals.find(text(n->name));
       if (found == locals.end())
@@ -715,6 +1002,7 @@ class Compiler {
           reject(span, "transfer requires a tensor and target");
         auto input = expression(call->arguments[0]);
         auto target = expression(call->arguments[1]);
+        completed(input, span);
         if (input.kind != Value::Tensor || target.kind != Value::Target)
           reject(span, "transfer requires a completed tensor and device target");
         if (target.gpu && input.gpu && input.device != target.device)
@@ -730,7 +1018,7 @@ class Compiler {
                  ", " + ref(input) + ", *target);\n";
         else
           step = "f." + out + " = r.download(task, " + activeGroup + ", " + ref(input) + ");\n";
-        steps.push_back(step + check("f." + out));
+        steps.push_back(step + admitted("f." + out));
         tasks.insert(result.slot);
         return result;
       }
@@ -750,13 +1038,10 @@ class Compiler {
       reject(span, "unsupported host call in the Metal source slice");
     }
     if (const auto *task = std::get_if<TaskExpr>(&node(id).value)) {
-      if (task->prefix == TaskPrefix::Try) {
-        if (const auto *parallel = std::get_if<ParallelExpr>(&node(task->operand).value))
-          return nestedParallel(*parallel, span, annotation);
-        const auto *wait = std::get_if<TaskExpr>(&node(task->operand).value);
-        if (!wait || wait->prefix != TaskPrefix::Await)
-          reject(span, "this slice supports try await and try parallel");
-        auto input = expression(wait->operand);
+      if (task->prefix == TaskPrefix::Try)
+        return propagate(expression(task->operand, annotation), span);
+      if (task->prefix == TaskPrefix::Await) {
+        auto input = expression(task->operand);
         if (input.kind != Value::Task)
           reject(span, "await requires an owned task");
         auto out = field(input.scalarTask ? "float" : "m::Buffer");
@@ -765,10 +1050,15 @@ class Compiler {
         if (input.scalarTask)
           value.gpu = false;
         value.slot = next - 1;
+        auto failure = field("Failure");
+        value.failure = next - 1;
+        pending.insert(*value.failure);
         observed.insert(input.slot);
-        steps.push_back("if (!task.await(" + ref(input) + ")) return;\n" +
+        steps.push_back("if (!task.await(" + ref(input) + ")) return;\nf." + failure +
+                        "=task.failure(" + ref(input) + ");\nif(f." + failure +
+                        ".kind==TaskFailure::None){\n" +
                         (input.scalarTask ? "if (!readScalar(task, " : "if (!readBuffer(task, ") +
-                        ref(input) + ", f." + out + ")) return;\n");
+                        ref(input) + ", f." + out + ")) return;\n}\n");
         return value;
       }
       if (task->prefix == TaskPrefix::Spawn) {
@@ -802,6 +1092,7 @@ class Compiler {
           const auto &value = inputs[i];
           const auto &type = cpu.symbols[entryFunction.parameters[i]].type;
           const bool tensor = type.tensor;
+          completed(value, span);
           if (value.kind != (tensor ? Value::Tensor : Value::Scalar))
             reject(node(call->arguments[i]).span, "GPU argument type mismatch");
           if (tensor && value.rank != type.shape.size())
@@ -908,7 +1199,7 @@ class Compiler {
                          : sum  ? "reduceSum"
                                 : "elementwise") +
                         "(task, " + activeGroup + ", f." + kernel + ", " +
-                        (sum ? ref(left) : arguments) + ");\n" + check("f." + out));
+                        (sum ? ref(left) : arguments) + ");\n" + admitted("f." + out));
         result.scalarTask = sum;
         tasks.insert(result.slot);
         return result;
@@ -1207,6 +1498,7 @@ public:
       reject(fn.span,
              "Metal main requires no parameters, a float32 or tensor result, and ! TaskError");
     bool scalarResult = !fn.result->tensor;
+    numericName = scalarResult ? fn.result->name : *fn.result->element;
     if (scalarResult && text(fn.result->name) != "float32")
       reject(fn.span, "Metal main requires float32 or a rank-one/rank-two float32 tensor");
     if (!scalarResult)
@@ -1220,6 +1512,10 @@ public:
     if (!parallel)
       reject(fn.span, "Metal main must contain a single try parallel block");
     auto result = suite(parallel->body);
+    completed(result, fn.span);
+    for (auto id : pending)
+      if (!handled.contains(id))
+        reject(fn.span, "expected error result is discarded; use try or catch");
     if (scalarResult ? result.kind != Value::Scalar : (result.kind != Value::Tensor || result.gpu))
       reject(fn.span, "main must return a completed host tensor; explicitly transfer the result to "
                       "devices.cpu()");
@@ -1301,7 +1597,7 @@ bool readScalar(Task &task,TaskHandle child,float &output) {
 void resume(Task &task) {
   auto &f=*static_cast<Frame *>(task.frame()); auto &r=*f.runtime;
   if (f.pc==0) { f.group=task.openGroup(); if (!f.group) { task.fault(2); return; } f.pc=1; }
-  switch(f.pc) {
+  for (;;) { switch(f.pc) {
 )";
     for (std::size_t i = 0; i < steps.size(); ++i)
       host << "case " << i + 1 << ": {\n"
@@ -1310,9 +1606,9 @@ void resume(Task &task) {
          << "; [[fallthrough]];\ncase " << steps.size() + 2
          << ": {\n"
             "if (!task.join(f.group)) return;\nauto failure=task.failure(f.group);\nif "
-            "(failure.kind!=TaskFailure::None) { task.fault(failure.code); return; "
+            "(failure.kind!=TaskFailure::None) { task.fail(failure); return; "
             "}\ntask.complete(&"
-         << ref(result) << "); return;\n}\ndefault: task.fault(3);\n}\n}\n";
+         << ref(result) << "); return;\n}\ndefault: task.fault(3); return;\n} }\n}\n";
     host
         << R"(const TaskEntry entry{1,0x4b414c47505501,sizeof(PacketData),alignof(PacketData),sizeof(Frame),alignof(Frame),construct,destroy,resume,)"
         << (scalarResult ? "&scalarLayout" : "&m::Runtime::bufferLayout()") << R"(};
