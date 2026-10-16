@@ -2,18 +2,27 @@
 #include <array>
 #include <bit>
 #include <iostream>
+#include <limits>
 #include <thread>
+#include <type_traits>
 #include <vector>
 using namespace kalandra;
 using namespace kalandra::runtime;
-using Tensor = CpuTensor<NumericType::Int32, 2>;
+#ifndef UNSIGNED_INPUT
+#define UNSIGNED_INPUT 0
+#endif
+constexpr auto element = UNSIGNED_INPUT ? NumericType::UInt32 : NumericType::Int32;
+using Cell = NumericValue<element>;
+using Wide = std::conditional_t<UNSIGNED_INPUT, std::uint64_t, std::int64_t>;
+constexpr auto minimum = std::numeric_limits<Cell>::min();
+constexpr auto maximum = std::numeric_limits<Cell>::max();
+using Tensor = CpuTensor<element, 2>;
 extern "C" void _mlir_ciface_kalandra_test_entry(Tensor *, Tensor *, Tensor *, Invocation *);
 static unsigned cases = 0, faults = 0;
 struct View {
-  std::vector<std::int32_t> storage;
+  std::vector<Cell> storage;
   Tensor tensor{};
-  View(std::int64_t rows, std::int64_t columns, const std::vector<std::int32_t> &values,
-       bool transposed)
+  View(std::int64_t rows, std::int64_t columns, const std::vector<Cell> &values, bool transposed)
       : storage(2 * rows * columns + 3 * (rows + columns) + 8, 7654321) {
     tensor.allocated = storage.data();
     tensor.aligned = storage.data() + 1;
@@ -27,9 +36,8 @@ struct View {
             values[r * columns + c];
   }
 };
-static bool verify(std::int64_t rows, std::int64_t inner, std::int64_t columns,
-                   std::vector<std::int32_t> a, std::vector<std::int32_t> b, unsigned fail = 0,
-                   bool alias = false) {
+static bool verify(std::int64_t rows, std::int64_t inner, std::int64_t columns, std::vector<Cell> a,
+                   std::vector<Cell> b, unsigned fail = 0, bool alias = false) {
   a.resize(rows * inner);
   b.resize(inner * columns);
   if (alias)
@@ -37,24 +45,24 @@ static bool verify(std::int64_t rows, std::int64_t inner, std::int64_t columns,
   View left(rows, inner, a, false), right(inner, columns, b, true);
   auto beforeLeft = left.storage, beforeRight = right.storage;
   bool overflow = false;
-  std::vector<std::int32_t> expected;
-  // Products and every adjacent-tree sum are range checked independently in int64.
+  std::vector<Cell> expected;
+  // Independent wider reference checks each product and every adjacent-tree sum.
   for (std::int64_t r = 0; r < rows && !overflow; ++r) {
     for (std::int64_t c = 0; c < columns && !overflow; ++c) {
-      std::vector<std::int64_t> tree;
+      std::vector<Wide> tree;
       for (std::int64_t k = 0; k < inner; ++k) {
-        auto product = std::int64_t(a[r * inner + k]) * b[k * columns + c];
-        if (product < INT32_MIN || product > INT32_MAX) {
+        auto product = Wide(a[r * inner + k]) * b[k * columns + c];
+        if (product < minimum || product > maximum) {
           overflow = true;
           break;
         }
         tree.push_back(product);
       }
       while (tree.size() > 1 && !overflow) {
-        std::vector<std::int64_t> next;
+        std::vector<Wide> next;
         for (std::size_t i = 0; i < tree.size(); i += 2) {
           auto sum = tree[i] + (i + 1 < tree.size() ? tree[i + 1] : 0);
-          if (sum < INT32_MIN || sum > INT32_MAX) {
+          if (sum < minimum || sum > maximum) {
             overflow = true;
             break;
           }
@@ -63,7 +71,7 @@ static bool verify(std::int64_t rows, std::int64_t inner, std::int64_t columns,
         tree = std::move(next);
       }
       if (!overflow)
-        expected.push_back(tree.empty() ? 0 : std::int32_t(tree[0]));
+        expected.push_back(tree.empty() ? 0 : Cell(tree[0]));
     }
   }
   Invocation context;
@@ -115,7 +123,7 @@ static bool verify(std::int64_t rows, std::int64_t inner, std::int64_t columns,
   return true;
 }
 static bool metadata(std::array<std::int64_t, 2> a, std::array<std::int64_t, 2> b, int code) {
-  std::int32_t value = 1;
+  Cell value = 1;
   Tensor x{}, y{}, out{};
   x.allocated = x.aligned = y.allocated = y.aligned = &value;
   x.sizes = a;
@@ -137,7 +145,7 @@ static bool metadata(std::array<std::int64_t, 2> a, std::array<std::int64_t, 2> 
 }
 static bool cancelled() {
   // Poll-triggered cancellation exercises generated loops, without fixed sleeps.
-  std::vector<std::int32_t> a(257 * 8193, 1), b(8193 * 3, 1);
+  std::vector<Cell> a(257 * 8193, 1), b(8193 * 3, 1);
   View left(257, 8193, a, false), right(8193, 3, b, true);
   Invocation context;
   std::atomic<bool> token{false}, done{false};
@@ -162,31 +170,42 @@ static bool cancelled() {
   return ok && !context.live() && context.allocations() == context.releases();
 }
 int main() {
-  for (auto value : {INT32_MIN, INT32_MAX, 16777217, -1, 0, 1}) {
-    if (!verify(1, 1, 1, {value}, {1}) || !verify(1, 1, 1, {value}, {-1}))
+  for (Cell value : {minimum, maximum, Cell(16777217),
+                     (UNSIGNED_INPUT ? Cell(2147483648u) : Cell(-1)), Cell(0), Cell(1)}) {
+    if (!verify(1, 1, 1, {value}, {1}) ||
+        !verify(1, 1, 1, {value}, {UNSIGNED_INPUT ? maximum : Cell(-1)}))
       return 1;
   }
-  // Intermediate overflow must not be hidden by cancellation in the final total.
-  for (auto a : {std::vector<std::int32_t>{INT32_MAX, 1, -1},
-                 {INT32_MIN, -1, 1},
-                 {INT32_MAX, 0, 1, 0},
-                 {INT32_MIN, 0, -1, 0},
-                 {INT32_MAX, -1, 1},
-                 {1073741824, -1073741824},
-                 {16777217, 1, 2, 3, 4}}) {
-    if (!verify(1, a.size(), 1, a, std::vector<std::int32_t>(a.size(), a.size() == 2 ? 2 : 1)))
+  std::vector<std::vector<Cell>> boundaries;
+  if constexpr (UNSIGNED_INPUT)
+    boundaries = {{maximum, 1, 0},    {maximum, 0, 1, 0},
+                  {maximum - 1, 1},   {Cell(2147483648u), Cell(2147483648u)},
+                  {maximum, maximum}, {16777217, 1, 2, 3, 4}};
+  else
+    boundaries = {{maximum, 1, Cell(-1)}, {minimum, Cell(-1), 1},
+                  {maximum, 0, 1, 0},     {minimum, 0, Cell(-1), 0},
+                  {maximum, Cell(-1), 1}, {1073741824, Cell(-1073741824)},
+                  {16777217, 1, 2, 3, 4}};
+  for (auto a : boundaries) {
+    if (!verify(1, a.size(), 1, a, std::vector<Cell>(a.size(), a.size() == 2 ? 2 : 1)))
       return 1;
   }
-  // The first cell succeeds; failure at a later cell must not publish the tensor.
-  if (!verify(1, 1, 2, {INT32_MAX}, {1, 2}) || !verify(1, 2, 2, {INT32_MAX, 1}, {0, 1, 0, 1}))
+  if constexpr (UNSIGNED_INPUT) {
+    if (!verify(1, 2, 1, {Cell(2147483648u), 2147483647}, {1, 1}) ||
+        !verify(1, 1, 1, {65535}, {65535}) || !verify(1, 1, 1, {65536}, {65536}) ||
+        !verify(1, 1, 1, {maximum}, {maximum}) || !verify(1, 1, 1, {maximum}, {0}))
+      return 1;
+  }
+  // First cell succeeds; a later product/tree fault must not publish a tensor.
+  if (!verify(1, 1, 2, {maximum}, {1, 2}) || !verify(1, 2, 2, {maximum, 1}, {0, 1, 0, 1}))
     return 1;
   for (auto shape :
        {std::array{0, 7, 3}, std::array{3, 7, 0}, std::array{2, 0, 3}, std::array{0, 0, 0},
         std::array{2, 1, 3}, std::array{3, 2, 5}, std::array{1, 255, 2}, std::array{1, 256, 2},
         std::array{1, 257, 2}, std::array{1, 1025, 1}}) {
     auto [rows, inner, cols] = shape;
-    if (!verify(rows, inner, cols, std::vector<std::int32_t>(rows * inner, 1),
-                std::vector<std::int32_t>(inner * cols, 1)))
+    if (!verify(rows, inner, cols, std::vector<Cell>(rows * inner, 1),
+                std::vector<Cell>(inner * cols, 1)))
       return 1;
   }
   if (!verify(2, 2, 2, {1, 2, 3, 4}, {}, 0, true))
@@ -203,11 +222,17 @@ int main() {
   };
   for (unsigned trial = 0; trial < 1000; ++trial) {
     auto rows = next() % 5, inner = next() % 10, cols = next() % 6;
-    std::vector<std::int32_t> a(rows * inner), b(inner * cols);
+    std::vector<Cell> a(rows * inner), b(inner * cols);
     for (auto &v : a)
-      v = trial % 2 ? std::bit_cast<std::int32_t>(next()) : std::int32_t(next() % 201) - 100;
+      if constexpr (UNSIGNED_INPUT)
+        v = trial % 2 ? next() : next() % 201;
+      else
+        v = trial % 2 ? std::bit_cast<std::int32_t>(next()) : std::int32_t(next() % 201) - 100;
     for (auto &v : b)
-      v = trial % 2 ? std::bit_cast<std::int32_t>(next()) : std::int32_t(next() % 201) - 100;
+      if constexpr (UNSIGNED_INPUT)
+        v = trial % 2 ? next() : next() % 201;
+      else
+        v = trial % 2 ? std::bit_cast<std::int32_t>(next()) : std::int32_t(next() % 201) - 100;
     if (!verify(rows, inner, cols, a, b))
       return 1;
   }
@@ -220,7 +245,8 @@ int main() {
       !metadata({0, INT64_MAX / 4}, {INT64_MAX / 4, 1}, 0) ||
       !metadata({1, INT64_MAX / 4}, {INT64_MAX / 4, 0}, 0) || !cancelled())
     return 1;
-  std::cout << "Int32 matmul: " << cases << " runtime inputs, " << faults
+  std::cout << (UNSIGNED_INPUT ? "UInt32 matmul: " : "Int32 matmul: ") << cases
+            << " runtime inputs, " << faults
             << " checked faults; exact products/tree, strided views, retained results and settled "
                "owners passed\n";
 }

@@ -543,7 +543,7 @@ private:
     return small.getResult(0);
   }
   Value integerMatmul(Location loc, Value a, Value b, RankedTensorType output,
-                      const Matmul &operation) {
+                      const Matmul &operation, bool unsignedValue) {
     if (operation.order != ReductionOrder::BalancedAdjacent || !operation.separatelyRoundedProducts)
       throw LoweringFailure{"unsupported matmul numerical policy"};
     auto left = dimensions(loc, a), right = dimensions(loc, b);
@@ -573,8 +573,8 @@ private:
                 auto sum = reduction(loc, left[1], scratch, [&](Value k) -> Value {
                   auto x = tensor::ExtractOp::create(builder_, loc, a, ValueRange{row, k});
                   auto y = tensor::ExtractOp::create(builder_, loc, b, ValueRange{k, column});
-                  return integerBinary(loc, x, y, TokenKind::Star);
-                });
+                  return integerBinary(loc, x, y, TokenKind::Star, unsignedValue);
+                }, 1, unsignedValue);
                 auto cell = tensor::InsertOp::create(builder_, loc, sum, columnValues[0], ValueRange{row, column});
                 scf::YieldOp::create(builder_, loc, ValueRange{cell});
               });
@@ -582,9 +582,9 @@ private:
         });
     return result.getResult(0);
   }
-  Value matmul(Location loc, Value a, Value b, RankedTensorType output, const Matmul &operation) {
+  Value matmul(Location loc, Value a, Value b, RankedTensorType output, const Matmul &operation, NumericType element) {
     if (output.getElementType().isInteger(32))
-      return integerMatmul(loc, a, b, output, operation);
+      return integerMatmul(loc, a, b, output, operation, element == NumericType::UInt32);
     // Outlining prevents a large SIMD kernel's register/stack requirements from
     // penalizing narrow shapes in the surrounding source function.
     func::FuncOp helper;
@@ -740,7 +740,7 @@ private:
             return castTensor(loc, call.getResult(0), type(node.type));
           } else if constexpr (std::is_same_v<T, Matmul>) {
             auto a = expression(frame, operation.left), b = expression(frame, operation.right);
-            return matmul(loc, a, b, cast<RankedTensorType>(type(node.type)), operation);
+            return matmul(loc, a, b, cast<RankedTensorType>(type(node.type)), operation, node.type.element);
           } else if constexpr (std::is_same_v<T, ReduceSum>)
             return reduce(loc, expression(frame, operation.input), operation, node.type.element);
           else if constexpr (std::is_same_v<T, DeviceSelection> || std::is_same_v<T, Transfer> ||

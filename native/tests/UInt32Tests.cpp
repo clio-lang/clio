@@ -40,7 +40,11 @@ int main() {
           "fn f(x:uint32,y:int32) -> uint32:\n  x + y\nfn main() -> uint32:\n  f(1,1)\n",
           "fn f(x:uint32,y:float32) -> uint32:\n  x + y\nfn main() -> uint32:\n  f(1,1)\n",
           "fn main() -> uint:\n  1\n",
-          "fn f(x:Tensor[uint32,?,?]) -> Tensor[uint32,?,?]:\n  matmul(x,x)\n",
+          "fn f(x:Tensor[uint32,?,?],y:Tensor[int32,?,?]) -> Tensor[uint32,?,?]:\n  matmul(x,y)\n",
+          "fn f(x:Tensor[uint32,?,?],y:Tensor[float32,?,?]) -> Tensor[uint32,?,?]:\n  "
+          "matmul(x,y)\n",
+          "fn f(x:Tensor[uint32,2,3],y:Tensor[uint32,4,2]) -> Tensor[uint32,2,2]:\n  matmul(x,y)\n",
+          "fn f(x:Tensor[uint32,?]) -> Tensor[uint32,?,?]:\n  matmul(x,x)\n",
           "fn f() -> Tensor[uint32,1]:\n  tensor([4294967296])\n",
           "fn f() -> Tensor[uint32,1]:\n  tensor([-1])\n",
           "fn f() -> Tensor[uint32,2,2]:\n  tensor([[1],[2,3]])\n",
@@ -49,6 +53,7 @@ int main() {
       require(!analyze(source).ok(), "unsupported conversion/default/tensor accepted");
     for (const auto *source :
          {"fn f(x:Tensor[uint32,?]) -> uint32:\n  reduceSum(x)\n",
+          "fn f(x:Tensor[uint32,?,?]) -> Tensor[uint32,?,?]:\n  matmul(x,x)\n",
           "fn f() -> Tensor[uint32]:\n  tensor(4294967295)\n",
           "fn f() -> Tensor[uint32,2,0]:\n  tensor([],[2,0])\n",
           "fn f(x:Tensor[uint32,?],s:uint32) -> Tensor[uint32,?]:\n  s % (x + 1)\n",
@@ -90,22 +95,23 @@ int main() {
       if (std::holds_alternative<ReduceSum>(expr.operation))
         expr.type.element = NumericType::Int32;
     require(!lowerNative(*reduction.module), "backend accepted mismatched reduction element");
-    for (const auto *source :
-         {"fn f(x:Tensor[float32,?,?]) -> Tensor[float32,?,?]:\n  matmul(x,x)\nfn main() -> "
-          "float32:\n  0\n"}) {
-      auto forged = analyze(source);
-      for (auto &fn : forged.module->functions) {
-        fn.resultType.element = NumericType::UInt32;
-        if (fn.declaredResult)
-          fn.declaredResult->element = NumericType::UInt32;
-      }
-      for (auto &symbol : forged.module->symbols)
-        symbol.type.element = NumericType::UInt32;
-      for (auto &expr : forged.module->expressions)
-        expr.type.element = NumericType::UInt32;
-      auto rejected = lowerNative(*forged.module);
-      require(!rejected && rejected.error().find("uint32") != std::string::npos,
-              "backend enabled unqualified unsigned matmul");
+    auto multiply =
+        analyze("fn f(x:Tensor[uint32,?,?],y:Tensor[uint32,?,?]) -> Tensor[uint32,?,?]:\n"
+                "  matmul(x,y)\nfn main() -> uint32:\n  0\n");
+    require(multiply.ok() && bool(lowerNative(*multiply.module)), "uint32 matmul rejected");
+    require(dumpTypedIR(*multiply.module).find("matmul checked_u32") != std::string::npos,
+            "unsigned matmul lost its numerical policy");
+    for (unsigned mismatch = 0; mismatch < 3; ++mismatch) {
+      auto forged = *multiply.module;
+      for (auto &expr : forged.expressions)
+        if (auto *op = std::get_if<Matmul>(&expr.operation)) {
+          if (mismatch == 0)
+            expr.type.element = NumericType::Int32;
+          else
+            forged.expressions[mismatch == 1 ? op->left : op->right].type.element =
+                NumericType::Int32;
+        }
+      require(!lowerNative(forged), "backend accepted mismatched matmul elements");
     }
 
 #endif

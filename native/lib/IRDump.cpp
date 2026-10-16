@@ -79,9 +79,6 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
         return "unsupported reduction element type";
     }
     if (const auto *multiply = std::get_if<Matmul>(&expression.operation)) {
-      if (module.expressions[multiply->left].type.element == NumericType::UInt32 ||
-          module.expressions[multiply->right].type.element == NumericType::UInt32)
-        return "uint32 matmul is not implemented by this backend";
       if (expression.type.element != module.expressions[multiply->left].type.element ||
           expression.type.element != module.expressions[multiply->right].type.element ||
           !numericArithmeticAvailable(expression.type.element, target))
@@ -186,7 +183,10 @@ std::string dumpTypedIR(const TypedModule &module) {
               out << "call @" << operation.function;
               arguments(operation.arguments);
             } else if constexpr (std::is_same_v<T, Matmul>) {
-              out << "matmul strict_f32 balanced_adjacent separately_rounded_products ";
+              out << "matmul "
+                  << (node.type.element == NumericType::UInt32 ? "checked_u32 balanced_adjacent checked_products "
+                      : node.type.element == NumericType::Int32 ? "checked_i32 balanced_adjacent checked_products "
+                                                              : "strict_f32 balanced_adjacent separately_rounded_products ");
               value(operation.left);
               out << ", ";
               value(operation.right);

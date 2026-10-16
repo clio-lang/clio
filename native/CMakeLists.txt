@@ -526,6 +526,16 @@ if(BUILD_TESTING)
         "-DHARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/Int32MatmulRuntimeTests.cpp"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyInt32Matmul.cmake")
     set_tests_properties(native-int32-matmul-${VARIANT} PROPERTIES TIMEOUT 240)
+    add_test(NAME native-uint32-matmul-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INT32_MATMUL_RUNTIME}"
+        "-DVARIANT=${VARIANT}" "-DNUMERIC_TYPE=uint32"
+        "-DOPT_RUNTIME=$<TARGET_FILE:kalandra-task-core-optimized>"
+        "-DTASK_HARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/Int32TensorTaskTests.cpp"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/uint32-matmul-${VARIANT}"
+        "-DHARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/Int32MatmulRuntimeTests.cpp"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyInt32Matmul.cmake")
+    set_tests_properties(native-uint32-matmul-${VARIANT} PROPERTIES TIMEOUT 240)
   endforeach()
 endif()
 

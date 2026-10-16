@@ -85,7 +85,7 @@ if(NOT "${STATUS}" STREQUAL "1" OR NOT ERR MATCHES "uint32" OR EXISTS "${OUTPUT_
 endif()
 message(STATUS "UInt32 tensor task captures/results: exact cells, distinct layouts, nested/cached awaits, owner survival, unsigned/signed/float identity, arithmetic/shape recovery, allocation/admission faults and cancellation/deadline settlement passed with 1/2/4 workers")
 
-# Reductions are qualified; matmul remains gated with artifact preservation.
+# Reduction and matmul admission reuse qualified CPU integer lowering.
 foreach(OP IN ITEMS reduceSum matmul)
   if(OP STREQUAL "reduceSum")
     set(SOURCE "fn f(x:Tensor[uint32,?]) -> uint32:\n  reduceSum(x)\nfn main() -> uint32 ! TaskError:\n  try parallel:\n    0\n")
@@ -93,19 +93,6 @@ foreach(OP IN ITEMS reduceSum matmul)
     set(SOURCE "fn f(x:Tensor[uint32,?,?]) -> Tensor[uint32,?,?]:\n  matmul(x,x)\nfn main() -> uint32 ! TaskError:\n  try parallel:\n    0\n")
   endif()
   file(WRITE "${OUTPUT_DIR}/unsupported-${OP}.kalandra" "${SOURCE}")
-  if(OP STREQUAL "reduceSum")
-    RUN_OK("${COMPILER}" "${OUTPUT_DIR}/unsupported-${OP}.kalandra" -o "${OUTPUT_DIR}/supported-reduceSum" ${EXTRA})
-    RUN_OK("${OUTPUT_DIR}/supported-reduceSum")
-    continue()
-  endif()
-  file(WRITE "${OUTPUT_DIR}/preserved" "existing output")
-  file(WRITE "${OUTPUT_DIR}/preserved.ll" "existing IR")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/unsupported-${OP}.kalandra"
-    -o "${OUTPUT_DIR}/preserved" --emit-llvm "${OUTPUT_DIR}/preserved.ll"
-    RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
-  file(READ "${OUTPUT_DIR}/preserved" EXE)
-  file(READ "${OUTPUT_DIR}/preserved.ll" IR)
-  if(NOT "${STATUS}" STREQUAL "1" OR NOT ERR MATCHES "S053" OR NOT EXE STREQUAL "existing output" OR NOT IR STREQUAL "existing IR")
-    message(FATAL_ERROR "Unsigned tensor task ${OP} gate failed: ${STATUS}: ${ERR}")
-  endif()
+  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/unsupported-${OP}.kalandra" -o "${OUTPUT_DIR}/supported-${OP}" ${EXTRA})
+  RUN_OK("${OUTPUT_DIR}/supported-${OP}")
 endforeach()

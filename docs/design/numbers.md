@@ -352,7 +352,7 @@ The common continuation planner carries explicit UInt32 literals and sends unsig
 
 [Frontend checks](../../native/tests/UInt32Tests.cpp) cover literal/constant limits, negative/fractional values, unsigned negation, division by known zero, rejected implicit conversions and the uint64 default alias. [Runtime reference tests](../../native/tests/UInt32RuntimeTests.cpp) compare seven operations with unsigned 64-bit reference arithmetic over 10,256 boundary/random input pairs per operation. The [compiled driver](../../native/cmake/VerifyUInt32.cmake) qualifies synchronous forwarding, full-range CLI values, successful worker arithmetic, uint32/int32/float32 roots and mixed captures, nested/cached awaits, all six faulting operations, Arithmetic recovery, source locations, admission/allocation cleanup and output preservation on static errors. Frontend checks run independently under ASan/UBSan; generated programs run in debug, optimized, ASan/UBSan and TSan modes, with task cases at 1/2/4 workers. [Qualification evidence](../../native/metal-proof/evidence/cpu-uint32-2026-10-16.json) records the full CPU/Metal regression and unchanged float32 numerical artifacts.
 
-Uint32 tensor literals and checked synchronous elementwise operations are now qualified below. Uint32 tensor task handoff and reductions are qualified below; matmul, GPU arithmetic and numeric conversions remain gated. This increment adds no public foreign-memory/wire ABI and no distributed execution. Distributed execution still requires the agreed design review.
+Uint32 tensor literals and checked synchronous elementwise operations are now qualified below. Uint32 tensor task handoff, reductions and matmul are qualified below; GPU arithmetic and numeric conversions remain gated. This increment adds no public foreign-memory/wire ABI and no distributed execution. Distributed execution still requires the agreed design review.
 
 
 ## Checked CPU uint32 tensor literals and elementwise operations
@@ -372,9 +372,9 @@ On an Arithmetic fault, the source operation location is preserved and no partia
 
 [Compiled runtime reference tests](../../native/tests/UInt32TensorRuntimeTests.cpp) use separate uint64 arithmetic to compare exact cells. The [driver](../../native/cmake/VerifyUInt32Tensors.cmake) exercises tensor/tensor and both scalar orders for five binary operators, unary identity/negation, literal ranks zero through three, dynamic-to-fixed shape refinement, signed/float precision boundaries, deterministic random inputs, nontrivial shapes, every empty axis, aliases, offset/noncontiguous input views, late failing lanes, invalid dimension/byte counts, allocation failure, retained results, cancellation and balanced cleanup. All run in debug, optimized, ASan/UBSan and TSan modes. [Frontend tests](../../native/tests/UInt32Tests.cpp) reject out-of-range/negative/ragged literals and mixed numeric element types. [Qualification evidence](../../native/metal-proof/evidence/cpu-uint32-tensors-2026-10-16.json) records the full CPU/Metal regression and unchanged float32 numerical artifacts.
 
-Uint32 tensor handoff through CPU tasks is now qualified below. Frontend/backend gates retain rejection of uint32 matmul and GPU arithmetic. The task conformance driver verifies matmul rejection before output publication and preserves existing executable/IR files. Uint32 reductions are qualified below.
+Uint32 tensor handoff through CPU tasks is now qualified below. GPU uint32 arithmetic remains rejected. Uint32 reductions and matmul are qualified below; static matmul shape/type errors preserve existing executable/IR files.
 
-Uint32 tensor task captures/results are qualified below. Matmul and GPU integer arithmetic remain later increments; reductions are qualified below. Distributed execution still requires the agreed design review.
+Uint32 tensor task captures/results are qualified below. Reductions and matmul are qualified below; GPU integer arithmetic remains a later increment. Distributed execution still requires the agreed design review.
 
 
 ## UInt32 tensor captures and results in CPU tasks
@@ -399,7 +399,7 @@ Checked unsigned arithmetic continues through the existing MLIR kernel path. Ove
 
 The [compiled driver](../../native/cmake/VerifyUInt32TensorTasks.cmake) uses the [shared native result observer](../../native/tests/Int32TensorTaskTests.cpp) with unsigned, signed and floating result types. [Mixed packets](../../native/tests/fixtures/task-uint32-tensor-mixed.kalandra), [nested temporaries](../../native/tests/fixtures/task-uint32-tensor-nested.kalandra) and [fault recovery](../../native/tests/fixtures/task-uint32-tensor-recovery.kalandra) exercise exact cells, distinct layouts, ranks zero through three, empty tensors, wrong-layout rejection, cached outcomes, owner survival after core/invocation destruction, all scheduler live counters returning to zero, absent payloads on faults, original source locations and twelve allocation-failure positions. Tests run in debug, optimized, ASan/UBSan and TSan modes with 1/2/4 workers. The signed test variants also run through the same observer. [Qualification evidence](../../native/metal-proof/evidence/cpu-uint32-tensor-tasks-2026-10-16.json) records the complete CPU/Metal regression and unchanged float32 numerical artifacts.
 
-Checked CPU uint32 reduceSum is qualified below. Uint32 matmul, GPU integer arithmetic, further numeric types and conversions remain separate increments. Distributed execution still requires the agreed design review.
+Checked CPU uint32 reduceSum is qualified below. Uint32 matmul is qualified below; GPU integer arithmetic, further numeric types and conversions remain separate increments. Distributed execution still requires the agreed design review.
 
 
 ## Checked CPU uint32 reduceSum
@@ -424,4 +424,34 @@ The implementation reuses the same reduction scratch/tree lowering and checked u
 
 Additional numeric types reuse these mechanisms, but each needs conformance checks for its own range, representation and arithmetic rules. Wider integers need suitable checked intermediates or overflow instructions; additional float formats need their own rounding and edge-case qualification. Shared algorithms and test harnesses do not imply automatic backend support.
 
-Unsigned matmul, GPU integer arithmetic and numeric conversions remain gated. Distributed execution still requires the agreed design review.
+Unsigned matmul is qualified below; GPU integer arithmetic and numeric conversions remain gated. Distributed execution still requires the agreed design review.
+
+
+## Checked CPU uint32 matmul
+
+`matmul` accepts two CPU uint32 matrices shaped `[M,K]` and `[K,N]`, returning a fresh immutable `Tensor[uint32,M,N]`. Both operands must have the same element type. Known inner-dimension mismatches are compile errors; dynamic mismatches fault before element access. Integer and floating-point matrices never implicitly convert into each other.
+
+```kalandra
+fn project(input: Tensor[uint32, ?, ?], weights: Tensor[uint32, ?, ?]) -> Tensor[uint32, ?, ?]:
+  matmul(input, weights)
+
+fn main() -> uint32 ! TaskError:
+  input: Tensor[uint32, 1, 2] = tensor([[2147483648, 2147483647]])
+  weights: Tensor[uint32, 2, 1] = tensor([[1], [1]])
+  try parallel:
+    work = spawn project(input, weights)
+    result = try await work
+    reduceSum(result)
+```
+
+This returns `4294967295`. Each product zero-extends its operands to uint64, checks against UINT32_MAX and narrows to uint32. The uint64 product can represent every pair of uint32 operands exactly. Each output cell then uses the same checked balanced-adjacent addition tree as uint32 reduceSum, carrying an odd tail unchanged. A product or any tree addition outside the uint32 range faults in every build mode; the result does not wrap or accumulate into a wider result type.
+
+The integer kernel reuses existing shape/byte-count checks, scratch allocation, row/column loops, cancellation polling and immutable result storage. A zero contraction dimension produces zero-filled output. Zero output rows or columns perform no contraction work or contraction-sized scratch allocation, while input metadata still passes the existing bounds checks. Borrowed offsets and noncontiguous/transposed strides are respected, including aliased operands.
+
+A failure retains the original matmul source location and publishes no partial matrix, including when an earlier output cell succeeded. Worker failures become `TaskError.Fault`/`FaultKind.Arithmetic`. Recovery can reuse parent inputs and start another group. Nested coordinators and cached awaits retain results through the existing typed capture/result layouts; an independent lease can outlive the task core and receiving invocation. Allocation/quota failures and explicit cancellation/deadline signals use existing settlement rules. This adds no new scheduler, deadline timer or public foreign-memory ABI.
+
+The [shared integer runtime harness](../../native/tests/Int32MatmulRuntimeTests.cpp) now specializes signed and unsigned cells and compares products/tree sums with independent wider arithmetic. It covers unsigned endpoints, values above signed/float32 boundaries, full-range deterministic random inputs, UINT32_MAX times UINT32_MAX, products around 65536 squared, first-pair/later-tree overflow, a fault after a successful output cell, empty contractions/output shapes, large odd contraction sizes, padded/transposed views, aliases, invalid shapes/byte counts, allocation failure, cancellation and retained output after invocation settlement.
+
+The [shared compiled driver](../../native/cmake/VerifyInt32Matmul.cmake) also checks fixed shapes, exact full-range CLI output, nested workers, cached results, independent ownership after task/core/invocation destruction, twelve allocation-failure positions, admission/cancellation/deadline settlement, and Arithmetic recovery for product, first-pair and later-tree faults. Static shape/type/rank errors preserve existing output artifacts; forged mismatched element types are rejected by the backend. Debug, optimized, ASan/UBSan and TSan variants run with 1/2/4 workers. [Qualification evidence](../../native/metal-proof/evidence/cpu-uint32-matmul-2026-10-16.json) records the regression and numerical artifact comparison.
+
+Further integer widths should extend the shared numerical policies and conformance matrix. GPU integer arithmetic, numeric conversions and broader language values remain separate increments. Distributed execution still requires the agreed design review.
