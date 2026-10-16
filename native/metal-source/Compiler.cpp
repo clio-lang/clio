@@ -48,36 +48,33 @@ class Compiler {
   std::map<std::string, std::size_t> cpuFunctions;
   TypedModule cpu;
   std::vector<std::string> cpuExports;
-  std::set<std::string> gpuNames;
-  std::string declarations;
-  // Discover GPU placement roots and their transitive helper closure. All functions
-  // retain the same checked tensor/scalar types on both targets.
-  void discover(ExprId id, bool gpu = false) {
-    if (depth >= 128)
-      reject(node(id).span, "function discovery depth exceeded");
-    Depth guard(depth);
-    const auto &v = node(id).value;
-    if (auto *t = std::get_if<TaskExpr>(&v)) {
-      discover(t->operand, gpu || t->prefix == TaskPrefix::Spawn);
-      if (t->placement)
-        discover(*t->placement);
-    } else if (auto *c = std::get_if<CallExpr>(&v)) {
-      auto name = named(c->callee);
-      if (gpu && gpuNames.insert(name).second)
-        for (const auto &fn : syntax.functions)
-          if (text(fn.name) == name)
-            for (auto &statement : fn.body)
-              discover(statement.expression, true);
-      for (auto a : c->arguments)
-        discover(a, gpu);
-    } else if (auto *b = std::get_if<BinaryExpr>(&v)) {
-      discover(b->left, gpu);
-      discover(b->right, gpu);
-    } else if (auto *u = std::get_if<UnaryExpr>(&v))
-      discover(u->operand, gpu);
-    else if (auto *p = std::get_if<ParallelExpr>(&v))
-      for (auto &statement : p->body)
-        discover(statement.expression, gpu);
+  std::string declarations, cpuEntries;
+  std::size_t cpuEntryCount = 0;
+  // Admit the placed function's typed closure, not CPU expressions used to
+  // compute its arguments. CPU-only functions may keep fixed shape signatures.
+  void admitGpuTypes(FunctionId root) const {
+    std::set<FunctionId> visited;
+    std::vector<FunctionId> pending{root};
+    while (!pending.empty()) {
+      auto function = pending.back();
+      pending.pop_back();
+      if (!visited.insert(function).second)
+        continue;
+      const auto &fn = cpu.functions[function];
+      auto dynamic = [&](const ValueType &type) {
+        for (const auto &axis : type.shape)
+          if (axis.constant)
+            reject(fn.declaration,
+                   "GPU tensor parameters/results currently require dynamic extents");
+      };
+      if (fn.declaredResult)
+        dynamic(*fn.declaredResult);
+      for (auto parameter : fn.parameters)
+        dynamic(cpu.symbols[parameter].type);
+      for (auto value : fn.expressions)
+        if (auto *call = std::get_if<FunctionCall>(&cpu.expressions[value].operation))
+          pending.push_back(call->function);
+    }
   }
 
   std::unordered_map<std::string, Value> locals;
@@ -166,18 +163,23 @@ class Compiler {
       value.changeSign();
     return std::uint32_t(value.bitcastToAPInt().getZExtValue());
   }
-  void requireLength(const Value &value, std::uint64_t wanted, SourceSpan span, unsigned axis = 0) {
+  std::string lengthGuard(const Value &value, std::uint64_t wanted, SourceSpan span,
+                          unsigned axis = 0) const {
     auto known = extent(value, axis);
     if (known) {
       if (*known != wanted)
         reject(span, "tensor shape mismatch");
-    } else {
-      auto [line, column] = syntax.source->location(span.begin);
-      steps.push_back("if (" + ref(value) + ".shape().size()!=" + std::to_string(value.rank) +
-                      " || " + ref(value) + ".shape()[" + std::to_string(axis) +
-                      "]!=" + std::to_string(wanted) + ") { task.fault(1," + std::to_string(line) +
-                      "," + std::to_string(column) + "); return; }\n");
+      return {};
     }
+    auto [line, column] = syntax.source->location(span.begin);
+    return "if (" + ref(value) + ".shape().size()!=" + std::to_string(value.rank) + " || " +
+           ref(value) + ".shape()[" + std::to_string(axis) + "]!=" + std::to_string(wanted) +
+           ") { task.fault(1," + std::to_string(line) + "," + std::to_string(column) +
+           "); return; }\n";
+  }
+  void requireLength(const Value &value, std::uint64_t wanted, SourceSpan span, unsigned axis = 0) {
+    if (auto guard = lengthGuard(value, wanted, span, axis); !guard.empty())
+      steps.push_back(std::move(guard));
   }
   bool reduction(std::size_t function) const {
     const auto &fn = cpu.functions[function];
@@ -360,13 +362,13 @@ class Compiler {
     return cpuCall(hostKernel(operation, inputs, span), inputs, span, true);
   }
   Value cpuCall(FunctionId function, const std::vector<Value> &inputs, SourceSpan span,
-                bool inlineOperation = false) {
+                bool inlineOperation = false, bool spawned = false) {
     const auto &fn = cpu.functions[function];
     if (inputs.size() != fn.parameters.size())
       reject(span, "CPU function argument count mismatch");
     const bool tensorResult = fn.resultType.tensor;
-    auto out = field(tensorResult ? "m::Buffer" : "float");
-    Value value{tensorResult ? Value::Tensor : Value::Scalar, next - 1};
+    auto out = spawned ? std::string("value") : field(tensorResult ? "m::Buffer" : "float");
+    Value value{tensorResult ? Value::Tensor : Value::Scalar, spawned ? 0 : next - 1};
     if (tensorResult) {
       value.length = fn.resultType.shape[0].constant;
       value.rank = fn.resultType.shape.size();
@@ -415,9 +417,9 @@ class Compiler {
         else
           value.width = known;
       }
-    for (const auto &[input, wanted, axis] : fixedShapes)
-      requireLength(input, wanted, span, axis);
     std::string guards;
+    for (const auto &[input, wanted, axis] : fixedShapes)
+      guards += lengthGuard(input, wanted, span, axis);
     for (const auto &requirement : fn.preconditions) {
       const auto known = [&](Extent extent) {
         if (extent.constant)
@@ -453,6 +455,8 @@ class Compiler {
                                           : "task.context().line(),task.context().column()";
     step += "if (task.context().status()) { task.fault(task.context().status(), " + location +
             "); return; }\n";
+    if (spawned)
+      step += "if(task.cancelled()) return;\n";
     if (tensorResult) {
       // Acquire the immutable backing lease before releasing the returned memref owner.
       // The buffer-deallocation pipeline gives C-interface tensor results owned storage.
@@ -464,7 +468,59 @@ class Compiler {
     for (std::size_t i = 0; i < fn.parameters.size(); ++i)
       if (cpu.symbols[fn.parameters[i]].type.tensor)
         step += "task.context().release(argument" + std::to_string(i) + "->allocated);\n";
-    steps.push_back(step);
+    if (!spawned) {
+      steps.push_back(step);
+      return value;
+    }
+    const auto prefix = "cpuJob" + std::to_string(cpuEntryCount++);
+    std::string members = "m::Runtime *runtime;", captures = "f.runtime", owned = "data.runtime";
+    std::string validation = "!data.runtime";
+    std::set<std::size_t> captured;
+    for (const auto &input : inputs) {
+      if (!captured.insert(input.slot).second)
+        continue;
+      const auto name = "v" + std::to_string(input.slot);
+      members += std::string(input.kind == Value::Tensor ? "m::Buffer " : "float ") + name + ";";
+      captures += "," + ref(input);
+      owned += ",data." + name;
+      if (input.kind == Value::Tensor)
+        validation += " || !data." + name + " || data." + name + ".onDevice() || data." + name +
+                      ".format()!=m::Format::Float32 || data." + name +
+                      ".shape().size()!=" + std::to_string(input.rank);
+    }
+    cpuEntries += "struct " + prefix + "Packet{" + members + "};\nstruct " + prefix + "Frame{" +
+                  members + (tensorResult ? "m::Buffer" : "float") + " value{};};\n";
+    cpuEntries += "bool " + prefix +
+                  "Construct(Invocation &context,void *out,const Packet &packet){\n"
+                  "const auto &data=*static_cast<const " +
+                  prefix +
+                  "Packet*>(packet.data);\n"
+                  "if(" +
+                  validation +
+                  "){context.fault(3);return false;}\n"
+                  "new(out) " +
+                  prefix + "Frame{" + owned + ",{}};return true;}\n";
+    cpuEntries += "void " + prefix + "Destroy(void *frame) noexcept {static_cast<" + prefix +
+                  "Frame*>(frame)->~" + prefix + "Frame();}\n";
+    cpuEntries +=
+        "void " + prefix + "Resume(Task &task){auto &f=*static_cast<" + prefix +
+        "Frame*>(task.frame());auto &r=*f.runtime; (void)r;\nif(task.cancelled()) return;\n" +
+        step + "task.complete(&f.value); }\n";
+    cpuEntries += "const TaskEntry " + prefix + "Entry{1," +
+                  std::to_string(0x4b414c4350550000ULL + cpuEntryCount) + "ull,sizeof(" + prefix +
+                  "Packet),alignof(" + prefix + "Packet),sizeof(" + prefix + "Frame),alignof(" +
+                  prefix + "Frame)," + prefix + "Construct," + prefix + "Destroy," + prefix +
+                  "Resume,&m::Runtime::" + (tensorResult ? "bufferLayout" : "scalarLayout") +
+                  "()};\n";
+    auto taskField = field("TaskHandle");
+    steps.push_back(prefix + "Packet packet{" + captures + "};\nf." + taskField +
+                    "=task.spawn(f.group," + prefix + "Entry,{" + prefix +
+                    "Entry.packetLayout,&packet,sizeof(packet),&task.context()});\n" +
+                    check("f." + taskField));
+    value.kind = Value::Task;
+    value.scalarTask = !tensorResult;
+    value.slot = next - 1;
+    tasks.insert(value.slot);
     return value;
   }
   Value expression(ExprId id, const TypeSyntax *annotation = nullptr) {
@@ -656,27 +712,34 @@ class Compiler {
         return value;
       }
       if (task->prefix == TaskPrefix::Spawn) {
-        if (!task->placement)
-          reject(span, "GPU source calls require an explicit on target clause");
         const auto *call = std::get_if<CallExpr>(&node(task->operand).value);
         if (!call)
           reject(span, "spawn requires a named function call");
         auto name = named(call->callee);
         auto found = cpuFunctions.find(name);
         if (found == cpuFunctions.end() || locals.contains(name) || name == "main")
-          reject(span, "unknown or shadowed GPU function");
-        // Argument expressions may append CPU kernels and reallocate the function arena.
-        const auto entryFunction = cpu.functions[found->second];
-        const bool sum = reduction(found->second);
-        const bool matrix = matrixFunction(found->second);
-        if (call->arguments.size() != entryFunction.parameters.size())
-          reject(span, "GPU call argument count mismatch");
+          reject(span, "unknown or shadowed task function");
+        const auto function = found->second;
+        if (call->arguments.size() != cpu.functions[function].parameters.size())
+          reject(span, "task call argument count mismatch");
+        std::vector<Value> inputs;
+        for (auto argument : call->arguments)
+          inputs.push_back(expression(argument));
+        auto target = task->placement ? expression(*task->placement) : Value{Value::Target};
+        if (target.kind != Value::Target)
+          reject(span, "task placement requires a device target");
+        if (!target.gpu)
+          return cpuCall(function, inputs, span, false, true);
+        admitGpuTypes(function);
+        const auto &entryFunction = cpu.functions[function];
+        const bool sum = reduction(function);
+        const bool matrix = matrixFunction(function);
         if (!entryFunction.resultType.tensor && !sum)
           reject(span,
                  "GPU scalar entries currently require a direct reduceSum of one tensor parameter");
         std::vector<Value> tensors, scalars;
-        for (std::size_t i = 0; i < call->arguments.size(); ++i) {
-          auto value = expression(call->arguments[i]);
+        for (std::size_t i = 0; i < inputs.size(); ++i) {
+          const auto &value = inputs[i];
           const auto &type = cpu.symbols[entryFunction.parameters[i]].type;
           const bool tensor = type.tensor;
           if (value.kind != (tensor ? Value::Tensor : Value::Scalar))
@@ -695,9 +758,6 @@ class Compiler {
         else
           for (std::size_t i = 0; i < tensors.size(); ++i)
             reads.push_back(i);
-        auto target = expression(*task->placement);
-        if (target.kind != Value::Target || !target.gpu)
-          reject(span, "the Metal source path requires a GPU target");
         for (auto value : tensors)
           if (!value.gpu || value.device != target.device)
             reject(span, "GPU arguments must be explicitly transferred to the selected device");
@@ -1031,10 +1091,6 @@ public:
     for (const auto &fn : syntax.functions)
       if (!names.insert(text(fn.name)).second)
         reject(fn.name, "duplicate function");
-    for (const auto &fn : syntax.functions)
-      if (text(fn.name) == "main")
-        for (const auto &statement : fn.body)
-          discover(statement.expression);
     Module hostModule = syntax;
     hostModule.functions.clear();
     std::optional<std::size_t> main;
@@ -1050,13 +1106,13 @@ public:
       if (!fn.result || fn.taskError)
         reject(fn.span, "mixed source functions require an explicit result and no error channel");
       if (fn.result->tensor)
-        tensorType(*fn.result, gpuNames.contains(name));
+        tensorType(*fn.result);
       else if (text(fn.result->name) != "float32")
         reject(fn.result->span,
                "mixed source results require float32 or rank-one/rank-two float32 tensors");
       for (const auto &p : fn.parameters) {
         if (p.type.tensor)
-          tensorType(p.type, gpuNames.contains(name));
+          tensorType(p.type);
         else if (text(p.type.name) != "float32")
           reject(p.type.span,
                  "mixed source parameters require float32 or rank-one/rank-two float32 tensors");
@@ -1182,7 +1238,8 @@ public:
 #include <string>
 using namespace kalandra::runtime;
 namespace m = kalandra::runtime::metal;
- )" << declarations;
+ )" << declarations
+         << cpuEntries;
     if (scalarResult)
       host << "const ValueLayout &scalarLayout=m::Runtime::scalarLayout();\n";
     host << R"(struct PacketData { m::Runtime *runtime; const char *directory; };

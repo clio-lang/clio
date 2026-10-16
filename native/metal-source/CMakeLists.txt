@@ -153,9 +153,11 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-  foreach(FIXTURE IN ITEMS mixed tensor-results shared-helpers scalar-entry matrix-elementwise differences arguments unused-inputs indirect-arguments tensor-negation division host-expressions reduction matmul)
+  foreach(FIXTURE IN ITEMS mixed tensor-results shared-helpers scalar-entry matrix-elementwise differences arguments unused-inputs indirect-arguments tensor-negation division host-expressions cpu-spawn reduction matmul)
     if(FIXTURE STREQUAL "mixed")
       set(HARNESS MixedTests.cpp)
+    elseif(FIXTURE STREQUAL "cpu-spawn")
+      set(HARNESS CpuSpawnTests.cpp)
     elseif(FIXTURE STREQUAL "host-expressions")
       set(HARNESS HostExpressionTests.cpp)
     elseif(FIXTURE STREQUAL "matmul")
@@ -322,4 +324,11 @@ if(BUILD_TESTING)
     "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/host-expressions-cli"
     -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyHostExpressions.cmake")
   set_tests_properties(native-host-expressions-cli PROPERTIES TIMEOUT 240 RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+endif()
+
+if(BUILD_TESTING)
+  add_test(NAME native-cpu-spawn-cli COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+    "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/cpu-spawn-cli"
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyCpuSpawn.cmake")
+  set_tests_properties(native-cpu-spawn-cli PROPERTIES TIMEOUT 240 RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
 endif()
