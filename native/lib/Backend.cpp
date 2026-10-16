@@ -522,7 +522,49 @@ private:
     }
     return small.getResult(0);
   }
+  Value integerMatmul(Location loc, Value a, Value b, RankedTensorType output,
+                      const Matmul &operation) {
+    if (operation.order != ReductionOrder::BalancedAdjacent || !operation.separatelyRoundedProducts)
+      throw LoweringFailure{"unsupported matmul numerical policy"};
+    auto left = dimensions(loc, a), right = dimensions(loc, b);
+    const auto z = index(loc, 0), one = index(loc, 1);
+    for (auto extent : {left[0], left[1], right[0], right[1]})
+      guard(loc, compare(loc, arith::CmpIPredicate::sge, extent, z), 1);
+    if (operation.checkInnerExtent)
+      guard(loc, compare(loc, arith::CmpIPredicate::eq, left[1], right[0]), 1);
+    auto cells = checkedCount(loc, {left[0], right[1]});
+    auto noCells = compare(loc, arith::CmpIPredicate::eq, cells, z);
+    auto rows = arith::SelectOp::create(builder_, loc, noCells, z, left[0]);
+    // No output cells means no contraction work and no contraction-sized scratch.
+    auto scratchCount = arith::SelectOp::create(builder_, loc, noCells, z, left[1]);
+    auto scratch = reductionScratch(loc, scratchCount, builder_.getI32Type());
+    SmallVector<Value> dynamic;
+    if (output.isDynamicDim(0))
+      dynamic.push_back(left[0]);
+    if (output.isDynamicDim(1))
+      dynamic.push_back(right[1]);
+    auto empty = tensor::EmptyOp::create(builder_, loc, output.getShape(), builder_.getI32Type(), dynamic);
+    auto result = scf::ForOp::create(
+        builder_, loc, z, rows, one, ValueRange{empty},
+        [&](OpBuilder &, Location, Value row, ValueRange rowValues) {
+          auto columns = scf::ForOp::create(
+              builder_, loc, z, right[1], one, rowValues,
+              [&](OpBuilder &, Location, Value column, ValueRange columnValues) {
+                auto sum = reduction(loc, left[1], scratch, [&](Value k) -> Value {
+                  auto x = tensor::ExtractOp::create(builder_, loc, a, ValueRange{row, k});
+                  auto y = tensor::ExtractOp::create(builder_, loc, b, ValueRange{k, column});
+                  return integerBinary(loc, x, y, TokenKind::Star);
+                });
+                auto cell = tensor::InsertOp::create(builder_, loc, sum, columnValues[0], ValueRange{row, column});
+                scf::YieldOp::create(builder_, loc, ValueRange{cell});
+              });
+          scf::YieldOp::create(builder_, loc, columns.getResults());
+        });
+    return result.getResult(0);
+  }
   Value matmul(Location loc, Value a, Value b, RankedTensorType output, const Matmul &operation) {
+    if (output.getElementType().isInteger(32))
+      return integerMatmul(loc, a, b, output, operation);
     // Outlining prevents a large SIMD kernel's register/stack requirements from
     // penalizing narrow shapes in the surrounding source function.
     func::FuncOp helper;

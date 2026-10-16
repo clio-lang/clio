@@ -46,7 +46,8 @@ int main() {
           "fn values() -> Tensor[int32]:\n  tensor(16777217)\n",
           "fn values(a:Tensor[int32,?]) -> Tensor[int32,?]:\n  2 % (a + 1)\n",
           "fn values() -> Tensor[int32,2,0]:\n  tensor([], [2,0])\n",
-          "fn values(x:Tensor[int32,?]) -> int32:\n  reduceSum(x)\n"}) {
+          "fn values(x:Tensor[int32,?]) -> int32:\n  reduceSum(x)\n",
+          "fn values(x:Tensor[int32,?,?]) -> Tensor[int32,?,?]:\n  matmul(x,x)\n"}) {
       auto tensor = analyze(std::string(source) + "fn main() -> int32:\n  0\n");
       require(tensor.ok(), "int32 tensor source rejected");
 #ifndef KALANDRA_INT32_FRONTEND_ONLY
@@ -57,7 +58,8 @@ int main() {
          {"fn main() -> int32:\n  x:Tensor[int32,1] = tensor([2147483648])\n  0\n",
           "fn main() -> int32:\n  x:Tensor[int32,1] = tensor([1.5])\n  0\n",
           "fn f(x:Tensor[int32,?],y:Tensor[float32,?]) -> Tensor[int32,?]:\n  x + y\n",
-          "fn f(x:Tensor[int32,?,?]) -> Tensor[int32,?,?]:\n  matmul(x,x)\n",
+          "fn f(x:Tensor[int32,?,?],y:Tensor[float32,?,?]) -> Tensor[int32,?,?]:\n  matmul(x,y)\n",
+          "fn f(x:Tensor[int32,2,3],y:Tensor[int32,4,2]) -> Tensor[int32,2,2]:\n  matmul(x,y)\n",
           "fn f(x:Tensor[int32,2]) -> Tensor[int32,3]:\n  x\n",
           "fn f() -> Tensor[int32,2,2]:\n  tensor([[1],[2,3]])\n"})
       require(!analyze(source).ok(), "unsupported/malformed integer tensor operation accepted");

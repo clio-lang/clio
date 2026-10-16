@@ -79,10 +79,10 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
         return "unsupported reduction element type";
     }
     if (const auto *multiply = std::get_if<Matmul>(&expression.operation)) {
-      if (expression.type.element != NumericType::Float32 ||
-          module.expressions[multiply->left].type.element != NumericType::Float32 ||
-          module.expressions[multiply->right].type.element != NumericType::Float32)
-        return "integer matmul is not implemented by the CPU backend";
+      if (expression.type.element != module.expressions[multiply->left].type.element ||
+          expression.type.element != module.expressions[multiply->right].type.element ||
+          !numericArithmeticAvailable(expression.type.element, target))
+        return "unsupported matmul element type";
     }
   }
   return {};

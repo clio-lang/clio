@@ -1,0 +1,226 @@
+#include "../runtime/Tensor.h"
+#include <array>
+#include <bit>
+#include <iostream>
+#include <thread>
+#include <vector>
+using namespace kalandra;
+using namespace kalandra::runtime;
+using Tensor = CpuTensor<NumericType::Int32, 2>;
+extern "C" void _mlir_ciface_kalandra_test_entry(Tensor *, Tensor *, Tensor *, Invocation *);
+static unsigned cases = 0, faults = 0;
+struct View {
+  std::vector<std::int32_t> storage;
+  Tensor tensor{};
+  View(std::int64_t rows, std::int64_t columns, const std::vector<std::int32_t> &values,
+       bool transposed)
+      : storage(2 * rows * columns + 3 * (rows + columns) + 8, 7654321) {
+    tensor.allocated = storage.data();
+    tensor.aligned = storage.data() + 1;
+    tensor.offset = 2;
+    tensor.sizes = {rows, columns};
+    tensor.strides = transposed ? std::array<std::int64_t, 2>{2, 2 * rows + 3}
+                                : std::array<std::int64_t, 2>{2 * columns + 3, 2};
+    for (std::int64_t r = 0; r < rows; ++r)
+      for (std::int64_t c = 0; c < columns; ++c)
+        tensor.aligned[tensor.offset + r * tensor.strides[0] + c * tensor.strides[1]] =
+            values[r * columns + c];
+  }
+};
+static bool verify(std::int64_t rows, std::int64_t inner, std::int64_t columns,
+                   std::vector<std::int32_t> a, std::vector<std::int32_t> b, unsigned fail = 0,
+                   bool alias = false) {
+  a.resize(rows * inner);
+  b.resize(inner * columns);
+  if (alias)
+    b = a;
+  View left(rows, inner, a, false), right(inner, columns, b, true);
+  auto beforeLeft = left.storage, beforeRight = right.storage;
+  bool overflow = false;
+  std::vector<std::int32_t> expected;
+  // Products and every adjacent-tree sum are range checked independently in int64.
+  for (std::int64_t r = 0; r < rows && !overflow; ++r) {
+    for (std::int64_t c = 0; c < columns && !overflow; ++c) {
+      std::vector<std::int64_t> tree;
+      for (std::int64_t k = 0; k < inner; ++k) {
+        auto product = std::int64_t(a[r * inner + k]) * b[k * columns + c];
+        if (product < INT32_MIN || product > INT32_MAX) {
+          overflow = true;
+          break;
+        }
+        tree.push_back(product);
+      }
+      while (tree.size() > 1 && !overflow) {
+        std::vector<std::int64_t> next;
+        for (std::size_t i = 0; i < tree.size(); i += 2) {
+          auto sum = tree[i] + (i + 1 < tree.size() ? tree[i + 1] : 0);
+          if (sum < INT32_MIN || sum > INT32_MAX) {
+            overflow = true;
+            break;
+          }
+          next.push_back(sum);
+        }
+        tree = std::move(next);
+      }
+      if (!overflow)
+        expected.push_back(tree.empty() ? 0 : std::int32_t(tree[0]));
+    }
+  }
+  Invocation context;
+  context.failAllocationAt(fail);
+  Tensor result{};
+  _mlir_ciface_kalandra_test_entry(&result, &left.tensor, alias ? &left.tensor : &right.tensor,
+                                   &context);
+  auto code = fail ? 2 : overflow ? 4 : 0;
+  ++cases;
+  faults += code != 0;
+  auto reject = [&](const char *message) {
+    std::cerr << message << " case " << cases << " shape " << rows << ',' << inner << ',' << columns
+              << " status " << context.status() << " expected " << code << '\n';
+    return false;
+  };
+  if (context.status() != code)
+    return reject("fault mismatch");
+  auto cellsCorrect = [&] {
+    if (result.sizes != std::array<std::int64_t, 2>{rows, columns})
+      return false;
+    for (std::int64_t r = 0; r < rows; ++r)
+      for (std::int64_t c = 0; c < columns; ++c)
+        if (!result.aligned ||
+            result.aligned[result.offset + r * result.strides[0] + c * result.strides[1]] !=
+                expected[r * columns + c])
+          return false;
+    return true;
+  };
+  std::optional<AllocationLease> retained;
+  if (code) {
+    if (result.allocated)
+      return reject("partial tensor published");
+    if (code == 4 && (context.line() != 2 || context.column() != 3))
+      return reject("fault source lost");
+  } else {
+    if (!cellsCorrect())
+      return reject("wrong cells");
+    retained = context.lease(result.allocated);
+    if (!retained)
+      return reject("missing result owner");
+  }
+  if (left.storage != beforeLeft || right.storage != beforeRight)
+    return reject("input mutated");
+  context.settle();
+  if (context.live() || context.allocations() != context.releases())
+    return reject("owners not settled");
+  if (!code && !cellsCorrect())
+    return reject("retained result lost after settlement");
+  return true;
+}
+static bool metadata(std::array<std::int64_t, 2> a, std::array<std::int64_t, 2> b, int code) {
+  std::int32_t value = 1;
+  Tensor x{}, y{}, out{};
+  x.allocated = x.aligned = y.allocated = y.aligned = &value;
+  x.sizes = a;
+  y.sizes = b;
+  x.strides = y.strides = {1, 1};
+  Invocation context;
+  _mlir_ciface_kalandra_test_entry(&out, &x, &y, &context);
+  ++cases;
+  faults += code != 0;
+  if (context.status() != code || (code && out.allocated) ||
+      (!code && out.sizes != std::array<std::int64_t, 2>{a[0], b[1]})) {
+    std::cerr << "Metadata: a=" << a[0] << "," << a[1] << " b=" << b[0] << "," << b[1]
+              << " status=" << context.status() << " expected=" << code << " out=" << out.allocated
+              << "\n";
+    return false;
+  }
+  context.settle();
+  return !context.live() && context.allocations() == context.releases();
+}
+static bool cancelled() {
+  // Poll-triggered cancellation exercises generated loops, without fixed sleeps.
+  std::vector<std::int32_t> a(257 * 8193, 1), b(8193 * 3, 1);
+  View left(257, 8193, a, false), right(8193, 3, b, true);
+  Invocation context;
+  std::atomic<bool> token{false}, done{false};
+  std::atomic<std::uint64_t> polls{0};
+  context.bindCancellation(&token);
+  context.watchPolls(&polls);
+  std::thread signal([&] {
+    while (!done.load() && polls.load() < 4)
+      std::this_thread::yield();
+    if (!done.load())
+      token.store(true);
+  });
+  Tensor out{};
+  _mlir_ciface_kalandra_test_entry(&out, &left.tensor, &right.tensor, &context);
+  done.store(true);
+  signal.join();
+  bool ok = token.load() && context.poll() == -1 && !context.status() && !out.allocated;
+  if (!ok)
+    std::cerr << "Cancel: token=" << token.load() << " polls=" << polls.load()
+              << " code=" << context.status() << " output=" << out.allocated << "\n";
+  context.settle();
+  return ok && !context.live() && context.allocations() == context.releases();
+}
+int main() {
+  for (auto value : {INT32_MIN, INT32_MAX, 16777217, -1, 0, 1}) {
+    if (!verify(1, 1, 1, {value}, {1}) || !verify(1, 1, 1, {value}, {-1}))
+      return 1;
+  }
+  // Intermediate overflow must not be hidden by cancellation in the final total.
+  for (auto a : {std::vector<std::int32_t>{INT32_MAX, 1, -1},
+                 {INT32_MIN, -1, 1},
+                 {INT32_MAX, 0, 1, 0},
+                 {INT32_MIN, 0, -1, 0},
+                 {INT32_MAX, -1, 1},
+                 {1073741824, -1073741824},
+                 {16777217, 1, 2, 3, 4}}) {
+    if (!verify(1, a.size(), 1, a, std::vector<std::int32_t>(a.size(), a.size() == 2 ? 2 : 1)))
+      return 1;
+  }
+  // The first cell succeeds; failure at a later cell must not publish the tensor.
+  if (!verify(1, 1, 2, {INT32_MAX}, {1, 2}) || !verify(1, 2, 2, {INT32_MAX, 1}, {0, 1, 0, 1}))
+    return 1;
+  for (auto shape :
+       {std::array{0, 7, 3}, std::array{3, 7, 0}, std::array{2, 0, 3}, std::array{0, 0, 0},
+        std::array{2, 1, 3}, std::array{3, 2, 5}, std::array{1, 255, 2}, std::array{1, 256, 2},
+        std::array{1, 257, 2}, std::array{1, 1025, 1}}) {
+    auto [rows, inner, cols] = shape;
+    if (!verify(rows, inner, cols, std::vector<std::int32_t>(rows * inner, 1),
+                std::vector<std::int32_t>(inner * cols, 1)))
+      return 1;
+  }
+  if (!verify(2, 2, 2, {1, 2, 3, 4}, {}, 0, true))
+    return 1;
+  for (auto fail : {1u, 2u})
+    if (!verify(2, 3, 2, {1, 2, 3, 4, 5, 6}, {1, 2, 3, 4, 5, 6}, fail))
+      return 1;
+  std::uint32_t state = 0x12345678;
+  auto next = [&] {
+    state ^= state << 13;
+    state ^= state >> 17;
+    state ^= state << 5;
+    return state;
+  };
+  for (unsigned trial = 0; trial < 1000; ++trial) {
+    auto rows = next() % 5, inner = next() % 10, cols = next() % 6;
+    std::vector<std::int32_t> a(rows * inner), b(inner * cols);
+    for (auto &v : a)
+      v = trial % 2 ? std::bit_cast<std::int32_t>(next()) : std::int32_t(next() % 201) - 100;
+    for (auto &v : b)
+      v = trial % 2 ? std::bit_cast<std::int32_t>(next()) : std::int32_t(next() % 201) - 100;
+    if (!verify(rows, inner, cols, a, b))
+      return 1;
+  }
+  if (!metadata({-1, 1}, {1, 1}, 1) || !metadata({1, -1}, {-1, 1}, 1) ||
+      !metadata({0, 1}, {2, 0}, 1) || !metadata({1, 1}, {1, -1}, 1) ||
+      !metadata({INT64_MAX, 0}, {0, 2}, 2) || !metadata({1, INT64_MAX}, {INT64_MAX, 1}, 2) ||
+      !metadata({0, INT64_MAX}, {INT64_MAX, 3}, 2) ||
+      !metadata({3, INT64_MAX}, {INT64_MAX, 0}, 2) ||
+      !metadata({0, INT64_MAX}, {INT64_MAX, 0}, 0) ||
+      !metadata({0, INT64_MAX / 4}, {INT64_MAX / 4, 1}, 0) ||
+      !metadata({1, INT64_MAX / 4}, {INT64_MAX / 4, 0}, 0) || !cancelled())
+    return 1;
+  std::cout << "Int32 matmul: " << cases << " runtime inputs, " << faults
+            << " checked faults; exact products/tree, strided views, retained results and settled "
+               "owners passed\n";
+}

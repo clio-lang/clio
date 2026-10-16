@@ -1160,9 +1160,8 @@ private:
             syntax_.expressions[arguments[0]].span);
       return {};
     }
-    if (leftType.element != NumericType::Float32 &&
-        !(callee == "reduceSum" && leftType.element == NumericType::Int32)) {
-      error("S053", callee + " currently requires float32 tensors; integer matmul is not implemented", span);
+    if (leftType.element != NumericType::Float32 && leftType.element != NumericType::Int32) {
+      error("S053", callee + " currently requires float32 or int32 tensors", span);
       return {};
     }
     if (callee == "reduceSum") {

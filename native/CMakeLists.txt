@@ -499,3 +499,24 @@ if(BUILD_TESTING)
     set_tests_properties(native-int32-reductions-${VARIANT} PROPERTIES TIMEOUT 240)
   endforeach()
 endif()
+
+if(BUILD_TESTING)
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    if(VARIANT STREQUAL "sanitized")
+      set(INT32_MATMUL_RUNTIME "$<TARGET_FILE:kalandra-native-runtime-sanitized>")
+    elseif(VARIANT STREQUAL "thread-sanitized")
+      set(INT32_MATMUL_RUNTIME "$<TARGET_FILE:kalandra-native-runtime-thread-sanitized>")
+    else()
+      set(INT32_MATMUL_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
+    endif()
+    add_test(NAME native-int32-matmul-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INT32_MATMUL_RUNTIME}"
+        "-DVARIANT=${VARIANT}" "-DOPT_RUNTIME=$<TARGET_FILE:kalandra-task-core-optimized>"
+        "-DTASK_HARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/Int32TensorTaskTests.cpp"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/int32-matmul-${VARIANT}"
+        "-DHARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/Int32MatmulRuntimeTests.cpp"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyInt32Matmul.cmake")
+    set_tests_properties(native-int32-matmul-${VARIANT} PROPERTIES TIMEOUT 240)
+  endforeach()
+endif()
