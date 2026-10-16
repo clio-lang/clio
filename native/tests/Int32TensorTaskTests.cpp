@@ -12,9 +12,14 @@
 #ifndef FLOAT_RESULT
 #define FLOAT_RESULT 0
 #endif
+#ifndef UNSIGNED_RESULT
+#define UNSIGNED_RESULT 0
+#endif
 using namespace kalandra;
 using namespace kalandra::runtime;
-constexpr auto element = FLOAT_RESULT ? NumericType::Float32 : NumericType::Int32;
+constexpr auto element = FLOAT_RESULT      ? NumericType::Float32
+                         : UNSIGNED_RESULT ? NumericType::UInt32
+                                           : NumericType::Int32;
 using Tensor = CpuTensor<element, TENSOR_RANK>;
 struct Result {
   Failure failure;
@@ -35,7 +40,19 @@ static void settled(const TaskStats &s) {
 template <NumericType E = element> static std::vector<NumericValue<E>> expected(int scenario) {
   if constexpr (E == NumericType::Float32)
     return {2, 3, 4, 5};
-  else {
+  else if constexpr (E == NumericType::UInt32) {
+    if (scenario == 0)
+      return {4294967294};
+    if (scenario == 1)
+      return {0, UINT32_MAX, 2147483648, 16777217};
+    if (scenario == 2)
+      return {2147483650, 12, 102, 202};
+    if (scenario == 3)
+      return {2, 4, 6, 8};
+    if (scenario == 5)
+      return {1, UINT32_MAX};
+    return {};
+  } else {
     if (scenario == 0)
       return {33554436};
     if (scenario == 1)
@@ -168,6 +185,7 @@ int main(int argc, char **argv) {
   if (retained)
     cells(*retained, scenario); // Retained value survives its final Invocation too.
   retained.reset();
-  std::cout << "Int32 tensor task scenario " << scenario << " workers " << workers << " mode "
-            << mode << ": exact cells, typed layouts and settled lifetimes passed\n";
+  std::cout << (UNSIGNED_RESULT ? "UInt32 tensor task scenario " : "Int32 tensor task scenario ")
+            << scenario << " workers " << workers << " mode " << mode
+            << ": exact cells, typed layouts and settled lifetimes passed\n";
 }

@@ -169,7 +169,8 @@ private:
            : type.builtin == BuiltinValue::FaultKind ? "FaultKind"
            : type.builtin == BuiltinValue::String    ? "String"
            : type.task                               ? "handle"
-           : type.tensor                             ? (type.element == NumericType::Int32 ? "tensor.int32." : "tensor") +
+           : type.tensor                             ? (type.element == NumericType::UInt32 ? "tensor.uint32."
+                                                        : type.element == NumericType::Int32 ? "tensor.int32." : "tensor") +
                                                          std::to_string(type.shape.size())
                                                      : type.element == NumericType::UInt32 ? "scalar.uint32" : type.element == NumericType::Int32 ? "scalar.int32" : "scalar";
   }
@@ -229,7 +230,7 @@ private:
     auto *constant = llvm::ConstantStruct::get(
         layoutType,
         {c64(type.builtin != BuiltinValue::Numeric ? 0x10000 + static_cast<unsigned>(type.builtin)
-             : type.tensor                         ? (type.element == NumericType::Int32
+             : type.tensor                         ? (isInteger32(type.element)
                                                         ? 0x30000 + 16 * static_cast<unsigned>(type.element) + type.shape.size()
                                                         : type.shape.size() + 2)
                                                    : isInteger32(type.element)
@@ -574,14 +575,6 @@ std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &inp
                                                           std::optional<std::string> testEntry) {
   if (auto error = numericCapabilityError(input, NumericTarget::Cpu))
     return std::unexpected(*error);
-  const auto unsignedTensor = [](const ValueType &type) {
-    return type.builtin == BuiltinValue::Numeric && type.tensor && type.element == NumericType::UInt32;
-  };
-  if (std::ranges::any_of(input.functions, [&](const auto &fn) {
-        return unsignedTensor(fn.resultType) || (fn.declaredResult && unsignedTensor(*fn.declaredResult));
-      }) || std::ranges::any_of(input.symbols, [&](const auto &symbol) { return unsignedTensor(symbol.type); }) ||
-      std::ranges::any_of(input.expressions, [&](const auto &expression) { return unsignedTensor(expression.type); }))
-    return std::unexpected("uint32 tensor task captures/results are not implemented yet");
   if (hasPlacement(input))
     return std::unexpected("placement-aware IR requires a placement-capable execution backend");
   try {

@@ -64,18 +64,10 @@ QUALIFY(literal-1 1 literal 4 "tensor([scalar,4294967295,2147483648,16777217])")
 QUALIFY(literal-2 2 literal 4 "tensor([[scalar,4294967295],[2147483648,16777217]])")
 QUALIFY(literal-3 3 literal 4 "tensor([scalar,4294967295,2147483648,16777217],[2,2,1])")
 message(STATUS "UInt32 CPU tensor literals, ranked checked unsigned arithmetic, scalar lifting, exact cells, shape/overflow faults and ownership passed")
-# Backend task admission must reject unsigned tensor handoff before publishing artifacts.
+# The previous task-admission fixture is now a positive CLI handoff check.
 file(WRITE "${OUTPUT_DIR}/gate-task.kalandra" "fn identity(x:Tensor[uint32,?]) -> Tensor[uint32,?]:\n  x\nfn main() -> uint32 ! TaskError:\n  try parallel:\n    x:Tensor[uint32,2] = tensor([1,2])\n    try await spawn identity(x)\n    0\n")
-file(WRITE "${OUTPUT_DIR}/preserved" "existing output")
-file(WRITE "${OUTPUT_DIR}/preserved.ll" "existing IR")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/gate-task.kalandra" -o "${OUTPUT_DIR}/preserved"
-  --emit-llvm "${OUTPUT_DIR}/preserved.ll" ${EXTRA} RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
-file(READ "${OUTPUT_DIR}/preserved" OLD_EXE)
-file(READ "${OUTPUT_DIR}/preserved.ll" OLD_IR)
-if(NOT "${STATUS}" STREQUAL "1" OR NOT ERR MATCHES "uint32 tensor task" OR
-   NOT OLD_EXE STREQUAL "existing output" OR NOT OLD_IR STREQUAL "existing IR")
-  message(FATAL_ERROR "Unsigned tensor task gate published artifacts: ${STATUS}: ${ERR}")
-endif()
+RUN_OK("${COMPILER}" "${OUTPUT_DIR}/gate-task.kalandra" -o "${OUTPUT_DIR}/task-identity" ${EXTRA})
+RUN_OK("${OUTPUT_DIR}/task-identity")
 foreach(OP IN ITEMS reduceSum matmul)
   if(OP STREQUAL "reduceSum")
     set(SOURCE "fn f(x:Tensor[uint32,?]) -> uint32:\n  reduceSum(x)\nfn main() -> uint32:\n  0\n")
@@ -94,4 +86,4 @@ execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/add-pair.kalandra" --target
 if(NOT "${STATUS}" STREQUAL "1" OR NOT ERR MATCHES "uint32" OR EXISTS "${OUTPUT_DIR}/unsupported-metal")
   message(FATAL_ERROR "Metal uint32 tensor arithmetic accidentally enabled: ${STATUS}: ${ERR}")
 endif()
-message(STATUS "UInt32 tensor task/reduction/matmul/Metal gates and artifact preservation passed")
+message(STATUS "UInt32 tensor reduction/matmul/Metal gates passed")

@@ -75,9 +75,11 @@ int main() {
                 "fn main() -> uint32 ! TaskError:\n  try parallel:\n"
                 "    x:Tensor[uint32,2] = tensor([1,2])\n    try await spawn f(x)\n    0\n");
     require(tensorTask.ok(), "uint32 tensor task typed IR rejected");
-    auto rejectedTask = lowerNative(*tensorTask.module);
-    require(!rejectedTask && rejectedTask.error().find("uint32 tensor task") != std::string::npos,
-            "unqualified uint32 tensor task handoff enabled");
+    auto loweredTensorTask = lowerNative(*tensorTask.module);
+    require(bool(loweredTensorTask), "uint32 tensor task handoff rejected");
+    auto invalidExport = lowerNative(*tensorTask.module, "f");
+    require(!invalidExport && invalidExport.error().find("parameterless") != std::string::npos,
+            "private unsigned task export accepted unsupported parameter ABI");
     for (const auto *source :
          {"fn f(x:Tensor[float32,?]) -> float32:\n  reduceSum(x)\nfn main() -> float32:\n  0\n",
           "fn f(x:Tensor[float32,?,?]) -> Tensor[float32,?,?]:\n  matmul(x,x)\nfn main() -> "
