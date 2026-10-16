@@ -94,7 +94,7 @@ private:
     for (const auto &extent : value.shape)
       shape.push_back(extent.constant ? static_cast<std::int64_t>(*extent.constant)
                                       : ShapedType::kDynamic);
-    return RankedTensorType::get(shape, value.element == NumericType::Int32
+    return RankedTensorType::get(shape, isInteger32(value.element)
                                             ? Type(builder_.getI32Type()) : Type(builder_.getF32Type()));
   }
   Value index(Location loc, std::int64_t value) {
@@ -631,7 +631,7 @@ private:
       return tensor::ExtractOp::create(builder_, loc, tensor, indices);
     });
   }
-  Value elementwise(Location loc, Value a, Value b, RankedTensorType output, TokenKind op) {
+  Value elementwise(Location loc, Value a, Value b, RankedTensorType output, TokenKind op, NumericType element) {
     const bool tensorA = isa<RankedTensorType>(a.getType());
     const bool tensorB = b && isa<RankedTensorType>(b.getType());
     auto shape = dimensions(loc, tensorA ? a : b);
@@ -655,7 +655,7 @@ private:
         Value result;
         if (!b) {
           result = output.getElementType().isInteger(32)
-                       ? integerUnary(loc, left, op)
+                       ? integerUnary(loc, left, op, element == NumericType::UInt32)
                        : arith::NegFOp::create(builder_, loc, left).getResult();
         } else {
           Value right =
@@ -665,7 +665,7 @@ private:
                                    : op == TokenKind::Slash ? "arith.divf"
                                                             : "arith.mulf";
           result = output.getElementType().isInteger(32)
-                       ? integerBinary(loc, left, right, op)
+                       ? integerBinary(loc, left, right, op, element == NumericType::UInt32)
                        : binary(loc, arithmetic, left, right);
         }
         return tensor::InsertOp::create(builder_, loc, result, tensor, indices);
@@ -718,11 +718,11 @@ private:
             return binary(loc, name, a, b);
           } else if constexpr (std::is_same_v<T, TensorUnary>) {
             return elementwise(loc, expression(frame, operation.operand), {},
-                               cast<RankedTensorType>(type(node.type)), operation.operation);
+                               cast<RankedTensorType>(type(node.type)), operation.operation, node.type.element);
           } else if constexpr (std::is_same_v<T, TensorBinary>) {
             auto a = expression(frame, operation.left), b = expression(frame, operation.right);
             return elementwise(loc, a, b, cast<RankedTensorType>(type(node.type)),
-                               operation.operation);
+                               operation.operation, node.type.element);
           } else if constexpr (std::is_same_v<T, TensorLiteral>) {
             SmallVector<Value> elements;
             for (auto child : operation.elements)

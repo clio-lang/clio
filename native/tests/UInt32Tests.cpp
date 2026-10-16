@@ -40,8 +40,24 @@ int main() {
           "fn f(x:uint32,y:int32) -> uint32:\n  x + y\nfn main() -> uint32:\n  f(1,1)\n",
           "fn f(x:uint32,y:float32) -> uint32:\n  x + y\nfn main() -> uint32:\n  f(1,1)\n",
           "fn main() -> uint:\n  1\n", "fn f(x:Tensor[uint32,?]) -> uint32:\n  reduceSum(x)\n",
-          "fn f() -> Tensor[uint32,1]:\n  tensor([1])\n"})
+          "fn f(x:Tensor[uint32,?,?]) -> Tensor[uint32,?,?]:\n  matmul(x,x)\n",
+          "fn f() -> Tensor[uint32,1]:\n  tensor([4294967296])\n",
+          "fn f() -> Tensor[uint32,1]:\n  tensor([-1])\n",
+          "fn f() -> Tensor[uint32,2,2]:\n  tensor([[1],[2,3]])\n",
+          "fn f(x:Tensor[uint32,?],y:Tensor[int32,?]) -> Tensor[uint32,?]:\n  x + y\n",
+          "fn f(x:Tensor[uint32,?],y:Tensor[float32,?]) -> Tensor[uint32,?]:\n  x + y\n"})
       require(!analyze(source).ok(), "unsupported conversion/default/tensor accepted");
+    for (const auto *source :
+         {"fn f() -> Tensor[uint32]:\n  tensor(4294967295)\n",
+          "fn f() -> Tensor[uint32,2,0]:\n  tensor([],[2,0])\n",
+          "fn f(x:Tensor[uint32,?],s:uint32) -> Tensor[uint32,?]:\n  s % (x + 1)\n",
+          "fn f() -> Tensor[uint32,2,2]:\n  tensor([[0,4294967295],[2147483648,16777217]])\n"}) {
+      auto tensor = analyze(std::string(source) + "fn main() -> uint32:\n  0\n");
+      require(tensor.ok(), "uint32 tensor source rejected");
+#ifndef KALANDRA_UINT32_FRONTEND_ONLY
+      require(bool(lowerNative(*tensor.module)), "uint32 synchronous tensor lowering rejected");
+#endif
+    }
     auto knownZero = analyze(
         "fn f(x:uint32) -> uint32:\n  z:uint32 = 0\n  x / z\nfn main() -> uint32:\n  f(1)\n");
     require(!knownZero.ok() && knownZero.diagnostics.front().code == "S052",
@@ -54,20 +70,33 @@ int main() {
     require(bool(loweredTask), "uint32 task lowering rejected");
     require(loweredTask->llvm.find("value.layout.scalar.uint32") != std::string::npos,
             "unsigned task identity lost");
-    auto tensor = analyze(
-        "fn f(x:Tensor[float32,?]) -> Tensor[float32,?]:\n  x\nfn main() -> float32:\n  0\n");
-    for (auto &fn : tensor.module->functions) {
-      fn.resultType.element = NumericType::UInt32;
-      if (fn.declaredResult)
-        fn.declaredResult->element = NumericType::UInt32;
+    auto tensorTask =
+        analyze("fn f(x:Tensor[uint32,?]) -> Tensor[uint32,?]:\n  x + 1\n"
+                "fn main() -> uint32 ! TaskError:\n  try parallel:\n"
+                "    x:Tensor[uint32,2] = tensor([1,2])\n    try await spawn f(x)\n    0\n");
+    require(tensorTask.ok(), "uint32 tensor task typed IR rejected");
+    auto rejectedTask = lowerNative(*tensorTask.module);
+    require(!rejectedTask && rejectedTask.error().find("uint32 tensor task") != std::string::npos,
+            "unqualified uint32 tensor task handoff enabled");
+    for (const auto *source :
+         {"fn f(x:Tensor[float32,?]) -> float32:\n  reduceSum(x)\nfn main() -> float32:\n  0\n",
+          "fn f(x:Tensor[float32,?,?]) -> Tensor[float32,?,?]:\n  matmul(x,x)\nfn main() -> "
+          "float32:\n  0\n"}) {
+      auto forged = analyze(source);
+      for (auto &fn : forged.module->functions) {
+        fn.resultType.element = NumericType::UInt32;
+        if (fn.declaredResult)
+          fn.declaredResult->element = NumericType::UInt32;
+      }
+      for (auto &symbol : forged.module->symbols)
+        symbol.type.element = NumericType::UInt32;
+      for (auto &expr : forged.module->expressions)
+        expr.type.element = NumericType::UInt32;
+      auto rejected = lowerNative(*forged.module);
+      require(!rejected && rejected.error().find("uint32") != std::string::npos,
+              "backend enabled unqualified unsigned reduction/matmul");
     }
-    for (auto &symbol : tensor.module->symbols)
-      symbol.type.element = NumericType::UInt32;
-    for (auto &expr : tensor.module->expressions)
-      expr.type.element = NumericType::UInt32;
-    auto rejected = lowerNative(*tensor.module);
-    require(!rejected && rejected.error().find("uint32 tensors") != std::string::npos,
-            "unqualified unsigned tensors enabled");
+
 #endif
     require(bool(numericCapabilityError(*task.module, NumericTarget::AppleGpu)),
             "unsigned GPU arithmetic enabled");
