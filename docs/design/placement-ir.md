@@ -1,6 +1,6 @@
 # Shared placement-aware typed IR
 
-The shared native frontend now represents device selection, explicit transfers, placed calls, and tensor residency. The optional Metal source target must pass this check before publishing artifacts. This is the first part of unifying execution planning; its C++ supervisor emitter still walks source syntax and has not yet been replaced by an IR-driven continuation lowerer.
+The shared native frontend now represents device selection, explicit transfers, placed calls, and tensor residency. The optional Metal source target must pass this check before publishing artifacts. The mixed CPU/GPU supervisor now lowers this checked representation into resumable native C++ continuations. It no longer walks expression syntax or resolves local names a second time.
 
 ## Checked representation
 
@@ -49,4 +49,14 @@ The result uses the existing `TensorLiteral` IR and CPU tensor lowering. The Met
 
 [Artifact checks](../../native/metal-source/VerifyPlacement.cmake) compare 70 generated target artifacts with independent standalone checks, check option ordering, and verify output preflight. [CPU constructor checks](../../native/cmake/VerifyExplicitShapes.cmake) execute flat matrices, empty rows/columns, a rank-zero tensor and a returned empty tensor in debug, optimized, ASan/UBSan and TSan builds. Existing mixed CLI suites now use explicit shapes for zero outer dimensions and retain their worker, numeric, failure and sanitizer checks. [Evidence](../../native/metal-proof/evidence/placement-ir-2026-10-16.json) records the regression and unchanged lowering artifacts.
 
-Next, lower this checked execution representation into a shared continuation/placement plan, replacing the target-specific source walk in stages. Asynchronous helper bodies, broader value/element types and additional devices remain separate increments. Distributed execution retains its design-review gate.
+## IR-driven supervisor continuations
+
+The Metal supervisor consumes `TypedStatement` bodies and typed expression nodes for values, calls, selectors, transfers, spawn/await/try, shape checks, parallel groups, catch, exhaustive matches and error fields. Resolved `SymbolId` bindings replace string-based local lookup. Calls map checked function IDs to the CPU export table explicitly, so placing `main` before helper definitions cannot change which function is invoked.
+
+A path-local value map emits shared graph nodes once. Each conditional arm starts with its dominating values; branch-local values are not reused after the branch. In particular, reading pattern fields uses the already evaluated match subject rather than repeating an awaited computation or opening its group again. Nested scopes keep explicit open/close/join continuations, and failed `try` paths still exit through settlement before a handler runs. Shape-check nodes guard completed successful values; an expected-error result does not turn into a shape fault while awaiting recovery.
+
+Literal rounding and tensor dimensions come from the shared checker. Tensor unary plus is already an identity in that IR, so the supervisor no longer generates its former redundant CPU wrapper. The supervisor preserves exact signed literal bits and reuses the existing CPU numeric kernels and Metal task admissions. CPU argument evaluation still precedes target selection and task admission. Pipelines use their resolved `FunctionCall` nodes, including ordinary CPU calls in mixed programs.
+
+The [integration fixture](../../native/metal-source/ir-supervisor.kalandra) combines a main-first declaration order, CPU pipelines/tasks, GPU work, nested shadowing, pattern fields, a recovered child shape fault, explicit shape guards and a returned tensor. It runs with 1/2/4 workers in debug, optimized, ASan/UBSan and TSan builds. A sanitizer-instrumented compiler must produce identical host, CPU, GPU and placement artifacts. Existing failure injection, cancellation, nested task and recovery suites also qualify the replacement. [Continuation evidence](../../native/metal-proof/evidence/ir-supervisor-2026-10-16.json) records those checks.
+
+The generated supervisor remains a target-specific C++ continuation backend; the ordinary CPU task backend still has its own continuation planner. Function signature capability checks and CPU export construction retain their source-level interface. A common backend-independent continuation plan, asynchronous helper bodies, broader value/element types and additional devices remain separate increments. Distributed execution retains its design-review gate.

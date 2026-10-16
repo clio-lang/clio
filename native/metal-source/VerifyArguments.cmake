@@ -83,9 +83,9 @@ endif()
 string(REPLACE "    local = blend(a, 1, b, 1, c, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)" "    local = remote" GPU_ONLY "${SOURCE}")
 string(REPLACE "Tensor[float32, 2, 3] = tensor([[2, 3, 4], [5, 6, 7]])"
   "Tensor[float32, 3, 2] = tensor([[2, 3], [4, 5], [6, 7]])" BAD "${GPU_ONLY}")
-reject(third-shape "${BAD}" "shapes differ")
+reject(third-shape "${BAD}" "S033")
 string(REPLACE "spawn blend(da, 1, db, 1, dc," "spawn blend(da, 1, db, 1, c," BAD "${SOURCE}")
-reject(third-residency "${BAD}" "explicitly transferred")
+reject(third-residency "${BAD}" "S047")
 set(FORWARD "fn forward(values: Tensor[float32, ?, ?]) -> Tensor[float32, ?, ?]:\n  values\n\n")
 string(REPLACE "Tensor[float32, 2, 3] = tensor([[2, 3, 4], [5, 6, 7]])"
   "Tensor[float32, 3, 2] = tensor([[2, 3], [4, 5], [6, 7]])" BAD "${GPU_ONLY}")

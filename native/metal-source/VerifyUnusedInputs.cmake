@@ -56,7 +56,7 @@ function(reject NAME CONTENT EXPECTED)
     message(FATAL_ERROR "${NAME}: missing transactional diagnostic: ${ERROR}")
   endif()
 endfunction()
-reject(discarded-shape "${BAD}" "shapes differ")
+reject(discarded-shape "${BAD}" "S033")
 string(REPLACE "transfer(n, gpu)" "transfer(forward(n), gpu)" DYNAMIC "${BAD}")
 # Also reject before dispatch when the result domain is empty.
 foreach(EMPTY IN ITEMS no yes)
@@ -84,5 +84,5 @@ string(REPLACE "discarded = ignored + other" "discarded = ignored % other" BAD "
 reject(discarded-unsupported "${BAD}" "requires integers")
 # All logical arguments remain subject to explicit transfer requirements.
 string(REPLACE "spawn choose(dm, da, db)" "spawn choose(m, da, db)" BAD "${SOURCE}")
-reject(unused-residency "${BAD}" "explicitly transferred")
+reject(unused-residency "${BAD}" "S047")
 message(STATUS "Unused tensor captures, compact bindings, transitive and discarded shape contracts passed")

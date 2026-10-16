@@ -357,3 +357,13 @@ if(BUILD_TESTING)
     "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}" -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyPlacement.cmake")
   set_tests_properties(native-shared-placement-ir PROPERTIES TIMEOUT 90)
 endif()
+
+if(BUILD_TESTING)
+  add_test(NAME native-ir-supervisor-cli COMMAND "${CMAKE_COMMAND}"
+    "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+    "-DSANITIZED_COMPILER=$<TARGET_FILE:kalandra-metal-source-compiler-sanitized>"
+    "-DSOURCE=${CMAKE_CURRENT_SOURCE_DIR}/ir-supervisor.kalandra"
+    "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/ir-supervisor-cli"
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyIRSupervisor.cmake")
+  set_tests_properties(native-ir-supervisor-cli PROPERTIES TIMEOUT 240 RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+endif()

@@ -68,7 +68,7 @@ file(WRITE "${OUTPUT_DIR}/bad/host.cpp" "sentinel")
 execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/bad.kalandra" --target metal
   -o "${OUTPUT_DIR}/bad" RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 file(READ "${OUTPUT_DIR}/bad/host.cpp" SENTINEL)
-if(STATUS EQUAL 0 OR NOT ERROR MATCHES "shapes differ" OR NOT SENTINEL STREQUAL "sentinel")
+if(STATUS EQUAL 0 OR NOT ERROR MATCHES "S033" OR NOT SENTINEL STREQUAL "sentinel")
   message(FATAL_ERROR "Last input static shape diagnostic: ${ERROR}")
 endif()
 set(FORWARD "fn forward(values: Tensor[float32, ?, ?]) -> Tensor[float32, ?, ?]:\n  values\n\n")
