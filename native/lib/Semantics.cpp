@@ -141,8 +141,9 @@ private:
     const auto numeric =
         syntax.tensor ? (syntax.element ? resolveNumeric(name(*syntax.element)) : std::nullopt)
                       : resolveNumeric(name(syntax.name));
-    if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu)) {
-      error("S003", "only float32 and Tensor[float32,...] are implemented in this semantic subset",
+    if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu) ||
+        (syntax.tensor && *numeric != NumericType::Float32)) {
+      error("S003", "only int32 scalars, float32 and Tensor[float32,...] are implemented in this semantic subset",
             syntax.span);
       return {};
     }
@@ -250,6 +251,8 @@ private:
           output_.symbols.push_back(
               {bindingName, node(*value).type, *statement.binding, id, false});
           frame.locals.emplace(bindingName, *symbol);
+          if (auto it = intConstants_.find(*value); it != intConstants_.end())
+            intBindings_[*symbol] = it->second;
         }
       }
       if (!value) {
@@ -366,19 +369,80 @@ private:
     auto value = std::visit(
         [&](const auto &operation) { return infer(frame, syntax.span, operation, expected); },
         syntax.value);
+    if (value && node(*value).type.element == NumericType::Int32) {
+      std::optional<std::int64_t> constant;
+      const auto &op = node(*value).operation;
+      if (const auto *n = std::get_if<Int32Literal>(&op))
+        constant = n->value;
+      else if (const auto *read = std::get_if<SymbolRead>(&op)) {
+        if (auto it = intBindings_.find(read->symbol); it != intBindings_.end())
+          constant = it->second;
+      } else if (const auto *unary = std::get_if<ScalarUnary>(&op)) {
+        if (auto it = intConstants_.find(unary->operand); it != intConstants_.end())
+          constant = unary->operation == TokenKind::Minus ? -it->second : it->second;
+      } else if (const auto *binary = std::get_if<ScalarBinary>(&op)) {
+        auto a = intConstants_.find(binary->left), b = intConstants_.find(binary->right);
+        if ((binary->operation == TokenKind::Slash || binary->operation == TokenKind::Percent) &&
+            b != intConstants_.end() && b->second == 0) {
+          error("S052", "int32 division or remainder by zero", syntax.span);
+          return {};
+        }
+        if (a != intConstants_.end() && b != intConstants_.end()) {
+          switch (binary->operation) {
+          case TokenKind::Plus: constant = a->second + b->second; break;
+          case TokenKind::Minus: constant = a->second - b->second; break;
+          case TokenKind::Star: constant = a->second * b->second; break;
+          case TokenKind::Slash: constant = a->second / b->second; break;
+          case TokenKind::Percent: constant = a->second % b->second; break;
+          default: break;
+          }
+        }
+      }
+      if (constant) {
+        if (*constant < INT32_MIN || *constant > INT32_MAX) {
+          error("S052", "constant int32 arithmetic overflows", syntax.span);
+          return {};
+        }
+        intConstants_[*value] = *constant;
+      }
+    }
     if (value && expected)
       return conform(frame, *value, *expected, syntax.span, deferShape);
     return value;
+  }
+  std::unordered_map<ValueId, std::int64_t> intConstants_;
+  std::unordered_map<SymbolId, std::int64_t> intBindings_;
+  std::optional<ValueId> intLiteral(Frame &frame, SourceSpan span, const NumberExpr &literal,
+                                    bool negative = false) {
+    const auto text = syntax_.source->slice(literal.literal);
+    if (text.size() > limits_.maxLiteralBytes) {
+      error("S032", "numeric literal exceeds the semantic size limit", span);
+      return {};
+    }
+    std::uint64_t magnitude = 0;
+    const auto parsed = std::from_chars(text.data(), text.data() + text.size(), magnitude);
+    const std::uint64_t limit = negative ? std::uint64_t(INT32_MAX) + 1 : INT32_MAX;
+    if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size() || magnitude > limit) {
+      error("S051", "int32 requires an in-range integer literal", span);
+      return {};
+    }
+    const auto value = negative ? -static_cast<std::int64_t>(magnitude)
+                                : static_cast<std::int64_t>(magnitude);
+    ValueType type;
+    type.element = NumericType::Int32;
+    return add(frame, type, span, Int32Literal{static_cast<std::int32_t>(value)});
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const NumberExpr &literal,
                                const std::optional<ValueType> &expected) {
     if (!expected || expected->tensor || expected->builtin != BuiltinValue::Numeric) {
       error("S013",
-            "unconstrained numeric literals use int64/float64; add float32 context for this first "
+            "unconstrained numeric literals use int64/float64; add int32 or float32 context for this first "
             "subset",
             span);
       return {};
     }
+    if (expected->element == NumericType::Int32)
+      return intLiteral(frame, span, literal);
     llvm::APFloat value(llvm::APFloat::IEEEsingle());
     const auto text = syntax_.source->slice(literal.literal);
     if (text.size() > limits_.maxLiteralBytes) {
@@ -415,12 +479,16 @@ private:
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const UnaryExpr &unary,
                                const std::optional<ValueType> &expected) {
+    if (expected && expected->element == NumericType::Int32 && !expected->tensor &&
+        unary.operation == TokenKind::Minus)
+      if (const auto *literal = std::get_if<NumberExpr>(&syntax_.expressions[unary.operand].value))
+        return intLiteral(frame, span, *literal, true);
     auto operand = expression(frame, unary.operand, expected);
     if (!operand)
       return {};
     const auto type = node(*operand).type;
     if (type.task || type.fallible || type.builtin != BuiltinValue::Numeric) {
-      error("S017", "arithmetic requires completed float32 numeric values", span);
+      error("S017", "arithmetic requires completed numeric values", span);
       return {};
     }
     if (type.tensor && type.device) {
@@ -449,11 +517,6 @@ private:
         }
       }
       error("S018", "pipeline requires a named function or named call in this subset", right.span);
-      return {};
-    }
-    if (binary.operation == TokenKind::Percent) {
-      error("S019", "'%' requires integers, which are not implemented in this float32 subset",
-            span);
       return {};
     }
     const auto operand = [&](ExprId id, std::optional<ValueType> context) {
@@ -488,9 +551,14 @@ private:
     if (!left || !right)
       return {};
     const auto a = node(*left).type, b = node(*right).type;
+    if (binary.operation == TokenKind::Percent &&
+        (a.tensor || b.tensor || a.element != NumericType::Int32 || b.element != NumericType::Int32)) {
+      error("S019", "'%' requires integer scalar operands", span);
+      return {};
+    }
     if (a.task || b.task || a.fallible || b.fallible || a.builtin != BuiltinValue::Numeric ||
         b.builtin != BuiltinValue::Numeric || a.element != b.element) {
-      error("S017", "arithmetic requires completed float32 values", span);
+      error("S017", "arithmetic requires completed values of the same numeric type", span);
       return {};
     }
     if ((a.tensor && a.device) || (b.tensor && b.device)) {

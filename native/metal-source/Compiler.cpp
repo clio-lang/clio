@@ -813,9 +813,8 @@ class Compiler {
   Value lowerPlan(const continuation::Plan &plan, FunctionId entryId) {
     using namespace continuation;
     for (const auto &type : plan.slots)
-      if (type.builtin == BuiltinValue::Numeric &&
-          !numericArithmeticAvailable(type.element, NumericTarget::Cpu))
-        reject({}, "Metal supervisor frame storage requires implemented numeric types");
+      if (type.builtin == BuiltinValue::Numeric && type.element != NumericType::Float32)
+        reject({}, "Metal supervisor frame storage currently requires float32");
     std::map<Slot, Value> values;
     std::map<Slot, unsigned> payloadWrites;
     std::map<std::size_t, std::size_t> joins;

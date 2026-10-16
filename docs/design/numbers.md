@@ -162,7 +162,7 @@ The [errors and effects design](errors.md) now accepts expected errors, inferred
 
 The native compiler now carries an explicit concrete numeric identity on scalar and tensor types. [NumericType.h](../../native/include/kalandra/NumericType.h) describes the ten accepted core types: signed and unsigned 8/16/32/64-bit integers, float32 and float64. The catalogue records canonical spelling, numeric family and fixed bit/byte width. `int`, `uint` and `float` resolve to the accepted 64-bit equivalents independently of host pointer size. These are internal compiler identities, not a serialized protocol or target ABI declaration.
 
-**This is type infrastructure, not arithmetic support for all ten types.** Source checking and CPU/Apple GPU arithmetic remain restricted to float32. Recognizing a type's description does not enable its literals, conversions, operators, tensor kernels or runtime interfaces. The deferred int128/uint128, float16 and bfloat16 formats are not added to the core catalogue by this step.
+**This is type infrastructure, not arithmetic support for all ten types.** The initial implementation restricted CPU/Apple GPU arithmetic to float32. Checked CPU int32 scalars are now qualified below; tensors, task continuations and Apple GPU arithmetic remain float32-only. Recognizing a type's description does not enable its literals, conversions, operators, tensor kernels or runtime interfaces. The deferred int128/uint128, float16 and bfloat16 formats are not added to the core catalogue by this step.
 
 Numeric identity now survives signatures, scalar/tensor operations, shape checks, calls, tasks, expected errors, branches and continuation slots. Type conformance and arithmetic/branch joins compare the concrete identity, rather than treating all numbers as the same type. IR inspection prints the concrete name; float32 program dumps remain unchanged. CPU lowering rejects unsupported numeric identities before constructing float32 MLIR or LLVM task layouts, including unsupported identities in a declared result, symbol or expression. The Metal supervisor and GPU closure admission retain explicit type capability checks.
 
@@ -174,7 +174,7 @@ The element-aware CPU runtime storage and adapters described below now cover ret
 
 ## Element-aware CPU runtime storage and adapters
 
-The native runtime now has `CpuTensor<Element, Rank>` descriptors and numeric scalar task layouts for all ten core types. [NumericStorage.h](../../native/runtime/NumericStorage.h) maps concrete language identities to fixed-width C++ storage and the host ABI's alignment. [Tensor.h](../../native/runtime/Tensor.h) defines ranked memref descriptors, checked retention and independent owned copies. This is storage/ABI infrastructure; source arithmetic and generated numerical operations remain float32-only.
+The native runtime now has `CpuTensor<Element, Rank>` descriptors and numeric scalar task layouts for all ten core types. [NumericStorage.h](../../native/runtime/NumericStorage.h) maps concrete language identities to fixed-width C++ storage and the host ABI's alignment. [Tensor.h](../../native/runtime/Tensor.h) defines ranked memref descriptors, checked retention and independent owned copies. This is storage/ABI infrastructure; the separate checked CPU int32 scalar increment below enables arithmetic only where it has been qualified.
 
 The descriptor contains only the fields required by the MLIR memref ABI: allocated/aligned pointers, element offset, and ranked size/stride arrays. Its element type is carried by the C++ template and the separate adapter view. The float32 alias retains the existing descriptor layout, including the special rank-zero representation. Raw views default to an invalid element tag; typed descriptors supply the tag automatically. Views are trusted native adapters, not language-level casts or a dynamic foreign-object interface.
 
@@ -188,4 +188,29 @@ The Metal bridge uses the common CPU validator and copy machinery. It maps only 
 
 [CPU storage tests](../../native/tests/CpuStorageTests.cpp) cover all ten types, descriptor layouts, zero/rank-zero tensors, offset/alignment/stride/bounds checks, capture/result lifetimes, allocation failures and scalar task results with 1/2/4 workers. [Metal adapter tests](../../native/metal/CpuStorageTests.cpp) cover typed float32/uint32/uint8 round trips, zero-copy leases, full-allocation charging, unsupported formats, missing tags, width mismatches and explicit residency. Both run in debug, optimized, ASan/UBSan and TSan builds. Existing compiled float32 interoperability and complete numerical/task lifecycle checks remain required. [Qualification evidence](../../native/metal-proof/evidence/cpu-storage-2026-10-16.json) records those checks.
 
-Next, qualify an additional source arithmetic type, beginning with checked CPU int32. Compiler operators, literals, conversions and result/error lowering must be implemented and tested for that type before changing the float32-only arithmetic gate. The shared runtime storage does not authorize reusing floating-point instructions or float32 numerical proofs for integer computation. Distributed execution remains behind its separate design review.
+Checked CPU int32 scalar arithmetic is now implemented below. Tensor/task arithmetic, additional types and explicit conversions require their own lowering and qualification before enabling their corresponding capability gates. The shared runtime storage does not authorize reusing floating-point instructions or float32 numerical proofs for integer computation. Distributed execution remains behind its separate design review.
+
+## Checked CPU int32 scalar arithmetic
+
+Explicit `int32` annotations now work on ordinary scalar parameters, results and immutable bindings:
+
+```kalandra
+fn increment(value: int32) -> int32:
+  value + 1
+
+fn main() -> int32:
+  initial: int32 = 16777217
+  increment(initial)
+```
+
+The executable prints `16777218` exactly. Integer function calls and CLI entries use integer registers and results; they never pass through float32. The existing float32 CLI and tensor ABI are preserved.
+
+Contextual decimal integer literals cover `-2147483648` through `2147483647`. Signed minimum is parsed with its unary sign, without requiring the positive magnitude to fit int32 first. Out-of-range and fractional/exponent literals in an int32 context are rejected with S051. Unconstrained literals still have the accepted int64/float64 defaults, which remain unsupported by this subset; they do not silently default to int32. Typed int32 and float32 values cannot mix implicitly.
+
+Unary `+`/`-` and binary `+`, `-`, `*`, `/`, `%` retain int32. The compiler diagnoses known invalid arithmetic in literal expressions and immutable constant bindings with S052, including a known zero divisor with a runtime numerator. It does not perform interprocedural constant evaluation. Operations on runtime values check overflow and division/remainder by zero in every build. An invalid operation records `ArithmeticFault` at its source span and returns through the existing checked invocation convention. It does not become a recoverable expected TaskError, wrap, or depend on debug assertions.
+
+MLIR lowering sign-extends int32 operands to int64, computes without overflowing that wider representation, checks the int32 result bounds, then narrows. Division/remainder check a zero divisor before execution. Widened intermediates implement the signed-minimum cases safely: `-2147483648 / -1` faults and `-2147483648 % -1` is zero. Negative quotient/remainder use truncation toward zero. Fault propagation stops dependent function calls and preserves the invocation cleanup path.
+
+This increment covers synchronous CPU scalars and ordinary functions. Int32 tensors, source-generated task continuations, Metal modules/kernels, conversions and other numeric arithmetic types remain unsupported and diagnosed. Type metadata and runtime storage availability do not imply those capabilities. The next increment is int32 scalar worker captures/results and checked arithmetic in CPU task continuations; tensor and GPU arithmetic follow separate qualification. Distributed execution still requires the agreed design review.
+
+[Int32 frontend tests](../../native/tests/Int32Tests.cpp) cover literal boundaries, immutable constants, context/default rules, type mismatches, typed calls and unsupported target paths. The frontend runs independently under ASan/UBSan so its container instrumentation is not mixed with the uninstrumented MLIR backend. [Runtime conformance tests](../../native/tests/Int32RuntimeTests.cpp) compare six operations against wider integer reference arithmetic over 10,361 boundary/random input pairs per operation in debug, optimized, ASan/UBSan and TSan builds. Generated wrappers forward through an ordinary function to verify fault propagation. CLI checks cover exact endpoints, values beyond float32 precision, arithmetic fault reporting, output preservation on static rejection and Metal rejection. [Qualification evidence](../../native/metal-proof/evidence/cpu-int32-2026-10-16.json) records the results and unchanged float32 numerical artifacts.

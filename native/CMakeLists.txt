@@ -379,3 +379,52 @@ if(BUILD_TESTING)
     set_tests_properties(native-cpu-storage-${VARIANT} PROPERTIES TIMEOUT 60)
   endforeach()
 endif()
+
+# Separate typed entry objects preserve the existing float32 CLI ABI.
+foreach(VARIANT IN ITEMS debug sanitized thread-sanitized)
+  add_library(kalandra-int32-entry-${VARIANT} STATIC runtime/Int32Entry.cpp)
+  target_compile_options(kalandra-int32-entry-${VARIANT} PRIVATE -Wall -Wextra -Werror)
+  if(VARIANT STREQUAL "sanitized")
+    target_compile_options(kalandra-int32-entry-${VARIANT} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+  elseif(VARIANT STREQUAL "thread-sanitized")
+    target_compile_options(kalandra-int32-entry-${VARIANT} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
+  endif()
+endforeach()
+target_compile_definitions(kalandrac PRIVATE
+  KALANDRA_INT32_ENTRY="$<TARGET_FILE:kalandra-int32-entry-debug>"
+  KALANDRA_INT32_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-int32-entry-sanitized>"
+  KALANDRA_INT32_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-int32-entry-thread-sanitized>")
+add_dependencies(kalandrac kalandra-int32-entry-debug kalandra-int32-entry-sanitized kalandra-int32-entry-thread-sanitized)
+
+if(BUILD_TESTING)
+  foreach(VARIANT IN ITEMS debug sanitized)
+    add_executable(kalandra-int32-tests-${VARIANT} tests/Int32Tests.cpp)
+    target_compile_options(kalandra-int32-tests-${VARIANT} PRIVATE -Wall -Wextra -Werror)
+    if(VARIANT STREQUAL "sanitized")
+      target_link_libraries(kalandra-int32-tests-${VARIANT} PRIVATE kalandra-semantics-sanitized)
+      target_compile_definitions(kalandra-int32-tests-${VARIANT} PRIVATE KALANDRA_INT32_FRONTEND_ONLY)
+      target_compile_options(kalandra-int32-tests-${VARIANT} PRIVATE -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+      target_link_options(kalandra-int32-tests-${VARIANT} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all)
+    else()
+      target_link_libraries(kalandra-int32-tests-${VARIANT} PRIVATE kalandra-backend)
+    endif()
+    add_test(NAME native-int32-frontend-${VARIANT} COMMAND kalandra-int32-tests-${VARIANT})
+    set_tests_properties(native-int32-frontend-${VARIANT} PROPERTIES TIMEOUT 60)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    if(VARIANT STREQUAL "sanitized")
+      set(INT32_RUNTIME "$<TARGET_FILE:kalandra-native-runtime-sanitized>")
+    elseif(VARIANT STREQUAL "thread-sanitized")
+      set(INT32_RUNTIME "$<TARGET_FILE:kalandra-native-runtime-thread-sanitized>")
+    else()
+      set(INT32_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
+    endif()
+    add_test(NAME native-int32-runtime-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INT32_RUNTIME}" "-DVARIANT=${VARIANT}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/int32-${VARIANT}"
+        "-DHARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/Int32RuntimeTests.cpp"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyInt32.cmake")
+    set_tests_properties(native-int32-runtime-${VARIANT} PROPERTIES TIMEOUT 180)
+  endforeach()
+endif()

@@ -536,6 +536,15 @@ std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &inp
                                                           std::optional<std::string> testEntry) {
   if (auto error = numericCapabilityError(input, NumericTarget::Cpu))
     return std::unexpected(*error);
+  // Frame arithmetic is a separate capability from synchronous CPU arithmetic.
+  const auto unsupported = [](const ValueType &type) {
+    return type.builtin == BuiltinValue::Numeric && type.element != NumericType::Float32;
+  };
+  if (std::ranges::any_of(input.functions, [&](const auto &fn) {
+        return unsupported(fn.resultType) || (fn.declaredResult && unsupported(*fn.declaredResult));
+      }) || std::ranges::any_of(input.symbols, [&](const auto &s) { return unsupported(s.type); }) ||
+      std::ranges::any_of(input.expressions, [&](const auto &e) { return unsupported(e.type); }))
+    return std::unexpected("CPU task continuation arithmetic currently supports only float32");
   if (hasPlacement(input))
     return std::unexpected("placement-aware IR requires a placement-capable execution backend");
   if (testEntry)

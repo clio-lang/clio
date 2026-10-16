@@ -52,9 +52,10 @@ int main() {
               "tensor type lost numeric identity");
       for (auto target : {NumericTarget::Cpu, NumericTarget::AppleGpu})
         require(numericArithmeticAvailable(description.type, target) ==
-                    (description.type == NumericType::Float32),
+                    (description.type == NumericType::Float32 ||
+                     (target == NumericTarget::Cpu && description.type == NumericType::Int32)),
                 "type description accidentally enabled arithmetic");
-      if (description.type != NumericType::Float32) {
+      if (description.type != NumericType::Float32 && description.type != NumericType::Int32) {
         auto rejected = analyze("fn main() -> " + std::string(description.name) + ":\n  1\n");
         require(!rejected.ok() && rejected.diagnostics.front().code == "S003",
                 "unimplemented source arithmetic accepted");

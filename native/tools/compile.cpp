@@ -205,6 +205,12 @@ int main(int argc, char **argv) {
                                                   : KALANDRA_RUNTIME,
                                    "-o",
                                    std::string(linkedOutput)};
+  const auto main = std::ranges::find_if(typed.module->functions,
+                                       [](const auto &f) { return f.name == "main"; });
+  if (main != typed.module->functions.end() && main->resultType.element == kalandra::NumericType::Int32)
+    command.insert(command.begin() + 5,
+                   threadSanitize ? KALANDRA_INT32_THREAD_SANITIZED_ENTRY
+                   : sanitize ? KALANDRA_INT32_SANITIZED_ENTRY : KALANDRA_INT32_ENTRY);
   if (sanitize) {
     command.push_back("-fsanitize=address,undefined");
     command.push_back("-fno-sanitize-recover=all");

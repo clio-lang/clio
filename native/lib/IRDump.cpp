@@ -52,7 +52,9 @@ std::string describeType(const ValueType &type) {
 }
 std::optional<std::string> numericCapabilityError(const TypedModule &module, NumericTarget target) {
   const auto error = [&](const ValueType &type) -> std::optional<std::string> {
-    if (type.builtin != BuiltinValue::Numeric || numericArithmeticAvailable(type.element, target))
+    if (type.builtin != BuiltinValue::Numeric ||
+        (numericArithmeticAvailable(type.element, target) &&
+         (!type.tensor || type.element == NumericType::Float32)))
       return {};
     const auto description = describeNumeric(type.element);
     return "numeric type '" + (description ? std::string(description->name) : "<invalid>") +
@@ -129,10 +131,13 @@ std::string dumpTypedIR(const TypedModule &module) {
             if constexpr (std::is_same_v<T, Float32Literal>)
               out << "f32.bits 0x" << std::hex << std::setw(8) << std::setfill('0')
                   << operation.bits << std::dec;
+            else if constexpr (std::is_same_v<T, Int32Literal>)
+              out << "i32 " << operation.value;
             else if constexpr (std::is_same_v<T, SymbolRead>)
               out << "read $" << operation.symbol;
             else if constexpr (std::is_same_v<T, ScalarUnary>) {
-              out << (operation.operation == TokenKind::Minus ? "neg.f32 " : "pos.f32 ");
+              out << (operation.operation == TokenKind::Minus ? "neg." : "pos.")
+                  << (node.type.element == NumericType::Int32 ? "i32 checked " : "f32 ");
               value(operation.operand);
             } else if constexpr (std::is_same_v<T, TensorUnary>) {
               out << "elementwise neg.f32 exact_sign_bit ";
@@ -145,7 +150,14 @@ std::string dumpTypedIR(const TypedModule &module) {
                                                                            : "div.f32";
               if constexpr (std::is_same_v<T, TensorBinary>)
                 out << "elementwise ";
-              out << name << " strict ";
+              if (node.type.element == NumericType::Int32) {
+                const char *integer = operation.operation == TokenKind::Plus ? "add"
+                                    : operation.operation == TokenKind::Minus ? "sub"
+                                    : operation.operation == TokenKind::Star ? "mul"
+                                    : operation.operation == TokenKind::Percent ? "rem" : "div";
+                out << integer << ".i32 checked ";
+              } else
+                out << name << " strict ";
               value(operation.left);
               out << ", ";
               value(operation.right);

@@ -65,10 +65,12 @@ public:
     auto main =
         std::ranges::find_if(input_.functions, [](const auto &f) { return f.name == "main"; });
     if (main == input_.functions.end() || !main->parameters.empty() || main->resultType.tensor)
-      throw LoweringFailure{"native entry requires fn main() -> float32 with no parameters"};
+      throw LoweringFailure{"native entry requires fn main() -> float32 or int32 with no parameters"};
     builder_.setInsertionPointToEnd(module_->getBody());
-    auto entry = func::FuncOp::create(builder_, location(main->declaration), "kalandra_entry",
-                                      builder_.getFunctionType({}, {builder_.getF32Type()}));
+    const auto entryName = main->resultType.element == NumericType::Int32
+                               ? "kalandra_int32_entry" : "kalandra_entry";
+    auto entry = func::FuncOp::create(builder_, location(main->declaration), entryName,
+                                      builder_.getFunctionType({}, {type(main->resultType)}));
     entry->setAttr("llvm.emit_c_interface", builder_.getUnitAttr());
     builder_.setInsertionPointToStart(entry.addEntryBlock());
     const auto mainId = static_cast<FunctionId>(main - input_.functions.begin());
@@ -86,7 +88,8 @@ private:
   }
   Type type(const ValueType &value) {
     if (!value.tensor)
-      return builder_.getF32Type();
+      return value.element == NumericType::Int32 ? Type(builder_.getI32Type())
+                                                : Type(builder_.getF32Type());
     SmallVector<std::int64_t> shape;
     for (const auto &extent : value.shape)
       shape.push_back(extent.constant ? static_cast<std::int64_t>(*extent.constant)
@@ -122,6 +125,12 @@ private:
                                       integer(loc, file ? file.getColumn() : 0)});
       scf::YieldOp::create(builder_, loc);
     });
+  }
+  Value checkedInt32(Location loc, Value wide) {
+    auto low = compare(loc, arith::CmpIPredicate::sge, wide, integer(loc, INT32_MIN));
+    auto high = compare(loc, arith::CmpIPredicate::sle, wide, integer(loc, INT32_MAX));
+    guard(loc, arith::AndIOp::create(builder_, loc, low, high), 4);
+    return arith::TruncIOp::create(builder_, loc, builder_.getI32Type(), wide);
   }
   SmallVector<Value> dimensions(Location loc, Value tensor) {
     SmallVector<Value> result;
@@ -599,15 +608,34 @@ private:
           if constexpr (std::is_same_v<T, Float32Literal>) {
             llvm::APFloat number(llvm::APFloat::IEEEsingle(), llvm::APInt(32, operation.bits));
             return arith::ConstantFloatOp::create(builder_, loc, builder_.getF32Type(), number);
+          } else if constexpr (std::is_same_v<T, Int32Literal>) {
+            return arith::ConstantIntOp::create(builder_, loc, operation.value, 32);
           } else if constexpr (std::is_same_v<T, SymbolRead>)
             return frame.symbols.at(operation.symbol);
           else if constexpr (std::is_same_v<T, ScalarUnary>) {
             auto operand = expression(frame, operation.operand);
+            if (node.type.element == NumericType::Int32) {
+              if (operation.operation == TokenKind::Plus)
+                return operand;
+              auto wide = arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), operand);
+              return checkedInt32(loc, arith::SubIOp::create(builder_, loc, integer(loc, 0), wide));
+            }
             return operation.operation == TokenKind::Minus
                        ? arith::NegFOp::create(builder_, loc, operand).getResult()
                        : operand;
           } else if constexpr (std::is_same_v<T, ScalarBinary>) {
             auto a = expression(frame, operation.left), b = expression(frame, operation.right);
+            if (node.type.element == NumericType::Int32) {
+              a = arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), a);
+              b = arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), b);
+              if (operation.operation == TokenKind::Slash || operation.operation == TokenKind::Percent)
+                guard(loc, compare(loc, arith::CmpIPredicate::ne, b, integer(loc, 0)), 4);
+              const char *op = operation.operation == TokenKind::Plus ? "arith.addi"
+                               : operation.operation == TokenKind::Minus ? "arith.subi"
+                               : operation.operation == TokenKind::Star ? "arith.muli"
+                               : operation.operation == TokenKind::Percent ? "arith.remsi" : "arith.divsi";
+              return checkedInt32(loc, binary(loc, op, a, b));
+            }
             const char *name = operation.operation == TokenKind::Plus    ? "arith.addf"
                                : operation.operation == TokenKind::Minus ? "arith.subf"
                                : operation.operation == TokenKind::Star  ? "arith.mulf"
@@ -691,7 +719,7 @@ private:
     for (auto parameter : found->parameters) {
       const auto &t = input_.symbols[parameter].type;
       if (!t.tensor)
-        arguments.push_back(builder_.getF32Type());
+        arguments.push_back(type(t));
       else
         arguments.push_back(
             MemRefType::get(SmallVector<std::int64_t>(t.shape.size(), ShapedType::kDynamic),

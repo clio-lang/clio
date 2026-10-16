@@ -81,7 +81,7 @@ foreach(EMPTY IN ITEMS no yes)
   endforeach()
 endforeach()
 string(REPLACE "discarded = ignored + other" "discarded = ignored % other" BAD "${GPU_ONLY}")
-reject(discarded-unsupported "${BAD}" "requires integers")
+reject(discarded-unsupported "${BAD}" "S019")
 # All logical arguments remain subject to explicit transfer requirements.
 string(REPLACE "spawn choose(dm, da, db)" "spawn choose(m, da, db)" BAD "${SOURCE}")
 reject(unused-residency "${BAD}" "S047")
