@@ -33,7 +33,7 @@ execute_process(COMMAND "${SANITIZED_COMPILER}" "${SOURCE}" -o "${OUTPUT_DIR}/co
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Sanitized compiler rejected typed supervisor: ${OUT} ${ERROR}")
 endif()
-foreach(FILE IN ITEMS host.cpp cpu.ll kernel0.mlir placement.ir manifest.txt)
+foreach(FILE IN ITEMS host.cpp cpu.ll kernel0.mlir placement.ir continuation.plan manifest.txt)
   file(SHA256 "${OUTPUT_DIR}/debug/${FILE}" NORMAL)
   file(SHA256 "${OUTPUT_DIR}/compiler-sanitized/${FILE}" SANITIZED)
   if(NOT NORMAL STREQUAL SANITIZED)

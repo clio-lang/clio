@@ -31,8 +31,9 @@ bool scopeCancelled = false;
 void controlledResume(Task &task) {
   auto &frame = *static_cast<Frame *>(task.frame());
   // Private generated continuation: the first GPU await in the protected scope.
-  if (scopeCancellation && !scopeCancelled && frame.pc == 9) {
-    CHECK(task.cancel(frame.v2, scopeCancellation == 2));
+  if (scopeCancellation && !scopeCancelled && frame.pc == gpuAwaitSites.front().pc) {
+    CHECK(
+        task.cancel(continuationGroup(frame, gpuAwaitSites.front().group), scopeCancellation == 2));
     scopeCancelled = true;
     // Let maintenance settle the failed scope before resuming admissions.
     task.yield();

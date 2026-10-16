@@ -1,4 +1,5 @@
 #include "kalandra/Backend.h"
+#include "kalandra/Continuation.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/IRBuilder.h"
@@ -12,350 +13,13 @@
 
 namespace kalandra {
 namespace {
-using Slot = std::size_t;
-enum class Code {
-  Literal,
-  Unary,
-  Binary,
-  Kernel,
-  Copy,
-  Open,
-  Spawn,
-  Await,
-  Try,
-  Join,
-  Label,
-  Return,
-  Catch,
-  Case,
-  Jump,
-  Field,
-  Fail
-};
-struct Instruction {
-  Code code;
-  Slot output = 0;
-  std::vector<Slot> args;
-  std::size_t target = 0, group = 0, jump = 0;
-  ValueId source = 0;
-};
-struct Plan {
-  std::vector<ValueType> slots;
-  std::vector<Slot> parameters;
-  std::vector<Instruction> code;
-  std::size_t groups = 0;
-  Slot result = 0;
-};
-ValueType plain(ValueType type) {
-  type.task = type.fallible = false;
-  type.identity = 0;
-  return type;
-}
-std::vector<ValueId> operands(const TypedExpr &expression) {
-  return std::visit(
-      [](const auto &op) -> std::vector<ValueId> {
-        using T = std::decay_t<decltype(op)>;
-        if constexpr (std::is_same_v<T, TensorLiteral>)
-          return op.elements;
-        else if constexpr (std::is_same_v<T, TensorUnary>)
-          return {op.operand};
-        else if constexpr (std::is_same_v<T, Matmul> || std::is_same_v<T, TensorBinary>)
-          return {op.left, op.right};
-        else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, ShapeCheck>)
-          return {op.input};
-        else
-          return {};
-      },
-      expression.operation);
-}
-class Planner {
-  struct Boundary {
-    Slot output;
-    std::optional<std::size_t> group;
-    std::vector<std::size_t> jumps;
-  };
-  struct Environment {
-    std::unordered_map<ValueId, Slot> values;
-    std::unordered_map<SymbolId, Slot> symbols;
-    std::unordered_map<Slot, std::size_t> targets;
-    Boundary *boundary = nullptr;
-    std::optional<std::size_t> group;
-  };
-
-public:
-  const TypedModule &input;
-  TypedModule kernels;
-  std::vector<std::unique_ptr<Plan>> plans;
-  std::map<ValueId, FunctionId> kernelIds;
-  std::size_t totalSlots = 0;
-  explicit Planner(const TypedModule &input) : input(input) {
-    kernels.source = input.source;
-    plans.resize(input.functions.size());
-    for (auto &plan : plans)
-      plan = std::make_unique<Plan>();
-    for (FunctionId id = 0; id < input.functions.size(); ++id) {
-      auto &plan = *plans[id];
-      std::vector<Slot> parameters;
-      for (auto parameter : input.functions[id].parameters)
-        parameters.push_back(slot(plan, input.symbols[parameter].type));
-      plan.parameters = parameters;
-      std::set<FunctionId> stack;
-      plan.result = function(plan, id, parameters, stack);
-      plan.code.push_back({Code::Return, 0, {plan.result}});
-    }
-    TypedFunction main;
-    main.name = "main";
-    main.result = kernels.expressions.size();
-    main.resultType = {};
-    main.declaredResult = ValueType{};
-    main.expressions = {main.result};
-    main.body = {{{}, {}, main.result}};
-    kernels.expressions.push_back({{}, {}, Float32Literal{0}});
-    kernels.functions.push_back(std::move(main));
-  }
-
-private:
-  Slot slot(Plan &plan, ValueType type) {
-    if (++totalSlots > 300000 || plan.slots.size() >= 20000)
-      throw std::runtime_error("continuation frame value limit exceeded");
-    plan.slots.push_back(std::move(type));
-    return plan.slots.size() - 1;
-  }
-  Slot function(Plan &plan, FunctionId id, const std::vector<Slot> &args,
-                std::set<FunctionId> &stack, std::optional<std::size_t> ambient = {}) {
-    if (!stack.insert(id).second || stack.size() > 128)
-      throw std::runtime_error("recursive calls are not implemented in task-enabled modules yet");
-    Environment env;
-    env.group = ambient;
-    const auto &fn = input.functions[id];
-    for (std::size_t i = 0; i < args.size(); ++i)
-      env.symbols[fn.parameters[i]] = args[i];
-    Boundary boundary{slot(plan, fn.resultType), {}, {}};
-    env.boundary = &boundary;
-    Slot value = boundary.output;
-    for (const auto &statement : fn.body) {
-      value = expression(plan, statement.value, env, stack);
-      if (statement.binding)
-        env.symbols[*statement.binding] = value;
-    }
-    plan.code.push_back({Code::Copy, boundary.output, {value}});
-    const auto exit = plan.code.size();
-    plan.code.push_back({Code::Label, 0, {}});
-    for (auto jump : boundary.jumps)
-      plan.code[jump].jump = exit;
-    stack.erase(id);
-    return boundary.output;
-  }
-  FunctionId kernel(ValueId id) {
-    if (auto found = kernelIds.find(id); found != kernelIds.end())
-      return found->second;
-    const auto &source = input.expressions[id];
-    const auto args = operands(source);
-    TypedFunction fn;
-    const auto fnId = kernels.functions.size();
-    fn.name = "__step_" + std::to_string(fnId);
-    fn.declaration = source.span;
-    std::vector<ValueId> reads;
-    for (auto arg : args) {
-      const auto symbol = kernels.symbols.size();
-      const auto type = plain(input.expressions[arg].type);
-      fn.parameters.push_back(symbol);
-      kernels.symbols.push_back({"argument", type, source.span, fnId, true});
-      reads.push_back(kernels.expressions.size());
-      fn.expressions.push_back(reads.back());
-      kernels.expressions.push_back({source.span, type, SymbolRead{symbol}});
-    }
-    auto op = source.operation;
-    if (auto *literal = std::get_if<TensorLiteral>(&op))
-      literal->elements = reads;
-    else if (auto *multiply = std::get_if<Matmul>(&op)) {
-      multiply->left = reads[0];
-      multiply->right = reads[1];
-    } else if (auto *unary = std::get_if<TensorUnary>(&op)) {
-      unary->operand = reads[0];
-    } else if (auto *elementwise = std::get_if<TensorBinary>(&op)) {
-      elementwise->left = reads[0];
-      elementwise->right = reads[1];
-    } else if (auto *reduce = std::get_if<ReduceSum>(&op))
-      reduce->input = reads[0];
-    else if (auto *shape = std::get_if<ShapeCheck>(&op))
-      shape->input = reads[0];
-    fn.result = kernels.expressions.size();
-    fn.resultType = plain(source.type);
-    fn.declaredResult = fn.resultType;
-    fn.expressions.push_back(fn.result);
-    fn.body = {{source.span, {}, fn.result}};
-    kernels.expressions.push_back({source.span, fn.resultType, std::move(op)});
-    kernels.functions.push_back(std::move(fn));
-    kernelIds[id] = fnId;
-    return fnId;
-  }
-  std::size_t builtinPlan(ValueId id) {
-    auto plan = std::make_unique<Plan>();
-    std::vector<Slot> args;
-    for (auto arg : operands(input.expressions[id]))
-      args.push_back(slot(*plan, input.expressions[arg].type));
-    plan->parameters = args;
-    plan->result = slot(*plan, plain(input.expressions[id].type));
-    plan->code.push_back({Code::Kernel, plan->result, args, kernel(id), 0, 0, id});
-    plan->code.push_back({Code::Return, 0, {plan->result}});
-    plans.push_back(std::move(plan));
-    return plans.size() - 1;
-  }
-  Slot expression(Plan &plan, ValueId id, Environment &env, std::set<FunctionId> &stack) {
-    if (auto found = env.values.find(id); found != env.values.end())
-      return found->second;
-    const auto &node = input.expressions[id];
-    if (const auto *read = std::get_if<SymbolRead>(&node.operation))
-      return env.symbols.at(read->symbol);
-    if (const auto *call = std::get_if<FunctionCall>(&node.operation)) {
-      std::vector<Slot> args;
-      for (auto arg : call->arguments)
-        args.push_back(expression(plan, arg, env, stack));
-      auto value = function(plan, call->function, args, stack, env.group);
-      env.values[id] = value;
-      return value;
-    }
-    auto output = slot(plan, node.type);
-    if (const auto *block = std::get_if<ParallelOperation>(&node.operation)) {
-      const auto group = plan.groups++;
-      Boundary boundary{output, group, {}};
-      auto nested = env;
-      nested.boundary = &boundary;
-      nested.group = group;
-      plan.code.push_back({Code::Open, 0, {}, env.group.value_or(SIZE_MAX), group});
-      Slot value = output;
-      for (const auto &statement : block->body) {
-        value = expression(plan, statement.value, nested, stack);
-        if (statement.binding)
-          nested.symbols[*statement.binding] = value;
-      }
-      const auto exit = plan.code.size();
-      plan.code.push_back({Code::Join, output, {value}, 0, group});
-      for (auto jump : boundary.jumps)
-        plan.code[jump].jump = exit;
-    } else if (const auto *task = std::get_if<TaskOperation>(&node.operation)) {
-      if (task->prefix == TaskPrefix::Spawn) {
-        const auto &invocation = input.expressions[task->operand];
-        std::vector<ValueId> operands;
-        std::size_t target;
-        if (const auto *call = std::get_if<FunctionCall>(&invocation.operation)) {
-          operands = call->arguments;
-          target = call->function;
-        } else {
-          operands = kalandra::operands(invocation);
-          target = builtinPlan(task->operand);
-        }
-        std::vector<Slot> args;
-        for (auto arg : operands)
-          args.push_back(expression(plan, arg, env, stack));
-        plan.code.push_back({Code::Spawn, output, args, target, *env.group});
-        env.targets[output] = target;
-      } else {
-        auto operand = expression(plan, task->operand, env, stack);
-        if (task->prefix == TaskPrefix::Await)
-          plan.code.push_back({Code::Await, output, {operand}, env.targets.at(operand)});
-        else {
-          const auto index = plan.code.size();
-          plan.code.push_back({Code::Try,
-                               output,
-                               {operand},
-                               env.boundary->output,
-                               env.boundary->group.value_or(SIZE_MAX)});
-          env.boundary->jumps.push_back(index);
-        }
-      }
-    } else if (const auto *handler = std::get_if<CatchOperation>(&node.operation)) {
-      auto operand = expression(plan, handler->operand, env, stack);
-      ValueType errorType;
-      errorType.builtin = BuiltinValue::TaskError;
-      const auto error = slot(plan, errorType);
-      auto nested = env;
-      nested.symbols[handler->parameter] = error;
-      Boundary boundary{output, {}, {}};
-      nested.boundary = &boundary;
-      const auto dispatch = plan.code.size();
-      plan.code.push_back({Code::Catch, output, {operand, error}});
-      plan.code[dispatch].jump = plan.code.size();
-      Slot result = output;
-      for (const auto &statement : handler->body) {
-        result = expression(plan, statement.value, nested, stack);
-        if (statement.binding)
-          nested.symbols[*statement.binding] = result;
-      }
-      plan.code.push_back({Code::Copy, output, {result}});
-      const auto exit = plan.code.size();
-      plan.code.push_back({Code::Label, 0, {}});
-      plan.code[dispatch].target = exit;
-      for (auto jump : boundary.jumps)
-        plan.code[jump].jump = exit;
-    } else if (const auto *match = std::get_if<MatchOperation>(&node.operation)) {
-      auto subject = expression(plan, match->subject, env, stack);
-      std::vector<std::size_t> exits;
-      std::optional<std::size_t> previous;
-      for (const auto &arm : match->cases) {
-        if (previous)
-          plan.code[*previous].jump = plan.code.size();
-        previous.reset();
-        if (arm.tag) {
-          previous = plan.code.size();
-          plan.code.push_back({Code::Case, output, {subject}, *arm.tag});
-        }
-        auto branch = env;
-        Slot result = output;
-        for (const auto &statement : arm.body) {
-          result = expression(plan, statement.value, branch, stack);
-          if (statement.binding)
-            branch.symbols[*statement.binding] = result;
-        }
-        plan.code.push_back({Code::Copy, output, {result}});
-        exits.push_back(plan.code.size());
-        plan.code.push_back({Code::Jump, 0, {}});
-      }
-      // A corrupt internal tag is a checked fault, never an implicit wildcard.
-      if (previous)
-        plan.code[*previous].jump = SIZE_MAX;
-      const auto exit = plan.code.size();
-      plan.code.push_back({Code::Label, 0, {}});
-      for (auto jump : exits)
-        plan.code[jump].jump = exit;
-    } else if (const auto *field = std::get_if<ErrorFieldRead>(&node.operation)) {
-      auto subject = expression(plan, field->subject, env, stack);
-      plan.code.push_back({Code::Field, output, {subject}, static_cast<std::size_t>(field->field)});
-    } else if (const auto *failure = std::get_if<FailOperation>(&node.operation)) {
-      auto error = expression(plan, failure->error, env, stack);
-      const auto index = plan.code.size();
-      plan.code.push_back({Code::Fail,
-                           output,
-                           {error},
-                           env.boundary->output,
-                           env.boundary->group.value_or(SIZE_MAX)});
-      env.boundary->jumps.push_back(index);
-    } else if (std::holds_alternative<Float32Literal>(node.operation))
-      plan.code.push_back({Code::Literal, output, {}, 0, 0, 0, id});
-    else if (const auto *unary = std::get_if<ScalarUnary>(&node.operation)) {
-      auto arg = expression(plan, unary->operand, env, stack);
-      plan.code.push_back({Code::Unary, output, {arg}, 0, 0, 0, id});
-    } else if (const auto *binary = std::get_if<ScalarBinary>(&node.operation)) {
-      auto a = expression(plan, binary->left, env, stack);
-      auto b = expression(plan, binary->right, env, stack);
-      plan.code.push_back({Code::Binary, output, {a, b}, 0, 0, 0, id});
-    } else {
-      std::vector<Slot> args;
-      for (auto arg : operands(node))
-        args.push_back(expression(plan, arg, env, stack));
-      plan.code.push_back({Code::Kernel, output, args, kernel(id), 0, 0, id});
-    }
-    env.values[id] = output;
-    return output;
-  }
-};
+using namespace continuation;
 class Emitter {
   using Type = llvm::Type;
   using Value = llvm::Value;
   using Function = llvm::Function;
   using Block = llvm::BasicBlock;
-  Planner &planner;
+  ModulePlan &planner;
   llvm::Module &module;
   llvm::LLVMContext &context;
   llvm::IRBuilder<> builder;
@@ -368,7 +32,7 @@ class Emitter {
   Function *destroy;
 
 public:
-  Emitter(Planner &planner, llvm::Module &module)
+  Emitter(ModulePlan &planner, llvm::Module &module)
       : planner(planner), module(module), context(module.getContext()), builder(context) {
     module.setDataLayout("e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-n32:64-S128-Fn32");
     pointer = builder.getPtrTy();
@@ -850,6 +514,10 @@ private:
       case Code::Label:
         builder.CreateBr(next);
         break;
+      case Code::Call:
+      case Code::Device:
+      case Code::Transfer:
+        throw std::runtime_error("CPU emitter received an unsupported placed operation");
       case Code::Return:
         call("kalandra_task_complete_v1", voidType, {task, slot(instruction.args[0])});
         builder.CreateRetVoid();
@@ -872,7 +540,10 @@ std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &inp
     return std::unexpected(
         "private runtime-input test wrappers for task programs are not implemented yet");
   try {
-    Planner planner(input);
+    auto planned = continuation::plan(input);
+    if (!planned)
+      return std::unexpected(planned.error());
+    auto &planner = *planned;
     auto kernels = lowerNative(planner.kernels);
     if (!kernels)
       return kernels;

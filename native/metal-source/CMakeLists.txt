@@ -9,7 +9,7 @@ target_link_libraries(kalandrac PRIVATE kalandra-metal-source-backend)
 target_compile_definitions(kalandrac PRIVATE KALANDRA_HAS_METAL_SOURCE=1)
 function(add_source_fixture FIXTURE)
 set(GENERATED "${CMAKE_CURRENT_BINARY_DIR}/${FIXTURE}")
-add_custom_command(OUTPUT "${GENERATED}/host.cpp" "${GENERATED}/placement.ir" "${GENERATED}/kernel0.mlir" "${GENERATED}/manifest.txt"
+add_custom_command(OUTPUT "${GENERATED}/host.cpp" "${GENERATED}/placement.ir" "${GENERATED}/continuation.plan" "${GENERATED}/kernel0.mlir" "${GENERATED}/manifest.txt"
   COMMAND $<TARGET_FILE:kalandra-metal-source> "${CMAKE_CURRENT_SOURCE_DIR}/${FIXTURE}.kalandra" -o "${GENERATED}"
   DEPENDS kalandra-metal-source "${FIXTURE}.kalandra" VERBATIM)
 # Use the same pinned toolchain and strict integer lowering as the numerical proof.
@@ -185,7 +185,7 @@ if(BUILD_TESTING)
         set(MIXED_FLAGS -O2)
       endif()
       set(MIXED_DIR "${CMAKE_CURRENT_BINARY_DIR}/${FIXTURE}-${VARIANT}")
-      add_custom_command(OUTPUT "${MIXED_DIR}/host.cpp" "${MIXED_DIR}/placement.ir" "${MIXED_DIR}/cpu.ll" "${MIXED_DIR}/cpu.o" "${MIXED_DIR}/kernel0.metallib"
+      add_custom_command(OUTPUT "${MIXED_DIR}/host.cpp" "${MIXED_DIR}/placement.ir" "${MIXED_DIR}/continuation.plan" "${MIXED_DIR}/cpu.ll" "${MIXED_DIR}/cpu.o" "${MIXED_DIR}/kernel0.metallib"
         COMMAND $<TARGET_FILE:kalandra-metal-source> "${CMAKE_CURRENT_SOURCE_DIR}/${FIXTURE}.kalandra" -o "${MIXED_DIR}" --build ${MIXED_OPTION}
         COMMAND "${CMAKE_CXX_COMPILER}" -Wno-override-module -ffp-contract=off ${MIXED_FLAGS} -c "${MIXED_DIR}/cpu.ll" -o "${MIXED_DIR}/cpu.o"
         DEPENDS kalandra-metal-source "${FIXTURE}.kalandra" VERBATIM)

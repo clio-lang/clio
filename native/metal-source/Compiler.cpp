@@ -3,16 +3,15 @@
 #include "MatmulShader.h"
 #include "MatmulTiles.h"
 #include "kalandra/Backend.h"
+#include "kalandra/Continuation.h"
 #include "kalandra/MetalSource.h"
 #include "kalandra/Semantics.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/Parser/Parser.h"
-#include "llvm/ADT/APFloat.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/Module.h"
-#include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/SourceMgr.h"
@@ -53,45 +52,10 @@ class Compiler {
   std::vector<std::string> cpuExports;
   std::string declarations, cpuEntries;
   std::size_t cpuEntryCount = 0;
-  std::string activeGroup = "f.group";
-  struct Boundary {
-    std::string group, failure;
-    std::vector<std::size_t> exits;
-  };
-  Boundary *boundary = nullptr;
-  Boundary *groupBoundary = nullptr;
-  std::set<std::size_t> pending, handled;
-  struct Branch {
-    std::set<std::size_t> observed, handled, tasks, pending;
-  };
-  Branch branch() const { return {observed, handled, tasks, pending}; }
-  void finishBranch(const Branch &before, Value result, SourceSpan span) {
-    if (result.failure)
-      handled.insert(*result.failure);
-    for (auto id : tasks)
-      if (!before.tasks.contains(id) && !observed.contains(id))
-        reject(span, "branch leaves an unobserved child");
-    for (auto id : pending)
-      if (!before.pending.contains(id) && !handled.contains(id))
-        reject(span, "branch discards an expected error; use try or catch");
-  }
-  void mergeBranches(const Branch &before, const std::vector<Branch> &paths) {
-    observed = before.observed;
-    handled = before.handled;
-    for (const auto &path : paths) {
-      for (auto id : path.observed)
-        if (!before.tasks.contains(id))
-          observed.insert(id);
-      for (auto id : path.handled)
-        if (!before.pending.contains(id))
-          handled.insert(id);
-    }
-    for (auto id : before.tasks)
-      if (std::ranges::all_of(paths, [&](const auto &path) { return path.observed.contains(id); }))
-        observed.insert(id);
-    for (auto id : before.pending)
-      if (std::ranges::all_of(paths, [&](const auto &path) { return path.handled.contains(id); }))
-        handled.insert(id);
+  std::string activeGroup;
+  std::optional<std::size_t> admissionExit;
+  static std::string jump(std::size_t instruction) {
+    return "f.pc=@pc" + std::to_string(instruction) + "@; continue;\n";
   }
   static std::string failureRef(const Value &value) {
     return "f.v" + std::to_string(*value.failure);
@@ -100,62 +64,16 @@ class Compiler {
     if (value.failure)
       reject(span, "expected error result requires try or catch before use");
   }
-  void patch(const std::vector<std::size_t> &exits, std::size_t target) {
-    for (auto index : exits) {
-      auto &step = steps.at(index);
-      const auto position = step.find("$exit");
-      if (position == std::string::npos)
-        reject({}, "missing continuation exit");
-      step.replace(position, 5, std::to_string(target + 1));
-    }
-  }
   std::string admitted(const std::string &handle) {
     std::string code = "if (!(" + handle + ")) { auto failure=task.failure(" + activeGroup +
                        "); if(failure.kind!=TaskFailure::None){\n";
     // Another worker can fail and settle the group between argument evaluation
     // and admission. Preserve that error instead of faulting on an empty handle.
-    if (groupBoundary) {
-      groupBoundary->exits.push_back(steps.size());
-      code += "f.pc=$exit; continue;\n";
-    } else
+    if (admissionExit)
+      code += jump(*admissionExit);
+    else
       code += "task.fail(failure); return;\n";
     return code + "} " + error("m::Error::Invalid") + "}\n";
-  }
-  Value propagate(Value value, SourceSpan span) {
-    if (!value.failure)
-      reject(span, "try requires a completed expected-error result");
-    handled.insert(*value.failure);
-    const auto failure = failureRef(value);
-    std::string code = "if (" + failure + ".kind!=TaskFailure::None) {\n";
-    if (boundary) {
-      boundary->exits.push_back(steps.size());
-      if (!boundary->group.empty())
-        code += "task.failGroup(" + boundary->group + "," + failure + ");\n";
-      else
-        code += boundary->failure + "=" + failure + ";\n";
-      code += "f.pc=$exit; continue;\n";
-    } else
-      code += "task.fail(" + failure + "); return;";
-    steps.push_back(code + "}\n");
-    value.failure.reset();
-    return value;
-  }
-  Value common(Value left, const Value &right, SourceSpan span) const {
-    if ((left.kind != Value::Tensor && left.kind != Value::Scalar) || left.kind != right.kind ||
-        (left.kind == Value::Tensor && (left.rank != right.rank || left.gpu != right.gpu ||
-                                        (left.gpu && left.device != right.device))))
-      reject(span, "branches require a common numeric type and explicit matching residency");
-    if (left.length != right.length)
-      left.length.reset();
-    if (left.width != right.width)
-      left.width.reset();
-    return left;
-  }
-  Value resultSlot(Value value) {
-    field(value.kind == Value::Tensor ? "m::Buffer" : "float");
-    value.slot = next - 1;
-    value.failure.reset();
-    return value;
   }
   // Admit the placed function's typed closure, not CPU expressions used to
   // compute its arguments. CPU-only functions may keep fixed shape signatures.
@@ -184,12 +102,9 @@ class Compiler {
     }
   }
 
-  std::unordered_map<SymbolId, Value> locals;
-  std::unordered_map<ValueId, Value> emitted;
-  std::set<std::size_t> observed, tasks;
   std::map<std::size_t, std::size_t> entries;
   std::vector<std::string> steps, fields;
-  std::size_t next = 0, depth = 0;
+  std::size_t next = 0;
   struct Depth {
     std::size_t &value;
     explicit Depth(std::size_t &v) : value(v) { ++value; }
@@ -618,265 +533,158 @@ class Compiler {
     value.kind = Value::Task;
     value.scalarTask = !tensorResult;
     value.slot = next - 1;
-    tasks.insert(value.slot);
     return value;
   }
-  void requireObserved(std::size_t first, SourceSpan span) const {
-    for (auto task = tasks.lower_bound(first); task != tasks.end(); ++task)
-      if (!observed.contains(*task))
-        reject(span, "every admitted child task must be observed with try await");
-  }
-  Value suite(const std::vector<TypedStatement> &body) {
-    Value result{Value::Target};
-    for (const auto &statement : body) {
-      result = expression(statement.value);
-      if (statement.binding)
-        locals.insert_or_assign(*statement.binding, result);
-    }
+  Value transfer(Value input, Value target, SourceSpan span) {
+    completed(input, span);
+    if (input.kind != Value::Tensor || target.kind != Value::Target)
+      reject(span, "transfer requires a completed tensor and device target");
+    if (target.gpu && input.gpu && input.device != target.device)
+      reject(span, "cross-device transfers are not implemented");
+    auto out = field("TaskHandle");
+    Value result{Value::Task, next - 1, target.gpu, target.device, input.length};
+    result.rank = input.rank;
+    result.width = input.width;
+    std::string step;
+    if (target.gpu)
+      step = "auto target = " + device(target) + ";\nif (!target) { " + error("target.error()") +
+             " }\nf." + out + " = r.upload(task, " + activeGroup + ", " + ref(input) +
+             ", *target);\n";
+    else
+      step = "f." + out + " = r.download(task, " + activeGroup + ", " + ref(input) + ");\n";
+    steps.push_back(step + admitted("f." + out));
     return result;
   }
-  Value nestedParallel(const ParallelOperation &parallel, SourceSpan span) {
-    const auto before = branch();
-    const auto first = next;
-    auto group = "f." + field("GroupHandle");
-    auto failure = field("Failure");
-    const auto failureSlot = next - 1;
-    const auto parent = activeGroup;
-    steps.push_back(group + "=task.openGroup(" + parent + ");\n" + check(group));
-    auto outer = locals;
-    auto outerValues = emitted;
-    auto *enclosing = boundary;
-    auto *enclosingGroup = groupBoundary;
-    Boundary scope{group, "f." + failure, {}};
-    boundary = &scope;
-    groupBoundary = &scope;
-    activeGroup = group;
-    auto result = suite(parallel.body);
-    requireObserved(first, span);
-    completed(result, span);
-    finishBranch(before, result, span);
-    if (result.kind != Value::Scalar && result.kind != Value::Tensor)
-      reject(span, "parallel body must produce a completed numeric value; use try await");
-    patch(scope.exits, steps.size());
-    steps.push_back(check("task.close(" + group + ")"));
-    steps.push_back("if(!task.join(" + group + ")) return;\nf." + failure + "=task.failure(" +
-                    group + ");\n");
-    activeGroup = parent;
-    boundary = enclosing;
-    groupBoundary = enclosingGroup;
-    locals = std::move(outer);
-    emitted = std::move(outerValues);
-    result.failure = failureSlot;
-    pending.insert(failureSlot);
-    return result;
-  }
-  Value recover(const CatchOperation &handler, SourceSpan span) {
-    auto input = expression(handler.operand);
-    if (!input.failure)
-      reject(span, "catch requires a completed expected-error result");
-    handled.insert(*input.failure);
-    auto output = resultSlot(input);
-    auto failure = field("Failure");
-    const auto failureSlot = next - 1;
-    auto before = branch();
-    const auto dispatch = steps.size();
-    steps.push_back("if(" + failureRef(input) + ".kind==TaskFailure::None){" + ref(output) + "=" +
-                    ref(input) + "; f.pc=$exit; continue;}\n");
-    auto outer = locals;
-    auto outerValues = emitted;
-    locals.insert_or_assign(handler.parameter, Value{Value::Error, *input.failure});
-    auto *enclosing = boundary;
-    Boundary scope{"", "f." + failure, {}};
-    boundary = &scope;
-    auto result = suite(handler.body);
-    finishBranch(before, result, span);
-    auto after = branch();
-    const bool fallible = result.failure || !scope.exits.empty();
-    output = common(output, result, span);
-    steps.push_back(ref(output) + "=" + ref(result) + ";\nf." + failure + "=" +
-                    (result.failure ? failureRef(result) : "Failure{}") + ";\n");
-    scope.exits.push_back(dispatch);
-    patch(scope.exits, steps.size());
-    steps.emplace_back();
-    boundary = enclosing;
-    locals = std::move(outer);
-    emitted = std::move(outerValues);
-    mergeBranches(before, {before, after});
-    if (fallible) {
-      output.failure = failureSlot;
-      pending.insert(failureSlot);
+  Value spawn(FunctionId function, const std::vector<Value> &inputs, Value target,
+              SourceSpan span) {
+    if (!target.gpu)
+      return cpuCall(function, inputs, span, false, true);
+    admitGpuTypes(function);
+    const auto &entryFunction = cpu.functions[function];
+    const bool sum = reduction(function);
+    const bool matrix = matrixFunction(function);
+    if (!entryFunction.resultType.tensor && !sum)
+      reject(span,
+             "GPU scalar entries currently require a direct reduceSum of one tensor parameter");
+    std::vector<Value> tensors, scalars;
+    for (std::size_t i = 0; i < inputs.size(); ++i) {
+      const auto &value = inputs[i];
+      const auto &type = cpu.symbols[entryFunction.parameters[i]].type;
+      const bool tensor = type.tensor;
+      completed(value, span);
+      if (value.kind != (tensor ? Value::Tensor : Value::Scalar))
+        reject(span, "GPU argument type mismatch");
+      if (tensor && value.rank != type.shape.size())
+        reject(span, "GPU tensor ranks must match their parameters");
+      (tensor ? tensors : scalars).push_back(value);
     }
-    return output;
-  }
-  Value match(const MatchOperation &match, SourceSpan span) {
-    auto subject = expression(match.subject);
-    const bool error = subject.kind == Value::Error;
-    const auto before = branch();
-    const auto outer = locals;
-    const auto outerValues = emitted;
-    std::vector<Branch> paths;
-    std::vector<std::size_t> exits;
-    std::optional<std::size_t> previous;
-    std::optional<Value> output;
-    auto failure = field("Failure");
-    const auto failureSlot = next - 1;
-    bool fallible = false;
-    for (const auto &arm : match.cases) {
-      if (previous)
-        patch({*previous}, steps.size());
-      previous.reset();
-      if (arm.tag) {
-        previous = steps.size();
-        steps.push_back("if(" + (error ? "unsigned(" + ref(subject) + ".kind)" : ref(subject)) +
-                        "!=" + std::to_string(*arm.tag) + ") {f.pc=$exit; continue;}\n");
+    if (tensors.empty())
+      reject(span, "elementwise GPU entries currently require at least one tensor input");
+    if (tensors.size() > UINT32_MAX || scalars.size() >= UINT32_MAX)
+      reject(span, "GPU argument representation limit exceeded");
+    std::vector<std::uint32_t> reads;
+    if (!sum && !matrix)
+      shader(function, &reads);
+    else
+      for (std::size_t i = 0; i < tensors.size(); ++i)
+        reads.push_back(i);
+    for (auto value : tensors)
+      if (!value.gpu || value.device != target.device)
+        reject(span, "GPU arguments must be explicitly transferred to the selected device");
+    auto left = tensors[reads.front()], right = tensors.back();
+    // Parameter extent identities already include transitive helper obligations.
+    auto locate = [&](const Extent &wanted) -> std::pair<std::size_t, unsigned> {
+      std::size_t tensor = 0;
+      for (auto parameter : entryFunction.parameters) {
+        const auto &type = cpu.symbols[parameter].type;
+        if (!type.tensor)
+          continue;
+        for (unsigned axis = 0; axis < type.shape.size(); ++axis)
+          if (!wanted.constant && wanted.identity == type.shape[axis].identity)
+            return {tensor, axis};
+        ++tensor;
       }
-      locals = outer;
-      emitted = outerValues;
-      observed = before.observed;
-      handled = before.handled;
-      auto armBefore = branch();
-      auto result = suite(arm.body);
-      finishBranch(armBefore, result, span);
-      paths.push_back(branch());
-      if (output)
-        *output = common(*output, result, span);
-      else {
-        if (result.kind != Value::Tensor && result.kind != Value::Scalar)
-          reject(span, "match branches require a numeric result");
-        output = resultSlot(result);
+      reject(span, "GPU shape requirement cannot be mapped to a parameter");
+    };
+    for (const auto &requirement : entryFunction.preconditions) {
+      if (requirement.left.constant && requirement.right.constant) {
+        if (requirement.left.constant != requirement.right.constant)
+          reject(span, "GPU argument shapes differ");
+        continue;
       }
-      fallible |= result.failure.has_value();
-      steps.push_back(ref(*output) + "=" + ref(result) + ";\nf." + failure + "=" +
-                      (result.failure ? failureRef(result) : "Failure{}") + ";\n");
-      exits.push_back(steps.size());
-      steps.push_back("f.pc=$exit; continue;\n");
+      if (requirement.left.constant || requirement.right.constant) {
+        const auto &dynamic = requirement.left.constant ? requirement.right : requirement.left;
+        const auto &constant = requirement.left.constant ? requirement.left : requirement.right;
+        auto [input, axis] = locate(dynamic);
+        requireLength(tensors[input], *constant.constant, span, axis);
+        continue;
+      }
+      auto [a, axisA] = locate(requirement.left);
+      auto [b, axisB] = locate(requirement.right);
+      auto aExtent = extent(tensors[a], axisA), bExtent = extent(tensors[b], axisB);
+      if (aExtent && bExtent && aExtent != bExtent)
+        reject(span,
+               matrix ? "matmul inner dimensions differ" : "elementwise argument shapes differ");
+      if (!aExtent || !bExtent) {
+        auto [line, column] = syntax.source->location(span.begin);
+        steps.push_back("if(" + ref(tensors[a]) + ".shape()[" + std::to_string(axisA) +
+                        "]!=" + ref(tensors[b]) + ".shape()[" + std::to_string(axisB) +
+                        "]) {task.fault(1," + std::to_string(line) + "," + std::to_string(column) +
+                        ");return;}\n");
+      }
     }
-    if (previous)
-      patch({*previous}, steps.size());
-    steps.push_back(this->error("m::Error::Invalid"));
-    patch(exits, steps.size());
-    steps.emplace_back();
-    mergeBranches(before, paths);
-    locals = outer;
-    emitted = outerValues;
-    if (fallible) {
-      output->failure = failureSlot;
-      pending.insert(failureSlot);
+    const bool projected = reads.size() != tensors.size();
+    const bool indirect =
+        !sum && !matrix &&
+        !kalandra::runtime::metal::directElementwiseLayout(reads.size(), scalars.size());
+    const bool legacy = !projected && !indirect && tensors.size() == 2 && scalars.empty();
+    auto signature = ", m::ElementwiseSignature{" + std::to_string(tensors.size()) + "," +
+                     std::to_string(scalars.size()) +
+                     (indirect ? ",m::ElementwiseBinding::ArgumentBuffer}" : "}");
+    if (projected) {
+      signature += ", std::array<std::uint32_t," + std::to_string(reads.size()) + ">{";
+      for (std::size_t i = 0; i < reads.size(); ++i)
+        signature += (i ? "," : "") + std::to_string(reads[i]);
+      signature += "}";
     }
-    return *output;
-  }
-  // Typed graph nodes can be shared (notably match subjects/field reads).
-  // Emit each once on a path; conditional arms restore the dominating environment.
-  Value expression(ValueId id) {
-    if (auto found = emitted.find(id); found != emitted.end())
-      return found->second;
-    if (depth >= 128)
-      reject(node(id).span, "Metal continuation expression depth exceeded");
-    Depth guard(depth);
-    auto result = emitExpression(id);
-    emitted.emplace(id, result);
+    auto pack = [&](const std::vector<Value> &values, std::string type) {
+      std::string result = "std::array<" + type + "," + std::to_string(values.size()) + ">{";
+      for (std::size_t i = 0; i < values.size(); ++i)
+        result += (i ? ", " : "") + ref(values[i]);
+      return result + "}";
+    };
+    auto arguments = legacy ? ref(left) + ", " + ref(right)
+                            : pack(tensors, "m::Buffer") + ", " + pack(scalars, "float");
+    auto [entry, inserted] = entries.emplace(function, entries.size());
+    (void)inserted;
+    auto kernel = field("m::Kernel"), out = field("TaskHandle");
+    Value result{Value::Task, next - 1, true, target.device, left.length};
+    result.rank = left.rank;
+    result.width = matrix ? right.width : left.width;
+    steps.push_back("auto target = " + device(target) + ";\nif (!target) { " +
+                    error("target.error()") + " }\n" + std::string("auto kernel = r.") +
+                    (matrix ? "loadMatmulKernel"
+                     : sum  ? "loadReductionKernel"
+                            : "loadElementwiseKernel") +
+                    "(f.directory + \"/kernel" + std::to_string(entry->second) +
+                    ".metallib\", *target" + (legacy || sum || matrix ? "" : signature) +
+                    ");\n"
+                    "if (!kernel) { " +
+                    error("kernel.error()") + " }\nf." + kernel +
+                    " = *kernel;\n"
+                    "f." +
+                    out + " = r." +
+                    (matrix ? "matmul"
+                     : sum  ? "reduceSum"
+                            : "elementwise") +
+                    "(task, " + activeGroup + ", f." + kernel + ", " +
+                    (sum ? ref(left) : arguments) + ");\n" + admitted("f." + out));
+    result.scalarTask = sum;
     return result;
   }
-  Value emitExpression(ValueId id) {
+  Value numericKernel(ValueId id, const std::vector<Value> &args) {
     const auto &typed = node(id);
     const auto span = typed.span;
-    if (const auto *parallel = std::get_if<ParallelOperation>(&typed.operation))
-      return nestedParallel(*parallel, span);
-    if (const auto *handler = std::get_if<CatchOperation>(&typed.operation))
-      return recover(*handler, span);
-    if (const auto *cases = std::get_if<MatchOperation>(&typed.operation))
-      return match(*cases, span);
-    if (const auto *failure = std::get_if<FailOperation>(&typed.operation)) {
-      auto value = expression(failure->error);
-      Value result{typed.type.tensor ? Value::Tensor : Value::Scalar};
-      if (typed.type.tensor) {
-        result.gpu = typed.type.device.has_value();
-        result.device = typed.type.device.value_or(0);
-        result.rank = typed.type.shape.size();
-        result.length = typed.type.shape[0].constant;
-        if (result.rank == 2)
-          result.width = typed.type.shape[1].constant;
-      }
-      result = resultSlot(result);
-      result.failure = value.slot;
-      return propagate(result, span);
-    }
-    if (const auto *read = std::get_if<SymbolRead>(&typed.operation)) {
-      auto found = locals.find(read->symbol);
-      if (found == locals.end())
-        reject(span, "missing resolved continuation symbol");
-      return found->second;
-    }
-    if (const auto *fieldRead = std::get_if<ErrorFieldRead>(&typed.operation)) {
-      auto subject = expression(fieldRead->subject);
-      Value value{Value::Text};
-      std::string code;
-      if (fieldRead->field == ErrorField::Kind) {
-        value.kind = Value::FaultKind;
-        code = ref(subject) + ".code==1 ? 3u : " + ref(subject) + ".code==2 ? 4u : 5u";
-      } else if (fieldRead->field == ErrorField::Message)
-        code = ref(subject) + ".code==1 ? \"tensor shape mismatch\" : " + ref(subject) +
-               ".code==2 ? \"allocation failed\" : \"native execution fault\"";
-      else
-        code = "\"task admission rejected\"";
-      auto out = field(value.kind == Value::FaultKind ? "unsigned" : "const char *");
-      value.slot = next - 1;
-      steps.push_back("f." + out + "=" + code + ";\n");
-      return value;
-    }
-    if (auto literal = constantBits(id)) {
-      auto out = field("float");
-      Value value{Value::Scalar, next - 1};
-      steps.push_back("f." + out + " = std::bit_cast<float>(std::uint32_t(" +
-                      std::to_string(*literal) + "u));\n");
-      return value;
-    }
-    auto unary = [&](TokenKind operation, ValueId operand) {
-      auto input = expression(operand);
-      return hostOperation(operation == TokenKind::Minus ? "neg" : "pos", {input}, span);
-    };
-    if (const auto *operation = std::get_if<ScalarUnary>(&typed.operation))
-      return unary(operation->operation, operation->operand);
-    if (const auto *operation = std::get_if<TensorUnary>(&typed.operation))
-      return unary(operation->operation, operation->operand);
-    auto binary = [&](TokenKind operation, ValueId a, ValueId b) {
-      if (operation != TokenKind::Plus && operation != TokenKind::Minus &&
-          operation != TokenKind::Star && operation != TokenKind::Slash)
-        reject(span, "inline float32 arithmetic supports only +, -, * and /");
-      auto left = expression(a);
-      auto right = expression(b);
-      return hostOperation(operation == TokenKind::Plus    ? "+"
-                           : operation == TokenKind::Minus ? "-"
-                           : operation == TokenKind::Star  ? "*"
-                                                           : "/",
-                           {left, right}, span);
-    };
-    if (const auto *operation = std::get_if<ScalarBinary>(&typed.operation))
-      return binary(operation->operation, operation->left, operation->right);
-    if (const auto *operation = std::get_if<TensorBinary>(&typed.operation))
-      return binary(operation->operation, operation->left, operation->right);
-    if (const auto *shape = std::get_if<ShapeCheck>(&typed.operation)) {
-      auto value = expression(shape->input);
-      for (const auto &requirement : shape->requirements) {
-        const auto first = steps.size();
-        requireLength(value, requirement.extent, span, requirement.axis);
-        if (value.failure)
-          for (auto index = first; index < steps.size(); ++index)
-            steps[index] =
-                "if(" + failureRef(value) + ".kind==TaskFailure::None){\n" + steps[index] + "}\n";
-        if (requirement.axis == 0)
-          value.length = requirement.extent;
-        else
-          value.width = requirement.extent;
-      }
-      return value;
-    }
-    if (const auto *target = std::get_if<DeviceSelection>(&typed.operation)) {
-      Value result{Value::Target};
-      result.gpu = target->device.has_value();
-      result.device = target->device.value_or(0);
-      return result;
-    }
     if (const auto *literal = std::get_if<TensorLiteral>(&typed.operation)) {
       const auto rank = typed.type.shape.size();
       if (rank < 1 || rank > 2)
@@ -916,206 +724,312 @@ class Compiler {
           error("value.error()") + "}\nf." + out + "=*value;\n");
       return value;
     }
-    if (const auto *transfer = std::get_if<Transfer>(&typed.operation)) {
-      auto input = expression(transfer->input);
-      auto target = expression(transfer->target);
-      completed(input, span);
-      if (input.kind != Value::Tensor || target.kind != Value::Target)
-        reject(span, "transfer requires a completed tensor and device target");
-      if (target.gpu && input.gpu && input.device != target.device)
-        reject(span, "cross-device transfers are not implemented");
-      auto out = field("TaskHandle");
-      Value result{Value::Task, next - 1, target.gpu, target.device, input.length};
-      result.rank = input.rank;
-      result.width = input.width;
-      std::string step;
-      if (target.gpu)
-        step = "auto target = " + device(target) + ";\nif (!target) { " + error("target.error()") +
-               " }\nf." + out + " = r.upload(task, " + activeGroup + ", " + ref(input) +
-               ", *target);\n";
-      else
-        step = "f." + out + " = r.download(task, " + activeGroup + ", " + ref(input) + ");\n";
-      steps.push_back(step + admitted("f." + out));
-      tasks.insert(result.slot);
-      return result;
-    }
-    if (const auto *call = std::get_if<FunctionCall>(&typed.operation)) {
-      std::vector<Value> inputs;
-      for (auto argument : call->arguments)
-        inputs.push_back(expression(argument));
-      return cpuCall(cpuFunction(call->function, span), inputs, span);
-    }
-    if (const auto *sum = std::get_if<ReduceSum>(&typed.operation)) {
-      auto input = expression(sum->input);
-      return hostOperation("reduceSum", {input}, span);
-    }
-    if (const auto *product = std::get_if<Matmul>(&typed.operation)) {
-      auto left = expression(product->left);
-      auto right = expression(product->right);
-      return hostOperation("matmul", {left, right}, span);
-    }
-    if (const auto *task = std::get_if<TaskOperation>(&typed.operation)) {
-      if (task->prefix == TaskPrefix::Try)
-        return propagate(expression(task->operand), span);
-      if (task->prefix == TaskPrefix::Await) {
-        auto input = expression(task->operand);
-        if (input.kind != Value::Task)
-          reject(span, "await requires an owned task");
-        auto out = field(input.scalarTask ? "float" : "m::Buffer");
-        auto value = input;
-        value.kind = input.scalarTask ? Value::Scalar : Value::Tensor;
-        if (input.scalarTask)
-          value.gpu = false;
-        value.slot = next - 1;
-        auto failure = field("Failure");
-        value.failure = next - 1;
-        pending.insert(*value.failure);
-        observed.insert(input.slot);
-        steps.push_back("if (!task.await(" + ref(input) + ")) return;\nf." + failure +
-                        "=task.failure(" + ref(input) + ");\nif(f." + failure +
-                        ".kind==TaskFailure::None){\n" +
-                        (input.scalarTask ? "if (!readScalar(task, " : "if (!readBuffer(task, ") +
-                        ref(input) + ", f." + out + ")) return;\n}\n");
-        return value;
-      }
-      if (task->prefix == TaskPrefix::Spawn) {
-        const auto *call = std::get_if<FunctionCall>(&node(task->operand).operation);
-        if (!call || !task->placement)
-          reject(span, "placed task requires a resolved function call and target");
-        const auto function = cpuFunction(call->function, span);
-        std::vector<Value> inputs;
-        for (auto argument : call->arguments)
-          inputs.push_back(expression(argument));
-        auto target = expression(*task->placement);
-        if (!target.gpu)
-          return cpuCall(function, inputs, span, false, true);
-        admitGpuTypes(function);
-        const auto &entryFunction = cpu.functions[function];
-        const bool sum = reduction(function);
-        const bool matrix = matrixFunction(function);
-        if (!entryFunction.resultType.tensor && !sum)
-          reject(span,
-                 "GPU scalar entries currently require a direct reduceSum of one tensor parameter");
-        std::vector<Value> tensors, scalars;
-        for (std::size_t i = 0; i < inputs.size(); ++i) {
-          const auto &value = inputs[i];
-          const auto &type = cpu.symbols[entryFunction.parameters[i]].type;
-          const bool tensor = type.tensor;
-          completed(value, span);
-          if (value.kind != (tensor ? Value::Tensor : Value::Scalar))
-            reject(node(call->arguments[i]).span, "GPU argument type mismatch");
-          if (tensor && value.rank != type.shape.size())
-            reject(span, "GPU tensor ranks must match their parameters");
-          (tensor ? tensors : scalars).push_back(value);
-        }
-        if (tensors.empty())
-          reject(span, "elementwise GPU entries currently require at least one tensor input");
-        if (tensors.size() > UINT32_MAX || scalars.size() >= UINT32_MAX)
-          reject(span, "GPU argument representation limit exceeded");
-        std::vector<std::uint32_t> reads;
-        if (!sum && !matrix)
-          shader(function, &reads);
+    if (const auto *shape = std::get_if<ShapeCheck>(&typed.operation)) {
+      auto value = args.at(0);
+      for (const auto &requirement : shape->requirements) {
+        const auto first = steps.size();
+        requireLength(value, requirement.extent, span, requirement.axis);
+        if (value.failure)
+          for (auto index = first; index < steps.size(); ++index)
+            steps[index] =
+                "if(" + failureRef(value) + ".kind==TaskFailure::None){\n" + steps[index] + "}\n";
+        if (requirement.axis == 0)
+          value.length = requirement.extent;
         else
-          for (std::size_t i = 0; i < tensors.size(); ++i)
-            reads.push_back(i);
-        for (auto value : tensors)
-          if (!value.gpu || value.device != target.device)
-            reject(span, "GPU arguments must be explicitly transferred to the selected device");
-        auto left = tensors[reads.front()], right = tensors.back();
-        // Parameter extent identities already include transitive helper obligations.
-        auto locate = [&](const Extent &wanted) -> std::pair<std::size_t, unsigned> {
-          std::size_t tensor = 0;
-          for (auto parameter : entryFunction.parameters) {
-            const auto &type = cpu.symbols[parameter].type;
-            if (!type.tensor)
-              continue;
-            for (unsigned axis = 0; axis < type.shape.size(); ++axis)
-              if (!wanted.constant && wanted.identity == type.shape[axis].identity)
-                return {tensor, axis};
-            ++tensor;
-          }
-          reject(span, "GPU shape requirement cannot be mapped to a parameter");
-        };
-        for (const auto &requirement : entryFunction.preconditions) {
-          if (requirement.left.constant && requirement.right.constant) {
-            if (requirement.left.constant != requirement.right.constant)
-              reject(span, "GPU argument shapes differ");
-            continue;
-          }
-          if (requirement.left.constant || requirement.right.constant) {
-            const auto &dynamic = requirement.left.constant ? requirement.right : requirement.left;
-            const auto &constant = requirement.left.constant ? requirement.left : requirement.right;
-            auto [input, axis] = locate(dynamic);
-            requireLength(tensors[input], *constant.constant, span, axis);
-            continue;
-          }
-          auto [a, axisA] = locate(requirement.left);
-          auto [b, axisB] = locate(requirement.right);
-          auto aExtent = extent(tensors[a], axisA), bExtent = extent(tensors[b], axisB);
-          if (aExtent && bExtent && aExtent != bExtent)
-            reject(span, matrix ? "matmul inner dimensions differ"
-                                : "elementwise argument shapes differ");
-          if (!aExtent || !bExtent) {
-            auto [line, column] = syntax.source->location(span.begin);
-            steps.push_back("if(" + ref(tensors[a]) + ".shape()[" + std::to_string(axisA) +
-                            "]!=" + ref(tensors[b]) + ".shape()[" + std::to_string(axisB) +
-                            "]) {task.fault(1," + std::to_string(line) + "," +
-                            std::to_string(column) + ");return;}\n");
-          }
-        }
-        const bool projected = reads.size() != tensors.size();
-        const bool indirect =
-            !sum && !matrix &&
-            !kalandra::runtime::metal::directElementwiseLayout(reads.size(), scalars.size());
-        const bool legacy = !projected && !indirect && tensors.size() == 2 && scalars.empty();
-        auto signature = ", m::ElementwiseSignature{" + std::to_string(tensors.size()) + "," +
-                         std::to_string(scalars.size()) +
-                         (indirect ? ",m::ElementwiseBinding::ArgumentBuffer}" : "}");
-        if (projected) {
-          signature += ", std::array<std::uint32_t," + std::to_string(reads.size()) + ">{";
-          for (std::size_t i = 0; i < reads.size(); ++i)
-            signature += (i ? "," : "") + std::to_string(reads[i]);
-          signature += "}";
-        }
-        auto pack = [&](const std::vector<Value> &values, std::string type) {
-          std::string result = "std::array<" + type + "," + std::to_string(values.size()) + ">{";
-          for (std::size_t i = 0; i < values.size(); ++i)
-            result += (i ? ", " : "") + ref(values[i]);
-          return result + "}";
-        };
-        auto arguments = legacy ? ref(left) + ", " + ref(right)
-                                : pack(tensors, "m::Buffer") + ", " + pack(scalars, "float");
-        auto [entry, inserted] = entries.emplace(function, entries.size());
-        (void)inserted;
-        auto kernel = field("m::Kernel"), out = field("TaskHandle");
-        Value result{Value::Task, next - 1, true, target.device, left.length};
-        result.rank = left.rank;
-        result.width = matrix ? right.width : left.width;
-        steps.push_back("auto target = " + device(target) + ";\nif (!target) { " +
-                        error("target.error()") + " }\n" + std::string("auto kernel = r.") +
-                        (matrix ? "loadMatmulKernel"
-                         : sum  ? "loadReductionKernel"
-                                : "loadElementwiseKernel") +
-                        "(f.directory + \"/kernel" + std::to_string(entry->second) +
-                        ".metallib\", *target" + (legacy || sum || matrix ? "" : signature) +
-                        ");\n"
-                        "if (!kernel) { " +
-                        error("kernel.error()") + " }\nf." + kernel +
-                        " = *kernel;\n"
-                        "f." +
-                        out + " = r." +
-                        (matrix ? "matmul"
-                         : sum  ? "reduceSum"
-                                : "elementwise") +
-                        "(task, " + activeGroup + ", f." + kernel + ", " +
-                        (sum ? ref(left) : arguments) + ");\n" + admitted("f." + out));
-        result.scalarTask = sum;
-        tasks.insert(result.slot);
-        return result;
+          value.width = requirement.extent;
       }
-      reject(span, "task results must be observed with try await");
+      return value;
     }
-    reject(span, "unsupported expression in the Metal source supervisor");
+    if (const auto *unary = std::get_if<TensorUnary>(&typed.operation))
+      return hostOperation(unary->operation == TokenKind::Minus ? "neg" : "pos", args, span);
+    if (const auto *binary = std::get_if<TensorBinary>(&typed.operation))
+      return arithmetic(binary->operation, args, span);
+    if (std::holds_alternative<ReduceSum>(typed.operation))
+      return hostOperation("reduceSum", args, span);
+    if (std::holds_alternative<Matmul>(typed.operation))
+      return hostOperation("matmul", args, span);
+    reject(span, "unsupported numerical continuation operation");
+  }
+  Value arithmetic(TokenKind operation, const std::vector<Value> &args, SourceSpan span) {
+    if (operation != TokenKind::Plus && operation != TokenKind::Minus &&
+        operation != TokenKind::Star && operation != TokenKind::Slash)
+      reject(span, "inline float32 arithmetic supports only +, -, * and /");
+    return hostOperation(operation == TokenKind::Plus    ? "+"
+                         : operation == TokenKind::Minus ? "-"
+                         : operation == TokenKind::Star  ? "*"
+                                                         : "/",
+                         args, span);
+  }
+  std::vector<std::string> plannedGroups;
+  std::vector<std::size_t> plannedPC;
+  struct GpuAwaitSite {
+    std::size_t instruction, group;
+  };
+  std::vector<GpuAwaitSite> gpuAwaitSites;
+  Value lowerPlan(const continuation::Plan &plan) {
+    using namespace continuation;
+    std::map<Slot, Value> values;
+    std::map<Slot, unsigned> payloadWrites;
+    std::map<std::size_t, std::size_t> joins;
+    std::map<Slot, std::size_t> gpuCalls;
+    for (std::size_t i = 0; i < plan.code.size(); ++i)
+      if (plan.code[i].code == Code::Join)
+        joins.emplace(plan.code[i].group, i);
+    for (std::size_t i = 0; i < plan.groups; ++i)
+      plannedGroups.push_back("f." + field("GroupHandle"));
+    auto shape = [](Value &value, const ValueType &type) {
+      value.gpu = type.device.has_value();
+      value.device = type.device.value_or(0);
+      if (type.tensor) {
+        value.rank = type.shape.size();
+        value.length = type.shape.at(0).constant;
+        if (value.rank == 2)
+          value.width = type.shape[1].constant;
+      }
+    };
+    auto allocate = [&](Slot slot) {
+      const auto &type = plan.slots.at(slot);
+      Value value{type.task ? Value::Task : type.tensor ? Value::Tensor : Value::Scalar};
+      shape(value, type);
+      std::string storage = type.task ? "TaskHandle" : type.tensor ? "m::Buffer" : "float";
+      if (type.builtin == BuiltinValue::Device) {
+        value.kind = Value::Target;
+      } else {
+        if (type.builtin == BuiltinValue::TaskError) {
+          value.kind = Value::Error;
+          storage = "Failure";
+        }
+        if (type.builtin == BuiltinValue::FaultKind) {
+          value.kind = Value::FaultKind;
+          storage = "unsigned";
+        }
+        if (type.builtin == BuiltinValue::String) {
+          value.kind = Value::Text;
+          storage = "const char *";
+        }
+        field(storage);
+        value.slot = next - 1;
+      }
+      value.scalarTask = type.task && !type.tensor;
+      if (type.fallible) {
+        field("Failure");
+        value.failure = next - 1;
+      }
+      return value;
+    };
+    auto get = [&](Slot slot) -> Value {
+      auto found = values.find(slot);
+      if (found != values.end())
+        return found->second;
+      return values.emplace(slot, allocate(slot)).first->second;
+    };
+    auto payloadCopy = [](Value output, Value input) {
+      return ref(output) + "=" + ref(input) + ";\n";
+    };
+    auto copy = [&](Value output, Value input) {
+      auto code = payloadCopy(output, input);
+      if (output.failure)
+        code +=
+            failureRef(output) + "=" + (input.failure ? failureRef(input) : "Failure{}") + ";\n";
+      return code;
+    };
+    // Backend kernels can prove a result shape more precisely than its public
+    // type. Carry those facts through values, but meet all payload-producing
+    // branch writes rather than letting the last arm dictate a merge shape.
+    auto write = [&](Slot slot, Value input) {
+      auto output = get(slot);
+      const auto &type = plan.slots.at(slot);
+      if (type.tensor) {
+        const bool first = payloadWrites[slot]++ == 0;
+        output.length = type.shape[0].constant          ? type.shape[0].constant
+                        : first                         ? input.length
+                        : output.length == input.length ? output.length
+                                                        : std::nullopt;
+        if (output.rank == 2)
+          output.width = type.shape[1].constant        ? type.shape[1].constant
+                         : first                       ? input.width
+                         : output.width == input.width ? output.width
+                                                       : std::nullopt;
+        values[slot] = output;
+      }
+      return output;
+    };
+    auto bind = [&](Slot slot, Value input) {
+      auto found = values.find(slot);
+      if (found != values.end()) {
+        const auto output = write(slot, input);
+        steps.push_back(copy(output, input));
+      } else {
+        auto length = input.length, width = input.width;
+        shape(input, plan.slots.at(slot));
+        if (input.kind == Value::Tensor || (input.kind == Value::Task && !input.scalarTask)) {
+          if (!input.length)
+            input.length = length;
+          if (input.rank == 2 && !input.width)
+            input.width = width;
+        }
+        values.emplace(slot, input);
+        payloadWrites[slot] = 1;
+      }
+    };
+    for (std::size_t i = 0; i < plan.code.size(); ++i) {
+      const auto &op = plan.code[i];
+      plannedPC.push_back(steps.size() + 1);
+      const auto span = node(op.source).span;
+      std::vector<Value> args;
+      for (auto slot : op.args)
+        args.push_back(get(slot));
+      switch (op.code) {
+      case Code::Literal: {
+        field("float");
+        Value value{Value::Scalar, next - 1};
+        const auto bits = std::get<Float32Literal>(node(op.source).operation).bits;
+        steps.push_back(ref(value) + "=std::bit_cast<float>(std::uint32_t(" + std::to_string(bits) +
+                        "u));\n");
+        bind(op.output, value);
+        break;
+      }
+      case Code::Unary: {
+        field("float");
+        Value value{Value::Scalar, next - 1};
+        const bool neg =
+            std::get<ScalarUnary>(node(op.source).operation).operation == TokenKind::Minus;
+        steps.push_back(ref(value) + "=std::bit_cast<float>(std::bit_cast<std::uint32_t>(" +
+                        ref(args[0]) + ") ^ " + (neg ? "0x80000000u" : "0u") + ");\n");
+        bind(op.output, value);
+        break;
+      }
+      case Code::Binary:
+        bind(op.output,
+             arithmetic(std::get<ScalarBinary>(node(op.source).operation).operation, args, span));
+        break;
+      case Code::Kernel:
+        bind(op.output, numericKernel(op.source, args));
+        break;
+      case Code::Call:
+        bind(op.output, cpuCall(cpuFunction(op.target, span), args, span));
+        break;
+      case Code::Device: {
+        Value value{Value::Target};
+        shape(value, plan.slots.at(op.output));
+        bind(op.output, value);
+        break;
+      }
+      case Code::Transfer:
+      case Code::Spawn: {
+        activeGroup = plannedGroups.at(op.group);
+        admissionExit = joins.at(op.group);
+        if (op.code == Code::Transfer)
+          bind(op.output, transfer(args.at(0), args.at(1), span));
+        else {
+          if (!op.placement)
+            reject(span, "mixed spawn requires a checked target");
+          auto target = get(*op.placement);
+          if (target.gpu)
+            gpuCalls[op.output] = op.group;
+          bind(op.output, spawn(cpuFunction(op.target, span), args, target, span));
+        }
+        break;
+      }
+      case Code::Open: {
+        auto group = plannedGroups.at(op.group);
+        steps.push_back(group + "=task.openGroup(" +
+                        (op.target == SIZE_MAX ? "" : plannedGroups.at(op.target)) + ");\n" +
+                        check(group));
+        break;
+      }
+      case Code::Await: {
+        auto output = write(op.output, args.at(0)), input = args.at(0);
+        if (auto found = gpuCalls.find(op.args[0]); found != gpuCalls.end())
+          gpuAwaitSites.push_back({i, found->second});
+        steps.push_back("if(!task.await(" + ref(input) + ")) return;\n" + failureRef(output) +
+                        "=task.failure(" + ref(input) + ");\nif(" + failureRef(output) +
+                        ".kind==TaskFailure::None){\n" +
+                        (input.scalarTask ? "if(!readScalar(task," : "if(!readBuffer(task,") +
+                        ref(input) + "," + ref(output) + ")) return;\n}\n");
+        break;
+      }
+      case Code::Try:
+      case Code::Fail: {
+        const auto failure = op.code == Code::Fail ? ref(args[0]) : failureRef(args[0]);
+        std::string code =
+            op.code == Code::Try ? "if(" + failure + ".kind!=TaskFailure::None){\n" : "{\n";
+        if (op.group != SIZE_MAX)
+          code += "task.failGroup(" + plannedGroups.at(op.group) + "," + failure + ");\n";
+        else
+          code += failureRef(get(op.target)) + "=" + failure + ";\n";
+        code += jump(op.jump) + "}\n";
+        if (op.code == Code::Try)
+          code += copy(write(op.output, args[0]), args[0]);
+        steps.push_back(std::move(code));
+        break;
+      }
+      case Code::Copy:
+        steps.push_back(copy(write(op.output, args.at(0)), args.at(0)));
+        break;
+      case Code::Catch: {
+        auto output = write(op.output, args[0]), error = get(op.args[1]);
+        steps.push_back("if(" + failureRef(args[0]) + ".kind==TaskFailure::None){\n" +
+                        copy(output, args[0]) + jump(op.target) + "}\n" + ref(error) + "=" +
+                        failureRef(args[0]) + ";\n" + jump(op.jump));
+        break;
+      }
+      case Code::Case: {
+        const auto subject = args.at(0);
+        const auto tag =
+            subject.kind == Value::Error ? "unsigned(" + ref(subject) + ".kind)" : ref(subject);
+        steps.push_back("if(" + tag + "!=" + std::to_string(op.target) + "){\n" +
+                        (op.jump == SIZE_MAX ? error("m::Error::Invalid") : jump(op.jump)) + "}\n");
+        break;
+      }
+      case Code::Jump:
+        steps.push_back(jump(op.jump));
+        break;
+      case Code::Field: {
+        auto output = get(op.output);
+        const auto subject = args.at(0);
+        auto field = static_cast<ErrorField>(op.target);
+        std::string code;
+        if (field == ErrorField::Kind)
+          code = ref(subject) + ".code==1 ? 3u : " + ref(subject) + ".code==2 ? 4u : 5u";
+        else if (field == ErrorField::Message)
+          code = ref(subject) + ".code==1 ? \"tensor shape mismatch\" : " + ref(subject) +
+                 ".code==2 ? \"allocation failed\" : \"native execution fault\"";
+        else
+          code = "\"task admission rejected\"";
+        steps.push_back(ref(output) + "=" + code + ";\n");
+        break;
+      }
+      case Code::Join: {
+        const auto group = plannedGroups.at(op.group);
+        auto output = write(op.output, args.at(0));
+        steps.push_back(check("task.close(" + group + ")"));
+        steps.push_back("if(!task.join(" + group + ")) return;\n" + failureRef(output) +
+                        "=task.failure(" + group + ");\nif(" + failureRef(output) +
+                        ".kind==TaskFailure::None){\n" + payloadCopy(output, args.at(0)) + "}\n");
+        break;
+      }
+      case Code::Label:
+        break;
+      case Code::Return: {
+        auto result = args.at(0);
+        steps.push_back((result.failure
+                             ? "if(" + failureRef(result) + ".kind!=TaskFailure::None){task.fail(" +
+                                   failureRef(result) + ");return;}\n"
+                             : "") +
+                        "task.complete(&" + ref(result) + ");return;\n");
+        break;
+      }
+      }
+    }
+    // All edges address common plan instructions; close/join may use two target steps.
+    for (auto &step : steps)
+      for (std::size_t pos = 0; (pos = step.find("@pc", pos)) != std::string::npos;) {
+        const auto end = step.find('@', pos + 3);
+        const auto index = std::stoull(step.substr(pos + 3, end - pos - 3));
+        step.replace(pos, end - pos + 1, std::to_string(plannedPC.at(index)));
+      }
+    return get(plan.result);
   }
   std::string shader(std::size_t function, std::vector<std::uint32_t> *readInputs = nullptr) const {
     if (matrixFunction(function))
@@ -1417,33 +1331,16 @@ public:
       tensorType(*fn.result);
     if (fn.body.size() != 1 || fn.body[0].binding)
       reject(fn.span, "Metal main must contain a single try parallel block");
-    const auto &entryFunction = placement.functions[*main];
-    const auto *attempt = std::get_if<TaskOperation>(&node(entryFunction.body[0].value).operation);
-    const auto *parallel = attempt && attempt->prefix == TaskPrefix::Try
-                               ? std::get_if<ParallelOperation>(&node(attempt->operand).operation)
-                               : nullptr;
-    if (!parallel)
-      reject(fn.span, "Metal main must contain a single try parallel block");
-    auto result = suite(parallel->body);
-    completed(result, fn.span);
-    for (auto id : pending)
-      if (!handled.contains(id))
-        reject(fn.span, "expected error result is discarded; use try or catch");
-    if (scalarResult ? result.kind != Value::Scalar : (result.kind != Value::Tensor || result.gpu))
-      reject(fn.span, "main must return a completed host tensor; explicitly transfer the result to "
-                      "devices.cpu()");
-    if (!scalarResult) {
-      if (result.rank != fn.result->dimensions.size())
-        reject(fn.span, "main tensor result rank mismatch");
-      for (unsigned axis = 0; axis < result.rank; ++axis)
-        if (auto wanted = fn.result->dimensions[axis].extent)
-          requireLength(result, *wanted, fn.span, axis);
-    }
-    requireObserved(0, fn.span);
+    auto planned = continuation::plan(placement, {.preserveCalls = true, .entry = *main});
+    if (!planned)
+      reject(fn.span, planned.error());
+    auto result = lowerPlan(*planned->plans[*main]);
+    (void)result;
     if (entries.empty())
       reject(fn.span, "no GPU placement in source");
     std::map<std::string, std::string> outputs;
     outputs["placement.ir"] = dumpTypedIR(placement);
+    outputs["continuation.plan"] = continuation::dump(*planned);
     for (auto [function, index] : entries) {
       auto base = "kernel" + std::to_string(index);
       outputs[base + ".mlir"] = shader(function);
@@ -1487,14 +1384,23 @@ namespace m = kalandra::runtime::metal;
     if (scalarResult)
       host << "const ValueLayout &scalarLayout=m::Runtime::scalarLayout();\n";
     host << R"(struct PacketData { m::Runtime *runtime; const char *directory; };
-struct Frame { m::Runtime *runtime; std::string directory; GroupHandle group; unsigned pc=0;
+struct Frame { m::Runtime *runtime; std::string directory; unsigned pc=1;
 )";
     for (auto &f : fields)
       host << "  " << f << '\n';
-    host << R"(};
-bool construct(Invocation &, void *out, const Packet &p) {
+    host << "};\nstruct GpuAwaitSite { unsigned pc; std::size_t group; };\n";
+    host << "[[maybe_unused]] constexpr std::array<GpuAwaitSite," << gpuAwaitSites.size()
+         << "> gpuAwaitSites{{";
+    for (auto site : gpuAwaitSites)
+      host << "{" << plannedPC.at(site.instruction) << "," << site.group << "},";
+    host
+        << "}};\ninline GroupHandle continuationGroup(const Frame &f,std::size_t id){switch(id){\n";
+    for (std::size_t i = 0; i < plannedGroups.size(); ++i)
+      host << "case " << i << ":return " << plannedGroups[i] << ";\n";
+    host << "default:return {};}}\n";
+    host << R"(bool construct(Invocation &, void *out, const Packet &p) {
   auto &data=*static_cast<const PacketData *>(p.data);
-  new(out) Frame{data.runtime,data.directory,{}}; return true;
+  new(out) Frame{data.runtime,data.directory}; return true;
 }
 void destroy(void *p) noexcept { static_cast<Frame *>(p)->~Frame(); }
 bool readBuffer(Task &task, TaskHandle child, m::Buffer &output) {
@@ -1511,19 +1417,12 @@ bool readScalar(Task &task,TaskHandle child,float &output) {
 }
 void resume(Task &task) {
   auto &f=*static_cast<Frame *>(task.frame()); auto &r=*f.runtime;
-  if (f.pc==0) { f.group=task.openGroup(); if (!f.group) { task.fault(2); return; } f.pc=1; }
   for (;;) { switch(f.pc) {
 )";
     for (std::size_t i = 0; i < steps.size(); ++i)
       host << "case " << i + 1 << ": {\n"
            << steps[i] << "f.pc=" << i + 2 << ";\n} [[fallthrough]];\n";
-    host << "case " << steps.size() + 1 << ": task.close(f.group); f.pc=" << steps.size() + 2
-         << "; [[fallthrough]];\ncase " << steps.size() + 2
-         << ": {\n"
-            "if (!task.join(f.group)) return;\nauto failure=task.failure(f.group);\nif "
-            "(failure.kind!=TaskFailure::None) { task.fail(failure); return; "
-            "}\ntask.complete(&"
-         << ref(result) << "); return;\n}\ndefault: task.fault(3); return;\n} }\n}\n";
+    host << "default: task.fault(3); return;\n} }\n}\n";
     host
         << R"(const TaskEntry entry{1,0x4b414c47505501,sizeof(PacketData),alignof(PacketData),sizeof(Frame),alignof(Frame),construct,destroy,resume,)"
         << (scalarResult ? "&scalarLayout" : "&m::Runtime::bufferLayout()") << R"(};
