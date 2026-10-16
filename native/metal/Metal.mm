@@ -312,12 +312,6 @@ struct Bridge {
   }
   static void destroy(void *frame) noexcept { static_cast<Frame *>(frame)->~Frame(); }
   static const ValueLayout layout;
-  static bool copyScalar(Invocation &, void *out, const Invocation &, const void *in) noexcept {
-    std::memcpy(out, in, sizeof(float));
-    return true;
-  }
-  static void destroyScalar(void *) noexcept {}
-  static const ValueLayout scalarLayout;
   static const TaskEntry entry, reductionEntry;
   static id<MTLCommandBuffer> reductionCommand(Frame &f) {
     auto state = f.packet.state;
@@ -801,8 +795,6 @@ const TaskEntry Bridge::entry{1,
                               Bridge::destroy,
                               Bridge::resume,
                               &Bridge::layout};
-const ValueLayout Bridge::scalarLayout{0x4b414c46533332, sizeof(float), alignof(float),
-                                       Bridge::copyScalar, Bridge::destroyScalar};
 const TaskEntry Bridge::reductionEntry{1,
                                        0x4d4554414c03,
                                        sizeof(PacketData),
@@ -812,7 +804,7 @@ const TaskEntry Bridge::reductionEntry{1,
                                        Bridge::construct,
                                        Bridge::destroy,
                                        Bridge::resume,
-                                       &Bridge::scalarLayout};
+                                       numericScalarLayout(NumericType::Float32)};
 Device::Device(std::shared_ptr<State> state, std::uint32_t index) noexcept
     : state_(std::move(state)), index_(index) {}
 std::uint64_t Device::identity() const noexcept {
@@ -895,76 +887,46 @@ std::expected<Buffer, Error> Runtime::hostTensor(std::span<const std::byte> data
 }
 std::expected<Buffer, Error> Runtime::fromCpu(const Invocation &context,
                                               CpuTensorView view) noexcept {
-  auto size = tensorBytes(view.sizes, Format::Float32);
-  if (!context.usable() || !size || view.sizes.size() != view.strides.size() || view.offset < 0)
+  const auto format = storageFormat(view.element);
+  if (!format)
     return std::unexpected(Error::Invalid);
-  // Empty tensors never dereference or retain descriptor addresses.
-  if (!*size)
-    return hostTensor({}, view.sizes, Format::Float32);
-  std::uint64_t stride = 1;
-  for (std::size_t axis = view.sizes.size(); axis-- > 0;) {
-    if (view.strides[axis] < 0 || std::uint64_t(view.strides[axis]) != stride)
-      return std::unexpected(Error::Invalid);
-    if (std::uint64_t(view.sizes[axis]) > UINT64_MAX / stride)
-      return std::unexpected(Error::Invalid);
-    stride *= std::uint64_t(view.sizes[axis]);
-  }
-  auto lease = context.lease(view.allocated);
-  if (!lease)
+  auto retained = retainCpuTensor(context, view);
+  if (!retained)
     return std::unexpected(Error::Invalid);
-  auto allocation = lease->bytes();
-  auto base = reinterpret_cast<std::uintptr_t>(view.allocated);
-  auto aligned = reinterpret_cast<std::uintptr_t>(view.aligned);
-  if (aligned < base || aligned % alignof(float) || aligned - base > allocation.size())
-    return std::unexpected(Error::Invalid);
-  auto displacement = aligned - base;
-  if (std::uint64_t(view.offset) > (allocation.size() - displacement) / 4)
-    return std::unexpected(Error::Invalid);
-  displacement += std::uint64_t(view.offset) * 4;
-  if (*size > allocation.size() - displacement)
-    return std::unexpected(Error::Invalid);
+  if (!retained->bytes())
+    return hostTensor({}, retained->shape(), *format);
+  const auto allocationBytes = retained->retainedBytes();
   if (!state_->permit())
     return std::unexpected(Error::Allocation);
   try {
     auto storage = std::make_shared<Storage>(state_, false);
-    if (!state_->reserve(allocation.size()))
+    if (!state_->reserve(allocationBytes))
       return std::unexpected(Error::Budget);
-    storage->hostReserved = allocation.size(); // Charge the complete retained allocation.
-    storage->cpu = std::move(*lease);
-    storage->cpuOffset = displacement;
-    storage->size = *size;
-    storage->rank = view.sizes.size();
-    std::copy(view.sizes.begin(), view.sizes.end(), storage->dimensions.begin());
+    storage->hostReserved = allocationBytes; // Charge the complete retained allocation.
+    storage->format = *format;
+    storage->cpuOffset = retained->offsetBytes();
+    storage->size = retained->bytes();
+    storage->rank = retained->shape().size();
+    std::copy(retained->shape().begin(), retained->shape().end(), storage->dimensions.begin());
+    storage->cpu = std::move(*retained).releaseAllocation();
     return Buffer(std::move(storage));
   } catch (...) {
     return std::unexpected(Error::Allocation);
   }
 }
 std::expected<void *, Error> Runtime::exportCpu(Invocation &context, const Buffer &buffer,
-                                                std::span<std::int64_t> sizes,
+                                                NumericType element, std::span<std::int64_t> sizes,
                                                 std::span<std::int64_t> strides) noexcept {
-  if (!context.usable() || !buffer || buffer.format() != Format::Float32 ||
-      sizes.size() != buffer.shape().size() || strides.size() != sizes.size())
+  if (!context.usable() || !buffer || storageNumericType(buffer.format()) != element)
     return std::unexpected(Error::Invalid);
   auto bytes = buffer.hostBytes();
   if (!bytes)
-    return std::unexpected(bytes.error()); // A device result must be explicitly downloaded.
-  std::uint64_t stride = 1;
-  for (std::size_t axis = sizes.size(); axis-- > 0;) {
-    if (stride > INT64_MAX)
-      return std::unexpected(Error::Invalid);
-    sizes[axis] = buffer.shape()[axis];
-    strides[axis] = stride;
-    if (sizes[axis] && stride > UINT64_MAX / std::uint64_t(sizes[axis]))
-      return std::unexpected(Error::Invalid);
-    stride *= std::uint64_t(sizes[axis]);
-  }
-  auto *result = context.allocate(bytes->size());
+    return std::unexpected(bytes.error()); // Explicit download required.
+  auto result = copyCpuTensorData(context, element, *bytes, buffer.shape(), sizes, strides);
   if (!result)
-    return std::unexpected(Error::Allocation);
-  if (!bytes->empty())
-    std::memcpy(result, bytes->data(), bytes->size());
-  return result;
+    return std::unexpected(result.error() == CpuTensorError::Allocation ? Error::Allocation
+                                                                        : Error::Invalid);
+  return *result;
 }
 TaskHandle Runtime::upload(TaskCore &core, GroupHandle group, Buffer buffer,
                            Device target) noexcept {
@@ -1235,7 +1197,9 @@ TaskHandle Runtime::reduceSum(Task &task, GroupHandle group, Kernel kernel, Buff
   return task.spawn(group, Bridge::reductionEntry,
                     {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
 }
-const ValueLayout &Runtime::scalarLayout() noexcept { return Bridge::scalarLayout; }
+const ValueLayout &Runtime::scalarLayout() noexcept {
+  return *numericScalarLayout(NumericType::Float32);
+}
 TaskHandle Runtime::compute(TaskCore &core, GroupHandle group, Kernel kernel,
                             BinaryOperation operation, Buffer left, Buffer right) noexcept {
   Bridge::PacketData packet{

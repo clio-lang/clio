@@ -36,6 +36,18 @@ constexpr std::optional<NumericType> storageNumericType(Format format) {
   }
   return {};
 }
+constexpr std::optional<Format> storageFormat(NumericType element) {
+  switch (element) {
+  case NumericType::Float32:
+    return Format::Float32;
+  case NumericType::UInt32:
+    return Format::UInt32;
+  case NumericType::UInt8:
+    return Format::UInt8;
+  default:
+    return {};
+  }
+}
 struct Options {
   std::uint64_t maxBytes = 64 * 1024 * 1024;
   std::uint32_t maxInFlight = 64, defaultDevice = 0;
@@ -106,20 +118,25 @@ public:
   std::expected<Buffer, Error> hostTensor(std::span<const std::byte>, std::span<const std::int64_t>,
                                           Format) noexcept;
   std::expected<Buffer, Error> fromCpu(const Invocation &, CpuTensorView) noexcept;
-  template <std::size_t Rank>
-  std::expected<Float32Tensor<Rank>, Error> toCpu(Invocation &context,
-                                                  const Buffer &buffer) noexcept {
-    Float32Tensor<Rank> descriptor;
+  template <NumericType Element, std::size_t Rank>
+  std::expected<CpuTensor<Element, Rank>, Error> toCpuTyped(Invocation &context,
+                                                            const Buffer &buffer) noexcept {
+    CpuTensor<Element, Rank> descriptor;
     std::span<std::int64_t> sizes, strides;
     if constexpr (Rank != 0) {
       sizes = descriptor.sizes;
       strides = descriptor.strides;
     }
-    auto data = exportCpu(context, buffer, sizes, strides);
+    auto data = exportCpu(context, buffer, Element, sizes, strides);
     if (!data)
       return std::unexpected(data.error());
-    descriptor.allocated = descriptor.aligned = static_cast<float *>(*data);
+    descriptor.allocated = descriptor.aligned = static_cast<NumericValue<Element> *>(*data);
     return descriptor;
+  }
+  template <std::size_t Rank>
+  std::expected<Float32Tensor<Rank>, Error> toCpu(Invocation &context,
+                                                  const Buffer &buffer) noexcept {
+    return toCpuTyped<NumericType::Float32, Rank>(context, buffer);
   }
   TaskHandle upload(TaskCore &, GroupHandle, Buffer, Device) noexcept;
   TaskHandle download(TaskCore &, GroupHandle, Buffer) noexcept;
@@ -159,7 +176,7 @@ public:
 private:
   std::shared_ptr<State> state_;
   explicit Runtime(std::shared_ptr<State>) noexcept;
-  std::expected<void *, Error> exportCpu(Invocation &, const Buffer &,
+  std::expected<void *, Error> exportCpu(Invocation &, const Buffer &, NumericType,
                                          std::span<std::int64_t> sizes,
                                          std::span<std::int64_t> strides) noexcept;
   std::expected<Kernel, Error>
