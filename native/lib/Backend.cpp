@@ -640,7 +640,8 @@ private:
             return matmul(loc, a, b, cast<RankedTensorType>(type(node.type)), operation);
           } else if constexpr (std::is_same_v<T, ReduceSum>)
             return reduce(loc, expression(frame, operation.input), operation);
-          else if constexpr (std::is_same_v<T, TaskOperation> ||
+          else if constexpr (std::is_same_v<T, DeviceSelection> || std::is_same_v<T, Transfer> ||
+                             std::is_same_v<T, TaskOperation> ||
                              std::is_same_v<T, ParallelOperation> ||
                              std::is_same_v<T, CatchOperation> ||
                              std::is_same_v<T, MatchOperation> ||
@@ -740,6 +741,8 @@ private:
 std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,
                                                       std::optional<std::string> testEntry,
                                                       const std::vector<std::string> &exports) {
+  if (hasPlacement(input))
+    return std::unexpected("placement-aware IR requires a placement-capable execution backend");
   if (std::ranges::any_of(input.functions, [](const auto &f) { return f.resultType.fallible; }) ||
       std::ranges::any_of(input.expressions, [](const auto &e) {
         return std::holds_alternative<TaskOperation>(e.operation) ||

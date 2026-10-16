@@ -116,7 +116,7 @@ if(STATUS EQUAL 0 OR NOT ERROR MATCHES "S017")
   message(FATAL_ERROR "Pending tensor negation bypassed task typing: ${ERROR}")
 endif()
 # A zero outer dimension still preserves the complete matrix shape.
-set(EMPTY "fn main() -> Tensor[float32,0,3] ! TaskError:\n  try parallel:\n    gpu = devices.gpu()\n    values: Tensor[float32,0,3] = tensor([])\n    uploaded = try await transfer(values,gpu)\n    negated = try await spawn negative(uploaded) on gpu\n    try await transfer(negated,devices.cpu())\n")
+set(EMPTY "fn main() -> Tensor[float32,0,3] ! TaskError:\n  try parallel:\n    gpu = devices.gpu()\n    values: Tensor[float32,0,3] = tensor([], [0, 3])\n    uploaded = try await transfer(values,gpu)\n    negated = try await spawn negative(uploaded) on gpu\n    try await transfer(negated,devices.cpu())\n")
 file(WRITE "${OUTPUT_DIR}/empty.kalandra" "${FUNCTIONS}${EMPTY}")
 execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/empty.kalandra" --target metal
   -o "${OUTPUT_DIR}/empty" --sanitize RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)

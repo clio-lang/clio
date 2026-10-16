@@ -17,6 +17,7 @@
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_ostream.h"
+#include <array>
 #include <charconv>
 #include <filesystem>
 #include <fstream>
@@ -939,16 +940,40 @@ class Compiler {
         if (!annotation)
           reject(span, "host tensor literals require Tensor[float32, ...] context");
         tensorType(*annotation);
-        if (call->arguments.size() != 1)
-          reject(span, "tensor requires one literal");
+        if (call->arguments.size() != 1 && call->arguments.size() != 2)
+          reject(span, "tensor requires literal data and an optional constant shape");
         auto *array = std::get_if<ArrayExpr>(&node(call->arguments[0]).value);
         if (!array || array->elements.size() > 200000)
           reject(span, "expected a bounded tensor literal");
         const unsigned rank = annotation->dimensions.size();
-        const auto rows = array->elements.size();
+        std::uint64_t rows = array->elements.size();
         std::size_t columns = rank == 1 ? 0 : annotation->dimensions[1].extent.value_or(0);
         std::vector<ExprId> elements;
-        if (rank == 1)
+        if (call->arguments.size() == 2) {
+          const auto *shape = std::get_if<ArrayExpr>(&node(call->arguments[1]).value);
+          if (!shape || shape->elements.size() != rank)
+            reject(span, "explicit tensor shape rank mismatch");
+          std::array<std::uint64_t, 2> dimensions{};
+          for (unsigned axis = 0; axis < rank; ++axis) {
+            const auto *literal = std::get_if<NumberExpr>(&node(shape->elements[axis]).value);
+            if (!literal)
+              reject(span, "tensor shape requires nonnegative integer constants");
+            auto input = text(literal->literal);
+            auto parsed =
+                std::from_chars(input.data(), input.data() + input.size(), dimensions[axis]);
+            if (parsed.ec != std::errc{} || parsed.ptr != input.data() + input.size() ||
+                dimensions[axis] > std::uint64_t(INT64_MAX) / 4)
+              reject(span, "invalid constant tensor shape dimension");
+          }
+          rows = dimensions[0];
+          if (rank == 2)
+            columns = dimensions[1];
+          if (rank == 1
+                  ? rows != array->elements.size()
+                  : ((rows && columns > 200000 / rows) || rows * columns != array->elements.size()))
+            reject(span, "explicit tensor shape element count mismatch");
+          elements = array->elements;
+        } else if (rank == 1)
           elements = array->elements;
         else
           for (std::size_t i = 0; i < rows; ++i) {
@@ -1529,7 +1554,13 @@ public:
     requireObserved(0, fn.span);
     if (entries.empty())
       reject(fn.span, "no GPU placement in source");
+    // The shared frontend is the final semantic gate for the complete program.
+    // The current target emitter retains its narrower capability checks above.
+    auto placement = kalandra::check({syntax, {}}, {}, {.placement = true});
+    if (!placement.ok())
+      throw Rejected{placement.diagnostics.front()};
     std::map<std::string, std::string> outputs;
+    outputs["placement.ir"] = dumpTypedIR(*placement.module);
     for (auto [function, index] : entries) {
       auto base = "kernel" + std::to_string(index);
       outputs[base + ".mlir"] = shader(function);
@@ -1542,7 +1573,8 @@ public:
     mlir::registerAllDialects(registry);
     mlir::MLIRContext context(registry);
     for (auto &[name, ir] : outputs) {
-      (void)name;
+      if (!name.ends_with(".mlir"))
+        continue;
       auto parsed = mlir::parseSourceString<mlir::ModuleOp>(ir, &context);
       if (!parsed || mlir::failed(mlir::verify(*parsed)))
         reject(fn.span, "generated GPU IR failed verification");

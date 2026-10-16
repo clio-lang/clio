@@ -11,13 +11,16 @@ struct Extent {
   ExtentId identity =
       0; // Nonzero identity for a dynamic extent, never an implicit equality of '?'.
 };
-enum class BuiltinValue { Numeric, TaskError, FaultKind, String };
+enum class BuiltinValue { Numeric, TaskError, FaultKind, String, Device };
 struct ValueType {
   bool tensor = false;
   std::vector<Extent> shape;
   bool task = false, fallible = false;
   std::size_t identity = 0;
   BuiltinValue builtin = BuiltinValue::Numeric;
+  // Tensor residence, or the selection carried by a Device value. Null is CPU.
+  // Scalar numeric results remain host values, including GPU reductions.
+  std::optional<std::uint32_t> device = {};
 };
 struct Symbol {
   std::string name;
@@ -86,9 +89,16 @@ struct TypedStatement {
   std::optional<SymbolId> binding;
   ValueId value;
 };
+struct DeviceSelection {
+  std::optional<std::uint32_t> device; // Null selects CPU; otherwise an exact GPU index.
+};
+struct Transfer {
+  ValueId input, target;
+};
 struct TaskOperation {
   TaskPrefix prefix;
   ValueId operand;
+  std::optional<ValueId> placement = {};
 };
 struct ParallelOperation {
   std::vector<TypedStatement> body;
@@ -120,10 +130,11 @@ struct FailOperation {
 };
 struct TypedExpr {
   SourceSpan span;
-  ValueType type; // Only float32 and ranked Tensor[float32,...] in this semantic subset.
+  ValueType type; // Numeric values use float32/ranked tensors; builtins retain explicit tags.
   std::variant<Float32Literal, SymbolRead, ScalarUnary, TensorUnary, ScalarBinary, TensorBinary,
-               TensorLiteral, FunctionCall, Matmul, ReduceSum, ShapeCheck, TaskOperation,
-               ParallelOperation, CatchOperation, MatchOperation, ErrorFieldRead, FailOperation>
+               TensorLiteral, FunctionCall, Matmul, ReduceSum, ShapeCheck, DeviceSelection,
+               Transfer, TaskOperation, ParallelOperation, CatchOperation, MatchOperation,
+               ErrorFieldRead, FailOperation>
       operation;
 };
 struct ShapeEquality {
@@ -161,7 +172,15 @@ struct CheckResult {
   std::vector<Diagnostic> diagnostics;
   [[nodiscard]] bool ok() const { return module.has_value(); }
 };
-[[nodiscard]] CheckResult check(ParseResult syntax, SemanticLimits limits = {});
+// True for device/transfer/placed-call IR or resident/selector types.
+[[nodiscard]] bool hasPlacement(const TypedModule &module);
+struct CheckOptions {
+  // Build placement-aware IR without probing hardware or selecting a backend.
+  // The ordinary CPU entry keeps rejecting placement syntax by default.
+  bool placement = false;
+};
+[[nodiscard]] CheckResult check(ParseResult syntax, SemanticLimits limits = {},
+                                CheckOptions options = {});
 [[nodiscard]] std::string describeType(const ValueType &type);
 [[nodiscard]] std::string dumpTypedIR(const TypedModule &module);
 } // namespace kalandra

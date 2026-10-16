@@ -866,6 +866,8 @@ private:
 } // namespace
 std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &input,
                                                           std::optional<std::string> testEntry) {
+  if (hasPlacement(input))
+    return std::unexpected("placement-aware IR requires a placement-capable execution backend");
   if (testEntry)
     return std::unexpected(
         "private runtime-input test wrappers for task programs are not implemented yet");

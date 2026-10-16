@@ -5,18 +5,32 @@
 
 int main(int argc, char **argv) {
   const std::span<char *> arguments(argv, static_cast<std::size_t>(argc));
-  const bool dump = arguments.size() == 3 && std::string_view(arguments[1]) == "--dump-ir";
-  if ((!dump && arguments.size() != 2) || (arguments.size() == 3 && !dump)) {
-    std::cerr << "usage: kalandra-check [--dump-ir] <source.kalandra>\n";
+  bool dump = false;
+  kalandra::CheckOptions options;
+  const char *path = nullptr;
+  const auto usage = [] {
+    std::cerr << "usage: kalandra-check [--placement] [--dump-ir] <source.kalandra>\n";
     return 2;
+  };
+  for (std::size_t i = 1; i < arguments.size(); ++i) {
+    const std::string_view arg = arguments[i];
+    if (!path && arg == "--dump-ir" && !dump)
+      dump = true;
+    else if (!path && arg == "--placement" && !options.placement)
+      options.placement = true;
+    else if (path || arg.starts_with("--"))
+      return usage();
+    else
+      path = arguments[i];
   }
-  const char *path = arguments[dump ? 2 : 1];
+  if (!path)
+    return usage();
   auto source = kalandra::loadSource(path);
   if (!source) {
     std::cerr << path << ": " << source.error() << '\n';
     return 1;
   }
-  auto result = kalandra::check(kalandra::parse(*source));
+  auto result = kalandra::check(kalandra::parse(*source), {}, options);
   if (!result.ok()) {
     for (const auto &diagnostic : result.diagnostics)
       std::cerr << kalandra::renderDiagnostic(**source, diagnostic);

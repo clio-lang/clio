@@ -1,9 +1,29 @@
 #include "kalandra/Semantics.h"
+#include <algorithm>
 #include <iomanip>
 #include <sstream>
 
 namespace kalandra {
+bool hasPlacement(const TypedModule &module) {
+  const auto placed = [](const ValueType &type) {
+    return type.device.has_value() || type.builtin == BuiltinValue::Device;
+  };
+  return std::ranges::any_of(module.expressions,
+                             [&](const auto &e) {
+                               const auto *task = std::get_if<TaskOperation>(&e.operation);
+                               return placed(e.type) ||
+                                      std::holds_alternative<DeviceSelection>(e.operation) ||
+                                      std::holds_alternative<Transfer>(e.operation) ||
+                                      (task && task->placement);
+                             }) ||
+         std::ranges::any_of(module.symbols, [&](const auto &s) { return placed(s.type); }) ||
+         std::ranges::any_of(module.functions, [&](const auto &f) {
+           return placed(f.resultType) || (f.declaredResult && placed(*f.declaredResult));
+         });
+}
 std::string describeType(const ValueType &type) {
+  if (type.builtin == BuiltinValue::Device)
+    return type.device ? "Device[gpu:" + std::to_string(*type.device) + "]" : "Device[cpu]";
   if (type.builtin != BuiltinValue::Numeric)
     return type.builtin == BuiltinValue::TaskError   ? "TaskError"
            : type.builtin == BuiltinValue::FaultKind ? "FaultKind"
@@ -21,6 +41,8 @@ std::string describeType(const ValueType &type) {
       out << "?d" << dimension.identity;
   }
   out << ']';
+  if (type.device)
+    out << " on gpu:" << *type.device;
   if (type.task)
     out << " task";
   if (type.fallible)
@@ -118,11 +140,23 @@ std::string dumpTypedIR(const TypedModule &module) {
             } else if constexpr (std::is_same_v<T, ReduceSum>) {
               out << "reduceSum strict_f32 balanced_adjacent row_major ";
               value(operation.input);
+            } else if constexpr (std::is_same_v<T, DeviceSelection>) {
+              out << (operation.device ? "device.gpu " + std::to_string(*operation.device)
+                                       : "device.cpu");
+            } else if constexpr (std::is_same_v<T, Transfer>) {
+              out << "task.transfer ";
+              value(operation.input);
+              out << " to ";
+              value(operation.target);
             } else if constexpr (std::is_same_v<T, TaskOperation>) {
               out << (operation.prefix == TaskPrefix::Spawn   ? "task.spawn "
                       : operation.prefix == TaskPrefix::Await ? "task.await "
                                                               : "result.try ");
               value(operation.operand);
+              if (operation.placement) {
+                out << " on ";
+                value(*operation.placement);
+              }
             } else if constexpr (std::is_same_v<T, ParallelOperation>) {
               out << "parallel group=" << operation.group << " result=";
               value(operation.result);

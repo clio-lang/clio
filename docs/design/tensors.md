@@ -199,3 +199,5 @@ IREE demonstrates lowering Linalg-on-tensor programs to executable targets. Use 
 Tensor notation, static/dynamic extent rules, scalar lifting versus explicit tensor broadcasting, ShapeFault/ShapeError, and the deterministic reduction baseline are accepted.
 
 Review [placement and transfers](placement.md) next. Then write a complete CPU/GPU/remote example before implementing the first MLIR/native vertical slice.
+
+The native constructor now implements the flat-literal/constant-shape part of this design: `tensor([], [0, 3])` creates an empty matrix without changing the rank of a rank-one literal through an annotation. It uses the existing tensor-literal IR and checked CPU lowering; the Metal source subset supports rank one/two constant data. Runtime arrays and computed shape arguments remain unimplemented. See [shared placement qualification](placement-ir.md#explicit-literal-shapes).

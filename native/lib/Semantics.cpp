@@ -2,6 +2,7 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/Support/Error.h"
 #include <algorithm>
+#include <charconv>
 #include <limits>
 #include <unordered_map>
 #include <unordered_set>
@@ -30,7 +31,8 @@ class Checker {
   };
 
 public:
-  Checker(Module syntax, SemanticLimits limits) : syntax_(std::move(syntax)), limits_(limits) {
+  Checker(Module syntax, SemanticLimits limits, CheckOptions options)
+      : syntax_(std::move(syntax)), limits_(limits), options_(options) {
     output_.source = syntax_.source;
     output_.functions.resize(syntax_.functions.size());
     states_.resize(syntax_.functions.size(), State::Unseen);
@@ -155,6 +157,11 @@ private:
       auto &target = output_.functions[id];
       target.name = name(function.name);
       target.declaration = function.name;
+      if (options_.placement && (target.name == "devices" || target.name == "transfer" ||
+                                 target.name == "devices.cpu" || target.name == "devices.gpu")) {
+        error("S049", "reserved placement builtin name", function.name);
+        signatures_[id] = false;
+      }
       if (!functions_.emplace(target.name, id).second) {
         error("S004", "duplicate function '" + target.name + "'", function.name);
         signatures_[id] = false;
@@ -250,6 +257,11 @@ private:
       if (index + 1 == body.size()) {
         output_.functions[id].result = *value;
         output_.functions[id].resultType = node(*value).type;
+        if (options_.placement && node(*value).type.tensor && node(*value).type.device)
+          error("S047", "function results require an explicit transfer to devices.cpu()",
+                statement.span);
+        if (node(*value).type.builtin == BuiltinValue::Device)
+          error("S048", "device selectors cannot escape as function results", statement.span);
         if (node(*value).type.task)
           error("S035", "task handles cannot escape their owning parallel group", statement.span);
         if (node(*value).type.fallible) {
@@ -291,7 +303,7 @@ private:
     return id;
   }
   std::optional<ValueId> conform(Frame &frame, ValueId value, const ValueType &expected,
-                                 SourceSpan span) {
+                                 SourceSpan span, bool deferShape = false) {
     auto actual = node(value).type;
     if (actual.task || expected.task) {
       error("S035", "a task handle cannot be used as a value or escape its group", span);
@@ -320,6 +332,8 @@ private:
         return {};
       }
       if (!actual.shape[axis].constant) {
+        if (deferShape)
+          continue;
         if (!requireEqual(frame, actual.shape[axis], expected.shape[axis]))
           return {};
         checks.push_back({axis, *expected.shape[axis].constant});
@@ -335,8 +349,8 @@ private:
     explicit Depth(std::size_t &value) : value(value) { ++value; }
     ~Depth() { --value; }
   };
-  std::optional<ValueId> expression(Frame &frame, ExprId id,
-                                    std::optional<ValueType> expected = {}) {
+  std::optional<ValueId> expression(Frame &frame, ExprId id, std::optional<ValueType> expected = {},
+                                    bool deferShape = false) {
     if (diagnostics_.size() >= limits_.maxDiagnostics)
       return {};
     if (frame.depth >= limits_.maxDepth) {
@@ -349,7 +363,7 @@ private:
         [&](const auto &operation) { return infer(frame, syntax.span, operation, expected); },
         syntax.value);
     if (value && expected)
-      return conform(frame, *value, *expected, syntax.span);
+      return conform(frame, *value, *expected, syntax.span, deferShape);
     return value;
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const NumberExpr &literal,
@@ -401,6 +415,10 @@ private:
     const auto type = node(*operand).type;
     if (type.task || type.fallible || type.builtin != BuiltinValue::Numeric) {
       error("S017", "arithmetic requires completed float32 numeric values", span);
+      return {};
+    }
+    if (type.tensor && type.device) {
+      error("S047", "host arithmetic requires an explicit transfer to devices.cpu()", span);
       return {};
     }
     if (type.tensor) {
@@ -466,6 +484,10 @@ private:
       error("S017", "arithmetic requires completed float32 values", span);
       return {};
     }
+    if ((a.tensor && a.device) || (b.tensor && b.device)) {
+      error("S047", "host arithmetic requires an explicit transfer to devices.cpu()", span);
+      return {};
+    }
     if (a.tensor || b.tensor) {
       if (binary.operation != TokenKind::Plus && binary.operation != TokenKind::Minus &&
           binary.operation != TokenKind::Star && binary.operation != TokenKind::Slash) {
@@ -513,7 +535,7 @@ private:
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const TaskExpr &operation,
                                const std::optional<ValueType> &expected) {
-    if (operation.placement) {
+    if (operation.placement && !options_.placement) {
       error("S045",
             "placed calls require the optional Metal source compiler; CPU lowering does not ignore "
             "placement",
@@ -534,7 +556,19 @@ private:
       context = *expected;
       context->fallible = true;
     }
-    auto value = expression(frame, operation.operand, context);
+    std::optional<ValueId> placement;
+    std::optional<ValueId> value;
+    if (operation.prefix == TaskPrefix::Spawn && options_.placement) {
+      const auto &call = std::get<CallExpr>(syntax_.expressions[operation.operand].value);
+      const auto *callee = std::get_if<NameExpr>(&syntax_.expressions[call.callee].value);
+      if (!callee) {
+        error("S037", "spawn requires a statically named invocation", span);
+        return {};
+      }
+      value = invoke(frame, syntax_.expressions[operation.operand].span, callee->name,
+                     call.arguments, {}, operation.placement, &placement, true);
+    } else
+      value = expression(frame, operation.operand, context);
     if (!value)
       return {};
     auto result = node(*value).type;
@@ -545,11 +579,18 @@ private:
         error("S037", "this invocation is not a supported task entry", span);
         return {};
       }
+      if (options_.placement && !placement) {
+        ValueType type;
+        type.builtin = BuiltinValue::Device;
+        placement = add(frame, type, span, DeviceSelection{{}});
+        if (!placement)
+          return {};
+      }
       if (result.fallible)
         frame.tasks->handled.insert(result.identity);
       result.task = true;
       result.identity = 0;
-      auto task = add(frame, result, span, TaskOperation{operation.prefix, *value});
+      auto task = add(frame, result, span, TaskOperation{operation.prefix, *value, placement});
       if (task)
         frame.tasks->children[frame.groups.back()].push_back(*task);
       return task;
@@ -625,7 +666,7 @@ private:
         error("S038", "every child result must be observed on a successful group path",
               node(child).span);
     auto resultType = node(*result).type;
-    if (resultType.task || resultType.fallible) {
+    if (resultType.task || resultType.fallible || resultType.builtin == BuiltinValue::Device) {
       error("S035", "parallel body must produce a completed value; use try await", span);
       return {};
     }
@@ -725,6 +766,11 @@ private:
       return {};
     finishBranch(before, nested, *result, span);
     const auto handlerType = node(*result).type;
+    if (resultType.device != handlerType.device) {
+      error("S047", "catch branches require matching residency and GPU index; transfer explicitly",
+            span);
+      return {};
+    }
     for (std::size_t axis = 0; axis < resultType.shape.size(); ++axis)
       if (!same(resultType.shape[axis], handlerType.shape[axis]))
         resultType.shape[axis] = dynamic();
@@ -845,11 +891,17 @@ private:
       if (!value)
         return {};
       auto actual = node(*value).type;
-      if (actual.task) {
+      if (actual.task || actual.builtin == BuiltinValue::Device) {
         error("S035", "match cannot return a task handle", arm.span);
         return {};
       }
       if (resultType) {
+        if (actual.device != resultType->device) {
+          error("S047",
+                "match branches require matching residency and GPU index; transfer explicitly",
+                arm.span);
+          return {};
+        }
         if (actual.builtin != resultType->builtin || actual.tensor != resultType->tensor ||
             actual.shape.size() != resultType->shape.size()) {
           error("S043", "match branches need a common success type", arm.span);
@@ -917,11 +969,12 @@ private:
   }
   std::optional<ValueId> tensor(Frame &frame, SourceSpan span, const std::vector<ExprId> &arguments,
                                 const std::optional<ValueType> &expected) {
-    if (arguments.size() != 1) {
-      error("S025",
-            "this tensor constructor requires one literal argument; runtime shape constructors are "
-            "not implemented",
-            span);
+    if (arguments.size() != 1 && arguments.size() != 2) {
+      error(
+          "S025",
+          "tensor expects literal data and an optional constant shape; dynamic shape arguments are "
+          "not implemented",
+          span);
       return {};
     }
     auto data = tensorData(arguments[0], expected);
@@ -934,6 +987,57 @@ private:
     if (!expected || !expected->tensor) {
       error("S026", "tensor literals need Tensor[float32,...] context in this first subset", span);
       return {};
+    }
+    if (arguments.size() == 2) {
+      const auto *shape = std::get_if<ArrayExpr>(&syntax_.expressions[arguments[1]].value);
+      if (!shape || shape->elements.size() > limits_.maxDepth || data->shape.size() != 1) {
+        error("S050",
+              "explicit tensor shape requires flat literal data and a bounded constant shape",
+              span);
+        return {};
+      }
+      std::vector<std::uint64_t> dimensions;
+      for (auto axis : shape->elements) {
+        const auto *literal = std::get_if<NumberExpr>(&syntax_.expressions[axis].value);
+        if (!literal) {
+          error("S050", "tensor shape dimensions must be nonnegative uint64 constants",
+                syntax_.expressions[axis].span);
+          return {};
+        }
+        auto text = syntax_.source->slice(literal->literal);
+        std::uint64_t value = 0;
+        auto parsed = std::from_chars(text.data(), text.data() + text.size(), value);
+        if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size()) {
+          error("S050", "invalid constant tensor shape dimension", literal->literal);
+          return {};
+        }
+        dimensions.push_back(value);
+      }
+      ValueType shapeType{true, {}};
+      for (auto dimension : dimensions)
+        shapeType.shape.push_back({dimension, 0});
+      if (!validSize(shapeType, span))
+        return {};
+      std::uint64_t stride = 1;
+      constexpr auto maximum = std::uint64_t(INT64_MAX);
+      for (auto axis = dimensions.rbegin(); axis != dimensions.rend(); ++axis) {
+        if (*axis && stride > maximum / (*axis)) {
+          error("S002", "explicit tensor shape overflows row-major strides", span);
+          return {};
+        }
+        stride *= *axis;
+      }
+      std::uint64_t count = 1;
+      if (std::ranges::find(dimensions, 0) != dimensions.end())
+        count = 0;
+      else
+        for (auto dimension : dimensions)
+          count *= dimension;
+      if (count != data->leaves.size()) {
+        error("S050", "explicit tensor shape element count does not match flat data", span);
+        return {};
+      }
+      data->shape = std::move(dimensions);
     }
     ValueType output{true, {}};
     for (auto dimension : data->shape)
@@ -963,6 +1067,10 @@ private:
     if (!left)
       return {};
     const auto leftType = node(*left).type;
+    if (leftType.tensor && leftType.device) {
+      error("S047", "host tensor operations require an explicit transfer to devices.cpu()", span);
+      return {};
+    }
     if (leftType.task || leftType.fallible || !leftType.tensor ||
         (callee == "matmul" && leftType.shape.size() != 2)) {
       error("S028", callee + " requires " + (callee == "matmul" ? "rank-two tensors" : "a tensor"),
@@ -975,6 +1083,10 @@ private:
     if (!right)
       return {};
     const auto rightType = node(*right).type;
+    if (rightType.tensor && rightType.device) {
+      error("S047", "host tensor operations require an explicit transfer to devices.cpu()", span);
+      return {};
+    }
     if (rightType.task || rightType.fallible || !rightType.tensor || rightType.shape.size() != 2) {
       error("S028", "matmul requires rank-two tensors", syntax_.expressions[arguments[1]].span);
       return {};
@@ -995,9 +1107,76 @@ private:
     const auto sizeCheck = dynamicSize(output);
     return add(frame, std::move(output), span, Matmul{*left, *right, !same(a, b), sizeCheck});
   }
-  ValueType callResult(FunctionId id, const std::vector<ValueId> &arguments) {
+  std::optional<ValueId> placementBuiltin(Frame &frame, SourceSpan span, const std::string &callee,
+                                          const std::vector<ExprId> &arguments) {
+    if (callee == "devices.cpu" || callee == "devices.gpu") {
+      if (frame.locals.contains("devices")) {
+        error("S030", "devices is shadowed by a local binding", span);
+        return {};
+      }
+      const bool gpu = callee == "devices.gpu";
+      if (arguments.size() > (gpu ? 1u : 0u)) {
+        error("S027", "invalid device selector argument count", span);
+        return {};
+      }
+      std::optional<std::uint32_t> device;
+      if (gpu) {
+        device = 0;
+        if (!arguments.empty()) {
+          const auto *literal = std::get_if<NumberExpr>(&syntax_.expressions[arguments[0]].value);
+          if (!literal) {
+            error("S046", "device selector requires a constant uint32 GPU index", span);
+            return {};
+          }
+          const auto text = syntax_.source->slice(literal->literal);
+          const auto parsed = std::from_chars(text.data(), text.data() + text.size(), *device);
+          if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size()) {
+            error("S046", "invalid uint32 GPU index", literal->literal);
+            return {};
+          }
+        }
+      }
+      ValueType type;
+      type.builtin = BuiltinValue::Device;
+      type.device = device;
+      return add(frame, type, span, DeviceSelection{device});
+    }
+    if (frame.groups.empty()) {
+      error("S037", "transfer requires an owning parallel group", span);
+      return {};
+    }
+    if (arguments.size() != 2) {
+      error("S027", "transfer expects a tensor and device target", span);
+      return {};
+    }
+    if (literal_[arguments[0]] || literal_[arguments[1]]) {
+      error("S047", "transfer requires a completed tensor and device selector", span);
+      return {};
+    }
+    auto input = expression(frame, arguments[0]);
+    auto target = expression(frame, arguments[1]);
+    if (!input || !target)
+      return {};
+    auto type = node(*input).type;
+    const auto selection = node(*target).type;
+    if (!type.tensor || type.task || type.fallible || selection.builtin != BuiltinValue::Device) {
+      error("S047", "transfer requires a completed tensor and device selector", span);
+      return {};
+    }
+    type.device = selection.device;
+    type.task = true;
+    type.identity = 0;
+    auto transfer = add(frame, type, span, Transfer{*input, *target});
+    if (transfer)
+      frame.tasks->children[frame.groups.back()].push_back(*transfer);
+    return transfer;
+  }
+  ValueType callResult(FunctionId id, const std::vector<ValueId> &arguments,
+                       bool cpuContract = false) {
     const auto &function = output_.functions[id];
-    auto result = states_[id] == State::Complete ? function.resultType : *function.declaredResult;
+    auto result = cpuContract && function.declaredResult ? *function.declaredResult
+                  : states_[id] == State::Complete       ? function.resultType
+                                                         : *function.declaredResult;
     std::unordered_map<ExtentId, Extent> substitution;
     for (std::size_t i = 0; i < arguments.size(); ++i) {
       const auto &formal = output_.symbols[function.parameters[i]].type;
@@ -1016,16 +1195,29 @@ private:
     }
     return result;
   }
-  std::optional<ValueId> invoke(Frame &frame, SourceSpan span, SourceSpan calleeSpan,
-                                const std::vector<ExprId> &arguments,
-                                const std::optional<ValueType> &expected) {
+  std::optional<ValueId>
+  invoke(Frame &frame, SourceSpan span, SourceSpan calleeSpan, const std::vector<ExprId> &arguments,
+         const std::optional<ValueType> &expected, std::optional<ExprId> selection = {},
+         std::optional<ValueId> *checkedSelection = nullptr, bool spawned = false) {
     const auto callee = name(calleeSpan);
     if (frame.locals.contains(callee)) {
       error("S030", "local value '" + callee + "' is not callable", calleeSpan);
       return {};
     }
+    if (options_.placement &&
+        (callee == "devices.cpu" || callee == "devices.gpu" || callee == "transfer")) {
+      if (selection) {
+        error("S037", "device selectors and transfers are not spawn function entries", span);
+        return {};
+      }
+      return placementBuiltin(frame, span, callee, arguments);
+    }
     auto found = functions_.find(callee);
     if (found == functions_.end()) {
+      if (selection) {
+        error("S037", "placed spawn requires a statically named function", span);
+        return {};
+      }
       if (callee == "tensor" || callee == "matmul" || callee == "reduceSum")
         return builtin(frame, span, callee, arguments, expected);
       error("S031", "unknown function '" + callee + "'", calleeSpan);
@@ -1043,10 +1235,45 @@ private:
     std::vector<ValueId> operands;
     for (std::size_t i = 0; i < arguments.size(); ++i) {
       const auto expectedType = output_.symbols[output_.functions[id].parameters[i]].type;
-      auto argument = expression(frame, arguments[i], expectedType);
+      auto argument = expression(frame, arguments[i], expectedType, options_.placement && spawned);
       if (!argument)
         return {};
       operands.push_back(*argument);
+    }
+    std::optional<std::uint32_t> device;
+    if (selection) {
+      if (literal_[*selection]) {
+        error("S046", "task placement requires a device selector", span);
+        return {};
+      }
+      auto target = expression(frame, *selection);
+      if (!target)
+        return {};
+      const auto type = node(*target).type;
+      if (type.builtin != BuiltinValue::Device || type.task || type.fallible) {
+        error("S046", "task placement requires a device selector", span);
+        return {};
+      }
+      device = type.device;
+      if (checkedSelection)
+        *checkedSelection = *target;
+    }
+    if (!selection && spawned && options_.placement && checkedSelection) {
+      ValueType type;
+      type.builtin = BuiltinValue::Device;
+      auto target = add(frame, type, span, DeviceSelection{{}});
+      if (!target)
+        return {};
+      *checkedSelection = *target;
+    }
+    for (auto operand : operands) {
+      const auto type = node(operand).type;
+      if (type.tensor && type.device != device) {
+        error("S047",
+              "tensor arguments require an explicit transfer to the selected execution device",
+              span);
+        return {};
+      }
     }
     if (states_[id] == State::Complete) {
       std::unordered_map<ExtentId, Extent> substitution;
@@ -1075,7 +1302,9 @@ private:
           return {};
       }
     }
-    auto resultType = callResult(id, operands);
+    auto resultType = callResult(id, operands, options_.placement && !device);
+    if (resultType.tensor)
+      resultType.device = device;
     resultType.fallible = syntax_.functions[id].taskError;
     resultType.identity = 0;
     if (!validSize(resultType, span))
@@ -1084,6 +1313,7 @@ private:
   }
   Module syntax_;
   SemanticLimits limits_;
+  CheckOptions options_;
   TypedModule output_;
   std::unordered_map<std::string, FunctionId> functions_;
   std::vector<State> states_;
@@ -1098,10 +1328,10 @@ private:
   std::size_t nextGroup_ = 1;
 };
 } // namespace
-CheckResult check(ParseResult syntax, SemanticLimits limits) {
+CheckResult check(ParseResult syntax, SemanticLimits limits, CheckOptions options) {
   if (!syntax.ok())
     return {syntax.module.source, {}, std::move(syntax.diagnostics)};
   limits.maxDiagnostics = std::max<std::size_t>(1, limits.maxDiagnostics);
-  return Checker(std::move(syntax.module), limits).run();
+  return Checker(std::move(syntax.module), limits, options).run();
 }
 } // namespace kalandra

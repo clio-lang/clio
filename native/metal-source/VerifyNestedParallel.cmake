@@ -61,7 +61,7 @@ string(FIND "${SOURCE}" "fn main()" MAIN)
 string(SUBSTRING "${SOURCE}" 0 ${MAIN} FUNCTIONS)
 set(START "fn main() -> float32 ! TaskError:\n  try parallel:\n    gpu = devices.gpu()\n")
 # Numeric-only scopes still join; an outer annotation supplies literal context.
-set(BODY "    host: Tensor[float32,3] = try parallel:\n      tensor([1,2,3])\n    result = try parallel:\n      1\n    input = try await transfer(host,gpu)\n    resident = try await spawn scale(input,result) on gpu\n    output = try await transfer(resident,devices.cpu())\n    reduceSum(output)\n")
+set(BODY "    host: Tensor[float32,3] = try parallel:\n      tensor([1,2,3])\n    result: float32 = try parallel:\n      1\n    input = try await transfer(host,gpu)\n    resident = try await spawn scale(input,result) on gpu\n    output = try await transfer(resident,devices.cpu())\n    reduceSum(output)\n")
 build_run(context "${FUNCTIONS}${START}${BODY}" "40c00000\n" --sanitize)
 string(REPLACE "float32,3" "float32,0" EMPTY "${BODY}")
 string(REPLACE "tensor([1,2,3])" "tensor([])" EMPTY "${EMPTY}")

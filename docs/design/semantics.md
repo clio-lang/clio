@@ -96,3 +96,7 @@ Arbitrary application error families, unions, general variants, and broader erro
 Checks cover inline and repeated awaits, observation through aliases, use outside groups, discarded results, handle escapes, and missing propagation. [Native source task tests](native-tasks.md#compiled-source-task-subset) now exercise these checked operations through actual continuation lowering, tensor kernels, and runtime settlement. The complete native suite contains 25 CTest tests.
 
 The [shared CPU/GPU helper path](apple-gpu.md#shared-cpugpu-helpers) now consumes the same checked tensor/scalar function bodies for both targets. GPU capability admission is separate from type correctness: unsupported GPU operations are rejected even when the function is valid on CPU. Supervisor task placement and residency remain target-specific checks.
+
+## Shared placement checking
+
+The optional [placement-aware check](placement-ir.md) extends this same typed module with `DeviceSelection`, owned `Transfer` tasks, checked spawn targets and exact tensor residency. It reuses group/error obligations and shape checking; it does not create a separate semantic type system for Metal. The normal CPU checker retains its existing policy, and CPU backends reject placement-bearing IR. Metal compilation must pass the shared check before publishing its artifacts, while device capability admission and the current syntax-driven executable emitter remain target-specific.
