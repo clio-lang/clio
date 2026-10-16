@@ -142,8 +142,8 @@ private:
         syntax.tensor ? (syntax.element ? resolveNumeric(name(*syntax.element)) : std::nullopt)
                       : resolveNumeric(name(syntax.name));
     if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu) ||
-        (syntax.tensor && *numeric == NumericType::Int64)) {
-      error("S003", "only int32, uint32, int64 scalars, float32 and 32-bit tensors are implemented in this semantic subset",
+        (syntax.tensor && (*numeric == NumericType::Int64 || *numeric == NumericType::UInt64))) {
+      error("S003", "only int32, uint32, int64/uint64 scalars, float32 and 32-bit tensors are implemented in this semantic subset",
             syntax.span);
       return {};
     }
@@ -370,9 +370,13 @@ private:
         [&](const auto &operation) { return infer(frame, syntax.span, operation, expected); },
         syntax.value);
     if (value && isInteger(node(*value).type.element)) {
-      const bool unsignedValue = node(*value).type.element == NumericType::UInt32;
+      const bool unsignedValue = isUnsigned(node(*value).type.element);
+      const bool uint64Value = node(*value).type.element == NumericType::UInt64;
       const bool int64Value = node(*value).type.element == NumericType::Int64;
-      const auto typeName = unsignedValue ? "uint32" : int64Value ? "int64" : "int32";
+      const auto typeName = uint64Value ? "uint64" : unsignedValue ? "uint32" : int64Value ? "int64" : "int32";
+      const __int128_t maximum = unsignedValue ? __int128_t(uint64Value ? UINT64_MAX : UINT32_MAX)
+                                               : int64Value ? INT64_MAX : INT32_MAX;
+      const __int128_t minimum = unsignedValue ? 0 : int64Value ? INT64_MIN : INT32_MIN;
       std::optional<__int128_t> constant;
       const auto &op = node(*value).operation;
       if (const auto *n = std::get_if<Int32Literal>(&op))
@@ -380,6 +384,8 @@ private:
       else if (const auto *n = std::get_if<Int64Literal>(&op))
         constant = n->value;
       else if (const auto *n = std::get_if<UInt32Literal>(&op))
+        constant = n->value;
+      else if (const auto *n = std::get_if<UInt64Literal>(&op))
         constant = n->value;
       else if (const auto *read = std::get_if<SymbolRead>(&op)) {
         if (auto it = intBindings_.find(read->symbol); it != intBindings_.end())
@@ -399,8 +405,8 @@ private:
           case TokenKind::Plus: constant = __int128_t(a->second) + b->second; break;
           case TokenKind::Minus: constant = __int128_t(a->second) - b->second; break;
           case TokenKind::Star:
-            if (unsignedValue && b->second && a->second > UINT32_MAX / b->second) {
-              error("S052", "constant uint32 arithmetic overflows", syntax.span);
+            if (unsignedValue && b->second && a->second > maximum / b->second) {
+              error("S052", std::string("constant ") + typeName + " arithmetic overflows", syntax.span);
               return {};
             }
             constant = __int128_t(a->second) * b->second;
@@ -412,23 +418,23 @@ private:
         }
       }
       if (constant) {
-        if (*constant < (unsignedValue ? 0 : int64Value ? INT64_MIN : INT32_MIN) ||
-            *constant > (unsignedValue ? std::int64_t(UINT32_MAX) : int64Value ? INT64_MAX : INT32_MAX)) {
+        if (*constant < minimum || *constant > maximum) {
           error("S052", std::string("constant ") + typeName + " arithmetic overflows", syntax.span);
           return {};
         }
-        intConstants_[*value] = static_cast<std::int64_t>(*constant);
+        intConstants_[*value] = *constant;
       }
     }
     if (value && expected)
       return conform(frame, *value, *expected, syntax.span, deferShape);
     return value;
   }
-  std::unordered_map<ValueId, std::int64_t> intConstants_;
-  std::unordered_map<SymbolId, std::int64_t> intBindings_;
+  std::unordered_map<ValueId, __int128_t> intConstants_;
+  std::unordered_map<SymbolId, __int128_t> intBindings_;
   std::optional<ValueId> intLiteral(Frame &frame, SourceSpan span, const NumberExpr &literal,
                                     bool negative = false, NumericType element = NumericType::Int32) {
-    const bool unsignedValue = element == NumericType::UInt32;
+    const bool unsignedValue = isUnsigned(element);
+    const bool uint64Value = element == NumericType::UInt64;
     const bool int64Value = element == NumericType::Int64;
     const auto text = syntax_.source->slice(literal.literal);
     if (text.size() > limits_.maxLiteralBytes) {
@@ -438,11 +444,16 @@ private:
     std::uint64_t magnitude = 0;
     const auto parsed = std::from_chars(text.data(), text.data() + text.size(), magnitude);
     const std::uint64_t signedMaximum = int64Value ? INT64_MAX : INT32_MAX;
-    const std::uint64_t limit = unsignedValue ? (negative ? 0 : UINT32_MAX)
+    const std::uint64_t limit = unsignedValue ? (negative ? 0 : uint64Value ? UINT64_MAX : UINT32_MAX)
                                             : negative ? signedMaximum + 1 : signedMaximum;
     if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size() || magnitude > limit) {
-      error("S051", std::string(unsignedValue ? "uint32" : int64Value ? "int64" : "int32") + " requires an in-range integer literal", span);
+      error("S051", std::string(uint64Value ? "uint64" : unsignedValue ? "uint32" : int64Value ? "int64" : "int32") + " requires an in-range integer literal", span);
       return {};
+    }
+    if (uint64Value) {
+      ValueType type;
+      type.element = element;
+      return add(frame, type, span, UInt64Literal{magnitude});
     }
     const auto value = negative ? (magnitude == (std::uint64_t(1) << 63) ? INT64_MIN : -static_cast<std::int64_t>(magnitude))
                                 : static_cast<std::int64_t>(magnitude);

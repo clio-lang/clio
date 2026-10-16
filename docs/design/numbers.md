@@ -471,7 +471,7 @@ fn main() -> int ! TaskError:
     try await spawn increment(start)
 ```
 
-This prints `9007199254740994` exactly. Unconstrained decimal/exponent literals still require float32 context until float64 arithmetic is qualified. `uint` remains uint64 and is not enabled by this increment. Int64 tensors, reductions, matmul, GPU arithmetic and numeric conversions remain rejected.
+This prints `9007199254740994` exactly. Unconstrained decimal/exponent literals still require float32 context until float64 arithmetic is qualified. `uint` remains uint64 and is now qualified below. Int64 tensors, reductions, matmul, GPU arithmetic and numeric conversions remain rejected.
 
 Unary `+`/`-` and binary `+`, `-`, `*`, `/`, `%` preserve int64. Overflow and zero divisors are checked in every build mode. Division truncates toward zero; INT64_MIN divided by -1 faults, while INT64_MIN remainder -1 is zero. Signed minimum parses with its leading minus, without requiring its positive magnitude to fit first. Known invalid literals, arithmetic and constant bindings are diagnosed before code generation. Compile-time calculations use a wider signed representation so the compiler itself never overflows while checking these operations.
 
@@ -481,4 +481,31 @@ The common continuation planner sends int64 arithmetic through the checked kerne
 
 [Frontend checks](../../native/tests/Int64Tests.cpp) cover endpoints, values above float64 integer precision, signed minimum parsing, constant overflow/zero division, the int alias, default inference and rejected conversions/tensor/GPU capabilities. The [shared signed scalar driver](../../native/cmake/VerifyInt32.cmake), [width specialization](../../native/cmake/SignedScalarType.cmake) and [runtime harness](../../native/tests/Int32RuntimeTests.cpp) compare all six nontrivial operators against independent wider arithmetic over boundaries and deterministic full-range inputs. Exact endpoints and CLI output, native-width division/remainder, source locations and artifact preservation on static errors are checked. The [shared worker driver](../../native/cmake/VerifyInt32Tasks.cmake) checks mixed-width/family captures with each supported root type, nested/cached calls, every arithmetic failure, recovery with owned parent data, root admission/allocation rejection and zero-live-allocation cleanup at 1/2/4 workers. Generated programs run in debug, optimized, ASan/UBSan and TSan builds; frontend checks also run independently under ASan/UBSan. [Qualification evidence](../../native/metal-proof/evidence/cpu-int64-scalars-2026-10-16.json) records the regression and numerical artifact comparison.
 
-Next: checked CPU uint64 scalars through the shared width/type policies. Int64 tensors and further numeric formats remain separate increments. Distributed execution still requires the agreed design review.
+Checked CPU uint64 scalars are now qualified below. Int64 tensors and further numeric formats remain separate increments. Distributed execution still requires the agreed design review.
+
+
+## Checked CPU uint64 scalar arithmetic
+
+The CPU subset now supports unsigned uint64 scalar literals, immutable bindings, ordinary functions, private native scalar interfaces and structured worker calls. The `uint` alias has exactly this type, with values from 0 through 18446744073709551615. Whole-number literals without context still infer signed int64; use uint/uint64 context for values above INT64_MAX. Typed integers never implicitly widen, narrow or switch signedness.
+
+```kalandra
+fn identity(value: uint) -> uint64:
+  value
+
+fn main() -> uint ! TaskError:
+  value: uint = 18446744073709551615
+  try parallel:
+    try await spawn identity(value)
+```
+
+This prints `18446744073709551615` exactly. Unary `+`/`-` and binary `+`, `-`, `*`, `/`, `%` preserve uint64. Addition/multiplication overflow, subtraction underflow and zero divisors fault in every build mode. Negation succeeds only for zero. There are no implicit conversions to int64, narrower integers or float32, even when a particular value would fit.
+
+Known invalid literals, constant arithmetic and immutable constant bindings are rejected before code generation. Constant storage now preserves the full uint64 range. The compiler checks the multiplication bound before evaluating an unsigned product, so UINT64_MAX times UINT64_MAX is safely diagnosed rather than overflowing the compiler's signed intermediate. Intermediate overflow still faults even if a later operation would bring the mathematical total back into range.
+
+The shared unsigned MLIR path is width-aware. Addition, subtraction and multiplication zero-extend to i128, check uint64 bounds and narrow; every possible pair of uint64 operands has an exact product in unsigned i128. Subtraction checks operand order first. Division and remainder use guarded native-width unsigned i64 instructions, without widened software division. Negation checks zero at the operand's width. These are compiler intermediates, not new source int128/uint128 types.
+
+The dedicated CLI entry preserves exact unsigned decimal output. The common continuation planner carries UInt64 literals and checked kernels; generated task layouts distinguish uint64 and int64 despite identical 8-byte storage. Captures may mix uint64, int64, uint32, int32, float32 and existing float32 tensor values. Nested workers, cached awaits, root admission/allocation rejection and Arithmetic recovery reuse the existing scheduler and ownership machinery. Child faults retain source locations and publish no successful scalar result; recovery can reuse parent tensors and start another group. Existing 32-bit and signed64 entries retain their ABI.
+
+[Frontend checks](../../native/tests/UInt64Tests.cpp) cover endpoints, the uint alias, full-range constants/bindings, compile-time overflow, default signed inference and rejected type/tensor/GPU capabilities. The [shared unsigned runtime harness](../../native/tests/UInt32RuntimeTests.cpp), [width specialization](../../native/cmake/UnsignedScalarType.cmake) and [compiled driver](../../native/cmake/VerifyUInt32.cmake) compare seven operators with independent wider unsigned arithmetic. Tests cover 25-by-25 boundary pairs and 10,000 deterministic full-range input pairs per operator, native-width division/remainder, exact CLI values, mixed task layouts, nested/cached workers, all six faulting operations, source locations, recovery, zero-live-allocation cleanup and static-error artifact preservation. A separate mixed-packet program returns each of the five supported scalar families as its root result, including UINT64_MAX and INT64_MIN together. Debug, optimized, ASan/UBSan and TSan variants run task cases with 1/2/4 workers; frontend checks also run independently under ASan/UBSan. [Qualification evidence](../../native/metal-proof/evidence/cpu-uint64-scalars-2026-10-17.json) records the regression and numerical artifact comparison.
+
+Int64/uint64 tensors, reductions and matmul, GPU integer arithmetic, float64 and explicit numeric conversions remain gated. Next: shared 64-bit CPU tensor literals and elementwise arithmetic. Distributed execution still requires the agreed design review.

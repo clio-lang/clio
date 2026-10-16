@@ -65,9 +65,10 @@ public:
     auto main =
         std::ranges::find_if(input_.functions, [](const auto &f) { return f.name == "main"; });
     if (main == input_.functions.end() || !main->parameters.empty() || main->resultType.tensor)
-      throw LoweringFailure{"native entry requires fn main() -> float32, int32, uint32 or int64 with no parameters"};
+      throw LoweringFailure{"native entry requires fn main() -> float32, int32, uint32, int64 or uint64 with no parameters"};
     builder_.setInsertionPointToEnd(module_->getBody());
-    const auto entryName = main->resultType.element == NumericType::Int64 ? "kalandra_int64_entry"
+    const auto entryName = main->resultType.element == NumericType::UInt64 ? "kalandra_uint64_entry"
+                           : main->resultType.element == NumericType::Int64 ? "kalandra_int64_entry"
                            : main->resultType.element == NumericType::UInt32 ? "kalandra_uint32_entry"
                            : main->resultType.element == NumericType::Int32 ? "kalandra_int32_entry" : "kalandra_entry";
     auto entry = func::FuncOp::create(builder_, location(main->declaration), entryName,
@@ -89,7 +90,7 @@ private:
   }
   Type type(const ValueType &value) {
     if (!value.tensor)
-      return value.element == NumericType::Int64 ? Type(builder_.getI64Type())
+      return (value.element == NumericType::Int64 || value.element == NumericType::UInt64) ? Type(builder_.getI64Type())
              : isInteger32(value.element) ? Type(builder_.getI32Type())
                                                 : Type(builder_.getF32Type());
     SmallVector<std::int64_t> shape;
@@ -144,7 +145,7 @@ private:
       return operand;
     if (unsignedValue) {
       guard(loc, compare(loc, arith::CmpIPredicate::eq, operand,
-                         arith::ConstantIntOp::create(builder_, loc, 0, 32)), 4);
+                         arith::ConstantIntOp::create(builder_, loc, 0, cast<IntegerType>(operand.getType()).getWidth())), 4);
       return operand;
     }
     const auto bits = cast<IntegerType>(operand.getType()).getWidth();
@@ -154,10 +155,17 @@ private:
   }
   Value integerBinary(Location loc, Value a, Value b, TokenKind op, bool unsignedValue = false) {
     if (unsignedValue) {
-      a = arith::ExtUIOp::create(builder_, loc, builder_.getI64Type(), a);
-      b = arith::ExtUIOp::create(builder_, loc, builder_.getI64Type(), b);
-      if (op == TokenKind::Slash || op == TokenKind::Percent)
+      const auto bits = cast<IntegerType>(a.getType()).getWidth();
+      if (bits == 64 && (op == TokenKind::Slash || op == TokenKind::Percent)) {
         guard(loc, compare(loc, arith::CmpIPredicate::ne, b, integer(loc, 0)), 4);
+        return binary(loc, op == TokenKind::Slash ? "arith.divui" : "arith.remui", a, b);
+      }
+      auto wideType = builder_.getIntegerType(bits * 2);
+      a = arith::ExtUIOp::create(builder_, loc, wideType, a);
+      b = arith::ExtUIOp::create(builder_, loc, wideType, b);
+      auto z = arith::ConstantIntOp::create(builder_, loc, 0, bits * 2);
+      if (op == TokenKind::Slash || op == TokenKind::Percent)
+        guard(loc, compare(loc, arith::CmpIPredicate::ne, b, z), 4);
       if (op == TokenKind::Minus)
         guard(loc, compare(loc, arith::CmpIPredicate::uge, a, b), 4);
       const char *name = op == TokenKind::Plus ? "arith.addi"
@@ -165,8 +173,10 @@ private:
                          : op == TokenKind::Star ? "arith.muli"
                          : op == TokenKind::Percent ? "arith.remui" : "arith.divui";
       auto wide = binary(loc, name, a, b);
-      guard(loc, compare(loc, arith::CmpIPredicate::ule, wide, integer(loc, UINT32_MAX)), 4);
-      return arith::TruncIOp::create(builder_, loc, builder_.getI32Type(), wide);
+      auto maximum = arith::ConstantOp::create(builder_, loc, wideType,
+          builder_.getIntegerAttr(wideType, llvm::APInt(bits * 2, bits == 64 ? UINT64_MAX : UINT32_MAX)));
+      guard(loc, compare(loc, arith::CmpIPredicate::ule, wide, maximum), 4);
+      return arith::TruncIOp::create(builder_, loc, builder_.getIntegerType(bits), wide);
     }
     const auto bits = cast<IntegerType>(a.getType()).getWidth();
     if (bits == 64 && (op == TokenKind::Slash || op == TokenKind::Percent)) {
@@ -721,6 +731,9 @@ private:
           if constexpr (std::is_same_v<T, Float32Literal>) {
             llvm::APFloat number(llvm::APFloat::IEEEsingle(), llvm::APInt(32, operation.bits));
             return arith::ConstantFloatOp::create(builder_, loc, builder_.getF32Type(), number);
+          } else if constexpr (std::is_same_v<T, UInt64Literal>) {
+            return arith::ConstantOp::create(builder_, loc, builder_.getI64Type(),
+                builder_.getIntegerAttr(builder_.getI64Type(), llvm::APInt(64, operation.value)));
           } else if constexpr (std::is_same_v<T, Int32Literal> || std::is_same_v<T, UInt32Literal> || std::is_same_v<T, Int64Literal>) {
             return arith::ConstantIntOp::create(builder_, loc, operation.value, node.type.element == NumericType::Int64 ? 64 : 32);
           } else if constexpr (std::is_same_v<T, SymbolRead>)
@@ -728,14 +741,14 @@ private:
           else if constexpr (std::is_same_v<T, ScalarUnary>) {
             auto operand = expression(frame, operation.operand);
             if (isInteger(node.type.element))
-              return integerUnary(loc, operand, operation.operation, node.type.element == NumericType::UInt32);
+              return integerUnary(loc, operand, operation.operation, isUnsigned(node.type.element));
             return operation.operation == TokenKind::Minus
                        ? arith::NegFOp::create(builder_, loc, operand).getResult()
                        : operand;
           } else if constexpr (std::is_same_v<T, ScalarBinary>) {
             auto a = expression(frame, operation.left), b = expression(frame, operation.right);
             if (isInteger(node.type.element))
-              return integerBinary(loc, a, b, operation.operation, node.type.element == NumericType::UInt32);
+              return integerBinary(loc, a, b, operation.operation, isUnsigned(node.type.element));
             const char *name = operation.operation == TokenKind::Plus    ? "arith.addf"
                                : operation.operation == TokenKind::Minus ? "arith.subf"
                                : operation.operation == TokenKind::Star  ? "arith.mulf"

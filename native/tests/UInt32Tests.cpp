@@ -39,7 +39,6 @@ int main() {
           "fn f(x:uint32) -> int32:\n  x\nfn main() -> int32:\n  f(1)\n",
           "fn f(x:uint32,y:int32) -> uint32:\n  x + y\nfn main() -> uint32:\n  f(1,1)\n",
           "fn f(x:uint32,y:float32) -> uint32:\n  x + y\nfn main() -> uint32:\n  f(1,1)\n",
-          "fn main() -> uint:\n  1\n",
           "fn f(x:Tensor[uint32,?,?],y:Tensor[int32,?,?]) -> Tensor[uint32,?,?]:\n  matmul(x,y)\n",
           "fn f(x:Tensor[uint32,?,?],y:Tensor[float32,?,?]) -> Tensor[uint32,?,?]:\n  "
           "matmul(x,y)\n",

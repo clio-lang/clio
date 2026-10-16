@@ -199,7 +199,7 @@ private:
   }
   bool constant(ValueId id) const {
     const auto &op = input.expressions[id].operation;
-    if (std::holds_alternative<Float32Literal>(op) || (std::holds_alternative<Int64Literal>(op) || std::holds_alternative<Int32Literal>(op) || std::holds_alternative<UInt32Literal>(op)))
+    if (std::holds_alternative<Float32Literal>(op) || (std::holds_alternative<UInt64Literal>(op) || std::holds_alternative<Int64Literal>(op) || std::holds_alternative<Int32Literal>(op) || std::holds_alternative<UInt32Literal>(op)))
       return true;
     const auto *unary = std::get_if<ScalarUnary>(&op);
     return unary && constant(unary->operand);
@@ -364,7 +364,7 @@ private:
                            env.boundary->group.value_or(SIZE_MAX)});
       env.boundary->jumps.push_back(index);
     } else if (std::holds_alternative<Float32Literal>(node.operation) ||
-               (std::holds_alternative<Int64Literal>(node.operation) || std::holds_alternative<Int32Literal>(node.operation) || std::holds_alternative<UInt32Literal>(node.operation)))
+               (std::holds_alternative<UInt64Literal>(node.operation) || std::holds_alternative<Int64Literal>(node.operation) || std::holds_alternative<Int32Literal>(node.operation) || std::holds_alternative<UInt32Literal>(node.operation)))
       plan.code.push_back({Code::Literal, output, {}, 0, 0, 0, id});
     else if (isInteger(node.type.element) &&
              (std::holds_alternative<ScalarUnary>(node.operation) ||

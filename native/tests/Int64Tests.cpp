@@ -50,7 +50,7 @@ int main() {
          {"fn f(x:int32) -> int64:\n  x\n", "fn f(x:int64) -> int32:\n  x\n",
           "fn f(x:int64,y:uint32) -> int64:\n  x + y\n",
           "fn f(x:int64,y:float32) -> int64:\n  x + y\n",
-          "fn f(x:Tensor[int64,?]) -> int64:\n  0\n", "fn f() -> uint64:\n  0\n",
+          "fn f(x:Tensor[int64,?]) -> int64:\n  0\n", "fn f() -> uint16:\n  0\n",
           "fn f() -> float64:\n  1.0\n", "fn main() -> int:\n  x = 9223372036854775807\n  x + 1\n",
           "fn f(x:int64) -> int64:\n  z = 0\n  x / z\n"})
       require(!analyze(source).ok(), "unsupported conversion/type or known overflow accepted");

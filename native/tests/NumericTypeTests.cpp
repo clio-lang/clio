@@ -53,9 +53,9 @@ int main() {
       for (auto target : {NumericTarget::Cpu, NumericTarget::AppleGpu})
         require(numericArithmeticAvailable(description.type, target) ==
                     (description.type == NumericType::Float32 ||
-                     (target == NumericTarget::Cpu && (isInteger32(description.type) || description.type == NumericType::Int64))),
+                     (target == NumericTarget::Cpu && (isInteger32(description.type) || description.type == NumericType::Int64 || description.type == NumericType::UInt64))),
                 "type description accidentally enabled arithmetic");
-      if (description.type != NumericType::Float32 && !isInteger32(description.type) && description.type != NumericType::Int64) {
+      if (description.type != NumericType::Float32 && !isInteger32(description.type) && description.type != NumericType::Int64 && description.type != NumericType::UInt64) {
         auto rejected = analyze("fn main() -> " + std::string(description.name) + ":\n  1\n");
         require(!rejected.ok() && rejected.diagnostics.front().code == "S003",
                 "unimplemented source arithmetic accepted");
@@ -87,16 +87,16 @@ int main() {
     for (unsigned surface = 0; surface < 4; ++surface) {
       auto forged = *numeric.module;
       if (surface == 0)
-        forged.functions[0].resultType.element = NumericType::UInt64;
+        forged.functions[0].resultType.element = NumericType::Float64;
       if (surface == 1)
-        forged.functions[0].declaredResult->element = NumericType::UInt64;
+        forged.functions[0].declaredResult->element = NumericType::Float64;
       if (surface == 2)
-        forged.symbols[0].type.element = NumericType::UInt64;
+        forged.symbols[0].type.element = NumericType::Float64;
       if (surface == 3)
-        forged.expressions[0].type.element = NumericType::UInt64;
+        forged.expressions[0].type.element = NumericType::Float64;
       auto failure = lowerNative(forged);
-      require(!failure && failure.error().find("uint64") != std::string::npos,
-              "backend silently treated uint64 as float32");
+      require(!failure && failure.error().find("float64") != std::string::npos,
+              "backend silently treated float64 as float32");
     }
     auto task = analyze("fn identity(values:Tensor[float32,?]) -> Tensor[float32,?]:\n  values\n"
                         "fn main() -> float32 ! TaskError:\n  try parallel:\n"

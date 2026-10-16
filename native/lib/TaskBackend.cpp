@@ -85,14 +85,15 @@ public:
                                      [](const auto &f) { return f.name == "main"; });
     if (main == planner.input.functions.end() || !main->parameters.empty() ||
         main->resultType.tensor || main->resultType.builtin != BuiltinValue::Numeric)
-      throw std::runtime_error("native task entry requires parameterless float32, int32, uint32 or int64 main");
+      throw std::runtime_error("native task entry requires parameterless float32, int32, uint32, int64 or uint64 main");
     const auto id = std::size_t(main - planner.input.functions.begin());
     auto *entry = module.getFunction("_mlir_ciface_kalandra_entry");
     if (isInteger(main->resultType.element)) {
       entry->eraseFromParent();
       entry = Function::Create(llvm::FunctionType::get(scalarType(main->resultType), {pointer}, false),
                                llvm::GlobalValue::ExternalLinkage,
-                               main->resultType.element == NumericType::Int64 ? "_mlir_ciface_kalandra_int64_entry"
+                               main->resultType.element == NumericType::UInt64 ? "_mlir_ciface_kalandra_uint64_entry"
+                               : main->resultType.element == NumericType::Int64 ? "_mlir_ciface_kalandra_int64_entry"
                                : main->resultType.element == NumericType::UInt32 ? "_mlir_ciface_kalandra_uint32_entry" : "_mlir_ciface_kalandra_int32_entry", module);
     } else
       entry->deleteBody();
@@ -163,7 +164,7 @@ private:
     return llvm::StructType::get(context, {pointer, pointer, i64, dims, dims});
   }
   Type *scalarType(const ValueType &type) const {
-    return type.element == NumericType::Int64 ? i64 : isInteger32(type.element) ? i32 : f32;
+    return (type.element == NumericType::Int64 || type.element == NumericType::UInt64) ? i64 : isInteger32(type.element) ? i32 : f32;
   }
   std::string key(const ValueType &type) {
     return type.builtin == BuiltinValue::TaskError   ? "TaskError"
@@ -173,7 +174,7 @@ private:
            : type.tensor                             ? (type.element == NumericType::UInt32 ? "tensor.uint32."
                                                         : type.element == NumericType::Int32 ? "tensor.int32." : "tensor") +
                                                          std::to_string(type.shape.size())
-                                                     : type.element == NumericType::Int64 ? "scalar.int64" : type.element == NumericType::UInt32 ? "scalar.uint32" : type.element == NumericType::Int32 ? "scalar.int32" : "scalar";
+                                                     : type.element == NumericType::UInt64 ? "scalar.uint64" : type.element == NumericType::Int64 ? "scalar.int64" : type.element == NumericType::UInt32 ? "scalar.uint32" : type.element == NumericType::Int32 ? "scalar.int32" : "scalar";
   }
   llvm::StructType *valueType(const ValueType &type) {
     const auto name = key(type);
@@ -342,6 +343,11 @@ private:
         }
         if (const auto *integer = std::get_if<Int64Literal>(&literal)) {
           builder.CreateStore(c64(static_cast<std::uint64_t>(integer->value)), payload(instruction.output));
+          builder.CreateBr(next);
+          break;
+        }
+        if (const auto *integer = std::get_if<UInt64Literal>(&literal)) {
+          builder.CreateStore(c64(integer->value), payload(instruction.output));
           builder.CreateBr(next);
           break;
         }
