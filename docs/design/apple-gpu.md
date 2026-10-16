@@ -535,3 +535,27 @@ Reachable scalar helpers can divide too. This does not admit arbitrary scalar-re
 The [fixture](../../native/metal-source/division.kalandra) and [conformance harness](../../native/metal-source/DivisionChecks.h) cover tensor/tensor division, both scalar orders, and multiplication through a transitive reciprocal helper. Each rank and build variant checks **436 cases and 3,499,236 CPU/GPU/APFloat lanes**, including the existing pair corpus and 98,304 additional directed division pairs, aliases, empty axes, odd tails, immutable inputs and cached ownership. Debug, optimized, host ASan/UBSan and host TSan variants retain common cancellation, deadlines, byte budgets, failed completion and allocation-failure checks; nine CPU allocation failures are unwound with each of 1/2/4 workers.
 
 [CLI checks](../../native/metal-source/VerifyDivision.cmake) verify strict artifacts, identical vector/matrix lane code, relocated eight-library bundles, complete-axis shape faults, CPU task division, and a GPU regression distinguishing `5 / 3` from `5 * (1 / 3)`. Host sanitizers do not instrument GPU instructions. [Qualification evidence](../../native/metal-proof/evidence/gpu-division-2026-10-16.json) records the sources, artifacts and test results. No performance claim is made.
+
+## Inline CPU expressions in mixed programs
+
+The mixed program's `try parallel` body now accepts ordinary float32 arithmetic, unary signs, `reduceSum`, and `matmul` directly. Small CPU operations no longer require named wrapper functions:
+
+```kalandra
+host = try await transfer(resident, devices.cpu())
+projected = matmul(host, weights)
+reduceSum((projected - 1) / 2)
+```
+
+These expressions execute on the CPU. An awaited GPU tensor remains on the device until explicitly downloaded; `resident + 1` does not select a GPU kernel or insert a transfer. Pending tasks and device targets are not numeric operands. GPU placement continues to use an explicit named `spawn ... on gpu` call.
+
+The supported host subset is float32 scalar arithmetic and rank-one/rank-two float32 tensors, with `+`, `-`, `*`, `/`, and unary `+`/`-`. Scalars lift on either side of tensor arithmetic; two tensor operands need equal rank and every corresponding extent. `reduceSum` uses the existing row-major balanced tree; `matmul` remains rank two with separately rounded products and that fixed tree. Division retains IEEE zero/nonfinite behavior and does not become reciprocal multiplication. Remainder and implicit numeric conversions remain unsupported.
+
+Nested expressions evaluate their operands in source order and may appear in bindings, final results, ordinary function arguments, transfer arguments, or scalar arguments to a placed GPU call. Supported inline results retain shape facts derived from known input axes, so a later known mismatch can still fail compilation. Unknown dimensions retain the common typed operation's preconditions and fail before CPU descriptor export or arithmetic. Rank/axis mismatches are not accepted merely because element counts match.
+
+The compiler checks a private operation wrapper through the common native frontend and imports its typed nodes with fresh function, symbol, value, and dynamic-extent identities. Only compiler-owned operation/type spellings enter the wrapper. User source identifiers are not interpolated into generated IR. The compiler caches wrappers by operation and operand ranks; declarations and source diagnostics remain separate from user function names. Imported nodes carry the original expression location, and inline invocation faults report the call site. Nested argument checking may grow these arenas, so the call bridge does not retain invalidatable references across that work.
+
+The existing checked CPU ABI handles allocation, descriptor copying, immutable result ownership, cancellation polling and cleanup. This step does not remove CPU argument copies or fuse chains of tensor expressions. Placement, residency and continuation lowering still use the target-specific supervisor; a shared placement-aware task IR, CPU spawn in mixed programs, richer control flow, and broader types remain subsequent work.
+
+The [source fixture](../../native/metal-source/host-expressions.kalandra) combines inline arithmetic, GPU placement, explicit downloads, matmul, reduction, nested arguments and an internal-name collision. [Runtime checks](../../native/metal-source/HostExpressionTests.cpp) run debug, optimized, host ASan/UBSan and host TSan builds with 1/2/4 workers, including **34 CPU allocation failures per worker configuration**, **41 Metal preparation failures**, cached observations, byte-budget failure, cancellation, group deadlines and failed completion. Every path retires scheduler and runtime resources. Host sanitizers do not instrument GPU instructions.
+
+[CLI checks](../../native/metal-source/VerifyHostExpressions.cmake) cover those build modes, vector and empty-matrix expressions, exact signed-zero/NaN/rounding outputs, deterministic generation, executable/library relocation, and transactional rejection of missing downloads, pending tasks, targets, wrong arity, remainder, and known rank/axis faults. A dynamic matmul mismatch checks the imported shape obligation with 1/2/4 workers. [Qualification evidence](../../native/metal-proof/evidence/host-expressions-2026-10-16.json) records sources, artifacts and regression results. No performance improvement is claimed.

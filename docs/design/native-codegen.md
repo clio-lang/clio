@@ -160,3 +160,7 @@ The shared TensorBinary operation lowers float32 `+`, `-`, `*` and `/` over rank
 
 
 The shared TensorUnary operation now lowers whole-tensor `-` through the same checked ranked-loop and ownership path. Each lane emits MLIR `arith.negf`, preserving every non-sign bit, rather than subtracting from zero or multiplying by -1. TensorUnary retains its operand during CPU task kernel extraction. Unary `+` remains an identity. [Whole-tensor unary qualification](apple-gpu.md#whole-tensor-unary-arithmetic) covers exact CPU/GPU bits, input immutability, empty dimensions, nested helpers, inline CPU task negation and rank-three CPU lowering.
+
+### Inline operations in mixed CPU/GPU programs
+
+The [mixed-program bridge](apple-gpu.md#inline-cpu-expressions-in-mixed-programs) now routes inline scalar/tensor arithmetic, unary signs, `reduceSum`, and `matmul` through this CPU lowering. Private operation wrappers are checked by the same frontend and imported with fresh typed IDs and original expression spans. This reuses numeric, shape, ownership and cancellation rules rather than emitting host C++ arithmetic. It is an extension of the current target bridge; placement/task/residency IR unification remains separate work. CPU tensor argument export still copies descriptors' payloads, and expression chains are not fused by this adapter.

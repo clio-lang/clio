@@ -208,6 +208,265 @@ class Compiler {
     auto *right = std::get_if<SymbolRead>(&cpu.expressions[product->right].operation);
     return left && right && left->symbol == fn.parameters[0] && right->symbol == fn.parameters[1];
   }
+  std::map<std::string, FunctionId> hostOperations;
+  ExtentId hostExtent = 0;
+  void observeExtents(const ValueType &type) {
+    for (const auto &extent : type.shape)
+      hostExtent = std::max(hostExtent, extent.identity);
+  }
+  void declareCpuFunction(FunctionId id) {
+    const auto &f = cpu.functions[id];
+    declarations += std::string("extern \"C\" ") + (f.resultType.tensor ? "void" : "float") +
+                    " _mlir_ciface_kalandra_cpu_" + std::to_string(id) + "(";
+    if (f.resultType.tensor)
+      declarations += "Float32Tensor<" + std::to_string(f.resultType.shape.size()) + ">*,";
+    for (auto parameter : f.parameters)
+      declarations +=
+          cpu.symbols[parameter].type.tensor
+              ? "Float32Tensor<" + std::to_string(cpu.symbols[parameter].type.shape.size()) + ">*,"
+              : "float,";
+    declarations += "Invocation*);\n";
+  }
+  // Check a tiny operation wrapper with the common frontend, then import its typed
+  // nodes with fresh IDs and the original expression's source location. Only
+  // compiler-owned operator/type spellings enter this source; user text is not spliced.
+  FunctionId hostKernel(const std::string &operation, const std::vector<Value> &inputs,
+                        SourceSpan span) {
+    std::string key = operation;
+    for (const auto &input : inputs) {
+      if ((input.kind != Value::Tensor && input.kind != Value::Scalar) || input.gpu)
+        reject(span, "inline CPU expressions require completed host values; explicitly transfer "
+                     "GPU tensors to devices.cpu() and observe tasks with try await");
+      key += ":" + std::to_string(input.kind == Value::Tensor ? input.rank : 0);
+    }
+    if (auto found = hostOperations.find(key); found != hostOperations.end())
+      return found->second;
+    const bool builtin = operation == "matmul" || operation == "reduceSum";
+    if (inputs.size() !=
+        (operation == "reduceSum" || operation == "neg" || operation == "pos" ? 1 : 2))
+      reject(span, "inline CPU operation argument count mismatch");
+    auto name = "__host_expression_" + std::to_string(cpu.functions.size());
+    while (cpuFunctions.contains(name))
+      name += "_";
+    const auto type = [](unsigned rank) {
+      if (!rank)
+        return std::string("float32");
+      std::string result = "Tensor[float32";
+      for (unsigned axis = 0; axis < rank; ++axis)
+        result += ",?";
+      return result + "]";
+    };
+    unsigned resultRank = 0;
+    std::string parameters, arguments;
+    for (std::size_t i = 0; i < inputs.size(); ++i) {
+      auto rank = inputs[i].kind == Value::Tensor ? inputs[i].rank : 0;
+      resultRank = std::max(resultRank, rank);
+      if (i) {
+        parameters += ",";
+        arguments += ",";
+      }
+      parameters += "a" + std::to_string(i) + ":" + type(rank);
+      arguments += "a" + std::to_string(i);
+    }
+    if (operation == "reduceSum")
+      resultRank = 0;
+    std::string body = builtin              ? operation + "(" + arguments + ")"
+                       : operation == "neg" ? "-a0"
+                       : operation == "pos" ? "+a0"
+                                            : "a0 " + operation + " a1";
+    auto source = std::make_shared<SourceFile>(syntax.source->path(),
+                                               "fn " + name + "(" + parameters + ") -> " +
+                                                   type(resultRank) + ":\n  " + body + "\n");
+    auto checked = kalandra::check(parse(source));
+    if (!checked.ok()) {
+      auto diagnostic = checked.diagnostics.front();
+      diagnostic.span = span;
+      throw Rejected{std::move(diagnostic)};
+    }
+    auto module = std::move(*checked.module);
+    if (module.expressions.size() > SemanticLimits{}.maxValues - cpu.expressions.size())
+      reject(span, "inline CPU expression value limit exceeded");
+    auto fn = std::move(module.functions.at(0));
+    const auto function = cpu.functions.size(), symbols = cpu.symbols.size(),
+               values = cpu.expressions.size();
+    std::map<ExtentId, ExtentId> extents;
+    auto remapExtent = [&](Extent &extent) {
+      if (!extent.identity)
+        return;
+      auto [entry, inserted] = extents.emplace(extent.identity, 0);
+      if (inserted)
+        entry->second = ++hostExtent;
+      extent.identity = entry->second;
+    };
+    auto remapType = [&](ValueType &value) {
+      for (auto &extent : value.shape)
+        remapExtent(extent);
+    };
+    for (auto symbol : module.symbols) {
+      remapType(symbol.type);
+      symbol.owner = function;
+      symbol.declaration = span;
+      cpu.symbols.push_back(std::move(symbol));
+    }
+    for (auto expression : module.expressions) {
+      remapType(expression.type);
+      expression.span = span;
+      std::visit(
+          [&](auto &op) {
+            using T = std::decay_t<decltype(op)>;
+            if constexpr (std::is_same_v<T, SymbolRead>)
+              op.symbol += symbols;
+            else if constexpr (std::is_same_v<T, ScalarUnary> || std::is_same_v<T, TensorUnary>)
+              op.operand += values;
+            else if constexpr (std::is_same_v<T, ScalarBinary> || std::is_same_v<T, TensorBinary> ||
+                               std::is_same_v<T, Matmul>) {
+              op.left += values;
+              op.right += values;
+            } else if constexpr (std::is_same_v<T, ReduceSum>)
+              op.input += values;
+            else
+              reject(span, "unexpected operation in inline CPU kernel");
+          },
+          expression.operation);
+      cpu.expressions.push_back(std::move(expression));
+    }
+    fn.declaration = span;
+    remapType(fn.resultType);
+    if (fn.declaredResult)
+      remapType(*fn.declaredResult);
+    for (auto &parameter : fn.parameters)
+      parameter += symbols;
+    for (auto &value : fn.expressions)
+      value += values;
+    fn.result += values;
+    for (auto &statement : fn.body) {
+      statement.span = span;
+      statement.value += values;
+      if (statement.binding)
+        *statement.binding += symbols;
+    }
+    for (auto &requirement : fn.preconditions) {
+      remapExtent(requirement.left);
+      remapExtent(requirement.right);
+    }
+    cpu.functions.push_back(std::move(fn));
+    cpuExports.push_back(name);
+    hostOperations.emplace(key, function);
+    declareCpuFunction(function);
+    return function;
+  }
+  Value hostOperation(const std::string &operation, const std::vector<Value> &inputs,
+                      SourceSpan span) {
+    return cpuCall(hostKernel(operation, inputs, span), inputs, span, true);
+  }
+  Value cpuCall(FunctionId function, const std::vector<Value> &inputs, SourceSpan span,
+                bool inlineOperation = false) {
+    const auto &fn = cpu.functions[function];
+    if (inputs.size() != fn.parameters.size())
+      reject(span, "CPU function argument count mismatch");
+    const bool tensorResult = fn.resultType.tensor;
+    auto out = field(tensorResult ? "m::Buffer" : "float");
+    Value value{tensorResult ? Value::Tensor : Value::Scalar, next - 1};
+    if (tensorResult) {
+      value.length = fn.resultType.shape[0].constant;
+      value.rank = fn.resultType.shape.size();
+      if (value.rank == 2)
+        value.width = fn.resultType.shape[1].constant;
+    }
+    std::string step, arguments;
+    std::map<ExtentId, std::pair<Value, unsigned>> extentArguments;
+    std::vector<std::tuple<Value, std::uint64_t, unsigned>> fixedShapes;
+    for (std::size_t i = 0; i < inputs.size(); ++i) {
+      auto input = inputs[i];
+      const auto &type = cpu.symbols[fn.parameters[i]].type;
+      if (type.tensor) {
+        if (input.kind != Value::Tensor || input.gpu)
+          reject(span, "CPU tensor arguments require an explicit transfer to devices.cpu()");
+        if (type.shape.size() != input.rank)
+          reject(span, "CPU tensor argument rank mismatch");
+        for (unsigned axis = 0; axis < input.rank; ++axis) {
+          if (type.shape[axis].constant)
+            fixedShapes.emplace_back(input, *type.shape[axis].constant, axis);
+          else
+            extentArguments.emplace(type.shape[axis].identity, std::pair{input, axis});
+        }
+        auto local = "argument" + std::to_string(i);
+        step += "auto " + local + " = r.toCpu<" + std::to_string(input.rank) +
+                ">(task.context(), " + ref(input) + ");\n";
+        step += "if (!" + local + ") { " + error(local + ".error()") + " }\n";
+        arguments += "&*" + local + ",";
+      } else {
+        if (input.kind != Value::Scalar)
+          reject(span, "CPU argument requires float32");
+        arguments += ref(input) + ",";
+      }
+    }
+    if (inlineOperation && tensorResult)
+      for (unsigned axis = 0; axis < value.rank; ++axis) {
+        const auto &dimension = fn.resultType.shape[axis];
+        auto known = dimension.constant;
+        if (!known) {
+          auto argument = extentArguments.find(dimension.identity);
+          if (argument != extentArguments.end())
+            known = extent(argument->second.first, argument->second.second);
+        }
+        if (axis == 0)
+          value.length = known;
+        else
+          value.width = known;
+      }
+    for (const auto &[input, wanted, axis] : fixedShapes)
+      requireLength(input, wanted, span, axis);
+    std::string guards;
+    for (const auto &requirement : fn.preconditions) {
+      const auto known = [&](Extent extent) {
+        if (extent.constant)
+          return extent.constant;
+        const auto &argument = extentArguments.at(extent.identity);
+        return Compiler::extent(argument.first, argument.second);
+      };
+      const auto render = [&](Extent extent) {
+        return extent.constant
+                   ? std::to_string(*extent.constant)
+                   : ref(extentArguments.at(extent.identity).first) + ".shape()[" +
+                         std::to_string(extentArguments.at(extent.identity).second) + "]";
+      };
+      auto left = known(requirement.left), right = known(requirement.right);
+      if (left && right) {
+        if (left != right)
+          reject(span, "CPU call violates a known tensor shape requirement");
+      } else {
+        auto [line, column] = syntax.source->location(span.begin);
+        guards += "if (" + render(requirement.left) + "!=" + render(requirement.right) +
+                  ") { task.fault(1," + std::to_string(line) + "," + std::to_string(column) +
+                  "); return; }\n";
+      }
+    }
+    step = guards + step;
+    if (tensorResult)
+      step += "Float32Tensor<" + std::to_string(value.rank) + "> result{};\n";
+    step += (tensorResult ? "" : "f." + out + " = ") + std::string("_mlir_ciface_kalandra_cpu_") +
+            std::to_string(function) + "(" + (tensorResult ? "&result," : "") + arguments +
+            "&task.context());\n";
+    auto [line, column] = syntax.source->location(span.begin);
+    const auto location = inlineOperation ? std::to_string(line) + "," + std::to_string(column)
+                                          : "task.context().line(),task.context().column()";
+    step += "if (task.context().status()) { task.fault(task.context().status(), " + location +
+            "); return; }\n";
+    if (tensorResult) {
+      // Acquire the immutable backing lease before releasing the returned memref owner.
+      // The buffer-deallocation pipeline gives C-interface tensor results owned storage.
+      step += "auto imported = r.fromCpu(task.context(), result.view());\n";
+      step += "task.context().release(result.allocated);\n";
+      step += "if (!imported) { " + error("imported.error()") + " }\n";
+      step += "f." + out + " = *imported;\n";
+    }
+    for (std::size_t i = 0; i < fn.parameters.size(); ++i)
+      if (cpu.symbols[fn.parameters[i]].type.tensor)
+        step += "task.context().release(argument" + std::to_string(i) + "->allocated);\n";
+    steps.push_back(step);
+    return value;
+  }
   Value expression(ExprId id, const TypeSyntax *annotation = nullptr) {
     if (depth >= 128)
       reject(node(id).span, "Metal source expression depth exceeded");
@@ -218,6 +477,32 @@ class Compiler {
       if (found == locals.end())
         reject(span, "unknown value '" + text(n->name) + "'");
       return found->second;
+    }
+    if (const auto *binary = std::get_if<BinaryExpr>(&node(id).value)) {
+      const auto operation = binary->operation;
+      if (operation != TokenKind::Plus && operation != TokenKind::Minus &&
+          operation != TokenKind::Star && operation != TokenKind::Slash)
+        reject(span, "inline float32 arithmetic supports only +, -, * and /");
+      auto left = expression(binary->left);
+      auto right = expression(binary->right);
+      return hostOperation(operation == TokenKind::Plus    ? "+"
+                           : operation == TokenKind::Minus ? "-"
+                           : operation == TokenKind::Star  ? "*"
+                                                           : "/",
+                           {left, right}, span);
+    }
+    if (const auto *unary = std::get_if<UnaryExpr>(&node(id).value)) {
+      // Literal signs retain their existing contextual bit parsing; non-literals
+      // use the same checked unary operation as ordinary CPU functions.
+      auto operand = unary->operand;
+      while (const auto *nested = std::get_if<UnaryExpr>(&node(operand).value))
+        operand = nested->operand;
+      if (!std::holds_alternative<NumberExpr>(node(operand).value)) {
+        if (unary->operation != TokenKind::Plus && unary->operation != TokenKind::Minus)
+          reject(span, "unsupported inline unary arithmetic");
+        auto input = expression(unary->operand);
+        return hostOperation(unary->operation == TokenKind::Minus ? "neg" : "pos", {input}, span);
+      }
     }
     if (std::holds_alternative<NumberExpr>(node(id).value) ||
         std::holds_alternative<UnaryExpr>(node(id).value)) {
@@ -336,94 +621,17 @@ class Compiler {
         return result;
       }
       if (auto found = cpuFunctions.find(name); found != cpuFunctions.end()) {
-        const auto &fn = cpu.functions[found->second];
-        if (call->arguments.size() != fn.parameters.size())
-          reject(span, "CPU function argument count mismatch");
-        const bool tensorResult = fn.resultType.tensor;
-        auto out = field(tensorResult ? "m::Buffer" : "float");
-        Value value{tensorResult ? Value::Tensor : Value::Scalar, next - 1};
-        if (tensorResult) {
-          value.length = fn.resultType.shape[0].constant;
-          value.rank = fn.resultType.shape.size();
-          if (value.rank == 2)
-            value.width = fn.resultType.shape[1].constant;
-        }
-        std::string step, arguments;
-        std::map<ExtentId, std::pair<Value, unsigned>> extentArguments;
-        std::vector<std::tuple<Value, std::uint64_t, unsigned>> fixedShapes;
-        for (std::size_t i = 0; i < call->arguments.size(); ++i) {
-          auto input = expression(call->arguments[i]);
-          const auto &type = cpu.symbols[fn.parameters[i]].type;
-          if (type.tensor) {
-            if (input.kind != Value::Tensor || input.gpu)
-              reject(span, "CPU tensor arguments require an explicit transfer to devices.cpu()");
-            if (type.shape.size() != input.rank)
-              reject(span, "CPU tensor argument rank mismatch");
-            for (unsigned axis = 0; axis < input.rank; ++axis) {
-              if (type.shape[axis].constant)
-                fixedShapes.emplace_back(input, *type.shape[axis].constant, axis);
-              else
-                extentArguments.emplace(type.shape[axis].identity, std::pair{input, axis});
-            }
-            auto local = "argument" + std::to_string(i);
-            step += "auto " + local + " = r.toCpu<" + std::to_string(input.rank) +
-                    ">(task.context(), " + ref(input) + ");\n";
-            step += "if (!" + local + ") { " + error(local + ".error()") + " }\n";
-            arguments += "&*" + local + ",";
-          } else {
-            if (input.kind != Value::Scalar)
-              reject(span, "CPU argument requires float32");
-            arguments += ref(input) + ",";
-          }
-        }
-        for (const auto &[input, wanted, axis] : fixedShapes)
-          requireLength(input, wanted, span, axis);
-        std::string guards;
-        for (const auto &requirement : fn.preconditions) {
-          const auto known = [&](Extent extent) {
-            if (extent.constant)
-              return extent.constant;
-            const auto &argument = extentArguments.at(extent.identity);
-            return Compiler::extent(argument.first, argument.second);
-          };
-          const auto render = [&](Extent extent) {
-            return extent.constant
-                       ? std::to_string(*extent.constant)
-                       : ref(extentArguments.at(extent.identity).first) + ".shape()[" +
-                             std::to_string(extentArguments.at(extent.identity).second) + "]";
-          };
-          auto left = known(requirement.left), right = known(requirement.right);
-          if (left && right) {
-            if (left != right)
-              reject(span, "CPU call violates a known tensor shape requirement");
-          } else {
-            auto [line, column] = syntax.source->location(span.begin);
-            guards += "if (" + render(requirement.left) + "!=" + render(requirement.right) +
-                      ") { task.fault(1," + std::to_string(line) + "," + std::to_string(column) +
-                      "); return; }\n";
-          }
-        }
-        step = guards + step;
-        if (tensorResult)
-          step += "Float32Tensor<" + std::to_string(value.rank) + "> result{};\n";
-        step += (tensorResult ? "" : "f." + out + " = ") +
-                std::string("_mlir_ciface_kalandra_cpu_") + std::to_string(found->second) + "(" +
-                (tensorResult ? "&result," : "") + arguments + "&task.context());\n";
-        step += "if (task.context().status()) { task.fault(task.context().status(), "
-                "task.context().line(), task.context().column()); return; }\n";
-        if (tensorResult) {
-          // Acquire the immutable backing lease before releasing the returned memref owner.
-          // The buffer-deallocation pipeline gives C-interface tensor results owned storage.
-          step += "auto imported = r.fromCpu(task.context(), result.view());\n";
-          step += "task.context().release(result.allocated);\n";
-          step += "if (!imported) { " + error("imported.error()") + " }\n";
-          step += "f." + out + " = *imported;\n";
-        }
-        for (std::size_t i = 0; i < fn.parameters.size(); ++i)
-          if (cpu.symbols[fn.parameters[i]].type.tensor)
-            step += "task.context().release(argument" + std::to_string(i) + "->allocated);\n";
-        steps.push_back(step);
-        return value;
+        const auto function = found->second;
+        std::vector<Value> inputs;
+        for (auto argument : call->arguments)
+          inputs.push_back(expression(argument));
+        return cpuCall(function, inputs, span);
+      }
+      if (name == "reduceSum" || name == "matmul") {
+        std::vector<Value> inputs;
+        for (auto argument : call->arguments)
+          inputs.push_back(expression(argument));
+        return hostOperation(name, inputs, span);
       }
       reject(span, "unsupported host call in the Metal source slice");
     }
@@ -457,7 +665,8 @@ class Compiler {
         auto found = cpuFunctions.find(name);
         if (found == cpuFunctions.end() || locals.contains(name) || name == "main")
           reject(span, "unknown or shadowed GPU function");
-        const auto &entryFunction = cpu.functions[found->second];
+        // Argument expressions may append CPU kernels and reallocate the function arena.
+        const auto entryFunction = cpu.functions[found->second];
         const bool sum = reduction(found->second);
         const bool matrix = matrixFunction(found->second);
         if (call->arguments.size() != entryFunction.parameters.size())
@@ -862,19 +1071,21 @@ public:
     if (!checked.ok())
       throw Rejected{checked.diagnostics.front()};
     cpu = std::move(*checked.module);
-    for (std::size_t i = 0; i < cpu.functions.size(); ++i) {
-      const auto &f = cpu.functions[i];
-      declarations += std::string("extern \"C\" ") + (f.resultType.tensor ? "void" : "float") +
-                      " _mlir_ciface_kalandra_cpu_" + std::to_string(i) + "(";
-      if (f.resultType.tensor)
-        declarations += "Float32Tensor<" + std::to_string(f.resultType.shape.size()) + ">*,";
-      for (auto parameter : f.parameters)
-        declarations += cpu.symbols[parameter].type.tensor
-                            ? "Float32Tensor<" +
-                                  std::to_string(cpu.symbols[parameter].type.shape.size()) + ">*,"
-                            : "float,";
-      declarations += "Invocation*);\n";
+    for (const auto &symbol : cpu.symbols)
+      observeExtents(symbol.type);
+    for (const auto &expression : cpu.expressions)
+      observeExtents(expression.type);
+    for (const auto &function : cpu.functions) {
+      observeExtents(function.resultType);
+      if (function.declaredResult)
+        observeExtents(*function.declaredResult);
+      for (const auto &requirement : function.preconditions) {
+        hostExtent = std::max(hostExtent, requirement.left.identity);
+        hostExtent = std::max(hostExtent, requirement.right.identity);
+      }
     }
+    for (std::size_t i = 0; i < cpu.functions.size(); ++i)
+      declareCpuFunction(i);
     const auto &fn = syntax.functions[*main];
     if (!fn.parameters.empty() || !fn.result || !fn.taskError)
       reject(fn.span,

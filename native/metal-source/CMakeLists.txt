@@ -153,9 +153,11 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-  foreach(FIXTURE IN ITEMS mixed tensor-results shared-helpers scalar-entry matrix-elementwise differences arguments unused-inputs indirect-arguments tensor-negation division reduction matmul)
+  foreach(FIXTURE IN ITEMS mixed tensor-results shared-helpers scalar-entry matrix-elementwise differences arguments unused-inputs indirect-arguments tensor-negation division host-expressions reduction matmul)
     if(FIXTURE STREQUAL "mixed")
       set(HARNESS MixedTests.cpp)
+    elseif(FIXTURE STREQUAL "host-expressions")
+      set(HARNESS HostExpressionTests.cpp)
     elseif(FIXTURE STREQUAL "matmul")
       set(HARNESS MatmulTests.cpp)
     elseif(FIXTURE STREQUAL "reduction")
@@ -313,4 +315,11 @@ if(BUILD_TESTING)
     "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/division-cli"
     -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyDivision.cmake")
   set_tests_properties(native-division-cli PROPERTIES TIMEOUT 180 RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+endif()
+
+if(BUILD_TESTING)
+  add_test(NAME native-host-expressions-cli COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+    "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/host-expressions-cli"
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyHostExpressions.cmake")
+  set_tests_properties(native-host-expressions-cli PROPERTIES TIMEOUT 240 RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
 endif()
