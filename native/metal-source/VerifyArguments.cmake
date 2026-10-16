@@ -65,6 +65,7 @@ function(reject NAME CONTENT DIAGNOSTIC)
 endfunction()
 string(REPLACE "t28: Tensor[float32, ?])" "t28: Tensor[float32, ?], t29: Tensor[float32, ?])" BAD "${SOURCE}")
 string(REPLACE "vectorResult) on gpu" "vectorResult, vectorResult) on gpu" BAD "${BAD}")
+string(REPLACE "t27 + t28\n" "t27 + t28 + t29\n" BAD "${BAD}")
 reject(binding-table-limit "${BAD}" "31 buffers")
 string(REPLACE "    local = blend(a, 1, b, 1, c, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)" "    local = remote" GPU_ONLY "${SOURCE}")
 string(REPLACE "Tensor[float32, 2, 3] = tensor([[2, 3, 4], [5, 6, 7]])"

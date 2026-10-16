@@ -104,6 +104,10 @@ struct KernelState {
   bool elementwise, reduction, matrix;
   std::optional<ElementwiseSignature> signature;
   std::array<id<MTLComputePipelineState>, 2> matrixTiles{};
+  // Backend resource bound, independent of logical signature arity.
+  std::array<std::uint32_t, directBufferEntries - 2> reads{};
+  std::uint32_t readCount = 2;
+  bool projected = false;
 };
 namespace {
 std::expected<std::uint64_t, Error> tensorBytes(std::span<const std::int64_t> shape,
@@ -241,7 +245,7 @@ struct Bridge {
     if (!kernel.state_ || !kernel.state_->elementwise || kernel.state_->reduction ||
         kernel.state_->matrix || tensors.size() != expected.tensors ||
         scalars.size() != expected.scalars ||
-        !directElementwiseLayout(tensors.size(), scalars.size()))
+        (tensors.empty() || tensors.size() > UINT32_MAX || scalars.size() >= UINT32_MAX))
       return std::unexpected(Error::Invalid);
     if (kernel.state_->registry != state)
       return std::unexpected(Error::Residency);
@@ -447,6 +451,10 @@ struct Bridge {
         task.fault(std::int64_t(*f.packet.preparation));
         return;
       }
+      if (f.packet.arguments) {
+        const auto &kernel = f.packet.kernel.state_;
+        f.packet.input = f.packet.arguments->tensors[kernel->reads[0]];
+      }
       const auto &source = f.packet.input.storage_;
       if (!source) {
         task.fault(std::int64_t(Error::Invalid));
@@ -511,7 +519,8 @@ struct Bridge {
             kernel && kernel->signature ? *kernel->signature : ElementwiseSignature{2, 0};
         if (!kernel || kernel->reduction || kernel->matrix ||
             kernel->elementwise != (f.packet.kind == Kind::Elementwise) ||
-            (!f.packet.arguments && (signature.tensors != 2 || signature.scalars != 0)) ||
+            (!f.packet.arguments &&
+             (kernel->projected || signature.tensors != 2 || signature.scalars != 0)) ||
             (f.packet.arguments && (f.packet.arguments->tensors.size() != signature.tensors ||
                                     f.packet.arguments->scalarBits.size() != signature.scalars)) ||
             std::uint32_t(f.packet.operation) > 2 || source->format != Format::Float32 ||
@@ -534,12 +543,17 @@ struct Bridge {
           return;
         }
         if (f.packet.arguments)
-          for (const auto &argument : f.packet.arguments->tensors) {
-            const auto &other = argument.storage_;
-            if (!other || other->format != Format::Float32 || other->rank != source->rank ||
-                other->size != source->size ||
-                !std::equal(source->dimensions.begin(), source->dimensions.begin() + source->rank,
-                            other->dimensions.begin())) {
+          for (std::size_t i = 0; i < f.packet.arguments->tensors.size(); ++i) {
+            const auto &other = f.packet.arguments->tensors[i].storage_;
+            const bool read =
+                std::find(kernel->reads.begin(), kernel->reads.begin() + kernel->readCount, i) !=
+                kernel->reads.begin() + kernel->readCount;
+            if (!other || other->format != Format::Float32 ||
+                (other->rank != 1 && other->rank != 2) ||
+                (read &&
+                 (other->rank != source->rank || other->size != source->size ||
+                  !std::equal(source->dimensions.begin(), source->dimensions.begin() + source->rank,
+                              other->dimensions.begin())))) {
               task.fault(std::int64_t(Error::Invalid));
               return;
             }
@@ -599,7 +613,7 @@ struct Bridge {
 
         if (compute || matrix) {
           const auto &kernel = f.packet.kernel.state_;
-          const auto tensors = kernel->signature ? kernel->signature->tensors : 2;
+          const auto tensors = kernel->readCount;
           const auto parameterBytes = matrix ? 12
                                       : kernel->signature
                                           ? 4ull * (1ull + kernel->signature->scalars)
@@ -634,10 +648,11 @@ struct Bridge {
                  offset:0
                 atIndex:0];
           if (f.packet.arguments) {
-            for (std::size_t i = 0; i < f.packet.arguments->tensors.size(); ++i)
-              [encoder setBuffer:f.packet.arguments->tensors[i].storage_->metal->buffer
-                          offset:0
-                         atIndex:i];
+            for (std::size_t i = 0; i < tensors; ++i)
+              [encoder
+                  setBuffer:f.packet.arguments->tensors[kernel->reads[i]].storage_->metal->buffer
+                     offset:0
+                    atIndex:i];
           } else if (tensors == 2)
             [encoder
                 setBuffer:matrix && !f.packet.right.bytes() ? (*result)->metal->buffer
@@ -950,14 +965,28 @@ Runtime::loadElementwiseKernel(std::string_view path, Device device,
                                ElementwiseSignature signature) noexcept {
   return loadKernel(path, std::move(device), true, signature);
 }
-std::expected<Kernel, Error> Runtime::loadKernel(std::string_view path, Device device,
-                                                 bool elementwise,
-                                                 std::optional<ElementwiseSignature> signature,
-                                                 bool reduction, bool matrix) noexcept {
+std::expected<Kernel, Error>
+Runtime::loadElementwiseKernel(std::string_view path, Device device, ElementwiseSignature signature,
+                               std::span<const std::uint32_t> reads) noexcept {
+  return loadKernel(path, std::move(device), true, signature, false, false, reads);
+}
+std::expected<Kernel, Error>
+Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
+                    std::optional<ElementwiseSignature> signature, bool reduction, bool matrix,
+                    std::optional<std::span<const std::uint32_t>> reads) noexcept {
   @autoreleasepool {
-    if (signature &&
-        (!elementwise || !directElementwiseLayout(signature->tensors, signature->scalars)))
+    const auto physical = reads ? reads->size() : signature ? signature->tensors : 2;
+    if ((signature &&
+         (!elementwise || signature->tensors == 0 || signature->scalars == UINT32_MAX)) ||
+        !directElementwiseLayout(physical, signature ? signature->scalars : 0))
       return std::unexpected(Error::Invalid);
+    if (reads) {
+      if (!signature || reduction || matrix)
+        return std::unexpected(Error::Invalid);
+      for (std::size_t i = 0; i < reads->size(); ++i)
+        if ((*reads)[i] >= signature->tensors || (i && (*reads)[i - 1] >= (*reads)[i]))
+          return std::unexpected(Error::Invalid);
+    }
     if (device.state_ != state_)
       return std::unexpected(Error::Residency);
     if (signature &&
@@ -993,7 +1022,7 @@ std::expected<Kernel, Error> Runtime::loadKernel(std::string_view path, Device d
         if (!pipeline || pipeline.maxTotalThreadsPerThreadgroup < 64)
           return std::unexpected(Error::Unavailable);
         // Validate the private dynamic-array ABI, not the numerical contents of arbitrary shaders.
-        const auto tensors = signature ? signature->tensors : 2;
+        const auto tensors = physical;
         const auto parameterIndex = tensors + 1, bindingCount = tensors + 2;
         const auto words = matrix ? 3 : signature ? signature->scalars + 1 : 2;
         if (reflection.bindings.count != bindingCount)
@@ -1046,8 +1075,13 @@ std::expected<Kernel, Error> Runtime::loadKernel(std::string_view path, Device d
       if (!state_->permit())
         return std::unexpected(Error::Allocation);
       Kernel kernel;
-      kernel.state_ = std::make_shared<KernelState>(state_, device.index_, pipeline, elementwise,
+      auto metadata = std::make_shared<KernelState>(state_, device.index_, pipeline, elementwise,
                                                     reduction, matrix, signature, matrixTiles);
+      metadata->readCount = physical;
+      metadata->projected = reads.has_value();
+      for (std::uint32_t i = 0; i < physical; ++i)
+        metadata->reads[i] = reads ? (*reads)[i] : i;
+      kernel.state_ = std::move(metadata);
       return kernel;
     } catch (...) {
       return std::unexpected(Error::Allocation);

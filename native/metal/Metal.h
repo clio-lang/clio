@@ -115,6 +115,10 @@ public:
   std::expected<Kernel, Error> loadElementwiseKernel(std::string_view metallib, Device) noexcept;
   std::expected<Kernel, Error> loadElementwiseKernel(std::string_view metallib, Device,
                                                      ElementwiseSignature) noexcept;
+  // Logical tensor indices read by the compact physical binding table. Copied on load.
+  std::expected<Kernel, Error> loadElementwiseKernel(std::string_view metallib, Device,
+                                                     ElementwiseSignature,
+                                                     std::span<const std::uint32_t> reads) noexcept;
   std::expected<Kernel, Error> loadReductionKernel(std::string_view metallib, Device) noexcept;
   std::expected<Kernel, Error> loadMatmulKernel(std::string_view metallib, Device) noexcept;
   TaskHandle matmul(TaskCore &, GroupHandle, Kernel, Buffer, Buffer) noexcept;
@@ -144,8 +148,10 @@ private:
   std::expected<void *, Error> exportCpu(Invocation &, const Buffer &,
                                          std::span<std::int64_t> sizes,
                                          std::span<std::int64_t> strides) noexcept;
-  std::expected<Kernel, Error> loadKernel(std::string_view, Device, bool elementwise,
-                                          std::optional<ElementwiseSignature> signature = {},
-                                          bool reduction = false, bool matrix = false) noexcept;
+  std::expected<Kernel, Error>
+  loadKernel(std::string_view, Device, bool elementwise,
+             std::optional<ElementwiseSignature> signature = {}, bool reduction = false,
+             bool matrix = false,
+             std::optional<std::span<const std::uint32_t>> reads = {}) noexcept;
 };
 } // namespace kalandra::runtime::metal

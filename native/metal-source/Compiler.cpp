@@ -478,38 +478,72 @@ class Compiler {
         }
         if (tensors.empty())
           reject(span, "elementwise GPU entries currently require at least one tensor input");
-        if (!kalandra::runtime::metal::directElementwiseLayout(tensors.size(), scalars.size()))
-          reject(span, "Metal direct binding table supports 31 buffers; output and parameters "
-                       "reserve two entries");
+        if (tensors.size() > UINT32_MAX || scalars.size() >= UINT32_MAX)
+          reject(span, "GPU argument representation limit exceeded");
+        std::vector<std::uint32_t> reads;
+        if (!sum && !matrix)
+          shader(found->second, &reads);
+        else
+          for (std::size_t i = 0; i < tensors.size(); ++i)
+            reads.push_back(i);
         auto target = expression(*task->placement);
         if (target.kind != Value::Target || !target.gpu)
           reject(span, "the Metal source path requires a GPU target");
         for (auto value : tensors)
           if (!value.gpu || value.device != target.device)
             reject(span, "GPU arguments must be explicitly transferred to the selected device");
-        auto left = tensors[0], right = tensors.back();
-        for (std::size_t argument = 1; argument < tensors.size(); ++argument) {
-          auto right = tensors[argument];
-          if (!matrix && left.rank != right.rank)
-            reject(span, "elementwise argument ranks differ");
-          for (unsigned axis = 0; axis < (matrix ? 1u : left.rank); ++axis) {
-            const unsigned leftAxis = matrix ? 1 : axis;
-            auto aExtent = extent(left, leftAxis), bExtent = extent(right, axis);
-            if (aExtent && bExtent && aExtent != bExtent)
-              reject(span, matrix ? "matmul inner dimensions differ"
-                                  : "elementwise argument shapes differ");
-            if (!aExtent || !bExtent) {
-              auto [line, column] = syntax.source->location(span.begin);
-              steps.push_back("if(" + ref(left) + ".shape()[" + std::to_string(leftAxis) +
-                              "]!=" + ref(right) + ".shape()[" + std::to_string(axis) +
-                              "]) {task.fault(1," + std::to_string(line) + "," +
-                              std::to_string(column) + ");return;}\n");
-            }
+        auto left = tensors[reads.front()], right = tensors.back();
+        // Parameter extent identities already include transitive helper obligations.
+        auto locate = [&](const Extent &wanted) -> std::pair<std::size_t, unsigned> {
+          std::size_t tensor = 0;
+          for (auto parameter : entryFunction.parameters) {
+            const auto &type = cpu.symbols[parameter].type;
+            if (!type.tensor)
+              continue;
+            for (unsigned axis = 0; axis < type.shape.size(); ++axis)
+              if (!wanted.constant && wanted.identity == type.shape[axis].identity)
+                return {tensor, axis};
+            ++tensor;
+          }
+          reject(span, "GPU shape requirement cannot be mapped to a parameter");
+        };
+        for (const auto &requirement : entryFunction.preconditions) {
+          if (requirement.left.constant && requirement.right.constant) {
+            if (requirement.left.constant != requirement.right.constant)
+              reject(span, "GPU argument shapes differ");
+            continue;
+          }
+          if (requirement.left.constant || requirement.right.constant) {
+            const auto &dynamic = requirement.left.constant ? requirement.right : requirement.left;
+            const auto &constant = requirement.left.constant ? requirement.left : requirement.right;
+            auto [input, axis] = locate(dynamic);
+            requireLength(tensors[input], *constant.constant, span, axis);
+            continue;
+          }
+          auto [a, axisA] = locate(requirement.left);
+          auto [b, axisB] = locate(requirement.right);
+          auto aExtent = extent(tensors[a], axisA), bExtent = extent(tensors[b], axisB);
+          if (aExtent && bExtent && aExtent != bExtent)
+            reject(span, matrix ? "matmul inner dimensions differ"
+                                : "elementwise argument shapes differ");
+          if (!aExtent || !bExtent) {
+            auto [line, column] = syntax.source->location(span.begin);
+            steps.push_back("if(" + ref(tensors[a]) + ".shape()[" + std::to_string(axisA) +
+                            "]!=" + ref(tensors[b]) + ".shape()[" + std::to_string(axisB) +
+                            "]) {task.fault(1," + std::to_string(line) + "," +
+                            std::to_string(column) + ");return;}\n");
           }
         }
-        const bool legacy = tensors.size() == 2 && scalars.empty();
+        const bool projected = reads.size() != tensors.size();
+        const bool legacy = !projected && tensors.size() == 2 && scalars.empty();
         auto signature = ", m::ElementwiseSignature{" + std::to_string(tensors.size()) + "," +
                          std::to_string(scalars.size()) + "}";
+        if (projected) {
+          signature += ", std::array<std::uint32_t," + std::to_string(reads.size()) + ">{";
+          for (std::size_t i = 0; i < reads.size(); ++i)
+            signature += (i ? "," : "") + std::to_string(reads[i]);
+          signature += "}";
+        }
         auto pack = [&](const std::vector<Value> &values, std::string type) {
           std::string result = "std::array<" + type + "," + std::to_string(values.size()) + ">{";
           for (std::size_t i = 0; i < values.size(); ++i)
@@ -521,10 +555,7 @@ class Compiler {
         auto [entry, inserted] = entries.emplace(found->second, entries.size());
         (void)inserted;
         auto kernel = field("m::Kernel"), out = field("TaskHandle");
-        Value result{Value::Task, next - 1, true, target.device,
-                     matrix        ? left.length
-                     : left.length ? left.length
-                                   : right.length};
+        Value result{Value::Task, next - 1, true, target.device, left.length};
         result.rank = left.rank;
         result.width = matrix ? right.width : left.width;
         steps.push_back("auto target = " + device(target) + ";\nif (!target) { " +
@@ -553,7 +584,7 @@ class Compiler {
     }
     reject(span, "unsupported expression in the Metal source supervisor");
   }
-  std::string shader(std::size_t function) const {
+  std::string shader(std::size_t function, std::vector<std::uint32_t> *readInputs = nullptr) const {
     if (matrixFunction(function))
       return matmulShader;
     if (reduction(function))
@@ -593,10 +624,15 @@ class Compiler {
 }
 )";
     // Emit scalar typed SSA once per lane. Source names never become IR identifiers.
-    std::ostringstream code;
+    struct Instruction {
+      std::string result, code;
+      std::vector<std::string> operands;
+    };
+    std::vector<Instruction> instructions;
+    std::unordered_map<std::string, std::size_t> definitions;
+    std::unordered_map<std::string, std::uint32_t> tensorInputs;
     std::size_t counter = 0, callDepth = 0;
     std::set<std::size_t> active;
-    std::unordered_map<std::string, unsigned> dependencies;
     auto temporary = [&] {
       if (counter >= 100000)
         reject({}, "GPU IR expansion limit exceeded");
@@ -623,14 +659,17 @@ class Compiler {
           return found->second;
         const auto &n = cpu.expressions.at(id);
         std::string result;
+        std::ostringstream instruction;
+        std::vector<std::string> operands;
         if (auto *read = std::get_if<SymbolRead>(&n.operation))
           result = symbols.at(read->symbol);
         else if (auto *literal = std::get_if<Float32Literal>(&n.operation)) {
           auto integer = temporary();
           result = temporary();
-          code << "        " << integer << " = arith.constant " << std::int32_t(literal->bits)
-               << " : i32\n";
-          code << "        " << result << " = arith.bitcast " << integer << " : i32 to f32\n";
+          instruction << "        " << integer << " = arith.constant "
+                      << std::int32_t(literal->bits) << " : i32\n";
+          instruction << "        " << result << " = arith.bitcast " << integer
+                      << " : i32 to f32\n";
         } else if (std::holds_alternative<ScalarBinary>(n.operation) ||
                    std::holds_alternative<TensorBinary>(n.operation)) {
           auto operation = std::holds_alternative<ScalarBinary>(n.operation)
@@ -648,19 +687,19 @@ class Compiler {
             reject(n.span, "GPU strict arithmetic currently supports only +, - and *");
           auto a = emit(left), b = emit(right);
           result = temporary();
-          dependencies[result] = dependencies[a] | dependencies[b];
-          code << "        " << result << " = arith."
-               << (operation == TokenKind::Plus    ? "addf "
-                   : operation == TokenKind::Minus ? "subf "
-                                                   : "mulf ")
-               << a << ", " << b << " : f32\n";
+          operands = {a, b};
+          instruction << "        " << result << " = arith."
+                      << (operation == TokenKind::Plus    ? "addf "
+                          : operation == TokenKind::Minus ? "subf "
+                                                          : "mulf ")
+                      << a << ", " << b << " : f32\n";
         } else if (auto *unary = std::get_if<ScalarUnary>(&n.operation)) {
           result = emit(unary->operand);
           if (unary->operation == TokenKind::Minus) {
             auto operand = result;
             result = temporary();
-            dependencies[result] = dependencies[operand];
-            code << "        " << result << " = arith.negf " << operand << " : f32\n";
+            operands = {operand};
+            instruction << "        " << result << " = arith.negf " << operand << " : f32\n";
           } else if (unary->operation != TokenKind::Plus)
             reject(n.span, "GPU unary arithmetic is not implemented");
         } else if (auto *call = std::get_if<FunctionCall>(&n.operation)) {
@@ -670,6 +709,11 @@ class Compiler {
           result = invoke(call->function, inputs);
         } else
           reject(n.span, "unsupported GPU operation in a transitive helper");
+        auto emitted = instruction.str();
+        if (!emitted.empty()) {
+          definitions.emplace(result, instructions.size());
+          instructions.push_back({result, std::move(emitted), std::move(operands)});
+        }
         values.emplace(id, result);
         return result;
       };
@@ -684,19 +728,47 @@ class Compiler {
     };
     std::vector<std::string> args;
     unsigned tensors = 0, scalars = 0;
-    std::string bindings, loads;
     for (auto parameter : cpu.functions[function].parameters) {
       if (cpu.symbols[parameter].type.tensor) {
-        auto buffer = "%a" + std::to_string(tensors), lane = "%lane" + std::to_string(tensors);
-        bindings += buffer + ": memref<?xf32>, ";
-        loads += "        " + lane + " = memref.load " + buffer + "[%i] : memref<?xf32>\n";
-        dependencies[lane] = 1u << tensors++;
+        auto lane = "%lane" + std::to_string(tensors);
+        tensorInputs.emplace(lane, tensors++);
         args.push_back(lane);
       } else
         args.push_back("%scalar" + std::to_string(scalars++));
     }
-    const bool legacy = tensors == 2 && scalars == 0;
+    auto result = invoke(function, args);
+    std::set<std::uint32_t> used;
+    std::set<std::string> live;
+    // Iterative traversal bounds compiler stack even for a long left-associated expression.
+    std::vector<std::string> pending{result};
+    while (!pending.empty()) {
+      auto value = std::move(pending.back());
+      pending.pop_back();
+      if (!live.insert(value).second)
+        continue;
+      if (auto input = tensorInputs.find(value); input != tensorInputs.end())
+        used.insert(input->second);
+      else if (auto definition = definitions.find(value); definition != definitions.end())
+        for (const auto &operand : instructions[definition->second].operands)
+          pending.push_back(operand);
+    }
+    if (!kalandra::runtime::metal::directElementwiseLayout(used.size(), scalars))
+      reject(cpu.functions[function].declaration, "Metal direct binding table supports 31 buffers; "
+                                                  "output and parameters reserve two entries");
+    if (readInputs)
+      readInputs->assign(used.begin(), used.end());
+    std::ostringstream code;
+    for (const auto &instruction : instructions)
+      if (live.contains(instruction.result))
+        code << instruction.code;
+    const bool legacy = tensors == 2 && scalars == 0 && used.size() == tensors;
     auto parameters = "memref<" + std::to_string(legacy ? 2 : scalars + 1) + "xi32>";
+    std::string bindings, loads;
+    for (auto input : used) {
+      auto buffer = "%a" + std::to_string(input), lane = "%lane" + std::to_string(input);
+      bindings += buffer + ": memref<?xf32>, ";
+      loads += "        " + lane + " = memref.load " + buffer + "[%i] : memref<?xf32>\n";
+    }
     for (unsigned i = 0; i < scalars; ++i) {
       auto suffix = std::to_string(i);
       loads +=
@@ -705,10 +777,6 @@ class Compiler {
                "] : " + parameters + "\n";
       loads += "        %scalar" + suffix + " = arith.bitcast %bits" + suffix + " : i32 to f32\n";
     }
-    auto result = invoke(function, args);
-    if (dependencies[result] != (1u << tensors) - 1)
-      reject(cpu.functions[function].declaration,
-             "GPU tensor inputs must contribute to the result");
     return R"(module attributes {gpu.container_module,
   spirv.target_env = #spirv.target_env<#spirv.vce<v1.0, [Shader, Int64], [SPV_KHR_storage_buffer_storage_class]>, #spirv.resource_limits<>>} {
   gpu.module @kernels {
@@ -996,6 +1064,12 @@ int main(int argc,char **argv) {
         }
       }
       auto prefix = "kernel" + std::to_string(index) + ".";
+      std::vector<std::uint32_t> reads;
+      shader(function, &reads);
+      std::string bindings;
+      for (auto input : reads)
+        bindings += (bindings.empty() ? "" : ",") + std::to_string(input);
+      manifest += prefix + "tensor_bindings=" + bindings + "\n";
       manifest += prefix + "tensors=" + std::to_string(tensors) + "\n" + prefix +
                   "scalars=" + std::to_string(scalars) + "\n" + prefix + "source_order=" + order +
                   "\n";

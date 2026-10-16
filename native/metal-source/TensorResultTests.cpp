@@ -4,7 +4,8 @@
 #include <chrono>
 #include <thread>
 #if defined(KALANDRA_SHARED_HELPERS) || defined(KALANDRA_SCALAR_ENTRY) ||                          \
-    defined(KALANDRA_MATRIX_ENTRY) || defined(KALANDRA_DIFFERENCES) || defined(KALANDRA_ARGUMENTS)
+    defined(KALANDRA_MATRIX_ENTRY) || defined(KALANDRA_DIFFERENCES) ||                             \
+    defined(KALANDRA_ARGUMENTS) || defined(KALANDRA_UNUSED_INPUTS)
 #include "../metal-proof/FloatOracle.h"
 #endif
 #define CHECK(x)                                                                                   \
@@ -183,6 +184,9 @@ void sharedConformance(m::Runtime &runtime, const char *directory) {
 #ifdef KALANDRA_ARGUMENTS
 #include "ArgumentChecks.h"
 #endif
+#ifdef KALANDRA_UNUSED_INPUTS
+#include "UnusedInputChecks.h"
+#endif
 int main(int argc, char **argv) {
   CHECK(argc == 2 && generated_main(argc, argv) == 0);
   auto made = m::Runtime::create();
@@ -265,7 +269,7 @@ int main(int argc, char **argv) {
     auto before = runtime->stats().completions, submissions = runtime->stats().submissions;
     auto task = core->submit(group, entry, {entry.packetLayout, &packet, sizeof(packet)});
     CHECK(task);
-#ifdef KALANDRA_ARGUMENTS
+#if defined(KALANDRA_ARGUMENTS) || defined(KALANDRA_UNUSED_INPUTS)
     constexpr unsigned uploads = 3;
 #elif defined(KALANDRA_SCALAR_ENTRY)
     constexpr unsigned uploads = 1;
@@ -305,6 +309,9 @@ int main(int argc, char **argv) {
   argumentConformance<1>(*runtime, argv[1]);
   argumentConformance<2>(*runtime, argv[1]);
   argumentLifecycle(*runtime, argv[1]);
+#endif
+#ifdef KALANDRA_UNUSED_INPUTS
+  unusedInputConformance(*runtime, argv[1]);
 #endif
   // The retained CPU results share the registry budget with transfers and GPU work.
   auto limited = m::Runtime::create({.maxBytes = 16});
