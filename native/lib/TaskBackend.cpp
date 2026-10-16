@@ -555,6 +555,14 @@ std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &inp
                                                           std::optional<std::string> testEntry) {
   if (auto error = numericCapabilityError(input, NumericTarget::Cpu))
     return std::unexpected(*error);
+  const auto integerTensor = [](const ValueType &type) {
+    return type.builtin == BuiltinValue::Numeric && type.tensor && type.element == NumericType::Int32;
+  };
+  if (std::ranges::any_of(input.functions, [&](const auto &fn) {
+        return integerTensor(fn.resultType) || (fn.declaredResult && integerTensor(*fn.declaredResult));
+      }) || std::ranges::any_of(input.symbols, [&](const auto &s) { return integerTensor(s.type); }) ||
+      std::ranges::any_of(input.expressions, [&](const auto &e) { return integerTensor(e.type); }))
+    return std::unexpected("int32 tensor task captures/results are not implemented yet");
   if (hasPlacement(input))
     return std::unexpected("placement-aware IR requires a placement-capable execution backend");
   if (testEntry)

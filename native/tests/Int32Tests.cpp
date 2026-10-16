@@ -39,9 +39,38 @@ int main() {
     require(!known.ok() && known.diagnostics.front().code == "S052", "known zero divisor escaped");
     for (const auto *source : {"fn main() -> int32:\n  x = 1\n  x\n",
                                "fn f(x:float32) -> int32:\n  x + 1\nfn main() -> int32:\n  f(1)\n",
-                               "fn f(x:int32) -> float32:\n  x\nfn main() -> float32:\n  f(1)\n",
-                               "fn main() -> Tensor[int32,2]:\n  tensor([1,2])\n"})
+                               "fn f(x:int32) -> float32:\n  x\nfn main() -> float32:\n  f(1)\n"})
       require(!analyze(source).ok(), "implicit conversion/default/tensor accepted");
+    for (const auto *source :
+         {"fn values() -> Tensor[int32,2]:\n  tensor([2147483647,-2147483648])\n",
+          "fn values() -> Tensor[int32]:\n  tensor(16777217)\n",
+          "fn values(a:Tensor[int32,?]) -> Tensor[int32,?]:\n  2 % (a + 1)\n",
+          "fn values() -> Tensor[int32,2,0]:\n  tensor([], [2,0])\n"}) {
+      auto tensor = analyze(std::string(source) + "fn main() -> int32:\n  0\n");
+      require(tensor.ok(), "int32 tensor source rejected");
+#ifndef KALANDRA_INT32_FRONTEND_ONLY
+      require(bool(lowerNative(*tensor.module)), "int32 tensor lowering rejected");
+#endif
+    }
+    for (const auto *source :
+         {"fn main() -> int32:\n  x:Tensor[int32,1] = tensor([2147483648])\n  0\n",
+          "fn main() -> int32:\n  x:Tensor[int32,1] = tensor([1.5])\n  0\n",
+          "fn f(x:Tensor[int32,?],y:Tensor[float32,?]) -> Tensor[int32,?]:\n  x + y\n",
+          "fn f(x:Tensor[int32,?]) -> int32:\n  reduceSum(x)\n",
+          "fn f(x:Tensor[int32,?,?]) -> Tensor[int32,?,?]:\n  matmul(x,x)\n",
+          "fn f(x:Tensor[int32,2]) -> Tensor[int32,3]:\n  x\n",
+          "fn f() -> Tensor[int32,2,2]:\n  tensor([[1],[2,3]])\n"})
+      require(!analyze(source).ok(), "unsupported/malformed integer tensor operation accepted");
+#ifndef KALANDRA_INT32_FRONTEND_ONLY
+    auto tensorTask = analyze("fn f(x:Tensor[int32,?]) -> Tensor[int32,?]:\n  x + 1\n"
+                              "fn main() -> int32 ! TaskError:\n  try parallel:\n"
+                              "    x:Tensor[int32,2] = tensor([1,2])\n"
+                              "    work = spawn f(x)\n    try await work\n    0\n");
+    require(tensorTask.ok(), "typed int32 tensor task IR rejected");
+    auto unsupported = lowerNative(*tensorTask.module);
+    require(!unsupported && unsupported.error().find("int32 tensor task") != std::string::npos,
+            "unqualified tensor task handoff enabled");
+#endif
     auto functions = analyze("fn inc(x:int32) -> int32:\n  x + 1\n"
                              "fn main() -> int32:\n  a:int32 = 16777217\n  inc(a)\n");
     require(functions.ok(), "typed function/literal contexts failed");

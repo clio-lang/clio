@@ -439,3 +439,22 @@ if(BUILD_TESTING)
     set_tests_properties(native-int32-tasks-${VARIANT} PROPERTIES TIMEOUT 180)
   endforeach()
 endif()
+
+if(BUILD_TESTING)
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    if(VARIANT STREQUAL "sanitized")
+      set(INT32_TENSOR_RUNTIME "$<TARGET_FILE:kalandra-native-runtime-sanitized>")
+    elseif(VARIANT STREQUAL "thread-sanitized")
+      set(INT32_TENSOR_RUNTIME "$<TARGET_FILE:kalandra-native-runtime-thread-sanitized>")
+    else()
+      set(INT32_TENSOR_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
+    endif()
+    add_test(NAME native-int32-tensors-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INT32_TENSOR_RUNTIME}" "-DVARIANT=${VARIANT}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/int32-tensors-${VARIANT}"
+        "-DHARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/Int32TensorRuntimeTests.cpp"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyInt32Tensors.cmake")
+    set_tests_properties(native-int32-tensors-${VARIANT} PROPERTIES TIMEOUT 240)
+  endforeach()
+endif()

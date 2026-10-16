@@ -94,7 +94,8 @@ private:
     for (const auto &extent : value.shape)
       shape.push_back(extent.constant ? static_cast<std::int64_t>(*extent.constant)
                                       : ShapedType::kDynamic);
-    return RankedTensorType::get(shape, builder_.getF32Type());
+    return RankedTensorType::get(shape, value.element == NumericType::Int32
+                                            ? Type(builder_.getI32Type()) : Type(builder_.getF32Type()));
   }
   Value index(Location loc, std::int64_t value) {
     return arith::ConstantIndexOp::create(builder_, loc, value);
@@ -131,6 +132,23 @@ private:
     auto high = compare(loc, arith::CmpIPredicate::sle, wide, integer(loc, INT32_MAX));
     guard(loc, arith::AndIOp::create(builder_, loc, low, high), 4);
     return arith::TruncIOp::create(builder_, loc, builder_.getI32Type(), wide);
+  }
+  Value integerUnary(Location loc, Value operand, TokenKind op) {
+    if (op == TokenKind::Plus)
+      return operand;
+    auto wide = arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), operand);
+    return checkedInt32(loc, arith::SubIOp::create(builder_, loc, integer(loc, 0), wide));
+  }
+  Value integerBinary(Location loc, Value a, Value b, TokenKind op) {
+    a = arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), a);
+    b = arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), b);
+    if (op == TokenKind::Slash || op == TokenKind::Percent)
+      guard(loc, compare(loc, arith::CmpIPredicate::ne, b, integer(loc, 0)), 4);
+    const char *name = op == TokenKind::Plus ? "arith.addi"
+                       : op == TokenKind::Minus ? "arith.subi"
+                       : op == TokenKind::Star ? "arith.muli"
+                       : op == TokenKind::Percent ? "arith.remsi" : "arith.divsi";
+    return checkedInt32(loc, binary(loc, name, a, b));
   }
   SmallVector<Value> dimensions(Location loc, Value tensor) {
     SmallVector<Value> result;
@@ -562,7 +580,7 @@ private:
       if (output.isDynamicDim(axis))
         dynamic.push_back(shape[axis]);
     Value empty =
-        tensor::EmptyOp::create(builder_, loc, output.getShape(), builder_.getF32Type(), dynamic);
+        tensor::EmptyOp::create(builder_, loc, output.getShape(), output.getElementType(), dynamic);
     SmallVector<Value> indices;
     const auto zero = index(loc, 0), one = index(loc, 1);
     std::function<Value(std::size_t, Value)> loop = [&](std::size_t axis, Value tensor) -> Value {
@@ -570,7 +588,9 @@ private:
         Value left = tensorA ? tensor::ExtractOp::create(builder_, loc, a, indices).getResult() : a;
         Value result;
         if (!b) {
-          result = arith::NegFOp::create(builder_, loc, left);
+          result = output.getElementType().isInteger(32)
+                       ? integerUnary(loc, left, op)
+                       : arith::NegFOp::create(builder_, loc, left).getResult();
         } else {
           Value right =
               tensorB ? tensor::ExtractOp::create(builder_, loc, b, indices).getResult() : b;
@@ -578,7 +598,9 @@ private:
                                    : op == TokenKind::Minus ? "arith.subf"
                                    : op == TokenKind::Slash ? "arith.divf"
                                                             : "arith.mulf";
-          result = binary(loc, arithmetic, left, right);
+          result = output.getElementType().isInteger(32)
+                       ? integerBinary(loc, left, right, op)
+                       : binary(loc, arithmetic, left, right);
         }
         return tensor::InsertOp::create(builder_, loc, result, tensor, indices);
       }
@@ -614,28 +636,15 @@ private:
             return frame.symbols.at(operation.symbol);
           else if constexpr (std::is_same_v<T, ScalarUnary>) {
             auto operand = expression(frame, operation.operand);
-            if (node.type.element == NumericType::Int32) {
-              if (operation.operation == TokenKind::Plus)
-                return operand;
-              auto wide = arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), operand);
-              return checkedInt32(loc, arith::SubIOp::create(builder_, loc, integer(loc, 0), wide));
-            }
+            if (node.type.element == NumericType::Int32)
+              return integerUnary(loc, operand, operation.operation);
             return operation.operation == TokenKind::Minus
                        ? arith::NegFOp::create(builder_, loc, operand).getResult()
                        : operand;
           } else if constexpr (std::is_same_v<T, ScalarBinary>) {
             auto a = expression(frame, operation.left), b = expression(frame, operation.right);
-            if (node.type.element == NumericType::Int32) {
-              a = arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), a);
-              b = arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), b);
-              if (operation.operation == TokenKind::Slash || operation.operation == TokenKind::Percent)
-                guard(loc, compare(loc, arith::CmpIPredicate::ne, b, integer(loc, 0)), 4);
-              const char *op = operation.operation == TokenKind::Plus ? "arith.addi"
-                               : operation.operation == TokenKind::Minus ? "arith.subi"
-                               : operation.operation == TokenKind::Star ? "arith.muli"
-                               : operation.operation == TokenKind::Percent ? "arith.remsi" : "arith.divsi";
-              return checkedInt32(loc, binary(loc, op, a, b));
-            }
+            if (node.type.element == NumericType::Int32)
+              return integerBinary(loc, a, b, operation.operation);
             const char *name = operation.operation == TokenKind::Plus    ? "arith.addf"
                                : operation.operation == TokenKind::Minus ? "arith.subf"
                                : operation.operation == TokenKind::Star  ? "arith.mulf"
@@ -723,7 +732,7 @@ private:
       else
         arguments.push_back(
             MemRefType::get(SmallVector<std::int64_t>(t.shape.size(), ShapedType::kDynamic),
-                            builder_.getF32Type()));
+                            cast<RankedTensorType>(type(t)).getElementType()));
     }
     builder_.setInsertionPointToEnd(module_->getBody());
     auto function =
@@ -749,7 +758,8 @@ private:
         }
         checkedCount(function.getLoc(), shape);
         auto tensorType = RankedTensorType::get(
-            SmallVector<std::int64_t>(t.shape.size(), ShapedType::kDynamic), builder_.getF32Type());
+            SmallVector<std::int64_t>(t.shape.size(), ShapedType::kDynamic),
+            cast<RankedTensorType>(type(t)).getElementType());
         argument = bufferization::ToTensorOp::create(builder_, function.getLoc(), tensorType,
                                                      argument, true, false);
         argument = castTensor(function.getLoc(), argument, type(t));

@@ -141,9 +141,8 @@ private:
     const auto numeric =
         syntax.tensor ? (syntax.element ? resolveNumeric(name(*syntax.element)) : std::nullopt)
                       : resolveNumeric(name(syntax.name));
-    if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu) ||
-        (syntax.tensor && *numeric != NumericType::Float32)) {
-      error("S003", "only int32 scalars, float32 and Tensor[float32,...] are implemented in this semantic subset",
+    if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu)) {
+      error("S003", "only int32, float32 and tensors of those types are implemented in this semantic subset",
             syntax.span);
       return {};
     }
@@ -552,8 +551,8 @@ private:
       return {};
     const auto a = node(*left).type, b = node(*right).type;
     if (binary.operation == TokenKind::Percent &&
-        (a.tensor || b.tensor || a.element != NumericType::Int32 || b.element != NumericType::Int32)) {
-      error("S019", "'%' requires integer scalar operands", span);
+        (a.element != NumericType::Int32 || b.element != NumericType::Int32)) {
+      error("S019", "'%' requires integer operands", span);
       return {};
     }
     if (a.task || b.task || a.fallible || b.fallible || a.builtin != BuiltinValue::Numeric ||
@@ -567,7 +566,8 @@ private:
     }
     if (a.tensor || b.tensor) {
       if (binary.operation != TokenKind::Plus && binary.operation != TokenKind::Minus &&
-          binary.operation != TokenKind::Star && binary.operation != TokenKind::Slash) {
+          binary.operation != TokenKind::Star && binary.operation != TokenKind::Slash &&
+          !(a.element == NumericType::Int32 && binary.operation == TokenKind::Percent)) {
         error("S017", "elementwise float32 arithmetic currently supports only +, -, * and /", span);
         return {};
       }
@@ -1064,7 +1064,7 @@ private:
       return {};
     }
     if (!expected || !expected->tensor) {
-      error("S026", "tensor literals need Tensor[float32,...] context in this first subset", span);
+      error("S026", "tensor literals need Tensor[int32,...] or Tensor[float32,...] context in this subset", span);
       return {};
     }
     if (arguments.size() == 2) {
@@ -1158,6 +1158,10 @@ private:
         (callee == "matmul" && leftType.shape.size() != 2)) {
       error("S028", callee + " requires " + (callee == "matmul" ? "rank-two tensors" : "a tensor"),
             syntax_.expressions[arguments[0]].span);
+      return {};
+    }
+    if (leftType.element != NumericType::Float32) {
+      error("S053", callee + " currently requires float32 tensors; integer reductions and matmul are not implemented", span);
       return {};
     }
     if (callee == "reduceSum") {

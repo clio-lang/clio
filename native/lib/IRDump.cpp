@@ -53,8 +53,7 @@ std::string describeType(const ValueType &type) {
 std::optional<std::string> numericCapabilityError(const TypedModule &module, NumericTarget target) {
   const auto error = [&](const ValueType &type) -> std::optional<std::string> {
     if (type.builtin != BuiltinValue::Numeric ||
-        (numericArithmeticAvailable(type.element, target) &&
-         (!type.tensor || type.element == NumericType::Float32)))
+        numericArithmeticAvailable(type.element, target))
       return {};
     const auto description = describeNumeric(type.element);
     return "numeric type '" + (description ? std::string(description->name) : "<invalid>") +
@@ -71,9 +70,21 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
   for (const auto &symbol : module.symbols)
     if (auto failure = error(symbol.type))
       return failure;
-  for (const auto &expression : module.expressions)
+  for (const auto &expression : module.expressions) {
     if (auto failure = error(expression.type))
       return failure;
+    if (const auto *reduce = std::get_if<ReduceSum>(&expression.operation)) {
+      if (expression.type.element != NumericType::Float32 ||
+          module.expressions[reduce->input].type.element != NumericType::Float32)
+        return "integer reductions are not implemented by the CPU backend";
+    }
+    if (const auto *multiply = std::get_if<Matmul>(&expression.operation)) {
+      if (expression.type.element != NumericType::Float32 ||
+          module.expressions[multiply->left].type.element != NumericType::Float32 ||
+          module.expressions[multiply->right].type.element != NumericType::Float32)
+        return "integer matmul is not implemented by the CPU backend";
+    }
+  }
   return {};
 }
 std::string dumpTypedIR(const TypedModule &module) {
@@ -140,7 +151,8 @@ std::string dumpTypedIR(const TypedModule &module) {
                   << (node.type.element == NumericType::Int32 ? "i32 checked " : "f32 ");
               value(operation.operand);
             } else if constexpr (std::is_same_v<T, TensorUnary>) {
-              out << "elementwise neg.f32 exact_sign_bit ";
+              out << (node.type.element == NumericType::Int32 ? "elementwise neg.i32 checked "
+                                                            : "elementwise neg.f32 exact_sign_bit ");
               value(operation.operand);
             } else if constexpr (std::is_same_v<T, ScalarBinary> ||
                                  std::is_same_v<T, TensorBinary>) {
