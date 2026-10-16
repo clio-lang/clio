@@ -116,3 +116,6 @@ Source-generated elementwise helpers now accept strict float32 subtraction for v
 
 
 For the private indirect entry ABI, use `ElementwiseSignature{tensorCount, scalarCount, ElementwiseBinding::ArgumentBuffer}`, optionally followed by the sorted logical input map. The loader requires Tier 2 support and matching nested reflection. Submission still uses the owned tensor/scalar-span overload. The direct two-buffer proof overload cannot submit an indirect kernel. Resource-buffer storage is charged to `maxBytes`, separately from the logical capture charge in `maxArgumentBytes`.
+
+
+[Whole-tensor unary arithmetic](../../docs/design/apple-gpu.md#whole-tensor-unary-arithmetic) now supports `-values` in rank-one/rank-two float32 GPU helpers. It changes only each element's sign bit, preserving payloads and shapes; double negation and unary plus preserve exact original bits. Source shape guards, owned captures, direct/Tier 2 layout selection and acknowledgement-safe cleanup remain in place.

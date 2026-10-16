@@ -36,6 +36,11 @@ struct ScalarUnary {
   TokenKind operation;
   ValueId operand;
 };
+// Shape-preserving elementwise unary arithmetic on immutable float32 tensors.
+struct TensorUnary {
+  TokenKind operation;
+  ValueId operand;
+};
 struct ScalarBinary {
   TokenKind operation;
   ValueId left;
@@ -116,9 +121,9 @@ struct FailOperation {
 struct TypedExpr {
   SourceSpan span;
   ValueType type; // Only float32 and ranked Tensor[float32,...] in this semantic subset.
-  std::variant<Float32Literal, SymbolRead, ScalarUnary, ScalarBinary, TensorBinary, TensorLiteral,
-               FunctionCall, Matmul, ReduceSum, ShapeCheck, TaskOperation, ParallelOperation,
-               CatchOperation, MatchOperation, ErrorFieldRead, FailOperation>
+  std::variant<Float32Literal, SymbolRead, ScalarUnary, TensorUnary, ScalarBinary, TensorBinary,
+               TensorLiteral, FunctionCall, Matmul, ReduceSum, ShapeCheck, TaskOperation,
+               ParallelOperation, CatchOperation, MatchOperation, ErrorFieldRead, FailOperation>
       operation;
 };
 struct ShapeEquality {

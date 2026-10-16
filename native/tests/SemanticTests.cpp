@@ -53,7 +53,7 @@ void validIR(const TypedModule &module) {
             require(op.symbol < module.symbols.size() &&
                         module.symbols[op.symbol].owner == owners[id],
                     "bad symbol resolution");
-          } else if constexpr (std::is_same_v<T, ScalarUnary>)
+          } else if constexpr (std::is_same_v<T, ScalarUnary> || std::is_same_v<T, TensorUnary>)
             operand(op.operand);
           else if constexpr (std::is_same_v<T, ScalarBinary> || std::is_same_v<T, TensorBinary> ||
                              std::is_same_v<T, Matmul>) {
@@ -318,6 +318,18 @@ void tensorLiterals() {
   rejected("fn main():\n  tensor([[1]])\n", "S026");
 }
 void elementwiseArithmetic() {
+  auto unary = analyze("fn negative(a: Tensor[float32,?,?]) -> Tensor[float32,?,?]:\n  -a\n"
+                       "fn positive(a: Tensor[float32,2,3]) -> Tensor[float32,2,3]:\n  +a\n");
+  accepted(unary);
+  validIR(*unary.module);
+  require(std::holds_alternative<TensorUnary>(returned(*unary.module, 0).operation),
+          "tensor negation lost its typed operation");
+  require(std::holds_alternative<SymbolRead>(returned(*unary.module, 1).operation),
+          "tensor unary plus must remain an identity");
+  require(unary.module->functions[0].preconditions.empty() &&
+              dumpTypedIR(*unary.module).find("elementwise neg.f32 exact_sign_bit") !=
+                  std::string::npos,
+          "tensor negation must preserve shape without adding equality obligations");
   auto result = analyze(
       "fn add(a: Tensor[float32,?], b: Tensor[float32,?]) -> Tensor[float32,?]:\n  a+b\n"
       "fn lift(a: Tensor[float32,?], scale: float32) -> Tensor[float32,?]:\n  (a*scale)+0.5\n");

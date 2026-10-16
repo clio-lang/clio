@@ -434,7 +434,7 @@ fn centered(values: Tensor[float32, ?], mean: float32) -> Tensor[float32, ?]:
   values + negative(mean)
 ```
 
-Subtraction uses the strict integer binary32 addition path after flipping the right operand's sign. It preserves gradual underflow, zero signs, infinity handling and nearest/ties-to-even rounding. Scalar negation changes only the sign bit, preserving all other bits including NaN payloads. It does not use subtraction from zero. There is no hardware float arithmetic, FMA, reassociation, relaxed precision or implicit transfer. An entire tensor's unary `-` remains unsupported in the source subset; tensor subtraction is the newly admitted operation.
+Subtraction uses the strict integer binary32 addition path after flipping the right operand's sign. It preserves gradual underflow, zero signs, infinity handling and nearest/ties-to-even rounding. Scalar negation changes only the sign bit, preserving all other bits including NaN payloads. It does not use subtraction from zero. There is no hardware float arithmetic, FMA, reassociation, relaxed precision or implicit transfer. Whole-tensor unary `-` is now supported by the subsequent TensorUnary lowering below; this milestone introduced tensor subtraction.
 
 The same typed operation lowers through the existing CPU tensor loop and GPU lane kernel, with source evaluation order, output shapes, owned captures, byte/command budgets and cancellation acknowledgement unchanged. The private three-operation `compute(BinaryOperation)` proof interface is unchanged. GPU-ABI-001 remains open.
 
@@ -491,3 +491,26 @@ The fixed input count is replaced by checked representation, compiler work limit
 The [source fixture](../../native/metal-source/indirect-arguments.kalandra) uses 40 contributing tensors, an unused tensor of another rank, and interleaved scalar parameters in both ranks. [Conformance](../../native/metal-source/IndirectArgumentChecks.h) checks **25 cases and 793,916 CPU/GPU/APFloat lanes per rank per build variant**, including the full 595,106-pair corpus, scalar IEEE edges, aliases, empty axes and workgroup tails. It also sweeps capture/dispatch allocation checkpoints, checks exact device/capture budget boundaries, holds resources through cancellation/deadlines/failed completion, destroys a pending core, and runs two simultaneous calls through one kernel while cancelling one. The source harness additionally sweeps 87 CPU allocation failures with 1/2/4 workers.
 
 [CLI checks](../../native/metal-source/VerifyIndirectArguments.cmake) run optimized, ASan/UBSan and TSan host programs with 1/2/4 workers, verify one root Metal binding and rank-independent raw/strict/SPIR-V lane arithmetic, run a relocated executable plus its two libraries, and reject static/dynamic shape mismatches in the last contributing tensor. The former 30-input rejection now builds and runs with an argument buffer. [Evidence](../../native/metal-proof/evidence/gpu-indirect-arguments-2026-10-16.json) records source/artifact hashes and regression results. Host sanitizers do not instrument GPU instructions. No throughput improvement is claimed; large calls add resource-buffer allocation and argument encoding.
+
+
+### Whole-tensor unary arithmetic
+
+Completed float32 tensors now support unary `-` in ordinary CPU functions and placed rank-one/rank-two GPU helpers:
+
+```kalandra
+fn negative(values: Tensor[float32, ?, ?]) -> Tensor[float32, ?, ?]:
+  -values
+
+fn restored(values: Tensor[float32, ?, ?]) -> Tensor[float32, ?, ?]:
+  -negative(+values)
+```
+
+Negation preserves the rank and every extent and flips only bit 31 of each element. Positive/negative zero, subnormals, infinities, quiet/signaling NaN payloads and all other non-sign bits are preserved exactly. Double negation restores the original bits. Unary `+` remains an identity. These operations do not use subtraction from zero or multiplication by -1, which would have different zero/NaN behavior.
+
+The checker emits a distinct TensorUnary node for tensor negation, carrying the operand's shape without inventing equality obligations. It still rejects pending or fallible task values: `-work` does not imply await. The CPU backend emits ranked loops with `arith.negf`; allocation bounds, immutable inputs, cleanup and cooperative task cancellation use the existing tensor machinery. Task extraction retains and remaps the unary operand. The GPU backend expands the same checked operation into lane SSA and applies the existing strict integer sign-bit lowering. Unsupported operations, element types and GPU ranks still fail admission; the mixed supervisor's general expression limits remain unchanged.
+
+Negation composes with supported arithmetic and transitive helpers. A function returning `-(left + right)` retains the addition's complete-axis shape requirements. That addition follows the existing arithmetic NaN policy; the subsequent negation flips the result's sign. Exact payload preservation applies to negation and identities, not to arbitrary preceding arithmetic. There is no implicit device transfer, arithmetic reassociation, CPU fallback or numeric-policy relaxation.
+
+The [source fixture](../../native/metal-source/tensor-negation.kalandra) runs negation, nested double negation, unary plus, and a negated sum in both ranks, then combines downloaded and CPU-produced tensors. [Conformance](../../native/metal-source/TensorNegationChecks.h) checks **68 cases and 3,177,168 CPU/GPU lanes per rank per build variant**, including **2,382,876 exact-bit comparisons** for the unary-only paths. It covers the full 595,106-pair corpus, aliases, zero axes, workgroup tails, unchanged inputs and propagated result shapes. Composed addition/negation is compared independently with APFloat, using NaN classification for the arithmetic result.
+
+Debug, optimized, host ASan/UBSan and host TSan variants retain the common source harness's allocation-failure, cached ownership, byte-budget, cancellation, deadline and failed-completion checks. [CLI qualification](../../native/metal-source/VerifyTensorNegation.cmake) runs with 1/2/4 workers, verifies rank-independent raw/strict/SPIR-V artifacts and relocated eight-library bundles, tests static/dynamic composed shape faults, rejects unary arithmetic on a pending task, and checks an empty outer matrix axis. It also runs ordinary CPU tasks with inline tensor negation and rank-three CPU lowering in optimized and host sanitizer builds. [Evidence](../../native/metal-proof/evidence/gpu-tensor-negation-2026-10-16.json) records sources, artifacts and regression results. Host sanitizers do not instrument GPU instructions. No performance claim is made.

@@ -398,14 +398,15 @@ private:
     auto operand = expression(frame, unary.operand, expected);
     if (!operand)
       return {};
-    if (unary.operation == TokenKind::Plus && node(*operand).type.tensor &&
-        !node(*operand).type.task && !node(*operand).type.fallible &&
-        node(*operand).type.builtin == BuiltinValue::Numeric)
-      return operand;
-    if (node(*operand).type.tensor || node(*operand).type.task || node(*operand).type.fallible ||
-        node(*operand).type.builtin != BuiltinValue::Numeric) {
-      error("S017", "arithmetic requires completed float32 scalar values", span);
+    const auto type = node(*operand).type;
+    if (type.task || type.fallible || type.builtin != BuiltinValue::Numeric) {
+      error("S017", "arithmetic requires completed float32 numeric values", span);
       return {};
+    }
+    if (type.tensor) {
+      if (unary.operation == TokenKind::Plus)
+        return operand;
+      return add(frame, type, span, TensorUnary{unary.operation, *operand});
     }
     return add(frame, {}, span, ScalarUnary{unary.operation, *operand});
   }

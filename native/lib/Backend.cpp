@@ -540,7 +540,7 @@ private:
   }
   Value elementwise(Location loc, Value a, Value b, RankedTensorType output, TokenKind op) {
     const bool tensorA = isa<RankedTensorType>(a.getType());
-    const bool tensorB = isa<RankedTensorType>(b.getType());
+    const bool tensorB = b && isa<RankedTensorType>(b.getType());
     auto shape = dimensions(loc, tensorA ? a : b);
     if (tensorA && tensorB) {
       auto other = dimensions(loc, b);
@@ -559,12 +559,17 @@ private:
     std::function<Value(std::size_t, Value)> loop = [&](std::size_t axis, Value tensor) -> Value {
       if (axis == shape.size()) {
         Value left = tensorA ? tensor::ExtractOp::create(builder_, loc, a, indices).getResult() : a;
-        Value right =
-            tensorB ? tensor::ExtractOp::create(builder_, loc, b, indices).getResult() : b;
-        const char *arithmetic = op == TokenKind::Plus    ? "arith.addf"
-                                 : op == TokenKind::Minus ? "arith.subf"
-                                                          : "arith.mulf";
-        auto result = binary(loc, arithmetic, left, right);
+        Value result;
+        if (!b) {
+          result = arith::NegFOp::create(builder_, loc, left);
+        } else {
+          Value right =
+              tensorB ? tensor::ExtractOp::create(builder_, loc, b, indices).getResult() : b;
+          const char *arithmetic = op == TokenKind::Plus    ? "arith.addf"
+                                   : op == TokenKind::Minus ? "arith.subf"
+                                                            : "arith.mulf";
+          result = binary(loc, arithmetic, left, right);
+        }
         return tensor::InsertOp::create(builder_, loc, result, tensor, indices);
       }
       auto iteration = scf::ForOp::create(builder_, loc, zero, shape[axis], one, ValueRange{tensor},
@@ -607,6 +612,9 @@ private:
                                : operation.operation == TokenKind::Star  ? "arith.mulf"
                                                                          : "arith.divf";
             return binary(loc, name, a, b);
+          } else if constexpr (std::is_same_v<T, TensorUnary>) {
+            return elementwise(loc, expression(frame, operation.operand), {},
+                               cast<RankedTensorType>(type(node.type)), operation.operation);
           } else if constexpr (std::is_same_v<T, TensorBinary>) {
             auto a = expression(frame, operation.left), b = expression(frame, operation.right);
             return elementwise(loc, a, b, cast<RankedTensorType>(type(node.type)),

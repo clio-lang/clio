@@ -87,6 +87,9 @@ std::string dumpTypedIR(const TypedModule &module) {
             else if constexpr (std::is_same_v<T, ScalarUnary>) {
               out << (operation.operation == TokenKind::Minus ? "neg.f32 " : "pos.f32 ");
               value(operation.operand);
+            } else if constexpr (std::is_same_v<T, TensorUnary>) {
+              out << "elementwise neg.f32 exact_sign_bit ";
+              value(operation.operand);
             } else if constexpr (std::is_same_v<T, ScalarBinary> ||
                                  std::is_same_v<T, TensorBinary>) {
               const char *name = operation.operation == TokenKind::Plus    ? "add.f32"

@@ -697,14 +697,21 @@ class Compiler {
                           : operation == TokenKind::Minus ? "subf "
                                                           : "mulf ")
                       << a << ", " << b << " : f32\n";
-        } else if (auto *unary = std::get_if<ScalarUnary>(&n.operation)) {
-          result = emit(unary->operand);
-          if (unary->operation == TokenKind::Minus) {
+        } else if (std::holds_alternative<ScalarUnary>(n.operation) ||
+                   std::holds_alternative<TensorUnary>(n.operation)) {
+          const auto op = std::holds_alternative<ScalarUnary>(n.operation)
+                              ? std::get<ScalarUnary>(n.operation).operation
+                              : std::get<TensorUnary>(n.operation).operation;
+          const auto input = std::holds_alternative<ScalarUnary>(n.operation)
+                                 ? std::get<ScalarUnary>(n.operation).operand
+                                 : std::get<TensorUnary>(n.operation).operand;
+          result = emit(input);
+          if (op == TokenKind::Minus) {
             auto operand = result;
             result = temporary();
             operands = {operand};
             instruction << "        " << result << " = arith.negf " << operand << " : f32\n";
-          } else if (unary->operation != TokenKind::Plus)
+          } else if (op != TokenKind::Plus)
             reject(n.span, "GPU unary arithmetic is not implemented");
         } else if (auto *call = std::get_if<FunctionCall>(&n.operation)) {
           std::vector<std::string> inputs;
