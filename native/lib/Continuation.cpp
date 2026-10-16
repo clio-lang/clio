@@ -46,6 +46,8 @@ public:
   std::size_t totalSlots = 0;
   Options options;
   std::vector<bool> resumable;
+  std::vector<FunctionId> pending;
+  std::vector<bool> scheduled;
   explicit Builder(const TypedModule &input, Options options)
       : ModulePlan(input), options(options), resumable(resumableFunctions(input)) {
     if (options.entry && *options.entry >= input.functions.size())
@@ -56,9 +58,14 @@ public:
     plans.resize(input.functions.size());
     for (auto &plan : plans)
       plan = std::make_unique<Plan>();
-    for (FunctionId id = 0; id < input.functions.size(); ++id) {
-      if (options.entry && *options.entry != id)
-        continue;
+    scheduled.resize(input.functions.size());
+    for (FunctionId id = 0; id < input.functions.size(); ++id)
+      if (!options.entry || *options.entry == id) {
+        pending.push_back(id);
+        scheduled[id] = true;
+      }
+    for (std::size_t index = 0; index < pending.size(); ++index) {
+      const auto id = pending[index];
       auto &plan = *plans[id];
       std::vector<Slot> parameters;
       for (auto parameter : input.functions[id].parameters)
@@ -67,6 +74,22 @@ public:
       std::set<FunctionId> stack;
       plan.result = function(plan, id, parameters, stack);
       plan.code.push_back({Code::Return, 0, {plan.result}});
+    }
+    if (options.preserveCalls) {
+      std::vector<unsigned> state(plans.size());
+      auto visit = [&](auto &&self, FunctionId id, unsigned depth) -> void {
+        if (state[id] == 1 || depth > 128)
+          throw std::runtime_error("recursive resumable task entries are not implemented yet");
+        if (state[id] == 2)
+          return;
+        state[id] = 1;
+        for (const auto &op : plans[id]->code)
+          if (op.code == Code::Spawn && resumable.at(op.target))
+            self(self, op.target, depth + 1);
+        state[id] = 2;
+      };
+      for (auto id : pending)
+        visit(visit, id, 0);
     }
     TypedFunction main;
     main.name = "main";
@@ -228,9 +251,15 @@ private:
         if (const auto *call = std::get_if<FunctionCall>(&invocation.operation)) {
           operands = call->arguments;
           target = call->function;
-          if (options.preserveCalls && resumable.at(target))
-            throw std::runtime_error(
-                "spawning resumable mixed helpers is not implemented; call the helper directly");
+          if (options.preserveCalls && resumable.at(target)) {
+            if (task->placement && input.expressions.at(*task->placement).type.device)
+              throw std::runtime_error("resumable helpers require CPU placement; GPU placements "
+                                       "require numeric kernels");
+            if (!scheduled.at(target)) {
+              scheduled[target] = true;
+              pending.push_back(target);
+            }
+          }
         } else {
           if (options.preserveCalls)
             throw std::runtime_error("mixed spawn requires a resolved function entry");

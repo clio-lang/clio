@@ -46,7 +46,7 @@ struct Plan {
 struct Options {
   // Preserve ordinary numeric calls; expand resumable helper bodies into the caller.
   bool preserveCalls = false;
-  // Plan a selected entry; other function IDs retain their original positions.
+  // Plan a selected entry and reachable resumable children, retaining function IDs.
   std::optional<FunctionId> entry = {};
 };
 struct ModulePlan {

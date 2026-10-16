@@ -535,6 +535,40 @@ class Compiler {
     value.slot = next - 1;
     return value;
   }
+  std::vector<bool> resumable;
+  static std::string helperName(FunctionId id) { return "helper" + std::to_string(id); }
+  Value spawnHelper(FunctionId id, const std::vector<Value> &inputs, Value target,
+                    SourceSpan span) {
+    if (target.kind != Value::Target || target.gpu)
+      reject(span,
+             "resumable helpers require CPU placement; GPU placements require numeric kernels");
+    const auto &fn = placement.functions.at(id);
+    if (inputs.size() != fn.parameters.size())
+      reject(span, "resumable helper argument count mismatch");
+    std::string captures = "f.runtime,f.directory.c_str()";
+    for (const auto &input : inputs) {
+      completed(input, span);
+      if ((input.kind != Value::Tensor && input.kind != Value::Scalar) || input.gpu)
+        reject(span, "resumable helper captures require completed host values");
+      captures += "," + ref(input);
+    }
+    const auto out = field("TaskHandle");
+    const auto name = helperName(id);
+    steps.push_back(name + "::PacketData packet{" + captures + "};\nf." + out + "=task.spawn(" +
+                    activeGroup + "," + name + "::entry,{" + name +
+                    "::entry.packetLayout,&packet,sizeof(packet),&task.context()});\n" +
+                    admitted("f." + out));
+    Value value{Value::Task, next - 1};
+    const auto type = fn.declaredResult.value_or(fn.resultType);
+    value.scalarTask = !type.tensor;
+    if (type.tensor) {
+      value.rank = type.shape.size();
+      value.length = type.shape[0].constant;
+      if (value.rank == 2)
+        value.width = type.shape[1].constant;
+    }
+    return value;
+  }
   Value transfer(Value input, Value target, SourceSpan span) {
     completed(input, span);
     if (input.kind != Value::Tensor || target.kind != Value::Target)
@@ -766,7 +800,8 @@ class Compiler {
     std::size_t instruction, group;
   };
   std::vector<GpuAwaitSite> gpuAwaitSites;
-  Value lowerPlan(const continuation::Plan &plan) {
+  std::vector<Value> plannedParameters;
+  Value lowerPlan(const continuation::Plan &plan, FunctionId entryId) {
     using namespace continuation;
     std::map<Slot, Value> values;
     std::map<Slot, unsigned> payloadWrites;
@@ -872,6 +907,26 @@ class Compiler {
         payloadWrites[slot] = 1;
       }
     };
+    // Parameter storage belongs to the child frame. Declared fixed dimensions
+    // are checked here; inferred operation guards stay inside their source scopes.
+    const auto &fn = placement.functions.at(entryId);
+    std::string guards;
+    auto [line, column] = syntax.source->location(fn.declaration.begin);
+    const auto fault =
+        "{task.fault(1," + std::to_string(line) + "," + std::to_string(column) + ");return;}\n";
+    for (std::size_t n = 0; n < plan.parameters.size(); ++n) {
+      const auto parameter = get(plan.parameters[n]);
+      plannedParameters.push_back(parameter);
+      const auto &type = placement.symbols.at(fn.parameters[n]).type;
+      for (std::size_t axis = 0; axis < type.shape.size(); ++axis) {
+        const auto actual = ref(parameter) + ".shape()[" + std::to_string(axis) + "]";
+        if (type.shape[axis].constant)
+          guards +=
+              "if(" + actual + "!=" + std::to_string(*type.shape[axis].constant) + ")" + fault;
+      }
+    }
+    if (!guards.empty())
+      steps.push_back(std::move(guards));
     for (std::size_t i = 0; i < plan.code.size(); ++i) {
       const auto &op = plan.code[i];
       plannedPC.push_back(steps.size() + 1);
@@ -927,7 +982,9 @@ class Compiler {
           auto target = get(*op.placement);
           if (target.gpu)
             gpuCalls[op.output] = op.group;
-          bind(op.output, spawn(cpuFunction(op.target, span), args, target, span));
+          bind(op.output, resumable.at(op.target)
+                              ? spawnHelper(op.target, args, target, span)
+                              : spawn(cpuFunction(op.target, span), args, target, span));
         }
         break;
       }
@@ -1030,6 +1087,54 @@ class Compiler {
         step.replace(pos, end - pos + 1, std::to_string(plannedPC.at(index)));
       }
     return get(plan.result);
+  }
+  std::string helperPacket(FunctionId id) const {
+    std::string code = "namespace " + helperName(id) +
+                       " { struct PacketData { m::Runtime *runtime; const char *directory;";
+    const auto &fn = placement.functions.at(id);
+    for (std::size_t n = 0; n < fn.parameters.size(); ++n)
+      code += std::string(placement.symbols.at(fn.parameters[n]).type.tensor ? "m::Buffer "
+                                                                             : "float ") +
+              "arg" + std::to_string(n) + ";";
+    return code + "}; extern const TaskEntry entry; }\n";
+  }
+  std::string helperBody(FunctionId id) const {
+    const auto &fn = placement.functions.at(id);
+    std::ostringstream out;
+    out << "namespace " << helperName(id)
+        << " {\nstruct Frame {m::Runtime *runtime; std::string directory; unsigned pc=1;\n";
+    for (const auto &field : fields)
+      out << field << '\n';
+    out << "};\nbool construct(Invocation &context,void *out,const Packet &packet){\n"
+           "const auto &data=*static_cast<const PacketData*>(packet.data);\n"
+           "if(!data.runtime || !data.directory";
+    for (std::size_t n = 0; n < plannedParameters.size(); ++n) {
+      const auto &type = placement.symbols.at(fn.parameters[n]).type;
+      if (type.tensor) {
+        auto arg = "data.arg" + std::to_string(n);
+        out << " || !" << arg << " || " << arg << ".onDevice() || " << arg
+            << ".format()!=m::Format::Float32 || " << arg
+            << ".shape().size()!=" << type.shape.size();
+      }
+    }
+    out << "){context.fault(3);return false;}\n"
+           "auto &f=*new(out) Frame{data.runtime,data.directory}; (void)f;\n";
+    for (std::size_t n = 0; n < plannedParameters.size(); ++n)
+      out << ref(plannedParameters[n]) << "=data.arg" << n << ";\n";
+    out << "return true;}\nvoid destroy(void *p) noexcept {static_cast<Frame*>(p)->~Frame();}\n"
+           "void resume(Task &task){auto &f=*static_cast<Frame*>(task.frame()); auto "
+           "&r=*f.runtime; (void)r;\n"
+           "if(task.cancelled())return;\nfor(;;){switch(f.pc){\n";
+    for (std::size_t i = 0; i < steps.size(); ++i)
+      out << "case " << i + 1 << ": {\n"
+          << steps[i] << "f.pc=" << i + 2 << ";\n} [[fallthrough]];\n";
+    out << "default:task.fault(3);return;}}}\n"
+           "const TaskEntry entry{1,"
+        << 0x4b414c52534d0000ULL + id
+        << "ull,sizeof(PacketData),alignof(PacketData),"
+           "sizeof(Frame),alignof(Frame),construct,destroy,resume,&m::Runtime::"
+        << (fn.resultType.tensor ? "bufferLayout" : "scalarLayout") << "()};\n}\n";
+    return out.str();
   }
   std::string shader(std::size_t function, std::vector<std::uint32_t> *readInputs = nullptr) const {
     if (matrixFunction(function))
@@ -1269,7 +1374,7 @@ public:
     if (!checkedPlacement.ok())
       throw Rejected{checkedPlacement.diagnostics.front()};
     placement = std::move(*checkedPlacement.module);
-    const auto resumable = continuation::resumableFunctions(placement);
+    resumable = continuation::resumableFunctions(placement);
     Module hostModule = syntax;
     hostModule.functions.clear();
     std::optional<std::size_t> main;
@@ -1335,8 +1440,40 @@ public:
     auto planned = continuation::plan(placement, {.preserveCalls = true, .entry = *main});
     if (!planned)
       reject(fn.span, planned.error());
-    auto result = lowerPlan(*planned->plans[*main]);
+    auto result = lowerPlan(*planned->plans[*main], *main);
     (void)result;
+    // Compile each reachable resumable child once. Keep the main frame's state
+    // separate while numeric exports and shader entries remain module-wide.
+    auto mainFields = std::move(fields), mainSteps = std::move(steps),
+         mainGroups = std::move(plannedGroups);
+    auto mainPC = std::move(plannedPC);
+    auto mainSites = std::move(gpuAwaitSites);
+    auto mainParameters = std::move(plannedParameters);
+    const auto mainNext = next;
+    std::string helperDeclarations, helperBodies;
+    for (FunctionId id = 0; id < planned->plans.size(); ++id) {
+      if (id == *main || planned->plans[id]->code.empty())
+        continue;
+      fields.clear();
+      steps.clear();
+      plannedGroups.clear();
+      plannedPC.clear();
+      gpuAwaitSites.clear();
+      plannedParameters.clear();
+      next = 0;
+      activeGroup.clear();
+      admissionExit.reset();
+      lowerPlan(*planned->plans[id], id);
+      helperDeclarations += helperPacket(id);
+      helperBodies += helperBody(id);
+    }
+    fields = std::move(mainFields);
+    steps = std::move(mainSteps);
+    plannedGroups = std::move(mainGroups);
+    plannedPC = std::move(mainPC);
+    gpuAwaitSites = std::move(mainSites);
+    plannedParameters = std::move(mainParameters);
+    next = mainNext;
     if (entries.empty())
       reject(fn.span, "no GPU placement in source");
     std::map<std::string, std::string> outputs;
@@ -1381,7 +1518,7 @@ public:
 using namespace kalandra::runtime;
 namespace m = kalandra::runtime::metal;
  )" << declarations
-         << cpuEntries;
+         << helperDeclarations << cpuEntries;
     if (scalarResult)
       host << "const ValueLayout &scalarLayout=m::Runtime::scalarLayout();\n";
     host << R"(struct PacketData { m::Runtime *runtime; const char *directory; };
@@ -1426,8 +1563,8 @@ void resume(Task &task) {
     host << "default: task.fault(3); return;\n} }\n}\n";
     host
         << R"(const TaskEntry entry{1,0x4b414c47505501,sizeof(PacketData),alignof(PacketData),sizeof(Frame),alignof(Frame),construct,destroy,resume,)"
-        << (scalarResult ? "&scalarLayout" : "&m::Runtime::bufferLayout()") << R"(};
-int main(int argc,char **argv) {
+        << (scalarResult ? "&scalarLayout" : "&m::Runtime::bufferLayout()") << "};\n"
+        << helperBodies << R"(int main(int argc,char **argv) {
   if (argc!=1 && argc!=2) { std::fprintf(stderr,"expected optional shader directory\n"); return 2; }
   const auto directory=argc==2 ? std::string(argv[1]) : std::filesystem::absolute(argv[0]).parent_path().string();
   auto made=m::Runtime::create();

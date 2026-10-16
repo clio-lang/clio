@@ -18,6 +18,8 @@ void verify(const ModulePlan &module) {
     require(plan.result < plan.slots.size(), "invalid plan result");
     std::vector<unsigned> opened(plan.groups), joined(plan.groups);
     std::map<Slot, std::size_t> defined;
+    for (auto parameter : plan.parameters)
+      defined.emplace(parameter, 0);
     for (std::size_t pc = 0; pc < plan.code.size(); ++pc) {
       const auto &op = plan.code[pc];
       require(op.output < plan.slots.size(), "invalid output slot");
@@ -65,7 +67,9 @@ void verify(const ModulePlan &module) {
         if (!std::holds_alternative<SymbolRead>(
                 module.input.expressions[*spawn.placement].operation))
           for (auto arg : op.args)
-            require(defined.contains(arg) && defined.at(arg) < defined.at(*op.placement),
+            require(defined.contains(arg) &&
+                        (std::ranges::find(plan.parameters, arg) != plan.parameters.end() ||
+                         defined.at(arg) < defined.at(*op.placement)),
                     "task arguments must precede fresh target evaluation");
       }
       if (op.code == Code::Transfer) {
@@ -114,7 +118,8 @@ int main(int argc, char **argv) {
                              "reduction",
                              "matmul",
                              "ir-supervisor",
-                             "resumable-helpers"}) {
+                             "resumable-helpers",
+                             "spawned-helpers"}) {
       auto file =
           loadSource((root / "native/metal-source" / (std::string(name) + ".kalandra")).string());
       require(bool(file), "cannot read mixed fixture");
@@ -181,10 +186,20 @@ int main(int argc, char **argv) {
                                  "    try await spawn leaf()\n",
                                  true);
     require(spawnedHelper.ok(), "spawned helper checking failed");
-    auto unsupported = plan(*spawnedHelper.module, {.preserveCalls = true, .entry = 1});
-    require(!unsupported &&
-                unsupported.error().find("spawning resumable mixed helpers") != std::string::npos,
-            "resumable child admitted without a separate frame");
+    auto scheduled = plan(*spawnedHelper.module, {.preserveCalls = true, .entry = 1});
+    require(bool(scheduled) && !scheduled->plans[0]->code.empty() &&
+                scheduled->plans[0]->parameters.empty(),
+            "resumable child plan missing");
+    verify(*scheduled);
+    auto gpuHelper = analyze("fn leaf() -> float32 ! TaskError:\n  try parallel:\n    1\n"
+                             "fn main() -> float32 ! TaskError:\n  try parallel:\n"
+                             "    try await spawn leaf() on devices.gpu()\n",
+                             true);
+    require(gpuHelper.ok(), "placed helper checking failed");
+    auto unsupported = plan(*gpuHelper.module, {.preserveCalls = true, .entry = 1});
+    require(!unsupported && unsupported.error().find("resumable helpers require CPU placement") !=
+                                std::string::npos,
+            "resumable control flow admitted as a GPU shader");
     auto recursive = analyze("fn loop(x:float32) -> float32:\n  loop(x)\nfn main() -> float32 ! "
                              "TaskError:\n  try parallel:\n    try await spawn loop(1)\n");
     require(recursive.ok() && !plan(*recursive.module), "recursive CPU expansion lost its limit");

@@ -153,9 +153,11 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-  foreach(FIXTURE IN ITEMS mixed tensor-results shared-helpers scalar-entry matrix-elementwise differences arguments unused-inputs indirect-arguments tensor-negation division host-expressions cpu-spawn nested-parallel recovery resumable-helpers reduction matmul)
+  foreach(FIXTURE IN ITEMS mixed tensor-results shared-helpers scalar-entry matrix-elementwise differences arguments unused-inputs indirect-arguments tensor-negation division host-expressions cpu-spawn nested-parallel recovery resumable-helpers spawned-helpers reduction matmul)
     if(FIXTURE STREQUAL "mixed")
       set(HARNESS MixedTests.cpp)
+    elseif(FIXTURE STREQUAL "spawned-helpers")
+      set(HARNESS SpawnedHelperTests.cpp)
     elseif(FIXTURE STREQUAL "recovery" OR FIXTURE STREQUAL "resumable-helpers")
       set(HARNESS RecoveryTests.cpp)
     elseif(FIXTURE STREQUAL "nested-parallel")
@@ -378,4 +380,16 @@ if(BUILD_TESTING)
     "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/resumable-helpers-cli"
     -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyResumableHelpers.cmake")
   set_tests_properties(native-resumable-helpers-cli PROPERTIES TIMEOUT 240 RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+endif()
+
+if(BUILD_TESTING)
+  add_test(NAME native-spawned-helpers-cli COMMAND "${CMAKE_COMMAND}"
+    "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+    "-DNORMAL_COMPILER=$<TARGET_FILE:kalandra-metal-source>"
+    "-DCHECKER=$<TARGET_FILE:kalandra-check>"
+    "-DSANITIZED_COMPILER=$<TARGET_FILE:kalandra-metal-source-compiler-sanitized>"
+    "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+    "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/spawned-helpers-cli"
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifySpawnedHelpers.cmake")
+  set_tests_properties(native-spawned-helpers-cli PROPERTIES TIMEOUT 240 RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
 endif()
