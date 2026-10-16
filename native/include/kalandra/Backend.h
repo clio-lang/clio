@@ -8,6 +8,9 @@ struct BackendOutput {
 };
 // Nonempty exports emit checked C interfaces kalandra_cpu_0, ... without a CLI main.
 // Exported functions must be synchronous; callers supply the invocation context.
+// testEntry is private: synchronous modules emit a checked C wrapper; task modules
+// expose a const TaskEntry pointer named kalandra_task_test_entry for a selected
+// parameterless numeric function. Neither is a public dynamic or wire ABI.
 [[nodiscard]] std::expected<BackendOutput, std::string>
 lowerNative(const TypedModule &module, std::optional<std::string> testEntry = {},
             const std::vector<std::string> &exports = {});

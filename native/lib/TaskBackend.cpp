@@ -67,9 +67,20 @@ public:
                                                  "task.entry." + std::to_string(id)));
     }
   }
-  void run() {
+  void run(const std::optional<std::string> &testEntry) {
     for (std::size_t id = 0; id < planner.plans.size(); ++id)
       emitPlan(id);
+    if (testEntry) {
+      const auto found = std::ranges::find_if(planner.input.functions,
+                                           [&](const auto &f) { return f.name == *testEntry; });
+      if (found == planner.input.functions.end() || !found->parameters.empty() ||
+          found->resultType.builtin != BuiltinValue::Numeric)
+        throw std::runtime_error("private task test entry requires a parameterless numeric function");
+      const auto id = std::size_t(found - planner.input.functions.begin());
+      // Trusted native test export, not a dynamic/public task or wire ABI.
+      new llvm::GlobalVariable(module, pointer, true, llvm::GlobalValue::ExternalLinkage,
+                               entries[id], "kalandra_task_test_entry");
+    }
     auto main = std::ranges::find_if(planner.input.functions,
                                      [](const auto &f) { return f.name == "main"; });
     if (main == planner.input.functions.end() || !main->parameters.empty() ||
@@ -158,7 +169,8 @@ private:
            : type.builtin == BuiltinValue::FaultKind ? "FaultKind"
            : type.builtin == BuiltinValue::String    ? "String"
            : type.task                               ? "handle"
-           : type.tensor                             ? "tensor" + std::to_string(type.shape.size())
+           : type.tensor                             ? (type.element == NumericType::Int32 ? "tensor.int32." : "tensor") +
+                                                         std::to_string(type.shape.size())
                                                      : type.element == NumericType::Int32 ? "scalar.int32" : "scalar";
   }
   llvm::StructType *valueType(const ValueType &type) {
@@ -217,7 +229,9 @@ private:
     auto *constant = llvm::ConstantStruct::get(
         layoutType,
         {c64(type.builtin != BuiltinValue::Numeric ? 0x10000 + static_cast<unsigned>(type.builtin)
-             : type.tensor                         ? type.shape.size() + 2
+             : type.tensor                         ? (type.element == NumericType::Int32
+                                                        ? 0x30000 + 16 * static_cast<unsigned>(type.element) + type.shape.size()
+                                                        : type.shape.size() + 2)
                                                    : type.element == NumericType::Int32
                                                        ? 0x20000 + static_cast<unsigned>(type.element) : 1),
          c64(size(wrapper)), c64(alignment(wrapper)), fn, destroy});
@@ -555,19 +569,8 @@ std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &inp
                                                           std::optional<std::string> testEntry) {
   if (auto error = numericCapabilityError(input, NumericTarget::Cpu))
     return std::unexpected(*error);
-  const auto integerTensor = [](const ValueType &type) {
-    return type.builtin == BuiltinValue::Numeric && type.tensor && type.element == NumericType::Int32;
-  };
-  if (std::ranges::any_of(input.functions, [&](const auto &fn) {
-        return integerTensor(fn.resultType) || (fn.declaredResult && integerTensor(*fn.declaredResult));
-      }) || std::ranges::any_of(input.symbols, [&](const auto &s) { return integerTensor(s.type); }) ||
-      std::ranges::any_of(input.expressions, [&](const auto &e) { return integerTensor(e.type); }))
-    return std::unexpected("int32 tensor task captures/results are not implemented yet");
   if (hasPlacement(input))
     return std::unexpected("placement-aware IR requires a placement-capable execution backend");
-  if (testEntry)
-    return std::unexpected(
-        "private runtime-input test wrappers for task programs are not implemented yet");
   try {
     auto planned = continuation::plan(input);
     if (!planned)
@@ -581,7 +584,7 @@ std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &inp
     auto module = llvm::parseAssemblyString(kernels->llvm, diagnostic, context);
     if (!module)
       return std::unexpected("cannot read verified kernel LLVM module");
-    Emitter(planner, *module).run();
+    Emitter(planner, *module).run(testEntry);
     std::string errors;
     llvm::raw_string_ostream stream(errors);
     if (llvm::verifyModule(*module, &stream))

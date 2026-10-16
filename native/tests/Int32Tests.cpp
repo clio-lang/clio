@@ -67,9 +67,11 @@ int main() {
                               "    x:Tensor[int32,2] = tensor([1,2])\n"
                               "    work = spawn f(x)\n    try await work\n    0\n");
     require(tensorTask.ok(), "typed int32 tensor task IR rejected");
-    auto unsupported = lowerNative(*tensorTask.module);
-    require(!unsupported && unsupported.error().find("int32 tensor task") != std::string::npos,
-            "unqualified tensor task handoff enabled");
+    auto loweredTensorTask = lowerNative(*tensorTask.module);
+    require(bool(loweredTensorTask), "int32 tensor task handoff rejected");
+    auto invalidExport = lowerNative(*tensorTask.module, "f");
+    require(!invalidExport && invalidExport.error().find("parameterless") != std::string::npos,
+            "private task export accepted unsupported parameter ABI");
 #endif
     auto functions = analyze("fn inc(x:int32) -> int32:\n  x + 1\n"
                              "fn main() -> int32:\n  a:int32 = 16777217\n  inc(a)\n");
