@@ -205,7 +205,7 @@ fn main() -> int32:
 
 The executable prints `16777218` exactly. Integer function calls and CLI entries use integer registers and results; they never pass through float32. The existing float32 CLI and tensor ABI are preserved.
 
-Contextual decimal integer literals cover `-2147483648` through `2147483647`. Signed minimum is parsed with its unary sign, without requiring the positive magnitude to fit int32 first. Out-of-range and fractional/exponent literals in an int32 context are rejected with S051. Unconstrained literals still have the accepted int64/float64 defaults, which remain unsupported by this subset; they do not silently default to int32. Typed int32 and float32 values cannot mix implicitly.
+Contextual decimal integer literals cover `-2147483648` through `2147483647`. Signed minimum is parsed with its unary sign, without requiring the positive magnitude to fit int32 first. Out-of-range and fractional/exponent literals in an int32 context are rejected with S051. Unconstrained whole-number literals now use the int64 implementation qualified below; unconstrained floating literals still need float32 context until float64 arithmetic is available. Literals do not silently default to int32. Typed int32 and float32 values cannot mix implicitly.
 
 Unary `+`/`-` and binary `+`, `-`, `*`, `/`, `%` retain int32. The compiler diagnoses known invalid arithmetic in literal expressions and immutable constant bindings with S052, including a known zero divisor with a runtime numerator. It does not perform interprocedural constant evaluation. Operations on runtime values check overflow and division/remainder by zero in every build. An invalid operation records `ArithmeticFault` at its source span and returns through the existing checked invocation convention. It ends the current task rather than resuming the invalid operation, wrapping, or depending on debug assertions. A supervised child fault is exposed to its parent as TaskError.Fault at the task boundary, as described below.
 
@@ -333,7 +333,7 @@ Checked CPU uint32 scalar arithmetic is qualified below. GPU integer arithmetic 
 
 ## Checked CPU uint32 scalar arithmetic
 
-The native CPU subset now accepts `uint32` scalar literals, immutable bindings, ordinary functions, native scalar interfaces and structured worker calls. Values range from 0 through 4294967295. There is no implicit conversion between uint32, int32 and float32, and unconstrained literals retain the accepted int64/float64 defaults; those default types are still outside this executable subset. `uint` remains the uint64 alias rather than changing width to fit the implementation.
+The native CPU subset now accepts `uint32` scalar literals, immutable bindings, ordinary functions, native scalar interfaces and structured worker calls. Values range from 0 through 4294967295. There is no implicit conversion between uint32, int32 and float32, and unconstrained literals retain the accepted int64/float64 defaults; the int64 default is now qualified below, while float64 remains outside this executable subset. `uint` remains the uint64 alias rather than changing width to fit the implementation.
 
 ```kalandra
 fn quotient(value: uint32, divisor: uint32) -> uint32:
@@ -455,3 +455,30 @@ The [shared integer runtime harness](../../native/tests/Int32MatmulRuntimeTests.
 The [shared compiled driver](../../native/cmake/VerifyInt32Matmul.cmake) also checks fixed shapes, exact full-range CLI output, nested workers, cached results, independent ownership after task/core/invocation destruction, twelve allocation-failure positions, admission/cancellation/deadline settlement, and Arithmetic recovery for product, first-pair and later-tree faults. Static shape/type/rank errors preserve existing output artifacts; forged mismatched element types are rejected by the backend. Debug, optimized, ASan/UBSan and TSan variants run with 1/2/4 workers. [Qualification evidence](../../native/metal-proof/evidence/cpu-uint32-matmul-2026-10-16.json) records the regression and numerical artifact comparison.
 
 Further integer widths should extend the shared numerical policies and conformance matrix. GPU integer arithmetic, numeric conversions and broader language values remain separate increments. Distributed execution still requires the agreed design review.
+
+
+## Checked CPU int64 scalar arithmetic
+
+The CPU subset now supports signed int64 scalar literals, immutable bindings, ordinary functions, private native scalar interfaces and structured worker calls. Values range from -9223372036854775808 through 9223372036854775807. The accepted `int` alias has exactly this type, and unconstrained whole-number literals now infer int64. An expected int32, uint32 or float32 type still types a literal directly; an already typed int64 value never silently narrows or converts.
+
+```kalandra
+fn increment(value: int) -> int64:
+  value + 1
+
+fn main() -> int ! TaskError:
+  start = 9007199254740993
+  try parallel:
+    try await spawn increment(start)
+```
+
+This prints `9007199254740994` exactly. Unconstrained decimal/exponent literals still require float32 context until float64 arithmetic is qualified. `uint` remains uint64 and is not enabled by this increment. Int64 tensors, reductions, matmul, GPU arithmetic and numeric conversions remain rejected.
+
+Unary `+`/`-` and binary `+`, `-`, `*`, `/`, `%` preserve int64. Overflow and zero divisors are checked in every build mode. Division truncates toward zero; INT64_MIN divided by -1 faults, while INT64_MIN remainder -1 is zero. Signed minimum parses with its leading minus, without requiring its positive magnitude to fit first. Known invalid literals, arithmetic and constant bindings are diagnosed before code generation. Compile-time calculations use a wider signed representation so the compiler itself never overflows while checking these operations.
+
+Signed MLIR lowering is now width-aware. Int64 addition, subtraction, multiplication and negation sign-extend into i128, check the int64 bounds and narrow; existing int32 operations retain their i64 intermediate. Division uses guarded i64 arithmetic, without a widened software division. Remainder substitutes a safe divisor for the INT64_MIN/-1 case to avoid LLVM poison while producing the mathematical zero. The new CLI entry returns and prints exact signed 64-bit values; existing float32/int32/uint32 entries retain their ABI.
+
+The common continuation planner sends int64 arithmetic through the checked kernel path. Task captures/results use i64 storage and distinct private scalar layout keys/IDs. Mixed packets can contain int64, int32, uint32 and float32 simultaneously, preserving their widths, alignment and interpretation. Nested workers, cached awaits, tensor-owning siblings and Arithmetic recovery reuse the existing scheduler and ownership machinery. Child faults preserve source location and classify as TaskError.Fault/Arithmetic; root coordinating faults settle the group before reporting failure. This adds no new runtime ownership or checked invocation ABI.
+
+[Frontend checks](../../native/tests/Int64Tests.cpp) cover endpoints, values above float64 integer precision, signed minimum parsing, constant overflow/zero division, the int alias, default inference and rejected conversions/tensor/GPU capabilities. The [shared signed scalar driver](../../native/cmake/VerifyInt32.cmake), [width specialization](../../native/cmake/SignedScalarType.cmake) and [runtime harness](../../native/tests/Int32RuntimeTests.cpp) compare all six nontrivial operators against independent wider arithmetic over boundaries and deterministic full-range inputs. Exact endpoints and CLI output, native-width division/remainder, source locations and artifact preservation on static errors are checked. The [shared worker driver](../../native/cmake/VerifyInt32Tasks.cmake) checks mixed-width/family captures with each supported root type, nested/cached calls, every arithmetic failure, recovery with owned parent data, root admission/allocation rejection and zero-live-allocation cleanup at 1/2/4 workers. Generated programs run in debug, optimized, ASan/UBSan and TSan builds; frontend checks also run independently under ASan/UBSan. [Qualification evidence](../../native/metal-proof/evidence/cpu-int64-scalars-2026-10-16.json) records the regression and numerical artifact comparison.
+
+Next: checked CPU uint64 scalars through the shared width/type policies. Int64 tensors and further numeric formats remain separate increments. Distributed execution still requires the agreed design review.

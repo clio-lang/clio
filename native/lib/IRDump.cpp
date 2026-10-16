@@ -52,6 +52,8 @@ std::string describeType(const ValueType &type) {
 }
 std::optional<std::string> numericCapabilityError(const TypedModule &module, NumericTarget target) {
   const auto error = [&](const ValueType &type) -> std::optional<std::string> {
+    if (type.builtin == BuiltinValue::Numeric && type.tensor && type.element == NumericType::Int64)
+      return "int64 tensor arithmetic is not implemented by this backend";
     if (type.builtin != BuiltinValue::Numeric ||
         numericArithmeticAvailable(type.element, target))
       return {};
@@ -144,13 +146,15 @@ std::string dumpTypedIR(const TypedModule &module) {
                   << operation.bits << std::dec;
             else if constexpr (std::is_same_v<T, Int32Literal>)
               out << "i32 " << operation.value;
+            else if constexpr (std::is_same_v<T, Int64Literal>)
+              out << "i64 " << operation.value;
             else if constexpr (std::is_same_v<T, UInt32Literal>)
               out << "u32 " << operation.value;
             else if constexpr (std::is_same_v<T, SymbolRead>)
               out << "read $" << operation.symbol;
             else if constexpr (std::is_same_v<T, ScalarUnary>) {
               out << (operation.operation == TokenKind::Minus ? "neg." : "pos.")
-                  << (node.type.element == NumericType::UInt32 ? "u32 checked " : node.type.element == NumericType::Int32 ? "i32 checked " : "f32 ");
+                  << (node.type.element == NumericType::Int64 ? "i64 checked " : node.type.element == NumericType::UInt32 ? "u32 checked " : node.type.element == NumericType::Int32 ? "i32 checked " : "f32 ");
               value(operation.operand);
             } else if constexpr (std::is_same_v<T, TensorUnary>) {
               out << (node.type.element == NumericType::UInt32 ? "elementwise neg.u32 checked "
@@ -165,12 +169,12 @@ std::string dumpTypedIR(const TypedModule &module) {
                                                                            : "div.f32";
               if constexpr (std::is_same_v<T, TensorBinary>)
                 out << "elementwise ";
-              if (isInteger32(node.type.element)) {
+              if (isInteger(node.type.element)) {
                 const char *integer = operation.operation == TokenKind::Plus ? "add"
                                     : operation.operation == TokenKind::Minus ? "sub"
                                     : operation.operation == TokenKind::Star ? "mul"
                                     : operation.operation == TokenKind::Percent ? "rem" : "div";
-                out << integer << (node.type.element == NumericType::UInt32 ? ".u32 checked " : ".i32 checked ");
+                out << integer << (node.type.element == NumericType::Int64 ? ".i64 checked " : node.type.element == NumericType::UInt32 ? ".u32 checked " : ".i32 checked ");
               } else
                 out << name << " strict ";
               value(operation.left);

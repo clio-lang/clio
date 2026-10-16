@@ -85,14 +85,15 @@ public:
                                      [](const auto &f) { return f.name == "main"; });
     if (main == planner.input.functions.end() || !main->parameters.empty() ||
         main->resultType.tensor || main->resultType.builtin != BuiltinValue::Numeric)
-      throw std::runtime_error("native task entry requires parameterless float32, int32 or uint32 main");
+      throw std::runtime_error("native task entry requires parameterless float32, int32, uint32 or int64 main");
     const auto id = std::size_t(main - planner.input.functions.begin());
     auto *entry = module.getFunction("_mlir_ciface_kalandra_entry");
-    if (isInteger32(main->resultType.element)) {
+    if (isInteger(main->resultType.element)) {
       entry->eraseFromParent();
-      entry = Function::Create(llvm::FunctionType::get(i32, {pointer}, false),
+      entry = Function::Create(llvm::FunctionType::get(scalarType(main->resultType), {pointer}, false),
                                llvm::GlobalValue::ExternalLinkage,
-                               main->resultType.element == NumericType::UInt32 ? "_mlir_ciface_kalandra_uint32_entry" : "_mlir_ciface_kalandra_int32_entry", module);
+                               main->resultType.element == NumericType::Int64 ? "_mlir_ciface_kalandra_int64_entry"
+                               : main->resultType.element == NumericType::UInt32 ? "_mlir_ciface_kalandra_uint32_entry" : "_mlir_ciface_kalandra_int32_entry", module);
     } else
       entry->deleteBody();
     builder.SetInsertPoint(Block::Create(context, "entry", entry));
@@ -162,7 +163,7 @@ private:
     return llvm::StructType::get(context, {pointer, pointer, i64, dims, dims});
   }
   Type *scalarType(const ValueType &type) const {
-    return isInteger32(type.element) ? i32 : f32;
+    return type.element == NumericType::Int64 ? i64 : isInteger32(type.element) ? i32 : f32;
   }
   std::string key(const ValueType &type) {
     return type.builtin == BuiltinValue::TaskError   ? "TaskError"
@@ -172,7 +173,7 @@ private:
            : type.tensor                             ? (type.element == NumericType::UInt32 ? "tensor.uint32."
                                                         : type.element == NumericType::Int32 ? "tensor.int32." : "tensor") +
                                                          std::to_string(type.shape.size())
-                                                     : type.element == NumericType::UInt32 ? "scalar.uint32" : type.element == NumericType::Int32 ? "scalar.int32" : "scalar";
+                                                     : type.element == NumericType::Int64 ? "scalar.int64" : type.element == NumericType::UInt32 ? "scalar.uint32" : type.element == NumericType::Int32 ? "scalar.int32" : "scalar";
   }
   llvm::StructType *valueType(const ValueType &type) {
     const auto name = key(type);
@@ -233,7 +234,7 @@ private:
              : type.tensor                         ? (isInteger32(type.element)
                                                         ? 0x30000 + 16 * static_cast<unsigned>(type.element) + type.shape.size()
                                                         : type.shape.size() + 2)
-                                                   : isInteger32(type.element)
+                                                   : isInteger(type.element)
                                                        ? 0x20000 + static_cast<unsigned>(type.element) : 1),
          c64(size(wrapper)), c64(alignment(wrapper)), fn, destroy});
     return layouts[name] = new llvm::GlobalVariable(module, layoutType, true,
@@ -336,6 +337,11 @@ private:
         const auto &literal = planner.input.expressions[instruction.source].operation;
         if (const auto *integer = std::get_if<Int32Literal>(&literal)) {
           builder.CreateStore(c32(static_cast<std::uint32_t>(integer->value)), payload(instruction.output));
+          builder.CreateBr(next);
+          break;
+        }
+        if (const auto *integer = std::get_if<Int64Literal>(&literal)) {
+          builder.CreateStore(c64(static_cast<std::uint64_t>(integer->value)), payload(instruction.output));
           builder.CreateBr(next);
           break;
         }

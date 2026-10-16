@@ -132,7 +132,7 @@ void taskRecovery() {
   rejected(helper + "fn main() -> float32:\n  f() catch fn(error): error + 1\n", "S010");
   rejected(helper + "fn main() -> float32:\n  f() catch fn(error): fail error\n", "S036");
   rejected("fn main() -> float32:\n  1 catch fn(error): 2\n", "S039");
-  rejected("fn main() -> float32:\n  match 1:\n    _: 2\n", "S013");
+  rejected("fn main() -> float32:\n  match 1:\n    _: 2\n", "S040");
   rejected(helper + "fn main() -> float32:\n  f() catch fn(error):\n    unused = f()\n    1\n",
            "S036");
   rejected(helper + "fn main() -> float32:\n  result = f() catch fn(error): 1\n  error\n", "S016");
@@ -190,7 +190,7 @@ void taskTypesAndOwnership() {
   rejected(helper + "fn main() -> float32 ! TaskError:\n  try parallel:\n    first = spawn "
                     "twice(2)\n    result = await first\n    0\n",
            "S036");
-  rejected("fn main() -> float32 ! TaskError:\n  await 1\n", "S013");
+  rejected("fn main() -> float32 ! TaskError:\n  await 1\n", "S037");
   auto inlined =
       analyze(helper +
               "fn main() -> float32 ! TaskError:\n  try parallel:\n    try await spawn twice(2)\n");
@@ -219,7 +219,7 @@ void literalContexts() {
   require(std::holds_alternative<ScalarUnary>(returned(*negative.module, 0).operation),
           "negative zero sign was discarded");
   rejected("fn main() -> float32:\n  3.5e38\n", "S015");
-  rejected("fn main() -> float32:\n  x = 1\n  x\n", "S013");
+  rejected("fn main() -> float32:\n  x = 1\n  x\n", "S010");
   rejected("fn main():\n  1.0\n", "S013");
   auto context = analyze("fn main(x: float32) -> float32:\n  y = 1 + x\n  y * 2\n");
   accepted(context);

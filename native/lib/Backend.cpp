@@ -65,9 +65,10 @@ public:
     auto main =
         std::ranges::find_if(input_.functions, [](const auto &f) { return f.name == "main"; });
     if (main == input_.functions.end() || !main->parameters.empty() || main->resultType.tensor)
-      throw LoweringFailure{"native entry requires fn main() -> float32, int32 or uint32 with no parameters"};
+      throw LoweringFailure{"native entry requires fn main() -> float32, int32, uint32 or int64 with no parameters"};
     builder_.setInsertionPointToEnd(module_->getBody());
-    const auto entryName = main->resultType.element == NumericType::UInt32 ? "kalandra_uint32_entry"
+    const auto entryName = main->resultType.element == NumericType::Int64 ? "kalandra_int64_entry"
+                           : main->resultType.element == NumericType::UInt32 ? "kalandra_uint32_entry"
                            : main->resultType.element == NumericType::Int32 ? "kalandra_int32_entry" : "kalandra_entry";
     auto entry = func::FuncOp::create(builder_, location(main->declaration), entryName,
                                       builder_.getFunctionType({}, {type(main->resultType)}));
@@ -88,7 +89,8 @@ private:
   }
   Type type(const ValueType &value) {
     if (!value.tensor)
-      return isInteger32(value.element) ? Type(builder_.getI32Type())
+      return value.element == NumericType::Int64 ? Type(builder_.getI64Type())
+             : isInteger32(value.element) ? Type(builder_.getI32Type())
                                                 : Type(builder_.getF32Type());
     SmallVector<std::int64_t> shape;
     for (const auto &extent : value.shape)
@@ -127,11 +129,15 @@ private:
       scf::YieldOp::create(builder_, loc);
     });
   }
-  Value checkedInt32(Location loc, Value wide) {
-    auto low = compare(loc, arith::CmpIPredicate::sge, wide, integer(loc, INT32_MIN));
-    auto high = compare(loc, arith::CmpIPredicate::sle, wide, integer(loc, INT32_MAX));
+  Value checkedSigned(Location loc, Value wide, unsigned bits) {
+    auto constant = [&](std::int64_t value) -> Value {
+      return arith::ConstantOp::create(builder_, loc, wide.getType(),
+          builder_.getIntegerAttr(wide.getType(), llvm::APInt(bits * 2, static_cast<std::uint64_t>(value), true)));
+    };
+    auto low = compare(loc, arith::CmpIPredicate::sge, wide, constant(bits == 64 ? INT64_MIN : INT32_MIN));
+    auto high = compare(loc, arith::CmpIPredicate::sle, wide, constant(bits == 64 ? INT64_MAX : INT32_MAX));
     guard(loc, arith::AndIOp::create(builder_, loc, low, high), 4);
-    return arith::TruncIOp::create(builder_, loc, builder_.getI32Type(), wide);
+    return arith::TruncIOp::create(builder_, loc, builder_.getIntegerType(bits), wide);
   }
   Value integerUnary(Location loc, Value operand, TokenKind op, bool unsignedValue = false) {
     if (op == TokenKind::Plus)
@@ -141,8 +147,10 @@ private:
                          arith::ConstantIntOp::create(builder_, loc, 0, 32)), 4);
       return operand;
     }
-    auto wide = arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), operand);
-    return checkedInt32(loc, arith::SubIOp::create(builder_, loc, integer(loc, 0), wide));
+    const auto bits = cast<IntegerType>(operand.getType()).getWidth();
+    auto wide = arith::ExtSIOp::create(builder_, loc, builder_.getIntegerType(bits * 2), operand);
+    auto z = arith::ConstantIntOp::create(builder_, loc, 0, bits * 2);
+    return checkedSigned(loc, arith::SubIOp::create(builder_, loc, z, wide), bits);
   }
   Value integerBinary(Location loc, Value a, Value b, TokenKind op, bool unsignedValue = false) {
     if (unsignedValue) {
@@ -160,15 +168,32 @@ private:
       guard(loc, compare(loc, arith::CmpIPredicate::ule, wide, integer(loc, UINT32_MAX)), 4);
       return arith::TruncIOp::create(builder_, loc, builder_.getI32Type(), wide);
     }
-    a = arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), a);
-    b = arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), b);
-    if (op == TokenKind::Slash || op == TokenKind::Percent)
+    const auto bits = cast<IntegerType>(a.getType()).getWidth();
+    if (bits == 64 && (op == TokenKind::Slash || op == TokenKind::Percent)) {
       guard(loc, compare(loc, arith::CmpIPredicate::ne, b, integer(loc, 0)), 4);
+      auto exceptional = arith::AndIOp::create(builder_, loc,
+          compare(loc, arith::CmpIPredicate::eq, a, integer(loc, INT64_MIN)),
+          compare(loc, arith::CmpIPredicate::eq, b, integer(loc, -1)));
+      if (op == TokenKind::Slash) {
+        guard(loc, compare(loc, arith::CmpIPredicate::eq, exceptional,
+                           arith::ConstantIntOp::create(builder_, loc, 0, 1)), 4);
+        return arith::DivSIOp::create(builder_, loc, a, b);
+      }
+      // LLVM srem(INT64_MIN,-1) is poison even though the mathematical remainder is zero.
+      auto safe = arith::SelectOp::create(builder_, loc, exceptional, integer(loc, 1), b);
+      return arith::RemSIOp::create(builder_, loc, a, safe);
+    }
+    auto wideType = builder_.getIntegerType(bits * 2);
+    a = arith::ExtSIOp::create(builder_, loc, wideType, a);
+    b = arith::ExtSIOp::create(builder_, loc, wideType, b);
+    if (op == TokenKind::Slash || op == TokenKind::Percent)
+      guard(loc, compare(loc, arith::CmpIPredicate::ne, b,
+                         arith::ConstantIntOp::create(builder_, loc, 0, bits * 2)), 4);
     const char *name = op == TokenKind::Plus ? "arith.addi"
                        : op == TokenKind::Minus ? "arith.subi"
                        : op == TokenKind::Star ? "arith.muli"
                        : op == TokenKind::Percent ? "arith.remsi" : "arith.divsi";
-    return checkedInt32(loc, binary(loc, name, a, b));
+    return checkedSigned(loc, binary(loc, name, a, b), bits);
   }
   SmallVector<Value> dimensions(Location loc, Value tensor) {
     SmallVector<Value> result;
@@ -696,20 +721,20 @@ private:
           if constexpr (std::is_same_v<T, Float32Literal>) {
             llvm::APFloat number(llvm::APFloat::IEEEsingle(), llvm::APInt(32, operation.bits));
             return arith::ConstantFloatOp::create(builder_, loc, builder_.getF32Type(), number);
-          } else if constexpr (std::is_same_v<T, Int32Literal> || std::is_same_v<T, UInt32Literal>) {
-            return arith::ConstantIntOp::create(builder_, loc, operation.value, 32);
+          } else if constexpr (std::is_same_v<T, Int32Literal> || std::is_same_v<T, UInt32Literal> || std::is_same_v<T, Int64Literal>) {
+            return arith::ConstantIntOp::create(builder_, loc, operation.value, node.type.element == NumericType::Int64 ? 64 : 32);
           } else if constexpr (std::is_same_v<T, SymbolRead>)
             return frame.symbols.at(operation.symbol);
           else if constexpr (std::is_same_v<T, ScalarUnary>) {
             auto operand = expression(frame, operation.operand);
-            if (isInteger32(node.type.element))
+            if (isInteger(node.type.element))
               return integerUnary(loc, operand, operation.operation, node.type.element == NumericType::UInt32);
             return operation.operation == TokenKind::Minus
                        ? arith::NegFOp::create(builder_, loc, operand).getResult()
                        : operand;
           } else if constexpr (std::is_same_v<T, ScalarBinary>) {
             auto a = expression(frame, operation.left), b = expression(frame, operation.right);
-            if (isInteger32(node.type.element))
+            if (isInteger(node.type.element))
               return integerBinary(loc, a, b, operation.operation, node.type.element == NumericType::UInt32);
             const char *name = operation.operation == TokenKind::Plus    ? "arith.addf"
                                : operation.operation == TokenKind::Minus ? "arith.subf"

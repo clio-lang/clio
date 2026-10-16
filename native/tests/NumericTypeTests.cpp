@@ -53,9 +53,9 @@ int main() {
       for (auto target : {NumericTarget::Cpu, NumericTarget::AppleGpu})
         require(numericArithmeticAvailable(description.type, target) ==
                     (description.type == NumericType::Float32 ||
-                     (target == NumericTarget::Cpu && isInteger32(description.type))),
+                     (target == NumericTarget::Cpu && (isInteger32(description.type) || description.type == NumericType::Int64))),
                 "type description accidentally enabled arithmetic");
-      if (description.type != NumericType::Float32 && !isInteger32(description.type)) {
+      if (description.type != NumericType::Float32 && !isInteger32(description.type) && description.type != NumericType::Int64) {
         auto rejected = analyze("fn main() -> " + std::string(description.name) + ":\n  1\n");
         require(!rejected.ok() && rejected.diagnostics.front().code == "S003",
                 "unimplemented source arithmetic accepted");

@@ -141,8 +141,9 @@ private:
     const auto numeric =
         syntax.tensor ? (syntax.element ? resolveNumeric(name(*syntax.element)) : std::nullopt)
                       : resolveNumeric(name(syntax.name));
-    if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu)) {
-      error("S003", "only int32, uint32, float32 and tensors of those types are implemented in this semantic subset",
+    if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu) ||
+        (syntax.tensor && *numeric == NumericType::Int64)) {
+      error("S003", "only int32, uint32, int64 scalars, float32 and 32-bit tensors are implemented in this semantic subset",
             syntax.span);
       return {};
     }
@@ -368,12 +369,15 @@ private:
     auto value = std::visit(
         [&](const auto &operation) { return infer(frame, syntax.span, operation, expected); },
         syntax.value);
-    if (value && isInteger32(node(*value).type.element)) {
+    if (value && isInteger(node(*value).type.element)) {
       const bool unsignedValue = node(*value).type.element == NumericType::UInt32;
-      const auto typeName = unsignedValue ? "uint32" : "int32";
-      std::optional<std::int64_t> constant;
+      const bool int64Value = node(*value).type.element == NumericType::Int64;
+      const auto typeName = unsignedValue ? "uint32" : int64Value ? "int64" : "int32";
+      std::optional<__int128_t> constant;
       const auto &op = node(*value).operation;
       if (const auto *n = std::get_if<Int32Literal>(&op))
+        constant = n->value;
+      else if (const auto *n = std::get_if<Int64Literal>(&op))
         constant = n->value;
       else if (const auto *n = std::get_if<UInt32Literal>(&op))
         constant = n->value;
@@ -382,7 +386,7 @@ private:
           constant = it->second;
       } else if (const auto *unary = std::get_if<ScalarUnary>(&op)) {
         if (auto it = intConstants_.find(unary->operand); it != intConstants_.end())
-          constant = unary->operation == TokenKind::Minus ? -it->second : it->second;
+          constant = unary->operation == TokenKind::Minus ? -__int128_t(it->second) : __int128_t(it->second);
       } else if (const auto *binary = std::get_if<ScalarBinary>(&op)) {
         auto a = intConstants_.find(binary->left), b = intConstants_.find(binary->right);
         if ((binary->operation == TokenKind::Slash || binary->operation == TokenKind::Percent) &&
@@ -392,28 +396,28 @@ private:
         }
         if (a != intConstants_.end() && b != intConstants_.end()) {
           switch (binary->operation) {
-          case TokenKind::Plus: constant = a->second + b->second; break;
-          case TokenKind::Minus: constant = a->second - b->second; break;
+          case TokenKind::Plus: constant = __int128_t(a->second) + b->second; break;
+          case TokenKind::Minus: constant = __int128_t(a->second) - b->second; break;
           case TokenKind::Star:
             if (unsignedValue && b->second && a->second > UINT32_MAX / b->second) {
               error("S052", "constant uint32 arithmetic overflows", syntax.span);
               return {};
             }
-            constant = a->second * b->second;
+            constant = __int128_t(a->second) * b->second;
             break;
-          case TokenKind::Slash: constant = a->second / b->second; break;
-          case TokenKind::Percent: constant = a->second % b->second; break;
+          case TokenKind::Slash: constant = __int128_t(a->second) / b->second; break;
+          case TokenKind::Percent: constant = __int128_t(a->second) % b->second; break;
           default: break;
           }
         }
       }
       if (constant) {
-        if (*constant < (unsignedValue ? 0 : INT32_MIN) ||
-            *constant > (unsignedValue ? std::int64_t(UINT32_MAX) : INT32_MAX)) {
+        if (*constant < (unsignedValue ? 0 : int64Value ? INT64_MIN : INT32_MIN) ||
+            *constant > (unsignedValue ? std::int64_t(UINT32_MAX) : int64Value ? INT64_MAX : INT32_MAX)) {
           error("S052", std::string("constant ") + typeName + " arithmetic overflows", syntax.span);
           return {};
         }
-        intConstants_[*value] = *constant;
+        intConstants_[*value] = static_cast<std::int64_t>(*constant);
       }
     }
     if (value && expected)
@@ -425,6 +429,7 @@ private:
   std::optional<ValueId> intLiteral(Frame &frame, SourceSpan span, const NumberExpr &literal,
                                     bool negative = false, NumericType element = NumericType::Int32) {
     const bool unsignedValue = element == NumericType::UInt32;
+    const bool int64Value = element == NumericType::Int64;
     const auto text = syntax_.source->slice(literal.literal);
     if (text.size() > limits_.maxLiteralBytes) {
       error("S032", "numeric literal exceeds the semantic size limit", span);
@@ -432,30 +437,35 @@ private:
     }
     std::uint64_t magnitude = 0;
     const auto parsed = std::from_chars(text.data(), text.data() + text.size(), magnitude);
+    const std::uint64_t signedMaximum = int64Value ? INT64_MAX : INT32_MAX;
     const std::uint64_t limit = unsignedValue ? (negative ? 0 : UINT32_MAX)
-                                           : negative ? std::uint64_t(INT32_MAX) + 1 : INT32_MAX;
+                                            : negative ? signedMaximum + 1 : signedMaximum;
     if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size() || magnitude > limit) {
-      error("S051", std::string(unsignedValue ? "uint32" : "int32") + " requires an in-range integer literal", span);
+      error("S051", std::string(unsignedValue ? "uint32" : int64Value ? "int64" : "int32") + " requires an in-range integer literal", span);
       return {};
     }
-    const auto value = negative ? -static_cast<std::int64_t>(magnitude)
+    const auto value = negative ? (magnitude == (std::uint64_t(1) << 63) ? INT64_MIN : -static_cast<std::int64_t>(magnitude))
                                 : static_cast<std::int64_t>(magnitude);
     ValueType type;
     type.element = element;
+    if (int64Value)
+      return add(frame, type, span, Int64Literal{value});
     if (unsignedValue)
       return add(frame, type, span, UInt32Literal{static_cast<std::uint32_t>(value)});
     return add(frame, type, span, Int32Literal{static_cast<std::int32_t>(value)});
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const NumberExpr &literal,
                                const std::optional<ValueType> &expected) {
+    if (!expected && syntax_.source->slice(literal.literal).find_first_of(".eE") == std::string_view::npos)
+      return intLiteral(frame, span, literal, false, NumericType::Int64);
     if (!expected || expected->tensor || expected->builtin != BuiltinValue::Numeric) {
       error("S013",
-            "unconstrained numeric literals use int64/float64; add int32, uint32 or float32 context for this first "
+            "unconstrained floating literals use float64; add float32 context for this first "
             "subset",
             span);
       return {};
     }
-    if (isInteger32(expected->element))
+    if (isInteger(expected->element))
       return intLiteral(frame, span, literal, false, expected->element);
     llvm::APFloat value(llvm::APFloat::IEEEsingle());
     const auto text = syntax_.source->slice(literal.literal);
@@ -493,10 +503,10 @@ private:
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const UnaryExpr &unary,
                                const std::optional<ValueType> &expected) {
-    if (expected && isInteger32(expected->element) && !expected->tensor &&
+    if ((!expected || (isInteger(expected->element) && !expected->tensor)) &&
         unary.operation == TokenKind::Minus)
       if (const auto *literal = std::get_if<NumberExpr>(&syntax_.expressions[unary.operand].value))
-        return intLiteral(frame, span, *literal, true, expected->element);
+        return intLiteral(frame, span, *literal, true, expected ? expected->element : NumericType::Int64);
     auto operand = expression(frame, unary.operand, expected);
     if (!operand)
       return {};
@@ -566,7 +576,7 @@ private:
       return {};
     const auto a = node(*left).type, b = node(*right).type;
     if (binary.operation == TokenKind::Percent &&
-        (!isInteger32(a.element) || !isInteger32(b.element))) {
+        (!isInteger(a.element) || !isInteger(b.element))) {
       error("S019", "'%' requires integer operands", span);
       return {};
     }
