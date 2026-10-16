@@ -35,6 +35,9 @@ struct Symbol {
 struct Int32Literal {
   std::int32_t value;
 };
+struct UInt32Literal {
+  std::uint32_t value;
+};
 struct Float32Literal {
   std::uint32_t bits;
 };
@@ -137,7 +140,7 @@ struct FailOperation {
 struct TypedExpr {
   SourceSpan span;
   ValueType type; // Concrete scalar/tensor numeric identity; builtins retain explicit tags.
-  std::variant<Float32Literal, Int32Literal, SymbolRead, ScalarUnary, TensorUnary, ScalarBinary, TensorBinary,
+  std::variant<Float32Literal, Int32Literal, UInt32Literal, SymbolRead, ScalarUnary, TensorUnary, ScalarBinary, TensorBinary,
                TensorLiteral, FunctionCall, Matmul, ReduceSum, ShapeCheck, DeviceSelection,
                Transfer, TaskOperation, ParallelOperation, CatchOperation, MatchOperation,
                ErrorFieldRead, FailOperation>

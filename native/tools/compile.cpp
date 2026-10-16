@@ -211,6 +211,10 @@ int main(int argc, char **argv) {
     command.insert(command.begin() + 5,
                    threadSanitize ? KALANDRA_INT32_THREAD_SANITIZED_ENTRY
                    : sanitize ? KALANDRA_INT32_SANITIZED_ENTRY : KALANDRA_INT32_ENTRY);
+  if (main != typed.module->functions.end() && main->resultType.element == kalandra::NumericType::UInt32)
+    command.insert(command.begin() + 5,
+                   threadSanitize ? KALANDRA_UINT32_THREAD_SANITIZED_ENTRY
+                   : sanitize ? KALANDRA_UINT32_SANITIZED_ENTRY : KALANDRA_UINT32_ENTRY);
   if (sanitize) {
     command.push_back("-fsanitize=address,undefined");
     command.push_back("-fno-sanitize-recover=all");

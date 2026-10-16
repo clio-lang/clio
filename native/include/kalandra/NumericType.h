@@ -57,13 +57,16 @@ constexpr std::optional<NumericType> resolveNumeric(std::string_view name) {
       return description.type;
   return {};
 }
+constexpr bool isInteger32(NumericType type) {
+  return type == NumericType::Int32 || type == NumericType::UInt32;
+}
 // Type-level availability is necessary but does not promise every operation,
 // rank or device capability. Those checks remain with the corresponding backend.
 enum class NumericTarget { Cpu, AppleGpu };
 constexpr bool numericArithmeticAvailable(NumericType type, NumericTarget target) {
   switch (target) {
   case NumericTarget::Cpu:
-    return type == NumericType::Float32 || type == NumericType::Int32;
+    return type == NumericType::Float32 || isInteger32(type);
   case NumericTarget::AppleGpu:
     return type == NumericType::Float32;
   }

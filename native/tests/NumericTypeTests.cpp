@@ -53,9 +53,9 @@ int main() {
       for (auto target : {NumericTarget::Cpu, NumericTarget::AppleGpu})
         require(numericArithmeticAvailable(description.type, target) ==
                     (description.type == NumericType::Float32 ||
-                     (target == NumericTarget::Cpu && description.type == NumericType::Int32)),
+                     (target == NumericTarget::Cpu && isInteger32(description.type))),
                 "type description accidentally enabled arithmetic");
-      if (description.type != NumericType::Float32 && description.type != NumericType::Int32) {
+      if (description.type != NumericType::Float32 && !isInteger32(description.type)) {
         auto rejected = analyze("fn main() -> " + std::string(description.name) + ":\n  1\n");
         require(!rejected.ok() && rejected.diagnostics.front().code == "S003",
                 "unimplemented source arithmetic accepted");
@@ -83,20 +83,20 @@ int main() {
             "float32 capability lost");
     auto lowered = lowerNative(*numeric.module);
     require(bool(lowered), "float32 lowering regressed");
-    // All entry surfaces must reject same-width integer IR before float lowering.
+    // All entry surfaces must reject unsupported numeric IR before float lowering.
     for (unsigned surface = 0; surface < 4; ++surface) {
       auto forged = *numeric.module;
       if (surface == 0)
-        forged.functions[0].resultType.element = NumericType::UInt32;
+        forged.functions[0].resultType.element = NumericType::UInt64;
       if (surface == 1)
-        forged.functions[0].declaredResult->element = NumericType::UInt32;
+        forged.functions[0].declaredResult->element = NumericType::UInt64;
       if (surface == 2)
-        forged.symbols[0].type.element = NumericType::UInt32;
+        forged.symbols[0].type.element = NumericType::UInt64;
       if (surface == 3)
-        forged.expressions[0].type.element = NumericType::UInt32;
+        forged.expressions[0].type.element = NumericType::UInt64;
       auto failure = lowerNative(forged);
-      require(!failure && failure.error().find("uint32") != std::string::npos,
-              "backend silently treated uint32 as float32");
+      require(!failure && failure.error().find("uint64") != std::string::npos,
+              "backend silently treated uint64 as float32");
     }
     auto task = analyze("fn identity(values:Tensor[float32,?]) -> Tensor[float32,?]:\n  values\n"
                         "fn main() -> float32 ! TaskError:\n  try parallel:\n"
@@ -105,20 +105,20 @@ int main() {
     require(task.ok(), "task typing regressed");
     auto typed = *task.module;
     for (auto &fn : typed.functions) {
-      fn.resultType.element = NumericType::UInt32;
+      fn.resultType.element = NumericType::UInt64;
       if (fn.declaredResult)
-        fn.declaredResult->element = NumericType::UInt32;
+        fn.declaredResult->element = NumericType::UInt64;
     }
     for (auto &symbol : typed.symbols)
-      symbol.type.element = NumericType::UInt32;
+      symbol.type.element = NumericType::UInt64;
     for (auto &expr : typed.expressions)
-      expr.type.element = NumericType::UInt32;
+      expr.type.element = NumericType::UInt64;
     auto planned = continuation::plan(typed);
     require(bool(planned), "structural planner cannot carry numeric identity");
     for (const auto &plan : planned->plans)
       for (const auto &slot : plan->slots)
         if (slot.builtin == BuiltinValue::Numeric)
-          require(slot.element == NumericType::UInt32, "continuation lost numeric identity");
+          require(slot.element == NumericType::UInt64, "continuation lost numeric identity");
     require(!lowerNative(typed), "task backend accepted unimplemented numeric IR");
     ValueType builtin;
     builtin.builtin = BuiltinValue::TaskError;
