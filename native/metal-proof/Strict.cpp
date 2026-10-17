@@ -9,15 +9,20 @@
 #include "llvm/Support/raw_ostream.h"
 int main(int argc, char **argv) {
   if (argc != 3) {
-    llvm::errs() << "usage: kalandra-metal-strict <input.mlir> <output.mlir>\n";
+    llvm::errs() << "usage: " << argv[0] << " <input.mlir> <output.mlir>\n";
     return 2;
   }
   mlir::DialectRegistry registry;
   mlir::registerAllDialects(registry);
   mlir::MLIRContext context(registry);
   auto module = mlir::parseSourceFile<mlir::ModuleOp>(argv[1], &context);
-  if (!module || mlir::failed(mlir::verify(*module)) ||
-      mlir::failed(kalandra::lowerStrictFloat32(*module)))
+  if (!module || mlir::failed(mlir::verify(*module)))
+    return 1;
+#ifdef KALANDRA_STRICT_CPU
+  if (mlir::failed(kalandra::lowerStrictCpuFloat(*module)))
+#else
+  if (mlir::failed(kalandra::lowerStrictFloat32(*module)))
+#endif
     return 1;
   bool hasGpu = false;
   module->walk([&](mlir::gpu::GPUModuleOp) { hasGpu = true; });

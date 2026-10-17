@@ -15,7 +15,7 @@ The native rewrite is a working CPU/Apple GPU compute subset, not yet the full a
 | Native distributed execution | Pending the agreed design review | Contracts, transport, deployment, failure/cancellation and remote storage lifetimes |
 | Additional GPU targets | Apple first | NVIDIA/Windows follows Apple qualification |
 
-Next: CPU float64 literals and scalar arithmetic, completing the accepted default numeric types before broader tensor/type support and explicit conversions. Broader language/type support and native tooling follow their own design and qualification gates. Discuss distributed execution before implementing it. Prototype release completion does not count as native implementation coverage.
+The [CPU binary64 arithmetic lowering proof](design/numbers.md#cpu-binary64-arithmetic-lowering-proof) now qualifies the shared strict arithmetic building block; source float64 is still gated. Next: connect CPU float64 literals, scalar functions and typed worker paths, completing the accepted default numeric types before broader tensor/type support and explicit conversions. Broader language/type support and native tooling follow their own design and qualification gates. Discuss distributed execution before implementing it. Prototype release completion does not count as native implementation coverage.
 
 ## Native implementation record
 

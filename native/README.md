@@ -92,3 +92,8 @@ The [signature-sized GPU argument path](../docs/design/apple-gpu.md#signature-si
 The [shared placement frontend](../docs/design/placement-ir.md) now checks device selectors, explicit transfers and tensor residency. Inspect it with `kalandra-check --placement --dump-ir`; Metal builds also emit `placement.ir`. The current supervisor emitter still uses source syntax. Flat tensor literals can provide explicit constant shapes, such as `tensor([], [0, 3])`, through the same checked constructor rules.
 
 The mixed CPU/GPU supervisor now lowers checked placement IR into native continuations, including resolved calls, shape checks, nested groups and error recovery. [The lowering design](../docs/design/placement-ir.md#ir-driven-supervisor-continuations) describes the typed lowering path. Both CPU tasks and the Metal supervisor now use the [common continuation planner](../docs/design/continuations.md); inspect it with `kalandra-check --dump-plan` (add `--placement` for mixed `main`).
+
+
+## CPU binary64 lowering proof
+
+The shared strict arithmetic engine now has a [CPU-only binary64 specialization](../docs/design/numbers.md#cpu-binary64-arithmetic-lowering-proof), using integer intermediates to preserve declared rounding and subnormal behavior independently of host floating controls. The optional proof configuration includes debug, optimized and ASan/UBSan APFloat conformance tests across eight ARM floating environments. Source float64/default float, typed native/worker integration, float64 tensors and GPU arithmetic remain gated; the existing binary32/Metal API retains its format restriction.

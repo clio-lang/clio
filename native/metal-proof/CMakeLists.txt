@@ -181,3 +181,5 @@ if(BUILD_TESTING)
   add_test(NAME metal-runtime-artifacts COMMAND "${CMAKE_COMMAND}" "-DOUTPUT_DIR=${OUT}"
     -DKERNEL_PREFIX=runtime -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyStrict.cmake")
 endif()
+
+include(Strict64.cmake)

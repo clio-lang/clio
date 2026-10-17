@@ -8,11 +8,32 @@
 namespace kalandra {
 namespace {
 using namespace mlir;
-class IntegerFloat {
+template <unsigned Fraction, unsigned Exponent> class IntegerFloat {
+  static constexpr unsigned Width = Fraction == 23 ? 64 : 128;
+  static constexpr unsigned Bits = Fraction == 23 ? 32 : 64;
+  static constexpr std::uint64_t Hidden = std::uint64_t{1} << Fraction;
+  static constexpr std::uint64_t Sign = std::uint64_t{1} << (Bits - 1);
+  static constexpr std::uint64_t Magnitude = Sign - 1;
+  static constexpr std::uint64_t ExponentMask = (std::uint64_t{1} << Exponent) - 1;
+  static constexpr std::uint64_t Infinity = ExponentMask << Fraction;
+  static constexpr std::uint64_t Nan = Infinity | (Hidden >> 1);
+  static constexpr unsigned Bias = (1u << (Exponent - 1)) - 1;
   OpBuilder b;
   Location loc;
-  Value c(std::uint64_t n, unsigned width = 64) {
-    return arith::ConstantIntOp::create(b, loc, n, width);
+  Value c(std::uint64_t n, unsigned width = Width) {
+    return arith::ConstantOp::create(
+        b, loc, b.getIntegerAttr(b.getIntegerType(width), llvm::APInt(width, n)));
+  }
+  Value signedC(std::int64_t n) {
+    return arith::ConstantOp::create(
+        b, loc, b.getIntegerAttr(b.getIntegerType(Width), llvm::APInt(Width, n, true)));
+  }
+  Value power(unsigned bit) {
+    return arith::ConstantOp::create(
+        b, loc, b.getIntegerAttr(b.getIntegerType(Width), llvm::APInt::getOneBitSet(Width, bit)));
+  }
+  FloatType floatType() {
+    return Bits == 32 ? FloatType(b.getF32Type()) : FloatType(b.getF64Type());
   }
   Value add(Value x, Value y) { return arith::AddIOp::create(b, loc, x, y); }
   Value sub(Value x, Value y) { return arith::SubIOp::create(b, loc, x, y); }
@@ -28,45 +49,45 @@ class IntegerFloat {
   Value slt(Value x, Value y) { return cmp(arith::CmpIPredicate::slt, x, y); }
   Value choose(Value p, Value x, Value y) { return arith::SelectOp::create(b, loc, p, x, y); }
   Value all(Value x, Value y) { return bitAnd(x, y); }
-  Value wide(Value x) { return arith::ExtUIOp::create(b, loc, b.getI64Type(), x); }
-  Value narrow(Value x) { return arith::TruncIOp::create(b, loc, b.getI32Type(), x); }
+  Value wide(Value x) { return arith::ExtUIOp::create(b, loc, b.getIntegerType(Width), x); }
+  Value narrow(Value x) { return arith::TruncIOp::create(b, loc, b.getIntegerType(Bits), x); }
   Value nonzero(Value x) { return cmp(arith::CmpIPredicate::ne, x, c(0)); }
-  // Every emitted shift is in 1..63, including eagerly evaluated select arms.
-  // Bit zero jams all discarded bits; count >=64 reduces any nonzero value to 1.
+  // Every emitted shift stays in 1..Width-1, including eagerly evaluated select arms.
+  // Bit zero jams discarded bits; count >= Width reduces any nonzero value to 1.
   Value jam(Value x, Value count) {
-    auto safe = choose(lt(count, c(1)), c(1), choose(lt(count, c(64)), count, c(63)));
-    auto lost = nonzero(shl(x, sub(c(64), safe)));
-    auto sticky = arith::ExtUIOp::create(b, loc, b.getI64Type(), lost);
+    auto safe = choose(lt(count, c(1)), c(1), choose(lt(count, c(Width)), count, c(Width - 1)));
+    auto lost = nonzero(shl(x, sub(c(Width), safe)));
+    auto sticky = arith::ExtUIOp::create(b, loc, b.getIntegerType(Width), lost);
     auto shifted = bitOr(shr(x, safe), sticky);
-    auto any = arith::ExtUIOp::create(b, loc, b.getI64Type(), nonzero(x));
-    return choose(eq(count, c(0)), x, choose(lt(count, c(64)), shifted, any));
+    auto any = arith::ExtUIOp::create(b, loc, b.getIntegerType(Width), nonzero(x));
+    return choose(eq(count, c(0)), x, choose(lt(count, c(Width)), shifted, any));
   }
   struct Parts {
     Value bits, sign, exponent, significand, isNan, isInf, isZero;
   };
   Parts unpack(Value value) {
-    auto bits = wide(arith::BitcastOp::create(b, loc, b.getI32Type(), value));
-    auto sign = bitAnd(bits, c(0x80000000));
-    auto magnitude = bitAnd(bits, c(0x7fffffff));
-    auto exponent = bitAnd(shr(bits, c(23)), c(255));
-    auto fraction = bitAnd(bits, c(0x7fffff));
+    auto bits = wide(arith::BitcastOp::create(b, loc, b.getIntegerType(Bits), value));
+    auto sign = bitAnd(bits, c(Sign));
+    auto magnitude = bitAnd(bits, c(Magnitude));
+    auto exponent = bitAnd(shr(bits, c(Fraction)), c(ExponentMask));
+    auto fraction = bitAnd(bits, c(Hidden - 1));
     return {bits,
             sign,
             choose(eq(exponent, c(0)), c(1), exponent),
-            choose(eq(exponent, c(0)), fraction, bitOr(fraction, c(0x800000))),
-            lt(c(0x7f800000), magnitude),
-            eq(magnitude, c(0x7f800000)),
+            choose(eq(exponent, c(0)), fraction, bitOr(fraction, c(Hidden))),
+            lt(c(Infinity), magnitude),
+            eq(magnitude, c(Infinity)),
             eq(magnitude, c(0))};
   }
   // Normalize in logarithmic steps. A shift is allowed only if it cannot
   // overshoot the target bit or cross the subnormal exponent floor. Zero
   // keeps its exponent, just as in the original bounded one-bit loop.
   std::pair<Value, Value> normalize(Value sig, Value exponent, unsigned bit, std::int64_t floor) {
-    for (unsigned shift = 16; shift != 0; shift >>= 1) {
+    for (unsigned shift = Bits == 32 ? 16 : 32; shift != 0; shift >>= 1) {
       if (shift > bit)
         continue;
-      auto fits = lt(sig, c(std::uint64_t{1} << (bit - shift + 1)));
-      auto room = cmp(arith::CmpIPredicate::sge, exponent, c(floor + shift));
+      auto fits = lt(sig, power(bit - shift + 1));
+      auto room = cmp(arith::CmpIPredicate::sge, exponent, signedC(floor + shift));
       auto move = all(all(nonzero(sig), fits), room);
       sig = choose(move, shl(sig, c(shift)), sig);
       exponent = choose(move, sub(exponent, c(shift)), exponent);
@@ -78,16 +99,16 @@ class IntegerFloat {
     auto main = shr(sig, c(3));
     auto tail = bitAnd(sig, c(7));
     auto increment = bitOr(lt(c(4), tail), all(eq(tail, c(4)), nonzero(bitAnd(main, c(1)))));
-    auto rounded = add(main, arith::ExtUIOp::create(b, loc, b.getI64Type(), increment));
-    auto carry = eq(rounded, c(0x1000000));
+    auto rounded = add(main, arith::ExtUIOp::create(b, loc, b.getIntegerType(Width), increment));
+    auto carry = eq(rounded, c(Hidden << 1));
     rounded = choose(carry, shr(rounded, c(1)), rounded);
     exponent = choose(carry, add(exponent, c(1)), exponent);
-    auto field = choose(lt(rounded, c(0x800000)), c(0), exponent);
-    auto bits = bitOr(sign, bitOr(shl(field, c(23)), bitAnd(rounded, c(0x7fffff))));
-    return choose(slt(exponent, c(255)), bits, bitOr(sign, c(0x7f800000)));
+    auto field = choose(lt(rounded, c(Hidden)), c(0), exponent);
+    auto bits = bitOr(sign, bitOr(shl(field, c(Fraction)), bitAnd(rounded, c(Hidden - 1))));
+    return choose(slt(exponent, c(ExponentMask)), bits, bitOr(sign, c(Infinity)));
   }
   Value addition(Parts a, Parts d) {
-    auto magnitudeA = bitAnd(a.bits, c(0x7fffffff)), magnitudeB = bitAnd(d.bits, c(0x7fffffff));
+    auto magnitudeA = bitAnd(a.bits, c(Magnitude)), magnitudeB = bitAnd(d.bits, c(Magnitude));
     auto swap = lt(magnitudeA, magnitudeB);
     auto sigA = choose(swap, d.significand, a.significand),
          sigB = choose(swap, a.significand, d.significand);
@@ -97,24 +118,24 @@ class IntegerFloat {
     sigA = shl(sigA, c(3));
     sigB = jam(shl(sigB, c(3)), sub(expA, expB));
     auto sig = choose(same, add(sigA, sigB), sub(sigA, sigB));
-    auto carry = cmp(arith::CmpIPredicate::uge, sig, c(0x8000000));
+    auto carry = cmp(arith::CmpIPredicate::uge, sig, c(Hidden << 4));
     sig = choose(carry, jam(sig, c(1)), sig);
     expA = choose(carry, add(expA, c(1)), expA);
-    auto [normal, exponent] = normalize(sig, expA, 26, 1);
+    auto [normal, exponent] = normalize(sig, expA, Fraction + 3, 1);
     auto zeroSign = bitAnd(a.sign, d.sign);
     auto result = choose(eq(normal, c(0)), zeroSign, pack(normal, exponent, sign));
     result = choose(d.isInf, d.bits, result);
     result = choose(a.isInf, a.bits, result);
     auto invalid = all(all(a.isInf, d.isInf), cmp(arith::CmpIPredicate::ne, a.sign, d.sign));
-    return choose(bitOr(bitOr(a.isNan, d.isNan), invalid), c(0x7fc00000), result);
+    return choose(bitOr(bitOr(a.isNan, d.isNan), invalid), c(Nan), result);
   }
   Value multiplication(Parts a, Parts d) {
-    auto [sigA, expA] = normalize(a.significand, a.exponent, 23, -22);
-    auto [sigB, expB] = normalize(d.significand, d.exponent, 23, -22);
+    auto [sigA, expA] = normalize(a.significand, a.exponent, Fraction, 1 - std::int64_t(Fraction));
+    auto [sigB, expB] = normalize(d.significand, d.exponent, Fraction, 1 - std::int64_t(Fraction));
     auto product = arith::MulIOp::create(b, loc, sigA, sigB);
-    auto high = nonzero(bitAnd(product, c(std::uint64_t{1} << 47)));
-    auto sig = jam(product, choose(high, c(21), c(20)));
-    auto exponent = sub(add(expA, expB), c(127));
+    auto high = nonzero(bitAnd(product, power(2 * Fraction + 1)));
+    auto sig = jam(product, choose(high, c(Fraction - 2), c(Fraction - 3)));
+    auto exponent = sub(add(expA, expB), c(Bias));
     exponent = choose(high, add(exponent, c(1)), exponent);
     auto tiny = slt(exponent, c(1));
     sig = choose(tiny, jam(sig, sub(c(1), exponent)), sig);
@@ -122,44 +143,44 @@ class IntegerFloat {
     auto sign = arith::XOrIOp::create(b, loc, a.sign, d.sign);
     auto result = pack(sig, exponent, sign);
     result = choose(bitOr(a.isZero, d.isZero), sign, result);
-    result = choose(bitOr(a.isInf, d.isInf), bitOr(sign, c(0x7f800000)), result);
+    result = choose(bitOr(a.isInf, d.isInf), bitOr(sign, c(Infinity)), result);
     auto invalid = bitOr(all(a.isInf, d.isZero), all(d.isInf, a.isZero));
-    return choose(bitOr(bitOr(a.isNan, d.isNan), invalid), c(0x7fc00000), result);
+    return choose(bitOr(bitOr(a.isNan, d.isNan), invalid), c(Nan), result);
   }
 
   Value division(Parts a, Parts d) {
-    auto [sigA, expA] = normalize(a.significand, a.exponent, 23, -22);
-    auto [sigB, expB] = normalize(d.significand, d.exponent, 23, -22);
+    auto [sigA, expA] = normalize(a.significand, a.exponent, Fraction, 1 - std::int64_t(Fraction));
+    auto [sigB, expB] = normalize(d.significand, d.exponent, Fraction, 1 - std::int64_t(Fraction));
     // Normalize the ratio to [1,2), retaining guard/round/sticky bits.
-    // The shifted numerator fits in 51 bits. Protect the integer divisor even
+    // The shifted numerator fits in 2*Fraction+5 bits. Protect the integer divisor even
     // for special operands: select arms may be evaluated eagerly.
     auto belowOne = lt(sigA, sigB);
-    auto numerator = shl(sigA, choose(belowOne, c(27), c(26)));
+    auto numerator = shl(sigA, choose(belowOne, c(Fraction + 4), c(Fraction + 3)));
     auto divisor = choose(nonzero(sigB), sigB, c(1));
     auto quotient = arith::DivUIOp::create(b, loc, numerator, divisor);
     auto remainder = arith::RemUIOp::create(b, loc, numerator, divisor);
-    auto sticky = arith::ExtUIOp::create(b, loc, b.getI64Type(), nonzero(remainder));
+    auto sticky = arith::ExtUIOp::create(b, loc, b.getIntegerType(Width), nonzero(remainder));
     auto sig = bitOr(quotient, sticky);
-    auto exponent =
-        sub(add(sub(expA, expB), c(127)), arith::ExtUIOp::create(b, loc, b.getI64Type(), belowOne));
+    auto exponent = sub(add(sub(expA, expB), c(Bias)),
+                        arith::ExtUIOp::create(b, loc, b.getIntegerType(Width), belowOne));
     auto tiny = slt(exponent, c(1));
     sig = choose(tiny, jam(sig, sub(c(1), exponent)), sig);
     exponent = choose(tiny, c(1), exponent);
     auto sign = arith::XOrIOp::create(b, loc, a.sign, d.sign);
     auto result = pack(sig, exponent, sign);
     result = choose(bitOr(a.isZero, d.isInf), sign, result);
-    result = choose(bitOr(a.isInf, d.isZero), bitOr(sign, c(0x7f800000)), result);
+    result = choose(bitOr(a.isInf, d.isZero), bitOr(sign, c(Infinity)), result);
     auto invalid = bitOr(all(a.isZero, d.isZero), all(a.isInf, d.isInf));
-    return choose(bitOr(bitOr(a.isNan, d.isNan), invalid), c(0x7fc00000), result);
+    return choose(bitOr(bitOr(a.isNan, d.isNan), invalid), c(Nan), result);
   }
 
 public:
   explicit IntegerFloat(Operation *op) : b(op), loc(op->getLoc()) {}
   Value lower(Operation *op) {
     auto flipSign = [&](Value value) -> Value {
-      auto bits = arith::BitcastOp::create(b, loc, b.getI32Type(), value);
-      auto flipped = arith::XOrIOp::create(b, loc, bits, c(0x80000000, 32));
-      return arith::BitcastOp::create(b, loc, b.getF32Type(), flipped);
+      auto bits = arith::BitcastOp::create(b, loc, b.getIntegerType(Bits), value);
+      auto flipped = arith::XOrIOp::create(b, loc, bits, c(Sign, Bits));
+      return arith::BitcastOp::create(b, loc, floatType(), flipped);
     };
     // Negation changes only the sign bit, including zero and NaN payloads.
     if (isa<arith::NegFOp>(op))
@@ -171,14 +192,22 @@ public:
     auto bits = isa<arith::DivFOp>(op)   ? division(a, d)
                 : isa<arith::MulFOp>(op) ? multiplication(a, d)
                                          : addition(a, d);
-    return arith::BitcastOp::create(b, loc, b.getF32Type(), narrow(bits));
+    return arith::BitcastOp::create(b, loc, floatType(), narrow(bits));
   }
 };
 } // namespace
-mlir::LogicalResult lowerStrictFloat32(mlir::Operation *root) {
+namespace {
+mlir::LogicalResult lowerStrictFloat(mlir::Operation *root, bool cpu) {
   root->getContext()->getOrLoadDialect<mlir::scf::SCFDialect>();
   llvm::SmallVector<mlir::Operation *> operations;
   bool valid = true;
+  root->walk([&](mlir::Operation *op) {
+    if (cpu && (op->getName().getDialectNamespace() == "gpu" ||
+                op->getName().getDialectNamespace() == "spirv")) {
+      op->emitError("strict CPU floating lowering does not accept GPU/SPIR-V operations");
+      valid = false;
+    }
+  });
   root->walk([&](mlir::Operation *op) {
     if (op->getName().getDialectNamespace() != "arith")
       return;
@@ -193,21 +222,31 @@ mlir::LogicalResult lowerStrictFloat32(mlir::Operation *root) {
       return;
     if (mlir::isa<mlir::arith::AddFOp, mlir::arith::SubFOp, mlir::arith::MulFOp,
                   mlir::arith::NegFOp, mlir::arith::DivFOp>(op) &&
-        op->getResult(0).getType().isF32())
+        (op->getResult(0).getType().isF32() || (cpu && op->getResult(0).getType().isF64())))
       operations.push_back(op);
     else {
-      op->emitError("strict binary32 lowering supports only scalar float32 "
-                    "add/subtract/multiply/divide/negate");
+      op->emitError(cpu ? "strict CPU floating lowering supports only scalar float32/float64 "
+                          "add/subtract/multiply/divide/negate"
+                        : "strict binary32 lowering supports only scalar float32 "
+                          "add/subtract/multiply/divide/negate");
       valid = false;
     }
   });
   if (!valid)
     return mlir::failure();
   for (auto *op : operations) {
-    auto result = IntegerFloat(op).lower(op);
+    auto result = op->getResult(0).getType().isF32() ? IntegerFloat<23, 8>(op).lower(op)
+                                                     : IntegerFloat<52, 11>(op).lower(op);
     op->getResult(0).replaceAllUsesWith(result);
     op->erase();
   }
   return mlir::success();
+}
+} // namespace
+mlir::LogicalResult lowerStrictFloat32(mlir::Operation *root) {
+  return lowerStrictFloat(root, false);
+}
+mlir::LogicalResult lowerStrictCpuFloat(mlir::Operation *root) {
+  return lowerStrictFloat(root, true);
 }
 } // namespace kalandra

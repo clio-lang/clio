@@ -630,3 +630,16 @@ The [shared compiled driver](../../native/cmake/VerifyInt32Matmul.cmake) adds fi
 Debug, optimized, ASan/UBSan and TSan variants qualify both types. Frontend checks also run independently under ASan/UBSan, and backend admission rejects mismatched matmul element types. [Qualification evidence](../../native/metal-proof/evidence/cpu-integer64-matmul-2026-10-17.json) records the native/Metal regression and unchanged float32 numerical artifacts. Host sanitizers do not instrument Metal shaders. GPU integer arithmetic remains gated.
 
 Next: CPU float64 literals and scalar arithmetic, so the accepted `float` default has an executable implementation. Further tensor formats and explicit conversions remain separate work. Discuss native distributed execution before implementation.
+
+
+### CPU binary64 arithmetic lowering proof
+
+The shared [strict floating lowering](../../native/lib/StrictFloat.cpp) now has a CPU-only binary64 specialization for add, subtract, multiply, divide and sign-bit negation. Binary32 and binary64 share exponent alignment, sticky-bit shifts, normalization and nearest/ties-to-even rounding. Binary64 uses i128 intermediates for its 53-bit significand products and division numerator; binary32 retains its existing i64 sequence. This is a correctness implementation, not a hardware-double performance claim.
+
+Each arithmetic result rounds separately, including multiply followed by addition. Subnormal values are preserved, division by zero follows IEEE behavior, and finite arithmetic may overflow to infinity. Arithmetic NaNs are canonicalized internally; unary negation flips only the sign bit, preserving signed zero and NaN payload bits. The generated arithmetic uses integer operations, so host rounding, flush-to-zero and default-NaN settings do not change these results.
+
+The [CPU-only proof tool](../../native/metal-proof/Strict.cpp) accepts mixed scalar binary32/binary64 modules. It rejects GPU/SPIR-V operations, unsupported formats, vectors, comparisons, remainder and conversions. The established binary32/Metal entry point still rejects binary64. [Compiled conformance](../../native/metal-proof/Strict64Cpu.cpp) compares boundary and full-range deterministic inputs against LLVM APFloat in debug, optimized and ASan/UBSan builds. It installs all four ARM rounding modes with flush-to-zero/default-NaN both off and on, checks floating exception flags, and restores the original host state. Artifact checks verify integer-only arithmetic and transactional rejection of unsupported inputs. These CPU tests are currently built with the optional Metal proof configuration, but do not submit GPU work.
+
+[Qualification evidence](../../native/metal-proof/evidence/cpu-strict-float64-2026-10-17.json) records 467,411 operand pairs, 22,435,728 exact result comparisons per build variant, 30 focused regression checks and preservation of all 640 tracked binary32 artifacts.
+
+This qualifies an internal arithmetic building block only. **Source `float64` and the `float` default remain gated.** The next step is to connect binary64 literals, inference, ordinary functions, typed native entries and structured worker captures/results, then qualify those paths end to end. Float64 tensors and GPU arithmetic remain separate work. Distributed execution still requires the agreed design review.
