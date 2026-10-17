@@ -80,7 +80,7 @@ int main() {
 #endif
     }
     for (auto text :
-         {"fn main():\n  values=[1,2]\n  tensor(values,[1,2])\n",
+         {"fn main():\n  values=[1,2]\n  tensor(values,[2,2])\n",
           "fn convert(values:[int])->Tensor[float32,?]:\n  tensor(values)\n",
           "fn convert(values:[int])->Tensor[int,?,?]:\n  tensor(values)\n",
           "fn convert(values:[int])->[int]:\n  tensor(values)\n", "fn main():\n  tensor([])\n",

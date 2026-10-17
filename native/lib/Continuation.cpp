@@ -23,9 +23,13 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
                            std::is_same_v<T, ScalarBinary> || std::is_same_v<T, ScalarCompare>)
           return {op.left, op.right};
         else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, NumericConvert> ||
-                           std::is_same_v<T, ShapeCheck> || std::is_same_v<T, ArrayToTensor>)
+                           std::is_same_v<T, ShapeCheck>)
           return {op.input};
-        else if constexpr (std::is_same_v<T, ArrayMap>) {
+        else if constexpr (std::is_same_v<T, ArrayToTensor>) {
+          auto result = op.dimensions.value_or(std::vector<ValueId>{});
+          result.insert(result.begin(), op.input);
+          return result;
+        } else if constexpr (std::is_same_v<T, ArrayMap>) {
           auto result = op.captures;
           result.insert(result.begin(), op.input);
           return result;
@@ -186,8 +190,13 @@ private:
             op.input = importValue(op.input);
             for (auto &capture : op.captures)
               capture = importValue(capture);
+          } else if constexpr (std::is_same_v<T, ArrayToTensor>) {
+            op.input = importValue(op.input);
+            if (op.dimensions)
+              for (auto &axis : *op.dimensions)
+                axis = importValue(axis);
           } else if constexpr (std::is_same_v<T, NumericConvert> || std::is_same_v<T, ReduceSum> ||
-                               std::is_same_v<T, ShapeCheck> || std::is_same_v<T, ArrayToTensor>)
+                               std::is_same_v<T, ShapeCheck>)
             op.input = importValue(op.input);
           else if constexpr (std::is_same_v<T, ConditionalOperation>) {
             op.condition = importValue(op.condition);
@@ -271,9 +280,11 @@ private:
       comparison->right = reads[1];
     } else if (auto *convert = std::get_if<NumericConvert>(&op))
       convert->input = reads[0];
-    else if (auto *construction = std::get_if<ArrayToTensor>(&op))
+    else if (auto *construction = std::get_if<ArrayToTensor>(&op)) {
       construction->input = reads[0];
-    else if (auto *map = std::get_if<ArrayMap>(&op)) {
+      if (construction->dimensions)
+        construction->dimensions->assign(reads.begin() + 1, reads.end());
+    } else if (auto *map = std::get_if<ArrayMap>(&op)) {
       map->input = reads[0];
       map->function = callback;
       map->captures.assign(reads.begin() + 1, reads.end());

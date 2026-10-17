@@ -60,7 +60,7 @@ The expected tensor type supplies float32 context to the numeric literals. Produ
 
 With no annotation, `tensor([1, 2, 3])` infers `Tensor[int64, 3]`. An annotated float32 tensor can type literals as float32, but cannot silently narrow an already typed float64 array. Explicit element conversion is required for such a source.
 
-A rectangular nested literal has a known shape. A flat runtime array passed to `tensor(values)` produces a rank-one tensor whose length is dynamic unless the compiler proves its extent. A scalar argument produces a rank-zero tensor. Arbitrary runtime nested-array conversion and explicit runtime reshaping are deferred; the implemented runtime-data constructor currently accepts flat numeric arrays as rank one.
+A rectangular nested literal has a known shape. A flat runtime array passed to `tensor(values)` produces a rank-one tensor whose length is dynamic unless the compiler proves its extent. A scalar argument produces a rank-zero tensor. Flat numeric runtime arrays can also use [explicit shape lists](reshape.md) with runtime integer dimensions. Arbitrary nested runtime arrays and tensor-to-tensor reshaping remain separate work.
 
 Known ragged input is invalid:
 
@@ -249,4 +249,4 @@ Qualification on Apple M2 Max: 59 focused checks passed, including debug/optimiz
 
 ## Native runtime array construction
 
-The CPU constructor now accepts completed numeric arrays through `tensor(values)` or `values -> tensor()`. The result is rank one with the same element type and length. See [array-to-tensor construction](arrays.md#explicit-tensor-construction-from-arrays) for shape checks, ownership, workers and current limits. Ranked literal construction remains unchanged; runtime reshaping is separate work.
+The CPU constructor now accepts completed numeric arrays through `tensor(values)` or `values -> tensor()`. The result is rank one with the same element type and length. See [array-to-tensor construction](arrays.md#explicit-tensor-construction-from-arrays) for shape checks, ownership, workers and current limits. Ranked literal construction remains unchanged; [explicit runtime shapes](reshape.md) now support checked row-major matrices and higher ranks from flat array data.

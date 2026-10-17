@@ -866,3 +866,5 @@ include(cmake/Arrays.cmake)
 include(cmake/ArrayMap.cmake)
 
 include(cmake/ArrayTensor.cmake)
+
+include(cmake/Reshape.cmake)

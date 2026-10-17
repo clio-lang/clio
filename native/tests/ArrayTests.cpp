@@ -67,7 +67,7 @@ int main() {
           "fn main():\n  a=[1,2]\n  -a\n",
           "fn main():\n  a=[1,2]\n  int64(a)\n",
           "fn main():\n  a=[1,2]\n  reduceSum(a)\n",
-          "fn main():\n  a=[1,2]\n  tensor(a,[1,2])\n",
+          "fn main():\n  a=[1,2]\n  tensor(a,[2,2])\n",
           "fn main():\n  a=[1,2]\n  a[0]=3\n",
           "fn main():\n  a=[1,2]\n  a==a\n",
           "fn main():\n  if true:\n    [1]\n  else:\n    tensor([1])\n",

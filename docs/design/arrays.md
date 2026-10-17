@@ -59,7 +59,7 @@ fn four(values: [int]) -> Tensor[int, 4]:
   tensor(values)
 ```
 
-A statically known wrong length is rejected; an unknown wrong length raises a checked Shape fault before allocating the result. Rank changes and `tensor(values, [rows, columns])` for runtime array data are separate work. The existing ranked literal constructor, including `tensor([1, 2, 3, 4], [2, 2])`, remains available.
+A statically known wrong length is rejected; an unknown wrong length raises a checked Shape fault before allocating the result. [Explicit runtime shapes](reshape.md) now support `tensor(values, [rows, columns])`, with a fixed rank and checked integer dimension expressions. The existing ranked literal constructor, including `tensor([1, 2, 3, 4], [2, 2])`, remains available.
 
 The current implementation performs a checked ordered copy into managed tensor storage. It preserves raw floating-point representations, including signed zero and NaN payloads. Borrowed native input storage does not escape as an owned tensor result. Cancellation or allocation failure publishes no partial result and settles intermediate storage.
 
@@ -67,7 +67,7 @@ Construction also works in ordinary worker functions, in anonymous map callbacks
 
 ## Remaining collection work
 
-This is an array value foundation, not the complete collection API. [Sequential `map` with named functions or inline anonymous numeric callbacks and lexical captures](array-map.md) is now implemented. First-class function values remain separate work. Rank-changing runtime tensor constructors, tensor-to-array construction, nested/general element types and indexing remain unimplemented. Indexed writes are never part of the immutable model; any future replacement operation must produce another logical value.
+This is an array value foundation, not the complete collection API. [Sequential `map` with named functions or inline anonymous numeric callbacks and lexical captures](array-map.md) is now implemented. First-class function values remain separate work. Tensor-to-tensor reshaping, tensor-to-array construction, nested/general element types and indexing remain unimplemented. Indexed writes are never part of the immutable model; any future replacement operation must produce another logical value.
 
 The development CLI still requires a scalar `main` result; displaying arrays directly is separate tooling work. Array-returning functions are qualified through checked native test interfaces and worker outcomes.
 

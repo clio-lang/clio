@@ -1396,27 +1396,133 @@ private:
     result.shape.insert(result.shape.end(), inner->begin(), inner->end());
     return result;
   }
+  std::optional<ValueId> arrayTensor(Frame &frame, SourceSpan span, ValueId input,
+                                     std::optional<ExprId> shapeSyntax,
+                                     const std::optional<ValueType> &expected) {
+    auto output = node(input).type;
+    if (!output.array || output.task || output.fallible || output.device || !output.tensor ||
+        output.builtin != BuiltinValue::Numeric || output.shape.size() != 1) {
+      error("S026", "tensor construction requires a completed CPU numeric array", span);
+      return {};
+    }
+    output.array = false;
+    ArrayToTensor operation{input};
+    if (shapeSyntax) {
+      const auto *shape = std::get_if<ArrayExpr>(&syntax_.expressions[*shapeSyntax].value);
+      if (!shape || shape->elements.size() > limits_.maxDepth) {
+        error("S050",
+              "tensor shape requires a bounded list of integer dimensions with a fixed rank", span);
+        return {};
+      }
+      operation.dimensions.emplace();
+      output.shape.clear();
+      for (auto axis : shape->elements) {
+        auto value = expression(frame, axis);
+        if (!value)
+          return {};
+        const auto &actual = node(*value).type;
+        if (actual.builtin != BuiltinValue::Numeric || !isInteger(actual.element) ||
+            actual.tensor || actual.task || actual.fallible || actual.device) {
+          error("S050", "tensor dimensions require completed CPU integer scalars",
+                syntax_.expressions[axis].span);
+          return {};
+        }
+        operation.dimensions->push_back(*value);
+        if (auto constant = intConstants_.find(*value); constant != intConstants_.end()) {
+          if (constant->second < 0 || constant->second > INT64_MAX) {
+            error("S050", "tensor dimensions must fit the nonnegative 64-bit indexing range",
+                  syntax_.expressions[axis].span);
+            return {};
+          }
+          output.shape.push_back({std::uint64_t(constant->second), 0});
+        } else
+          output.shape.push_back(dynamic());
+      }
+      if (expected && expected->shape.size() == output.shape.size())
+        for (std::size_t axis = 0; axis < output.shape.size(); ++axis)
+          if (expected->shape[axis].constant) {
+            if (output.shape[axis].constant &&
+                output.shape[axis].constant != expected->shape[axis].constant) {
+              error("S011", "reshape dimension differs from expected tensor extent", span);
+              return {};
+            }
+            output.shape[axis] = expected->shape[axis];
+          }
+      if (!validSize(output, span))
+        return {};
+      bool known = true;
+      std::uint64_t stride = 1;
+      for (auto axis = output.shape.rbegin(); axis != output.shape.rend(); ++axis) {
+        if (!axis->constant) {
+          known = false;
+          continue;
+        }
+        if (*axis->constant == 0) {
+          stride = 0;
+          known = true;
+          continue;
+        }
+        if (known) {
+          if (stride > std::uint64_t(INT64_MAX) / *axis->constant) {
+            error("S002", "tensor shape overflows row-major strides", span);
+            return {};
+          }
+          stride *= *axis->constant;
+        }
+      }
+      if (std::ranges::any_of(output.shape,
+                              [](const Extent &axis) { return axis.constant == 0; }) ||
+          std::ranges::all_of(output.shape,
+                              [](const Extent &axis) { return axis.constant.has_value(); })) {
+        std::uint64_t count = 1;
+        if (std::ranges::any_of(output.shape,
+                                [](const Extent &axis) { return axis.constant == 0; }))
+          count = 0;
+        else
+          for (const auto &axis : output.shape)
+            count *= *axis.constant;
+        if (!requireEqual(frame, node(input).type.shape[0], Extent{count, 0}))
+          return {};
+        const auto length = node(input).type.shape[0].constant;
+        if (length && *length != count) {
+          error("S050", "tensor shape element count does not match array length", span);
+          return {};
+        }
+      }
+    }
+    if (!validSize(output, span))
+      return {};
+    return add(frame, output, span, std::move(operation));
+  }
   std::optional<ValueId> tensor(Frame &frame, SourceSpan span, const std::vector<ExprId> &arguments,
                                 const std::optional<ValueType> &expected) {
     if (arguments.size() != 1 && arguments.size() != 2) {
-      error("S025",
-            "tensor expects numeric data and an optional constant literal shape; runtime array "
-            "reshaping is not implemented",
-            span);
+      error("S025", "tensor expects numeric data and an optional fixed-rank shape list", span);
       return {};
     }
     if (expected && (!expected->tensor || expected->array)) {
       error("S026", "tensor construction requires a tensor result context", span);
       return {};
     }
+    bool runtimeLiteralShape = false;
+    if (arguments.size() == 2)
+      if (const auto *shape = std::get_if<ArrayExpr>(&syntax_.expressions[arguments[1]].value))
+        runtimeLiteralShape = std::ranges::any_of(shape->elements, [&](ExprId axis) {
+          return !std::holds_alternative<NumberExpr>(syntax_.expressions[axis].value);
+        });
     std::optional<ValueId> checkedInput;
     // Literal arrays keep the ranked literal constructor. Runtime arrays have an
     // explicit rank-one construction operation; scalar expressions retain their
     // existing rank-zero behavior and are evaluated only once.
-    if (!std::holds_alternative<ArrayExpr>(syntax_.expressions[arguments[0]].value) &&
-        !literal_[arguments[0]]) {
+    if (runtimeLiteralShape ||
+        (!std::holds_alternative<ArrayExpr>(syntax_.expressions[arguments[0]].value) &&
+         !literal_[arguments[0]])) {
       std::optional<ValueType> inputContext;
-      if (expected && expected->shape.empty()) {
+      if (expected && arguments.size() == 2) {
+        inputContext = ValueType{true, {dynamic()}};
+        inputContext->array = true;
+        inputContext->element = expected->element;
+      } else if (expected && expected->shape.empty()) {
         inputContext = ValueType{};
         inputContext->element = expected->element;
       } else if (expected && expected->shape.size() == 1) {
@@ -1427,23 +1533,10 @@ private:
       if (!checkedInput)
         return {};
       auto output = node(*checkedInput).type;
-      if (output.array) {
-        if (arguments.size() != 1) {
-          error("S050",
-                "runtime array construction is rank one; explicit reshaping is not implemented",
-                span);
-          return {};
-        }
-        if (output.task || output.fallible || output.device || !output.tensor ||
-            output.builtin != BuiltinValue::Numeric || output.shape.size() != 1) {
-          error("S026", "tensor construction requires a completed CPU numeric array", span);
-          return {};
-        }
-        output.array = false;
-        if (!validSize(output, span))
-          return {};
-        return add(frame, output, span, ArrayToTensor{*checkedInput});
-      }
+      if (output.array)
+        return arrayTensor(
+            frame, span, *checkedInput,
+            arguments.size() == 2 ? std::optional<ExprId>(arguments[1]) : std::nullopt, expected);
     }
     auto data = tensorData(arguments[0], expected);
     if (!data)

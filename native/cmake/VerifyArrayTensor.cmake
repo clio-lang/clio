@@ -56,7 +56,7 @@ COMPILE(pipeline "fn main():\n  values=[1,2,3]\n  values -> map(fn(x): x*2) -> t
 EXPECT(pipeline 12)
 foreach(NAME IN ITEMS reshape element implicit)
   if(NAME STREQUAL "reshape")
-    set(SOURCE "fn main():\n  values=[1,2,3,4]\n  tensor(values,[2,2])\n")
+    set(SOURCE "fn main():\n  values=[1,2,3,4]\n  tensor(values,[2,3])\n")
     set(CODE S050)
   elseif(NAME STREQUAL "element")
     set(SOURCE "fn convert(values:[int])->Tensor[float32,?]:\n  tensor(values)\nfn main()->int:\n  0\n")

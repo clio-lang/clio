@@ -890,6 +890,81 @@ private:
             return elementwise(loc, a, b, cast<RankedTensorType>(type(node.type)),
                                operation.operation, node.type.element);
           } else if constexpr (std::is_same_v<T, ArrayToTensor>) {
+            if (operation.dimensions) {
+              auto input = expression(frame, operation.input);
+              auto inputShape = dimensions(loc, input);
+              checkedCount(loc, inputShape, describeNumeric(node.type.element)->bytes());
+              SmallVector<Value> shape, dynamic, evaluated;
+              for (auto id : *operation.dimensions)
+                evaluated.push_back(expression(frame, id));
+              const auto output = cast<RankedTensorType>(type(node.type));
+              for (std::size_t axis = 0; axis < operation.dimensions->size(); ++axis) {
+                auto id = (*operation.dimensions)[axis];
+                auto dimension = evaluated[axis];
+                const auto element = input_.expressions[id].type.element;
+                if (describeNumeric(element)->bits == 32) {
+                  if (isUnsigned(element))
+                    dimension =
+                        arith::ExtUIOp::create(builder_, loc, builder_.getI64Type(), dimension);
+                  else
+                    dimension =
+                        arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), dimension);
+                }
+                guard(loc,
+                      compare(loc,
+                              isUnsigned(element) ? arith::CmpIPredicate::ule
+                                                  : arith::CmpIPredicate::sge,
+                              dimension, integer(loc, isUnsigned(element) ? INT64_MAX : 0)),
+                      1);
+                auto d =
+                    arith::IndexCastOp::create(builder_, loc, builder_.getIndexType(), dimension);
+                shape.push_back(d);
+                if (output.isDynamicDim(axis))
+                  dynamic.push_back(d);
+                else
+                  guard(loc,
+                        compare(loc, arith::CmpIPredicate::eq, d,
+                                index(loc, output.getDimSize(axis))),
+                        1);
+              }
+              auto count = checkedCount(loc, shape, describeNumeric(node.type.element)->bytes());
+              // Even a zero-element tensor needs representable row-major strides.
+              Value stride = index(loc, 1);
+              for (auto axis = shape.rbegin(); axis != shape.rend(); ++axis) {
+                auto safe = arith::SelectOp::create(
+                    builder_, loc, compare(loc, arith::CmpIPredicate::eq, *axis, index(loc, 0)),
+                    index(loc, 1), *axis);
+                auto limit = arith::DivUIOp::create(builder_, loc, index(loc, INT64_MAX), safe);
+                auto zero = compare(loc, arith::CmpIPredicate::eq, *axis, index(loc, 0));
+                guard(loc,
+                      arith::OrIOp::create(builder_, loc, zero,
+                                           compare(loc, arith::CmpIPredicate::ule, stride, limit)),
+                      2);
+                stride = arith::MulIOp::create(builder_, loc, stride, *axis);
+              }
+              guard(loc, compare(loc, arith::CmpIPredicate::eq, inputShape[0], count), 1);
+              auto empty = tensor::EmptyOp::create(builder_, loc, output.getShape(),
+                                                   output.getElementType(), dynamic);
+              auto loop = scf::ForOp::create(
+                  builder_, loc, index(loc, 0), count, index(loc, 1), ValueRange{empty},
+                  [&](OpBuilder &, Location, Value i, ValueRange args) {
+                    auto element = tensor::ExtractOp::create(builder_, loc, input, ValueRange{i});
+                    SmallVector<Value> indices(shape.size());
+                    Value remaining = i;
+                    for (std::size_t axis = shape.size(); axis > 0; --axis) {
+                      auto safe = arith::SelectOp::create(
+                          builder_, loc,
+                          compare(loc, arith::CmpIPredicate::eq, shape[axis - 1], index(loc, 0)),
+                          index(loc, 1), shape[axis - 1]);
+                      indices[axis - 1] = arith::RemUIOp::create(builder_, loc, remaining, safe);
+                      remaining = arith::DivUIOp::create(builder_, loc, remaining, safe);
+                    }
+                    auto inserted =
+                        tensor::InsertOp::create(builder_, loc, element, args[0], indices);
+                    scf::YieldOp::create(builder_, loc, ValueRange{inserted});
+                  });
+              return loop.getResult(0);
+            }
             auto input = expression(frame, operation.input);
             auto shape = dimensions(loc, input);
             checkedCount(loc, shape, describeNumeric(node.type.element)->bytes());

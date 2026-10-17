@@ -227,10 +227,22 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
           !output.tensor || input.builtin != BuiltinValue::Numeric ||
           output.builtin != BuiltinValue::Numeric || input.task || input.fallible || input.device ||
           output.task || output.fallible || output.device || input.element != output.element ||
-          input.shape.size() != 1 || output.shape.size() != 1 ||
-          input.shape[0].constant != output.shape[0].constant ||
-          input.shape[0].identity != output.shape[0].identity)
-        return "array-to-tensor construction requires matching rank-one CPU values";
+          input.shape.size() != 1)
+        return "array-to-tensor construction requires completed CPU numeric values";
+      if (construction->dimensions) {
+        if (output.shape.size() != construction->dimensions->size())
+          return "reshape rank differs from dimension operands";
+        for (auto dimension : *construction->dimensions) {
+          if (dimension >= module.expressions.size())
+            return "reshape references invalid dimension";
+          const auto &type = module.expressions[dimension].type;
+          if (type.builtin != BuiltinValue::Numeric || !isInteger(type.element) || type.tensor ||
+              type.task || type.fallible || type.device)
+            return "reshape dimensions require completed CPU integer scalars";
+        }
+      } else if (output.shape.size() != 1 || input.shape[0].constant != output.shape[0].constant ||
+                 input.shape[0].identity != output.shape[0].identity)
+        return "unshaped array construction must preserve rank-one length facts";
     }
     if (const auto *map = std::get_if<ArrayMap>(&expression.operation)) {
       if (map->function >= module.functions.size() || map->input >= module.expressions.size())
@@ -412,6 +424,10 @@ std::string dumpTypedIR(const TypedModule &module) {
             } else if constexpr (std::is_same_v<T, ArrayToTensor>) {
               out << "tensor.from_array ordered_copy ";
               value(operation.input);
+              if (operation.dimensions) {
+                out << " reshape=";
+                arguments(*operation.dimensions);
+              }
             } else if constexpr (std::is_same_v<T, ArrayMap>) {
               out << "array.map sequential @" << operation.function << " ";
               value(operation.input);

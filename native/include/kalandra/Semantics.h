@@ -92,9 +92,11 @@ struct FunctionCall {
   FunctionId function;
   std::vector<ValueId> arguments;
 };
-// Explicit immutable rank-one array to CPU tensor construction.
+// Explicit immutable flat-array to CPU tensor construction.
 struct ArrayToTensor {
   ValueId input;
+  std::optional<std::vector<ValueId>> dimensions =
+      {}; // Absent preserves rank one; empty is rank zero.
 };
 struct ArrayMap {
   ValueId input;
