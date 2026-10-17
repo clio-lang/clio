@@ -133,6 +133,23 @@ Tensor comparisons differ from scalar equality: comparing tensors elementwise re
 
 A scalar and rank-zero tensor are distinct types. Explicit constructor/extraction operations connect them; a rank-zero tensor is not silently unwrapped to hide a device synchronization or transfer.
 
+## Explicit CPU element conversions
+
+A numeric type-name call accepts a completed CPU tensor as well as a scalar:
+
+```kalandra
+fn approximate(values: Tensor[int64, ?, 3]) -> Tensor[float32, ?, 3]:
+  float32(values)
+```
+
+The result preserves rank and every extent, including dynamic extent relationships and zero dimensions. Only the element type changes. All 36 pairs among int32, uint32, int64, uint64, float32 and float64 are supported; int/uint/float retain their 64-bit aliases. Arguments keep their existing element type; the destination does not supply a literal context to the input. In the current subset, construct a tensor with an explicit source annotation before converting it. An annotation alone never converts an already typed value.
+
+Each element follows the [scalar conversion rules](numbers.md#explicit-cpu-scalar-numeric-conversions), including checked integer ranges, truncation before float-to-integer bounds checking, ties-to-even rounding and changed-width NaN canonicalization. Identity conversions preserve every bit. Rank zero remains a tensor containing one converted element; it does not become a scalar. Empty tensors preserve their shape and perform no element conversions.
+
+Conversion produces an immutable value. Inputs remain usable, including borrowed strided views; the compiler may reuse storage only when doing so preserves those semantics. Both source and destination byte sizes are checked. A failing element raises ArithmeticFault at the conversion call and publishes no partial tensor. Tensor element checks currently run at execution time, including for tensor literals; the scalar constant diagnostics do not imply tensor constant evaluation. Allocation failures and cancellation likewise publish no successful result and release intermediates.
+
+Ordinary helper calls and `spawn float32(values)` use the same checked conversion. Completed worker results retain their backing through repeated awaits and after the source execution unit settles. GPU-resident operands require an explicit transfer to CPU first; GPU casts and unimplemented narrow types remain rejected.
+
 ## Broadcasting is explicit
 
 ```kalandra

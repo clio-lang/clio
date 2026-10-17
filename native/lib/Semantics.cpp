@@ -1268,10 +1268,17 @@ private:
     if (!input)
       return {};
     const auto source = node(*input).type;
-    if (source.builtin != BuiltinValue::Numeric || source.tensor || source.task ||
-        source.fallible || source.device) {
-      error("S055", "numeric conversion requires an ordinary CPU scalar", span);
+    if (source.builtin != BuiltinValue::Numeric || source.task || source.fallible ||
+        source.device) {
+      error("S055", "numeric conversion requires an ordinary CPU numeric value", span);
       return {};
+    }
+    if (source.tensor) {
+      auto result = source;
+      result.element = destination;
+      if (!validSize(result, span))
+        return {};
+      return add(frame, result, span, NumericConvert{*input});
     }
     std::optional<__int128_t> integer;
     std::optional<llvm::APFloat> floating;

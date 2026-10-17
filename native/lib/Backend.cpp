@@ -683,6 +683,37 @@ private:
       return tensor::ExtractOp::create(builder_, loc, tensor, indices);
     }, 1, isUnsigned(element));
   }
+  Value convertTensor(Location loc, Value input, RankedTensorType output, NumericType source,
+                      NumericType destination) {
+    auto shape = dimensions(loc, input);
+    checkedCount(loc, shape, describeNumeric(source)->bytes());
+    checkedCount(loc, shape, describeNumeric(destination)->bytes());
+    SmallVector<Value> dynamic;
+    for (std::size_t axis = 0; axis < shape.size(); ++axis)
+      if (output.isDynamicDim(axis))
+        dynamic.push_back(shape[axis]);
+    Value empty =
+        tensor::EmptyOp::create(builder_, loc, output.getShape(), output.getElementType(), dynamic);
+    SmallVector<Value> indices;
+    auto zero = index(loc, 0), one = index(loc, 1);
+    std::function<Value(std::size_t, Value)> loop = [&](std::size_t axis, Value tensor) -> Value {
+      if (axis == shape.size()) {
+        Value lane = tensor::ExtractOp::create(builder_, loc, input, indices);
+        auto [converted, valid] = numericConversion(builder_, loc, lane, source, destination);
+        guard(loc, valid, 4);
+        return tensor::InsertOp::create(builder_, loc, converted, tensor, indices);
+      }
+      auto iteration = scf::ForOp::create(builder_, loc, zero, shape[axis], one, ValueRange{tensor},
+                                          [&](OpBuilder &, Location, Value i, ValueRange args) {
+                                            indices.push_back(i);
+                                            auto result = loop(axis + 1, args[0]);
+                                            indices.pop_back();
+                                            scf::YieldOp::create(builder_, loc, ValueRange{result});
+                                          });
+      return iteration.getResult(0);
+    };
+    return loop(0, empty);
+  }
   Value elementwise(Location loc, Value a, Value b, RankedTensorType output, TokenKind op, NumericType element) {
     const bool tensorA = isa<RankedTensorType>(a.getType());
     const bool tensorB = b && isa<RankedTensorType>(b.getType());
@@ -777,9 +808,13 @@ private:
                                                                          : "arith.divf";
             return binary(loc, name, a, b);
           } else if constexpr (std::is_same_v<T, NumericConvert>) {
-            auto [converted, valid] = numericConversion(
-                builder_, loc, expression(frame, operation.input),
-                input_.expressions[operation.input].type.element, node.type.element);
+            auto input = expression(frame, operation.input);
+            const auto source = input_.expressions[operation.input].type.element;
+            if (node.type.tensor)
+              return convertTensor(loc, input, cast<RankedTensorType>(type(node.type)), source,
+                                   node.type.element);
+            auto [converted, valid] =
+                numericConversion(builder_, loc, input, source, node.type.element);
             guard(loc, valid, 4);
             return converted;
           } else if constexpr (std::is_same_v<T, TensorUnary>) {

@@ -74,11 +74,17 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       return failure;
     if (const auto *convert = std::get_if<NumericConvert>(&expression.operation)) {
       const auto &source = module.expressions[convert->input].type;
-      if (target != NumericTarget::Cpu || source.builtin != BuiltinValue::Numeric ||
-          source.tensor || source.task || source.fallible || expression.type.tensor ||
-          expression.type.task || expression.type.fallible ||
+      if (target != NumericTarget::Cpu || source.builtin != BuiltinValue::Numeric || source.task ||
+          source.fallible || source.device || expression.type.builtin != BuiltinValue::Numeric ||
+          expression.type.task || expression.type.fallible || expression.type.device ||
+          source.tensor != expression.type.tensor ||
+          source.shape.size() != expression.type.shape.size() ||
+          !std::equal(source.shape.begin(), source.shape.end(), expression.type.shape.begin(),
+                      [](const Extent &a, const Extent &b) {
+                        return a.constant == b.constant && a.identity == b.identity;
+                      }) ||
           !numericArithmeticAvailable(source.element, target))
-        return "numeric conversions require implemented CPU scalars";
+        return "numeric conversions require implemented CPU values with unchanged shape";
     }
     if (const auto *reduce = std::get_if<ReduceSum>(&expression.operation)) {
       if (expression.type.element != module.expressions[reduce->input].type.element ||

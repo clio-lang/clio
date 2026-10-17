@@ -44,6 +44,12 @@ static void settled(const TaskStats &s) {
         "scheduler retained live state");
 }
 template <NumericType E = element> static std::vector<NumericValue<E>> expected(int scenario) {
+#ifdef CONVERSION_RESULT
+  if (scenario == 4)
+    return {};
+  if (scenario == 3)
+    return {2, 4, 6, 8};
+#endif
   if constexpr (E == NumericType::Float64) {
     if (scenario == 0)
       return {18014398509481988.0};
@@ -133,7 +139,11 @@ static void cells(const RetainedCpuTensor &value, int scenario) {
           "wrong returned cell bits");
 }
 int main(int argc, char **argv) {
+#ifdef CONVERSION_RESULT
+  if (argc != 4 && argc != 5)
+#else
   if (argc != 4)
+#endif
     return 2;
   const auto workers = static_cast<unsigned>(std::strtoul(argv[1], nullptr, 10));
   const auto scenario = std::atoi(argv[2]);
@@ -145,6 +155,10 @@ int main(int argc, char **argv) {
     limits.bytes = 1;
   auto core = TaskCore::create(limits);
   check(bool(core), "core creation failed");
+#ifdef CONVERSION_RESULT
+  if (argc == 5)
+    core->failAllocationAt(std::strtoull(argv[4], nullptr, 10));
+#endif
   auto *entry = kalandra_task_test_entry;
   check(entry && entry->result && entry->packetBytes == 0 &&
             entry->result->bytes == sizeof(Result) && entry->result->alignment == alignof(Result),
@@ -233,7 +247,11 @@ int main(int argc, char **argv) {
                 failure.column == 3 && !retained,
             "arithmetic failure lost kind/location");
     else if (mode == 3 && failure.kind != TaskFailure::None)
-      check(failure.kind == TaskFailure::Fault && (failure.code == 2 || failure.code == 4) &&
+      check(((failure.kind == TaskFailure::Fault && (failure.code == 2 || failure.code == 4))
+#ifdef CONVERSION_RESULT
+             || failure.kind == TaskFailure::AdmissionRejected
+#endif
+             ) &&
                 !retained,
             "allocation sweep produced invalid failure");
     else {

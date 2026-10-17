@@ -34,8 +34,25 @@ int main() {
         for (auto &expr : forged.expressions)
           if (std::holds_alternative<NumericConvert>(expr.operation))
             expr.type.tensor = true;
-        require(!lowerNative(forged), "tensor conversion IR admitted");
+        require(!lowerNative(forged), "scalar-to-tensor conversion IR admitted");
       }
+    for (auto source : {"int32", "uint32", "int64", "uint64", "float32", "float64"})
+      for (auto destination : {"int32", "uint32", "int64", "uint64", "float32", "float64"})
+        for (auto shape : {"", ",?", ",2,?", ",2,0,?"}) {
+          auto typed = analyze("fn convert(value:Tensor[" + std::string(source) + shape +
+                               "]) -> Tensor[" + destination + shape + "]:\n  " + destination +
+                               "(value)\nfn main() -> int64:\n  0\n");
+          require(typed.ok(), "tensor conversion rejected");
+          require(bool(lowerNative(*typed.module)), "tensor conversion lowering rejected");
+          require(bool(continuation::plan(*typed.module)), "tensor conversion planner rejected");
+          require(bool(numericCapabilityError(*typed.module, NumericTarget::AppleGpu)),
+                  "GPU tensor conversion admitted");
+          auto forged = *typed.module;
+          for (auto &expr : forged.expressions)
+            if (std::holds_alternative<NumericConvert>(expr.operation))
+              expr.type.shape.push_back(Extent{2});
+          require(!lowerNative(forged), "shape-changing conversion IR admitted");
+        }
     for (auto source :
          {"fn main() -> float:\n  count=3\n  float(count)/2.0\n",
           "fn main() -> uint64:\n  uint(-0.9)\n", "fn main() -> int32:\n  int32(-2147483648.9)\n",
@@ -61,8 +78,13 @@ int main() {
           "fn main() -> int64:\n  int64(1,2)\n", "fn int32(x:int64) -> int64:\n  x\n",
           "fn main() -> int64:\n  x=1\n  y:float=2\n  x+y\n"})
       require(!analyze(source).ok(), "invalid/implicit conversion admitted");
+    auto tooLarge = analyze("fn f(value:Tensor[int32,1152921504606846976]) -> int64:\n"
+                            "  converted=int64(value)\n  reduceSum(converted)\n");
+    require(!tooLarge.ok() && tooLarge.diagnostics[0].code == "S002",
+            "conversion destination byte overflow admitted");
     std::cout << "36 CPU scalar conversion pairs: admission, aliases, constant checks, strict "
-                 "integer lowering, planner and GPU/tensor gates passed\n";
+                 "integer lowering, planner and GPU gates; 144 shape-preserving tensor signatures "
+                 "passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';
     return 1;
