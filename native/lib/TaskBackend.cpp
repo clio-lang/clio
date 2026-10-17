@@ -175,7 +175,8 @@ private:
                                                   : f32;
   }
   std::string key(const ValueType &type) {
-    if (type.builtin == BuiltinValue::Numeric && !type.task && type.tensor && isInteger(type.element))
+    if (type.builtin == BuiltinValue::Numeric && !type.task && type.tensor &&
+        (isInteger(type.element) || type.element == NumericType::Float64))
       return "tensor." + std::string(describeNumeric(type.element)->name) + "." +
              std::to_string(type.shape.size());
     return type.builtin == BuiltinValue::TaskError   ? "TaskError"
@@ -248,7 +249,7 @@ private:
         layoutType,
         {c64(type.builtin != BuiltinValue::Numeric ? 0x10000 + static_cast<unsigned>(type.builtin)
              : type.tensor
-                 ? (isInteger(type.element)
+                 ? (isInteger(type.element) || type.element == NumericType::Float64
                         ? 0x30000 + 16 * static_cast<unsigned>(type.element) + type.shape.size()
                         : type.shape.size() + 2)
              : isInteger(type.element)              ? 0x20000 + static_cast<unsigned>(type.element)

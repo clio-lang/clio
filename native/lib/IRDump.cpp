@@ -51,10 +51,7 @@ std::string describeType(const ValueType &type) {
   return out.str();
 }
 std::optional<std::string> numericCapabilityError(const TypedModule &module, NumericTarget target) {
-  bool float64Tensor = false;
   const auto error = [&](const ValueType &type) -> std::optional<std::string> {
-    float64Tensor |= type.builtin == BuiltinValue::Numeric && type.tensor &&
-                     type.element == NumericType::Float64;
     if (type.builtin != BuiltinValue::Numeric || numericArithmeticAvailable(type.element, target))
       return {};
     const auto description = describeNumeric(type.element);
@@ -89,16 +86,6 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
         return "unsupported matmul element type";
     }
   }
-  if (target == NumericTarget::Cpu && float64Tensor &&
-      (std::ranges::any_of(module.functions,
-                           [](const auto &fn) { return fn.resultType.fallible; }) ||
-       std::ranges::any_of(module.expressions, [](const auto &expr) {
-         return std::holds_alternative<TaskOperation>(expr.operation) ||
-                std::holds_alternative<ParallelOperation>(expr.operation) ||
-                std::holds_alternative<CatchOperation>(expr.operation) ||
-                std::holds_alternative<MatchOperation>(expr.operation);
-       })))
-    return "float64 tensor modules with tasks are not implemented";
   return {};
 }
 std::string dumpTypedIR(const TypedModule &module) {

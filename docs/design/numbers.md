@@ -689,10 +689,34 @@ Elementwise `+`, `-`, `*`, `/`, unary signs, and either scalar operand order use
 
 The existing eight-byte storage, allocation-size checks, strided memref access and invocation ownership machinery serve this type without a new runtime or numerical kernel implementation. Borrowed inputs remain immutable, including aliased and transposed views. Returned backing can be retained across invocation settlement. Shape and allocation failures publish no partial result; generated loops cooperate with cancellation.
 
-**Current scope is synchronous CPU tensor execution.** Until float64 tensor worker layouts are qualified, a module combining float64 tensors with task operations or TaskError functions is rejected with S054, including unused declarations. Scalar-only float64 worker programs remain supported. `reduceSum` and `matmul` reject float64 with S053; backend admission independently rejects forged typed IR for those operations. Float64 remains unsupported in Metal source modules. These gates prevent newly admitted tensor types from entering unqualified result layouts or reduction kernels.
+CPU worker captures/results are now supported as described below; the temporary S054 module restriction has been removed. `reduceSum` and `matmul` still reject float64 with S053, and backend admission independently rejects forged typed IR for those operations. Float64 remains unsupported in Metal source modules.
 
 [Frontend checks](../../native/tests/Float64TensorChecks.h) cover literal ranks, aliases, scalar lifting, strict numeric identities, exact eight-byte size boundaries and unsupported operations/targets. The [compiled driver](../../native/cmake/VerifyFloat64Tensors.cmake) and [runtime harness](../../native/tests/Float64TensorRuntimeTests.cpp) reuse the [APFloat corpus](../../native/metal-proof/Float64Oracle.h) across arithmetic, unary signs and separately rounded composition. Ranked tests exercise all 467,411 operand pairs; scalar-lift tests choose one scalar per batch and calculate the corresponding lane reference. Rank zero uses 4,096 samples spanning the corpus. Eight ARM floating environments cover all rounding modes with flush-to-zero/default-NaN disabled and enabled, including literal and refinement tests. Result bits are checked both before and after invocation settlement. Additional probes cover empty axes, padded/displaced/transposed/aliased inputs, dynamic shape mismatch, exact/overflowing byte bounds, allocation injection and poll-triggered cancellation. Debug, optimized, ASan/UBSan and separate TSan builds qualify generated execution; frontend checks also run independently under ASan/UBSan.
 
 [Qualification evidence](../../native/metal-proof/evidence/cpu-float64-tensors-2026-10-17.json) records 37 focused frontend, scalar/worker and strict Metal regression checks passing, plus the final four tensor variants with strengthened non-square view probes. It records 628,872 tensor invocations, exact lane checks before/after settlement, and preservation of all 640 tracked float32 artifacts. The backend, strict arithmetic engine, runtime and common continuation planner are unchanged.
 
-Next: float64 tensor worker captures/results, then qualified reductions and matrix multiplication. Explicit numeric conversions and GPU numeric formats remain separate work. Discuss native distributed execution before implementation.
+Next: qualified float64 reductions and matrix multiplication. Explicit numeric conversions and GPU numeric formats remain separate work. Discuss native distributed execution before implementation.
+
+
+### Float64 tensor captures and results in CPU tasks
+
+CPU workers accept and return `Tensor[float64, ...]` (including the `float` alias) through the existing continuation planner and retained tensor storage. Each rank has a distinct float64 layout identity. Float32, int64 and uint64 descriptors cannot be observed as float64 results even when their descriptor size, alignment and copy callback match.
+
+```kalandra
+fn shifted(values: Tensor[float, ?], amount: float) -> Tensor[float, ?]:
+  values + amount
+
+fn example() -> Tensor[float, ?] ! TaskError:
+  values: Tensor[float, 2] = tensor([1.0000000000000002, -0.0])
+  try parallel:
+    work = spawn shifted(values, 0.25)
+    first = try await work
+    again = try await work
+    again
+```
+
+Captures retain their backing while a worker uses them. Nested calls and repeated awaits preserve ownership, and explicitly retained native results can outlive their scheduler and receiving invocation. Arithmetic still uses the shared strict binary64 engine; passing a tensor between workers does not convert its elements. Floating division by zero produces IEEE results rather than an Arithmetic task fault. Shape/allocation failures and checked integer faults in sibling work use the existing TaskError supervision and recovery paths.
+
+The [worker driver](../../native/cmake/VerifyFloat64TensorTasks.cmake) and [shared retained-result harness](../../native/tests/Int32TensorTaskTests.cpp) check ranks zero through three, empty matrices, mixed captures from all six supported tensor families, float64 scalar captures, exact signed-zero/subnormal/precision-boundary/infinity/NaN results, nested and cached awaits, transactional layout rejection and results surviving their owners. They also exercise shape faults, recovery after an integer sibling fault, allocation injection, cancellation, deadlines and admission rejection with one, two and four workers. Debug, optimized, ASan/UBSan and TSan builds are qualified. The [qualification evidence](../../native/metal-proof/evidence/cpu-float64-tensor-tasks-2026-10-17.json) records 57 focused checks passing across the regression run and final worker rerun, including 444 float64 tensor worker process runs. All 640 tracked float32 numerical artifacts remain unchanged. The strict engine, CPU tensor backend, continuation planner, storage and runtime are unchanged.
+
+Float64 reductions, matrix multiplication, explicit numeric conversions and GPU execution remain separate milestones. Discuss native distributed execution before implementation.

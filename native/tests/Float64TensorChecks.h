@@ -42,13 +42,7 @@ static void checkFloat64Tensors() {
         Bad{"fn f(x:Tensor[float,?]) -> Tensor[float,?]:\n  x%2\n", "S019"},
         Bad{"fn f(x:Tensor[float,?],y:Tensor[float32,?]) -> Tensor[float,?]:\n  x+y\n", "S017"},
         Bad{"fn f() -> Tensor[float,1]:\n  tensor([1.8e308])\n", "S015"},
-        Bad{"fn f(x:Tensor[float,1152921504606846976]) -> float:\n  0\n", "S002"},
-        Bad{"fn f(x:Tensor[float,?]) -> Tensor[float,?]:\n  x\nfn main() -> float ! TaskError:\n  "
-            "try parallel:\n    x:Tensor[float,1]=tensor([1])\n    try await spawn f(x)\n    0\n",
-            "S054"},
-        Bad{"fn f(x:Tensor[float,?]) -> Tensor[float,?]:\n  x\nfn main() -> float ! TaskError:\n  "
-            "1\n",
-            "S054"}}) {
+        Bad{"fn f(x:Tensor[float,1152921504606846976]) -> float:\n  0\n", "S002"}}) {
     auto typed = analyze(test.source);
     require(!typed.ok() && typed.diagnostics[0].code == test.code, test.source);
   }
@@ -76,11 +70,12 @@ static void checkFloat64Tensors() {
                                                          : "matmul element") != std::string::npos,
             "forged float64 builtin reached lowering");
   }
-  auto typed =
-      analyze("fn f(x:Tensor[float,?]) -> Tensor[float,?]:\n  x+1\nfn main() -> float:\n  0\n");
-  typed.module->functions.back().resultType.fallible = true;
-  auto rejected = lowerNative(*typed.module);
-  require(!rejected && rejected.error().find("tensor modules with tasks") != std::string::npos,
-          "forged float64 tensor task reached lowering");
+  auto typed = analyze(
+      "fn f(x:Tensor[float,?]) -> Tensor[float,?]:\n  x+1\nfn main() -> float ! TaskError:\n  try "
+      "parallel:\n    x:Tensor[float,1]=tensor([1])\n    try await spawn f(x)\n    0\n");
+  require(typed.ok(), "float64 tensor task rejected");
+  auto native = lowerNative(*typed.module);
+  require(bool(native) && native->llvm.find("value.layout.tensor.float64.1") != std::string::npos,
+          "float64 tensor task lost typed layout");
 #endif
 }

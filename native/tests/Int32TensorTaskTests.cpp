@@ -1,6 +1,7 @@
 #include "../runtime/Tasks.h"
 #include "../runtime/Tensor.h"
 #include <array>
+#include <bit>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -20,7 +21,8 @@
 #endif
 using namespace kalandra;
 using namespace kalandra::runtime;
-constexpr auto element = FLOAT_RESULT ? NumericType::Float32
+constexpr auto element = FLOAT_RESULT == 64 ? NumericType::Float64
+                         : FLOAT_RESULT     ? NumericType::Float32
                          : UNSIGNED_RESULT
                              ? (INTEGER_BITS == 64 ? NumericType::UInt64 : NumericType::UInt32)
                              : (INTEGER_BITS == 64 ? NumericType::Int64 : NumericType::Int32);
@@ -42,7 +44,23 @@ static void settled(const TaskStats &s) {
         "scheduler retained live state");
 }
 template <NumericType E = element> static std::vector<NumericValue<E>> expected(int scenario) {
-  if constexpr (E == NumericType::Float32)
+  if constexpr (E == NumericType::Float64) {
+    if (scenario == 0)
+      return {18014398509481988.0};
+    if (scenario == 1)
+      return {-0.0, 1.0000000000000002, 4.9406564584124654e-324, 1.7976931348623157e308};
+    if (scenario == 2)
+      return {9007199254740992.0, 12, 102, 202};
+    if (scenario == 3)
+      return {2, 4, 6, 8};
+    if (scenario == 5)
+      return {1.0000000000000002, -0.0};
+    if (scenario == 9)
+      return {std::bit_cast<double>(UINT64_C(0x7ff0000000000000)),
+              std::bit_cast<double>(UINT64_C(0xfff0000000000000)),
+              std::bit_cast<double>(UINT64_C(0x7ff8000000000000)), -0.0};
+    return {};
+  } else if constexpr (E == NumericType::Float32)
     return {2, 3, 4, 5};
   else if constexpr (E == NumericType::UInt64) {
     if (scenario == 0)
@@ -131,7 +149,7 @@ int main(int argc, char **argv) {
         "wrong generated native task export ABI");
   if constexpr (element != NumericType::Float32)
     check(entry->result->identity == 0x30000 + 16 * static_cast<unsigned>(element) + TENSOR_RANK,
-          "wrong integer tensor layout identity");
+          "wrong typed tensor layout identity");
   auto group = core->openRoot();
   check(bool(group), "root group failed");
   Result out{}, again{};
@@ -165,6 +183,21 @@ int main(int argc, char **argv) {
             wrong.identity = 0x30000 + 16 * static_cast<unsigned>(opposite) + TENSOR_RANK;
           } else
             wrong.identity ^= 0x100000;
+          if constexpr (element == NumericType::Float64) {
+            for (auto impostor : {NumericType::Float32, NumericType::Int64, NumericType::UInt64}) {
+              auto other = *entry->result;
+              other.identity = impostor == NumericType::Float32
+                                   ? TENSOR_RANK + 2
+                                   : 0x30000 + 16 * static_cast<unsigned>(impostor) + TENSOR_RANK;
+              Invocation invalid;
+              alignas(Result) std::array<std::byte, sizeof(Result)> bytes;
+              bytes.fill(std::byte{0x5a});
+              const auto before = bytes;
+              check(!core->observe(task, other, invalid, bytes.data()) && invalid.status() == 3 &&
+                        bytes == before && !invalid.live(),
+                    "numeric impostor published tensor data");
+            }
+          }
           Invocation invalid;
           alignas(Result) std::array<std::byte, sizeof(Result)> untouched;
           untouched.fill(std::byte{0x5a});
