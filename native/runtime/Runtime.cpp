@@ -186,8 +186,11 @@ void Invocation::expectedTaskError(std::int64_t kind, std::int64_t code, std::in
 [[noreturn]] void Invocation::reportFailure() noexcept {
   if (!code_ && !taskError_)
     fault(3);
-  const char *name = code_ == 1 ? "ShapeFault" : code_ == 2 ? "AllocationFault"
-                       : code_ == 4 ? "ArithmeticFault" : "RuntimeFault";
+  const char *name = code_ == 1   ? "ShapeFault"
+                     : code_ == 2 ? "AllocationFault"
+                     : code_ == 4 ? "ArithmeticFault"
+                     : code_ == 5 ? "BoundsFault"
+                                  : "RuntimeFault";
   if (taskError_)
     name = taskError_ == 1   ? "TaskError.Fault"
            : taskError_ == 2 ? "TaskError.Cancelled"

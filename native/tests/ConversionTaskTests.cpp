@@ -6,6 +6,9 @@
 #include <iostream>
 using namespace kalandra;
 using namespace kalandra::runtime;
+#ifndef EXPECTED_FAULT
+#define EXPECTED_FAULT 4
+#endif
 #ifndef DESTINATION_TYPE
 #define DESTINATION_TYPE 9
 #endif
@@ -80,19 +83,23 @@ int main(int argc, char **argv) {
       }
     }
     if (mode == 5)
-      check(failure.kind == TaskFailure::Fault && failure.code == 4 && failure.line == 2 &&
-                failure.column == 3 && !published,
+      check(failure.kind == TaskFailure::Fault && failure.code == EXPECTED_FAULT &&
+                failure.line == 2 && failure.column == 3 && !published,
             "wrong conversion arithmetic fault/location");
     else if (mode == 1 || mode == 2)
       check(failure.kind == (mode == 1 ? TaskFailure::Cancelled : TaskFailure::DeadlineExceeded),
             "wrong cancellation kind");
     else if (mode == 4)
       check(failure.kind == TaskFailure::AdmissionRejected, "wrong admission result");
-    else if (mode == 3 && failure.kind != TaskFailure::None)
+    else if (mode == 3 && failure.kind != TaskFailure::None) {
+      if (!((failure.kind == TaskFailure::Fault && failure.code == 2) ||
+            failure.kind == TaskFailure::AdmissionRejected))
+        std::cerr << "allocation failure kind " << unsigned(failure.kind) << " code "
+                  << failure.code << " location " << failure.line << ":" << failure.column << "\n";
       check((failure.kind == TaskFailure::Fault && failure.code == 2) ||
                 failure.kind == TaskFailure::AdmissionRejected,
             "wrong allocation failure");
-    else
+    } else
       check(failure.kind == TaskFailure::None && published, "conversion worker failed");
     check(core->close(group) && core->drain() && core->release(group), "group release failed");
     auto stats = core->stats();

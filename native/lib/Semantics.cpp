@@ -797,6 +797,44 @@ private:
     }
     return invoke(frame, span, callee->name, call.arguments, expected);
   }
+  std::optional<ValueId> infer(Frame &frame, SourceSpan span, const IndexExpr &read,
+                               const std::optional<ValueType> &expected) {
+    std::optional<ValueType> context;
+    if (expected && expected->builtin == BuiltinValue::Numeric && !expected->tensor &&
+        !expected->task && !expected->fallible && !expected->device &&
+        std::holds_alternative<ArrayExpr>(syntax_.expressions[read.input].value)) {
+      context = *expected;
+      context->array = context->tensor = true;
+      context->shape = {{std::nullopt, 0}};
+    }
+    auto input = expression(frame, read.input, context);
+    if (!input)
+      return {};
+    auto index = expression(frame, read.index);
+    if (!index)
+      return {};
+    const auto a = node(*input).type, i = node(*index).type;
+    if (!a.array || !a.tensor || a.shape.size() != 1 || a.task || a.fallible || a.device ||
+        a.builtin != BuiltinValue::Numeric || i.tensor || i.task || i.fallible || i.device ||
+        i.builtin != BuiltinValue::Numeric || !isInteger(i.element)) {
+      error("S061", "indexing requires a completed CPU numeric array and an integer scalar index",
+            span);
+      return {};
+    }
+    if (auto known = intConstants_.find(*index); known != intConstants_.end()) {
+      if (known->second < 0 || known->second > INT64_MAX ||
+          (a.shape[0].constant && known->second >= *a.shape[0].constant)) {
+        error("S062", "array index is outside its valid zero-based range", span);
+        return {};
+      }
+    } else if (a.shape[0].constant && *a.shape[0].constant == 0) {
+      error("S062", "cannot index an empty array", span);
+      return {};
+    }
+    ValueType result;
+    result.element = a.element;
+    return add(frame, result, span, ArrayIndex{*input, *index});
+  }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const ArrayExpr &array,
                                const std::optional<ValueType> &expected) {
     if (expected && !expected->array) {

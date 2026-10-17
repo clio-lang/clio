@@ -218,6 +218,21 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
           !numericArithmeticAvailable(source.element, target))
         return "numeric conversions require implemented CPU values with unchanged shape";
     }
+    if (const auto *read = std::get_if<ArrayIndex>(&expression.operation)) {
+      if (read->input >= module.expressions.size() || read->index >= module.expressions.size())
+        return "array index references invalid operands";
+      const auto &a = module.expressions[read->input].type;
+      const auto &i = module.expressions[read->index].type;
+      const auto &r = expression.type;
+      const auto scalar = [](const ValueType &t) {
+        return t.builtin == BuiltinValue::Numeric && !t.tensor && !t.array && t.shape.empty() &&
+               !t.task && !t.fallible && !t.device;
+      };
+      if (target != NumericTarget::Cpu || !a.array || !a.tensor || a.shape.size() != 1 ||
+          a.builtin != BuiltinValue::Numeric || a.task || a.fallible || a.device || !scalar(i) ||
+          !isInteger(i.element) || !scalar(r) || r.element != a.element)
+        return "array indexing requires completed CPU numeric array and integer scalar operands";
+    }
     if (const auto *construction = std::get_if<ArrayToTensor>(&expression.operation)) {
       if (construction->input >= module.expressions.size())
         return "array-to-tensor construction references invalid input";
@@ -421,6 +436,11 @@ std::string dumpTypedIR(const TypedModule &module) {
             } else if constexpr (std::is_same_v<T, TensorLiteral>) {
               out << (node.type.array ? "array.literal ordered " : "tensor.literal row_major ");
               arguments(operation.elements);
+            } else if constexpr (std::is_same_v<T, ArrayIndex>) {
+              out << "array.index checked ";
+              value(operation.input);
+              out << ", ";
+              value(operation.index);
             } else if constexpr (std::is_same_v<T, ArrayToTensor>) {
               out << "tensor.from_array ordered_copy ";
               value(operation.input);

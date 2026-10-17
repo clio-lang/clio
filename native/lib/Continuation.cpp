@@ -25,6 +25,8 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
         else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, NumericConvert> ||
                            std::is_same_v<T, ShapeCheck>)
           return {op.input};
+        else if constexpr (std::is_same_v<T, ArrayIndex>)
+          return {op.input, op.index};
         else if constexpr (std::is_same_v<T, ArrayToTensor>) {
           auto result = op.dimensions.value_or(std::vector<ValueId>{});
           result.insert(result.begin(), op.input);
@@ -190,6 +192,9 @@ private:
             op.input = importValue(op.input);
             for (auto &capture : op.captures)
               capture = importValue(capture);
+          } else if constexpr (std::is_same_v<T, ArrayIndex>) {
+            op.input = importValue(op.input);
+            op.index = importValue(op.index);
           } else if constexpr (std::is_same_v<T, ArrayToTensor>) {
             op.input = importValue(op.input);
             if (op.dimensions)
@@ -280,7 +285,10 @@ private:
       comparison->right = reads[1];
     } else if (auto *convert = std::get_if<NumericConvert>(&op))
       convert->input = reads[0];
-    else if (auto *construction = std::get_if<ArrayToTensor>(&op)) {
+    else if (auto *read = std::get_if<ArrayIndex>(&op)) {
+      read->input = reads[0];
+      read->index = reads[1];
+    } else if (auto *construction = std::get_if<ArrayToTensor>(&op)) {
       construction->input = reads[0];
       if (construction->dimensions)
         construction->dimensions->assign(reads.begin() + 1, reads.end());

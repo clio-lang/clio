@@ -91,8 +91,11 @@ void validIR(const TypedModule &module) {
             operand(op.subject);
           else if constexpr (std::is_same_v<T, FailOperation>)
             operand(op.error);
-          else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, ShapeCheck> ||
-                             std::is_same_v<T, ArrayToTensor>)
+          else if constexpr (std::is_same_v<T, ArrayIndex>) {
+            operand(op.input);
+            operand(op.index);
+          } else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, ShapeCheck> ||
+                               std::is_same_v<T, ArrayToTensor>)
             operand(op.input);
         },
         expression.operation);

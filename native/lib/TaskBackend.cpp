@@ -317,6 +317,11 @@ private:
     for (const auto &instruction : plan.code)
       if (instruction.code == Code::Spawn && !staging.contains(instruction.target))
         staging[instruction.target] = builder.CreateAlloca(packets[instruction.target]);
+    auto *spawnFailure = staging.empty() ? nullptr : builder.CreateAlloca(failureType);
+    std::vector<std::size_t> groupExits(plan.groups, SIZE_MAX);
+    for (std::size_t n = 0; n < plan.code.size(); ++n)
+      if (plan.code[n].code == Code::Join)
+        groupExits.at(plan.code[n].group) = n;
     auto *leave = Block::Create(context, "suspend", resume);
     auto *abort = Block::Create(context, "fault", resume);
     std::vector<Block *> blocks;
@@ -492,7 +497,18 @@ private:
         call("kalandra_task_spawn_v1", voidType,
              {task, group(instruction.group), entries[instruction.target], packet,
               payload(instruction.output)});
-        builder.CreateBr(next);
+        auto *valid = builder.CreateLoad(
+            i32, builder.CreateStructGEP(handleType, payload(instruction.output), 0));
+        auto *rejected = Block::Create(context, "spawn.rejected", resume);
+        builder.CreateCondBr(builder.CreateICmpNE(valid, c32(UINT32_MAX)), next, rejected);
+        builder.SetInsertPoint(rejected);
+        // A failed group may settle between dispatches. Preserve that failure
+        // and join its children instead of awaiting an invalid task handle.
+        call("kalandra_group_failure_v1", voidType, {task, group(instruction.group), spawnFailure});
+        auto exit = groupExits.at(instruction.group);
+        if (exit == SIZE_MAX)
+          throw std::runtime_error("spawn has no owning group exit");
+        builder.CreateCondBr(hasFailure(spawnFailure), blocks[exit], abort);
         break;
       }
       case Code::Await: {
@@ -572,8 +588,11 @@ private:
         if (field == ErrorField::Kind) {
           auto *kind = builder.CreateSelect(
               builder.CreateICmpEQ(code, c64(1)), c32(3),
-              builder.CreateSelect(builder.CreateICmpEQ(code, c64(2)), c32(4),
-                                   builder.CreateSelect(builder.CreateICmpEQ(code, c64(4)), c32(1), c32(5))));
+              builder.CreateSelect(
+                  builder.CreateICmpEQ(code, c64(2)), c32(4),
+                  builder.CreateSelect(
+                      builder.CreateICmpEQ(code, c64(4)), c32(1),
+                      builder.CreateSelect(builder.CreateICmpEQ(code, c64(5)), c32(2), c32(5)))));
           builder.CreateStore(kind, payload(instruction.output));
         } else {
           auto *textType = llvm::cast<llvm::StructType>(valueType(type)->getElementType(1));
@@ -588,10 +607,13 @@ private:
           else
             message = builder.CreateSelect(
                 builder.CreateICmpEQ(code, c64(1)), text("tensor shape mismatch"),
-                builder.CreateSelect(builder.CreateICmpEQ(code, c64(2)), text("allocation failed"),
-                                     builder.CreateSelect(builder.CreateICmpEQ(code, c64(4)),
-                                                          text("integer arithmetic fault"),
-                                                          text("native execution fault"))));
+                builder.CreateSelect(
+                    builder.CreateICmpEQ(code, c64(2)), text("allocation failed"),
+                    builder.CreateSelect(builder.CreateICmpEQ(code, c64(4)),
+                                         text("integer arithmetic fault"),
+                                         builder.CreateSelect(builder.CreateICmpEQ(code, c64(5)),
+                                                              text("array index out of bounds"),
+                                                              text("native execution fault")))));
           builder.CreateStore(message, payload(instruction.output));
         }
         builder.CreateBr(next);

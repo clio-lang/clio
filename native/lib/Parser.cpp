@@ -271,6 +271,16 @@ private:
         left = call;
         continue;
       }
+      if (consume(TokenKind::LeftBracket)) {
+        const auto begin = node(*left).span.begin;
+        auto index = parseExpression();
+        if (!index || !expect(TokenKind::RightBracket, "expected ']' after index"))
+          return {};
+        left = add({{begin, tokens_[position_ - 1].span.end}, IndexExpr{*left, *index}});
+        if (!left)
+          return {};
+        continue;
+      }
       if (word("catch") && minimum <= 4) {
         advance();
         if (!word("fn")) {

@@ -98,6 +98,9 @@ struct ArrayToTensor {
   std::optional<std::vector<ValueId>> dimensions =
       {}; // Absent preserves rank one; empty is rank zero.
 };
+struct ArrayIndex {
+  ValueId input, index;
+};
 struct ArrayMap {
   ValueId input;
   FunctionId function; // One explicit element parameter, followed by lifted captures.
@@ -180,8 +183,8 @@ struct TypedExpr {
   std::variant<Float64Literal, Float32Literal, Int32Literal, Int64Literal, UInt32Literal,
                UInt64Literal, BoolLiteral, ScalarCompare, SymbolRead, ScalarUnary, TensorUnary,
                ScalarBinary, TensorBinary, TensorLiteral, NumericConvert, FunctionCall, Matmul,
-               ReduceSum, ArrayMap, ArrayToTensor, ShapeCheck, DeviceSelection, Transfer,
-               TaskOperation, ParallelOperation, ConditionalOperation, CatchOperation,
+               ReduceSum, ArrayMap, ArrayToTensor, ArrayIndex, ShapeCheck, DeviceSelection,
+               Transfer, TaskOperation, ParallelOperation, ConditionalOperation, CatchOperation,
                MatchOperation, ErrorFieldRead, FailOperation>
       operation;
 };

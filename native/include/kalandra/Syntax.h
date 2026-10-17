@@ -125,6 +125,9 @@ struct CallExpr {
   ExprId callee;
   std::vector<ExprId> arguments;
 };
+struct IndexExpr {
+  ExprId input, index;
+};
 struct ArrayExpr {
   std::vector<ExprId> elements;
 };
@@ -179,8 +182,8 @@ struct FailExpr {
 struct Expr {
   SourceSpan span;
   std::variant<NameExpr, NumberExpr, UnaryExpr, BinaryExpr, ComparisonExpr, CallExpr, ArrayExpr,
-               TaskExpr, ParallelExpr, ConditionalExpr, LogicalExpr, CatchExpr, MatchExpr, FailExpr,
-               LambdaExpr>
+               IndexExpr, TaskExpr, ParallelExpr, ConditionalExpr, LogicalExpr, CatchExpr,
+               MatchExpr, FailExpr, LambdaExpr>
       value;
 };
 struct Statement {
