@@ -126,8 +126,17 @@ int main() {
           require(slot.element == NumericType::UInt64, "continuation lost numeric identity");
     auto unsupported = typed;
     for (auto &expr : unsupported.expressions)
-      expr.type.element = NumericType::Float64;
-    require(!lowerNative(unsupported), "task backend accepted unsupported float64 IR");
+      expr.type.element = NumericType::Int16;
+    auto rejectedTask = lowerNative(unsupported);
+    require(!rejectedTask && rejectedTask.error().find("int16") != std::string::npos,
+            "task backend accepted unsupported int16 IR");
+    auto realTask =
+        analyze("fn identity(values:Tensor[float,?]) -> Tensor[float,?]:\n  values\n"
+                "fn main() -> float ! TaskError:\n  try parallel:\n"
+                "    values:Tensor[float,2] = tensor([1.0000000000000002,-0.0])\n"
+                "    copied = try await spawn identity(values)\n    reduceSum(copied)\n");
+    require(realTask.ok() && bool(lowerNative(*realTask.module)),
+            "task backend rejected supported float64 reduction");
     ValueType builtin;
     builtin.builtin = BuiltinValue::TaskError;
     builtin.element = invalid;

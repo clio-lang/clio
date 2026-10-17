@@ -61,3 +61,19 @@ foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
       "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}" -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyFloat64TensorTasks.cmake")
   set_tests_properties(native-float64-tensor-tasks-${VARIANT} PROPERTIES TIMEOUT 240)
 endforeach()
+
+foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+  if(VARIANT STREQUAL "sanitized")
+    set(FLOAT64_RUNTIME "$<TARGET_FILE:kalandra-native-runtime-sanitized>")
+  elseif(VARIANT STREQUAL "thread-sanitized")
+    set(FLOAT64_RUNTIME "$<TARGET_FILE:kalandra-native-runtime-thread-sanitized>")
+  else()
+    set(FLOAT64_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
+  endif()
+  add_test(NAME native-float64-reductions-${VARIANT}
+    COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>" "-DCLANGXX=${CMAKE_CXX_COMPILER}"
+      "-DLLVM_ROOT=${KALANDRA_LLVM_ROOT}" "-DRUNTIME=${FLOAT64_RUNTIME}" "-DVARIANT=${VARIANT}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/float64-reductions-${VARIANT}"
+      "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}" -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyFloat64Reductions.cmake")
+  set_tests_properties(native-float64-reductions-${VARIANT} PROPERTIES TIMEOUT 240)
+endforeach()

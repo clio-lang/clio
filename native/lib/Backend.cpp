@@ -316,7 +316,12 @@ private:
       OpBuilder::InsertionGuard guard(builder_);
       builder_.setInsertionPointToStart(&result.getThenRegion().front());
       Value empty = isa<IntegerType>(elementType)
-                        ? Value(arith::ConstantIntOp::create(builder_, loc, 0, cast<IntegerType>(elementType).getWidth())) : zero(loc);
+                        ? Value(arith::ConstantIntOp::create(
+                              builder_, loc, 0, cast<IntegerType>(elementType).getWidth()))
+                    : elementType.isF64()
+                        ? Value(arith::ConstantFloatOp::create(builder_, loc, builder_.getF64Type(),
+                                                               llvm::APFloat(0.0)))
+                        : zero(loc);
       if (width != 1)
         empty = vector::BroadcastOp::create(builder_, loc, vectorType, empty);
       scf::YieldOp::create(builder_, loc, ValueRange{empty});

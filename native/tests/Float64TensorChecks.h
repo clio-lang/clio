@@ -32,13 +32,27 @@ static void checkFloat64Tensors() {
     require(bool(lowerNative(*typed.module)), "ranked binary64 literal lowering rejected");
 #endif
   }
+  for (auto shape : {"", ",?", ",?,?", ",?,?,?"}) {
+    auto typed = analyze("fn f(x:Tensor[float" + std::string(shape) +
+                         "]) -> float:\n  reduceSum(x)\nfn main() -> float:\n  0\n");
+    require(typed.ok(), "float64 reduction rejected");
+#ifndef KALANDRA_FLOAT64_FRONTEND_ONLY
+    auto native = lowerNative(*typed.module);
+    require(bool(native), "float64 reduction lowering rejected");
+    require(native->llvm.find("fadd double") == std::string::npos,
+            "float64 reduction bypassed strict arithmetic");
+    for (auto &expression : typed.module->expressions)
+      if (std::holds_alternative<ReduceSum>(expression.operation))
+        expression.type.element = NumericType::Float32;
+    require(!lowerNative(*typed.module), "mismatched reduction element type admitted");
+#endif
+  }
   struct Bad {
     const char *source;
     const char *code;
   };
   for (auto test :
-       {Bad{"fn f(x:Tensor[float64,?]) -> float64:\n  reduceSum(x)\n", "S053"},
-        Bad{"fn f(x:Tensor[float64,?,?]) -> Tensor[float64,?,?]:\n  matmul(x,x)\n", "S053"},
+       {Bad{"fn f(x:Tensor[float64,?,?]) -> Tensor[float64,?,?]:\n  matmul(x,x)\n", "S053"},
         Bad{"fn f(x:Tensor[float,?]) -> Tensor[float,?]:\n  x%2\n", "S019"},
         Bad{"fn f(x:Tensor[float,?],y:Tensor[float32,?]) -> Tensor[float,?]:\n  x+y\n", "S017"},
         Bad{"fn f() -> Tensor[float,1]:\n  tensor([1.8e308])\n", "S015"},
@@ -50,7 +64,7 @@ static void checkFloat64Tensors() {
   require(limit.ok(), "exact eight-byte static byte bound rejected");
 #ifndef KALANDRA_FLOAT64_FRONTEND_ONLY
   // Bypass source checks to verify operation and task admission on all typed IR paths.
-  for (auto operation : {"reduceSum(x)", "matmul(x,x)"}) {
+  for (auto operation : {"matmul(x,x)"}) {
     const bool reduction = std::string(operation).starts_with("reduce");
     auto typed = analyze(std::string("fn f(x:Tensor[float32,?,?]) -> ") +
                          (reduction ? "float32" : "Tensor[float32,?,?]") + ":\n  " + operation +

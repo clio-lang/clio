@@ -689,13 +689,13 @@ Elementwise `+`, `-`, `*`, `/`, unary signs, and either scalar operand order use
 
 The existing eight-byte storage, allocation-size checks, strided memref access and invocation ownership machinery serve this type without a new runtime or numerical kernel implementation. Borrowed inputs remain immutable, including aliased and transposed views. Returned backing can be retained across invocation settlement. Shape and allocation failures publish no partial result; generated loops cooperate with cancellation.
 
-CPU worker captures/results are now supported as described below; the temporary S054 module restriction has been removed. `reduceSum` and `matmul` still reject float64 with S053, and backend admission independently rejects forged typed IR for those operations. Float64 remains unsupported in Metal source modules.
+CPU worker captures/results are now supported as described below; the temporary S054 module restriction has been removed. Float64 `reduceSum` is now qualified below. `matmul` still rejects float64 with S053, and backend admission independently rejects forged typed IR for matrix multiplication. Float64 remains unsupported in Metal source modules.
 
 [Frontend checks](../../native/tests/Float64TensorChecks.h) cover literal ranks, aliases, scalar lifting, strict numeric identities, exact eight-byte size boundaries and unsupported operations/targets. The [compiled driver](../../native/cmake/VerifyFloat64Tensors.cmake) and [runtime harness](../../native/tests/Float64TensorRuntimeTests.cpp) reuse the [APFloat corpus](../../native/metal-proof/Float64Oracle.h) across arithmetic, unary signs and separately rounded composition. Ranked tests exercise all 467,411 operand pairs; scalar-lift tests choose one scalar per batch and calculate the corresponding lane reference. Rank zero uses 4,096 samples spanning the corpus. Eight ARM floating environments cover all rounding modes with flush-to-zero/default-NaN disabled and enabled, including literal and refinement tests. Result bits are checked both before and after invocation settlement. Additional probes cover empty axes, padded/displaced/transposed/aliased inputs, dynamic shape mismatch, exact/overflowing byte bounds, allocation injection and poll-triggered cancellation. Debug, optimized, ASan/UBSan and separate TSan builds qualify generated execution; frontend checks also run independently under ASan/UBSan.
 
 [Qualification evidence](../../native/metal-proof/evidence/cpu-float64-tensors-2026-10-17.json) records 37 focused frontend, scalar/worker and strict Metal regression checks passing, plus the final four tensor variants with strengthened non-square view probes. It records 628,872 tensor invocations, exact lane checks before/after settlement, and preservation of all 640 tracked float32 artifacts. The backend, strict arithmetic engine, runtime and common continuation planner are unchanged.
 
-Next: qualified float64 reductions and matrix multiplication. Explicit numeric conversions and GPU numeric formats remain separate work. Discuss native distributed execution before implementation.
+Float64 reductions are qualified below; matrix multiplication is next. Explicit numeric conversions and GPU numeric formats remain separate work. Discuss native distributed execution before implementation.
 
 
 ### Float64 tensor captures and results in CPU tasks
@@ -719,4 +719,27 @@ Captures retain their backing while a worker uses them. Nested calls and repeate
 
 The [worker driver](../../native/cmake/VerifyFloat64TensorTasks.cmake) and [shared retained-result harness](../../native/tests/Int32TensorTaskTests.cpp) check ranks zero through three, empty matrices, mixed captures from all six supported tensor families, float64 scalar captures, exact signed-zero/subnormal/precision-boundary/infinity/NaN results, nested and cached awaits, transactional layout rejection and results surviving their owners. They also exercise shape faults, recovery after an integer sibling fault, allocation injection, cancellation, deadlines and admission rejection with one, two and four workers. Debug, optimized, ASan/UBSan and TSan builds are qualified. The [qualification evidence](../../native/metal-proof/evidence/cpu-float64-tensor-tasks-2026-10-17.json) records 57 focused checks passing across the regression run and final worker rerun, including 444 float64 tensor worker process runs. All 640 tracked float32 numerical artifacts remain unchanged. The strict engine, CPU tensor backend, continuation planner, storage and runtime are unchanged.
 
-Float64 reductions, matrix multiplication, explicit numeric conversions and GPU execution remain separate milestones. Discuss native distributed execution before implementation.
+Float64 reductions are qualified below. Matrix multiplication, explicit numeric conversions and GPU execution remain separate milestones. Discuss native distributed execution before implementation.
+
+
+### CPU float64 reduceSum
+
+`reduceSum` accepts a CPU `Tensor[float64, ...]` or `Tensor[float, ...]` and returns the same scalar element type. It uses the existing row-major balanced-adjacent reduction tree: add neighboring pairs and carry an odd tail unchanged to the next level. Each addition rounds separately to binary64, nearest with ties to even. The compiler does not reassociate the tree or narrow intermediate values to float32.
+
+```kalandra
+fn sum(values: Tensor[float, ?]) -> float:
+  reduceSum(values)
+
+fn example() -> float ! TaskError:
+  values: Tensor[float, 3] = tensor([1.0000000000000002, 2, 3])
+  try parallel:
+    try await spawn sum(values)
+```
+
+A rank-zero tensor or one-element input returns its element bits unchanged, including negative zero and NaN payloads. Any zero extent produces positive zero without reading input elements. Actual additions canonicalize NaNs according to the scalar arithmetic contract; overflow produces infinity rather than an Arithmetic fault. Shape/byte-bound checks, scratch allocation failures and cooperative cancellation use the existing native execution paths. Scratch storage settles on success and failure. The input remains immutable, including padded, displaced and transposed native views.
+
+Ordinary functions, direct `spawn reduceSum(values)`, nested workers, aliased handles and cached awaits share the same reduction lowering. Typed float64 scalar result layouts preserve exact results. Handlers can reuse owned tensor data after a sibling task fails and start a fresh parallel group.
+
+The [compiled driver](../../native/cmake/VerifyFloat64Reductions.cmake) and [runtime harness](../../native/tests/Float64ReductionRuntimeTests.cpp) compare result bits against an independent APFloat adjacent-pair tree. Tests cover ranks zero through three, empty axes, singleton payload preservation, sampled boundary/random operand pairs, odd lengths and power-of-two neighbors, longer trees, row-major strided access, exact eight-byte bounds, injected allocation failures and cancellation. Eight ARM floating environments check independence from host rounding/flush-to-zero/default-NaN controls and absence of floating exception flags. Worker tests reuse the existing scalar result harness for nested/cached calls, recovery, scheduler and invocation allocation injection, cancellation, deadlines and admission rejection with one, two and four workers. The [evidence record](../../native/metal-proof/evidence/cpu-float64-reductions-2026-10-17.json) records 66 focused checks passing across the regression run and updated capability-test rerun, including 791,572 ranked reduction invocations and 636 worker process runs across debug, optimized, ASan/UBSan and TSan builds. All 640 tracked float32 numerical artifacts remain unchanged. The strict arithmetic engine, task backend, continuation planner, tensor storage and runtime are unchanged.
+
+Float64 matrix multiplication is next. Explicit conversions and GPU formats remain separate work; discuss native distributed execution before implementation.
