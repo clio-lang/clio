@@ -153,7 +153,7 @@ private:
            name == "or" || name == "not";
   }
   std::optional<ValueType> type(const TypeSyntax &syntax) {
-    if (!syntax.tensor && name(syntax.name) == "Bool") {
+    if (!syntax.tensor && !syntax.array && name(syntax.name) == "Bool") {
       ValueType result;
       result.builtin = BuiltinValue::Bool;
       return result;
@@ -164,11 +164,14 @@ private:
     if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu)) {
       error("S003",
             "implemented numeric types are int32, uint32, int64, uint64, float32 and float64 "
-            "scalars/tensors",
+            "scalars/tensors and numeric arrays",
             syntax.span);
       return {};
     }
-    ValueType result{syntax.tensor, {}};
+    ValueType result{syntax.tensor || syntax.array, {}};
+    result.array = syntax.array;
+    if (syntax.array)
+      result.shape.push_back(dynamic());
     result.element = *numeric;
     for (const auto &dimension : syntax.dimensions)
       result.shape.push_back(dimension.extent ? Extent{dimension.extent, 0} : dynamic());
@@ -354,7 +357,8 @@ private:
     }
     if (actual.builtin != expected.builtin ||
         (actual.builtin == BuiltinValue::Numeric && actual.element != expected.element) ||
-        actual.tensor != expected.tensor || actual.shape.size() != expected.shape.size()) {
+        actual.tensor != expected.tensor || actual.array != expected.array ||
+        actual.shape.size() != expected.shape.size()) {
       error("S010", "expected " + describeType(expected) + ", got " + describeType(actual), span);
       return {};
     }
@@ -586,7 +590,7 @@ private:
     if (!operand)
       return {};
     const auto type = node(*operand).type;
-    if (type.task || type.fallible || type.builtin != BuiltinValue::Numeric) {
+    if (type.task || type.fallible || type.array || type.builtin != BuiltinValue::Numeric) {
       error("S017", "arithmetic requires completed numeric values", span);
       return {};
     }
@@ -700,8 +704,9 @@ private:
       error("S019", "'%' requires integer operands", span);
       return {};
     }
-    if (a.task || b.task || a.fallible || b.fallible || a.builtin != BuiltinValue::Numeric ||
-        b.builtin != BuiltinValue::Numeric || a.element != b.element) {
+    if (a.task || b.task || a.fallible || b.fallible || a.array || b.array ||
+        a.builtin != BuiltinValue::Numeric || b.builtin != BuiltinValue::Numeric ||
+        a.element != b.element) {
       error("S017", "arithmetic requires completed values of the same numeric type", span);
       return {};
     }
@@ -749,11 +754,52 @@ private:
     }
     return invoke(frame, span, callee->name, call.arguments, expected);
   }
-  std::optional<ValueId> infer(Frame &, SourceSpan span, const ArrayExpr &,
-                               const std::optional<ValueType> &) {
-    error("S021", "general array values are not implemented; use tensor(...) for numeric tensors",
-          span);
-    return {};
+  std::optional<ValueId> infer(Frame &frame, SourceSpan span, const ArrayExpr &array,
+                               const std::optional<ValueType> &expected) {
+    if (expected && !expected->array) {
+      error("S021", "array literals require an array context; use tensor(...) for tensors", span);
+      return {};
+    }
+    if (array.elements.size() > limits_.maxTensorElements) {
+      error("S024", "array literal element limit exceeded", span);
+      return {};
+    }
+    if (!expected && array.elements.empty()) {
+      error("S058", "empty arrays need an explicit element type", span);
+      return {};
+    }
+    ValueType output{true, {{array.elements.size(), 0}}};
+    output.array = true;
+    if (expected)
+      output.element = expected->element;
+    std::vector<ValueId> elements;
+    for (auto leaf : array.elements) {
+      std::optional<ValueType> context;
+      if (expected) {
+        context = ValueType{};
+        context->element = output.element;
+      }
+      auto value = expression(frame, leaf, context);
+      if (!value)
+        return {};
+      const auto actual = node(*value).type;
+      if (actual.tensor || actual.task || actual.fallible || actual.device ||
+          actual.builtin != BuiltinValue::Numeric) {
+        error("S058", "array elements currently require completed CPU numeric scalars",
+              syntax_.expressions[leaf].span);
+        return {};
+      }
+      if (!expected && elements.empty())
+        output.element = actual.element;
+      ValueType scalar;
+      scalar.element = output.element;
+      if (!conform(frame, *value, scalar, syntax_.expressions[leaf].span))
+        return {};
+      elements.push_back(*value);
+    }
+    if (!validSize(output, span))
+      return {};
+    return add(frame, std::move(output), span, TensorLiteral{std::move(elements)});
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const TaskExpr &operation,
                                const std::optional<ValueType> &expected) {
@@ -1073,7 +1119,7 @@ private:
       if (resultType) {
         if (actual.builtin != resultType->builtin ||
             (actual.builtin == BuiltinValue::Numeric && actual.element != resultType->element) ||
-            actual.tensor != resultType->tensor ||
+            actual.tensor != resultType->tensor || actual.array != resultType->array ||
             actual.shape.size() != resultType->shape.size()) {
           error("S043", "conditional branches require a common success type", span);
           return {};
@@ -1242,7 +1288,7 @@ private:
         }
         if (actual.builtin != resultType->builtin ||
             (actual.builtin == BuiltinValue::Numeric && actual.element != resultType->element) ||
-            actual.tensor != resultType->tensor ||
+            actual.tensor != resultType->tensor || actual.array != resultType->array ||
             actual.shape.size() != resultType->shape.size()) {
           error("S043", "match branches need a common success type", arm.span);
           return {};
@@ -1325,7 +1371,7 @@ private:
       return {};
     }
     const bool contextual = expected && expected->tensor;
-    if (expected && !expected->tensor) {
+    if (expected && (!expected->tensor || expected->array)) {
       error("S026", "tensor construction requires a tensor result context", span);
       return {};
     }
@@ -1482,7 +1528,7 @@ private:
     if (!input)
       return {};
     const auto source = node(*input).type;
-    if (source.builtin != BuiltinValue::Numeric || source.task || source.fallible ||
+    if (source.builtin != BuiltinValue::Numeric || source.array || source.task || source.fallible ||
         source.device) {
       error("S055", "numeric conversion requires an ordinary CPU numeric value", span);
       return {};
@@ -1562,7 +1608,7 @@ private:
       error("S047", "host tensor operations require an explicit transfer to devices.cpu()", span);
       return {};
     }
-    if (leftType.task || leftType.fallible || !leftType.tensor ||
+    if (leftType.task || leftType.fallible || leftType.array || !leftType.tensor ||
         (callee == "matmul" && leftType.shape.size() != 2)) {
       error("S028", callee + " requires " + (callee == "matmul" ? "rank-two tensors" : "a tensor"),
             syntax_.expressions[arguments[0]].span);
@@ -1586,7 +1632,8 @@ private:
       error("S047", "host tensor operations require an explicit transfer to devices.cpu()", span);
       return {};
     }
-    if (rightType.task || rightType.fallible || !rightType.tensor || rightType.shape.size() != 2) {
+    if (rightType.task || rightType.fallible || rightType.array || !rightType.tensor ||
+        rightType.shape.size() != 2) {
       error("S028", "matmul requires rank-two tensors", syntax_.expressions[arguments[1]].span);
       return {};
     }
@@ -1663,7 +1710,8 @@ private:
       return {};
     auto type = node(*input).type;
     const auto selection = node(*target).type;
-    if (!type.tensor || type.task || type.fallible || selection.builtin != BuiltinValue::Device) {
+    if (!type.tensor || type.array || type.task || type.fallible ||
+        selection.builtin != BuiltinValue::Device) {
       error("S047", "transfer requires a completed tensor and device selector", span);
       return {};
     }

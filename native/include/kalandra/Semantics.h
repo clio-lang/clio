@@ -14,6 +14,7 @@ struct Extent {
 };
 enum class BuiltinValue { Numeric, TaskError, FaultKind, String, Device, Bool };
 struct ValueType {
+  // Ranked immutable storage; arrays use rank one with a separate source category.
   bool tensor = false;
   std::vector<Extent> shape;
   bool task = false, fallible = false;
@@ -24,6 +25,7 @@ struct ValueType {
   std::optional<std::uint32_t> device = {};
   // Scalar numeric identity, or the tensor element type; irrelevant to other builtins.
   NumericType element = NumericType::Float32;
+  bool array = false; // Source [T], distinct from Tensor[T,...]; never an implicit conversion.
 };
 struct Symbol {
   std::string name;

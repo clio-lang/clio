@@ -860,3 +860,5 @@ include(cmake/Booleans.cmake)
 include(cmake/ControlFlow.cmake)
 
 include(cmake/TensorInference.cmake)
+
+include(cmake/Arrays.cmake)

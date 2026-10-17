@@ -79,6 +79,20 @@ private:
     return {};
   }
   std::optional<TypeSyntax> parseType() {
+    if (at(TokenKind::LeftBracket)) {
+      const auto start = advance().span;
+      auto element = expect(TokenKind::Identifier, "expected a numeric array element type");
+      if (!element)
+        return {};
+      auto end = expect(TokenKind::RightBracket, "expected ']' after array element type");
+      if (!end)
+        return {};
+      TypeSyntax type;
+      type.name = element->span;
+      type.span = {start.begin, end->span.end};
+      type.array = true;
+      return type;
+    }
     auto name = expect(TokenKind::Identifier, "expected a type name");
     if (!name)
       return {};

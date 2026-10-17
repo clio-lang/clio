@@ -183,6 +183,8 @@ private:
                                                   : f32;
   }
   std::string key(const ValueType &type) {
+    if (type.array && !type.task)
+      return "array." + std::string(describeNumeric(type.element)->name);
     if (type.builtin == BuiltinValue::Numeric && !type.task && type.tensor &&
         (isInteger(type.element) || type.element == NumericType::Float64))
       return "tensor." + std::string(describeNumeric(type.element)->name) + "." +
@@ -257,6 +259,7 @@ private:
     auto *constant = llvm::ConstantStruct::get(
         layoutType,
         {c64(type.builtin != BuiltinValue::Numeric ? 0x10000 + static_cast<unsigned>(type.builtin)
+             : type.array                          ? 0x40000 + static_cast<unsigned>(type.element)
              : type.tensor
                  ? (isInteger(type.element) || type.element == NumericType::Float64
                         ? 0x30000 + 16 * static_cast<unsigned>(type.element) + type.shape.size()

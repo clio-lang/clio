@@ -163,9 +163,14 @@ int main(int argc, char **argv) {
   check(entry && entry->result && entry->packetBytes == 0 &&
             entry->result->bytes == sizeof(Result) && entry->result->alignment == alignof(Result),
         "wrong generated native task export ABI");
+#ifdef ARRAY_RESULT
+  check(entry->result->identity == 0x40000 + static_cast<unsigned>(element),
+        "array task layout was confused with a tensor/scalar");
+#else
   if constexpr (element != NumericType::Float32)
     check(entry->result->identity == 0x30000 + 16 * static_cast<unsigned>(element) + TENSOR_RANK,
           "wrong typed tensor layout identity");
+#endif
   auto group = core->openRoot();
   check(bool(group), "root group failed");
   Result out{}, again{};

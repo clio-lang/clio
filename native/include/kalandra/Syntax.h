@@ -98,6 +98,7 @@ struct TypeSyntax {
   bool tensor = false;
   std::optional<SourceSpan> element;
   std::vector<Dimension> dimensions;
+  bool array = false;
 };
 using ExprId = std::size_t;
 struct NameExpr {

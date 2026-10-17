@@ -116,3 +116,6 @@ The initial float32-only subset above has expanded to checked int32/uint32/int64
 
 
 [Native tensor inference](tensors.md#native-tensor-element-and-shape-inference) now determines element identity and literal shape without an expected tensor type. It checks each leaf once in source order, requires homogeneous completed numeric scalars, and reuses the existing typed tensor literal operation. Empty data still requires element context.
+
+
+[Immutable native numeric arrays](arrays.md) now retain a distinct source category across annotations, typed literals, calls, branch joins and task continuations. Runtime storage reuses checked rank-one buffers, while source conformance and IR capability checks reject implicit tensor/array interchange and unsupported operations.

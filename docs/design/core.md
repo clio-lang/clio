@@ -264,3 +264,6 @@ Review this draft through the five programs: are the spellings readable, is the 
 The core syntax and immutable transformations are accepted. Numeric families now replace the prototype's `Number`; default widths and arithmetic rules are accepted in the [numeric design](numbers.md). The [memory design](memory.md) now leaves allocation strategies to the compiler and removes allocation-scope syntax. The [errors and effects direction](errors.md) is accepted. [Resources and task lifetimes](execution.md) are accepted. [Variants and error payloads](variants.md) are accepted. [Tensor types and shapes](tensors.md) are accepted. Review [placement and transfers](placement.md) next.
 
 Implementation follows the accepted core plus the required numeric and memory-safety decisions. Future conformance tests should assert the specified behavior and diagnostics rather than compare with generated prototype JavaScript.
+
+
+The [native immutable array foundation](arrays.md) now implements numeric array literals, `[T]` annotations, value passing and retained worker results. `map`, closures and broader element types remain unimplemented; the examples above continue to define the accepted complete core direction.
