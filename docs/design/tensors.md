@@ -218,3 +218,31 @@ Tensor notation, static/dynamic extent rules, scalar lifting versus explicit ten
 Review [placement and transfers](placement.md) next. Then write a complete CPU/GPU/remote example before implementing the first MLIR/native vertical slice.
 
 The native constructor now implements the flat-literal/constant-shape part of this design: `tensor([], [0, 3])` creates an empty matrix without changing the rank of a rank-one literal through an annotation. It uses the existing tensor-literal IR and checked CPU lowering; the Metal source subset supports rank one/two constant data. Runtime arrays and computed shape arguments remain unimplemented. See [shared placement qualification](placement-ir.md#explicit-literal-shapes).
+
+
+## Native tensor element and shape inference
+
+The CPU frontend now implements unannotated scalar and literal-data construction:
+
+```kalandra
+fn main():
+  values = tensor([[1, 2], [3, 4]])
+  reduceSum(values)
+```
+
+`values` has type `Tensor[int64, 2, 2]`; the result is `10`. Whole-number scalar expressions default to `int64`, and decimal/exponent expressions default to `float64`, following the scalar rules. A scalar input such as `tensor(7)` produces a rank-zero tensor. `tensor([1, 2, 3, 4], [2, 2])` infers the same element type with the explicit constant shape.
+
+Without an expected tensor type, each leaf expression is checked independently, in source order. All leaves must be completed CPU numeric scalars of exactly the same type. Bindings, function calls and explicit numeric conversions can supply any of the six implemented CPU element types. For example, two `int32` parameters produce an `int32` tensor without a result annotation:
+
+```kalandra
+fn pair(left: int32, right: int32):
+  tensor([left, right])
+```
+
+There is no common-type promotion across elements: `tensor([1, 2.5])` and `tensor([int32(1), 2])` are rejected in either order. Use an explicit tensor annotation to give numeric literals context, or explicit conversions to align already typed values. Existing contextual construction such as `values: Tensor[float32, 2] = tensor([1, 2])` continues to work.
+
+Empty data has no element-type evidence and still needs context: `empty: Tensor[int64, 2, 0] = tensor([], [2, 0])`. Shape dimensions alone do not select an element type. Ragged arrays, invalid shapes, mixed numeric identities, Boolean leaves, tensors as leaves, task handles and unhandled expected-error results are rejected. Calls are evaluated once in source order; the first runtime failure stops construction and publishes no partial result.
+
+Inferred tensors use the existing checked tensor IR, ownership and arithmetic lowering. They can pass through ordinary calls, conditional shape joins, nested workers and cached awaits. This does not add general array values, runtime-array construction, dynamic shape arguments or additional GPU numeric capabilities. Explicit element conversion remains the way to change an already inferred tensor's element type.
+
+Qualification on Apple M2 Max: 59 focused checks passed, including debug/optimized/ASan+UBSan/separate TSan execution, 864 worker harness runs, 192 allocation/lifetime cases and 640 exact retained float64 lane checks. All 640 tracked numerical artifacts remain unchanged. This is focused qualification, not a full-suite claim. The [inference evidence record](../../native/metal-proof/evidence/cpu-tensor-inference-2026-10-17.json) records source/artifact hashes and coverage.

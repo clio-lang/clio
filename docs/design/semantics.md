@@ -113,3 +113,6 @@ The initial float32-only subset above has expanded to checked int32/uint32/int64
 ## CPU conditional evaluation
 
 [Conditionals and logical operators](control-flow.md) now use ConditionalOperation with a completed Bool condition and two typed statement/result branches. Branch scopes and task-obligation state are copied independently; only observations common to all paths discharge incoming obligations. Joins retain concrete numeric identity, category/rank/residency and common shape facts. Synchronous CPU lowering uses native MLIR branches; continuation lowering uses explicit Boolean dispatch and existing result copies. Bool fail/rethrow contexts are also supported.
+
+
+[Native tensor inference](tensors.md#native-tensor-element-and-shape-inference) now determines element identity and literal shape without an expected tensor type. It checks each leaf once in source order, requires homogeneous completed numeric scalars, and reuses the existing typed tensor literal operation. Empty data still requires element context.

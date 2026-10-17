@@ -858,3 +858,5 @@ endif()
 include(cmake/Booleans.cmake)
 
 include(cmake/ControlFlow.cmake)
+
+include(cmake/TensorInference.cmake)

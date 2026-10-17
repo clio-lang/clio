@@ -751,7 +751,7 @@ private:
   }
   std::optional<ValueId> infer(Frame &, SourceSpan span, const ArrayExpr &,
                                const std::optional<ValueType> &) {
-    error("S021", "general array values are not implemented; use tensor(...) with float32 context",
+    error("S021", "general array values are not implemented; use tensor(...) for numeric tensors",
           span);
     return {};
   }
@@ -1324,11 +1324,13 @@ private:
       error("S024", "tensor literal element limit exceeded", span);
       return {};
     }
-    if (!expected || !expected->tensor) {
-      error("S026",
-            "tensor literals need Tensor[int32,...], Tensor[uint32,...], Tensor[int64,...], "
-            "Tensor[uint64,...], Tensor[float32,...] or Tensor[float64,...] context in this subset",
-            span);
+    const bool contextual = expected && expected->tensor;
+    if (expected && !expected->tensor) {
+      error("S026", "tensor construction requires a tensor result context", span);
+      return {};
+    }
+    if (!contextual && data->leaves.empty()) {
+      error("S026", "empty tensor data needs an explicit Tensor element type", span);
       return {};
     }
     if (arguments.size() == 2) {
@@ -1357,7 +1359,9 @@ private:
         dimensions.push_back(value);
       }
       ValueType shapeType{true, {}};
-      shapeType.element = expected->element;
+      // Validate extents/products before multiplying the explicit dimensions. The
+      // inferred element width is checked again on the final output type.
+      shapeType.element = contextual ? expected->element : NumericType::Int32;
       for (auto dimension : dimensions)
         shapeType.shape.push_back({dimension, 0});
       if (!validSize(shapeType, span))
@@ -1384,20 +1388,41 @@ private:
       data->shape = std::move(dimensions);
     }
     ValueType output{true, {}};
-    output.element = expected->element;
+    if (contextual)
+      output.element = expected->element;
     for (auto dimension : data->shape)
       output.shape.push_back({dimension, 0});
-    if (!validSize(output, span))
+    if (contextual && !validSize(output, span))
       return {};
     std::vector<ValueId> elements;
     for (auto leaf : data->leaves) {
+      std::optional<ValueType> context;
+      if (contextual) {
+        context = ValueType{};
+        context->element = output.element;
+      }
+      // Infer unannotated leaves independently, in source order. A previously
+      // inferred leaf must not silently supply narrowing/promotion context.
+      auto value = expression(frame, leaf, context);
+      if (!value)
+        return {};
+      const auto actual = node(*value).type;
+      if (actual.tensor || actual.task || actual.fallible || actual.device ||
+          actual.builtin != BuiltinValue::Numeric) {
+        error("S026", "tensor elements must be completed CPU numeric scalars",
+              syntax_.expressions[leaf].span);
+        return {};
+      }
+      if (!contextual && elements.empty())
+        output.element = actual.element;
       ValueType scalar;
       scalar.element = output.element;
-      auto value = expression(frame, leaf, scalar);
-      if (!value)
+      if (!conform(frame, *value, scalar, syntax_.expressions[leaf].span))
         return {};
       elements.push_back(*value);
     }
+    if (!validSize(output, span))
+      return {};
     return add(frame, std::move(output), span, TensorLiteral{std::move(elements)});
   }
   static const llvm::fltSemantics &floatSemantics(NumericType type) {

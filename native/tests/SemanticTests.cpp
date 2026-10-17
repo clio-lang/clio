@@ -318,7 +318,7 @@ void tensorLiterals() {
   rejected("fn main() -> Tensor[float32,2,2]:\n  tensor([[1],[2,3]])\n", "S023");
   rejected("fn main() -> Tensor[float32,2,2]:\n  tensor([[1,2,3],[4,5,6]])\n", "S011");
   rejected("fn main() -> Tensor[float32,0,?]:\n  tensor([])\n", "S010");
-  rejected("fn main():\n  tensor([[1]])\n", "S026");
+  accepted(analyze("fn main():\n  tensor([[1]])\n"));
 }
 void elementwiseArithmetic() {
   auto unary = analyze("fn negative(a: Tensor[float32,?,?]) -> Tensor[float32,?,?]:\n  -a\n"
