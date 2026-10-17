@@ -8,12 +8,23 @@
 #include <vector>
 using namespace kalandra;
 using namespace kalandra::runtime;
+#ifndef INTEGER_BITS
+#define INTEGER_BITS 32
+#endif
 #ifndef UNSIGNED_INPUT
 #define UNSIGNED_INPUT 0
 #endif
-constexpr auto element = UNSIGNED_INPUT ? NumericType::UInt32 : NumericType::Int32;
+constexpr auto element = UNSIGNED_INPUT
+                             ? (INTEGER_BITS == 64 ? NumericType::UInt64 : NumericType::UInt32)
+                             : (INTEGER_BITS == 64 ? NumericType::Int64 : NumericType::Int32);
 using Cell = NumericValue<element>;
-using Wide = std::conditional_t<UNSIGNED_INPUT, std::uint64_t, std::int64_t>;
+using Wide = std::conditional_t<UNSIGNED_INPUT,
+                                std::conditional_t<INTEGER_BITS == 64, __uint128_t, std::uint64_t>,
+                                std::conditional_t<INTEGER_BITS == 64, __int128_t, std::int64_t>>;
+using State = std::conditional_t<INTEGER_BITS == 64, std::uint64_t, std::uint32_t>;
+constexpr Cell precision = INTEGER_BITS == 64 ? Cell(9007199254740993LL) : Cell(16777217);
+constexpr Cell upperHalf = std::numeric_limits<Cell>::max() / 2 + 1;
+constexpr Cell squareLimit = INTEGER_BITS == 64 ? Cell(4294967295ULL) : Cell(65535);
 constexpr auto minimum = std::numeric_limits<Cell>::min();
 constexpr auto maximum = std::numeric_limits<Cell>::max();
 using Tensor = CpuTensor<element, 2>;
@@ -148,17 +159,20 @@ static bool cancelled() {
   std::vector<Cell> a(257 * 8193, 1), b(8193 * 3, 1);
   View left(257, 8193, a, false), right(8193, 3, b, true);
   Invocation context;
-  std::atomic<bool> token{false}, done{false};
+  std::atomic<bool> token{false}, done{false}, ready{false};
   std::atomic<std::uint64_t> polls{0};
   context.bindCancellation(&token);
   context.watchPolls(&polls);
   std::thread signal([&] {
+    ready.store(true);
     while (!done.load() && polls.load() < 4)
       std::this_thread::yield();
     if (!done.load())
       token.store(true);
   });
   Tensor out{};
+  while (!ready.load())
+    std::this_thread::yield();
   _mlir_ciface_kalandra_test_entry(&out, &left.tensor, &right.tensor, &context);
   done.store(true);
   signal.join();
@@ -170,29 +184,28 @@ static bool cancelled() {
   return ok && !context.live() && context.allocations() == context.releases();
 }
 int main() {
-  for (Cell value : {minimum, maximum, Cell(16777217),
-                     (UNSIGNED_INPUT ? Cell(2147483648u) : Cell(-1)), Cell(0), Cell(1)}) {
+  for (Cell value :
+       {minimum, maximum, precision, (UNSIGNED_INPUT ? upperHalf : Cell(-1)), Cell(0), Cell(1)}) {
     if (!verify(1, 1, 1, {value}, {1}) ||
         !verify(1, 1, 1, {value}, {UNSIGNED_INPUT ? maximum : Cell(-1)}))
       return 1;
   }
   std::vector<std::vector<Cell>> boundaries;
   if constexpr (UNSIGNED_INPUT)
-    boundaries = {{maximum, 1, 0},    {maximum, 0, 1, 0},
-                  {maximum - 1, 1},   {Cell(2147483648u), Cell(2147483648u)},
-                  {maximum, maximum}, {16777217, 1, 2, 3, 4}};
+    boundaries = {{maximum, 1, 0},        {maximum, 0, 1, 0}, {maximum - 1, 1},
+                  {upperHalf, upperHalf}, {maximum, maximum}, {precision, 1, 2, 3, 4}};
   else
-    boundaries = {{maximum, 1, Cell(-1)}, {minimum, Cell(-1), 1},
-                  {maximum, 0, 1, 0},     {minimum, 0, Cell(-1), 0},
-                  {maximum, Cell(-1), 1}, {1073741824, Cell(-1073741824)},
-                  {16777217, 1, 2, 3, 4}};
+    boundaries = {{maximum, 1, Cell(-1)},    {minimum, Cell(-1), 1}, {maximum, 0, 1, 0},
+                  {minimum, 0, Cell(-1), 0}, {maximum, Cell(-1), 1}, {upperHalf, Cell(-upperHalf)},
+                  {precision, 1, 2, 3, 4}};
   for (auto a : boundaries) {
     if (!verify(1, a.size(), 1, a, std::vector<Cell>(a.size(), a.size() == 2 ? 2 : 1)))
       return 1;
   }
   if constexpr (UNSIGNED_INPUT) {
-    if (!verify(1, 2, 1, {Cell(2147483648u), 2147483647}, {1, 1}) ||
-        !verify(1, 1, 1, {65535}, {65535}) || !verify(1, 1, 1, {65536}, {65536}) ||
+    if (!verify(1, 2, 1, {upperHalf, Cell(upperHalf - 1)}, {1, 1}) ||
+        !verify(1, 1, 1, {squareLimit}, {squareLimit}) ||
+        !verify(1, 1, 1, {Cell(squareLimit + 1)}, {Cell(squareLimit + 1)}) ||
         !verify(1, 1, 1, {maximum}, {maximum}) || !verify(1, 1, 1, {maximum}, {0}))
       return 1;
   }
@@ -213,7 +226,7 @@ int main() {
   for (auto fail : {1u, 2u})
     if (!verify(2, 3, 2, {1, 2, 3, 4, 5, 6}, {1, 2, 3, 4, 5, 6}, fail))
       return 1;
-  std::uint32_t state = 0x12345678;
+  State state = 0x12345678;
   auto next = [&] {
     state ^= state << 13;
     state ^= state >> 17;
@@ -227,12 +240,12 @@ int main() {
       if constexpr (UNSIGNED_INPUT)
         v = trial % 2 ? next() : next() % 201;
       else
-        v = trial % 2 ? std::bit_cast<std::int32_t>(next()) : std::int32_t(next() % 201) - 100;
+        v = trial % 2 ? std::bit_cast<Cell>(next()) : std::int64_t(next() % 201) - 100;
     for (auto &v : b)
       if constexpr (UNSIGNED_INPUT)
         v = trial % 2 ? next() : next() % 201;
       else
-        v = trial % 2 ? std::bit_cast<std::int32_t>(next()) : std::int32_t(next() % 201) - 100;
+        v = trial % 2 ? std::bit_cast<Cell>(next()) : std::int64_t(next() % 201) - 100;
     if (!verify(rows, inner, cols, a, b))
       return 1;
   }
@@ -241,12 +254,15 @@ int main() {
       !metadata({INT64_MAX, 0}, {0, 2}, 2) || !metadata({1, INT64_MAX}, {INT64_MAX, 1}, 2) ||
       !metadata({0, INT64_MAX}, {INT64_MAX, 3}, 2) ||
       !metadata({3, INT64_MAX}, {INT64_MAX, 0}, 2) ||
+      !metadata({INT64_MAX / sizeof(Cell) + 1, 0}, {0, 1}, 2) ||
+      !metadata({1, INT64_MAX / sizeof(Cell) + 1}, {INT64_MAX / sizeof(Cell) + 1, 0}, 2) ||
+      !metadata({0, INT64_MAX / sizeof(Cell) + 1}, {INT64_MAX / sizeof(Cell) + 1, 0}, 0) ||
       !metadata({0, INT64_MAX}, {INT64_MAX, 0}, 0) ||
-      !metadata({0, INT64_MAX / 4}, {INT64_MAX / 4, 1}, 0) ||
-      !metadata({1, INT64_MAX / 4}, {INT64_MAX / 4, 0}, 0) || !cancelled())
+      !metadata({0, INT64_MAX / sizeof(Cell)}, {INT64_MAX / sizeof(Cell), 1}, 0) ||
+      !metadata({1, INT64_MAX / sizeof(Cell)}, {INT64_MAX / sizeof(Cell), 0}, 0) || !cancelled())
     return 1;
-  std::cout << (UNSIGNED_INPUT ? "UInt32 matmul: " : "Int32 matmul: ") << cases
-            << " runtime inputs, " << faults
+  std::cout << describeNumeric(element)->name << " matmul: " << cases << " runtime inputs, "
+            << faults
             << " checked faults; exact products/tree, strided views, retained results and settled "
                "owners passed\n";
 }

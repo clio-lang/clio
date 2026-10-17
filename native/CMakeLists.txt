@@ -803,3 +803,27 @@ if(BUILD_TESTING)
     endforeach()
   endforeach()
 endif()
+
+if(BUILD_TESTING)
+  foreach(NUMERIC_TYPE IN ITEMS int64 uint64)
+    foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+      if(VARIANT STREQUAL "sanitized")
+        set(INTEGER64_MATMUL_RUNTIME "$<TARGET_FILE:kalandra-native-runtime-sanitized>")
+      elseif(VARIANT STREQUAL "thread-sanitized")
+        set(INTEGER64_MATMUL_RUNTIME "$<TARGET_FILE:kalandra-native-runtime-thread-sanitized>")
+      else()
+        set(INTEGER64_MATMUL_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
+      endif()
+      add_test(NAME native-${NUMERIC_TYPE}-matmul-${VARIANT}
+        COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+          "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INTEGER64_MATMUL_RUNTIME}"
+          "-DOPT_RUNTIME=$<TARGET_FILE:kalandra-task-core-optimized>"
+          "-DVARIANT=${VARIANT}" "-DNUMERIC_TYPE=${NUMERIC_TYPE}"
+          "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/${NUMERIC_TYPE}-matmul-${VARIANT}"
+          "-DHARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/Int32MatmulRuntimeTests.cpp"
+          "-DTASK_HARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/Int32TensorTaskTests.cpp"
+          -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyInt32Matmul.cmake")
+      set_tests_properties(native-${NUMERIC_TYPE}-matmul-${VARIANT} PROPERTIES TIMEOUT 240)
+    endforeach()
+  endforeach()
+endif()

@@ -1196,8 +1196,8 @@ private:
       return {};
     }
     if (leftType.element != NumericType::Float32 &&
-        !(callee == "reduceSum" ? isInteger(leftType.element) : isInteger32(leftType.element))) {
-      error("S053", callee + " currently requires float32, int32 or uint32 tensors", span);
+        !isInteger(leftType.element)) {
+      error("S053", callee + " currently requires implemented numeric tensor elements", span);
       return {};
     }
     if (callee == "reduceSum") {

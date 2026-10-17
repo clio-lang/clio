@@ -587,18 +587,19 @@ private:
       guard(loc, compare(loc, arith::CmpIPredicate::sge, extent, z), 1);
     if (operation.checkInnerExtent)
       guard(loc, compare(loc, arith::CmpIPredicate::eq, left[1], right[0]), 1);
-    auto cells = checkedCount(loc, {left[0], right[1]});
+    const auto cellType = output.getElementType();
+    auto cells = checkedCount(loc, {left[0], right[1]}, cellType.getIntOrFloatBitWidth() / 8);
     auto noCells = compare(loc, arith::CmpIPredicate::eq, cells, z);
     auto rows = arith::SelectOp::create(builder_, loc, noCells, z, left[0]);
     // No output cells means no contraction work and no contraction-sized scratch.
     auto scratchCount = arith::SelectOp::create(builder_, loc, noCells, z, left[1]);
-    auto scratch = reductionScratch(loc, scratchCount, builder_.getI32Type());
+    auto scratch = reductionScratch(loc, scratchCount, cellType);
     SmallVector<Value> dynamic;
     if (output.isDynamicDim(0))
       dynamic.push_back(left[0]);
     if (output.isDynamicDim(1))
       dynamic.push_back(right[1]);
-    auto empty = tensor::EmptyOp::create(builder_, loc, output.getShape(), builder_.getI32Type(), dynamic);
+    auto empty = tensor::EmptyOp::create(builder_, loc, output.getShape(), cellType, dynamic);
     auto result = scf::ForOp::create(
         builder_, loc, z, rows, one, ValueRange{empty},
         [&](OpBuilder &, Location, Value row, ValueRange rowValues) {
@@ -618,8 +619,8 @@ private:
     return result.getResult(0);
   }
   Value matmul(Location loc, Value a, Value b, RankedTensorType output, const Matmul &operation, NumericType element) {
-    if (output.getElementType().isInteger(32))
-      return integerMatmul(loc, a, b, output, operation, element == NumericType::UInt32);
+    if (isInteger(element))
+      return integerMatmul(loc, a, b, output, operation, isUnsigned(element));
     // Outlining prevents a large SIMD kernel's register/stack requirements from
     // penalizing narrow shapes in the surrounding source function.
     func::FuncOp helper;

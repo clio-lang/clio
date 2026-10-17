@@ -86,25 +86,34 @@ static void checkInteger64Tensors(const std::string &element, bool backend) {
           "implicit tensor width conversion admitted");
   require(!analyze("fn f() -> Tensor[" + element + ",1]:\n  tensor([18446744073709551616])\n").ok(),
           "out-of-range tensor literal admitted");
+  const auto matrix = "Tensor[" + element + ",?,?]";
+  auto product = analyze("fn product(a:" + matrix + ",b:" + matrix + ") -> " + matrix +
+                         ":\n  matmul(a,b)\nfn main() -> " + element + ":\n  0\n");
+  require(product.ok(), "64-bit matrix typing rejected");
+  auto workerProduct = analyze("fn product(a:" + matrix + ",b:" + matrix + ") -> " + matrix +
+                               ":\n  matmul(a,b)\nfn main() -> " + element +
+                               " ! TaskError:\n  try parallel:\n"
+                               "    values:Tensor[" +
+                               element +
+                               ",1,1] = tensor([[1]])\n"
+                               "    result = try await spawn product(values,values)\n"
+                               "    reduceSum(result)\n");
+  require(workerProduct.ok(), "64-bit worker matrix typing rejected");
 #if !defined(KALANDRA_INT64_FRONTEND_ONLY) && !defined(KALANDRA_UINT64_FRONTEND_ONLY)
   if (backend) {
-    for (const auto &source :
-         {"fn f(x:Tensor[int32,?,?]) -> Tensor[int32,?,?]:\n  matmul(x,x)\nfn main() -> int32:\n  "
-          "0\n"}) {
-      auto forged = analyze(source);
-      require(forged.ok(), "backend gate fixture invalid");
-      const auto numeric = element == "uint64" ? NumericType::UInt64 : NumericType::Int64;
-      for (auto &fn : forged.module->functions) {
-        fn.resultType.element = numeric;
-        if (fn.declaredResult)
-          fn.declaredResult->element = numeric;
-      }
-      for (auto &symbol : forged.module->symbols)
-        symbol.type.element = numeric;
-      for (auto &expr : forged.module->expressions)
-        expr.type.element = numeric;
-      require(!lowerNative(*forged.module), "backend admitted unqualified wide matmul");
-    }
+    require(bool(lowerNative(*product.module)) && bool(lowerNative(*workerProduct.module)),
+            "64-bit matrix lowering rejected");
+    const auto marker = element == "uint64" ? "checked_u64 balanced_adjacent checked_products"
+                                            : "checked_i64 balanced_adjacent checked_products";
+    require(dumpTypedIR(*product.module).find(marker) != std::string::npos,
+            "64-bit matrix typed identity lost");
+    auto forged = *product.module;
+    for (auto &expr : forged.expressions)
+      if (std::holds_alternative<Matmul>(expr.operation))
+        expr.type.element = element == "uint64" ? NumericType::Int64 : NumericType::UInt64;
+    auto rejected = lowerNative(forged);
+    require(!rejected && rejected.error().find("matmul element type") != std::string::npos,
+            "backend accepted mismatched matrix signedness");
   }
 #endif
 }

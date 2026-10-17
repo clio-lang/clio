@@ -118,21 +118,9 @@ if(NOT "${STATUS}" STREQUAL "1" OR NOT ERR MATCHES "${NUMERIC_TYPE}" OR EXISTS "
   message(FATAL_ERROR "Tensor task support accidentally enabled Metal ${NUMERIC_TYPE}: ${STATUS}: ${ERR}")
 endif()
 
-# Matrix multiplication remains unsupported, including in task-containing modules.
-file(REMOVE "${OUTPUT_DIR}/unsupported-reduceSum.kalandra")
-foreach(OP IN ITEMS matmul)
-  set(SOURCE "fn f(x:Tensor[${NUMERIC_TYPE},?,?]) -> Tensor[${NUMERIC_TYPE},?,?]:\n  matmul(x,x)\nfn main() -> ${NUMERIC_TYPE} ! TaskError:\n  try parallel:\n    0\n")
-  file(WRITE "${OUTPUT_DIR}/unsupported-${OP}.kalandra" "${SOURCE}")
-  file(WRITE "${OUTPUT_DIR}/preserved" "preserved executable")
-  file(WRITE "${OUTPUT_DIR}/preserved.ll" "preserved llvm")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/unsupported-${OP}.kalandra"
-    -o "${OUTPUT_DIR}/preserved" --emit-llvm "${OUTPUT_DIR}/preserved.ll"
-    RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
-  file(READ "${OUTPUT_DIR}/preserved" OLD)
-  file(READ "${OUTPUT_DIR}/preserved.ll" IR)
-  if(NOT "${STATUS}" STREQUAL "1" OR NOT ERR MATCHES "S053" OR
-     NOT OLD STREQUAL "preserved executable" OR NOT IR STREQUAL "preserved llvm")
-    message(FATAL_ERROR "${NUMERIC_TYPE} ${OP} admission gate failed: ${STATUS}: ${ERR}")
-  endif()
-endforeach()
+# Matrix multiplication now shares the qualified integer task path.
+file(REMOVE "${OUTPUT_DIR}/unsupported-matmul.kalandra" "${OUTPUT_DIR}/unsupported-reduceSum.kalandra")
+file(WRITE "${OUTPUT_DIR}/supported-matmul.kalandra" "fn f(x:Tensor[${NUMERIC_TYPE},?,?]) -> Tensor[${NUMERIC_TYPE},?,?]:\n  matmul(x,x)\nfn main() -> ${NUMERIC_TYPE} ! TaskError:\n  try parallel:\n    0\n")
+RUN_OK("${COMPILER}" "${OUTPUT_DIR}/supported-matmul.kalandra" -o "${OUTPUT_DIR}/supported-matmul" ${EXTRA})
+RUN_OK("${OUTPUT_DIR}/supported-matmul")
 message(STATUS "Shared ${NUMERIC_TYPE} tensor task captures/results, five tensor families, both 64-bit scalar families, distinct layouts, retained owners, nested/cached awaits, arithmetic/shape faults, recovery and failure settlement passed with 1/2/4 workers")
