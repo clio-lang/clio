@@ -26,6 +26,25 @@ static void checkInteger64Tensors(const std::string &element, bool backend) {
       analyze("fn f(x:Tensor[" + (element == "uint64" ? std::string("uint") : std::string("int")) +
               ",?]) -> " + tensor + ":\n  x\nfn main() -> " + element + ":\n  0\n");
   require(alias.ok(), "64-bit tensor alias rejected");
+  auto task = analyze("fn identity(x:" + tensor + ") -> " + tensor +
+                      ":\n  x\n"
+                      "fn main() -> " +
+                      element +
+                      " ! TaskError:\n  try parallel:\n"
+                      "    values:Tensor[" +
+                      element +
+                      ",1] = tensor([9007199254740993])\n"
+                      "    first = spawn identity(values)\n    copied = try await first\n"
+                      "    try await first\n    0\n");
+  require(task.ok(), "64-bit tensor task typing rejected");
+#if !defined(KALANDRA_INT64_FRONTEND_ONLY) && !defined(KALANDRA_UINT64_FRONTEND_ONLY)
+  if (backend) {
+    auto lowered = lowerNative(*task.module);
+    require(bool(lowered) &&
+                lowered->llvm.find("value.layout.tensor." + element + ".1") != std::string::npos,
+            "64-bit tensor task identity lost");
+  }
+#endif
   for (const auto &expression : {"reduceSum(x)", "matmul(x,x)"})
     require(!analyze("fn f(x:" + tensor + ") -> " + element + ":\n  " + expression + "\n").ok(),
             "unsupported 64-bit tensor builtin admitted");

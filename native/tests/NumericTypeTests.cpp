@@ -119,7 +119,7 @@ int main() {
       for (const auto &slot : plan->slots)
         if (slot.builtin == BuiltinValue::Numeric)
           require(slot.element == NumericType::UInt64, "continuation lost numeric identity");
-    require(!lowerNative(typed), "task backend accepted unimplemented numeric IR");
+    require(!lowerNative(typed), "task backend accepted unimplemented numeric reduction IR");
     ValueType builtin;
     builtin.builtin = BuiltinValue::TaskError;
     builtin.element = invalid;

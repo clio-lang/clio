@@ -167,15 +167,17 @@ private:
     return (type.element == NumericType::Int64 || type.element == NumericType::UInt64) ? i64 : isInteger32(type.element) ? i32 : f32;
   }
   std::string key(const ValueType &type) {
+    if (type.builtin == BuiltinValue::Numeric && !type.task && type.tensor && isInteger(type.element))
+      return "tensor." + std::string(describeNumeric(type.element)->name) + "." +
+             std::to_string(type.shape.size());
     return type.builtin == BuiltinValue::TaskError   ? "TaskError"
            : type.builtin == BuiltinValue::FaultKind ? "FaultKind"
            : type.builtin == BuiltinValue::String    ? "String"
            : type.task                               ? "handle"
-           : type.tensor                             ? (type.element == NumericType::UInt32 ? "tensor.uint32."
-                                                        : type.element == NumericType::Int32 ? "tensor.int32." : "tensor") +
-                                                         std::to_string(type.shape.size())
+           : type.tensor                             ? "tensor" + std::to_string(type.shape.size())
                                                      : type.element == NumericType::UInt64 ? "scalar.uint64" : type.element == NumericType::Int64 ? "scalar.int64" : type.element == NumericType::UInt32 ? "scalar.uint32" : type.element == NumericType::Int32 ? "scalar.int32" : "scalar";
   }
+
   llvm::StructType *valueType(const ValueType &type) {
     const auto name = key(type);
     if (auto found = values.find(name); found != values.end())
@@ -232,7 +234,7 @@ private:
     auto *constant = llvm::ConstantStruct::get(
         layoutType,
         {c64(type.builtin != BuiltinValue::Numeric ? 0x10000 + static_cast<unsigned>(type.builtin)
-             : type.tensor                         ? (isInteger32(type.element)
+             : type.tensor                         ? (isInteger(type.element)
                                                         ? 0x30000 + 16 * static_cast<unsigned>(type.element) + type.shape.size()
                                                         : type.shape.size() + 2)
                                                    : isInteger(type.element)
@@ -587,19 +589,6 @@ std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &inp
                                                           std::optional<std::string> testEntry) {
   if (auto error = numericCapabilityError(input, NumericTarget::Cpu))
     return std::unexpected(*error);
-  // Descriptor layout and cross-task ownership for 64-bit tensors are qualified separately.
-  const auto wideTensor = [](const ValueType &type) {
-    return type.tensor && (type.element == NumericType::Int64 || type.element == NumericType::UInt64);
-  };
-  for (const auto &fn : input.functions)
-    if (wideTensor(fn.resultType) || (fn.declaredResult && wideTensor(*fn.declaredResult)))
-      return std::unexpected("int64/uint64 tensor task modules are not implemented yet");
-  for (const auto &symbol : input.symbols)
-    if (wideTensor(symbol.type))
-      return std::unexpected("int64/uint64 tensor task modules are not implemented yet");
-  for (const auto &expression : input.expressions)
-    if (wideTensor(expression.type))
-      return std::unexpected("int64/uint64 tensor task modules are not implemented yet");
   if (hasPlacement(input))
     return std::unexpected("placement-aware IR requires a placement-capable execution backend");
   try {

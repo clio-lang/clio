@@ -9,6 +9,9 @@
 #ifndef TENSOR_RANK
 #define TENSOR_RANK 1
 #endif
+#ifndef INTEGER_BITS
+#define INTEGER_BITS 32
+#endif
 #ifndef FLOAT_RESULT
 #define FLOAT_RESULT 0
 #endif
@@ -17,9 +20,10 @@
 #endif
 using namespace kalandra;
 using namespace kalandra::runtime;
-constexpr auto element = FLOAT_RESULT      ? NumericType::Float32
-                         : UNSIGNED_RESULT ? NumericType::UInt32
-                                           : NumericType::Int32;
+constexpr auto element = FLOAT_RESULT ? NumericType::Float32
+                         : UNSIGNED_RESULT
+                             ? (INTEGER_BITS == 64 ? NumericType::UInt64 : NumericType::UInt32)
+                             : (INTEGER_BITS == 64 ? NumericType::Int64 : NumericType::Int32);
 using Tensor = CpuTensor<element, TENSOR_RANK>;
 struct Result {
   Failure failure;
@@ -40,7 +44,31 @@ static void settled(const TaskStats &s) {
 template <NumericType E = element> static std::vector<NumericValue<E>> expected(int scenario) {
   if constexpr (E == NumericType::Float32)
     return {2, 3, 4, 5};
-  else if constexpr (E == NumericType::UInt32) {
+  else if constexpr (E == NumericType::UInt64) {
+    if (scenario == 0)
+      return {18014398509481988ULL};
+    if (scenario == 1)
+      return {0, UINT64_MAX, 9223372036854775808ULL, 9007199254740993ULL};
+    if (scenario == 2)
+      return {9007199254740995ULL, 12, 102, 202};
+    if (scenario == 3)
+      return {2, 4, 6, 8};
+    if (scenario == 5)
+      return {1, UINT64_MAX};
+    return {};
+  } else if constexpr (E == NumericType::Int64) {
+    if (scenario == 0)
+      return {18014398509481988LL};
+    if (scenario == 1)
+      return {INT64_MIN, INT64_MAX, 9007199254740993LL, -5};
+    if (scenario == 2)
+      return {9007199254740995LL, -8, 102, 202};
+    if (scenario == 3)
+      return {2, 4, 6, 8};
+    if (scenario == 5)
+      return {1, INT64_MAX};
+    return {};
+  } else if constexpr (E == NumericType::UInt32) {
     if (scenario == 0)
       return {4294967294};
     if (scenario == 1)
@@ -101,6 +129,9 @@ int main(int argc, char **argv) {
   check(entry && entry->result && entry->packetBytes == 0 &&
             entry->result->bytes == sizeof(Result) && entry->result->alignment == alignof(Result),
         "wrong generated native task export ABI");
+  if constexpr (element != NumericType::Float32)
+    check(entry->result->identity == 0x30000 + 16 * static_cast<unsigned>(element) + TENSOR_RANK,
+          "wrong integer tensor layout identity");
   auto group = core->openRoot();
   check(bool(group), "root group failed");
   Result out{}, again{};
@@ -129,7 +160,11 @@ int main(int argc, char **argv) {
         if (mode != 3) {
           // Same-width, same-callback impostors must never publish or retain data.
           ValueLayout wrong = *entry->result;
-          wrong.identity ^= 0x100000;
+          if constexpr (INTEGER_BITS == 64 && !FLOAT_RESULT) {
+            constexpr auto opposite = UNSIGNED_RESULT ? NumericType::Int64 : NumericType::UInt64;
+            wrong.identity = 0x30000 + 16 * static_cast<unsigned>(opposite) + TENSOR_RANK;
+          } else
+            wrong.identity ^= 0x100000;
           Invocation invalid;
           alignas(Result) std::array<std::byte, sizeof(Result)> untouched;
           untouched.fill(std::byte{0x5a});
@@ -185,7 +220,7 @@ int main(int argc, char **argv) {
   if (retained)
     cells(*retained, scenario); // Retained value survives its final Invocation too.
   retained.reset();
-  std::cout << (UNSIGNED_RESULT ? "UInt32 tensor task scenario " : "Int32 tensor task scenario ")
-            << scenario << " workers " << workers << " mode " << mode
+  std::cout << describeNumeric(element)->name << " tensor task scenario " << scenario << " workers "
+            << workers << " mode " << mode
             << ": exact cells, typed layouts and settled lifetimes passed\n";
 }

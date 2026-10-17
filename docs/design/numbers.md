@@ -508,7 +508,7 @@ The dedicated CLI entry preserves exact unsigned decimal output. The common cont
 
 [Frontend checks](../../native/tests/UInt64Tests.cpp) cover endpoints, the uint alias, full-range constants/bindings, compile-time overflow, default signed inference and rejected type/tensor/GPU capabilities. The [shared unsigned runtime harness](../../native/tests/UInt32RuntimeTests.cpp), [width specialization](../../native/cmake/UnsignedScalarType.cmake) and [compiled driver](../../native/cmake/VerifyUInt32.cmake) compare seven operators with independent wider unsigned arithmetic. Tests cover 25-by-25 boundary pairs and 10,000 deterministic full-range input pairs per operator, native-width division/remainder, exact CLI values, mixed task layouts, nested/cached workers, all six faulting operations, source locations, recovery, zero-live-allocation cleanup and static-error artifact preservation. A separate mixed-packet program returns each of the five supported scalar families as its root result, including UINT64_MAX and INT64_MIN together. Debug, optimized, ASan/UBSan and TSan variants run task cases with 1/2/4 workers; frontend checks also run independently under ASan/UBSan. [Qualification evidence](../../native/metal-proof/evidence/cpu-uint64-scalars-2026-10-17.json) records the regression and numerical artifact comparison.
 
-Shared int64/uint64 tensor literals and elementwise arithmetic are implemented below. Tensor worker handoff, reductions/matmul, GPU integer arithmetic, float64 and explicit numeric conversions remain gated. Distributed execution still requires the agreed design review.
+Shared int64/uint64 tensor literals and elementwise arithmetic are implemented below. Tensor worker handoff is qualified below; reductions/matmul, GPU integer arithmetic, float64 and explicit numeric conversions remain gated. Distributed execution still requires the agreed design review.
 
 
 ## Shared int64/uint64 CPU tensor literals and elementwise arithmetic
@@ -534,4 +534,35 @@ Shape validation and allocation guards use the numeric description's eight-byte 
 
 The [shared harness](../../native/tests/Integer64TensorRuntimeTests.cpp) and [compiled driver](../../native/cmake/VerifyInteger64Tensors.cmake) qualify both signednesses with independent 128-bit arithmetic references. Coverage includes full-range boundary/random pairs, scalar operand order, rank zero through three, all empty-axis positions, noncontiguous inputs, aliases, late faults, shape refinement/mismatch, negative and oversized dimensions, allocation rejection, retained results and cooperative cancellation. Debug, optimized, ASan/UBSan and TSan variants cover 25 generated programs per type. Shared frontend checks cover contextual literals, strict type rules and backend rejection of forged reduction/matmul IR. [Qualification evidence](../../native/metal-proof/evidence/cpu-integer64-tensors-2026-10-17.json) records the full regression and float32 artifact comparison.
 
-Next: qualify shared int64/uint64 tensor worker captures/results and lifetime handling. Modules containing these tensors and parallel tasks are explicitly rejected until then, even when a tensor happens to stay local. Their reductions/matmul and Metal integer operations remain gated separately. Distributed execution still requires the agreed design discussion.
+Shared int64/uint64 tensor worker captures/results and lifetime handling are qualified below. Their reductions/matmul and Metal integer operations remain gated separately. Distributed execution still requires the agreed design discussion.
+
+
+## Shared int64/uint64 tensor captures and results in CPU tasks
+
+Native CPU workers can now capture and return both `Tensor[int64,...]` and `Tensor[uint64,...]`. The common continuation planner carries their existing numeric identity, and task layout keys/IDs distinguish each element type and rank. Signed and unsigned 64-bit descriptors have identical native sizes but distinct type identities; observing an outcome with the other type's identity fails before copying or retaining data. Existing int32/uint32/float32 layout identities remain unchanged. These are private process-local interfaces, not a serialized contract or public foreign-memory ABI.
+
+```kalandra
+fn shift(values: Tensor[int64,?], amount: int64) -> Tensor[int64,?]:
+  values + amount
+
+fn batch(values: Tensor[int64,?]) -> Tensor[int64,?] ! TaskError:
+  try parallel:
+    work = spawn shift(values, 1)
+    first = try await work
+    again = try await work
+    first + (again - first)
+
+fn main() -> int ! TaskError:
+  values: Tensor[int64,2] = tensor([9007199254740993,-10])
+  try parallel:
+    adjusted = try await spawn batch(values)
+    0
+```
+
+The same code structure works with uint64 context and its checked arithmetic rules. Worker capture/result copies retain the backing allocation rather than copying tensor cells. Nested groups and repeated awaits share immutable values; result ownership can outlive the producing task, worker pool and destination invocation. Arithmetic faults preserve their source location and publish no successful tensor payload. Recovery can reuse the unchanged parent tensor and launch a new group. Cancellation, deadlines and allocation/admission rejection reuse the existing settlement machinery; no new scheduler or allocator is introduced.
+
+The [shared task driver](../../native/cmake/VerifyInteger64TensorTasks.cmake) specializes the same scenarios for signed and unsigned 64-bit tensors. The [existing tensor lifetime harness](../../native/tests/Int32TensorTaskTests.cpp) now checks both widths, exact returned cell bits/bytes, cached observation, cross-signedness layout rejection, retained values surviving owner destruction and zero live scheduler/allocation state. Tests cover rank zero through three, empty tensor arithmetic, nested tasks, shape faults, every faulting arithmetic operation, Arithmetic recovery with parent-data reuse, root admission rejection, cancellation/deadline signals and allocation-failure injection at positions 1 through 24.
+
+A [mixed-packet fixture](../../native/tests/fixtures/task-integer64-tensor-mixed.kalandra) captures all five implemented tensor families plus both 64-bit scalar families, using INT64_MIN and UINT64_MAX scalar values to detect truncation. Each tensor family is observed as the root result. It includes full-range signed/unsigned cells and integers beyond 2^53. Debug, optimized, ASan/UBSan and TSan variants run every handoff scenario with 1/2/4 workers; frontend task typing also runs independently under ASan/UBSan. [Qualification evidence](../../native/metal-proof/evidence/cpu-integer64-tensor-tasks-2026-10-17.json) records the full native/Metal regression and unchanged float32 numerical artifacts. Host sanitizers do not instrument Metal shaders.
+
+Next: shared checked int64/uint64 reductions, then matmul. Both remain rejected in ordinary and task-containing source, with backend admission guards against forged typed IR. GPU integer arithmetic, further numeric formats and explicit conversions remain separate work. Discuss native distributed execution before implementation.
