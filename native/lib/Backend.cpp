@@ -1,4 +1,5 @@
 #include "kalandra/Backend.h"
+#include "kalandra/NumericConversion.h"
 #include "kalandra/StrictFloat.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
@@ -775,6 +776,12 @@ private:
                                : operation.operation == TokenKind::Star  ? "arith.mulf"
                                                                          : "arith.divf";
             return binary(loc, name, a, b);
+          } else if constexpr (std::is_same_v<T, NumericConvert>) {
+            auto [converted, valid] = numericConversion(
+                builder_, loc, expression(frame, operation.input),
+                input_.expressions[operation.input].type.element, node.type.element);
+            guard(loc, valid, 4);
+            return converted;
           } else if constexpr (std::is_same_v<T, TensorUnary>) {
             return elementwise(loc, expression(frame, operation.operand), {},
                                cast<RankedTensorType>(type(node.type)), operation.operation, node.type.element);

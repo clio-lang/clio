@@ -73,6 +73,9 @@ struct TensorBinary {
   TokenKind operation;
   ValueId left, right;
 };
+struct NumericConvert {
+  ValueId input;
+};
 struct TensorLiteral {
   std::vector<ValueId> elements;
 }; // Flattened row-major scalar values.
@@ -151,9 +154,9 @@ struct TypedExpr {
   ValueType type; // Concrete scalar/tensor numeric identity; builtins retain explicit tags.
   std::variant<Float64Literal, Float32Literal, Int32Literal, Int64Literal, UInt32Literal,
                UInt64Literal, SymbolRead, ScalarUnary, TensorUnary, ScalarBinary, TensorBinary,
-               TensorLiteral, FunctionCall, Matmul, ReduceSum, ShapeCheck, DeviceSelection,
-               Transfer, TaskOperation, ParallelOperation, CatchOperation, MatchOperation,
-               ErrorFieldRead, FailOperation>
+               TensorLiteral, NumericConvert, FunctionCall, Matmul, ReduceSum, ShapeCheck,
+               DeviceSelection, Transfer, TaskOperation, ParallelOperation, CatchOperation,
+               MatchOperation, ErrorFieldRead, FailOperation>
       operation;
 };
 struct ShapeEquality {

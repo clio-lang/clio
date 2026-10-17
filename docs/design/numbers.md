@@ -77,7 +77,7 @@ ratio = float(count) / 2.0
 
 `ratio` is float 1.5. Conversion has the same ordinary call spelling as other operations and requires no decorator or special cast operator.
 
-| Conversion         | Proposed behavior                                                                          |
+| Conversion         | Behavior                                                                                   |
 | ------------------ | ------------------------------------------------------------------------------------------ |
 | Integer to integer | Preserve the value; fail if it is outside the destination range                            |
 | Integer to float   | Round to the destination format; precision loss is explicitly authorized by the conversion |
@@ -767,3 +767,31 @@ The existing scalar matrix-multiplication path now serves both checked integers 
 The [compiled driver](../../native/cmake/VerifyFloat64Matmul.cmake) and [runtime harness](../../native/tests/Float64MatmulRuntimeTests.cpp) compare exact output bits with independently computed APFloat products and adjacent-pair sums. Probes cover sampled operand boundaries, random matrices, odd and long contractions, separately rounded/FMA-sensitive results, zero inner/output dimensions, padded/displaced/transposed and aliased views, eight ARM floating environments, immutable inputs, retained results, malformed metadata, allocation injection and cancellation. Worker probes use the shared tensor lifetime/layout harness for direct builtin and ordinary calls, nested/cached awaits, empty results, zero-length contractions, recovery after an integer sibling fault, allocation failures, cancellation, deadlines and admission rejection with one, two and four workers. The [evidence record](../../native/metal-proof/evidence/cpu-float64-matmul-2026-10-17.json) records 70 focused checks passing across debug, optimized, ASan/UBSan and TSan builds, including 279,384 matmul invocations, 693,888 exact cell checks before/after settlement and 372 worker process runs. All 640 tracked float32 numerical artifacts remain unchanged, as do the strict engine, task backend, continuation planner, tensor storage and runtime.
 
 Explicit numeric conversions are next. Additional numeric types, float64 performance work and GPU formats remain separate milestones. Discuss native distributed execution before implementation.
+
+
+### Explicit CPU scalar numeric conversions
+
+All 36 pairs among `int32`, `uint32`, `int64`, `uint64`, `float32` and `float64` now support explicit conversion through ordinary type-name calls. `int`, `uint` and `float` retain their int64/uint64/float64 aliases. There is no implicit promotion, wrapping or saturation.
+
+```kalandra
+fn ratio(count: int64) -> float:
+  float(count) / 2.0
+
+fn truncate(value: float64) -> int32:
+  int32(value)
+
+fn approximate(value: uint64) -> float32:
+  float32(value)
+```
+
+Integer-to-integer conversion preserves the mathematical value or raises an ArithmeticFault if it cannot fit. Integer-to-float conversion explicitly authorizes precision loss and rounds to nearest, ties to even. Float32-to-float64 preserves finite values exactly. Float64-to-float32 uses ties-to-even rounding, preserves signed underflow to zero, and rejects finite overflow to infinity. Infinity remains infinity and NaNs remain NaNs when changing floating width; changed-width NaNs are canonicalized. Identity conversions preserve the original bits, including signed zero and NaN payloads.
+
+Float-to-integer conversion truncates toward zero, then checks the destination bounds. NaN and infinity fail. A negative fraction between -1 and 0 truncates to zero and therefore converts to an unsigned integer; a negative integral result does not. For example, `uint(-0.9)` is zero and `uint(-1.0)` is invalid. Already typed operands keep their source type while converting. Arguments otherwise use ordinary literal inference; a whole-number literal beyond int64's range requires an explicitly typed uint64 binding before conversion.
+
+Known-invalid conversions, including through constant bindings and arithmetic, produce S055 before executable generation. Invalid runtime conversions raise an ArithmeticFault at the conversion call. An ordinary execution unit stops; supervised workers expose TaskError.Fault with FaultKind.Arithmetic. Handlers can reuse owned input tensors and start fresh parallel work. Direct `spawn float32(value)` calls and conversions inside named worker functions use the existing continuation/kernel machinery, typed result layouts and cached-await paths.
+
+The new lowering implements conversions using bounded integer bit operations and checked ranges. It does not rely on hardware floating casts, host rounding/flush-to-zero/default-NaN settings, or undefined/out-of-range float-to-integer instructions. The existing arithmetic engine, runtime and tensor storage remain shared; no conversion runtime library is introduced. Numeric type names are reserved as function names, and conversion calls require one ordinary CPU scalar argument. Tensor-wide conversions, GPU conversions and the unimplemented narrow numeric types remain gated.
+
+The [frontend tests](../../native/tests/ConversionTests.cpp), [compiled driver](../../native/cmake/VerifyConversions.cmake) and [runtime oracle harness](../../native/tests/ConversionRuntimeTests.cpp) cover all 36 pairs, endpoints and full-range random inputs, halfway ties, subnormal/overflow boundaries, truncation around signed/unsigned limits, infinity, NaN and signed zero. Results are compared with independent integer-range calculations and LLVM APFloat/APSInt under eight ARM floating environments, with no floating exception flags. The [worker harness](../../native/tests/ConversionTaskTests.cpp) checks all six result types, ordinary and direct builtin calls, repeated awaits, Arithmetic fault locations, recovery with owned parent data, scheduler/invocation allocation injection, cancellation, deadlines, admission rejection and settled owners with one, two and four workers. The [evidence record](../../native/metal-proof/evidence/cpu-numeric-conversions-2026-10-17.json) records 107 focused checks passing across debug, optimized, ASan/UBSan and TSan builds: 15,585,408 conversion invocations (including 4,925,120 checked Arithmetic faults) and 936 worker processes. All 640 tracked float32 numerical artifacts remain unchanged, along with the existing strict arithmetic engine, task backend, storage, runtime and Metal implementation.
+
+Tensor element conversions, additional numeric types and GPU formats need separate source contracts and qualification. Discuss native distributed execution before implementation.

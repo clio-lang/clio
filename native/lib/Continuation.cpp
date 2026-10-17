@@ -22,7 +22,8 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
         else if constexpr (std::is_same_v<T, Matmul> || std::is_same_v<T, TensorBinary> ||
                            std::is_same_v<T, ScalarBinary>)
           return {op.left, op.right};
-        else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, ShapeCheck>)
+        else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, NumericConvert> ||
+                           std::is_same_v<T, ShapeCheck>)
           return {op.input};
         else
           return {};
@@ -167,6 +168,8 @@ private:
       elementwise->right = reads[1];
     } else if (auto *reduce = std::get_if<ReduceSum>(&op))
       reduce->input = reads[0];
+    else if (auto *convert = std::get_if<NumericConvert>(&op))
+      convert->input = reads[0];
     else if (auto *shape = std::get_if<ShapeCheck>(&op))
       shape->input = reads[0];
     if (auto *unary = std::get_if<ScalarUnary>(&op))

@@ -1,5 +1,6 @@
 #include "kalandra/Semantics.h"
 #include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/APSInt.h"
 #include "llvm/Support/Error.h"
 #include <algorithm>
 #include <charconv>
@@ -172,6 +173,10 @@ private:
       auto &target = output_.functions[id];
       target.name = name(function.name);
       target.declaration = function.name;
+      if (resolveNumeric(target.name)) {
+        error("S055", "numeric type names are reserved conversion functions", function.name);
+        signatures_[id] = false;
+      }
       if (options_.placement && (target.name == "devices" || target.name == "transfer" ||
                                  target.name == "devices.cpu" || target.name == "devices.gpu")) {
         error("S049", "reserved placement builtin name", function.name);
@@ -264,6 +269,8 @@ private:
           frame.locals.emplace(bindingName, *symbol);
           if (auto it = intConstants_.find(*value); it != intConstants_.end())
             intBindings_[*symbol] = it->second;
+          if (auto it = floatConstants_.find(*value); it != floatConstants_.end())
+            floatBindings_.insert_or_assign(*symbol, it->second);
         }
       }
       if (!value) {
@@ -436,6 +443,8 @@ private:
         intConstants_[*value] = *constant;
       }
     }
+    if (value)
+      floatingConstant(*value);
     if (value && expected)
       return conform(frame, *value, *expected, syntax.span, deferShape);
     return value;
@@ -714,6 +723,7 @@ private:
     if (operation.prefix == TaskPrefix::Spawn) {
       if (!std::holds_alternative<FunctionCall>(node(*value).operation) &&
           !std::holds_alternative<Matmul>(node(*value).operation) &&
+          !std::holds_alternative<NumericConvert>(node(*value).operation) &&
           !std::holds_alternative<ReduceSum>(node(*value).operation)) {
         error("S037", "this invocation is not a supported task entry", span);
         return {};
@@ -1201,6 +1211,118 @@ private:
     }
     return add(frame, std::move(output), span, TensorLiteral{std::move(elements)});
   }
+  static const llvm::fltSemantics &floatSemantics(NumericType type) {
+    return type == NumericType::Float32 ? llvm::APFloat::IEEEsingle() : llvm::APFloat::IEEEdouble();
+  }
+  std::unordered_map<ValueId, llvm::APFloat> floatConstants_;
+  std::unordered_map<SymbolId, llvm::APFloat> floatBindings_;
+  void floatingConstant(ValueId id) {
+    const auto &value = node(id);
+    if (value.type.tensor || value.type.task || value.type.fallible ||
+        value.type.builtin != BuiltinValue::Numeric || isInteger(value.type.element))
+      return;
+    const auto &op = value.operation;
+    std::optional<llvm::APFloat> constant;
+    if (auto *n = std::get_if<Float32Literal>(&op))
+      constant.emplace(llvm::APFloat::IEEEsingle(), llvm::APInt(32, n->bits));
+    else if (auto *n = std::get_if<Float64Literal>(&op))
+      constant.emplace(llvm::APFloat::IEEEdouble(), llvm::APInt(64, n->bits));
+    else if (auto *read = std::get_if<SymbolRead>(&op)) {
+      if (auto found = floatBindings_.find(read->symbol); found != floatBindings_.end())
+        constant = found->second;
+    } else if (auto *unary = std::get_if<ScalarUnary>(&op)) {
+      if (auto found = floatConstants_.find(unary->operand); found != floatConstants_.end()) {
+        constant = found->second;
+        if (unary->operation == TokenKind::Minus)
+          constant->changeSign();
+      }
+    } else if (auto *binary = std::get_if<ScalarBinary>(&op)) {
+      auto a = floatConstants_.find(binary->left), d = floatConstants_.find(binary->right);
+      if (a != floatConstants_.end() && d != floatConstants_.end()) {
+        constant = a->second;
+        constexpr auto rounding = llvm::APFloat::rmNearestTiesToEven;
+        if (binary->operation == TokenKind::Plus)
+          constant->add(d->second, rounding);
+        if (binary->operation == TokenKind::Minus)
+          constant->subtract(d->second, rounding);
+        if (binary->operation == TokenKind::Star)
+          constant->multiply(d->second, rounding);
+        if (binary->operation == TokenKind::Slash)
+          constant->divide(d->second, rounding);
+      }
+    }
+    if (constant)
+      floatConstants_.insert_or_assign(id, *constant);
+  }
+  std::optional<ValueId> conversion(Frame &frame, SourceSpan span, NumericType destination,
+                                    const std::vector<ExprId> &arguments) {
+    if (!numericArithmeticAvailable(destination, NumericTarget::Cpu)) {
+      error("S003", "conversion destination is not implemented", span);
+      return {};
+    }
+    if (arguments.size() != 1) {
+      error("S027", "numeric conversion expects one argument", span);
+      return {};
+    }
+    auto input = expression(frame, arguments[0]);
+    if (!input)
+      return {};
+    const auto source = node(*input).type;
+    if (source.builtin != BuiltinValue::Numeric || source.tensor || source.task ||
+        source.fallible || source.device) {
+      error("S055", "numeric conversion requires an ordinary CPU scalar", span);
+      return {};
+    }
+    std::optional<__int128_t> integer;
+    std::optional<llvm::APFloat> floating;
+    bool invalid = false;
+    if (isInteger(destination)) {
+      const auto bits = describeNumeric(destination)->bits;
+      const __int128_t maximum = isUnsigned(destination)
+                                     ? (bits == 64 ? __int128_t(UINT64_MAX) : UINT32_MAX)
+                                     : (bits == 64 ? INT64_MAX : INT32_MAX);
+      const __int128_t minimum = isUnsigned(destination) ? 0 : (bits == 64 ? INT64_MIN : INT32_MIN);
+      if (auto found = intConstants_.find(*input); found != intConstants_.end()) {
+        integer = found->second;
+        invalid = *integer < minimum || *integer > maximum;
+      } else if (auto found = floatConstants_.find(*input); found != floatConstants_.end()) {
+        llvm::APSInt result(bits, isUnsigned(destination));
+        bool exact = false;
+        auto status = found->second.convertToInteger(result, llvm::APFloat::rmTowardZero, &exact);
+        invalid = (status & llvm::APFloat::opInvalidOp) != 0;
+        if (!invalid)
+          integer = isUnsigned(destination) ? __int128_t(result.getZExtValue())
+                                            : __int128_t(result.getSExtValue());
+      }
+    } else {
+      if (auto found = intConstants_.find(*input); found != intConstants_.end()) {
+        floating.emplace(floatSemantics(destination));
+        floating->convertFromAPInt(llvm::APInt(64, static_cast<std::uint64_t>(found->second)),
+                                   !isUnsigned(source.element), llvm::APFloat::rmNearestTiesToEven);
+      } else if (auto found = floatConstants_.find(*input); found != floatConstants_.end()) {
+        floating = found->second;
+        bool loses = false;
+        const bool finite = floating->isFinite();
+        auto status = floating->convert(floatSemantics(destination),
+                                        llvm::APFloat::rmNearestTiesToEven, &loses);
+        invalid = finite && (status & llvm::APFloat::opOverflow);
+      }
+    }
+    if (invalid) {
+      error("S055", "constant numeric conversion is outside the destination range", span);
+      return {};
+    }
+    ValueType result;
+    result.element = destination;
+    auto id = add(frame, result, span, NumericConvert{*input});
+    if (!id)
+      return {};
+    if (integer)
+      intConstants_[*id] = *integer;
+    if (floating)
+      floatConstants_.insert_or_assign(*id, *floating);
+    return id;
+  }
   std::optional<ValueId> builtin(Frame &frame, SourceSpan span, const std::string &callee,
                                  const std::vector<ExprId> &arguments,
                                  const std::optional<ValueType> &expected) {
@@ -1379,6 +1501,8 @@ private:
         error("S037", "placed spawn requires a statically named function", span);
         return {};
       }
+      if (auto numeric = resolveNumeric(callee))
+        return conversion(frame, span, *numeric, arguments);
       if (callee == "tensor" || callee == "matmul" || callee == "reduceSum")
         return builtin(frame, span, callee, arguments, expected);
       error("S031", "unknown function '" + callee + "'", calleeSpan);

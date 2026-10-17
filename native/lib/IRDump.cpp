@@ -72,6 +72,14 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
   for (const auto &expression : module.expressions) {
     if (auto failure = error(expression.type))
       return failure;
+    if (const auto *convert = std::get_if<NumericConvert>(&expression.operation)) {
+      const auto &source = module.expressions[convert->input].type;
+      if (target != NumericTarget::Cpu || source.builtin != BuiltinValue::Numeric ||
+          source.tensor || source.task || source.fallible || expression.type.tensor ||
+          expression.type.task || expression.type.fallible ||
+          !numericArithmeticAvailable(source.element, target))
+        return "numeric conversions require implemented CPU scalars";
+    }
     if (const auto *reduce = std::get_if<ReduceSum>(&expression.operation)) {
       if (expression.type.element != module.expressions[reduce->input].type.element ||
           !numericArithmeticAvailable(expression.type.element, target))
@@ -154,7 +162,10 @@ std::string dumpTypedIR(const TypedModule &module) {
               out << "u32 " << operation.value;
             else if constexpr (std::is_same_v<T, SymbolRead>)
               out << "read $" << operation.symbol;
-            else if constexpr (std::is_same_v<T, ScalarUnary>) {
+            else if constexpr (std::is_same_v<T, NumericConvert>) {
+              out << "convert " << describeNumeric(node.type.element)->name << " checked ";
+              value(operation.input);
+            } else if constexpr (std::is_same_v<T, ScalarUnary>) {
               out << (operation.operation == TokenKind::Minus ? "neg." : "pos.")
                   << (node.type.element == NumericType::UInt64    ? "u64 checked "
                       : node.type.element == NumericType::Int64   ? "i64 checked "
