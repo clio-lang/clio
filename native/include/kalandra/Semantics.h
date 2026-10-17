@@ -12,7 +12,7 @@ struct Extent {
   ExtentId identity =
       0; // Nonzero identity for a dynamic extent, never an implicit equality of '?'.
 };
-enum class BuiltinValue { Numeric, TaskError, FaultKind, String, Device };
+enum class BuiltinValue { Numeric, TaskError, FaultKind, String, Device, Bool };
 struct ValueType {
   bool tensor = false;
   std::vector<Extent> shape;
@@ -61,6 +61,13 @@ struct ScalarUnary {
 struct TensorUnary {
   TokenKind operation;
   ValueId operand;
+};
+struct BoolLiteral {
+  bool value;
+};
+struct ScalarCompare {
+  ComparisonKind operation;
+  ValueId left, right;
 };
 struct ScalarBinary {
   TokenKind operation;
@@ -153,10 +160,10 @@ struct TypedExpr {
   SourceSpan span;
   ValueType type; // Concrete scalar/tensor numeric identity; builtins retain explicit tags.
   std::variant<Float64Literal, Float32Literal, Int32Literal, Int64Literal, UInt32Literal,
-               UInt64Literal, SymbolRead, ScalarUnary, TensorUnary, ScalarBinary, TensorBinary,
-               TensorLiteral, NumericConvert, FunctionCall, Matmul, ReduceSum, ShapeCheck,
-               DeviceSelection, Transfer, TaskOperation, ParallelOperation, CatchOperation,
-               MatchOperation, ErrorFieldRead, FailOperation>
+               UInt64Literal, BoolLiteral, ScalarCompare, SymbolRead, ScalarUnary, TensorUnary,
+               ScalarBinary, TensorBinary, TensorLiteral, NumericConvert, FunctionCall, Matmul,
+               ReduceSum, ShapeCheck, DeviceSelection, Transfer, TaskOperation, ParallelOperation,
+               CatchOperation, MatchOperation, ErrorFieldRead, FailOperation>
       operation;
 };
 struct ShapeEquality {

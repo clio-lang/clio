@@ -53,7 +53,7 @@ Bindings are statements only. `foo(x = 1)` is rejected, as is the prototype's `=
 - Numbers retain their original spelling: decimal whole numbers and decimal/exponent forms are tokenized. Numeric range, default family, float32 rounding, and context typing remain semantic work. Hex literals and suffixes are not in this first subset.
 - Strings are tokenized to retain lexical boundaries and diagnose unterminated quotes, but string expressions are explicitly unsupported by this parser. Escape decoding and general string semantics are not implemented here.
 
-Comparisons, field/index access, record construction, anonymous functions, general expected-error declarations/handlers, and non-function top-level declarations receive explicit rejection in this subset. Their rejection is an implementation limit, not a reversal of the accepted designs. Parameter/local duplicate names, unknown functions, dtype compatibility, and matrix-shape requirements belong to the next semantic stage.
+Field/index access, record construction, anonymous functions, general expected-error declarations/handlers, and non-function top-level declarations receive explicit rejection in this subset. Their rejection is an implementation limit, not a reversal of the accepted designs. Parameter/local duplicate names, unknown functions, dtype compatibility, and matrix-shape requirements belong to the next semantic stage.
 
 ## Ownership and diagnostics
 
@@ -92,3 +92,7 @@ result catch fn(error):
 ```
 
 The surrounding success type supplies the float32 literal context in this example. Match/catch bodies retain ordered statement roots and lexical bindings in the flat AST. The existing nesting, token, and node limits apply to these constructs too.
+
+## Boolean comparison syntax
+
+The parser now represents `==`, `!=`, `<`, `<=`, `>` and `>=` with a distinct ComparisonExpr and operator identity. Comparisons bind below pipelines and above catch; ungrouped chains receive P034. `true` and `false` are resolved as reserved Bool literals by semantic analysis. See the [CPU Boolean contract](booleans.md) for typing, numerical rules, worker support and current limits.

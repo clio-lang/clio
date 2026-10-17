@@ -115,6 +115,11 @@ struct BinaryExpr {
   ExprId left;
   ExprId right;
 };
+enum class ComparisonKind { Equal, NotEqual, Less, LessEqual, Greater, GreaterEqual };
+struct ComparisonExpr {
+  ComparisonKind operation;
+  ExprId left, right;
+};
 struct CallExpr {
   ExprId callee;
   std::vector<ExprId> arguments;
@@ -155,8 +160,8 @@ struct FailExpr {
 };
 struct Expr {
   SourceSpan span;
-  std::variant<NameExpr, NumberExpr, UnaryExpr, BinaryExpr, CallExpr, ArrayExpr, TaskExpr,
-               ParallelExpr, CatchExpr, MatchExpr, FailExpr>
+  std::variant<NameExpr, NumberExpr, UnaryExpr, BinaryExpr, ComparisonExpr, CallExpr, ArrayExpr,
+               TaskExpr, ParallelExpr, CatchExpr, MatchExpr, FailExpr>
       value;
 };
 struct Statement {

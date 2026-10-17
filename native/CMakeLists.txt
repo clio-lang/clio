@@ -854,3 +854,5 @@ if(BUILD_TESTING)
   include(cmake/Float64.cmake)
   include(cmake/Conversions.cmake)
 endif()
+
+include(cmake/Booleans.cmake)

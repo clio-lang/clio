@@ -68,15 +68,16 @@ public:
         std::ranges::find_if(input_.functions, [](const auto &f) { return f.name == "main"; });
     if (main == input_.functions.end() || !main->parameters.empty() || main->resultType.tensor)
       throw LoweringFailure{"native entry requires fn main() -> float32, int32, uint32, int64, "
-                            "uint64 or float64 with no parameters"};
+                            "uint64, float64 or Bool with no parameters"};
     builder_.setInsertionPointToEnd(module_->getBody());
     const auto entryName =
-        main->resultType.element == NumericType::Float64  ? "kalandra_float64_entry"
-        : main->resultType.element == NumericType::UInt64 ? "kalandra_uint64_entry"
-        : main->resultType.element == NumericType::Int64  ? "kalandra_int64_entry"
-        : main->resultType.element == NumericType::UInt32 ? "kalandra_uint32_entry"
-        : main->resultType.element == NumericType::Int32  ? "kalandra_int32_entry"
-                                                          : "kalandra_entry";
+        main->resultType.builtin == BuiltinValue::Bool     ? "kalandra_bool_entry"
+        : main->resultType.element == NumericType::Float64 ? "kalandra_float64_entry"
+        : main->resultType.element == NumericType::UInt64  ? "kalandra_uint64_entry"
+        : main->resultType.element == NumericType::Int64   ? "kalandra_int64_entry"
+        : main->resultType.element == NumericType::UInt32  ? "kalandra_uint32_entry"
+        : main->resultType.element == NumericType::Int32   ? "kalandra_int32_entry"
+                                                           : "kalandra_entry";
     auto entry = func::FuncOp::create(builder_, location(main->declaration), entryName,
                                       builder_.getFunctionType({}, {type(main->resultType)}));
     entry->setAttr("llvm.emit_c_interface", builder_.getUnitAttr());
@@ -95,6 +96,8 @@ private:
     return FileLineColLoc::get(builder_.getContext(), input_.source->path(), line, column);
   }
   Type type(const ValueType &value) {
+    if (value.builtin == BuiltinValue::Bool)
+      return builder_.getI1Type();
     const Type element =
         (value.element == NumericType::Int64 || value.element == NumericType::UInt64)
             ? Type(builder_.getI64Type())
@@ -148,6 +151,61 @@ private:
     auto high = compare(loc, arith::CmpIPredicate::sle, wide, constant(bits == 64 ? INT64_MAX : INT32_MAX));
     guard(loc, arith::AndIOp::create(builder_, loc, low, high), 4);
     return arith::TruncIOp::create(builder_, loc, builder_.getIntegerType(bits), wide);
+  }
+  Value scalarComparison(Location loc, Value a, Value b, const ValueType &source,
+                         ComparisonKind op) {
+    using P = arith::CmpIPredicate;
+    if (source.builtin == BuiltinValue::Bool || isInteger(source.element)) {
+      const bool u = source.builtin == BuiltinValue::Bool || isUnsigned(source.element);
+      const auto predicate = op == ComparisonKind::Equal       ? P::eq
+                             : op == ComparisonKind::NotEqual  ? P::ne
+                             : op == ComparisonKind::Less      ? (u ? P::ult : P::slt)
+                             : op == ComparisonKind::LessEqual ? (u ? P::ule : P::sle)
+                             : op == ComparisonKind::Greater   ? (u ? P::ugt : P::sgt)
+                                                               : (u ? P::uge : P::sge);
+      return compare(loc, predicate, a, b);
+    }
+    const unsigned width = describeNumeric(source.element)->bits;
+    const auto integerType = builder_.getIntegerType(width);
+    a = arith::BitcastOp::create(builder_, loc, integerType, a);
+    b = arith::BitcastOp::create(builder_, loc, integerType, b);
+    const auto constant = [&](std::uint64_t bits) -> Value {
+      return arith::ConstantIntOp::create(builder_, loc, static_cast<std::int64_t>(bits), width);
+    };
+    const auto both = [&](Value x, Value y) -> Value {
+      return arith::AndIOp::create(builder_, loc, x, y);
+    };
+    const auto either = [&](Value x, Value y) -> Value {
+      return arith::OrIOp::create(builder_, loc, x, y);
+    };
+    const auto negate = [&](Value x) -> Value {
+      return arith::XOrIOp::create(builder_, loc, x,
+                                   arith::ConstantIntOp::create(builder_, loc, 1, 1));
+    };
+    auto magnitude = constant(width == 32 ? UINT64_C(0x7fffffff) : UINT64_C(0x7fffffffffffffff));
+    auto infinity = constant(width == 32 ? UINT64_C(0x7f800000) : UINT64_C(0x7ff0000000000000));
+    auto zero = constant(0), sign = constant(UINT64_C(1) << (width - 1));
+    Value ma = arith::AndIOp::create(builder_, loc, a, magnitude),
+          mb = arith::AndIOp::create(builder_, loc, b, magnitude);
+    auto ordered = both(compare(loc, P::ule, ma, infinity), compare(loc, P::ule, mb, infinity));
+    auto equal = either(compare(loc, P::eq, a, b),
+                        both(compare(loc, P::eq, ma, zero), compare(loc, P::eq, mb, zero)));
+    Value sa = arith::AndIOp::create(builder_, loc, a, sign),
+          sb = arith::AndIOp::create(builder_, loc, b, sign);
+    auto negative = compare(loc, P::ne, sa, zero);
+    Value sameSignLess = arith::SelectOp::create(
+        builder_, loc, negative, compare(loc, P::ugt, a, b), compare(loc, P::ult, a, b));
+    Value less =
+        arith::SelectOp::create(builder_, loc, compare(loc, P::ne, sa, sb), negative, sameSignLess);
+    less = both(negate(equal), less);
+    if (op == ComparisonKind::NotEqual)
+      return negate(both(ordered, equal));
+    Value result = op == ComparisonKind::Equal       ? equal
+                   : op == ComparisonKind::Less      ? less
+                   : op == ComparisonKind::LessEqual ? either(less, equal)
+                   : op == ComparisonKind::Greater   ? negate(either(less, equal))
+                                                     : negate(less);
+    return both(ordered, result);
   }
   Value integerUnary(Location loc, Value operand, TokenKind op, bool unsignedValue = false) {
     if (op == TokenKind::Plus)
@@ -798,6 +856,13 @@ private:
             return operation.operation == TokenKind::Minus
                        ? arith::NegFOp::create(builder_, loc, operand).getResult()
                        : operand;
+          } else if constexpr (std::is_same_v<T, BoolLiteral>) {
+            return arith::ConstantIntOp::create(builder_, loc, operation.value, 1);
+          } else if constexpr (std::is_same_v<T, ScalarCompare>) {
+            auto left = expression(frame, operation.left),
+                 right = expression(frame, operation.right);
+            return scalarComparison(loc, left, right, input_.expressions[operation.left].type,
+                                    operation.operation);
           } else if constexpr (std::is_same_v<T, ScalarBinary>) {
             auto a = expression(frame, operation.left), b = expression(frame, operation.right);
             if (isInteger(node.type.element))

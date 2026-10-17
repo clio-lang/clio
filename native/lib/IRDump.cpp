@@ -22,6 +22,8 @@ bool hasPlacement(const TypedModule &module) {
          });
 }
 std::string describeType(const ValueType &type) {
+  if (type.builtin == BuiltinValue::Bool)
+    return std::string(type.task ? "task<Bool>" : "Bool") + (type.fallible ? " ! TaskError" : "");
   if (type.builtin == BuiltinValue::Device)
     return type.device ? "Device[gpu:" + std::to_string(*type.device) + "]" : "Device[cpu]";
   if (type.builtin != BuiltinValue::Numeric)
@@ -52,6 +54,9 @@ std::string describeType(const ValueType &type) {
 }
 std::optional<std::string> numericCapabilityError(const TypedModule &module, NumericTarget target) {
   const auto error = [&](const ValueType &type) -> std::optional<std::string> {
+    if (type.builtin == BuiltinValue::Bool &&
+        (target != NumericTarget::Cpu || type.tensor || type.device))
+      return "Bool values require the CPU scalar backend";
     if (type.builtin != BuiltinValue::Numeric || numericArithmeticAvailable(type.element, target))
       return {};
     const auto description = describeNumeric(type.element);
@@ -72,6 +77,24 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
   for (const auto &expression : module.expressions) {
     if (auto failure = error(expression.type))
       return failure;
+    if (const auto *comparison = std::get_if<ScalarCompare>(&expression.operation)) {
+      const auto &a = module.expressions[comparison->left].type;
+      const auto &b = module.expressions[comparison->right].type;
+      const auto ordinary = [](const ValueType &t) {
+        return !t.tensor && !t.task && !t.fallible && !t.device;
+      };
+      const bool numeric = a.builtin == BuiltinValue::Numeric &&
+                           b.builtin == BuiltinValue::Numeric && a.element == b.element;
+      const bool boolean = a.builtin == BuiltinValue::Bool && b.builtin == BuiltinValue::Bool &&
+                           (comparison->operation == ComparisonKind::Equal ||
+                            comparison->operation == ComparisonKind::NotEqual);
+      if (target != NumericTarget::Cpu || !ordinary(a) || !ordinary(b) ||
+          !ordinary(expression.type) || expression.type.builtin != BuiltinValue::Bool ||
+          (!numeric && !boolean) ||
+          static_cast<unsigned>(comparison->operation) >
+              static_cast<unsigned>(ComparisonKind::GreaterEqual))
+        return "unsupported scalar comparison IR";
+    }
     if (const auto *convert = std::get_if<NumericConvert>(&expression.operation)) {
       const auto &source = module.expressions[convert->input].type;
       if (target != NumericTarget::Cpu || source.builtin != BuiltinValue::Numeric || source.task ||
@@ -152,7 +175,12 @@ std::string dumpTypedIR(const TypedModule &module) {
       std::visit(
           [&](const auto &operation) {
             using T = std::decay_t<decltype(operation)>;
-            if constexpr (std::is_same_v<T, Float64Literal>)
+            if constexpr (std::is_same_v<T, BoolLiteral>)
+              out << (operation.value ? "true" : "false");
+            else if constexpr (std::is_same_v<T, ScalarCompare>)
+              out << "compare " << static_cast<unsigned>(operation.operation) << " %"
+                  << operation.left << " %" << operation.right;
+            else if constexpr (std::is_same_v<T, Float64Literal>)
               out << "f64.bits 0x" << std::hex << std::setw(16) << std::setfill('0')
                   << operation.bits << std::dec;
             else if constexpr (std::is_same_v<T, Float32Literal>)

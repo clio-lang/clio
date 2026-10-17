@@ -6,6 +6,8 @@ namespace kalandra {
 namespace {
 int precedence(TokenKind kind) {
   switch (kind) {
+  case TokenKind::Comparison:
+    return 7;
   case TokenKind::Arrow:
     return 10;
   case TokenKind::Plus:
@@ -236,6 +238,7 @@ private:
     auto left = prefix();
     if (!left)
       return {};
+    bool compared = false;
     while (true) {
       // A block expression consumed its terminating newline/dedent. A call
       // beginning the next source line is not a postfix on that block.
@@ -280,16 +283,31 @@ private:
       if (power < minimum)
         break;
       const auto operation = advance();
+      if (operation.kind == TokenKind::Comparison && compared) {
+        error("P034", "comparison chaining requires explicit grouping", operation.span);
+        return {};
+      }
       auto right = parseExpression(power + 1);
       if (!right)
         return {};
       const auto span = SourceSpan{node(*left).span.begin, node(*right).span.end};
-      left = add({span, BinaryExpr{operation.kind, *left, *right}});
+      if (operation.kind == TokenKind::Comparison) {
+        const auto spelling = source_->slice(operation.span);
+        const auto kind = spelling == "=="   ? ComparisonKind::Equal
+                          : spelling == "!=" ? ComparisonKind::NotEqual
+                          : spelling == "<"  ? ComparisonKind::Less
+                          : spelling == "<=" ? ComparisonKind::LessEqual
+                          : spelling == ">"  ? ComparisonKind::Greater
+                                             : ComparisonKind::GreaterEqual;
+        left = add({span, ComparisonExpr{kind, *left, *right}});
+        compared = true;
+      } else
+        left = add({span, BinaryExpr{operation.kind, *left, *right}});
       if (!left)
         return {};
     }
-    if (at(TokenKind::Comparison) || at(TokenKind::FatArrow) || at(TokenKind::Dot) ||
-        at(TokenKind::LeftBracket) || at(TokenKind::LeftBrace)) {
+    if (at(TokenKind::FatArrow) || at(TokenKind::Dot) || at(TokenKind::LeftBracket) ||
+        at(TokenKind::LeftBrace)) {
       error("P010", "this expression form is not implemented in the first frontend",
             current().span);
       return {};

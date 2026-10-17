@@ -228,6 +228,11 @@ int main(int argc, char **argv) {
     command.insert(command.begin() + 5,
                    threadSanitize ? KALANDRA_UINT64_THREAD_SANITIZED_ENTRY
                    : sanitize ? KALANDRA_UINT64_SANITIZED_ENTRY : KALANDRA_UINT64_ENTRY);
+  if (main != typed.module->functions.end() &&
+      main->resultType.builtin == kalandra::BuiltinValue::Bool)
+    command.insert(command.begin() + 5, threadSanitize ? KALANDRA_BOOL_THREAD_SANITIZED_ENTRY
+                                        : sanitize     ? KALANDRA_BOOL_SANITIZED_ENTRY
+                                                       : KALANDRA_BOOL_ENTRY);
   if (sanitize) {
     command.push_back("-fsanitize=address,undefined");
     command.push_back("-fno-sanitize-recover=all");

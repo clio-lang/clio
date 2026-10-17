@@ -74,8 +74,10 @@ public:
       const auto found = std::ranges::find_if(planner.input.functions,
                                            [&](const auto &f) { return f.name == *testEntry; });
       if (found == planner.input.functions.end() || !found->parameters.empty() ||
-          found->resultType.builtin != BuiltinValue::Numeric)
-        throw std::runtime_error("private task test entry requires a parameterless numeric function");
+          (found->resultType.builtin != BuiltinValue::Numeric &&
+           found->resultType.builtin != BuiltinValue::Bool))
+        throw std::runtime_error(
+            "private task test entry requires a parameterless numeric or Bool function");
       const auto id = std::size_t(found - planner.input.functions.begin());
       // Trusted native test export, not a dynamic/public task or wire ABI.
       new llvm::GlobalVariable(module, pointer, true, llvm::GlobalValue::ExternalLinkage,
@@ -84,21 +86,25 @@ public:
     auto main = std::ranges::find_if(planner.input.functions,
                                      [](const auto &f) { return f.name == "main"; });
     if (main == planner.input.functions.end() || !main->parameters.empty() ||
-        main->resultType.tensor || main->resultType.builtin != BuiltinValue::Numeric)
+        main->resultType.tensor ||
+        (main->resultType.builtin != BuiltinValue::Numeric &&
+         main->resultType.builtin != BuiltinValue::Bool))
       throw std::runtime_error("native task entry requires parameterless float32, int32, uint32, "
-                               "int64, uint64 or float64 main");
+                               "int64, uint64, float64 or Bool main");
     const auto id = std::size_t(main - planner.input.functions.begin());
     auto *entry = module.getFunction("_mlir_ciface_kalandra_entry");
-    if (isInteger(main->resultType.element) || main->resultType.element == NumericType::Float64) {
+    if (main->resultType.builtin == BuiltinValue::Bool || isInteger(main->resultType.element) ||
+        main->resultType.element == NumericType::Float64) {
       entry->eraseFromParent();
       entry = Function::Create(
           llvm::FunctionType::get(scalarType(main->resultType), {pointer}, false),
           llvm::GlobalValue::ExternalLinkage,
-          main->resultType.element == NumericType::Float64  ? "_mlir_ciface_kalandra_float64_entry"
-          : main->resultType.element == NumericType::UInt64 ? "_mlir_ciface_kalandra_uint64_entry"
-          : main->resultType.element == NumericType::Int64  ? "_mlir_ciface_kalandra_int64_entry"
-          : main->resultType.element == NumericType::UInt32 ? "_mlir_ciface_kalandra_uint32_entry"
-                                                            : "_mlir_ciface_kalandra_int32_entry",
+          main->resultType.builtin == BuiltinValue::Bool     ? "_mlir_ciface_kalandra_bool_entry"
+          : main->resultType.element == NumericType::Float64 ? "_mlir_ciface_kalandra_float64_entry"
+          : main->resultType.element == NumericType::UInt64  ? "_mlir_ciface_kalandra_uint64_entry"
+          : main->resultType.element == NumericType::Int64   ? "_mlir_ciface_kalandra_int64_entry"
+          : main->resultType.element == NumericType::UInt32  ? "_mlir_ciface_kalandra_uint32_entry"
+                                                             : "_mlir_ciface_kalandra_int32_entry",
           module);
     } else
       entry->deleteBody();
@@ -169,6 +175,8 @@ private:
     return llvm::StructType::get(context, {pointer, pointer, i64, dims, dims});
   }
   Type *scalarType(const ValueType &type) const {
+    if (type.builtin == BuiltinValue::Bool)
+      return boolean;
     return (type.element == NumericType::Int64 || type.element == NumericType::UInt64) ? i64
            : isInteger32(type.element)                                                 ? i32
            : type.element == NumericType::Float64 ? Type::getDoubleTy(context)
@@ -183,6 +191,7 @@ private:
            : type.builtin == BuiltinValue::FaultKind ? "FaultKind"
            : type.builtin == BuiltinValue::String    ? "String"
            : type.task                               ? "handle"
+           : type.builtin == BuiltinValue::Bool      ? "Bool"
            : type.tensor                             ? "tensor" + std::to_string(type.shape.size())
            : type.element == NumericType::Float64    ? "scalar.float64"
            : type.element == NumericType::UInt64     ? "scalar.uint64"
@@ -379,6 +388,11 @@ private:
               llvm::ConstantFP::get(
                   context, llvm::APFloat(llvm::APFloat::IEEEdouble(), llvm::APInt(64, real->bits))),
               payload(instruction.output));
+          builder.CreateBr(next);
+          break;
+        }
+        if (const auto *boolean = std::get_if<BoolLiteral>(&literal)) {
+          builder.CreateStore(builder.getInt1(boolean->value), payload(instruction.output));
           builder.CreateBr(next);
           break;
         }

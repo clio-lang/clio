@@ -149,6 +149,11 @@ private:
            std::ranges::any_of(type.shape, [](const auto &d) { return !d.constant; });
   }
   std::optional<ValueType> type(const TypeSyntax &syntax) {
+    if (!syntax.tensor && name(syntax.name) == "Bool") {
+      ValueType result;
+      result.builtin = BuiltinValue::Bool;
+      return result;
+    }
     const auto numeric =
         syntax.tensor ? (syntax.element ? resolveNumeric(name(*syntax.element)) : std::nullopt)
                       : resolveNumeric(name(syntax.name));
@@ -173,6 +178,8 @@ private:
       auto &target = output_.functions[id];
       target.name = name(function.name);
       target.declaration = function.name;
+      if (target.name == "Bool" || target.name == "true" || target.name == "false")
+        error("S056", "reserved Boolean name", function.name);
       if (resolveNumeric(target.name)) {
         error("S055", "numeric type names are reserved conversion functions", function.name);
         signatures_[id] = false;
@@ -189,6 +196,8 @@ private:
       std::unordered_map<std::string, bool> parameters;
       for (const auto &parameter : function.parameters) {
         const auto parameterName = name(parameter.name);
+        if (parameterName == "true" || parameterName == "false")
+          error("S056", "Boolean literals cannot be parameter names", parameter.name);
         if (!parameters.emplace(parameterName, true).second) {
           error("S005", "duplicate parameter '" + parameterName + "'", parameter.name);
           signatures_[id] = false;
@@ -257,6 +266,8 @@ private:
       std::optional<SymbolId> symbol;
       if (statement.binding) {
         const auto bindingName = name(*statement.binding);
+        if (bindingName == "true" || bindingName == "false")
+          error("S056", "Boolean literals cannot be binding names", *statement.binding);
         // The initializer is checked before this name is introduced.
         if (frame.locals.contains(bindingName)) {
           error("S008", "duplicate binding '" + bindingName + "'; bindings are immutable",
@@ -529,6 +540,11 @@ private:
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const NameExpr &read,
                                const std::optional<ValueType> &) {
     const auto identifier = name(read.name);
+    if (identifier == "true" || identifier == "false") {
+      ValueType boolean;
+      boolean.builtin = BuiltinValue::Bool;
+      return add(frame, boolean, span, BoolLiteral{identifier == "true"});
+    }
     if (auto found = frame.locals.find(identifier); found != frame.locals.end())
       return add(frame, output_.symbols[found->second].type, span, SymbolRead{found->second});
     error("S016",
@@ -565,6 +581,45 @@ private:
       return add(frame, type, span, TensorUnary{unary.operation, *operand});
     }
     return add(frame, type, span, ScalarUnary{unary.operation, *operand});
+  }
+  std::optional<ValueId> infer(Frame &frame, SourceSpan span, const ComparisonExpr &comparison,
+                               const std::optional<ValueType> &) {
+    std::optional<ValueId> left, right;
+    if (literal_[comparison.left] && !literal_[comparison.right]) {
+      right = expression(frame, comparison.right);
+      if (right)
+        left = expression(frame, comparison.left, node(*right).type);
+    } else {
+      std::optional<ValueType> context;
+      if (literal_[comparison.left] && literal_[comparison.right] &&
+          (floatingLiteral_[comparison.left] || floatingLiteral_[comparison.right])) {
+        context = ValueType{};
+        context->element = NumericType::Float64;
+      }
+      left = expression(frame, comparison.left, context);
+      if (left)
+        right = expression(frame, comparison.right,
+                           literal_[comparison.right] ? std::optional<ValueType>(node(*left).type)
+                                                      : std::nullopt);
+    }
+    if (!left || !right)
+      return {};
+    const auto a = node(*left).type, b = node(*right).type;
+    const bool numeric = a.builtin == BuiltinValue::Numeric && b.builtin == BuiltinValue::Numeric &&
+                         a.element == b.element;
+    const bool boolean = a.builtin == BuiltinValue::Bool && b.builtin == BuiltinValue::Bool &&
+                         (comparison.operation == ComparisonKind::Equal ||
+                          comparison.operation == ComparisonKind::NotEqual);
+    if ((!numeric && !boolean) || a.tensor || b.tensor || a.task || b.task || a.fallible ||
+        b.fallible || a.device || b.device) {
+      error("S056",
+            "comparison requires completed CPU scalars of the same numeric type, or Bool equality",
+            span);
+      return {};
+    }
+    ValueType result;
+    result.builtin = BuiltinValue::Bool;
+    return add(frame, result, span, ScalarCompare{comparison.operation, *left, *right});
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const BinaryExpr &binary,
                                const std::optional<ValueType> &context) {
@@ -796,6 +851,10 @@ private:
       std::optional<SymbolId> symbol;
       if (statement.binding) {
         auto binding = name(*statement.binding);
+        if (binding == "true" || binding == "false") {
+          error("S056", "Boolean literals cannot be binding names", *statement.binding);
+          return {};
+        }
         if (!bindings.insert(binding).second) {
           error("S008", "duplicate immutable binding", *statement.binding);
           return {};
@@ -861,6 +920,10 @@ private:
       std::optional<SymbolId> symbol;
       if (statement.binding) {
         auto binding = name(*statement.binding);
+        if (binding == "true" || binding == "false") {
+          error("S056", "Boolean literals cannot be binding names", *statement.binding);
+          return {};
+        }
         if (!bindings.insert(binding).second) {
           error("S008", "duplicate immutable binding", *statement.binding);
           return {};
@@ -877,6 +940,10 @@ private:
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const CatchExpr &handler,
                                const std::optional<ValueType> &expected) {
+    if (name(handler.parameter) == "true" || name(handler.parameter) == "false") {
+      error("S056", "Boolean literals cannot be handler parameter names", handler.parameter);
+      return {};
+    }
     auto context = expected;
     if (context)
       context->fallible = true;
@@ -1009,6 +1076,10 @@ private:
         const auto fieldSpan = pattern.name;
         const auto field = name(fieldSpan);
         const auto binding = name(pattern.binding);
+        if (binding == "true" || binding == "false") {
+          error("S056", "Boolean literals cannot be pattern binding names", pattern.binding);
+          return {};
+        }
         ErrorField fieldId;
         ValueType fieldType;
         if (taskError && tag == 1 && field == "kind") {

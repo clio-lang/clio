@@ -20,7 +20,7 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
         else if constexpr (std::is_same_v<T, TensorUnary> || std::is_same_v<T, ScalarUnary>)
           return {op.operand};
         else if constexpr (std::is_same_v<T, Matmul> || std::is_same_v<T, TensorBinary> ||
-                           std::is_same_v<T, ScalarBinary>)
+                           std::is_same_v<T, ScalarBinary> || std::is_same_v<T, ScalarCompare>)
           return {op.left, op.right};
         else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, NumericConvert> ||
                            std::is_same_v<T, ShapeCheck>)
@@ -168,7 +168,10 @@ private:
       elementwise->right = reads[1];
     } else if (auto *reduce = std::get_if<ReduceSum>(&op))
       reduce->input = reads[0];
-    else if (auto *convert = std::get_if<NumericConvert>(&op))
+    else if (auto *comparison = std::get_if<ScalarCompare>(&op)) {
+      comparison->left = reads[0];
+      comparison->right = reads[1];
+    } else if (auto *convert = std::get_if<NumericConvert>(&op))
       convert->input = reads[0];
     else if (auto *shape = std::get_if<ShapeCheck>(&op))
       shape->input = reads[0];
@@ -202,7 +205,7 @@ private:
   }
   bool constant(ValueId id) const {
     const auto &op = input.expressions[id].operation;
-    if ((std::holds_alternative<Float64Literal>(op) ||
+    if ((std::holds_alternative<BoolLiteral>(op) || std::holds_alternative<Float64Literal>(op) ||
          std::holds_alternative<Float32Literal>(op)) ||
         (std::holds_alternative<UInt64Literal>(op) || std::holds_alternative<Int64Literal>(op) ||
          std::holds_alternative<Int32Literal>(op) || std::holds_alternative<UInt32Literal>(op)))
@@ -369,7 +372,8 @@ private:
                            env.boundary->output,
                            env.boundary->group.value_or(SIZE_MAX)});
       env.boundary->jumps.push_back(index);
-    } else if ((std::holds_alternative<Float64Literal>(node.operation) ||
+    } else if ((std::holds_alternative<BoolLiteral>(node.operation) ||
+                std::holds_alternative<Float64Literal>(node.operation) ||
                 std::holds_alternative<Float32Literal>(node.operation)) ||
                (std::holds_alternative<UInt64Literal>(node.operation) ||
                 std::holds_alternative<Int64Literal>(node.operation) ||
