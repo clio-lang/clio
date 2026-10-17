@@ -74,7 +74,8 @@ enum class NumericTarget { Cpu, AppleGpu };
 constexpr bool numericArithmeticAvailable(NumericType type, NumericTarget target) {
   switch (target) {
   case NumericTarget::Cpu:
-    return type == NumericType::Float32 || isInteger32(type) || type == NumericType::Int64 || type == NumericType::UInt64;
+    return type == NumericType::Float32 || type == NumericType::Float64 || isInteger32(type) ||
+           type == NumericType::Int64 || type == NumericType::UInt64;
   case NumericTarget::AppleGpu:
     return type == NumericType::Float32;
   }

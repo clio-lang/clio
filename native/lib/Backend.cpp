@@ -1,4 +1,5 @@
 #include "kalandra/Backend.h"
+#include "kalandra/StrictFloat.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -65,12 +66,16 @@ public:
     auto main =
         std::ranges::find_if(input_.functions, [](const auto &f) { return f.name == "main"; });
     if (main == input_.functions.end() || !main->parameters.empty() || main->resultType.tensor)
-      throw LoweringFailure{"native entry requires fn main() -> float32, int32, uint32, int64 or uint64 with no parameters"};
+      throw LoweringFailure{"native entry requires fn main() -> float32, int32, uint32, int64, "
+                            "uint64 or float64 with no parameters"};
     builder_.setInsertionPointToEnd(module_->getBody());
-    const auto entryName = main->resultType.element == NumericType::UInt64 ? "kalandra_uint64_entry"
-                           : main->resultType.element == NumericType::Int64 ? "kalandra_int64_entry"
-                           : main->resultType.element == NumericType::UInt32 ? "kalandra_uint32_entry"
-                           : main->resultType.element == NumericType::Int32 ? "kalandra_int32_entry" : "kalandra_entry";
+    const auto entryName =
+        main->resultType.element == NumericType::Float64  ? "kalandra_float64_entry"
+        : main->resultType.element == NumericType::UInt64 ? "kalandra_uint64_entry"
+        : main->resultType.element == NumericType::Int64  ? "kalandra_int64_entry"
+        : main->resultType.element == NumericType::UInt32 ? "kalandra_uint32_entry"
+        : main->resultType.element == NumericType::Int32  ? "kalandra_int32_entry"
+                                                          : "kalandra_entry";
     auto entry = func::FuncOp::create(builder_, location(main->declaration), entryName,
                                       builder_.getFunctionType({}, {type(main->resultType)}));
     entry->setAttr("llvm.emit_c_interface", builder_.getUnitAttr());
@@ -89,8 +94,11 @@ private:
     return FileLineColLoc::get(builder_.getContext(), input_.source->path(), line, column);
   }
   Type type(const ValueType &value) {
-    const Type element = (value.element == NumericType::Int64 || value.element == NumericType::UInt64) ? Type(builder_.getI64Type())
-             : isInteger32(value.element) ? Type(builder_.getI32Type())
+    const Type element =
+        (value.element == NumericType::Int64 || value.element == NumericType::UInt64)
+            ? Type(builder_.getI64Type())
+        : isInteger32(value.element)            ? Type(builder_.getI32Type())
+        : value.element == NumericType::Float64 ? Type(builder_.getF64Type())
                                                 : Type(builder_.getF32Type());
     if (!value.tensor)
       return element;
@@ -729,13 +737,18 @@ private:
     auto value = std::visit(
         [&](const auto &operation) -> Value {
           using T = std::decay_t<decltype(operation)>;
-          if constexpr (std::is_same_v<T, Float32Literal>) {
+          if constexpr (std::is_same_v<T, Float64Literal>) {
+            llvm::APFloat number(llvm::APFloat::IEEEdouble(), llvm::APInt(64, operation.bits));
+            return arith::ConstantFloatOp::create(builder_, loc, builder_.getF64Type(), number);
+          } else if constexpr (std::is_same_v<T, Float32Literal>) {
             llvm::APFloat number(llvm::APFloat::IEEEsingle(), llvm::APInt(32, operation.bits));
             return arith::ConstantFloatOp::create(builder_, loc, builder_.getF32Type(), number);
           } else if constexpr (std::is_same_v<T, UInt64Literal>) {
             return arith::ConstantOp::create(builder_, loc, builder_.getI64Type(),
                 builder_.getIntegerAttr(builder_.getI64Type(), llvm::APInt(64, operation.value)));
-          } else if constexpr (std::is_same_v<T, Int32Literal> || std::is_same_v<T, UInt32Literal> || std::is_same_v<T, Int64Literal>) {
+          } else if constexpr (std::is_same_v<T, Int32Literal> ||
+                               std::is_same_v<T, UInt32Literal> ||
+                               std::is_same_v<T, Int64Literal>) {
             return arith::ConstantIntOp::create(builder_, loc, operation.value, node.type.element == NumericType::Int64 ? 64 : 32);
           } else if constexpr (std::is_same_v<T, SymbolRead>)
             return frame.symbols.at(operation.symbol);
@@ -916,6 +929,17 @@ std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,
       llvm::raw_string_ostream source(result.mlir);
       module->print(source);
     }
+    // Keep the established binary32 CPU path unchanged. Only new scalar binary64
+    // operations use the independently qualified strict integer implementation.
+    SmallVector<Operation *> doubles;
+    module->walk([&](Operation *op) {
+      if (isa<arith::AddFOp, arith::SubFOp, arith::MulFOp, arith::DivFOp, arith::NegFOp>(op) &&
+          op->getResult(0).getType().isF64())
+        doubles.push_back(op);
+    });
+    for (auto *op : doubles)
+      if (failed(lowerStrictCpuFloat(op)))
+        return std::unexpected("strict CPU float64 lowering failed");
     PassManager pipeline(&context);
     pipeline.enableVerifier(true);
     const char *passes = "one-shot-bufferize{bufferize-function-boundaries},convert-linalg-to-"

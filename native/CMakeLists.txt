@@ -87,9 +87,15 @@ if(BUILD_TESTING)
       -P "${PROJECT_SOURCE_DIR}/native/cmake/VerifyCheckRejected.cmake")
 endif()
 
+add_library(kalandra-strict-float STATIC lib/StrictFloat.cpp)
+target_include_directories(kalandra-strict-float PUBLIC include)
+target_include_directories(kalandra-strict-float SYSTEM PUBLIC ${MLIR_INCLUDE_DIRS} ${LLVM_INCLUDE_DIRS})
+target_compile_options(kalandra-strict-float PRIVATE -Wall -Wextra -Werror)
+target_link_libraries(kalandra-strict-float PUBLIC MLIR LLVM)
+
 add_library(kalandra-backend STATIC lib/Backend.cpp lib/CheckedABI.cpp lib/TaskBackend.cpp)
 target_include_directories(kalandra-backend SYSTEM PRIVATE ${MLIR_INCLUDE_DIRS} ${LLVM_INCLUDE_DIRS})
-target_link_libraries(kalandra-backend PUBLIC kalandra-semantics PRIVATE MLIR LLVM)
+target_link_libraries(kalandra-backend PUBLIC kalandra-semantics PRIVATE kalandra-strict-float MLIR LLVM)
 target_compile_options(kalandra-backend PRIVATE -Wall -Wextra -Werror)
 add_library(kalandra-native-runtime STATIC runtime/Runtime.cpp runtime/Tasks.cpp runtime/TaskABI.cpp runtime/Entry.cpp)
 target_link_libraries(kalandra-native-runtime PUBLIC Threads::Threads)
@@ -826,4 +832,24 @@ if(BUILD_TESTING)
       set_tests_properties(native-${NUMERIC_TYPE}-matmul-${VARIANT} PROPERTIES TIMEOUT 240)
     endforeach()
   endforeach()
+endif()
+
+# Separate typed entry objects preserve the existing float32 CLI ABI.
+foreach(VARIANT IN ITEMS debug sanitized thread-sanitized)
+  add_library(kalandra-float64-entry-${VARIANT} STATIC runtime/Float64Entry.cpp)
+  target_compile_options(kalandra-float64-entry-${VARIANT} PRIVATE -Wall -Wextra -Werror)
+  if(VARIANT STREQUAL "sanitized")
+    target_compile_options(kalandra-float64-entry-${VARIANT} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+  elseif(VARIANT STREQUAL "thread-sanitized")
+    target_compile_options(kalandra-float64-entry-${VARIANT} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
+  endif()
+endforeach()
+target_compile_definitions(kalandrac PRIVATE
+  KALANDRA_FLOAT64_ENTRY="$<TARGET_FILE:kalandra-float64-entry-debug>"
+  KALANDRA_FLOAT64_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-float64-entry-sanitized>"
+  KALANDRA_FLOAT64_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-float64-entry-thread-sanitized>")
+add_dependencies(kalandrac kalandra-float64-entry-debug kalandra-float64-entry-sanitized kalandra-float64-entry-thread-sanitized)
+
+if(BUILD_TESTING)
+  include(cmake/Float64.cmake)
 endif()

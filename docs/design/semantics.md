@@ -100,3 +100,8 @@ The [shared CPU/GPU helper path](apple-gpu.md#shared-cpugpu-helpers) now consume
 ## Shared placement checking
 
 The optional [placement-aware check](placement-ir.md) extends this same typed module with `DeviceSelection`, owned `Transfer` tasks, checked spawn targets and exact tensor residency. It reuses group/error obligations and shape checking; it does not create a separate semantic type system for Metal. The normal CPU checker retains its existing policy, and CPU backends reject placement-bearing IR. Metal compilation must pass the shared check before publishing its artifacts, while device capability admission and the current syntax-driven executable emitter remain target-specific.
+
+
+## Current numeric source scope
+
+The initial float32-only subset above has expanded to checked int32/uint32/int64/uint64 CPU scalars and tensors, plus [strict float64 CPU scalars](numbers.md#cpu-float64-scalar-source-and-worker-integration). Whole-number literals default to int64; decimal/exponent literals default to float64. Literal contexts select concrete types without introducing implicit conversions between already typed values. The `int`, `uint` and `float` aliases now have executable scalar implementations. Float64 tensors and GPU arithmetic remain gated. See the numeric qualification record for the current operations and worker support.

@@ -54,7 +54,7 @@ int main() {
          {"fn f(x:uint64) -> int64:\n  x\n", "fn f(x:int64) -> uint64:\n  x\n",
           "fn f(x:uint64,y:uint32) -> uint64:\n  x + y\n",
           "fn f(x:uint64,y:float32) -> uint64:\n  x + y\n", "fn f() -> uint16:\n  0\n",
-          "fn f() -> float64:\n  0\n", "fn main() -> uint:\n  value = 1\n  value\n",
+          "fn f() -> int16:\n  0\n", "fn main() -> uint:\n  value = 1\n  value\n",
           "fn main() -> uint:\n  value:uint = 18446744073709551615\n  value * value\n",
           "fn main() -> uint:\n  value:uint = 18446744073709551615\n  -value\n",
           "fn f(value:uint) -> uint:\n  zero:uint = 0\n  value / zero\n"})

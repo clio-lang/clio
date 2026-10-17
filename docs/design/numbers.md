@@ -642,4 +642,31 @@ The [CPU-only proof tool](../../native/metal-proof/Strict.cpp) accepts mixed sca
 
 [Qualification evidence](../../native/metal-proof/evidence/cpu-strict-float64-2026-10-17.json) records 467,411 operand pairs, 22,435,728 exact result comparisons per build variant, 30 focused regression checks and preservation of all 640 tracked binary32 artifacts.
 
-This qualifies an internal arithmetic building block only. **Source `float64` and the `float` default remain gated.** The next step is to connect binary64 literals, inference, ordinary functions, typed native entries and structured worker captures/results, then qualify those paths end to end. Float64 tensors and GPU arithmetic remain separate work. Distributed execution still requires the agreed design review.
+This first qualified the internal arithmetic building block. Source integration is now implemented below; float64 tensors and GPU arithmetic remain separate work. Distributed execution still requires the agreed design review.
+
+
+### CPU float64 scalar source and worker integration
+
+The native CPU subset now accepts `float64` scalars and the platform-independent `float` alias. Decimal/exponent literals without a numeric context default to float64; whole-number literals still default to int64. A literal-only arithmetic expression containing a decimal/exponent literal uses float64 when unconstrained, regardless of operand order. A declared parameter, result or binding can provide a different implemented numeric context. Already typed values never implicitly change width or numeric family.
+
+```kalandra
+fn adjust(value: float) -> float:
+  value + 0.0000000000000002
+
+fn main() -> float ! TaskError:
+  try parallel:
+    work = spawn adjust(1.0)
+    try await work
+```
+
+This prints `1.0000000000000002`. Literal text is parsed directly into binary64 with nearest/ties-to-even rounding, including gradual underflow; it is never parsed through float32. Finite literals that overflow binary64 are rejected with S015 before publishing output artifacts. Tiny literals may round to zero. Unconstrained `-0.0` preserves negative zero; plain `-0` remains an integer literal.
+
+Scalar `+`, `-`, `*`, `/` and unary signs use the [qualified strict arithmetic engine](#cpu-binary64-arithmetic-lowering-proof). The compiler lowers each binary64 operation through integer MLIR before LLVM conversion, preserving separately rounded products/sums and subnormal behavior under all tested host floating environments. This implementation prioritizes correctness; hardware-double performance is not claimed. IEEE infinity and NaN results are ordinary float values, including division by zero; they do not become Arithmetic faults. Integer arithmetic faults remain checked and can be recovered while preserving captured float64 values. Floating remainder, implicit conversions, float64 tensors/reductions/matmul, and float64 in Metal source modules remain explicitly unsupported.
+
+Dedicated native entries return LLVM `double` and print 17 significant decimal digits. Existing float32/integer entry symbols retain their types. Worker captures, continuation slots and result wrappers use binary64 payloads and a distinct private layout identity, even when other numeric layouts share size/alignment. Binary64 worker arithmetic uses the same strict MLIR kernels as synchronous functions. Nested calls, aliases and repeated awaits preserve exact bits; result observation rejects float32/int64/uint64 layout impostors before publishing data. The scheduler and allocation runtime are reused without numeric-specific changes.
+
+[Frontend checks](../../native/tests/Float64Tests.cpp) cover direct literal rounding and ties, maximum finite/minimum normal/subnormal values, aliases/defaulting, unsupported mixing and tensor/GPU rejection, including forged typed tensor IR. The [compiled scalar driver](../../native/cmake/VerifyFloat64scalars.cmake) and [runtime harness](../../native/tests/Float64RuntimeTests.cpp) share the [APFloat oracle/corpus](../../native/metal-proof/Float64Oracle.h) with the arithmetic proof. They verify exact source-generated results across eight ARM floating environments, source/native entries, CLI round trips and cancellation gating. The [worker driver](../../native/cmake/VerifyFloat64tasks.cmake) and [lifetime harness](../../native/tests/Float64TaskTests.cpp) cover all six implemented scalar families in capture packets, every root result family, nested/cached calls, signed zero, subnormals, infinity, NaN, separate rounding, recovery with owned parent tensors, layout rejection, cancellation/deadlines/admission, and allocation injection at positions 1 through 24 with 1/2/4 workers. Debug, optimized, ASan/UBSan and separate TSan builds qualify compiled execution; frontend checks also run under ASan/UBSan.
+
+[Qualification evidence](../../native/metal-proof/evidence/cpu-float64-scalars-2026-10-17.json) records all 311 native/Metal checks passing, 89,742,912 exact source-result comparisons across four build variants and eight floating environments, 432 worker lifetime process runs, and preservation of all 640 tracked float32 artifacts. The ordinary compiler also builds and runs float64 workers with both Metal options disabled.
+
+Next: CPU float64 tensor literals and elementwise arithmetic, reusing the width-aware storage and strict scalar engine. Float64 reductions, matmul and explicit conversions follow their own qualification. Discuss native distributed execution before implementation.

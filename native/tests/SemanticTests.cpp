@@ -220,7 +220,10 @@ void literalContexts() {
           "negative zero sign was discarded");
   rejected("fn main() -> float32:\n  3.5e38\n", "S015");
   rejected("fn main() -> float32:\n  x = 1\n  x\n", "S010");
-  rejected("fn main():\n  1.0\n", "S013");
+  auto defaultFloat = analyze("fn main():\n  1.0\n");
+  accepted(defaultFloat);
+  require(defaultFloat.module->functions[0].resultType.element == NumericType::Float64,
+          "default float must be float64");
   auto context = analyze("fn main(x: float32) -> float32:\n  y = 1 + x\n  y * 2\n");
   accepted(context);
   validIR(*context.module);
@@ -362,7 +365,7 @@ void elementwiseArithmetic() {
 }
 void diagnostics() {
   const std::vector<std::pair<std::string, std::string>> cases{
-      {"fn f() -> float64:\n  1\n", "S003"},
+      {"fn f() -> int16:\n  1\n", "S003"},
       {"fn f(a: Tensor[float64,2,3]) -> float32:\n  1\n", "S003"},
       {"fn f() -> float32:\n  1\nfn f() -> float32:\n  2\n", "S004"},
       {"fn f(x: float32,x: float32) -> float32:\n  x\n", "S005"},

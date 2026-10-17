@@ -25,7 +25,7 @@ foreach(VARIANT IN ITEMS debug optimized sanitized)
       -ffp-contract=off -Wno-override-module -isystem "${KALANDRA_LLVM_ROOT}/include"
       "${CMAKE_CURRENT_SOURCE_DIR}/Strict64Cpu.cpp" "${OUT}/strict64-cpu.ll"
       "-L${KALANDRA_LLVM_ROOT}/lib" "-Wl,-rpath,${KALANDRA_LLVM_ROOT}/lib" -lLLVM -o "${BINARY}"
-    DEPENDS Strict64Cpu.cpp "${OUT}/strict64-cpu.ll" VERBATIM)
+    DEPENDS Strict64Cpu.cpp Float64Oracle.h "${OUT}/strict64-cpu.ll" VERBATIM)
   list(APPEND STRICT64_OUTPUTS "${BINARY}")
   if(BUILD_TESTING)
     add_test(NAME "native-strict64-cpu-${VARIANT}" COMMAND "${BINARY}")

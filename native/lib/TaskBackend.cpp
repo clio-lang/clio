@@ -85,16 +85,21 @@ public:
                                      [](const auto &f) { return f.name == "main"; });
     if (main == planner.input.functions.end() || !main->parameters.empty() ||
         main->resultType.tensor || main->resultType.builtin != BuiltinValue::Numeric)
-      throw std::runtime_error("native task entry requires parameterless float32, int32, uint32, int64 or uint64 main");
+      throw std::runtime_error("native task entry requires parameterless float32, int32, uint32, "
+                               "int64, uint64 or float64 main");
     const auto id = std::size_t(main - planner.input.functions.begin());
     auto *entry = module.getFunction("_mlir_ciface_kalandra_entry");
-    if (isInteger(main->resultType.element)) {
+    if (isInteger(main->resultType.element) || main->resultType.element == NumericType::Float64) {
       entry->eraseFromParent();
-      entry = Function::Create(llvm::FunctionType::get(scalarType(main->resultType), {pointer}, false),
-                               llvm::GlobalValue::ExternalLinkage,
-                               main->resultType.element == NumericType::UInt64 ? "_mlir_ciface_kalandra_uint64_entry"
-                               : main->resultType.element == NumericType::Int64 ? "_mlir_ciface_kalandra_int64_entry"
-                               : main->resultType.element == NumericType::UInt32 ? "_mlir_ciface_kalandra_uint32_entry" : "_mlir_ciface_kalandra_int32_entry", module);
+      entry = Function::Create(
+          llvm::FunctionType::get(scalarType(main->resultType), {pointer}, false),
+          llvm::GlobalValue::ExternalLinkage,
+          main->resultType.element == NumericType::Float64  ? "_mlir_ciface_kalandra_float64_entry"
+          : main->resultType.element == NumericType::UInt64 ? "_mlir_ciface_kalandra_uint64_entry"
+          : main->resultType.element == NumericType::Int64  ? "_mlir_ciface_kalandra_int64_entry"
+          : main->resultType.element == NumericType::UInt32 ? "_mlir_ciface_kalandra_uint32_entry"
+                                                            : "_mlir_ciface_kalandra_int32_entry",
+          module);
     } else
       entry->deleteBody();
     builder.SetInsertPoint(Block::Create(context, "entry", entry));
@@ -164,7 +169,10 @@ private:
     return llvm::StructType::get(context, {pointer, pointer, i64, dims, dims});
   }
   Type *scalarType(const ValueType &type) const {
-    return (type.element == NumericType::Int64 || type.element == NumericType::UInt64) ? i64 : isInteger32(type.element) ? i32 : f32;
+    return (type.element == NumericType::Int64 || type.element == NumericType::UInt64) ? i64
+           : isInteger32(type.element)                                                 ? i32
+           : type.element == NumericType::Float64 ? Type::getDoubleTy(context)
+                                                  : f32;
   }
   std::string key(const ValueType &type) {
     if (type.builtin == BuiltinValue::Numeric && !type.task && type.tensor && isInteger(type.element))
@@ -175,7 +183,12 @@ private:
            : type.builtin == BuiltinValue::String    ? "String"
            : type.task                               ? "handle"
            : type.tensor                             ? "tensor" + std::to_string(type.shape.size())
-                                                     : type.element == NumericType::UInt64 ? "scalar.uint64" : type.element == NumericType::Int64 ? "scalar.int64" : type.element == NumericType::UInt32 ? "scalar.uint32" : type.element == NumericType::Int32 ? "scalar.int32" : "scalar";
+           : type.element == NumericType::Float64    ? "scalar.float64"
+           : type.element == NumericType::UInt64     ? "scalar.uint64"
+           : type.element == NumericType::Int64      ? "scalar.int64"
+           : type.element == NumericType::UInt32     ? "scalar.uint32"
+           : type.element == NumericType::Int32      ? "scalar.int32"
+                                                     : "scalar";
   }
 
   llvm::StructType *valueType(const ValueType &type) {
@@ -234,11 +247,13 @@ private:
     auto *constant = llvm::ConstantStruct::get(
         layoutType,
         {c64(type.builtin != BuiltinValue::Numeric ? 0x10000 + static_cast<unsigned>(type.builtin)
-             : type.tensor                         ? (isInteger(type.element)
-                                                        ? 0x30000 + 16 * static_cast<unsigned>(type.element) + type.shape.size()
-                                                        : type.shape.size() + 2)
-                                                   : isInteger(type.element)
-                                                       ? 0x20000 + static_cast<unsigned>(type.element) : 1),
+             : type.tensor
+                 ? (isInteger(type.element)
+                        ? 0x30000 + 16 * static_cast<unsigned>(type.element) + type.shape.size()
+                        : type.shape.size() + 2)
+             : isInteger(type.element)              ? 0x20000 + static_cast<unsigned>(type.element)
+             : type.element == NumericType::Float64 ? 0x20000 + static_cast<unsigned>(type.element)
+                                                    : 1),
          c64(size(wrapper)), c64(alignment(wrapper)), fn, destroy});
     return layouts[name] = new llvm::GlobalVariable(module, layoutType, true,
                                                     llvm::GlobalValue::InternalLinkage, constant,
@@ -355,6 +370,14 @@ private:
         }
         if (const auto *integer = std::get_if<UInt32Literal>(&literal)) {
           builder.CreateStore(c32(integer->value), payload(instruction.output));
+          builder.CreateBr(next);
+          break;
+        }
+        if (const auto *real = std::get_if<Float64Literal>(&literal)) {
+          builder.CreateStore(
+              llvm::ConstantFP::get(
+                  context, llvm::APFloat(llvm::APFloat::IEEEdouble(), llvm::APInt(64, real->bits))),
+              payload(instruction.output));
           builder.CreateBr(next);
           break;
         }

@@ -39,17 +39,23 @@ public:
     signatures_.resize(syntax_.functions.size(), true);
     requirements_.resize(syntax_.functions.size());
     literal_.resize(syntax_.expressions.size());
+    floatingLiteral_.resize(syntax_.expressions.size());
     // AST children precede their parent. Compute literal-only context eligibility
     // once, without recursive probing or quadratic walks over long chains.
     for (ExprId id = 0; id < syntax_.expressions.size(); ++id) {
       const auto &value = syntax_.expressions[id].value;
-      if (std::holds_alternative<NumberExpr>(value))
+      if (const auto *number = std::get_if<NumberExpr>(&value)) {
         literal_[id] = true;
-      else if (const auto *unary = std::get_if<UnaryExpr>(&value))
+        floatingLiteral_[id] =
+            syntax_.source->slice(number->literal).find_first_of(".eE") != std::string_view::npos;
+      } else if (const auto *unary = std::get_if<UnaryExpr>(&value)) {
         literal_[id] = literal_[unary->operand];
-      else if (const auto *binary = std::get_if<BinaryExpr>(&value))
+        floatingLiteral_[id] = floatingLiteral_[unary->operand];
+      } else if (const auto *binary = std::get_if<BinaryExpr>(&value)) {
         literal_[id] = binary->operation != TokenKind::Arrow && literal_[binary->left] &&
                        literal_[binary->right];
+        floatingLiteral_[id] = floatingLiteral_[binary->left] || floatingLiteral_[binary->right];
+      }
     }
   }
   CheckResult run() {
@@ -141,8 +147,11 @@ private:
     const auto numeric =
         syntax.tensor ? (syntax.element ? resolveNumeric(name(*syntax.element)) : std::nullopt)
                       : resolveNumeric(name(syntax.name));
-    if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu)) {
-      error("S003", "only int32, uint32, int64, uint64, float32 scalars and tensors are implemented in this semantic subset",
+    if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu) ||
+        (syntax.tensor && *numeric == NumericType::Float64)) {
+      error("S003",
+            "implemented numeric types are int32, uint32, int64, uint64 and float32 "
+            "scalars/tensors, and float64 scalars",
             syntax.span);
       return {};
     }
@@ -465,19 +474,23 @@ private:
     return add(frame, type, span, Int32Literal{static_cast<std::int32_t>(value)});
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const NumberExpr &literal,
-                               const std::optional<ValueType> &expected) {
+                               const std::optional<ValueType> &context) {
+    auto expected = context;
     if (!expected && syntax_.source->slice(literal.literal).find_first_of(".eE") == std::string_view::npos)
       return intLiteral(frame, span, literal, false, NumericType::Int64);
-    if (!expected || expected->tensor || expected->builtin != BuiltinValue::Numeric) {
-      error("S013",
-            "unconstrained floating literals use float64; add float32 context for this first "
-            "subset",
-            span);
+    if (!expected) {
+      expected = ValueType{};
+      expected->element = NumericType::Float64;
+    }
+    if (expected->tensor || expected->builtin != BuiltinValue::Numeric) {
+      error("S013", "numeric literals require a numeric scalar context", span);
       return {};
     }
     if (isInteger(expected->element))
       return intLiteral(frame, span, literal, false, expected->element);
-    llvm::APFloat value(llvm::APFloat::IEEEsingle());
+    const bool doubleWidth = expected->element == NumericType::Float64;
+    const auto formatName = doubleWidth ? "float64" : "float32";
+    llvm::APFloat value(doubleWidth ? llvm::APFloat::IEEEdouble() : llvm::APFloat::IEEEsingle());
     const auto text = syntax_.source->slice(literal.literal);
     if (text.size() > limits_.maxLiteralBytes) {
       error("S032", "numeric literal exceeds the semantic size limit", span);
@@ -487,15 +500,17 @@ private:
                                           llvm::APFloat::rmNearestTiesToEven);
     if (!status) {
       llvm::consumeError(status.takeError());
-      error("S014", "invalid float32 literal", span);
+      error("S014", std::string("invalid ") + formatName + " literal", span);
       return {};
     }
     if ((*status & llvm::APFloat::opOverflow) || !value.isFinite()) {
-      error("S015", "finite literal overflows float32", span);
+      error("S015", std::string("finite literal overflows ") + formatName, span);
       return {};
     }
     ValueType output;
     output.element = expected->element;
+    if (doubleWidth)
+      return add(frame, output, span, Float64Literal{value.bitcastToAPInt().getZExtValue()});
     return add(frame, output, span,
                Float32Literal{static_cast<std::uint32_t>(value.bitcastToAPInt().getZExtValue())});
   }
@@ -516,7 +531,10 @@ private:
     if ((!expected || (isInteger(expected->element) && !expected->tensor)) &&
         unary.operation == TokenKind::Minus)
       if (const auto *literal = std::get_if<NumberExpr>(&syntax_.expressions[unary.operand].value))
-        return intLiteral(frame, span, *literal, true, expected ? expected->element : NumericType::Int64);
+        if (expected ||
+            syntax_.source->slice(literal->literal).find_first_of(".eE") == std::string_view::npos)
+          return intLiteral(frame, span, *literal, true,
+                            expected ? expected->element : NumericType::Int64);
     auto operand = expression(frame, unary.operand, expected);
     if (!operand)
       return {};
@@ -537,7 +555,13 @@ private:
     return add(frame, type, span, ScalarUnary{unary.operation, *operand});
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const BinaryExpr &binary,
-                               const std::optional<ValueType> &expected) {
+                               const std::optional<ValueType> &context) {
+    auto expected = context;
+    if (!expected && literal_[binary.left] && literal_[binary.right] &&
+        (floatingLiteral_[binary.left] || floatingLiteral_[binary.right])) {
+      expected = ValueType{};
+      expected->element = NumericType::Float64;
+    }
     if (binary.operation == TokenKind::Arrow) {
       const auto &right = syntax_.expressions[binary.right];
       if (const auto *target = std::get_if<NameExpr>(&right.value))
@@ -1449,7 +1473,7 @@ private:
   std::unordered_map<std::string, FunctionId> functions_;
   std::vector<State> states_;
   std::vector<bool> signatures_;
-  std::vector<bool> literal_;
+  std::vector<bool> literal_, floatingLiteral_;
   std::vector<std::unordered_set<std::string>> requirements_;
   std::vector<Diagnostic> diagnostics_;
   ExtentId nextExtent_ = 1;

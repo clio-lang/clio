@@ -53,12 +53,13 @@ std::string describeType(const ValueType &type) {
 std::optional<std::string> numericCapabilityError(const TypedModule &module, NumericTarget target) {
   const auto error = [&](const ValueType &type) -> std::optional<std::string> {
     if (type.builtin != BuiltinValue::Numeric ||
-        numericArithmeticAvailable(type.element, target))
+        (numericArithmeticAvailable(type.element, target) &&
+         !(type.tensor && type.element == NumericType::Float64)))
       return {};
     const auto description = describeNumeric(type.element);
-    return "numeric type '" + (description ? std::string(description->name) : "<invalid>") +
-           "' is not implemented by the " + (target == NumericTarget::Cpu ? "CPU" : "Apple GPU") +
-           " backend";
+    return "numeric type '" + (description ? std::string(description->name) : "<invalid>") + "'" +
+           (type.tensor ? " tensor arithmetic" : "") + " is not implemented by the " +
+           (target == NumericTarget::Cpu ? "CPU" : "Apple GPU") + " backend";
   };
   for (const auto &fn : module.functions) {
     if (auto failure = error(fn.resultType))
@@ -139,7 +140,10 @@ std::string dumpTypedIR(const TypedModule &module) {
       std::visit(
           [&](const auto &operation) {
             using T = std::decay_t<decltype(operation)>;
-            if constexpr (std::is_same_v<T, Float32Literal>)
+            if constexpr (std::is_same_v<T, Float64Literal>)
+              out << "f64.bits 0x" << std::hex << std::setw(16) << std::setfill('0')
+                  << operation.bits << std::dec;
+            else if constexpr (std::is_same_v<T, Float32Literal>)
               out << "f32.bits 0x" << std::hex << std::setw(8) << std::setfill('0')
                   << operation.bits << std::dec;
             else if constexpr (std::is_same_v<T, Int32Literal>)
@@ -154,7 +158,12 @@ std::string dumpTypedIR(const TypedModule &module) {
               out << "read $" << operation.symbol;
             else if constexpr (std::is_same_v<T, ScalarUnary>) {
               out << (operation.operation == TokenKind::Minus ? "neg." : "pos.")
-                  << (node.type.element == NumericType::UInt64 ? "u64 checked " : node.type.element == NumericType::Int64 ? "i64 checked " : node.type.element == NumericType::UInt32 ? "u32 checked " : node.type.element == NumericType::Int32 ? "i32 checked " : "f32 ");
+                  << (node.type.element == NumericType::UInt64    ? "u64 checked "
+                      : node.type.element == NumericType::Int64   ? "i64 checked "
+                      : node.type.element == NumericType::UInt32  ? "u32 checked "
+                      : node.type.element == NumericType::Int32   ? "i32 checked "
+                      : node.type.element == NumericType::Float64 ? "f64 "
+                                                                  : "f32 ");
               value(operation.operand);
             } else if constexpr (std::is_same_v<T, TensorUnary>) {
               out << (node.type.element == NumericType::UInt64 ? "elementwise neg.u64 checked "
@@ -178,7 +187,10 @@ std::string dumpTypedIR(const TypedModule &module) {
                                     : operation.operation == TokenKind::Percent ? "rem" : "div";
                 out << integer << (node.type.element == NumericType::UInt64 ? ".u64 checked " : node.type.element == NumericType::Int64 ? ".i64 checked " : node.type.element == NumericType::UInt32 ? ".u32 checked " : ".i32 checked ");
               } else
-                out << name << " strict ";
+                out << (node.type.element == NumericType::Float64
+                            ? std::string(name).replace(5, 2, "64")
+                            : name)
+                    << " strict ";
               value(operation.left);
               out << ", ";
               value(operation.right);

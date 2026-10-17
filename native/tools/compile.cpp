@@ -219,6 +219,11 @@ int main(int argc, char **argv) {
     command.insert(command.begin() + 5,
                    threadSanitize ? KALANDRA_INT64_THREAD_SANITIZED_ENTRY
                    : sanitize ? KALANDRA_INT64_SANITIZED_ENTRY : KALANDRA_INT64_ENTRY);
+  if (main != typed.module->functions.end() &&
+      main->resultType.element == kalandra::NumericType::Float64)
+    command.insert(command.begin() + 5, threadSanitize ? KALANDRA_FLOAT64_THREAD_SANITIZED_ENTRY
+                                        : sanitize     ? KALANDRA_FLOAT64_SANITIZED_ENTRY
+                                                       : KALANDRA_FLOAT64_ENTRY);
   if (main != typed.module->functions.end() && main->resultType.element == kalandra::NumericType::UInt64)
     command.insert(command.begin() + 5,
                    threadSanitize ? KALANDRA_UINT64_THREAD_SANITIZED_ENTRY

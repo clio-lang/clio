@@ -236,7 +236,7 @@ void failures() {
     reduceSum(host)
 )",
          "S047");
-  reject("fn main() -> float32:\n  value=1.5\n  value\n", "S013");
+  reject("fn main() -> float32:\n  value=1.5\n  value\n", "S010");
   reject("fn main() -> Tensor[float32,0,3]:\n  tensor([])\n", "S010");
   reject("fn main() -> Tensor[float32,2,3]:\n  tensor([1,2,3], [2,3])\n", "S050");
   reject("fn main() -> Tensor[float32,1,2]:\n  tensor([[1,2]], [1,2])\n", "S050");

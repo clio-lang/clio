@@ -9,7 +9,7 @@ namespace kalandra {
 // fail closed.
 mlir::LogicalResult lowerStrictFloat32(mlir::Operation *root);
 // CPU-only binary32/binary64 implementation. Binary64 uses i128 intermediates;
-// this entry point rejects GPU/SPIR-V modules. Source float64 remains gated until
-// the frontend, typed ABI and worker paths are independently qualified.
+// this entry point rejects GPU/SPIR-V modules. Source admission and typed
+// native/worker ABI validation belong to their respective compiler layers.
 mlir::LogicalResult lowerStrictCpuFloat(mlir::Operation *root);
 } // namespace kalandra
