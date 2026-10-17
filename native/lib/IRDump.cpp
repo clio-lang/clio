@@ -77,6 +77,23 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
   for (const auto &expression : module.expressions) {
     if (auto failure = error(expression.type))
       return failure;
+    if (const auto *choice = std::get_if<ConditionalOperation>(&expression.operation)) {
+      const auto &condition = module.expressions[choice->condition].type;
+      if (condition.builtin != BuiltinValue::Bool || condition.task || condition.fallible ||
+          condition.tensor || condition.device || expression.type.task ||
+          expression.type.builtin == BuiltinValue::Device || choice->whenTrue.empty() ||
+          choice->whenFalse.empty())
+        return "conditional requires a completed CPU Bool and two result branches";
+      for (auto result : {choice->trueResult, choice->falseResult}) {
+        const auto &type = module.expressions[result].type;
+        if (type.task || type.builtin == BuiltinValue::Device ||
+            type.builtin != expression.type.builtin || type.tensor != expression.type.tensor ||
+            type.shape.size() != expression.type.shape.size() ||
+            type.device != expression.type.device ||
+            (type.builtin == BuiltinValue::Numeric && type.element != expression.type.element))
+          return "conditional branch result type mismatch";
+      }
+    }
     if (const auto *comparison = std::get_if<ScalarCompare>(&expression.operation)) {
       const auto &a = module.expressions[comparison->left].type;
       const auto &b = module.expressions[comparison->right].type;
@@ -177,6 +194,9 @@ std::string dumpTypedIR(const TypedModule &module) {
             using T = std::decay_t<decltype(operation)>;
             if constexpr (std::is_same_v<T, BoolLiteral>)
               out << (operation.value ? "true" : "false");
+            else if constexpr (std::is_same_v<T, ConditionalOperation>)
+              out << "if %" << operation.condition << " then %" << operation.trueResult << " else %"
+                  << operation.falseResult;
             else if constexpr (std::is_same_v<T, ScalarCompare>)
               out << "compare " << static_cast<unsigned>(operation.operation) << " %"
                   << operation.left << " %" << operation.right;

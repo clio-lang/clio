@@ -330,6 +330,29 @@ private:
       plan.code[dispatch].target = exit;
       for (auto jump : boundary.jumps)
         plan.code[jump].jump = exit;
+    } else if (const auto *choice = std::get_if<ConditionalOperation>(&node.operation)) {
+      auto condition = expression(plan, choice->condition, env, stack);
+      const auto dispatch = plan.code.size();
+      plan.code.push_back({Code::Branch, output, {condition}});
+      for (unsigned index = 0; index < 2; ++index) {
+        if (index == 1)
+          plan.code[dispatch].jump = plan.code.size();
+        auto branch = env;
+        for (const auto &statement : index == 0 ? choice->whenTrue : choice->whenFalse) {
+          auto value = expression(plan, statement.value, branch, stack);
+          if (statement.binding)
+            branch.symbols[*statement.binding] = value;
+        }
+        auto result =
+            expression(plan, index == 0 ? choice->trueResult : choice->falseResult, branch, stack);
+        plan.code.push_back({Code::Copy, output, {result}});
+        if (index == 0) {
+          plan.code[dispatch].target = plan.code.size();
+          plan.code.push_back({Code::Jump, 0, {}});
+        }
+      }
+      plan.code[plan.code[dispatch].target].jump = plan.code.size();
+      plan.code.push_back({Code::Label, 0, {}});
     } else if (const auto *match = std::get_if<MatchOperation>(&node.operation)) {
       auto subject = expression(plan, match->subject, env, stack);
       std::vector<std::size_t> exits;
@@ -455,10 +478,10 @@ std::expected<ModulePlan, std::string> plan(const TypedModule &input, Options op
   }
 }
 std::string dump(const ModulePlan &module) {
-  static constexpr const char *names[] = {"literal", "unary",  "binary", "kernel", "copy",
-                                          "open",    "spawn",  "await",  "try",    "join",
-                                          "label",   "return", "catch",  "case",   "jump",
-                                          "field",   "fail",   "call",   "device", "transfer"};
+  static constexpr const char *names[] = {
+      "literal", "unary", "binary", "kernel", "copy",   "open",     "spawn",
+      "await",   "try",   "join",   "label",  "return", "catch",    "case",
+      "jump",    "field", "fail",   "call",   "device", "transfer", "branch"};
   std::ostringstream out;
   for (std::size_t f = 0; f < module.plans.size(); ++f) {
     const auto &plan = *module.plans[f];

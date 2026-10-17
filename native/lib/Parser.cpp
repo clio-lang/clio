@@ -257,7 +257,7 @@ private:
         left = call;
         continue;
       }
-      if (word("catch") && minimum <= 5) {
+      if (word("catch") && minimum <= 4) {
         advance();
         if (!word("fn")) {
           error("P013", "catch requires an explicit fn(error) handler", current().span);
@@ -279,7 +279,8 @@ private:
           return {};
         continue;
       }
-      const auto power = precedence(current().kind);
+      const bool conjunction = word("and"), disjunction = word("or");
+      const auto power = conjunction ? 6 : disjunction ? 5 : precedence(current().kind);
       if (power < minimum)
         break;
       const auto operation = advance();
@@ -291,7 +292,10 @@ private:
       if (!right)
         return {};
       const auto span = SourceSpan{node(*left).span.begin, node(*right).span.end};
-      if (operation.kind == TokenKind::Comparison) {
+      if (conjunction || disjunction) {
+        left = add({span, LogicalExpr{conjunction, *left, *right}});
+        compared = false;
+      } else if (operation.kind == TokenKind::Comparison) {
         const auto spelling = source_->slice(operation.span);
         const auto kind = spelling == "=="   ? ComparisonKind::Equal
                           : spelling == "!=" ? ComparisonKind::NotEqual
@@ -363,6 +367,42 @@ private:
       return add({token.span, NumberExpr{token.span}});
     if (at(TokenKind::Identifier)) {
       const auto text = source_->slice(token.span);
+      if (text == "if") {
+        advance();
+        auto condition = parseExpression();
+        if (!condition || !expect(TokenKind::Colon, "expected ':' after if condition"))
+          return {};
+        auto yes = suite();
+        if (!yes)
+          return {};
+        if (tokens_[position_ - 1].kind != TokenKind::Dedent &&
+            !expect(TokenKind::Newline, "expected newline before else"))
+          return {};
+        if (!word("else")) {
+          error("P035", "if expressions require an else branch", current().span);
+          return {};
+        }
+        advance();
+        if (!expect(TokenKind::Colon, "expected ':' after else"))
+          return {};
+        auto no = suite();
+        if (!no)
+          return {};
+        return add({{token.span.begin, no->back().span.end},
+                    ConditionalExpr{*condition, std::move(*yes), std::move(*no)}});
+      }
+      if (text == "not") {
+        advance();
+        auto operand = parseExpression(7);
+        if (!operand)
+          return {};
+        return add(
+            {{token.span.begin, node(*operand).span.end}, UnaryExpr{TokenKind::Bang, *operand}});
+      }
+      if (text == "else" || text == "and" || text == "or") {
+        error("P035", "unexpected control-flow keyword", token.span);
+        return {};
+      }
       if (text == "match") {
         advance();
         auto subject = parseExpression();

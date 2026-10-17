@@ -545,6 +545,10 @@ private:
         builder.CreateBr(blocks[instruction.target]);
         break;
       }
+      case Code::Branch:
+        builder.CreateCondBr(builder.CreateLoad(boolean, payload(instruction.args[0])), next,
+                             blocks[instruction.jump]);
+        break;
       case Code::Case: {
         auto subject = instruction.args[0];
         auto *tagAddress = plan.slots[subject].builtin == BuiltinValue::TaskError

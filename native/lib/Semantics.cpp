@@ -50,7 +50,7 @@ public:
         floatingLiteral_[id] =
             syntax_.source->slice(number->literal).find_first_of(".eE") != std::string_view::npos;
       } else if (const auto *unary = std::get_if<UnaryExpr>(&value)) {
-        literal_[id] = literal_[unary->operand];
+        literal_[id] = unary->operation != TokenKind::Bang && literal_[unary->operand];
         floatingLiteral_[id] = floatingLiteral_[unary->operand];
       } else if (const auto *binary = std::get_if<BinaryExpr>(&value)) {
         literal_[id] = binary->operation != TokenKind::Arrow && literal_[binary->left] &&
@@ -148,6 +148,10 @@ private:
     return type.tensor &&
            std::ranges::any_of(type.shape, [](const auto &d) { return !d.constant; });
   }
+  static bool reservedControl(const std::string &name) {
+    return name == "true" || name == "false" || name == "if" || name == "else" || name == "and" ||
+           name == "or" || name == "not";
+  }
   std::optional<ValueType> type(const TypeSyntax &syntax) {
     if (!syntax.tensor && name(syntax.name) == "Bool") {
       ValueType result;
@@ -178,8 +182,8 @@ private:
       auto &target = output_.functions[id];
       target.name = name(function.name);
       target.declaration = function.name;
-      if (target.name == "Bool" || target.name == "true" || target.name == "false")
-        error("S056", "reserved Boolean name", function.name);
+      if (target.name == "Bool" || reservedControl(target.name))
+        error("S056", "reserved Boolean/control-flow name", function.name);
       if (resolveNumeric(target.name)) {
         error("S055", "numeric type names are reserved conversion functions", function.name);
         signatures_[id] = false;
@@ -196,8 +200,8 @@ private:
       std::unordered_map<std::string, bool> parameters;
       for (const auto &parameter : function.parameters) {
         const auto parameterName = name(parameter.name);
-        if (parameterName == "true" || parameterName == "false")
-          error("S056", "Boolean literals cannot be parameter names", parameter.name);
+        if (reservedControl(parameterName))
+          error("S056", "Control-flow keywords cannot be parameter names", parameter.name);
         if (!parameters.emplace(parameterName, true).second) {
           error("S005", "duplicate parameter '" + parameterName + "'", parameter.name);
           signatures_[id] = false;
@@ -266,8 +270,8 @@ private:
       std::optional<SymbolId> symbol;
       if (statement.binding) {
         const auto bindingName = name(*statement.binding);
-        if (bindingName == "true" || bindingName == "false")
-          error("S056", "Boolean literals cannot be binding names", *statement.binding);
+        if (reservedControl(bindingName))
+          error("S056", "Control-flow keywords cannot be binding names", *statement.binding);
         // The initializer is checked before this name is introduced.
         if (frame.locals.contains(bindingName)) {
           error("S008", "duplicate binding '" + bindingName + "'; bindings are immutable",
@@ -556,6 +560,21 @@ private:
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const UnaryExpr &unary,
                                const std::optional<ValueType> &expected) {
+    if (unary.operation == TokenKind::Bang) {
+      auto input = expression(frame, unary.operand);
+      if (!input)
+        return {};
+      auto type = node(*input).type;
+      if (type.builtin != BuiltinValue::Bool || type.task || type.fallible || type.tensor ||
+          type.device) {
+        error("S057", "not requires a completed CPU Bool", span);
+        return {};
+      }
+      auto no = add(frame, type, span, BoolLiteral{false});
+      if (!no)
+        return {};
+      return add(frame, type, span, ScalarCompare{ComparisonKind::Equal, *input, *no});
+    }
     if ((!expected || (isInteger(expected->element) && !expected->tensor)) &&
         unary.operation == TokenKind::Minus)
       if (const auto *literal = std::get_if<NumberExpr>(&syntax_.expressions[unary.operand].value))
@@ -851,8 +870,8 @@ private:
       std::optional<SymbolId> symbol;
       if (statement.binding) {
         auto binding = name(*statement.binding);
-        if (binding == "true" || binding == "false") {
-          error("S056", "Boolean literals cannot be binding names", *statement.binding);
+        if (reservedControl(binding)) {
+          error("S056", "Control-flow keywords cannot be binding names", *statement.binding);
           return {};
         }
         if (!bindings.insert(binding).second) {
@@ -920,8 +939,8 @@ private:
       std::optional<SymbolId> symbol;
       if (statement.binding) {
         auto binding = name(*statement.binding);
-        if (binding == "true" || binding == "false") {
-          error("S056", "Boolean literals cannot be binding names", *statement.binding);
+        if (reservedControl(binding)) {
+          error("S056", "Control-flow keywords cannot be binding names", *statement.binding);
           return {};
         }
         if (!bindings.insert(binding).second) {
@@ -940,8 +959,8 @@ private:
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const CatchExpr &handler,
                                const std::optional<ValueType> &expected) {
-    if (name(handler.parameter) == "true" || name(handler.parameter) == "false") {
-      error("S056", "Boolean literals cannot be handler parameter names", handler.parameter);
+    if (reservedControl(name(handler.parameter))) {
+      error("S056", "Control-flow keywords cannot be handler parameter names", handler.parameter);
       return {};
     }
     auto context = expected;
@@ -1004,7 +1023,9 @@ private:
       error("S039", "fail requires a typed TaskError value", span);
       return {};
     }
-    if (!expected || expected->builtin != BuiltinValue::Numeric || expected->task) {
+    if (!expected ||
+        (expected->builtin != BuiltinValue::Numeric && expected->builtin != BuiltinValue::Bool) ||
+        expected->task) {
       error("S039", "fail needs a concrete success-type context in this subset", span);
       return {};
     }
@@ -1019,6 +1040,103 @@ private:
     result.fallible = true;
     result.identity = 0;
     return add(frame, result, span, FailOperation{*value});
+  }
+  template <class Evaluate>
+  std::optional<ValueId> conditional(Frame &frame, SourceSpan span, ValueId condition,
+                                     const std::optional<ValueType> &expected, Evaluate evaluate) {
+    const auto conditionType = node(condition).type;
+    if (conditionType.builtin != BuiltinValue::Bool || conditionType.task ||
+        conditionType.fallible || conditionType.tensor || conditionType.device) {
+      error("S057", "conditions require a completed CPU Bool", node(condition).span);
+      return {};
+    }
+    const auto before = *frame.tasks;
+    std::vector<std::shared_ptr<TaskChecks>> paths;
+    std::vector<std::vector<TypedStatement>> bodies(2);
+    std::vector<ValueId> results;
+    std::optional<ValueType> resultType;
+    auto context = expected;
+    if (context)
+      context->fallible = true;
+    for (unsigned index = 0; index < 2; ++index) {
+      auto branch = frame;
+      branch.conditional = true;
+      branch.tasks = std::make_shared<TaskChecks>(before);
+      auto value = evaluate(branch, index, context, bodies[index]);
+      if (!value)
+        return {};
+      auto actual = node(*value).type;
+      if (actual.task || actual.builtin == BuiltinValue::Device) {
+        error("S035", "conditional branches cannot return task handles or device selectors", span);
+        return {};
+      }
+      if (resultType) {
+        if (actual.builtin != resultType->builtin ||
+            (actual.builtin == BuiltinValue::Numeric && actual.element != resultType->element) ||
+            actual.tensor != resultType->tensor ||
+            actual.shape.size() != resultType->shape.size()) {
+          error("S043", "conditional branches require a common success type", span);
+          return {};
+        }
+        if (actual.device != resultType->device) {
+          error("S047", "conditional branches require matching residency", span);
+          return {};
+        }
+        resultType->fallible |= actual.fallible;
+        for (std::size_t axis = 0; axis < actual.shape.size(); ++axis)
+          if (!same(resultType->shape[axis], actual.shape[axis]))
+            resultType->shape[axis] = dynamic();
+      } else
+        resultType = actual;
+      finishBranch(before, branch, *value, span);
+      paths.push_back(branch.tasks);
+      results.push_back(*value);
+    }
+    for (auto pending : before.pending)
+      if (std::ranges::all_of(paths,
+                              [&](const auto &path) { return path->handled.contains(pending); }))
+        frame.tasks->handled.insert(pending);
+    for (const auto &[group, children] : before.children)
+      for (auto child : children)
+        if (std::ranges::all_of(paths, [&](const auto &path) {
+              return path->observed.contains(node(child).type.identity);
+            }))
+          frame.tasks->observed.insert(node(child).type.identity);
+    resultType->identity = 0;
+    return add(frame, *resultType, span,
+               ConditionalOperation{condition, std::move(bodies[0]), std::move(bodies[1]),
+                                    results[0], results[1]});
+  }
+  std::optional<ValueId> infer(Frame &frame, SourceSpan span, const ConditionalExpr &choice,
+                               const std::optional<ValueType> &expected) {
+    auto condition = expression(frame, choice.condition);
+    if (!condition)
+      return {};
+    return conditional(frame, span, *condition, expected,
+                       [&](Frame &branch, unsigned index, const std::optional<ValueType> &context,
+                           std::vector<TypedStatement> &body) {
+                         return suite(branch, index == 0 ? choice.whenTrue : choice.whenFalse,
+                                      context, body);
+                       });
+  }
+  std::optional<ValueId> infer(Frame &frame, SourceSpan span, const LogicalExpr &logical,
+                               const std::optional<ValueType> &) {
+    auto left = expression(frame, logical.left);
+    if (!left)
+      return {};
+    ValueType boolean;
+    boolean.builtin = BuiltinValue::Bool;
+    return conditional(frame, span, *left, boolean,
+                       [&](Frame &branch, unsigned index, const std::optional<ValueType> &,
+                           std::vector<TypedStatement> &body) {
+                         auto value =
+                             (index == 0) == logical.conjunction
+                                 ? expression(branch, logical.right, boolean)
+                                 : add(branch, boolean, span, BoolLiteral{!logical.conjunction});
+                         if (value)
+                           body.push_back({span, {}, *value});
+                         return value;
+                       });
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const MatchExpr &match,
                                const std::optional<ValueType> &expected) {
@@ -1076,8 +1194,8 @@ private:
         const auto fieldSpan = pattern.name;
         const auto field = name(fieldSpan);
         const auto binding = name(pattern.binding);
-        if (binding == "true" || binding == "false") {
-          error("S056", "Boolean literals cannot be pattern binding names", pattern.binding);
+        if (reservedControl(binding)) {
+          error("S056", "Control-flow keywords cannot be pattern binding names", pattern.binding);
           return {};
         }
         ErrorField fieldId;

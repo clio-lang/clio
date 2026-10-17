@@ -22,7 +22,7 @@ Integer comparisons use mathematical signed or unsigned ordering at their declar
 
 ## Grouping and evaluation
 
-Precedence, from tighter to looser, is calls/unary signs, multiplicative arithmetic, additive arithmetic, pipelines, comparisons, then catch. Thus `1 + 2 -> twice == 6` means `(twice(1 + 2)) == 6`. This extends the existing arithmetic and pipeline rules without changing their relative order.
+Precedence, from tighter to looser, is calls/unary signs, multiplicative arithmetic, additive arithmetic, pipelines, comparisons, Boolean not/and/or, then catch. Thus `1 + 2 -> twice == 6` means `(twice(1 + 2)) == 6`. This extends the existing arithmetic and pipeline rules without changing their relative order.
 
 A comparison evaluates its left operand, then its right operand, once each. If the left fails, the right does not execute. Checked failures in either operand keep their own source location; comparing them does not suppress faults.
 
@@ -34,7 +34,7 @@ Ungrouped comparison chains such as `a < b < c` are rejected with P034. Explicit
 
 Boolean captures and results use the existing bounded scheduler, resumable calls, cached awaits, expected-error handling and lifetime rules. Bool has a distinct private native result-layout identity; task handles retain their own representation. Rejected layouts must not publish a value or acquire owners. Ordinary CPU functions and checked private native test interfaces carry Boolean scalars directly. This does not establish a public C ABI or library-packaging contract.
 
-Conditionals, logical operators/short-circuiting, Bool arrays/tensors and GPU/mixed-target Bool execution are subsequent work. This milestone supplies their scalar value and comparison foundation without silently enabling unsupported forms. Broader values/modules, native library embedding and developer tooling remain tracked in the [roadmap](../roadmap.md). Native distributed execution still requires the agreed design discussion.
+[CPU conditionals and short-circuit logic](control-flow.md) now build on this foundation. Bool arrays/tensors and GPU/mixed-target Bool execution remain subsequent work. Broader values/modules, native library embedding and developer tooling remain tracked in the [roadmap](../roadmap.md). Native distributed execution still requires the agreed design discussion.
 
 ## Qualification
 

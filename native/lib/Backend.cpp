@@ -894,6 +894,28 @@ private:
             for (auto child : operation.elements)
               elements.push_back(expression(frame, child));
             return tensor::FromElementsOp::create(builder_, loc, type(node.type), elements);
+          } else if constexpr (std::is_same_v<T, ConditionalOperation>) {
+            auto condition = expression(frame, operation.condition);
+            auto evaluate = [&](const std::vector<TypedStatement> &statements, ValueId result) {
+              auto branch = frame;
+              for (const auto &statement : statements) {
+                auto value = expression(branch, statement.value);
+                if (statement.binding)
+                  branch.symbols[*statement.binding] = value;
+              }
+              auto value = castTensor(loc, expression(branch, result), type(node.type));
+              scf::YieldOp::create(builder_, loc, ValueRange{value});
+            };
+            auto choice =
+                scf::IfOp::create(builder_, loc, TypeRange{type(node.type)}, condition, true);
+            {
+              OpBuilder::InsertionGuard guard(builder_);
+              builder_.setInsertionPointToStart(&choice.getThenRegion().front());
+              evaluate(operation.whenTrue, operation.trueResult);
+              builder_.setInsertionPointToStart(&choice.getElseRegion().front());
+              evaluate(operation.whenFalse, operation.falseResult);
+            }
+            return choice.getResult(0);
           } else if constexpr (std::is_same_v<T, FunctionCall>) {
             SmallVector<Value> arguments;
             for (std::size_t i = 0; i < operation.arguments.size(); ++i) {

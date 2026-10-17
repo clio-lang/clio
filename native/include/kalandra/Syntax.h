@@ -137,6 +137,14 @@ struct TaskExpr {
 struct ParallelExpr {
   std::vector<Statement> body;
 };
+struct ConditionalExpr {
+  ExprId condition;
+  std::vector<Statement> whenTrue, whenFalse;
+};
+struct LogicalExpr {
+  bool conjunction;
+  ExprId left, right;
+};
 struct CatchExpr {
   ExprId operand;
   SourceSpan parameter;
@@ -161,7 +169,7 @@ struct FailExpr {
 struct Expr {
   SourceSpan span;
   std::variant<NameExpr, NumberExpr, UnaryExpr, BinaryExpr, ComparisonExpr, CallExpr, ArrayExpr,
-               TaskExpr, ParallelExpr, CatchExpr, MatchExpr, FailExpr>
+               TaskExpr, ParallelExpr, ConditionalExpr, LogicalExpr, CatchExpr, MatchExpr, FailExpr>
       value;
 };
 struct Statement {

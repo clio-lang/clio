@@ -26,7 +26,8 @@ enum class Code {
   Fail,
   Call,
   Device,
-  Transfer
+  Transfer,
+  Branch
 };
 struct Instruction {
   Code code;

@@ -1043,6 +1043,8 @@ class Compiler {
                         failureRef(args[0]) + ";\n" + jump(op.jump));
         break;
       }
+      case Code::Branch:
+        throw std::runtime_error("CPU Boolean branches are not supported by the Metal target");
       case Code::Case: {
         const auto subject = args.at(0);
         const auto tag =

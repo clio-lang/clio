@@ -109,3 +109,7 @@ The initial float32-only subset above has expanded to checked int32/uint32/int64
 ## CPU Boolean values and comparisons
 
 [Bool values and scalar comparisons](booleans.md) now use a distinct builtin identity, BoolLiteral and ScalarCompare typed operations. Numeric comparison operands preserve their concrete types; Boolean result context does not select numeric precision. Completed CPU scalars of the same numeric type support six comparisons; Bool supports equality/inequality. Tensor and unobserved task/error operands remain rejected. Boolean captures/results use distinct result layouts and the existing continuation planner; GPU Bool execution remains gated.
+
+## CPU conditional evaluation
+
+[Conditionals and logical operators](control-flow.md) now use ConditionalOperation with a completed Bool condition and two typed statement/result branches. Branch scopes and task-obligation state are copied independently; only observations common to all paths discharge incoming obligations. Joins retain concrete numeric identity, category/rank/residency and common shape facts. Synchronous CPU lowering uses native MLIR branches; continuation lowering uses explicit Boolean dispatch and existing result copies. Bool fail/rethrow contexts are also supported.

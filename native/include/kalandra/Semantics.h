@@ -133,6 +133,11 @@ struct ParallelOperation {
   ValueId result;
   std::size_t group;
 };
+struct ConditionalOperation {
+  ValueId condition;
+  std::vector<TypedStatement> whenTrue, whenFalse;
+  ValueId trueResult, falseResult;
+};
 struct CatchOperation {
   ValueId operand;
   SymbolId parameter;
@@ -163,7 +168,7 @@ struct TypedExpr {
                UInt64Literal, BoolLiteral, ScalarCompare, SymbolRead, ScalarUnary, TensorUnary,
                ScalarBinary, TensorBinary, TensorLiteral, NumericConvert, FunctionCall, Matmul,
                ReduceSum, ShapeCheck, DeviceSelection, Transfer, TaskOperation, ParallelOperation,
-               CatchOperation, MatchOperation, ErrorFieldRead, FailOperation>
+               ConditionalOperation, CatchOperation, MatchOperation, ErrorFieldRead, FailOperation>
       operation;
 };
 struct ShapeEquality {

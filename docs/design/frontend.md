@@ -96,3 +96,7 @@ The surrounding success type supplies the float32 literal context in this exampl
 ## Boolean comparison syntax
 
 The parser now represents `==`, `!=`, `<`, `<=`, `>` and `>=` with a distinct ComparisonExpr and operator identity. Comparisons bind below pipelines and above catch; ungrouped chains receive P034. `true` and `false` are resolved as reserved Bool literals by semantic analysis. See the [CPU Boolean contract](booleans.md) for typing, numerical rules, worker support and current limits.
+
+## Conditional and logical syntax
+
+The CPU subset now accepts `if condition: ... else: ...` with inline or indented branch results, plus Boolean `not`, `and` and `or`. Both branches are required. Comparisons/pipelines bind above logical operators; `not` includes comparisons, `and` binds above `or`, and catch remains below them. ConditionalExpr and LogicalExpr keep explicit branch/operand IDs; semantic lowering retains conditional evaluation. See the [control-flow contract](control-flow.md).
