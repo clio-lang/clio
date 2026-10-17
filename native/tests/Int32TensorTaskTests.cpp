@@ -55,6 +55,8 @@ template <NumericType E = element> static std::vector<NumericValue<E>> expected(
       return {2, 4, 6, 8};
     if (scenario == 5)
       return {1.0000000000000002, -0.0};
+    if (scenario == 10)
+      return {0, 0, 0, 0};
     if (scenario == 9)
       return {std::bit_cast<double>(UINT64_C(0x7ff0000000000000)),
               std::bit_cast<double>(UINT64_C(0xfff0000000000000)),

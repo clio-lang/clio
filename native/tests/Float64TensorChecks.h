@@ -52,8 +52,7 @@ static void checkFloat64Tensors() {
     const char *code;
   };
   for (auto test :
-       {Bad{"fn f(x:Tensor[float64,?,?]) -> Tensor[float64,?,?]:\n  matmul(x,x)\n", "S053"},
-        Bad{"fn f(x:Tensor[float,?]) -> Tensor[float,?]:\n  x%2\n", "S019"},
+       {Bad{"fn f(x:Tensor[float,?]) -> Tensor[float,?]:\n  x%2\n", "S019"},
         Bad{"fn f(x:Tensor[float,?],y:Tensor[float32,?]) -> Tensor[float,?]:\n  x+y\n", "S017"},
         Bad{"fn f() -> Tensor[float,1]:\n  tensor([1.8e308])\n", "S015"},
         Bad{"fn f(x:Tensor[float,1152921504606846976]) -> float:\n  0\n", "S002"}}) {
@@ -62,27 +61,26 @@ static void checkFloat64Tensors() {
   }
   auto limit = analyze("fn f(x:Tensor[float,1152921504606846975]) -> float:\n  0\n");
   require(limit.ok(), "exact eight-byte static byte bound rejected");
+  auto matrix = analyze("fn f(a:Tensor[float,?,?],b:Tensor[float,?,?]) -> Tensor[float,?,?]:\n  "
+                        "matmul(a,b)\nfn main() -> float:\n  0\n");
+  require(matrix.ok(), "float64 matmul rejected");
 #ifndef KALANDRA_FLOAT64_FRONTEND_ONLY
-  // Bypass source checks to verify operation and task admission on all typed IR paths.
-  for (auto operation : {"matmul(x,x)"}) {
-    const bool reduction = std::string(operation).starts_with("reduce");
-    auto typed = analyze(std::string("fn f(x:Tensor[float32,?,?]) -> ") +
-                         (reduction ? "float32" : "Tensor[float32,?,?]") + ":\n  " + operation +
-                         "\nfn main() -> float32:\n  0\n");
-    require(typed.ok(), "reference builtin source rejected");
-    for (auto &fn : typed.module->functions) {
-      fn.resultType.element = NumericType::Float64;
-      if (fn.declaredResult)
-        fn.declaredResult->element = NumericType::Float64;
-    }
-    for (auto &symbol : typed.module->symbols)
-      symbol.type.element = NumericType::Float64;
-    for (auto &expr : typed.module->expressions)
-      expr.type.element = NumericType::Float64;
-    auto rejected = lowerNative(*typed.module);
-    require(!rejected && rejected.error().find(reduction ? "reduction element"
-                                                         : "matmul element") != std::string::npos,
-            "forged float64 builtin reached lowering");
+  require(bool(lowerNative(*matrix.module)), "float64 matmul lowering rejected");
+  auto mismatched = *matrix.module;
+  for (auto &expr : mismatched.expressions)
+    if (std::holds_alternative<Matmul>(expr.operation))
+      expr.type.element = NumericType::Float32;
+  require(!lowerNative(mismatched), "mismatched matmul element type admitted");
+  for (unsigned policy = 0; policy < 2; ++policy) {
+    auto forged = *matrix.module;
+    for (auto &expr : forged.expressions)
+      if (auto *multiply = std::get_if<Matmul>(&expr.operation)) {
+        if (policy == 0)
+          multiply->separatelyRoundedProducts = false;
+        else
+          multiply->order = static_cast<ReductionOrder>(255);
+      }
+    require(!lowerNative(forged), "unsupported matmul numerical policy admitted");
   }
   auto typed = analyze(
       "fn f(x:Tensor[float,?]) -> Tensor[float,?]:\n  x+1\nfn main() -> float ! TaskError:\n  try "

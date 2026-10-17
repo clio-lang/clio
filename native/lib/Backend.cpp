@@ -590,8 +590,8 @@ private:
     }
     return small.getResult(0);
   }
-  Value integerMatmul(Location loc, Value a, Value b, RankedTensorType output,
-                      const Matmul &operation, bool unsignedValue) {
+  Value scalarMatmul(Location loc, Value a, Value b, RankedTensorType output,
+                     const Matmul &operation, bool unsignedValue) {
     if (operation.order != ReductionOrder::BalancedAdjacent || !operation.separatelyRoundedProducts)
       throw LoweringFailure{"unsupported matmul numerical policy"};
     auto left = dimensions(loc, a), right = dimensions(loc, b);
@@ -622,7 +622,9 @@ private:
                 auto sum = reduction(loc, left[1], scratch, [&](Value k) -> Value {
                   auto x = tensor::ExtractOp::create(builder_, loc, a, ValueRange{row, k});
                   auto y = tensor::ExtractOp::create(builder_, loc, b, ValueRange{k, column});
-                  return integerBinary(loc, x, y, TokenKind::Star, unsignedValue);
+                  return isa<IntegerType>(cellType)
+                             ? integerBinary(loc, x, y, TokenKind::Star, unsignedValue)
+                             : binary(loc, "arith.mulf", x, y);
                 }, 1, unsignedValue);
                 auto cell = tensor::InsertOp::create(builder_, loc, sum, columnValues[0], ValueRange{row, column});
                 scf::YieldOp::create(builder_, loc, ValueRange{cell});
@@ -632,8 +634,8 @@ private:
     return result.getResult(0);
   }
   Value matmul(Location loc, Value a, Value b, RankedTensorType output, const Matmul &operation, NumericType element) {
-    if (isInteger(element))
-      return integerMatmul(loc, a, b, output, operation, isUnsigned(element));
+    if (isInteger(element) || element == NumericType::Float64)
+      return scalarMatmul(loc, a, b, output, operation, isUnsigned(element));
     // Outlining prevents a large SIMD kernel's register/stack requirements from
     // penalizing narrow shapes in the surrounding source function.
     func::FuncOp helper;

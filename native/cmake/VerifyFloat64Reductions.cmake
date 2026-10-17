@@ -81,17 +81,11 @@ COMPILE(tree-order "fn main() -> float:\n  values:Tensor[float,4] = tensor([1801
 EXPECT(tree-order 0)
 COMPILE(empty "fn main() -> float:\n  values:Tensor[float,0] = tensor([])\n  reduceSum(values)\n")
 EXPECT(empty 0)
-# GPU float64 and float64 matmul remain gated; failed compilation preserves artifacts.
-foreach(GATE IN ITEMS metal matmul)
-  if(GATE STREQUAL "metal")
-    set(GATE_SOURCE "${SOURCE}")
-    set(GATE_FLAGS --target metal)
-    set(GATE_ERROR float64)
-  else()
-    set(GATE_SOURCE "fn f(x:Tensor[float,?,?]) -> Tensor[float,?,?]:\n  matmul(x,x)\n")
-    set(GATE_FLAGS)
-    set(GATE_ERROR S053)
-  endif()
+# GPU float64 remains gated; failed compilation preserves artifacts.
+foreach(GATE IN ITEMS metal)
+  set(GATE_SOURCE "${SOURCE}")
+  set(GATE_FLAGS --target metal)
+  set(GATE_ERROR float64)
   file(WRITE "${OUTPUT_DIR}/${GATE}.kalandra" "${GATE_SOURCE}")
   file(WRITE "${OUTPUT_DIR}/preserved" "preserved executable")
   execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${GATE}.kalandra" -o "${OUTPUT_DIR}/preserved" ${GATE_FLAGS}

@@ -1226,7 +1226,7 @@ private:
       return {};
     }
     if (leftType.element != NumericType::Float32 && !isInteger(leftType.element) &&
-        !(callee == "reduceSum" && leftType.element == NumericType::Float64)) {
+        leftType.element != NumericType::Float64) {
       error("S053", callee + " currently requires implemented numeric tensor elements", span);
       return {};
     }

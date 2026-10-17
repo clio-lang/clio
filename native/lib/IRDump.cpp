@@ -80,8 +80,7 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
     if (const auto *multiply = std::get_if<Matmul>(&expression.operation)) {
       if (expression.type.element != module.expressions[multiply->left].type.element ||
           expression.type.element != module.expressions[multiply->right].type.element ||
-          !numericArithmeticAvailable(expression.type.element, target) ||
-          expression.type.element == NumericType::Float64)
+          !numericArithmeticAvailable(expression.type.element, target))
         return "unsupported matmul element type";
     }
   }
