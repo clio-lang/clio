@@ -51,10 +51,11 @@ std::string describeType(const ValueType &type) {
   return out.str();
 }
 std::optional<std::string> numericCapabilityError(const TypedModule &module, NumericTarget target) {
+  bool float64Tensor = false;
   const auto error = [&](const ValueType &type) -> std::optional<std::string> {
-    if (type.builtin != BuiltinValue::Numeric ||
-        (numericArithmeticAvailable(type.element, target) &&
-         !(type.tensor && type.element == NumericType::Float64)))
+    float64Tensor |= type.builtin == BuiltinValue::Numeric && type.tensor &&
+                     type.element == NumericType::Float64;
+    if (type.builtin != BuiltinValue::Numeric || numericArithmeticAvailable(type.element, target))
       return {};
     const auto description = describeNumeric(type.element);
     return "numeric type '" + (description ? std::string(description->name) : "<invalid>") + "'" +
@@ -76,16 +77,28 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       return failure;
     if (const auto *reduce = std::get_if<ReduceSum>(&expression.operation)) {
       if (expression.type.element != module.expressions[reduce->input].type.element ||
-          !numericArithmeticAvailable(expression.type.element, target))
+          !numericArithmeticAvailable(expression.type.element, target) ||
+          expression.type.element == NumericType::Float64)
         return "unsupported reduction element type";
     }
     if (const auto *multiply = std::get_if<Matmul>(&expression.operation)) {
       if (expression.type.element != module.expressions[multiply->left].type.element ||
           expression.type.element != module.expressions[multiply->right].type.element ||
-          !numericArithmeticAvailable(expression.type.element, target))
+          !numericArithmeticAvailable(expression.type.element, target) ||
+          expression.type.element == NumericType::Float64)
         return "unsupported matmul element type";
     }
   }
+  if (target == NumericTarget::Cpu && float64Tensor &&
+      (std::ranges::any_of(module.functions,
+                           [](const auto &fn) { return fn.resultType.fallible; }) ||
+       std::ranges::any_of(module.expressions, [](const auto &expr) {
+         return std::holds_alternative<TaskOperation>(expr.operation) ||
+                std::holds_alternative<ParallelOperation>(expr.operation) ||
+                std::holds_alternative<CatchOperation>(expr.operation) ||
+                std::holds_alternative<MatchOperation>(expr.operation);
+       })))
+    return "float64 tensor modules with tasks are not implemented";
   return {};
 }
 std::string dumpTypedIR(const TypedModule &module) {
@@ -166,11 +179,13 @@ std::string dumpTypedIR(const TypedModule &module) {
                                                                   : "f32 ");
               value(operation.operand);
             } else if constexpr (std::is_same_v<T, TensorUnary>) {
-              out << (node.type.element == NumericType::UInt64 ? "elementwise neg.u64 checked "
-                      : node.type.element == NumericType::Int64 ? "elementwise neg.i64 checked "
+              out << (node.type.element == NumericType::UInt64   ? "elementwise neg.u64 checked "
+                      : node.type.element == NumericType::Int64  ? "elementwise neg.i64 checked "
                       : node.type.element == NumericType::UInt32 ? "elementwise neg.u32 checked "
-                      : node.type.element == NumericType::Int32 ? "elementwise neg.i32 checked "
-                                                            : "elementwise neg.f32 exact_sign_bit ");
+                      : node.type.element == NumericType::Int32  ? "elementwise neg.i32 checked "
+                      : node.type.element == NumericType::Float64
+                          ? "elementwise neg.f64 exact_sign_bit "
+                          : "elementwise neg.f32 exact_sign_bit ");
               value(operation.operand);
             } else if constexpr (std::is_same_v<T, ScalarBinary> ||
                                  std::is_same_v<T, TensorBinary>) {

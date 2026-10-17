@@ -670,3 +670,29 @@ Dedicated native entries return LLVM `double` and print 17 significant decimal d
 [Qualification evidence](../../native/metal-proof/evidence/cpu-float64-scalars-2026-10-17.json) records all 311 native/Metal checks passing, 89,742,912 exact source-result comparisons across four build variants and eight floating environments, 432 worker lifetime process runs, and preservation of all 640 tracked float32 artifacts. The ordinary compiler also builds and runs float64 workers with both Metal options disabled.
 
 Next: CPU float64 tensor literals and elementwise arithmetic, reusing the width-aware storage and strict scalar engine. Float64 reductions, matmul and explicit conversions follow their own qualification. Discuss native distributed execution before implementation.
+
+
+### CPU float64 tensor literals and elementwise arithmetic
+
+Synchronous CPU functions now accept `Tensor[float64, ...]` and `Tensor[float, ...]`. Rank-zero, vector, matrix and higher-rank literals preserve their binary64 elements. Nested arrays or flat data with an explicit constant shape use the existing checked tensor constructor, including empty vectors and empty matrices. Finite-literal overflow remains a compile-time S015 error; tiny values round directly to binary64, and negative zero is preserved.
+
+```kalandra
+fn shifted(values: Tensor[float, ?]) -> Tensor[float, ?]:
+  values + 0.25
+
+fn example() -> Tensor[float, 3]:
+  values: Tensor[float, 3] = tensor([1.0000000000000002, -0.0, 4.9406564584124654e-324])
+  shifted(values)
+```
+
+Elementwise `+`, `-`, `*`, `/`, unary signs, and either scalar operand order use the existing shape-checked tensor loops. Binary64 operations inside those loops pass through the same strict integer lowering as scalar arithmetic. Every elementary operation rounds separately; `a*b+a` retains the rounded product. Division by zero, infinities and NaNs follow the scalar IEEE behavior. Negation flips exactly the sign bit; unary plus preserves every element bit. There is no implicit float32/float64 or integer/float conversion and no floating remainder.
+
+The existing eight-byte storage, allocation-size checks, strided memref access and invocation ownership machinery serve this type without a new runtime or numerical kernel implementation. Borrowed inputs remain immutable, including aliased and transposed views. Returned backing can be retained across invocation settlement. Shape and allocation failures publish no partial result; generated loops cooperate with cancellation.
+
+**Current scope is synchronous CPU tensor execution.** Until float64 tensor worker layouts are qualified, a module combining float64 tensors with task operations or TaskError functions is rejected with S054, including unused declarations. Scalar-only float64 worker programs remain supported. `reduceSum` and `matmul` reject float64 with S053; backend admission independently rejects forged typed IR for those operations. Float64 remains unsupported in Metal source modules. These gates prevent newly admitted tensor types from entering unqualified result layouts or reduction kernels.
+
+[Frontend checks](../../native/tests/Float64TensorChecks.h) cover literal ranks, aliases, scalar lifting, strict numeric identities, exact eight-byte size boundaries and unsupported operations/targets. The [compiled driver](../../native/cmake/VerifyFloat64Tensors.cmake) and [runtime harness](../../native/tests/Float64TensorRuntimeTests.cpp) reuse the [APFloat corpus](../../native/metal-proof/Float64Oracle.h) across arithmetic, unary signs and separately rounded composition. Ranked tests exercise all 467,411 operand pairs; scalar-lift tests choose one scalar per batch and calculate the corresponding lane reference. Rank zero uses 4,096 samples spanning the corpus. Eight ARM floating environments cover all rounding modes with flush-to-zero/default-NaN disabled and enabled, including literal and refinement tests. Result bits are checked both before and after invocation settlement. Additional probes cover empty axes, padded/displaced/transposed/aliased inputs, dynamic shape mismatch, exact/overflowing byte bounds, allocation injection and poll-triggered cancellation. Debug, optimized, ASan/UBSan and separate TSan builds qualify generated execution; frontend checks also run independently under ASan/UBSan.
+
+[Qualification evidence](../../native/metal-proof/evidence/cpu-float64-tensors-2026-10-17.json) records 37 focused frontend, scalar/worker and strict Metal regression checks passing, plus the final four tensor variants with strengthened non-square view probes. It records 628,872 tensor invocations, exact lane checks before/after settlement, and preservation of all 640 tracked float32 artifacts. The backend, strict arithmetic engine, runtime and common continuation planner are unchanged.
+
+Next: float64 tensor worker captures/results, then qualified reductions and matrix multiplication. Explicit numeric conversions and GPU numeric formats remain separate work. Discuss native distributed execution before implementation.

@@ -10,8 +10,10 @@ static void require(bool ok, const char *message) {
 static CheckResult analyze(const std::string &text) {
   return check(parse(std::make_shared<SourceFile>("float64.kalandra", text)));
 }
+#include "Float64TensorChecks.h"
 int main() {
   try {
+    checkFloat64Tensors();
     struct Literal {
       const char *text;
       std::uint64_t bits;
@@ -49,8 +51,8 @@ int main() {
                       Invalid{"fn f(x:float32) -> float64:\n  x\n", "S010"},
                       Invalid{"fn f(x:int64) -> float:\n  x\n", "S010"},
                       Invalid{"fn main() -> float:\n  x=1\n  x\n", "S010"},
-                      Invalid{"fn f(x:Tensor[float64,2]) -> float:\n  0\n", "S003"},
-                      Invalid{"fn main() -> Tensor[float,2]:\n  tensor([1,2])\n", "S003"}}) {
+                      Invalid{"fn f(x:Tensor[float16,2]) -> float:\n  0\n", "S003"},
+                      Invalid{"fn main() -> Tensor[float16,2]:\n  tensor([1,2])\n", "S003"}}) {
       auto typed = analyze(test.text);
       require(!typed.ok() && typed.diagnostics[0].code == test.code, test.text);
     }
@@ -68,16 +70,17 @@ int main() {
                 native->llvm.find("fadd double") == std::string::npos &&
                 native->llvm.find("i128") != std::string::npos,
             "binary64 entry or strict arithmetic lost");
-    // Forged tensor identities fail before reaching scalar or buffer lowering.
+    // Unsupported numeric identities fail before reaching scalar or buffer lowering.
     for (unsigned surface = 0; surface < 4; ++surface) {
       auto forged = *typed.module;
       ValueType *type = surface == 0   ? &forged.functions[0].resultType
                         : surface == 1 ? &*forged.functions[0].declaredResult
                         : surface == 2 ? &forged.symbols[0].type
                                        : &forged.expressions[0].type;
+      type->element = NumericType::Int16;
       type->tensor = true;
       type->shape = {{2, 0}};
-      require(!lowerNative(forged), "forged float64 tensor reached backend lowering");
+      require(!lowerNative(forged), "forged unsupported tensor reached backend lowering");
     }
 #endif
     require(bool(numericCapabilityError(*typed.module, NumericTarget::AppleGpu)),

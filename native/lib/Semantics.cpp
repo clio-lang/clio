@@ -63,6 +63,10 @@ public:
     for (FunctionId i = 0;
          i < syntax_.functions.size() && diagnostics_.size() < limits_.maxDiagnostics; ++i)
       analyzeFunction(i);
+    if (diagnostics_.empty())
+      if (auto unsupported = numericCapabilityError(output_, NumericTarget::Cpu))
+        error("S054", *unsupported,
+              syntax_.functions.empty() ? SourceSpan{} : syntax_.functions[0].name);
     if (!diagnostics_.empty())
       return {syntax_.source, {}, std::move(diagnostics_)};
     return {syntax_.source, std::move(output_), {}};
@@ -147,11 +151,10 @@ private:
     const auto numeric =
         syntax.tensor ? (syntax.element ? resolveNumeric(name(*syntax.element)) : std::nullopt)
                       : resolveNumeric(name(syntax.name));
-    if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu) ||
-        (syntax.tensor && *numeric == NumericType::Float64)) {
+    if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu)) {
       error("S003",
-            "implemented numeric types are int32, uint32, int64, uint64 and float32 "
-            "scalars/tensors, and float64 scalars",
+            "implemented numeric types are int32, uint32, int64, uint64, float32 and float64 "
+            "scalars/tensors",
             syntax.span);
       return {};
     }
@@ -1123,7 +1126,10 @@ private:
       return {};
     }
     if (!expected || !expected->tensor) {
-      error("S026", "tensor literals need Tensor[int32,...], Tensor[uint32,...], Tensor[int64,...], Tensor[uint64,...] or Tensor[float32,...] context in this subset", span);
+      error("S026",
+            "tensor literals need Tensor[int32,...], Tensor[uint32,...], Tensor[int64,...], "
+            "Tensor[uint64,...], Tensor[float32,...] or Tensor[float64,...] context in this subset",
+            span);
       return {};
     }
     if (arguments.size() == 2) {
