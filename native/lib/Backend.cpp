@@ -237,7 +237,7 @@ private:
     return tensor::CastOp::create(builder_, loc, target, value);
   }
   Value reductionScratch(Location loc, Value count, Type element = {}) {
-    checkedCount(loc, {count});
+    checkedCount(loc, {count}, element ? element.getIntOrFloatBitWidth() / 8 : 4);
     auto scratchType = MemRefType::get({ShapedType::kDynamic}, element ? element : builder_.getF32Type());
     return memref::AllocOp::create(builder_, loc, scratchType, ValueRange{count});
   }
@@ -287,7 +287,7 @@ private:
                                auto second = arith::AddIOp::create(builder_, loc, first, one);
                                auto a = load(first);
                                auto b = load(second);
-                               Value sum = elementType.isInteger(32)
+                               Value sum = isa<IntegerType>(elementType)
                                                ? integerBinary(loc, a, b, TokenKind::Plus, unsignedValue)
                                                : Value(arith::AddFOp::create(builder_, loc, a, b));
                                store(sum, i);
@@ -307,8 +307,8 @@ private:
     {
       OpBuilder::InsertionGuard guard(builder_);
       builder_.setInsertionPointToStart(&result.getThenRegion().front());
-      Value empty = elementType.isInteger(32)
-                        ? Value(arith::ConstantIntOp::create(builder_, loc, 0, 32)) : zero(loc);
+      Value empty = isa<IntegerType>(elementType)
+                        ? Value(arith::ConstantIntOp::create(builder_, loc, 0, cast<IntegerType>(elementType).getWidth())) : zero(loc);
       if (width != 1)
         empty = vector::BroadcastOp::create(builder_, loc, vectorType, empty);
       scf::YieldOp::create(builder_, loc, ValueRange{empty});
@@ -655,7 +655,7 @@ private:
     if (operation.order != ReductionOrder::BalancedAdjacent || !operation.rowMajor)
       throw LoweringFailure{"unsupported reduction numerical policy"};
     auto shape = dimensions(loc, tensor);
-    auto count = checkedCount(loc, shape);
+    auto count = checkedCount(loc, shape, describeNumeric(element)->bytes());
     auto scratch = reductionScratch(loc, count, cast<RankedTensorType>(tensor.getType()).getElementType());
     return reduction(loc, count, scratch, [&](Value linear) -> Value {
       SmallVector<Value> indices(shape.size());
@@ -664,7 +664,7 @@ private:
         linear = arith::DivUIOp::create(builder_, loc, linear, shape[axis - 1]);
       }
       return tensor::ExtractOp::create(builder_, loc, tensor, indices);
-    }, 1, element == NumericType::UInt32);
+    }, 1, isUnsigned(element));
   }
   Value elementwise(Location loc, Value a, Value b, RankedTensorType output, TokenKind op, NumericType element) {
     const bool tensorA = isa<RankedTensorType>(a.getType());

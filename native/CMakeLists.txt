@@ -781,3 +781,25 @@ if(BUILD_TESTING)
     endforeach()
   endforeach()
 endif()
+
+if(BUILD_TESTING)
+  foreach(NUMERIC_TYPE IN ITEMS int64 uint64)
+    foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+      if(VARIANT STREQUAL "sanitized")
+        set(INTEGER64_REDUCTION_RUNTIME "$<TARGET_FILE:kalandra-native-runtime-sanitized>")
+      elseif(VARIANT STREQUAL "thread-sanitized")
+        set(INTEGER64_REDUCTION_RUNTIME "$<TARGET_FILE:kalandra-native-runtime-thread-sanitized>")
+      else()
+        set(INTEGER64_REDUCTION_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
+      endif()
+      add_test(NAME native-${NUMERIC_TYPE}-reductions-${VARIANT}
+        COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+          "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INTEGER64_REDUCTION_RUNTIME}"
+          "-DVARIANT=${VARIANT}" "-DNUMERIC_TYPE=${NUMERIC_TYPE}"
+          "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/${NUMERIC_TYPE}-reductions-${VARIANT}"
+          "-DHARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/Int32ReductionRuntimeTests.cpp"
+          -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyInt32Reductions.cmake")
+      set_tests_properties(native-${NUMERIC_TYPE}-reductions-${VARIANT} PROPERTIES TIMEOUT 240)
+    endforeach()
+  endforeach()
+endif()

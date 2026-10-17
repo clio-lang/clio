@@ -166,9 +166,9 @@ template <std::size_t Rank> static bool metadata(std::array<std::int64_t, Rank> 
   context.settle();
   return !context.live() && context.allocations() == context.releases();
 }
-template <std::size_t Rank> static bool cancelled() {
+template <std::size_t Rank> static std::optional<bool> cancellationAttempt(std::size_t count) {
   // Only addition uses this probe; zero data avoids incidental arithmetic faults.
-  std::vector<std::uint32_t> cells(1048576, 0);
+  std::vector<std::uint32_t> cells(count, 0);
   CpuTensor<NumericType::UInt32, Rank> input{}, result{};
   input.allocated = input.aligned = cells.data();
   if constexpr (Rank > 0) {
@@ -178,22 +178,37 @@ template <std::size_t Rank> static bool cancelled() {
     input.strides.back() = 1;
   }
   Invocation context;
-  std::atomic<bool> token{Rank == 0}, done{false};
+  std::atomic<bool> token{Rank == 0}, done{false}, ready{false};
   std::atomic<std::uint64_t> polls{0};
   context.bindCancellation(&token);
   context.watchPolls(&polls);
   std::thread signal([&] {
+    ready.store(true);
     while (!done.load() && polls.load() < 4)
       std::this_thread::yield();
     if (!done.load())
       token.store(true);
   });
+  while (!ready.load())
+    std::this_thread::yield();
   _mlir_ciface_kalandra_test_entry(&result, &input, &input, 0, &context);
   done.store(true);
   signal.join();
-  bool ok = token.load() && context.poll() == -1 && !context.status() && !result.allocated;
+  const bool completed = result.allocated && !context.status();
+  const bool ok = token.load() && context.poll() == -1 && !context.status() && !result.allocated;
   context.settle();
-  return ok && !context.live() && context.allocations() == context.releases();
+  if (context.live() || context.allocations() != context.releases())
+    return false;
+  if (completed)
+    return {}; // The kernel finished before the signal was observed: retry a larger workload.
+  return ok;
+}
+template <std::size_t Rank> static bool cancelled() {
+  for (const auto count : {1048576, 4194304, 16777216})
+    if (const auto result = cancellationAttempt<Rank>(count))
+      return *result;
+  std::cerr << "cancellation signal was never observed\n";
+  return false;
 }
 int main(int argc, char **argv) {
   if (argc != 3)

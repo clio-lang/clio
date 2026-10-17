@@ -37,17 +37,49 @@ static void checkInteger64Tensors(const std::string &element, bool backend) {
                       "    first = spawn identity(values)\n    copied = try await first\n"
                       "    try await first\n    0\n");
   require(task.ok(), "64-bit tensor task typing rejected");
+  auto taskReduction = analyze("fn sum(x:" + tensor + ") -> " + element +
+                               ":\n  reduceSum(x)\n"
+                               "fn main() -> " +
+                               element +
+                               " ! TaskError:\n  try parallel:\n"
+                               "    values:Tensor[" +
+                               element +
+                               ",1] = tensor([9007199254740993])\n"
+                               "    try await spawn sum(values)\n");
+  require(taskReduction.ok(), "64-bit worker reduction typing rejected");
 #if !defined(KALANDRA_INT64_FRONTEND_ONLY) && !defined(KALANDRA_UINT64_FRONTEND_ONLY)
   if (backend) {
+    require(bool(lowerNative(*taskReduction.module)), "64-bit worker reduction lowering rejected");
     auto lowered = lowerNative(*task.module);
     require(bool(lowered) &&
                 lowered->llvm.find("value.layout.tensor." + element + ".1") != std::string::npos,
             "64-bit tensor task identity lost");
   }
 #endif
-  for (const auto &expression : {"reduceSum(x)", "matmul(x,x)"})
+  for (const auto &expression : {"matmul(x,x)"})
     require(!analyze("fn f(x:" + tensor + ") -> " + element + ":\n  " + expression + "\n").ok(),
             "unsupported 64-bit tensor builtin admitted");
+  auto reduction = analyze("fn sum(x:" + tensor + ") -> " + element +
+                           ":\n  reduceSum(x)\n"
+                           "fn main() -> " +
+                           element + ":\n  0\n");
+  require(reduction.ok(), "64-bit reduction typing rejected");
+#if !defined(KALANDRA_INT64_FRONTEND_ONLY) && !defined(KALANDRA_UINT64_FRONTEND_ONLY)
+  if (backend) {
+    auto lowered = lowerNative(*reduction.module);
+    require(bool(lowered), "64-bit reduction lowering rejected");
+    auto forged = *reduction.module;
+    for (auto &expr : forged.expressions)
+      if (std::holds_alternative<ReduceSum>(expr.operation))
+        expr.type.element = element == "uint64" ? NumericType::Int64 : NumericType::UInt64;
+    auto rejected = lowerNative(forged);
+    require(!rejected && rejected.error().find("reduction element type") != std::string::npos,
+            "backend accepted mismatched reduction signedness");
+    const auto marker = element == "uint64" ? "checked_u64" : "checked_i64";
+    require(dumpTypedIR(*reduction.module).find(marker) != std::string::npos,
+            "64-bit reduction typed identity lost");
+  }
+#endif
   require(!analyze("fn f() -> Tensor[" + element + ",1152921504606846976]:\n  tensor([])\n").ok(),
           "eight-byte static allocation bound lost");
   require(!analyze("fn f(x:" + tensor + ", y:Tensor[int32,?]) -> " + tensor + ":\n  x + y\n").ok(),
@@ -57,8 +89,7 @@ static void checkInteger64Tensors(const std::string &element, bool backend) {
 #if !defined(KALANDRA_INT64_FRONTEND_ONLY) && !defined(KALANDRA_UINT64_FRONTEND_ONLY)
   if (backend) {
     for (const auto &source :
-         {"fn f(x:Tensor[int32,?]) -> int32:\n  reduceSum(x)\nfn main() -> int32:\n  0\n",
-          "fn f(x:Tensor[int32,?,?]) -> Tensor[int32,?,?]:\n  matmul(x,x)\nfn main() -> int32:\n  "
+         {"fn f(x:Tensor[int32,?,?]) -> Tensor[int32,?,?]:\n  matmul(x,x)\nfn main() -> int32:\n  "
           "0\n"}) {
       auto forged = analyze(source);
       require(forged.ok(), "backend gate fixture invalid");
@@ -72,7 +103,7 @@ static void checkInteger64Tensors(const std::string &element, bool backend) {
         symbol.type.element = numeric;
       for (auto &expr : forged.module->expressions)
         expr.type.element = numeric;
-      require(!lowerNative(*forged.module), "backend admitted unqualified wide reduction/matmul");
+      require(!lowerNative(*forged.module), "backend admitted unqualified wide matmul");
     }
   }
 #endif

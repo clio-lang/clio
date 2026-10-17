@@ -118,13 +118,10 @@ if(NOT "${STATUS}" STREQUAL "1" OR NOT ERR MATCHES "${NUMERIC_TYPE}" OR EXISTS "
   message(FATAL_ERROR "Tensor task support accidentally enabled Metal ${NUMERIC_TYPE}: ${STATUS}: ${ERR}")
 endif()
 
-# Reduction and matmul remain unsupported, including in task-containing modules.
-foreach(OP IN ITEMS reduceSum matmul)
-  if(OP STREQUAL "reduceSum")
-    set(SOURCE "fn f(x:Tensor[${NUMERIC_TYPE},?]) -> ${NUMERIC_TYPE}:\n  reduceSum(x)\nfn main() -> ${NUMERIC_TYPE} ! TaskError:\n  try parallel:\n    0\n")
-  else()
-    set(SOURCE "fn f(x:Tensor[${NUMERIC_TYPE},?,?]) -> Tensor[${NUMERIC_TYPE},?,?]:\n  matmul(x,x)\nfn main() -> ${NUMERIC_TYPE} ! TaskError:\n  try parallel:\n    0\n")
-  endif()
+# Matrix multiplication remains unsupported, including in task-containing modules.
+file(REMOVE "${OUTPUT_DIR}/unsupported-reduceSum.kalandra")
+foreach(OP IN ITEMS matmul)
+  set(SOURCE "fn f(x:Tensor[${NUMERIC_TYPE},?,?]) -> Tensor[${NUMERIC_TYPE},?,?]:\n  matmul(x,x)\nfn main() -> ${NUMERIC_TYPE} ! TaskError:\n  try parallel:\n    0\n")
   file(WRITE "${OUTPUT_DIR}/unsupported-${OP}.kalandra" "${SOURCE}")
   file(WRITE "${OUTPUT_DIR}/preserved" "preserved executable")
   file(WRITE "${OUTPUT_DIR}/preserved.ll" "preserved llvm")

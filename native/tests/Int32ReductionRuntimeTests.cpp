@@ -11,12 +11,22 @@
 #endif
 using namespace kalandra;
 using namespace kalandra::runtime;
+#ifndef INTEGER_BITS
+#define INTEGER_BITS 32
+#endif
 #ifndef UNSIGNED_INPUT
 #define UNSIGNED_INPUT 0
 #endif
-constexpr auto element = UNSIGNED_INPUT ? NumericType::UInt32 : NumericType::Int32;
+constexpr auto element = UNSIGNED_INPUT
+                             ? (INTEGER_BITS == 64 ? NumericType::UInt64 : NumericType::UInt32)
+                             : (INTEGER_BITS == 64 ? NumericType::Int64 : NumericType::Int32);
 using Cell = NumericValue<element>;
-using Wide = std::conditional_t<UNSIGNED_INPUT, std::uint64_t, std::int64_t>;
+using Wide = std::conditional_t<UNSIGNED_INPUT,
+                                std::conditional_t<INTEGER_BITS == 64, __uint128_t, std::uint64_t>,
+                                std::conditional_t<INTEGER_BITS == 64, __int128_t, std::int64_t>>;
+using State = std::conditional_t<INTEGER_BITS == 64, std::uint64_t, std::uint32_t>;
+constexpr Cell precision = INTEGER_BITS == 64 ? Cell(9007199254740993LL) : Cell(16777217);
+constexpr Cell upperHalf = std::numeric_limits<Cell>::max() / 2 + 1;
 constexpr auto minimum = std::numeric_limits<Cell>::min();
 constexpr auto maximum = std::numeric_limits<Cell>::max();
 using Tensor = CpuTensor<element, TENSOR_RANK>;
@@ -56,7 +66,7 @@ static bool verify(std::vector<Cell> values, std::array<std::int64_t, Rank> shap
     for (std::size_t i = Rank; i > 0; --i) {
       input.strides[i - 1] = stride;
       // Invalid dimensions are checked before any reads; avoid host-side overflow.
-      if (!metadataFault)
+      if (!metadataFault && !std::ranges::contains(shape, 0))
         stride *= shape[i - 1];
     }
   }
@@ -75,8 +85,9 @@ static bool verify(std::vector<Cell> values, std::array<std::int64_t, Rank> shap
   context.settle();
   return context.live() == 0 && context.allocations() == context.releases();
 }
-template <std::size_t Rank> static bool cancelled() {
-  const std::size_t count = Rank ? 1048576 : 1;
+template <std::size_t Rank> static std::optional<bool> cancellationAttempt(std::size_t count) {
+  if constexpr (Rank == 0)
+    count = 1;
   std::vector<Cell> storage(count, 1);
   CpuTensor<element, Rank> input{};
   input.allocated = input.aligned = storage.data();
@@ -87,27 +98,43 @@ template <std::size_t Rank> static bool cancelled() {
     input.strides.back() = 1;
   }
   Invocation context;
-  std::atomic<bool> token{Rank == 0}, done{false};
+  std::atomic<bool> token{Rank == 0}, done{false}, ready{false};
   std::atomic<std::uint64_t> polls{0};
   context.bindCancellation(&token);
   context.watchPolls(&polls);
   std::thread signal([&] {
+    ready.store(true);
     while (!done.load() && polls.load() < 4)
       std::this_thread::yield();
     if (!done.load())
       token.store(true);
   });
+  while (!ready.load())
+    std::this_thread::yield();
   auto value = _mlir_ciface_kalandra_test_entry(&input, &context);
   done.store(true);
   signal.join();
-  bool ok = token.load() && value == 0 && context.poll() == -1 && !context.status();
+  const bool completed = value == Cell(count) && !context.status();
+  const bool ok = token.load() && value == 0 && context.poll() == -1 && !context.status();
   context.settle();
-  return ok && !context.live() && context.allocations() == context.releases();
+  if (context.live() || context.allocations() != context.releases())
+    return false;
+  if (completed)
+    return {};
+  return ok;
+}
+template <std::size_t Rank> static bool cancelled() {
+  for (const auto count : {1048576, 4194304, 16777216})
+    if (const auto result = cancellationAttempt<Rank>(count))
+      return *result;
+  std::cerr << "cancellation signal was never observed\n";
+  return false;
 }
 int main() {
   std::array<std::int64_t, TENSOR_RANK> shape{};
   shape.fill(1);
-  for (Cell value : {minimum, maximum, Cell(16777217), (UNSIGNED_INPUT ? Cell(2147483648u) : Cell(-1)), Cell(0), Cell(1)})
+  for (Cell value :
+       {minimum, maximum, precision, (UNSIGNED_INPUT ? upperHalf : Cell(-1)), Cell(0), Cell(1)})
     if (!verify({value}, shape) || !verify({value}, shape, 1))
       return 1;
   if (!cancelled<TENSOR_RANK>())
@@ -131,11 +158,11 @@ int main() {
                     {maximum, 0},
                     {0, maximum},
                     {maximum - 1, 1},
-                    {Cell(2147483648u), 2147483647},
-                    {Cell(2147483648u), Cell(2147483648u)},
+                    {upperHalf, Cell(upperHalf - 1)},
+                    {upperHalf, upperHalf},
                     {0, 0, maximum},
                     {1, 0, maximum},
-                    {16777217, 1, 2, 3, 4},
+                    {precision, 1, 2, 3, 4},
                     {1, 2, 3, 4, 5, 6, 7}};
     else
       boundaries = {{},
@@ -146,7 +173,7 @@ int main() {
                     {minimum, 0, Cell(-1), 0},
                     {maximum, minimum, 1},
                     {maximum, Cell(-1), 1},
-                    {16777217, 1, 2, 3, 4},
+                    {precision, 1, 2, 3, 4},
                     {1, 2, 3, 4, 5, 6, 7}};
     for (auto values : boundaries) {
       shape.fill(1);
@@ -160,7 +187,14 @@ int main() {
       if (!verify({}, shape))
         return 1;
     }
-    std::uint32_t state = 0x9e3779b9;
+    if constexpr (TENSOR_RANK > 1) {
+      shape.fill(1);
+      shape.front() = 0;
+      shape.back() = INT64_MAX;
+      if (!verify({}, shape))
+        return 1;
+    }
+    State state = 0x9e3779b9;
     auto next = [&] {
       state ^= state << 13;
       state ^= state >> 17;
@@ -178,8 +212,7 @@ int main() {
         if constexpr (UNSIGNED_INPUT)
           v = trial % 2 ? next() : next() % 20001;
         else
-          v = trial % 2 ? std::bit_cast<std::int32_t>(next())
-                        : std::int32_t(next() % 20001) - 10000;
+          v = trial % 2 ? std::bit_cast<Cell>(next()) : std::int64_t(next() % 20001) - 10000;
       if (!verify(values, shape))
         return 1;
     }
@@ -187,11 +220,14 @@ int main() {
     shape[0] = -1;
     if (!verify({1}, shape, 0, 1))
       return 1;
+    shape[0] = INT64_MAX / sizeof(Cell) + 1;
+    if (!verify({1}, shape, 0, 2))
+      return 1;
     shape[0] = INT64_MAX;
     if (!verify({1}, shape, 0, 2))
       return 1;
   }
-  std::cout << (UNSIGNED_INPUT ? "UInt32 reduction rank " : "Int32 reduction rank ") << TENSOR_RANK
-            << ": " << cases << " runtime inputs, " << faults
+  std::cout << describeNumeric(element)->name << " reduction rank " << TENSOR_RANK << ": " << cases
+            << " runtime inputs, " << faults
             << " checked faults; exact adjacent tree, offsets/strides and settled owners passed\n";
 }

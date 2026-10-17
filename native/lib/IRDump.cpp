@@ -74,8 +74,7 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
     if (auto failure = error(expression.type))
       return failure;
     if (const auto *reduce = std::get_if<ReduceSum>(&expression.operation)) {
-      if ((isInteger(expression.type.element) && !isInteger32(expression.type.element)) ||
-          expression.type.element != module.expressions[reduce->input].type.element ||
+      if (expression.type.element != module.expressions[reduce->input].type.element ||
           !numericArithmeticAvailable(expression.type.element, target))
         return "unsupported reduction element type";
     }
@@ -202,7 +201,9 @@ std::string dumpTypedIR(const TypedModule &module) {
                   << " check_allocation=" << operation.checkAllocationSize;
             } else if constexpr (std::is_same_v<T, ReduceSum>) {
               out << "reduceSum "
-                  << (node.type.element == NumericType::UInt32 ? "checked_u32"
+                  << (node.type.element == NumericType::UInt64 ? "checked_u64"
+                      : node.type.element == NumericType::Int64 ? "checked_i64"
+                      : node.type.element == NumericType::UInt32 ? "checked_u32"
                       : node.type.element == NumericType::Int32 ? "checked_i32" : "strict_f32")
                   << " balanced_adjacent row_major ";
               value(operation.input);

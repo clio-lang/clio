@@ -1195,7 +1195,8 @@ private:
             syntax_.expressions[arguments[0]].span);
       return {};
     }
-    if (leftType.element != NumericType::Float32 && !isInteger32(leftType.element)) {
+    if (leftType.element != NumericType::Float32 &&
+        !(callee == "reduceSum" ? isInteger(leftType.element) : isInteger32(leftType.element))) {
       error("S053", callee + " currently requires float32, int32 or uint32 tensors", span);
       return {};
     }
