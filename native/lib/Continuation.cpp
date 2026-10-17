@@ -23,7 +23,7 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
                            std::is_same_v<T, ScalarBinary> || std::is_same_v<T, ScalarCompare>)
           return {op.left, op.right};
         else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, NumericConvert> ||
-                           std::is_same_v<T, ShapeCheck>)
+                           std::is_same_v<T, ShapeCheck> || std::is_same_v<T, ArrayToTensor>)
           return {op.input};
         else if constexpr (std::is_same_v<T, ArrayMap>) {
           auto result = op.captures;
@@ -187,7 +187,7 @@ private:
             for (auto &capture : op.captures)
               capture = importValue(capture);
           } else if constexpr (std::is_same_v<T, NumericConvert> || std::is_same_v<T, ReduceSum> ||
-                               std::is_same_v<T, ShapeCheck>)
+                               std::is_same_v<T, ShapeCheck> || std::is_same_v<T, ArrayToTensor>)
             op.input = importValue(op.input);
           else if constexpr (std::is_same_v<T, ConditionalOperation>) {
             op.condition = importValue(op.condition);
@@ -271,6 +271,8 @@ private:
       comparison->right = reads[1];
     } else if (auto *convert = std::get_if<NumericConvert>(&op))
       convert->input = reads[0];
+    else if (auto *construction = std::get_if<ArrayToTensor>(&op))
+      construction->input = reads[0];
     else if (auto *map = std::get_if<ArrayMap>(&op)) {
       map->input = reads[0];
       map->function = callback;

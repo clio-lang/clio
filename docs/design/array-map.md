@@ -43,6 +43,8 @@ The callback body is currently one expression. Names resolve lexically; its para
 
 The compiler lifts a callback into a private function and passes its captures as additional internal arguments. Captures are established once before iteration; collection storage follows the existing immutable ownership and worker handoff rules. This does not introduce a public closure ABI or allow an anonymous function to escape as a value. Empty maps do not invoke the callback, even if its body would fail.
 
+Mapped arrays can feed [explicit rank-one tensor construction](arrays.md#explicit-tensor-construction-from-arrays): `values -> map(double) -> tensor() -> reduceSum()`.
+
 ## Ordinary helpers and workers
 
 Callbacks may call other synchronous functions, use CPU conditionals, construct temporary numeric collections/tensors and use the supported synchronous numeric operations. Worker kernel extraction imports the callback's synchronous helper graph with remapped function, value and symbol identities. A mapped result can be retained after its function or worker ends, shared by later calls and obtained from cached awaits.
@@ -62,7 +64,7 @@ This slice accepts named source functions and inline anonymous callbacks with le
 
 Callbacks must be synchronous throughout their reachable helper graph. Task operations, expected-error channels and their recovery, transfers/device selection, and other resumable operations are rejected even when a particular branch or input is empty. Bool, tensor, array and general-value callback results remain outside the numeric array subset. GPU/mixed-target mapping is gated. Existing restrictions on ordinary recursion in task-enabled modules still apply.
 
-Explicit parallel mapping, runtime array-to-tensor construction, broader element types, first-class functions and direct array display in the development CLI remain separate work. There is no new public native callback ABI in this implementation.
+Explicit parallel mapping, broader element types, first-class functions and direct array display in the development CLI remain separate work. There is no new public native callback ABI in this implementation.
 
 ## Qualification
 

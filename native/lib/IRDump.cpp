@@ -218,6 +218,20 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
           !numericArithmeticAvailable(source.element, target))
         return "numeric conversions require implemented CPU values with unchanged shape";
     }
+    if (const auto *construction = std::get_if<ArrayToTensor>(&expression.operation)) {
+      if (construction->input >= module.expressions.size())
+        return "array-to-tensor construction references invalid input";
+      const auto &input = module.expressions[construction->input].type;
+      const auto &output = expression.type;
+      if (target != NumericTarget::Cpu || !input.array || !input.tensor || output.array ||
+          !output.tensor || input.builtin != BuiltinValue::Numeric ||
+          output.builtin != BuiltinValue::Numeric || input.task || input.fallible || input.device ||
+          output.task || output.fallible || output.device || input.element != output.element ||
+          input.shape.size() != 1 || output.shape.size() != 1 ||
+          input.shape[0].constant != output.shape[0].constant ||
+          input.shape[0].identity != output.shape[0].identity)
+        return "array-to-tensor construction requires matching rank-one CPU values";
+    }
     if (const auto *map = std::get_if<ArrayMap>(&expression.operation)) {
       if (map->function >= module.functions.size() || map->input >= module.expressions.size())
         return "map references invalid input or callback";
@@ -395,6 +409,9 @@ std::string dumpTypedIR(const TypedModule &module) {
             } else if constexpr (std::is_same_v<T, TensorLiteral>) {
               out << (node.type.array ? "array.literal ordered " : "tensor.literal row_major ");
               arguments(operation.elements);
+            } else if constexpr (std::is_same_v<T, ArrayToTensor>) {
+              out << "tensor.from_array ordered_copy ";
+              value(operation.input);
             } else if constexpr (std::is_same_v<T, ArrayMap>) {
               out << "array.map sequential @" << operation.function << " ";
               value(operation.input);

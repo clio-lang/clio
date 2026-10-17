@@ -888,7 +888,8 @@ private:
           !std::holds_alternative<Matmul>(node(*value).operation) &&
           !std::holds_alternative<NumericConvert>(node(*value).operation) &&
           !std::holds_alternative<ReduceSum>(node(*value).operation) &&
-          !std::holds_alternative<ArrayMap>(node(*value).operation)) {
+          !std::holds_alternative<ArrayMap>(node(*value).operation) &&
+          !std::holds_alternative<ArrayToTensor>(node(*value).operation)) {
         error("S037", "this invocation is not a supported task entry", span);
         return {};
       }
@@ -1398,12 +1399,51 @@ private:
   std::optional<ValueId> tensor(Frame &frame, SourceSpan span, const std::vector<ExprId> &arguments,
                                 const std::optional<ValueType> &expected) {
     if (arguments.size() != 1 && arguments.size() != 2) {
-      error(
-          "S025",
-          "tensor expects literal data and an optional constant shape; dynamic shape arguments are "
-          "not implemented",
-          span);
+      error("S025",
+            "tensor expects numeric data and an optional constant literal shape; runtime array "
+            "reshaping is not implemented",
+            span);
       return {};
+    }
+    if (expected && (!expected->tensor || expected->array)) {
+      error("S026", "tensor construction requires a tensor result context", span);
+      return {};
+    }
+    std::optional<ValueId> checkedInput;
+    // Literal arrays keep the ranked literal constructor. Runtime arrays have an
+    // explicit rank-one construction operation; scalar expressions retain their
+    // existing rank-zero behavior and are evaluated only once.
+    if (!std::holds_alternative<ArrayExpr>(syntax_.expressions[arguments[0]].value) &&
+        !literal_[arguments[0]]) {
+      std::optional<ValueType> inputContext;
+      if (expected && expected->shape.empty()) {
+        inputContext = ValueType{};
+        inputContext->element = expected->element;
+      } else if (expected && expected->shape.size() == 1) {
+        inputContext = *expected;
+        inputContext->array = true;
+      }
+      checkedInput = expression(frame, arguments[0], inputContext);
+      if (!checkedInput)
+        return {};
+      auto output = node(*checkedInput).type;
+      if (output.array) {
+        if (arguments.size() != 1) {
+          error("S050",
+                "runtime array construction is rank one; explicit reshaping is not implemented",
+                span);
+          return {};
+        }
+        if (output.task || output.fallible || output.device || !output.tensor ||
+            output.builtin != BuiltinValue::Numeric || output.shape.size() != 1) {
+          error("S026", "tensor construction requires a completed CPU numeric array", span);
+          return {};
+        }
+        output.array = false;
+        if (!validSize(output, span))
+          return {};
+        return add(frame, output, span, ArrayToTensor{*checkedInput});
+      }
     }
     auto data = tensorData(arguments[0], expected);
     if (!data)
@@ -1413,10 +1453,6 @@ private:
       return {};
     }
     const bool contextual = expected && expected->tensor;
-    if (expected && (!expected->tensor || expected->array)) {
-      error("S026", "tensor construction requires a tensor result context", span);
-      return {};
-    }
     if (!contextual && data->leaves.empty()) {
       error("S026", "empty tensor data needs an explicit Tensor element type", span);
       return {};
@@ -1491,7 +1527,8 @@ private:
       }
       // Infer unannotated leaves independently, in source order. A previously
       // inferred leaf must not silently supply narrowing/promotion context.
-      auto value = expression(frame, leaf, context);
+      auto value =
+          checkedInput && leaf == arguments[0] ? checkedInput : expression(frame, leaf, context);
       if (!value)
         return {};
       const auto actual = node(*value).type;

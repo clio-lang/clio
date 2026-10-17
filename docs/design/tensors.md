@@ -60,7 +60,7 @@ The expected tensor type supplies float32 context to the numeric literals. Produ
 
 With no annotation, `tensor([1, 2, 3])` infers `Tensor[int64, 3]`. An annotated float32 tensor can type literals as float32, but cannot silently narrow an already typed float64 array. Explicit element conversion is required for such a source.
 
-A rectangular nested literal has a known shape. A flat runtime array passed to `tensor(values)` produces a rank-one tensor whose length is dynamic unless the compiler proves its extent. A scalar argument produces a rank-zero tensor. Arbitrary runtime nested-array conversion is deferred; the initial runtime-data constructor uses flat data and an explicit shape.
+A rectangular nested literal has a known shape. A flat runtime array passed to `tensor(values)` produces a rank-one tensor whose length is dynamic unless the compiler proves its extent. A scalar argument produces a rank-zero tensor. Arbitrary runtime nested-array conversion and explicit runtime reshaping are deferred; the implemented runtime-data constructor currently accepts flat numeric arrays as rank one.
 
 Known ragged input is invalid:
 
@@ -246,3 +246,7 @@ Empty data has no element-type evidence and still needs context: `empty: Tensor[
 Inferred tensors use the existing checked tensor IR, ownership and arithmetic lowering. They can pass through ordinary calls, conditional shape joins, nested workers and cached awaits. This does not add general array values, runtime-array construction, dynamic shape arguments or additional GPU numeric capabilities. Explicit element conversion remains the way to change an already inferred tensor's element type.
 
 Qualification on Apple M2 Max: 59 focused checks passed, including debug/optimized/ASan+UBSan/separate TSan execution, 864 worker harness runs, 192 allocation/lifetime cases and 640 exact retained float64 lane checks. All 640 tracked numerical artifacts remain unchanged. This is focused qualification, not a full-suite claim. The [inference evidence record](../../native/metal-proof/evidence/cpu-tensor-inference-2026-10-17.json) records source/artifact hashes and coverage.
+
+## Native runtime array construction
+
+The CPU constructor now accepts completed numeric arrays through `tensor(values)` or `values -> tensor()`. The result is rank one with the same element type and length. See [array-to-tensor construction](arrays.md#explicit-tensor-construction-from-arrays) for shape checks, ownership, workers and current limits. Ranked literal construction remains unchanged; runtime reshaping is separate work.

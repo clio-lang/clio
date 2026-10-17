@@ -92,6 +92,10 @@ struct FunctionCall {
   FunctionId function;
   std::vector<ValueId> arguments;
 };
+// Explicit immutable rank-one array to CPU tensor construction.
+struct ArrayToTensor {
+  ValueId input;
+};
 struct ArrayMap {
   ValueId input;
   FunctionId function; // One explicit element parameter, followed by lifted captures.
@@ -174,9 +178,9 @@ struct TypedExpr {
   std::variant<Float64Literal, Float32Literal, Int32Literal, Int64Literal, UInt32Literal,
                UInt64Literal, BoolLiteral, ScalarCompare, SymbolRead, ScalarUnary, TensorUnary,
                ScalarBinary, TensorBinary, TensorLiteral, NumericConvert, FunctionCall, Matmul,
-               ReduceSum, ArrayMap, ShapeCheck, DeviceSelection, Transfer, TaskOperation,
-               ParallelOperation, ConditionalOperation, CatchOperation, MatchOperation,
-               ErrorFieldRead, FailOperation>
+               ReduceSum, ArrayMap, ArrayToTensor, ShapeCheck, DeviceSelection, Transfer,
+               TaskOperation, ParallelOperation, ConditionalOperation, CatchOperation,
+               MatchOperation, ErrorFieldRead, FailOperation>
       operation;
 };
 struct ShapeEquality {

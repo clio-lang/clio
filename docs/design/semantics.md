@@ -122,3 +122,5 @@ The initial float32-only subset above has expanded to checked int32/uint32/int64
 
 
 [Sequential array maps](array-map.md) now lower to a typed `ArrayMap` with a checked input array and resolved callback function. Output length facts are preserved, output element identity follows the callback, and transitive resumable callbacks are rejected before lowering. Inline anonymous numeric callbacks lift only referenced lexical CPU values into private parameters; `ArrayMap` records those capture operands explicitly. Worker kernels import synchronous callback/helper definitions with remapped function, value, symbol and capture identities.
+
+[Runtime array-to-tensor construction](arrays.md#explicit-tensor-construction-from-arrays) uses an explicit `ArrayToTensor` typed operation. It preserves numeric identity and rank-one extent facts while changing the source category. CPU lowering checks storage size and copies elements in order; continuation kernels and imported callback helpers remap the input operand without treating arrays as implicit tensors.

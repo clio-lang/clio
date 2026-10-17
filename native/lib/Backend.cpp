@@ -889,6 +889,25 @@ private:
             auto a = expression(frame, operation.left), b = expression(frame, operation.right);
             return elementwise(loc, a, b, cast<RankedTensorType>(type(node.type)),
                                operation.operation, node.type.element);
+          } else if constexpr (std::is_same_v<T, ArrayToTensor>) {
+            auto input = expression(frame, operation.input);
+            auto shape = dimensions(loc, input);
+            checkedCount(loc, shape, describeNumeric(node.type.element)->bytes());
+            const auto output = cast<RankedTensorType>(type(node.type));
+            SmallVector<Value> dynamic;
+            if (output.isDynamicDim(0))
+              dynamic.push_back(shape[0]);
+            auto empty = tensor::EmptyOp::create(builder_, loc, output.getShape(),
+                                                 output.getElementType(), dynamic);
+            auto loop = scf::ForOp::create(
+                builder_, loc, index(loc, 0), shape[0], index(loc, 1), ValueRange{empty},
+                [&](OpBuilder &, Location, Value i, ValueRange args) {
+                  auto element = tensor::ExtractOp::create(builder_, loc, input, ValueRange{i});
+                  auto inserted =
+                      tensor::InsertOp::create(builder_, loc, element, args[0], ValueRange{i});
+                  scf::YieldOp::create(builder_, loc, ValueRange{inserted});
+                });
+            return loop.getResult(0);
           } else if constexpr (std::is_same_v<T, ArrayMap>) {
             auto input = expression(frame, operation.input);
             SmallVector<Value> captures;

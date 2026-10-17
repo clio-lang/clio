@@ -269,3 +269,5 @@ Implementation follows the accepted core plus the required numeric and memory-sa
 The [native immutable array foundation](arrays.md) now implements numeric array literals, `[T]` annotations, value passing and retained worker results. [Named numeric `map`](array-map.md) is now implemented; closures and broader element types remain unimplemented; the examples above continue to define the accepted complete core direction.
 
 The native [sequential numeric array map](array-map.md) implements the anonymous expression callback and lexical capture examples above. First-class function bindings, returned closures and anonymous block bodies remain separate work.
+
+[Explicit rank-one tensor construction from numeric arrays](arrays.md#explicit-tensor-construction-from-arrays) is now implemented through `tensor(values)`, including after a map and inside workers. Runtime reshaping and tensor-to-array construction remain separate work.
