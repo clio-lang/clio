@@ -92,6 +92,10 @@ struct FunctionCall {
   FunctionId function;
   std::vector<ValueId> arguments;
 };
+struct ArrayMap {
+  ValueId input;
+  FunctionId function; // Statically resolved, one-argument synchronous numeric callback.
+};
 enum class ReductionOrder { BalancedAdjacent };
 struct Matmul {
   ValueId left;
@@ -169,8 +173,9 @@ struct TypedExpr {
   std::variant<Float64Literal, Float32Literal, Int32Literal, Int64Literal, UInt32Literal,
                UInt64Literal, BoolLiteral, ScalarCompare, SymbolRead, ScalarUnary, TensorUnary,
                ScalarBinary, TensorBinary, TensorLiteral, NumericConvert, FunctionCall, Matmul,
-               ReduceSum, ShapeCheck, DeviceSelection, Transfer, TaskOperation, ParallelOperation,
-               ConditionalOperation, CatchOperation, MatchOperation, ErrorFieldRead, FailOperation>
+               ReduceSum, ArrayMap, ShapeCheck, DeviceSelection, Transfer, TaskOperation,
+               ParallelOperation, ConditionalOperation, CatchOperation, MatchOperation,
+               ErrorFieldRead, FailOperation>
       operation;
 };
 struct ShapeEquality {

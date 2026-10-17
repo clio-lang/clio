@@ -1,3 +1,4 @@
+#include "kalandra/Continuation.h"
 #include "kalandra/Semantics.h"
 #include <algorithm>
 #include <iomanip>
@@ -73,6 +74,15 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
   const auto sameArray = [](const ValueType &a, const ValueType &b) {
     return a.array == b.array && (!a.array || a.element == b.element);
   };
+  bool hasMap = false;
+  for (const auto &expression : module.expressions)
+    if (const auto *map = std::get_if<ArrayMap>(&expression.operation)) {
+      if (map->function >= module.functions.size() || map->input >= module.expressions.size())
+        return "map references invalid input or callback";
+      hasMap = true;
+    }
+  const auto resumable = hasMap ? continuation::resumableFunctions(module)
+                                : std::vector<bool>(module.functions.size());
   for (const auto &fn : module.functions) {
     if (auto failure = error(fn.resultType))
       return failure;
@@ -204,6 +214,26 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
                       }) ||
           !numericArithmeticAvailable(source.element, target))
         return "numeric conversions require implemented CPU values with unchanged shape";
+    }
+    if (const auto *map = std::get_if<ArrayMap>(&expression.operation)) {
+      if (map->function >= module.functions.size() || map->input >= module.expressions.size())
+        return "map references invalid input or callback";
+      const auto &fn = module.functions[map->function];
+      const auto &input = module.expressions[map->input].type;
+      const auto scalar = [](const ValueType &type) {
+        return type.builtin == BuiltinValue::Numeric && !type.tensor && !type.task &&
+               !type.fallible && !type.device;
+      };
+      if (target != NumericTarget::Cpu || resumable[map->function] || fn.parameters.size() != 1 ||
+          !scalar(fn.resultType) || !scalar(module.symbols[fn.parameters[0]].type) ||
+          !input.array || input.task || input.fallible || !expression.type.array ||
+          expression.type.task || expression.type.fallible ||
+          input.element != module.symbols[fn.parameters[0]].type.element ||
+          expression.type.element != fn.resultType.element ||
+          input.shape[0].constant != expression.type.shape[0].constant ||
+          input.shape[0].identity != expression.type.shape[0].identity)
+        return "map requires an unchanged-length CPU array and a synchronous one-argument numeric "
+               "callback";
     }
     if (const auto *reduce = std::get_if<ReduceSum>(&expression.operation)) {
       if (expression.type.element != module.expressions[reduce->input].type.element ||
@@ -341,6 +371,9 @@ std::string dumpTypedIR(const TypedModule &module) {
             } else if constexpr (std::is_same_v<T, TensorLiteral>) {
               out << (node.type.array ? "array.literal ordered " : "tensor.literal row_major ");
               arguments(operation.elements);
+            } else if constexpr (std::is_same_v<T, ArrayMap>) {
+              out << "array.map sequential @" << operation.function << " ";
+              value(operation.input);
             } else if constexpr (std::is_same_v<T, FunctionCall>) {
               out << "call @" << operation.function;
               arguments(operation.arguments);

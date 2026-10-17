@@ -23,7 +23,7 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
                            std::is_same_v<T, ScalarBinary> || std::is_same_v<T, ScalarCompare>)
           return {op.left, op.right};
         else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, NumericConvert> ||
-                           std::is_same_v<T, ShapeCheck>)
+                           std::is_same_v<T, ShapeCheck> || std::is_same_v<T, ArrayMap>)
           return {op.input};
         else
           return {};
@@ -136,11 +136,103 @@ private:
     stack.erase(id);
     return boundary.output;
   }
+  std::unordered_map<FunctionId, FunctionId> importedFunctions;
+  std::unordered_map<ValueId, ValueId> importedValues;
+  std::unordered_map<SymbolId, SymbolId> importedSymbols;
+  SymbolId importSymbol(SymbolId id) {
+    if (auto found = importedSymbols.find(id); found != importedSymbols.end())
+      return found->second;
+    auto symbol = input.symbols.at(id);
+    symbol.owner = importedFunctions.at(symbol.owner);
+    auto copied = kernels.symbols.size();
+    kernels.symbols.push_back(std::move(symbol));
+    importedSymbols[id] = copied;
+    return copied;
+  }
+  TypedStatement importStatement(TypedStatement statement) {
+    if (statement.binding)
+      statement.binding = importSymbol(*statement.binding);
+    statement.value = importValue(statement.value);
+    return statement;
+  }
+  ValueId importValue(ValueId id) {
+    if (auto found = importedValues.find(id); found != importedValues.end())
+      return found->second;
+    auto value = input.expressions.at(id);
+    std::visit(
+        [&](auto &op) {
+          using T = std::decay_t<decltype(op)>;
+          if constexpr (std::is_same_v<T, SymbolRead>)
+            op.symbol = importSymbol(op.symbol);
+          else if constexpr (std::is_same_v<T, ScalarUnary> || std::is_same_v<T, TensorUnary>)
+            op.operand = importValue(op.operand);
+          else if constexpr (std::is_same_v<T, ScalarBinary> || std::is_same_v<T, TensorBinary> ||
+                             std::is_same_v<T, ScalarCompare> || std::is_same_v<T, Matmul>) {
+            op.left = importValue(op.left);
+            op.right = importValue(op.right);
+          } else if constexpr (std::is_same_v<T, TensorLiteral>) {
+            for (auto &element : op.elements)
+              element = importValue(element);
+          } else if constexpr (std::is_same_v<T, FunctionCall>) {
+            op.function = importFunction(op.function);
+            for (auto &argument : op.arguments)
+              argument = importValue(argument);
+          } else if constexpr (std::is_same_v<T, ArrayMap>) {
+            op.function = importFunction(op.function);
+            op.input = importValue(op.input);
+          } else if constexpr (std::is_same_v<T, NumericConvert> || std::is_same_v<T, ReduceSum> ||
+                               std::is_same_v<T, ShapeCheck>)
+            op.input = importValue(op.input);
+          else if constexpr (std::is_same_v<T, ConditionalOperation>) {
+            op.condition = importValue(op.condition);
+            for (auto &statement : op.whenTrue)
+              statement = importStatement(statement);
+            for (auto &statement : op.whenFalse)
+              statement = importStatement(statement);
+            op.trueResult = importValue(op.trueResult);
+            op.falseResult = importValue(op.falseResult);
+          } else if constexpr (!(std::is_same_v<T, Float32Literal> ||
+                                 std::is_same_v<T, Float64Literal> ||
+                                 std::is_same_v<T, Int32Literal> ||
+                                 std::is_same_v<T, Int64Literal> ||
+                                 std::is_same_v<T, UInt32Literal> ||
+                                 std::is_same_v<T, UInt64Literal> ||
+                                 std::is_same_v<T, BoolLiteral>))
+            throw std::runtime_error("map callback requires synchronous native operations");
+        },
+        value.operation);
+    const auto copied = kernels.expressions.size();
+    kernels.expressions.push_back(std::move(value));
+    importedValues[id] = copied;
+    return copied;
+  }
+  FunctionId importFunction(FunctionId id) {
+    if (auto found = importedFunctions.find(id); found != importedFunctions.end())
+      return found->second;
+    if (resumable.at(id))
+      throw std::runtime_error("map callback cannot suspend");
+    const auto copied = kernels.functions.size();
+    importedFunctions[id] = copied;
+    kernels.functions.emplace_back(); // Reserve before traversing recursive helper references.
+    auto fn = input.functions.at(id);
+    fn.name = "__map_callback_" + std::to_string(id);
+    for (auto &parameter : fn.parameters)
+      parameter = importSymbol(parameter);
+    for (auto &value : fn.expressions)
+      value = importValue(value);
+    for (auto &statement : fn.body)
+      statement = importStatement(statement);
+    fn.result = importValue(fn.result);
+    kernels.functions[copied] = std::move(fn);
+    return copied;
+  }
   FunctionId kernel(ValueId id) {
     if (auto found = kernelIds.find(id); found != kernelIds.end())
       return found->second;
     const auto &source = input.expressions[id];
     const auto args = operands(source);
+    const auto *map = std::get_if<ArrayMap>(&source.operation);
+    const auto callback = map ? importFunction(map->function) : FunctionId{};
     TypedFunction fn;
     const auto fnId = kernels.functions.size();
     fn.name = "__step_" + std::to_string(fnId);
@@ -173,7 +265,10 @@ private:
       comparison->right = reads[1];
     } else if (auto *convert = std::get_if<NumericConvert>(&op))
       convert->input = reads[0];
-    else if (auto *shape = std::get_if<ShapeCheck>(&op))
+    else if (auto *map = std::get_if<ArrayMap>(&op)) {
+      map->input = reads[0];
+      map->function = callback;
+    } else if (auto *shape = std::get_if<ShapeCheck>(&op))
       shape->input = reads[0];
     if (auto *unary = std::get_if<ScalarUnary>(&op))
       unary->operand = reads[0];
@@ -447,6 +542,8 @@ std::vector<bool> resumableFunctions(const TypedModule &input) {
       const auto &op = input.expressions.at(value).operation;
       if (const auto *call = std::get_if<FunctionCall>(&op))
         callers.at(call->function).push_back(id);
+      if (const auto *map = std::get_if<ArrayMap>(&op))
+        callers.at(map->function).push_back(id);
       if (std::holds_alternative<TaskOperation>(op) ||
           std::holds_alternative<ParallelOperation>(op) ||
           std::holds_alternative<CatchOperation>(op) ||

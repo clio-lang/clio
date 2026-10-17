@@ -862,3 +862,5 @@ include(cmake/ControlFlow.cmake)
 include(cmake/TensorInference.cmake)
 
 include(cmake/Arrays.cmake)
+
+include(cmake/ArrayMap.cmake)

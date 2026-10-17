@@ -119,3 +119,6 @@ The initial float32-only subset above has expanded to checked int32/uint32/int64
 
 
 [Immutable native numeric arrays](arrays.md) now retain a distinct source category across annotations, typed literals, calls, branch joins and task continuations. Runtime storage reuses checked rank-one buffers, while source conformance and IR capability checks reject implicit tensor/array interchange and unsupported operations.
+
+
+[Sequential array maps](array-map.md) now lower to a typed `ArrayMap` with a checked input array and resolved callback function. Output length facts are preserved, output element identity follows the callback, and transitive resumable callbacks are rejected before lowering. Worker kernels import synchronous callback/helper definitions with remapped identities.

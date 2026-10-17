@@ -53,7 +53,7 @@ Compiler implementation ownership is separate from Kalandra's automatic memory m
 | `kalandra-proof-cases`    | Independent scalar numerical reference and fixed-seed input generator                     |
 | `native-toolchain-proof`  | Bufferization, ownership lowering, LLVM translation, and three native proof binaries      |
 
-[Immutable numeric arrays](../docs/design/arrays.md) now support `[T]` annotations, homogeneous literals, empty arrays with context, functions, conditional length joins and retained worker handoff. They remain distinct from tensors. `map`, closures, general element types and runtime array-to-tensor construction are subsequent work.
+[Immutable numeric arrays](../docs/design/arrays.md) now support `[T]` annotations, homogeneous literals, empty arrays with context, functions, conditional length joins and retained worker handoff. They remain distinct from tensors. [Sequential named-function mapping](../docs/design/array-map.md) is also available, including explicit element-type changes and worker execution. Closures, general element types and runtime array-to-tensor construction are subsequent work.
 
 [Tensor inference](../docs/design/tensors.md#native-tensor-element-and-shape-inference) supports unannotated nonempty CPU tensor construction, including default `int64`/`float64` elements, scalar and rectangular literal shapes, and inferred results through nested workers. Mixed element identities require explicit typing/conversion; empty data still needs an element type.
 

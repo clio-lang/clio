@@ -844,7 +844,8 @@ private:
       if (!std::holds_alternative<FunctionCall>(node(*value).operation) &&
           !std::holds_alternative<Matmul>(node(*value).operation) &&
           !std::holds_alternative<NumericConvert>(node(*value).operation) &&
-          !std::holds_alternative<ReduceSum>(node(*value).operation)) {
+          !std::holds_alternative<ReduceSum>(node(*value).operation) &&
+          !std::holds_alternative<ArrayMap>(node(*value).operation)) {
         error("S037", "this invocation is not a supported task entry", span);
         return {};
       }
@@ -1590,6 +1591,49 @@ private:
       floatConstants_.insert_or_assign(*id, *floating);
     return id;
   }
+  std::optional<ValueId> arrayMap(Frame &frame, SourceSpan span,
+                                  const std::vector<ExprId> &arguments) {
+    if (arguments.size() != 2) {
+      error("S027", "map expects an array and a named one-argument function", span);
+      return {};
+    }
+    const auto *callback = std::get_if<NameExpr>(&syntax_.expressions[arguments[1]].value);
+    if (!callback || frame.locals.contains(name(callback->name))) {
+      error("S059", "map requires a statically named function in this subset",
+            syntax_.expressions[arguments[1]].span);
+      return {};
+    }
+    auto found = functions_.find(name(callback->name));
+    if (found == functions_.end() || !analyzeFunction(found->second)) {
+      error("S059", "map callback must name a declared function", callback->name);
+      return {};
+    }
+    const auto id = found->second;
+    const auto &fn = output_.functions[id];
+    const auto scalar = [](const ValueType &type) {
+      return type.builtin == BuiltinValue::Numeric && !type.tensor && !type.task &&
+             !type.fallible && !type.device;
+    };
+    const auto result = fn.declaredResult.value_or(fn.resultType);
+    if (fn.parameters.size() != 1 || !scalar(result) ||
+        !scalar(output_.symbols[fn.parameters[0]].type)) {
+      error("S059",
+            "map callback requires one numeric scalar parameter and a numeric scalar result",
+            callback->name);
+      return {};
+    }
+    ValueType context{true, {dynamic()}};
+    context.array = true;
+    context.element = output_.symbols[fn.parameters[0]].type.element;
+    auto input = expression(frame, arguments[0], context);
+    if (!input)
+      return {};
+    auto output = node(*input).type;
+    output.element = result.element;
+    if (!validSize(output, span))
+      return {};
+    return add(frame, output, span, ArrayMap{*input, id});
+  }
   std::optional<ValueId> builtin(Frame &frame, SourceSpan span, const std::string &callee,
                                  const std::vector<ExprId> &arguments,
                                  const std::optional<ValueType> &expected) {
@@ -1772,6 +1816,8 @@ private:
       }
       if (auto numeric = resolveNumeric(callee))
         return conversion(frame, span, *numeric, arguments);
+      if (callee == "map")
+        return arrayMap(frame, span, arguments);
       if (callee == "tensor" || callee == "matmul" || callee == "reduceSum")
         return builtin(frame, span, callee, arguments, expected);
       error("S031", "unknown function '" + callee + "'", calleeSpan);

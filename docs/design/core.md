@@ -266,4 +266,4 @@ The core syntax and immutable transformations are accepted. Numeric families now
 Implementation follows the accepted core plus the required numeric and memory-safety decisions. Future conformance tests should assert the specified behavior and diagnostics rather than compare with generated prototype JavaScript.
 
 
-The [native immutable array foundation](arrays.md) now implements numeric array literals, `[T]` annotations, value passing and retained worker results. `map`, closures and broader element types remain unimplemented; the examples above continue to define the accepted complete core direction.
+The [native immutable array foundation](arrays.md) now implements numeric array literals, `[T]` annotations, value passing and retained worker results. [Named numeric `map`](array-map.md) is now implemented; closures and broader element types remain unimplemented; the examples above continue to define the accepted complete core direction.
