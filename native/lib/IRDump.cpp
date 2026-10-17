@@ -79,6 +79,9 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
     if (const auto *map = std::get_if<ArrayMap>(&expression.operation)) {
       if (map->function >= module.functions.size() || map->input >= module.expressions.size())
         return "map references invalid input or callback";
+      for (auto capture : map->captures)
+        if (capture >= module.expressions.size())
+          return "map references invalid capture";
       hasMap = true;
     }
   const auto resumable = hasMap ? continuation::resumableFunctions(module)
@@ -224,10 +227,31 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
         return type.builtin == BuiltinValue::Numeric && !type.tensor && !type.task &&
                !type.fallible && !type.device;
       };
-      if (target != NumericTarget::Cpu || resumable[map->function] || fn.parameters.size() != 1 ||
-          !scalar(fn.resultType) || !scalar(module.symbols[fn.parameters[0]].type) ||
-          !input.array || input.task || input.fallible || !expression.type.array ||
-          expression.type.task || expression.type.fallible ||
+      for (auto parameter : fn.parameters)
+        if (parameter >= module.symbols.size())
+          return "map references invalid parameter";
+      for (std::size_t i = 0; i < map->captures.size(); ++i) {
+        if (i + 1 >= fn.parameters.size())
+          return "map capture count does not match callback";
+        const auto &actual = module.expressions[map->captures[i]].type;
+        const auto &formal = module.symbols[fn.parameters[i + 1]].type;
+        if (actual.task || actual.fallible || actual.device ||
+            (actual.builtin != BuiltinValue::Numeric && actual.builtin != BuiltinValue::Bool) ||
+            actual.builtin != formal.builtin || actual.element != formal.element ||
+            actual.tensor != formal.tensor || actual.array != formal.array || formal.task ||
+            formal.fallible || formal.device || actual.shape.size() != formal.shape.size() ||
+            !std::equal(actual.shape.begin(), actual.shape.end(), formal.shape.begin(),
+                        [](const Extent &a, const Extent &b) {
+                          return a.constant == b.constant && a.identity == b.identity;
+                        }))
+          return "map requires matching completed CPU captures";
+      }
+      if (target != NumericTarget::Cpu || resumable[map->function] ||
+          fn.parameters.size() != 1 + map->captures.size() || !scalar(fn.resultType) ||
+          !scalar(module.symbols[fn.parameters[0]].type) || !input.array || input.device ||
+          input.task || input.fallible || !expression.type.array || expression.type.device ||
+          input.shape.size() != 1 || expression.type.shape.size() != 1 || expression.type.task ||
+          expression.type.fallible ||
           input.element != module.symbols[fn.parameters[0]].type.element ||
           expression.type.element != fn.resultType.element ||
           input.shape[0].constant != expression.type.shape[0].constant ||
@@ -374,6 +398,10 @@ std::string dumpTypedIR(const TypedModule &module) {
             } else if constexpr (std::is_same_v<T, ArrayMap>) {
               out << "array.map sequential @" << operation.function << " ";
               value(operation.input);
+              if (!operation.captures.empty()) {
+                out << " captures=";
+                arguments(operation.captures);
+              }
             } else if constexpr (std::is_same_v<T, FunctionCall>) {
               out << "call @" << operation.function;
               arguments(operation.arguments);

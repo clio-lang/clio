@@ -16,6 +16,12 @@ class Checker {
     std::unordered_map<std::size_t, std::vector<ValueId>> children;
     std::unordered_set<std::size_t> observed, pending, handled;
   };
+  struct Frame;
+  struct ClosureScope {
+    Frame *parent;
+    std::unordered_map<std::string, SymbolId> captures;
+    std::vector<SymbolId> origins;
+  };
   struct Frame {
     FunctionId function;
     std::unordered_map<std::string, SymbolId> locals;
@@ -25,6 +31,7 @@ class Checker {
     std::shared_ptr<bool> handlerFallible;
     std::size_t handlerDepth = 0;
     bool conditional = false;
+    std::shared_ptr<ClosureScope> closure = {};
   };
   struct TensorData {
     std::vector<std::uint64_t> shape;
@@ -98,7 +105,7 @@ private:
   bool requireEqual(Frame &frame, const Extent &left, const Extent &right) {
     if (++shapeWork_ > limits_.maxShapeRequirements) {
       error("S034", "shape requirement analysis limit exceeded",
-            syntax_.functions[frame.function].name);
+            output_.functions[frame.function].declaration);
       return false;
     }
     if (frame.conditional || same(left, right) || !parameterExtent(frame.function, left) ||
@@ -545,6 +552,42 @@ private:
     return add(frame, output, span,
                Float32Literal{static_cast<std::uint32_t>(value.bitcastToAPInt().getZExtValue())});
   }
+  bool sourceTaskError(FunctionId id) const {
+    return id < syntax_.functions.size() && syntax_.functions[id].taskError;
+  }
+  std::optional<SymbolId> lookupSymbol(Frame &frame, SourceSpan span) {
+    const auto identifier = name(span);
+    if (auto found = frame.locals.find(identifier); found != frame.locals.end())
+      return found->second;
+    if (!frame.closure)
+      return {};
+    if (auto found = frame.closure->captures.find(identifier);
+        found != frame.closure->captures.end())
+      return found->second;
+    auto origin = lookupSymbol(*frame.closure->parent, span);
+    if (!origin)
+      return {};
+    const auto capture = output_.symbols[*origin];
+    const auto type = capture.type;
+    if (type.task || type.fallible || type.device ||
+        (type.builtin != BuiltinValue::Numeric && type.builtin != BuiltinValue::Bool)) {
+      error("S060",
+            "anonymous callbacks capture only completed CPU numeric collections/scalars or Bool",
+            span);
+      return {};
+    }
+    const auto symbol = output_.symbols.size();
+    output_.symbols.push_back({identifier, type, span, frame.function, true});
+    output_.functions[frame.function].parameters.push_back(symbol);
+    frame.closure->captures.emplace(identifier, symbol);
+    frame.closure->origins.push_back(*origin);
+    return symbol;
+  }
+  std::optional<ValueId> infer(Frame &, SourceSpan span, const LambdaExpr &,
+                               const std::optional<ValueType> &) {
+    error("S060", "anonymous functions currently require a map callback context", span);
+    return {};
+  }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const NameExpr &read,
                                const std::optional<ValueType> &) {
     const auto identifier = name(read.name);
@@ -553,8 +596,8 @@ private:
       boolean.builtin = BuiltinValue::Bool;
       return add(frame, boolean, span, BoolLiteral{identifier == "true"});
     }
-    if (auto found = frame.locals.find(identifier); found != frame.locals.end())
-      return add(frame, output_.symbols[found->second].type, span, SymbolRead{found->second});
+    if (auto found = lookupSymbol(frame, read.name))
+      return add(frame, output_.symbols[*found].type, span, SymbolRead{*found});
     error("S016",
           functions_.contains(identifier)
               ? "function values are not implemented; call '" + identifier + "'"
@@ -880,8 +923,7 @@ private:
       error("S036", "try requires an expected-error result", span);
       return {};
     }
-    if (frame.groups.empty() && !frame.handlerFallible &&
-        !syntax_.functions[frame.function].taskError) {
+    if (frame.groups.empty() && !frame.handlerFallible && !sourceTaskError(frame.function)) {
       error("S036", "try propagation requires a TaskError return channel or parallel boundary",
             span);
       return {};
@@ -1076,8 +1118,7 @@ private:
       error("S039", "fail needs a concrete success-type context in this subset", span);
       return {};
     }
-    if (frame.groups.empty() && !frame.handlerFallible &&
-        !syntax_.functions[frame.function].taskError) {
+    if (frame.groups.empty() && !frame.handlerFallible && !sourceTaskError(frame.function)) {
       error("S036", "fail requires a fallible function, handler, or parallel boundary", span);
       return {};
     }
@@ -1591,14 +1632,102 @@ private:
       floatConstants_.insert_or_assign(*id, *floating);
     return id;
   }
+  std::optional<ValueId> anonymousMap(Frame &frame, SourceSpan span, ExprId inputSyntax,
+                                      SourceSpan lambdaSpan, const LambdaExpr &lambda) {
+    if (lambda.parameters.size() != 1 || reservedControl(name(lambda.parameters[0].name))) {
+      error("S060", "map anonymous functions require one element parameter", lambdaSpan);
+      return {};
+    }
+    const auto numericScalar = [](const ValueType &type) {
+      return type.builtin == BuiltinValue::Numeric && !type.tensor && !type.task &&
+             !type.fallible && !type.device;
+    };
+    std::optional<ValueType> inputContext;
+    if (lambda.parameters[0].annotation) {
+      auto annotation = type(*lambda.parameters[0].annotation);
+      if (!annotation)
+        return {};
+      if (!numericScalar(*annotation)) {
+        error("S060", "anonymous map parameter requires a numeric scalar type", lambdaSpan);
+        return {};
+      }
+      inputContext = ValueType{true, {dynamic()}};
+      inputContext->array = true;
+      inputContext->element = annotation->element;
+    }
+    auto input = expression(frame, inputSyntax, inputContext);
+    if (!input)
+      return {};
+    const auto inputType = node(*input).type;
+    if (!inputType.array || inputType.task || inputType.fallible || inputType.device) {
+      error("S060", "anonymous map requires a completed CPU numeric array", span);
+      return {};
+    }
+    std::optional<ValueType> resultContext;
+    if (lambda.result) {
+      resultContext = type(*lambda.result);
+      if (!resultContext)
+        return {};
+      if (!numericScalar(*resultContext)) {
+        error("S060", "anonymous map result requires a numeric scalar type", lambdaSpan);
+        return {};
+      }
+    }
+    if (functionDepth_ >= limits_.maxDepth || frame.depth >= limits_.maxDepth) {
+      error("S007", "anonymous function analysis depth limit exceeded", lambdaSpan);
+      return {};
+    }
+    const Depth functionDepth(functionDepth_);
+    const auto id = output_.functions.size();
+    output_.functions.emplace_back();
+    requirements_.resize(output_.functions.size());
+    output_.functions[id].name = "__lambda_" + std::to_string(id);
+    output_.functions[id].declaration = lambdaSpan;
+    output_.functions[id].declaredResult = resultContext;
+    ValueType element;
+    element.element = inputType.element;
+    const auto parameter = output_.symbols.size();
+    output_.symbols.push_back(
+        {name(lambda.parameters[0].name), element, lambda.parameters[0].name, id, true});
+    output_.functions[id].parameters.push_back(parameter);
+    Frame nested{id, {}, frame.depth, std::make_shared<TaskChecks>(), {}, {}, 0, false};
+    nested.locals.emplace(name(lambda.parameters[0].name), parameter);
+    nested.closure = std::make_shared<ClosureScope>(ClosureScope{&frame, {}, {}});
+    auto result = expression(nested, lambda.body, resultContext);
+    if (!result)
+      return {};
+    const auto resultType = node(*result).type;
+    if (!numericScalar(resultType)) {
+      error("S060", "anonymous map body must produce a completed numeric scalar", lambdaSpan);
+      return {};
+    }
+    output_.functions[id].body = {{syntax_.expressions[lambda.body].span, {}, *result}};
+    output_.functions[id].result = *result;
+    output_.functions[id].resultType = resultType;
+    std::vector<ValueId> captures;
+    for (auto origin : nested.closure->origins) {
+      auto value = add(frame, output_.symbols[origin].type, lambdaSpan, SymbolRead{origin});
+      if (!value)
+        return {};
+      captures.push_back(*value);
+    }
+    auto output = inputType;
+    output.element = resultType.element;
+    if (!validSize(output, span))
+      return {};
+    return add(frame, output, span, ArrayMap{*input, id, std::move(captures)});
+  }
   std::optional<ValueId> arrayMap(Frame &frame, SourceSpan span,
                                   const std::vector<ExprId> &arguments) {
     if (arguments.size() != 2) {
-      error("S027", "map expects an array and a named one-argument function", span);
+      error("S027", "map expects an array and a one-argument function", span);
       return {};
     }
+    if (const auto *lambda = std::get_if<LambdaExpr>(&syntax_.expressions[arguments[1]].value))
+      return anonymousMap(frame, span, arguments[0], syntax_.expressions[arguments[1]].span,
+                          *lambda);
     const auto *callback = std::get_if<NameExpr>(&syntax_.expressions[arguments[1]].value);
-    if (!callback || frame.locals.contains(name(callback->name))) {
+    if (!callback || lookupSymbol(frame, callback->name)) {
       error("S059", "map requires a statically named function in this subset",
             syntax_.expressions[arguments[1]].span);
       return {};
@@ -1796,7 +1925,7 @@ private:
          const std::optional<ValueType> &expected, std::optional<ExprId> selection = {},
          std::optional<ValueId> *checkedSelection = nullptr, bool spawned = false) {
     const auto callee = name(calleeSpan);
-    if (frame.locals.contains(callee)) {
+    if (lookupSymbol(frame, calleeSpan)) {
       error("S030", "local value '" + callee + "' is not callable", calleeSpan);
       return {};
     }

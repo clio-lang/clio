@@ -94,7 +94,8 @@ struct FunctionCall {
 };
 struct ArrayMap {
   ValueId input;
-  FunctionId function; // Statically resolved, one-argument synchronous numeric callback.
+  FunctionId function; // One explicit element parameter, followed by lifted captures.
+  std::vector<ValueId> captures = {};
 };
 enum class ReductionOrder { BalancedAdjacent };
 struct Matmul {

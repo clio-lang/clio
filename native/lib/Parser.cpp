@@ -381,6 +381,40 @@ private:
       return add({token.span, NumberExpr{token.span}});
     if (at(TokenKind::Identifier)) {
       const auto text = source_->slice(token.span);
+      if (text == "fn") {
+        advance();
+        if (!expect(TokenKind::LeftParen, "expected '(' after anonymous fn"))
+          return {};
+        LambdaExpr lambda;
+        if (!at(TokenKind::RightParen)) {
+          do {
+            auto parameter = expect(TokenKind::Identifier, "expected an anonymous parameter name");
+            if (!parameter)
+              return {};
+            std::optional<TypeSyntax> annotation;
+            if (consume(TokenKind::Colon)) {
+              annotation = parseType();
+              if (!annotation)
+                return {};
+            }
+            lambda.parameters.push_back({parameter->span, std::move(annotation)});
+          } while (consume(TokenKind::Comma) && !at(TokenKind::RightParen));
+        }
+        if (!expect(TokenKind::RightParen, "expected ')' after anonymous parameters"))
+          return {};
+        if (consume(TokenKind::Arrow)) {
+          lambda.result = parseType();
+          if (!lambda.result)
+            return {};
+        }
+        if (!expect(TokenKind::Colon, "expected ':' before anonymous expression body"))
+          return {};
+        auto body = parseExpression();
+        if (!body)
+          return {};
+        lambda.body = *body;
+        return add({{token.span.begin, node(*body).span.end}, std::move(lambda)});
+      }
       if (text == "if") {
         advance();
         auto condition = parseExpression();
@@ -527,7 +561,7 @@ private:
         return add({{token.span.begin, node(placement.value_or(*operand)).span.end},
                     TaskExpr{prefix, *operand, placement}});
       }
-      if (text == "fn" || text == "catch") {
+      if (text == "catch") {
         error("P011", "this construct is not implemented in the first frontend", token.span);
         return {};
       }

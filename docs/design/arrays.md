@@ -43,7 +43,7 @@ There are no array-to-tensor or tensor-to-array coercions. Tensor arithmetic, re
 
 ## Remaining collection work
 
-This is an array value foundation, not the complete collection API. [Sequential `map` with named numeric functions](array-map.md) is now implemented. Anonymous functions with lexical captures remain the next collection implementation work. Explicit `tensor(values)` construction from runtime arrays, nested/general element types and indexing also remain unimplemented. Indexed writes are never part of the immutable model; any future replacement operation must produce another logical value.
+This is an array value foundation, not the complete collection API. [Sequential `map` with named functions or inline anonymous numeric callbacks and lexical captures](array-map.md) is now implemented. First-class function values remain separate work. Explicit `tensor(values)` construction from runtime arrays, nested/general element types and indexing also remain unimplemented. Indexed writes are never part of the immutable model; any future replacement operation must produce another logical value.
 
 The development CLI still requires a scalar `main` result; displaying arrays directly is separate tooling work. Array-returning functions are qualified through checked native test interfaces and worker outcomes.
 

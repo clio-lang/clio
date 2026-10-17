@@ -23,9 +23,13 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
                            std::is_same_v<T, ScalarBinary> || std::is_same_v<T, ScalarCompare>)
           return {op.left, op.right};
         else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, NumericConvert> ||
-                           std::is_same_v<T, ShapeCheck> || std::is_same_v<T, ArrayMap>)
+                           std::is_same_v<T, ShapeCheck>)
           return {op.input};
-        else
+        else if constexpr (std::is_same_v<T, ArrayMap>) {
+          auto result = op.captures;
+          result.insert(result.begin(), op.input);
+          return result;
+        } else
           return {};
       },
       expression.operation);
@@ -180,6 +184,8 @@ private:
           } else if constexpr (std::is_same_v<T, ArrayMap>) {
             op.function = importFunction(op.function);
             op.input = importValue(op.input);
+            for (auto &capture : op.captures)
+              capture = importValue(capture);
           } else if constexpr (std::is_same_v<T, NumericConvert> || std::is_same_v<T, ReduceSum> ||
                                std::is_same_v<T, ShapeCheck>)
             op.input = importValue(op.input);
@@ -268,6 +274,7 @@ private:
     else if (auto *map = std::get_if<ArrayMap>(&op)) {
       map->input = reads[0];
       map->function = callback;
+      map->captures.assign(reads.begin() + 1, reads.end());
     } else if (auto *shape = std::get_if<ShapeCheck>(&op))
       shape->input = reads[0];
     if (auto *unary = std::get_if<ScalarUnary>(&op))

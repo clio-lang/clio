@@ -129,6 +129,15 @@ struct ArrayExpr {
   std::vector<ExprId> elements;
 };
 struct Statement;
+struct LambdaParameter {
+  SourceSpan name;
+  std::optional<TypeSyntax> annotation;
+};
+struct LambdaExpr {
+  std::vector<LambdaParameter> parameters;
+  std::optional<TypeSyntax> result;
+  ExprId body;
+};
 enum class TaskPrefix { Spawn, Await, Try };
 struct TaskExpr {
   TaskPrefix prefix;
@@ -170,7 +179,8 @@ struct FailExpr {
 struct Expr {
   SourceSpan span;
   std::variant<NameExpr, NumberExpr, UnaryExpr, BinaryExpr, ComparisonExpr, CallExpr, ArrayExpr,
-               TaskExpr, ParallelExpr, ConditionalExpr, LogicalExpr, CatchExpr, MatchExpr, FailExpr>
+               TaskExpr, ParallelExpr, ConditionalExpr, LogicalExpr, CatchExpr, MatchExpr, FailExpr,
+               LambdaExpr>
       value;
 };
 struct Statement {

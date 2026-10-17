@@ -82,7 +82,11 @@ void validTree(const ParseResult &result) {
             }
           } else if constexpr (std::is_same_v<T, FailExpr>)
             id(value.operand);
-          else if constexpr (std::is_same_v<T, ArrayExpr>) {
+          else if constexpr (std::is_same_v<T, LambdaExpr>) {
+            id(value.body);
+            for (const auto &parameter : value.parameters)
+              span(parameter.name);
+          } else if constexpr (std::is_same_v<T, ArrayExpr>) {
             for (auto element : value.elements)
               id(element);
           }
@@ -197,6 +201,26 @@ void typesAndBindings() {
           "parser performed undeclared type/scope analysis");
   validTree(result);
 }
+void anonymousFunctions() {
+  auto result = syntax("fn typed(values:[int]):\n"
+                       "  map(values,fn(value:int)->float: float(value))\n"
+                       "fn nested(values:[int]):\n"
+                       "  map(values,fn(x): map(values,fn(y): y+x))\n");
+  require(result.ok(), "anonymous callback syntax rejected");
+  validTree(result);
+  std::size_t count = 0;
+  for (const auto &expression : result.module.expressions)
+    if (const auto *lambda = std::get_if<LambdaExpr>(&expression.value)) {
+      require(lambda->parameters.size() == 1, "anonymous parameter list lost");
+      if (!count)
+        require(lambda->parameters[0].annotation && lambda->result,
+                "anonymous type annotations lost");
+      ++count;
+    }
+  require(count == 3, "nested anonymous function nodes lost");
+  require(syntax("fn f():\n  fn(x): x\n").ok(),
+          "parser performed callback-context semantic checking");
+}
 void parserFailuresAndRecovery() {
   const std::vector<std::pair<std::string, std::string>> examples{
       {"fn f(x):\n  x\n", "P002"},
@@ -205,7 +229,9 @@ void parserFailuresAndRecovery() {
       {"fn f():\n  foo(x = 1)\n", "P002"},
       {"fn f():\n  1 => x\n", "P010"},
       {"fn f():\n  catch task\n", "P011"},
-      {"fn f():\n  fn(x): x\n", "P011"},
+      {"fn f():\n  map([1],fn x: x)\n", "P002"},
+      {"fn f():\n  map([1],fn(x) x)\n", "P002"},
+      {"fn f():\n  map([1],fn(1): 1)\n", "P002"},
       {"fn f():\n  \"text\"\n", "P012"},
       {"type Point:\n  x: float32\n", "P005"},
       {"fn f() -> float32 ! Error:\n  1\n", "P006"},
@@ -337,6 +363,7 @@ int main(int argc, char **argv) {
         {"lexer failures", lexerFailures},
         {"precedence and spans", precedenceAndSpans},
         {"types and bindings", typesAndBindings},
+        {"anonymous functions", anonymousFunctions},
         {"recovery", parserFailuresAndRecovery},
         {"limits and source ownership", limitsAndOwnership},
         {"placement grouping", placementSyntax},

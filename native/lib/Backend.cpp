@@ -891,6 +891,9 @@ private:
                                operation.operation, node.type.element);
           } else if constexpr (std::is_same_v<T, ArrayMap>) {
             auto input = expression(frame, operation.input);
+            SmallVector<Value> captures;
+            for (auto capture : operation.captures)
+              captures.push_back(expression(frame, capture));
             auto shape = dimensions(loc, input);
             checkedCount(
                 loc, shape,
@@ -906,8 +909,10 @@ private:
                 builder_, loc, index(loc, 0), shape[0], index(loc, 1), ValueRange{empty},
                 [&](OpBuilder &, Location, Value i, ValueRange args) {
                   auto element = tensor::ExtractOp::create(builder_, loc, input, ValueRange{i});
+                  SmallVector<Value> arguments{element};
+                  arguments.append(captures.begin(), captures.end());
                   auto call = func::CallOp::create(builder_, loc, functions_[operation.function],
-                                                   ValueRange{element});
+                                                   arguments);
                   auto inserted = tensor::InsertOp::create(builder_, loc, call.getResult(0),
                                                            args[0], ValueRange{i});
                   scf::YieldOp::create(builder_, loc, ValueRange{inserted});
