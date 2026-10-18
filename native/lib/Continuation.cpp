@@ -85,6 +85,7 @@ public:
     if (hasPlacement(input) && !options.preserveCalls)
       throw std::runtime_error("placement-aware plans require preserved target calls");
     kernels.source = input.source;
+    kernels.records = input.records;
     plans.resize(input.functions.size());
     for (auto &plan : plans)
       plan = std::make_unique<Plan>();
@@ -198,6 +199,13 @@ private:
                              std::is_same_v<T, ScalarCompare> || std::is_same_v<T, Matmul>) {
             op.left = importValue(op.left);
             op.right = importValue(op.right);
+          } else if constexpr (std::is_same_v<T, RecordValue>) {
+            if (op.base)
+              op.base = importValue(*op.base);
+            for (auto &field : op.fields)
+              field.value = importValue(field.value);
+          } else if constexpr (std::is_same_v<T, RecordFieldRead>) {
+            op.input = importValue(op.input);
           } else if constexpr (std::is_same_v<T, TensorLiteral>) {
             for (auto &element : op.elements)
               element = importValue(element);
@@ -296,7 +304,15 @@ private:
       kernels.expressions.push_back({source.span, type, SymbolRead{symbol}});
     }
     auto op = source.operation;
-    if (auto *literal = std::get_if<TensorLiteral>(&op))
+    if (auto *record = std::get_if<RecordValue>(&op)) {
+      std::size_t next = 0;
+      if (record->base)
+        record->base = reads[next++];
+      for (auto &field : record->fields)
+        field.value = reads[next++];
+    } else if (auto *field = std::get_if<RecordFieldRead>(&op))
+      field->input = reads[0];
+    else if (auto *literal = std::get_if<TensorLiteral>(&op))
       literal->elements = reads;
     else if (auto *multiply = std::get_if<Matmul>(&op)) {
       multiply->left = reads[0];
@@ -633,8 +649,12 @@ std::vector<bool> resumableFunctions(const TypedModule &input) {
   return result;
 }
 std::expected<ModulePlan, std::string> plan(const TypedModule &input, Options options) {
-  if (!input.records.empty())
-    return std::unexpected("record continuation storage is not implemented");
+  if (!input.records.empty()) {
+    if (hasPlacement(input))
+      return std::unexpected("records are not implemented in placement-aware continuations");
+    if (auto error = numericCapabilityError(input, NumericTarget::Cpu))
+      return std::unexpected(*error);
+  }
   try {
     Builder builder(input, options);
     return std::move(static_cast<ModulePlan &>(builder));

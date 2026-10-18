@@ -114,4 +114,4 @@ Native CPU `main` can return an array or tensor directly. Arrays print as lists;
 
 ## Immutable CPU records
 
-Declare named numeric/Boolean fields with `type Point:`, construct with `Point { x: 2, y: 3 }`, read `point.x`, and derive another value with `point with { x: 12 }`. Synchronous functions can accept and return these records without heap allocation for the record itself. See [records](../docs/design/records.md) for a complete program, nominal module identity, evaluation order, and the current worker/GPU/collection-field boundaries.
+Declare named numeric/Boolean fields with `type Point:`, construct with `Point { x: 2, y: 3 }`, read `point.x`, and derive another value with `point with { x: 12 }`. CPU functions and [workers](../docs/design/record-workers.md) can accept and return these records, including nested tasks, repeated awaits and TaskError recovery. Scalar-field record values need no heap allocation of their own. See [records](../docs/design/records.md) for nominal module identity, evaluation order, and the current GPU/collection-field boundaries.

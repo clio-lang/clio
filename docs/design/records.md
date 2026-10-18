@@ -30,7 +30,7 @@ There are no implicit field conversions, positional constructors, default field 
 
 ## Functions, branches and modules
 
-Records can be bound, passed to synchronous CPU functions, returned with inferred or explicit types, and selected by conditionals. Record declarations are visible throughout their declaring file, independent of declaration order. Functions and import aliases cannot collide with a local record type name. A local value may shadow a constructor name; constructing through that shadowed name is diagnosed.
+Records can be bound, passed to CPU functions, returned with inferred or explicit types, and selected by conditionals. [CPU worker captures and results](record-workers.md) also support these records, including nested tasks and TaskError recovery. Record declarations are visible throughout their declaring file, independent of declaration order. Functions and import aliases cannot collide with a local record type name. A local value may shadow a constructor name; constructing through that shadowed name is diagnosed.
 
 Record identity belongs to its declaration, not its field layout or spelling. Two declarations named `Point` in different files are different types. An imported function can return its module's record, and callers can infer that type, read its fields, derive an updated value, and pass it back to functions expecting the original declaration. Importing or exporting the type name itself remains separate module work. Local declarations do not become visible merely because another function was imported.
 
@@ -40,10 +40,12 @@ Records can be used inside synchronous numeric map callbacks. Capturing an entir
 
 The typed IR carries nominal declaration identities and canonical field indices separately from written evaluation order. CPU lowering represents these scalar-only records as native struct values using MLIR's LLVM aggregate operations. Construction, field access and updates require no managed heap allocation. The underlying struct layout does not erase source-level nominal type checks. This internal representation is not a published C/C++ ABI or serialization format.
 
-The initial implementation requires synchronous CPU modules. A source graph containing record declarations cannot yet use worker/task/error continuations or GPU placement, even if only scalar results cross that boundary. The checker and backend diagnose these combinations instead of selecting an incomplete record-storage path. Worker captures/results, nested records, collection fields, user variants/errors, type exports, and GPU integration need their own ownership and execution qualification. Native distributed execution still requires the agreed design discussion.
+[CPU worker integration](record-workers.md) now supports record captures/results, nested workers, repeated awaits, and record-valued TaskError recovery. GPU placement remains unsupported for record-containing source graphs, and the checker/backend diagnose that combination. Nested records, collection fields, user variants/errors, type exports, and GPU integration need their own ownership and execution qualification. Native distributed execution still requires the agreed design discussion.
 
 A program's `main` must return an already supported scalar, `Bool`, array, or tensor result; direct record display is not implemented. Record helper results can feed those outputs, as in the example above.
 
 ## Qualification
+
+The initial synchronous milestone is recorded below; [worker integration](record-workers.md) has its own subsequent qualification.
 
 On Apple M2 Max, all 101 focused checks passed. Record programs passed in debug, optimized, ASan/UBSan, and separate ThreadSanitizer builds: 104 compiled source programs across those variants. Frontend checks also cover invalid declarations/fields, nominal identity, malformed typed IR, and unsupported execution paths. Runtime checks cover numeric endpoints, floating precision/signed zero, unchanged originals, functions/recursion, conditionals, maps, module composition, fault evaluation order, and failed-build artifact preservation. Existing frontend, collection, worker, ownership, continuation, and selected Metal regression checks passed. All 640 tracked numerical artifacts and 20 numerical/checked-ABI/runtime/storage sources remain unchanged. This is focused qualification, not a full-suite claim; the [evidence record](../../native/metal-proof/evidence/cpu-records-2026-10-18.json) records the scope and hashes.

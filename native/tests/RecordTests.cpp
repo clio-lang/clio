@@ -71,9 +71,9 @@ int main(int argc, char **argv) {
                       "fn main():\n  Point {x:1,y:2}==Point {x:1,y:2}\n",
                       "fn main():\n  Point {x:1,y:2}+Point {x:1,y:2}\n",
                       "fn main():\n  [Point {x:1,y:2}]\n",
-                      "fn main() ! TaskError:\n  try parallel:\n    work=spawn read(Point "
-                      "{x:1,y:2})\n    try await work\nfn read(p:Point):\n  p.x\n",
-                      "fn make()->Point ! TaskError:\n  Point {x:1,y:2}\nfn main():\n  0\n"})
+                      "fn main():\n  parallel:\n    work=spawn read(Point {x:1,y:2})\n    "
+                      "work.x\nfn read(p:Point):\n  p\n",
+                      "fn make()->Point ! TaskError:\n  Point {x:1,y:2}\nfn main():\n  make().x\n"})
       require(!analyze(declaration + tail).ok(),
               "invalid record program admitted: " + std::string(tail));
     for (auto source :
@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
     }
     require(numericCapabilityError(*valid.module, NumericTarget::AppleGpu).has_value(),
             "record silently enabled for GPU");
-    require(!continuation::plan(*valid.module), "record silently enabled in continuations");
+    require(bool(continuation::plan(*valid.module)), "record continuation planning failed");
 #ifndef KALANDRA_RECORD_FRONTEND_ONLY
     auto direct = analyze(declaration + "fn main():\n  Point {x:1,y:2}\n");
     require(direct.ok() && !lowerNative(*direct.module), "record CLI result silently enabled");
@@ -180,7 +180,7 @@ int main(int argc, char **argv) {
     require(!loaded("main.kalandra").ok(), "type/import namespace collision admitted");
     std::cout << "records: six numeric field types and Bool, construction/read/update, nominal "
                  "identity, source order, immutable syntax, imported values, malformed IR and "
-                 "worker/GPU/CLI gates passed\n";
+                 "task-handle/GPU/CLI gates passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';
     return 1;

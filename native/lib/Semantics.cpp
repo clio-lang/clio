@@ -1373,7 +1373,8 @@ private:
       return {};
     }
     if (!expected ||
-        (expected->builtin != BuiltinValue::Numeric && expected->builtin != BuiltinValue::Bool) ||
+        (expected->builtin != BuiltinValue::Numeric && expected->builtin != BuiltinValue::Bool &&
+         expected->builtin != BuiltinValue::Record) ||
         expected->task) {
       error("S039", "fail needs a concrete success-type context in this subset", span);
       return {};

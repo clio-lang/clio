@@ -74,11 +74,13 @@ public:
     if (testEntry) {
       const auto found = std::ranges::find_if(planner.input.functions,
                                            [&](const auto &f) { return f.name == *testEntry; });
-      if (found == planner.input.functions.end() || !found->parameters.empty() ||
+      if (found == planner.input.functions.end() ||
+          (!found->parameters.empty() && found->resultType.builtin != BuiltinValue::Record) ||
           (found->resultType.builtin != BuiltinValue::Numeric &&
-           found->resultType.builtin != BuiltinValue::Bool))
-        throw std::runtime_error(
-            "private task test entry requires a parameterless numeric or Bool function");
+           found->resultType.builtin != BuiltinValue::Bool &&
+           found->resultType.builtin != BuiltinValue::Record))
+        throw std::runtime_error("private task test entry requires a parameterless numeric/Bool "
+                                 "function or a record function with typed parameters");
       const auto id = std::size_t(found - planner.input.functions.begin());
       // Trusted native test export, not a dynamic/public task or wire ABI.
       new llvm::GlobalVariable(module, pointer, true, llvm::GlobalValue::ExternalLinkage,
@@ -194,6 +196,12 @@ private:
     return llvm::StructType::get(context, {pointer, pointer, i64, dims, dims});
   }
   Type *scalarType(const ValueType &type) const {
+    if (type.builtin == BuiltinValue::Record) {
+      std::vector<Type *> fields;
+      for (const auto &field : planner.input.records.at(*type.record).fields)
+        fields.push_back(scalarType(field.type));
+      return llvm::StructType::get(context, fields);
+    }
     if (type.builtin == BuiltinValue::Bool)
       return boolean;
     return (type.element == NumericType::Int64 || type.element == NumericType::UInt64) ? i64
@@ -202,6 +210,8 @@ private:
                                                   : f32;
   }
   std::string key(const ValueType &type) {
+    if (type.builtin == BuiltinValue::Record && !type.task)
+      return "record." + std::to_string(*type.record);
     if (type.array && !type.task)
       return "array." + std::string(describeNumeric(type.element)->name);
     if (type.builtin == BuiltinValue::Numeric && !type.task && type.tensor &&
@@ -277,8 +287,9 @@ private:
     builder.CreateRet(builder.getTrue());
     auto *constant = llvm::ConstantStruct::get(
         layoutType,
-        {c64(type.builtin != BuiltinValue::Numeric ? 0x10000 + static_cast<unsigned>(type.builtin)
-             : type.array                          ? 0x40000 + static_cast<unsigned>(type.element)
+        {c64(type.builtin == BuiltinValue::Record && !type.task ? 0x50000 + *type.record
+             : type.builtin != BuiltinValue::Numeric ? 0x10000 + static_cast<unsigned>(type.builtin)
+             : type.array                            ? 0x40000 + static_cast<unsigned>(type.element)
              : type.tensor
                  ? (isInteger(type.element) || type.element == NumericType::Float64
                         ? 0x30000 + 16 * static_cast<unsigned>(type.element) + type.shape.size()
@@ -473,7 +484,10 @@ private:
         auto *fn =
             module.getFunction("_mlir_ciface_kalandra_fn_" + std::to_string(instruction.target));
         std::vector<Value *> arguments;
-        if (type.tensor)
+        // MLIR C wrappers return both memrefs and LLVM aggregate values through
+        // a leading output pointer, while record arguments remain values.
+        const bool indirectResult = type.tensor || type.builtin == BuiltinValue::Record;
+        if (indirectResult)
           arguments.push_back(payload(instruction.output));
         for (auto argument : instruction.args)
           arguments.push_back(plan.slots[argument].tensor
@@ -481,7 +495,7 @@ private:
                                   : builder.CreateLoad(scalarType(plan.slots[argument]), payload(argument)));
         arguments.push_back(ctx);
         auto *value = builder.CreateCall(fn, arguments);
-        if (!type.tensor) {
+        if (!indirectResult) {
           auto *good = Block::Create(context, "kernel.result", resume);
           auto *status = call("kalandra_poll_v1", i64, {ctx});
           builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), good, abort);

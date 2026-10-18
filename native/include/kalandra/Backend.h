@@ -10,7 +10,8 @@ struct BackendOutput {
 // Exported functions must be synchronous; callers supply the invocation context.
 // testEntry is private: synchronous modules emit a checked C wrapper; task modules
 // expose a const TaskEntry pointer named kalandra_task_test_entry for a selected
-// parameterless numeric or Bool function. Neither is a public dynamic or wire ABI.
+// parameterless numeric/Bool function or a record function with typed parameters.
+// These are trusted test descriptors, not a public dynamic or wire ABI.
 [[nodiscard]] std::expected<BackendOutput, std::string>
 lowerNative(const TypedModule &module, std::optional<std::string> testEntry = {},
             const std::vector<std::string> &exports = {});

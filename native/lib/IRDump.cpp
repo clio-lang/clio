@@ -24,7 +24,8 @@ bool hasPlacement(const TypedModule &module) {
 }
 std::string describeType(const ValueType &type) {
   if (type.builtin == BuiltinValue::Record)
-    return type.recordName + (type.fallible ? " ! TaskError" : "");
+    return (type.task ? "task<" + type.recordName + ">" : type.recordName) +
+           (type.fallible ? " ! TaskError" : "");
   if (type.builtin == BuiltinValue::Bool)
     return std::string(type.task ? "task<Bool>" : "Bool") + (type.fallible ? " ! TaskError" : "");
   if (type.builtin == BuiltinValue::Device)
@@ -59,26 +60,13 @@ std::string describeType(const ValueType &type) {
   return out.str();
 }
 std::optional<std::string> numericCapabilityError(const TypedModule &module, NumericTarget target) {
-  if (!module.records.empty()) {
-    if (target != NumericTarget::Cpu || hasPlacement(module))
-      return "records currently require synchronous CPU execution";
-    if (std::ranges::any_of(module.functions,
-                            [](const auto &f) { return f.resultType.fallible; }) ||
-        std::ranges::any_of(module.expressions, [](const auto &e) {
-          return std::holds_alternative<TaskOperation>(e.operation) ||
-                 std::holds_alternative<ParallelOperation>(e.operation) ||
-                 std::holds_alternative<CatchOperation>(e.operation) ||
-                 std::holds_alternative<MatchOperation>(e.operation) ||
-                 std::holds_alternative<FailOperation>(e.operation);
-        }))
-      return "record modules currently require synchronous CPU execution; worker/error integration "
-             "is not implemented";
-  }
+  if (!module.records.empty() && (target != NumericTarget::Cpu || hasPlacement(module)))
+    return "record values currently require CPU execution";
   const auto error = [&](const ValueType &type) -> std::optional<std::string> {
     if (type.builtin == BuiltinValue::Record) {
       if (!type.record || *type.record >= module.records.size() || type.tensor || type.array ||
-          type.task || type.fallible || type.device || !type.shape.empty())
-        return "invalid synchronous CPU record type";
+          type.device || !type.shape.empty())
+        return "invalid CPU record type";
     } else if (type.record)
       return "non-record value carries a record identity";
 
@@ -145,8 +133,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       return failure;
     if (const auto *value = std::get_if<RecordValue>(&expression.operation)) {
       const auto &t = expression.type;
-      if (t.builtin != BuiltinValue::Record || !t.record)
-        return "record construction requires a record result";
+      if (t.builtin != BuiltinValue::Record || !t.record || t.task || t.fallible)
+        return "record construction requires a completed record result";
       const auto &fields = module.records[*t.record].fields;
       if (value->base && (*value->base >= module.expressions.size() ||
                           !scalarSame(module.expressions[*value->base].type, t)))

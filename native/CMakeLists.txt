@@ -884,3 +884,5 @@ include(cmake/Modules.cmake)
 include(cmake/CollectionEntry.cmake)
 
 include(cmake/Records.cmake)
+
+include(cmake/RecordWorkers.cmake)
