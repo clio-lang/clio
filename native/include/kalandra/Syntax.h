@@ -126,7 +126,8 @@ struct CallExpr {
   std::vector<ExprId> arguments;
 };
 struct IndexExpr {
-  ExprId input, index;
+  ExprId input;
+  std::vector<ExprId> indices;
 };
 struct ArrayExpr {
   std::vector<ExprId> elements;

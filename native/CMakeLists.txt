@@ -870,3 +870,5 @@ include(cmake/ArrayTensor.cmake)
 include(cmake/Reshape.cmake)
 
 include(cmake/ArrayIndex.cmake)
+
+include(cmake/TensorIndex.cmake)

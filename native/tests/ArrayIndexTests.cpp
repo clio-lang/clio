@@ -75,7 +75,7 @@ int main() {
     for (auto source :
          {"fn main():\n  [1,2][-1]\n", "fn main():\n  [1,2][2]\n", "fn main():\n  [1,2][1.0]\n",
           "fn main():\n  [1,2][true]\n", "fn main():\n  [1,2][[1]]\n", "fn main():\n  1[0]\n",
-          "fn main():\n  tensor([1,2])[0]\n", "fn main():\n  [1,2][uint(18446744073709551615)]\n",
+          "fn main():\n  tensor([1,2])[0,0]\n", "fn main():\n  [1,2][uint(18446744073709551615)]\n",
           "fn main():\n  empty:[int]=[]\n  empty[0]\n",
           "fn run(index:int):\n  empty:[int]=[]\n  empty[index]\n",
           "fn main():\n  values=[1,2]\n  values[0]=3\n  0\n", "fn main():\n  [1,2][]\n",

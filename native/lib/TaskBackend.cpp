@@ -612,7 +612,7 @@ private:
                     builder.CreateSelect(builder.CreateICmpEQ(code, c64(4)),
                                          text("integer arithmetic fault"),
                                          builder.CreateSelect(builder.CreateICmpEQ(code, c64(5)),
-                                                              text("array index out of bounds"),
+                                                              text("index out of bounds"),
                                                               text("native execution fault")))));
           builder.CreateStore(message, payload(instruction.output));
         }

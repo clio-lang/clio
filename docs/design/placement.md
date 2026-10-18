@@ -192,7 +192,7 @@ Review the [complete CPU/GPU/remote application example](compute-example.md), in
 
 Track lower-level access as a later design area, after the safe compiler/runtime foundation is established. These are exploration goals, not accepted syntax or implemented capabilities:
 
-- Checked tensor indexing and construction of updated immutable values, distinct from exposing raw pointers. [Read-only CPU numeric array indexing](array-indexing.md) is now implemented; this does not expose raw memory access.
+- Construction of updated immutable values and broader collection/view operations, distinct from exposing raw pointers. [Read-only CPU numeric array indexing](array-indexing.md) and [tensor scalar indexing](tensor-indexing.md) are now implemented; these do not expose raw memory access.
 - Explicit vector/SIMD operations for specialized CPU algorithms, alongside automatic compiler vectorization.
 - User-defined GPU kernels with controlled lane/workgroup access, bounds rules and data ownership.
 - Finer coordination primitives such as channels and barriers, with clear ordering, cancellation and deadlock behavior.

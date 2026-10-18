@@ -40,7 +40,7 @@ arguments   = expression, (",", expression)*, ","? ;
 
 A function body must end in an expression statement. The grammar's generic type-name alternative does not allow bare Tensor without its brackets. A tensor element name is retained separately from its dimensions. Dimensions must be decimal, nonnegative uint64-representable integers or `?`; this is syntactic validation, not a claim every extent can be allocated.
 
-Calls bind most tightly, then unary signs, multiplication/division/remainder, addition/subtraction, and pipelines. Binary arithmetic and pipeline operators associate left to right. Pipelines remain distinct AST nodes; first-argument insertion belongs to later typed lowering, not parser-side execution or rewriting that loses source information.
+Calls and postfix indexing bind most tightly, then unary signs, multiplication/division/remainder, addition/subtraction, and pipelines. Binary arithmetic and pipeline operators associate left to right. Pipelines remain distinct AST nodes; first-argument insertion belongs to later typed lowering, not parser-side execution or rewriting that loses source information.
 
 Bindings are statements only. `foo(x = 1)` is rejected, as is the prototype's `=>` form. General arrays are syntactically represented to support tensor-constructor literals; the parser does not claim runtime array support or reject ragged literals as though it had checked shapes.
 
@@ -53,7 +53,7 @@ Bindings are statements only. `foo(x = 1)` is rejected, as is the prototype's `=
 - Numbers retain their original spelling: decimal whole numbers and decimal/exponent forms are tokenized. Numeric range, default family, float32 rounding, and context typing remain semantic work. Hex literals and suffixes are not in this first subset.
 - Strings are tokenized to retain lexical boundaries and diagnose unterminated quotes, but string expressions are explicitly unsupported by this parser. Escape decoding and general string semantics are not implemented here.
 
-Field/index access, record construction, anonymous functions, general expected-error declarations/handlers, and non-function top-level declarations receive explicit rejection in this subset. Their rejection is an implementation limit, not a reversal of the accepted designs. Parameter/local duplicate names, unknown functions, dtype compatibility, and matrix-shape requirements belong to the next semantic stage.
+[Numeric array and tensor indexing](tensor-indexing.md) now parse as postfix input/index-list expressions; semantic checking enforces the rank and index types. Inline anonymous functions in numeric maps and built-in TaskError handlers are also implemented. General field access, record construction, user-defined expected-error declarations and non-function top-level declarations remain unsupported. Their rejection is an implementation limit, not a reversal of the accepted designs. Parameter/local duplicate names, unknown functions, dtype compatibility, and matrix-shape requirements belong to the next semantic stage.
 
 ## Ownership and diagnostics
 

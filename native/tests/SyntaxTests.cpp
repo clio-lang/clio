@@ -88,7 +88,8 @@ void validTree(const ParseResult &result) {
               span(parameter.name);
           } else if constexpr (std::is_same_v<T, IndexExpr>) {
             id(value.input);
-            id(value.index);
+            for (auto index : value.indices)
+              id(index);
           } else if constexpr (std::is_same_v<T, ArrayExpr>) {
             for (auto element : value.elements)
               id(element);

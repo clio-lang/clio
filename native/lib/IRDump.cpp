@@ -233,6 +233,27 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
           !isInteger(i.element) || !scalar(r) || r.element != a.element)
         return "array indexing requires completed CPU numeric array and integer scalar operands";
     }
+    if (const auto *read = std::get_if<TensorIndex>(&expression.operation)) {
+      if (read->input >= module.expressions.size())
+        return "tensor index references invalid input";
+      const auto &a = module.expressions[read->input].type;
+      const auto &r = expression.type;
+      const auto scalar = [](const ValueType &t) {
+        return t.builtin == BuiltinValue::Numeric && !t.tensor && !t.array && t.shape.empty() &&
+               !t.task && !t.fallible && !t.device;
+      };
+      if (target != NumericTarget::Cpu || !a.tensor || a.array ||
+          a.builtin != BuiltinValue::Numeric || a.task || a.fallible || a.device ||
+          a.shape.size() != read->indices.size() || !scalar(r) || r.element != a.element)
+        return "tensor indexing requires a completed CPU tensor and one index per dimension";
+      for (auto id : read->indices) {
+        if (id >= module.expressions.size())
+          return "tensor index references invalid axis";
+        const auto &i = module.expressions[id].type;
+        if (!scalar(i) || !isInteger(i.element))
+          return "tensor indexing requires completed CPU integer scalar indices";
+      }
+    }
     if (const auto *construction = std::get_if<ArrayToTensor>(&expression.operation)) {
       if (construction->input >= module.expressions.size())
         return "array-to-tensor construction references invalid input";
@@ -441,6 +462,11 @@ std::string dumpTypedIR(const TypedModule &module) {
               value(operation.input);
               out << ", ";
               value(operation.index);
+            } else if constexpr (std::is_same_v<T, TensorIndex>) {
+              out << "tensor.index checked ";
+              value(operation.input);
+              out << " indices=";
+              arguments(operation.indices);
             } else if constexpr (std::is_same_v<T, ArrayToTensor>) {
               out << "tensor.from_array ordered_copy ";
               value(operation.input);

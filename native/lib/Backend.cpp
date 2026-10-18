@@ -889,25 +889,36 @@ private:
             auto a = expression(frame, operation.left), b = expression(frame, operation.right);
             return elementwise(loc, a, b, cast<RankedTensorType>(type(node.type)),
                                operation.operation, node.type.element);
-          } else if constexpr (std::is_same_v<T, ArrayIndex>) {
+          } else if constexpr (std::is_same_v<T, ArrayIndex> || std::is_same_v<T, TensorIndex>) {
             auto input = expression(frame, operation.input);
-            auto position = expression(frame, operation.index);
-            const auto element = input_.expressions[operation.index].type.element;
-            if (describeNumeric(element)->bits == 32) {
-              if (isUnsigned(element))
-                position = arith::ExtUIOp::create(builder_, loc, builder_.getI64Type(), position);
-              else
-                position = arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), position);
+            std::vector<ValueId> indices;
+            if constexpr (std::is_same_v<T, ArrayIndex>)
+              indices = {operation.index};
+            else
+              indices = operation.indices;
+            SmallVector<Value> positions, offsets;
+            for (auto id : indices)
+              positions.push_back(expression(frame, id));
+            auto shape = dimensions(loc, input);
+            checkedCount(loc, shape, describeNumeric(node.type.element)->bytes());
+            for (std::size_t axis = 0; axis < indices.size(); ++axis) {
+              auto position = positions[axis];
+              const auto element = input_.expressions[indices[axis]].type.element;
+              if (describeNumeric(element)->bits == 32) {
+                if (isUnsigned(element))
+                  position = arith::ExtUIOp::create(builder_, loc, builder_.getI64Type(), position);
+                else
+                  position = arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), position);
+              }
+              auto limit =
+                  arith::IndexCastOp::create(builder_, loc, builder_.getI64Type(), shape[axis]);
+              // Unsigned comparison rejects negative signed indices as well as
+              // high uint64 indices, before any storage element is extracted.
+              guard(loc, compare(loc, arith::CmpIPredicate::ult, position, limit), 5);
+              offsets.push_back(
+                  arith::IndexCastOp::create(builder_, loc, builder_.getIndexType(), position));
             }
-            auto length = tensor::DimOp::create(builder_, loc, input, index(loc, 0));
-            checkedCount(loc, {length}, describeNumeric(node.type.element)->bytes());
-            auto limit = arith::IndexCastOp::create(builder_, loc, builder_.getI64Type(), length);
-            // An unsigned comparison also rejects every negative signed index,
-            // before conversion to MLIR index or extraction of a storage element.
-            guard(loc, compare(loc, arith::CmpIPredicate::ult, position, limit), 5);
-            auto offset =
-                arith::IndexCastOp::create(builder_, loc, builder_.getIndexType(), position);
-            return tensor::ExtractOp::create(builder_, loc, input, ValueRange{offset});
+            return tensor::ExtractOp::create(builder_, loc, input, offsets);
           } else if constexpr (std::is_same_v<T, ArrayToTensor>) {
             if (operation.dimensions) {
               auto input = expression(frame, operation.input);

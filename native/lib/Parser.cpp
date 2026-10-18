@@ -273,10 +273,11 @@ private:
       }
       if (consume(TokenKind::LeftBracket)) {
         const auto begin = node(*left).span.begin;
-        auto index = parseExpression();
-        if (!index || !expect(TokenKind::RightBracket, "expected ']' after index"))
+        auto indices = sequence(TokenKind::RightBracket);
+        if (!indices)
           return {};
-        left = add({{begin, tokens_[position_ - 1].span.end}, IndexExpr{*left, *index}});
+        left =
+            add({{begin, tokens_[position_ - 1].span.end}, IndexExpr{*left, std::move(*indices)}});
         if (!left)
           return {};
         continue;

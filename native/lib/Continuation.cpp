@@ -27,7 +27,11 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
           return {op.input};
         else if constexpr (std::is_same_v<T, ArrayIndex>)
           return {op.input, op.index};
-        else if constexpr (std::is_same_v<T, ArrayToTensor>) {
+        else if constexpr (std::is_same_v<T, TensorIndex>) {
+          auto result = op.indices;
+          result.insert(result.begin(), op.input);
+          return result;
+        } else if constexpr (std::is_same_v<T, ArrayToTensor>) {
           auto result = op.dimensions.value_or(std::vector<ValueId>{});
           result.insert(result.begin(), op.input);
           return result;
@@ -195,6 +199,10 @@ private:
           } else if constexpr (std::is_same_v<T, ArrayIndex>) {
             op.input = importValue(op.input);
             op.index = importValue(op.index);
+          } else if constexpr (std::is_same_v<T, TensorIndex>) {
+            op.input = importValue(op.input);
+            for (auto &index : op.indices)
+              index = importValue(index);
           } else if constexpr (std::is_same_v<T, ArrayToTensor>) {
             op.input = importValue(op.input);
             if (op.dimensions)
@@ -288,6 +296,9 @@ private:
     else if (auto *read = std::get_if<ArrayIndex>(&op)) {
       read->input = reads[0];
       read->index = reads[1];
+    } else if (auto *read = std::get_if<TensorIndex>(&op)) {
+      read->input = reads[0];
+      read->indices.assign(reads.begin() + 1, reads.end());
     } else if (auto *construction = std::get_if<ArrayToTensor>(&op)) {
       construction->input = reads[0];
       if (construction->dimensions)

@@ -164,7 +164,7 @@ Matrix multiplication uses matmul, not overloaded `*` or a new punctuation opera
 
 ## Views, indexing, and empty dimensions
 
-A rank-two scalar lookup uses `matrix[row, column]`. It supplies exactly one index per dimension and returns an element. A missing/extra index is a rank error. Negative or out-of-range indices fail; there is no implicit wraparound indexing. Provable violations are compile-time errors, dynamic violations are BoundsFault.
+[Native CPU scalar lookup](tensor-indexing.md) is implemented. A rank-two scalar lookup uses `matrix[row, column]`. It supplies exactly one index per dimension and returns an element. A missing/extra index is a rank error. Negative or out-of-range indices fail; there is no implicit wraparound indexing. Provable violations are compile-time errors, dynamic violations are BoundsFault.
 
 Indexing device-resident data may require synchronization/transfer; placement APIs must expose that cost rather than treat it as a free pointer read. Slicing and sub-tensor view syntax are a later API decision.
 

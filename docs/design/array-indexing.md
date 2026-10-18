@@ -32,11 +32,11 @@ Indexing itself does not dispatch work. Use `spawn get(values, index)` inside a 
 
 The typed IR has an explicit `ArrayIndex` with array and index operands. Continuation kernels and imported helper/callback graphs carry both operands. CPU MLIR lowering extends integer indices without losing signedness, validates the input's extent/byte range, and performs an unsigned comparison against the array length before converting to a storage index. This also rejects negative signed indices and the high half of `uint64`. The checked ABI exits before extraction on failure or cancellation.
 
-The private runtime fault code is 5. CLI reporting names it `BoundsFault`; task recovery maps it to `FaultKind.Bounds` and the bounded static message `array index out of bounds`. Allocation, ownership, task admission and numerical arithmetic mechanisms are unchanged. Generated CPU continuations also handle a failed group settling between spawns: an invalid dispatch handle follows the existing group join, preserving its recorded failure instead of trying to await that handle.
+The private runtime fault code is 5. CLI reporting names it `BoundsFault`; task recovery maps it to `FaultKind.Bounds` and the bounded static message `index out of bounds`. Allocation, ownership, task admission and numerical arithmetic mechanisms are unchanged. Generated CPU continuations also handle a failed group settling between spawns: an invalid dispatch handle follows the existing group join, preserving its recorded failure instead of trying to await that handle.
 
 ## Scope
 
-This milestone covers numeric array reads. Tensor indexing, slicing, general element types and immutable element replacement remain separate work. `values[index] = replacement` is never a mutation operation. Raw pointers, custom GPU indexing and unrestricted shared writes are not exposed.
+This milestone covers numeric array reads. [CPU tensor scalar indexing](tensor-indexing.md) now uses one index per dimension. Slicing, general element types and immutable element replacement remain separate work. `values[index] = replacement` is never a mutation operation. Raw pointers, custom GPU indexing and unrestricted shared writes are not exposed.
 
 ## Qualification
 
