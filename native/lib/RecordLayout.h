@@ -43,11 +43,6 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
           if (!slot || slot >= used.size() || used[slot])
             return fail("invalid enum payload field layout", variant.declaration);
           used[slot] = true;
-          const auto &t = record.fields[slot].type;
-          if (t.tensor || t.array ||
-              (t.builtin != BuiltinValue::Numeric && t.builtin != BuiltinValue::Bool &&
-               t.builtin != BuiltinValue::String))
-            return fail("unsupported enum payload layout", variant.declaration);
         }
       }
       if (std::ranges::find(used, false) != used.end())

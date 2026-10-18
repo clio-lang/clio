@@ -53,6 +53,27 @@ int main() {
       require(bool(lowerNative(*typed.module)), "numeric enum lowering rejected");
 #endif
     }
+    for (const auto &fieldType : {"[int]", "[Bool]", "[String]", "Tensor[float32,2,2]",
+                                  "Tensor[int]", "Tensor[uint64,?,?]", "Reading"}) {
+      auto typed = analyze(prefix + "enum Envelope:\n  Empty\n  Value:\n    item:" + fieldType +
+                           "\nfn main()->int:\n  match Envelope.Empty:\n    "
+                           "Envelope.Empty:1\n    Envelope.Value:0\n");
+      require(typed.ok(), "completed enum payload type rejected: " + std::string(fieldType));
+      require(bool(continuation::plan(*typed.module)), "payload continuation plan rejected");
+#ifndef KALANDRA_ENUM_FRONTEND_ONLY
+      auto lowered = lowerNative(*typed.module);
+      require(bool(lowered), lowered ? "" : lowered.error());
+#endif
+    }
+    require(!analyze("enum Recursive:\n  Value:\n    next:Recursive\nfn main()->int:\n  0\n").ok(),
+            "recursive inline enum admitted");
+    require(!analyze("type Box:\n  next:Recursive\nenum Recursive:\n  Value:\n    box:Box\n"
+                     "fn main()->int:\n  0\n")
+                 .ok(),
+            "mutually recursive enum/record admitted");
+    require(
+        !analyze(prefix + "enum Rows:\n  Value:\n    items:[Reading]\nfn main()->int:\n  0\n").ok(),
+        "unimplemented record-array payload admitted");
     for (const auto &tail :
          {"fn main():\n  Reading.Value\n",
           "fn main():\n  Reading.Unknown\n",
@@ -80,8 +101,6 @@ int main() {
           "fn main():\n  match Reading.Missing:\n    Other.Missing:0\n    _:1\n",
           "enum Duplicate:\n  Item\n  Item\nfn main()->int:\n  0\n",
           "enum Bad:\n  Item:\n    x:int\n    x:int\nfn main()->int:\n  0\n",
-          "enum Bad:\n  Item:\n    x:[int]\nfn main()->int:\n  0\n",
-          "enum Bad:\n  Item:\n    x:Reading\nfn main()->int:\n  0\n",
           "fn main():\n  Reading.Missing == Reading.Missing\n"})
       require(!analyze(prefix + tail).ok(), "invalid enum program admitted: " + std::string(tail));
     require(!analyze("enum Pair:\n  Value:\n    left:int\n    right:int\nfn main()->int:\n  match "
@@ -102,11 +121,24 @@ int main() {
     auto tagForgery = *valid.module;
     for (auto &node : tagForgery.expressions)
       if (auto *record = std::get_if<RecordValue>(&node.operation))
-        for (auto &field : record->fields)
-          if (!field.field)
-            std::get<Int64Literal>(tagForgery.expressions[field.value].operation).value = 99;
+        record->variant = 99;
     require(bool(numericCapabilityError(tagForgery, NumericTarget::Cpu)),
             "invalid enum discriminator admitted");
+    auto incomplete =
+        analyze(prefix + "fn main()->int:\n  match Reading.Value {measurement:1}:\n"
+                         "    Reading.Value {measurement}:int(measurement)\n    _:0\n");
+    for (unsigned mode = 0; mode < 2; ++mode) {
+      auto forged = *incomplete.module;
+      for (auto &node : forged.expressions)
+        if (auto *value = std::get_if<RecordValue>(&node.operation)) {
+          if (mode == 0)
+            value->fields.clear();
+          else
+            value->variant = 0;
+        }
+      require(bool(numericCapabilityError(forged, NumericTarget::Cpu)),
+              "missing active or populated inactive payload admitted");
+    }
     for (unsigned mode = 0; mode < 3; ++mode) {
       auto forged = *valid.module;
       if (mode == 0)
@@ -118,9 +150,9 @@ int main() {
       require(bool(numericCapabilityError(forged, NumericTarget::Cpu)),
               "forged enum layout admitted");
     }
-    std::cout
-        << "Enums: scalar/String payloads, nominal identity, construction, exhaustive branches, "
-           "scopes, workers, arrays and explicit unsupported-payload/GPU gates passed\n";
+    std::cout << "Enums: scalar/collection/nested payloads, nominal identity, construction, "
+                 "exhaustive branches, "
+                 "scopes, workers, arrays and explicit GPU gates passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';
     return 1;

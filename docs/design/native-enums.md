@@ -1,6 +1,6 @@
 # Native CPU enums
 
-User-defined enums now support payload-free variants and named fields containing any of the ten implemented CPU numeric scalar types, `Bool` or `String`.
+User-defined enums support payload-free variants and named fields containing any of the ten implemented CPU numeric scalar types, `Bool`, `String`, numeric arrays/tensors, Bool/String arrays, records and nested enums. Payload fields follow the existing completed CPU record-field rules.
 
 ```kalandra
 enum Reading:
@@ -35,20 +35,20 @@ Declarations are nominal. Imports, aliases and explicit re-exports preserve the 
 
 ## Ownership and local execution
 
-Enum values and fields are immutable. Ordinary calls, conditional results, local CPU worker captures/results, nested workers and repeated awaits use the existing automatic lifetime model. String payloads retain their UTF-8 backing. The same storage foundation allows enum values in record fields and immutable arrays, including array maps and worker transport.
+Enum values and fields are immutable. Ordinary calls, conditional results, local CPU worker captures/results, nested workers and repeated awaits use the existing automatic lifetime model. Active String and collection payloads retain their backing storage, including inside nested records and enums. The same storage foundation allows enum values in record fields and immutable arrays, including array maps and worker transport.
 
 Only the active variant's initializer expressions are evaluated; inactive storage is initialized internally. A match that ignores the payload still evaluates its subject and constructor arguments. Arithmetic, allocation and task failures retain their existing propagation and cleanup rules.
 
-The current lowering uses private, fully initialized tagged aggregates and the established record ownership implementation. Inactive numeric/Bool slots contain zero/false and inactive String slots contain an empty String. This is an implementation choice, not an exposed record interface or stable ABI. Storage currently includes slots for every variant; compact union storage is a later optimization. Match lowering uses the existing conditional IR and its configured depth/resource budgets.
+The current lowering uses private, fully initialized tagged aggregates and the established record ownership implementation. Only selected fields are initialized as language values. Inactive physical slots are zeroed without allocating their backing storage; their descriptors and nested discriminators are never interpreted or retained. CPU validation and worker ownership dispatch on the discriminator. Fixed-shape and rank-zero tensor payloads therefore impose no allocation or shape requirement on an unselected case. This is an implementation choice, not an exposed record interface or stable ABI. Storage currently includes slots for every variant; compact union storage is a later optimization. Match lowering uses the existing conditional IR and its configured depth/resource budgets.
 
 ## Remaining accepted variant work
 
-The [accepted variant design](variants.md) remains the language contract. This first implementation deliberately rejects collection, record and nested-enum **payload fields**. Those fields need follow-up ownership and layout qualification. This differs from storing an enum value inside an already supported record or array, which is available.
+The [accepted variant design](variants.md) remains the language contract. Collection, record and nested-enum payload fields use the same syntax and automatic lifetime model. Arrays of records/enums may contain these values, but a record-array field inside a payload is still rejected, matching the existing record-field limitation. Recursive layouts are rejected even through an intermediate record; supporting them requires a separate representation decision.
 
 GPU enums, recursive payloads, application `error` declarations, error-family unions, generics, guards and nested destructuring are not introduced here. Distributed execution and public C/C++ contracts remain separate roadmaps. Native CLI entry results retain their existing supported output types; return a matched scalar, String or numeric collection rather than an enum directly.
 
 ## Qualification
 
-[Frontend tests](../../native/tests/EnumTests.cpp) cover declarations, constructors, nominal identity, payload bindings, exhaustive/common-result checking, scopes, explicit payload/GPU limits and rejection of malformed typed layouts. [Compiled programs](../../native/cmake/VerifyEnums.cmake) cover every numeric width, Bool/String payloads, common field spellings, Unicode, records/arrays, module aliases, single-variant and fallback-only matches, selected-branch execution, nested/cached workers, allocation-failure cleanup and output preservation after diagnostics. Debug, optimized, ASan/UBSan and TSan variants share the same checks.
+[Frontend tests](../../native/tests/EnumTests.cpp) cover declarations, constructors, nominal identity, payload bindings, exhaustive/common-result checking, scopes, recursive-layout and GPU limits and rejection of malformed typed layouts. [Compiled programs](../../native/cmake/VerifyEnums.cmake) cover every numeric width, Bool/String payloads, common field spellings, Unicode, records/arrays, module aliases, single-variant and fallback-only matches, selected-branch execution, nested/cached workers, allocation-failure cleanup and output preservation after diagnostics. [Payload programs](../../native/cmake/VerifyEnumPayloads.cmake) additionally cover all ten numeric collection widths, static/dynamic/rank-zero/empty tensor shapes, Bool/String arrays, nested enum/record ownership, collection results escaping a match, inactive allocation avoidance, active shape faults and allocation-failure cleanup. Debug, optimized, ASan/UBSan and TSan variants share the same checks.
 
-The [qualification record](../../native/metal-proof/evidence/cpu-enums-2026-10-19.json) records the source hashes, generated programs and final regression scope.
+The [initial qualification record](../../native/metal-proof/evidence/cpu-enums-2026-10-19.json) covers scalar payloads. The [collection and nested-payload qualification](../../native/metal-proof/evidence/cpu-enum-payloads-2026-10-19.json) records the extended source hashes, generated programs and regression scope.

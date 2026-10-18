@@ -242,7 +242,8 @@ struct RecordFieldValue {
 };
 struct RecordValue {
   std::optional<ValueId> base;
-  std::vector<RecordFieldValue> fields; // Written evaluation order, canonical field indices.
+  std::vector<RecordFieldValue> fields;    // Written evaluation order, canonical field indices.
+  std::optional<std::size_t> variant = {}; // Selected enum case; inactive slots stay zero.
 };
 struct RecordFieldRead {
   ValueId input;

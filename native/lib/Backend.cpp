@@ -281,13 +281,35 @@ private:
     } else if (source.builtin == BuiltinValue::String)
       validateString(loc, value);
     else if (source.builtin == BuiltinValue::Record && !source.tensor) {
-      const auto &fields = input_.records[*source.record].fields;
-      for (std::size_t i = 0; i < fields.size(); ++i) {
-        const auto &field = fields[i].type;
+      const auto &record = input_.records[*source.record];
+      const auto validateField = [&](std::size_t i) {
+        const auto &field = record.fields[i].type;
         if (field.builtin == BuiltinValue::String || field.builtin == BuiltinValue::Record) {
           auto member = LLVM::ExtractValueOp::create(builder_, loc, value,
                                                      ArrayRef<int64_t>{static_cast<int64_t>(i)});
           validateStrings(loc, member, field);
+        }
+      };
+      if (record.variants.empty()) {
+        for (std::size_t i = 0; i < record.fields.size(); ++i)
+          validateField(i);
+      } else {
+        auto tag = LLVM::ExtractValueOp::create(builder_, loc, value, ArrayRef<int64_t>{0});
+        guard(loc, compare(loc, arith::CmpIPredicate::uge, tag, integer(loc, 1)), 3);
+        guard(loc,
+              compare(loc, arith::CmpIPredicate::ule, tag, integer(loc, record.variants.size())),
+              3);
+        for (std::size_t i = 0; i < record.variants.size(); ++i) {
+          auto choice = scf::IfOp::create(
+              builder_, loc, TypeRange{},
+              compare(loc, arith::CmpIPredicate::eq, tag, integer(loc, i + 1)), false);
+          OpBuilder::InsertionGuard insertion(builder_);
+          auto &block = choice.getThenRegion().front();
+          builder_.setInsertionPointToStart(&block);
+          for (auto slot : record.variants[i].fields)
+            validateField(slot);
+          if (block.empty() || !block.back().hasTrait<OpTrait::IsTerminator>())
+            scf::YieldOp::create(builder_, loc);
         }
       }
     }
@@ -1235,7 +1257,10 @@ private:
           } else if constexpr (std::is_same_v<T, RecordValue>) {
             Value value = operation.base
                               ? expression(frame, *operation.base)
-                              : Value(LLVM::UndefOp::create(builder_, loc, type(node.type)));
+                              : Value(LLVM::ZeroOp::create(builder_, loc, type(node.type)));
+            if (operation.variant)
+              value = LLVM::InsertValueOp::create(
+                  builder_, loc, value, integer(loc, *operation.variant + 1), ArrayRef<int64_t>{0});
             for (const auto &field : operation.fields) {
               auto member = expression(frame, field.value);
               const auto &fieldType = input_.records[*node.type.record].fields[field.field].type;

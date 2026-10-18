@@ -19,5 +19,10 @@ if(BUILD_TESTING)
         "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/enums-${VARIANT}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyEnums.cmake")
     set_tests_properties(native-enums-${VARIANT} PROPERTIES TIMEOUT 600)
+    add_test(NAME native-enum-payloads-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>" "-DCHECKER=$<TARGET_FILE:kalandra-check>"
+        "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/enum-payloads-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyEnumPayloads.cmake")
+    set_tests_properties(native-enum-payloads-${VARIANT} PROPERTIES TIMEOUT 600)
   endforeach()
 endif()

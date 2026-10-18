@@ -194,7 +194,19 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
           return "invalid record field initializer";
         seen[field.field] = true;
       }
-      if (!module.records[*t.record].variants.empty()) {
+      const auto &variants = module.records[*t.record].variants;
+      if (value->variant) {
+        if (variants.empty() || *value->variant >= variants.size() || value->base || seen[0])
+          return "enum construction has an invalid discriminator";
+        for (auto slot : variants[*value->variant].fields) {
+          if (!seen[slot])
+            return "enum construction leaves an active payload uninitialized";
+          seen[slot] = false;
+        }
+        if (std::ranges::find(seen, true) != seen.end())
+          return "enum construction initializes an inactive payload";
+        std::fill(seen.begin(), seen.end(), true);
+      } else if (!variants.empty()) {
         if (value->base)
           return "enum values do not support record updates";
         const auto tagField =
@@ -204,8 +216,7 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
                 ? nullptr
                 : std::get_if<Int64Literal>(&module.expressions[tagField->value].operation);
         if (tagField == value->fields.end() ||
-            (tag && (tag->value < 1 || static_cast<std::size_t>(tag->value) >
-                                           module.records[*t.record].variants.size())))
+            (tag && (tag->value < 1 || static_cast<std::size_t>(tag->value) > variants.size())))
           return "enum construction has an invalid discriminator";
       }
       if (!value->base && std::ranges::find(seen, false) != seen.end())
@@ -737,6 +748,8 @@ std::string dumpTypedIR(const TypedModule &module) {
               out << (operation.value ? "true" : "false");
             else if constexpr (std::is_same_v<T, RecordValue>) {
               out << "record " << node.type.recordName;
+              if (operation.variant)
+                out << " variant " << *operation.variant;
               if (operation.base)
                 out << " with %" << *operation.base;
               for (const auto &field : operation.fields)

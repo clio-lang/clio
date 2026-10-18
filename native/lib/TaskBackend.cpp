@@ -342,8 +342,9 @@ private:
     builder.SetInsertPoint(done);
   }
   void retainRecord(const ValueType &type, Value *input, Function *fn, Block *failed) {
-    const auto &fields = planner.input.records[*type.record].fields;
-    for (std::size_t i = 0; i < fields.size(); ++i) {
+    const auto &record = planner.input.records[*type.record];
+    const auto &fields = record.fields;
+    const auto retainField = [&](std::size_t i) {
       const auto &field = fields[i].type;
       auto *address = builder.CreateStructGEP(scalarType(type), input, i);
       if (field.builtin == BuiltinValue::Record)
@@ -380,6 +381,23 @@ private:
         builder.CreateCondBr(success, next, failed);
         builder.SetInsertPoint(next);
       }
+    };
+    if (record.variants.empty()) {
+      for (std::size_t i = 0; i < fields.size(); ++i)
+        retainField(i);
+    } else {
+      auto *tag = builder.CreateLoad(i64, builder.CreateStructGEP(scalarType(type), input, 0));
+      auto *done = Block::Create(context, "enum.retained", fn);
+      auto *dispatch = builder.CreateSwitch(tag, failed, record.variants.size());
+      for (std::size_t i = 0; i < record.variants.size(); ++i) {
+        auto *active = Block::Create(context, "enum.payload", fn);
+        dispatch->addCase(c64(i + 1), active);
+        builder.SetInsertPoint(active);
+        for (auto slot : record.variants[i].fields)
+          retainField(slot);
+        builder.CreateBr(done);
+      }
+      builder.SetInsertPoint(done);
     }
   }
   llvm::GlobalVariable *layout(const ValueType &type) {

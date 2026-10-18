@@ -346,12 +346,12 @@ private:
             auto value = type(field.type);
             if (!value)
               continue;
-            if (value->tensor || value->array ||
+            if ((value->tensor && value->builtin != BuiltinValue::Numeric && !isBoolArray(*value) &&
+                 !isStringArray(*value)) ||
                 (value->builtin != BuiltinValue::Numeric && value->builtin != BuiltinValue::Bool &&
-                 value->builtin != BuiltinValue::String)) {
-              error("S071",
-                    "enum payloads currently support CPU numeric scalars, Bool and String; "
-                    "collection and nested payloads are not yet implemented",
+                 value->builtin != BuiltinValue::String &&
+                 value->builtin != BuiltinValue::Record)) {
+              error("S071", "enum payload requires a supported completed CPU value",
                     field.type.span);
               continue;
             }
@@ -881,12 +881,6 @@ private:
     }
     std::vector<RecordFieldValue> values;
     std::unordered_set<std::size_t> seen;
-    auto tag = add(frame, record.fields[0].type, span,
-                   Int64Literal{static_cast<std::int64_t>(found - record.variants.begin() + 1)});
-    if (!tag)
-      return {};
-    values.push_back({0, *tag});
-    seen.insert(0);
     for (const auto &field : initializers) {
       const auto slot = std::ranges::find_if(
           found->fields, [&](auto i) { return record.fields[i].name == name(field.name); });
@@ -903,32 +897,10 @@ private:
       error("S071", "variant construction requires every named payload field", span);
       return {};
     }
-    for (std::size_t i = 1; i < record.fields.size(); ++i) {
-      if (seen.contains(i))
-        continue;
-      const auto &type = record.fields[i].type;
-      std::optional<ValueId> zero;
-      if (type.builtin == BuiltinValue::String)
-        zero = add(frame, type, span, StringLiteral{""});
-      else if (type.builtin == BuiltinValue::Bool)
-        zero = add(frame, type, span, BoolLiteral{false});
-      else if (type.element == NumericType::Float64)
-        zero = add(frame, type, span, Float64Literal{0});
-      else if (type.element == NumericType::Float32)
-        zero = add(frame, type, span, Float32Literal{0});
-      else if (type.element == NumericType::Int64)
-        zero = add(frame, type, span, Int64Literal{0});
-      else if (type.element == NumericType::UInt64)
-        zero = add(frame, type, span, UInt64Literal{0});
-      else if (isUnsigned(type.element))
-        zero = add(frame, type, span, UInt32Literal{0});
-      else
-        zero = add(frame, type, span, Int32Literal{0});
-      if (!zero)
-        return {};
-      values.push_back({i, *zero});
-    }
-    return add(frame, recordType(owner->second), span, RecordValue{{}, std::move(values)});
+    return add(frame, recordType(owner->second), span,
+               RecordValue{{},
+                           std::move(values),
+                           static_cast<std::size_t>(found - record.variants.begin())});
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const RecordExpr &record,
                                const std::optional<ValueType> &) {
