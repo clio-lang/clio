@@ -22,7 +22,7 @@ fn main() -> [int] ! TaskError:
 
 The result is `[11, 12, 13]`. The original array remains `[1, 2, 3]`. Record construction and updates use named fields; the initializer category and element type must match the declaration. An array does not implicitly become a tensor. Fixed tensor dimensions are checked, with runtime guards when the initializer's dimensions are dynamic. A dynamic declaration describes each instance independently: two `Batch` values need not have equal dimensions.
 
-Rank-zero tensors and empty collections work too. Numeric collections remain numeric: this does not add arrays of records, Boolean tensors, recursive managed records, record captures in anonymous callbacks, or GPU records.
+Rank-zero tensors and empty collections work too. Numeric collections remain numeric: this does not add arrays of records, Boolean tensors, recursive managed records, or GPU records. [Anonymous numeric callbacks can capture these records](record-closures.md).
 
 ## Ownership and execution
 

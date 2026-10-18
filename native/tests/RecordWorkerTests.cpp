@@ -60,11 +60,6 @@ int main() {
           "work=spawn make(Point {x:1,valid:true})\n    p=await work catch fn(error): Point "
           "{x:7,valid:false}\n    p.x\n"}) {
       auto result = analyze(declaration + body);
-      // Map callback record capture remains a separate gate; extract p.x before capturing.
-      if (std::string(body).find(".x+p.x") != std::string::npos) {
-        require(!result.ok(), "record closure capture silently enabled");
-        continue;
-      }
       require(result.ok(), "record recovery/control flow rejected");
 #ifndef KALANDRA_RECORD_FRONTEND_ONLY
       auto lowered = lowerNative(*result.module);

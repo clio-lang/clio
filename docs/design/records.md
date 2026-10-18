@@ -34,7 +34,7 @@ Records can be bound, passed to CPU functions, returned with inferred or explici
 
 Record identity belongs to its declaration, not its field layout or spelling. Two declarations named `Point` in different files are different types. An imported function can return its module's record, and callers can infer that type, read its fields, derive an updated value, and pass it back to functions expecting the original declaration. Importing or exporting the type name itself remains separate module work. Local declarations do not become visible merely because another function was imported.
 
-Records can be used inside synchronous numeric map callbacks. Capturing an entire record in an anonymous callback is not implemented; extracting numeric or Boolean fields before the callback uses the existing scalar capture support. Arrays and tensors still contain numeric elements, so an array of records is not yet supported.
+Records can be used inside synchronous numeric map callbacks. [Anonymous numeric callbacks can capture whole records](record-closures.md), including nested collection fields. Arrays and tensors still contain numeric elements, so an array of records is not yet supported.
 
 ## Native lowering and current boundaries
 

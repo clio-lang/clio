@@ -678,9 +678,10 @@ private:
     const auto capture = output_.symbols[*origin];
     const auto type = capture.type;
     if (type.task || type.fallible || type.device ||
-        (type.builtin != BuiltinValue::Numeric && type.builtin != BuiltinValue::Bool)) {
+        (type.builtin != BuiltinValue::Numeric && type.builtin != BuiltinValue::Bool &&
+         type.builtin != BuiltinValue::Record)) {
       error("S060",
-            "anonymous callbacks capture only completed CPU numeric collections/scalars or Bool",
+            "anonymous callbacks capture only completed CPU numbers, collections, Bool or records",
             span);
       return {};
     }

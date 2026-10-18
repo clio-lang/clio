@@ -33,7 +33,7 @@ Read nested fields with `scene.position.x`. To change a nested field, derive its
 
 If two fields contain the same child value, deriving a change to one does not change the other or the original. Initializers retain written evaluation order. An update evaluates its base before its replacements, including nested updates. Checked failures stop evaluation and cannot publish a partially completed record.
 
-Nested records work inside synchronous numeric map callbacks and with numeric array/tensor worker arguments or results. [Collections stored inside records](record-collections.md) are now supported. Whole-record anonymous callback captures remain a separate gate.
+Nested records work inside synchronous numeric map callbacks and with numeric array/tensor worker arguments or results. [Collections stored inside records](record-collections.md) are now supported. [Whole-record captures in anonymous numeric callbacks](record-closures.md) are also supported.
 
 ## Storage and finite layouts
 

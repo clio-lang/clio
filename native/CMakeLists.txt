@@ -890,3 +890,5 @@ include(cmake/RecordWorkers.cmake)
 include(cmake/NestedRecords.cmake)
 
 include(cmake/RecordCollections.cmake)
+
+include(cmake/RecordClosures.cmake)

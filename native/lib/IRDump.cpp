@@ -400,8 +400,10 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
         const auto &actual = module.expressions[map->captures[i]].type;
         const auto &formal = module.symbols[fn.parameters[i + 1]].type;
         if (actual.task || actual.fallible || actual.device ||
-            (actual.builtin != BuiltinValue::Numeric && actual.builtin != BuiltinValue::Bool) ||
-            actual.builtin != formal.builtin || actual.element != formal.element ||
+            (actual.builtin != BuiltinValue::Numeric && actual.builtin != BuiltinValue::Bool &&
+             actual.builtin != BuiltinValue::Record) ||
+            actual.builtin != formal.builtin || actual.record != formal.record ||
+            (actual.builtin == BuiltinValue::Numeric && actual.element != formal.element) ||
             actual.tensor != formal.tensor || actual.array != formal.array || formal.task ||
             formal.fallible || formal.device || actual.shape.size() != formal.shape.size() ||
             !std::equal(actual.shape.begin(), actual.shape.end(), formal.shape.begin(),

@@ -28,7 +28,7 @@ A task handle is not a record value. Use `try await work` before accessing or up
 
 A record's identity belongs to its declaration. Two records with identical field layouts remain different types, including same-spelling declarations in different modules. Imported function results keep their original identity, and can be passed back to helpers or workers expecting that declaration. Type-name imports/exports remain separate work.
 
-Records may be used alongside numeric array/tensor captures and results. Synchronous numeric map callbacks can construct and read records internally. Capturing an entire record in an anonymous callback remains unsupported; extract the needed numeric, Boolean or collection fields into local bindings before creating the callback.
+Records may be used alongside numeric array/tensor captures and results. Synchronous numeric map callbacks can construct and read records internally. [Anonymous callbacks can capture entire completed records](record-closures.md), including nested collection fields, directly or within CPU workers.
 
 ## Recovery
 
