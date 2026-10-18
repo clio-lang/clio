@@ -42,7 +42,9 @@ public:
           synchronizeFunction();
         continue;
       }
-      if (word("type") || (word("export") && source_->slice(peek().span) == "type")) {
+      if (word("type") || word("enum") ||
+          (word("export") &&
+           (source_->slice(peek().span) == "type" || source_->slice(peek().span) == "enum"))) {
         auto record = parseRecord();
         if (record)
           result_.module.records.push_back(std::move(*record));
@@ -192,13 +194,43 @@ private:
     const bool exported = word("export");
     if (exported)
       advance();
+    const bool enumeration = word("enum");
     advance();
-    auto name = expect(TokenKind::Identifier, "expected a record type name");
+    auto name = expect(TokenKind::Identifier, "expected a record or enum type name");
     if (!name || !expect(TokenKind::Colon, "expected ':' after record name") ||
         !expect(TokenKind::Newline, "record fields must start on the next line") ||
         !expect(TokenKind::Indent, "expected indented record fields"))
       return {};
     RecordDeclaration result{name->span, {}, exported};
+    if (enumeration) {
+      while (!at(TokenKind::Dedent) && !at(TokenKind::End)) {
+        auto variant = expect(TokenKind::Identifier, "expected an enum variant name");
+        if (!variant)
+          return {};
+        VariantDeclaration declaration{variant->span, {}};
+        if (consume(TokenKind::Colon)) {
+          if (!expect(TokenKind::Newline, "variant fields must start on a new line") ||
+              !expect(TokenKind::Indent, "expected indented variant fields"))
+            return {};
+          while (!at(TokenKind::Dedent) && !at(TokenKind::End)) {
+            auto field = expect(TokenKind::Identifier, "expected a variant field name");
+            if (!field || !expect(TokenKind::Colon, "variant fields require ': Type'"))
+              return {};
+            auto type = parseType();
+            if (!type || !expect(TokenKind::Newline, "expected end of variant field"))
+              return {};
+            declaration.fields.push_back({field->span, std::move(*type)});
+          }
+          if (!expect(TokenKind::Dedent, "expected end of variant fields"))
+            return {};
+        } else if (!expect(TokenKind::Newline, "expected end of enum variant"))
+          return {};
+        result.variants.push_back(std::move(declaration));
+      }
+      if (!expect(TokenKind::Dedent, "expected end of enum declaration"))
+        return {};
+      return result;
+    }
     while (!at(TokenKind::Dedent) && !at(TokenKind::End)) {
       auto field = expect(TokenKind::Identifier, "expected a field name");
       if (!field || !expect(TokenKind::Colon, "record fields require ': Type'"))
@@ -394,24 +426,34 @@ private:
         const auto begin = node(*left).span.begin;
         const bool update = word("with");
         SourceSpan name{};
+        std::optional<SourceSpan> family;
         if (update) {
           advance();
           if (!expect(TokenKind::LeftBrace, "expected '{' after with"))
             return {};
         } else {
           const auto *identifier = std::get_if<NameExpr>(&node(*left).value);
-          if (!identifier) {
+          if (identifier)
+            name = identifier->name;
+          else if (const auto *qualified = std::get_if<FieldExpr>(&node(*left).value)) {
+            const auto *owner = std::get_if<NameExpr>(&node(qualified->input).value);
+            if (!owner) {
+              error("P035", "variant construction requires Type.Variant", node(*left).span);
+              return {};
+            }
+            family = owner->name;
+            name = qualified->field;
+          } else {
             error("P035", "record construction requires a type name", node(*left).span);
             return {};
           }
-          name = identifier->name;
           advance();
         }
         auto fields = recordFields();
         if (!fields)
           return {};
         left = add({{begin, tokens_[position_ - 1].span.end},
-                    RecordExpr{update ? left : std::nullopt, name, std::move(*fields)}});
+                    RecordExpr{update ? left : std::nullopt, name, std::move(*fields), family}});
         if (!left)
           return {};
         continue;
@@ -770,7 +812,7 @@ private:
   }
   void synchronizeFunction() {
     while (!at(TokenKind::End)) {
-      if ((word("fn") || word("export") || word("from") || word("type")) &&
+      if ((word("fn") || word("export") || word("from") || word("type") || word("enum")) &&
           source_->location(current().span.begin).second == 1)
         return;
       advance();

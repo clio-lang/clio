@@ -2,6 +2,7 @@
 #include "kalandra/Semantics.h"
 #include <algorithm>
 #include <functional>
+#include <unordered_set>
 
 namespace kalandra {
 inline bool hasRecordBacking(const TypedModule &module) {
@@ -27,6 +28,31 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
   for (const auto &record : module.records) {
     if (record.fields.empty())
       return fail("record declarations require fields", record.declaration);
+    if (!record.variants.empty()) {
+      const auto &tag = record.fields.front().type;
+      if (tag.builtin != BuiltinValue::Numeric || tag.element != NumericType::Int64 || tag.tensor ||
+          tag.array || tag.task || tag.fallible || tag.device)
+        return fail("invalid enum discriminator layout", record.declaration);
+      std::unordered_set<std::string> names;
+      std::vector<bool> used(record.fields.size());
+      used[0] = true;
+      for (const auto &variant : record.variants) {
+        if (variant.name.empty() || !names.insert(variant.name).second)
+          return fail("invalid or duplicate enum variant identity", variant.declaration);
+        for (auto slot : variant.fields) {
+          if (!slot || slot >= used.size() || used[slot])
+            return fail("invalid enum payload field layout", variant.declaration);
+          used[slot] = true;
+          const auto &t = record.fields[slot].type;
+          if (t.tensor || t.array ||
+              (t.builtin != BuiltinValue::Numeric && t.builtin != BuiltinValue::Bool &&
+               t.builtin != BuiltinValue::String))
+            return fail("unsupported enum payload layout", variant.declaration);
+        }
+      }
+      if (std::ranges::find(used, false) != used.end())
+        return fail("enum layout has an unassigned payload slot", record.declaration);
+    }
     for (const auto &field : record.fields) {
       const auto &type = field.type;
       if (type.task || type.fallible || type.device ||

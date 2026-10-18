@@ -253,10 +253,16 @@ struct TypedRecordField {
   ValueType type;
   SourceSpan declaration;
 };
+struct TypedVariant {
+  std::string name;
+  SourceSpan declaration;
+  std::vector<std::size_t> fields;
+};
 struct TypedRecord {
   std::string name;
   SourceSpan declaration;
   std::vector<TypedRecordField> fields;
+  std::vector<TypedVariant> variants = {}; // Nonempty identifies a nominal enum.
 };
 struct TypedExpr {
   SourceSpan span;

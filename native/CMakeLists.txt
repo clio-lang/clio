@@ -949,3 +949,5 @@ include(cmake/Int8.cmake)
 include(cmake/Int16.cmake)
 include(cmake/NarrowArrays.cmake)
 include(cmake/NarrowTensors.cmake)
+
+include(cmake/Enums.cmake)

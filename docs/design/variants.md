@@ -2,7 +2,7 @@
 
 Accepted variants and error payload direction — 2026-10-14. The project owner approved the decisions below. This extends the accepted [core](core.md), [errors/effects](errors.md), and [task lifetimes](execution.md). The goal is to describe a value with several possible forms, attach typed details to failures, and handle those forms without dynamic error objects or hidden fields.
 
-These examples describe the fresh design; they are not supported by the released Kalandra 0.13 compiler.
+These examples describe the native design; they are not supported by the released Kalandra 0.13 compiler. The native branch now implements the [first CPU enum subset](native-enums.md): scalar/Bool/String payloads, exhaustive matching and local worker transport. Collection/nested payloads and user-defined error channels remain ahead.
 
 ## Accepted decisions
 

@@ -151,6 +151,7 @@ struct RecordExpr {
   std::optional<ExprId> base;
   SourceSpan name;
   std::vector<FieldInitializer> fields;
+  std::optional<SourceSpan> family = {}; // Qualified enum construction.
 };
 struct FieldExpr {
   ExprId input;
@@ -245,10 +246,15 @@ struct Import {
   std::optional<std::size_t> target = {};
   bool exported = false;
 };
+struct VariantDeclaration {
+  SourceSpan name;
+  std::vector<Parameter> fields;
+};
 struct RecordDeclaration {
   SourceSpan name;
   std::vector<Parameter> fields;
   bool exported = false;
+  std::vector<VariantDeclaration> variants = {};
 };
 struct Module {
   // Source storage outlives all borrowed slices/byte spans. Expressions use flat

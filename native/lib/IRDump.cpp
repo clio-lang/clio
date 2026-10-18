@@ -194,6 +194,20 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
           return "invalid record field initializer";
         seen[field.field] = true;
       }
+      if (!module.records[*t.record].variants.empty()) {
+        if (value->base)
+          return "enum values do not support record updates";
+        const auto tagField =
+            std::ranges::find_if(value->fields, [](const auto &f) { return f.field == 0; });
+        const auto *tag =
+            tagField == value->fields.end()
+                ? nullptr
+                : std::get_if<Int64Literal>(&module.expressions[tagField->value].operation);
+        if (tagField == value->fields.end() ||
+            (tag && (tag->value < 1 || static_cast<std::size_t>(tag->value) >
+                                           module.records[*t.record].variants.size())))
+          return "enum construction has an invalid discriminator";
+      }
       if (!value->base && std::ranges::find(seen, false) != seen.end())
         return "record construction leaves a field uninitialized";
     }
@@ -636,6 +650,18 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
 }
 std::string dumpTypedIR(const TypedModule &module) {
   std::ostringstream out;
+  for (const auto &record : module.records) {
+    if (record.variants.empty())
+      continue;
+    out << "enum " << record.name << " {\n";
+    for (const auto &variant : record.variants) {
+      out << "  " << variant.name;
+      for (auto slot : variant.fields)
+        out << " " << record.fields[slot].name << ": " << describeType(record.fields[slot].type);
+      out << "\n";
+    }
+    out << "}\n";
+  }
   const auto value = [&](ValueId id) { out << '%' << id; };
   const auto arguments = [&](const std::vector<ValueId> &ids) {
     out << '(';

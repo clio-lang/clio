@@ -34,6 +34,7 @@ class Checker {
     std::size_t handlerDepth = 0;
     bool conditional = false;
     std::shared_ptr<ClosureScope> closure = {};
+    std::size_t enumBranchDepth = 0;
   };
   struct TensorData {
     std::vector<std::uint64_t> shape;
@@ -233,7 +234,8 @@ private:
           : syntax.tensor ? numericTensorElementwiseAvailable(*numeric, NumericTarget::Cpu)
                           : numericScalarArithmeticAvailable(*numeric, NumericTarget::Cpu))) {
       error("S003",
-            "expected a declared record type, String, Bool, or a supported numeric scalar, tensor "
+            "expected a declared record or enum type, String, Bool, or a supported numeric scalar, "
+            "tensor "
             "or array "
             "type",
             syntax.span);
@@ -322,6 +324,44 @@ private:
       // Duplicate declarations have already been diagnosed; do not merge fields.
       if (target.declaration.begin != record.name.begin)
         continue;
+      if (!record.variants.empty()) {
+        ValueType tag;
+        tag.element = NumericType::Int64;
+        target.fields.push_back({"$tag", tag, record.name});
+        std::unordered_set<std::string> cases;
+        for (const auto &variant : record.variants) {
+          const auto label = name(variant.name);
+          if (reservedControl(label) || !cases.insert(label).second) {
+            error("S071", "duplicate or reserved enum variant '" + label + "'", variant.name);
+            continue;
+          }
+          TypedVariant typed{label, variant.name, {}};
+          std::unordered_set<std::string> fields;
+          for (const auto &field : variant.fields) {
+            const auto label = name(field.name);
+            if (reservedControl(label) || !fields.insert(label).second) {
+              error("S071", "duplicate or reserved variant field '" + label + "'", field.name);
+              continue;
+            }
+            auto value = type(field.type);
+            if (!value)
+              continue;
+            if (value->tensor || value->array ||
+                (value->builtin != BuiltinValue::Numeric && value->builtin != BuiltinValue::Bool &&
+                 value->builtin != BuiltinValue::String)) {
+              error("S071",
+                    "enum payloads currently support CPU numeric scalars, Bool and String; "
+                    "collection and nested payloads are not yet implemented",
+                    field.type.span);
+              continue;
+            }
+            typed.fields.push_back(target.fields.size());
+            target.fields.push_back({label, *value, field.name});
+          }
+          target.variants.push_back(std::move(typed));
+        }
+        continue;
+      }
       std::unordered_set<std::string> fields;
       for (const auto &field : record.fields) {
         const auto label = name(field.name);
@@ -356,7 +396,7 @@ private:
       target.name = name(function.name);
       target.declaration = function.name;
       if (records_.contains(functionKey(function.moduleIndex, target.name)))
-        error("S068", "function conflicts with record type name", function.name);
+        error("S068", "function conflicts with nominal type name", function.name);
       if (target.name == "Bool" || target.name == "String" || reservedControl(target.name))
         error("S056", "reserved builtin/control-flow name", function.name);
       if (resolveNumeric(target.name)) {
@@ -590,7 +630,7 @@ private:
       error("S010",
             "expected " + describeType(expected) + ", got " + describeType(actual) +
                 (actual.record != expected.record && actual.record && expected.record
-                     ? " (distinct record declarations)"
+                     ? " (distinct nominal type declarations)"
                      : ""),
             span);
       return {};
@@ -823,8 +863,77 @@ private:
     frame.closure->origins.push_back(*origin);
     return symbol;
   }
+  std::optional<ValueId> variantValue(Frame &frame, SourceSpan span, SourceSpan family,
+                                      SourceSpan variant,
+                                      const std::vector<FieldInitializer> &initializers) {
+    const auto owner = records_.find(functionKey(frame, name(family)));
+    if (owner == records_.end() || output_.records[owner->second].variants.empty() ||
+        lookupSymbol(frame, family)) {
+      error("S071", "expected an unshadowed enum type name", family);
+      return {};
+    }
+    const auto &record = output_.records[owner->second];
+    const auto found = std::ranges::find_if(record.variants,
+                                            [&](const auto &v) { return v.name == name(variant); });
+    if (found == record.variants.end()) {
+      error("S071", "unknown enum variant '" + name(variant) + "'", variant);
+      return {};
+    }
+    std::vector<RecordFieldValue> values;
+    std::unordered_set<std::size_t> seen;
+    auto tag = add(frame, record.fields[0].type, span,
+                   Int64Literal{static_cast<std::int64_t>(found - record.variants.begin() + 1)});
+    if (!tag)
+      return {};
+    values.push_back({0, *tag});
+    seen.insert(0);
+    for (const auto &field : initializers) {
+      const auto slot = std::ranges::find_if(
+          found->fields, [&](auto i) { return record.fields[i].name == name(field.name); });
+      if (slot == found->fields.end() || !seen.insert(*slot).second) {
+        error("S071", "unknown or duplicate enum payload field", field.name);
+        return {};
+      }
+      auto value = expression(frame, field.value, record.fields[*slot].type);
+      if (!value)
+        return {};
+      values.push_back({*slot, *value});
+    }
+    if (initializers.size() != found->fields.size()) {
+      error("S071", "variant construction requires every named payload field", span);
+      return {};
+    }
+    for (std::size_t i = 1; i < record.fields.size(); ++i) {
+      if (seen.contains(i))
+        continue;
+      const auto &type = record.fields[i].type;
+      std::optional<ValueId> zero;
+      if (type.builtin == BuiltinValue::String)
+        zero = add(frame, type, span, StringLiteral{""});
+      else if (type.builtin == BuiltinValue::Bool)
+        zero = add(frame, type, span, BoolLiteral{false});
+      else if (type.element == NumericType::Float64)
+        zero = add(frame, type, span, Float64Literal{0});
+      else if (type.element == NumericType::Float32)
+        zero = add(frame, type, span, Float32Literal{0});
+      else if (type.element == NumericType::Int64)
+        zero = add(frame, type, span, Int64Literal{0});
+      else if (type.element == NumericType::UInt64)
+        zero = add(frame, type, span, UInt64Literal{0});
+      else if (isUnsigned(type.element))
+        zero = add(frame, type, span, UInt32Literal{0});
+      else
+        zero = add(frame, type, span, Int32Literal{0});
+      if (!zero)
+        return {};
+      values.push_back({i, *zero});
+    }
+    return add(frame, recordType(owner->second), span, RecordValue{{}, std::move(values)});
+  }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const RecordExpr &record,
                                const std::optional<ValueType> &) {
+    if (record.family)
+      return variantValue(frame, span, *record.family, record.name, record.fields);
     std::optional<ValueId> base;
     ValueType result;
     if (record.base) {
@@ -850,6 +959,12 @@ private:
       result = recordType(found->second);
     }
     const auto &declaration = output_.records[*result.record];
+    if (!declaration.variants.empty()) {
+      error("S071",
+            "enum construction requires Type.Variant; enum updates require an explicit match",
+            span);
+      return {};
+    }
     std::unordered_set<std::string> seen;
     std::vector<RecordFieldValue> values;
     for (const auto &field : record.fields) {
@@ -874,6 +989,12 @@ private:
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const FieldExpr &read,
                                const std::optional<ValueType> &) {
+    if (const auto *family = std::get_if<NameExpr>(&syntax_.expressions[read.input].value)) {
+      const auto owner = records_.find(functionKey(frame, name(family->name)));
+      if (owner != records_.end() && !output_.records[owner->second].variants.empty() &&
+          !lookupSymbol(frame, family->name))
+        return variantValue(frame, span, family->name, read.field, {});
+    }
     auto input = expression(frame, read.input);
     if (!input)
       return {};
@@ -881,6 +1002,11 @@ private:
     if (type.builtin != BuiltinValue::Record || type.tensor || type.array || type.task ||
         type.fallible || !type.record) {
       error("S068", "field access requires a completed record value", span);
+      return {};
+    }
+    if (!output_.records[*type.record].variants.empty()) {
+      error("S071", "enum payload fields are available only inside a matching variant branch",
+            span);
       return {};
     }
     const auto &fields = output_.records[*type.record].fields;
@@ -1838,18 +1964,33 @@ private:
     if (!subject)
       return {};
     const auto subjectType = node(*subject).type;
-    const bool taskError = subjectType.builtin == BuiltinValue::TaskError;
-    if ((!taskError && subjectType.builtin != BuiltinValue::FaultKind) || subjectType.task ||
-        subjectType.fallible) {
-      error("S040", "match currently supports TaskError and FaultKind values", span);
+    const bool enumeration = subjectType.builtin == BuiltinValue::Record && subjectType.record &&
+                             !output_.records[*subjectType.record].variants.empty();
+    if (enumeration &&
+        (frame.enumBranchDepth > limits_.maxDepth - frame.depth ||
+         match.arms.size() > limits_.maxDepth - frame.depth - frame.enumBranchDepth)) {
+      error("S071", "enum match exceeds configured branch-depth budget", span);
       return {};
     }
-    const std::vector<std::string> names =
+    const bool taskError = subjectType.builtin == BuiltinValue::TaskError;
+    if ((!enumeration && !taskError && subjectType.builtin != BuiltinValue::FaultKind) ||
+        subjectType.task || subjectType.fallible || subjectType.tensor || subjectType.array) {
+      error("S040", "match requires a completed enum, TaskError or FaultKind value", span);
+      return {};
+    }
+    std::vector<std::string> names =
         taskError
             ? std::vector<std::string>{"Fault", "Cancelled", "DeadlineExceeded",
                                        "AdmissionRejected"}
             : std::vector<std::string>{"Arithmetic", "Bounds", "Shape", "Allocation", "Native"};
-    const auto family = taskError ? "TaskError" : "FaultKind";
+    const std::string family = enumeration ? output_.records[*subjectType.record].name
+                               : taskError ? "TaskError"
+                                           : "FaultKind";
+    if (enumeration) {
+      names.clear();
+      for (const auto &v : output_.records[*subjectType.record].variants)
+        names.push_back(v.name);
+    }
     std::unordered_set<unsigned> seen;
     bool fallback = false;
     std::vector<MatchCase> cases;
@@ -1863,7 +2004,12 @@ private:
       std::optional<unsigned> tag;
       if (arm.variant) {
         auto found = std::ranges::find(names, name(*arm.variant));
-        if (name(*arm.family) != family || found == names.end()) {
+        const auto owner = records_.find(functionKey(frame, name(*arm.family)));
+        const bool sameFamily =
+            enumeration ? (owner != records_.end() && owner->second == *subjectType.record &&
+                           !lookupSymbol(frame, *arm.family))
+                        : name(*arm.family) == family;
+        if (!sameFamily || found == names.end()) {
           error("S040", "unknown variant for " + std::string(family), arm.span);
           return {};
         }
@@ -1880,6 +2026,8 @@ private:
         fallback = true;
       }
       auto branch = frame;
+      if (enumeration)
+        branch.enumBranchDepth += match.arms.size();
       branch.conditional = true;
       branch.tasks = std::make_shared<TaskChecks>(before);
       std::vector<TypedStatement> statements;
@@ -1892,9 +2040,21 @@ private:
           error("S056", "Control-flow keywords cannot be pattern binding names", pattern.binding);
           return {};
         }
-        ErrorField fieldId;
+        ErrorField fieldId = ErrorField::Kind;
+        std::optional<std::size_t> slot;
         ValueType fieldType;
-        if (taskError && tag == 1 && field == "kind") {
+        if (enumeration && tag) {
+          const auto &record = output_.records[*subjectType.record];
+          const auto &variant = record.variants[*tag - 1];
+          const auto found = std::ranges::find_if(
+              variant.fields, [&](auto i) { return record.fields[i].name == field; });
+          if (found == variant.fields.end()) {
+            error("S042", "unknown field for selected variant", fieldSpan);
+            return {};
+          }
+          slot = *found;
+          fieldType = record.fields[*slot].type;
+        } else if (taskError && tag == 1 && field == "kind") {
           fieldId = ErrorField::Kind;
           fieldType.builtin = BuiltinValue::FaultKind;
         } else if (taskError && tag == 1 && field == "message") {
@@ -1911,7 +2071,8 @@ private:
           error("S042", "duplicate pattern field", fieldSpan);
           return {};
         }
-        auto value = add(branch, fieldType, fieldSpan, ErrorFieldRead{*subject, fieldId});
+        auto value = slot ? add(branch, fieldType, fieldSpan, RecordFieldRead{*subject, *slot})
+                          : add(branch, fieldType, fieldSpan, ErrorFieldRead{*subject, fieldId});
         if (!value)
           return {};
         const auto symbol = output_.symbols.size();
@@ -1965,6 +2126,48 @@ private:
             }))
           frame.tasks->observed.insert(node(child).type.identity);
     resultType->identity = 0;
+    if (enumeration) {
+      ValueType tagType;
+      tagType.element = NumericType::Int64;
+      auto selected = add(frame, tagType, span, RecordFieldRead{*subject, 0});
+      if (!selected)
+        return {};
+      auto result = cases.back().result;
+      auto otherwise = std::move(cases.back().body);
+      if (cases.size() == 1) {
+        auto one = add(frame, tagType, span, Int64Literal{1});
+        if (!one)
+          return {};
+        ValueType boolean;
+        boolean.builtin = BuiltinValue::Bool;
+        auto condition =
+            add(frame, boolean, span, ScalarCompare{ComparisonKind::GreaterEqual, *selected, *one});
+        if (!condition)
+          return {};
+        return add(frame, *resultType, span,
+                   ConditionalOperation{*condition, otherwise, otherwise, result, result});
+      }
+      for (std::size_t i = cases.size() - 1; i > 0; --i) {
+        auto &arm = cases[i - 1];
+        auto tag = add(frame, tagType, span, Int64Literal{*arm.tag});
+        if (!tag)
+          return {};
+        ValueType boolean;
+        boolean.builtin = BuiltinValue::Bool;
+        auto condition =
+            add(frame, boolean, span, ScalarCompare{ComparisonKind::Equal, *selected, *tag});
+        if (!condition)
+          return {};
+        auto choice = add(frame, *resultType, span,
+                          ConditionalOperation{*condition, std::move(arm.body),
+                                               std::move(otherwise), arm.result, result});
+        if (!choice)
+          return {};
+        result = *choice;
+        otherwise = {{span, {}, result}};
+      }
+      return result;
+    }
     return add(frame, *resultType, span, MatchOperation{*subject, std::move(cases)});
   }
   std::optional<TensorData> tensorData(ExprId id, const std::optional<ValueType> &context,
