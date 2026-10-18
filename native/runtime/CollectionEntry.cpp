@@ -28,7 +28,8 @@ int main(int argc, char **argv) {
   using namespace kalandra::runtime;
   Invocation context;
   if (kalandra_collection_rank_v1 > cli::maximumCollectionRank ||
-      kalandra_collection_element_v1 > static_cast<unsigned>(NumericType::Float64) ||
+      (kalandra_collection_element_v1 > static_cast<unsigned>(NumericType::Float64) &&
+       kalandra_collection_element_v1 != cli::boolArrayElement) ||
       kalandra_collection_array_v1 > 1) {
     context.fault(3);
     context.reportFailure();
@@ -36,7 +37,10 @@ int main(int argc, char **argv) {
   const auto rank = std::size_t(kalandra_collection_rank_v1);
   const auto element = static_cast<NumericType>(kalandra_collection_element_v1);
   const bool array = kalandra_collection_array_v1;
-  if (!numericArithmeticAvailable(element, NumericTarget::Cpu) || (array && rank != 1)) {
+  const bool boolean = kalandra_collection_element_v1 == cli::boolArrayElement;
+  if ((boolean ? (!array || rank != 1)
+               : !numericArithmeticAvailable(element, NumericTarget::Cpu)) ||
+      (array && rank != 1)) {
     context.fault(3);
     context.reportFailure();
   }
@@ -44,7 +48,8 @@ int main(int argc, char **argv) {
   _mlir_ciface_kalandra_collection_entry(&descriptor, &context);
   if (context.status() || context.hasTaskError())
     context.reportFailure();
-  auto retained = retainForDisplay(context, descriptor, rank, element, array);
+  auto retained = boolean ? retainBoolForDisplay(context, descriptor)
+                          : retainForDisplay(context, descriptor, rank, element, array);
   if (!retained) {
     context.fault(3);
     context.reportFailure();
@@ -59,8 +64,9 @@ int main(int argc, char **argv) {
                  static_cast<unsigned long long>(context.live()),
                  static_cast<unsigned long long>(context.allocations()),
                  static_cast<unsigned long long>(context.releases()));
-  if (!printCollection(stdout, *retained, {descriptor.dimensions.data(), rank}, element, array,
-                       limit)) {
+  if (!(boolean ? printBoolArray(stdout, *retained, limit)
+                : printCollection(stdout, *retained, {descriptor.dimensions.data(), rank}, element,
+                                  array, limit))) {
     std::fprintf(stderr, "cannot write collection result\n");
     return 1;
   }

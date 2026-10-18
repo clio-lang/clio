@@ -6,10 +6,10 @@
 namespace kalandra {
 inline bool hasRecordCollections(const TypedModule &module) {
   for (const auto &expression : module.expressions)
-    if (isRecordArray(expression.type))
+    if (isOwnedArray(expression.type))
       return true;
   for (const auto &symbol : module.symbols)
-    if (isRecordArray(symbol.type))
+    if (isOwnedArray(symbol.type))
       return true;
   for (const auto &record : module.records)
     for (const auto &field : record.fields)

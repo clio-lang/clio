@@ -95,8 +95,7 @@ int main() {
     }
     for (auto body :
          {"map([Other {x:1}],move)", "map([1],move)", "map([Point {x:1,data:[2]}],fn(p:Other):p.x)",
-          "map([Point {x:1,data:[2]}],fn(p):p.data)", "map([],fn(p):p.x)",
-          "map([Point {x:1,data:[2]}],fn(p):true)"})
+          "map([Point {x:1,data:[2]}],fn(p):p.data)", "map([],fn(p):p.x)"})
       require(!analyze(mapDecl + "fn main():\n  " + body + "\n").ok(),
               "invalid record map accepted");
     auto mapped =

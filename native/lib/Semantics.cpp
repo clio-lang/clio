@@ -159,6 +159,7 @@ private:
       }
       count *= *dimension.constant;
     }
+    if (isBoolArray(type)) return true;
     if (!checkedNumericBytes(type.element, count, maximum)) {
       error("S002", "tensor allocation byte count overflows the supported range", span);
       return false;
@@ -174,9 +175,13 @@ private:
            name == "or" || name == "not" || name == "type" || name == "with";
   }
   std::optional<ValueType> type(const TypeSyntax &syntax) {
-    if (!syntax.tensor && !syntax.array && name(syntax.name) == "Bool") {
+    if (!syntax.tensor && name(syntax.name) == "Bool") {
       ValueType result;
       result.builtin = BuiltinValue::Bool;
+      if (syntax.array) {
+        result.tensor = result.array = true;
+        result.shape = {dynamic()};
+      }
       return result;
     }
     if (!syntax.tensor) {
@@ -998,10 +1003,10 @@ private:
     const auto type = node(*input).type;
     const bool length = callee == "length";
     if (!type.tensor ||
-        (type.builtin != BuiltinValue::Numeric && !(length && isRecordArray(type))) || type.task ||
+        (type.builtin != BuiltinValue::Numeric && !(length && isOwnedArray(type))) || type.task ||
         type.fallible || type.device || type.array != length) {
       error("S064",
-            callee + (length ? " requires a completed CPU numeric array"
+            callee + (length ? " requires a completed CPU array"
                              : " requires a completed CPU numeric tensor"),
             span);
       return {};
@@ -1031,8 +1036,8 @@ private:
       return {};
     const auto a = node(*input).type;
     if (!a.tensor || a.task || a.fallible || a.device ||
-        (a.builtin != BuiltinValue::Numeric && !isRecordArray(a))) {
-      error("S061", "indexing requires a completed CPU numeric array or tensor", span);
+        (a.builtin != BuiltinValue::Numeric && !isOwnedArray(a))) {
+      error("S061", "indexing requires a completed CPU array or numeric tensor", span);
       return {};
     }
     if (read.indices.size() != a.shape.size()) {
@@ -1066,7 +1071,7 @@ private:
         return {};
       }
     }
-    ValueType result = isRecordArray(a) ? recordArrayElement(a) : ValueType{};
+    ValueType result = isOwnedArray(a) ? recordArrayElement(a) : ValueType{};
     result.element = a.element;
     if (a.array)
       return add(frame, result, span, ArrayIndex{*input, indices[0]});
@@ -1106,8 +1111,9 @@ private:
         return {};
       const auto actual = node(*value).type;
       if (actual.tensor || actual.task || actual.fallible || actual.device ||
-          (actual.builtin != BuiltinValue::Numeric && actual.builtin != BuiltinValue::Record)) {
-        error("S058", "array elements require completed CPU numeric scalars or records",
+          (actual.builtin != BuiltinValue::Numeric && actual.builtin != BuiltinValue::Record &&
+           actual.builtin != BuiltinValue::Bool)) {
+        error("S058", "array elements require completed CPU numeric scalars, Bool or records",
               syntax_.expressions[leaf].span);
         return {};
       }
@@ -2088,7 +2094,8 @@ private:
       return {};
     }
     const auto mapElement = [](const ValueType &type) {
-      return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record) &&
+      return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record ||
+              type.builtin == BuiltinValue::Bool) &&
              !type.tensor && !type.task && !type.fallible && !type.device;
     };
     std::optional<ValueType> inputContext;
@@ -2097,7 +2104,7 @@ private:
       if (!annotation)
         return {};
       if (!mapElement(*annotation)) {
-        error("S060", "anonymous map parameter requires a numeric scalar or record type",
+        error("S060", "anonymous map parameter requires a numeric scalar, Bool or record type",
               lambdaSpan);
         return {};
       }
@@ -2112,9 +2119,10 @@ private:
       return {};
     const auto inputType = node(*input).type;
     if (!inputType.array ||
-        (inputType.builtin != BuiltinValue::Numeric && inputType.builtin != BuiltinValue::Record) ||
+        (inputType.builtin != BuiltinValue::Numeric && inputType.builtin != BuiltinValue::Record &&
+         inputType.builtin != BuiltinValue::Bool) ||
         inputType.task || inputType.fallible || inputType.device) {
-      error("S060", "anonymous map requires a completed CPU numeric or record array", span);
+      error("S060", "anonymous map requires a completed CPU numeric, Bool or record array", span);
       return {};
     }
     std::optional<ValueType> resultContext;
@@ -2123,7 +2131,8 @@ private:
       if (!resultContext)
         return {};
       if (!mapElement(*resultContext)) {
-        error("S060", "anonymous map result requires a numeric scalar or record type", lambdaSpan);
+        error("S060", "anonymous map result requires a numeric scalar, Bool or record type",
+              lambdaSpan);
         return {};
       }
     }
@@ -2151,7 +2160,7 @@ private:
       return {};
     const auto resultType = node(*result).type;
     if (!mapElement(resultType)) {
-      error("S060", "anonymous map body must produce a completed numeric scalar or record",
+      error("S060", "anonymous map body must produce a completed numeric scalar, Bool or record",
             lambdaSpan);
       return {};
     }
@@ -2196,14 +2205,16 @@ private:
     const auto id = found->second;
     const auto &fn = output_.functions[id];
     const auto scalar = [](const ValueType &type) {
-      return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record) &&
+      return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record ||
+              type.builtin == BuiltinValue::Bool) &&
              !type.tensor && !type.task && !type.fallible && !type.device;
     };
     const auto result = fn.declaredResult.value_or(fn.resultType);
     if (fn.parameters.size() != 1 || !scalar(result) ||
         !scalar(output_.symbols[fn.parameters[0]].type)) {
       error("S059",
-            "map callback requires one numeric scalar or record parameter and a numeric scalar or "
+            "map callback requires one numeric scalar, Bool or record parameter and a numeric "
+            "scalar or "
             "record result",
             callback->name);
       return {};

@@ -34,7 +34,7 @@ Ungrouped comparison chains such as `a < b < c` are rejected with P034. Explicit
 
 Boolean captures and results use the existing bounded scheduler, resumable calls, cached awaits, expected-error handling and lifetime rules. Bool has a distinct private native result-layout identity; task handles retain their own representation. Rejected layouts must not publish a value or acquire owners. Ordinary CPU functions and checked private native test interfaces carry Boolean scalars directly. This does not establish a public C ABI or library-packaging contract.
 
-[CPU conditionals and short-circuit logic](control-flow.md) now build on this foundation. Bool arrays/tensors and GPU/mixed-target Bool execution remain subsequent work. Broader values/modules, native library embedding and developer tooling remain tracked in the [roadmap](../roadmap.md). Native distributed execution still requires the agreed design discussion.
+[CPU conditionals and short-circuit logic](control-flow.md) now build on this foundation. [Immutable CPU Bool arrays](bool-arrays.md) now support construction, indexing, mapping and retained worker transfer. Bool tensors and GPU/mixed-target Bool execution remain subsequent work. Broader values/modules, native library embedding and developer tooling remain tracked in the [roadmap](../roadmap.md). Native distributed execution still requires the agreed design discussion.
 
 ## Qualification
 

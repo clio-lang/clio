@@ -894,3 +894,4 @@ include(cmake/RecordCollections.cmake)
 include(cmake/RecordClosures.cmake)
 
 include(cmake/RecordArrays.cmake)
+include(cmake/BoolArrays.cmake)

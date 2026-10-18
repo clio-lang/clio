@@ -1,6 +1,6 @@
 # Sequential native array mapping
 
-The native CPU subset implements `map(values, transform)` and its pipeline form for [immutable numeric arrays](arrays.md) and [record arrays](record-arrays.md). The transform is a named function or an inline anonymous function with one numeric scalar or record parameter and a numeric scalar or record result.
+The native CPU subset implements `map(values, transform)` and its pipeline form for [immutable numeric arrays](arrays.md), [Bool arrays](bool-arrays.md), and [record arrays](record-arrays.md). The transform is a named function or an inline anonymous function with one numeric scalar, Bool or record parameter and a numeric scalar, Bool or record result.
 
 ```kalandra
 fn double(value: int) -> int:
@@ -59,7 +59,7 @@ fn shifted(values: [int], offset: int) -> [int]:
 
 `map(values, fn(value): value + offset)` is equivalent. The input establishes the element parameter type. Optional annotations can make it explicit: `map([], fn(value: int) -> float: float(value))`. An empty input without an annotated callback parameter has no element type to infer and is rejected.
 
-The callback body is currently one expression. Names resolve lexically; its parameter can shadow an outer binding. Only referenced outer values are captured, including through nested anonymous callbacks. Supported captures are completed CPU numeric scalars, numeric arrays/tensors, scalar Bool values and [immutable CPU records](record-closures.md). Task handles, unhandled fallible results, device selectors and device-resident tensors cannot be captured.
+The callback body is currently one expression. Names resolve lexically; its parameter can shadow an outer binding. Only referenced outer values are captured, including through nested anonymous callbacks. Supported captures are completed CPU numeric scalars, numeric arrays/tensors, scalar Bool values, [Bool arrays](bool-arrays.md) and [immutable CPU records](record-closures.md). Task handles, unhandled fallible results, device selectors and device-resident tensors cannot be captured.
 
 The compiler lifts a callback into a private function and passes its captures as additional internal arguments. Captures are established once before iteration; collection storage follows the existing immutable ownership and worker handoff rules. This does not introduce a public closure ABI or allow an anonymous function to escape as a value. Empty maps do not invoke the callback, even if its body would fail.
 
@@ -82,7 +82,7 @@ This sends one sequential map to a worker. It does not run individual elements i
 
 This slice accepts named source functions and inline anonymous callbacks with lexical captures. Function-valued bindings, callback aliases, returned closures and anonymous block bodies are separate work. Named or anonymous wrappers can expose numeric conversions; numeric type names themselves are not first-class callbacks yet.
 
-Callbacks must be synchronous throughout their reachable helper graph. Task operations, expected-error channels and their recovery, transfers/device selection, and other resumable operations are rejected even when a particular branch or input is empty. Bool, tensor, array and general-value callback results remain outside this map subset. GPU/mixed-target mapping is gated. Existing restrictions on ordinary recursion in task-enabled modules still apply.
+Callbacks must be synchronous throughout their reachable helper graph. Task operations, expected-error channels and their recovery, transfers/device selection, and other resumable operations are rejected even when a particular branch or input is empty. Tensor, array and general-value callback results remain outside this map subset. GPU/mixed-target mapping is gated. Existing restrictions on ordinary recursion in task-enabled modules still apply.
 
 Explicit parallel mapping, additional element types, first-class functions and direct array display in the development CLI remain separate work. There is no new public native callback ABI in this implementation.
 

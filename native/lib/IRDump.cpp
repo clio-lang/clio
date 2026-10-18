@@ -29,7 +29,8 @@ std::string describeType(const ValueType &type) {
     return (type.task ? "task<" + name + ">" : name) + (type.fallible ? " ! TaskError" : "");
   }
   if (type.builtin == BuiltinValue::Bool)
-    return std::string(type.task ? "task<Bool>" : "Bool") + (type.fallible ? " ! TaskError" : "");
+    return std::string(type.task ? "task<" : "") + (type.array ? "[Bool]" : "Bool") +
+           (type.task ? ">" : "") + (type.fallible ? " ! TaskError" : "");
   if (type.builtin == BuiltinValue::Device)
     return type.device ? "Device[gpu:" + std::to_string(*type.device) + "]" : "Device[cpu]";
   if (type.builtin != BuiltinValue::Numeric)
@@ -75,11 +76,11 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
 
     if (type.array &&
         (target != NumericTarget::Cpu || !type.tensor || type.shape.size() != 1 ||
-         (type.builtin != BuiltinValue::Numeric && !isRecordArray(type)) || type.device))
-      return "arrays require rank-one CPU numeric storage";
+         (type.builtin != BuiltinValue::Numeric && !isOwnedArray(type)) || type.device))
+      return "arrays require rank-one CPU numeric, Bool or record storage";
     if (type.builtin == BuiltinValue::Bool &&
-        (target != NumericTarget::Cpu || type.tensor || type.device))
-      return "Bool values require the CPU scalar backend";
+        (target != NumericTarget::Cpu || (type.tensor && !isBoolArray(type)) || type.device))
+      return "Bool values require CPU scalar or array storage";
     if (type.builtin != BuiltinValue::Numeric || numericArithmeticAvailable(type.element, target))
       return {};
     const auto description = describeNumeric(type.element);
@@ -213,6 +214,11 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
         expression.operation);
     if (arithmeticArray)
       return "arrays require explicit collection operations, not tensor/scalar arithmetic";
+    if (std::holds_alternative<BoolLiteral>(expression.operation) &&
+        (expression.type.builtin != BuiltinValue::Bool || expression.type.tensor ||
+         expression.type.array || expression.type.task || expression.type.fallible ||
+         expression.type.device || !expression.type.shape.empty()))
+      return "Boolean literal requires a completed CPU scalar Bool";
     if (const auto *literal = std::get_if<TensorLiteral>(&expression.operation)) {
       if (expression.type.array) {
         if (isRecordArray(expression.type) &&
@@ -297,12 +303,11 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
                !t.task && !t.fallible && !t.device;
       };
       if (target != NumericTarget::Cpu || !a.array || !a.tensor || a.shape.size() != 1 ||
-          (a.builtin != BuiltinValue::Numeric && !isRecordArray(a)) || a.task || a.fallible ||
+          (a.builtin != BuiltinValue::Numeric && !isOwnedArray(a)) || a.task || a.fallible ||
           a.device || !scalar(i) || !isInteger(i.element) ||
-          (isRecordArray(a)
-               ? (r.builtin != BuiltinValue::Record || r.record != a.record || r.tensor ||
-                  r.array || r.task || r.fallible || r.device || !r.shape.empty())
-               : (!scalar(r) || r.element != a.element)))
+          (isOwnedArray(a) ? (r.builtin != a.builtin || r.record != a.record || r.tensor ||
+                              r.array || r.task || r.fallible || r.device || !r.shape.empty())
+                           : (!scalar(r) || r.element != a.element)))
         return "array indexing requires completed CPU numeric array and integer scalar operands";
     }
     if (const auto *read = std::get_if<TensorIndex>(&expression.operation)) {
@@ -333,7 +338,7 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       const auto &r = expression.type;
       const bool length = query->kind == CollectionQueryKind::Length;
       if ((!length && query->kind != CollectionQueryKind::Shape) || target != NumericTarget::Cpu ||
-          !a.tensor || (a.builtin != BuiltinValue::Numeric && !(length && isRecordArray(a))) ||
+          !a.tensor || (a.builtin != BuiltinValue::Numeric && !(length && isOwnedArray(a))) ||
           a.task || a.fallible || a.device || a.array != length ||
           (length && a.shape.size() != 1) || r.builtin != BuiltinValue::Numeric ||
           r.element != NumericType::Int64 || r.task || r.fallible || r.device ||
@@ -406,7 +411,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       const auto &fn = module.functions[map->function];
       const auto &input = module.expressions[map->input].type;
       const auto scalar = [](const ValueType &type) {
-        return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record) &&
+        return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record ||
+                type.builtin == BuiltinValue::Bool) &&
                !type.tensor && !type.task && !type.fallible && !type.device && !type.array &&
                type.shape.empty();
       };
@@ -448,7 +454,7 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
           input.shape[0].constant != expression.type.shape[0].constant ||
           input.shape[0].identity != expression.type.shape[0].identity)
         return "map requires an unchanged-length CPU array and a synchronous one-argument numeric "
-               "or record "
+               "Bool or record "
                "callback";
     }
     if (const auto *reduce = std::get_if<ReduceSum>(&expression.operation)) {

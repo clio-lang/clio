@@ -7,8 +7,9 @@
 
 namespace kalandra {
 inline void collectionMetadata(llvm::Module &module, const ValueType &type) {
-  if (!type.tensor || type.builtin != BuiltinValue::Numeric || type.device ||
-      type.shape.size() > cli::maximumCollectionRank || (type.array && type.shape.size() != 1))
+  if (!type.tensor || (type.builtin != BuiltinValue::Numeric && !isBoolArray(type)) ||
+      type.device || type.shape.size() > cli::maximumCollectionRank ||
+      (type.array && type.shape.size() != 1))
     throw std::runtime_error(
         "collection CLI entry requires a CPU numeric array/tensor within the frontend rank limit");
   auto *integer = llvm::Type::getInt64Ty(module.getContext());
@@ -17,7 +18,8 @@ inline void collectionMetadata(llvm::Module &module, const ValueType &type) {
                              llvm::ConstantInt::get(integer, value), name);
   };
   field("kalandra_collection_rank_v1", type.shape.size());
-  field("kalandra_collection_element_v1", static_cast<unsigned>(type.element));
+  field("kalandra_collection_element_v1",
+        isBoolArray(type) ? cli::boolArrayElement : static_cast<unsigned>(type.element));
   field("kalandra_collection_array_v1", type.array);
 }
 } // namespace kalandra

@@ -82,8 +82,8 @@ int main() {
     }
     for (auto body :
          {"map([1],fn(): 1)", "map([1],fn(x,y): x+y)", "map([],fn(x): x)", "map([1],fn(x:Bool): 1)",
-          "map([1],fn(x)->Bool: true)", "map([1],fn(x): [x])", "map([1],fn(x): missing+x)",
-          "callback=fn(x): x\n  0", "map([1],fn(x): try x)", "map([1],fn(x): spawn identity(x))"})
+          "map([1],fn(x): [x])", "map([1],fn(x): missing+x)", "callback=fn(x): x\n  0",
+          "map([1],fn(x): try x)", "map([1],fn(x): spawn identity(x))"})
       require(
           !analyze("fn identity(x:int)->int:\n  x\nfn main():\n  " + std::string(body) + "\n").ok(),
           "invalid anonymous callback accepted");
@@ -139,8 +139,7 @@ int main() {
     for (auto callback :
          {"fn transform()->int:\n  1\n", "fn transform(a:int,b:int)->int:\n  a+b\n",
           "fn transform(a:[int])->int:\n  1\n", "fn transform(a:int)->[int]:\n  [a]\n",
-          "fn transform(a:Bool)->Bool:\n  a\n", "fn transform(a:int)->Bool:\n  true\n",
-          "fn transform(a:int)->int ! TaskError:\n  a\n"})
+          "fn transform(a:Bool)->Bool:\n  a\n", "fn transform(a:int)->int ! TaskError:\n  a\n"})
       require(!analyze(std::string(callback) + "fn mapped():\n  map([1,2],transform)\n").ok(),
               "unsupported callback signature accepted");
     auto effect = analyze("fn identity(value:int)->int:\n  value\nfn helper(value:int)->int ! "

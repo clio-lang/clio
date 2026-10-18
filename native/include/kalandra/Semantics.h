@@ -32,6 +32,10 @@ struct ValueType {
 inline bool isRecordArray(const ValueType &type) {
   return type.builtin == BuiltinValue::Record && type.array;
 }
+inline bool isBoolArray(const ValueType &type) {
+  return type.builtin == BuiltinValue::Bool && type.array;
+}
+inline bool isOwnedArray(const ValueType &type) { return isRecordArray(type) || isBoolArray(type); }
 inline ValueType recordArrayElement(ValueType type) {
   type.tensor = type.array = type.task = type.fallible = false;
   type.shape.clear();

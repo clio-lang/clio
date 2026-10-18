@@ -125,7 +125,7 @@ private:
                                input_.source->origin(span.begin).first->path(), line, column);
   }
   Type type(const ValueType &value) {
-    if (isRecordArray(value))
+    if (isOwnedArray(value))
       return recordDescriptor(value);
     if (value.builtin == BuiltinValue::Record) {
       if (auto found = recordTypes_.find(*value.record); found != recordTypes_.end())
@@ -219,7 +219,26 @@ private:
     return LLVM::AllocaOp::create(builder_, loc, LLVM::LLVMPointerType::get(builder_.getContext()),
                                   type, integer(loc, 1));
   }
+  Type arrayCellType(const ValueType &array) {
+    return isBoolArray(array) ? builder_.getI8Type() : type(recordArrayElement(array));
+  }
+  Value arrayCellRead(Location loc, Value address, const ValueType &array) {
+    Value cell = LLVM::LoadOp::create(builder_, loc, arrayCellType(array), address);
+    if (isBoolArray(array)) {
+      auto one = arith::ConstantIntOp::create(builder_, loc, 1, 8);
+      guard(loc, compare(loc, arith::CmpIPredicate::ule, cell, one), 3);
+      cell = arith::TruncIOp::create(builder_, loc, builder_.getI1Type(), cell);
+    }
+    return cell;
+  }
+  void arrayCellStore(Location loc, Value cell, Value address, const ValueType &array) {
+    if (isBoolArray(array))
+      cell = arith::ExtUIOp::create(builder_, loc, builder_.getI8Type(), cell);
+    LLVM::StoreOp::create(builder_, loc, cell, address);
+  }
   std::pair<std::uint64_t, std::uint64_t> recordCellLayout(const ValueType &array) {
+    if (isBoolArray(array))
+      return {1, 1};
     if (auto found = recordLayouts_.find(*array.record); found != recordLayouts_.end())
       return found->second;
     llvm::LLVMContext context;
@@ -262,11 +281,11 @@ private:
     auto result = recordArrayStorage(loc, array, index(loc, elements.size()));
     auto storage = LLVM::ExtractValueOp::create(builder_, loc, result, ArrayRef<int64_t>{1});
     auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
-    auto cell = type(recordArrayElement(array));
+    auto cell = arrayCellType(array);
     for (std::size_t i = 0; i < elements.size(); ++i) {
       auto address =
           LLVM::GEPOp::create(builder_, loc, ptr, cell, storage, ValueRange{integer(loc, i)});
-      LLVM::StoreOp::create(builder_, loc, elements[i], address);
+      arrayCellStore(loc, elements[i], address, array);
     }
     return result;
   }
@@ -1118,7 +1137,7 @@ private:
           } else if constexpr (std::is_same_v<T, ArrayIndex> || std::is_same_v<T, TensorIndex>) {
             if constexpr (std::is_same_v<T, ArrayIndex>) {
               const auto &array = input_.expressions[operation.input].type;
-              if (isRecordArray(array)) {
+              if (isOwnedArray(array)) {
                 auto input = expression(frame, operation.input);
                 Value position = expression(frame, operation.index);
                 const auto element = input_.expressions[operation.index].type.element;
@@ -1135,10 +1154,10 @@ private:
                 auto storage =
                     LLVM::ExtractValueOp::create(builder_, loc, input, ArrayRef<int64_t>{1});
                 auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
-                auto cell = type(node.type);
+                auto cell = arrayCellType(array);
                 auto address =
                     LLVM::GEPOp::create(builder_, loc, ptr, cell, storage, ValueRange{position});
-                return LLVM::LoadOp::create(builder_, loc, cell, address);
+                return arrayCellRead(loc, address, array);
               }
             }
             auto input = expression(frame, operation.input);
@@ -1173,7 +1192,7 @@ private:
           } else if constexpr (std::is_same_v<T, CollectionQuery>) {
             auto input = expression(frame, operation.input);
             const auto &array = input_.expressions[operation.input].type;
-            if (isRecordArray(array))
+            if (isOwnedArray(array))
               return recordArrayLength(loc, input, array);
             auto shape = dimensions(loc, input);
             checkedCount(
@@ -1326,17 +1345,17 @@ private:
             for (auto capture : operation.captures)
               captures.push_back(expression(frame, capture));
             const auto &inputType = input_.expressions[operation.input].type;
-            const bool recordInput = isRecordArray(inputType);
-            const bool recordOutput = isRecordArray(node.type);
+            const bool ownedInput = isOwnedArray(inputType);
+            const bool ownedOutput = isOwnedArray(node.type);
             Value count =
-                recordInput
+                ownedInput
                     ? Value(arith::IndexCastOp::create(builder_, loc, builder_.getIndexType(),
                                                        recordArrayLength(loc, input, inputType)))
                     : dimensions(loc, input)[0];
-            if (!recordInput)
+            if (!ownedInput)
               checkedCount(loc, {count}, describeNumeric(inputType.element)->bytes());
             Value empty;
-            if (recordOutput) {
+            if (ownedOutput) {
               empty = recordArrayStorage(loc, node.type, count);
             } else {
               checkedCount(loc, {count}, describeNumeric(node.type.element)->bytes());
@@ -1354,13 +1373,13 @@ private:
                   Value element;
                   auto position =
                       arith::IndexCastOp::create(builder_, loc, builder_.getI64Type(), i);
-                  if (recordInput) {
+                  if (ownedInput) {
                     auto storage =
                         LLVM::ExtractValueOp::create(builder_, loc, input, ArrayRef<int64_t>{1});
-                    auto cell = type(recordArrayElement(inputType));
+                    auto cell = arrayCellType(inputType);
                     auto address = LLVM::GEPOp::create(builder_, loc, ptr, cell, storage,
                                                        ValueRange{position});
-                    element = LLVM::LoadOp::create(builder_, loc, cell, address);
+                    element = arrayCellRead(loc, address, inputType);
                   } else {
                     element = tensor::ExtractOp::create(builder_, loc, input, ValueRange{i});
                   }
@@ -1369,13 +1388,13 @@ private:
                   auto call = func::CallOp::create(builder_, loc, functions_[operation.function],
                                                    arguments);
                   Value result;
-                  if (recordOutput) {
+                  if (ownedOutput) {
                     auto storage =
                         LLVM::ExtractValueOp::create(builder_, loc, args[0], ArrayRef<int64_t>{1});
-                    auto cell = type(recordArrayElement(node.type));
+                    auto cell = arrayCellType(node.type);
                     auto address = LLVM::GEPOp::create(builder_, loc, ptr, cell, storage,
                                                        ValueRange{position});
-                    LLVM::StoreOp::create(builder_, loc, call.getResult(0), address);
+                    arrayCellStore(loc, call.getResult(0), address, node.type);
                     result = args[0];
                   } else {
                     result = tensor::InsertOp::create(builder_, loc, call.getResult(0), args[0],
@@ -1388,7 +1407,7 @@ private:
             SmallVector<Value> elements;
             for (auto child : operation.elements)
               elements.push_back(expression(frame, child));
-            if (isRecordArray(node.type))
+            if (isOwnedArray(node.type))
               return recordArrayLiteral(loc, node.type, elements);
             return tensor::FromElementsOp::create(builder_, loc, type(node.type), elements);
           } else if constexpr (std::is_same_v<T, ConditionalOperation>) {
@@ -1438,7 +1457,7 @@ private:
             throw LoweringFailure{"task operation requires continuation lowering"};
           } else if constexpr (std::is_same_v<T, ShapeCheck>) {
             auto input = expression(frame, operation.input);
-            if (isRecordArray(node.type)) {
+            if (isOwnedArray(node.type)) {
               auto count = recordArrayLength(loc, input, node.type);
               for (const auto &requirement : operation.requirements)
                 guard(
@@ -1487,7 +1506,7 @@ private:
     SmallVector<Type> arguments;
     for (auto parameter : found->parameters) {
       const auto &t = input_.symbols[parameter].type;
-      if (!t.tensor || isRecordArray(t))
+      if (!t.tensor || isOwnedArray(t))
         arguments.push_back(type(t));
       else
         arguments.push_back(
@@ -1504,7 +1523,7 @@ private:
     for (std::size_t i = 0; i < arguments.size(); ++i) {
       Value argument = function.getArgument(i);
       const auto &t = input_.symbols[found->parameters[i]].type;
-      if (t.tensor && !isRecordArray(t)) {
+      if (t.tensor && !isOwnedArray(t)) {
         SmallVector<Value> shape;
         for (std::size_t axis = 0; axis < t.shape.size(); ++axis) {
           auto d = memref::DimOp::create(builder_, function.getLoc(), argument,

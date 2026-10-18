@@ -389,3 +389,38 @@ extern "C" bool kalandra_record_array_retain_v1(kalandra::runtime::Invocation *d
   }
   return !allocated || destination->retainFrom(*source, allocated);
 }
+
+namespace {
+bool validBoolArray(kalandra::runtime::Invocation &destination,
+                    const kalandra::runtime::Invocation &source, const void *descriptor,
+                    void *&allocated) noexcept {
+  std::uint64_t count = 0;
+  if (!destination.usable() || !validRecordArray(source, descriptor, 1, 1, allocated, count)) {
+    destination.fault(3);
+    return false;
+  }
+  const auto *data = static_cast<const unsigned char *>(allocated);
+  for (std::uint64_t i = 0; i < count; ++i) {
+    if (!(i & 255) && kalandra_poll_v1(&destination))
+      return false;
+    if (data[i] > 1) {
+      destination.fault(3);
+      return false;
+    }
+  }
+  return true;
+}
+} // namespace
+extern "C" void kalandra_bool_array_validate_v1(kalandra::runtime::Invocation *context,
+                                                const void *descriptor) noexcept {
+  void *allocated = nullptr;
+  validBoolArray(*context, *context, descriptor, allocated);
+}
+extern "C" bool kalandra_bool_array_retain_v1(kalandra::runtime::Invocation *destination,
+                                              const kalandra::runtime::Invocation *source,
+                                              const void *descriptor) noexcept {
+  void *allocated = nullptr;
+  if (!validBoolArray(*destination, *source, descriptor, allocated))
+    return false;
+  return !allocated || destination->retainFrom(*source, allocated);
+}

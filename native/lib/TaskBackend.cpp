@@ -78,7 +78,8 @@ public:
       const auto found = std::ranges::find_if(planner.input.functions,
                                            [&](const auto &f) { return f.name == *testEntry; });
       if (found == planner.input.functions.end() ||
-          (!found->parameters.empty() && found->resultType.builtin != BuiltinValue::Record) ||
+          (!found->parameters.empty() && found->resultType.builtin != BuiltinValue::Record &&
+           !isBoolArray(found->resultType)) ||
           (found->resultType.builtin != BuiltinValue::Numeric &&
            found->resultType.builtin != BuiltinValue::Bool &&
            found->resultType.builtin != BuiltinValue::Record))
@@ -221,6 +222,8 @@ private:
                                                   : f32;
   }
   std::string key(const ValueType &type) {
+    if (isBoolArray(type) && !type.task)
+      return "array.Bool";
     if (isRecordArray(type) && !type.task)
       return "record.array." + std::to_string(*type.record);
     if (type.builtin == BuiltinValue::Record && !type.task)
@@ -341,7 +344,19 @@ private:
     auto *fn = function("value.copy." + name, boolean, {pointer, pointer, pointer, pointer});
     builder.SetInsertPoint(Block::Create(context, "entry", fn));
     auto *ready = Block::Create(context, "copy", fn);
-    if (isRecordArray(type)) {
+    if (isBoolArray(type)) {
+      auto *retain = Block::Create(context, "bool.array.retain", fn);
+      auto *failed = Block::Create(context, "bool.array.failed", fn);
+      builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
+                           retain);
+      builder.SetInsertPoint(retain);
+      auto *success =
+          call("kalandra_bool_array_retain_v1", boolean,
+               {fn->getArg(0), fn->getArg(2), builder.CreateStructGEP(wrapper, fn->getArg(3), 1)});
+      builder.CreateCondBr(success, ready, failed);
+      builder.SetInsertPoint(failed);
+      builder.CreateRet(builder.getFalse());
+    } else if (isRecordArray(type)) {
       auto *retain = Block::Create(context, "array.retain", fn);
       auto *failed = Block::Create(context, "array.failed", fn);
       builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
@@ -382,7 +397,8 @@ private:
     builder.CreateRet(builder.getTrue());
     auto *constant = llvm::ConstantStruct::get(
         layoutType,
-        {c64(isRecordArray(type) && !type.task                    ? 0x60000 + *type.record
+        {c64(isBoolArray(type) && !type.task                      ? 0x70000
+             : isRecordArray(type) && !type.task                  ? 0x60000 + *type.record
              : type.builtin == BuiltinValue::Record && !type.task ? 0x50000 + *type.record
              : type.builtin != BuiltinValue::Numeric ? 0x10000 + static_cast<unsigned>(type.builtin)
              : type.array                            ? 0x40000 + static_cast<unsigned>(type.element)
@@ -587,7 +603,7 @@ private:
           arguments.push_back(payload(instruction.output));
         for (auto argument : instruction.args)
           arguments.push_back(
-              plan.slots[argument].tensor && !isRecordArray(plan.slots[argument])
+              plan.slots[argument].tensor && !isOwnedArray(plan.slots[argument])
                   ? payload(argument)
                   : builder.CreateLoad(scalarType(plan.slots[argument]), payload(argument)));
         arguments.push_back(ctx);

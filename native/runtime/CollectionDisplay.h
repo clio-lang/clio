@@ -64,6 +64,35 @@ inline std::optional<DisplayCollection> retainForDisplay(const Invocation &conte
     return {};
   return DisplayCollection{std::move(*lease), allocation.subspan(offset, *bytes), count};
 }
+inline std::optional<DisplayCollection>
+retainBoolForDisplay(Invocation &context, const cli::CollectionDescriptor &value) noexcept {
+  kalandra_bool_array_validate_v1(&context, &value);
+  if (!context.usable())
+    return {};
+  const auto count = std::uint64_t(value.dimensions[0]);
+  if (!count)
+    return DisplayCollection{{}, {}, 0};
+  auto lease = context.lease(value.allocated);
+  if (!lease)
+    return {};
+  auto data = lease->bytes().first(count);
+  return DisplayCollection{std::move(*lease), data, count};
+}
+inline bool printBoolArray(FILE *stream, const DisplayCollection &value,
+                           std::uint64_t limit = 100) noexcept {
+  if (std::fputs("[", stream) < 0)
+    return false;
+  const auto shown = std::min(value.count, limit);
+  for (std::uint64_t i = 0; i < shown; ++i) {
+    if (i && std::fputs(", ", stream) < 0)
+      return false;
+    if (std::fputs(value.data[i] == std::byte{1} ? "true" : "false", stream) < 0)
+      return false;
+  }
+  if (shown < value.count && std::fputs(shown ? ", ..." : "...", stream) < 0)
+    return false;
+  return std::fputs("]\n", stream) >= 0;
+}
 template <class T> inline T displayCell(std::span<const std::byte> data, std::uint64_t index) {
   T cell;
   std::memcpy(&cell, data.data() + index * sizeof(T), sizeof(T));

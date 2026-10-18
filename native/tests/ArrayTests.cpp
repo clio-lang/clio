@@ -57,8 +57,6 @@ int main() {
           "fn main():\n  [1,2.0]\n",
           "fn main():\n  [2.0,1]\n",
           "fn main():\n  [[1],[2]]\n",
-          "fn main():\n  [true,false]\n",
-          "fn main()->[Bool]:\n  []\n",
           "fn main()->[int16]:\n  []\n",
           "fn main()->[[int]]:\n  []\n",
           "fn main()->[int]:\n  tensor([1,2])\n",

@@ -1,6 +1,6 @@
 # Kalandra native development
 
-[CPU Bool values and scalar comparisons](../docs/design/booleans.md) support immutable Boolean literals, functions, strict comparisons across the six CPU numeric types, and typed worker captures/results. [CPU conditionals and short-circuit operators](../docs/design/control-flow.md) now support selected execution, scoped values, retained tensors and resumable worker branches. Bool tensors and GPU Bool execution remain separate work.
+[CPU Bool values and scalar comparisons](../docs/design/booleans.md) support immutable Boolean literals, functions, strict comparisons across the six CPU numeric types, and typed worker captures/results. [CPU conditionals and short-circuit operators](../docs/design/control-flow.md) now support selected execution, scoped values, retained tensors and resumable worker branches. [Immutable CPU Bool arrays](../docs/design/bool-arrays.md) support construction, indexing, mapping and retained worker results. Bool tensors and GPU Bool execution remain separate work.
 
 The fresh compiler is written in **C++23**, with direct LLVM/MLIR C++ integration. CMake configures the build, Ninja builds it, and CTest runs the tests. Bun and Node are not dependencies of this native development path.
 
