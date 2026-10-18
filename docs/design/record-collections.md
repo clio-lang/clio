@@ -1,6 +1,6 @@
 # Numeric collections inside records
 
-Native CPU records can store immutable numeric arrays and tensors, including inside nested records. Array fields support all ten implemented numeric scalar types, including [8/16-bit integers](narrow-arrays.md). [Tensor fields](narrow-tensors.md) now also support all ten types; [checked narrow CPU reductions](narrow-reductions.md) are supported. [Checked narrow CPU matrix multiplication](narrow-matmul.md) is supported. Narrow tensor numeric casts remain separately gated.
+Native CPU records can store immutable numeric arrays and tensors, including inside nested records. Array fields support all ten implemented numeric scalar types, including [8/16-bit integers](narrow-arrays.md). [Tensor fields](narrow-tensors.md) now also support all ten types; [checked narrow CPU reductions](narrow-reductions.md) are supported. [Checked narrow CPU matrix multiplication](narrow-matmul.md) is supported. [Checked CPU tensor numeric conversions](narrow-tensor-conversions.md) support all ten element types.
 
 ```kalandra
 type Batch:

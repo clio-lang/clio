@@ -17,8 +17,8 @@ int main() {
       auto element = *resolveNumeric(type);
       require(numericTensorElementwiseAvailable(element, NumericTarget::Cpu) &&
                   !numericTensorElementwiseAvailable(element, NumericTarget::AppleGpu) &&
-                  !numericArithmeticAvailable(element, NumericTarget::Cpu),
-              "tensor gate enabled unrelated operations");
+                  numericTensorConversionAvailable(element, NumericTarget::Cpu),
+              "tensor capability lost CPU/GPU distinction");
       for (const auto &operation : {"a+1", "1-a", "a*2", "a/2", "a%2", "-a", "+a"}) {
         auto result = analyze("fn operation(a:" + tensor + ")->" + tensor + ":\n  " + operation +
                               "\nfn main()->int:\n  0\n");
@@ -60,13 +60,17 @@ int main() {
 #endif
       }
       for (const auto &s : {"fn f(a:Tensor[" + type + ",?])->" + tensor + ":\n  matmul(a,a)\n",
-                            "fn f(a:" + tensor + ")->Tensor[int64,?,?]:\n  int64(a)\n",
-                            "fn f(a:Tensor[int64,?,?])->" + tensor + ":\n  " + type + "(a)\n",
-                            "fn f(a:" + tensor + ")->" + tensor + ":\n  " + type + "(a)\n",
                             "fn f(a:" + tensor + ",b:Tensor[int64,?,?])->" + tensor + ":\n  a+b\n",
                             "fn main()->Tensor[" + type + ",2]:\n  tensor([1,2,3])\n"})
         require(!analyze(s).ok(), "unsupported narrow tensor operation admitted: " + s);
-      // Both ends of a forged tensor cast must honor the conversion gate.
+      for (const auto &s : {"fn f(a:" + tensor + ")->Tensor[int64,?,?]:\n  int64(a)\n",
+                            "fn f(a:Tensor[int64,?,?])->" + tensor + ":\n  " + type + "(a)\n",
+                            "fn f(a:" + tensor + ")->" + tensor + ":\n  " + type + "(a)\n"}) {
+        auto result = analyze(s + "fn main()->int:\n  0\n");
+        require(result.ok() && !numericCapabilityError(*result.module, NumericTarget::Cpu),
+                "supported narrow tensor cast rejected");
+      }
+      // Both ends of a forged cast must still reject invalid numeric identities.
       auto original = analyze(
           "fn f(a:Tensor[int64,?])->Tensor[float64,?]:\n  float64(a)\nfn main()->int:\n  0\n");
       for (bool destination : {false, true}) {
@@ -74,16 +78,16 @@ int main() {
         for (auto &e : forged.expressions)
           if (auto *cast = std::get_if<NumericConvert>(&e.operation)) {
             if (destination)
-              e.type.element = element;
+              e.type.element = static_cast<NumericType>(255);
             else
-              forged.expressions[cast->input].type.element = element;
+              forged.expressions[cast->input].type.element = static_cast<NumericType>(255);
           }
         require(bool(numericCapabilityError(forged, NumericTarget::Cpu)),
-                "forged narrow tensor cast bypassed gate");
+                "forged invalid tensor cast bypassed gate");
       }
     }
     std::cout << "Narrow tensors: four element types, checked elementwise operations, owned "
-                 "records/workers and explicit rank/conversion/GPU gates passed\n";
+                 "records/workers and explicit rank/mixed-type/GPU gates passed\n";
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';
     return 1;

@@ -27,7 +27,7 @@ Arithmetic faults retain the matmul expression's source location. Worker calls r
 
 ## Scope and qualification
 
-CPU matrix multiplication now covers all ten implemented numeric types. Narrow tensor numeric casts remain gated, and Metal keeps its separately qualified float32 subset. This step reuses the CPU matrix/reduction lowering, scheduler and ownership implementation.
+CPU matrix multiplication now covers all ten implemented numeric types. [Checked CPU tensor numeric conversions](narrow-tensor-conversions.md) support all ten types. Metal keeps its separately qualified float32 subset. This step reuses the CPU matrix/reduction lowering, scheduler and ownership implementation.
 
 The [shared integer runtime harness](../../native/tests/Int32MatmulRuntimeTests.cpp) compares generated kernels against an independent wider reference. It covers signed/unsigned boundaries, random matrices, product and tree overflow, odd contraction sizes, strided/transposed input views, aliases, empty shapes, invalid metadata, allocation failures, cancellation and retained output storage. The [compiled driver](../../native/cmake/VerifyInt32Matmul.cmake) adds fixed shapes, exact endpoints, nested/cached worker results, fault recovery and cleanup with one, two and four workers. Rank, shape and mixed-type diagnostics must preserve existing output files. Debug, optimized, ASan/UBSan and TSan variants cover all four narrow types and shared wider-type regressions.
 

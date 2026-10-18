@@ -24,7 +24,7 @@ A synchronous overflow produces an Arithmetic fault at the reduction expression.
 
 ## Scope and qualification
 
-This extends reduction admission, not the reduction engine, scheduler, tensor ABI or allocator. CPU reductions now cover all ten implemented scalar types. [Checked narrow CPU matrix multiplication](narrow-matmul.md) is supported. Narrow tensor numeric casts remain gated. Metal still admits only its qualified float32 reduction subset.
+This extends reduction admission, not the reduction engine, scheduler, tensor ABI or allocator. CPU reductions now cover all ten implemented scalar types. [Checked narrow CPU matrix multiplication](narrow-matmul.md) is supported. [Checked CPU tensor numeric conversions](narrow-tensor-conversions.md) support all ten types. Metal still admits only its qualified float32 reduction subset.
 
 The [shared integer runtime harness](../../native/tests/Int32ReductionRuntimeTests.cpp) checks ranks zero through three against an independent wider reference, including boundary/random inputs, odd lengths, empty axes, strides, allocation faults and cancellation. The [compiled driver](../../native/cmake/VerifyInt32Reductions.cmake) also checks nested/cached worker calls, recovery, fault locations, allocation cleanup and rejection of unsupported Metal execution. Debug, optimized, ASan/UBSan and TSan runs cover all four narrow types; the same harness continues to cover 32/64-bit integers.
 

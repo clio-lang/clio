@@ -52,7 +52,7 @@ int main() {
       }
       for (const auto &source :
            {"fn multiply(x:Tensor[" + type + ",?])->Tensor[" + type + ",?,?]:\n  matmul(x,x)\n",
-            "fn main():\n  " + type + "(tensor([1]))\n",
+            "fn main():\n  " + type + "([1])\n",
             "fn main()->[" + type + "]:\n  values=[1,2]\n  values\n",
             "fn main():\n  values:[" + type + "]=[1,2]\n  values+values\n",
             "fn main():\n  values:[" + type + "]=[1,2]\n  values[2]\n",

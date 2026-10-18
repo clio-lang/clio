@@ -142,13 +142,13 @@ fn approximate(values: Tensor[int64, ?, 3]) -> Tensor[float32, ?, 3]:
   float32(values)
 ```
 
-The result preserves rank and every extent, including dynamic extent relationships and zero dimensions. Only the element type changes. All 36 pairs among int32, uint32, int64, uint64, float32 and float64 are supported; int/uint/float retain their 64-bit aliases. Arguments keep their existing element type; the destination does not supply a literal context to the input. In the current subset, construct a tensor with an explicit source annotation before converting it. An annotation alone never converts an already typed value.
+The result preserves rank and every extent, including dynamic extent relationships and zero dimensions. Only the element type changes. All 100 pairs among int8, uint8, int16, uint16, int32, uint32, int64, uint64, float32 and float64 are supported; int/uint/float retain their 64-bit aliases. Arguments keep their existing element type; the destination does not supply a literal context to the input. In the current subset, construct a tensor with an explicit source annotation before converting it. An annotation alone never converts an already typed value.
 
 Each element follows the [scalar conversion rules](numbers.md#explicit-cpu-scalar-numeric-conversions), including checked integer ranges, truncation before float-to-integer bounds checking, ties-to-even rounding and changed-width NaN canonicalization. Identity conversions preserve every bit. Rank zero remains a tensor containing one converted element; it does not become a scalar. Empty tensors preserve their shape and perform no element conversions.
 
 Conversion produces an immutable value. Inputs remain usable, including borrowed strided views; the compiler may reuse storage only when doing so preserves those semantics. Both source and destination byte sizes are checked. A failing element raises ArithmeticFault at the conversion call and publishes no partial tensor. Tensor element checks currently run at execution time, including for tensor literals; the scalar constant diagnostics do not imply tensor constant evaluation. Allocation failures and cancellation likewise publish no successful result and release intermediates.
 
-Ordinary helper calls and `spawn float32(values)` use the same checked conversion. Completed worker results retain their backing through repeated awaits and after the source execution unit settles. GPU-resident operands require an explicit transfer to CPU first; GPU casts and unimplemented narrow types remain rejected.
+Ordinary helper calls and `spawn float32(values)` use the same checked conversion. Completed worker results retain their backing through repeated awaits and after the source execution unit settles. GPU-resident operands require an explicit transfer to CPU first; GPU casts remain rejected. See [checked CPU tensor conversions](narrow-tensor-conversions.md) for current qualification.
 
 ## Broadcasting is explicit
 
@@ -259,4 +259,4 @@ The CPU constructor now accepts completed numeric arrays through `tensor(values)
 
 ## Narrow CPU construction and elementwise operations
 
-[Checked 8/16-bit CPU tensors](narrow-tensors.md) now extend construction, elementwise integer arithmetic, structural array/tensor adapters, indexing, reshaping, record fields and retained local workers to all ten implemented numeric types. [Checked narrow CPU reductions](narrow-reductions.md) are supported. [Checked narrow CPU matrix multiplication](narrow-matmul.md) is supported. Narrow tensor numeric conversions remain explicitly gated; their operation support must not be inferred from storage or elementwise availability. GPU admission remains separate.
+[Checked 8/16-bit CPU tensors](narrow-tensors.md) now extend construction, elementwise integer arithmetic, structural array/tensor adapters, indexing, reshaping, record fields and retained local workers to all ten implemented numeric types. [Checked narrow CPU reductions](narrow-reductions.md) are supported. [Checked narrow CPU matrix multiplication](narrow-matmul.md) is supported. [Checked CPU tensor numeric conversions](narrow-tensor-conversions.md) now cover all 100 pairs. Operation support must still be checked independently of storage availability. GPU admission remains separate.

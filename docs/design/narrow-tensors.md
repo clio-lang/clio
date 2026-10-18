@@ -30,7 +30,7 @@ CPU command-line programs print narrow tensor elements as signed or unsigned dec
 
 ## Separate operation gates
 
-[Checked narrow CPU `reduceSum`](narrow-reductions.md) is supported. [Checked narrow CPU `matmul`](narrow-matmul.md) is supported. Narrow tensor numeric casts remain unavailable until their own qualification. The cast gate checks both source and destination, including an identity cast involving a narrow tensor. Scalar numeric conversions remain available; callers can explicitly map scalar conversions over arrays where needed.
+[Checked narrow CPU `reduceSum`](narrow-reductions.md) is supported. [Checked narrow CPU `matmul`](narrow-matmul.md) is supported. [Checked CPU tensor numeric conversions](narrow-tensor-conversions.md) support all 100 pairs among the ten implemented numeric types, including narrow identity casts. Both source and destination retain their own numeric identity and shape checks. Arrays still require explicit scalar mapping for numeric conversion.
 
 Narrow GPU execution is also unavailable. Apple Metal qualification remains separate from CPU elementwise support; NVIDIA/CUDA has its [own roadmap](../native-cuda-roadmap.md). Device transfers and source capability checks must not treat an available CPU storage type as a supported GPU arithmetic type.
 

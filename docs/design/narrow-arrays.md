@@ -35,7 +35,7 @@ Local workers retain array storage and owned children through nested tasks, repe
 
 CPU executables display narrow numeric arrays as decimal numbers, including `-128`, `255`, `-32768` and `65535`. Existing `--limit` and `--all` options apply. Byte values are printed as numbers, not characters.
 
-[Narrow CPU tensors](narrow-tensors.md) now support construction, checked elementwise arithmetic, structural adapters, record fields and retained workers. [Checked narrow CPU reductions](narrow-reductions.md) are supported. [Checked narrow CPU matrix multiplication](narrow-matmul.md) is supported. Narrow tensor numeric conversions and GPU execution remain gated pending their own qualification. Internal descriptor storage support is not a promise of source-level tensor operation support. Distributed execution and public C/C++ interfaces remain separate roadmaps.
+[Narrow CPU tensors](narrow-tensors.md) now support construction, checked elementwise arithmetic, structural adapters, record fields and retained workers. [Checked narrow CPU reductions](narrow-reductions.md) are supported. [Checked narrow CPU matrix multiplication](narrow-matmul.md) is supported. [Checked CPU tensor numeric conversions](narrow-tensor-conversions.md) support all ten element types. GPU execution remains separately gated. Internal descriptor storage support is not a promise of source-level tensor operation support. Distributed execution and public C/C++ interfaces remain separate roadmaps.
 
 ## Qualification
 

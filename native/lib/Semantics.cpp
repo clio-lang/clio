@@ -2339,8 +2339,8 @@ private:
       return {};
     }
     if (source.tensor) {
-      if (!numericArithmeticAvailable(destination, NumericTarget::Cpu) ||
-          !numericArithmeticAvailable(source.element, NumericTarget::Cpu)) {
+      if (!numericTensorConversionAvailable(destination, NumericTarget::Cpu) ||
+          !numericTensorConversionAvailable(source.element, NumericTarget::Cpu)) {
         error("S003", "tensor numeric conversion is not supported for these element types", span);
         return {};
       }

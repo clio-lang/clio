@@ -58,6 +58,9 @@ int main() {
                        description.type == NumericType::UInt64 ||
                        description.type == NumericType::Float64))),
                 "type description accidentally enabled arithmetic");
+      require(numericTensorConversionAvailable(description.type, NumericTarget::Cpu) &&
+                  !numericTensorConversionAvailable(description.type, NumericTarget::AppleGpu),
+              "tensor conversion capability lost CPU-only numeric identity");
       require(numericMatmulAvailable(description.type, NumericTarget::Cpu) &&
                   numericMatmulAvailable(description.type, NumericTarget::AppleGpu) ==
                       (description.type == NumericType::Float32),

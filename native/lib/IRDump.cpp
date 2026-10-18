@@ -450,8 +450,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
                       [](const Extent &a, const Extent &b) {
                         return a.constant == b.constant && a.identity == b.identity;
                       }) ||
-          !(source.tensor ? (numericArithmeticAvailable(source.element, target) &&
-                             numericArithmeticAvailable(expression.type.element, target))
+          !(source.tensor ? (numericTensorConversionAvailable(source.element, target) &&
+                             numericTensorConversionAvailable(expression.type.element, target))
                           : numericScalarArithmeticAvailable(source.element, target)))
         return "numeric conversions require implemented CPU values with unchanged shape";
     }

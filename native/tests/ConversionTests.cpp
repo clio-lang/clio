@@ -12,8 +12,10 @@ static void require(bool ok, const char *message) {
 }
 int main() {
   try {
-    for (auto source : {"int32", "uint32", "int64", "uint64", "float32", "float64"})
-      for (auto destination : {"int32", "uint32", "int64", "uint64", "float32", "float64"}) {
+    for (auto source : {"int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64",
+                        "float32", "float64"})
+      for (auto destination : {"int8", "uint8", "int16", "uint16", "int32", "uint32", "int64",
+                               "uint64", "float32", "float64"}) {
         auto typed = analyze("fn convert(value:" + std::string(source) + ") -> " + destination +
                              ":\n  " + destination + "(value)\nfn main() -> int64:\n  0\n");
         require(typed.ok(), "scalar conversion rejected");
@@ -36,8 +38,10 @@ int main() {
             expr.type.tensor = true;
         require(!lowerNative(forged), "scalar-to-tensor conversion IR admitted");
       }
-    for (auto source : {"int32", "uint32", "int64", "uint64", "float32", "float64"})
-      for (auto destination : {"int32", "uint32", "int64", "uint64", "float32", "float64"})
+    for (auto source : {"int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64",
+                        "float32", "float64"})
+      for (auto destination : {"int8", "uint8", "int16", "uint16", "int32", "uint32", "int64",
+                               "uint64", "float32", "float64"})
         for (auto shape : {"", ",?", ",2,?", ",2,0,?"}) {
           auto typed = analyze("fn convert(value:Tensor[" + std::string(source) + shape +
                                "]) -> Tensor[" + destination + shape + "]:\n  " + destination +

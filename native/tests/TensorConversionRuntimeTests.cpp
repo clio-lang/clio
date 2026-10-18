@@ -224,11 +224,17 @@ int main() {
       }
       metadata(-1, 1);
       constexpr auto bytes = std::max(sizeof(Input), sizeof(Output));
-      metadata(INT64_MAX / bytes + 1, 2);
-      metadata(INT64_MAX / bytes, 2, 1);
+      constexpr std::int64_t limit = INT64_MAX / bytes;
+      constexpr auto beyond = limit + (bytes > 1 ? 1 : 0);
+      if constexpr (bytes > 1)
+        metadata(beyond, 2);
+      // For byte cells INT64_MAX is representable: inject allocation failure.
+      metadata(limit, 2, 1);
     }
     cancellation(false);
-    if (source == NumericType::Float64 && destination == NumericType::Float32 && TENSOR_RANK == 2)
+    if (TENSOR_RANK == 2 &&
+        ((source == NumericType::Float64 && destination == NumericType::Float32) ||
+         isNarrowInteger(source) || isNarrowInteger(destination)))
       cancellation(true);
     std::cout
         << "tensor conversion " << describeNumeric(source)->name << " -> "

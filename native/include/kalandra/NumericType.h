@@ -104,6 +104,10 @@ constexpr bool numericReductionAvailable(NumericType type, NumericTarget target)
 constexpr bool numericMatmulAvailable(NumericType type, NumericTarget target) {
   return numericTensorElementwiseAvailable(type, target);
 }
+// Tensor casts use the checked scalar conversion engine lane by lane on CPU.
+constexpr bool numericTensorConversionAvailable(NumericType type, NumericTarget target) {
+  return target == NumericTarget::Cpu && numericScalarArithmeticAvailable(type, target);
+}
 // Collection storage is separate from tensor arithmetic capability. CPU arrays
 // can retain every implemented scalar width without enabling tensor operations.
 constexpr bool numericCollectionStorageAvailable(NumericType type, NumericTarget target) {
