@@ -58,8 +58,7 @@ int main() {
       }
     }
     for (auto text :
-         {"type Bad:\n  field:[Bool]\nfn main():\n  0\n",
-          "type Bad:\n  field:Tensor[Bool,2]\nfn main():\n  0\n",
+         {"type Bad:\n  field:Tensor[Bool,2]\nfn main():\n  0\n",
           "type Box:\n  field:[int]\nfn main():\n  Box {field:tensor([1,2])}.field\n",
           "type Box:\n  field:Tensor[int,2]\nfn main():\n  Box {field:[1,2]}.field\n",
           "type Box:\n  field:Tensor[int,2]\nfn main():\n  Box {field:tensor([1,2,3])}.field\n",

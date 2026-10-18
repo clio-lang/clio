@@ -257,11 +257,14 @@ private:
         auto fieldType = type(field.type);
         if (!fieldType)
           continue;
-        if ((fieldType->tensor && fieldType->builtin != BuiltinValue::Numeric) ||
+        if ((fieldType->tensor && fieldType->builtin != BuiltinValue::Numeric &&
+             !isBoolArray(*fieldType)) ||
             (fieldType->builtin != BuiltinValue::Numeric &&
              fieldType->builtin != BuiltinValue::Bool &&
              fieldType->builtin != BuiltinValue::Record)) {
-          error("S068", "record fields require CPU numbers, numeric collections, Bool or records",
+          error("S068",
+                "record fields require CPU numbers, numeric collections, Bool, Bool arrays or "
+                "records",
                 field.type.span);
           continue;
         }

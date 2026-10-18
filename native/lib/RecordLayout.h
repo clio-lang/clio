@@ -30,20 +30,21 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
     for (const auto &field : record.fields) {
       const auto &type = field.type;
       if (type.task || type.fallible || type.device ||
-          (type.tensor ? (type.builtin != BuiltinValue::Numeric || type.shape.size() > 128 ||
-                          (type.array && type.shape.size() != 1))
+          (type.tensor ? ((type.builtin != BuiltinValue::Numeric && !isBoolArray(type)) ||
+                          type.shape.size() > 128 || (type.array && type.shape.size() != 1))
                        : (type.array || !type.shape.empty())))
-        return fail(
-            "record fields require completed CPU numbers, numeric collections, Bool or records",
-            field.declaration);
+        return fail("record fields require completed CPU numbers, numeric collections, Bool, Bool "
+                    "arrays or records",
+                    field.declaration);
       if (type.builtin == BuiltinValue::Record) {
         if (!type.record || *type.record >= module.records.size())
           return fail("invalid nested record declaration identity", field.declaration);
       } else if (type.record || (type.builtin != BuiltinValue::Bool &&
                                  (type.builtin != BuiltinValue::Numeric ||
                                   !numericArithmeticAvailable(type.element, NumericTarget::Cpu))))
-        return fail("record fields require CPU numbers, numeric collections, Bool or records",
-                    field.declaration);
+        return fail(
+            "record fields require CPU numbers, numeric collections, Bool, Bool arrays or records",
+            field.declaration);
     }
   }
   struct Frame {

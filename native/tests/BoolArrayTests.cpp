@@ -45,8 +45,7 @@ int main() {
           "fn main():\n  flags=[true,false]\n  shape(flags)\n",
           "fn main():\n  flags=[true,false]\n  int(flags)\n",
           "fn main():\n  flags=[true,false]\n  reduceSum(flags)\n",
-          "fn main():\n  map([true],fn(x:int):x)\n",
-          "type Flags:\n  values:[Bool]\nfn main():\n  0\n", "fn main():\n  map([],fn(x):true)\n"})
+          "fn main():\n  map([true],fn(x:int):x)\n", "fn main():\n  map([],fn(x):true)\n"})
       require(!analyze(body).ok(), "invalid Bool array admitted: " + std::string(body));
     auto valid = analyze("fn flags(values:[int])->[Bool]:\n  map(values,fn(x):x>0)\nfn "
                          "main()->[Bool]:\n  flags([1,2])\n");

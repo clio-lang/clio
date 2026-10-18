@@ -32,7 +32,7 @@ Worker handoff validates every byte before publishing a retained result, polling
 
 ## Current limits
 
-This adds CPU Bool arrays, not Bool tensors or GPU Bool execution. Bool-array fields inside records, nested arrays, collection-valued callbacks, escaping closures, explicit parallel mapping and collection comparison remain separate work. Arithmetic and whole-array logical operators are rejected; use `map` for per-element operations. Immutable arrays have no indexed write operation.
+This adds CPU Bool arrays, not Bool tensors or GPU Bool execution. [Bool-array fields inside records](record-bool-fields.md) are supported. Nested arrays, collection-valued callbacks, escaping closures, explicit parallel mapping and collection comparison remain separate work. Arithmetic and whole-array logical operators are rejected; use `map` for per-element operations. Immutable arrays have no indexed write operation.
 
 ## Qualification
 

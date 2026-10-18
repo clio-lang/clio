@@ -317,9 +317,12 @@ private:
       if (field.builtin == BuiltinValue::Record)
         retainRecord(field, address, fn, failed);
       else if (field.tensor) {
-        auto *success = call("kalandra_record_retain_v1", boolean,
-                             {fn->getArg(0), fn->getArg(2), address, c64(field.shape.size()),
-                              c64(static_cast<unsigned>(field.element))});
+        auto *success = isBoolArray(field)
+                            ? call("kalandra_bool_array_retain_v1", boolean,
+                                   {fn->getArg(0), fn->getArg(2), address})
+                            : call("kalandra_record_retain_v1", boolean,
+                                   {fn->getArg(0), fn->getArg(2), address, c64(field.shape.size()),
+                                    c64(static_cast<unsigned>(field.element))});
         for (std::size_t axis = 0; axis < field.shape.size(); ++axis)
           if (field.shape[axis].constant) {
             auto *dimensions = builder.CreateStructGEP(descriptor(field), address, 3);

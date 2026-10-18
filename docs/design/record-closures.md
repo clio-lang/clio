@@ -1,6 +1,6 @@
 # Records captured by numeric callbacks
 
-Anonymous numeric map callbacks can capture completed immutable CPU records, including nested records with numeric array and tensor fields.
+Anonymous numeric map callbacks can capture completed immutable CPU records, including nested records with numeric array/tensor fields and [Bool-array fields](record-bool-fields.md).
 
 ```kalandra
 type Calibration:

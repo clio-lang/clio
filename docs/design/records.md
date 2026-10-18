@@ -1,6 +1,6 @@
 # Immutable CPU records
 
-The native compiler supports named immutable records with numeric scalar, `Bool`, [nested record](nested-records.md), and [numeric collection](record-collections.md) fields. This builds on the [accepted core design](core.md#3-construct-a-record-and-derive-another).
+The native compiler supports named immutable records with numeric scalar, `Bool`, [nested record](nested-records.md), [numeric collection](record-collections.md), and [Bool-array](record-bool-fields.md) fields. This builds on the [accepted core design](core.md#3-construct-a-record-and-derive-another).
 
 ```kalandra
 type Point:
@@ -38,7 +38,7 @@ Records can be used inside synchronous numeric map callbacks. [Anonymous numeric
 
 ## Native lowering and current boundaries
 
-[Nested records](nested-records.md) now extend these values through several inline levels. The typed IR carries nominal declaration identities and canonical field indices separately from written evaluation order. CPU lowering represents these numeric/Boolean/nested record values as native structs using MLIR's LLVM aggregate operations. Records with numeric/Boolean leaves require no managed heap allocation. [Collection fields](record-collections.md) use owned backing storage and copies on construction and reads. The underlying struct layout does not erase source-level nominal type checks. This internal representation is not a published C/C++ ABI or serialization format.
+[Nested records](nested-records.md) now extend these values through several inline levels. The typed IR carries nominal declaration identities and canonical field indices separately from written evaluation order. CPU lowering represents these numeric/Boolean/nested record values as native structs using MLIR's LLVM aggregate operations. Records with numeric/Boolean leaves require no managed heap allocation. [Numeric collection fields](record-collections.md) use owned backing storage and copies on construction and reads. [Bool-array fields](record-bool-fields.md) share their existing immutable backing. The underlying struct layout does not erase source-level nominal type checks. This internal representation is not a published C/C++ ABI or serialization format.
 
 [CPU worker integration](record-workers.md) now supports record captures/results, nested workers, repeated awaits, and record-valued TaskError recovery. GPU placement remains unsupported for record-containing source graphs, and the checker/backend diagnose that combination. User variants/errors, type exports, and GPU integration remain separate work. Native distributed execution still requires the agreed design discussion.
 

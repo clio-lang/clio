@@ -1,6 +1,6 @@
 # Immutable arrays of records
 
-Native CPU arrays can contain values of one finite record type. The element record may contain nested records, numbers, `Bool`, and numeric array/tensor fields.
+Native CPU arrays can contain values of one finite record type. The element record may contain nested records, numbers, `Bool`, numeric array/tensor fields, and [Bool-array fields](record-bool-fields.md).
 
 ```kalandra
 type Reading:
@@ -34,7 +34,7 @@ Nonempty literals infer their element declaration. Empty arrays need context, su
 
 Branches, helper returns and TaskError recovery preserve the array's record identity while allowing different lengths. Existing numeric callbacks can capture a record array and index it, for example `map([0, 1], fn(i): rows[i].value)`.
 
-[Sequential mapping](array-map.md#record-elements-and-results) now accepts record elements and record results with named or anonymous callbacks. Record arrays as record fields, nested arrays, record tensors, concatenation, and record-array CLI display remain separate work. A program's `main` still returns a supported scalar, `Bool`, numeric array or numeric tensor.
+[Sequential mapping](array-map.md#record-elements-and-results) now accepts record elements and record results with named or anonymous callbacks. Record arrays as record fields, nested arrays, record tensors, concatenation, and record-array CLI display remain separate work. A program's `main` still returns a supported scalar, `Bool`, numeric/Bool array or numeric tensor.
 
 ## Ownership and target layout
 

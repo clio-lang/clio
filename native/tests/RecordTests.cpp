@@ -77,12 +77,14 @@ int main(int argc, char **argv) {
               "invalid record program admitted: " + std::string(tail));
     for (auto source :
          {"type Bad:\n  x:int\n  x:float\nfn main():\n  0\n",
-          "type int:\n  x:int\nfn main():\n  0\n", "type Bad:\n  x:[Bool]\nfn main():\n  0\n",
+          "type int:\n  x:int\nfn main():\n  0\n",
           "type Bad:\n  x:Tensor[Bool,2]\nfn main():\n  0\n",
           "type Bad:\n  x:Bad\nfn main():\n  0\n", "type Bad:\n  with:int\nfn main():\n  0\n",
           "type Bad:\n  x:Missing\nfn main():\n  0\n",
           "export type Bad:\n  x:int\nfn main():\n  0\n", "type Bad:\n  x:int\nfn with():\n  0\n"})
       require(!analyze(source).ok(), "invalid declaration admitted");
+    require(analyze("type Flags:\n  values:[Bool]\nfn main():\n  0\n").ok(),
+            "Bool-array record declaration rejected");
     auto valid = analyze(declaration + "fn main():\n  p=Point {y:2,x:1}\n  p.x\n");
     require(valid.ok(), "valid IR fixture rejected");
     const auto construct =

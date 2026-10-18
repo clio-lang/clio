@@ -123,3 +123,5 @@ CPU records can also own [numeric arrays and tensors](../docs/design/record-coll
 [Immutable record arrays](../docs/design/record-arrays.md) support construction, length, checked indexing, helper returns and CPU worker captures/results. Element records can contain nested numeric collection fields.
 
 [Record array mapping](../docs/design/array-map.md#record-elements-and-results) supports numeric-to-record, record-to-numeric and record-to-record transforms, including immutable updates, nested collection fields, anonymous captures and retained CPU worker results. Mapping is sequential; explicit tasks choose which worker runs it.
+
+[Bool-array record fields](../docs/design/record-bool-fields.md) support nested records, immutable updates, record arrays, anonymous captures and retained CPU worker results. They reuse their existing immutable array backing.
