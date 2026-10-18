@@ -976,6 +976,7 @@ private:
           !std::holds_alternative<ArrayMap>(node(*value).operation) &&
           !std::holds_alternative<ArrayToTensor>(node(*value).operation) &&
           !std::holds_alternative<TensorReshape>(node(*value).operation) &&
+          !std::holds_alternative<TensorToArray>(node(*value).operation) &&
           !std::holds_alternative<CollectionQuery>(node(*value).operation)) {
         error("S037", "this invocation is not a supported task entry", span);
         return {};
@@ -2186,6 +2187,46 @@ private:
       }
       if (auto numeric = resolveNumeric(callee))
         return conversion(frame, span, *numeric, arguments);
+      if (callee == "array") {
+        if (arguments.size() != 1) {
+          error("S027", "array expects exactly one tensor argument", span);
+          return {};
+        }
+        if (expected && !expected->array) {
+          error("S026", "array construction requires an array result context", span);
+          return {};
+        }
+        auto input = expression(frame, arguments[0]);
+        if (!input)
+          return {};
+        auto output = node(*input).type;
+        if (!output.tensor || output.array || output.task || output.fallible || output.device ||
+            output.builtin != BuiltinValue::Numeric) {
+          error("S026", "array construction requires a completed CPU numeric tensor", span);
+          return {};
+        }
+        Extent count = dynamic();
+        if (output.shape.size() == 1)
+          count = output.shape[0];
+        else if (std::ranges::any_of(output.shape, [](const Extent &d) { return d.constant == 0; }))
+          count = {0, 0};
+        else if (std::ranges::all_of(output.shape,
+                                     [](const Extent &d) { return d.constant.has_value(); })) {
+          count = {1, 0};
+          for (const auto &d : output.shape) {
+            if (*count.constant > std::uint64_t(INT64_MAX) / *d.constant) {
+              error("S002", "tensor element count exceeds the indexing range", span);
+              return {};
+            }
+            *count.constant *= *d.constant;
+          }
+        }
+        output.array = true;
+        output.shape = {count};
+        if (!validSize(output, span))
+          return {};
+        return add(frame, output, span, TensorToArray{*input});
+      }
       if (callee == "reshape") {
         if (arguments.size() != 2) {
           error("S027", "reshape expects a tensor and a fixed-rank shape list", span);

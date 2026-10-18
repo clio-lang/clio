@@ -938,8 +938,13 @@ private:
             }
             return result;
           } else if constexpr (std::is_same_v<T, ArrayToTensor> ||
+                               std::is_same_v<T, TensorToArray> ||
                                std::is_same_v<T, TensorReshape>) {
-            std::optional<std::vector<ValueId>> dimensionOperands = operation.dimensions;
+            std::optional<std::vector<ValueId>> dimensionOperands;
+            if constexpr (std::is_same_v<T, TensorToArray>)
+              dimensionOperands.emplace();
+            else
+              dimensionOperands = operation.dimensions;
             if (dimensionOperands) {
               auto input = expression(frame, operation.input);
               auto inputShape = dimensions(loc, input);
@@ -949,6 +954,16 @@ private:
               for (auto id : *dimensionOperands)
                 evaluated.push_back(expression(frame, id));
               const auto output = cast<RankedTensorType>(type(node.type));
+              if constexpr (std::is_same_v<T, TensorToArray>) {
+                shape.push_back(inputCount);
+                if (output.isDynamicDim(0))
+                  dynamic.push_back(inputCount);
+                else
+                  guard(loc,
+                        compare(loc, arith::CmpIPredicate::eq, inputCount,
+                                index(loc, output.getDimSize(0))),
+                        1);
+              }
               for (std::size_t axis = 0; axis < dimensionOperands->size(); ++axis) {
                 auto id = (*dimensionOperands)[axis];
                 auto dimension = evaluated[axis];

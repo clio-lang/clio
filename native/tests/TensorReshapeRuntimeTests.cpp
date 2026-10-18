@@ -30,15 +30,15 @@ using D0 = std::int64_t;
 using D1 = std::int64_t;
 #endif
 extern "C" void _mlir_ciface_kalandra_test_entry(Output *, Input *
-#if OUTPUT_RANK > 0
+#if OUTPUT_RANK > 0 && !defined(TENSOR_TO_ARRAY)
                                                  ,
                                                  D0
 #endif
-#if OUTPUT_RANK > 1
+#if OUTPUT_RANK > 1 && !defined(TENSOR_TO_ARRAY)
                                                  ,
                                                  D1
 #endif
-#if OUTPUT_RANK > 2
+#if OUTPUT_RANK > 2 && !defined(TENSOR_TO_ARRAY)
                                                  ,
                                                  D0
 #endif
@@ -47,15 +47,15 @@ extern "C" void _mlir_ciface_kalandra_test_entry(Output *, Input *
 static void invoke(Output &output, Input &input, const OutputShape &shape, Invocation &context) {
   (void)shape;
   _mlir_ciface_kalandra_test_entry(&output, &input
-#if OUTPUT_RANK > 0
+#if OUTPUT_RANK > 0 && !defined(TENSOR_TO_ARRAY)
                                    ,
                                    D0(shape[0])
 #endif
-#if OUTPUT_RANK > 1
+#if OUTPUT_RANK > 1 && !defined(TENSOR_TO_ARRAY)
                                        ,
                                    D1(shape[1])
 #endif
-#if OUTPUT_RANK > 2
+#if OUTPUT_RANK > 2 && !defined(TENSOR_TO_ARRAY)
                                        ,
                                    D0(shape[2])
 #endif
@@ -174,14 +174,19 @@ static void verify(InputShape inputShape, OutputShape outputShape, unsigned layo
     ++cases;
   }
 }
-#if INPUT_RANK == 2 && OUTPUT_RANK == 2 && DIMENSION_KIND == 0 && !defined(FIXED_RESHAPE)
+#if INPUT_RANK == 2 && (OUTPUT_RANK == 2 || defined(TENSOR_TO_ARRAY)) && DIMENSION_KIND == 0 &&    \
+    !defined(FIXED_RESHAPE)
 static void cancellation(bool active) {
   std::vector<Cell> cells(active ? 1048576 : 1, Cell{7});
   Input input{};
   input.allocated = input.aligned = cells.data();
   input.sizes = active ? InputShape{1024, 1024} : InputShape{1, 1};
   input.strides = active ? InputShape{1024, 1} : InputShape{1, 1};
+#ifdef TENSOR_TO_ARRAY
+  OutputShape shape{active ? 1048576 : 1};
+#else
   OutputShape shape = active ? OutputShape{2048, 512} : OutputShape{1, 1};
+#endif
   Output output{};
   Invocation context;
   std::atomic<bool> token{!active}, done{false};
@@ -250,6 +255,24 @@ int main() {
     for (unsigned environment = 0; environment < 8; ++environment) {
       state.set(environment);
       for (unsigned layout = 0; layout < 3; ++layout) {
+#ifdef TENSOR_TO_ARRAY
+#if INPUT_RANK == 0
+        verify({}, {1}, layout);
+#elif INPUT_RANK == 1
+        verify({0}, {0}, layout);
+        verify({1}, {1}, layout);
+        verify({323}, {323}, layout);
+#elif INPUT_RANK == 3
+        verify({2, 3, 4}, {24}, layout);
+        verify({2, 0, 4}, {0}, layout);
+#elif INPUT_RANK == 8
+        verify({1, 1, 1, 1, 1, 2, 3, 4}, {24}, layout);
+        verify({1, 1, 1, 0, 1, 2, 3, 4}, {0}, layout);
+#else
+        for (auto shape : {InputShape{2, 3}, {3, 2}, {0, 3}, {2, 0}, {1, 1}, {17, 19}})
+          verify(shape, {shape[0] * shape[1]}, layout);
+#endif
+#else
 #if INPUT_RANK == 0
         verify({}, {1, 1}, layout);
         verify({}, {0, 1}, layout, 1);
@@ -298,17 +321,23 @@ int main() {
         verify({0, 3}, {INT64_MAX, INT64_MAX, 0}, layout);
 #endif
 #endif
+#endif
       }
       state.checkFlags();
     }
-#if INPUT_RANK == 2 && OUTPUT_RANK == 2 && DIMENSION_KIND == 0 && !defined(FIXED_RESHAPE)
+#if INPUT_RANK == 2 && (OUTPUT_RANK == 2 || defined(TENSOR_TO_ARRAY)) && DIMENSION_KIND == 0 &&    \
+    !defined(FIXED_RESHAPE)
     cancellation(false);
     cancellation(true);
 #endif
     metadata<INPUT_RANK>();
-    std::cout << "tensor reshape " << describeNumeric(element)->name << " ranks " << INPUT_RANK
-              << "->" << OUTPUT_RANK << " dimensions " << DIMENSION_KIND << ": " << cases
-              << " cases, " << lanes
+#ifdef TENSOR_TO_ARRAY
+    std::cout << "tensor to array "
+#else
+    std::cout << "tensor reshape "
+#endif
+              << describeNumeric(element)->name << " ranks " << INPUT_RANK << "->" << OUTPUT_RANK
+              << " dimensions " << DIMENSION_KIND << ": " << cases << " cases, " << lanes
               << " exact lanes; strided row-major copies, shape/byte/stride faults, allocation "
                  "failures, cancellation and retained owners passed\n";
   } catch (const std::exception &error) {

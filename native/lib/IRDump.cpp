@@ -271,6 +271,17 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
                     r.shape[0].identity))
         return "collection query result shape mismatch";
     }
+    if (const auto *construction = std::get_if<TensorToArray>(&expression.operation)) {
+      if (construction->input >= module.expressions.size())
+        return "tensor-to-array construction references invalid input";
+      const auto &a = module.expressions[construction->input].type;
+      const auto &r = expression.type;
+      if (target != NumericTarget::Cpu || !a.tensor || a.array || a.task || a.fallible ||
+          a.device || a.builtin != BuiltinValue::Numeric || !r.tensor || !r.array || r.task ||
+          r.fallible || r.device || r.builtin != BuiltinValue::Numeric || a.element != r.element ||
+          r.shape.size() != 1)
+        return "tensor-to-array construction requires completed CPU numeric values";
+    }
     if (const auto *reshape = std::get_if<TensorReshape>(&expression.operation)) {
       if (reshape->input >= module.expressions.size())
         return "reshape references invalid input";
@@ -506,6 +517,9 @@ std::string dumpTypedIR(const TypedModule &module) {
             } else if constexpr (std::is_same_v<T, CollectionQuery>) {
               out << (operation.kind == CollectionQueryKind::Length ? "array.length checked "
                                                                     : "tensor.shape checked ");
+              value(operation.input);
+            } else if constexpr (std::is_same_v<T, TensorToArray>) {
+              out << "array.from_tensor ordered_copy ";
               value(operation.input);
             } else if constexpr (std::is_same_v<T, TensorReshape>) {
               out << "tensor.reshape ordered_copy ";

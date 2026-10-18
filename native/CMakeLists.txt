@@ -876,3 +876,5 @@ include(cmake/TensorIndex.cmake)
 include(cmake/CollectionQuery.cmake)
 
 include(cmake/TensorReshape.cmake)
+
+include(cmake/TensorArray.cmake)

@@ -103,7 +103,8 @@ void validIR(const TypedModule &module) {
             for (auto index : op.indices)
               operand(index);
           } else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, CollectionQuery> ||
-                               std::is_same_v<T, ShapeCheck> || std::is_same_v<T, ArrayToTensor>)
+                               std::is_same_v<T, ShapeCheck> || std::is_same_v<T, ArrayToTensor> ||
+                               std::is_same_v<T, TensorToArray>)
             operand(op.input);
         },
         expression.operation);
