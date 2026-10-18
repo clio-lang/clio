@@ -91,6 +91,11 @@ constexpr bool numericScalarArithmeticAvailable(NumericType type, NumericTarget 
   return numericArithmeticAvailable(type, target) ||
          (target == NumericTarget::Cpu && isNarrowInteger(type));
 }
+// Tensor construction and elementwise arithmetic have a distinct capability
+// from reductions, matmul and conversions, which retain their own gates.
+constexpr bool numericTensorElementwiseAvailable(NumericType type, NumericTarget target) {
+  return numericScalarArithmeticAvailable(type, target);
+}
 // Collection storage is separate from tensor arithmetic capability. CPU arrays
 // can retain every implemented scalar width without enabling tensor operations.
 constexpr bool numericCollectionStorageAvailable(NumericType type, NumericTarget target) {

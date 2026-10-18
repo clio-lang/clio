@@ -15,12 +15,25 @@ using namespace kalandra::runtime;
 #define TENSOR_UNSIGNED 0
 #endif
 static constexpr bool unsignedCells = TENSOR_UNSIGNED;
-static constexpr NumericType element = unsignedCells ? NumericType::UInt64 : NumericType::Int64;
-using Cell = std::conditional_t<unsignedCells, std::uint64_t, std::int64_t>;
+#ifndef TENSOR_BITS
+#define TENSOR_BITS 64
+#endif
+static_assert(TENSOR_BITS == 8 || TENSOR_BITS == 16 || TENSOR_BITS == 64);
+static constexpr NumericType element = unsignedCells ? (TENSOR_BITS == 8    ? NumericType::UInt8
+                                                        : TENSOR_BITS == 16 ? NumericType::UInt16
+                                                                            : NumericType::UInt64)
+                                                     : (TENSOR_BITS == 8    ? NumericType::Int8
+                                                        : TENSOR_BITS == 16 ? NumericType::Int16
+                                                                            : NumericType::Int64);
+using Cell = NumericValue<element>;
+using Raw = std::conditional_t<TENSOR_BITS == 8, std::uint8_t,
+                               std::conditional_t<TENSOR_BITS == 16, std::uint16_t, std::uint64_t>>;
 using Wide = std::conditional_t<unsignedCells, __uint128_t, __int128_t>;
 static constexpr Cell maximum = std::numeric_limits<Cell>::max();
 static constexpr Cell minimum = std::numeric_limits<Cell>::min();
-static constexpr Cell highLiteral = unsignedCells ? Cell(std::uint64_t(1) << 63) : minimum;
+static constexpr Cell highLiteral =
+    unsignedCells ? Cell(UINT64_C(1) << (TENSOR_BITS - 1)) : minimum;
+static constexpr Cell precisionLiteral = TENSOR_BITS == 64 ? Cell(9007199254740993) : Cell(42);
 using Tensor = CpuTensor<element, TENSOR_RANK>;
 extern "C" void _mlir_ciface_kalandra_test_entry(Tensor *, Tensor *, Tensor *, Cell, Invocation *);
 static std::string_view operation;
@@ -37,7 +50,7 @@ static bool verify(std::array<std::int64_t, Rank> shape, std::vector<Cell> a, st
   if (alias)
     b = a;
   // Padded noncontiguous borrowed views, with both aligned-pointer and offset displacement.
-  std::vector<Cell> left(2 * count + 8, 1234567), right(2 * count + 8, 7654321);
+  std::vector<Cell> left(2 * count + 8, Cell(1234567)), right(2 * count + 8, Cell(7654321));
   for (std::size_t i = 0; i < count; ++i) {
     left[3 + 2 * i] = a[i];
     right[3 + 2 * i] = b[i];
@@ -66,7 +79,7 @@ static bool verify(std::array<std::int64_t, Rank> shape, std::vector<Cell> a, st
     if constexpr (Rank == 0)
       expected = {scalar};
     else
-      expected = {scalar, maximum, highLiteral, 9007199254740993};
+      expected = {scalar, maximum, highLiteral, precisionLiteral};
   } else {
     for (std::size_t i = 0; i < count; ++i) {
       const Wide p = mode == 2 ? scalar : a[i];
@@ -162,7 +175,8 @@ static bool verify(std::array<std::int64_t, Rank> shape, std::vector<Cell> a, st
     return reject("owners not settled");
   return code || correct();
 }
-template <std::size_t Rank> static bool metadata(std::array<std::int64_t, Rank> shape, int code) {
+template <std::size_t Rank>
+static bool metadata(std::array<std::int64_t, Rank> shape, int code, bool failAllocation = false) {
   Cell cell = 1;
   CpuTensor<element, Rank> input{}, result{};
   input.allocated = input.aligned = &cell;
@@ -171,6 +185,8 @@ template <std::size_t Rank> static bool metadata(std::array<std::int64_t, Rank> 
     input.strides.fill(1);
   }
   Invocation context;
+  if (failAllocation)
+    context.failAllocationAt(1);
   _mlir_ciface_kalandra_test_entry(&result, &input, &input, 1, &context);
   ++cases;
   ++faults;
@@ -242,28 +258,33 @@ int main(int argc, char **argv) {
     if (!verify(shape, {1}, {}, 1))
       return 1;
   } else {
-    std::vector<Cell> edges{0,
-                            1,
-                            2,
-                            3,
-                            255,
-                            65536,
-                            16777217,
-                            4294967295,
-                            9007199254740991,
-                            9007199254740992,
-                            9007199254740993,
-                            3037000499,
-                            3037000500,
-                            maximum / 2,
-                            maximum - 1,
-                            maximum};
+    std::vector<Cell> edges;
+    if constexpr (TENSOR_BITS == 64) {
+      edges = {0,
+               1,
+               2,
+               3,
+               Cell(255),
+               Cell(65536),
+               Cell(16777217),
+               Cell(4294967295),
+               Cell(9007199254740991),
+               Cell(9007199254740992),
+               Cell(9007199254740993),
+               Cell(3037000499),
+               Cell(3037000500),
+               maximum / 2,
+               maximum - 1,
+               maximum};
+    } else {
+      edges = {0, 1, 2, 3, Cell(maximum / 2), Cell(maximum - 1), maximum};
+    }
     if constexpr (unsignedCells) {
       edges.push_back(highLiteral);
       edges.push_back(highLiteral + 1);
     } else {
-      edges.insert(edges.end(),
-                   {minimum, minimum + 1, minimum / 2, Cell(-1), Cell(-2), Cell(-3037000500)});
+      edges.insert(edges.end(), {minimum, minimum + 1, minimum / 2, Cell(-1), Cell(-2),
+                                 TENSOR_BITS == 64 ? Cell(-3037000500) : Cell(-42)});
     }
     for (auto a : edges)
       for (auto b : edges)
@@ -274,7 +295,7 @@ int main(int argc, char **argv) {
       state ^= state << 13;
       state ^= state >> 17;
       state ^= state << 5;
-      return std::bit_cast<Cell>(state);
+      return std::bit_cast<Cell>(Raw(state));
     };
     for (unsigned trial = 0; trial < 1000; ++trial) {
       auto a = next(), b = next();
@@ -311,11 +332,21 @@ int main(int argc, char **argv) {
       if (!metadata(invalid, 1))
         return 1;
       invalid.fill(1);
-      invalid[0] = INT64_MAX / 8 + 1;
-      if (!metadata(invalid, 2))
-        return 1;
+      if constexpr (sizeof(Cell) > 1) {
+        invalid[0] = INT64_MAX / sizeof(Cell) + 1;
+        if (!metadata(invalid, 2))
+          return 1;
+      } else if constexpr (TENSOR_RANK > 1) {
+        invalid[0] = INT64_MAX;
+        invalid[1] = 2;
+        if (!metadata(invalid, 2))
+          return 1;
+      }
+      // A one-byte rank-one extent can fit the byte budget while being too
+      // large to materialize. Inject allocator failure before any input read.
+      invalid.fill(1);
       invalid[0] = INT64_MAX;
-      if (!metadata(invalid, 2))
+      if (!metadata(invalid, 2, sizeof(Cell) == 1))
         return 1;
       if (operation != "pos") {
         shape.fill(1);
@@ -361,7 +392,7 @@ int main(int argc, char **argv) {
     if (operation == "add" && mode == 0 && !cancelled<TENSOR_RANK>())
       return 1;
   }
-  std::cout << (unsignedCells ? "uint64" : "int64") << " tensor " << operation << " mode " << mode
+  std::cout << describeNumeric(element)->name << " tensor " << operation << " mode " << mode
             << " rank " << TENSOR_RANK << ": " << cases << " cases, " << faults
             << " faults; exact integer cells, immutable inputs and settled owners passed\n";
 }

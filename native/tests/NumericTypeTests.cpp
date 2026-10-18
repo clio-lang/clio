@@ -91,15 +91,15 @@ int main() {
     for (unsigned surface = 0; surface < 4; ++surface) {
       auto forged = *numeric.module;
       if (surface == 0) {
-        forged.functions[0].resultType.element = NumericType::Int16;
+        forged.functions[0].resultType.element = static_cast<NumericType>(255);
         forged.functions[0].resultType.tensor = true;
       }
       if (surface == 1) {
-        forged.functions[0].declaredResult->element = NumericType::Int16;
+        forged.functions[0].declaredResult->element = static_cast<NumericType>(255);
         forged.functions[0].declaredResult->tensor = true;
       }
       if (surface == 2) {
-        forged.symbols[0].type.element = NumericType::Int16;
+        forged.symbols[0].type.element = static_cast<NumericType>(255);
         forged.symbols[0].type.tensor = true;
       }
       if (surface == 3) {
@@ -108,7 +108,7 @@ int main() {
       }
       auto failure = lowerNative(forged);
       require(bool(numericCapabilityError(forged, NumericTarget::Cpu)) && !failure,
-              "backend accepted unsupported int16 aggregate or malformed literal");
+              "backend accepted unsupported numeric identity or malformed narrow literal");
     }
     auto task = analyze("fn identity(values:Tensor[float32,?]) -> Tensor[float32,?]:\n  values\n"
                         "fn main() -> float32 ! TaskError:\n  try parallel:\n"
@@ -133,10 +133,10 @@ int main() {
           require(slot.element == NumericType::UInt64, "continuation lost numeric identity");
     auto unsupported = typed;
     for (auto &expr : unsupported.expressions)
-      expr.type.element = NumericType::Int16;
+      expr.type.element = static_cast<NumericType>(255);
     auto rejectedTask = lowerNative(unsupported);
-    require(!rejectedTask && rejectedTask.error().find("int16") != std::string::npos,
-            "task backend accepted unsupported int16 IR");
+    require(!rejectedTask && rejectedTask.error().find("<invalid>") != std::string::npos,
+            "task backend accepted invalid numeric IR");
     auto realTask =
         analyze("fn identity(values:Tensor[float,?]) -> Tensor[float,?]:\n  values\n"
                 "fn main() -> float ! TaskError:\n  try parallel:\n"

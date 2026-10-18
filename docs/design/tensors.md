@@ -234,7 +234,7 @@ fn main():
 
 `values` has type `Tensor[int64, 2, 2]`; the result is `10`. Whole-number scalar expressions default to `int64`, and decimal/exponent expressions default to `float64`, following the scalar rules. A scalar input such as `tensor(7)` produces a rank-zero tensor. `tensor([1, 2, 3, 4], [2, 2])` infers the same element type with the explicit constant shape.
 
-Without an expected tensor type, each leaf expression is checked independently, in source order. All leaves must be completed CPU numeric scalars of exactly the same type. Bindings, function calls and explicit numeric conversions can supply any of the six implemented CPU element types. For example, two `int32` parameters produce an `int32` tensor without a result annotation:
+Without an expected tensor type, each leaf expression is checked independently, in source order. All leaves must be completed CPU numeric scalars of exactly the same type. Bindings, function calls and explicit numeric conversions can supply any of the ten implemented CPU element types. For example, two `int32` parameters produce an `int32` tensor without a result annotation:
 
 ```kalandra
 fn pair(left: int32, right: int32):
@@ -256,3 +256,7 @@ The CPU constructor now accepts completed numeric arrays through `tensor(values)
 ## Native tensor-to-array construction
 
 [Explicit CPU `array(tensor)` construction](tensor-array.md) now flattens logical row-major elements into an immutable numeric array, preserving the source element type. Rank-zero tensors yield one element; any zero extent yields an empty array. Helpers, map callbacks and direct/nested workers preserve array categories and retained result ownership. The current implementation makes a checked managed copy; shared storage is deferred optimization work.
+
+## Narrow CPU construction and elementwise operations
+
+[Checked 8/16-bit CPU tensors](narrow-tensors.md) now extend construction, elementwise integer arithmetic, structural array/tensor adapters, indexing, reshaping, record fields and retained local workers to all ten implemented numeric types. Narrow reductions, matrix multiplication and tensor numeric conversions remain explicitly gated; their operation support must not be inferred from storage or elementwise availability. GPU admission remains separate.

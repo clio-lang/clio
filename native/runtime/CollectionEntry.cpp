@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
   const bool boolean = kalandra_collection_element_v1 == cli::boolArrayElement;
   if ((boolean ? (!array || rank != 1)
                : !(array ? numericCollectionStorageAvailable(element, NumericTarget::Cpu)
-                         : numericArithmeticAvailable(element, NumericTarget::Cpu))) ||
+                         : numericTensorElementwiseAvailable(element, NumericTarget::Cpu))) ||
       (array && rank != 1)) {
     context.fault(3);
     context.reportFailure();

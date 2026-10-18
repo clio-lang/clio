@@ -230,7 +230,7 @@ private:
                       : resolveNumeric(name(syntax.name));
     if (!numeric ||
         !(syntax.array    ? numericCollectionStorageAvailable(*numeric, NumericTarget::Cpu)
-          : syntax.tensor ? numericArithmeticAvailable(*numeric, NumericTarget::Cpu)
+          : syntax.tensor ? numericTensorElementwiseAvailable(*numeric, NumericTarget::Cpu)
                           : numericScalarArithmeticAvailable(*numeric, NumericTarget::Cpu))) {
       error("S003",
             "expected a declared record type, String, Bool, or a supported numeric scalar, tensor "
@@ -2339,8 +2339,9 @@ private:
       return {};
     }
     if (source.tensor) {
-      if (!numericArithmeticAvailable(destination, NumericTarget::Cpu)) {
-        error("S003", "conversion destination is not implemented for tensors", span);
+      if (!numericArithmeticAvailable(destination, NumericTarget::Cpu) ||
+          !numericArithmeticAvailable(source.element, NumericTarget::Cpu)) {
+        error("S003", "tensor numeric conversion is not supported for these element types", span);
         return {};
       }
       auto result = source;
@@ -2569,8 +2570,7 @@ private:
             syntax_.expressions[arguments[0]].span);
       return {};
     }
-    if (leftType.element != NumericType::Float32 && !isInteger(leftType.element) &&
-        leftType.element != NumericType::Float64) {
+    if (!numericArithmeticAvailable(leftType.element, NumericTarget::Cpu)) {
       error("S053", callee + " currently requires implemented numeric tensor elements", span);
       return {};
     }

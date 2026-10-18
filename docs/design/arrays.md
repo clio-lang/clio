@@ -45,7 +45,7 @@ There are no implicit array-to-tensor or tensor-to-array coercions. Tensor arith
 
 ## Explicit tensor construction from arrays
 
-For the six supported 32/64-bit tensor element types, use `tensor(values)` to construct a rank-one CPU tensor from a completed numeric array:
+For all ten implemented CPU tensor element types, use `tensor(values)` to construct a rank-one CPU tensor from a completed numeric array:
 
 ```kalandra
 fn total(values: [float], offset: float) -> float:

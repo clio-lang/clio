@@ -382,7 +382,7 @@ void elementwiseArithmetic() {
 }
 void diagnostics() {
   const std::vector<std::pair<std::string, std::string>> cases{
-      {"fn f(x:Tensor[int16,1]) -> int:\n  1\n", "S003"},
+      {"fn f(x:Tensor[float16,1]) -> int:\n  1\n", "S003"},
       {"fn f(a: Tensor[float16,2,3]) -> float32:\n  1\n", "S003"},
       {"fn f() -> float32:\n  1\nfn f() -> float32:\n  2\n", "S004"},
       {"fn f(x: float32,x: float32) -> float32:\n  x\n", "S005"},

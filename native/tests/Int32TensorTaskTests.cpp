@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <vector>
 #ifndef TENSOR_RANK
@@ -23,9 +24,14 @@ using namespace kalandra;
 using namespace kalandra::runtime;
 constexpr auto element = FLOAT_RESULT == 64 ? NumericType::Float64
                          : FLOAT_RESULT     ? NumericType::Float32
-                         : UNSIGNED_RESULT
-                             ? (INTEGER_BITS == 64 ? NumericType::UInt64 : NumericType::UInt32)
-                             : (INTEGER_BITS == 64 ? NumericType::Int64 : NumericType::Int32);
+                         : UNSIGNED_RESULT  ? (INTEGER_BITS == 8    ? NumericType::UInt8
+                                               : INTEGER_BITS == 16 ? NumericType::UInt16
+                                               : INTEGER_BITS == 64 ? NumericType::UInt64
+                                                                    : NumericType::UInt32)
+                                            : (INTEGER_BITS == 8    ? NumericType::Int8
+                                               : INTEGER_BITS == 16 ? NumericType::Int16
+                                               : INTEGER_BITS == 64 ? NumericType::Int64
+                                                                    : NumericType::Int32);
 using Tensor = CpuTensor<element, TENSOR_RANK>;
 struct Result {
   Failure failure;
@@ -50,7 +56,21 @@ template <NumericType E = element> static std::vector<NumericValue<E>> expected(
   if (scenario == 3)
     return {2, 4, 6, 8};
 #endif
-  if constexpr (E == NumericType::Float64) {
+  if constexpr (isNarrowInteger(E)) {
+    using Value = NumericValue<E>;
+    if (scenario == 0)
+      return {42};
+    if (scenario == 1)
+      return {std::numeric_limits<Value>::min(), std::numeric_limits<Value>::max(), Value(42),
+              Value(0)};
+    if (scenario == 3)
+      return {2, 4, 6, 8};
+    if (scenario == 4)
+      return {};
+    if (scenario == 5)
+      return {1, std::numeric_limits<Value>::max()};
+    return {};
+  } else if constexpr (E == NumericType::Float64) {
     if (scenario == 0)
       return {18014398509481988.0};
     if (scenario == 1)

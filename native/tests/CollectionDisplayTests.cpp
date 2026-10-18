@@ -67,7 +67,7 @@ template <class T> static void numeric(NumericType type) {
     if (fault == 8)
       rank = cli::maximumCollectionRank + 1;
     if (fault == 9)
-      element = NumericType::Int8;
+      element = static_cast<NumericType>(255);
     if (fault == 10)
       array = true;
     if (fault == 11) {
@@ -137,7 +137,12 @@ template <class T> static void narrow(NumericType type) {
   descriptor.dimensions[1] = 1;
   auto result = retainForDisplay(context, descriptor, 1, type, true);
   require(bool(result) && result->data.size() == 3 * sizeof(T), "narrow interior view rejected");
-  require(!retainForDisplay(context, descriptor, 1, type, false), "narrow tensor display enabled");
+  auto tensor = retainForDisplay(context, descriptor, 1, type, false);
+  require(bool(tensor), "narrow tensor display rejected");
+  require(render(*tensor, {descriptor.dimensions.data(), 1}, type, false) ==
+              "tensor([" + std::to_string(int(low)) + ", 0, " + std::to_string(int(high)) +
+                  "], [3])\n",
+          "narrow tensor display lost signs, widths or dimensions");
   for (unsigned mode = 0; mode < 5; ++mode) {
     auto bad = descriptor;
     if (mode == 0)
@@ -230,7 +235,7 @@ int main() {
     ++cases;
     std::cout
         << "collection display: " << cases
-        << " validation/format/lifetime cases, ten array/six tensor numeric types, exact FP edges, "
+        << " validation/format/lifetime cases, ten array/tensor numeric types, exact FP edges, "
            "interior views, full-range guards, retained printing, limits and ranks 0/8/9/128 "
            "passed\n";
   } catch (const std::exception &error) {

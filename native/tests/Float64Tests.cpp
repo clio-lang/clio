@@ -77,7 +77,7 @@ int main() {
                         : surface == 1 ? &*forged.functions[0].declaredResult
                         : surface == 2 ? &forged.symbols[0].type
                                        : &forged.expressions[0].type;
-      type->element = NumericType::Int16;
+      type->element = static_cast<NumericType>(255);
       type->tensor = true;
       type->shape = {{2, 0}};
       require(!lowerNative(forged), "forged unsupported tensor reached backend lowering");

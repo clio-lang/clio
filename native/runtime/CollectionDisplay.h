@@ -22,7 +22,7 @@ inline std::optional<DisplayCollection> retainForDisplay(const Invocation &conte
                                                          bool array) noexcept {
   if (!context.usable() || rank > cli::maximumCollectionRank || (array && rank != 1) ||
       !(array ? numericCollectionStorageAvailable(element, NumericTarget::Cpu)
-              : numericArithmeticAvailable(element, NumericTarget::Cpu)) ||
+              : numericTensorElementwiseAvailable(element, NumericTarget::Cpu)) ||
       value.offset < 0)
     return {};
   bool empty = false;

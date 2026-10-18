@@ -124,7 +124,7 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       return "Bool values require CPU scalar or array storage";
     if (type.builtin != BuiltinValue::Numeric ||
         (type.array    ? numericCollectionStorageAvailable(type.element, target)
-         : type.tensor ? numericArithmeticAvailable(type.element, target)
+         : type.tensor ? numericTensorElementwiseAvailable(type.element, target)
                        : numericScalarArithmeticAvailable(type.element, target)))
       return {};
     const auto description = describeNumeric(type.element);
@@ -450,7 +450,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
                       [](const Extent &a, const Extent &b) {
                         return a.constant == b.constant && a.identity == b.identity;
                       }) ||
-          !(source.tensor ? numericArithmeticAvailable(source.element, target)
+          !(source.tensor ? (numericArithmeticAvailable(source.element, target) &&
+                             numericArithmeticAvailable(expression.type.element, target))
                           : numericScalarArithmeticAvailable(source.element, target)))
         return "numeric conversions require implemented CPU values with unchanged shape";
     }
@@ -729,35 +730,34 @@ std::string dumpTypedIR(const TypedModule &module) {
               out << "f32.bits 0x" << std::hex << std::setw(8) << std::setfill('0')
                   << operation.bits << std::dec;
             else if constexpr (std::is_same_v<T, Int32Literal>)
-              out << "i32 " << operation.value;
+              out << "i" << describeNumeric(node.type.element)->bits << " " << operation.value;
             else if constexpr (std::is_same_v<T, Int64Literal>)
               out << "i64 " << operation.value;
             else if constexpr (std::is_same_v<T, UInt64Literal>)
               out << "u64 " << operation.value;
             else if constexpr (std::is_same_v<T, UInt32Literal>)
-              out << "u32 " << operation.value;
+              out << "u" << describeNumeric(node.type.element)->bits << " " << operation.value;
             else if constexpr (std::is_same_v<T, SymbolRead>)
               out << "read $" << operation.symbol;
             else if constexpr (std::is_same_v<T, NumericConvert>) {
               out << "convert " << describeNumeric(node.type.element)->name << " checked ";
               value(operation.input);
             } else if constexpr (std::is_same_v<T, ScalarUnary>) {
-              out << (operation.operation == TokenKind::Minus ? "neg." : "pos.")
-                  << (node.type.element == NumericType::UInt64    ? "u64 checked "
-                      : node.type.element == NumericType::Int64   ? "i64 checked "
-                      : node.type.element == NumericType::UInt32  ? "u32 checked "
-                      : node.type.element == NumericType::Int32   ? "i32 checked "
-                      : node.type.element == NumericType::Float64 ? "f64 "
-                                                                  : "f32 ");
+              out << (operation.operation == TokenKind::Minus ? "neg." : "pos.");
+              if (isInteger(node.type.element))
+                out << (isUnsigned(node.type.element) ? "u" : "i")
+                    << describeNumeric(node.type.element)->bits << " checked ";
+              else
+                out << (node.type.element == NumericType::Float64 ? "f64 " : "f32 ");
               value(operation.operand);
             } else if constexpr (std::is_same_v<T, TensorUnary>) {
-              out << (node.type.element == NumericType::UInt64   ? "elementwise neg.u64 checked "
-                      : node.type.element == NumericType::Int64  ? "elementwise neg.i64 checked "
-                      : node.type.element == NumericType::UInt32 ? "elementwise neg.u32 checked "
-                      : node.type.element == NumericType::Int32  ? "elementwise neg.i32 checked "
-                      : node.type.element == NumericType::Float64
-                          ? "elementwise neg.f64 exact_sign_bit "
-                          : "elementwise neg.f32 exact_sign_bit ");
+              if (isInteger(node.type.element))
+                out << "elementwise neg." << (isUnsigned(node.type.element) ? "u" : "i")
+                    << describeNumeric(node.type.element)->bits << " checked ";
+              else
+                out << (node.type.element == NumericType::Float64
+                            ? "elementwise neg.f64 exact_sign_bit "
+                            : "elementwise neg.f32 exact_sign_bit ");
               value(operation.operand);
             } else if constexpr (std::is_same_v<T, ScalarBinary> ||
                                  std::is_same_v<T, TensorBinary>) {
@@ -768,11 +768,13 @@ std::string dumpTypedIR(const TypedModule &module) {
               if constexpr (std::is_same_v<T, TensorBinary>)
                 out << "elementwise ";
               if (isInteger(node.type.element)) {
-                const char *integer = operation.operation == TokenKind::Plus ? "add"
-                                    : operation.operation == TokenKind::Minus ? "sub"
-                                    : operation.operation == TokenKind::Star ? "mul"
-                                    : operation.operation == TokenKind::Percent ? "rem" : "div";
-                out << integer << (node.type.element == NumericType::UInt64 ? ".u64 checked " : node.type.element == NumericType::Int64 ? ".i64 checked " : node.type.element == NumericType::UInt32 ? ".u32 checked " : ".i32 checked ");
+                const char *integer = operation.operation == TokenKind::Plus      ? "add"
+                                      : operation.operation == TokenKind::Minus   ? "sub"
+                                      : operation.operation == TokenKind::Star    ? "mul"
+                                      : operation.operation == TokenKind::Percent ? "rem"
+                                                                                  : "div";
+                out << integer << "." << (isUnsigned(node.type.element) ? "u" : "i")
+                    << describeNumeric(node.type.element)->bits << " checked ";
               } else
                 out << (node.type.element == NumericType::Float64
                             ? std::string(name).replace(5, 2, "64")
