@@ -223,7 +223,12 @@ int main(int argc, char **argv) {
   const auto main = std::ranges::find_if(typed.module->functions,
                                        [](const auto &f) { return f.name == "main"; });
   const bool scalarMain = main != typed.module->functions.end() && !main->resultType.tensor;
-  if (main != typed.module->functions.end() && main->resultType.tensor)
+  if (main != typed.module->functions.end() && kalandra::isStringArray(main->resultType))
+    command.insert(command.begin() + 5, threadSanitize
+                                            ? KALANDRA_STRING_ARRAY_THREAD_SANITIZED_ENTRY
+                                        : sanitize ? KALANDRA_STRING_ARRAY_SANITIZED_ENTRY
+                                                   : KALANDRA_STRING_ARRAY_ENTRY);
+  else if (main != typed.module->functions.end() && main->resultType.tensor)
     command.insert(command.begin() + 5, threadSanitize ? KALANDRA_COLLECTION_THREAD_SANITIZED_ENTRY
                                         : sanitize     ? KALANDRA_COLLECTION_SANITIZED_ENTRY
                                                        : KALANDRA_COLLECTION_ENTRY);

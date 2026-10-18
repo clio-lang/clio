@@ -38,7 +38,7 @@ Record layout limits count a String descriptor as three storage units. Existing 
 
 ## Composition and current limits
 
-Arrays of records containing Strings are supported; a map can inspect or update those records and return a supported numeric, Bool or record array. Callbacks can capture an entire record and use its String fields. Direct `[String]` arrays and String-valued map results remain a separate implementation step. Returning a field as a standalone String is supported.
+Arrays of records containing Strings are supported; a map can inspect or update those records and return a supported numeric, Bool or record array. Callbacks can capture an entire record and use its String fields. [Direct String arrays and String-valued maps](string-arrays.md) are now supported. String-array fields in records remain a separate step. Returning a field as a standalone String is supported.
 
 String fields may coexist with all six implemented CPU numeric families, scalar Bool, numeric arrays/tensors, Bool arrays and finite nested records. GPU record placement, native distributed execution, whole-record CLI formatting and public C/C++ interfaces remain separate work. These are local CPU values, not a public binary or wire format.
 

@@ -160,7 +160,15 @@ private:
       }
       count *= *dimension.constant;
     }
-    if (isBoolArray(type)) return true;
+    if (isBoolArray(type))
+      return true;
+    if (isStringArray(type)) {
+      if (count > maximum / 24) {
+        error("S002", "String array storage exceeds the indexing range", span);
+        return false;
+      }
+      return true;
+    }
     if (!checkedNumericBytes(type.element, count, maximum)) {
       error("S002", "tensor allocation byte count overflows the supported range", span);
       return false;
@@ -176,9 +184,13 @@ private:
            name == "or" || name == "not" || name == "type" || name == "with";
   }
   std::optional<ValueType> type(const TypeSyntax &syntax) {
-    if (!syntax.tensor && !syntax.array && name(syntax.name) == "String") {
+    if (!syntax.tensor && name(syntax.name) == "String") {
       ValueType result;
       result.builtin = BuiltinValue::String;
+      if (syntax.array) {
+        result.tensor = result.array = true;
+        result.shape = {dynamic()};
+      }
       return result;
     }
     if (!syntax.tensor && name(syntax.name) == "Bool") {
@@ -1253,8 +1265,9 @@ private:
       const auto actual = node(*value).type;
       if (actual.tensor || actual.task || actual.fallible || actual.device ||
           (actual.builtin != BuiltinValue::Numeric && actual.builtin != BuiltinValue::Record &&
-           actual.builtin != BuiltinValue::Bool)) {
-        error("S058", "array elements require completed CPU numeric scalars, Bool or records",
+           actual.builtin != BuiltinValue::Bool && actual.builtin != BuiltinValue::String)) {
+        error("S058",
+              "array elements require completed CPU numeric scalars, Bool, String or records",
               syntax_.expressions[leaf].span);
         return {};
       }
@@ -1274,6 +1287,10 @@ private:
     if (isRecordArray(output) &&
         elements.size() > limits_.maxValues / recordInlineUnits(output_, *output.record)) {
       error("S024", "record array literal exceeds configured expanded storage budget", span);
+      return {};
+    }
+    if (isStringArray(output) && elements.size() > limits_.maxValues / 3) {
+      error("S024", "String array literal exceeds expanded storage budget", span);
       return {};
     }
     return add(frame, std::move(output), span, TensorLiteral{std::move(elements)});
@@ -2240,7 +2257,7 @@ private:
     }
     const auto mapElement = [](const ValueType &type) {
       return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record ||
-              type.builtin == BuiltinValue::Bool) &&
+              type.builtin == BuiltinValue::Bool || type.builtin == BuiltinValue::String) &&
              !type.tensor && !type.task && !type.fallible && !type.device;
     };
     std::optional<ValueType> inputContext;
@@ -2265,7 +2282,7 @@ private:
     const auto inputType = node(*input).type;
     if (!inputType.array ||
         (inputType.builtin != BuiltinValue::Numeric && inputType.builtin != BuiltinValue::Record &&
-         inputType.builtin != BuiltinValue::Bool) ||
+         inputType.builtin != BuiltinValue::Bool && inputType.builtin != BuiltinValue::String) ||
         inputType.task || inputType.fallible || inputType.device) {
       error("S060", "anonymous map requires a completed CPU numeric, Bool or record array", span);
       return {};
@@ -2351,7 +2368,7 @@ private:
     const auto &fn = output_.functions[id];
     const auto scalar = [](const ValueType &type) {
       return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record ||
-              type.builtin == BuiltinValue::Bool) &&
+              type.builtin == BuiltinValue::Bool || type.builtin == BuiltinValue::String) &&
              !type.tensor && !type.task && !type.fallible && !type.device;
     };
     const auto result = fn.declaredResult.value_or(fn.resultType);

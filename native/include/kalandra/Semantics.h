@@ -35,7 +35,12 @@ inline bool isRecordArray(const ValueType &type) {
 inline bool isBoolArray(const ValueType &type) {
   return type.builtin == BuiltinValue::Bool && type.array;
 }
-inline bool isOwnedArray(const ValueType &type) { return isRecordArray(type) || isBoolArray(type); }
+inline bool isStringArray(const ValueType &type) {
+  return type.builtin == BuiltinValue::String && type.array;
+}
+inline bool isOwnedArray(const ValueType &type) {
+  return isRecordArray(type) || isBoolArray(type) || isStringArray(type);
+}
 inline ValueType recordArrayElement(ValueType type) {
   type.tensor = type.array = type.task = type.fallible = false;
   type.shape.clear();

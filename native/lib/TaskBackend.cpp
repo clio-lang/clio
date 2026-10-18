@@ -102,7 +102,8 @@ public:
           "int64, uint64, float64, Bool, String or CPU numeric array/tensor main");
     const auto id = std::size_t(main - planner.input.functions.begin());
     auto *entry = module.getFunction("_mlir_ciface_kalandra_entry");
-    const bool stringResult = main->resultType.builtin == BuiltinValue::String;
+    const bool stringResult =
+        main->resultType.builtin == BuiltinValue::String && !main->resultType.tensor;
     const bool indirectResult = main->resultType.tensor || stringResult;
     if (indirectResult) {
       if (!stringResult)
@@ -239,6 +240,8 @@ private:
   std::string key(const ValueType &type) {
     if (type.task)
       return "handle";
+    if (isStringArray(type) && !type.task)
+      return "array.String";
     if (isBoolArray(type) && !type.task)
       return "array.Bool";
     if (isRecordArray(type) && !type.task)
@@ -368,7 +371,19 @@ private:
     auto *fn = function("value.copy." + name, boolean, {pointer, pointer, pointer, pointer});
     builder.SetInsertPoint(Block::Create(context, "entry", fn));
     auto *ready = Block::Create(context, "copy", fn);
-    if (type.builtin == BuiltinValue::String && !type.task) {
+    if (isStringArray(type) && !type.task) {
+      auto *retain = Block::Create(context, "string.array.retain", fn);
+      auto *failed = Block::Create(context, "string.array.failed", fn);
+      builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
+                           retain);
+      builder.SetInsertPoint(retain);
+      auto *success =
+          call("kalandra_string_array_retain_v1", boolean,
+               {fn->getArg(0), fn->getArg(2), builder.CreateStructGEP(wrapper, fn->getArg(3), 1)});
+      builder.CreateCondBr(success, ready, failed);
+      builder.SetInsertPoint(failed);
+      builder.CreateRet(builder.getFalse());
+    } else if (type.builtin == BuiltinValue::String && !type.task) {
       auto *retain = Block::Create(context, "string.retain", fn);
       auto *failed = Block::Create(context, "string.failed", fn);
       builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
@@ -433,7 +448,8 @@ private:
     builder.CreateRet(builder.getTrue());
     auto *constant = llvm::ConstantStruct::get(
         layoutType,
-        {c64(isBoolArray(type) && !type.task                      ? 0x70000
+        {c64(isStringArray(type) && !type.task                    ? 0x80000
+             : isBoolArray(type) && !type.task                    ? 0x70000
              : isRecordArray(type) && !type.task                  ? 0x60000 + *type.record
              : type.builtin == BuiltinValue::Record && !type.task ? 0x50000 + *type.record
              : type.builtin != BuiltinValue::Numeric ? 0x10000 + static_cast<unsigned>(type.builtin)

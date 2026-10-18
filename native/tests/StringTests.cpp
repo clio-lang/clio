@@ -34,8 +34,6 @@ int main() {
              "fn main()->String:\n  1\n",
              "fn main()->int64:\n  \"1\"\n",
              "fn f(x:String)->String:\n  x\nfn main()->String:\n  f(true)\n",
-             "fn main()->[String]:\n  [\"a\"]\n",
-             "fn main()->[String]:\n  [1,2]->map(fn(x): \"a\")\n",
          })
       require(!analyze(source).ok(), "unsupported String source admitted");
     for (const auto *source :
@@ -271,10 +269,7 @@ int main() {
       require(!lowerNative(*value.module), "forged String slice admitted");
     }
 #endif
-    for (const auto *source : {"fn String()->int64:\n  1\n", "fn main():\n  [\"a\",\"b\"]\n",
-                               "fn main():\n  [1,2]->map(fn(x): \"a\")\n",
-                               "fn main():\n  text=\"a\"\n  [1,2]->map(fn(x): text)\n"})
-      require(!analyze(source).ok(), "String compound/capture or builtin name admitted");
+    require(!analyze("fn String()->int64:\n  1\n").ok(), "reserved String name admitted");
     require(!analyze("fn main()->String:\n  \"" + std::string(4097, 'a') + "\"\n").ok(),
             "oversized literal admitted");
 #ifndef KALANDRA_STRING_FRONTEND_ONLY

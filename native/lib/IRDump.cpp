@@ -19,7 +19,7 @@ bool hasOrdinaryStrings(const TypedModule &module) {
                                    comparison && comparison->left < module.expressions.size() &&
                                    module.expressions[comparison->left].type.builtin ==
                                        BuiltinValue::String;
-                               return stringComparison ||
+                               return stringComparison || isStringArray(e.type) ||
                                       std::holds_alternative<StringLiteral>(e.operation) ||
                                       std::holds_alternative<StringConcat>(e.operation) ||
                                       std::holds_alternative<StringQuery>(e.operation) ||
@@ -64,8 +64,8 @@ std::string describeType(const ValueType &type) {
   if (type.builtin == BuiltinValue::Device)
     return type.device ? "Device[gpu:" + std::to_string(*type.device) + "]" : "Device[cpu]";
   if (type.builtin == BuiltinValue::String)
-    return std::string(type.task ? "task<String>" : "String") +
-           (type.fallible ? " ! TaskError" : "");
+    return std::string(type.task ? "task<" : "") + (type.array ? "[String]" : "String") +
+           (type.task ? ">" : "") + (type.fallible ? " ! TaskError" : "");
   if (type.builtin != BuiltinValue::Numeric)
     return type.builtin == BuiltinValue::TaskError   ? "TaskError"
            : type.builtin == BuiltinValue::FaultKind ? "FaultKind"
@@ -104,7 +104,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
     return "record values currently require CPU execution";
   const auto error = [&](const ValueType &type) -> std::optional<std::string> {
     if (type.builtin == BuiltinValue::String &&
-        (type.tensor || type.array || type.device || !type.shape.empty()))
+        (type.device || (type.array ? (!type.tensor || type.shape.size() != 1)
+                                    : (type.tensor || !type.shape.empty()))))
       return "String requires CPU scalar storage";
     if (type.builtin == BuiltinValue::Record) {
       if (!type.record || *type.record >= module.records.size() || type.device ||
@@ -255,8 +256,9 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
     if (arithmeticArray)
       return "arrays require explicit collection operations, not tensor/scalar arithmetic";
     if (const auto *literal = std::get_if<StringLiteral>(&expression.operation);
-        literal && (expression.type.builtin != BuiltinValue::String || expression.type.task ||
-                    expression.type.fallible || !validUtf8(literal->value)))
+        literal && (expression.type.builtin != BuiltinValue::String || expression.type.tensor ||
+                    expression.type.array || expression.type.task || expression.type.fallible ||
+                    !validUtf8(literal->value)))
       return "String literal requires valid UTF-8 and String identity";
     if (std::holds_alternative<BoolLiteral>(expression.operation) &&
         (expression.type.builtin != BuiltinValue::Bool || expression.type.tensor ||
@@ -265,6 +267,9 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       return "Boolean literal requires a completed CPU scalar Bool";
     if (const auto *literal = std::get_if<TensorLiteral>(&expression.operation)) {
       if (expression.type.array) {
+        if (isStringArray(expression.type) &&
+            literal->elements.size() > SemanticLimits{}.maxValues / 3)
+          return "String array literal exceeds expanded storage budget";
         if (isRecordArray(expression.type) &&
             literal->elements.size() >
                 SemanticLimits{}.maxValues / recordInlineUnits(module, *expression.type.record))
@@ -308,8 +313,9 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
           slice->end >= module.expressions.size())
         return "String slice references invalid operands";
       const auto &a = module.expressions[slice->input].type;
-      if (target != NumericTarget::Cpu || a.builtin != BuiltinValue::String ||
-          expression.type.builtin != BuiltinValue::String || !scalarSame(a, expression.type))
+      if (target != NumericTarget::Cpu || a.builtin != BuiltinValue::String || a.tensor ||
+          a.array || expression.type.builtin != BuiltinValue::String ||
+          !scalarSame(a, expression.type))
         return "String slice requires completed CPU String input and result";
       for (auto id : {slice->start, slice->end}) {
         const auto &i = module.expressions[id].type;
@@ -323,10 +329,11 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
         return "String index references invalid operands";
       const auto &a = module.expressions[read->input].type;
       const auto &i = module.expressions[read->index].type;
-      if (target != NumericTarget::Cpu || a.builtin != BuiltinValue::String ||
-          expression.type.builtin != BuiltinValue::String || !scalarSame(a, expression.type) ||
-          i.builtin != BuiltinValue::Numeric || !isInteger(i.element) || i.tensor || i.array ||
-          i.task || i.fallible || i.device || !i.shape.empty())
+      if (target != NumericTarget::Cpu || a.builtin != BuiltinValue::String || a.tensor ||
+          a.array || expression.type.builtin != BuiltinValue::String ||
+          !scalarSame(a, expression.type) || i.builtin != BuiltinValue::Numeric ||
+          !isInteger(i.element) || i.tensor || i.array || i.task || i.fallible || i.device ||
+          !i.shape.empty())
         return "String index requires a completed CPU String, integer index and String result";
     }
     if (const auto *query = std::get_if<StringQuery>(&expression.operation)) {
@@ -348,7 +355,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
                scalarSame(module.expressions[id].type, expression.type);
       };
       if (target != NumericTarget::Cpu || expression.type.builtin != BuiltinValue::String ||
-          !string(concat->left) || !string(concat->right))
+          expression.type.tensor || expression.type.array || !string(concat->left) ||
+          !string(concat->right))
         return "String concatenation requires two completed CPU Strings and a String result";
     }
     if (const auto *comparison = std::get_if<ScalarCompare>(&expression.operation)) {
@@ -510,7 +518,7 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       const auto &input = module.expressions[map->input].type;
       const auto scalar = [](const ValueType &type) {
         return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record ||
-                type.builtin == BuiltinValue::Bool) &&
+                type.builtin == BuiltinValue::Bool || type.builtin == BuiltinValue::String) &&
                !type.tensor && !type.task && !type.fallible && !type.device && !type.array &&
                type.shape.empty();
       };

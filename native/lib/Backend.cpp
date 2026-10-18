@@ -69,6 +69,7 @@ public:
                {"kalandra_string_literal",
                 builder_.getFunctionType({ptr, ptr, builder_.getI64Type()}, {})},
                {"kalandra_string_validate", builder_.getFunctionType({ptr}, {})},
+               {"kalandra_string_array_validate", builder_.getFunctionType({ptr}, {})},
                {"kalandra_string_slice",
                 builder_.getFunctionType({ptr, ptr, builder_.getI64Type(), builder_.getI64Type()},
                                          {})},
@@ -258,7 +259,11 @@ private:
     func::CallOp::create(builder_, loc, "kalandra_string_validate", TypeRange{}, ValueRange{slot});
   }
   void validateStrings(Location loc, Value value, const ValueType &source) {
-    if (source.builtin == BuiltinValue::String)
+    if (isStringArray(source)) {
+      auto address = stringSlot(loc, value);
+      func::CallOp::create(builder_, loc, "kalandra_string_array_validate", TypeRange{},
+                           ValueRange{address});
+    } else if (source.builtin == BuiltinValue::String)
       validateString(loc, value);
     else if (source.builtin == BuiltinValue::Record && !source.tensor) {
       const auto &fields = input_.records[*source.record].fields;
@@ -292,6 +297,8 @@ private:
   std::pair<std::uint64_t, std::uint64_t> recordCellLayout(const ValueType &array) {
     if (isBoolArray(array))
       return {1, 1};
+    if (isStringArray(array))
+      return {24, 8};
     if (auto found = recordLayouts_.find(*array.record); found != recordLayouts_.end())
       return found->second;
     llvm::LLVMContext context;
@@ -305,8 +312,12 @@ private:
     const auto [cellBytes, alignment] = recordCellLayout(array);
     auto address = descriptorSlot(loc, input.getType());
     LLVM::StoreOp::create(builder_, loc, input, address);
-    func::CallOp::create(builder_, loc, "kalandra_record_array_validate", TypeRange{},
-                         ValueRange{address, integer(loc, cellBytes), integer(loc, alignment)});
+    if (isStringArray(array))
+      func::CallOp::create(builder_, loc, "kalandra_string_array_validate", TypeRange{},
+                           ValueRange{address});
+    else
+      func::CallOp::create(builder_, loc, "kalandra_record_array_validate", TypeRange{},
+                           ValueRange{address, integer(loc, cellBytes), integer(loc, alignment)});
     return LLVM::ExtractValueOp::create(builder_, loc, input, ArrayRef<int64_t>{3, 0});
   }
   Value recordArrayStorage(Location loc, const ValueType &array, Value count) {
