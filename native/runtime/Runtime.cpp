@@ -339,3 +339,53 @@ extern "C" bool kalandra_record_retain_v1(kalandra::runtime::Invocation *destina
   }
   return !allocated || destination->retainFrom(*source, allocated);
 }
+
+namespace {
+bool validRecordArray(const kalandra::runtime::Invocation &source, const void *descriptor,
+                      std::uint64_t cellBytes, std::uint64_t alignment, void *&allocated,
+                      std::uint64_t &count) noexcept {
+  if (!source.usable() || !descriptor || !cellBytes || !alignment ||
+      (alignment & (alignment - 1)) || alignment > alignof(std::max_align_t) ||
+      cellBytes % alignment)
+    return false;
+  const auto *data = static_cast<const std::byte *>(descriptor);
+  void *aligned;
+  std::int64_t offset, length, stride;
+  std::memcpy(&allocated, data, sizeof(void *));
+  std::memcpy(&aligned, data + sizeof(void *), sizeof(void *));
+  std::memcpy(&offset, data + 2 * sizeof(void *), 8);
+  std::memcpy(&length, data + 2 * sizeof(void *) + 8, 8);
+  std::memcpy(&stride, data + 2 * sizeof(void *) + 16, 8);
+  if (length < 0 || offset || aligned != allocated)
+    return false;
+  count = static_cast<std::uint64_t>(length);
+  if (!count)
+    return !allocated && !stride;
+  if (stride != 1 || count > INT64_MAX / cellBytes ||
+      reinterpret_cast<std::uintptr_t>(allocated) % alignment)
+    return false;
+  auto lease = source.lease(allocated);
+  return lease && lease->bytes().size() >= count * cellBytes;
+}
+} // namespace
+extern "C" void kalandra_record_array_validate_v1(kalandra::runtime::Invocation *context,
+                                                  const void *descriptor, std::uint64_t cellBytes,
+                                                  std::uint64_t alignment) noexcept {
+  void *allocated = nullptr;
+  std::uint64_t count = 0;
+  if (!validRecordArray(*context, descriptor, cellBytes, alignment, allocated, count))
+    context->fault(3);
+}
+extern "C" bool kalandra_record_array_retain_v1(kalandra::runtime::Invocation *destination,
+                                                const kalandra::runtime::Invocation *source,
+                                                const void *descriptor, std::uint64_t cellBytes,
+                                                std::uint64_t alignment) noexcept {
+  void *allocated = nullptr;
+  std::uint64_t count = 0;
+  if (!destination->usable() ||
+      !validRecordArray(*source, descriptor, cellBytes, alignment, allocated, count)) {
+    destination->fault(3);
+    return false;
+  }
+  return !allocated || destination->retainFrom(*source, allocated);
+}

@@ -29,6 +29,15 @@ struct ValueType {
   std::optional<std::size_t> record = {}; // Nominal module-local declaration identity.
   std::string recordName = {}; // User-facing spelling; identity is the table index above.
 };
+inline bool isRecordArray(const ValueType &type) {
+  return type.builtin == BuiltinValue::Record && type.array;
+}
+inline ValueType recordArrayElement(ValueType type) {
+  type.tensor = type.array = type.task = type.fallible = false;
+  type.shape.clear();
+  type.identity = 0;
+  return type;
+}
 struct Symbol {
   std::string name;
   ValueType type;

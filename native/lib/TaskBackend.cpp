@@ -1,4 +1,5 @@
 #include "CollectionMetadata.h"
+#include "NativeLayout.h"
 #include "RecordLayout.h"
 #include "kalandra/Backend.h"
 #include "kalandra/Continuation.h"
@@ -37,7 +38,7 @@ class Emitter {
 public:
   Emitter(ModulePlan &planner, llvm::Module &module)
       : planner(planner), module(module), context(module.getContext()), builder(context) {
-    module.setDataLayout("e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-n32:64-S128-Fn32");
+    module.setDataLayout(nativeCpuDataLayout);
     pointer = builder.getPtrTy();
     i32 = builder.getInt32Ty();
     i64 = builder.getInt64Ty();
@@ -220,6 +221,8 @@ private:
                                                   : f32;
   }
   std::string key(const ValueType &type) {
+    if (isRecordArray(type) && !type.task)
+      return "record.array." + std::to_string(*type.record);
     if (type.builtin == BuiltinValue::Record && !type.task)
       return "record." + std::to_string(*type.record);
     if (type.array && !type.task)
@@ -267,6 +270,42 @@ private:
     return builder.CreateICmpNE(
         builder.CreateLoad(i32, builder.CreateStructGEP(failureType, pointer, 0)), c32(0));
   }
+  void retainRecordArray(const ValueType &type, Value *input, Function *fn, Block *failed) {
+    const auto cellType = recordArrayElement(type);
+    auto *cell = scalarType(cellType);
+    auto *valid =
+        call("kalandra_record_array_retain_v1", boolean,
+             {fn->getArg(0), fn->getArg(2), input, c64(size(cell)), c64(alignment(cell))});
+    auto *begin = Block::Create(context, "array.begin", fn);
+    builder.CreateCondBr(valid, begin, failed);
+    builder.SetInsertPoint(begin);
+    auto *value = builder.CreateLoad(descriptor(type), input);
+    auto *count = builder.CreateExtractValue(value, {3, 0});
+    auto *storage = builder.CreateExtractValue(value, {1});
+    auto *head = Block::Create(context, "array.head", fn);
+    auto *body = Block::Create(context, "array.body", fn);
+    auto *done = Block::Create(context, "array.done", fn);
+    builder.CreateBr(head);
+    builder.SetInsertPoint(head);
+    auto *index = builder.CreatePHI(i64, 2, "element");
+    index->addIncoming(c64(0), begin);
+    auto *gate = Block::Create(context, "array.poll.gate", fn);
+    auto *poll = Block::Create(context, "array.poll", fn);
+    builder.CreateCondBr(builder.CreateICmpULT(index, count), gate, done);
+    builder.SetInsertPoint(gate);
+    builder.CreateCondBr(builder.CreateICmpEQ(builder.CreateAnd(index, c64(255)), c64(0)), poll,
+                         body);
+    builder.SetInsertPoint(poll);
+    auto *status = call("kalandra_poll_v1", i64, {fn->getArg(0)});
+    builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), body, failed);
+    builder.SetInsertPoint(body);
+    auto *address = builder.CreateInBoundsGEP(cell, storage, index);
+    retainRecord(cellType, address, fn, failed);
+    auto *next = builder.CreateAdd(index, c64(1));
+    index->addIncoming(next, builder.GetInsertBlock());
+    builder.CreateBr(head);
+    builder.SetInsertPoint(done);
+  }
   void retainRecord(const ValueType &type, Value *input, Function *fn, Block *failed) {
     const auto &fields = planner.input.records[*type.record].fields;
     for (std::size_t i = 0; i < fields.size(); ++i) {
@@ -302,7 +341,17 @@ private:
     auto *fn = function("value.copy." + name, boolean, {pointer, pointer, pointer, pointer});
     builder.SetInsertPoint(Block::Create(context, "entry", fn));
     auto *ready = Block::Create(context, "copy", fn);
-    if (type.tensor) {
+    if (isRecordArray(type)) {
+      auto *retain = Block::Create(context, "array.retain", fn);
+      auto *failed = Block::Create(context, "array.failed", fn);
+      builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
+                           retain);
+      builder.SetInsertPoint(retain);
+      retainRecordArray(type, builder.CreateStructGEP(wrapper, fn->getArg(3), 1), fn, failed);
+      builder.CreateBr(ready);
+      builder.SetInsertPoint(failed);
+      builder.CreateRet(builder.getFalse());
+    } else if (type.tensor) {
       auto *retain = Block::Create(context, "retain", fn);
       builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
                            retain);
@@ -333,7 +382,8 @@ private:
     builder.CreateRet(builder.getTrue());
     auto *constant = llvm::ConstantStruct::get(
         layoutType,
-        {c64(type.builtin == BuiltinValue::Record && !type.task ? 0x50000 + *type.record
+        {c64(isRecordArray(type) && !type.task                    ? 0x60000 + *type.record
+             : type.builtin == BuiltinValue::Record && !type.task ? 0x50000 + *type.record
              : type.builtin != BuiltinValue::Numeric ? 0x10000 + static_cast<unsigned>(type.builtin)
              : type.array                            ? 0x40000 + static_cast<unsigned>(type.element)
              : type.tensor
@@ -536,9 +586,10 @@ private:
         if (indirectResult)
           arguments.push_back(payload(instruction.output));
         for (auto argument : instruction.args)
-          arguments.push_back(plan.slots[argument].tensor
-                                  ? payload(argument)
-                                  : builder.CreateLoad(scalarType(plan.slots[argument]), payload(argument)));
+          arguments.push_back(
+              plan.slots[argument].tensor && !isRecordArray(plan.slots[argument])
+                  ? payload(argument)
+                  : builder.CreateLoad(scalarType(plan.slots[argument]), payload(argument)));
         arguments.push_back(ctx);
         auto *value = builder.CreateCall(fn, arguments);
         if (!indirectResult) {

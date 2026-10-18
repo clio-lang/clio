@@ -1,5 +1,6 @@
 #include "kalandra/Backend.h"
 #include "CollectionMetadata.h"
+#include "NativeLayout.h"
 #include "RecordLayout.h"
 #include "kalandra/NumericConversion.h"
 #include "kalandra/StrictFloat.h"
@@ -19,6 +20,7 @@
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Target/LLVMIR/Dialect/All.h"
 #include "mlir/Target/LLVMIR/Export.h"
+#include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
 #include <functional>
@@ -52,6 +54,8 @@ public:
       for (const auto &[name, signature] : std::vector<std::pair<std::string, FunctionType>>{
                {"kalandra_record_alloc", builder_.getFunctionType({builder_.getI64Type()}, {ptr})},
                {"kalandra_record_cleanup", builder_.getFunctionType({}, {})},
+               {"kalandra_record_array_validate",
+                builder_.getFunctionType({ptr, builder_.getI64Type(), builder_.getI64Type()}, {})},
                {"kalandra_record_validate",
                 builder_.getFunctionType({ptr, builder_.getI64Type(), builder_.getI64Type()},
                                          {})}}) {
@@ -121,6 +125,8 @@ private:
                                input_.source->origin(span.begin).first->path(), line, column);
   }
   Type type(const ValueType &value) {
+    if (isRecordArray(value))
+      return recordDescriptor(value);
     if (value.builtin == BuiltinValue::Record) {
       if (auto found = recordTypes_.find(*value.record); found != recordTypes_.end())
         return found->second;
@@ -202,6 +208,60 @@ private:
       // Zero-count shapes need no representable suffix product.
       stride = arith::MulIOp::create(builder_, loc, canonical, shape[axis - 1]);
     }
+    return result;
+  }
+  Value descriptorSlot(Location loc, Type type) {
+    OpBuilder::InsertionGuard guard(builder_);
+    auto *parent = builder_.getInsertionBlock()->getParentOp();
+    while (!isa<func::FuncOp>(parent))
+      parent = parent->getParentOp();
+    builder_.setInsertionPointToStart(&cast<func::FuncOp>(parent).getBody().front());
+    return LLVM::AllocaOp::create(builder_, loc, LLVM::LLVMPointerType::get(builder_.getContext()),
+                                  type, integer(loc, 1));
+  }
+  std::pair<std::uint64_t, std::uint64_t> recordCellLayout(const ValueType &array) {
+    if (auto found = recordLayouts_.find(*array.record); found != recordLayouts_.end())
+      return found->second;
+    llvm::LLVMContext context;
+    LLVM::TypeToLLVMIRTranslator translator(context);
+    llvm::DataLayout layout(nativeCpuDataLayout);
+    auto *cell = translator.translateType(type(recordArrayElement(array)));
+    return recordLayouts_[*array.record] = {layout.getTypeAllocSize(cell).getFixedValue(),
+                                            layout.getABITypeAlign(cell).value()};
+  }
+  Value recordArrayLength(Location loc, Value input, const ValueType &array) {
+    const auto [cellBytes, alignment] = recordCellLayout(array);
+    auto address = descriptorSlot(loc, input.getType());
+    LLVM::StoreOp::create(builder_, loc, input, address);
+    func::CallOp::create(builder_, loc, "kalandra_record_array_validate", TypeRange{},
+                         ValueRange{address, integer(loc, cellBytes), integer(loc, alignment)});
+    return LLVM::ExtractValueOp::create(builder_, loc, input, ArrayRef<int64_t>{3, 0});
+  }
+  Value recordArrayLiteral(Location loc, const ValueType &array, ArrayRef<Value> elements) {
+    const auto cell = type(recordArrayElement(array));
+    const auto cellBytes = recordCellLayout(array).first;
+    auto count = index(loc, elements.size());
+    auto checked = checkedCount(loc, {count}, cellBytes);
+    auto bytes = arith::MulIOp::create(builder_, loc, checked, index(loc, cellBytes));
+    auto bytes64 = arith::IndexCastOp::create(builder_, loc, builder_.getI64Type(), bytes);
+    auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
+    Value storage = func::CallOp::create(builder_, loc, "kalandra_record_alloc", TypeRange{ptr},
+                                         ValueRange{bytes64})
+                        .getResult(0);
+    for (std::size_t i = 0; i < elements.size(); ++i) {
+      auto address =
+          LLVM::GEPOp::create(builder_, loc, ptr, cell, storage, ValueRange{integer(loc, i)});
+      LLVM::StoreOp::create(builder_, loc, elements[i], address);
+    }
+    Value result = LLVM::UndefOp::create(builder_, loc, recordDescriptor(array));
+    const auto insert = [&](Value value, ArrayRef<int64_t> path) {
+      result = LLVM::InsertValueOp::create(builder_, loc, result, value, path);
+    };
+    insert(storage, {0});
+    insert(storage, {1});
+    insert(integer(loc, 0), {2});
+    insert(integer(loc, elements.size()), {3, 0});
+    insert(integer(loc, elements.empty() ? 0 : 1), {4, 0});
     return result;
   }
   Value recordUnpack(Location loc, Value input, const ValueType &field) {
@@ -1050,6 +1110,31 @@ private:
             return elementwise(loc, a, b, cast<RankedTensorType>(type(node.type)),
                                operation.operation, node.type.element);
           } else if constexpr (std::is_same_v<T, ArrayIndex> || std::is_same_v<T, TensorIndex>) {
+            if constexpr (std::is_same_v<T, ArrayIndex>) {
+              const auto &array = input_.expressions[operation.input].type;
+              if (isRecordArray(array)) {
+                auto input = expression(frame, operation.input);
+                Value position = expression(frame, operation.index);
+                const auto element = input_.expressions[operation.index].type.element;
+                if (isInteger32(element)) {
+                  if (isUnsigned(element))
+                    position =
+                        arith::ExtUIOp::create(builder_, loc, builder_.getI64Type(), position);
+                  else
+                    position =
+                        arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), position);
+                }
+                auto count = recordArrayLength(loc, input, array);
+                guard(loc, compare(loc, arith::CmpIPredicate::ult, position, count), 5);
+                auto storage =
+                    LLVM::ExtractValueOp::create(builder_, loc, input, ArrayRef<int64_t>{1});
+                auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
+                auto cell = type(node.type);
+                auto address =
+                    LLVM::GEPOp::create(builder_, loc, ptr, cell, storage, ValueRange{position});
+                return LLVM::LoadOp::create(builder_, loc, cell, address);
+              }
+            }
             auto input = expression(frame, operation.input);
             std::vector<ValueId> indices;
             if constexpr (std::is_same_v<T, ArrayIndex>)
@@ -1081,6 +1166,9 @@ private:
             return tensor::ExtractOp::create(builder_, loc, input, offsets);
           } else if constexpr (std::is_same_v<T, CollectionQuery>) {
             auto input = expression(frame, operation.input);
+            const auto &array = input_.expressions[operation.input].type;
+            if (isRecordArray(array))
+              return recordArrayLength(loc, input, array);
             auto shape = dimensions(loc, input);
             checkedCount(
                 loc, shape,
@@ -1259,6 +1347,8 @@ private:
             SmallVector<Value> elements;
             for (auto child : operation.elements)
               elements.push_back(expression(frame, child));
+            if (isRecordArray(node.type))
+              return recordArrayLiteral(loc, node.type, elements);
             return tensor::FromElementsOp::create(builder_, loc, type(node.type), elements);
           } else if constexpr (std::is_same_v<T, ConditionalOperation>) {
             auto condition = expression(frame, operation.condition);
@@ -1307,6 +1397,15 @@ private:
             throw LoweringFailure{"task operation requires continuation lowering"};
           } else if constexpr (std::is_same_v<T, ShapeCheck>) {
             auto input = expression(frame, operation.input);
+            if (isRecordArray(node.type)) {
+              auto count = recordArrayLength(loc, input, node.type);
+              for (const auto &requirement : operation.requirements)
+                guard(
+                    loc,
+                    compare(loc, arith::CmpIPredicate::eq, count, integer(loc, requirement.extent)),
+                    1);
+              return input;
+            }
             for (const auto &requirement : operation.requirements) {
               auto actual =
                   tensor::DimOp::create(builder_, loc, input, index(loc, requirement.axis));
@@ -1347,7 +1446,7 @@ private:
     SmallVector<Type> arguments;
     for (auto parameter : found->parameters) {
       const auto &t = input_.symbols[parameter].type;
-      if (!t.tensor)
+      if (!t.tensor || isRecordArray(t))
         arguments.push_back(type(t));
       else
         arguments.push_back(
@@ -1364,7 +1463,7 @@ private:
     for (std::size_t i = 0; i < arguments.size(); ++i) {
       Value argument = function.getArgument(i);
       const auto &t = input_.symbols[found->parameters[i]].type;
-      if (t.tensor) {
+      if (t.tensor && !isRecordArray(t)) {
         SmallVector<Value> shape;
         for (std::size_t axis = 0; axis < t.shape.size(); ++axis) {
           auto d = memref::DimOp::create(builder_, function.getLoc(), argument,
@@ -1394,6 +1493,7 @@ private:
   OwningOpRef<ModuleOp> module_;
   std::vector<func::FuncOp> functions_;
   std::unordered_map<std::size_t, Type> recordTypes_;
+  std::unordered_map<std::size_t, std::pair<std::uint64_t, std::uint64_t>> recordLayouts_;
   unsigned nextMatmulHelper_ = 0;
 };
 } // namespace

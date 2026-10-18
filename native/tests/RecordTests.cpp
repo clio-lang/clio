@@ -70,7 +70,6 @@ int main(int argc, char **argv) {
                       "fn main():\n  Point(1,2)\n",
                       "fn main():\n  Point {x:1,y:2}==Point {x:1,y:2}\n",
                       "fn main():\n  Point {x:1,y:2}+Point {x:1,y:2}\n",
-                      "fn main():\n  [Point {x:1,y:2}]\n",
                       "fn main():\n  parallel:\n    work=spawn read(Point {x:1,y:2})\n    "
                       "work.x\nfn read(p:Point):\n  p\n",
                       "fn make()->Point ! TaskError:\n  Point {x:1,y:2}\nfn main():\n  make().x\n"})

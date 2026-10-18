@@ -91,6 +91,11 @@ private:
 // Revision is encoded in the symbols: mismatched compiler/runtime builds fail
 // at link time. No process-global or thread-local current invocation exists.
 extern "C" {
+void kalandra_record_array_validate_v1(kalandra::runtime::Invocation *, const void *, std::uint64_t,
+                                       std::uint64_t) noexcept;
+bool kalandra_record_array_retain_v1(kalandra::runtime::Invocation *,
+                                     const kalandra::runtime::Invocation *, const void *,
+                                     std::uint64_t, std::uint64_t) noexcept;
 void *kalandra_record_alloc_v1(kalandra::runtime::Invocation *, std::uint64_t) noexcept;
 void kalandra_record_cleanup_v1(kalandra::runtime::Invocation *) noexcept;
 void kalandra_record_validate_v1(kalandra::runtime::Invocation *, const void *, std::uint64_t,

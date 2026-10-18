@@ -1,9 +1,16 @@
 #pragma once
 #include "kalandra/Semantics.h"
 #include <algorithm>
+#include <functional>
 
 namespace kalandra {
 inline bool hasRecordCollections(const TypedModule &module) {
+  for (const auto &expression : module.expressions)
+    if (isRecordArray(expression.type))
+      return true;
+  for (const auto &symbol : module.symbols)
+    if (isRecordArray(symbol.type))
+      return true;
   for (const auto &record : module.records)
     for (const auto &field : record.fields)
       if (field.type.tensor)
@@ -85,5 +92,21 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
     }
   }
   return {};
+}
+// Called only after finite-layout validation; memoize shared child declarations.
+inline std::size_t recordInlineUnits(const TypedModule &module, std::size_t root) {
+  std::vector<std::optional<std::size_t>> cache(module.records.size());
+  std::function<std::size_t(std::size_t)> count = [&](std::size_t id) {
+    if (cache[id])
+      return *cache[id];
+    std::size_t total = 0;
+    for (const auto &field : module.records[id].fields)
+      total += field.type.record   ? count(*field.type.record)
+               : field.type.tensor ? 3 + 2 * field.type.shape.size()
+                                   : 1;
+    cache[id] = total;
+    return total;
+  };
+  return count(root);
 }
 } // namespace kalandra

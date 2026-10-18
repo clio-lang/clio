@@ -24,9 +24,10 @@ bool hasPlacement(const TypedModule &module) {
          });
 }
 std::string describeType(const ValueType &type) {
-  if (type.builtin == BuiltinValue::Record)
-    return (type.task ? "task<" + type.recordName + ">" : type.recordName) +
-           (type.fallible ? " ! TaskError" : "");
+  if (type.builtin == BuiltinValue::Record) {
+    const auto name = type.array ? "[" + type.recordName + "]" : type.recordName;
+    return (type.task ? "task<" + name + ">" : name) + (type.fallible ? " ! TaskError" : "");
+  }
   if (type.builtin == BuiltinValue::Bool)
     return std::string(type.task ? "task<Bool>" : "Bool") + (type.fallible ? " ! TaskError" : "");
   if (type.builtin == BuiltinValue::Device)
@@ -65,14 +66,16 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
     return "record values currently require CPU execution";
   const auto error = [&](const ValueType &type) -> std::optional<std::string> {
     if (type.builtin == BuiltinValue::Record) {
-      if (!type.record || *type.record >= module.records.size() || type.tensor || type.array ||
-          type.device || !type.shape.empty())
+      if (!type.record || *type.record >= module.records.size() || type.device ||
+          (type.array ? (!type.tensor || type.shape.size() != 1)
+                      : (type.tensor || !type.shape.empty())))
         return "invalid CPU record type";
     } else if (type.record)
       return "non-record value carries a record identity";
 
-    if (type.array && (target != NumericTarget::Cpu || !type.tensor || type.shape.size() != 1 ||
-                       type.builtin != BuiltinValue::Numeric || type.device))
+    if (type.array &&
+        (target != NumericTarget::Cpu || !type.tensor || type.shape.size() != 1 ||
+         (type.builtin != BuiltinValue::Numeric && !isRecordArray(type)) || type.device))
       return "arrays require rank-one CPU numeric storage";
     if (type.builtin == BuiltinValue::Bool &&
         (target != NumericTarget::Cpu || type.tensor || type.device))
@@ -85,7 +88,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
            (target == NumericTarget::Cpu ? "CPU" : "Apple GPU") + " backend";
   };
   const auto sameArray = [](const ValueType &a, const ValueType &b) {
-    return a.record == b.record && a.array == b.array && (!a.array || a.element == b.element);
+    return a.builtin == b.builtin && a.record == b.record && a.array == b.array &&
+           (!a.array || a.builtin != BuiltinValue::Numeric || a.element == b.element);
   };
   if (auto invalid = recordLayoutError(module))
     return invalid->message;
@@ -130,7 +134,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       return failure;
     if (const auto *value = std::get_if<RecordValue>(&expression.operation)) {
       const auto &t = expression.type;
-      if (t.builtin != BuiltinValue::Record || !t.record || t.task || t.fallible)
+      if (t.builtin != BuiltinValue::Record || !t.record || t.tensor || t.array || t.task ||
+          t.fallible)
         return "record construction requires a completed record result";
       const auto &fields = module.records[*t.record].fields;
       if (value->base && (*value->base >= module.expressions.size() ||
@@ -210,14 +215,22 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       return "arrays require explicit collection operations, not tensor/scalar arithmetic";
     if (const auto *literal = std::get_if<TensorLiteral>(&expression.operation)) {
       if (expression.type.array) {
+        if (isRecordArray(expression.type) &&
+            literal->elements.size() >
+                SemanticLimits{}.maxValues / recordInlineUnits(module, *expression.type.record))
+          return "record array literal exceeds configured expanded storage budget";
         if (!expression.type.shape[0].constant ||
             *expression.type.shape[0].constant != literal->elements.size())
           return "array literal length mismatch";
         for (auto id : literal->elements) {
+          if (id >= module.expressions.size())
+            return "array literal references invalid element";
           const auto &element = module.expressions[id].type;
-          if (element.tensor || element.task || element.fallible || element.device ||
-              element.builtin != BuiltinValue::Numeric ||
-              element.element != expression.type.element)
+          if (element.tensor || element.array || element.task || element.fallible ||
+              element.device || element.builtin != expression.type.builtin ||
+              element.record != expression.type.record ||
+              (element.builtin == BuiltinValue::Numeric &&
+               element.element != expression.type.element))
             return "array literal requires homogeneous completed numeric scalar elements";
         }
       }
@@ -284,8 +297,12 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
                !t.task && !t.fallible && !t.device;
       };
       if (target != NumericTarget::Cpu || !a.array || !a.tensor || a.shape.size() != 1 ||
-          a.builtin != BuiltinValue::Numeric || a.task || a.fallible || a.device || !scalar(i) ||
-          !isInteger(i.element) || !scalar(r) || r.element != a.element)
+          (a.builtin != BuiltinValue::Numeric && !isRecordArray(a)) || a.task || a.fallible ||
+          a.device || !scalar(i) || !isInteger(i.element) ||
+          (isRecordArray(a)
+               ? (r.builtin != BuiltinValue::Record || r.record != a.record || r.tensor ||
+                  r.array || r.task || r.fallible || r.device || !r.shape.empty())
+               : (!scalar(r) || r.element != a.element)))
         return "array indexing requires completed CPU numeric array and integer scalar operands";
     }
     if (const auto *read = std::get_if<TensorIndex>(&expression.operation)) {
@@ -316,10 +333,11 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       const auto &r = expression.type;
       const bool length = query->kind == CollectionQueryKind::Length;
       if ((!length && query->kind != CollectionQueryKind::Shape) || target != NumericTarget::Cpu ||
-          !a.tensor || a.builtin != BuiltinValue::Numeric || a.task || a.fallible || a.device ||
-          a.array != length || (length && a.shape.size() != 1) ||
-          r.builtin != BuiltinValue::Numeric || r.element != NumericType::Int64 || r.task ||
-          r.fallible || r.device || r.tensor != !length || r.array != !length)
+          !a.tensor || (a.builtin != BuiltinValue::Numeric && !(length && isRecordArray(a))) ||
+          a.task || a.fallible || a.device || a.array != length ||
+          (length && a.shape.size() != 1) || r.builtin != BuiltinValue::Numeric ||
+          r.element != NumericType::Int64 || r.task || r.fallible || r.device ||
+          r.tensor != !length || r.array != !length)
         return "collection query requires completed CPU values and exact int64 metadata result";
       if (length ? !r.shape.empty()
                  : (r.shape.size() != 1 || r.shape[0].constant != a.shape.size() ||

@@ -119,3 +119,5 @@ Declare named numeric/Boolean fields with `type Point:`, construct with `Point {
 CPU records can also own [numeric arrays and tensors](../docs/design/record-collections.md), including nested fields and retained worker captures/results. Construction and reads currently copy collection data; storage sharing remains an optimization follow-up.
 
 [Anonymous numeric callbacks can capture whole CPU records](../docs/design/record-closures.md), including nested array/tensor fields and values returned by workers. Captures keep their nominal type and immutable ownership rules.
+
+[Immutable record arrays](../docs/design/record-arrays.md) support construction, length, checked indexing, helper returns and CPU worker captures/results. Element records can contain nested numeric collection fields. Record-element mapping follows as a separate milestone.

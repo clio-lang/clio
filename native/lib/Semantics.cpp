@@ -179,10 +179,16 @@ private:
       result.builtin = BuiltinValue::Bool;
       return result;
     }
-    if (!syntax.tensor && !syntax.array) {
+    if (!syntax.tensor) {
       const auto key = functionKey(syntax_.source->partIndex(syntax.name.begin), name(syntax.name));
-      if (auto found = records_.find(key); found != records_.end())
-        return recordType(found->second);
+      if (auto found = records_.find(key); found != records_.end()) {
+        auto result = recordType(found->second);
+        if (syntax.array) {
+          result.tensor = result.array = true;
+          result.shape = {dynamic()};
+        }
+        return result;
+      }
     }
     const auto numeric =
         syntax.tensor ? (syntax.element ? resolveNumeric(name(*syntax.element)) : std::nullopt)
@@ -701,8 +707,8 @@ private:
       if (!base)
         return {};
       result = node(*base).type;
-      if (result.builtin != BuiltinValue::Record || result.task || result.fallible ||
-          !result.record) {
+      if (result.builtin != BuiltinValue::Record || result.tensor || result.array || result.task ||
+          result.fallible || !result.record) {
         error("S068", "with requires a completed record value", span);
         return {};
       }
@@ -747,7 +753,8 @@ private:
     if (!input)
       return {};
     const auto type = node(*input).type;
-    if (type.builtin != BuiltinValue::Record || type.task || type.fallible || !type.record) {
+    if (type.builtin != BuiltinValue::Record || type.tensor || type.array || type.task ||
+        type.fallible || !type.record) {
       error("S068", "field access requires a completed record value", span);
       return {};
     }
@@ -990,8 +997,9 @@ private:
       return {};
     const auto type = node(*input).type;
     const bool length = callee == "length";
-    if (!type.tensor || type.builtin != BuiltinValue::Numeric || type.task || type.fallible ||
-        type.device || type.array != length) {
+    if (!type.tensor ||
+        (type.builtin != BuiltinValue::Numeric && !(length && isRecordArray(type))) || type.task ||
+        type.fallible || type.device || type.array != length) {
       error("S064",
             callee + (length ? " requires a completed CPU numeric array"
                              : " requires a completed CPU numeric tensor"),
@@ -1022,7 +1030,8 @@ private:
     if (!input)
       return {};
     const auto a = node(*input).type;
-    if (!a.tensor || a.task || a.fallible || a.device || a.builtin != BuiltinValue::Numeric) {
+    if (!a.tensor || a.task || a.fallible || a.device ||
+        (a.builtin != BuiltinValue::Numeric && !isRecordArray(a))) {
       error("S061", "indexing requires a completed CPU numeric array or tensor", span);
       return {};
     }
@@ -1057,7 +1066,7 @@ private:
         return {};
       }
     }
-    ValueType result;
+    ValueType result = isRecordArray(a) ? recordArrayElement(a) : ValueType{};
     result.element = a.element;
     if (a.array)
       return add(frame, result, span, ArrayIndex{*input, indices[0]});
@@ -1080,35 +1089,46 @@ private:
     }
     ValueType output{true, {{array.elements.size(), 0}}};
     output.array = true;
-    if (expected)
+    if (expected) {
       output.element = expected->element;
+      output.builtin = expected->builtin;
+      output.record = expected->record;
+      output.recordName = expected->recordName;
+    }
     std::vector<ValueId> elements;
     for (auto leaf : array.elements) {
       std::optional<ValueType> context;
       if (expected) {
-        context = ValueType{};
-        context->element = output.element;
+        context = recordArrayElement(output);
       }
       auto value = expression(frame, leaf, context);
       if (!value)
         return {};
       const auto actual = node(*value).type;
       if (actual.tensor || actual.task || actual.fallible || actual.device ||
-          actual.builtin != BuiltinValue::Numeric) {
-        error("S058", "array elements currently require completed CPU numeric scalars",
+          (actual.builtin != BuiltinValue::Numeric && actual.builtin != BuiltinValue::Record)) {
+        error("S058", "array elements require completed CPU numeric scalars or records",
               syntax_.expressions[leaf].span);
         return {};
       }
-      if (!expected && elements.empty())
+      if (!expected && elements.empty()) {
         output.element = actual.element;
-      ValueType scalar;
-      scalar.element = output.element;
+        output.builtin = actual.builtin;
+        output.record = actual.record;
+        output.recordName = actual.recordName;
+      }
+      auto scalar = recordArrayElement(output);
       if (!conform(frame, *value, scalar, syntax_.expressions[leaf].span))
         return {};
       elements.push_back(*value);
     }
     if (!validSize(output, span))
       return {};
+    if (isRecordArray(output) &&
+        elements.size() > limits_.maxValues / recordInlineUnits(output_, *output.record)) {
+      error("S024", "record array literal exceeds configured expanded storage budget", span);
+      return {};
+    }
     return add(frame, std::move(output), span, TensorLiteral{std::move(elements)});
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const TaskExpr &operation,
@@ -1910,8 +1930,7 @@ private:
     for (auto leaf : data->leaves) {
       std::optional<ValueType> context;
       if (contextual) {
-        context = ValueType{};
-        context->element = output.element;
+        context = recordArrayElement(output);
       }
       // Infer unannotated leaves independently, in source order. A previously
       // inferred leaf must not silently supply narrowing/promotion context.
@@ -1936,6 +1955,11 @@ private:
     }
     if (!validSize(output, span))
       return {};
+    if (isRecordArray(output) &&
+        elements.size() > limits_.maxValues / recordInlineUnits(output_, *output.record)) {
+      error("S024", "record array literal exceeds configured expanded storage budget", span);
+      return {};
+    }
     return add(frame, std::move(output), span, TensorLiteral{std::move(elements)});
   }
   static const llvm::fltSemantics &floatSemantics(NumericType type) {
@@ -2084,7 +2108,8 @@ private:
     if (!input)
       return {};
     const auto inputType = node(*input).type;
-    if (!inputType.array || inputType.task || inputType.fallible || inputType.device) {
+    if (!inputType.array || inputType.builtin != BuiltinValue::Numeric || inputType.task ||
+        inputType.fallible || inputType.device) {
       error("S060", "anonymous map requires a completed CPU numeric array", span);
       return {};
     }

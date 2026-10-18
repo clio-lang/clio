@@ -106,3 +106,18 @@ The CPU subset now accepts `if condition: ... else: ...` with inline or indented
 ## Local module syntax and loading
 
 [Native local function modules](modules.md) now add top-level named imports with optional aliases and `export fn` declarations. The CPU compiler/checker use a bounded canonical-file graph loader with independent per-file parsing, module-local visibility and original source mappings. The parser alone retains declarations without reading dependencies; semantic checking rejects imports that have not been resolved by the loader.
+
+## Tracked parser follow-up: array expression after a block binding (FRONT-001)
+
+An array literal beginning the next statement after a block-valued binding can currently be mistaken for an unsupported postfix expression and report `P010`. A minimal reproducer is:
+
+```kalandra
+fn identity(value: int) -> int:
+  value
+fn main() -> [int] ! TaskError:
+  result = try parallel:
+    try await spawn identity(1)
+  [result]
+```
+
+Binding the literal first (`output = [result]`, followed by `output`) avoids the ambiguity. Fix statement-boundary handling during frontend polish; this is an existing parser defect, not an intended array or lifetime restriction. Record-array execution examples use unambiguous statement boundaries.

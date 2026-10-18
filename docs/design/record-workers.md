@@ -42,7 +42,7 @@ The shared continuation planner carries the record declaration table into its ML
 
 Records with numeric/Boolean leaves, either directly or inside nested inline records, copy the complete value without backing-storage leases or per-record heap allocations. Records containing collections instead use recursive retention of their [owned field storage](record-collections.md). Scheduler frames and task bookkeeping still use the scheduler's bounded allocation and cleanup mechanisms. Larger records consume more of that existing task-memory budget. This internal layout is not a public C/C++ library ABI or wire contract.
 
-Record arrays, general record printing and GPU/mixed-target record execution remain separate implementation gates. `main` must still return a supported numeric scalar, `Bool`, numeric array or tensor. Native distributed execution requires the agreed design discussion before implementation.
+[Record arrays](record-arrays.md) now support retained worker captures/results, including nested numeric collection fields. General record printing and GPU/mixed-target record execution remain separate implementation gates. `main` must still return a supported numeric scalar, `Bool`, numeric array or tensor. Native distributed execution requires the agreed design discussion before implementation.
 
 ## Qualification
 

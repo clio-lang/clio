@@ -43,7 +43,7 @@ An inline record cannot contain itself directly or through a cycle of record fie
 
 Native layout validation also applies compiler resource budgets: by default, at most 128 record levels and 300,000 expanded numeric/Boolean leaves per record. Repeated embeddings count each child's leaves, even when its target type is cached. This prevents a short sequence of declarations from requesting exponentially large inline storage or printed type descriptions. These are implementation budgets, not new source-language types or allocation controls. Existing syntax and semantic budgets also apply.
 
-[Collection fields](record-collections.md) now have an owned CPU baseline. Recursive structures behind managed storage, record arrays, type-name exports, general record display and GPU/mixed-target records remain separate work. Native distributed execution still requires the agreed design discussion. The internal struct and task layouts are not a public C/C++ or wire ABI.
+[Collection fields](record-collections.md) now have an owned CPU baseline. [Record arrays](record-arrays.md) are also supported outside record fields. Recursive structures behind managed storage, type-name exports, general record display and GPU/mixed-target records remain separate work. Native distributed execution still requires the agreed design discussion. The internal struct and task layouts are not a public C/C++ or wire ABI.
 
 ## Qualification
 

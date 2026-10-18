@@ -892,3 +892,5 @@ include(cmake/NestedRecords.cmake)
 include(cmake/RecordCollections.cmake)
 
 include(cmake/RecordClosures.cmake)
+
+include(cmake/RecordArrays.cmake)
