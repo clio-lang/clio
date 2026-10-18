@@ -1,6 +1,6 @@
 # Native String contract
 
-Proposed implementation contract — 2026-10-18. This is a review baseline for the next compiler slices, not implemented String support. The current compiler lexes quoted strings for module paths and has internal String-shaped task diagnostics; it does not yet provide ordinary String expressions or annotations.
+Literal/value foundation implemented — 2026-10-18. CPU String literals, annotations, synchronous helpers and CLI results are available. The operation and integration sections below specify later slices; those features remain gated.
 
 The design follows the immutable [core](core.md) and [automatic memory model](memory.md). One ordinary `String` type represents text. No separate `Char` type, allocator arguments, mutable string buffers or lifetime annotations are introduced.
 
@@ -79,10 +79,29 @@ A String-valued CLI `main` writes its UTF-8 bytes followed by one LF, without qu
 
 ## Implementation sequence and gates
 
-1. **Literal/value foundation:** String AST and strict escape decoding, typed String literals/annotations, trusted literal and managed storage validation, synchronous helpers/returns and CLI output. Adapt existing internal diagnostic String values or explicitly gate their ordinary use until safe. Prove empty/non-ASCII/NUL behavior and failures before exposing further composition.
+1. **Literal/value foundation — implemented:** String AST and strict escape decoding, typed String literals/annotations, trusted literal and managed storage validation, synchronous helpers/returns and CLI output. Adapt existing internal diagnostic String values or explicitly gate their ordinary use until safe. Prove empty/non-ASCII/NUL behavior and failures before exposing further composition.
 2. **Value operations:** exact equality and concatenation, checked allocation/overflow and fault ordering; byte/scalar lengths and scalar-boundary indexing/slicing. Keep operations gated until their own behavior is implemented and qualified.
 3. **Workers and captures:** owned packets, source settlement, cached outcomes, cancellation, allocation failure and no partial publication; then ordinary callback captures.
 4. **Compound values:** String record fields, String arrays and numeric/Bool/record/String map combinations, with the same finite-layout and recursive-retention rules. Do not silently enable these by adding a builtin tag.
 5. **Text libraries and optimization:** explicit decoding/encoding once byte types and recoverable errors are ready; normalization, grapheme iteration and locale behavior with pinned tables; shared slices, cached counts and linear traversal. Add broader library operations independently.
 
-[Conformance vectors](fixtures/strings-semantics.json) record scalar/byte counts, exact equality, index/slice results, invalid UTF-8, literal escape cases and bounds decisions for future tests. They are design data, not evidence of compiler implementation. Qualification must also cover all scalar boundary widths, cancellation during long scans, failure cleanup, external descriptor validation and result lifetime. Reuse generic ownership/scheduling machinery rather than building a separate String runtime for each context.
+[Conformance vectors](fixtures/strings-semantics.json) record scalar/byte counts, exact equality, index/slice results, invalid UTF-8, literal escape cases and bounds decisions for future tests. The literal/value tests consume the text, escape and invalid UTF-8 vectors; the operation vectors remain design data until their implementation is qualified. Qualification must also cover all scalar boundary widths, cancellation during long scans, failure cleanup, external descriptor validation and result lifetime. Reuse generic ownership/scheduling machinery rather than building a separate String runtime for each context.
+
+
+## Qualified literal/value foundation
+
+```kalandra
+fn identity(value: String) -> String:
+  value
+
+fn main() -> String:
+  identity("سلام\0👩\u{200d}💻")
+```
+
+This compiles on the CPU backend. The executable prints the literal UTF-8 bytes, including the embedded NUL, followed by LF. Ordinary bindings, inferred results, conditional selection and explicit relative file-module imports also work. `String` is a reserved builtin type name. The existing literal resource limit applies to the quoted source token (4,096 bytes by default).
+
+The first storage path copies compiler-emitted literal globals into invocation-owned immutable buffers. A private length-delimited descriptor carries the allocation base, data pointer and byte length; nonempty values require a known owner, matching base/data and an in-bounds length before UTF-8 validation touches the bytes. Empty values use the canonical null/null/zero descriptor. No arbitrary pointer is treated as static storage. Helpers share these immutable buffers within the invocation; the CLI retains the returned backing, settles invocation owners, then writes the result. Earlier temporary Strings settle at the same invocation boundary. Earlier reclamation and static-literal reuse are later optimizations.
+
+Source String values currently require a synchronous CPU module. Combining them with task-enabled or placement-aware functions is rejected, even if the functions are not called. Existing private task diagnostic bindings retain their borrowed representation and cannot escape into ordinary String helpers or results. Concatenation, comparison, size queries, indexing, slicing, String record fields/arrays and callback captures remain unsupported.
+
+Qualification covers debug, optimized generated code, address/undefined sanitizers and thread sanitizer: exact Unicode/NUL/BOM bytes and scalar encoding boundaries; strict escape/UTF-8 rejection; imported helpers and conditional results; raw CLI output and scalar/collection cleanup; invocation isolation, retained result lifetime and malformed native descriptors; allocation failure, cancellation during scans/copies and unpublished failed results. Rejected literal builds preserve prior executable/MLIR/LLVM artifacts. See the [recorded evidence](../../native/metal-proof/evidence/cpu-string-values-2026-10-18.json).

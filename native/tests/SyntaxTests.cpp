@@ -226,6 +226,7 @@ void anonymousFunctions() {
           "parser performed callback-context semantic checking");
 }
 void parserFailuresAndRecovery() {
+  require(syntax("fn f():\n  \"text\"\n").ok(), "ordinary String literal did not parse");
   const std::vector<std::pair<std::string, std::string>> examples{
       {"fn f(x):\n  x\n", "P002"},
       {"fn f():\n  x = 1\n", "P007"},
@@ -236,7 +237,6 @@ void parserFailuresAndRecovery() {
       {"fn f():\n  map([1],fn x: x)\n", "P002"},
       {"fn f():\n  map([1],fn(x) x)\n", "P002"},
       {"fn f():\n  map([1],fn(1): 1)\n", "P002"},
-      {"fn f():\n  \"text\"\n", "P012"},
       {"type Point:\n  x:\n", "P002"},
       {"fn f() -> float32 ! Error:\n  1\n", "P006"},
       {"fn f(a: Tensor[float32, 1.5]):\n  1\n", "P004"},

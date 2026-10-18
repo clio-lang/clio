@@ -79,6 +79,9 @@ struct TensorUnary {
   TokenKind operation;
   ValueId operand;
 };
+struct StringLiteral {
+  std::string value;
+};
 struct BoolLiteral {
   bool value;
 };
@@ -234,9 +237,9 @@ struct TypedExpr {
   SourceSpan span;
   ValueType type; // Concrete scalar/tensor numeric identity; builtins retain explicit tags.
   std::variant<Float64Literal, Float32Literal, Int32Literal, Int64Literal, UInt32Literal,
-               UInt64Literal, BoolLiteral, ScalarCompare, SymbolRead, ScalarUnary, TensorUnary,
-               ScalarBinary, TensorBinary, TensorLiteral, NumericConvert, FunctionCall, Matmul,
-               ReduceSum, ArrayMap, ArrayToTensor, TensorReshape, TensorToArray, ArrayIndex,
+               UInt64Literal, StringLiteral, BoolLiteral, ScalarCompare, SymbolRead, ScalarUnary,
+               TensorUnary, ScalarBinary, TensorBinary, TensorLiteral, NumericConvert, FunctionCall,
+               Matmul, ReduceSum, ArrayMap, ArrayToTensor, TensorReshape, TensorToArray, ArrayIndex,
                TensorIndex, CollectionQuery, ShapeCheck, DeviceSelection, Transfer, TaskOperation,
                ParallelOperation, ConditionalOperation, CatchOperation, MatchOperation,
                ErrorFieldRead, FailOperation, RecordValue, RecordFieldRead>
@@ -278,6 +281,8 @@ struct CheckResult {
   std::vector<Diagnostic> diagnostics;
   [[nodiscard]] bool ok() const { return module.has_value(); }
 };
+// Source Strings, excluding private borrowed task diagnostics.
+[[nodiscard]] bool hasOrdinaryStrings(const TypedModule &module);
 // True for device/transfer/placed-call IR or resident/selector types.
 [[nodiscard]] bool hasPlacement(const TypedModule &module);
 struct CheckOptions {

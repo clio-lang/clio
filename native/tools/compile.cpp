@@ -244,9 +244,13 @@ int main(int argc, char **argv) {
                                         : sanitize     ? KALANDRA_FLOAT64_SANITIZED_ENTRY
                                                        : KALANDRA_FLOAT64_ENTRY);
   if (scalarMain && main->resultType.element == kalandra::NumericType::UInt64)
-    command.insert(command.begin() + 5,
-                   threadSanitize ? KALANDRA_UINT64_THREAD_SANITIZED_ENTRY
-                   : sanitize ? KALANDRA_UINT64_SANITIZED_ENTRY : KALANDRA_UINT64_ENTRY);
+    command.insert(command.begin() + 5, threadSanitize ? KALANDRA_UINT64_THREAD_SANITIZED_ENTRY
+                                        : sanitize     ? KALANDRA_UINT64_SANITIZED_ENTRY
+                                                       : KALANDRA_UINT64_ENTRY);
+  if (scalarMain && main->resultType.builtin == kalandra::BuiltinValue::String)
+    command.insert(command.begin() + 5, threadSanitize ? KALANDRA_STRING_THREAD_SANITIZED_ENTRY
+                                        : sanitize     ? KALANDRA_STRING_SANITIZED_ENTRY
+                                                       : KALANDRA_STRING_ENTRY);
   if (scalarMain && main->resultType.builtin == kalandra::BuiltinValue::Bool)
     command.insert(command.begin() + 5, threadSanitize ? KALANDRA_BOOL_THREAD_SANITIZED_ENTRY
                                         : sanitize     ? KALANDRA_BOOL_SANITIZED_ENTRY

@@ -1,5 +1,5 @@
 {
-  "status": "proposed String contract; compiler not implemented",
+  "status": "String literal/value foundation implemented; operation vectors remain proposed",
   "text_cases": [
     {
       "text": "",

@@ -49,7 +49,7 @@ public:
         builder_.getFunctionType(
             {builder_.getI64Type(), builder_.getI64Type(), builder_.getI64Type()}, {}));
     fault.setPrivate();
-    if (hasRecordCollections(input_)) {
+    if (hasRecordCollections(input_) || hasOrdinaryStrings(input_)) {
       const auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
       for (const auto &[name, signature] : std::vector<std::pair<std::string, FunctionType>>{
                {"kalandra_record_alloc", builder_.getFunctionType({builder_.getI64Type()}, {ptr})},
@@ -59,6 +59,16 @@ public:
                {"kalandra_record_validate",
                 builder_.getFunctionType({ptr, builder_.getI64Type(), builder_.getI64Type()},
                                          {})}}) {
+        auto fn = func::FuncOp::create(builder_, builder_.getUnknownLoc(), name, signature);
+        fn.setPrivate();
+      }
+    }
+    if (hasOrdinaryStrings(input_)) {
+      const auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
+      for (const auto &[name, signature] : std::vector<std::pair<std::string, FunctionType>>{
+               {"kalandra_string_literal",
+                builder_.getFunctionType({ptr, ptr, builder_.getI64Type()}, {})},
+               {"kalandra_string_validate", builder_.getFunctionType({ptr}, {})}}) {
         auto fn = func::FuncOp::create(builder_, builder_.getUnknownLoc(), name, signature);
         fn.setPrivate();
       }
@@ -87,14 +97,16 @@ public:
         std::ranges::find_if(input_.functions, [](const auto &f) { return f.name == "main"; });
     if (main == input_.functions.end() || !main->parameters.empty() ||
         (main->resultType.builtin != BuiltinValue::Numeric &&
-         main->resultType.builtin != BuiltinValue::Bool) ||
+         main->resultType.builtin != BuiltinValue::Bool &&
+         main->resultType.builtin != BuiltinValue::String) ||
         (main->resultType.tensor && main->resultType.shape.size() > cli::maximumCollectionRank))
       throw LoweringFailure{
           "native entry requires fn main() -> float32, int32, uint32, int64, "
-          "uint64, float64, Bool or a CPU numeric array/tensor with no parameters"};
+          "uint64, float64, Bool, String or a CPU numeric array/tensor with no parameters"};
     builder_.setInsertionPointToEnd(module_->getBody());
     const auto entryName =
         main->resultType.tensor                            ? "kalandra_collection_entry"
+        : main->resultType.builtin == BuiltinValue::String ? "kalandra_string_entry"
         : main->resultType.builtin == BuiltinValue::Bool   ? "kalandra_bool_entry"
         : main->resultType.element == NumericType::Float64 ? "kalandra_float64_entry"
         : main->resultType.element == NumericType::UInt64  ? "kalandra_uint64_entry"
@@ -109,7 +121,8 @@ public:
     builder_.setInsertionPointToStart(entry.addEntryBlock());
     const auto mainId = static_cast<FunctionId>(main - input_.functions.begin());
     auto call = func::CallOp::create(builder_, entry.getLoc(), functions_[mainId], ValueRange{});
-    if (hasRecordCollections(input_) && !main->resultType.tensor)
+    if ((hasRecordCollections(input_) || hasOrdinaryStrings(input_)) && !main->resultType.tensor &&
+        main->resultType.builtin != BuiltinValue::String)
       func::CallOp::create(builder_, entry.getLoc(), "kalandra_record_cleanup", TypeRange{},
                            ValueRange{});
     func::ReturnOp::create(builder_, entry.getLoc(), call.getResults());
@@ -138,6 +151,11 @@ private:
     }
     if (value.builtin == BuiltinValue::Bool)
       return builder_.getI1Type();
+    if (value.builtin == BuiltinValue::String) {
+      const auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
+      return LLVM::LLVMStructType::getLiteral(builder_.getContext(),
+                                              {ptr, ptr, builder_.getI64Type()});
+    }
     const Type element =
         (value.element == NumericType::Int64 || value.element == NumericType::UInt64)
             ? Type(builder_.getI64Type())
@@ -218,6 +236,11 @@ private:
     builder_.setInsertionPointToStart(&cast<func::FuncOp>(parent).getBody().front());
     return LLVM::AllocaOp::create(builder_, loc, LLVM::LLVMPointerType::get(builder_.getContext()),
                                   type, integer(loc, 1));
+  }
+  void validateString(Location loc, Value value) {
+    auto slot = descriptorSlot(loc, value.getType());
+    LLVM::StoreOp::create(builder_, loc, value, slot);
+    func::CallOp::create(builder_, loc, "kalandra_string_validate", TypeRange{}, ValueRange{slot});
   }
   Type arrayCellType(const ValueType &array) {
     return isBoolArray(array) ? builder_.getI8Type() : type(recordArrayElement(array));
@@ -1082,6 +1105,23 @@ private:
             return operation.operation == TokenKind::Minus
                        ? arith::NegFOp::create(builder_, loc, operand).getResult()
                        : operand;
+          } else if constexpr (std::is_same_v<T, StringLiteral>) {
+            LLVM::GlobalOp global;
+            {
+              OpBuilder::InsertionGuard guard(builder_);
+              builder_.setInsertionPointToStart(module_->getBody());
+              const auto bytes = operation.value.empty() ? std::string(1, '\0') : operation.value;
+              auto storage = LLVM::LLVMArrayType::get(builder_.getI8Type(), bytes.size());
+              global =
+                  LLVM::GlobalOp::create(builder_, loc, storage, true, LLVM::Linkage::Internal,
+                                         "kalandra_string_" + std::to_string(nextStringLiteral_++),
+                                         builder_.getStringAttr(bytes));
+            }
+            auto address = LLVM::AddressOfOp::create(builder_, loc, global);
+            auto slot = descriptorSlot(loc, type(node.type));
+            func::CallOp::create(builder_, loc, "kalandra_string_literal", TypeRange{},
+                                 ValueRange{slot, address, integer(loc, operation.value.size())});
+            return LLVM::LoadOp::create(builder_, loc, type(node.type), slot);
           } else if constexpr (std::is_same_v<T, BoolLiteral>) {
             return arith::ConstantIntOp::create(builder_, loc, operation.value, 1);
           } else if constexpr (std::is_same_v<T, RecordValue>) {
@@ -1489,8 +1529,12 @@ private:
     auto *entry = function.addEntryBlock();
     builder_.setInsertionPointToStart(entry);
     Frame frame;
-    for (std::size_t i = 0; i < input_.functions[id].parameters.size(); ++i)
-      frame.symbols.emplace(input_.functions[id].parameters[i], entry->getArgument(i));
+    for (std::size_t i = 0; i < input_.functions[id].parameters.size(); ++i) {
+      const auto parameter = input_.functions[id].parameters[i];
+      frame.symbols.emplace(parameter, entry->getArgument(i));
+      if (input_.symbols[parameter].type.builtin == BuiltinValue::String)
+        validateString(function.getLoc(), entry->getArgument(i));
+    }
     Value result;
     for (const auto &statement : input_.functions[id].body) {
       result = expression(frame, statement.value);
@@ -1498,6 +1542,8 @@ private:
         frame.symbols.emplace(*statement.binding, result);
     }
     auto value = castTensor(function.getLoc(), result, function.getResultTypes()[0]);
+    if (input_.functions[id].resultType.builtin == BuiltinValue::String)
+      validateString(function.getLoc(), value);
     func::ReturnOp::create(builder_, function.getLoc(), value);
   }
   void interfaceWrapper(const std::string &name,
@@ -1558,7 +1604,7 @@ private:
   std::vector<func::FuncOp> functions_;
   std::unordered_map<std::size_t, Type> recordTypes_;
   std::unordered_map<std::size_t, std::pair<std::uint64_t, std::uint64_t>> recordLayouts_;
-  unsigned nextMatmulHelper_ = 0;
+  unsigned nextMatmulHelper_ = 0, nextStringLiteral_ = 0;
 };
 } // namespace
 std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,

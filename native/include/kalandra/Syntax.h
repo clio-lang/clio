@@ -113,6 +113,9 @@ using ExprId = std::size_t;
 struct NameExpr {
   SourceSpan name;
 };
+struct StringExpr {
+  SourceSpan literal;
+};
 struct NumberExpr {
   SourceSpan literal;
 };
@@ -205,9 +208,9 @@ struct FailExpr {
 };
 struct Expr {
   SourceSpan span;
-  std::variant<NameExpr, NumberExpr, UnaryExpr, BinaryExpr, ComparisonExpr, CallExpr, ArrayExpr,
-               IndexExpr, TaskExpr, ParallelExpr, ConditionalExpr, LogicalExpr, CatchExpr,
-               MatchExpr, FailExpr, LambdaExpr, RecordExpr, FieldExpr>
+  std::variant<NameExpr, NumberExpr, StringExpr, UnaryExpr, BinaryExpr, ComparisonExpr, CallExpr,
+               ArrayExpr, IndexExpr, TaskExpr, ParallelExpr, ConditionalExpr, LogicalExpr,
+               CatchExpr, MatchExpr, FailExpr, LambdaExpr, RecordExpr, FieldExpr>
       value;
 };
 struct Statement {

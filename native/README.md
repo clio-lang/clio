@@ -1,5 +1,7 @@
 # Kalandra native development
 
+[Immutable CPU Strings](../docs/design/strings.md#qualified-literalvalue-foundation) support UTF-8 literals, strict escapes, typed synchronous helpers, local modules and String-valued executable results. String operations, worker integration and String fields/arrays remain gated.
+
 [CPU Bool values and scalar comparisons](../docs/design/booleans.md) support immutable Boolean literals, functions, strict comparisons across the six CPU numeric types, and typed worker captures/results. [CPU conditionals and short-circuit operators](../docs/design/control-flow.md) now support selected execution, scoped values, retained tensors and resumable worker branches. [Immutable CPU Bool arrays](../docs/design/bool-arrays.md) support construction, indexing, mapping and retained worker results. Bool tensors and GPU Bool execution remain separate work.
 
 The fresh compiler is written in **C++23**, with direct LLVM/MLIR C++ integration. CMake configures the build, Ninja builds it, and CTest runs the tests. Bun and Node are not dependencies of this native development path.

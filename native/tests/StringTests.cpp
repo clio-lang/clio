@@ -1,0 +1,74 @@
+#include "kalandra/Backend.h"
+#include "kalandra/StringLiteral.h"
+#include <iostream>
+#include <stdexcept>
+using namespace kalandra;
+static void require(bool ok, const char *message) {
+  if (!ok)
+    throw std::runtime_error(message);
+}
+static CheckResult analyze(const std::string &text) {
+  return check(parse(std::make_shared<SourceFile>("string.kalandra", text)));
+}
+int main() {
+  try {
+    for (const auto *source :
+         {"fn main()->String:\n  \"\"\n", "fn main():\n  text:String=\"hello\"\n  text\n",
+          "fn pass(x:String)->String:\n  x\nfn main()->String:\n  pass(\"سلام\\0👩\\u{200d}💻\")\n",
+          "fn choose(flag:Bool,a:String,b:String)->String:\n  if flag:\n    a\n  else:\n    b\nfn "
+          "main()->String:\n  choose(true,\"é\",\"é\")\n",
+          "fn main()->Bool:\n  ignored=\"hello\"\n  true\n",
+          "fn main()->[int64]:\n  ignored=\"hello\"\n  [1,2]\n"}) {
+      auto result = analyze(source);
+      if (!result.ok())
+        for (const auto &d : result.diagnostics)
+          std::cerr << renderDiagnostic(*result.source, d);
+      require(result.ok(), "valid String source rejected");
+#ifndef KALANDRA_STRING_FRONTEND_ONLY
+      require(bool(lowerNative(*result.module)), "String lowering failed");
+#endif
+      require(bool(numericCapabilityError(*result.module, NumericTarget::AppleGpu)),
+              "GPU String admitted");
+    }
+    for (const auto *source :
+         {"fn main()->String:\n  1\n", "fn main()->int64:\n  \"1\"\n",
+          "fn f(x:String)->String:\n  x\nfn main()->String:\n  f(true)\n",
+          "fn main()->[String]:\n  [\"a\"]\n", "type A:\n  text:String\nfn main()->int64:\n  1\n",
+          "fn main()->String:\n  \"a\"+\"b\"\n", "fn main()->Bool:\n  \"a\"==\"a\"\n",
+          "fn main()->String:\n  \"a\"[0]\n", "fn main()->int64:\n  length(\"a\")\n",
+          "fn main()->[String]:\n  [1,2]->map(fn(x): \"a\")\n",
+          "fn f()->String:\n  \"a\"\nfn main()->String ! TaskError:\n  try parallel:\n    try "
+          "await spawn f()\n",
+          "fn helper()->int64:\n  1\nfn main()->int64 ! TaskError:\n  ignored=\"a\"\n  try "
+          "parallel:\n    try await spawn helper()\n"})
+      require(!analyze(source).ok(), "unsupported String source admitted");
+    for (const auto *source : {"fn String()->int64:\n  1\n", "fn main():\n  [\"a\",\"b\"]\n",
+                               "fn main():\n  [1,2]->map(fn(x): \"a\")\n",
+                               "fn main():\n  text=\"a\"\n  [1,2]->map(fn(x): text)\n"})
+      require(!analyze(source).ok(), "String compound/capture or builtin name admitted");
+    require(!analyze("fn main()->String:\n  \"" + std::string(4097, 'a') + "\"\n").ok(),
+            "oversized literal admitted");
+#ifndef KALANDRA_STRING_FRONTEND_ONLY
+    for (unsigned mode = 0; mode < 5; ++mode) {
+      auto value = analyze("fn main()->String:\n  \"hello\"\n");
+      auto &expr = value.module->expressions.front();
+      if (mode == 0)
+        expr.type.builtin = BuiltinValue::Bool;
+      if (mode == 1)
+        std::get<StringLiteral>(expr.operation).value = std::string(1, char(0x80));
+      if (mode == 2)
+        expr.type.tensor = true;
+      if (mode == 3)
+        expr.type.task = true;
+      if (mode == 4)
+        expr.type.device = 0;
+      require(!lowerNative(*value.module), "forged String IR admitted");
+    }
+#endif
+    std::cout << "String source typing, helpers, conditionals, unsupported operations and IR gates "
+                 "passed\n";
+  } catch (const std::exception &e) {
+    std::cerr << e.what() << '\n';
+    return 1;
+  }
+}

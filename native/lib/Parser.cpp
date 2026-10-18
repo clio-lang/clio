@@ -517,6 +517,8 @@ private:
     const auto token = current();
     if (consume(TokenKind::Number))
       return add({token.span, NumberExpr{token.span}});
+    if (consume(TokenKind::String))
+      return add({token.span, StringExpr{token.span}});
     if (at(TokenKind::Identifier)) {
       const auto text = source_->slice(token.span);
       if (text == "fn") {
@@ -736,10 +738,7 @@ private:
       return add(
           {{token.span.begin, tokens_[position_ - 1].span.end}, ArrayExpr{std::move(*elements)}});
     }
-    error("P012",
-          at(TokenKind::String) ? "string expressions are not implemented in this first frontend"
-                                : "expected an expression",
-          token.span);
+    error("P012", "expected an expression", token.span);
     return {};
   }
   void synchronizeStatement() {

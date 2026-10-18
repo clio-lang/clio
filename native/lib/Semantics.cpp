@@ -1,5 +1,6 @@
 #include "kalandra/Semantics.h"
 #include "RecordLayout.h"
+#include "kalandra/StringLiteral.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/Support/Error.h"
@@ -175,6 +176,11 @@ private:
            name == "or" || name == "not" || name == "type" || name == "with";
   }
   std::optional<ValueType> type(const TypeSyntax &syntax) {
+    if (!syntax.tensor && !syntax.array && name(syntax.name) == "String") {
+      ValueType result;
+      result.builtin = BuiltinValue::String;
+      return result;
+    }
     if (!syntax.tensor && name(syntax.name) == "Bool") {
       ValueType result;
       result.builtin = BuiltinValue::Bool;
@@ -200,7 +206,7 @@ private:
                       : resolveNumeric(name(syntax.name));
     if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu)) {
       error("S003",
-            "expected a declared record type, Bool, or a supported numeric scalar, tensor or array "
+            "expected a declared record type, String, Bool, or a supported numeric scalar, tensor or array "
             "type",
             syntax.span);
       return {};
@@ -280,8 +286,8 @@ private:
       target.declaration = function.name;
       if (records_.contains(functionKey(function.moduleIndex, target.name)))
         error("S068", "function conflicts with record type name", function.name);
-      if (target.name == "Bool" || reservedControl(target.name))
-        error("S056", "reserved Boolean/control-flow name", function.name);
+      if (target.name == "Bool" || target.name == "String" || reservedControl(target.name))
+        error("S056", "reserved builtin/control-flow name", function.name);
       if (resolveNumeric(target.name)) {
         error("S055", "numeric type names are reserved conversion functions", function.name);
         signatures_[id] = false;
@@ -336,7 +342,8 @@ private:
           error("S068", "import conflicts with record type name", binding);
           continue;
         }
-        if (local == "Bool" || reservedControl(local) || resolveNumeric(local)) {
+        if (local == "Bool" || local == "String" || reservedControl(local) ||
+            resolveNumeric(local)) {
           error("S067", "reserved import alias '" + local + "'", binding);
           continue;
         }
@@ -632,6 +639,19 @@ private:
     if (unsignedValue)
       return add(frame, type, span, UInt32Literal{static_cast<std::uint32_t>(value)});
     return add(frame, type, span, Int32Literal{static_cast<std::int32_t>(value)});
+  }
+  std::optional<ValueId> infer(Frame &frame, SourceSpan span, const StringExpr &literal,
+                               const std::optional<ValueType> &) {
+    auto source = syntax_.source->slice(literal.literal);
+    auto decoded =
+        source.size() <= limits_.maxLiteralBytes ? decodeStringLiteral(source) : std::nullopt;
+    if (!decoded) {
+      error("S069", "invalid or oversized UTF-8 String literal or escape", span);
+      return {};
+    }
+    ValueType value;
+    value.builtin = BuiltinValue::String;
+    return add(frame, value, span, StringLiteral{std::move(*decoded)});
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const NumberExpr &literal,
                                const std::optional<ValueType> &context) {

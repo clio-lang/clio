@@ -856,6 +856,7 @@ if(BUILD_TESTING)
 endif()
 
 include(cmake/Booleans.cmake)
+include(cmake/Strings.cmake)
 
 include(cmake/ControlFlow.cmake)
 

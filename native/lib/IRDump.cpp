@@ -1,11 +1,26 @@
 #include "RecordLayout.h"
 #include "kalandra/Continuation.h"
 #include "kalandra/Semantics.h"
+#include "kalandra/Utf8.h"
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
 
 namespace kalandra {
+bool hasOrdinaryStrings(const TypedModule &module) {
+  return std::ranges::any_of(
+             module.expressions,
+             [](const auto &e) { return std::holds_alternative<StringLiteral>(e.operation); }) ||
+         std::ranges::any_of(module.functions,
+                             [](const auto &f) {
+                               return f.resultType.builtin == BuiltinValue::String ||
+                                      (f.declaredResult &&
+                                       f.declaredResult->builtin == BuiltinValue::String);
+                             }) ||
+         std::ranges::any_of(module.symbols, [](const auto &s) {
+           return s.parameter && s.type.builtin == BuiltinValue::String;
+         });
+}
 bool hasPlacement(const TypedModule &module) {
   const auto placed = [](const ValueType &type) {
     return type.device.has_value() || type.builtin == BuiltinValue::Device;
@@ -63,9 +78,26 @@ std::string describeType(const ValueType &type) {
   return out.str();
 }
 std::optional<std::string> numericCapabilityError(const TypedModule &module, NumericTarget target) {
+  if (hasOrdinaryStrings(module)) {
+    const bool tasks = std::ranges::any_of(module.functions,
+                                           [](const auto &f) { return f.resultType.fallible; }) ||
+                       std::ranges::any_of(module.expressions, [](const auto &e) {
+                         return std::holds_alternative<TaskOperation>(e.operation) ||
+                                std::holds_alternative<ParallelOperation>(e.operation) ||
+                                std::holds_alternative<CatchOperation>(e.operation) ||
+                                std::holds_alternative<MatchOperation>(e.operation);
+                       });
+    if (target != NumericTarget::Cpu || hasPlacement(module) || tasks)
+      return "ordinary Strings currently require synchronous CPU modules; workers and placement "
+             "are not implemented";
+  }
   if (!module.records.empty() && (target != NumericTarget::Cpu || hasPlacement(module)))
     return "record values currently require CPU execution";
   const auto error = [&](const ValueType &type) -> std::optional<std::string> {
+    if (type.builtin == BuiltinValue::String &&
+        (type.tensor || type.array || type.task || type.fallible || type.device ||
+         !type.shape.empty()))
+      return "String requires completed CPU scalar storage";
     if (type.builtin == BuiltinValue::Record) {
       if (!type.record || *type.record >= module.records.size() || type.device ||
           (type.array ? (!type.tensor || type.shape.size() != 1)
@@ -214,6 +246,9 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
         expression.operation);
     if (arithmeticArray)
       return "arrays require explicit collection operations, not tensor/scalar arithmetic";
+    if (const auto *literal = std::get_if<StringLiteral>(&expression.operation);
+        literal && (expression.type.builtin != BuiltinValue::String || !validUtf8(literal->value)))
+      return "String literal requires valid UTF-8 and String identity";
     if (std::holds_alternative<BoolLiteral>(expression.operation) &&
         (expression.type.builtin != BuiltinValue::Bool || expression.type.tensor ||
          expression.type.array || expression.type.task || expression.type.fallible ||
@@ -523,7 +558,12 @@ std::string dumpTypedIR(const TypedModule &module) {
       std::visit(
           [&](const auto &operation) {
             using T = std::decay_t<decltype(operation)>;
-            if constexpr (std::is_same_v<T, BoolLiteral>)
+            if constexpr (std::is_same_v<T, StringLiteral>) {
+              out << "string.utf8 0x";
+              for (unsigned char byte : operation.value)
+                out << std::hex << std::setw(2) << std::setfill('0') << unsigned(byte);
+              out << std::dec;
+            } else if constexpr (std::is_same_v<T, BoolLiteral>)
               out << (operation.value ? "true" : "false");
             else if constexpr (std::is_same_v<T, RecordValue>) {
               out << "record " << node.type.recordName;
