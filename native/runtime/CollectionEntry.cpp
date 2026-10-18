@@ -39,7 +39,8 @@ int main(int argc, char **argv) {
   const bool array = kalandra_collection_array_v1;
   const bool boolean = kalandra_collection_element_v1 == cli::boolArrayElement;
   if ((boolean ? (!array || rank != 1)
-               : !numericArithmeticAvailable(element, NumericTarget::Cpu)) ||
+               : !(array ? numericCollectionStorageAvailable(element, NumericTarget::Cpu)
+                         : numericArithmeticAvailable(element, NumericTarget::Cpu))) ||
       (array && rank != 1)) {
     context.fault(3);
     context.reportFailure();

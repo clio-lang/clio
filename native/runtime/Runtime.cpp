@@ -276,7 +276,7 @@ bool validRecordStorage(const kalandra::runtime::Invocation &source, const void 
       element > static_cast<unsigned>(NumericType::Float64))
     return false;
   auto numeric = static_cast<NumericType>(element);
-  if (!numericArithmeticAvailable(numeric, NumericTarget::Cpu))
+  if (!numericCollectionStorageAvailable(numeric, NumericTarget::Cpu))
     return false;
   const auto *data = static_cast<const std::byte *>(descriptor);
   void *aligned;

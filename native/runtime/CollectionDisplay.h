@@ -21,7 +21,9 @@ inline std::optional<DisplayCollection> retainForDisplay(const Invocation &conte
                                                          std::size_t rank, NumericType element,
                                                          bool array) noexcept {
   if (!context.usable() || rank > cli::maximumCollectionRank || (array && rank != 1) ||
-      !numericArithmeticAvailable(element, NumericTarget::Cpu) || value.offset < 0)
+      !(array ? numericCollectionStorageAvailable(element, NumericTarget::Cpu)
+              : numericArithmeticAvailable(element, NumericTarget::Cpu)) ||
+      value.offset < 0)
     return {};
   bool empty = false;
   for (std::size_t axis = 0; axis < rank; ++axis) {
@@ -109,6 +111,18 @@ inline bool printCollection(FILE *stream, const DisplayCollection &value,
       return false;
     int status = -1;
     switch (element) {
+    case NumericType::Int8:
+      status = std::fprintf(stream, "%d", int(displayCell<std::int8_t>(value.data, i)));
+      break;
+    case NumericType::UInt8:
+      status = std::fprintf(stream, "%u", unsigned(displayCell<std::uint8_t>(value.data, i)));
+      break;
+    case NumericType::Int16:
+      status = std::fprintf(stream, "%d", int(displayCell<std::int16_t>(value.data, i)));
+      break;
+    case NumericType::UInt16:
+      status = std::fprintf(stream, "%u", unsigned(displayCell<std::uint16_t>(value.data, i)));
+      break;
     case NumericType::Int32:
       status = std::fprintf(stream, "%d", int(displayCell<std::int32_t>(value.data, i)));
       break;

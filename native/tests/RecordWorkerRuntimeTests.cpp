@@ -9,7 +9,10 @@ using namespace kalandra;
 using namespace kalandra::runtime;
 constexpr auto element = static_cast<NumericType>(NUMERIC_TYPE);
 using Cell = NumericValue<element>;
-using Raw = std::conditional_t<sizeof(Cell) == 4, std::uint32_t, std::uint64_t>;
+using Raw = std::conditional_t<
+    sizeof(Cell) == 1, std::uint8_t,
+    std::conditional_t<sizeof(Cell) == 2, std::uint16_t,
+                       std::conditional_t<sizeof(Cell) == 4, std::uint32_t, std::uint64_t>>>;
 #ifdef NESTED_RECORD
 struct Position {
   Cell x;

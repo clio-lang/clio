@@ -806,4 +806,4 @@ Additional source types, GPU formats and broader language support remain separat
 
 ## CPU int8 and uint8 scalar foundation
 
-[Checked byte scalars](int8-scalars.md) now implement signed/unsigned 8-bit literal typing, arithmetic, comparisons, explicit scalar conversions, local worker captures/results and CLI display. [Checked 16-bit scalars](int16-scalars.md) complete the ten accepted scalar types, sharing the same arithmetic and conversion machinery. Narrow collection storage and record fields remain gated for later qualification.
+[Checked byte scalars](int8-scalars.md) now implement signed/unsigned 8-bit literal typing, arithmetic, comparisons, explicit scalar conversions, local worker captures/results and CLI display. [Checked 16-bit scalars](int16-scalars.md) complete the ten accepted scalar types, sharing the same arithmetic and conversion machinery. [Narrow arrays and scalar/array record fields](narrow-arrays.md) now preserve exact 8/16-bit storage through local workers; narrow tensors remain gated for later qualification.

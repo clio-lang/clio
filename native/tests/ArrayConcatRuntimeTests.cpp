@@ -8,7 +8,10 @@ using namespace kalandra;
 using namespace kalandra::runtime;
 constexpr auto element = static_cast<NumericType>(NUMERIC_TYPE);
 using Cell = NumericValue<element>;
-using Raw = std::conditional_t<sizeof(Cell) == 8, std::uint64_t, std::uint32_t>;
+using Raw = std::conditional_t<
+    sizeof(Cell) == 1, std::uint8_t,
+    std::conditional_t<sizeof(Cell) == 2, std::uint16_t,
+                       std::conditional_t<sizeof(Cell) == 4, std::uint32_t, std::uint64_t>>>;
 using Tensor = CpuTensor<element, 1>;
 extern "C" void _mlir_ciface_kalandra_test_entry(Tensor *, Tensor *, Tensor *, Invocation *);
 static void require(bool ok, const char *message) {
@@ -20,12 +23,13 @@ static std::vector<Cell> cells(std::size_t n, unsigned salt) {
   const Raw edges[] = {Raw(0),
                        Raw(1),
                        Raw(-1),
-                       sizeof(Cell) == 4 ? Raw(0x80000000) : Raw(0x8000000000000000ULL),
+                       Raw(UINT64_C(1) << (sizeof(Cell) * 8 - 1)),
                        sizeof(Cell) == 4 ? Raw(0x7f800000) : Raw(0x7ff0000000000000ULL),
                        sizeof(Cell) == 4 ? Raw(0x7f800001) : Raw(0x7ff0000000000001ULL),
                        sizeof(Cell) == 4 ? Raw(0x7fc12345) : Raw(0x7ff812345678abcdULL)};
   for (std::size_t i = 0; i < result.size(); ++i)
-    result[i] = std::bit_cast<Cell>(i < 7 ? edges[i] : Raw(0xf17deacb1297ff83ULL) * Raw(i + salt));
+    result[i] =
+        std::bit_cast<Cell>(Raw(i < 7 ? edges[i] : Raw(0xf17deacb1297ff83ULL) * Raw(i + salt)));
   return result;
 }
 static Tensor view(std::vector<Cell> &data, std::int64_t size, std::int64_t stride) {

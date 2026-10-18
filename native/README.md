@@ -142,4 +142,4 @@ CPU records can also own [numeric arrays and tensors](../docs/design/record-coll
 
 [CPU array concatenation](../docs/design/array-concatenation.md) combines existing same-typed arrays using `concat(left, right)`, including direct worker dispatch.
 
-[Checked CPU int8/uint8 scalars](../docs/design/int8-scalars.md) now support exact-width arithmetic, scalar conversions, local workers and CLI display. [Checked CPU int16/uint16 scalars](../docs/design/int16-scalars.md) complete the accepted integer scalar widths with the same checked arithmetic and worker support. Narrow collections and record fields remain separate work.
+[Checked CPU int8/uint8 scalars](../docs/design/int8-scalars.md) now support exact-width arithmetic, scalar conversions, local workers and CLI display. [Checked CPU int16/uint16 scalars](../docs/design/int16-scalars.md) complete the accepted integer scalar widths with the same checked arithmetic and worker support. [Narrow CPU arrays and scalar/array record fields](../docs/design/narrow-arrays.md) now support existing collection operations and retained worker transport. Narrow tensors remain separate work.

@@ -24,7 +24,7 @@ fn converted(values: [int]) -> [float]:
   map(values, asFloat)
 ```
 
-All 36 input/output combinations of the six implemented CPU numeric types can be represented by ordinary named functions. Explicit conversion still follows the checked numeric conversion contract. Results remain homogeneous arrays of the same length as the input, including its private dynamic length identity. An expected result type does not change the callback's declared/inferred result type.
+All 100 input/output combinations of the ten implemented CPU numeric scalar types can be represented by ordinary named functions, including [narrow integer arrays](narrow-arrays.md). Explicit conversion still follows the checked numeric conversion contract. Results remain homogeneous arrays of the same length as the input, including its private dynamic length identity. An expected result type does not change the callback's declared/inferred result type.
 
 Callbacks execute sequentially in input order, once per element, with exactly one explicit element argument. Map never supplies an implicit index or collection argument. Empty arrays execute no callbacks; `map([], double)` obtains element context from `double` and returns an empty `[int64]`.
 

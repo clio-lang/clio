@@ -1,6 +1,6 @@
 # Immutable native arrays
 
-The native CPU subset now implements the construction and value-passing part of the [accepted core array design](core.md#4-transform-an-array). Numeric arrays and [finite record arrays](record-arrays.md) are ordered immutable collections. `[int]` is distinct from a ranked tensor type, and its length is runtime data rather than part of the source type.
+The native CPU subset now implements the construction and value-passing part of the [accepted core array design](core.md#4-transform-an-array). Numeric arrays support all ten implemented scalar element types, including [8/16-bit integers](narrow-arrays.md). Numeric arrays and [finite record arrays](record-arrays.md) are ordered immutable collections. `[int]` is distinct from a ranked tensor type, and its length is runtime data rather than part of the source type.
 
 ```kalandra
 fn pair(left: int, right: int) -> [int]:
@@ -17,7 +17,7 @@ fn choose(flag: Bool) -> [int]:
 
 ## Elements and inference
 
-This first subset supports scalar `int32`, `uint32`, `int64`, `uint64`, `float32` and `float64` elements, including the accepted `int`, `uint` and `float` aliases.
+Numeric arrays support `int8`, `uint8`, `int16`, `uint16`, `int32`, `uint32`, `int64`, `uint64`, `float32` and `float64` elements, including the accepted `int`, `uint` and `float` aliases.
 
 Without context, each leaf expression is inferred independently in source order. Whole-number expressions default to `int64`; decimal/exponent expressions follow the scalar `float64` defaults. Numeric array elements must have exactly the same completed CPU numeric type. `[1, 2.5]` and `[int32(1), 2]` are rejected in either order. An expected array type supplies literal context:
 
@@ -45,7 +45,7 @@ There are no implicit array-to-tensor or tensor-to-array coercions. Tensor arith
 
 ## Explicit tensor construction from arrays
 
-Use `tensor(values)` to construct a rank-one CPU tensor from a completed numeric array:
+For the six supported 32/64-bit tensor element types, use `tensor(values)` to construct a rank-one CPU tensor from a completed numeric array:
 
 ```kalandra
 fn total(values: [float], offset: float) -> float:

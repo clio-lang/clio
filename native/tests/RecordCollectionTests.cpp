@@ -40,7 +40,7 @@ int main() {
           field.fallible = true;
           break;
         case 3:
-          field.element = NumericType::Int8;
+          field.element = static_cast<NumericType>(255);
           break;
         case 4:
           field.shape.clear();

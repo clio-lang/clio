@@ -91,6 +91,11 @@ constexpr bool numericScalarArithmeticAvailable(NumericType type, NumericTarget 
   return numericArithmeticAvailable(type, target) ||
          (target == NumericTarget::Cpu && isNarrowInteger(type));
 }
+// Collection storage is separate from tensor arithmetic capability. CPU arrays
+// can retain every implemented scalar width without enabling tensor operations.
+constexpr bool numericCollectionStorageAvailable(NumericType type, NumericTarget target) {
+  return target == NumericTarget::Cpu && numericScalarArithmeticAvailable(type, target);
+}
 constexpr std::uint64_t integerMaximum(NumericType type) {
   const auto bits = describeNumeric(type)->bits;
   return isUnsigned(type) ? (bits == 64 ? UINT64_MAX : (UINT64_C(1) << bits) - 1)

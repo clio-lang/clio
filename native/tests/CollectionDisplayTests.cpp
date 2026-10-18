@@ -122,8 +122,60 @@ static void floating(NumericType type, std::array<Bits, 5> bits, const char *exp
   (void)sizeof(T);
   ++cases;
 }
+template <class T> static void narrow(NumericType type) {
+  Invocation context;
+  const T low = std::numeric_limits<T>::min(), high = std::numeric_limits<T>::max();
+  std::array<T, 6> cells{0, 0, low, 0, high, 0};
+  auto *data = static_cast<T *>(context.allocate(sizeof(cells)));
+  require(data != nullptr, "narrow display allocation failed");
+  std::memcpy(data, cells.data(), sizeof(cells));
+  CollectionDescriptor descriptor;
+  descriptor.allocated = data;
+  descriptor.aligned = data + 1;
+  descriptor.offset = 1;
+  descriptor.dimensions[0] = 3;
+  descriptor.dimensions[1] = 1;
+  auto result = retainForDisplay(context, descriptor, 1, type, true);
+  require(bool(result) && result->data.size() == 3 * sizeof(T), "narrow interior view rejected");
+  require(!retainForDisplay(context, descriptor, 1, type, false), "narrow tensor display enabled");
+  for (unsigned mode = 0; mode < 5; ++mode) {
+    auto bad = descriptor;
+    if (mode == 0)
+      bad.offset = -1;
+    if (mode == 1)
+      bad.offset = INT64_MAX;
+    if (mode == 2)
+      bad.dimensions[0] = 100;
+    if (mode == 3)
+      bad.dimensions[1] = 2;
+    if (mode == 4)
+      bad.allocated = nullptr;
+    require(!retainForDisplay(context, bad, 1, type, true),
+            "invalid narrow display range admitted");
+    ++cases;
+  }
+  context.settle();
+  const auto prefix = "[" + std::to_string(int(low));
+  require(render(*result, {descriptor.dimensions.data(), 1}, type, true) ==
+              prefix + ", 0, " + std::to_string(int(high)) + "]\n",
+          "narrow display printed characters, wrong signs or lost retained storage");
+  require(render(*result, {descriptor.dimensions.data(), 1}, type, true, 1) ==
+              prefix + ", ...] (3 elements)\n",
+          "narrow display limit changed");
+  descriptor.dimensions[0] = 0;
+  Invocation empty;
+  auto none = retainForDisplay(empty, descriptor, 1, type, true);
+  require(bool(none) && render(*none, {descriptor.dimensions.data(), 1}, type, true) == "[]\n",
+          "empty narrow array not canonical");
+  require(!context.live() && context.allocations() == context.releases(), "narrow display leaked");
+  ++cases;
+}
 int main() {
   try {
+    narrow<std::int8_t>(NumericType::Int8);
+    narrow<std::uint8_t>(NumericType::UInt8);
+    narrow<std::int16_t>(NumericType::Int16);
+    narrow<std::uint16_t>(NumericType::UInt16);
     numeric<std::int32_t>(NumericType::Int32);
     numeric<std::uint32_t>(NumericType::UInt32);
     numeric<std::int64_t>(NumericType::Int64);
@@ -176,10 +228,11 @@ int main() {
     failed.settle();
     require(!failed.live(), "failed display allocation leaked");
     ++cases;
-    std::cout << "collection display: " << cases
-              << " validation/format/lifetime cases, six numeric types, exact FP edges, "
-                 "interior views, full-range guards, retained printing, limits and ranks 0/8/9/128 "
-                 "passed\n";
+    std::cout
+        << "collection display: " << cases
+        << " validation/format/lifetime cases, ten array/six tensor numeric types, exact FP edges, "
+           "interior views, full-range guards, retained printing, limits and ranks 0/8/9/128 "
+           "passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';
     return 1;

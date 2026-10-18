@@ -43,7 +43,11 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
       } else if (type.record ||
                  (type.builtin != BuiltinValue::Bool && type.builtin != BuiltinValue::String &&
                   (type.builtin != BuiltinValue::Numeric ||
-                   !numericArithmeticAvailable(type.element, NumericTarget::Cpu))))
+                   !(type.array
+                         ? numericCollectionStorageAvailable(type.element, NumericTarget::Cpu)
+                     : type.tensor
+                         ? numericArithmeticAvailable(type.element, NumericTarget::Cpu)
+                         : numericScalarArithmeticAvailable(type.element, NumericTarget::Cpu)))))
         return fail("record fields require CPU numbers, numeric collections, Bool, Bool arrays, "
                     "Strings, String arrays or records",
                     field.declaration);

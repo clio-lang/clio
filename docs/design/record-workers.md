@@ -22,7 +22,7 @@ The result is `14`. The child receives an immutable snapshot; `original.x` remai
 
 ## Types and completed values
 
-Record fields can use the six implemented CPU numeric types, `Bool`, another [finite nested record](nested-records.md), or [numeric arrays and tensors](record-collections.md). A mixed record can contain different scalar types. Worker transport preserves the exact integer and floating-point field values, including signed zero and NaN payload bits; passing a record does not perform arithmetic or convert its fields.
+Record fields can use the ten implemented CPU numeric scalar types, including [8/16-bit fields](narrow-arrays.md), `Bool`, another [finite nested record](nested-records.md), or [numeric arrays and tensors](record-collections.md). A mixed record can contain different scalar types. Worker transport preserves the exact integer and floating-point field values, including signed zero and NaN payload bits; passing a record does not perform arithmetic or convert its fields.
 
 A task handle is not a record value. Use `try await work` before accessing or updating the success value, or recover the completed `await work` result with `catch`. Task handles cannot escape their owning group. Existing observation, cancellation, deadline and admission rules apply to record tasks.
 

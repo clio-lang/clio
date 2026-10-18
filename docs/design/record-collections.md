@@ -1,6 +1,6 @@
 # Numeric collections inside records
 
-Native CPU records can store immutable numeric arrays and tensors, including inside nested records. All six implemented element types work: `int32`, `uint32`, `int64`, `uint64`, `float32`, and `float64`.
+Native CPU records can store immutable numeric arrays and tensors, including inside nested records. Array fields support all ten implemented numeric scalar types, including [8/16-bit integers](narrow-arrays.md). Tensor fields support `int32`, `uint32`, `int64`, `uint64`, `float32`, and `float64`; narrow tensor fields remain gated.
 
 ```kalandra
 type Batch:

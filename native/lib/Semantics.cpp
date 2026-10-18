@@ -228,8 +228,9 @@ private:
     const auto numeric =
         syntax.tensor ? (syntax.element ? resolveNumeric(name(*syntax.element)) : std::nullopt)
                       : resolveNumeric(name(syntax.name));
-    if (!numeric || !(syntax.tensor || syntax.array
-                          ? numericArithmeticAvailable(*numeric, NumericTarget::Cpu)
+    if (!numeric ||
+        !(syntax.array    ? numericCollectionStorageAvailable(*numeric, NumericTarget::Cpu)
+          : syntax.tensor ? numericArithmeticAvailable(*numeric, NumericTarget::Cpu)
                           : numericScalarArithmeticAvailable(*numeric, NumericTarget::Cpu))) {
       error("S003",
             "expected a declared record type, String, Bool, or a supported numeric scalar, tensor "

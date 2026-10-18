@@ -17,8 +17,10 @@ struct Descriptor {
 };
 int main() {
   try {
-    for (auto element : {NumericType::Int32, NumericType::UInt32, NumericType::Int64,
-                         NumericType::UInt64, NumericType::Float32, NumericType::Float64}) {
+    for (auto element :
+         {NumericType::Int8, NumericType::UInt8, NumericType::Int16, NumericType::UInt16,
+          NumericType::Int32, NumericType::UInt32, NumericType::Int64, NumericType::UInt64,
+          NumericType::Float32, NumericType::Float64}) {
       const auto id = static_cast<unsigned>(element);
       Invocation source, destination;
       const auto bytes = describeNumeric(element)->bytes() * 6;
@@ -63,7 +65,7 @@ int main() {
           type = 100;
           break;
         case 10:
-          type = static_cast<unsigned>(NumericType::Int8);
+          type = 10;
           break;
         case 11:
           bad.sizes[0] = 0;

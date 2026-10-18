@@ -11,7 +11,10 @@ constexpr auto element = static_cast<NumericType>(NUMERIC_TYPE);
 constexpr auto bound = static_cast<NumericType>(BOUND_TYPE);
 using Cell = NumericValue<element>;
 using Position = NumericValue<bound>;
-using Raw = std::conditional_t<sizeof(Cell) == 8, std::uint64_t, std::uint32_t>;
+using Raw = std::conditional_t<
+    sizeof(Cell) == 1, std::uint8_t,
+    std::conditional_t<sizeof(Cell) == 2, std::uint16_t,
+                       std::conditional_t<sizeof(Cell) == 4, std::uint32_t, std::uint64_t>>>;
 using Tensor = CpuTensor<element, 1>;
 extern "C" void _mlir_ciface_kalandra_test_entry(Tensor *, Tensor *, Position, Position,
                                                  Invocation *);
@@ -29,12 +32,12 @@ int main() {
           const Raw edges[] = {Raw(0),
                                Raw(1),
                                Raw(-1),
-                               sizeof(Cell) == 4 ? Raw(0x80000000) : Raw(0x8000000000000000ULL),
+                               Raw(UINT64_C(1) << (sizeof(Cell) * 8 - 1)),
                                sizeof(Cell) == 4 ? Raw(0x7f800000) : Raw(0x7ff0000000000000ULL),
                                sizeof(Cell) == 4 ? Raw(0x7f800001) : Raw(0x7ff0000000000001ULL),
                                sizeof(Cell) == 4 ? Raw(0x7fc12345) : Raw(0x7ff812345678abcdULL)};
           cells[i] =
-              std::bit_cast<Cell>(i < 7 ? edges[i] : Raw(0xf17deacb1297ff83ULL) * Raw(i + 1));
+              std::bit_cast<Cell>(Raw(i < 7 ? edges[i] : Raw(0xf17deacb1297ff83ULL) * Raw(i + 1)));
         }
         auto original = cells;
         Tensor input{};
@@ -117,9 +120,19 @@ int main() {
       Invocation context;
       Tensor output{};
       _mlir_ciface_kalandra_test_entry(&output, &input, Position(0), Position(0), &context);
-      require(context.status() == (size < 0 ? 1 : 2) && !context.allocations() &&
-                  !output.allocated && !output.sizes[0],
-              "invalid array size reached slicing or allocation");
+      // INT64_MAX one-byte cells fit the descriptor byte budget. Selecting
+      // an empty range may construct an owned empty result without reading input.
+      const bool representableEmpty = size == INT64_MAX && sizeof(Cell) == 1;
+      require(context.status() == (size < 0             ? 1
+                                   : representableEmpty ? 0
+                                                        : 2) &&
+                  !output.sizes[0],
+              "array size guard or representable empty slice changed");
+      if (!representableEmpty)
+        require(!context.allocations() && !output.allocated,
+                "invalid array size reached slicing or allocation");
+      else
+        require(bool(context.lease(output.allocated)), "empty byte slice is not owned");
       context.settle();
       require(!context.live(), "invalid metadata leaked");
     }

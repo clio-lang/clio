@@ -947,3 +947,4 @@ include(cmake/ArrayConcats.cmake)
 
 include(cmake/Int8.cmake)
 include(cmake/Int16.cmake)
+include(cmake/NarrowArrays.cmake)

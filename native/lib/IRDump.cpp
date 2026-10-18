@@ -123,8 +123,9 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
         (target != NumericTarget::Cpu || (type.tensor && !isBoolArray(type)) || type.device))
       return "Bool values require CPU scalar or array storage";
     if (type.builtin != BuiltinValue::Numeric ||
-        (type.tensor ? numericArithmeticAvailable(type.element, target)
-                     : numericScalarArithmeticAvailable(type.element, target)))
+        (type.array    ? numericCollectionStorageAvailable(type.element, target)
+         : type.tensor ? numericArithmeticAvailable(type.element, target)
+                       : numericScalarArithmeticAvailable(type.element, target)))
       return {};
     const auto description = describeNumeric(type.element);
     return "numeric type '" + (description ? std::string(description->name) : "<invalid>") + "'" +
