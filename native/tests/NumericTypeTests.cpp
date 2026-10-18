@@ -58,6 +58,10 @@ int main() {
                        description.type == NumericType::UInt64 ||
                        description.type == NumericType::Float64))),
                 "type description accidentally enabled arithmetic");
+      require(numericReductionAvailable(description.type, NumericTarget::Cpu) &&
+                  numericReductionAvailable(description.type, NumericTarget::AppleGpu) ==
+                      (description.type == NumericType::Float32),
+              "reduction capability lost numeric identity");
       require(numericScalarArithmeticAvailable(description.type, NumericTarget::Cpu) &&
                   analyze("fn main() -> " + std::string(description.name) + ":\n  1\n").ok(),
               "accepted CPU scalar type rejected");

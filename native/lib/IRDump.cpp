@@ -622,7 +622,7 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
     }
     if (const auto *reduce = std::get_if<ReduceSum>(&expression.operation)) {
       if (expression.type.element != module.expressions[reduce->input].type.element ||
-          !numericArithmeticAvailable(expression.type.element, target))
+          !numericReductionAvailable(expression.type.element, target))
         return "unsupported reduction element type";
     }
     if (const auto *multiply = std::get_if<Matmul>(&expression.operation)) {
@@ -838,12 +838,13 @@ std::string dumpTypedIR(const TypedModule &module) {
               out << " check_inner=" << operation.checkInnerExtent
                   << " check_allocation=" << operation.checkAllocationSize;
             } else if constexpr (std::is_same_v<T, ReduceSum>) {
-              out << "reduceSum "
-                  << (node.type.element == NumericType::UInt64 ? "checked_u64"
-                      : node.type.element == NumericType::Int64 ? "checked_i64"
-                      : node.type.element == NumericType::UInt32 ? "checked_u32"
-                      : node.type.element == NumericType::Int32 ? "checked_i32" : "strict_f32")
-                  << " balanced_adjacent row_major ";
+              out << "reduceSum ";
+              if (isInteger(node.type.element))
+                out << "checked_" << (isUnsigned(node.type.element) ? 'u' : 'i')
+                    << describeNumeric(node.type.element)->bits;
+              else
+                out << "strict_f" << describeNumeric(node.type.element)->bits;
+              out << " balanced_adjacent row_major ";
               value(operation.input);
             } else if constexpr (std::is_same_v<T, DeviceSelection>) {
               out << (operation.device ? "device.gpu " + std::to_string(*operation.device)

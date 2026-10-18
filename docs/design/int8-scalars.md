@@ -33,7 +33,7 @@ Workers use distinct private layouts for signed and unsigned byte values, alongs
 
 The command-line display adapter widens a completed signed byte with sign extension and an unsigned byte with zero extension, then uses the existing 64-bit display entry. Language computation and worker storage remain 8-bit; displaying −128 or 255 does not change the source type.
 
-This milestone established CPU scalars. The subsequent [narrow array and record milestone](narrow-arrays.md) enables arrays and scalar/array record fields for these types. [Narrow CPU tensor construction and elementwise arithmetic](narrow-tensors.md) are also implemented. Narrow reductions, matmul, tensor numeric conversions and GPU arithmetic remain gated pending their own qualification.
+This milestone established CPU scalars. The subsequent [narrow array and record milestone](narrow-arrays.md) enables arrays and scalar/array record fields for these types. [Narrow CPU tensor construction and elementwise arithmetic](narrow-tensors.md) are also implemented. [Checked narrow CPU reductions](narrow-reductions.md) are supported. Narrow matmul, tensor numeric conversions and GPU arithmetic remain gated pending their own qualification.
 
 ## Qualification
 

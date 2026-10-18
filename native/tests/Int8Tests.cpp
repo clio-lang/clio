@@ -51,7 +51,7 @@ int main() {
           "fn bad(a:int8,b:uint8):\n  a+b\nfn main()->int:\n  0\n", "fn main()->int128:\n  1\n",
           "fn main()->Tensor[float16,1]:\n  tensor([1])\n", "fn main():\n  uint8(tensor([1]))\n",
           "type Row:\n  value:Tensor[float16,1]\nfn main()->int:\n  0\n",
-          "fn main():\n  reduceSum(tensor(map([1],fn(x):int8(x))))\n"})
+          "fn main():\n  int64(tensor(map([1],fn(x):int8(x))))\n"})
       require(!analyze(source).ok(), std::string("unsupported int8 surface accepted: ") + source);
     for (unsigned mode = 0; mode < 4; ++mode) {
       auto forged = analyze("fn main()->int8:\n  1\n");

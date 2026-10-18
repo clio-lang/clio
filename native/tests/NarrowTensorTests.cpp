@@ -35,7 +35,8 @@ int main() {
 #endif
       }
       for (const auto &s :
-           {"fn main()->Tensor[" + type + ",2,2]:\n  tensor([[1,2],[3,4]])\n",
+           {"fn f(a:" + tensor + ")->" + type + ":\n  reduceSum(a)\nfn main()->int:\n  0\n",
+            "fn main()->Tensor[" + type + ",2,2]:\n  tensor([[1,2],[3,4]])\n",
             "fn main()->Tensor[" + type + ",2,0,3]:\n  tensor([],[2,0,3])\n",
             "fn main()->[" + type + "]:\n  data:[" + type +
                 "]=[1,2,3,4]\n  array(reshape(tensor(data),[2,2]))\n",
@@ -57,8 +58,7 @@ int main() {
         require(bool(lowered), lowered ? "" : lowered.error());
 #endif
       }
-      for (const auto &s : {"fn f(a:" + tensor + ")->" + type + ":\n  reduceSum(a)\n",
-                            "fn f(a:" + tensor + ")->" + tensor + ":\n  matmul(a,a)\n",
+      for (const auto &s : {"fn f(a:" + tensor + ")->" + tensor + ":\n  matmul(a,a)\n",
                             "fn f(a:" + tensor + ")->Tensor[int64,?,?]:\n  int64(a)\n",
                             "fn f(a:Tensor[int64,?,?])->" + tensor + ":\n  " + type + "(a)\n",
                             "fn f(a:" + tensor + ")->" + tensor + ":\n  " + type + "(a)\n",
@@ -82,7 +82,7 @@ int main() {
       }
     }
     std::cout << "Narrow tensors: four element types, checked elementwise operations, owned "
-                 "records/workers and explicit reduction/conversion/GPU gates passed\n";
+                 "records/workers and explicit matmul/conversion/GPU gates passed\n";
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';
     return 1;

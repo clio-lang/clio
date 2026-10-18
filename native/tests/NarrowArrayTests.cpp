@@ -51,8 +51,7 @@ int main() {
 #endif
       }
       for (const auto &source :
-           {"fn sum(x:Tensor[" + type + ",?])->" + type + ":\n  reduceSum(x)\n",
-            "fn multiply(x:Tensor[" + type + ",?,?])->Tensor[" + type + ",?,?]:\n  matmul(x,x)\n",
+           {"fn multiply(x:Tensor[" + type + ",?,?])->Tensor[" + type + ",?,?]:\n  matmul(x,x)\n",
             "fn main():\n  " + type + "(tensor([1]))\n",
             "fn main()->[" + type + "]:\n  values=[1,2]\n  values\n",
             "fn main():\n  values:[" + type + "]=[1,2]\n  values+values\n",
@@ -61,7 +60,7 @@ int main() {
         require(!analyze(source).ok(), "invalid narrow array program accepted: " + source);
     }
     std::cout << "Narrow arrays/records: four exact element widths, maps, captures, workers, "
-                 "strict tensor-reduction/GPU and no-promotion gates passed\n";
+                 "strict tensor-matmul/GPU and no-promotion gates passed\n";
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';
     return 1;

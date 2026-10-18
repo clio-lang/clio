@@ -17,20 +17,36 @@ using namespace kalandra::runtime;
 #ifndef UNSIGNED_INPUT
 #define UNSIGNED_INPUT 0
 #endif
-constexpr auto element = UNSIGNED_INPUT
-                             ? (INTEGER_BITS == 64 ? NumericType::UInt64 : NumericType::UInt32)
-                             : (INTEGER_BITS == 64 ? NumericType::Int64 : NumericType::Int32);
+static_assert(INTEGER_BITS == 8 || INTEGER_BITS == 16 || INTEGER_BITS == 32 || INTEGER_BITS == 64);
+constexpr auto element = UNSIGNED_INPUT ? (INTEGER_BITS == 8    ? NumericType::UInt8
+                                           : INTEGER_BITS == 16 ? NumericType::UInt16
+                                           : INTEGER_BITS == 64 ? NumericType::UInt64
+                                                                : NumericType::UInt32)
+                                        : (INTEGER_BITS == 8    ? NumericType::Int8
+                                           : INTEGER_BITS == 16 ? NumericType::Int16
+                                           : INTEGER_BITS == 64 ? NumericType::Int64
+                                                                : NumericType::Int32);
 using Cell = NumericValue<element>;
 using Wide = std::conditional_t<UNSIGNED_INPUT,
                                 std::conditional_t<INTEGER_BITS == 64, __uint128_t, std::uint64_t>,
                                 std::conditional_t<INTEGER_BITS == 64, __int128_t, std::int64_t>>;
 using State = std::conditional_t<INTEGER_BITS == 64, std::uint64_t, std::uint32_t>;
-constexpr Cell precision = INTEGER_BITS == 64 ? Cell(9007199254740993LL) : Cell(16777217);
+constexpr Cell precision = INTEGER_BITS < 32    ? Cell(42)
+                           : INTEGER_BITS == 64 ? Cell(9007199254740993LL)
+                                                : Cell(16777217);
 constexpr Cell upperHalf = std::numeric_limits<Cell>::max() / 2 + 1;
 constexpr auto minimum = std::numeric_limits<Cell>::min();
 constexpr auto maximum = std::numeric_limits<Cell>::max();
 using Tensor = CpuTensor<element, TENSOR_RANK>;
-extern "C" Cell _mlir_ciface_kalandra_test_entry(Tensor *, Invocation *);
+using Raw = std::make_unsigned_t<Cell>;
+extern "C" Raw _mlir_ciface_kalandra_test_entry(Tensor *, Invocation *);
+static Cell invoke(Tensor *input, Invocation *context) {
+  // The private MLIR interface returns only the declared low bits, without
+  // platform C sign/zero-extension attributes. Materialize those bits before
+  // interpreting their signedness; do not rely on caller promotion assumptions.
+  volatile Raw bits = _mlir_ciface_kalandra_test_entry(input, context);
+  return std::bit_cast<Cell>(Raw(bits));
+}
 static unsigned cases = 0, faults = 0;
 template <std::size_t Rank>
 static bool verify(std::vector<Cell> values, std::array<std::int64_t, Rank> shape,
@@ -52,7 +68,7 @@ static bool verify(std::vector<Cell> values, std::array<std::int64_t, Rank> shap
   }
   const auto expected = tree.empty() ? 0 : tree[0];
   // Offset view with padded strides: do not assume contiguous foreign input.
-  std::vector<Cell> storage(values.size() * 2 + 8, 1234567);
+  std::vector<Cell> storage(values.size() * 2 + 8, Cell(42));
   for (std::size_t i = 0; i < values.size(); ++i)
     storage[3 + 2 * i] = values[i];
   auto before = storage;
@@ -72,7 +88,7 @@ static bool verify(std::vector<Cell> values, std::array<std::int64_t, Rank> shap
   }
   Invocation context;
   context.failAllocationAt(fail);
-  auto result = _mlir_ciface_kalandra_test_entry(&input, &context);
+  auto result = invoke(&input, &context);
   const auto code = metadataFault ? metadataFault : fail ? 2 : overflow ? 4 : 0;
   ++cases;
   faults += code != 0;
@@ -88,7 +104,8 @@ static bool verify(std::vector<Cell> values, std::array<std::int64_t, Rank> shap
 template <std::size_t Rank> static std::optional<bool> cancellationAttempt(std::size_t count) {
   if constexpr (Rank == 0)
     count = 1;
-  std::vector<Cell> storage(count, 1);
+  std::vector<Cell> storage(count, 0);
+  storage[0] = 1;
   CpuTensor<element, Rank> input{};
   input.allocated = input.aligned = storage.data();
   if constexpr (Rank > 0) {
@@ -111,10 +128,10 @@ template <std::size_t Rank> static std::optional<bool> cancellationAttempt(std::
   });
   while (!ready.load())
     std::this_thread::yield();
-  auto value = _mlir_ciface_kalandra_test_entry(&input, &context);
+  auto value = invoke(&input, &context);
   done.store(true);
   signal.join();
-  const bool completed = value == Cell(count) && !context.status();
+  const bool completed = value == 1 && !context.status();
   const bool ok = token.load() && value == 0 && context.poll() == -1 && !context.status();
   context.settle();
   if (context.live() || context.allocations() != context.releases())
@@ -212,7 +229,8 @@ int main() {
         if constexpr (UNSIGNED_INPUT)
           v = trial % 2 ? next() : next() % 20001;
         else
-          v = trial % 2 ? std::bit_cast<Cell>(next()) : std::int64_t(next() % 20001) - 10000;
+          v = trial % 2 ? std::bit_cast<Cell>(static_cast<std::make_unsigned_t<Cell>>(next()))
+                        : std::int64_t(next() % 20001) - 10000;
       if (!verify(values, shape))
         return 1;
     }
@@ -220,11 +238,13 @@ int main() {
     shape[0] = -1;
     if (!verify({1}, shape, 0, 1))
       return 1;
-    shape[0] = INT64_MAX / sizeof(Cell) + 1;
-    if (!verify({1}, shape, 0, 2))
+    shape[0] = INT64_MAX / sizeof(Cell);
+    if (sizeof(Cell) > 1)
+      ++shape[0];
+    if (!verify({1}, shape, sizeof(Cell) == 1 ? 1 : 0, 2))
       return 1;
     shape[0] = INT64_MAX;
-    if (!verify({1}, shape, 0, 2))
+    if (!verify({1}, shape, sizeof(Cell) == 1 ? 1 : 0, 2))
       return 1;
   }
   std::cout << describeNumeric(element)->name << " reduction rank " << TENSOR_RANK << ": " << cases

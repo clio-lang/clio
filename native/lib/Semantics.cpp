@@ -2570,7 +2570,9 @@ private:
             syntax_.expressions[arguments[0]].span);
       return {};
     }
-    if (!numericArithmeticAvailable(leftType.element, NumericTarget::Cpu)) {
+    if (!(callee == "reduceSum"
+              ? numericReductionAvailable(leftType.element, NumericTarget::Cpu)
+              : numericArithmeticAvailable(leftType.element, NumericTarget::Cpu))) {
       error("S053", callee + " currently requires implemented numeric tensor elements", span);
       return {};
     }

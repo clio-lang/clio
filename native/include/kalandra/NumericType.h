@@ -96,6 +96,10 @@ constexpr bool numericScalarArithmeticAvailable(NumericType type, NumericTarget 
 constexpr bool numericTensorElementwiseAvailable(NumericType type, NumericTarget target) {
   return numericScalarArithmeticAvailable(type, target);
 }
+// Reductions preserve the element width and check each integer tree addition.
+constexpr bool numericReductionAvailable(NumericType type, NumericTarget target) {
+  return numericTensorElementwiseAvailable(type, target);
+}
 // Collection storage is separate from tensor arithmetic capability. CPU arrays
 // can retain every implemented scalar width without enabling tensor operations.
 constexpr bool numericCollectionStorageAvailable(NumericType type, NumericTarget target) {
