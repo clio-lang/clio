@@ -85,6 +85,8 @@ Reject the call: the parameter requires `int`, but the argument is `String`. No 
 
 ### 3. Construct a record and derive another
 
+The native [synchronous scalar-field record subset](records.md) now implements this form. Broader field types and execution integration remain separate work.
+
 ```kalandra
 type Point:
   x: float

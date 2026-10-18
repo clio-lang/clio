@@ -23,6 +23,8 @@ bool hasPlacement(const TypedModule &module) {
          });
 }
 std::string describeType(const ValueType &type) {
+  if (type.builtin == BuiltinValue::Record)
+    return type.recordName + (type.fallible ? " ! TaskError" : "");
   if (type.builtin == BuiltinValue::Bool)
     return std::string(type.task ? "task<Bool>" : "Bool") + (type.fallible ? " ! TaskError" : "");
   if (type.builtin == BuiltinValue::Device)
@@ -57,7 +59,29 @@ std::string describeType(const ValueType &type) {
   return out.str();
 }
 std::optional<std::string> numericCapabilityError(const TypedModule &module, NumericTarget target) {
+  if (!module.records.empty()) {
+    if (target != NumericTarget::Cpu || hasPlacement(module))
+      return "records currently require synchronous CPU execution";
+    if (std::ranges::any_of(module.functions,
+                            [](const auto &f) { return f.resultType.fallible; }) ||
+        std::ranges::any_of(module.expressions, [](const auto &e) {
+          return std::holds_alternative<TaskOperation>(e.operation) ||
+                 std::holds_alternative<ParallelOperation>(e.operation) ||
+                 std::holds_alternative<CatchOperation>(e.operation) ||
+                 std::holds_alternative<MatchOperation>(e.operation) ||
+                 std::holds_alternative<FailOperation>(e.operation);
+        }))
+      return "record modules currently require synchronous CPU execution; worker/error integration "
+             "is not implemented";
+  }
   const auto error = [&](const ValueType &type) -> std::optional<std::string> {
+    if (type.builtin == BuiltinValue::Record) {
+      if (!type.record || *type.record >= module.records.size() || type.tensor || type.array ||
+          type.task || type.fallible || type.device || !type.shape.empty())
+        return "invalid synchronous CPU record type";
+    } else if (type.record)
+      return "non-record value carries a record identity";
+
     if (type.array && (target != NumericTarget::Cpu || !type.tensor || type.shape.size() != 1 ||
                        type.builtin != BuiltinValue::Numeric || type.device))
       return "arrays require rank-one CPU numeric storage";
@@ -72,7 +96,24 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
            (target == NumericTarget::Cpu ? "CPU" : "Apple GPU") + " backend";
   };
   const auto sameArray = [](const ValueType &a, const ValueType &b) {
-    return a.array == b.array && (!a.array || a.element == b.element);
+    return a.record == b.record && a.array == b.array && (!a.array || a.element == b.element);
+  };
+  for (const auto &record : module.records) {
+    if (record.fields.empty())
+      return "record declarations require fields";
+    for (const auto &field : record.fields) {
+      const auto &t = field.type;
+      if (t.tensor || t.array || t.task || t.fallible || t.device || t.record || !t.shape.empty() ||
+          (t.builtin != BuiltinValue::Numeric && t.builtin != BuiltinValue::Bool))
+        return "record fields require CPU numeric scalars or Bool";
+      if (auto failure = error(t))
+        return failure;
+    }
+  }
+  const auto scalarSame = [](const ValueType &a, const ValueType &b) {
+    return a.builtin == b.builtin && a.record == b.record && !a.tensor && !a.array && !a.task &&
+           !a.fallible && !a.device && a.shape.empty() &&
+           (a.builtin != BuiltinValue::Numeric || a.element == b.element);
   };
   bool hasMap = false;
   for (const auto &expression : module.expressions)
@@ -102,6 +143,35 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
   for (const auto &expression : module.expressions) {
     if (auto failure = error(expression.type))
       return failure;
+    if (const auto *value = std::get_if<RecordValue>(&expression.operation)) {
+      const auto &t = expression.type;
+      if (t.builtin != BuiltinValue::Record || !t.record)
+        return "record construction requires a record result";
+      const auto &fields = module.records[*t.record].fields;
+      if (value->base && (*value->base >= module.expressions.size() ||
+                          !scalarSame(module.expressions[*value->base].type, t)))
+        return "record update base has a different nominal type";
+      std::vector<bool> seen(fields.size());
+      for (const auto &field : value->fields) {
+        if (field.field >= fields.size() || seen[field.field] ||
+            field.value >= module.expressions.size() ||
+            !scalarSame(module.expressions[field.value].type, fields[field.field].type))
+          return "invalid record field initializer";
+        seen[field.field] = true;
+      }
+      if (!value->base && std::ranges::find(seen, false) != seen.end())
+        return "record construction leaves a field uninitialized";
+    }
+    if (const auto *read = std::get_if<RecordFieldRead>(&expression.operation)) {
+      if (read->input >= module.expressions.size())
+        return "record field read references an invalid value";
+      const auto &t = module.expressions[read->input].type;
+      if (t.builtin != BuiltinValue::Record || !t.record || *t.record >= module.records.size() ||
+          t.task || t.fallible || t.tensor || t.device ||
+          read->field >= module.records[*t.record].fields.size() ||
+          !scalarSame(expression.type, module.records[*t.record].fields[read->field].type))
+        return "invalid record field read";
+    }
     const auto sameResult = [&](ValueId id) {
       return sameArray(expression.type, module.expressions[id].type);
     };
@@ -178,7 +248,7 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
         const auto &type = module.expressions[result].type;
         if (type.task || type.builtin == BuiltinValue::Device ||
             type.builtin != expression.type.builtin || type.tensor != expression.type.tensor ||
-            type.array != expression.type.array ||
+            type.array != expression.type.array || type.record != expression.type.record ||
             type.shape.size() != expression.type.shape.size() ||
             type.device != expression.type.device ||
             (type.builtin == BuiltinValue::Numeric && type.element != expression.type.element))
@@ -436,6 +506,14 @@ std::string dumpTypedIR(const TypedModule &module) {
             using T = std::decay_t<decltype(operation)>;
             if constexpr (std::is_same_v<T, BoolLiteral>)
               out << (operation.value ? "true" : "false");
+            else if constexpr (std::is_same_v<T, RecordValue>) {
+              out << "record " << node.type.recordName;
+              if (operation.base)
+                out << " with %" << *operation.base;
+              for (const auto &field : operation.fields)
+                out << " field[" << field.field << "]=%" << field.value;
+            } else if constexpr (std::is_same_v<T, RecordFieldRead>)
+              out << "field %" << operation.input << '[' << operation.field << ']';
             else if constexpr (std::is_same_v<T, ConditionalOperation>)
               out << "if %" << operation.condition << " then %" << operation.trueResult << " else %"
                   << operation.falseResult;

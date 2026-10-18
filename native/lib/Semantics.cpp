@@ -67,6 +67,7 @@ public:
     }
   }
   CheckResult run() {
+    registerRecords();
     registerSignatures();
     for (FunctionId i = 0;
          i < syntax_.functions.size() && diagnostics_.size() < limits_.maxDiagnostics; ++i)
@@ -166,7 +167,7 @@ private:
   }
   static bool reservedControl(const std::string &name) {
     return name == "true" || name == "false" || name == "if" || name == "else" || name == "and" ||
-           name == "or" || name == "not";
+           name == "or" || name == "not" || name == "type" || name == "with";
   }
   std::optional<ValueType> type(const TypeSyntax &syntax) {
     if (!syntax.tensor && !syntax.array && name(syntax.name) == "Bool") {
@@ -174,13 +175,18 @@ private:
       result.builtin = BuiltinValue::Bool;
       return result;
     }
+    if (!syntax.tensor && !syntax.array) {
+      const auto key = functionKey(syntax_.source->partIndex(syntax.name.begin), name(syntax.name));
+      if (auto found = records_.find(key); found != records_.end())
+        return recordType(found->second);
+    }
     const auto numeric =
         syntax.tensor ? (syntax.element ? resolveNumeric(name(*syntax.element)) : std::nullopt)
                       : resolveNumeric(name(syntax.name));
     if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu)) {
       error("S003",
-            "implemented numeric types are int32, uint32, int64, uint64, float32 and float64 "
-            "scalars/tensors and numeric arrays",
+            "expected a declared record type, Bool, or a supported numeric scalar, tensor or array "
+            "type",
             syntax.span);
       return {};
     }
@@ -195,12 +201,65 @@ private:
       return {};
     return result;
   }
+  ValueType recordType(std::size_t id) const {
+    ValueType type;
+    type.builtin = BuiltinValue::Record;
+    type.record = id;
+    type.recordName = output_.records[id].name;
+    return type;
+  }
+  void registerRecords() {
+    for (const auto &record : syntax_.records) {
+      const auto label = name(record.name);
+      if (reservedControl(label) || resolveNumeric(label) || label == "Bool" || label == "Tensor" ||
+          label == "TaskError" || label == "FaultKind" || label == "String" || label == "Device") {
+        error("S068", "reserved record type name '" + label + "'", record.name);
+        continue;
+      }
+      const auto key = functionKey(syntax_.source->partIndex(record.name.begin), label);
+      if (!records_.emplace(key, output_.records.size()).second) {
+        error("S068", "duplicate record type '" + label + "'", record.name);
+        continue;
+      }
+      output_.records.push_back({label, record.name, {}});
+    }
+    for (const auto &record : syntax_.records) {
+      const auto key = functionKey(syntax_.source->partIndex(record.name.begin), name(record.name));
+      const auto found = records_.find(key);
+      if (found == records_.end())
+        continue;
+      auto &target = output_.records[found->second];
+      // Duplicate declarations have already been diagnosed; do not merge fields.
+      if (target.declaration.begin != record.name.begin)
+        continue;
+      std::unordered_set<std::string> fields;
+      for (const auto &field : record.fields) {
+        const auto label = name(field.name);
+        if (reservedControl(label) || !fields.insert(label).second) {
+          error("S068", "duplicate or reserved record field '" + label + "'", field.name);
+          continue;
+        }
+        auto fieldType = type(field.type);
+        if (!fieldType)
+          continue;
+        if (fieldType->tensor || (fieldType->builtin != BuiltinValue::Numeric &&
+                                  fieldType->builtin != BuiltinValue::Bool)) {
+          error("S068", "record fields currently require CPU numeric scalars or Bool",
+                field.type.span);
+          continue;
+        }
+        target.fields.push_back({label, *fieldType, field.name});
+      }
+    }
+  }
   void registerSignatures() {
     for (FunctionId id = 0; id < syntax_.functions.size(); ++id) {
       const auto &function = syntax_.functions[id];
       auto &target = output_.functions[id];
       target.name = name(function.name);
       target.declaration = function.name;
+      if (records_.contains(functionKey(function.moduleIndex, target.name)))
+        error("S068", "function conflicts with record type name", function.name);
       if (target.name == "Bool" || reservedControl(target.name))
         error("S056", "reserved Boolean/control-flow name", function.name);
       if (resolveNumeric(target.name)) {
@@ -253,6 +312,10 @@ private:
       for (const auto &imported : import.names) {
         const auto binding = imported.alias.value_or(imported.name);
         const auto local = name(binding);
+        if (records_.contains(functionKey(import.moduleIndex, local))) {
+          error("S068", "import conflicts with record type name", binding);
+          continue;
+        }
         if (local == "Bool" || reservedControl(local) || resolveNumeric(local)) {
           error("S067", "reserved import alias '" + local + "'", binding);
           continue;
@@ -396,11 +459,16 @@ private:
       error("S036", "expected task error requires try before using the success value", span);
       return {};
     }
-    if (actual.builtin != expected.builtin ||
+    if (actual.builtin != expected.builtin || actual.record != expected.record ||
         (actual.builtin == BuiltinValue::Numeric && actual.element != expected.element) ||
         actual.tensor != expected.tensor || actual.array != expected.array ||
         actual.shape.size() != expected.shape.size()) {
-      error("S010", "expected " + describeType(expected) + ", got " + describeType(actual), span);
+      error("S010",
+            "expected " + describeType(expected) + ", got " + describeType(actual) +
+                (actual.record != expected.record && actual.record && expected.record
+                     ? " (distinct record declarations)"
+                     : ""),
+            span);
       return {};
     }
     std::vector<ExtentRequirement> checks;
@@ -616,6 +684,75 @@ private:
     frame.closure->captures.emplace(identifier, symbol);
     frame.closure->origins.push_back(*origin);
     return symbol;
+  }
+  std::optional<ValueId> infer(Frame &frame, SourceSpan span, const RecordExpr &record,
+                               const std::optional<ValueType> &) {
+    std::optional<ValueId> base;
+    ValueType result;
+    if (record.base) {
+      base = expression(frame, *record.base);
+      if (!base)
+        return {};
+      result = node(*base).type;
+      if (result.builtin != BuiltinValue::Record || result.task || result.fallible ||
+          !result.record) {
+        error("S068", "with requires a completed record value", span);
+        return {};
+      }
+    } else {
+      const auto found = records_.find(functionKey(frame, name(record.name)));
+      if (found == records_.end()) {
+        error("S068", "unknown record type '" + name(record.name) + "'", record.name);
+        return {};
+      }
+      if (lookupSymbol(frame, record.name)) {
+        error("S068", "record constructor is shadowed by a local value", record.name);
+        return {};
+      }
+      result = recordType(found->second);
+    }
+    const auto &declaration = output_.records[*result.record];
+    std::unordered_set<std::string> seen;
+    std::vector<RecordFieldValue> values;
+    for (const auto &field : record.fields) {
+      const auto label = name(field.name);
+      const auto found =
+          std::ranges::find_if(declaration.fields, [&](const auto &f) { return f.name == label; });
+      if (found == declaration.fields.end() || !seen.insert(label).second) {
+        error("S068", "unknown or duplicate field '" + label + "' in " + result.recordName,
+              field.name);
+        return {};
+      }
+      auto value = expression(frame, field.value, found->type);
+      if (!value)
+        return {};
+      values.push_back({static_cast<std::size_t>(found - declaration.fields.begin()), *value});
+    }
+    if (!base && values.size() != declaration.fields.size()) {
+      error("S068", "construction of " + result.recordName + " requires every named field", span);
+      return {};
+    }
+    return add(frame, result, span, RecordValue{base, std::move(values)});
+  }
+  std::optional<ValueId> infer(Frame &frame, SourceSpan span, const FieldExpr &read,
+                               const std::optional<ValueType> &) {
+    auto input = expression(frame, read.input);
+    if (!input)
+      return {};
+    const auto type = node(*input).type;
+    if (type.builtin != BuiltinValue::Record || type.task || type.fallible || !type.record) {
+      error("S068", "field access requires a completed record value", span);
+      return {};
+    }
+    const auto &fields = output_.records[*type.record].fields;
+    const auto found =
+        std::ranges::find_if(fields, [&](const auto &f) { return f.name == name(read.field); });
+    if (found == fields.end()) {
+      error("S068", "unknown field '" + name(read.field) + "' in " + type.recordName, read.field);
+      return {};
+    }
+    return add(frame, found->type, span,
+               RecordFieldRead{*input, static_cast<std::size_t>(found - fields.begin())});
   }
   std::optional<ValueId> infer(Frame &, SourceSpan span, const LambdaExpr &,
                                const std::optional<ValueType> &) {
@@ -1282,7 +1419,7 @@ private:
         return {};
       }
       if (resultType) {
-        if (actual.builtin != resultType->builtin ||
+        if (actual.builtin != resultType->builtin || actual.record != resultType->record ||
             (actual.builtin == BuiltinValue::Numeric && actual.element != resultType->element) ||
             actual.tensor != resultType->tensor || actual.array != resultType->array ||
             actual.shape.size() != resultType->shape.size()) {
@@ -1451,7 +1588,7 @@ private:
                 arm.span);
           return {};
         }
-        if (actual.builtin != resultType->builtin ||
+        if (actual.builtin != resultType->builtin || actual.record != resultType->record ||
             (actual.builtin == BuiltinValue::Numeric && actual.element != resultType->element) ||
             actual.tensor != resultType->tensor || actual.array != resultType->array ||
             actual.shape.size() != resultType->shape.size()) {
@@ -2377,6 +2514,7 @@ private:
   CheckOptions options_;
   TypedModule output_;
   std::unordered_map<std::string, FunctionId> functions_;
+  std::unordered_map<std::string, std::size_t> records_;
   std::vector<State> states_;
   std::vector<bool> signatures_;
   std::vector<bool> literal_, floatingLiteral_;

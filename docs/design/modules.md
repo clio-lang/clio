@@ -38,7 +38,7 @@ Imports are not automatically re-exported. Write an exported wrapper function wh
 
 ## Types, workers and entry points
 
-The complete source graph shares one checked function IR. Each import refers to the original function identity; aliases do not copy its implementation or erase its types. Concrete numeric types, arrays, tensors, shape requirements, Bool, return inference and the existing TaskError channel keep their current rules. Already typed values do not convert implicitly at a module boundary.
+The complete source graph shares one checked function IR. Each import refers to the original function identity; aliases do not copy its implementation or erase its types. Concrete numeric types, arrays, tensors, shape requirements, Bool, return inference and the existing TaskError channel keep their current rules. Already typed values do not convert implicitly at a module boundary. Synchronous functions can now accept and return [scalar-field records](records.md). Callers can infer an imported record value's original nominal type, read its fields and derive updates; the type name remains private to its declaring module until type exports are implemented. Record-containing graphs currently require synchronous CPU execution.
 
 Imported functions can be named map callbacks, called from anonymous callbacks, and dispatched directly or through nested CPU workers. Captures and retained results use the existing ownership and task machinery. Dependencies are compiler inputs; they are not dynamically loaded by a running program.
 

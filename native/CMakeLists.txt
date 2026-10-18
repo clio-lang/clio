@@ -882,3 +882,5 @@ include(cmake/TensorArray.cmake)
 include(cmake/Modules.cmake)
 
 include(cmake/CollectionEntry.cmake)
+
+include(cmake/Records.cmake)

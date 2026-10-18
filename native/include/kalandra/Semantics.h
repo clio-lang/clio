@@ -12,7 +12,7 @@ struct Extent {
   ExtentId identity =
       0; // Nonzero identity for a dynamic extent, never an implicit equality of '?'.
 };
-enum class BuiltinValue { Numeric, TaskError, FaultKind, String, Device, Bool };
+enum class BuiltinValue { Numeric, TaskError, FaultKind, String, Device, Bool, Record };
 struct ValueType {
   // Ranked immutable storage; arrays use rank one with a separate source category.
   bool tensor = false;
@@ -26,6 +26,8 @@ struct ValueType {
   // Scalar numeric identity, or the tensor element type; irrelevant to other builtins.
   NumericType element = NumericType::Float32;
   bool array = false; // Source [T], distinct from Tensor[T,...]; never an implicit conversion.
+  std::optional<std::size_t> record = {}; // Nominal module-local declaration identity.
+  std::string recordName = {}; // User-facing spelling; identity is the table index above.
 };
 struct Symbol {
   std::string name;
@@ -193,6 +195,28 @@ struct ErrorFieldRead {
 struct FailOperation {
   ValueId error;
 };
+struct RecordFieldValue {
+  std::size_t field;
+  ValueId value;
+};
+struct RecordValue {
+  std::optional<ValueId> base;
+  std::vector<RecordFieldValue> fields; // Written evaluation order, canonical field indices.
+};
+struct RecordFieldRead {
+  ValueId input;
+  std::size_t field;
+};
+struct TypedRecordField {
+  std::string name;
+  ValueType type;
+  SourceSpan declaration;
+};
+struct TypedRecord {
+  std::string name;
+  SourceSpan declaration;
+  std::vector<TypedRecordField> fields;
+};
 struct TypedExpr {
   SourceSpan span;
   ValueType type; // Concrete scalar/tensor numeric identity; builtins retain explicit tags.
@@ -202,7 +226,7 @@ struct TypedExpr {
                ReduceSum, ArrayMap, ArrayToTensor, TensorReshape, TensorToArray, ArrayIndex,
                TensorIndex, CollectionQuery, ShapeCheck, DeviceSelection, Transfer, TaskOperation,
                ParallelOperation, ConditionalOperation, CatchOperation, MatchOperation,
-               ErrorFieldRead, FailOperation>
+               ErrorFieldRead, FailOperation, RecordValue, RecordFieldRead>
       operation;
 };
 struct ShapeEquality {
@@ -225,6 +249,7 @@ struct TypedModule {
   std::vector<Symbol> symbols;
   std::vector<TypedExpr> expressions;
   std::vector<TypedFunction> functions;
+  std::vector<TypedRecord> records;
 };
 struct SemanticLimits {
   std::size_t maxDepth = 128;

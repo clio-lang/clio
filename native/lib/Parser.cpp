@@ -42,6 +42,14 @@ public:
           synchronizeFunction();
         continue;
       }
+      if (word("type")) {
+        auto record = parseRecord();
+        if (record)
+          result_.module.records.push_back(std::move(*record));
+        else
+          synchronizeFunction();
+        continue;
+      }
       auto function = parseFunction();
       if (function)
         result_.module.functions.push_back(std::move(*function));
@@ -49,7 +57,7 @@ public:
         synchronizeFunction();
     }
     if (result_.module.functions.empty() && result_.module.imports.empty() &&
-        result_.diagnostics.empty())
+        result_.module.records.empty() && result_.diagnostics.empty())
       error("P001", "expected at least one named function", current().span);
     return std::move(result_);
   }
@@ -175,6 +183,46 @@ private:
     if (!expect(TokenKind::Newline, "expected end of import declaration"))
       return {};
     return result;
+  }
+  std::optional<RecordDeclaration> parseRecord() {
+    advance();
+    auto name = expect(TokenKind::Identifier, "expected a record type name");
+    if (!name || !expect(TokenKind::Colon, "expected ':' after record name") ||
+        !expect(TokenKind::Newline, "record fields must start on the next line") ||
+        !expect(TokenKind::Indent, "expected indented record fields"))
+      return {};
+    RecordDeclaration result{name->span, {}};
+    while (!at(TokenKind::Dedent) && !at(TokenKind::End)) {
+      auto field = expect(TokenKind::Identifier, "expected a field name");
+      if (!field || !expect(TokenKind::Colon, "record fields require ': Type'"))
+        return {};
+      auto type = parseType();
+      if (!type || !expect(TokenKind::Newline, "expected end of record field"))
+        return {};
+      result.fields.push_back({field->span, std::move(*type)});
+    }
+    if (!expect(TokenKind::Dedent, "expected end of record declaration"))
+      return {};
+    return result;
+  }
+  std::optional<std::vector<FieldInitializer>> recordFields() {
+    std::vector<FieldInitializer> fields;
+    if (!at(TokenKind::RightBrace)) {
+      while (true) {
+        auto name = expect(TokenKind::Identifier, "expected a named record field");
+        if (!name || !expect(TokenKind::Colon, "record fields require 'name: value'"))
+          return {};
+        auto value = parseExpression();
+        if (!value)
+          return {};
+        fields.push_back({name->span, *value});
+        if (!consume(TokenKind::Comma) || at(TokenKind::RightBrace))
+          break;
+      }
+    }
+    if (!expect(TokenKind::RightBrace, "expected '}' after record fields"))
+      return {};
+    return fields;
   }
   std::optional<Function> parseFunction() {
     const bool exported = word("export");
@@ -322,6 +370,41 @@ private:
           return {};
         left =
             add({{begin, tokens_[position_ - 1].span.end}, IndexExpr{*left, std::move(*indices)}});
+        if (!left)
+          return {};
+        continue;
+      }
+      if (consume(TokenKind::Dot)) {
+        auto field = expect(TokenKind::Identifier, "expected a field name after '.'");
+        if (!field)
+          return {};
+        left = add({{node(*left).span.begin, field->span.end}, FieldExpr{*left, field->span}});
+        if (!left)
+          return {};
+        continue;
+      }
+      if (at(TokenKind::LeftBrace) || (word("with") && minimum <= 8)) {
+        const auto begin = node(*left).span.begin;
+        const bool update = word("with");
+        SourceSpan name{};
+        if (update) {
+          advance();
+          if (!expect(TokenKind::LeftBrace, "expected '{' after with"))
+            return {};
+        } else {
+          const auto *identifier = std::get_if<NameExpr>(&node(*left).value);
+          if (!identifier) {
+            error("P035", "record construction requires a type name", node(*left).span);
+            return {};
+          }
+          name = identifier->name;
+          advance();
+        }
+        auto fields = recordFields();
+        if (!fields)
+          return {};
+        left = add({{begin, tokens_[position_ - 1].span.end},
+                    RecordExpr{update ? left : std::nullopt, name, std::move(*fields)}});
         if (!left)
           return {};
         continue;
@@ -680,7 +763,7 @@ private:
   }
   void synchronizeFunction() {
     while (!at(TokenKind::End)) {
-      if ((word("fn") || word("export") || word("from")) &&
+      if ((word("fn") || word("export") || word("from") || word("type")) &&
           source_->location(current().span.begin).second == 1)
         return;
       advance();

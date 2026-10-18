@@ -5,6 +5,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -104,6 +105,12 @@ private:
                                input_.source->origin(span.begin).first->path(), line, column);
   }
   Type type(const ValueType &value) {
+    if (value.builtin == BuiltinValue::Record) {
+      SmallVector<Type> fields;
+      for (const auto &field : input_.records.at(*value.record).fields)
+        fields.push_back(type(field.type));
+      return LLVM::LLVMStructType::getLiteral(builder_.getContext(), fields);
+    }
     if (value.builtin == BuiltinValue::Bool)
       return builder_.getI1Type();
     const Type element =
@@ -866,6 +873,21 @@ private:
                        : operand;
           } else if constexpr (std::is_same_v<T, BoolLiteral>) {
             return arith::ConstantIntOp::create(builder_, loc, operation.value, 1);
+          } else if constexpr (std::is_same_v<T, RecordValue>) {
+            Value value = operation.base
+                              ? expression(frame, *operation.base)
+                              : Value(LLVM::UndefOp::create(builder_, loc, type(node.type)));
+            for (const auto &field : operation.fields) {
+              auto member = expression(frame, field.value);
+              value =
+                  LLVM::InsertValueOp::create(builder_, loc, value, member,
+                                              ArrayRef<int64_t>{static_cast<int64_t>(field.field)});
+            }
+            return value;
+          } else if constexpr (std::is_same_v<T, RecordFieldRead>) {
+            return LLVM::ExtractValueOp::create(
+                builder_, loc, expression(frame, operation.input),
+                ArrayRef<int64_t>{static_cast<int64_t>(operation.field)});
           } else if constexpr (std::is_same_v<T, ScalarCompare>) {
             auto left = expression(frame, operation.left),
                  right = expression(frame, operation.right);

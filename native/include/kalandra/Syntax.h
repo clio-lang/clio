@@ -138,6 +138,20 @@ struct IndexExpr {
   ExprId input;
   std::vector<ExprId> indices;
 };
+struct FieldInitializer {
+  SourceSpan name;
+  ExprId value;
+};
+struct RecordExpr {
+  // Construction names a type; updates evaluate a base immutable value first.
+  std::optional<ExprId> base;
+  SourceSpan name;
+  std::vector<FieldInitializer> fields;
+};
+struct FieldExpr {
+  ExprId input;
+  SourceSpan field;
+};
 struct ArrayExpr {
   std::vector<ExprId> elements;
 };
@@ -193,7 +207,7 @@ struct Expr {
   SourceSpan span;
   std::variant<NameExpr, NumberExpr, UnaryExpr, BinaryExpr, ComparisonExpr, CallExpr, ArrayExpr,
                IndexExpr, TaskExpr, ParallelExpr, ConditionalExpr, LogicalExpr, CatchExpr,
-               MatchExpr, FailExpr, LambdaExpr>
+               MatchExpr, FailExpr, LambdaExpr, RecordExpr, FieldExpr>
       value;
 };
 struct Statement {
@@ -226,6 +240,10 @@ struct Import {
   std::size_t moduleIndex = 0;
   std::optional<std::size_t> target = {};
 };
+struct RecordDeclaration {
+  SourceSpan name;
+  std::vector<Parameter> fields;
+};
 struct Module {
   // Source storage outlives all borrowed slices/byte spans. Expressions use flat
   // arena IDs so a long left-associative chain cannot recursively destroy nodes.
@@ -233,6 +251,7 @@ struct Module {
   std::vector<Expr> expressions;
   std::vector<Function> functions;
   std::vector<Import> imports;
+  std::vector<RecordDeclaration> records;
 };
 struct ParseResult {
   Module module;

@@ -111,3 +111,7 @@ Split reusable functions into [local modules](../docs/design/modules.md): mark a
 ## Display collection results
 
 Native CPU `main` can return an array or tensor directly. Arrays print as lists; tensors include their flat row-major values and shape, such as `tensor([1, 2, 3, 4], [2, 2])`. Completed worker results are supported. Collection-returning executables show up to 100 elements by default; use `./program --limit 10` or `./program --all` to control display. See [collection results](../docs/design/collection-results.md) for precision, ownership and failure behavior.
+
+## Immutable CPU records
+
+Declare named numeric/Boolean fields with `type Point:`, construct with `Point { x: 2, y: 3 }`, read `point.x`, and derive another value with `point with { x: 12 }`. Synchronous functions can accept and return these records without heap allocation for the record itself. See [records](../docs/design/records.md) for a complete program, nominal module identity, evaluation order, and the current worker/GPU/collection-field boundaries.

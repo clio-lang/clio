@@ -15,7 +15,16 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
   return std::visit(
       [](const auto &op) -> std::vector<ValueId> {
         using T = std::decay_t<decltype(op)>;
-        if constexpr (std::is_same_v<T, TensorLiteral>)
+        if constexpr (std::is_same_v<T, RecordValue>) {
+          std::vector<ValueId> values;
+          if (op.base)
+            values.push_back(*op.base);
+          for (const auto &field : op.fields)
+            values.push_back(field.value);
+          return values;
+        } else if constexpr (std::is_same_v<T, RecordFieldRead>)
+          return {op.input};
+        else if constexpr (std::is_same_v<T, TensorLiteral>)
           return op.elements;
         else if constexpr (std::is_same_v<T, TensorUnary> || std::is_same_v<T, ScalarUnary>)
           return {op.operand};
@@ -624,6 +633,8 @@ std::vector<bool> resumableFunctions(const TypedModule &input) {
   return result;
 }
 std::expected<ModulePlan, std::string> plan(const TypedModule &input, Options options) {
+  if (!input.records.empty())
+    return std::unexpected("record continuation storage is not implemented");
   try {
     Builder builder(input, options);
     return std::move(static_cast<ModulePlan &>(builder));
