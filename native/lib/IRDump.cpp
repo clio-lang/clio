@@ -308,6 +308,23 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
           return "conditional branch result type mismatch";
       }
     }
+    if (const auto *concat = std::get_if<ArrayConcat>(&expression.operation)) {
+      if (concat->left >= module.expressions.size() || concat->right >= module.expressions.size())
+        return "array concat references invalid operands";
+      const auto &a = module.expressions[concat->left].type;
+      const auto &b = module.expressions[concat->right].type;
+      const auto &r = expression.type;
+      for (const auto *type : {&a, &b, &r})
+        if (target != NumericTarget::Cpu || !type->array || !type->tensor ||
+            type->shape.size() != 1 || type->task || type->fallible || type->device ||
+            (type->builtin != BuiltinValue::Numeric && !isOwnedArray(*type)))
+          return "array concat requires completed CPU arrays";
+      for (const auto *type : {&a, &b, &r})
+        if (type->shape[0].constant && *type->shape[0].constant > std::uint64_t(INT64_MAX))
+          return "array concat extent exceeds the indexing range";
+      if (!sameArray(a, b) || !sameArray(a, r))
+        return "array concat element types differ";
+    }
     if (const auto *slice = std::get_if<ArraySlice>(&expression.operation)) {
       if (slice->input >= module.expressions.size() || slice->start >= module.expressions.size() ||
           slice->end >= module.expressions.size())
@@ -647,7 +664,9 @@ std::string dumpTypedIR(const TypedModule &module) {
       std::visit(
           [&](const auto &operation) {
             using T = std::decay_t<decltype(operation)>;
-            if constexpr (std::is_same_v<T, ArraySlice>)
+            if constexpr (std::is_same_v<T, ArrayConcat>)
+              out << "array.concat checked %" << operation.left << " %" << operation.right;
+            else if constexpr (std::is_same_v<T, ArraySlice>)
               out << "array.slice checked %" << operation.input << " %" << operation.start << " %"
                   << operation.end;
             else if constexpr (std::is_same_v<T, StringSlice>)

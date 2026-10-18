@@ -142,6 +142,9 @@ struct TensorReshape {
 struct TensorToArray {
   ValueId input;
 }; // Flatten logical row-major elements into an immutable numeric array.
+struct ArrayConcat {
+  ValueId left, right;
+};
 struct ArraySlice {
   ValueId input, start, end;
 };
@@ -262,10 +265,10 @@ struct TypedExpr {
                UInt64Literal, StringSlice, StringIndex, StringQuery, StringConcat, StringLiteral,
                BoolLiteral, ScalarCompare, SymbolRead, ScalarUnary, TensorUnary, ScalarBinary,
                TensorBinary, TensorLiteral, NumericConvert, FunctionCall, Matmul, ReduceSum,
-               ArrayMap, ArrayToTensor, TensorReshape, TensorToArray, ArraySlice, ArrayIndex,
-               TensorIndex, CollectionQuery, ShapeCheck, DeviceSelection, Transfer, TaskOperation,
-               ParallelOperation, ConditionalOperation, CatchOperation, MatchOperation,
-               ErrorFieldRead, FailOperation, RecordValue, RecordFieldRead>
+               ArrayMap, ArrayToTensor, TensorReshape, TensorToArray, ArrayConcat, ArraySlice,
+               ArrayIndex, TensorIndex, CollectionQuery, ShapeCheck, DeviceSelection, Transfer,
+               TaskOperation, ParallelOperation, ConditionalOperation, CatchOperation,
+               MatchOperation, ErrorFieldRead, FailOperation, RecordValue, RecordFieldRead>
       operation;
 };
 struct ShapeEquality {

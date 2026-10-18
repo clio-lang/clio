@@ -84,3 +84,5 @@ Explicit runtime array-to-tensor construction passed 87 focused checks on Apple 
 ## Record elements
 
 [Immutable record arrays](record-arrays.md) now extend construction, length, indexing and CPU helper/worker transport to finite record values with nested numeric collection fields. Mapping over record elements and record-array fields remain separate gates.
+
+[CPU array concatenation](array-concatenation.md) combines two same-typed arrays with `concat(left, right)`, retaining immutable inputs and checked worker ownership.

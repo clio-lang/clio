@@ -942,3 +942,5 @@ include(cmake/LocalPackages.cmake)
 include(cmake/Projects.cmake)
 
 include(cmake/ArraySlices.cmake)
+
+include(cmake/ArrayConcats.cmake)

@@ -55,8 +55,8 @@ void validIR(const TypedModule &module) {
                     "bad symbol resolution");
           } else if constexpr (std::is_same_v<T, ScalarUnary> || std::is_same_v<T, TensorUnary>)
             operand(op.operand);
-          else if constexpr (std::is_same_v<T, ScalarBinary> || std::is_same_v<T, TensorBinary> ||
-                             std::is_same_v<T, Matmul>) {
+          else if constexpr (std::is_same_v<T, ScalarBinary> || std::is_same_v<T, ArrayConcat> ||
+                             std::is_same_v<T, TensorBinary> || std::is_same_v<T, Matmul>) {
             operand(op.left);
             operand(op.right);
           } else if constexpr (std::is_same_v<T, TensorLiteral>) {

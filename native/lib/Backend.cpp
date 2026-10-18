@@ -1483,6 +1483,74 @@ private:
                   scf::YieldOp::create(builder_, loc, ValueRange{inserted});
                 });
             return loop.getResult(0);
+          } else if constexpr (std::is_same_v<T, ArrayConcat>) {
+            auto left = expression(frame, operation.left);
+            auto right = expression(frame, operation.right);
+            const bool owned = isOwnedArray(node.type);
+            const auto length = [&](Value input) -> Value {
+              if (owned)
+                return arith::IndexCastOp::create(builder_, loc, builder_.getIndexType(),
+                                                  recordArrayLength(loc, input, node.type));
+              auto shape = dimensions(loc, input);
+              checkedCount(loc, shape, describeNumeric(node.type.element)->bytes());
+              return shape[0];
+            };
+            auto a = length(left), b = length(right);
+            auto remaining = arith::SubIOp::create(builder_, loc, index(loc, INT64_MAX), b);
+            guard(loc, compare(loc, arith::CmpIPredicate::ule, a, remaining), 2);
+            Value count = arith::AddIOp::create(builder_, loc, a, b);
+            if (node.type.shape[0].constant)
+              guard(loc,
+                    compare(loc, arith::CmpIPredicate::eq, count,
+                            index(loc, *node.type.shape[0].constant)),
+                    1);
+            Value empty;
+            if (owned)
+              empty = recordArrayStorage(loc, node.type, count);
+            else {
+              checkedCount(loc, {count}, describeNumeric(node.type.element)->bytes());
+              auto output = cast<RankedTensorType>(type(node.type));
+              SmallVector<Value> dynamic;
+              if (output.isDynamicDim(0))
+                dynamic.push_back(count);
+              empty = tensor::EmptyOp::create(builder_, loc, output.getShape(),
+                                              output.getElementType(), dynamic);
+            }
+            auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
+            const auto append = [&](Value input, Value size, Value offset, Value output) -> Value {
+              auto loop = scf::ForOp::create(
+                  builder_, loc, index(loc, 0), size, index(loc, 1), ValueRange{output},
+                  [&](OpBuilder &, Location, Value i, ValueRange args) {
+                    Value targetIndex = arith::AddIOp::create(builder_, loc, offset, i);
+                    Value result;
+                    if (owned) {
+                      auto position =
+                          arith::IndexCastOp::create(builder_, loc, builder_.getI64Type(), i);
+                      auto destinationIndex = arith::IndexCastOp::create(
+                          builder_, loc, builder_.getI64Type(), targetIndex);
+                      auto storage =
+                          LLVM::ExtractValueOp::create(builder_, loc, input, ArrayRef<int64_t>{1});
+                      auto cell = arrayCellType(node.type);
+                      auto address = LLVM::GEPOp::create(builder_, loc, ptr, cell, storage,
+                                                         ValueRange{position});
+                      auto value = arrayCellRead(loc, address, node.type);
+                      auto destination = LLVM::ExtractValueOp::create(builder_, loc, args[0],
+                                                                      ArrayRef<int64_t>{1});
+                      auto target = LLVM::GEPOp::create(builder_, loc, ptr, cell, destination,
+                                                        ValueRange{destinationIndex});
+                      arrayCellStore(loc, value, target, node.type);
+                      result = args[0];
+                    } else {
+                      auto value = tensor::ExtractOp::create(builder_, loc, input, ValueRange{i});
+                      result = tensor::InsertOp::create(builder_, loc, value, args[0],
+                                                        ValueRange{targetIndex});
+                    }
+                    scf::YieldOp::create(builder_, loc, ValueRange{result});
+                  });
+              return loop.getResult(0);
+            };
+            auto first = append(left, a, index(loc, 0), empty);
+            return append(right, b, a, first);
           } else if constexpr (std::is_same_v<T, ArraySlice>) {
             auto input = expression(frame, operation.input);
             Value start = expression(frame, operation.start);

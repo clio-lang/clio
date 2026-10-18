@@ -139,3 +139,5 @@ CPU records can also own [numeric arrays and tensors](../docs/design/record-coll
 [Native project manifests](../docs/design/native-projects.md) record a `.k` entry and relative local library mappings in a versioned TOML file. Use `kalandrac --project kalandra.toml -o program` and `kalandra-check --project kalandra.toml`; the manifest is an explicit compiler input, protected from output replacement.
 
 [Immutable CPU array slicing](../docs/design/array-slicing.md) supports `slice(values, start, end)` for existing array types, with checked ranges and retained worker ownership.
+
+[CPU array concatenation](../docs/design/array-concatenation.md) combines existing same-typed arrays using `concat(left, right)`, including direct worker dispatch.

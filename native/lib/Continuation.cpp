@@ -30,7 +30,7 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
           return {op.operand};
         else if constexpr (std::is_same_v<T, Matmul> || std::is_same_v<T, TensorBinary> ||
                            std::is_same_v<T, ScalarBinary> || std::is_same_v<T, ScalarCompare> ||
-                           std::is_same_v<T, StringConcat>)
+                           std::is_same_v<T, StringConcat> || std::is_same_v<T, ArrayConcat>)
           return {op.left, op.right};
         else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, CollectionQuery> ||
                            std::is_same_v<T, StringQuery> || std::is_same_v<T, NumericConvert> ||
@@ -200,7 +200,7 @@ private:
             op.operand = importValue(op.operand);
           else if constexpr (std::is_same_v<T, ScalarBinary> || std::is_same_v<T, TensorBinary> ||
                              std::is_same_v<T, ScalarCompare> || std::is_same_v<T, Matmul> ||
-                             std::is_same_v<T, StringConcat>) {
+                             std::is_same_v<T, StringConcat> || std::is_same_v<T, ArrayConcat>) {
             op.left = importValue(op.left);
             op.right = importValue(op.right);
           } else if constexpr (std::is_same_v<T, RecordValue>) {
@@ -340,6 +340,9 @@ private:
     } else if (auto *convert = std::get_if<NumericConvert>(&op))
       convert->input = reads[0];
     else if (auto *concat = std::get_if<StringConcat>(&op)) {
+      concat->left = reads[0];
+      concat->right = reads[1];
+    } else if (auto *concat = std::get_if<ArrayConcat>(&op)) {
       concat->left = reads[0];
       concat->right = reads[1];
     } else if (auto *query = std::get_if<StringQuery>(&op))

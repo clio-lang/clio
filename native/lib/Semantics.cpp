@@ -1117,6 +1117,79 @@ private:
     }
     return invoke(frame, span, callee->name, call.arguments, expected);
   }
+  std::optional<ValueId> arrayConcat(Frame &frame, SourceSpan span,
+                                     const std::vector<ExprId> &arguments,
+                                     const std::optional<ValueType> &expected) {
+    if (arguments.size() != 2) {
+      error("S027", "concat expects exactly two arrays", span);
+      return {};
+    }
+    if (options_.placement) {
+      error("S061", "concat requires CPU arrays without placement", span);
+      return {};
+    }
+    const auto empty = [&](ExprId id) {
+      auto *literal = std::get_if<ArrayExpr>(&syntax_.expressions[id].value);
+      return literal && literal->elements.empty();
+    };
+    const auto array = [](const ValueType &type) {
+      return type.array && type.tensor && type.shape.size() == 1 && !type.task && !type.fallible &&
+             !type.device && (type.builtin == BuiltinValue::Numeric || isOwnedArray(type));
+    };
+    const auto elementContext = [](ValueType type) {
+      type.shape = {{{}, 0}};
+      return type;
+    };
+    std::optional<ValueType> context =
+        expected && expected->array ? std::optional(elementContext(*expected)) : std::nullopt;
+    std::optional<ValueId> left, right;
+    // An empty literal has no effects; infer its element context from the other
+    // operand without changing the left-to-right runtime evaluation order.
+    if (!context && empty(arguments[0])) {
+      right = expression(frame, arguments[1]);
+      if (!right)
+        return {};
+      if (!array(node(*right).type)) {
+        error("S061", "concat requires completed CPU arrays", span);
+        return {};
+      }
+      left = expression(frame, arguments[0], elementContext(node(*right).type));
+    } else {
+      left = expression(frame, arguments[0], context);
+      if (!left)
+        return {};
+      if (!array(node(*left).type)) {
+        error("S061", "concat requires completed CPU arrays", span);
+        return {};
+      }
+      right = expression(frame, arguments[1],
+                         context               ? context
+                         : empty(arguments[1]) ? std::optional(elementContext(node(*left).type))
+                                               : std::nullopt);
+    }
+    if (!left || !right)
+      return {};
+    auto type = node(*left).type;
+    const auto other = node(*right).type;
+    if (!array(type) || !array(other) || type.builtin != other.builtin ||
+        type.record != other.record ||
+        (type.builtin == BuiltinValue::Numeric && type.element != other.element)) {
+      error("S061", "concat requires completed CPU arrays with the same element type", span);
+      return {};
+    }
+    const auto a = type.shape[0].constant, b = other.shape[0].constant;
+    if (a && b) {
+      if (*b > std::uint64_t(INT64_MAX) || *a > std::uint64_t(INT64_MAX) - *b) {
+        error("S024", "concatenated array length exceeds the supported range", span);
+        return {};
+      }
+      type.shape = {{{*a + *b}, 0}};
+    } else
+      type.shape = {dynamic()};
+    if (!validSize(type, span))
+      return {};
+    return add(frame, type, span, ArrayConcat{*left, *right});
+  }
   std::optional<ValueId> collectionSlice(Frame &frame, SourceSpan span,
                                          const std::vector<ExprId> &arguments,
                                          const std::optional<ValueType> &expected) {
@@ -1413,6 +1486,7 @@ private:
           !std::holds_alternative<TensorReshape>(node(*value).operation) &&
           !std::holds_alternative<TensorToArray>(node(*value).operation) &&
           !std::holds_alternative<ArraySlice>(node(*value).operation) &&
+          !std::holds_alternative<ArrayConcat>(node(*value).operation) &&
           !std::holds_alternative<CollectionQuery>(node(*value).operation)) {
         error("S037", "this invocation is not a supported task entry", span);
         return {};
@@ -2703,6 +2777,8 @@ private:
           return {};
         return arrayTensor(frame, span, *input, arguments[1], expected, true);
       }
+      if (callee == "concat")
+        return arrayConcat(frame, span, arguments, expected);
       if (callee == "slice")
         return collectionSlice(frame, span, arguments, expected);
       if (callee == "length" || callee == "shape" || callee == "byteLength")
