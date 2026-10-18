@@ -33,7 +33,7 @@ An alias names the original nominal declaration. Two aliases of the same type ar
 
 Record declarations are private unless explicitly exported. Importing a function that returns a private record still allows inference, field access and updates under the existing rules; it does not expose that record's type name. An exported record may contain a private record field without exporting the private name.
 
-Functions and types share the module declaration/import namespace: a type alias cannot collide with a local function, local type or another imported name. Reserved type/control names cannot be used as type aliases. Imports resolve before record fields and function signatures, so declaration order does not affect type lookup. Imported names are not automatically re-exported.
+Functions and types share the module declaration/import namespace: a type alias cannot collide with a local function, local type or another imported name. Reserved type/control names cannot be used as type aliases. Imports resolve before record fields and function signatures, so declaration order does not affect type lookup. Ordinary imported names are not automatically re-exported. [Explicit re-exports](reexports.md) can expose selected exported types/functions through another module.
 
 Local module loading remains CPU-only and requires explicit relative `.kalandra` paths. Type-only imports participate in the same graph limits, cycle checks, original-file diagnostics and source-output protection. Namespace imports, export lists, package resolution, GPU module support and public native library interfaces remain separate work.
 

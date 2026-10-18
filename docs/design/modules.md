@@ -34,7 +34,7 @@ Named `export fn` declarations and [exported record types](type-exports.md) can 
 
 Duplicate local function/import bindings, duplicate aliases, missing exports and attempts to import private functions are diagnosed. Numeric conversion names and `Bool` cannot be used as import aliases. Existing name rules still apply: local values can shadow function names, but they do not become callable functions. User-defined or imported functions can explicitly shadow ordinary non-reserved builtins.
 
-Imports are not automatically re-exported. Write an exported wrapper function when exposing another module's behavior through your module. Namespace imports, wildcard imports, export lists and top-level value declarations are not part of this subset. Record types can now be explicitly exported with `export type`; imported aliases preserve nominal identity.
+Ordinary imports are not automatically re-exported. Use [explicit re-exports](reexports.md), such as `export from "./math.kalandra" import total as sum`, to expose selected functions or record types through a public entry module. Namespace imports, wildcard imports, export lists and top-level value declarations are not part of this subset. Record types can now be explicitly exported with `export type`; imported aliases preserve nominal identity.
 
 ## Types, workers and entry points
 

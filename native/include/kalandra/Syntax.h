@@ -242,6 +242,7 @@ struct Import {
   std::vector<ImportedName> names;
   std::size_t moduleIndex = 0;
   std::optional<std::size_t> target = {};
+  bool exported = false;
 };
 struct RecordDeclaration {
   SourceSpan name;

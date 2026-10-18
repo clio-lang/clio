@@ -69,6 +69,18 @@ public:
     }
   }
   CheckResult run() {
+    for (FunctionId id = 0; id < syntax_.functions.size(); ++id) {
+      const auto &function = syntax_.functions[id];
+      if (function.exported)
+        exports_.emplace(functionKey(function.moduleIndex, name(function.name)),
+                         ExportBinding{false, id});
+    }
+    for (const auto &import : syntax_.imports)
+      if (import.exported && import.target)
+        for (const auto &imported : import.names)
+          reexports_.emplace(
+              functionKey(import.moduleIndex, name(imported.alias.value_or(imported.name))),
+              std::pair{*import.target, name(imported.name)});
     registerRecords();
     if (diagnostics_.empty())
       if (auto invalid = recordLayoutError(output_, limits_))
@@ -242,6 +254,24 @@ private:
     type.recordName = output_.records[id].name;
     return type;
   }
+  struct ExportBinding {
+    bool record;
+    std::size_t id;
+  };
+  std::optional<ExportBinding> exportedBinding(std::size_t module, const std::string &label,
+                                               std::size_t depth = 0) {
+    const auto key = functionKey(module, label);
+    if (auto found = exports_.find(key); found != exports_.end())
+      return found->second;
+    if (depth >= limits_.maxDepth || !resolvingExports_.insert(key).second)
+      return {};
+    std::optional<ExportBinding> resolved;
+    if (auto edge = reexports_.find(key); edge != reexports_.end())
+      resolved = exportedBinding(edge->second.first, edge->second.second, depth + 1);
+    resolvingExports_.erase(key);
+    exports_.emplace(key, resolved);
+    return resolved;
+  }
   void registerRecords() {
     for (const auto &record : syntax_.records) {
       const auto label = name(record.name);
@@ -256,17 +286,17 @@ private:
         continue;
       }
       if (record.exported)
-        exportedRecords_.emplace(key, output_.records.size());
+        exports_.emplace(key, ExportBinding{true, output_.records.size()});
       output_.records.push_back({label, record.name, {}});
     }
-    // Resolve type imports before checking fields or function annotations. Only
-    // original exported declarations are candidates; imported aliases do not re-export.
+    // Resolve type imports before checking fields or function annotations. Explicit
+    // re-exports follow the original declaration; ordinary imports remain private.
     for (const auto &import : syntax_.imports) {
       if (!import.target || options_.placement)
         continue;
       for (const auto &imported : import.names) {
-        const auto found = exportedRecords_.find(functionKey(*import.target, name(imported.name)));
-        if (found == exportedRecords_.end())
+        const auto found = exportedBinding(*import.target, name(imported.name));
+        if (!found || !found->record)
           continue;
         const auto binding = imported.alias.value_or(imported.name);
         const auto label = name(binding);
@@ -276,7 +306,7 @@ private:
           error("S067", "reserved import alias '" + label + "'", binding);
           continue;
         }
-        if (!records_.emplace(functionKey(import.moduleIndex, label), found->second).second)
+        if (!records_.emplace(functionKey(import.moduleIndex, label), found->id).second)
           error("S068", "duplicate module type binding '" + label + "'", binding);
       }
     }
@@ -367,7 +397,6 @@ private:
       if (function.moduleIndex)
         target.name = "__module_" + std::to_string(function.moduleIndex) + "::" + target.name;
     }
-    const auto definitions = functions_;
     for (const auto &import : syntax_.imports) {
       if (!import.target || options_.placement) {
         error("S067", "local imports require the CPU file-module loader", import.path);
@@ -376,7 +405,8 @@ private:
       for (const auto &imported : import.names) {
         const auto binding = imported.alias.value_or(imported.name);
         const auto local = name(binding);
-        if (exportedRecords_.contains(functionKey(*import.target, name(imported.name))))
+        const auto found = exportedBinding(*import.target, name(imported.name));
+        if (found && found->record)
           continue;
         if (records_.contains(functionKey(import.moduleIndex, local))) {
           error("S068", "import conflicts with record type name", binding);
@@ -387,13 +417,12 @@ private:
           error("S067", "reserved import alias '" + local + "'", binding);
           continue;
         }
-        auto found = definitions.find(functionKey(*import.target, name(imported.name)));
-        if (found == definitions.end() || !syntax_.functions[found->second].exported) {
+        if (!found) {
           error("S067", "module does not export declaration '" + name(imported.name) + "'",
                 imported.name);
           continue;
         }
-        if (!functions_.emplace(functionKey(import.moduleIndex, local), found->second).second)
+        if (!functions_.emplace(functionKey(import.moduleIndex, local), found->id).second)
           error("S004", "duplicate module binding '" + local + "'", binding);
       }
     }
@@ -2763,7 +2792,9 @@ private:
   TypedModule output_;
   std::unordered_map<std::string, FunctionId> functions_;
   std::unordered_map<std::string, std::size_t> records_;
-  std::unordered_map<std::string, std::size_t> exportedRecords_;
+  std::unordered_map<std::string, std::optional<ExportBinding>> exports_;
+  std::unordered_set<std::string> resolvingExports_;
+  std::unordered_map<std::string, std::pair<std::size_t, std::string>> reexports_;
   std::vector<State> states_;
   std::vector<bool> signatures_;
   std::vector<bool> literal_, floatingLiteral_;

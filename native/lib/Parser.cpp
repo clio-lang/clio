@@ -34,7 +34,7 @@ public:
     while (!at(TokenKind::End) && result_.diagnostics.size() < limits_.maxDiagnostics) {
       if (consume(TokenKind::Newline))
         continue;
-      if (word("from")) {
+      if (word("from") || (word("export") && source_->slice(peek().span) == "from")) {
         auto imported = parseImport();
         if (imported)
           result_.module.imports.push_back(std::move(*imported));
@@ -154,6 +154,9 @@ private:
     return type;
   }
   std::optional<Import> parseImport() {
+    const bool exported = word("export");
+    if (exported)
+      advance();
     advance();
     auto path = expect(TokenKind::String, "expected a quoted relative module path after 'from'");
     if (!path)
@@ -164,8 +167,9 @@ private:
     }
     advance();
     Import result{path->span, {}};
+    result.exported = exported;
     while (true) {
-      auto name = expect(TokenKind::Identifier, "expected an imported function name");
+      auto name = expect(TokenKind::Identifier, "expected an imported declaration name");
       if (!name)
         return {};
       ImportedName imported{name->span, {}};
