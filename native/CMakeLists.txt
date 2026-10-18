@@ -16,6 +16,15 @@ set(KALANDRA_SYNTAX_SOURCES lib/Source.cpp lib/Lexer.cpp lib/Parser.cpp lib/Modu
 add_library(kalandra-syntax STATIC ${KALANDRA_SYNTAX_SOURCES})
 target_include_directories(kalandra-syntax PUBLIC include)
 target_compile_options(kalandra-syntax PRIVATE -Wall -Wextra -Werror)
+find_package(tomlplusplus 3.4.0 EXACT REQUIRED CONFIG
+  HINTS "/opt/homebrew/opt/tomlplusplus/lib/cmake/tomlplusplus")
+get_target_property(KALANDRA_TOML_INCLUDES tomlplusplus::tomlplusplus INTERFACE_INCLUDE_DIRECTORIES)
+# Use the installed headers in header-only mode: compiler distributions need no TOML dylib.
+add_library(kalandra-project STATIC lib/Project.cpp)
+target_link_libraries(kalandra-project PUBLIC kalandra-syntax)
+target_include_directories(kalandra-project SYSTEM PRIVATE ${KALANDRA_TOML_INCLUDES})
+target_compile_definitions(kalandra-project PRIVATE TOML_HEADER_ONLY=1 TOML_ENABLE_UNRELEASED_FEATURES=0)
+target_compile_options(kalandra-project PRIVATE -Wall -Wextra -Werror)
 add_executable(kalandra-parse tools/parse.cpp)
 target_link_libraries(kalandra-parse PRIVATE kalandra-syntax)
 target_compile_options(kalandra-parse PRIVATE -Wall -Wextra -Werror)
@@ -29,6 +38,13 @@ if(BUILD_TESTING)
   target_include_directories(kalandra-syntax-sanitized PUBLIC include)
   target_compile_options(kalandra-syntax-sanitized PRIVATE -Wall -Wextra -Werror
     -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+  add_library(kalandra-project-sanitized STATIC lib/Project.cpp)
+  target_link_libraries(kalandra-project-sanitized PUBLIC kalandra-syntax-sanitized)
+  target_include_directories(kalandra-project-sanitized SYSTEM PRIVATE ${KALANDRA_TOML_INCLUDES})
+  target_compile_definitions(kalandra-project-sanitized PRIVATE TOML_HEADER_ONLY=1 TOML_ENABLE_UNRELEASED_FEATURES=0)
+  target_compile_options(kalandra-project-sanitized PRIVATE -Wall -Wextra -Werror
+    -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+  target_link_options(kalandra-project-sanitized PUBLIC -fsanitize=address,undefined -fno-sanitize-recover=all)
   add_executable(kalandra-syntax-tests-sanitized tests/SyntaxTests.cpp)
   target_link_libraries(kalandra-syntax-tests-sanitized PRIVATE kalandra-syntax-sanitized)
   target_compile_options(kalandra-syntax-tests-sanitized PRIVATE -Wall -Wextra -Werror
@@ -55,7 +71,7 @@ target_include_directories(kalandra-semantics SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS
 target_link_libraries(kalandra-semantics PUBLIC kalandra-syntax PRIVATE LLVM)
 target_compile_options(kalandra-semantics PRIVATE -Wall -Wextra -Werror)
 add_executable(kalandra-check tools/check.cpp)
-target_link_libraries(kalandra-check PRIVATE kalandra-semantics)
+target_link_libraries(kalandra-check PRIVATE kalandra-semantics kalandra-project)
 target_compile_options(kalandra-check PRIVATE -Wall -Wextra -Werror)
 if(BUILD_TESTING)
   add_executable(kalandra-semantic-tests tests/SemanticTests.cpp)
@@ -110,7 +126,7 @@ target_compile_options(kalandra-native-runtime-thread-sanitized PRIVATE -Wall -W
   -fsanitize=thread -fno-omit-frame-pointer)
 add_executable(kalandrac tools/compile.cpp)
 target_include_directories(kalandrac SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
-target_link_libraries(kalandrac PRIVATE kalandra-backend LLVM MLIR)
+target_link_libraries(kalandrac PRIVATE kalandra-backend kalandra-project LLVM MLIR)
 target_compile_options(kalandrac PRIVATE -Wall -Wextra -Werror)
 target_compile_definitions(kalandrac PRIVATE
   KALANDRA_CLANGXX="${CMAKE_CXX_COMPILER}"
@@ -922,3 +938,5 @@ if(BUILD_TESTING)
 endif()
 
 include(cmake/LocalPackages.cmake)
+
+include(cmake/Projects.cmake)

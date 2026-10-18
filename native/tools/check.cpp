@@ -1,4 +1,5 @@
 #include "kalandra/Continuation.h"
+#include "kalandra/Project.h"
 #include <algorithm>
 #include <iostream>
 #include <span>
@@ -9,15 +10,22 @@ int main(int argc, char **argv) {
   bool dump = false, dumpPlan = false;
   kalandra::CheckOptions options;
   const char *path = nullptr;
+  std::string projectPath;
+  std::optional<kalandra::NativeProject> project;
   std::vector<kalandra::ModulePackage> packages;
   const auto usage = [] {
     std::cerr << "usage: kalandra-check [--placement] [--dump-ir|--dump-plan] [--package "
-                 "name=path.k ...] <source.k>\n";
+                 "name=path.k ...] <source.k | --project manifest.toml>\n";
     return 2;
   };
   for (std::size_t i = 1; i < arguments.size(); ++i) {
     const std::string_view arg = arguments[i];
-    if (arg == "--package") {
+    if (arg == "--project") {
+      if (i + 1 >= arguments.size() || !projectPath.empty() ||
+          std::string_view(arguments[i + 1]).empty())
+        return usage();
+      projectPath = arguments[++i];
+    } else if (arg == "--package") {
       if (i + 1 >= arguments.size())
         return usage();
       auto package = kalandra::parseModulePackage(arguments[++i]);
@@ -36,6 +44,18 @@ int main(int argc, char **argv) {
       return usage();
     else
       path = arguments[i];
+  }
+  if (!projectPath.empty()) {
+    if (path)
+      return usage();
+    auto loaded = kalandra::loadNativeProject(projectPath);
+    if (!loaded) {
+      std::cerr << loaded.error() << '\n';
+      return 1;
+    }
+    project = std::move(*loaded);
+    path = project->entry.c_str();
+    packages.insert(packages.end(), project->packages.begin(), project->packages.end());
   }
   if (!path)
     return usage();

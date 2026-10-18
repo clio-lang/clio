@@ -12,3 +12,7 @@ expectations are retained in tests/fixtures/clio/corpus.json.
 The range, slice, format, decorator, and type-marker compatibility helpers derive from that same Clio
 revision. Original helper sources are retained in tests/fixtures/clio/runtime.json;
 the standalone emission template lives in packages/compiler/src/emitter/helpers.ts.
+
+Native project manifest parsing uses toml++ 3.4.0 (MIT), by Mark Gillard:
+https://github.com/marzer/tomlplusplus/tree/v3.4.0
+The license is retained in native/third-party/tomlplusplus-LICENSE.

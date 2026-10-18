@@ -1,4 +1,5 @@
 #include "kalandra/Backend.h"
+#include "kalandra/Project.h"
 #ifdef KALANDRA_HAS_METAL_SOURCE
 #include "kalandra/MetalSource.h"
 #endif
@@ -39,7 +40,7 @@ int main(int argc, char **argv) {
     } else {
       filtered.push_back(argv[i]);
       if ((option == "-o" || option == "--emit-mlir" || option == "--emit-llvm" ||
-           option == "--test-entry" || option == "--package") &&
+           option == "--test-entry" || option == "--package" || option == "--project") &&
           i + 1 < argc)
         filtered.push_back(argv[++i]);
     }
@@ -70,20 +71,23 @@ int main(int argc, char **argv) {
   }
   const std::span<char *> arguments(filtered);
   if (arguments.size() < 2) {
-    std::cerr << "usage: kalandrac source.k -o executable [--emit-mlir file] [--emit-llvm "
-                 "file] [--test-entry function] [--sanitize|--thread-sanitize] [-O0|-O2] [--target "
-                 "cpu|metal] [--package name=path.k ...]\n";
+    std::cerr
+        << "usage: kalandrac source.k -o executable [--emit-mlir file] [--emit-llvm "
+           "file] [--test-entry function] [--sanitize|--thread-sanitize] [-O0|-O2] [--target "
+           "cpu|metal] [--package name=path.k ...] [--project manifest.toml instead of source]\n";
     return 2;
   }
   std::filesystem::path output, mlirPath, llvmPath;
   std::optional<std::string> testEntry;
+  std::string sourcePath, projectPath;
+  std::optional<kalandra::NativeProject> project;
   std::vector<kalandra::ModulePackage> packages;
   bool sanitize = false, threadSanitize = false;
   std::string optimization = "-O0";
-  for (std::size_t i = 2; i < arguments.size(); ++i) {
+  for (std::size_t i = 1; i < arguments.size(); ++i) {
     const std::string option = arguments[i];
     if ((option == "-o" || option == "--emit-mlir" || option == "--emit-llvm" ||
-         option == "--test-entry" || option == "--package") &&
+         option == "--test-entry" || option == "--package" || option == "--project") &&
         i + 1 < arguments.size()) {
       const std::string value = arguments[++i];
       if (option == "-o")
@@ -94,7 +98,13 @@ int main(int argc, char **argv) {
         llvmPath = value;
       else if (option == "--test-entry")
         testEntry = value;
-      else {
+      else if (option == "--project") {
+        if (value.empty() || !projectPath.empty()) {
+          std::cerr << "one nonempty --project is allowed\n";
+          return 2;
+        }
+        projectPath = value;
+      } else {
         auto package = kalandra::parseModulePackage(value);
         if (!package) {
           std::cerr << package.error() << '\n';
@@ -108,10 +118,30 @@ int main(int argc, char **argv) {
       threadSanitize = true;
     else if (option == "-O0" || option == "-O2")
       optimization = option;
+    else if (!option.empty() && !option.starts_with('-') && sourcePath.empty())
+      sourcePath = option;
     else {
       std::cerr << "unknown or incomplete option: " << option << '\n';
       return 2;
     }
+  }
+  if (!projectPath.empty()) {
+    if (!sourcePath.empty()) {
+      std::cerr << "choose a source file or --project, not both\n";
+      return 2;
+    }
+    auto loaded = kalandra::loadNativeProject(projectPath);
+    if (!loaded) {
+      std::cerr << loaded.error() << '\n';
+      return 1;
+    }
+    project = std::move(*loaded);
+    sourcePath = project->entry;
+    packages.insert(packages.end(), project->packages.begin(), project->packages.end());
+  }
+  if (sourcePath.empty()) {
+    std::cerr << "missing source file or --project\n";
+    return 2;
   }
   if (sanitize && threadSanitize) {
     std::cerr << "--sanitize and --thread-sanitize are separate builds\n";
@@ -121,7 +151,9 @@ int main(int argc, char **argv) {
     std::cerr << "missing -o executable\n";
     return 2;
   }
-  std::vector<std::filesystem::path> paths{arguments[1]};
+  std::vector<std::filesystem::path> paths{sourcePath};
+  if (project)
+    paths.emplace_back(project->manifest);
   for (const auto &path : {output, mlirPath, llvmPath}) {
     if (path.empty())
       continue;
@@ -138,9 +170,9 @@ int main(int argc, char **argv) {
     }
     paths.push_back(path);
   }
-  auto syntax = kalandra::loadModules(arguments[1], {}, {}, packages);
+  auto syntax = kalandra::loadModules(sourcePath, {}, {}, packages);
   if (!syntax) {
-    std::cerr << arguments[1] << ": " << syntax.error() << '\n';
+    std::cerr << sourcePath << ": " << syntax.error() << '\n';
     return 1;
   }
   // Every dependency is source input: output publication must not overwrite it,

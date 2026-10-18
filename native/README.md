@@ -16,7 +16,7 @@ The [shape-selected GPU matmul report](../benchmarks/results/native-gpu-2026-10-
 
 ## Build and test
 
-On the currently validated macOS ARM64 setup:
+On the currently validated macOS ARM64 setup, install CMake, Ninja and toml++ 3.4.0 (`brew install cmake ninja tomlplusplus`), plus the pinned LLVM toolchain below. CMake checks the TOML parser version and uses its headers without a runtime TOML library dependency. Override its package location with `-Dtomlplusplus_DIR=/path/to/lib/cmake/tomlplusplus` if needed.
 
 ```sh
 cmake --preset native
@@ -135,3 +135,5 @@ CPU records can also own [numeric arrays and tensors](../docs/design/record-coll
 [Native record type exports](../docs/design/type-exports.md) support explicit cross-file type imports and aliases in constructors, nested fields and function signatures, preserving nominal identity and existing worker ownership.
 
 [Explicit module re-exports](../docs/design/reexports.md) let a public entry file expose selected functions and record types from internal modules, including aliases, while preserving their original identity and helper scope.
+
+[Native project manifests](../docs/design/native-projects.md) record a `.k` entry and relative local library mappings in a versioned TOML file. Use `kalandrac --project kalandra.toml -o program` and `kalandra-check --project kalandra.toml`; the manifest is an explicit compiler input, protected from output replacement.

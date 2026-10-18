@@ -277,3 +277,5 @@ The native [sequential numeric array map](array-map.md) implements the anonymous
 [Native local function modules](modules.md) now support `export fn` and explicit relative named imports with aliases. Visibility is file-local by default; calls and callbacks resolve names in the declaring module. [Record type exports](type-exports.md) and [explicit re-exports](reexports.md) also preserve declaration identity across CPU modules. [Explicit local package mappings](local-packages.md) support offline library entry names; package installation/version resolution and GPU module integration remain separate work; module cycles remain rejected.
 
 The [proposed native String contract](strings.md) defines text encoding, exact equality, scalar length/indexing/slicing and managed lifetime requirements. Its implementation sequence begins with literal and value support; existing core String examples remain design examples until that slice is qualified.
+
+[Native project manifests](native-projects.md) now record an explicit root source and local library entries for CPU builds, without automatic discovery or installation.
