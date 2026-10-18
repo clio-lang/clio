@@ -87,11 +87,14 @@ int main() {
                               std::string(body) + "\n");
       require(!rejected.ok(), "task/fallible record captured before completion");
     }
-    require(
-        !analyze(
-             "type Config:\n  x:int\nfn main():\n  config=Config {x:2}\n  map([1],fn(x):config)\n")
-             .ok(),
-        "record-valued map silently enabled");
+    auto returned = analyze(
+        "type Config:\n  x:int\nfn mapped():\n  config=Config {x:2}\n"
+        "  map([1],fn(x):config)\nfn main():\n  0\n");
+    require(returned.ok() && !numericCapabilityError(*returned.module, NumericTarget::Cpu),
+            "captured record-valued map rejected");
+#ifndef KALANDRA_RECORD_FRONTEND_ONLY
+    require(bool(lowerNative(*returned.module)), "captured record map lowering failed");
+#endif
     std::cout << "record closures: six numeric types, nested storage, transitive captures, "
                  "shadowing, deduplication and nominal/unfinished-value guards passed\n";
   } catch (const std::exception &error) {

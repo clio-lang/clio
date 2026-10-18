@@ -1,6 +1,6 @@
 # Sequential native array mapping
 
-The native CPU subset implements `map(values, transform)` and its pipeline form for the [immutable numeric array foundation](arrays.md). The transform is a named function or an inline anonymous function with one numeric scalar parameter and a numeric scalar result.
+The native CPU subset implements `map(values, transform)` and its pipeline form for [immutable numeric arrays](arrays.md) and [record arrays](record-arrays.md). The transform is a named function or an inline anonymous function with one numeric scalar or record parameter and a numeric scalar or record result.
 
 ```kalandra
 fn double(value: int) -> int:
@@ -24,11 +24,31 @@ fn converted(values: [int]) -> [float]:
   map(values, asFloat)
 ```
 
-All 36 input/output combinations of the six implemented CPU numeric types can be represented by ordinary named functions. Explicit conversion still follows the checked numeric conversion contract. Results remain homogeneous numeric arrays of the same length as the input, including its private dynamic length identity. An expected result type does not change the callback's declared/inferred result type.
+All 36 input/output combinations of the six implemented CPU numeric types can be represented by ordinary named functions. Explicit conversion still follows the checked numeric conversion contract. Results remain homogeneous arrays of the same length as the input, including its private dynamic length identity. An expected result type does not change the callback's declared/inferred result type.
 
 Callbacks execute sequentially in input order, once per element, with exactly one explicit element argument. Map never supplies an implicit index or collection argument. Empty arrays execute no callbacks; `map([], double)` obtains element context from `double` and returns an empty `[int64]`.
 
 A runtime arithmetic fault stops the map at the first failing element. Its source location points to the failing callback/helper operation. No partial array result is published. Inputs remain unchanged, and all intermediate/output allocation owners settle on failure. Loop execution uses the existing cooperative cancellation and checked allocation machinery.
+
+## Record elements and results
+
+```kalandra
+type Reading:
+  value: int
+  samples: [int]
+
+fn main() -> [int] ! TaskError:
+  readings = map([1, 2, 3], fn(value): Reading {value: value, samples: [value]})
+  updated = try parallel:
+    try await spawn map(readings, fn(reading): reading with {value: reading.value + 10})
+  map(updated, fn(reading): reading.value)
+```
+
+This returns `[11, 12, 13]`. Maps can convert numbers into records, extract numbers from records, update records immutably, or return a different declared record type. Nested record fields and numeric array/tensor fields use the existing record ownership rules. A nested anonymous callback can capture its enclosing callback's record parameter.
+
+Record identity is nominal: a callback expecting `Reading` rejects a different record declaration with the same fields. Empty inputs require a named callback or an annotated anonymous parameter to establish their element type. Output length facts are preserved across changes in element type. The expected output type does not choose a different record or numeric result type.
+
+Record-result storage uses the same checked target layout as record arrays. Each callback result is stored in a fresh output array; retained immutable numeric field backing may be shared. Construction and iteration remain sequential. Worker boundaries retain both the output record array and its nested collection backing. Failure or cancellation publishes no partial output. Allocation lifetime optimization remains separate work.
 
 ## Anonymous callbacks and captures
 
@@ -62,12 +82,14 @@ This sends one sequential map to a worker. It does not run individual elements i
 
 This slice accepts named source functions and inline anonymous callbacks with lexical captures. Function-valued bindings, callback aliases, returned closures and anonymous block bodies are separate work. Named or anonymous wrappers can expose numeric conversions; numeric type names themselves are not first-class callbacks yet.
 
-Callbacks must be synchronous throughout their reachable helper graph. Task operations, expected-error channels and their recovery, transfers/device selection, and other resumable operations are rejected even when a particular branch or input is empty. Bool, tensor, array and general-value callback results remain outside the numeric array subset. GPU/mixed-target mapping is gated. Existing restrictions on ordinary recursion in task-enabled modules still apply.
+Callbacks must be synchronous throughout their reachable helper graph. Task operations, expected-error channels and their recovery, transfers/device selection, and other resumable operations are rejected even when a particular branch or input is empty. Bool, tensor, array and general-value callback results remain outside this map subset. GPU/mixed-target mapping is gated. Existing restrictions on ordinary recursion in task-enabled modules still apply.
 
-Explicit parallel mapping, broader element types, first-class functions and direct array display in the development CLI remain separate work. There is no new public native callback ABI in this implementation.
+Explicit parallel mapping, additional element types, first-class functions and direct array display in the development CLI remain separate work. There is no new public native callback ABI in this implementation.
 
 ## Qualification
 
 On Apple M2 Max, 89 focused checks passed across frontend and native/generated execution, including debug, optimized, ASan/UBSan and separate ThreadSanitizer variants. The map suites ran 2,304 identity-map invocations with 3,159,552 exact lane checks, 12,624 mapped conversion cases with 262,144 exact lane checks, and 1,200 worker harness invocations. The conversion cases reuse independent APFloat/integer oracles. Source ordering, empty maps, helper import, temporary callback allocations, retained outputs, cancellation, allocation failure and invalid-program artifact preservation passed. All 640 tracked numerical artifacts remain unchanged. This is focused qualification, not a full-suite claim. The [evidence record](../../native/metal-proof/evidence/cpu-array-map-2026-10-18.json) records coverage and source/artifact hashes.
 
 The anonymous-callback extension passed 69 focused checks, including debug, optimized, ASan/UBSan and separate ThreadSanitizer execution. Its six numeric identity closures ran 2,304 invocations with 3,159,552 exact lane checks; 1,200 worker harness runs exercised scalar, Bool, array and tensor captures, nested callbacks, cached results, source faults, cancellation and allocation failure. The prior named-map, array, frontend and selected CPU/GPU regressions also passed. The [capture evidence record](../../native/metal-proof/evidence/cpu-array-closures-2026-10-18.json) records the scope, test reruns and unchanged numerical artifacts.
+
+The record-element/result extension passed 113 selected checks on Apple M2 Max, across debug, optimized, ASan/UBSan and separate ThreadSanitizer builds. Its four generated suites compiled 168 source programs and ran 528 worker harness invocations, including 768 raw-bit success samples containing 246,336 input records, plus 640 CLI allocation-failure sweeps. Coverage includes nested fields/captures, empty maps, imported callbacks, cached results, recovery, cancellation, malformed descriptors, ownership settlement and preservation of rejected output artifacts. The documentation example is compiled and executed in every variant. Eight Metal checks initially lacked sandbox hardware access and passed on rerun with hardware access; two obsolete frontend rejection assertions were updated and passed on rerun. No compiler or runtime changes followed the initial regression run. All 640 tracked numerical artifacts and 20 numeric-engine/runtime/storage/checked-ABI files remain unchanged. This is focused qualification, not a full-suite claim. The [record-map evidence](../../native/metal-proof/evidence/cpu-record-array-map-2026-10-18.json) records the scope, reruns and hashes.

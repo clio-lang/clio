@@ -36,6 +36,12 @@ if(BUILD_TESTING)
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=$<TARGET_FILE:${RA_RUNTIME}>"
         "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/record-arrays-${VARIANT}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyRecordArrays.cmake")
+    add_test(NAME native-record-array-map-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>" "-DVARIANT=${VARIANT}"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=$<TARGET_FILE:${RA_RUNTIME}>"
+        "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/record-array-map-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyRecordArrayMap.cmake")
+    set_tests_properties(native-record-array-map-${VARIANT} PROPERTIES TIMEOUT 900)
     set_tests_properties(native-record-arrays-${VARIANT} PROPERTIES TIMEOUT 900)
   endforeach()
 endif()

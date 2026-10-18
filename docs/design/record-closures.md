@@ -32,7 +32,7 @@ Record construction, field reads and immutable updates inside the callback follo
 
 Await or recover a record-producing task before capturing its result. Task handles and unhandled fallible values remain invalid captures. Device selectors and device-resident values remain outside this callback subset. Callbacks and their reachable helpers must remain synchronous.
 
-The map's parameter and result are still numeric scalars, and its output is still a homogeneous numeric array. [Record arrays](record-arrays.md) can now also be captured and indexed by numeric callbacks. This does not add record-valued map results, first-class function values, escaping closures, multiline anonymous bodies, or GPU records.
+[Sequential maps](array-map.md#record-elements-and-results) now accept numeric or record parameters/results. [Record arrays](record-arrays.md) can also be captured and indexed. First-class function values, escaping closures, multiline anonymous bodies, and GPU records remain separate work.
 
 ## Qualification
 

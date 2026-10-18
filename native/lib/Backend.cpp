@@ -237,10 +237,8 @@ private:
                          ValueRange{address, integer(loc, cellBytes), integer(loc, alignment)});
     return LLVM::ExtractValueOp::create(builder_, loc, input, ArrayRef<int64_t>{3, 0});
   }
-  Value recordArrayLiteral(Location loc, const ValueType &array, ArrayRef<Value> elements) {
-    const auto cell = type(recordArrayElement(array));
+  Value recordArrayStorage(Location loc, const ValueType &array, Value count) {
     const auto cellBytes = recordCellLayout(array).first;
-    auto count = index(loc, elements.size());
     auto checked = checkedCount(loc, {count}, cellBytes);
     auto bytes = arith::MulIOp::create(builder_, loc, checked, index(loc, cellBytes));
     auto bytes64 = arith::IndexCastOp::create(builder_, loc, builder_.getI64Type(), bytes);
@@ -248,11 +246,6 @@ private:
     Value storage = func::CallOp::create(builder_, loc, "kalandra_record_alloc", TypeRange{ptr},
                                          ValueRange{bytes64})
                         .getResult(0);
-    for (std::size_t i = 0; i < elements.size(); ++i) {
-      auto address =
-          LLVM::GEPOp::create(builder_, loc, ptr, cell, storage, ValueRange{integer(loc, i)});
-      LLVM::StoreOp::create(builder_, loc, elements[i], address);
-    }
     Value result = LLVM::UndefOp::create(builder_, loc, recordDescriptor(array));
     const auto insert = [&](Value value, ArrayRef<int64_t> path) {
       result = LLVM::InsertValueOp::create(builder_, loc, result, value, path);
@@ -260,8 +253,21 @@ private:
     insert(storage, {0});
     insert(storage, {1});
     insert(integer(loc, 0), {2});
-    insert(integer(loc, elements.size()), {3, 0});
-    insert(integer(loc, elements.empty() ? 0 : 1), {4, 0});
+    insert(arith::IndexCastOp::create(builder_, loc, builder_.getI64Type(), count), {3, 0});
+    auto empty = compare(loc, arith::CmpIPredicate::eq, count, index(loc, 0));
+    insert(arith::SelectOp::create(builder_, loc, empty, integer(loc, 0), integer(loc, 1)), {4, 0});
+    return result;
+  }
+  Value recordArrayLiteral(Location loc, const ValueType &array, ArrayRef<Value> elements) {
+    auto result = recordArrayStorage(loc, array, index(loc, elements.size()));
+    auto storage = LLVM::ExtractValueOp::create(builder_, loc, result, ArrayRef<int64_t>{1});
+    auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
+    auto cell = type(recordArrayElement(array));
+    for (std::size_t i = 0; i < elements.size(); ++i) {
+      auto address =
+          LLVM::GEPOp::create(builder_, loc, ptr, cell, storage, ValueRange{integer(loc, i)});
+      LLVM::StoreOp::create(builder_, loc, elements[i], address);
+    }
     return result;
   }
   Value recordUnpack(Location loc, Value input, const ValueType &field) {
@@ -1319,28 +1325,63 @@ private:
             SmallVector<Value> captures;
             for (auto capture : operation.captures)
               captures.push_back(expression(frame, capture));
-            auto shape = dimensions(loc, input);
-            checkedCount(
-                loc, shape,
-                describeNumeric(input_.expressions[operation.input].type.element)->bytes());
-            checkedCount(loc, shape, describeNumeric(node.type.element)->bytes());
-            const auto output = cast<RankedTensorType>(type(node.type));
-            SmallVector<Value> dynamic;
-            if (output.isDynamicDim(0))
-              dynamic.push_back(shape[0]);
-            auto empty = tensor::EmptyOp::create(builder_, loc, output.getShape(),
-                                                 output.getElementType(), dynamic);
+            const auto &inputType = input_.expressions[operation.input].type;
+            const bool recordInput = isRecordArray(inputType);
+            const bool recordOutput = isRecordArray(node.type);
+            Value count =
+                recordInput
+                    ? Value(arith::IndexCastOp::create(builder_, loc, builder_.getIndexType(),
+                                                       recordArrayLength(loc, input, inputType)))
+                    : dimensions(loc, input)[0];
+            if (!recordInput)
+              checkedCount(loc, {count}, describeNumeric(inputType.element)->bytes());
+            Value empty;
+            if (recordOutput) {
+              empty = recordArrayStorage(loc, node.type, count);
+            } else {
+              checkedCount(loc, {count}, describeNumeric(node.type.element)->bytes());
+              auto output = cast<RankedTensorType>(type(node.type));
+              SmallVector<Value> dynamic;
+              if (output.isDynamicDim(0))
+                dynamic.push_back(count);
+              empty = tensor::EmptyOp::create(builder_, loc, output.getShape(),
+                                              output.getElementType(), dynamic);
+            }
+            auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
             auto loop = scf::ForOp::create(
-                builder_, loc, index(loc, 0), shape[0], index(loc, 1), ValueRange{empty},
+                builder_, loc, index(loc, 0), count, index(loc, 1), ValueRange{empty},
                 [&](OpBuilder &, Location, Value i, ValueRange args) {
-                  auto element = tensor::ExtractOp::create(builder_, loc, input, ValueRange{i});
+                  Value element;
+                  auto position =
+                      arith::IndexCastOp::create(builder_, loc, builder_.getI64Type(), i);
+                  if (recordInput) {
+                    auto storage =
+                        LLVM::ExtractValueOp::create(builder_, loc, input, ArrayRef<int64_t>{1});
+                    auto cell = type(recordArrayElement(inputType));
+                    auto address = LLVM::GEPOp::create(builder_, loc, ptr, cell, storage,
+                                                       ValueRange{position});
+                    element = LLVM::LoadOp::create(builder_, loc, cell, address);
+                  } else {
+                    element = tensor::ExtractOp::create(builder_, loc, input, ValueRange{i});
+                  }
                   SmallVector<Value> arguments{element};
                   arguments.append(captures.begin(), captures.end());
                   auto call = func::CallOp::create(builder_, loc, functions_[operation.function],
                                                    arguments);
-                  auto inserted = tensor::InsertOp::create(builder_, loc, call.getResult(0),
-                                                           args[0], ValueRange{i});
-                  scf::YieldOp::create(builder_, loc, ValueRange{inserted});
+                  Value result;
+                  if (recordOutput) {
+                    auto storage =
+                        LLVM::ExtractValueOp::create(builder_, loc, args[0], ArrayRef<int64_t>{1});
+                    auto cell = type(recordArrayElement(node.type));
+                    auto address = LLVM::GEPOp::create(builder_, loc, ptr, cell, storage,
+                                                       ValueRange{position});
+                    LLVM::StoreOp::create(builder_, loc, call.getResult(0), address);
+                    result = args[0];
+                  } else {
+                    result = tensor::InsertOp::create(builder_, loc, call.getResult(0), args[0],
+                                                      ValueRange{i});
+                  }
+                  scf::YieldOp::create(builder_, loc, ValueRange{result});
                 });
             return loop.getResult(0);
           } else if constexpr (std::is_same_v<T, TensorLiteral>) {

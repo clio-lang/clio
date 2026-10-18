@@ -34,7 +34,7 @@ Nonempty literals infer their element declaration. Empty arrays need context, su
 
 Branches, helper returns and TaskError recovery preserve the array's record identity while allowing different lengths. Existing numeric callbacks can capture a record array and index it, for example `map([0, 1], fn(i): rows[i].value)`.
 
-This milestone does not add direct record-element mapping, record-valued map results, record arrays as record fields, nested arrays, record tensors, concatenation, or record-array CLI display. A program's `main` still returns a supported scalar, `Bool`, numeric array or numeric tensor. Direct record mapping is the next implementation gate.
+[Sequential mapping](array-map.md#record-elements-and-results) now accepts record elements and record results with named or anonymous callbacks. Record arrays as record fields, nested arrays, record tensors, concatenation, and record-array CLI display remain separate work. A program's `main` still returns a supported scalar, `Bool`, numeric array or numeric tensor.
 
 ## Ownership and target layout
 

@@ -97,7 +97,11 @@ int main(int argc, char **argv) {
     unsigned finalSample = 0;
     std::size_t finalCount = 0;
     for (unsigned sample = 0; sample < (mode == 0 ? 16u : 1u); ++sample) {
+#ifdef KALANDRA_RECORD_ARRAY_LARGE
+      const std::size_t count = mode == 0 ? std::array<std::size_t, 4>{0, 1, 257, 1025}[sample % 4] : 7;
+#else
       const std::size_t count = mode == 0 ? std::array<std::size_t, 4>{0, 1, 7, 31}[sample % 4] : 7;
+#endif
       Invocation source, destination;
       auto *storage = count ? source.allocateRecord(count * sizeof(Reading)) : nullptr;
       require(!count || storage, "source array allocation failed");

@@ -2087,30 +2087,34 @@ private:
       error("S060", "map anonymous functions require one element parameter", lambdaSpan);
       return {};
     }
-    const auto numericScalar = [](const ValueType &type) {
-      return type.builtin == BuiltinValue::Numeric && !type.tensor && !type.task &&
-             !type.fallible && !type.device;
+    const auto mapElement = [](const ValueType &type) {
+      return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record) &&
+             !type.tensor && !type.task && !type.fallible && !type.device;
     };
     std::optional<ValueType> inputContext;
     if (lambda.parameters[0].annotation) {
       auto annotation = type(*lambda.parameters[0].annotation);
       if (!annotation)
         return {};
-      if (!numericScalar(*annotation)) {
-        error("S060", "anonymous map parameter requires a numeric scalar type", lambdaSpan);
+      if (!mapElement(*annotation)) {
+        error("S060", "anonymous map parameter requires a numeric scalar or record type",
+              lambdaSpan);
         return {};
       }
       inputContext = ValueType{true, {dynamic()}};
       inputContext->array = true;
       inputContext->element = annotation->element;
+      inputContext->builtin = annotation->builtin;
+      inputContext->record = annotation->record;
     }
     auto input = expression(frame, inputSyntax, inputContext);
     if (!input)
       return {};
     const auto inputType = node(*input).type;
-    if (!inputType.array || inputType.builtin != BuiltinValue::Numeric || inputType.task ||
-        inputType.fallible || inputType.device) {
-      error("S060", "anonymous map requires a completed CPU numeric array", span);
+    if (!inputType.array ||
+        (inputType.builtin != BuiltinValue::Numeric && inputType.builtin != BuiltinValue::Record) ||
+        inputType.task || inputType.fallible || inputType.device) {
+      error("S060", "anonymous map requires a completed CPU numeric or record array", span);
       return {};
     }
     std::optional<ValueType> resultContext;
@@ -2118,8 +2122,8 @@ private:
       resultContext = type(*lambda.result);
       if (!resultContext)
         return {};
-      if (!numericScalar(*resultContext)) {
-        error("S060", "anonymous map result requires a numeric scalar type", lambdaSpan);
+      if (!mapElement(*resultContext)) {
+        error("S060", "anonymous map result requires a numeric scalar or record type", lambdaSpan);
         return {};
       }
     }
@@ -2134,8 +2138,7 @@ private:
     output_.functions[id].name = "__lambda_" + std::to_string(id);
     output_.functions[id].declaration = lambdaSpan;
     output_.functions[id].declaredResult = resultContext;
-    ValueType element;
-    element.element = inputType.element;
+    auto element = recordArrayElement(inputType);
     const auto parameter = output_.symbols.size();
     output_.symbols.push_back(
         {name(lambda.parameters[0].name), element, lambda.parameters[0].name, id, true});
@@ -2147,8 +2150,9 @@ private:
     if (!result)
       return {};
     const auto resultType = node(*result).type;
-    if (!numericScalar(resultType)) {
-      error("S060", "anonymous map body must produce a completed numeric scalar", lambdaSpan);
+    if (!mapElement(resultType)) {
+      error("S060", "anonymous map body must produce a completed numeric scalar or record",
+            lambdaSpan);
       return {};
     }
     output_.functions[id].body = {{syntax_.expressions[lambda.body].span, {}, *result}};
@@ -2163,6 +2167,8 @@ private:
     }
     auto output = inputType;
     output.element = resultType.element;
+    output.builtin = resultType.builtin;
+    output.record = resultType.record;
     if (!validSize(output, span))
       return {};
     return add(frame, output, span, ArrayMap{*input, id, std::move(captures)});
@@ -2190,25 +2196,30 @@ private:
     const auto id = found->second;
     const auto &fn = output_.functions[id];
     const auto scalar = [](const ValueType &type) {
-      return type.builtin == BuiltinValue::Numeric && !type.tensor && !type.task &&
-             !type.fallible && !type.device;
+      return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record) &&
+             !type.tensor && !type.task && !type.fallible && !type.device;
     };
     const auto result = fn.declaredResult.value_or(fn.resultType);
     if (fn.parameters.size() != 1 || !scalar(result) ||
         !scalar(output_.symbols[fn.parameters[0]].type)) {
       error("S059",
-            "map callback requires one numeric scalar parameter and a numeric scalar result",
+            "map callback requires one numeric scalar or record parameter and a numeric scalar or "
+            "record result",
             callback->name);
       return {};
     }
     ValueType context{true, {dynamic()}};
     context.array = true;
     context.element = output_.symbols[fn.parameters[0]].type.element;
+    context.builtin = output_.symbols[fn.parameters[0]].type.builtin;
+    context.record = output_.symbols[fn.parameters[0]].type.record;
     auto input = expression(frame, arguments[0], context);
     if (!input)
       return {};
     auto output = node(*input).type;
     output.element = result.element;
+    output.builtin = result.builtin;
+    output.record = result.record;
     if (!validSize(output, span))
       return {};
     return add(frame, output, span, ArrayMap{*input, id});

@@ -75,6 +75,56 @@ int main() {
       require(numericCapabilityError(forged, NumericTarget::Cpu).has_value(),
               "forged record array admitted");
     }
+    const std::string mapDecl = "type Point:\n  x:int\n  data:[int]\ntype Other:\n  x:int\n"
+                                "fn extract(p:Point)->int:\n  p.x\n"
+                                "fn wrap(x:int)->Point:\n  Point {x:x,data:[x]}\n"
+                                "fn move(p:Point)->Point:\n  p with {x:p.x+1}\n";
+    for (auto body :
+         {"map([Point {x:1,data:[2]}],extract)", "map([Point {x:1,data:[2]}],fn(p):p.x)",
+          "map([1,2],wrap)", "map([1,2],fn(x):Point {x:x,data:[x]})", "map([],move)",
+          "map([],fn(p:Point)->Point:p)", "map([Point {x:1,data:[2]}],fn(p):Other {x:p.x})",
+          "offset=2\n  map([Point {x:1,data:[2]}],fn(p):p with {x:p.x+offset})"}) {
+      auto mapped = analyze(mapDecl + "fn mapped():\n  " + body + "\nfn main():\n  0\n");
+      require(mapped.ok(), "record map frontend rejected: " + std::string(body));
+      require(!numericCapabilityError(*mapped.module, NumericTarget::Cpu),
+              "record map capability rejected");
+#ifndef KALANDRA_RECORD_FRONTEND_ONLY
+      auto lowered = lowerNative(*mapped.module);
+      require(bool(lowered), lowered ? "" : lowered.error());
+#endif
+    }
+    for (auto body :
+         {"map([Other {x:1}],move)", "map([1],move)", "map([Point {x:1,data:[2]}],fn(p:Other):p.x)",
+          "map([Point {x:1,data:[2]}],fn(p):p.data)", "map([],fn(p):p.x)",
+          "map([Point {x:1,data:[2]}],fn(p):true)"})
+      require(!analyze(mapDecl + "fn main():\n  " + body + "\n").ok(),
+              "invalid record map accepted");
+    auto mapped =
+        analyze(mapDecl + "fn mapped(rows:[Point]):\n  map(rows,move)\nfn main():\n  0\n");
+    require(mapped.ok(), "record map mutation fixture rejected");
+    ValueId mapId = 0;
+    for (const auto &e : mapped.module->expressions)
+      if (std::holds_alternative<ArrayMap>(e.operation))
+        mapId = &e - mapped.module->expressions.data();
+    for (unsigned mutation = 0; mutation < 6; ++mutation) {
+      auto forged = *mapped.module;
+      auto &e = forged.expressions[mapId];
+      auto &op = std::get<ArrayMap>(e.operation);
+      if (mutation == 0)
+        e.type.record = 1;
+      if (mutation == 1)
+        forged.expressions[op.input].type.record = 1;
+      if (mutation == 2)
+        e.type.shape[0].identity += 100;
+      if (mutation == 3)
+        e.type.array = false;
+      if (mutation == 4)
+        forged.functions[op.function].resultType.task = true;
+      if (mutation == 5)
+        forged.symbols[forged.functions[op.function].parameters[0]].type.tensor = true;
+      require(numericCapabilityError(forged, NumericTarget::Cpu).has_value(),
+              "forged record map admitted");
+    }
     const auto decl = std::string("type Point:\n  x:int\ntype Other:\n  x:int\n");
     for (auto body :
          {"fn main():\n  [Point {x:1},Other {x:1}]\n", "fn main():\n  [Point {x:1},1]\n",
@@ -84,7 +134,6 @@ int main() {
           "fn main():\n  points=[Point {x:1}]\n  points with {x:2}\n",
           "fn main():\n  points=[Point {x:1}]\n  tensor(points)\n",
           "fn main():\n  points=[Point {x:1}]\n  shape(points)\n",
-          "fn main():\n  map([Point {x:1}],fn(point):point.x)\n",
           "type Tree:\n  children:[Tree]\nfn main():\n  0\n"})
       require(!analyze(decl + body).ok(), "unsupported record array program admitted");
     auto captures =

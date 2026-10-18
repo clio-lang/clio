@@ -406,8 +406,9 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       const auto &fn = module.functions[map->function];
       const auto &input = module.expressions[map->input].type;
       const auto scalar = [](const ValueType &type) {
-        return type.builtin == BuiltinValue::Numeric && !type.tensor && !type.task &&
-               !type.fallible && !type.device;
+        return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record) &&
+               !type.tensor && !type.task && !type.fallible && !type.device && !type.array &&
+               type.shape.empty();
       };
       for (auto parameter : fn.parameters)
         if (parameter >= module.symbols.size())
@@ -436,11 +437,18 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
           input.task || input.fallible || !expression.type.array || expression.type.device ||
           input.shape.size() != 1 || expression.type.shape.size() != 1 || expression.type.task ||
           expression.type.fallible ||
-          input.element != module.symbols[fn.parameters[0]].type.element ||
-          expression.type.element != fn.resultType.element ||
+          input.builtin != module.symbols[fn.parameters[0]].type.builtin ||
+          input.record != module.symbols[fn.parameters[0]].type.record ||
+          (input.builtin == BuiltinValue::Numeric &&
+           input.element != module.symbols[fn.parameters[0]].type.element) ||
+          expression.type.builtin != fn.resultType.builtin ||
+          expression.type.record != fn.resultType.record ||
+          (expression.type.builtin == BuiltinValue::Numeric &&
+           expression.type.element != fn.resultType.element) ||
           input.shape[0].constant != expression.type.shape[0].constant ||
           input.shape[0].identity != expression.type.shape[0].identity)
         return "map requires an unchanged-length CPU array and a synchronous one-argument numeric "
+               "or record "
                "callback";
     }
     if (const auto *reduce = std::get_if<ReduceSum>(&expression.operation)) {
