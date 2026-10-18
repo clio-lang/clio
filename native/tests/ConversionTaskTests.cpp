@@ -14,7 +14,10 @@ using namespace kalandra::runtime;
 #endif
 constexpr auto destination = static_cast<NumericType>(DESTINATION_TYPE);
 using Cell = NumericValue<destination>;
-using Raw = std::conditional_t<sizeof(Cell) == 4, std::uint32_t, std::uint64_t>;
+using Raw = std::conditional_t<
+    sizeof(Cell) == 1, std::uint8_t,
+    std::conditional_t<sizeof(Cell) == 2, std::uint16_t,
+                       std::conditional_t<sizeof(Cell) == 4, std::uint32_t, std::uint64_t>>>;
 struct Result {
   Failure failure;
   Cell value;

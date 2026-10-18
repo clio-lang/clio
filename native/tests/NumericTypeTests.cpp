@@ -60,7 +60,7 @@ int main() {
                 "type description accidentally enabled arithmetic");
       if (description.type != NumericType::Float32 && !isInteger32(description.type) &&
           description.type != NumericType::Int64 && description.type != NumericType::UInt64 &&
-          description.type != NumericType::Float64) {
+          description.type != NumericType::Float64 && !isInteger8(description.type)) {
         auto rejected = analyze("fn main() -> " + std::string(description.name) + ":\n  1\n");
         require(!rejected.ok() && rejected.diagnostics.front().code == "S003",
                 "unimplemented source arithmetic accepted");

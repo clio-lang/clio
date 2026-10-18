@@ -81,6 +81,22 @@ constexpr bool numericArithmeticAvailable(NumericType type, NumericTarget target
   }
   return false;
 }
+constexpr bool isInteger8(NumericType type) {
+  return type == NumericType::Int8 || type == NumericType::UInt8;
+}
+constexpr bool numericScalarArithmeticAvailable(NumericType type, NumericTarget target) {
+  return numericArithmeticAvailable(type, target) ||
+         (target == NumericTarget::Cpu && isInteger8(type));
+}
+constexpr std::uint64_t integerMaximum(NumericType type) {
+  const auto bits = describeNumeric(type)->bits;
+  return isUnsigned(type) ? (bits == 64 ? UINT64_MAX : (UINT64_C(1) << bits) - 1)
+                          : (UINT64_C(1) << (bits - 1)) - 1;
+}
+constexpr std::int64_t integerMinimum(NumericType type) {
+  const auto bits = describeNumeric(type)->bits;
+  return isUnsigned(type) ? 0 : bits == 64 ? INT64_MIN : -(INT64_C(1) << (bits - 1));
+}
 constexpr std::optional<std::uint64_t>
 checkedNumericBytes(NumericType type, std::uint64_t count,
                     std::uint64_t limit = std::numeric_limits<std::uint64_t>::max()) {

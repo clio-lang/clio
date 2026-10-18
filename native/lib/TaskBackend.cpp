@@ -119,14 +119,20 @@ public:
                main->resultType.element == NumericType::Float64) {
       entry->eraseFromParent();
       entry = Function::Create(
-          llvm::FunctionType::get(scalarType(main->resultType), {pointer}, false),
+          llvm::FunctionType::get(
+              isInteger8(main->resultType.element) ? i64 : scalarType(main->resultType), {pointer},
+              false),
           llvm::GlobalValue::ExternalLinkage,
           main->resultType.builtin == BuiltinValue::Bool     ? "_mlir_ciface_kalandra_bool_entry"
           : main->resultType.element == NumericType::Float64 ? "_mlir_ciface_kalandra_float64_entry"
-          : main->resultType.element == NumericType::UInt64  ? "_mlir_ciface_kalandra_uint64_entry"
-          : main->resultType.element == NumericType::Int64   ? "_mlir_ciface_kalandra_int64_entry"
-          : main->resultType.element == NumericType::UInt32  ? "_mlir_ciface_kalandra_uint32_entry"
-                                                             : "_mlir_ciface_kalandra_int32_entry",
+          : (main->resultType.element == NumericType::UInt64 ||
+             main->resultType.element == NumericType::UInt8)
+              ? "_mlir_ciface_kalandra_uint64_entry"
+          : (main->resultType.element == NumericType::Int64 ||
+             main->resultType.element == NumericType::Int8)
+              ? "_mlir_ciface_kalandra_int64_entry"
+          : main->resultType.element == NumericType::UInt32 ? "_mlir_ciface_kalandra_uint32_entry"
+                                                            : "_mlir_ciface_kalandra_int32_entry",
           module);
     } else
       entry->deleteBody();
@@ -136,7 +142,7 @@ public:
       if (indirectResult)
         builder.CreateRetVoid();
       else
-        builder.CreateRet(llvm::Constant::getNullValue(scalarType(main->resultType)));
+        builder.CreateRet(llvm::Constant::getNullValue(entry->getReturnType()));
     };
     if (stringResult)
       builder.CreateStore(llvm::Constant::getNullValue(scalarType(main->resultType)),
@@ -186,7 +192,10 @@ public:
       copy(entry->getArg(0), payload, scalarType(main->resultType));
       builder.CreateRetVoid();
     } else {
-      auto *value = builder.CreateLoad(scalarType(main->resultType), payload);
+      Value *value = builder.CreateLoad(scalarType(main->resultType), payload);
+      if (isInteger8(main->resultType.element))
+        value = isUnsigned(main->resultType.element) ? builder.CreateZExt(value, i64)
+                                                     : builder.CreateSExt(value, i64);
       if (hasRecordBacking(planner.input) ||
           std::ranges::any_of(planner.input.expressions,
                               [](const auto &e) { return e.type.builtin == BuiltinValue::String; }))
@@ -232,8 +241,7 @@ private:
       return boolean;
     if (type.builtin == BuiltinValue::String)
       return llvm::StructType::get(context, {pointer, pointer, i64});
-    return (type.element == NumericType::Int64 || type.element == NumericType::UInt64) ? i64
-           : isInteger32(type.element)                                                 ? i32
+    return isInteger(type.element) ? builder.getIntNTy(describeNumeric(type.element)->bits)
            : type.element == NumericType::Float64 ? Type::getDoubleTy(context)
                                                   : f32;
   }
@@ -265,6 +273,8 @@ private:
            : type.element == NumericType::Int64      ? "scalar.int64"
            : type.element == NumericType::UInt32     ? "scalar.uint32"
            : type.element == NumericType::Int32      ? "scalar.int32"
+           : type.element == NumericType::Int8       ? "scalar.int8"
+           : type.element == NumericType::UInt8      ? "scalar.uint8"
                                                      : "scalar";
   }
 
@@ -572,7 +582,10 @@ private:
       case Code::Literal: {
         const auto &literal = planner.input.expressions[instruction.source].operation;
         if (const auto *integer = std::get_if<Int32Literal>(&literal)) {
-          builder.CreateStore(c32(static_cast<std::uint32_t>(integer->value)), payload(instruction.output));
+          builder.CreateStore(
+              llvm::ConstantInt::get(llvm::cast<llvm::IntegerType>(scalarType(type)),
+                                     static_cast<std::uint64_t>(integer->value), true),
+              payload(instruction.output));
           builder.CreateBr(next);
           break;
         }
@@ -587,7 +600,9 @@ private:
           break;
         }
         if (const auto *integer = std::get_if<UInt32Literal>(&literal)) {
-          builder.CreateStore(c32(integer->value), payload(instruction.output));
+          builder.CreateStore(llvm::ConstantInt::get(
+                                  llvm::cast<llvm::IntegerType>(scalarType(type)), integer->value),
+                              payload(instruction.output));
           builder.CreateBr(next);
           break;
         }

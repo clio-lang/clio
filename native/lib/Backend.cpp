@@ -121,14 +121,21 @@ public:
         : main->resultType.builtin == BuiltinValue::String ? "kalandra_string_entry"
         : main->resultType.builtin == BuiltinValue::Bool   ? "kalandra_bool_entry"
         : main->resultType.element == NumericType::Float64 ? "kalandra_float64_entry"
-        : main->resultType.element == NumericType::UInt64  ? "kalandra_uint64_entry"
-        : main->resultType.element == NumericType::Int64   ? "kalandra_int64_entry"
-        : main->resultType.element == NumericType::UInt32  ? "kalandra_uint32_entry"
-        : main->resultType.element == NumericType::Int32   ? "kalandra_int32_entry"
-                                                           : "kalandra_entry";
+        : (main->resultType.element == NumericType::UInt64 ||
+           main->resultType.element == NumericType::UInt8)
+            ? "kalandra_uint64_entry"
+        : (main->resultType.element == NumericType::Int64 ||
+           main->resultType.element == NumericType::Int8)
+            ? "kalandra_int64_entry"
+        : main->resultType.element == NumericType::UInt32 ? "kalandra_uint32_entry"
+        : main->resultType.element == NumericType::Int32  ? "kalandra_int32_entry"
+                                                          : "kalandra_entry";
     auto entry = func::FuncOp::create(
         builder_, location(main->declaration), entryName,
-        builder_.getFunctionType({}, {type(main->declaredResult.value_or(main->resultType))}));
+        builder_.getFunctionType({},
+                                 {isInteger8(main->resultType.element) && !main->resultType.tensor
+                                      ? Type(builder_.getI64Type())
+                                      : type(main->declaredResult.value_or(main->resultType))}));
     entry->setAttr("llvm.emit_c_interface", builder_.getUnitAttr());
     builder_.setInsertionPointToStart(entry.addEntryBlock());
     const auto mainId = static_cast<FunctionId>(main - input_.functions.begin());
@@ -137,7 +144,15 @@ public:
         main->resultType.builtin != BuiltinValue::String)
       func::CallOp::create(builder_, entry.getLoc(), "kalandra_record_cleanup", TypeRange{},
                            ValueRange{});
-    func::ReturnOp::create(builder_, entry.getLoc(), call.getResults());
+    if (!main->resultType.tensor && isInteger8(main->resultType.element)) {
+      Value result = call.getResult(0);
+      if (isUnsigned(main->resultType.element))
+        result = arith::ExtUIOp::create(builder_, entry.getLoc(), builder_.getI64Type(), result);
+      else
+        result = arith::ExtSIOp::create(builder_, entry.getLoc(), builder_.getI64Type(), result);
+      func::ReturnOp::create(builder_, entry.getLoc(), ValueRange{result});
+    } else
+      func::ReturnOp::create(builder_, entry.getLoc(), call.getResults());
     if (testEntry)
       interfaceWrapper(*testEntry);
     return std::move(module_);
@@ -168,12 +183,10 @@ private:
       return LLVM::LLVMStructType::getLiteral(builder_.getContext(),
                                               {ptr, ptr, builder_.getI64Type()});
     }
-    const Type element =
-        (value.element == NumericType::Int64 || value.element == NumericType::UInt64)
-            ? Type(builder_.getI64Type())
-        : isInteger32(value.element)            ? Type(builder_.getI32Type())
-        : value.element == NumericType::Float64 ? Type(builder_.getF64Type())
-                                                : Type(builder_.getF32Type());
+    const Type element = isInteger(value.element)
+                             ? Type(builder_.getIntegerType(describeNumeric(value.element)->bits))
+                         : value.element == NumericType::Float64 ? Type(builder_.getF64Type())
+                                                                 : Type(builder_.getF32Type());
     if (!value.tensor)
       return element;
     SmallVector<std::int64_t> shape;
@@ -437,8 +450,10 @@ private:
       return arith::ConstantOp::create(builder_, loc, wide.getType(),
           builder_.getIntegerAttr(wide.getType(), llvm::APInt(bits * 2, static_cast<std::uint64_t>(value), true)));
     };
-    auto low = compare(loc, arith::CmpIPredicate::sge, wide, constant(bits == 64 ? INT64_MIN : INT32_MIN));
-    auto high = compare(loc, arith::CmpIPredicate::sle, wide, constant(bits == 64 ? INT64_MAX : INT32_MAX));
+    auto low = compare(loc, arith::CmpIPredicate::sge, wide,
+                       constant(bits == 64 ? INT64_MIN : -(INT64_C(1) << (bits - 1))));
+    auto high = compare(loc, arith::CmpIPredicate::sle, wide,
+                        constant(bits == 64 ? INT64_MAX : (INT64_C(1) << (bits - 1)) - 1));
     guard(loc, arith::AndIOp::create(builder_, loc, low, high), 4);
     return arith::TruncIOp::create(builder_, loc, builder_.getIntegerType(bits), wide);
   }
@@ -530,8 +545,9 @@ private:
                          : op == TokenKind::Star ? "arith.muli"
                          : op == TokenKind::Percent ? "arith.remui" : "arith.divui";
       auto wide = binary(loc, name, a, b);
-      auto maximum = arith::ConstantOp::create(builder_, loc, wideType,
-          builder_.getIntegerAttr(wideType, llvm::APInt(bits * 2, bits == 64 ? UINT64_MAX : UINT32_MAX)));
+      auto maximum = arith::ConstantOp::create(
+          builder_, loc, wideType,
+          builder_.getIntegerAttr(wideType, llvm::APInt::getLowBitsSet(bits * 2, bits)));
       guard(loc, compare(loc, arith::CmpIPredicate::ule, wide, maximum), 4);
       return arith::TruncIOp::create(builder_, loc, builder_.getIntegerType(bits), wide);
     }
@@ -1136,7 +1152,8 @@ private:
           } else if constexpr (std::is_same_v<T, Int32Literal> ||
                                std::is_same_v<T, UInt32Literal> ||
                                std::is_same_v<T, Int64Literal>) {
-            return arith::ConstantIntOp::create(builder_, loc, operation.value, node.type.element == NumericType::Int64 ? 64 : 32);
+            return arith::ConstantIntOp::create(builder_, loc, operation.value,
+                                                describeNumeric(node.type.element)->bits);
           } else if constexpr (std::is_same_v<T, SymbolRead>)
             return frame.symbols.at(operation.symbol);
           else if constexpr (std::is_same_v<T, ScalarUnary>) {
@@ -1152,7 +1169,7 @@ private:
             Value end = expression(frame, operation.end);
             const auto extend = [&](Value value, ValueId id) -> Value {
               const auto element = input_.expressions[id].type.element;
-              if (!isInteger32(element))
+              if (describeNumeric(element)->bits >= 64)
                 return value;
               if (isUnsigned(element))
                 return arith::ExtUIOp::create(builder_, loc, builder_.getI64Type(), value);
@@ -1168,7 +1185,7 @@ private:
             auto input = expression(frame, operation.input);
             Value index = expression(frame, operation.index);
             const auto element = input_.expressions[operation.index].type.element;
-            if (isInteger32(element)) {
+            if (describeNumeric(element)->bits < 64) {
               if (isUnsigned(element))
                 index = arith::ExtUIOp::create(builder_, loc, builder_.getI64Type(), index);
               else
@@ -1285,7 +1302,7 @@ private:
                 auto input = expression(frame, operation.input);
                 Value position = expression(frame, operation.index);
                 const auto element = input_.expressions[operation.index].type.element;
-                if (isInteger32(element)) {
+                if (describeNumeric(element)->bits < 64) {
                   if (isUnsigned(element))
                     position =
                         arith::ExtUIOp::create(builder_, loc, builder_.getI64Type(), position);
@@ -1318,7 +1335,7 @@ private:
             for (std::size_t axis = 0; axis < indices.size(); ++axis) {
               auto position = positions[axis];
               const auto element = input_.expressions[indices[axis]].type.element;
-              if (describeNumeric(element)->bits == 32) {
+              if (describeNumeric(element)->bits < 64) {
                 if (isUnsigned(element))
                   position = arith::ExtUIOp::create(builder_, loc, builder_.getI64Type(), position);
                 else
@@ -1385,7 +1402,7 @@ private:
                 auto id = (*dimensionOperands)[axis];
                 auto dimension = evaluated[axis];
                 const auto element = input_.expressions[id].type.element;
-                if (describeNumeric(element)->bits == 32) {
+                if (describeNumeric(element)->bits < 64) {
                   if (isUnsigned(element))
                     dimension =
                         arith::ExtUIOp::create(builder_, loc, builder_.getI64Type(), dimension);
@@ -1557,7 +1574,7 @@ private:
             Value end = expression(frame, operation.end);
             const auto extend = [&](Value value, ValueId id) -> Value {
               const auto element = input_.expressions[id].type.element;
-              if (!isInteger32(element))
+              if (describeNumeric(element)->bits >= 64)
                 return value;
               if (isUnsigned(element))
                 return arith::ExtUIOp::create(builder_, loc, builder_.getI64Type(), value);

@@ -278,18 +278,20 @@ int main(int argc, char **argv) {
                    threadSanitize ? KALANDRA_INT32_THREAD_SANITIZED_ENTRY
                    : sanitize ? KALANDRA_INT32_SANITIZED_ENTRY : KALANDRA_INT32_ENTRY);
   if (scalarMain && main->resultType.element == kalandra::NumericType::UInt32)
-    command.insert(command.begin() + 5,
-                   threadSanitize ? KALANDRA_UINT32_THREAD_SANITIZED_ENTRY
-                   : sanitize ? KALANDRA_UINT32_SANITIZED_ENTRY : KALANDRA_UINT32_ENTRY);
-  if (scalarMain && main->resultType.element == kalandra::NumericType::Int64)
-    command.insert(command.begin() + 5,
-                   threadSanitize ? KALANDRA_INT64_THREAD_SANITIZED_ENTRY
-                   : sanitize ? KALANDRA_INT64_SANITIZED_ENTRY : KALANDRA_INT64_ENTRY);
+    command.insert(command.begin() + 5, threadSanitize ? KALANDRA_UINT32_THREAD_SANITIZED_ENTRY
+                                        : sanitize     ? KALANDRA_UINT32_SANITIZED_ENTRY
+                                                       : KALANDRA_UINT32_ENTRY);
+  if (scalarMain && (main->resultType.element == kalandra::NumericType::Int64 ||
+                     main->resultType.element == kalandra::NumericType::Int8))
+    command.insert(command.begin() + 5, threadSanitize ? KALANDRA_INT64_THREAD_SANITIZED_ENTRY
+                                        : sanitize     ? KALANDRA_INT64_SANITIZED_ENTRY
+                                                       : KALANDRA_INT64_ENTRY);
   if (scalarMain && main->resultType.element == kalandra::NumericType::Float64)
     command.insert(command.begin() + 5, threadSanitize ? KALANDRA_FLOAT64_THREAD_SANITIZED_ENTRY
                                         : sanitize     ? KALANDRA_FLOAT64_SANITIZED_ENTRY
                                                        : KALANDRA_FLOAT64_ENTRY);
-  if (scalarMain && main->resultType.element == kalandra::NumericType::UInt64)
+  if (scalarMain && (main->resultType.element == kalandra::NumericType::UInt64 ||
+                     main->resultType.element == kalandra::NumericType::UInt8))
     command.insert(command.begin() + 5, threadSanitize ? KALANDRA_UINT64_THREAD_SANITIZED_ENTRY
                                         : sanitize     ? KALANDRA_UINT64_SANITIZED_ENTRY
                                                        : KALANDRA_UINT64_ENTRY);

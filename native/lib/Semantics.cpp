@@ -228,7 +228,9 @@ private:
     const auto numeric =
         syntax.tensor ? (syntax.element ? resolveNumeric(name(*syntax.element)) : std::nullopt)
                       : resolveNumeric(name(syntax.name));
-    if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu)) {
+    if (!numeric || !(syntax.tensor || syntax.array
+                          ? numericArithmeticAvailable(*numeric, NumericTarget::Cpu)
+                          : numericScalarArithmeticAvailable(*numeric, NumericTarget::Cpu))) {
       error("S003",
             "expected a declared record type, String, Bool, or a supported numeric scalar, tensor "
             "or array "
@@ -637,13 +639,11 @@ private:
         [&](const auto &operation) { return infer(frame, syntax.span, operation, expected); },
         syntax.value);
     if (value && isInteger(node(*value).type.element)) {
-      const bool unsignedValue = isUnsigned(node(*value).type.element);
-      const bool uint64Value = node(*value).type.element == NumericType::UInt64;
-      const bool int64Value = node(*value).type.element == NumericType::Int64;
-      const auto typeName = uint64Value ? "uint64" : unsignedValue ? "uint32" : int64Value ? "int64" : "int32";
-      const __int128_t maximum = unsignedValue ? __int128_t(uint64Value ? UINT64_MAX : UINT32_MAX)
-                                               : int64Value ? INT64_MAX : INT32_MAX;
-      const __int128_t minimum = unsignedValue ? 0 : int64Value ? INT64_MIN : INT32_MIN;
+      const auto element = node(*value).type.element;
+      const auto typeName = std::string(describeNumeric(element)->name);
+      const bool unsignedValue = isUnsigned(element);
+      const __int128_t maximum = integerMaximum(element);
+      const __int128_t minimum = integerMinimum(element);
       std::optional<__int128_t> constant;
       const auto &op = node(*value).operation;
       if (const auto *n = std::get_if<Int32Literal>(&op))
@@ -712,11 +712,12 @@ private:
     }
     std::uint64_t magnitude = 0;
     const auto parsed = std::from_chars(text.data(), text.data() + text.size(), magnitude);
-    const std::uint64_t signedMaximum = int64Value ? INT64_MAX : INT32_MAX;
-    const std::uint64_t limit = unsignedValue ? (negative ? 0 : uint64Value ? UINT64_MAX : UINT32_MAX)
-                                            : negative ? signedMaximum + 1 : signedMaximum;
+    const std::uint64_t limit = unsignedValue ? (negative ? 0 : integerMaximum(element))
+                                              : integerMaximum(element) + (negative ? 1 : 0);
     if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size() || magnitude > limit) {
-      error("S051", std::string(uint64Value ? "uint64" : unsignedValue ? "uint32" : int64Value ? "int64" : "int32") + " requires an in-range integer literal", span);
+      error("S051",
+            std::string(describeNumeric(element)->name) + " requires an in-range integer literal",
+            span);
       return {};
     }
     if (uint64Value) {
@@ -2319,7 +2320,7 @@ private:
   }
   std::optional<ValueId> conversion(Frame &frame, SourceSpan span, NumericType destination,
                                     const std::vector<ExprId> &arguments) {
-    if (!numericArithmeticAvailable(destination, NumericTarget::Cpu)) {
+    if (!numericScalarArithmeticAvailable(destination, NumericTarget::Cpu)) {
       error("S003", "conversion destination is not implemented", span);
       return {};
     }
@@ -2337,6 +2338,10 @@ private:
       return {};
     }
     if (source.tensor) {
+      if (!numericArithmeticAvailable(destination, NumericTarget::Cpu)) {
+        error("S003", "conversion destination is not implemented for tensors", span);
+        return {};
+      }
       auto result = source;
       result.element = destination;
       if (!validSize(result, span))
@@ -2348,10 +2353,8 @@ private:
     bool invalid = false;
     if (isInteger(destination)) {
       const auto bits = describeNumeric(destination)->bits;
-      const __int128_t maximum = isUnsigned(destination)
-                                     ? (bits == 64 ? __int128_t(UINT64_MAX) : UINT32_MAX)
-                                     : (bits == 64 ? INT64_MAX : INT32_MAX);
-      const __int128_t minimum = isUnsigned(destination) ? 0 : (bits == 64 ? INT64_MIN : INT32_MIN);
+      const __int128_t maximum = integerMaximum(destination);
+      const __int128_t minimum = integerMinimum(destination);
       if (auto found = intConstants_.find(*input); found != intConstants_.end()) {
         integer = found->second;
         invalid = *integer < minimum || *integer > maximum;

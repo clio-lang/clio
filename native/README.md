@@ -141,3 +141,5 @@ CPU records can also own [numeric arrays and tensors](../docs/design/record-coll
 [Immutable CPU array slicing](../docs/design/array-slicing.md) supports `slice(values, start, end)` for existing array types, with checked ranges and retained worker ownership.
 
 [CPU array concatenation](../docs/design/array-concatenation.md) combines existing same-typed arrays using `concat(left, right)`, including direct worker dispatch.
+
+[Checked CPU int8/uint8 scalars](../docs/design/int8-scalars.md) now support exact-width arithmetic, scalar conversions, local workers and CLI display. Narrow collections and int16/uint16 arithmetic remain separate work.

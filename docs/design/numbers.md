@@ -803,3 +803,7 @@ The [compiled driver](../../native/cmake/VerifyTensorConversions.cmake) and [ten
 The [evidence record](../../native/metal-proof/evidence/cpu-tensor-conversions-2026-10-17.json) records 111 focused checks passing across debug, optimized, ASan/UBSan and TSan builds: 293,456 tensor-conversion invocations (including metadata/allocation/Arithmetic fault probes), 22,107,008 exact lane checks before/after settlement and 1,200 worker harness runs. The scalar regression repeats 15,585,408 conversion invocations. All 640 tracked float32 numerical artifacts, the scalar conversion algorithm, strict engine, continuation planner, task backend, storage/runtime and Metal implementation remain unchanged. This is focused qualification rather than the entire 337-test suite.
 
 Additional source types, GPU formats and broader language support remain separate milestones. Discuss native distributed execution before implementation.
+
+## CPU int8 and uint8 scalar foundation
+
+[Checked byte scalars](int8-scalars.md) now implement signed/unsigned 8-bit literal typing, arithmetic, comparisons, explicit scalar conversions, local worker captures/results and CLI display. All eight implemented scalar types share the existing conversion machinery. Collection storage and int16/uint16 execution remain gated for later qualification.

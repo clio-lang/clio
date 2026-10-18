@@ -122,7 +122,9 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
     if (type.builtin == BuiltinValue::Bool &&
         (target != NumericTarget::Cpu || (type.tensor && !isBoolArray(type)) || type.device))
       return "Bool values require CPU scalar or array storage";
-    if (type.builtin != BuiltinValue::Numeric || numericArithmeticAvailable(type.element, target))
+    if (type.builtin != BuiltinValue::Numeric ||
+        (type.tensor ? numericArithmeticAvailable(type.element, target)
+                     : numericScalarArithmeticAvailable(type.element, target)))
       return {};
     const auto description = describeNumeric(type.element);
     return "numeric type '" + (description ? std::string(description->name) : "<invalid>") + "'" +
@@ -255,6 +257,20 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
         expression.operation);
     if (arithmeticArray)
       return "arrays require explicit collection operations, not tensor/scalar arithmetic";
+    if (expression.type.builtin == BuiltinValue::Numeric && isInteger8(expression.type.element)) {
+      if (const auto *literal = std::get_if<Int32Literal>(&expression.operation)) {
+        if (expression.type.element != NumericType::Int8 || literal->value < INT8_MIN ||
+            literal->value > INT8_MAX)
+          return "int8 literal requires its exact signed range and identity";
+      } else if (const auto *literal = std::get_if<UInt32Literal>(&expression.operation)) {
+        if (expression.type.element != NumericType::UInt8 || literal->value > UINT8_MAX)
+          return "uint8 literal requires its exact unsigned range and identity";
+      } else if (std::holds_alternative<Int64Literal>(expression.operation) ||
+                 std::holds_alternative<UInt64Literal>(expression.operation) ||
+                 std::holds_alternative<Float32Literal>(expression.operation) ||
+                 std::holds_alternative<Float64Literal>(expression.operation))
+        return "8-bit integer literal uses an incompatible representation";
+    }
     if (const auto *literal = std::get_if<StringLiteral>(&expression.operation);
         literal && (expression.type.builtin != BuiltinValue::String || expression.type.tensor ||
                     expression.type.array || expression.type.task || expression.type.fallible ||
@@ -430,7 +446,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
                       [](const Extent &a, const Extent &b) {
                         return a.constant == b.constant && a.identity == b.identity;
                       }) ||
-          !numericArithmeticAvailable(source.element, target))
+          !(source.tensor ? numericArithmeticAvailable(source.element, target)
+                          : numericScalarArithmeticAvailable(source.element, target)))
         return "numeric conversions require implemented CPU values with unchanged shape";
     }
     if (const auto *read = std::get_if<ArrayIndex>(&expression.operation)) {

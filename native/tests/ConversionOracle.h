@@ -1,5 +1,9 @@
 #pragma once
-template <class T> using Raw = std::conditional_t<sizeof(T) == 4, std::uint32_t, std::uint64_t>;
+template <class T>
+using Raw = std::conditional_t<
+    sizeof(T) == 1, std::uint8_t,
+    std::conditional_t<sizeof(T) == 2, std::uint16_t,
+                       std::conditional_t<sizeof(T) == 4, std::uint32_t, std::uint64_t>>>;
 struct Expected {
   std::uint64_t bits;
   bool valid;
@@ -15,7 +19,7 @@ static Expected reference(std::uint64_t bits) {
     __int128_t minimum = isUnsigned(destination) ? 0 : -(__int128_t(1) << (dst->bits - 1));
     __int128_t maximum = isUnsigned(destination) ? ((__int128_t(1) << dst->bits) - 1)
                                                  : ((__int128_t(1) << (dst->bits - 1)) - 1);
-    return {std::uint64_t(value) & (dst->bits == 32 ? UINT32_MAX : UINT64_MAX),
+    return {std::uint64_t(value) & (dst->bits == 64 ? UINT64_MAX : (UINT64_C(1) << dst->bits) - 1),
             value >= minimum && value <= maximum};
   }
   const auto &semantics =
@@ -45,8 +49,13 @@ static Expected reference(std::uint64_t bits) {
 }
 static std::vector<std::uint64_t> conversionInputs() {
   std::vector<std::uint64_t> inputs;
+  if (describeNumeric(source)->bits == 8) {
+    for (unsigned value = 0; value < 256; ++value)
+      inputs.push_back(value);
+    return inputs;
+  }
   const auto width = describeNumeric(source)->bits;
-  const auto mask = width == 32 ? UINT64_C(0xffffffff) : UINT64_MAX;
+  const auto mask = width == 64 ? UINT64_MAX : (UINT64_C(1) << width) - 1;
   for (auto value : {UINT64_C(0), UINT64_C(1), UINT64_C(2), UINT64_MAX, UINT64_MAX - 1,
                      UINT64_C(0x8000000000000000), UINT64_C(0x7fffffffffffffff)})
     inputs.push_back(value & mask);
