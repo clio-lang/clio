@@ -198,6 +198,71 @@ int main() {
       require(!lowerNative(*value.module), "forged String index admitted");
     }
 #endif
+    for (const auto *source :
+         {"fn main()->String:\n  slice(\"aé👩\",1,3)\n", "fn main()->String:\n  slice(\"\",0,0)\n",
+          "fn main():\n  \"aé\"->slice(0,2)\n",
+          "fn main()->String:\n  slice(slice(\"aé👩\",1,3),0,1)\n"}) {
+      auto value = analyze(source);
+      require(value.ok(), "valid String slice rejected");
+#ifndef KALANDRA_STRING_FRONTEND_ONLY
+      require(bool(lowerNative(*value.module)), "String slice lowering failed");
+#endif
+    }
+    for (const auto *source :
+         {"fn main():\n  slice(\"abc\",2,1)\n", "fn main():\n  slice(\"é\",0,2)\n",
+          "fn main():\n  slice(\"abc\",-1,2)\n", "fn main():\n  slice(\"abc\",0,-1)\n",
+          "fn main():\n  slice(\"\",1,1)\n", "fn main():\n  slice(\"a\",0,0)[0]\n",
+          "fn main():\n  slice(\"éa\",0,1)[1]\n",
+          "fn main():\n  bound:uint64=18446744073709551615\n  slice(\"a\",0,bound)\n",
+          "fn main()->String:\n  if true:\n    text=slice(\"a\",0,0)\n    text[0]\n  else:\n    "
+          "\"ok\"\n"}) {
+      auto value = analyze(source);
+      bool bounds = false;
+      for (const auto &d : value.diagnostics)
+        bounds |= d.code == "S062";
+      require(!value.ok() && bounds, "known invalid slice did not produce S062");
+    }
+    for (const auto *source :
+         {"fn main():\n  slice()\n", "fn main():\n  slice(\"a\",0)\n",
+          "fn main():\n  slice(\"a\",0,1,1)\n", "fn main():\n  slice([1,2],0,1)\n",
+          "fn main():\n  slice(1,0,1)\n", "fn main():\n  slice(\"a\",true,1)\n",
+          "fn main():\n  slice(\"a\",0,1.0)\n", "fn main():\n  slice(\"a\",[0],1)\n",
+          "fn main()->int64:\n  slice(\"a\",0,1)\n"})
+      require(!analyze(source).ok(), "invalid slice type/arity/result admitted");
+    auto sliceDiagnostic =
+        analyze("fn task()->int64 ! TaskError:\n  1\nfn main()->int64:\n  task() catch "
+                "fn(error):\n    match error:\n      TaskError.Fault { message }:\n        "
+                "part=slice(message,0,0)\n        1\n      _: 0\n");
+    bool sliceGate = false;
+    for (const auto &d : sliceDiagnostic.diagnostics)
+      sliceGate |= d.code == "S054";
+    require(!sliceDiagnostic.ok() && sliceGate,
+            "borrowed String slice bypassed ordinary-String gate");
+#ifndef KALANDRA_STRING_FRONTEND_ONLY
+    for (unsigned mode = 0; mode < 8; ++mode) {
+      auto value = analyze("fn main():\n  slice(\"éa\",0,1)\n");
+      for (auto &expr : value.module->expressions)
+        if (auto *part = std::get_if<StringSlice>(&expr.operation)) {
+          if (mode == 0)
+            part->input = value.module->expressions.size();
+          if (mode == 1)
+            part->start = value.module->expressions.size();
+          if (mode == 2)
+            part->end = value.module->expressions.size();
+          if (mode == 3)
+            expr.type.builtin = BuiltinValue::Bool;
+          if (mode == 4)
+            value.module->expressions[part->start].type.element = NumericType::Float64;
+          if (mode == 5)
+            value.module->expressions[part->end].type.builtin = BuiltinValue::Bool;
+          if (mode == 6)
+            expr.type.task = true;
+          if (mode == 7)
+            value.module->expressions[part->input].type.task = true;
+        }
+      require(!lowerNative(*value.module), "forged String slice admitted");
+    }
+#endif
     for (const auto *source : {"fn String()->int64:\n  1\n", "fn main():\n  [\"a\",\"b\"]\n",
                                "fn main():\n  [1,2]->map(fn(x): \"a\")\n",
                                "fn main():\n  text=\"a\"\n  [1,2]->map(fn(x): text)\n"})

@@ -46,3 +46,7 @@ extern "C" void kalandra_string_index_v1(kalandra::runtime::Invocation *,
                                          kalandra::runtime::StringDescriptor *,
                                          const kalandra::runtime::StringDescriptor *,
                                          std::uint64_t) noexcept;
+extern "C" void kalandra_string_slice_v1(kalandra::runtime::Invocation *,
+                                         kalandra::runtime::StringDescriptor *,
+                                         const kalandra::runtime::StringDescriptor *, std::uint64_t,
+                                         std::uint64_t) noexcept;

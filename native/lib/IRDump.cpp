@@ -19,7 +19,8 @@ bool hasOrdinaryStrings(const TypedModule &module) {
                                       std::holds_alternative<StringLiteral>(e.operation) ||
                                       std::holds_alternative<StringConcat>(e.operation) ||
                                       std::holds_alternative<StringQuery>(e.operation) ||
-                                      std::holds_alternative<StringIndex>(e.operation);
+                                      std::holds_alternative<StringIndex>(e.operation) ||
+                                      std::holds_alternative<StringSlice>(e.operation);
                              }) ||
          std::ranges::any_of(module.functions,
                              [](const auto &f) {
@@ -302,6 +303,21 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
             type.device != expression.type.device ||
             (type.builtin == BuiltinValue::Numeric && type.element != expression.type.element))
           return "conditional branch result type mismatch";
+      }
+    }
+    if (const auto *slice = std::get_if<StringSlice>(&expression.operation)) {
+      if (slice->input >= module.expressions.size() || slice->start >= module.expressions.size() ||
+          slice->end >= module.expressions.size())
+        return "String slice references invalid operands";
+      const auto &a = module.expressions[slice->input].type;
+      if (target != NumericTarget::Cpu || a.builtin != BuiltinValue::String ||
+          expression.type.builtin != BuiltinValue::String || !scalarSame(a, expression.type))
+        return "String slice requires completed CPU String input and result";
+      for (auto id : {slice->start, slice->end}) {
+        const auto &i = module.expressions[id].type;
+        if (i.builtin != BuiltinValue::Numeric || !isInteger(i.element) || i.tensor || i.array ||
+            i.task || i.fallible || i.device || !i.shape.empty())
+          return "String slice requires completed CPU integer bounds";
       }
     }
     if (const auto *read = std::get_if<StringIndex>(&expression.operation)) {
@@ -607,7 +623,10 @@ std::string dumpTypedIR(const TypedModule &module) {
       std::visit(
           [&](const auto &operation) {
             using T = std::decay_t<decltype(operation)>;
-            if constexpr (std::is_same_v<T, StringIndex>)
+            if constexpr (std::is_same_v<T, StringSlice>)
+              out << "string.slice checked %" << operation.input << " %" << operation.start << " %"
+                  << operation.end;
+            else if constexpr (std::is_same_v<T, StringIndex>)
               out << "string.index checked %" << operation.input << " %" << operation.index;
             else if constexpr (std::is_same_v<T, StringQuery>)
               out << (operation.kind == StringQueryKind::Length ? "string.length checked %"

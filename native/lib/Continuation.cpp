@@ -36,6 +36,8 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
                            std::is_same_v<T, StringQuery> || std::is_same_v<T, NumericConvert> ||
                            std::is_same_v<T, TensorToArray> || std::is_same_v<T, ShapeCheck>)
           return {op.input};
+        else if constexpr (std::is_same_v<T, StringSlice>)
+          return {op.input, op.start, op.end};
         else if constexpr (std::is_same_v<T, ArrayIndex> || std::is_same_v<T, StringIndex>)
           return {op.input, op.index};
         else if constexpr (std::is_same_v<T, TensorIndex>) {
@@ -220,6 +222,10 @@ private:
             op.input = importValue(op.input);
             for (auto &capture : op.captures)
               capture = importValue(capture);
+          } else if constexpr (std::is_same_v<T, StringSlice>) {
+            op.input = importValue(op.input);
+            op.start = importValue(op.start);
+            op.end = importValue(op.end);
           } else if constexpr (std::is_same_v<T, ArrayIndex> || std::is_same_v<T, StringIndex>) {
             op.input = importValue(op.input);
             op.index = importValue(op.index);

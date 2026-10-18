@@ -1,6 +1,6 @@
 # Native String contract
 
-CPU String values, equality, concatenation, length queries and scalar indexing implemented — 2026-10-18. Literals, annotations, synchronous helpers, `+`, `==`, `!=`, `length`, `byteLength`, scalar indexing and CLI results are available. Slicing and worker/compound integrations remain gated.
+CPU String values, equality, concatenation, length queries, scalar indexing and slicing implemented — 2026-10-18. Literals, annotations, synchronous helpers, `+`, `==`, `!=`, `length`, `byteLength`, scalar indexing, slicing and CLI results are available. Worker/compound integrations remain gated.
 
 The design follows the immutable [core](core.md) and [automatic memory model](memory.md). One ordinary `String` type represents text. No separate `Char` type, allocator arguments, mutable string buffers or lifetime annotations are introduced.
 
@@ -24,7 +24,7 @@ Embedded U+0000 is ordinary text. Strings are length-delimited, not C strings. N
 
 ## Operations
 
-Concatenation, exact equality, length queries and scalar indexing compile on the synchronous CPU backend. Slicing in the table specifies a later slice.
+All operations in this table compile on the synchronous CPU backend. Worker/capture and compound-value integrations remain separate.
 
 ```kalandra
 fn greeting(name: String) -> String:
@@ -80,12 +80,12 @@ A String-valued CLI `main` writes its UTF-8 bytes followed by one LF, without qu
 ## Implementation sequence and gates
 
 1. **Literal/value foundation — implemented:** String AST and strict escape decoding, typed String literals/annotations, trusted literal and managed storage validation, synchronous helpers/returns and CLI output. Adapt existing internal diagnostic String values or explicitly gate their ordinary use until safe. Prove empty/non-ASCII/NUL behavior and failures before exposing further composition.
-2. **Value operations — partial:** exact equality and concatenation are implemented with checked allocation/counts and fault ordering. Byte/scalar lengths are also implemented. Scalar indexing is implemented. Next: scalar-boundary slicing. Keep each remaining operation gated until implemented and qualified.
+2. **Value operations — partial:** exact equality and concatenation are implemented with checked allocation/counts and fault ordering. Byte/scalar lengths are also implemented. Scalar indexing and half-open slicing are also implemented. Worker/compound integrations below keep their own qualification gates.
 3. **Workers and captures:** owned packets, source settlement, cached outcomes, cancellation, allocation failure and no partial publication; then ordinary callback captures.
 4. **Compound values:** String record fields, String arrays and numeric/Bool/record/String map combinations, with the same finite-layout and recursive-retention rules. Do not silently enable these by adding a builtin tag.
 5. **Text libraries and optimization:** explicit decoding/encoding once byte types and recoverable errors are ready; normalization, grapheme iteration and locale behavior with pinned tables; shared slices, cached counts and linear traversal. Add broader library operations independently.
 
-[Conformance vectors](fixtures/strings-semantics.json) record scalar/byte counts, exact equality, index/slice results, invalid UTF-8, literal escape cases and bounds decisions for future tests. The literal/value, equality/concatenation and length tests consume their corresponding text, escape, count and invalid UTF-8 vectors; slice vectors remain design data until implemented and qualified; scalar index vectors are consumed by the indexing tests. Qualification must also cover all scalar boundary widths, cancellation during long scans, failure cleanup, external descriptor validation and result lifetime. Reuse generic ownership/scheduling machinery rather than building a separate String runtime for each context.
+[Conformance vectors](fixtures/strings-semantics.json) record scalar/byte counts, exact equality, index/slice results, invalid UTF-8, literal escape cases and bounds decisions for future tests. The literal/value, equality/concatenation and length tests consume their corresponding text, escape, count and invalid UTF-8 vectors; scalar index and slice vectors are consumed by their corresponding qualified tests. Qualification must also cover all scalar boundary widths, cancellation during long scans, failure cleanup, external descriptor validation and result lifetime. Reuse generic ownership/scheduling machinery rather than building a separate String runtime for each context.
 
 
 ## Qualified literal/value foundation
@@ -102,7 +102,7 @@ This compiles on the CPU backend. The executable prints the literal UTF-8 bytes,
 
 The first storage path copies compiler-emitted literal globals into invocation-owned immutable buffers. A private length-delimited descriptor carries the allocation base, data pointer and byte length; nonempty values require a known owner, matching base/data and an in-bounds length before UTF-8 validation touches the bytes. Empty values use the canonical null/null/zero descriptor. No arbitrary pointer is treated as static storage. Helpers share these immutable buffers within the invocation; the CLI retains the returned backing, settles invocation owners, then writes the result. Earlier temporary Strings settle at the same invocation boundary. Earlier reclamation and static-literal reuse are later optimizations.
 
-Source String values currently require a synchronous CPU module. Combining them with task-enabled or placement-aware functions is rejected, even if the functions are not called. Existing private task diagnostic bindings retain their borrowed representation and cannot escape into ordinary String helpers or results. Ordering comparisons, slicing, String record fields/arrays and callback captures remain unsupported. Exact equality, concatenation, length queries and scalar indexing are qualified below.
+Source String values currently require a synchronous CPU module. Combining them with task-enabled or placement-aware functions is rejected, even if the functions are not called. Existing private task diagnostic bindings retain their borrowed representation and cannot escape into ordinary String helpers or results. Ordering comparisons, String record fields/arrays and callback captures remain unsupported. Exact equality, concatenation, length queries, scalar indexing and slicing are qualified below.
 
 Qualification covers debug, optimized generated code, address/undefined sanitizers and thread sanitizer: exact Unicode/NUL/BOM bytes and scalar encoding boundaries; strict escape/UTF-8 rejection; imported helpers and conditional results; raw CLI output and scalar/collection cleanup; invocation isolation, retained result lifetime and malformed native descriptors; allocation failure, cancellation during scans/copies and unpublished failed results. Rejected literal builds preserve prior executable/MLIR/LLVM artifacts. See the [recorded evidence](../../native/metal-proof/evidence/cpu-string-values-2026-10-18.json).
 
@@ -132,7 +132,7 @@ fn main():
   [length(text), byteLength(text)]
 ```
 
-This prints `[3, 11]`. `length` counts Unicode scalars; `byteLength` counts UTF-8 bytes. Both return scalar `int64`, including zero for the empty String. Neither counts visible grapheme clusters. A combining mark, a joiner, NUL and a BOM each count as one scalar; no text is stripped or normalized. `length` retains its existing array behavior, and `byteLength` accepts only String values. String `shape` and slicing remain unsupported; scalar indexing is qualified separately below.
+This prints `[3, 11]`. `length` counts Unicode scalars; `byteLength` counts UTF-8 bytes. Both return scalar `int64`, including zero for the empty String. Neither counts visible grapheme clusters. A combining mark, a joiner, NUL and a BOM each count as one scalar; no text is stripped or normalized. `length` retains its existing array behavior, and `byteLength` accepts only String values. String `shape` remains unsupported; scalar indexing and slicing are qualified separately below.
 
 Each query evaluates its argument once. It validates the complete owner/descriptor and UTF-8 sequence before returning a count; malformed trailing bytes cannot produce a plausible byte length. Scalar counting shares that validation scan, publishes its count only after successful validation, and polls cooperatively. There is no count cache or additional managed allocation. The String byte-length bound also bounds the scalar count to nonnegative int64. Failed or cancelled scans return through the existing checked invocation boundary and settle their owners normally.
 
@@ -152,4 +152,20 @@ Negative signed indexes, high uint64 values and positions at or beyond the scala
 
 The checked runtime locates the scalar during complete UTF-8 validation, including bytes after the selected position. Unknown/settled owners, malformed descriptors and invalid trailing UTF-8 report RuntimeFault before any result is allocated. A valid position then copies exactly one to four bytes into new invocation-owned immutable storage. The result survives its helper and parent-buffer lifetime, and can be retained past invocation settlement. Allocation failure reports AllocationFault. Cancelled/failed scans never publish a selection or result. Validation polls cooperatively; scalar indexing is O(n) in the initial implementation even for position zero.
 
-This is a copying implementation. Earlier temporary reclamation and safe shared-storage views remain optimization work; retaining the indexed result does not require retaining its entire parent. Source buffers still follow the current invocation cleanup policy. Slicing, ordinary String workers/captures and String record/array elements remain separate steps. Qualification covers all scalar-index conformance vectors, four integer widths, dynamic bounds, escaped/Unicode/NUL/BOM text, source evaluation and fault order, imported helpers, sequential callbacks, parent release, retained results, allocation failure, complete malformed-input rejection, cancellation, and rejected-build output preservation. See the [indexing evidence](../../native/metal-proof/evidence/cpu-string-indexing-2026-10-18.json).
+This is a copying implementation. Earlier temporary reclamation and safe shared-storage views remain optimization work; retaining the indexed result does not require retaining its entire parent. Source buffers still follow the current invocation cleanup policy. Ordinary String workers/captures and String record/array elements remain separate steps; slicing is qualified below. Qualification covers all scalar-index conformance vectors, four integer widths, dynamic bounds, escaped/Unicode/NUL/BOM text, source evaluation and fault order, imported helpers, sequential callbacks, parent release, retained results, allocation failure, complete malformed-input rejection, cancellation, and rejected-build output preservation. See the [indexing evidence](../../native/metal-proof/evidence/cpu-string-indexing-2026-10-18.json).
+
+
+## Half-open scalar slicing
+
+```kalandra
+fn main() -> String:
+  slice("aé👩", 1, 3)
+```
+
+This prints `é👩`. `slice(text, start, end)` selects Unicode scalars in `[start, end)`. Each bound independently accepts int32, uint32, int64 or uint64. A valid range satisfies `0 <= start <= end <= length(text)`. Empty ranges, including `slice(text, length(text), length(text))` and `slice("", 0, 0)`, return the canonical empty String without result allocation. Bounds are neither clamped nor wrapped.
+
+Known negative/high bounds, reversed ranges and bounds beyond a tracked scalar extent are compile errors. Other invalid ranges cause BoundsFault. Known endpoint differences also supply scalar extents for subsequent bindings/indexing, while dynamic ranges keep runtime checks. Wrong source/bound types and arity are rejected. Source, start and end expressions evaluate once in that order; a fault stops later evaluation.
+
+Both scalar boundaries are located during complete UTF-8 validation. Even an empty range validates the full input, so malformed trailing text cannot be discarded silently. Invalid descriptors or UTF-8 report RuntimeFault before allocation. The initial implementation copies nonempty ranges into independent invocation-owned buffers; full-range slicing also copies. Parent/result lifetimes follow the existing managed model, and a retained result does not require retaining its parent. Allocation failure reports AllocationFault, and interrupted scans/copies leave the result unpublished and settle partial owners. Validation and copying poll cooperatively.
+
+Slicing composes with imported helpers, pipelines, sequential callbacks, equality, lengths and indexing. It remains CPU synchronous; worker/callback captures and String array/record fields stay gated. Qualification includes all 18 design slice vectors, 16 mixed integer-bound signatures, 55 scalar intervals spanning ASCII, Unicode, joiners, NUL and BOM, empty/end/full ranges, source evaluation/fault order, retained ownership, malformed-input rejection, allocation failure, cancellation during scan/copy, and rejected-build output preservation. See the [slicing evidence](../../native/metal-proof/evidence/cpu-string-slicing-2026-10-18.json).

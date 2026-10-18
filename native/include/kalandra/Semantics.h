@@ -80,6 +80,9 @@ struct TensorUnary {
   ValueId operand;
 };
 enum class StringQueryKind { Length, ByteLength };
+struct StringSlice {
+  ValueId input, start, end;
+};
 struct StringIndex {
   ValueId input, index;
 };
@@ -248,10 +251,10 @@ struct TypedExpr {
   SourceSpan span;
   ValueType type; // Concrete scalar/tensor numeric identity; builtins retain explicit tags.
   std::variant<Float64Literal, Float32Literal, Int32Literal, Int64Literal, UInt32Literal,
-               UInt64Literal, StringIndex, StringQuery, StringConcat, StringLiteral, BoolLiteral,
-               ScalarCompare, SymbolRead, ScalarUnary, TensorUnary, ScalarBinary, TensorBinary,
-               TensorLiteral, NumericConvert, FunctionCall, Matmul, ReduceSum, ArrayMap,
-               ArrayToTensor, TensorReshape, TensorToArray, ArrayIndex, TensorIndex,
+               UInt64Literal, StringSlice, StringIndex, StringQuery, StringConcat, StringLiteral,
+               BoolLiteral, ScalarCompare, SymbolRead, ScalarUnary, TensorUnary, ScalarBinary,
+               TensorBinary, TensorLiteral, NumericConvert, FunctionCall, Matmul, ReduceSum,
+               ArrayMap, ArrayToTensor, TensorReshape, TensorToArray, ArrayIndex, TensorIndex,
                CollectionQuery, ShapeCheck, DeviceSelection, Transfer, TaskOperation,
                ParallelOperation, ConditionalOperation, CatchOperation, MatchOperation,
                ErrorFieldRead, FailOperation, RecordValue, RecordFieldRead>

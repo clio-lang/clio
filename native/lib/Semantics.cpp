@@ -481,6 +481,11 @@ private:
       validateUtf8(
           operation.value, [] { return true; }, &count);
       stringCounts_[id] = count;
+    } else if constexpr (std::is_same_v<Operation, StringSlice>) {
+      auto a = intConstants_.find(operation.start), b = intConstants_.find(operation.end);
+      if (a != intConstants_.end() && b != intConstants_.end() && a->second >= 0 &&
+          b->second >= a->second && b->second <= INT64_MAX)
+        stringCounts_[id] = static_cast<std::uint64_t>(b->second - a->second);
     } else if constexpr (std::is_same_v<Operation, StringIndex>)
       stringCounts_[id] = 1;
     else if constexpr (std::is_same_v<Operation, SymbolRead>) {
@@ -1042,6 +1047,49 @@ private:
       return {};
     }
     return invoke(frame, span, callee->name, call.arguments, expected);
+  }
+  std::optional<ValueId> stringSlice(Frame &frame, SourceSpan span,
+                                     const std::vector<ExprId> &arguments) {
+    if (arguments.size() != 3) {
+      error("S027", "slice expects a String, start and end", span);
+      return {};
+    }
+    auto input = expression(frame, arguments[0]);
+    if (!input)
+      return {};
+    const auto type = node(*input).type;
+    if (type.builtin != BuiltinValue::String || type.tensor || type.array || type.task ||
+        type.fallible || type.device) {
+      error("S061", "slice requires a completed CPU String", span);
+      return {};
+    }
+    std::vector<ValueId> bounds;
+    for (std::size_t j = 1; j < 3; ++j) {
+      auto bound = expression(frame, arguments[j]);
+      if (!bound)
+        return {};
+      const auto i = node(*bound).type;
+      if (i.builtin != BuiltinValue::Numeric || !isInteger(i.element) || i.tensor || i.array ||
+          i.task || i.fallible || i.device) {
+        error("S061", "String slice bounds require completed CPU integer scalars", span);
+        return {};
+      }
+      auto known = intConstants_.find(*bound);
+      auto extent = stringCounts_.find(*input);
+      if (known != intConstants_.end() &&
+          (known->second < 0 || known->second > INT64_MAX ||
+           (extent != stringCounts_.end() && known->second > extent->second))) {
+        error("S062", "String slice bound is outside its scalar range", span);
+        return {};
+      }
+      bounds.push_back(*bound);
+    }
+    auto a = intConstants_.find(bounds[0]), b = intConstants_.find(bounds[1]);
+    if (a != intConstants_.end() && b != intConstants_.end() && a->second > b->second) {
+      error("S062", "String slice start must not exceed end", span);
+      return {};
+    }
+    return add(frame, type, span, StringSlice{*input, bounds[0], bounds[1]});
   }
   std::optional<ValueId> collectionQuery(Frame &frame, SourceSpan span, const std::string &callee,
                                          const std::vector<ExprId> &arguments) {
@@ -2565,6 +2613,8 @@ private:
           return {};
         return arrayTensor(frame, span, *input, arguments[1], expected, true);
       }
+      if (callee == "slice")
+        return stringSlice(frame, span, arguments);
       if (callee == "length" || callee == "shape" || callee == "byteLength")
         return collectionQuery(frame, span, callee, arguments);
       if (callee == "map")

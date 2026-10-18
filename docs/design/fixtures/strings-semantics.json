@@ -1,5 +1,5 @@
 {
-  "status": "String literals, values, equality, concatenation, length queries and scalar indexing implemented; slice vectors remain proposed",
+  "status": "String literals, values, equality, concatenation, length queries, scalar indexing and slicing implemented for synchronous CPU modules",
   "text_cases": [
     {
       "text": "",
