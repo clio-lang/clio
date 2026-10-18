@@ -1,6 +1,6 @@
 # Native distributed execution roadmap
 
-Native distributed execution is a separate roadmap from the main native language release. Local CPU tasks and GPU execution remain in the main roadmap. The JavaScript prototype's network runtime is historical evidence, not a completed native implementation.
+Native distributed execution is a separate roadmap from the main native language release. Local CPU tasks and Apple Metal GPU execution remain in the main roadmap; [NVIDIA/CUDA](native-cuda-roadmap.md) has its own separate roadmap. The JavaScript prototype's network runtime is historical evidence, not a completed native implementation.
 
 The agreed design discussion must happen before native distributed execution is implemented.
 
