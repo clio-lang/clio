@@ -206,7 +206,8 @@ private:
                       : resolveNumeric(name(syntax.name));
     if (!numeric || !numericArithmeticAvailable(*numeric, NumericTarget::Cpu)) {
       error("S003",
-            "expected a declared record type, String, Bool, or a supported numeric scalar, tensor or array "
+            "expected a declared record type, String, Bool, or a supported numeric scalar, tensor "
+            "or array "
             "type",
             syntax.span);
       return {};
@@ -893,10 +894,14 @@ private:
     const bool boolean = a.builtin == BuiltinValue::Bool && b.builtin == BuiltinValue::Bool &&
                          (comparison.operation == ComparisonKind::Equal ||
                           comparison.operation == ComparisonKind::NotEqual);
-    if ((!numeric && !boolean) || a.tensor || b.tensor || a.task || b.task || a.fallible ||
-        b.fallible || a.device || b.device) {
+    const bool string = a.builtin == BuiltinValue::String && b.builtin == BuiltinValue::String &&
+                        (comparison.operation == ComparisonKind::Equal ||
+                         comparison.operation == ComparisonKind::NotEqual);
+    if ((!numeric && !boolean && !string) || a.tensor || b.tensor || a.task || b.task ||
+        a.fallible || b.fallible || a.device || b.device) {
       error("S056",
-            "comparison requires completed CPU scalars of the same numeric type, or Bool equality",
+            "comparison requires completed CPU scalars of the same numeric type, or Bool/String "
+            "equality",
             span);
       return {};
     }
@@ -959,6 +964,10 @@ private:
     if (!left || !right)
       return {};
     const auto a = node(*left).type, b = node(*right).type;
+    if (binary.operation == TokenKind::Plus && a.builtin == BuiltinValue::String &&
+        b.builtin == BuiltinValue::String && !a.tensor && !b.tensor && !a.task && !b.task &&
+        !a.fallible && !b.fallible && !a.device && !b.device)
+      return add(frame, a, span, StringConcat{*left, *right});
     if (binary.operation == TokenKind::Percent &&
         (!isInteger(a.element) || !isInteger(b.element))) {
       error("S019", "'%' requires integer operands", span);

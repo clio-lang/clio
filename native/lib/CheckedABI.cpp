@@ -85,7 +85,9 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module) {
                  target->getName() == "kalandra_record_validate" ||
                  target->getName() == "kalandra_record_array_validate" ||
                  target->getName() == "kalandra_string_literal" ||
-                 target->getName() == "kalandra_string_validate") {
+                 target->getName() == "kalandra_string_validate" ||
+                 target->getName() == "kalandra_string_concat" ||
+                 target->getName() == "kalandra_string_equal") {
         std::vector<Type *> parameters{pointer};
         parameters.insert(parameters.end(), target->getFunctionType()->param_begin(),
                           target->getFunctionType()->param_end());
@@ -160,7 +162,8 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module) {
   for (const auto *name :
        {"kalandra_fault", "_mlir_memref_to_llvm_alloc", "_mlir_memref_to_llvm_free",
         "kalandra_record_alloc", "kalandra_record_cleanup", "kalandra_record_validate",
-        "kalandra_record_array_validate", "kalandra_string_literal", "kalandra_string_validate"})
+        "kalandra_record_array_validate", "kalandra_string_literal", "kalandra_string_validate",
+        "kalandra_string_concat", "kalandra_string_equal"})
     if (auto *old = module.getFunction(name); old && old->use_empty())
       old->eraseFromParent();
   return std::nullopt;

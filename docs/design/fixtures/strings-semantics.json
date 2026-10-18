@@ -1,5 +1,5 @@
 {
-  "status": "String literal/value foundation implemented; operation vectors remain proposed",
+  "status": "String literals, values, equality and concatenation implemented; length/index/slice vectors remain proposed",
   "text_cases": [
     {
       "text": "",

@@ -68,7 +68,10 @@ public:
       for (const auto &[name, signature] : std::vector<std::pair<std::string, FunctionType>>{
                {"kalandra_string_literal",
                 builder_.getFunctionType({ptr, ptr, builder_.getI64Type()}, {})},
-               {"kalandra_string_validate", builder_.getFunctionType({ptr}, {})}}) {
+               {"kalandra_string_validate", builder_.getFunctionType({ptr}, {})},
+               {"kalandra_string_concat", builder_.getFunctionType({ptr, ptr, ptr}, {})},
+               {"kalandra_string_equal",
+                builder_.getFunctionType({ptr, ptr}, {builder_.getI64Type()})}}) {
         auto fn = func::FuncOp::create(builder_, builder_.getUnknownLoc(), name, signature);
         fn.setPrivate();
       }
@@ -237,9 +240,13 @@ private:
     return LLVM::AllocaOp::create(builder_, loc, LLVM::LLVMPointerType::get(builder_.getContext()),
                                   type, integer(loc, 1));
   }
-  void validateString(Location loc, Value value) {
+  Value stringSlot(Location loc, Value value) {
     auto slot = descriptorSlot(loc, value.getType());
     LLVM::StoreOp::create(builder_, loc, value, slot);
+    return slot;
+  }
+  void validateString(Location loc, Value value) {
+    auto slot = stringSlot(loc, value);
     func::CallOp::create(builder_, loc, "kalandra_string_validate", TypeRange{}, ValueRange{slot});
   }
   Type arrayCellType(const ValueType &array) {
@@ -1105,6 +1112,13 @@ private:
             return operation.operation == TokenKind::Minus
                        ? arith::NegFOp::create(builder_, loc, operand).getResult()
                        : operand;
+          } else if constexpr (std::is_same_v<T, StringConcat>) {
+            auto a = expression(frame, operation.left), b = expression(frame, operation.right);
+            auto left = stringSlot(loc, a), right = stringSlot(loc, b);
+            auto output = descriptorSlot(loc, type(node.type));
+            func::CallOp::create(builder_, loc, "kalandra_string_concat", TypeRange{},
+                                 ValueRange{output, left, right});
+            return LLVM::LoadOp::create(builder_, loc, type(node.type), output);
           } else if constexpr (std::is_same_v<T, StringLiteral>) {
             LLVM::GlobalOp global;
             {
@@ -1150,6 +1164,17 @@ private:
           } else if constexpr (std::is_same_v<T, ScalarCompare>) {
             auto left = expression(frame, operation.left),
                  right = expression(frame, operation.right);
+            if (input_.expressions[operation.left].type.builtin == BuiltinValue::String) {
+              auto a = stringSlot(loc, left), b = stringSlot(loc, right);
+              auto equal = func::CallOp::create(builder_, loc, "kalandra_string_equal",
+                                                TypeRange{builder_.getI64Type()}, ValueRange{a, b})
+                               .getResult(0);
+              return compare(loc,
+                             operation.operation == ComparisonKind::Equal
+                                 ? arith::CmpIPredicate::ne
+                                 : arith::CmpIPredicate::eq,
+                             equal, integer(loc, 0));
+            }
             return scalarComparison(loc, left, right, input_.expressions[operation.left].type,
                                     operation.operation);
           } else if constexpr (std::is_same_v<T, ScalarBinary>) {

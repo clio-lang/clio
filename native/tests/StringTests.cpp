@@ -34,7 +34,6 @@ int main() {
          {"fn main()->String:\n  1\n", "fn main()->int64:\n  \"1\"\n",
           "fn f(x:String)->String:\n  x\nfn main()->String:\n  f(true)\n",
           "fn main()->[String]:\n  [\"a\"]\n", "type A:\n  text:String\nfn main()->int64:\n  1\n",
-          "fn main()->String:\n  \"a\"+\"b\"\n", "fn main()->Bool:\n  \"a\"==\"a\"\n",
           "fn main()->String:\n  \"a\"[0]\n", "fn main()->int64:\n  length(\"a\")\n",
           "fn main()->[String]:\n  [1,2]->map(fn(x): \"a\")\n",
           "fn f()->String:\n  \"a\"\nfn main()->String ! TaskError:\n  try parallel:\n    try "
@@ -42,6 +41,56 @@ int main() {
           "fn helper()->int64:\n  1\nfn main()->int64 ! TaskError:\n  ignored=\"a\"\n  try "
           "parallel:\n    try await spawn helper()\n"})
       require(!analyze(source).ok(), "unsupported String source admitted");
+    for (const auto *source :
+         {"fn main()->String:\n  \"a\"+\"b\"\n",
+          "fn eq(a:String,b:String)->Bool:\n  a==b\nfn main()->Bool:\n  eq(\"é\",\"e\\u{301}\")\n",
+          "fn main()->Bool:\n  \"a\"!=\"b\" and \"x\"+\"y\"==\"xy\"\n",
+          "fn same(x:int64)->Bool:\n  \"a\"+\"b\"==\"ab\"\nfn main():\n  [1,2]->map(same)\n"}) {
+      auto value = analyze(source);
+      if (!value.ok())
+        for (const auto &d : value.diagnostics)
+          std::cerr << renderDiagnostic(*value.source, d);
+      require(value.ok(), "valid String operation rejected");
+#ifndef KALANDRA_STRING_FRONTEND_ONLY
+      require(bool(lowerNative(*value.module)), "String operation lowering failed");
+#endif
+    }
+    for (const auto *source :
+         {"fn main():\n  \"a\"+1\n", "fn main():\n  1+\"a\"\n", "fn main():\n  \"a\"-\"b\"\n",
+          "fn main():\n  \"a\"<\"b\"\n", "fn main():\n  \"a\"==true\n", "fn main():\n  \"a\"!=1\n",
+          "fn task()->int64 ! TaskError:\n  fail 1\nfn main()->Bool:\n  task() catch fn(error): "
+          "error.message==error.message\n"})
+      require(!analyze(source).ok(), "invalid or borrowed-diagnostic String operation admitted");
+#ifndef KALANDRA_STRING_FRONTEND_ONLY
+    for (unsigned mode = 0; mode < 4; ++mode) {
+      auto value = analyze("fn main():\n  \"a\"+\"b\"\n");
+      for (auto &expr : value.module->expressions)
+        if (auto *concat = std::get_if<StringConcat>(&expr.operation)) {
+          if (mode == 0)
+            expr.type.builtin = BuiltinValue::Bool;
+          if (mode == 1)
+            concat->left = value.module->expressions.size();
+          if (mode == 2)
+            value.module->expressions[concat->left].type.builtin = BuiltinValue::Numeric;
+          if (mode == 3)
+            expr.type.task = true;
+        }
+      require(!lowerNative(*value.module), "forged String concat admitted");
+    }
+    auto order = analyze("fn main():\n  \"a\"==\"b\"\n");
+    for (auto &expr : order.module->expressions)
+      if (auto *cmp = std::get_if<ScalarCompare>(&expr.operation))
+        cmp->operation = ComparisonKind::Less;
+    require(!lowerNative(*order.module), "forged String ordering admitted");
+#endif
+    auto diagnostic = analyze(
+        "fn task()->Bool ! TaskError:\n  true\nfn main()->Bool:\n  task() catch fn(error):\n    "
+        "match error:\n      TaskError.Fault { message }: message==message\n      _: false\n");
+    require(!diagnostic.ok(), "borrowed diagnostic equality admitted");
+    bool gated = false;
+    for (const auto &d : diagnostic.diagnostics)
+      gated |= d.code == "S054";
+    require(gated, "borrowed diagnostic equality did not reach the ordinary-String gate");
     for (const auto *source : {"fn String()->int64:\n  1\n", "fn main():\n  [\"a\",\"b\"]\n",
                                "fn main():\n  [1,2]->map(fn(x): \"a\")\n",
                                "fn main():\n  text=\"a\"\n  [1,2]->map(fn(x): text)\n"})

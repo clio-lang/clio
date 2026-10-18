@@ -1,6 +1,6 @@
 # Native String contract
 
-Literal/value foundation implemented — 2026-10-18. CPU String literals, annotations, synchronous helpers and CLI results are available. The operation and integration sections below specify later slices; those features remain gated.
+CPU String values, equality and concatenation implemented — 2026-10-18. Literals, annotations, synchronous helpers, `+`, `==`, `!=` and CLI results are available. Lengths, indexing, slicing and worker/compound integrations remain gated.
 
 The design follows the immutable [core](core.md) and [automatic memory model](memory.md). One ordinary `String` type represents text. No separate `Char` type, allocator arguments, mutable string buffers or lifetime annotations are introduced.
 
@@ -24,7 +24,7 @@ Embedded U+0000 is ordinary text. Strings are length-delimited, not C strings. N
 
 ## Operations
 
-These examples specify intended behavior; they do not compile yet.
+Concatenation and exact equality compile on the synchronous CPU backend. Lengths, indexing and slicing in the table specify later slices.
 
 ```kalandra
 fn greeting(name: String) -> String:
@@ -80,7 +80,7 @@ A String-valued CLI `main` writes its UTF-8 bytes followed by one LF, without qu
 ## Implementation sequence and gates
 
 1. **Literal/value foundation — implemented:** String AST and strict escape decoding, typed String literals/annotations, trusted literal and managed storage validation, synchronous helpers/returns and CLI output. Adapt existing internal diagnostic String values or explicitly gate their ordinary use until safe. Prove empty/non-ASCII/NUL behavior and failures before exposing further composition.
-2. **Value operations:** exact equality and concatenation, checked allocation/overflow and fault ordering; byte/scalar lengths and scalar-boundary indexing/slicing. Keep operations gated until their own behavior is implemented and qualified.
+2. **Value operations — partial:** exact equality and concatenation are implemented with checked allocation/counts and fault ordering. Next: byte/scalar lengths and scalar-boundary indexing/slicing. Keep each remaining operation gated until implemented and qualified.
 3. **Workers and captures:** owned packets, source settlement, cached outcomes, cancellation, allocation failure and no partial publication; then ordinary callback captures.
 4. **Compound values:** String record fields, String arrays and numeric/Bool/record/String map combinations, with the same finite-layout and recursive-retention rules. Do not silently enable these by adding a builtin tag.
 5. **Text libraries and optimization:** explicit decoding/encoding once byte types and recoverable errors are ready; normalization, grapheme iteration and locale behavior with pinned tables; shared slices, cached counts and linear traversal. Add broader library operations independently.
@@ -102,6 +102,23 @@ This compiles on the CPU backend. The executable prints the literal UTF-8 bytes,
 
 The first storage path copies compiler-emitted literal globals into invocation-owned immutable buffers. A private length-delimited descriptor carries the allocation base, data pointer and byte length; nonempty values require a known owner, matching base/data and an in-bounds length before UTF-8 validation touches the bytes. Empty values use the canonical null/null/zero descriptor. No arbitrary pointer is treated as static storage. Helpers share these immutable buffers within the invocation; the CLI retains the returned backing, settles invocation owners, then writes the result. Earlier temporary Strings settle at the same invocation boundary. Earlier reclamation and static-literal reuse are later optimizations.
 
-Source String values currently require a synchronous CPU module. Combining them with task-enabled or placement-aware functions is rejected, even if the functions are not called. Existing private task diagnostic bindings retain their borrowed representation and cannot escape into ordinary String helpers or results. Concatenation, comparison, size queries, indexing, slicing, String record fields/arrays and callback captures remain unsupported.
+Source String values currently require a synchronous CPU module. Combining them with task-enabled or placement-aware functions is rejected, even if the functions are not called. Existing private task diagnostic bindings retain their borrowed representation and cannot escape into ordinary String helpers or results. Size queries, ordering comparisons, indexing, slicing, String record fields/arrays and callback captures remain unsupported. Exact equality and concatenation are qualified below.
 
 Qualification covers debug, optimized generated code, address/undefined sanitizers and thread sanitizer: exact Unicode/NUL/BOM bytes and scalar encoding boundaries; strict escape/UTF-8 rejection; imported helpers and conditional results; raw CLI output and scalar/collection cleanup; invocation isolation, retained result lifetime and malformed native descriptors; allocation failure, cancellation during scans/copies and unpublished failed results. Rejected literal builds preserve prior executable/MLIR/LLVM artifacts. See the [recorded evidence](../../native/metal-proof/evidence/cpu-string-values-2026-10-18.json).
+
+
+## Exact equality and concatenation
+
+```kalandra
+fn greeting(name: String) -> String:
+  "Hello, " + name
+
+fn main() -> Bool:
+  greeting("Kalandra") == "Hello, Kalandra"
+```
+
+`+` joins two completed Strings; `==` and `!=` compare exact scalar sequences and return Bool. Valid UTF-8 has one encoding for each scalar sequence, so byte equality implements this rule without normalization, locale rules or NUL termination. Numeric/Bool mixing, ordering comparisons and other arithmetic operators are rejected. Existing operator precedence applies: `a + b == c` compares the joined String with `c`.
+
+Operands evaluate once, from left to right. The checked call boundary stops evaluation after a fault or cancellation. Equality validates both complete operands before using unequal-length or unequal-prefix shortcuts; malformed trailing bytes cannot hide behind an earlier mismatch. Equality allocates no storage. Concatenation validates both inputs, checks that the combined byte length fits nonnegative int64, then copies into new managed storage. Two empty inputs produce the canonical empty String; a single empty input still follows the initial copying path. Inputs remain unchanged, and a result is published only after the copy completes. Count/allocation failure reports AllocationFault; invalid private descriptors report RuntimeFault.
+
+Validation, comparison and copying poll cooperatively. Qualification interrupts large comparisons/copies after input validation and checks that interrupted concatenation leaves its output empty and settles partial owners. Tests cover exact Unicode/NUL behavior, all equality/concatenation conformance vectors, imported/chained helpers, short-circuit logic, synchronous map callbacks, source fault order, malformed descriptors, count overflow and allocation failure. Ordinary task diagnostic equality is explicitly rejected until it has managed String storage. See the [operation evidence](../../native/metal-proof/evidence/cpu-string-operations-2026-10-18.json).

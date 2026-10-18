@@ -1,6 +1,6 @@
 # Kalandra native development
 
-[Immutable CPU Strings](../docs/design/strings.md#qualified-literalvalue-foundation) support UTF-8 literals, strict escapes, typed synchronous helpers, local modules and String-valued executable results. String operations, worker integration and String fields/arrays remain gated.
+[Immutable CPU Strings](../docs/design/strings.md#qualified-literalvalue-foundation) support UTF-8 literals, strict escapes, typed synchronous helpers, local modules, exact `==`/`!=` equality, checked `+` concatenation and String-valued executable results. Lengths, indexing/slicing, worker integration and String fields/arrays remain gated.
 
 [CPU Bool values and scalar comparisons](../docs/design/booleans.md) support immutable Boolean literals, functions, strict comparisons across the six CPU numeric types, and typed worker captures/results. [CPU conditionals and short-circuit operators](../docs/design/control-flow.md) now support selected execution, scoped values, retained tensors and resumable worker branches. [Immutable CPU Bool arrays](../docs/design/bool-arrays.md) support construction, indexing, mapping and retained worker results. Bool tensors and GPU Bool execution remain separate work.
 
@@ -128,4 +128,4 @@ CPU records can also own [numeric arrays and tensors](../docs/design/record-coll
 
 [Bool-array record fields](../docs/design/record-bool-fields.md) support nested records, immutable updates, record arrays, anonymous captures and retained CPU worker results. They reuse their existing immutable array backing.
 
-The [proposed String contract](../docs/design/strings.md) defines UTF-8 text, scalar indexing, exact equality and managed lifetimes. String expressions and ordinary String annotations are not implemented yet; the first implementation slice is literal/value support.
+[CPU String values and operations](../docs/design/strings.md#exact-equality-and-concatenation) support immutable UTF-8 text, annotations, synchronous helpers, exact equality and checked concatenation with managed lifetimes. Scalar indexing and the remaining integration stages follow their own qualification gates.

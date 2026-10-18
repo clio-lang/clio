@@ -17,3 +17,22 @@ void kalandra_string_literal_v1(kalandra::runtime::Invocation *,
 void kalandra_string_validate_v1(kalandra::runtime::Invocation *,
                                  const kalandra::runtime::StringDescriptor *) noexcept;
 }
+// Private runtime entrypoints; descriptors must be readable, but their contents are untrusted.
+extern "C" {
+void kalandra_string_concat_v1(kalandra::runtime::Invocation *,
+                               kalandra::runtime::StringDescriptor *,
+                               const kalandra::runtime::StringDescriptor *,
+                               const kalandra::runtime::StringDescriptor *) noexcept;
+std::int64_t kalandra_string_equal_v1(kalandra::runtime::Invocation *,
+                                      const kalandra::runtime::StringDescriptor *,
+                                      const kalandra::runtime::StringDescriptor *) noexcept;
+}
+namespace kalandra::runtime {
+// Both descriptor lengths and their sum must fit the String count domain.
+inline std::optional<std::uint64_t> combinedStringBytes(std::uint64_t a, std::uint64_t b) noexcept {
+  constexpr auto limit = std::uint64_t(INT64_MAX);
+  if (a > limit || b > limit - a)
+    return {};
+  return a + b;
+}
+} // namespace kalandra::runtime

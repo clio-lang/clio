@@ -79,6 +79,9 @@ struct TensorUnary {
   TokenKind operation;
   ValueId operand;
 };
+struct StringConcat {
+  ValueId left, right;
+};
 struct StringLiteral {
   std::string value;
 };
@@ -237,12 +240,12 @@ struct TypedExpr {
   SourceSpan span;
   ValueType type; // Concrete scalar/tensor numeric identity; builtins retain explicit tags.
   std::variant<Float64Literal, Float32Literal, Int32Literal, Int64Literal, UInt32Literal,
-               UInt64Literal, StringLiteral, BoolLiteral, ScalarCompare, SymbolRead, ScalarUnary,
-               TensorUnary, ScalarBinary, TensorBinary, TensorLiteral, NumericConvert, FunctionCall,
-               Matmul, ReduceSum, ArrayMap, ArrayToTensor, TensorReshape, TensorToArray, ArrayIndex,
-               TensorIndex, CollectionQuery, ShapeCheck, DeviceSelection, Transfer, TaskOperation,
-               ParallelOperation, ConditionalOperation, CatchOperation, MatchOperation,
-               ErrorFieldRead, FailOperation, RecordValue, RecordFieldRead>
+               UInt64Literal, StringConcat, StringLiteral, BoolLiteral, ScalarCompare, SymbolRead,
+               ScalarUnary, TensorUnary, ScalarBinary, TensorBinary, TensorLiteral, NumericConvert,
+               FunctionCall, Matmul, ReduceSum, ArrayMap, ArrayToTensor, TensorReshape,
+               TensorToArray, ArrayIndex, TensorIndex, CollectionQuery, ShapeCheck, DeviceSelection,
+               Transfer, TaskOperation, ParallelOperation, ConditionalOperation, CatchOperation,
+               MatchOperation, ErrorFieldRead, FailOperation, RecordValue, RecordFieldRead>
       operation;
 };
 struct ShapeEquality {

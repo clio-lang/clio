@@ -29,7 +29,8 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
         else if constexpr (std::is_same_v<T, TensorUnary> || std::is_same_v<T, ScalarUnary>)
           return {op.operand};
         else if constexpr (std::is_same_v<T, Matmul> || std::is_same_v<T, TensorBinary> ||
-                           std::is_same_v<T, ScalarBinary> || std::is_same_v<T, ScalarCompare>)
+                           std::is_same_v<T, ScalarBinary> || std::is_same_v<T, ScalarCompare> ||
+                           std::is_same_v<T, StringConcat>)
           return {op.left, op.right};
         else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, CollectionQuery> ||
                            std::is_same_v<T, NumericConvert> || std::is_same_v<T, TensorToArray> ||
@@ -196,7 +197,8 @@ private:
           else if constexpr (std::is_same_v<T, ScalarUnary> || std::is_same_v<T, TensorUnary>)
             op.operand = importValue(op.operand);
           else if constexpr (std::is_same_v<T, ScalarBinary> || std::is_same_v<T, TensorBinary> ||
-                             std::is_same_v<T, ScalarCompare> || std::is_same_v<T, Matmul>) {
+                             std::is_same_v<T, ScalarCompare> || std::is_same_v<T, Matmul> ||
+                             std::is_same_v<T, StringConcat>) {
             op.left = importValue(op.left);
             op.right = importValue(op.right);
           } else if constexpr (std::is_same_v<T, RecordValue>) {

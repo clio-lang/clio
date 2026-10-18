@@ -8,10 +8,13 @@ static void require(bool ok, const char *message) {
   if (!ok)
     throw std::runtime_error(message);
 }
+#ifndef STRING_FAILURE_POSITIONS
+#define STRING_FAILURE_POSITIONS 8
+#endif
 int main() {
   try {
     const char expected[] = "سلام\0👩‍💻";
-    for (unsigned attempt = 0; attempt < 8; ++attempt) {
+    for (unsigned attempt = 0; attempt < STRING_FAILURE_POSITIONS; ++attempt) {
       Invocation ctx;
       if (attempt)
         ctx.failAllocationAt(attempt);

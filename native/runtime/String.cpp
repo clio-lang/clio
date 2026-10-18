@@ -60,3 +60,58 @@ kalandra_string_validate_v1(kalandra::runtime::Invocation *context,
                             const kalandra::runtime::StringDescriptor *value) noexcept {
   kalandra::runtime::validateString(*context, *value);
 }
+extern "C" void
+kalandra_string_concat_v1(kalandra::runtime::Invocation *context,
+                          kalandra::runtime::StringDescriptor *output,
+                          const kalandra::runtime::StringDescriptor *left,
+                          const kalandra::runtime::StringDescriptor *right) noexcept {
+  // Copy descriptors first, permitting output to alias an input descriptor.
+  const auto a = *left, b = *right;
+  *output = {};
+  if (!kalandra::runtime::validateString(*context, a) ||
+      !kalandra::runtime::validateString(*context, b))
+    return;
+  const auto length = kalandra::runtime::combinedStringBytes(a.byteLength, b.byteLength);
+  if (!length) {
+    context->fault(2);
+    return;
+  }
+  if (!*length)
+    return;
+  auto *data = static_cast<char *>(context->allocateRecord(*length));
+  if (!data)
+    return;
+  std::uint64_t offset = 0;
+  for (const auto &part : {a, b}) {
+    for (std::uint64_t i = 0; i < static_cast<std::uint64_t>(part.byteLength);) {
+      if (context->poll() != 0)
+        return;
+      const auto count = std::min<std::uint64_t>(1024, part.byteLength - i);
+      std::memcpy(data + offset, part.data + i, count);
+      i += count;
+      offset += count;
+    }
+  }
+  if (context->poll() == 0)
+    *output = {data, data, static_cast<std::int64_t>(*length)};
+}
+extern "C" std::int64_t
+kalandra_string_equal_v1(kalandra::runtime::Invocation *context,
+                         const kalandra::runtime::StringDescriptor *left,
+                         const kalandra::runtime::StringDescriptor *right) noexcept {
+  // Validate both complete operands before length/prefix shortcuts, even aliases.
+  if (!kalandra::runtime::validateString(*context, *left) ||
+      !kalandra::runtime::validateString(*context, *right))
+    return 0;
+  if (left->byteLength != right->byteLength)
+    return 0;
+  for (std::uint64_t i = 0; i < static_cast<std::uint64_t>(left->byteLength);) {
+    if (context->poll() != 0)
+      return 0;
+    const auto count = std::min<std::uint64_t>(1024, left->byteLength - i);
+    if (std::memcmp(left->data + i, right->data + i, count))
+      return 0;
+    i += count;
+  }
+  return context->poll() == 0 ? 1 : 0;
+}

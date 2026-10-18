@@ -74,3 +74,49 @@ for index,hex_bytes in enumerate(fixtures['invalid_utf8_hex']):
     result=subprocess.run([compiler,file,'-o',output/'invalid-utf8',*extra],capture_output=True)
     assert result.returncode != 0, hex_bytes
 print(f'{variant}: {len(cases)} literal vectors, modules, generated ownership, scalar/collection cleanup and invalid-source artifact preservation passed')
+
+# Equality/concatenation reuse the accepted literal and Unicode conformance data.
+operation_cases = list(fixtures['equality_cases']) + [
+    {'left':'','right':'','equal':True},
+    {'left':'a\0b','right':'a\0c','equal':False},
+    {'left':'prefix','right':'prefix-more','equal':False},
+    {'left':'👩‍💻','right':'👩‍💻','equal':True},
+]
+for index,case in enumerate(operation_cases):
+    for operator,invert in [('==',False),('!=',True)]:
+        name='equal-'+str(index)+('ne' if invert else 'eq')
+        exe=compile(name,'fn same(a:String,b:String)->Bool:\n  a '+operator+' b\nfn main()->Bool:\n  same('+literal(case['left'])+','+literal(case['right'])+')\n')
+        run([exe],b'true\n' if case['equal'] != invert else b'false\n')
+for index,case in enumerate(fixtures['concatenation_cases']):
+    exe=compile('concat-'+str(index),'fn append(a:String,b:String)->String:\n  a+b\nfn main()->String:\n  append('+literal(case['left'])+','+literal(case['right'])+')\n')
+    run([exe],case['result'].encode()+b'\n')
+
+(output/'operations.kalandra').write_text('export fn append(a:String,b:String)->String:\n  a+b\n')
+exe=compile('concat-owned','from "./operations.kalandra" import append\nfn main()->String:\n  append(append("سلام","\\0"),append("👩‍💻",""))\n')
+run([exe],'سلام\0👩‍💻\n'.encode())
+run([clang,'-std=c++23','-Wall','-Wextra','-Werror','-Wno-override-module',*flags,
+     '-DSTRING_FAILURE_POSITIONS=32',source_dir/'tests/StringGeneratedTests.cpp',str(exe)+'.ll',runtime,'-o',output/'operations-harness'])
+run([output/'operations-harness'])
+for failure in range(1,33):
+    env=dict(os.environ,KALANDRA_TEST_FAIL_ALLOC_AT=str(failure),KALANDRA_TEST_REPORT_CLEANUP='1')
+    result=subprocess.run([exe],capture_output=True,env=env)
+    if result.returncode:
+        assert result.stdout == b'',result
+        metrics=re.search(rb'cleanup: live=(\d+) allocations=(\d+) releases=(\d+)',result.stderr)
+        assert metrics and metrics[1]==b'0' and metrics[2]==metrics[3],result.stderr
+    else: assert result.stdout=='سلام\0👩‍💻\n'.encode() and not result.stderr,result
+
+for name,expr,expected in [
+    ('precedence','"a"+"b"=="ab"',b'true\n'),
+    ('short-and','false and explode(0)=="x"',b'false\n'),
+    ('short-or','true or explode(0)=="x"',b'true\n'),
+]:
+    exe=compile(name,'fn explode(value:int64)->String:\n  fault=1/value\n  "x"\nfn main()->Bool:\n  '+expr+'\n')
+    run([exe],expected)
+exe=compile('fault-order','fn explode(value:int64)->String:\n  fault=1/value\n  "x"\nfn main()->String:\n  explode(0)+explode(1)\n')
+result=subprocess.run([exe],capture_output=True)
+assert result.returncode and result.stdout==b'' and b'ArithmeticFault' in result.stderr,result
+# String work inside a synchronous numeric/Bool callback still uses the ordinary CPU backend.
+exe=compile('callback','fn positive(value:int64)->Bool:\n  "a"+"b"=="ab" and value>0\nfn main():\n  [-1,2]->map(positive)\n')
+run([exe],b'[false, true]\n')
+print(f'{variant}: {len(operation_cases)*2} exact equality cases, {len(fixtures["concatenation_cases"])} concatenation vectors, imported/chained ownership, 32 allocation positions, fault order and short-circuit/callback composition passed')

@@ -8,9 +8,17 @@
 
 namespace kalandra {
 bool hasOrdinaryStrings(const TypedModule &module) {
-  return std::ranges::any_of(
-             module.expressions,
-             [](const auto &e) { return std::holds_alternative<StringLiteral>(e.operation); }) ||
+  return std::ranges::any_of(module.expressions,
+                             [&](const auto &e) {
+                               const auto *comparison = std::get_if<ScalarCompare>(&e.operation);
+                               const bool stringComparison =
+                                   comparison && comparison->left < module.expressions.size() &&
+                                   module.expressions[comparison->left].type.builtin ==
+                                       BuiltinValue::String;
+                               return stringComparison ||
+                                      std::holds_alternative<StringLiteral>(e.operation) ||
+                                      std::holds_alternative<StringConcat>(e.operation);
+                             }) ||
          std::ranges::any_of(module.functions,
                              [](const auto &f) {
                                return f.resultType.builtin == BuiltinValue::String ||
@@ -294,7 +302,20 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
           return "conditional branch result type mismatch";
       }
     }
+    if (const auto *concat = std::get_if<StringConcat>(&expression.operation)) {
+      const auto string = [&](ValueId id) {
+        return id < module.expressions.size() &&
+               module.expressions[id].type.builtin == BuiltinValue::String &&
+               scalarSame(module.expressions[id].type, expression.type);
+      };
+      if (target != NumericTarget::Cpu || expression.type.builtin != BuiltinValue::String ||
+          !string(concat->left) || !string(concat->right))
+        return "String concatenation requires two completed CPU Strings and a String result";
+    }
     if (const auto *comparison = std::get_if<ScalarCompare>(&expression.operation)) {
+      if (comparison->left >= module.expressions.size() ||
+          comparison->right >= module.expressions.size())
+        return "scalar comparison references an invalid operand";
       const auto &a = module.expressions[comparison->left].type;
       const auto &b = module.expressions[comparison->right].type;
       const auto ordinary = [](const ValueType &t) {
@@ -305,9 +326,12 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       const bool boolean = a.builtin == BuiltinValue::Bool && b.builtin == BuiltinValue::Bool &&
                            (comparison->operation == ComparisonKind::Equal ||
                             comparison->operation == ComparisonKind::NotEqual);
+      const bool string = a.builtin == BuiltinValue::String && b.builtin == BuiltinValue::String &&
+                          (comparison->operation == ComparisonKind::Equal ||
+                           comparison->operation == ComparisonKind::NotEqual);
       if (target != NumericTarget::Cpu || !ordinary(a) || !ordinary(b) ||
           !ordinary(expression.type) || expression.type.builtin != BuiltinValue::Bool ||
-          (!numeric && !boolean) ||
+          (!numeric && !boolean && !string) ||
           static_cast<unsigned>(comparison->operation) >
               static_cast<unsigned>(ComparisonKind::GreaterEqual))
         return "unsupported scalar comparison IR";
@@ -558,7 +582,9 @@ std::string dumpTypedIR(const TypedModule &module) {
       std::visit(
           [&](const auto &operation) {
             using T = std::decay_t<decltype(operation)>;
-            if constexpr (std::is_same_v<T, StringLiteral>) {
+            if constexpr (std::is_same_v<T, StringConcat>)
+              out << "string.concat %" << operation.left << " %" << operation.right;
+            else if constexpr (std::is_same_v<T, StringLiteral>) {
               out << "string.utf8 0x";
               for (unsigned char byte : operation.value)
                 out << std::hex << std::setw(2) << std::setfill('0') << unsigned(byte);
