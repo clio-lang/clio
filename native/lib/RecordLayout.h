@@ -3,8 +3,15 @@
 #include <algorithm>
 
 namespace kalandra {
-// Inline records must have a finite layout. Bound depth and expanded scalar
-// leaves before recursive target type construction or textual IR printing.
+inline bool hasRecordCollections(const TypedModule &module) {
+  for (const auto &record : module.records)
+    for (const auto &field : record.fields)
+      if (field.type.tensor)
+        return true;
+  return false;
+}
+// Inline records must have a finite layout. Bound depth and expanded storage
+// units before recursive target type construction or textual IR printing.
 inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
                                                    const SemanticLimits &limits = {}) {
   const auto fail = [](std::string message, SourceSpan span) {
@@ -15,17 +22,21 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
       return fail("record declarations require fields", record.declaration);
     for (const auto &field : record.fields) {
       const auto &type = field.type;
-      if (type.tensor || type.array || type.task || type.fallible || type.device ||
-          !type.shape.empty())
-        return fail("record fields require completed CPU numbers, Bool or records",
-                    field.declaration);
+      if (type.task || type.fallible || type.device ||
+          (type.tensor ? (type.builtin != BuiltinValue::Numeric || type.shape.size() > 128 ||
+                          (type.array && type.shape.size() != 1))
+                       : (type.array || !type.shape.empty())))
+        return fail(
+            "record fields require completed CPU numbers, numeric collections, Bool or records",
+            field.declaration);
       if (type.builtin == BuiltinValue::Record) {
         if (!type.record || *type.record >= module.records.size())
           return fail("invalid nested record declaration identity", field.declaration);
       } else if (type.record || (type.builtin != BuiltinValue::Bool &&
                                  (type.builtin != BuiltinValue::Numeric ||
                                   !numericArithmeticAvailable(type.element, NumericTarget::Cpu))))
-        return fail("record fields require CPU numbers, Bool or records", field.declaration);
+        return fail("record fields require CPU numbers, numeric collections, Bool or records",
+                    field.declaration);
     }
   }
   struct Frame {
@@ -50,7 +61,7 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
         continue;
       }
       const auto &field = record.fields[frame.next];
-      std::size_t count = 1;
+      std::size_t count = field.type.tensor ? 3 + 2 * field.type.shape.size() : 1;
       if (field.type.record) {
         const auto child = *field.type.record;
         if (state[child] == 1)

@@ -22,13 +22,13 @@ The result is `14`. The child receives an immutable snapshot; `original.x` remai
 
 ## Types and completed values
 
-Record fields can use the six implemented CPU numeric types, `Bool`, or another [finite nested record](nested-records.md). A mixed record can contain different scalar types. Worker transport preserves the exact integer and floating-point field values, including signed zero and NaN payload bits; passing a record does not perform arithmetic or convert its fields.
+Record fields can use the six implemented CPU numeric types, `Bool`, another [finite nested record](nested-records.md), or [numeric arrays and tensors](record-collections.md). A mixed record can contain different scalar types. Worker transport preserves the exact integer and floating-point field values, including signed zero and NaN payload bits; passing a record does not perform arithmetic or convert its fields.
 
 A task handle is not a record value. Use `try await work` before accessing or updating the success value, or recover the completed `await work` result with `catch`. Task handles cannot escape their owning group. Existing observation, cancellation, deadline and admission rules apply to record tasks.
 
 A record's identity belongs to its declaration. Two records with identical field layouts remain different types, including same-spelling declarations in different modules. Imported function results keep their original identity, and can be passed back to helpers or workers expecting that declaration. Type-name imports/exports remain separate work.
 
-Records may be used alongside numeric array/tensor captures and results. Synchronous numeric map callbacks can construct and read records internally. Capturing an entire record in an anonymous callback remains unsupported; extract the needed numeric or Boolean fields into local bindings before creating the callback.
+Records may be used alongside numeric array/tensor captures and results. Synchronous numeric map callbacks can construct and read records internally. Capturing an entire record in an anonymous callback remains unsupported; extract the needed numeric, Boolean or collection fields into local bindings before creating the callback.
 
 ## Recovery
 
@@ -40,9 +40,9 @@ No success fields are published when a task fails. Recovery runs under the exist
 
 The shared continuation planner carries the record declaration table into its MLIR kernel module and preserves record operands in written evaluation order. MLIR's C wrappers return aggregate results through an output pointer; record arguments remain values. The CPU task emitter uses matching native struct payloads and distinct canonical layout descriptors for each nominal record type.
 
-These records have numeric/Boolean leaves, either directly or inside nested inline records. Captures, frame values and cached results therefore copy the complete value and do not require backing-storage leases or per-record heap allocations. Scheduler frames and task bookkeeping still use the scheduler's bounded allocation and cleanup mechanisms. Larger records consume more of that existing task-memory budget. This internal layout is not a public C/C++ library ABI or wire contract.
+Records with numeric/Boolean leaves, either directly or inside nested inline records, copy the complete value without backing-storage leases or per-record heap allocations. Records containing collections instead use recursive retention of their [owned field storage](record-collections.md). Scheduler frames and task bookkeeping still use the scheduler's bounded allocation and cleanup mechanisms. Larger records consume more of that existing task-memory budget. This internal layout is not a public C/C++ library ABI or wire contract.
 
-Collection fields, record arrays, general record printing and GPU/mixed-target record execution remain separate implementation gates. `main` must still return a supported numeric scalar, `Bool`, numeric array or tensor. Native distributed execution requires the agreed design discussion before implementation.
+Record arrays, general record printing and GPU/mixed-target record execution remain separate implementation gates. `main` must still return a supported numeric scalar, `Bool`, numeric array or tensor. Native distributed execution requires the agreed design discussion before implementation.
 
 ## Qualification
 

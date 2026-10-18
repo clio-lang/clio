@@ -1,6 +1,6 @@
 # Immutable CPU records
 
-The native compiler supports named immutable records with numeric scalar, `Bool`, and [nested record](nested-records.md) fields. This builds on the [accepted core design](core.md#3-construct-a-record-and-derive-another).
+The native compiler supports named immutable records with numeric scalar, `Bool`, [nested record](nested-records.md), and [numeric collection](record-collections.md) fields. This builds on the [accepted core design](core.md#3-construct-a-record-and-derive-another).
 
 ```kalandra
 type Point:
@@ -38,9 +38,9 @@ Records can be used inside synchronous numeric map callbacks. Capturing an entir
 
 ## Native lowering and current boundaries
 
-[Nested records](nested-records.md) now extend these values through several inline levels. The typed IR carries nominal declaration identities and canonical field indices separately from written evaluation order. CPU lowering represents these numeric/Boolean/nested record values as native structs using MLIR's LLVM aggregate operations. Construction, field access and updates require no managed heap allocation. The underlying struct layout does not erase source-level nominal type checks. This internal representation is not a published C/C++ ABI or serialization format.
+[Nested records](nested-records.md) now extend these values through several inline levels. The typed IR carries nominal declaration identities and canonical field indices separately from written evaluation order. CPU lowering represents these numeric/Boolean/nested record values as native structs using MLIR's LLVM aggregate operations. Records with numeric/Boolean leaves require no managed heap allocation. [Collection fields](record-collections.md) use owned backing storage and copies on construction and reads. The underlying struct layout does not erase source-level nominal type checks. This internal representation is not a published C/C++ ABI or serialization format.
 
-[CPU worker integration](record-workers.md) now supports record captures/results, nested workers, repeated awaits, and record-valued TaskError recovery. GPU placement remains unsupported for record-containing source graphs, and the checker/backend diagnose that combination. Collection fields, user variants/errors, type exports, and GPU integration need their own ownership and execution qualification. Native distributed execution still requires the agreed design discussion.
+[CPU worker integration](record-workers.md) now supports record captures/results, nested workers, repeated awaits, and record-valued TaskError recovery. GPU placement remains unsupported for record-containing source graphs, and the checker/backend diagnose that combination. User variants/errors, type exports, and GPU integration remain separate work. Native distributed execution still requires the agreed design discussion.
 
 A program's `main` must return an already supported scalar, `Bool`, array, or tensor result; direct record display is not implemented. Record helper results can feed those outputs, as in the example above.
 
@@ -49,3 +49,5 @@ A program's `main` must return an already supported scalar, `Bool`, array, or te
 The initial synchronous milestone is recorded below; [worker integration](record-workers.md) and [nested records](nested-records.md) have their own subsequent qualification.
 
 On Apple M2 Max, all 101 focused checks passed. Record programs passed in debug, optimized, ASan/UBSan, and separate ThreadSanitizer builds: 104 compiled source programs across those variants. Frontend checks also cover invalid declarations/fields, nominal identity, malformed typed IR, and unsupported execution paths. Runtime checks cover numeric endpoints, floating precision/signed zero, unchanged originals, functions/recursion, conditionals, maps, module composition, fault evaluation order, and failed-build artifact preservation. Existing frontend, collection, worker, ownership, continuation, and selected Metal regression checks passed. All 640 tracked numerical artifacts and 20 numerical/checked-ABI/runtime/storage sources remain unchanged. This is focused qualification, not a full-suite claim; the [evidence record](../../native/metal-proof/evidence/cpu-records-2026-10-18.json) records the scope and hashes.
+
+Numeric arrays and tensors can now be stored inside records; see [collection field ownership](record-collections.md) for copy semantics and worker retention.

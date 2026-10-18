@@ -90,9 +90,15 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
   if (auto invalid = recordLayoutError(module))
     return invalid->message;
   const auto scalarSame = [](const ValueType &a, const ValueType &b) {
-    return a.builtin == b.builtin && a.record == b.record && !a.tensor && !a.array && !a.task &&
-           !a.fallible && !a.device && a.shape.empty() &&
-           (a.builtin != BuiltinValue::Numeric || a.element == b.element);
+    if (a.builtin != b.builtin || a.record != b.record || a.tensor != b.tensor ||
+        a.array != b.array || a.task || a.fallible || a.device ||
+        a.shape.size() != b.shape.size() ||
+        (a.builtin == BuiltinValue::Numeric && a.element != b.element))
+      return false;
+    for (std::size_t i = 0; i < a.shape.size(); ++i)
+      if (b.shape[i].constant && a.shape[i].constant != b.shape[i].constant)
+        return false;
+    return true;
   };
   bool hasMap = false;
   for (const auto &expression : module.expressions)

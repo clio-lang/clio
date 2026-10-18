@@ -888,3 +888,5 @@ include(cmake/Records.cmake)
 include(cmake/RecordWorkers.cmake)
 
 include(cmake/NestedRecords.cmake)
+
+include(cmake/RecordCollections.cmake)

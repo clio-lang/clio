@@ -33,17 +33,17 @@ Read nested fields with `scene.position.x`. To change a nested field, derive its
 
 If two fields contain the same child value, deriving a change to one does not change the other or the original. Initializers retain written evaluation order. An update evaluates its base before its replacements, including nested updates. Checked failures stop evaluation and cannot publish a partially completed record.
 
-Nested records work inside synchronous numeric map callbacks and with numeric array/tensor worker arguments or results. Whole-record anonymous callback captures and collections stored inside records remain separate gates.
+Nested records work inside synchronous numeric map callbacks and with numeric array/tensor worker arguments or results. [Collections stored inside records](record-collections.md) are now supported. Whole-record anonymous callback captures remain a separate gate.
 
 ## Storage and finite layouts
 
-These records are pointer-free inline values. CPU MLIR and LLVM task frames use nested native structs, with cached target types for shared child declarations. Captures and completed outcomes copy immutable values. No nested backing-storage lease or per-record heap allocation is required; scheduler frames and bookkeeping still use the existing bounded task-memory budget.
+Records containing only numeric/Boolean leaves are pointer-free inline values. CPU MLIR and LLVM task frames use nested native structs, with cached target types for shared child declarations. Captures and completed outcomes copy immutable values. No nested backing-storage lease or per-record heap allocation is required; scheduler frames and bookkeeping still use the existing bounded task-memory budget.
 
 An inline record cannot contain itself directly or through a cycle of record fields: that would require infinite storage. The checker reports the field that closes the cycle, including for unused declarations. The native lowering validator applies the same check to typed IR before recursive type construction.
 
 Native layout validation also applies compiler resource budgets: by default, at most 128 record levels and 300,000 expanded numeric/Boolean leaves per record. Repeated embeddings count each child's leaves, even when its target type is cached. This prevents a short sequence of declarations from requesting exponentially large inline storage or printed type descriptions. These are implementation budgets, not new source-language types or allocation controls. Existing syntax and semantic budgets also apply.
 
-Collection fields, recursive structures behind managed storage, record arrays, type-name exports, general record display and GPU/mixed-target records remain separate work. Native distributed execution still requires the agreed design discussion. The internal struct and task layouts are not a public C/C++ or wire ABI.
+[Collection fields](record-collections.md) now have an owned CPU baseline. Recursive structures behind managed storage, record arrays, type-name exports, general record display and GPU/mixed-target records remain separate work. Native distributed execution still requires the agreed design discussion. The internal struct and task layouts are not a public C/C++ or wire ABI.
 
 ## Qualification
 

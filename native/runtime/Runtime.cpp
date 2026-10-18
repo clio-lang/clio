@@ -1,8 +1,10 @@
 #include "Runtime.h"
+#include "../include/kalandra/NumericType.h"
 #include <atomic>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <limits>
 #include <new>
 #include <utility>
@@ -19,6 +21,7 @@ struct alignas(std::max_align_t) Backing {
   std::atomic<std::uint64_t> references{1};
   Owner initial{nullptr, nullptr, this, true};
   std::uint64_t bytes = 0;
+  bool record = false;
 };
 namespace {
 void releaseBacking(Backing *backing) noexcept {
@@ -129,6 +132,23 @@ void *Invocation::allocate(std::uint64_t bytes) noexcept {
   attach(&backing->initial);
   return backing + 1;
 }
+void *Invocation::allocateRecord(std::uint64_t bytes) noexcept {
+  if (!bytes)
+    return nullptr;
+  auto *buffer = allocate(bytes);
+  if (buffer)
+    head_->backing->record = true;
+  return buffer;
+}
+void Invocation::releaseRecords() noexcept {
+  auto *owner = head_;
+  while (owner) {
+    auto *next = owner->next;
+    if (owner->backing->record)
+      remove(owner);
+    owner = next;
+  }
+}
 bool Invocation::retainFrom(const Invocation &source, void *buffer) noexcept {
   if (!reserve())
     return false;
@@ -236,4 +256,86 @@ extern "C" void kalandra_expected_task_error_v1(kalandra::runtime::Invocation *c
 
 extern "C" std::int64_t kalandra_poll_v1(kalandra::runtime::Invocation *context) noexcept {
   return context->poll();
+}
+
+extern "C" void *kalandra_record_alloc_v1(kalandra::runtime::Invocation *ctx,
+                                          std::uint64_t bytes) noexcept {
+  return ctx->allocateRecord(bytes);
+}
+extern "C" void kalandra_record_cleanup_v1(kalandra::runtime::Invocation *ctx) noexcept {
+  ctx->releaseRecords();
+}
+
+namespace {
+// Private compiler descriptor: two pointers, offset, sizes, strides. Read through
+// memcpy so forged metadata cannot introduce unaligned C++ accesses.
+bool validRecordStorage(const kalandra::runtime::Invocation &source, const void *descriptor,
+                        std::uint64_t rank, std::uint64_t element, void *&allocated) noexcept {
+  using namespace kalandra;
+  if (!source.usable() || !descriptor || rank > 128 ||
+      element > static_cast<unsigned>(NumericType::Float64))
+    return false;
+  auto numeric = static_cast<NumericType>(element);
+  if (!numericArithmeticAvailable(numeric, NumericTarget::Cpu))
+    return false;
+  const auto *data = static_cast<const std::byte *>(descriptor);
+  void *aligned;
+  std::int64_t offset;
+  std::memcpy(&allocated, data, sizeof(void *));
+  std::memcpy(&aligned, data + sizeof(void *), sizeof(void *));
+  std::memcpy(&offset, data + 2 * sizeof(void *), 8);
+  std::int64_t sizes[128], strides[128];
+  std::memcpy(sizes, data + 2 * sizeof(void *) + 8, rank * 8);
+  std::memcpy(strides, data + 2 * sizeof(void *) + 8 + rank * 8, rank * 8);
+  bool empty = false;
+  for (std::size_t i = 0; i < rank; ++i) {
+    if (sizes[i] < 0)
+      return false;
+    empty |= sizes[i] == 0;
+  }
+  if (offset || aligned != allocated)
+    return false;
+  if (empty) {
+    if (allocated)
+      return false;
+    for (std::size_t i = 0; i < rank; ++i)
+      if (strides[i])
+        return false;
+    return true;
+  }
+  std::uint64_t count = 1;
+  const auto bytes = describeNumeric(numeric)->bytes();
+  for (std::size_t i = rank; i > 0; --i) {
+    if (strides[i - 1] != static_cast<std::int64_t>(count) ||
+        count > (INT64_MAX / bytes) / static_cast<std::uint64_t>(sizes[i - 1]))
+      return false;
+    count *= sizes[i - 1];
+  }
+  if (reinterpret_cast<std::uintptr_t>(allocated) % bytes)
+    return false;
+  auto lease = source.lease(allocated);
+  return lease && lease->bytes().size() >= count * bytes;
+}
+} // namespace
+extern "C" void kalandra_record_validate_v1(kalandra::runtime::Invocation *ctx,
+                                            const void *descriptor, std::uint64_t rank,
+                                            std::uint64_t element) noexcept {
+  void *allocated = nullptr;
+  if (!validRecordStorage(*ctx, descriptor, rank, element, allocated))
+    ctx->fault(3);
+}
+extern "C" bool kalandra_record_retain_v1(kalandra::runtime::Invocation *destination,
+                                          const kalandra::runtime::Invocation *source,
+                                          const void *descriptor, std::uint64_t rank,
+                                          std::uint64_t element) noexcept {
+  void *allocated = nullptr;
+  if (!validRecordStorage(*source, descriptor, rank, element, allocated)) {
+    destination->fault(3);
+    return false;
+  }
+  if (!destination->usable()) {
+    destination->fault(3);
+    return false;
+  }
+  return !allocated || destination->retainFrom(*source, allocated);
 }

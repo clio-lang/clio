@@ -44,6 +44,10 @@ public:
     return code ? code : cancellation_ && cancellation_->load(std::memory_order_acquire) ? -1 : 0;
   }
   void *allocate(std::uint64_t bytes) noexcept;
+  // Field backing remains invocation-owned across inline aggregate copies.
+  // Release only at a scalar CLI boundary; ordinary helpers may return records.
+  void *allocateRecord(std::uint64_t bytes) noexcept;
+  void releaseRecords() noexcept;
   bool retainFrom(const Invocation &source, void *buffer) noexcept;
   void release(void *buffer) noexcept;
   // Requires exclusive source-context access, like retainFrom. Reject unknown,
@@ -87,6 +91,13 @@ private:
 // Revision is encoded in the symbols: mismatched compiler/runtime builds fail
 // at link time. No process-global or thread-local current invocation exists.
 extern "C" {
+void *kalandra_record_alloc_v1(kalandra::runtime::Invocation *, std::uint64_t) noexcept;
+void kalandra_record_cleanup_v1(kalandra::runtime::Invocation *) noexcept;
+void kalandra_record_validate_v1(kalandra::runtime::Invocation *, const void *, std::uint64_t,
+                                 std::uint64_t) noexcept;
+bool kalandra_record_retain_v1(kalandra::runtime::Invocation *,
+                               const kalandra::runtime::Invocation *, const void *, std::uint64_t,
+                               std::uint64_t) noexcept;
 bool kalandra_retain_v1(kalandra::runtime::Invocation *, const kalandra::runtime::Invocation *,
                         void *) noexcept;
 void kalandra_expected_task_error_v1(kalandra::runtime::Invocation *, std::int64_t, std::int64_t,

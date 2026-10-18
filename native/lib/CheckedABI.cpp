@@ -80,6 +80,16 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module) {
         callee = fault;
         arguments.insert(arguments.begin(), invocation);
         alwaysFail = true;
+      } else if (target->getName() == "kalandra_record_alloc" ||
+                 target->getName() == "kalandra_record_cleanup" ||
+                 target->getName() == "kalandra_record_validate") {
+        std::vector<Type *> parameters{pointer};
+        parameters.insert(parameters.end(), target->getFunctionType()->param_begin(),
+                          target->getFunctionType()->param_end());
+        callee = module.getOrInsertFunction(
+            target->getName().str() + "_v1",
+            FunctionType::get(target->getReturnType(), parameters, false));
+        arguments.insert(arguments.begin(), invocation);
       } else if (target->isIntrinsic())
         continue;
       else
@@ -145,7 +155,8 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module) {
   for (auto *old : originals)
     old->eraseFromParent();
   for (const auto *name :
-       {"kalandra_fault", "_mlir_memref_to_llvm_alloc", "_mlir_memref_to_llvm_free"})
+       {"kalandra_fault", "_mlir_memref_to_llvm_alloc", "_mlir_memref_to_llvm_free",
+        "kalandra_record_alloc", "kalandra_record_cleanup", "kalandra_record_validate"})
     if (auto *old = module.getFunction(name); old && old->use_empty())
       old->eraseFromParent();
   return std::nullopt;

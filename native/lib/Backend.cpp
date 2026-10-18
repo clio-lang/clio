@@ -1,5 +1,6 @@
 #include "kalandra/Backend.h"
 #include "CollectionMetadata.h"
+#include "RecordLayout.h"
 #include "kalandra/NumericConversion.h"
 #include "kalandra/StrictFloat.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -46,6 +47,18 @@ public:
         builder_.getFunctionType(
             {builder_.getI64Type(), builder_.getI64Type(), builder_.getI64Type()}, {}));
     fault.setPrivate();
+    if (hasRecordCollections(input_)) {
+      const auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
+      for (const auto &[name, signature] : std::vector<std::pair<std::string, FunctionType>>{
+               {"kalandra_record_alloc", builder_.getFunctionType({builder_.getI64Type()}, {ptr})},
+               {"kalandra_record_cleanup", builder_.getFunctionType({}, {})},
+               {"kalandra_record_validate",
+                builder_.getFunctionType({ptr, builder_.getI64Type(), builder_.getI64Type()},
+                                         {})}}) {
+        auto fn = func::FuncOp::create(builder_, builder_.getUnknownLoc(), name, signature);
+        fn.setPrivate();
+      }
+    }
     for (FunctionId id = 0; id < input_.functions.size(); ++id) {
       const auto &function = input_.functions[id];
       SmallVector<Type> parameters;
@@ -92,6 +105,9 @@ public:
     builder_.setInsertionPointToStart(entry.addEntryBlock());
     const auto mainId = static_cast<FunctionId>(main - input_.functions.begin());
     auto call = func::CallOp::create(builder_, entry.getLoc(), functions_[mainId], ValueRange{});
+    if (hasRecordCollections(input_) && !main->resultType.tensor)
+      func::CallOp::create(builder_, entry.getLoc(), "kalandra_record_cleanup", TypeRange{},
+                           ValueRange{});
     func::ReturnOp::create(builder_, entry.getLoc(), call.getResults());
     if (testEntry)
       interfaceWrapper(*testEntry);
@@ -110,7 +126,7 @@ private:
         return found->second;
       SmallVector<Type> fields;
       for (const auto &field : input_.records.at(*value.record).fields)
-        fields.push_back(type(field.type));
+        fields.push_back(field.type.tensor ? recordDescriptor(field.type) : type(field.type));
       return recordTypes_[*value.record] =
                  LLVM::LLVMStructType::getLiteral(builder_.getContext(), fields);
     }
@@ -129,6 +145,113 @@ private:
       shape.push_back(extent.constant ? static_cast<std::int64_t>(*extent.constant)
                                       : ShapedType::kDynamic);
     return RankedTensorType::get(shape, element);
+  }
+  Type recordDescriptor(const ValueType &value) {
+    auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
+    auto dims = LLVM::LLVMArrayType::get(builder_.getI64Type(), value.shape.size());
+    return LLVM::LLVMStructType::getLiteral(builder_.getContext(),
+                                            {ptr, ptr, builder_.getI64Type(), dims, dims});
+  }
+  SmallVector<Value> recordIndices(Location loc, Value flat, ArrayRef<Value> shape) {
+    SmallVector<Value> indices(shape.size());
+    for (std::size_t axis = shape.size(); axis > 0; --axis) {
+      auto safe = arith::SelectOp::create(
+          builder_, loc, compare(loc, arith::CmpIPredicate::eq, shape[axis - 1], index(loc, 0)),
+          index(loc, 1), shape[axis - 1]);
+      indices[axis - 1] = arith::RemUIOp::create(builder_, loc, flat, safe);
+      flat = arith::DivUIOp::create(builder_, loc, flat, safe);
+    }
+    return indices;
+  }
+  Value recordPack(Location loc, Value input, const ValueType &field) {
+    auto shape = dimensions(loc, input);
+    auto element = cast<RankedTensorType>(input.getType()).getElementType();
+    auto count = checkedCount(loc, shape, describeNumeric(field.element)->bytes());
+    auto bytes = arith::MulIOp::create(builder_, loc, count,
+                                       index(loc, describeNumeric(field.element)->bytes()));
+    auto bytes64 = arith::IndexCastOp::create(builder_, loc, builder_.getI64Type(), bytes);
+    auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
+    Value storage = func::CallOp::create(builder_, loc, "kalandra_record_alloc", TypeRange{ptr},
+                                         ValueRange{bytes64})
+                        .getResult(0);
+    scf::ForOp::create(
+        builder_, loc, index(loc, 0), count, index(loc, 1), ValueRange{},
+        [&](OpBuilder &, Location, Value i, ValueRange) {
+          auto cell = tensor::ExtractOp::create(builder_, loc, input, recordIndices(loc, i, shape));
+          auto offset = arith::IndexCastOp::create(builder_, loc, builder_.getI64Type(), i);
+          auto address =
+              LLVM::GEPOp::create(builder_, loc, ptr, element, storage, ValueRange{offset});
+          LLVM::StoreOp::create(builder_, loc, cell, address);
+          scf::YieldOp::create(builder_, loc);
+        });
+    Value result = LLVM::UndefOp::create(builder_, loc, recordDescriptor(field));
+    const auto insert = [&](Value value, ArrayRef<int64_t> path) {
+      result = LLVM::InsertValueOp::create(builder_, loc, result, value, path);
+    };
+    insert(storage, {0});
+    insert(storage, {1});
+    insert(integer(loc, 0), {2});
+    Value stride = index(loc, 1);
+    auto empty = compare(loc, arith::CmpIPredicate::eq, count, index(loc, 0));
+    for (std::size_t axis = shape.size(); axis > 0; --axis) {
+      auto canonical = arith::SelectOp::create(builder_, loc, empty, index(loc, 0), stride);
+      insert(arith::IndexCastOp::create(builder_, loc, builder_.getI64Type(), shape[axis - 1]),
+             {3, static_cast<int64_t>(axis - 1)});
+      insert(arith::IndexCastOp::create(builder_, loc, builder_.getI64Type(), canonical),
+             {4, static_cast<int64_t>(axis - 1)});
+      // Zero-count shapes need no representable suffix product.
+      stride = arith::MulIOp::create(builder_, loc, canonical, shape[axis - 1]);
+    }
+    return result;
+  }
+  Value recordUnpack(Location loc, Value input, const ValueType &field) {
+    auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
+    Value address;
+    {
+      // A read inside a map/loop reuses a fixed entry-block descriptor slot.
+      // Repeated dynamic stack allocations would grow until the helper returns.
+      OpBuilder::InsertionGuard guard(builder_);
+      auto *parent = builder_.getInsertionBlock()->getParentOp();
+      while (!isa<func::FuncOp>(parent))
+        parent = parent->getParentOp();
+      builder_.setInsertionPointToStart(&cast<func::FuncOp>(parent).getBody().front());
+      address =
+          LLVM::AllocaOp::create(builder_, loc, ptr, recordDescriptor(field), integer(loc, 1));
+    }
+    LLVM::StoreOp::create(builder_, loc, input, address);
+    func::CallOp::create(builder_, loc, "kalandra_record_validate", TypeRange{},
+                         ValueRange{address, integer(loc, field.shape.size()),
+                                    integer(loc, static_cast<unsigned>(field.element))});
+    SmallVector<Value> shape, dynamic;
+    auto output = cast<RankedTensorType>(type(field));
+    for (std::size_t axis = 0; axis < field.shape.size(); ++axis) {
+      auto d = LLVM::ExtractValueOp::create(builder_, loc, input,
+                                            ArrayRef<int64_t>{3, static_cast<int64_t>(axis)});
+      Value extent = arith::IndexCastOp::create(builder_, loc, builder_.getIndexType(), d);
+      shape.push_back(extent);
+      if (output.isDynamicDim(axis))
+        dynamic.push_back(extent);
+      else
+        guard(loc,
+              compare(loc, arith::CmpIPredicate::eq, extent, index(loc, output.getDimSize(axis))),
+              1);
+    }
+    auto count = checkedCount(loc, shape, describeNumeric(field.element)->bytes());
+    auto empty =
+        tensor::EmptyOp::create(builder_, loc, output.getShape(), output.getElementType(), dynamic);
+    auto storage = LLVM::ExtractValueOp::create(builder_, loc, input, ArrayRef<int64_t>{1});
+    auto loop = scf::ForOp::create(
+        builder_, loc, index(loc, 0), count, index(loc, 1), ValueRange{empty},
+        [&](OpBuilder &, Location, Value i, ValueRange args) {
+          auto offset = arith::IndexCastOp::create(builder_, loc, builder_.getI64Type(), i);
+          auto address = LLVM::GEPOp::create(builder_, loc, ptr, output.getElementType(), storage,
+                                             ValueRange{offset});
+          auto cell = LLVM::LoadOp::create(builder_, loc, output.getElementType(), address);
+          auto inserted =
+              tensor::InsertOp::create(builder_, loc, cell, args[0], recordIndices(loc, i, shape));
+          scf::YieldOp::create(builder_, loc, ValueRange{inserted});
+        });
+    return loop.getResult(0);
   }
   Value index(Location loc, std::int64_t value) {
     return arith::ConstantIndexOp::create(builder_, loc, value);
@@ -882,15 +1005,19 @@ private:
                               : Value(LLVM::UndefOp::create(builder_, loc, type(node.type)));
             for (const auto &field : operation.fields) {
               auto member = expression(frame, field.value);
+              const auto &fieldType = input_.records[*node.type.record].fields[field.field].type;
+              if (fieldType.tensor)
+                member = recordPack(loc, member, fieldType);
               value =
                   LLVM::InsertValueOp::create(builder_, loc, value, member,
                                               ArrayRef<int64_t>{static_cast<int64_t>(field.field)});
             }
             return value;
           } else if constexpr (std::is_same_v<T, RecordFieldRead>) {
-            return LLVM::ExtractValueOp::create(
+            Value member = LLVM::ExtractValueOp::create(
                 builder_, loc, expression(frame, operation.input),
                 ArrayRef<int64_t>{static_cast<int64_t>(operation.field)});
+            return node.type.tensor ? recordUnpack(loc, member, node.type) : member;
           } else if constexpr (std::is_same_v<T, ScalarCompare>) {
             auto left = expression(frame, operation.left),
                  right = expression(frame, operation.right);

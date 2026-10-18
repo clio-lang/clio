@@ -1,4 +1,5 @@
 #include "CollectionMetadata.h"
+#include "RecordLayout.h"
 #include "kalandra/Backend.h"
 #include "kalandra/Continuation.h"
 #include "llvm/AsmParser/Parser.h"
@@ -170,8 +171,12 @@ public:
     if (main->resultType.tensor) {
       copy(entry->getArg(0), payload, descriptor(main->resultType));
       builder.CreateRetVoid();
-    } else
-      builder.CreateRet(builder.CreateLoad(scalarType(main->resultType), payload));
+    } else {
+      auto *value = builder.CreateLoad(scalarType(main->resultType), payload);
+      if (hasRecordCollections(planner.input))
+        call("kalandra_record_cleanup_v1", voidType, {ctx});
+      builder.CreateRet(value);
+    }
   }
 
 private:
@@ -197,6 +202,8 @@ private:
     return llvm::StructType::get(context, {pointer, pointer, i64, dims, dims});
   }
   Type *scalarType(const ValueType &type) {
+    if (type.tensor)
+      return descriptor(type);
     if (type.builtin == BuiltinValue::Record) {
       if (auto found = recordTypes.find(*type.record); found != recordTypes.end())
         return found->second;
@@ -260,6 +267,32 @@ private:
     return builder.CreateICmpNE(
         builder.CreateLoad(i32, builder.CreateStructGEP(failureType, pointer, 0)), c32(0));
   }
+  void retainRecord(const ValueType &type, Value *input, Function *fn, Block *failed) {
+    const auto &fields = planner.input.records[*type.record].fields;
+    for (std::size_t i = 0; i < fields.size(); ++i) {
+      const auto &field = fields[i].type;
+      auto *address = builder.CreateStructGEP(scalarType(type), input, i);
+      if (field.builtin == BuiltinValue::Record)
+        retainRecord(field, address, fn, failed);
+      else if (field.tensor) {
+        auto *success = call("kalandra_record_retain_v1", boolean,
+                             {fn->getArg(0), fn->getArg(2), address, c64(field.shape.size()),
+                              c64(static_cast<unsigned>(field.element))});
+        for (std::size_t axis = 0; axis < field.shape.size(); ++axis)
+          if (field.shape[axis].constant) {
+            auto *dimensions = builder.CreateStructGEP(descriptor(field), address, 3);
+            auto *extent = builder.CreateLoad(
+                i64, builder.CreateInBoundsGEP(llvm::ArrayType::get(i64, field.shape.size()),
+                                               dimensions, {c64(0), c64(axis)}));
+            success = builder.CreateAnd(
+                success, builder.CreateICmpEQ(extent, c64(*field.shape[axis].constant)));
+          }
+        auto *next = Block::Create(context, "record.next", fn);
+        builder.CreateCondBr(success, next, failed);
+        builder.SetInsertPoint(next);
+      }
+    }
+  }
   llvm::GlobalVariable *layout(const ValueType &type) {
     const auto name = key(type);
     if (auto found = layouts.find(name); found != layouts.end())
@@ -281,6 +314,16 @@ private:
           call("kalandra_retain_v1", boolean, {fn->getArg(0), fn->getArg(2), allocated});
       auto *failed = Block::Create(context, "failed", fn);
       builder.CreateCondBr(success, ready, failed);
+      builder.SetInsertPoint(failed);
+      builder.CreateRet(builder.getFalse());
+    } else if (type.builtin == BuiltinValue::Record && hasRecordCollections(planner.input)) {
+      auto *retain = Block::Create(context, "record.retain", fn);
+      auto *failed = Block::Create(context, "record.failed", fn);
+      builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
+                           retain);
+      builder.SetInsertPoint(retain);
+      retainRecord(type, builder.CreateStructGEP(wrapper, fn->getArg(3), 1), fn, failed);
+      builder.CreateBr(ready);
       builder.SetInsertPoint(failed);
       builder.CreateRet(builder.getFalse());
     } else

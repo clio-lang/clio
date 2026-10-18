@@ -246,10 +246,11 @@ private:
         auto fieldType = type(field.type);
         if (!fieldType)
           continue;
-        if (fieldType->tensor || (fieldType->builtin != BuiltinValue::Numeric &&
-                                  fieldType->builtin != BuiltinValue::Bool &&
-                                  fieldType->builtin != BuiltinValue::Record)) {
-          error("S068", "record fields currently require CPU numeric scalars, Bool or records",
+        if ((fieldType->tensor && fieldType->builtin != BuiltinValue::Numeric) ||
+            (fieldType->builtin != BuiltinValue::Numeric &&
+             fieldType->builtin != BuiltinValue::Bool &&
+             fieldType->builtin != BuiltinValue::Record)) {
+          error("S068", "record fields require CPU numbers, numeric collections, Bool or records",
                 field.type.span);
           continue;
         }
@@ -756,7 +757,11 @@ private:
       error("S068", "unknown field '" + name(read.field) + "' in " + type.recordName, read.field);
       return {};
     }
-    return add(frame, found->type, span,
+    auto result = found->type;
+    for (auto &extent : result.shape)
+      if (!extent.constant)
+        extent = dynamic();
+    return add(frame, result, span,
                RecordFieldRead{*input, static_cast<std::size_t>(found - fields.begin())});
   }
   std::optional<ValueId> infer(Frame &, SourceSpan span, const LambdaExpr &,
