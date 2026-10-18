@@ -51,7 +51,7 @@ Dimensions, fixed result extents and element counts are checked before allocatio
 
 The initial CPU implementation makes an ordered copy into managed output storage. It reads logical row-major coordinates from the source, respecting its descriptor's strides and offset, and writes the corresponding coordinates in the output. Non-contiguous, transposed-layout and negative-stride borrowed inputs follow the same logical order. The original backing remains unchanged. Every element keeps its exact representation, including signed zeros, subnormals and NaN payloads.
 
-Returned tensors remain valid after their source function or worker finishes. Cancellation and allocation failure publish no partial result and settle intermediate owners. The compiler may later share storage when it can preserve these immutable value semantics; this implementation does not promise a zero-copy view or introduce manual memory management.
+Returned tensors remain valid after their source function or worker finishes. Cancellation and allocation failure publish no partial result and settle intermediate owners. Shared storage for compatible layouts is deferred to the [roadmap optimization stage](../roadmap.md#optimization), after missing native functionality. Immutability permits that optimization, provided the result retains its backing for its full lifetime; incompatible layouts or borrowed storage may still require an ordered copy. The current implementation does not promise a zero-copy view or introduce manual memory management.
 
 ## Workers and callbacks
 
