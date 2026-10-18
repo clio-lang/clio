@@ -262,7 +262,8 @@ private:
                                  std::is_same_v<T, Int64Literal> ||
                                  std::is_same_v<T, UInt32Literal> ||
                                  std::is_same_v<T, UInt64Literal> ||
-                                 std::is_same_v<T, BoolLiteral>))
+                                 std::is_same_v<T, BoolLiteral> ||
+                                 std::is_same_v<T, StringLiteral>))
             throw std::runtime_error("map callback requires synchronous native operations");
         },
         value.operation);
@@ -338,7 +339,19 @@ private:
       comparison->right = reads[1];
     } else if (auto *convert = std::get_if<NumericConvert>(&op))
       convert->input = reads[0];
-    else if (auto *query = std::get_if<CollectionQuery>(&op))
+    else if (auto *concat = std::get_if<StringConcat>(&op)) {
+      concat->left = reads[0];
+      concat->right = reads[1];
+    } else if (auto *query = std::get_if<StringQuery>(&op))
+      query->input = reads[0];
+    else if (auto *read = std::get_if<StringIndex>(&op)) {
+      read->input = reads[0];
+      read->index = reads[1];
+    } else if (auto *slice = std::get_if<StringSlice>(&op)) {
+      slice->input = reads[0];
+      slice->start = reads[1];
+      slice->end = reads[2];
+    } else if (auto *query = std::get_if<CollectionQuery>(&op))
       query->input = reads[0];
     else if (auto *construction = std::get_if<TensorToArray>(&op))
       construction->input = reads[0];

@@ -211,3 +211,29 @@ extern "C" void kalandra_string_slice_v1(kalandra::runtime::Invocation *context,
                                          std::uint64_t start, std::uint64_t end) noexcept {
   kalandra::runtime::sliceString(*context, *output, *input, start, end);
 }
+
+extern "C" bool
+kalandra_string_retain_v1(kalandra::runtime::Invocation *destination,
+                          const kalandra::runtime::Invocation *source,
+                          const kalandra::runtime::StringDescriptor *value) noexcept {
+  const auto invalid = [&] {
+    destination->fault(3);
+    return false;
+  };
+  if (destination->poll() != 0)
+    return false;
+  if (!destination->usable() || !source->usable() || !value)
+    return invalid();
+  if (!value->byteLength)
+    return (!value->allocated && !value->data) || invalid();
+  if (value->byteLength < 0 || !value->allocated || value->allocated != value->data)
+    return invalid();
+  auto lease = source->lease(value->allocated);
+  if (!lease || static_cast<std::uint64_t>(value->byteLength) > lease->bytes().size())
+    return invalid();
+  const auto status = kalandra::validateUtf8(std::string_view(value->data, value->byteLength),
+                                             [&] { return destination->poll() == 0; });
+  if (status != kalandra::Utf8Status::Valid)
+    return status == kalandra::Utf8Status::Invalid ? invalid() : false;
+  return destination->poll() == 0 && destination->retainFrom(*source, value->allocated);
+}

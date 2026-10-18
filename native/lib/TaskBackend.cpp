@@ -79,12 +79,13 @@ public:
                                            [&](const auto &f) { return f.name == *testEntry; });
       if (found == planner.input.functions.end() ||
           (!found->parameters.empty() && found->resultType.builtin != BuiltinValue::Record &&
-           !isBoolArray(found->resultType)) ||
+           !isBoolArray(found->resultType) && found->resultType.builtin != BuiltinValue::String) ||
           (found->resultType.builtin != BuiltinValue::Numeric &&
            found->resultType.builtin != BuiltinValue::Bool &&
-           found->resultType.builtin != BuiltinValue::Record))
+           found->resultType.builtin != BuiltinValue::Record &&
+           found->resultType.builtin != BuiltinValue::String))
         throw std::runtime_error("private task test entry requires a parameterless numeric/Bool "
-                                 "function or a record function with typed parameters");
+                                 "function or a record/String function with typed parameters");
       const auto id = std::size_t(found - planner.input.functions.begin());
       // Trusted native test export, not a dynamic/public task or wire ABI.
       new llvm::GlobalVariable(module, pointer, true, llvm::GlobalValue::ExternalLinkage,
@@ -94,17 +95,24 @@ public:
                                      [](const auto &f) { return f.name == "main"; });
     if (main == planner.input.functions.end() || !main->parameters.empty() ||
         (main->resultType.builtin != BuiltinValue::Numeric &&
-         main->resultType.builtin != BuiltinValue::Bool))
-      throw std::runtime_error("native task entry requires parameterless float32, int32, uint32, "
-                               "int64, uint64, float64, Bool or CPU numeric array/tensor main");
+         main->resultType.builtin != BuiltinValue::Bool &&
+         main->resultType.builtin != BuiltinValue::String))
+      throw std::runtime_error(
+          "native task entry requires parameterless float32, int32, uint32, "
+          "int64, uint64, float64, Bool, String or CPU numeric array/tensor main");
     const auto id = std::size_t(main - planner.input.functions.begin());
     auto *entry = module.getFunction("_mlir_ciface_kalandra_entry");
-    if (main->resultType.tensor) {
-      collectionMetadata(module, main->resultType);
+    const bool stringResult = main->resultType.builtin == BuiltinValue::String;
+    const bool indirectResult = main->resultType.tensor || stringResult;
+    if (indirectResult) {
+      if (!stringResult)
+        collectionMetadata(module, main->resultType);
       entry->eraseFromParent();
       entry = Function::Create(llvm::FunctionType::get(voidType, {pointer, pointer}, false),
                                llvm::GlobalValue::ExternalLinkage,
-                               "_mlir_ciface_kalandra_collection_entry", module);
+                               stringResult ? "_mlir_ciface_kalandra_string_entry"
+                                            : "_mlir_ciface_kalandra_collection_entry",
+                               module);
     } else if (main->resultType.builtin == BuiltinValue::Bool ||
                isInteger(main->resultType.element) ||
                main->resultType.element == NumericType::Float64) {
@@ -122,14 +130,17 @@ public:
     } else
       entry->deleteBody();
     builder.SetInsertPoint(Block::Create(context, "entry", entry));
-    auto *ctx = entry->getArg(main->resultType.tensor ? 1 : 0);
+    auto *ctx = entry->getArg(indirectResult ? 1 : 0);
     const auto returnFailure = [&] {
-      if (main->resultType.tensor)
+      if (indirectResult)
         builder.CreateRetVoid();
       else
         builder.CreateRet(llvm::Constant::getNullValue(scalarType(main->resultType)));
     };
-    if (main->resultType.tensor)
+    if (stringResult)
+      builder.CreateStore(llvm::Constant::getNullValue(scalarType(main->resultType)),
+                          entry->getArg(0));
+    else if (main->resultType.tensor)
       builder.CreateMemSet(entry->getArg(0), builder.getInt8(0), size(descriptor(main->resultType)),
                            llvm::MaybeAlign(alignment(descriptor(main->resultType))));
     auto *packet = builder.CreateAlloca(packetType);
@@ -170,12 +181,14 @@ public:
     returnFailure();
     builder.SetInsertPoint(success);
     auto *payload = builder.CreateStructGEP(valueType(main->resultType), result, 1);
-    if (main->resultType.tensor) {
-      copy(entry->getArg(0), payload, descriptor(main->resultType));
+    if (indirectResult) {
+      copy(entry->getArg(0), payload, scalarType(main->resultType));
       builder.CreateRetVoid();
     } else {
       auto *value = builder.CreateLoad(scalarType(main->resultType), payload);
-      if (hasRecordCollections(planner.input))
+      if (hasRecordCollections(planner.input) ||
+          std::ranges::any_of(planner.input.expressions,
+                              [](const auto &e) { return e.type.builtin == BuiltinValue::String; }))
         call("kalandra_record_cleanup_v1", voidType, {ctx});
       builder.CreateRet(value);
     }
@@ -216,12 +229,16 @@ private:
     }
     if (type.builtin == BuiltinValue::Bool)
       return boolean;
+    if (type.builtin == BuiltinValue::String)
+      return llvm::StructType::get(context, {pointer, pointer, i64});
     return (type.element == NumericType::Int64 || type.element == NumericType::UInt64) ? i64
            : isInteger32(type.element)                                                 ? i32
            : type.element == NumericType::Float64 ? Type::getDoubleTy(context)
                                                   : f32;
   }
   std::string key(const ValueType &type) {
+    if (type.task)
+      return "handle";
     if (isBoolArray(type) && !type.task)
       return "array.Bool";
     if (isRecordArray(type) && !type.task)
@@ -254,9 +271,7 @@ private:
       return found->second;
     Type *payload = type.builtin == BuiltinValue::TaskError   ? static_cast<Type *>(failureType)
                     : type.builtin == BuiltinValue::FaultKind ? i32
-                    : type.builtin == BuiltinValue::String
-                        ? static_cast<Type *>(llvm::StructType::get(context, {pointer, i64}))
-                    : type.task   ? static_cast<Type *>(handleType)
+                    : type.task                               ? static_cast<Type *>(handleType)
                     : type.tensor ? static_cast<Type *>(descriptor(type))
                                   : scalarType(type);
     return values[name] =
@@ -347,7 +362,19 @@ private:
     auto *fn = function("value.copy." + name, boolean, {pointer, pointer, pointer, pointer});
     builder.SetInsertPoint(Block::Create(context, "entry", fn));
     auto *ready = Block::Create(context, "copy", fn);
-    if (isBoolArray(type)) {
+    if (type.builtin == BuiltinValue::String && !type.task) {
+      auto *retain = Block::Create(context, "string.retain", fn);
+      auto *failed = Block::Create(context, "string.failed", fn);
+      builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
+                           retain);
+      builder.SetInsertPoint(retain);
+      auto *success =
+          call("kalandra_string_retain_v1", boolean,
+               {fn->getArg(0), fn->getArg(2), builder.CreateStructGEP(wrapper, fn->getArg(3), 1)});
+      builder.CreateCondBr(success, ready, failed);
+      builder.SetInsertPoint(failed);
+      builder.CreateRet(builder.getFalse());
+    } else if (isBoolArray(type)) {
       auto *retain = Block::Create(context, "bool.array.retain", fn);
       auto *failed = Block::Create(context, "bool.array.failed", fn);
       builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
@@ -601,7 +628,8 @@ private:
         std::vector<Value *> arguments;
         // MLIR C wrappers return both memrefs and LLVM aggregate values through
         // a leading output pointer, while record arguments remain values.
-        const bool indirectResult = type.tensor || type.builtin == BuiltinValue::Record;
+        const bool indirectResult = type.tensor || type.builtin == BuiltinValue::Record ||
+                                    type.builtin == BuiltinValue::String;
         if (indirectResult)
           arguments.push_back(payload(instruction.output));
         for (auto argument : instruction.args)
@@ -747,7 +775,8 @@ private:
           auto *textType = llvm::cast<llvm::StructType>(valueType(type)->getElementType(1));
           auto text = [&](const char *message) -> Value * {
             return llvm::ConstantStruct::get(
-                textType, {llvm::cast<llvm::Constant>(builder.CreateGlobalString(message)),
+                textType, {llvm::ConstantPointerNull::get(builder.getPtrTy()),
+                           llvm::cast<llvm::Constant>(builder.CreateGlobalString(message)),
                            c64(std::char_traits<char>::length(message))});
           };
           Value *message;
@@ -763,7 +792,11 @@ private:
                                          builder.CreateSelect(builder.CreateICmpEQ(code, c64(5)),
                                                               text("index out of bounds"),
                                                               text("native execution fault")))));
-          builder.CreateStore(message, payload(instruction.output));
+          call("kalandra_string_literal_v1", voidType,
+               {ctx, payload(instruction.output), builder.CreateExtractValue(message, {1}),
+                builder.CreateExtractValue(message, {2})});
+          check();
+          break;
         }
         builder.CreateBr(next);
         break;

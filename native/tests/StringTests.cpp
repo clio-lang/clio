@@ -30,16 +30,28 @@ int main() {
       require(bool(numericCapabilityError(*result.module, NumericTarget::AppleGpu)),
               "GPU String admitted");
     }
-    for (const auto *source :
-         {"fn main()->String:\n  1\n", "fn main()->int64:\n  \"1\"\n",
-          "fn f(x:String)->String:\n  x\nfn main()->String:\n  f(true)\n",
-          "fn main()->[String]:\n  [\"a\"]\n", "type A:\n  text:String\nfn main()->int64:\n  1\n",
-          "fn main()->[String]:\n  [1,2]->map(fn(x): \"a\")\n",
-          "fn f()->String:\n  \"a\"\nfn main()->String ! TaskError:\n  try parallel:\n    try "
-          "await spawn f()\n",
-          "fn helper()->int64:\n  1\nfn main()->int64 ! TaskError:\n  ignored=\"a\"\n  try "
-          "parallel:\n    try await spawn helper()\n"})
+    for (const auto *source : {
+             "fn main()->String:\n  1\n",
+             "fn main()->int64:\n  \"1\"\n",
+             "fn f(x:String)->String:\n  x\nfn main()->String:\n  f(true)\n",
+             "fn main()->[String]:\n  [\"a\"]\n",
+             "type A:\n  text:String\nfn main()->int64:\n  1\n",
+             "fn main()->[String]:\n  [1,2]->map(fn(x): \"a\")\n",
+         })
       require(!analyze(source).ok(), "unsupported String source admitted");
+    for (const auto *source :
+         {"fn f(x:String)->String:\n  x\nfn main()->String ! TaskError:\n  try parallel:\n    try "
+          "await spawn f(\"é\")\n",
+          "fn f()->String ! TaskError:\n  \"ok\"\nfn relay()->String ! TaskError:\n  f() catch "
+          "fn(error): fail error\nfn main()->String ! TaskError:\n  try relay()\n",
+          "fn work(text:String)->[int64]:\n  map([1,2],fn(x): length(text)+x)\nfn main()->[int64] "
+          "! TaskError:\n  try parallel:\n    try await spawn work(\"é\")\n"}) {
+      auto value = analyze(source);
+      require(value.ok(), "String workers/captures/rethrow rejected");
+#ifndef KALANDRA_STRING_FRONTEND_ONLY
+      require(bool(lowerNative(*value.module)), "String worker lowering failed");
+#endif
+    }
     for (const auto *source :
          {"fn main()->String:\n  \"a\"+\"b\"\n",
           "fn eq(a:String,b:String)->Bool:\n  a==b\nfn main()->Bool:\n  eq(\"é\",\"e\\u{301}\")\n",
@@ -85,11 +97,10 @@ int main() {
     auto diagnostic = analyze(
         "fn task()->Bool ! TaskError:\n  true\nfn main()->Bool:\n  task() catch fn(error):\n    "
         "match error:\n      TaskError.Fault { message }: message==message\n      _: false\n");
-    require(!diagnostic.ok(), "borrowed diagnostic equality admitted");
-    bool gated = false;
-    for (const auto &d : diagnostic.diagnostics)
-      gated |= d.code == "S054";
-    require(gated, "borrowed diagnostic equality did not reach the ordinary-String gate");
+    require(diagnostic.ok(), "owned diagnostic equality rejected");
+#ifndef KALANDRA_STRING_FRONTEND_ONLY
+    require(bool(lowerNative(*diagnostic.module)), "owned diagnostic equality lowering failed");
+#endif
     for (const auto *source :
          {"fn size(value:String)->int64:\n  length(value)+byteLength(value)\nfn main():\n  "
           "size(\"👩‍💻\")\n",
@@ -115,10 +126,10 @@ int main() {
       auto value = analyze("fn task()->int64 ! TaskError:\n  1\nfn main()->int64:\n  task() catch "
                            "fn(error):\n    match error:\n      TaskError.Fault { message }: " +
                            std::string(query) + "(message)\n      _: 0\n");
-      bool gated = false;
-      for (const auto &d : value.diagnostics)
-        gated |= d.code == "S054";
-      require(!value.ok() && gated, "borrowed diagnostic length bypassed ordinary String gate");
+      require(value.ok(), "owned diagnostic String length rejected");
+#ifndef KALANDRA_STRING_FRONTEND_ONLY
+      require(bool(lowerNative(*value.module)), "diagnostic String length lowering failed");
+#endif
     }
 #ifndef KALANDRA_STRING_FRONTEND_ONLY
     for (unsigned mode = 0; mode < 6; ++mode) {
@@ -172,11 +183,10 @@ int main() {
         analyze("fn task()->int64 ! TaskError:\n  1\nfn main()->int64:\n  task() catch "
                 "fn(error):\n    match error:\n      TaskError.Fault { message }:\n        "
                 "first=message[0]\n        1\n      _: 0\n");
-    bool indexGate = false;
-    for (const auto &d : indexDiagnostic.diagnostics)
-      indexGate |= d.code == "S054";
-    require(!indexDiagnostic.ok() && indexGate,
-            "borrowed String index bypassed ordinary-String gate");
+    require(indexDiagnostic.ok(), "owned diagnostic String index rejected");
+#ifndef KALANDRA_STRING_FRONTEND_ONLY
+    require(bool(lowerNative(*indexDiagnostic.module)), "diagnostic String index lowering failed");
+#endif
 #ifndef KALANDRA_STRING_FRONTEND_ONLY
     for (unsigned mode = 0; mode < 6; ++mode) {
       auto value = analyze("fn main():\n  \"é\"[0]\n");
@@ -233,11 +243,10 @@ int main() {
         analyze("fn task()->int64 ! TaskError:\n  1\nfn main()->int64:\n  task() catch "
                 "fn(error):\n    match error:\n      TaskError.Fault { message }:\n        "
                 "part=slice(message,0,0)\n        1\n      _: 0\n");
-    bool sliceGate = false;
-    for (const auto &d : sliceDiagnostic.diagnostics)
-      sliceGate |= d.code == "S054";
-    require(!sliceDiagnostic.ok() && sliceGate,
-            "borrowed String slice bypassed ordinary-String gate");
+    require(sliceDiagnostic.ok(), "owned diagnostic String slice rejected");
+#ifndef KALANDRA_STRING_FRONTEND_ONLY
+    require(bool(lowerNative(*sliceDiagnostic.module)), "diagnostic String slice lowering failed");
+#endif
 #ifndef KALANDRA_STRING_FRONTEND_ONLY
     for (unsigned mode = 0; mode < 8; ++mode) {
       auto value = analyze("fn main():\n  slice(\"éa\",0,1)\n");

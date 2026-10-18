@@ -33,6 +33,23 @@ foreach(CASE IN ITEMS "task-recovery|243|5|20" "task-repropagate|3|1|42"
     message(FATAL_ERROR "Recovery result differs: ${NAME}: ${OUTPUT}")
   endif()
 endforeach()
+# Binding diagnostic text now owns storage. Keep the numeric recovery fixtures
+# independent of that allocation, and qualify materialization failures separately.
+file(READ "${FIXTURES}/task-recovery.kalandra" MESSAGE_SOURCE)
+string(REPLACE "kind: cause" "kind: cause, message: detail" MESSAGE_SOURCE "${MESSAGE_SOURCE}")
+file(WRITE "${OUTPUT_DIR}/task-recovery-message.kalandra" "${MESSAGE_SOURCE}")
+RUN_OK("${COMPILER}" "${OUTPUT_DIR}/task-recovery-message.kalandra"
+  -o "${OUTPUT_DIR}/task-recovery-message" ${EXTRA})
+execute_process(COMMAND "${CMAKE_COMMAND}" -E env KALANDRA_TEST_FAIL_ALLOC_AT=5 KALANDRA_TEST_REPORT_CLEANUP=1
+  "${OUTPUT_DIR}/task-recovery-message" RESULT_VARIABLE STATUS OUTPUT_VARIABLE STDOUT ERROR_VARIABLE STDERR)
+if(NOT "${STATUS}" STREQUAL "86" OR NOT STDOUT STREQUAL "" OR
+    NOT STDERR MATCHES "AllocationFault" OR NOT STDERR MATCHES "cleanup: live=0" OR STDERR MATCHES "TaskError")
+  message(FATAL_ERROR "Diagnostic allocation fault was caught or leaked: ${STATUS}: ${STDOUT}${STDERR}")
+endif()
+RUN_OK("${CMAKE_COMMAND}" -E env KALANDRA_TEST_FAIL_ALLOC_AT=6 "${OUTPUT_DIR}/task-recovery-message")
+if(NOT OUTPUT STREQUAL "20\n")
+  message(FATAL_ERROR "Recovery with managed diagnostic text differs: ${OUTPUT}")
+endif()
 # A root allocation fault remains uncatchable; a handler's own checked fault
 # is also not converted into the expected-error channel it was handling.
 RUN_OK("${COMPILER}" "${FIXTURES}/task-handler-fault.kalandra" -o "${OUTPUT_DIR}/task-handler-fault" ${EXTRA})

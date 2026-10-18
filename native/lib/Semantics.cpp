@@ -739,9 +739,10 @@ private:
     const auto type = capture.type;
     if (type.task || type.fallible || type.device ||
         (type.builtin != BuiltinValue::Numeric && type.builtin != BuiltinValue::Bool &&
-         type.builtin != BuiltinValue::Record)) {
+         type.builtin != BuiltinValue::Record && type.builtin != BuiltinValue::String)) {
       error("S060",
-            "anonymous callbacks capture only completed CPU numbers, collections, Bool or records",
+            "anonymous callbacks capture only completed CPU numbers, collections, Bool, records or "
+            "Strings",
             span);
       return {};
     }
@@ -1553,7 +1554,7 @@ private:
     }
     if (!expected ||
         (expected->builtin != BuiltinValue::Numeric && expected->builtin != BuiltinValue::Bool &&
-         expected->builtin != BuiltinValue::Record) ||
+         expected->builtin != BuiltinValue::Record && expected->builtin != BuiltinValue::String) ||
         expected->task) {
       error("S039", "fail needs a concrete success-type context in this subset", span);
       return {};

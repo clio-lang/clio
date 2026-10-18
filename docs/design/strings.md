@@ -1,6 +1,6 @@
 # Native String contract
 
-CPU String values, equality, concatenation, length queries, scalar indexing and slicing implemented — 2026-10-18. Literals, annotations, synchronous helpers, `+`, `==`, `!=`, `length`, `byteLength`, scalar indexing, slicing and CLI results are available. Worker/compound integrations remain gated.
+CPU String values, equality, concatenation, length queries, scalar indexing and slicing implemented — 2026-10-18. Literals, annotations, synchronous helpers, `+`, `==`, `!=`, `length`, `byteLength`, scalar indexing, slicing and CLI results are available. Local CPU workers and callback captures are available; String compound elements remain gated.
 
 The design follows the immutable [core](core.md) and [automatic memory model](memory.md). One ordinary `String` type represents text. No separate `Char` type, allocator arguments, mutable string buffers or lifetime annotations are introduced.
 
@@ -24,7 +24,7 @@ Embedded U+0000 is ordinary text. Strings are length-delimited, not C strings. N
 
 ## Operations
 
-All operations in this table compile on the synchronous CPU backend. Worker/capture and compound-value integrations remain separate.
+All operations in this table compile on the CPU backend, including local worker bodies and String callback captures. Compound-value integrations remain separate.
 
 ```kalandra
 fn greeting(name: String) -> String:
@@ -73,15 +73,15 @@ Both byte and scalar counts must fit nonnegative int64. Runtime resource budgets
 
 A returned String remains valid after its helper returns. Captures, slices, records, arrays and unfinished tasks must keep required backing alive as those integrations are implemented. A slice may share storage, provided its lifetime is retained and its boundaries are valid. Copying is also permitted; pointer identity is not observable. Static literal storage and invocation-owned storage need explicit trusted provenance internally. Never accept arbitrary native pointers as static strings merely because an ownership field is null.
 
-Worker handoff must carry validated lengths/provenance, retain the backing and leave the destination unpublished on failure. Dynamic allocation, scans and copies use the existing cooperative cancellation machinery. Native task diagnostic messages/reasons must be adapted to this model before becoming ordinary usable String values; their current private borrowed representation is not a public String ABI.
+Worker handoff must carry validated lengths/provenance, retain the backing and leave the destination unpublished on failure. Dynamic allocation, scans and copies use the existing cooperative cancellation machinery. Local CPU task diagnostic messages/reasons now use the same managed storage as ordinary Strings. Placement-aware diagnostic internals remain private, and ordinary String use with GPU placement stays gated. Neither representation is a public ABI.
 
 A String-valued CLI `main` writes its UTF-8 bytes followed by one LF, without quotes or NUL truncation. Validate and settle the result ownership before output, as with collection results. Structured display for future String arrays/records requires escaped, quoted elements and separate tests. Native String support initially targets CPU execution; GPU strings, distributed contracts and public C/C++ interfaces are outside this step.
 
 ## Implementation sequence and gates
 
 1. **Literal/value foundation — implemented:** String AST and strict escape decoding, typed String literals/annotations, trusted literal and managed storage validation, synchronous helpers/returns and CLI output. Adapt existing internal diagnostic String values or explicitly gate their ordinary use until safe. Prove empty/non-ASCII/NUL behavior and failures before exposing further composition.
-2. **Value operations — partial:** exact equality and concatenation are implemented with checked allocation/counts and fault ordering. Byte/scalar lengths are also implemented. Scalar indexing and half-open slicing are also implemented. Worker/compound integrations below keep their own qualification gates.
-3. **Workers and captures:** owned packets, source settlement, cached outcomes, cancellation, allocation failure and no partial publication; then ordinary callback captures.
+2. **Value operations — implemented:** exact equality and concatenation are implemented with checked allocation/counts and fault ordering. Byte/scalar lengths are also implemented. Scalar indexing and half-open slicing are also implemented. Compound integrations below keep their own qualification gates.
+3. **Workers and captures — implemented:** owned local CPU packets/results, source settlement, cached outcomes, cancellation, allocation failure and no partial publication; ordinary callback captures and managed CPU diagnostic messages/reasons.
 4. **Compound values:** String record fields, String arrays and numeric/Bool/record/String map combinations, with the same finite-layout and recursive-retention rules. Do not silently enable these by adding a builtin tag.
 5. **Text libraries and optimization:** explicit decoding/encoding once byte types and recoverable errors are ready; normalization, grapheme iteration and locale behavior with pinned tables; shared slices, cached counts and linear traversal. Add broader library operations independently.
 
@@ -102,7 +102,7 @@ This compiles on the CPU backend. The executable prints the literal UTF-8 bytes,
 
 The first storage path copies compiler-emitted literal globals into invocation-owned immutable buffers. A private length-delimited descriptor carries the allocation base, data pointer and byte length; nonempty values require a known owner, matching base/data and an in-bounds length before UTF-8 validation touches the bytes. Empty values use the canonical null/null/zero descriptor. No arbitrary pointer is treated as static storage. Helpers share these immutable buffers within the invocation; the CLI retains the returned backing, settles invocation owners, then writes the result. Earlier temporary Strings settle at the same invocation boundary. Earlier reclamation and static-literal reuse are later optimizations.
 
-Source String values currently require a synchronous CPU module. Combining them with task-enabled or placement-aware functions is rejected, even if the functions are not called. Existing private task diagnostic bindings retain their borrowed representation and cannot escape into ordinary String helpers or results. Ordering comparisons, String record fields/arrays and callback captures remain unsupported. Exact equality, concatenation, length queries, scalar indexing and slicing are qualified below.
+Source Strings support synchronous helpers and local CPU task modules. Placement-aware functions, ordering comparisons and String record fields/arrays remain unsupported. Callback captures are supported when the callback returns a supported numeric/Bool/record element; String-element arrays and maps remain gated. Exact equality, concatenation, length queries, scalar indexing and slicing are qualified below.
 
 Qualification covers debug, optimized generated code, address/undefined sanitizers and thread sanitizer: exact Unicode/NUL/BOM bytes and scalar encoding boundaries; strict escape/UTF-8 rejection; imported helpers and conditional results; raw CLI output and scalar/collection cleanup; invocation isolation, retained result lifetime and malformed native descriptors; allocation failure, cancellation during scans/copies and unpublished failed results. Rejected literal builds preserve prior executable/MLIR/LLVM artifacts. See the [recorded evidence](../../native/metal-proof/evidence/cpu-string-values-2026-10-18.json).
 
@@ -121,7 +121,7 @@ fn main() -> Bool:
 
 Operands evaluate once, from left to right. The checked call boundary stops evaluation after a fault or cancellation. Equality validates both complete operands before using unequal-length or unequal-prefix shortcuts; malformed trailing bytes cannot hide behind an earlier mismatch. Equality allocates no storage. Concatenation validates both inputs, checks that the combined byte length fits nonnegative int64, then copies into new managed storage. Two empty inputs produce the canonical empty String; a single empty input still follows the initial copying path. Inputs remain unchanged, and a result is published only after the copy completes. Count/allocation failure reports AllocationFault; invalid private descriptors report RuntimeFault.
 
-Validation, comparison and copying poll cooperatively. Qualification interrupts large comparisons/copies after input validation and checks that interrupted concatenation leaves its output empty and settles partial owners. Tests cover exact Unicode/NUL behavior, all equality/concatenation conformance vectors, imported/chained helpers, short-circuit logic, synchronous map callbacks, source fault order, malformed descriptors, count overflow and allocation failure. Ordinary task diagnostic equality is explicitly rejected until it has managed String storage. See the [operation evidence](../../native/metal-proof/evidence/cpu-string-operations-2026-10-18.json).
+Validation, comparison and copying poll cooperatively. Qualification interrupts large comparisons/copies after input validation and checks that interrupted concatenation leaves its output empty and settles partial owners. Tests cover exact Unicode/NUL behavior, all equality/concatenation conformance vectors, imported/chained helpers, short-circuit logic, synchronous map callbacks, source fault order, malformed descriptors, count overflow and allocation failure. Local CPU task diagnostic equality now uses managed String storage, as described in the worker section below. See the [operation evidence](../../native/metal-proof/evidence/cpu-string-operations-2026-10-18.json).
 
 
 ## Scalar and byte lengths
@@ -136,7 +136,7 @@ This prints `[3, 11]`. `length` counts Unicode scalars; `byteLength` counts UTF-
 
 Each query evaluates its argument once. It validates the complete owner/descriptor and UTF-8 sequence before returning a count; malformed trailing bytes cannot produce a plausible byte length. Scalar counting shares that validation scan, publishes its count only after successful validation, and polls cooperatively. There is no count cache or additional managed allocation. The String byte-length bound also bounds the scalar count to nonnegative int64. Failed or cancelled scans return through the existing checked invocation boundary and settle their owners normally.
 
-The queries compose with synchronous helpers, relative module imports, pipelines, conditionals and map callbacks. Ordinary String queries in task-enabled modules, including queries on private borrowed task diagnostics, remain rejected. Qualification covers the complete text/count vectors, Unicode encoding boundaries, embedded NULs, no additional allocation, single argument evaluation, source fault ordering, malformed descriptors/UTF-8, cancellation during long scans, allocation failure in argument construction, and preservation of existing outputs on rejected builds. See the [length evidence](../../native/metal-proof/evidence/cpu-string-lengths-2026-10-18.json).
+The queries compose with synchronous helpers, relative module imports, pipelines, conditionals and map callbacks. The worker integration below extends these queries to local CPU tasks and managed task diagnostics. Qualification covers the complete text/count vectors, Unicode encoding boundaries, embedded NULs, no additional allocation, single argument evaluation, source fault ordering, malformed descriptors/UTF-8, cancellation during long scans, allocation failure in argument construction, and preservation of existing outputs on rejected builds. See the [length evidence](../../native/metal-proof/evidence/cpu-string-lengths-2026-10-18.json).
 
 
 ## Scalar indexing
@@ -152,7 +152,7 @@ Negative signed indexes, high uint64 values and positions at or beyond the scala
 
 The checked runtime locates the scalar during complete UTF-8 validation, including bytes after the selected position. Unknown/settled owners, malformed descriptors and invalid trailing UTF-8 report RuntimeFault before any result is allocated. A valid position then copies exactly one to four bytes into new invocation-owned immutable storage. The result survives its helper and parent-buffer lifetime, and can be retained past invocation settlement. Allocation failure reports AllocationFault. Cancelled/failed scans never publish a selection or result. Validation polls cooperatively; scalar indexing is O(n) in the initial implementation even for position zero.
 
-This is a copying implementation. Earlier temporary reclamation and safe shared-storage views remain optimization work; retaining the indexed result does not require retaining its entire parent. Source buffers still follow the current invocation cleanup policy. Ordinary String workers/captures and String record/array elements remain separate steps; slicing is qualified below. Qualification covers all scalar-index conformance vectors, four integer widths, dynamic bounds, escaped/Unicode/NUL/BOM text, source evaluation and fault order, imported helpers, sequential callbacks, parent release, retained results, allocation failure, complete malformed-input rejection, cancellation, and rejected-build output preservation. See the [indexing evidence](../../native/metal-proof/evidence/cpu-string-indexing-2026-10-18.json).
+This is a copying implementation. Earlier temporary reclamation and safe shared-storage views remain optimization work; retaining the indexed result does not require retaining its entire parent. Source buffers still follow the current invocation cleanup policy. Local CPU workers/captures are qualified below; String record/array elements remain a separate step. Slicing is qualified below. Qualification covers all scalar-index conformance vectors, four integer widths, dynamic bounds, escaped/Unicode/NUL/BOM text, source evaluation and fault order, imported helpers, sequential callbacks, parent release, retained results, allocation failure, complete malformed-input rejection, cancellation, and rejected-build output preservation. See the [indexing evidence](../../native/metal-proof/evidence/cpu-string-indexing-2026-10-18.json).
 
 
 ## Half-open scalar slicing
@@ -168,4 +168,36 @@ Known negative/high bounds, reversed ranges and bounds beyond a tracked scalar e
 
 Both scalar boundaries are located during complete UTF-8 validation. Even an empty range validates the full input, so malformed trailing text cannot be discarded silently. Invalid descriptors or UTF-8 report RuntimeFault before allocation. The initial implementation copies nonempty ranges into independent invocation-owned buffers; full-range slicing also copies. Parent/result lifetimes follow the existing managed model, and a retained result does not require retaining its parent. Allocation failure reports AllocationFault, and interrupted scans/copies leave the result unpublished and settle partial owners. Validation and copying poll cooperatively.
 
-Slicing composes with imported helpers, pipelines, sequential callbacks, equality, lengths and indexing. It remains CPU synchronous; worker/callback captures and String array/record fields stay gated. Qualification includes all 18 design slice vectors, 16 mixed integer-bound signatures, 55 scalar intervals spanning ASCII, Unicode, joiners, NUL and BOM, empty/end/full ranges, source evaluation/fault order, retained ownership, malformed-input rejection, allocation failure, cancellation during scan/copy, and rejected-build output preservation. See the [slicing evidence](../../native/metal-proof/evidence/cpu-string-slicing-2026-10-18.json).
+Slicing composes with imported helpers, pipelines, sequential callbacks, equality, lengths and indexing. The worker integration below also supports slicing inside local CPU tasks and callbacks with String captures. String array/record fields stay gated. Qualification includes all 18 design slice vectors, 16 mixed integer-bound signatures, 55 scalar intervals spanning ASCII, Unicode, joiners, NUL and BOM, empty/end/full ranges, source evaluation/fault order, retained ownership, malformed-input rejection, allocation failure, cancellation during scan/copy, and rejected-build output preservation. See the [slicing evidence](../../native/metal-proof/evidence/cpu-string-slicing-2026-10-18.json).
+
+
+## Local CPU workers and captures
+
+```kalandra
+fn greet(name: String) -> String:
+  "Hello, " + name
+
+fn main() -> String ! TaskError:
+  try parallel:
+    work = spawn greet("Kalandra")
+    first = try await work
+    again = try await work
+    first + " / " + again
+```
+
+String arguments and completed results share immutable backing through checked references in the existing CPU task scheduler. Submission retains input storage before returning; callers can settle their own invocation without invalidating the task. Results remain valid across nested helpers, cached/repeated awaits, lexical group release and scheduler destruction while the receiving invocation still owns them. Empty Strings remain canonical and require no backing allocation. This shares bytes instead of copying the entire String at each handoff; descriptor/owner bookkeeping still has a cost.
+
+Each successful packet/result copy validates source ownership, length and the entire UTF-8 input, then acquires the destination reference before publishing its descriptor. A fault, cancelled scan, failed owner allocation or wrong result layout leaves the destination output untouched. Partially acquired dependencies settle through the existing invocation/task cleanup. Revalidating immutable bytes on each handoff is conservative; reducing that cost belongs to the later trusted-provenance optimization.
+
+Completed Strings can also be captured by sequential anonymous map callbacks, including a callback running inside a worker. The input and result arrays still need supported numeric, Bool or record elements:
+
+```kalandra
+fn sizes(label: String) -> [int64]:
+  map([1, 2, 3], fn(value): length(label) + value)
+```
+
+CPU task diagnostic `message` and `reason` bindings are copied from trusted runtime message constants into ordinary managed Strings. They can be queried, sliced, returned, captured and passed to a later worker without leaving a borrowed pointer into an expired task. Diagnostic materialization can itself fail with AllocationFault and follows the same cancellation rules. String-valued success/recovery/rethrow paths use the same structured TaskError rules as numeric values.
+
+Qualification covers empty, ASCII, Unicode, embedded NUL and large inputs; 1/2/4-worker pools; nested and sibling tasks; repeated observations; source/group/scheduler destruction; malformed descriptors; wrong layouts; cancelled validation; cancellation/deadlines; task admission and owner allocation failures; callback captures; imported helpers; and recovered diagnostic Strings. See the [worker evidence](../../native/metal-proof/evidence/cpu-string-workers-2026-10-18.json).
+
+String fields, String arrays, GPU Strings, native distributed execution and public native interfaces remain separate work. No distributed transport is introduced here.

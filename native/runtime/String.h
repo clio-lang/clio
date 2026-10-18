@@ -1,7 +1,7 @@
 #pragma once
 #include "Runtime.h"
 namespace kalandra::runtime {
-// Private synchronous CPU ABI. Nonempty values require an invocation-owned base.
+// Private CPU value ABI. Nonempty values require an invocation-owned base.
 struct StringDescriptor {
   void *allocated = nullptr;
   const char *data = nullptr;
@@ -50,3 +50,8 @@ extern "C" void kalandra_string_slice_v1(kalandra::runtime::Invocation *,
                                          kalandra::runtime::StringDescriptor *,
                                          const kalandra::runtime::StringDescriptor *, std::uint64_t,
                                          std::uint64_t) noexcept;
+
+// Retain a checked immutable backing before a task packet/result is published.
+extern "C" bool kalandra_string_retain_v1(kalandra::runtime::Invocation *,
+                                          const kalandra::runtime::Invocation *,
+                                          const kalandra::runtime::StringDescriptor *) noexcept;

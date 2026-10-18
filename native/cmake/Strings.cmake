@@ -175,3 +175,20 @@ if(BUILD_TESTING)
     set_tests_properties(native-string-slicing-${VARIANT} PROPERTIES TIMEOUT 180)
   endforeach()
 endif()
+if(BUILD_TESTING)
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    if(VARIANT STREQUAL "sanitized")
+      set(STRING_WORKER_RUNTIME "$<TARGET_FILE:kalandra-native-runtime-sanitized>")
+    elseif(VARIANT STREQUAL "thread-sanitized")
+      set(STRING_WORKER_RUNTIME "$<TARGET_FILE:kalandra-native-runtime-thread-sanitized>")
+    else()
+      set(STRING_WORKER_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
+    endif()
+    add_test(NAME native-string-workers-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${STRING_WORKER_RUNTIME}" "-DVARIANT=${VARIANT}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/string-workers-${VARIANT}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyStringWorkers.cmake")
+    set_tests_properties(native-string-workers-${VARIANT} PROPERTIES TIMEOUT 300)
+  endforeach()
+endif()

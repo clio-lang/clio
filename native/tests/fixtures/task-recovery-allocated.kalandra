@@ -16,7 +16,7 @@ fn main() -> float32:
   result = project(a, b)
   recovered = result catch fn(error):
     match error:
-      TaskError.Fault { kind: cause, message: detail }:
+      TaskError.Fault { kind: cause }:
         match cause:
           FaultKind.Allocation: tensor([[10, 20], [30, 40]])
           _: b

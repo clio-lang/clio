@@ -59,6 +59,9 @@ std::string describeType(const ValueType &type) {
            (type.task ? ">" : "") + (type.fallible ? " ! TaskError" : "");
   if (type.builtin == BuiltinValue::Device)
     return type.device ? "Device[gpu:" + std::to_string(*type.device) + "]" : "Device[cpu]";
+  if (type.builtin == BuiltinValue::String)
+    return std::string(type.task ? "task<String>" : "String") +
+           (type.fallible ? " ! TaskError" : "");
   if (type.builtin != BuiltinValue::Numeric)
     return type.builtin == BuiltinValue::TaskError   ? "TaskError"
            : type.builtin == BuiltinValue::FaultKind ? "FaultKind"
@@ -90,25 +93,15 @@ std::string describeType(const ValueType &type) {
 }
 std::optional<std::string> numericCapabilityError(const TypedModule &module, NumericTarget target) {
   if (hasOrdinaryStrings(module)) {
-    const bool tasks = std::ranges::any_of(module.functions,
-                                           [](const auto &f) { return f.resultType.fallible; }) ||
-                       std::ranges::any_of(module.expressions, [](const auto &e) {
-                         return std::holds_alternative<TaskOperation>(e.operation) ||
-                                std::holds_alternative<ParallelOperation>(e.operation) ||
-                                std::holds_alternative<CatchOperation>(e.operation) ||
-                                std::holds_alternative<MatchOperation>(e.operation);
-                       });
-    if (target != NumericTarget::Cpu || hasPlacement(module) || tasks)
-      return "ordinary Strings currently require synchronous CPU modules; workers and placement "
-             "are not implemented";
+    if (target != NumericTarget::Cpu || hasPlacement(module))
+      return "ordinary Strings currently require CPU execution without placement";
   }
   if (!module.records.empty() && (target != NumericTarget::Cpu || hasPlacement(module)))
     return "record values currently require CPU execution";
   const auto error = [&](const ValueType &type) -> std::optional<std::string> {
     if (type.builtin == BuiltinValue::String &&
-        (type.tensor || type.array || type.task || type.fallible || type.device ||
-         !type.shape.empty()))
-      return "String requires completed CPU scalar storage";
+        (type.tensor || type.array || type.device || !type.shape.empty()))
+      return "String requires CPU scalar storage";
     if (type.builtin == BuiltinValue::Record) {
       if (!type.record || *type.record >= module.records.size() || type.device ||
           (type.array ? (!type.tensor || type.shape.size() != 1)
@@ -139,8 +132,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
     return invalid->message;
   const auto scalarSame = [](const ValueType &a, const ValueType &b) {
     if (a.builtin != b.builtin || a.record != b.record || a.tensor != b.tensor ||
-        a.array != b.array || a.task || a.fallible || a.device ||
-        a.shape.size() != b.shape.size() ||
+        a.array != b.array || a.task || a.fallible || a.device || b.task || b.fallible ||
+        b.device || a.shape.size() != b.shape.size() ||
         (a.builtin == BuiltinValue::Numeric && a.element != b.element))
       return false;
     for (std::size_t i = 0; i < a.shape.size(); ++i)
@@ -258,7 +251,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
     if (arithmeticArray)
       return "arrays require explicit collection operations, not tensor/scalar arithmetic";
     if (const auto *literal = std::get_if<StringLiteral>(&expression.operation);
-        literal && (expression.type.builtin != BuiltinValue::String || !validUtf8(literal->value)))
+        literal && (expression.type.builtin != BuiltinValue::String || expression.type.task ||
+                    expression.type.fallible || !validUtf8(literal->value)))
       return "String literal requires valid UTF-8 and String identity";
     if (std::holds_alternative<BoolLiteral>(expression.operation) &&
         (expression.type.builtin != BuiltinValue::Bool || expression.type.tensor ||
@@ -526,7 +520,7 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
         const auto &formal = module.symbols[fn.parameters[i + 1]].type;
         if (actual.task || actual.fallible || actual.device ||
             (actual.builtin != BuiltinValue::Numeric && actual.builtin != BuiltinValue::Bool &&
-             actual.builtin != BuiltinValue::Record) ||
+             actual.builtin != BuiltinValue::Record && actual.builtin != BuiltinValue::String) ||
             actual.builtin != formal.builtin || actual.record != formal.record ||
             (actual.builtin == BuiltinValue::Numeric && actual.element != formal.element) ||
             actual.tensor != formal.tensor || actual.array != formal.array || formal.task ||
