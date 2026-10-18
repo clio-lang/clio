@@ -1,4 +1,5 @@
 #include "kalandra/Backend.h"
+#include "CollectionMetadata.h"
 #include "kalandra/NumericConversion.h"
 #include "kalandra/StrictFloat.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -66,20 +67,26 @@ public:
     }
     auto main =
         std::ranges::find_if(input_.functions, [](const auto &f) { return f.name == "main"; });
-    if (main == input_.functions.end() || !main->parameters.empty() || main->resultType.tensor)
-      throw LoweringFailure{"native entry requires fn main() -> float32, int32, uint32, int64, "
-                            "uint64, float64 or Bool with no parameters"};
+    if (main == input_.functions.end() || !main->parameters.empty() ||
+        (main->resultType.builtin != BuiltinValue::Numeric &&
+         main->resultType.builtin != BuiltinValue::Bool) ||
+        (main->resultType.tensor && main->resultType.shape.size() > cli::maximumCollectionRank))
+      throw LoweringFailure{
+          "native entry requires fn main() -> float32, int32, uint32, int64, "
+          "uint64, float64, Bool or a CPU numeric array/tensor with no parameters"};
     builder_.setInsertionPointToEnd(module_->getBody());
     const auto entryName =
-        main->resultType.builtin == BuiltinValue::Bool     ? "kalandra_bool_entry"
+        main->resultType.tensor                            ? "kalandra_collection_entry"
+        : main->resultType.builtin == BuiltinValue::Bool   ? "kalandra_bool_entry"
         : main->resultType.element == NumericType::Float64 ? "kalandra_float64_entry"
         : main->resultType.element == NumericType::UInt64  ? "kalandra_uint64_entry"
         : main->resultType.element == NumericType::Int64   ? "kalandra_int64_entry"
         : main->resultType.element == NumericType::UInt32  ? "kalandra_uint32_entry"
         : main->resultType.element == NumericType::Int32   ? "kalandra_int32_entry"
                                                            : "kalandra_entry";
-    auto entry = func::FuncOp::create(builder_, location(main->declaration), entryName,
-                                      builder_.getFunctionType({}, {type(main->resultType)}));
+    auto entry = func::FuncOp::create(
+        builder_, location(main->declaration), entryName,
+        builder_.getFunctionType({}, {type(main->declaredResult.value_or(main->resultType))}));
     entry->setAttr("llvm.emit_c_interface", builder_.getUnitAttr());
     builder_.setInsertionPointToStart(entry.addEntryBlock());
     const auto mainId = static_cast<FunctionId>(main - input_.functions.begin());
@@ -1335,6 +1342,10 @@ std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,
       return std::unexpected("LLVM translation failed");
     if (auto error = addCheckedInvocationABI(*native))
       return std::unexpected(*error);
+    if (exports.empty())
+      for (const auto &function : input.functions)
+        if (function.name == "main" && function.resultType.tensor)
+          collectionMetadata(*native, function.resultType);
     native->setTargetTriple(llvm::Triple("arm64-apple-macosx"));
     for (auto &function : *native)
       if (function.getName().starts_with("kalandra_fn_"))

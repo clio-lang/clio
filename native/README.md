@@ -107,3 +107,7 @@ The shared strict arithmetic engine now has a [CPU-only binary64 specialization]
 ## Local CPU modules
 
 Split reusable functions into [local modules](../docs/design/modules.md): mark a declaration `export fn`, then use `from "./math.kalandra" import double as twice`. The compiler/checker resolve explicit relative files, preserve module-local helper names and type checks, and support imported callbacks and CPU workers. Cycles, packages, type exports and GPU module integration remain separate work.
+
+## Display collection results
+
+Native CPU `main` can return an array or tensor directly. Arrays print as lists; tensors include their flat row-major values and shape, such as `tensor([1, 2, 3, 4], [2, 2])`. Completed worker results are supported. Collection-returning executables show up to 100 elements by default; use `./program --limit 10` or `./program --all` to control display. See [collection results](../docs/design/collection-results.md) for precision, ownership and failure behavior.

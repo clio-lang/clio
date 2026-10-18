@@ -1,3 +1,4 @@
+#include "CollectionMetadata.h"
 #include "kalandra/Backend.h"
 #include "kalandra/Continuation.h"
 #include "llvm/AsmParser/Parser.h"
@@ -86,15 +87,21 @@ public:
     auto main = std::ranges::find_if(planner.input.functions,
                                      [](const auto &f) { return f.name == "main"; });
     if (main == planner.input.functions.end() || !main->parameters.empty() ||
-        main->resultType.tensor ||
         (main->resultType.builtin != BuiltinValue::Numeric &&
          main->resultType.builtin != BuiltinValue::Bool))
       throw std::runtime_error("native task entry requires parameterless float32, int32, uint32, "
-                               "int64, uint64, float64 or Bool main");
+                               "int64, uint64, float64, Bool or CPU numeric array/tensor main");
     const auto id = std::size_t(main - planner.input.functions.begin());
     auto *entry = module.getFunction("_mlir_ciface_kalandra_entry");
-    if (main->resultType.builtin == BuiltinValue::Bool || isInteger(main->resultType.element) ||
-        main->resultType.element == NumericType::Float64) {
+    if (main->resultType.tensor) {
+      collectionMetadata(module, main->resultType);
+      entry->eraseFromParent();
+      entry = Function::Create(llvm::FunctionType::get(voidType, {pointer, pointer}, false),
+                               llvm::GlobalValue::ExternalLinkage,
+                               "_mlir_ciface_kalandra_collection_entry", module);
+    } else if (main->resultType.builtin == BuiltinValue::Bool ||
+               isInteger(main->resultType.element) ||
+               main->resultType.element == NumericType::Float64) {
       entry->eraseFromParent();
       entry = Function::Create(
           llvm::FunctionType::get(scalarType(main->resultType), {pointer}, false),
@@ -109,7 +116,16 @@ public:
     } else
       entry->deleteBody();
     builder.SetInsertPoint(Block::Create(context, "entry", entry));
-    auto *ctx = entry->getArg(0);
+    auto *ctx = entry->getArg(main->resultType.tensor ? 1 : 0);
+    const auto returnFailure = [&] {
+      if (main->resultType.tensor)
+        builder.CreateRetVoid();
+      else
+        builder.CreateRet(llvm::Constant::getNullValue(scalarType(main->resultType)));
+    };
+    if (main->resultType.tensor)
+      builder.CreateMemSet(entry->getArg(0), builder.getInt8(0), size(descriptor(main->resultType)),
+                           llvm::MaybeAlign(alignment(descriptor(main->resultType))));
     auto *packet = builder.CreateAlloca(packetType);
     auto *result = builder.CreateAlloca(valueType(main->resultType));
     auto *failure = builder.CreateAlloca(failureType);
@@ -128,13 +144,13 @@ public:
     call("kalandra_expected_task_error_v1", voidType,
          {ctx, builder.CreateZExt(rootKind, i64), loadFailure(failure, 1), loadFailure(failure, 2),
           loadFailure(failure, 3)});
-    builder.CreateRet(llvm::Constant::getNullValue(scalarType(main->resultType)));
+    returnFailure();
     builder.SetInsertPoint(checkedFault);
     Value *code = builder.CreateLoad(i64, builder.CreateStructGEP(failureType, failure, 1));
     code = builder.CreateSelect(builder.CreateICmpEQ(code, c64(0)), c64(3), code);
     call("kalandra_fault_v1", voidType,
          {ctx, code, loadFailure(failure, 2), loadFailure(failure, 3)});
-    builder.CreateRet(llvm::Constant::getNullValue(scalarType(main->resultType)));
+    returnFailure();
     builder.SetInsertPoint(ok);
     auto *expected = Block::Create(context, "root.expected_error", entry);
     auto *success = Block::Create(context, "root.success", entry);
@@ -145,11 +161,14 @@ public:
         builder.CreateLoad(i32, builder.CreateStructGEP(failureType, header, 0)), i64);
     call("kalandra_expected_task_error_v1", voidType,
          {ctx, kind, loadFailure(header, 1), loadFailure(header, 2), loadFailure(header, 3)});
-    builder.CreateRet(llvm::Constant::getNullValue(scalarType(main->resultType)));
+    returnFailure();
     builder.SetInsertPoint(success);
-    builder.CreateRet(
-        builder.CreateLoad(scalarType(main->resultType),
-                           builder.CreateStructGEP(valueType(main->resultType), result, 1)));
+    auto *payload = builder.CreateStructGEP(valueType(main->resultType), result, 1);
+    if (main->resultType.tensor) {
+      copy(entry->getArg(0), payload, descriptor(main->resultType));
+      builder.CreateRetVoid();
+    } else
+      builder.CreateRet(builder.CreateLoad(scalarType(main->resultType), payload));
   }
 
 private:

@@ -880,3 +880,5 @@ include(cmake/TensorReshape.cmake)
 include(cmake/TensorArray.cmake)
 
 include(cmake/Modules.cmake)
+
+include(cmake/CollectionEntry.cmake)
