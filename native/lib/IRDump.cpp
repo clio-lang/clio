@@ -254,6 +254,23 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
           return "tensor indexing requires completed CPU integer scalar indices";
       }
     }
+    if (const auto *query = std::get_if<CollectionQuery>(&expression.operation)) {
+      if (query->input >= module.expressions.size())
+        return "collection query references invalid input";
+      const auto &a = module.expressions[query->input].type;
+      const auto &r = expression.type;
+      const bool length = query->kind == CollectionQueryKind::Length;
+      if ((!length && query->kind != CollectionQueryKind::Shape) || target != NumericTarget::Cpu ||
+          !a.tensor || a.builtin != BuiltinValue::Numeric || a.task || a.fallible || a.device ||
+          a.array != length || (length && a.shape.size() != 1) ||
+          r.builtin != BuiltinValue::Numeric || r.element != NumericType::Int64 || r.task ||
+          r.fallible || r.device || r.tensor != !length || r.array != !length)
+        return "collection query requires completed CPU values and exact int64 metadata result";
+      if (length ? !r.shape.empty()
+                 : (r.shape.size() != 1 || r.shape[0].constant != a.shape.size() ||
+                    r.shape[0].identity))
+        return "collection query result shape mismatch";
+    }
     if (const auto *construction = std::get_if<ArrayToTensor>(&expression.operation)) {
       if (construction->input >= module.expressions.size())
         return "array-to-tensor construction references invalid input";
@@ -467,6 +484,10 @@ std::string dumpTypedIR(const TypedModule &module) {
               value(operation.input);
               out << " indices=";
               arguments(operation.indices);
+            } else if constexpr (std::is_same_v<T, CollectionQuery>) {
+              out << (operation.kind == CollectionQueryKind::Length ? "array.length checked "
+                                                                    : "tensor.shape checked ");
+              value(operation.input);
             } else if constexpr (std::is_same_v<T, ArrayToTensor>) {
               out << "tensor.from_array ordered_copy ";
               value(operation.input);

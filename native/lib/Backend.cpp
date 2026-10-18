@@ -919,6 +919,24 @@ private:
                   arith::IndexCastOp::create(builder_, loc, builder_.getIndexType(), position));
             }
             return tensor::ExtractOp::create(builder_, loc, input, offsets);
+          } else if constexpr (std::is_same_v<T, CollectionQuery>) {
+            auto input = expression(frame, operation.input);
+            auto shape = dimensions(loc, input);
+            checkedCount(
+                loc, shape,
+                describeNumeric(input_.expressions[operation.input].type.element)->bytes());
+            if (operation.kind == CollectionQueryKind::Length)
+              return arith::IndexCastOp::create(builder_, loc, builder_.getI64Type(), shape[0]);
+            const auto output = cast<RankedTensorType>(type(node.type));
+            Value result =
+                tensor::EmptyOp::create(builder_, loc, output.getShape(), output.getElementType());
+            for (std::size_t axis = 0; axis < shape.size(); ++axis) {
+              auto extent =
+                  arith::IndexCastOp::create(builder_, loc, builder_.getI64Type(), shape[axis]);
+              result = tensor::InsertOp::create(builder_, loc, extent, result,
+                                                ValueRange{index(loc, axis)});
+            }
+            return result;
           } else if constexpr (std::is_same_v<T, ArrayToTensor>) {
             if (operation.dimensions) {
               auto input = expression(frame, operation.input);

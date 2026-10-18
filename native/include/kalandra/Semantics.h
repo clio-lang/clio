@@ -105,6 +105,11 @@ struct TensorIndex {
   ValueId input;
   std::vector<ValueId> indices;
 };
+enum class CollectionQueryKind { Length, Shape };
+struct CollectionQuery {
+  CollectionQueryKind kind;
+  ValueId input;
+};
 struct ArrayMap {
   ValueId input;
   FunctionId function; // One explicit element parameter, followed by lifted captures.
@@ -187,9 +192,9 @@ struct TypedExpr {
   std::variant<Float64Literal, Float32Literal, Int32Literal, Int64Literal, UInt32Literal,
                UInt64Literal, BoolLiteral, ScalarCompare, SymbolRead, ScalarUnary, TensorUnary,
                ScalarBinary, TensorBinary, TensorLiteral, NumericConvert, FunctionCall, Matmul,
-               ReduceSum, ArrayMap, ArrayToTensor, ArrayIndex, TensorIndex, ShapeCheck,
-               DeviceSelection, Transfer, TaskOperation, ParallelOperation, ConditionalOperation,
-               CatchOperation, MatchOperation, ErrorFieldRead, FailOperation>
+               ReduceSum, ArrayMap, ArrayToTensor, ArrayIndex, TensorIndex, CollectionQuery,
+               ShapeCheck, DeviceSelection, Transfer, TaskOperation, ParallelOperation,
+               ConditionalOperation, CatchOperation, MatchOperation, ErrorFieldRead, FailOperation>
       operation;
 };
 struct ShapeEquality {

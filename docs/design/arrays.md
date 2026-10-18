@@ -33,6 +33,8 @@ Already typed values must conform exactly; contextual typing does not silently c
 
 Array elements evaluate left to right, once each. A runtime failure stops evaluation and retains its original source location. No partial array result is published. Source/value/depth limits and the existing bounded collection-element, indexing-range and allocation-byte checks apply.
 
+[Collection size queries](collection-queries.md) now expose `length(values)` as `int64`. Tensor extents use `shape(tensor)`, returning an immutable `[int64]` in dimension order.
+
 ## Sharing, calls and workers
 
 Passing an array does not consume its binding. Functions can return it, and the returned value remains valid after the function or worker completes. Multiple calls and tasks may share the same immutable input. Ordinary calls, pipelines to named functions, conditional length joins, structured parallel scopes, nested workers, cached awaits and TaskError recovery preserve array types and ownership.

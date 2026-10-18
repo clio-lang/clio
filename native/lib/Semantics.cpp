@@ -797,6 +797,35 @@ private:
     }
     return invoke(frame, span, callee->name, call.arguments, expected);
   }
+  std::optional<ValueId> collectionQuery(Frame &frame, SourceSpan span, const std::string &callee,
+                                         const std::vector<ExprId> &arguments) {
+    if (arguments.size() != 1) {
+      error("S027", callee + " expects exactly one argument", span);
+      return {};
+    }
+    auto input = expression(frame, arguments[0]);
+    if (!input)
+      return {};
+    const auto type = node(*input).type;
+    const bool length = callee == "length";
+    if (!type.tensor || type.builtin != BuiltinValue::Numeric || type.task || type.fallible ||
+        type.device || type.array != length) {
+      error("S064",
+            callee + (length ? " requires a completed CPU numeric array"
+                             : " requires a completed CPU numeric tensor"),
+            span);
+      return {};
+    }
+    ValueType result;
+    result.element = NumericType::Int64;
+    if (!length) {
+      result.tensor = result.array = true;
+      result.shape = {{type.shape.size(), 0}};
+    }
+    return add(
+        frame, result, span,
+        CollectionQuery{length ? CollectionQueryKind::Length : CollectionQueryKind::Shape, *input});
+  }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const IndexExpr &read,
                                const std::optional<ValueType> &expected) {
     std::optional<ValueType> context;
@@ -945,7 +974,8 @@ private:
           !std::holds_alternative<NumericConvert>(node(*value).operation) &&
           !std::holds_alternative<ReduceSum>(node(*value).operation) &&
           !std::holds_alternative<ArrayMap>(node(*value).operation) &&
-          !std::holds_alternative<ArrayToTensor>(node(*value).operation)) {
+          !std::holds_alternative<ArrayToTensor>(node(*value).operation) &&
+          !std::holds_alternative<CollectionQuery>(node(*value).operation)) {
         error("S037", "this invocation is not a supported task entry", span);
         return {};
       }
@@ -2131,6 +2161,8 @@ private:
       }
       if (auto numeric = resolveNumeric(callee))
         return conversion(frame, span, *numeric, arguments);
+      if (callee == "length" || callee == "shape")
+        return collectionQuery(frame, span, callee, arguments);
       if (callee == "map")
         return arrayMap(frame, span, arguments);
       if (callee == "tensor" || callee == "matmul" || callee == "reduceSum")

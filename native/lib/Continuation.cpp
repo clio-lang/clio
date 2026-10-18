@@ -22,8 +22,8 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
         else if constexpr (std::is_same_v<T, Matmul> || std::is_same_v<T, TensorBinary> ||
                            std::is_same_v<T, ScalarBinary> || std::is_same_v<T, ScalarCompare>)
           return {op.left, op.right};
-        else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, NumericConvert> ||
-                           std::is_same_v<T, ShapeCheck>)
+        else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, CollectionQuery> ||
+                           std::is_same_v<T, NumericConvert> || std::is_same_v<T, ShapeCheck>)
           return {op.input};
         else if constexpr (std::is_same_v<T, ArrayIndex>)
           return {op.input, op.index};
@@ -208,7 +208,8 @@ private:
             if (op.dimensions)
               for (auto &axis : *op.dimensions)
                 axis = importValue(axis);
-          } else if constexpr (std::is_same_v<T, NumericConvert> || std::is_same_v<T, ReduceSum> ||
+          } else if constexpr (std::is_same_v<T, NumericConvert> ||
+                               std::is_same_v<T, CollectionQuery> || std::is_same_v<T, ReduceSum> ||
                                std::is_same_v<T, ShapeCheck>)
             op.input = importValue(op.input);
           else if constexpr (std::is_same_v<T, ConditionalOperation>) {
@@ -293,6 +294,8 @@ private:
       comparison->right = reads[1];
     } else if (auto *convert = std::get_if<NumericConvert>(&op))
       convert->input = reads[0];
+    else if (auto *query = std::get_if<CollectionQuery>(&op))
+      query->input = reads[0];
     else if (auto *read = std::get_if<ArrayIndex>(&op)) {
       read->input = reads[0];
       read->index = reads[1];
