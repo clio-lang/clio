@@ -1,14 +1,14 @@
 # Native resolution and typed IR
 
-Implemented first CPU semantic subset — 2026-10-15. The handwritten C++23 frontend now resolves symbols, checks calls and tensor shapes, and constructs a typed IR for the [projection fixture](fixtures/cpu-projection.kalandra). This completes the initial semantic gate of the [CPU milestone](cpu-milestone.md). The [native backend](native-codegen.md) now consumes this IR to compile the projection source.
+Implemented first CPU semantic subset — 2026-10-15. The handwritten C++23 frontend now resolves symbols, checks calls and tensor shapes, and constructs a typed IR for the [projection fixture](fixtures/cpu-projection.k). This completes the initial semantic gate of the [CPU milestone](cpu-milestone.md). The [native backend](native-codegen.md) now consumes this IR to compile the projection source.
 
 ## Inspect the checked program
 
 ```sh
 cmake --build --preset native
 ctest --preset native
-build/native/native/kalandra-check docs/design/fixtures/cpu-projection.kalandra
-build/native/native/kalandra-check --dump-ir docs/design/fixtures/cpu-projection.kalandra
+build/native/native/kalandra-check docs/design/fixtures/cpu-projection.k
+build/native/native/kalandra-check --dump-ir docs/design/fixtures/cpu-projection.k
 ```
 
 The canonical fixture checks as four functions and 26 typed values. The check command prints source diagnostics and exits nonzero on failure. Dump mode emits no partial IR after an error.

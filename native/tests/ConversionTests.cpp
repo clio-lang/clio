@@ -4,7 +4,7 @@
 #include <stdexcept>
 using namespace kalandra;
 static CheckResult analyze(const std::string &text) {
-  return check(parse(std::make_shared<SourceFile>("conversion.kalandra", text)));
+  return check(parse(std::make_shared<SourceFile>("conversion.k", text)));
 }
 static void require(bool ok, const char *message) {
   if (!ok)

@@ -8,7 +8,7 @@ Implemented first syntax subset — 2026-10-15. The [CPU milestone](cpu-mileston
 cmake --preset native
 cmake --build --preset native
 ctest --preset native
-build/native/native/kalandra-parse docs/design/fixtures/cpu-projection.kalandra
+build/native/native/kalandra-parse docs/design/fixtures/cpu-projection.k
 ```
 
 The projection fixture reports `Parsed 4 functions, 40 expressions (syntax only)`. Parse failures print source path, one-based line/byte column, diagnostic code, source excerpt, and caret to stderr, and return a nonzero exit status. The tool is an internal frontend entry point, not the final compiler CLI.

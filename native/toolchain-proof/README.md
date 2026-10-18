@@ -56,7 +56,7 @@ The allocator is deliberately limited to one live result allocation, which this 
 
 ## Scope
 
-This completes the first toolchain gate of the [native CPU milestone](../../docs/design/cpu-milestone.md). It does not compile `.kalandra` source yet, support arbitrary shapes, provide a general tensor ABI, or implement the full language runtime.
+This completes the first toolchain gate of the [native CPU milestone](../../docs/design/cpu-milestone.md). It does not compile `.k` source yet, support arbitrary shapes, provide a general tensor ABI, or implement the full language runtime.
 
 The fixed descriptors are constructed by trusted test code and their input storage is independently owned. Incoming malformed descriptors, general dynamic shape validation, overflow-safe dynamic allocation, multiple live allocation failure cleanup, closures, task supervision, GPU/remote residency, and the future memory-management mechanism remain subsequent implementation work.
 

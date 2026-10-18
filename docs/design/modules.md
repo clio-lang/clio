@@ -2,7 +2,7 @@
 
 The native CPU compiler and checker now load explicit local module graphs. Functions are private to their declaring file unless marked `export`.
 
-`math.kalandra`:
+`math.k`:
 
 ```kalandra
 fn scale(value: int, factor: int):
@@ -12,29 +12,29 @@ export fn double(value: int):
   scale(value, 2)
 ```
 
-`main.kalandra`:
+`main.k`:
 
 ```kalandra
-from "./math.kalandra" import double as twice
+from "./math.k" import double as twice
 
 fn main():
   values = [1, 2, 3] -> map(twice)
   values -> tensor() -> reduceSum()
 ```
 
-Compiling `main.kalandra` produces an executable that returns `12`. An imported function has the same ordinary call, pipeline, type-checking and worker behavior as a local function. This is the first local function-module subset; package management and broader declaration forms are separate work.
+Compiling `main.k` produces an executable that returns `12`. An imported function has the same ordinary call, pipeline, type-checking and worker behavior as a local function. This is the first local function-module subset; package management and broader declaration forms are separate work.
 
 ## Imports and visibility
 
-Use `from "./file.kalandra" import name`, optionally with `as alias`. Commas separate multiple imports, for example `from "./math.kalandra" import double, total as sum`. Import declarations are top-level declarations. Their location among other declarations does not introduce runtime initialization or change function visibility.
+Use `from "./file.k" import name`, optionally with `as alias`. Commas separate multiple imports, for example `from "./math.k" import double, total as sum`. Import declarations are top-level declarations. Their location among other declarations does not introduce runtime initialization or change function visibility.
 
-Paths require an explicit `.kalandra` suffix and a `./` or `../` prefix. They resolve relative to the importing file's canonical location, independently of the process working directory. UTF-8 filenames are supported. Absolute paths, package names, extension searches, directory entry-point searches and string escapes in paths are not implemented.
+Paths require an explicit `.k` suffix and a `./` or `../` prefix. They resolve relative to the importing file's canonical location, independently of the process working directory. UTF-8 filenames are supported. Absolute paths, package names, extension searches, directory entry-point searches and string escapes in paths are not implemented.
 
 Named `export fn` declarations and [exported record types](type-exports.md) can be imported. A dependency's private helper stays private, even when the importing file has a helper with the same name. Imported aliases are local to the importing module. A function always resolves its own helpers and imports in its declaring module, including calls inside anonymous map callbacks. There is no accidental lookup in a caller's module.
 
 Duplicate local function/import bindings, duplicate aliases, missing exports and attempts to import private functions are diagnosed. Numeric conversion names and `Bool` cannot be used as import aliases. Existing name rules still apply: local values can shadow function names, but they do not become callable functions. User-defined or imported functions can explicitly shadow ordinary non-reserved builtins.
 
-Ordinary imports are not automatically re-exported. Use [explicit re-exports](reexports.md), such as `export from "./math.kalandra" import total as sum`, to expose selected functions or record types through a public entry module. Namespace imports, wildcard imports, export lists and top-level value declarations are not part of this subset. Record types can now be explicitly exported with `export type`; imported aliases preserve nominal identity.
+Ordinary imports are not automatically re-exported. Use [explicit re-exports](reexports.md), such as `export from "./math.k" import total as sum`, to expose selected functions or record types through a public entry module. Namespace imports, wildcard imports, export lists and top-level value declarations are not part of this subset. Record types can now be explicitly exported with `export type`; imported aliases preserve nominal identity.
 
 ## Types, workers and entry points
 
@@ -59,8 +59,8 @@ The compiler protects every imported source from output replacement, including e
 The development commands are:
 
 ```sh
-build/native/native/kalandra-check path/to/main.kalandra
-build/native/native/kalandrac path/to/main.kalandra -o path/to/program
+build/native/native/kalandra-check path/to/main.k
+build/native/native/kalandrac path/to/main.k -o path/to/program
 ```
 
 `kalandra-parse` remains a single-file syntax tool; parsing import syntax alone does not load dependencies. In-memory users of the frontend must call `loadModules` before checking a graph. `check(parse(source))` rejects unresolved imports.

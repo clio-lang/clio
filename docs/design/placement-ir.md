@@ -23,7 +23,7 @@ The representation is hardware-independent: checking `devices.gpu(1)` does not r
 
 ```sh
 build/native/native/kalandra-check --placement --dump-ir \
-  native/metal-source/nested-parallel.kalandra
+  native/metal-source/nested-parallel.k
 ```
 
 The ordinary checker invocation keeps its CPU policy; placement must be enabled explicitly. CPU lowering rejects a module containing device selectors, transfers, placed calls or resident types rather than silently dropping them. Ordinary CPU source and lowering remain available through the existing entry point.
@@ -57,6 +57,6 @@ A path-local value map emits shared graph nodes once. Each conditional arm start
 
 Literal rounding and tensor dimensions come from the shared checker. Tensor unary plus is already an identity in that IR, so the supervisor no longer generates its former redundant CPU wrapper. The supervisor preserves exact signed literal bits and reuses the existing CPU numeric kernels and Metal task admissions. CPU argument evaluation still precedes target selection and task admission. Pipelines use their resolved `FunctionCall` nodes, including ordinary CPU calls in mixed programs.
 
-The [integration fixture](../../native/metal-source/ir-supervisor.kalandra) combines a main-first declaration order, CPU pipelines/tasks, GPU work, nested shadowing, pattern fields, a recovered child shape fault, explicit shape guards and a returned tensor. It runs with 1/2/4 workers in debug, optimized, ASan/UBSan and TSan builds. A sanitizer-instrumented compiler must produce identical host, CPU, GPU and placement artifacts. Existing failure injection, cancellation, nested task and recovery suites also qualify the replacement. [Continuation evidence](../../native/metal-proof/evidence/ir-supervisor-2026-10-16.json) records those checks.
+The [integration fixture](../../native/metal-source/ir-supervisor.k) combines a main-first declaration order, CPU pipelines/tasks, GPU work, nested shadowing, pattern fields, a recovered child shape fault, explicit shape guards and a returned tensor. It runs with 1/2/4 workers in debug, optimized, ASan/UBSan and TSan builds. A sanitizer-instrumented compiler must produce identical host, CPU, GPU and placement artifacts. Existing failure injection, cancellation, nested task and recovery suites also qualify the replacement. [Continuation evidence](../../native/metal-proof/evidence/ir-supervisor-2026-10-16.json) records those checks.
 
 The generated supervisor remains a target-specific C++ backend; it and ordinary CPU task lowering now consume the [common continuation planner](continuations.md). Function signature capability checks and CPU export construction retain their source-level interface. Resumable mixed helper bodies, broader value/element types and additional devices remain separate increments. Distributed execution retains its design-review gate.

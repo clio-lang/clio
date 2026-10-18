@@ -68,7 +68,7 @@ def main():
     clang = pathlib.Path(lock['defaultLlvmRoot']) / 'bin/clang++'
     bundle = build / 'kernels'
     binary = build / 'scaling'
-    commands = [[args.compiler.resolve(), ROOT / 'native/benchmarks/gpu.kalandra',
+    commands = [[args.compiler.resolve(), ROOT / 'native/benchmarks/gpu.k',
                  '--target', 'metal', '-o', bundle, '-O2']]
     flags = ['-std=c++23', '-Wall', '-Wextra', '-Werror', '-O2', '-DNDEBUG', '-ffp-contract=off']
     objects = []
@@ -146,7 +146,7 @@ def main():
         return summary
 
     summary = summarize(trials)
-    sources = ['native/benchmarks/GpuScaling.mm', 'native/benchmarks/gpu.py', 'native/benchmarks/gpu.kalandra',
+    sources = ['native/benchmarks/GpuScaling.mm', 'native/benchmarks/gpu.py', 'native/benchmarks/gpu.k',
                'native/metal/Metal.h', 'native/metal/Metal.mm', 'native/metal/MatmulLayout.h', 'native/runtime/Tensor.h', 'native/runtime/Runtime.h', 'native/runtime/Runtime.cpp',
                'native/runtime/Tasks.h', 'native/runtime/Tasks.cpp', 'native/lib/Backend.cpp', 'native/lib/CheckedABI.cpp',
                'native/metal-source/Compiler.cpp', 'native/metal-source/MatmulShader.h', 'native/metal-source/MatmulTiles.h', 'native/metal-source/Build.cpp',

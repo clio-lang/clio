@@ -268,7 +268,7 @@ struct ModuleLimits {
   std::size_t maxFiles = 128;
   std::size_t maxDepth = 32;
 };
-// CPU local-module loading: explicit relative .kalandra files, bounded acyclic graph.
+// CPU local-module loading: explicit relative .k files, bounded acyclic graph.
 [[nodiscard]] std::expected<ParseResult, std::string>
 loadModules(std::string path, SyntaxLimits syntaxLimits = {}, ModuleLimits moduleLimits = {});
 } // namespace kalandra

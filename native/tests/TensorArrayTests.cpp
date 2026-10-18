@@ -8,7 +8,7 @@ static void require(bool ok, const std::string &message) {
     throw std::runtime_error(message);
 }
 static CheckResult analyze(const std::string &text) {
-  return check(parse(std::make_shared<SourceFile>("tensor-array.kalandra", text)));
+  return check(parse(std::make_shared<SourceFile>("tensor-array.k", text)));
 }
 int main() {
   try {
@@ -103,7 +103,7 @@ int main() {
       require(!analyze(source).ok(), std::string("invalid tensor-to-array admitted: ") + source);
     auto resident = check(
         parse(std::make_shared<SourceFile>(
-            "resident.kalandra", "fn main() ! TaskError:\n  try parallel:\n    "
+            "resident.k", "fn main() ! TaskError:\n  try parallel:\n    "
                                  "values:Tensor[float32,2]=tensor([1,2])\n    resident=try "
                                  "await transfer(values,devices.gpu())\n    array(resident)\n")),
         {}, {.placement = true});

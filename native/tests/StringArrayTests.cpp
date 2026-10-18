@@ -8,7 +8,7 @@ static void require(bool ok, const std::string &message) {
     throw std::runtime_error(message);
 }
 static CheckResult analyze(const std::string &source) {
-  return check(parse(std::make_shared<SourceFile>("string-arrays.kalandra", source)));
+  return check(parse(std::make_shared<SourceFile>("string-arrays.k", source)));
 }
 int main() {
   try {

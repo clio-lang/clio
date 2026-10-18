@@ -86,9 +86,9 @@ foreach(GATE IN ITEMS metal)
   set(GATE_SOURCE "${SOURCE}")
   set(GATE_FLAGS --target metal)
   set(GATE_ERROR float64)
-  file(WRITE "${OUTPUT_DIR}/${GATE}.kalandra" "${GATE_SOURCE}")
+  file(WRITE "${OUTPUT_DIR}/${GATE}.k" "${GATE_SOURCE}")
   file(WRITE "${OUTPUT_DIR}/preserved" "preserved executable")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${GATE}.kalandra" -o "${OUTPUT_DIR}/preserved" ${GATE_FLAGS}
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${GATE}.k" -o "${OUTPUT_DIR}/preserved" ${GATE_FLAGS}
     RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
   file(READ "${OUTPUT_DIR}/preserved" PRESERVED)
   if(NOT STATUS EQUAL 1 OR NOT ERR MATCHES "${GATE_ERROR}" OR NOT PRESERVED STREQUAL "preserved executable")

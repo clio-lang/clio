@@ -89,7 +89,7 @@ void verify(const ModulePlan &module) {
   }
 }
 CheckResult analyze(const std::string &source, bool placement = false) {
-  return check(parse(std::make_shared<SourceFile>("plan.kalandra", source)), {},
+  return check(parse(std::make_shared<SourceFile>("plan.k", source)), {},
                {.placement = placement});
 }
 } // namespace
@@ -121,7 +121,7 @@ int main(int argc, char **argv) {
                              "resumable-helpers",
                              "spawned-helpers"}) {
       auto file =
-          loadSource((root / "native/metal-source" / (std::string(name) + ".kalandra")).string());
+          loadSource((root / "native/metal-source" / (std::string(name) + ".k")).string());
       require(bool(file), "cannot read mixed fixture");
       auto checked = check(parse(*file), {}, {.placement = true});
       require(checked.ok(), "fixture failed shared checking");
@@ -145,7 +145,7 @@ int main(int argc, char **argv) {
     }
     for (const char *name : {"task-recovery", "task-recovery-allocated"}) {
       auto file =
-          loadSource((root / "native/tests/fixtures" / (std::string(name) + ".kalandra")).string());
+          loadSource((root / "native/tests/fixtures" / (std::string(name) + ".k")).string());
       require(bool(file), "cannot read CPU fixture");
       auto checked = check(parse(*file));
       require(checked.ok(), "CPU fixture checking failed");

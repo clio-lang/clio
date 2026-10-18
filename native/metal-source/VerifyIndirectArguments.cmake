@@ -1,4 +1,4 @@
-file(READ "${SOURCE_DIR}/indirect-arguments.kalandra" SOURCE)
+file(READ "${SOURCE_DIR}/indirect-arguments.k" SOURCE)
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
 set(EXPECTED "[42280000,42a40000,42f40000,43220000,434a0000,43720000]\n")
 foreach(VARIANT IN ITEMS optimized sanitized thread-sanitized)
@@ -9,7 +9,7 @@ foreach(VARIANT IN ITEMS optimized sanitized thread-sanitized)
   else()
     set(FLAG --thread-sanitize)
   endif()
-  execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/indirect-arguments.kalandra" --target metal
+  execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/indirect-arguments.k" --target metal
     -o "${OUTPUT_DIR}/${VARIANT}" "${FLAG}" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${VARIANT}: ${OUT} ${ERROR}")
@@ -62,10 +62,10 @@ endif()
 string(REPLACE "    dm = try await transfer(m, gpu)"
   "    dm = try await transfer(m, gpu)\n    n: Tensor[float32, 3, 2] = tensor([[1, 2], [3, 4], [5, 6]])\n    dn = try await transfer(n, gpu)" BAD "${SOURCE}")
 string(REPLACE "dm, dm, 1) on gpu" "dm, dn, 1) on gpu" BAD "${BAD}")
-file(WRITE "${OUTPUT_DIR}/bad.kalandra" "${BAD}")
+file(WRITE "${OUTPUT_DIR}/bad.k" "${BAD}")
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/bad")
 file(WRITE "${OUTPUT_DIR}/bad/host.cpp" "sentinel")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/bad.kalandra" --target metal
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/bad.k" --target metal
   -o "${OUTPUT_DIR}/bad" RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 file(READ "${OUTPUT_DIR}/bad/host.cpp" SENTINEL)
 if(STATUS EQUAL 0 OR NOT ERROR MATCHES "S033" OR NOT SENTINEL STREQUAL "sentinel")
@@ -73,8 +73,8 @@ if(STATUS EQUAL 0 OR NOT ERROR MATCHES "S033" OR NOT SENTINEL STREQUAL "sentinel
 endif()
 set(FORWARD "fn forward(values: Tensor[float32, ?, ?]) -> Tensor[float32, ?, ?]:\n  values\n\n")
 string(REPLACE "transfer(n, gpu)" "transfer(forward(n), gpu)" BAD "${BAD}")
-file(WRITE "${OUTPUT_DIR}/dynamic.kalandra" "${FORWARD}${BAD}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/dynamic.kalandra" --target metal
+file(WRITE "${OUTPUT_DIR}/dynamic.k" "${FORWARD}${BAD}")
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/dynamic.k" --target metal
   -o "${OUTPUT_DIR}/dynamic" --sanitize RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Last input dynamic shape did not compile: ${ERROR}")

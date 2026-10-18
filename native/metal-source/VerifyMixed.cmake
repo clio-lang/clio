@@ -1,8 +1,8 @@
-file(READ "${SOURCE_DIR}/mixed.kalandra" SOURCE)
+file(READ "${SOURCE_DIR}/mixed.k" SOURCE)
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
 function(build_run NAME CONTENT EXPECTED FAILURE)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${CONTENT}")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" --target metal -o "${OUTPUT_DIR}/${NAME}" -O2
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}" -O2
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${NAME}: build failed: ${OUT} ${ERROR}")

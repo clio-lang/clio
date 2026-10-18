@@ -2,11 +2,11 @@
 
 Accepted implementation sequence — 2026-10-15. The first sequential float32 CPU milestone is implemented and its conformance sweep passes on macOS ARM64. The [application walkthrough](compute-example.md) is accepted as the integration direction. This milestone implements its sequential CPU calculation, using the fresh language rules rather than extending the prototype's JavaScript emitter.
 
-The deliverable is a compiler path from a `.kalandra` source file to a standalone native executable. The executable computes float32 163 from the projection fixture without Bun, Node, a JavaScript engine, a GPU, or a service. A separate runtime-input harness verifies that real computation remains after constant folding is disabled or inapplicable.
+The deliverable is a compiler path from a `.k` source file to a standalone native executable. The executable computes float32 163 from the projection fixture without Bun, Node, a JavaScript engine, a GPU, or a service. A separate runtime-input harness verifies that real computation remains after constant folding is disabled or inapplicable.
 
 ## Acceptance program
 
-The canonical source is [cpu-projection.kalandra](fixtures/cpu-projection.kalandra). It constructs the two example matrices and calls reference, which calls project and summarize. Main returns float32 163. Functions returning tensors must work across a function boundary; this cannot depend on inlining every call.
+The canonical source is [cpu-projection.k](fixtures/cpu-projection.k). It constructs the two example matrices and calls reference, which calls project and summarize. Main returns float32 163. Functions returning tensors must work across a function boundary; this cannot depend on inlining every call.
 
 For this milestone, the compiler-generated executable wrapper accepts `fn main() -> float32`, writes the successful scalar result as one decimal line to stdout, and exits zero. It reports compilation/runtime faults to stderr and exits nonzero. This is a development harness convention, not the final language entry-point or printing API. Arbitrary float results must round-trip; the fixture's exact stdout is `163` followed by a newline.
 

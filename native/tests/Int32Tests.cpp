@@ -3,7 +3,7 @@
 #include <stdexcept>
 using namespace kalandra;
 CheckResult analyze(const std::string &source) {
-  return check(parse(std::make_shared<SourceFile>("int32.kalandra", source)));
+  return check(parse(std::make_shared<SourceFile>("int32.k", source)));
 }
 void require(bool condition, const char *message) {
   if (!condition)

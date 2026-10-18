@@ -1,8 +1,8 @@
-file(READ "${SOURCE_DIR}/resumable-helpers.kalandra" SOURCE)
+file(READ "${SOURCE_DIR}/resumable-helpers.k" SOURCE)
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
 function(build_run NAME CONTENT EXPECTED)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${CONTENT}")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" --target metal
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal
     -o "${OUTPUT_DIR}/${NAME}" --sanitize RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${NAME} compilation: ${STATUS}: ${OUT} ${ERROR}")
@@ -30,18 +30,18 @@ build_run(helper-owned-scope "${NO_OUTER}" "[41f00000,42700000,42b40000]\n")
 string(REPLACE "fn attempt(values:Tensor[float32,?]) -> float32 ! TaskError:\n  try parallel:"
   "fn attempt(values:Tensor[float32,?]) -> float32 ! TaskError:\n  parallel:" DEFERRED "${SOURCE}")
 build_run(deferred-error "${DEFERRED}" "43340000\n")
-execute_process(COMMAND "${CHECKER}" --placement --dump-plan "${OUTPUT_DIR}/recovered.kalandra"
+execute_process(COMMAND "${CHECKER}" --placement --dump-plan "${OUTPUT_DIR}/recovered.k"
   RESULT_VARIABLE STATUS OUTPUT_VARIABLE PLAN ERROR_VARIABLE ERROR)
 file(READ "${OUTPUT_DIR}/recovered/continuation.plan" EMITTED)
 if(NOT STATUS EQUAL 0 OR NOT PLAN STREQUAL EMITTED)
   message(FATAL_ERROR "Standalone helper plan differs: ${ERROR}")
 endif()
-execute_process(COMMAND "${NORMAL_COMPILER}" "${OUTPUT_DIR}/recovered.kalandra"
+execute_process(COMMAND "${NORMAL_COMPILER}" "${OUTPUT_DIR}/recovered.k"
   -o "${OUTPUT_DIR}/compiler-normal" RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Normal compiler rejected helpers: ${ERROR}")
 endif()
-execute_process(COMMAND "${SANITIZED_COMPILER}" "${OUTPUT_DIR}/recovered.kalandra"
+execute_process(COMMAND "${SANITIZED_COMPILER}" "${OUTPUT_DIR}/recovered.k"
   -o "${OUTPUT_DIR}/compiler-sanitized" RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Sanitized compiler rejected helpers: ${ERROR}")
@@ -54,10 +54,10 @@ foreach(FILE IN ITEMS host.cpp cpu.ll kernel0.mlir placement.ir continuation.pla
   endif()
 endforeach()
 function(reject NAME CONTENT PATTERN)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${CONTENT}")
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
   file(MAKE_DIRECTORY "${OUTPUT_DIR}/${NAME}")
   file(WRITE "${OUTPUT_DIR}/${NAME}/host.cpp" "sentinel")
-  execute_process(COMMAND "${SANITIZED_COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra"
+  execute_process(COMMAND "${SANITIZED_COMPILER}" "${OUTPUT_DIR}/${NAME}.k"
     -o "${OUTPUT_DIR}/${NAME}" RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
   file(READ "${OUTPUT_DIR}/${NAME}/host.cpp" SENTINEL)
   if(STATUS EQUAL 0 OR NOT ERROR MATCHES "${PATTERN}" OR NOT SENTINEL STREQUAL "sentinel"

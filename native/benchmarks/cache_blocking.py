@@ -51,7 +51,7 @@ def main():
     lock = json.loads((ROOT / 'native/toolchain-proof/toolchain.json').read_text())
     clang = pathlib.Path(lock['defaultLlvmRoot']) / 'bin/clang++'
     sources = ('native/benchmarks/CacheBlocking.cpp', 'native/benchmarks/cache_blocking.py',
-               'native/tests/fixtures/dynamic-projection.kalandra', 'native/runtime/Runtime.cpp',
+               'native/tests/fixtures/dynamic-projection.k', 'native/runtime/Runtime.cpp',
                'native/runtime/Runtime.h', 'native/lib/Backend.cpp', 'native/lib/CheckedABI.cpp')
     hashes = {p: digest(ROOT / p) for p in sources}
     commands = []
@@ -62,7 +62,7 @@ def main():
         return subprocess.check_output(command, cwd=ROOT, text=True, timeout=180)
 
     def generate(name, extra):
-        run([args.compiler.resolve(), ROOT / 'native/tests/fixtures/dynamic-projection.kalandra',
+        run([args.compiler.resolve(), ROOT / 'native/tests/fixtures/dynamic-projection.k',
              '-o', BUILD / (name + '-projection'), '--emit-llvm', BUILD / (name + '.ll'),
              '--test-entry', 'reference', '-O2', *extra])
 

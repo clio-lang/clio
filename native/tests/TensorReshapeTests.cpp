@@ -8,7 +8,7 @@ static void require(bool ok, const std::string &message) {
     throw std::runtime_error(message);
 }
 static CheckResult analyze(const std::string &text) {
-  return check(parse(std::make_shared<SourceFile>("tensor-reshape.kalandra", text)));
+  return check(parse(std::make_shared<SourceFile>("tensor-reshape.k", text)));
 }
 int main() {
   try {
@@ -102,7 +102,7 @@ int main() {
           "reshape(work,[2])\n"})
       require(!analyze(source).ok(), std::string("invalid tensor reshape admitted: ") + source);
     auto resident = check(parse(std::make_shared<SourceFile>(
-                              "resident.kalandra",
+                              "resident.k",
                               "fn main()->Tensor[float32,4] ! TaskError:\n  try parallel:\n    "
                               "values:Tensor[float32,2,2]=tensor([[1,2],[3,4]])\n    resident=try "
                               "await transfer(values,devices.gpu())\n    reshape(resident,[4])\n")),

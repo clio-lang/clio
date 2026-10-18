@@ -17,7 +17,7 @@ def run(args, expected=None):
     return result
 
 def compile(name,text):
-    file=output/(name+'.kalandra');file.write_text(text)
+    file=output/(name+'.k');file.write_text(text)
     exe=output/name
     run([compiler,file,'-o',exe,'--emit-llvm',str(exe)+'.ll','--emit-mlir',str(exe)+'.mlir',*extra])
     return exe
@@ -28,8 +28,8 @@ def literal(text):
 for index,case in enumerate(fixtures['text_cases']):
     exe=compile('counts-'+str(index),'fn scalarCount(text:String)->int64:\n  length(text)\nfn bytes(text:String)->int64:\n  byteLength(text)\nfn main():\n  text='+literal(case['text'])+'\n  [scalarCount(text),bytes(text)]\n')
     run([exe],f'[{case["scalar_length"]}, {case["byte_length"]}]\n'.encode())
-(output/'queries.kalandra').write_text('export fn measure(text:String)->int64:\n  length(text)*100+byteLength(text)\n')
-exe=compile('imported','from "./queries.kalandra" import measure\nfn main():\n  measure("سلام"+"\\0"+"👩‍💻")\n')
+(output/'queries.k').write_text('export fn measure(text:String)->int64:\n  length(text)*100+byteLength(text)\n')
+exe=compile('imported','from "./queries.k" import measure\nfn main():\n  measure("سلام"+"\\0"+"👩‍💻")\n')
 run([exe],b'820\n')
 for failure in range(1,13):
     env=dict(os.environ,KALANDRA_TEST_FAIL_ALLOC_AT=str(failure),KALANDRA_TEST_REPORT_CLEANUP='1')
@@ -58,7 +58,7 @@ for name,call,expected in [('scalar','length',b'3\n'),('bytes','byteLength',b'11
     assert result.returncode and not result.stdout and b'ArithmeticFault' in result.stderr,result
 
 for index,expr in enumerate(['byteLength(1)','byteLength(true)','byteLength([1,2])','byteLength(tensor([1,2]))','shape("a")','length()','byteLength()','length("a","b")','byteLength("a","b")']):
-    file=output/f'invalid-{index}.kalandra';file.write_text('fn main():\n  '+expr+'\n')
+    file=output/f'invalid-{index}.k';file.write_text('fn main():\n  '+expr+'\n')
     artifacts=[output/'preserved',output/'preserved.ll',output/'preserved.mlir']
     for p in artifacts:p.write_bytes(b'keep-existing-artifact')
     result=subprocess.run(list(map(str,[compiler,file,'-o',artifacts[0],'--emit-llvm',artifacts[1],'--emit-mlir',artifacts[2],*extra])),capture_output=True)

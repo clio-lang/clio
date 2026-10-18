@@ -4,7 +4,7 @@
 #include <stdexcept>
 using namespace kalandra;
 static CheckResult analyze(const std::string &text) {
-  return check(parse(std::make_shared<SourceFile>("boolean.kalandra", text)));
+  return check(parse(std::make_shared<SourceFile>("boolean.k", text)));
 }
 static void require(bool condition, const char *message) {
   if (!condition)

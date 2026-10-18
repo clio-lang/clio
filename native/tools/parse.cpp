@@ -8,7 +8,7 @@
 int main(int argc, char **argv) {
   const std::span<char *> arguments(argv, static_cast<std::size_t>(argc));
   if (arguments.size() != 2) {
-    std::cerr << "usage: kalandra-parse <source.kalandra>\n";
+    std::cerr << "usage: kalandra-parse <source.k>\n";
     return 2;
   }
   auto source = kalandra::loadSource(arguments[1]);

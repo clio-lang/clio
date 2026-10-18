@@ -9,7 +9,7 @@ void require(bool value, const char *message) {
     throw std::runtime_error(message);
 }
 CheckResult analyze(std::string source, SemanticLimits limits = {}) {
-  return check(parse(std::make_shared<SourceFile>("placement.kalandra", std::move(source))), limits,
+  return check(parse(std::make_shared<SourceFile>("placement.k", std::move(source))), limits,
                {.placement = true});
 }
 void accepted(const CheckResult &result) {
@@ -182,17 +182,17 @@ void contracts() {
   accepted(cpu);
   require(!lowerNative(*cpu.module), "CPU selector erased by backend");
   auto ordinary = check(parse(std::make_shared<SourceFile>(
-      "cpu.kalandra", helpers + "fn main() -> float32:\n  total(tensor([1,2]))\n")));
+      "cpu.k", helpers + "fn main() -> float32:\n  total(tensor([1,2]))\n")));
   accepted(ordinary);
   require(bool(lowerNative(*ordinary.module)), "parameter literal context regressed");
   auto cpuSource =
       helpers + "fn main() -> float32:\n  data:Tensor[float32,2] = tensor([1,2])\n  total(data)\n";
-  ordinary = check(parse(std::make_shared<SourceFile>("cpu.kalandra", cpuSource)));
+  ordinary = check(parse(std::make_shared<SourceFile>("cpu.k", cpuSource)));
   accepted(ordinary);
   require(!hasPlacement(*ordinary.module), "ordinary CPU IR changed kind");
   require(bool(lowerNative(*ordinary.module)), "ordinary CPU lowering regressed");
   auto cpuDefault = check(parse(std::make_shared<SourceFile>(
-      "cpu.kalandra", start + "    try await spawn total(values) on cpu\n")));
+      "cpu.k", start + "    try await spawn total(values) on cpu\n")));
   require(!cpuDefault.ok(), "ordinary CPU frontend silently enabled placement");
 }
 void failures() {
@@ -265,7 +265,7 @@ int main(int argc, char **argv) {
           "matrix-elementwise", "differences", "arguments", "unused-inputs", "indirect-arguments",
           "tensor-negation", "division", "host-expressions", "cpu-spawn", "nested-parallel",
           "recovery", "reduction", "matmul"}) {
-      auto source = loadSource(std::string(argv[1]) + "/native/metal-source/" + name + ".kalandra");
+      auto source = loadSource(std::string(argv[1]) + "/native/metal-source/" + name + ".k");
       require(bool(source), "missing mixed fixture");
       auto result = check(parse(*source), {}, {.placement = true});
       accepted(result);

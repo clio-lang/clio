@@ -72,11 +72,11 @@ std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimi
       const auto quoted = (*source)->slice(import.path);
       const std::string specifier(quoted.substr(1, quoted.size() - 2));
       if ((!specifier.starts_with("./") && !specifier.starts_with("../")) ||
-          !specifier.ends_with(".kalandra") ||
+          !specifier.ends_with(".k") ||
           specifier.find_first_of("\\\r\n") != std::string::npos ||
           specifier.find('\0') != std::string::npos) {
         fail(*source, import.path, "M001",
-             "module paths require an explicit relative .kalandra file without escapes");
+             "module paths require an explicit relative .k file without escapes");
         return {};
       }
       auto target = visit(canonical.parent_path() / specifier, depth + 1, *source, import.path);

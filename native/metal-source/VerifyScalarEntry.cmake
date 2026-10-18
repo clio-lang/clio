@@ -1,7 +1,7 @@
-file(READ "${SOURCE_DIR}/scalar-entry.kalandra" SOURCE)
+file(READ "${SOURCE_DIR}/scalar-entry.k" SOURCE)
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
-file(WRITE "${OUTPUT_DIR}/source.kalandra" "${SOURCE}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/source.kalandra" --target metal -o "${OUTPUT_DIR}/gpu" -O2
+file(WRITE "${OUTPUT_DIR}/source.k" "${SOURCE}")
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/source.k" --target metal -o "${OUTPUT_DIR}/gpu" -O2
   RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Scalar GPU source failed: ${OUT} ${ERROR}")
@@ -15,8 +15,8 @@ foreach(WORKERS IN ITEMS 1 2 4)
 endforeach()
 # An unused scalar retains its declared contract without requiring a resource binding.
 string(REPLACE "  values * factor" "  values" UNUSED "${SOURCE}")
-file(WRITE "${OUTPUT_DIR}/unused.kalandra" "${UNUSED}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/unused.kalandra" --target metal -o "${OUTPUT_DIR}/unused" -O2
+file(WRITE "${OUTPUT_DIR}/unused.k" "${UNUSED}")
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/unused.k" --target metal -o "${OUTPUT_DIR}/unused" -O2
   RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Unused scalar build failed: ${ERROR}")
@@ -27,8 +27,8 @@ if(NOT STATUS EQUAL 0 OR NOT OUT STREQUAL "[41180000,41380000,41580000]\n")
 endif()
 string(FIND "${SOURCE}" "fn main()" MAIN)
 string(SUBSTRING "${SOURCE}" 0 ${MAIN} FUNCTIONS)
-file(WRITE "${OUTPUT_DIR}/cpu.kalandra" "${FUNCTIONS}fn main() -> float32:\n  values: Tensor[float32,3] = tensor([1,2,3])\n  reduceSum(affine(0.5,values,2))\n")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/cpu.kalandra" -o "${OUTPUT_DIR}/cpu" -O2
+file(WRITE "${OUTPUT_DIR}/cpu.k" "${FUNCTIONS}fn main() -> float32:\n  values: Tensor[float32,3] = tensor([1,2,3])\n  reduceSum(affine(0.5,values,2))\n")
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/cpu.k" -o "${OUTPUT_DIR}/cpu" -O2
   RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Scalar CPU source failed: ${ERROR}")
@@ -38,10 +38,10 @@ if(NOT STATUS EQUAL 0 OR NOT OUT STREQUAL "13.5\n")
   message(FATAL_ERROR "Scalar CPU result ${STATUS}: ${OUT} ${ERROR}")
 endif()
 function(reject NAME CONTENT)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${CONTENT}")
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
   file(MAKE_DIRECTORY "${OUTPUT_DIR}/${NAME}")
   file(WRITE "${OUTPUT_DIR}/${NAME}/host.cpp" "sentinel")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" --target metal -o "${OUTPUT_DIR}/${NAME}"
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}"
     RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
   if(STATUS EQUAL 0 OR NOT ERROR MATCHES "(G001|S0)")
     message(FATAL_ERROR "${NAME} was not rejected: ${STATUS} ${ERROR}")
@@ -59,8 +59,8 @@ string(REPLACE "spawn scale(uploaded, factor)" "spawn scale(values, factor)" BAD
 reject(residency "${BAD}")
 string(REPLACE "h: float32)" "h: float32, i: float32)" BAD "${SOURCE}")
 string(REPLACE "copied, 1, 1, 1, 1, 1, 1, 1, 1)" "copied, 1, 1, 1, 1, 1, 1, 1, 1, 1)" BAD "${BAD}")
-file(WRITE "${OUTPUT_DIR}/nine-scalars.kalandra" "${BAD}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/nine-scalars.kalandra" --target metal
+file(WRITE "${OUTPUT_DIR}/nine-scalars.k" "${BAD}")
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/nine-scalars.k" --target metal
   -o "${OUTPUT_DIR}/nine-scalars" -O2 RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Ninth scalar was not accepted: ${OUT} ${ERROR}")
@@ -71,8 +71,8 @@ if(NOT STATUS EQUAL 0 OR NOT OUT STREQUAL "[41880000,41d00000,420c0000]\n")
 endif()
 string(REPLACE "fn identity(values: Tensor[float32, ?])" "fn identity(values: Tensor[float32, ?], b: Tensor[float32, ?], c: Tensor[float32, ?])" BAD "${SOURCE}")
 string(REPLACE "spawn identity(blended)" "spawn identity(blended, uploaded, uploaded)" BAD "${BAD}")
-file(WRITE "${OUTPUT_DIR}/unused-tensors.kalandra" "${BAD}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/unused-tensors.kalandra" --target metal
+file(WRITE "${OUTPUT_DIR}/unused-tensors.k" "${BAD}")
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/unused-tensors.k" --target metal
   -o "${OUTPUT_DIR}/unused-tensors" -O2 RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Unused tensors were rejected: ${ERROR}")

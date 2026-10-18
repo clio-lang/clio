@@ -1,8 +1,8 @@
-file(READ "${SOURCE_DIR}/spawned-helpers.kalandra" SOURCE)
+file(READ "${SOURCE_DIR}/spawned-helpers.k" SOURCE)
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
 function(build_run NAME CONTENT EXPECTED)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${CONTENT}")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" --target metal
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal
     -o "${OUTPUT_DIR}/${NAME}" --sanitize RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${NAME} compilation: ${STATUS}: ${OUT} ${ERROR}")
@@ -46,7 +46,7 @@ build_run(empty-child "${EMPTY}" "00000000\n")
 set(SCOPED "fn main() -> float32 ! TaskError:\n  try parallel:\n    left:Tensor[float32,3] = tensor([1,2,3])\n    right:Tensor[float32,2] = tensor([1,2])\n    work = spawn recover(forward(left),forward(right))\n    factor = try await work\n    gpu = devices.gpu()\n    input = try await transfer(left,gpu)\n    result = try await spawn scale(input,factor) on gpu\n    host = try await transfer(result,devices.cpu())\n    reduceSum(host)\n\nfn recover(left:Tensor[float32,?], right:Tensor[float32,?]) -> float32:\n  outcome = parallel:\n    values = try await spawn combine(left,right)\n    reduceSum(values)\n  outcome catch fn(error): 42\n\nfn combine(left:Tensor[float32,?], right:Tensor[float32,?]) -> Tensor[float32,?]:\n  left + right\n\nfn forward(values:Tensor[float32,?]) -> Tensor[float32,?]:\n  values\n\nfn scale(values:Tensor[float32,?], factor:float32) -> Tensor[float32,?]:\n  values * factor\n")
 build_run(scoped-dynamic-recovery "${SCOPED}" "437c0000\n")
 foreach(TOOL IN ITEMS NORMAL_COMPILER SANITIZED_COMPILER)
-  execute_process(COMMAND "${${TOOL}}" "${OUTPUT_DIR}/siblings.kalandra" -o "${OUTPUT_DIR}/${TOOL}"
+  execute_process(COMMAND "${${TOOL}}" "${OUTPUT_DIR}/siblings.k" -o "${OUTPUT_DIR}/${TOOL}"
     RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${TOOL} rejected children: ${ERROR}")
@@ -59,17 +59,17 @@ foreach(FILE IN ITEMS host.cpp cpu.ll kernel0.mlir placement.ir continuation.pla
     message(FATAL_ERROR "Compiler instrumentation changed spawned helper ${FILE}")
   endif()
 endforeach()
-execute_process(COMMAND "${CHECKER}" --placement --dump-plan "${OUTPUT_DIR}/siblings.kalandra"
+execute_process(COMMAND "${CHECKER}" --placement --dump-plan "${OUTPUT_DIR}/siblings.k"
   RESULT_VARIABLE STATUS OUTPUT_VARIABLE PLAN ERROR_VARIABLE ERROR)
 file(READ "${OUTPUT_DIR}/siblings/continuation.plan" EMITTED)
 if(NOT STATUS EQUAL 0 OR NOT PLAN STREQUAL EMITTED OR NOT PLAN MATCHES "plan @1" OR NOT PLAN MATCHES "plan @2")
   message(FATAL_ERROR "Standalone child plans differ: ${ERROR}")
 endif()
 function(reject NAME CONTENT PATTERN)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${CONTENT}")
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
   file(MAKE_DIRECTORY "${OUTPUT_DIR}/${NAME}")
   file(WRITE "${OUTPUT_DIR}/${NAME}/host.cpp" "sentinel")
-  execute_process(COMMAND "${SANITIZED_COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra"
+  execute_process(COMMAND "${SANITIZED_COMPILER}" "${OUTPUT_DIR}/${NAME}.k"
     -o "${OUTPUT_DIR}/${NAME}" RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
   file(READ "${OUTPUT_DIR}/${NAME}/host.cpp" SENTINEL)
   if(STATUS EQUAL 0 OR NOT ERROR MATCHES "${PATTERN}" OR NOT SENTINEL STREQUAL "sentinel"

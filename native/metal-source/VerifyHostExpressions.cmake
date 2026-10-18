@@ -1,8 +1,8 @@
-file(READ "${SOURCE_DIR}/host-expressions.kalandra" SOURCE)
+file(READ "${SOURCE_DIR}/host-expressions.k" SOURCE)
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
 function(build_run NAME CONTENT EXPECTED FLAG)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${CONTENT}")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" --target metal
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal
     -o "${OUTPUT_DIR}/${NAME}" ${FLAG} RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${NAME} compilation: ${STATUS}: ${OUT} ${ERROR}")
@@ -30,7 +30,7 @@ endforeach()
 # The same expression signatures reuse checked kernels. User names never alias internal ones.
 file(SHA256 "${OUTPUT_DIR}/optimized/host.cpp" HOST)
 file(SHA256 "${OUTPUT_DIR}/optimized/cpu.ll" CPU)
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/optimized.kalandra" --target metal
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/optimized.k" --target metal
   -o "${OUTPUT_DIR}/optimized" RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 file(SHA256 "${OUTPUT_DIR}/optimized/host.cpp" HOST_AGAIN)
 file(SHA256 "${OUTPUT_DIR}/optimized/cpu.ll" CPU_AGAIN)
@@ -59,10 +59,10 @@ build_run(nan "${FUNCTIONS}${PREAMBLE}    zero = reduceSum(host) - 1\n    zero /
 # Scalar division and multiplication by its rounded reciprocal remain distinct.
 build_run(rounding "${FUNCTIONS}${PREAMBLE}    value = reduceSum(host) * 5\n    (value / 3) - (value * (1 / 3))\n" "b4000000\n" --sanitize)
 function(reject NAME CONTENT PATTERN)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${CONTENT}")
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
   file(MAKE_DIRECTORY "${OUTPUT_DIR}/${NAME}")
   file(WRITE "${OUTPUT_DIR}/${NAME}/host.cpp" "sentinel")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" --target metal
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal
     -o "${OUTPUT_DIR}/${NAME}" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   file(READ "${OUTPUT_DIR}/${NAME}/host.cpp" SENTINEL)
   if(STATUS EQUAL 0 OR NOT ERROR MATCHES "${PATTERN}" OR NOT SENTINEL STREQUAL "sentinel")
@@ -87,8 +87,8 @@ reject(static-matmul "${BAD}" "S029")
 # A named function hides dimensions from the bridge; the imported typed guard must catch it.
 set(FORWARD "fn forward(values: Tensor[float32,?,?]) -> Tensor[float32,?,?]:\n  values\n\n")
 string(REPLACE "matmul(+(left + left), weights)" "matmul(forward(host), weights)" DYNAMIC "${BAD}")
-file(WRITE "${OUTPUT_DIR}/dynamic.kalandra" "${FORWARD}${DYNAMIC}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/dynamic.kalandra" --target metal
+file(WRITE "${OUTPUT_DIR}/dynamic.k" "${FORWARD}${DYNAMIC}")
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/dynamic.k" --target metal
   -o "${OUTPUT_DIR}/dynamic" --sanitize RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Dynamic inline mismatch should compile: ${OUT} ${ERROR}")

@@ -19,7 +19,7 @@ function(RUN_OK)
   set(OUTPUT "${STDOUT}" PARENT_SCOPE)
 endfunction()
 set(IR "${OUTPUT_DIR}/kernels.ll")
-RUN_OK("${COMPILER}" "${SOURCE_ROOT}/native/tests/fixtures/dynamic-projection.kalandra"
+RUN_OK("${COMPILER}" "${SOURCE_ROOT}/native/tests/fixtures/dynamic-projection.k"
   -o "${OUTPUT_DIR}/projection" --emit-llvm "${IR}" --test-entry reference ${EXTRA})
 file(READ "${IR}" LLVM)
 if(NOT LLVM MATCHES "loop.body" OR NOT LLVM MATCHES "@kalandra_poll_v1")
@@ -49,7 +49,7 @@ endif()
 
 if(VARIANT STREQUAL "thread-sanitized")
   file(WRITE "${OUTPUT_DIR}/preserved" "preserve existing output")
-  execute_process(COMMAND "${COMPILER}" "${SOURCE_ROOT}/native/tests/fixtures/task-nested.kalandra"
+  execute_process(COMMAND "${COMPILER}" "${SOURCE_ROOT}/native/tests/fixtures/task-nested.k"
     -o "${OUTPUT_DIR}/preserved" --sanitize --thread-sanitize
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE STDOUT ERROR_VARIABLE STDERR)
   file(READ "${OUTPUT_DIR}/preserved" PRESERVED)

@@ -13,7 +13,7 @@ void require(bool condition, const std::string &message) {
     throw std::runtime_error(message);
 }
 std::shared_ptr<const SourceFile> source(std::string text) {
-  return std::make_shared<SourceFile>("test.kalandra", std::move(text));
+  return std::make_shared<SourceFile>("test.k", std::move(text));
 }
 ParseResult syntax(std::string text, SyntaxLimits limits = {}) {
   return parse(source(std::move(text)), limits);
@@ -272,7 +272,7 @@ void parserFailuresAndRecovery() {
               std::pair<std::size_t, std::size_t>{2, 6},
           "error location wrong");
   const auto printed = renderDiagnostic(*recovered.module.source, diagnostic);
-  require(printed.find("test.kalandra:2:6: error[P012]") != std::string::npos &&
+  require(printed.find("test.k:2:6: error[P012]") != std::string::npos &&
               printed.find('^') != std::string::npos,
           "missing rendered location/caret");
   validTree(recovered);

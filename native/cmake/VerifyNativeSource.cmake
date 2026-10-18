@@ -97,7 +97,7 @@ get_filename_component(TEST_FIXTURES "${HARNESS_SOURCE}" DIRECTORY)
 set(TEST_FIXTURES "${TEST_FIXTURES}/fixtures")
 set(DYNAMIC_IR "${OUTPUT_DIR}/dynamic.ll")
 set(DYNAMIC_HARNESS "${OUTPUT_DIR}/dynamic-harness")
-RUN_OK("${COMPILER}" "${TEST_FIXTURES}/dynamic-projection.kalandra" -o "${OUTPUT_DIR}/dynamic"
+RUN_OK("${COMPILER}" "${TEST_FIXTURES}/dynamic-projection.k" -o "${OUTPUT_DIR}/dynamic"
   --emit-llvm "${DYNAMIC_IR}" --test-entry reference ${EXTRA})
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror ${LINK_FLAGS} -ffp-contract=off -Wno-override-module
   "${HARNESS_SOURCE}" "${DYNAMIC_IR}" "${RUNTIME}" -o "${DYNAMIC_HARNESS}")
@@ -125,7 +125,7 @@ endif()
 # Inspect every output cell, rather than only a final sum that could hide lane
 # permutations. The private tensor-result wrapper leaves output owned by context.
 get_filename_component(HARNESS_DIR "${HARNESS_SOURCE}" DIRECTORY)
-RUN_OK("${COMPILER}" "${TEST_FIXTURES}/matrix-result.kalandra" -o "${OUTPUT_DIR}/matrix-result"
+RUN_OK("${COMPILER}" "${TEST_FIXTURES}/matrix-result.k" -o "${OUTPUT_DIR}/matrix-result"
   --emit-llvm "${OUTPUT_DIR}/matrix-result.ll" --test-entry reference ${EXTRA})
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror ${LINK_FLAGS} -ffp-contract=off -Wno-override-module
   "${HARNESS_DIR}/MatrixHarness.cpp" "${OUTPUT_DIR}/matrix-result.ll" "${RUNTIME}"
@@ -145,7 +145,7 @@ if(VARIANT STREQUAL "optimized")
     message(FATAL_ERROR "Matrix scratch payload conformance missing: ${OUTPUT}")
   endif()
 endif()
-RUN_OK("${COMPILER}" "${TEST_FIXTURES}/matrix-result.kalandra" -o "${OUTPUT_DIR}/matrix-shared"
+RUN_OK("${COMPILER}" "${TEST_FIXTURES}/matrix-result.k" -o "${OUTPUT_DIR}/matrix-shared"
   --emit-llvm "${OUTPUT_DIR}/matrix-shared.ll" --test-entry shared ${EXTRA})
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror ${LINK_FLAGS} -ffp-contract=off -Wno-override-module
   -DKALANDRA_MATRIX_SHARED "${HARNESS_DIR}/MatrixHarness.cpp" "${OUTPUT_DIR}/matrix-shared.ll"
@@ -195,12 +195,12 @@ EXPECT_FAULT("${DYNAMIC_HARNESS}" 87 ShapeFault --right-rows 4)
 EXPECT_FAULT("${DYNAMIC_HARNESS}" 87 ShapeFault --negative)
 EXPECT_FAULT("${DYNAMIC_HARNESS}" 86 AllocationFault --oversize)
 EXPECT_FAULT("${HARNESS}" 87 ShapeFault --inner 4)
-RUN_OK("${COMPILER}" "${TEST_FIXTURES}/identity.kalandra" -o "${OUTPUT_DIR}/identity" ${EXTRA})
+RUN_OK("${COMPILER}" "${TEST_FIXTURES}/identity.k" -o "${OUTPUT_DIR}/identity" ${EXTRA})
 RUN_OK("${OUTPUT_DIR}/identity")
 if(NOT OUTPUT STREQUAL "20\n")
   message(FATAL_ERROR "Returned input alias lifetime failed: ${OUTPUT}")
 endif()
-RUN_OK("${COMPILER}" "${TEST_FIXTURES}/refine-after-allocation.kalandra"
+RUN_OK("${COMPILER}" "${TEST_FIXTURES}/refine-after-allocation.k"
   -o "${OUTPUT_DIR}/refine" --emit-llvm "${OUTPUT_DIR}/refine.ll" --test-entry reference ${EXTRA})
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror ${LINK_FLAGS} -ffp-contract=off -Wno-override-module
   "${HARNESS_SOURCE}" "${OUTPUT_DIR}/refine.ll" "${RUNTIME}" -o "${OUTPUT_DIR}/refine-harness")
@@ -219,7 +219,7 @@ if(NOT FAULT_DIAGNOSTICS MATCHES "allocations=[1-9][0-9]*")
   message(FATAL_ERROR "Shape fault did not exercise live tensor cleanup")
 endif()
 # Repeated immutable arguments, aliases, nested tensor returns, and retained results.
-RUN_OK("${COMPILER}" "${TEST_FIXTURES}/shared-tensors.kalandra"
+RUN_OK("${COMPILER}" "${TEST_FIXTURES}/shared-tensors.k"
   -o "${OUTPUT_DIR}/shared" --emit-llvm "${OUTPUT_DIR}/shared.ll" --test-entry reference ${EXTRA})
 RUN_OK("${OUTPUT_DIR}/shared")
 if(NOT OUTPUT STREQUAL "118\n")
@@ -243,7 +243,7 @@ foreach(FAIL_AT RANGE 1 ${SHARED_PER_CALL})
   endif()
 endforeach()
 unset(FAULT_ENV)
-RUN_OK("${COMPILER}" "${TEST_FIXTURES}/evaluation-order.kalandra"
+RUN_OK("${COMPILER}" "${TEST_FIXTURES}/evaluation-order.k"
   -o "${OUTPUT_DIR}/order" --emit-llvm "${OUTPUT_DIR}/order.ll" --test-entry reference ${EXTRA})
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror ${LINK_FLAGS} -ffp-contract=off -Wno-override-module
   "${HARNESS_SOURCE}" "${OUTPUT_DIR}/order.ll" "${RUNTIME}" -o "${OUTPUT_DIR}/order-harness")
@@ -251,21 +251,21 @@ EXPECT_FAULT("${OUTPUT_DIR}/order-harness" 87 ShapeFault --rows 3)
 if(NOT FAULT_DIAGNOSTICS MATCHES "ShapeFault at source 2:")
   message(FATAL_ERROR "Call arguments did not fault left-to-right: ${FAULT_DIAGNOSTICS}")
 endif()
-file(WRITE "${OUTPUT_DIR}/scalar.kalandra" "fn main() -> float32:\n  2 + 3 * 4\n")
-RUN_OK("${COMPILER}" "${OUTPUT_DIR}/scalar.kalandra" -o "${OUTPUT_DIR}/scalar" ${EXTRA})
+file(WRITE "${OUTPUT_DIR}/scalar.k" "fn main() -> float32:\n  2 + 3 * 4\n")
+RUN_OK("${COMPILER}" "${OUTPUT_DIR}/scalar.k" -o "${OUTPUT_DIR}/scalar" ${EXTRA})
 RUN_OK("${OUTPUT_DIR}/scalar")
 if(NOT OUTPUT STREQUAL "14\n")
   message(FATAL_ERROR "Scalar arithmetic lowering failed")
 endif()
-file(WRITE "${OUTPUT_DIR}/rankzero.kalandra" "fn main() -> float32:\n  x: Tensor[float32] = tensor(2)\n  reduceSum(x)\n")
-RUN_OK("${COMPILER}" "${OUTPUT_DIR}/rankzero.kalandra" -o "${OUTPUT_DIR}/rankzero" ${EXTRA})
+file(WRITE "${OUTPUT_DIR}/rankzero.k" "fn main() -> float32:\n  x: Tensor[float32] = tensor(2)\n  reduceSum(x)\n")
+RUN_OK("${COMPILER}" "${OUTPUT_DIR}/rankzero.k" -o "${OUTPUT_DIR}/rankzero" ${EXTRA})
 RUN_OK("${OUTPUT_DIR}/rankzero")
 if(NOT OUTPUT STREQUAL "2\n")
   message(FATAL_ERROR "Rank-zero lowering failed")
 endif()
-file(WRITE "${OUTPUT_DIR}/invalid.kalandra" "fn main() -> float32:\n  missing\n")
+file(WRITE "${OUTPUT_DIR}/invalid.k" "fn main() -> float32:\n  missing\n")
 file(WRITE "${OUTPUT_DIR}/preserved-output" "keep existing artifact\n")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/invalid.kalandra" -o "${OUTPUT_DIR}/preserved-output"
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/invalid.k" -o "${OUTPUT_DIR}/preserved-output"
   RESULT_VARIABLE STATUS ERROR_VARIABLE STDERR)
 file(READ "${OUTPUT_DIR}/preserved-output" PRESERVED)
 if(NOT "${STATUS}" STREQUAL "1" OR NOT STDERR MATCHES "S016" OR NOT PRESERVED STREQUAL "keep existing artifact\n")
@@ -287,9 +287,9 @@ foreach(CASE IN ITEMS
   list(GET FIELDS 1 TYPE)
   list(GET FIELDS 2 VALUE)
   list(GET FIELDS 3 EXPECTED)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra"
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k"
     "fn main() -> float32:\n  x: ${TYPE} = ${VALUE}\n  reduceSum(x)\n")
-  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" -o "${OUTPUT_DIR}/${NAME}" ${EXTRA})
+  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" -o "${OUTPUT_DIR}/${NAME}" ${EXTRA})
   RUN_OK("${OUTPUT_DIR}/${NAME}")
   if(NOT OUTPUT STREQUAL "${EXPECTED}\n")
     message(FATAL_ERROR "${NAME} conformance failed: ${OUTPUT}")

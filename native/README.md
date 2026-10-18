@@ -1,5 +1,7 @@
 # Kalandra native development
 
+Native source files use `.k`, including explicit relative imports. The former `.kalandra` extension is rejected; it is not a compatibility alias. Historical qualification records retain their original filenames and hashes.
+
 [Immutable CPU Strings](../docs/design/strings.md#qualified-literalvalue-foundation) support UTF-8 literals, strict escapes, typed synchronous helpers, local modules, exact `==`/`!=` equality, checked `+` concatenation, scalar/byte length queries, checked scalar indexing, half-open slicing and String-valued executable results. Local CPU worker arguments/results and callback captures retain immutable storage; [String record fields](../docs/design/record-string-fields.md), including nested records and record arrays/maps, share retained storage. [Direct String arrays and maps](../docs/design/string-arrays.md) are supported; [String-array record fields](../docs/design/record-string-array-fields.md) are supported.
 
 [CPU Bool values and scalar comparisons](../docs/design/booleans.md) support immutable Boolean literals, functions, strict comparisons across the six CPU numeric types, and typed worker captures/results. [CPU conditionals and short-circuit operators](../docs/design/control-flow.md) now support selected execution, scoped values, retained tensors and resumable worker branches. [Immutable CPU Bool arrays](../docs/design/bool-arrays.md) support construction, indexing, mapping and retained worker results. Bool tensors and GPU Bool execution remain separate work.
@@ -108,7 +110,7 @@ The shared strict arithmetic engine now has a [CPU-only binary64 specialization]
 
 ## Local CPU modules
 
-Split reusable functions into [local modules](../docs/design/modules.md): mark a declaration `export fn`, then use `from "./math.kalandra" import double as twice`. The compiler/checker resolve explicit relative files, preserve module-local helper names and type checks, and support imported callbacks and CPU workers. Cycles remain rejected; packages and GPU module integration remain separate work. [Record type exports](../docs/design/type-exports.md) are supported.
+Split reusable functions into [local modules](../docs/design/modules.md): mark a declaration `export fn`, then use `from "./math.k" import double as twice`. The compiler/checker resolve explicit relative files, preserve module-local helper names and type checks, and support imported callbacks and CPU workers. Cycles remain rejected; packages and GPU module integration remain separate work. [Record type exports](../docs/design/type-exports.md) are supported.
 
 ## Display collection results
 

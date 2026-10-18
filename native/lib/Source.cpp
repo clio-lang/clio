@@ -1,5 +1,6 @@
 #include "kalandra/Syntax.h"
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 
@@ -74,6 +75,8 @@ std::string renderDiagnostic(const SourceFile &source, const Diagnostic &diagnos
 }
 std::expected<std::shared_ptr<const SourceFile>, std::string> loadSource(std::string path,
                                                                          std::size_t maximum) {
+  if (std::filesystem::path(path).extension() != ".k")
+    return std::unexpected("source files must use the .k extension");
   std::ifstream file(path, std::ios::binary);
   if (!file)
     return std::unexpected("cannot open source file");

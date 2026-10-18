@@ -20,7 +20,7 @@ def run(args, expected=None, env=None):
     return result
 
 def compile(name, source):
-    path = output / (name+'.kalandra')
+    path = output / (name+'.k')
     path.write_text(source)
     exe = output/name
     run([compiler,path,'-o',exe,'--emit-llvm',str(exe)+'.ll','--emit-mlir',str(exe)+'.mlir',*extra])
@@ -37,9 +37,9 @@ for index,(spelling,decoded) in enumerate(cases):
     exe=compile('literal-'+str(index),'fn identity(value:String)->String:\n  value\nfn main()->String:\n  identity('+spelling+')\n')
     run([exe],decoded.encode()+b'\n')
 
-helper = output/'text.kalandra'
+helper = output/'text.k'
 helper.write_text('export fn select(flag:Bool,a:String,b:String)->String:\n  if flag:\n    a\n  else:\n    b\n')
-exe=compile('module','from "./text.kalandra" import select\nfn main()->String:\n  select(false,"unused","سلام\\0👩‍💻")\n')
+exe=compile('module','from "./text.k" import select\nfn main()->String:\n  select(false,"unused","سلام\\0👩‍💻")\n')
 run([exe],'سلام\0👩‍💻\n'.encode())
 run([clang,'-std=c++23','-Wall','-Wextra','-Werror','-Wno-override-module',*flags,
      source_dir/'tests/StringGeneratedTests.cpp',str(exe)+'.ll',runtime,'-o',output/'generated-harness'])
@@ -62,14 +62,14 @@ for name,returned,expected in [('integer','int64',b'7\n'),('boolean','Bool',b'tr
 bad_sources=list(fixtures['invalid_literal_sources'])+['"\\u{123456','"a\rb"']
 # Every rejected input must preserve previously emitted files.
 for index,bad in enumerate(bad_sources):
-    file=output/('invalid-'+str(index)+'.kalandra');file.write_text('fn main()->String:\n  '+bad+'\n')
+    file=output/('invalid-'+str(index)+'.k');file.write_text('fn main()->String:\n  '+bad+'\n')
     paths=[output/'preserved',output/'preserved.ll',output/'preserved.mlir']
     for p in paths:p.write_bytes(b'keep-existing-artifact')
     result=subprocess.run([compiler,file,'-o',paths[0],'--emit-llvm',paths[1],'--emit-mlir',paths[2],*extra],capture_output=True)
     assert result.returncode != 0 and result.stderr, (bad,result)
     assert all(p.read_bytes()==b'keep-existing-artifact' for p in paths)
 for index,hex_bytes in enumerate(fixtures['invalid_utf8_hex']):
-    file=output/('invalid-utf8-'+str(index)+'.kalandra')
+    file=output/('invalid-utf8-'+str(index)+'.k')
     file.write_bytes(b'fn main()->String:\n  "'+bytes.fromhex(hex_bytes)+b'"\n')
     result=subprocess.run([compiler,file,'-o',output/'invalid-utf8',*extra],capture_output=True)
     assert result.returncode != 0, hex_bytes
@@ -91,8 +91,8 @@ for index,case in enumerate(fixtures['concatenation_cases']):
     exe=compile('concat-'+str(index),'fn append(a:String,b:String)->String:\n  a+b\nfn main()->String:\n  append('+literal(case['left'])+','+literal(case['right'])+')\n')
     run([exe],case['result'].encode()+b'\n')
 
-(output/'operations.kalandra').write_text('export fn append(a:String,b:String)->String:\n  a+b\n')
-exe=compile('concat-owned','from "./operations.kalandra" import append\nfn main()->String:\n  append(append("سلام","\\0"),append("👩‍💻",""))\n')
+(output/'operations.k').write_text('export fn append(a:String,b:String)->String:\n  a+b\n')
+exe=compile('concat-owned','from "./operations.k" import append\nfn main()->String:\n  append(append("سلام","\\0"),append("👩‍💻",""))\n')
 run([exe],'سلام\0👩‍💻\n'.encode())
 run([clang,'-std=c++23','-Wall','-Wextra','-Werror','-Wno-override-module',*flags,
      '-DSTRING_FAILURE_POSITIONS=32',source_dir/'tests/StringGeneratedTests.cpp',str(exe)+'.ll',runtime,'-o',output/'operations-harness'])

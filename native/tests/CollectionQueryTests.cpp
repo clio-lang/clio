@@ -8,7 +8,7 @@ static void require(bool ok, const std::string &message) {
     throw std::runtime_error(message);
 }
 static CheckResult analyze(const std::string &text) {
-  return check(parse(std::make_shared<SourceFile>("query.kalandra", text)));
+  return check(parse(std::make_shared<SourceFile>("query.k", text)));
 }
 int main() {
   try {
@@ -107,7 +107,7 @@ int main() {
           "made()\n    length(pending)\n"})
       require(!analyze(source).ok(), std::string("invalid query accepted: ") + source);
     auto resident = check(parse(std::make_shared<SourceFile>(
-                              "resident.kalandra",
+                              "resident.k",
                               "fn main()->[int] ! TaskError:\n  try parallel:\n    "
                               "values:Tensor[float32,2,2]=tensor([[1,2],[3,4]])\n    resident=try "
                               "await transfer(values,devices.gpu())\n    shape(resident)\n")),

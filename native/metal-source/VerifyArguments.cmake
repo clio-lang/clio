@@ -1,4 +1,4 @@
-file(READ "${SOURCE_DIR}/arguments.kalandra" SOURCE)
+file(READ "${SOURCE_DIR}/arguments.k" SOURCE)
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
 set(EXPECTED "[42180000,42300000,42480000,42600000,42780000,42880000]\n")
 foreach(VARIANT IN ITEMS optimized sanitized thread-sanitized)
@@ -9,7 +9,7 @@ foreach(VARIANT IN ITEMS optimized sanitized thread-sanitized)
   else()
     set(FLAG --thread-sanitize)
   endif()
-  execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/arguments.kalandra" --target metal
+  execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/arguments.k" --target metal
     -o "${OUTPUT_DIR}/${VARIANT}" "${FLAG}" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${VARIANT} argument build failed: ${OUT} ${ERROR}")
@@ -53,10 +53,10 @@ if(NOT STATUS EQUAL 0 OR NOT OUT STREQUAL EXPECTED)
   message(FATAL_ERROR "Relocated argument bundle failed: ${STATUS}: ${OUT} ${ERROR}")
 endif()
 function(reject NAME CONTENT DIAGNOSTIC)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${CONTENT}")
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
   file(MAKE_DIRECTORY "${OUTPUT_DIR}/${NAME}")
   file(WRITE "${OUTPUT_DIR}/${NAME}/host.cpp" "sentinel")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" --target metal -o "${OUTPUT_DIR}/${NAME}"
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}"
     RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
   file(READ "${OUTPUT_DIR}/${NAME}/host.cpp" SENTINEL)
   if(STATUS EQUAL 0 OR NOT ERROR MATCHES "${DIAGNOSTIC}" OR NOT SENTINEL STREQUAL "sentinel")
@@ -66,8 +66,8 @@ endfunction()
 string(REPLACE "t28: Tensor[float32, ?])" "t28: Tensor[float32, ?], t29: Tensor[float32, ?])" BAD "${SOURCE}")
 string(REPLACE "vectorResult) on gpu" "vectorResult, vectorResult) on gpu" BAD "${BAD}")
 string(REPLACE "t27 + t28\n" "t27 + t28 + t29\n" BAD "${BAD}")
-file(WRITE "${OUTPUT_DIR}/thirty.kalandra" "${BAD}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/thirty.kalandra" --target metal
+file(WRITE "${OUTPUT_DIR}/thirty.k" "${BAD}")
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/thirty.k" --target metal
   -o "${OUTPUT_DIR}/thirty" -O2 RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Thirty contributing inputs rejected: ${OUT} ${ERROR}")
@@ -90,8 +90,8 @@ set(FORWARD "fn forward(values: Tensor[float32, ?, ?]) -> Tensor[float32, ?, ?]:
 string(REPLACE "Tensor[float32, 2, 3] = tensor([[2, 3, 4], [5, 6, 7]])"
   "Tensor[float32, 3, 2] = tensor([[2, 3], [4, 5], [6, 7]])" BAD "${GPU_ONLY}")
 string(REPLACE "transfer(c, gpu)" "transfer(forward(c), gpu)" BAD "${BAD}")
-file(WRITE "${OUTPUT_DIR}/dynamic.kalandra" "${FORWARD}${BAD}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/dynamic.kalandra" --target metal -o "${OUTPUT_DIR}/dynamic" --sanitize
+file(WRITE "${OUTPUT_DIR}/dynamic.k" "${FORWARD}${BAD}")
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/dynamic.k" --target metal -o "${OUTPUT_DIR}/dynamic" --sanitize
   RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Dynamic wide arguments did not compile: ${OUT} ${ERROR}")

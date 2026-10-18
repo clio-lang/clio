@@ -8,7 +8,7 @@ static void require(bool ok, const std::string &message) {
     throw std::runtime_error(message);
 }
 static CheckResult analyze(const std::string &text) {
-  return check(parse(std::make_shared<SourceFile>("tensor-index.kalandra", text)));
+  return check(parse(std::make_shared<SourceFile>("tensor-index.k", text)));
 }
 int main() {
   try {
@@ -124,7 +124,7 @@ int main() {
                                         "    values:Tensor[float32,2,2]=tensor([[1,2],[3,4]])\n"
                                         "    resident=try await transfer(values,devices.gpu())\n";
     auto resident = check(parse(std::make_shared<SourceFile>(
-                              "resident.kalandra", placementPrefix + "    resident[0,0]\n")),
+                              "resident.k", placementPrefix + "    resident[0,0]\n")),
                           {}, {.placement = true});
     require(!resident.ok(), "host indexing silently downloaded a device tensor");
     bool residencyDiagnostic = false;
@@ -133,7 +133,7 @@ int main() {
     require(residencyDiagnostic, "resident lookup did not reach the indexing gate");
     auto transferred =
         check(parse(std::make_shared<SourceFile>(
-                  "transferred.kalandra",
+                  "transferred.k",
                   placementPrefix +
                       "    host=try await transfer(resident,devices.cpu())\n    host[0,0]\n")),
               {}, {.placement = true});

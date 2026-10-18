@@ -1,6 +1,6 @@
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/placement-cli")
 foreach(NAME IN ITEMS placed composed mixed tensor-results shared-helpers scalar-entry matrix-elementwise differences arguments unused-inputs indirect-arguments tensor-negation division host-expressions cpu-spawn nested-parallel recovery reduction matmul)
-  set(SOURCE "${SOURCE_DIR}/${NAME}.kalandra")
+  set(SOURCE "${SOURCE_DIR}/${NAME}.k")
   execute_process(COMMAND "${CHECKER}" --placement --dump-ir "${SOURCE}"
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE IR ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0 OR NOT IR MATCHES "device.gpu" OR NOT IR MATCHES "task.transfer" OR NOT IR MATCHES "task.spawn")
@@ -39,7 +39,7 @@ foreach(ARGS IN ITEMS "--placement" "--placement;--placement" "--dump-ir;--dump-
   endif()
 endforeach()
 # The new artifact participates in the same preflight output checks as host/CPU/GPU files.
-set(SOURCE "${SOURCE_DIR}/placed.kalandra")
+set(SOURCE "${SOURCE_DIR}/placed.k")
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/placement-cli/symlink")
 file(WRITE "${OUTPUT_DIR}/placement-cli/sentinel" "untouched")
 file(CREATE_LINK "${OUTPUT_DIR}/placement-cli/sentinel" "${OUTPUT_DIR}/placement-cli/symlink/placement.ir" SYMBOLIC RESULT STATUS)
@@ -71,7 +71,7 @@ file(CREATE_LINK "${OUTPUT_DIR}/placement-cli/sentinel" "${OUTPUT_DIR}/placement
 if(NOT STATUS STREQUAL "0")
   message(FATAL_ERROR "Cannot prepare continuation artifact symlink: ${STATUS}")
 endif()
-execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/placed.kalandra" -o "${OUTPUT_DIR}/placement-cli/plan-symlink"
+execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/placed.k" -o "${OUTPUT_DIR}/placement-cli/plan-symlink"
   RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 file(READ "${OUTPUT_DIR}/placement-cli/sentinel" SENTINEL)
 if(STATUS EQUAL 0 OR NOT ERROR MATCHES "refusing symlink output" OR NOT SENTINEL STREQUAL "untouched"
@@ -79,7 +79,7 @@ if(STATUS EQUAL 0 OR NOT ERROR MATCHES "refusing symlink output" OR NOT SENTINEL
   message(FATAL_ERROR "Unsafe continuation artifact output: ${STATUS}: ${ERROR}")
 endif()
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/placement-cli/plan-collision")
-file(READ "${SOURCE_DIR}/placed.kalandra" SOURCE_TEXT)
+file(READ "${SOURCE_DIR}/placed.k" SOURCE_TEXT)
 file(WRITE "${OUTPUT_DIR}/placement-cli/plan-collision/continuation.plan" "${SOURCE_TEXT}")
 execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/placement-cli/plan-collision/continuation.plan"
   -o "${OUTPUT_DIR}/placement-cli/plan-collision" RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)

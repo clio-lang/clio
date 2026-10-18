@@ -24,7 +24,7 @@ if(BUILD_TESTING)
   target_link_libraries(kalandra-syntax-tests PRIVATE kalandra-syntax)
   target_compile_options(kalandra-syntax-tests PRIVATE -Wall -Wextra -Werror)
   add_test(NAME frontend-syntax COMMAND kalandra-syntax-tests
-    "${PROJECT_SOURCE_DIR}/docs/design/fixtures/cpu-projection.kalandra")
+    "${PROJECT_SOURCE_DIR}/docs/design/fixtures/cpu-projection.k")
   add_library(kalandra-syntax-sanitized STATIC ${KALANDRA_SYNTAX_SOURCES})
   target_include_directories(kalandra-syntax-sanitized PUBLIC include)
   target_compile_options(kalandra-syntax-sanitized PRIVATE -Wall -Wextra -Werror
@@ -36,9 +36,9 @@ if(BUILD_TESTING)
   target_link_options(kalandra-syntax-tests-sanitized PRIVATE
     -fsanitize=address,undefined -fno-sanitize-recover=all)
   add_test(NAME frontend-syntax-sanitized COMMAND kalandra-syntax-tests-sanitized
-    "${PROJECT_SOURCE_DIR}/docs/design/fixtures/cpu-projection.kalandra")
+    "${PROJECT_SOURCE_DIR}/docs/design/fixtures/cpu-projection.k")
   add_test(NAME frontend-cli COMMAND kalandra-parse
-    "${PROJECT_SOURCE_DIR}/docs/design/fixtures/cpu-projection.kalandra")
+    "${PROJECT_SOURCE_DIR}/docs/design/fixtures/cpu-projection.k")
   set_tests_properties(frontend-cli PROPERTIES PASS_REGULAR_EXPRESSION "Parsed 4 functions")
   set_tests_properties(frontend-syntax frontend-syntax-sanitized PROPERTIES TIMEOUT 30)
 endif()
@@ -62,7 +62,7 @@ if(BUILD_TESTING)
   target_link_libraries(kalandra-semantic-tests PRIVATE kalandra-semantics)
   target_compile_options(kalandra-semantic-tests PRIVATE -Wall -Wextra -Werror)
   add_test(NAME frontend-semantics COMMAND kalandra-semantic-tests
-    "${PROJECT_SOURCE_DIR}/docs/design/fixtures/cpu-projection.kalandra")
+    "${PROJECT_SOURCE_DIR}/docs/design/fixtures/cpu-projection.k")
   add_library(kalandra-semantics-sanitized STATIC ${KALANDRA_SEMANTIC_SOURCES})
   target_include_directories(kalandra-semantics-sanitized SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
   target_link_libraries(kalandra-semantics-sanitized PUBLIC kalandra-syntax-sanitized PRIVATE LLVM)
@@ -74,9 +74,9 @@ if(BUILD_TESTING)
     -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
   target_link_options(kalandra-semantic-tests-sanitized PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all)
   add_test(NAME frontend-semantics-sanitized COMMAND kalandra-semantic-tests-sanitized
-    "${PROJECT_SOURCE_DIR}/docs/design/fixtures/cpu-projection.kalandra")
+    "${PROJECT_SOURCE_DIR}/docs/design/fixtures/cpu-projection.k")
   add_test(NAME frontend-check-cli COMMAND kalandra-check
-    "${PROJECT_SOURCE_DIR}/docs/design/fixtures/cpu-projection.kalandra")
+    "${PROJECT_SOURCE_DIR}/docs/design/fixtures/cpu-projection.k")
   set_tests_properties(frontend-check-cli PROPERTIES PASS_REGULAR_EXPRESSION "Checked 4 functions")
   set_tests_properties(frontend-semantics frontend-semantics-sanitized PROPERTIES TIMEOUT 30)
 endif()
@@ -127,7 +127,7 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME native-source-${VARIANT}
       COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>" "-DCLANGXX=${CMAKE_CXX_COMPILER}"
-        "-DFIXTURE=${PROJECT_SOURCE_DIR}/docs/design/fixtures/cpu-projection.kalandra"
+        "-DFIXTURE=${PROJECT_SOURCE_DIR}/docs/design/fixtures/cpu-projection.k"
         "-DHARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/NativeHarness.cpp"
         "-DRUNTIME=${SOURCE_RUNTIME}" "-DVARIANT=${VARIANT}"
         "-DCASE_DIR=${CMAKE_CURRENT_BINARY_DIR}/toolchain-proof/cases"
@@ -902,3 +902,21 @@ include(cmake/StringArrays.cmake)
 include(cmake/RecordStringArrayFields.cmake)
 include(cmake/TypeExports.cmake)
 include(cmake/Reexports.cmake)
+
+if(BUILD_TESTING)
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    if(VARIANT STREQUAL "sanitized")
+      set(EXT_RUNTIME kalandra-native-runtime-sanitized)
+    elseif(VARIANT STREQUAL "thread-sanitized")
+      set(EXT_RUNTIME kalandra-native-runtime-thread-sanitized)
+    else()
+      set(EXT_RUNTIME kalandra-native-runtime)
+    endif()
+    add_test(NAME native-source-extension-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>" "-DCHECKER=$<TARGET_FILE:kalandra-check>"
+        "-DPARSER=$<TARGET_FILE:kalandra-parse>" "-DVARIANT=${VARIANT}" "-DRUNTIME=$<TARGET_FILE:${EXT_RUNTIME}>"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/source-extension-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifySourceExtension.cmake")
+    set_tests_properties(native-source-extension-${VARIANT} PROPERTIES TIMEOUT 90)
+  endforeach()
+endif()

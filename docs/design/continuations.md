@@ -31,10 +31,10 @@ CPU and Metal value storage remain backend-specific. CPU expected results use th
 
 ```sh
 # CPU task plans, including helper expansion and synthetic builtin entries.
-build/native/native/kalandra-check --dump-plan native/tests/fixtures/task-recovery.kalandra
+build/native/native/kalandra-check --dump-plan native/tests/fixtures/task-recovery.k
 
 # Placement-aware entry plan; no GPU is needed to inspect it.
-build/native/native/kalandra-check --placement --dump-plan native/metal-source/recovery.kalandra
+build/native/native/kalandra-check --placement --dump-plan native/metal-source/recovery.k
 ```
 
 `--dump-plan` and `--dump-ir` are mutually exclusive. Placement plan inspection selects `main`. The Metal compiler writes the exact same `continuation.plan` alongside its typed IR, generated supervisor and kernel artifacts. It is an inspection format, not a stable serialized program or supported compiler input. Symlink and source/output collision preflight cover this artifact too.
@@ -70,7 +70,7 @@ Task handles and resident GPU tensors still cannot escape as function results. S
 
 Direct calls suspend their containing invocation; independently scheduled calls now use the child entries described below. Broader language values, element types and devices remain separate work. Native distributed execution still requires its agreed design review.
 
-The [helper fixture](../../native/metal-source/resumable-helpers.kalandra) exercises transitive helper calls, CPU tasks, GPU work and returned host tensors. It reuses the full recovery lifecycle harness in debug, optimized, ASan/UBSan and TSan builds: allocation-failure sweeps, held completions, scope/root cancellation and deadlines, failed completion recovery, bounded admission and budget rejection, with zero retained resources after cleanup. [CLI tests](../../native/metal-source/VerifyResumableHelpers.cmake) cover successful and failed helper paths, repeated calls, helper-owned scopes, deferred errors, identical standalone plans and normal/sanitized compiler emission, and transactional recursion/escape diagnostics and a spawned helper acceptance case. [Qualification evidence](../../native/metal-proof/evidence/resumable-helpers-2026-10-16.json) records the complete regression run.
+The [helper fixture](../../native/metal-source/resumable-helpers.k) exercises transitive helper calls, CPU tasks, GPU work and returned host tensors. It reuses the full recovery lifecycle harness in debug, optimized, ASan/UBSan and TSan builds: allocation-failure sweeps, held completions, scope/root cancellation and deadlines, failed completion recovery, bounded admission and budget rejection, with zero retained resources after cleanup. [CLI tests](../../native/metal-source/VerifyResumableHelpers.cmake) cover successful and failed helper paths, repeated calls, helper-owned scopes, deferred errors, identical standalone plans and normal/sanitized compiler emission, and transactional recursion/escape diagnostics and a spawned helper acceptance case. [Qualification evidence](../../native/metal-proof/evidence/resumable-helpers-2026-10-16.json) records the complete regression run.
 
 
 ## Independently scheduled mixed helpers
@@ -94,7 +94,7 @@ Declared fixed parameter dimensions are checked in the child before its body exe
 
 Parent cancellation reaches suspended helper descendants and their GPU completions. Independent invocations remain isolated. The scheduler retains its existing deadline behavior: the cancelled group records `DeadlineExceeded`, while descendants report cancellation. Depth, record and retained-frame budgets apply across the whole task tree. No new scheduler, transport or public runtime ABI is introduced.
 
-[The spawned-helper fixture](../../native/metal-source/spawned-helpers.kalandra) runs sibling coordinators, nested coordinating children, ordinary CPU children, explicit GPU kernels and host tensor results. [Lifecycle tests](../../native/metal-source/SpawnedHelperTests.cpp) run in debug, optimized, ASan/UBSan and TSan builds with 1/2/4 workers. They check capture and result lifetimes, aliased arguments, fixed-shape faults, task-core/child-invocation/Metal allocation failures, cancellation and deadlines during held GPU completions, failed completions, invocation isolation and admission limits, with zero retained resources after retirement.
+[The spawned-helper fixture](../../native/metal-source/spawned-helpers.k) runs sibling coordinators, nested coordinating children, ordinary CPU children, explicit GPU kernels and host tensor results. [Lifecycle tests](../../native/metal-source/SpawnedHelperTests.cpp) run in debug, optimized, ASan/UBSan and TSan builds with 1/2/4 workers. They check capture and result lifetimes, aliased arguments, fixed-shape faults, task-core/child-invocation/Metal allocation failures, cancellation and deadlines during held GPU completions, failed completions, invocation isolation and admission limits, with zero retained resources after retirement.
 
 [CLI acceptance](../../native/metal-source/VerifySpawnedHelpers.cmake) additionally covers settled parent recovery, a nonfallible recovering child, scalar and matrix results/captures, empty tensors, dynamic shape recovery inside the child, matching standalone plans, normal/instrumented compiler equivalence and transactional capability, recursion and escape diagnostics. [Qualification evidence](../../native/metal-proof/evidence/spawned-helpers-2026-10-16.json) records the regression and unchanged numerical artifacts.
 

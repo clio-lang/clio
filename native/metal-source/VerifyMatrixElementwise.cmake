@@ -1,9 +1,9 @@
-file(READ "${SOURCE_DIR}/matrix-elementwise.kalandra" SOURCE)
-file(READ "${SOURCE_DIR}/matrix-pipeline.kalandra" PIPELINE)
+file(READ "${SOURCE_DIR}/matrix-elementwise.k" SOURCE)
+file(READ "${SOURCE_DIR}/matrix-pipeline.k" PIPELINE)
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
 function(run NAME CONTENT EXPECTED FLAG)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${CONTENT}")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" --target metal -o "${OUTPUT_DIR}/${NAME}" "${FLAG}"
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}" "${FLAG}"
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${NAME} build failed: ${OUT} ${ERROR}")
@@ -61,10 +61,10 @@ string(REPLACE "Tensor[float32, 3, 2] = tensor([[1, 2], [3, 4], [5, 6]])" "Tenso
 string(REPLACE "Tensor[float32, 2, 2] = tensor([[1, 2], [3, 4]])" "Tensor[float32, 2, 0] = tensor([[], []])" EMPTY "${EMPTY}")
 run(empty-columns "${EMPTY}" "00000000" --thread-sanitize)
 function(reject NAME CONTENT)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${CONTENT}")
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
   file(MAKE_DIRECTORY "${OUTPUT_DIR}/${NAME}")
   file(WRITE "${OUTPUT_DIR}/${NAME}/host.cpp" "sentinel")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" --target metal -o "${OUTPUT_DIR}/${NAME}"
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}"
     RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
   if(STATUS EQUAL 0 OR NOT ERROR MATCHES "(G001|S0)")
     message(FATAL_ERROR "${NAME} missing diagnostic: ${STATUS} ${ERROR}")
@@ -85,8 +85,8 @@ reject(hidden-upload "${BAD}")
 string(REPLACE "    remote = try await transfer(summed, devices.cpu())" "    remote = summed" BAD "${SOURCE}")
 reject(hidden-download "${BAD}")
 function(fault NAME CONTENT)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${CONTENT}")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" --target metal -o "${OUTPUT_DIR}/${NAME}" --sanitize
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}" --sanitize
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${NAME} must compile dynamic shapes: ${OUT} ${ERROR}")

@@ -1664,7 +1664,7 @@ void resume(Task &task) {
 } // namespace
 int kalandra::compileMetalCommand(int argc, char **argv) {
   if (argc < 4 || std::string_view(argv[2]) != "-o") {
-    std::cerr << "usage: kalandra-metal-source source.kalandra -o directory [--build "
+    std::cerr << "usage: kalandra-metal-source source.k -o directory [--build "
                  "[-O2|--sanitize|--thread-sanitize]]\n";
     return 2;
   }

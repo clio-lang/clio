@@ -17,7 +17,7 @@ def run(args, expected=None):
     return result
 
 def compile(name,text):
-    file=output/(name+'.kalandra');file.write_text(text)
+    file=output/(name+'.k');file.write_text(text)
     exe=output/name
     run([compiler,file,'-o',exe,'--emit-llvm',str(exe)+'.ll','--emit-mlir',str(exe)+'.mlir',*extra])
     return exe
@@ -40,8 +40,8 @@ for dtype in ['int32','uint32','int64','uint64']:
         exe=compile('bounds-'+dtype+'-'+label,'fn pick(text:String,index:'+dtype+')->String:\n  text[index]\nfn main()->String:\n  pick("aé👩",'+position+')\n')
         result=subprocess.run([exe],capture_output=True)
         assert result.returncode and not result.stdout and b'BoundsFault' in result.stderr,result
-(output/'pick.kalandra').write_text('export fn pick(text:String,index:uint64)->String:\n  text[index]\n')
-exe=compile('imported','from "./pick.kalandra" import pick\nfn main():\n  pick("سلام",2)+"👩‍💻"[1]+"a\\0b"[1]\n')
+(output/'pick.k').write_text('export fn pick(text:String,index:uint64)->String:\n  text[index]\n')
+exe=compile('imported','from "./pick.k" import pick\nfn main():\n  pick("سلام",2)+"👩‍💻"[1]+"a\\0b"[1]\n')
 run([exe],'ا‍\0\n'.encode())
 for attempt in range(1,13):
     env=dict(os.environ,KALANDRA_TEST_FAIL_ALLOC_AT=str(attempt),KALANDRA_TEST_REPORT_CLEANUP='1')
@@ -63,7 +63,7 @@ assert result.returncode and not result.stdout and b'ArithmeticFault' in result.
 exe=compile('short-circuit','fn pick(text:String,index:int64)->String:\n  text[index]\nfn main()->Bool:\n  true or pick("",0)=="x"\n')
 run([exe],b'true\n')
 for n,expr in enumerate(['"é"[1]','""[0]','"a"[-1]','("é"+"x")[2]','"é"[0][1]','"a"[true]','"a"[1.0]','"a"[0,0]']):
-    source=output/f'invalid-{n}.kalandra';source.write_text('fn main():\n  '+expr+'\n')
+    source=output/f'invalid-{n}.k';source.write_text('fn main():\n  '+expr+'\n')
     paths=[output/'preserved',output/'preserved.ll',output/'preserved.mlir']
     for p in paths:p.write_bytes(b'keep-existing-artifact')
     result=subprocess.run(list(map(str,[compiler,source,'-o',paths[0],'--emit-llvm',paths[1],'--emit-mlir',paths[2],*extra])),capture_output=True)

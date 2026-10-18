@@ -22,7 +22,7 @@ foreach(CASE IN ITEMS "task-recovery|243|5|20" "task-repropagate|3|1|42"
   list(GET FIELDS 1 EXPECTED)
   list(GET FIELDS 2 FAIL_AT)
   list(GET FIELDS 3 RECOVERED)
-  RUN_OK("${COMPILER}" "${FIXTURES}/${NAME}.kalandra" -o "${OUTPUT_DIR}/${NAME}"
+  RUN_OK("${COMPILER}" "${FIXTURES}/${NAME}.k" -o "${OUTPUT_DIR}/${NAME}"
     --emit-llvm "${OUTPUT_DIR}/${NAME}.ll" ${EXTRA})
   RUN_OK("${CMAKE_COMMAND}" -E env PATH=/usr/bin:/bin "${OUTPUT_DIR}/${NAME}")
   if(NOT OUTPUT STREQUAL "${EXPECTED}\n")
@@ -35,10 +35,10 @@ foreach(CASE IN ITEMS "task-recovery|243|5|20" "task-repropagate|3|1|42"
 endforeach()
 # Binding diagnostic text now owns storage. Keep the numeric recovery fixtures
 # independent of that allocation, and qualify materialization failures separately.
-file(READ "${FIXTURES}/task-recovery.kalandra" MESSAGE_SOURCE)
+file(READ "${FIXTURES}/task-recovery.k" MESSAGE_SOURCE)
 string(REPLACE "kind: cause" "kind: cause, message: detail" MESSAGE_SOURCE "${MESSAGE_SOURCE}")
-file(WRITE "${OUTPUT_DIR}/task-recovery-message.kalandra" "${MESSAGE_SOURCE}")
-RUN_OK("${COMPILER}" "${OUTPUT_DIR}/task-recovery-message.kalandra"
+file(WRITE "${OUTPUT_DIR}/task-recovery-message.k" "${MESSAGE_SOURCE}")
+RUN_OK("${COMPILER}" "${OUTPUT_DIR}/task-recovery-message.k"
   -o "${OUTPUT_DIR}/task-recovery-message" ${EXTRA})
 execute_process(COMMAND "${CMAKE_COMMAND}" -E env KALANDRA_TEST_FAIL_ALLOC_AT=5 KALANDRA_TEST_REPORT_CLEANUP=1
   "${OUTPUT_DIR}/task-recovery-message" RESULT_VARIABLE STATUS OUTPUT_VARIABLE STDOUT ERROR_VARIABLE STDERR)
@@ -52,7 +52,7 @@ if(NOT OUTPUT STREQUAL "20\n")
 endif()
 # A root allocation fault remains uncatchable; a handler's own checked fault
 # is also not converted into the expected-error channel it was handling.
-RUN_OK("${COMPILER}" "${FIXTURES}/task-handler-fault.kalandra" -o "${OUTPUT_DIR}/task-handler-fault" ${EXTRA})
+RUN_OK("${COMPILER}" "${FIXTURES}/task-handler-fault.k" -o "${OUTPUT_DIR}/task-handler-fault" ${EXTRA})
 foreach(NAME IN ITEMS task-handler-fault task-recovery)
   execute_process(COMMAND "${CMAKE_COMMAND}" -E env KALANDRA_TEST_FAIL_ALLOC_AT=1 KALANDRA_TEST_REPORT_CLEANUP=1
     "${OUTPUT_DIR}/${NAME}" RESULT_VARIABLE STATUS OUTPUT_VARIABLE STDOUT ERROR_VARIABLE STDERR)
@@ -70,20 +70,20 @@ foreach(INDEX RANGE 0 128)
   string(APPEND SOURCE "    try await job${INDEX}\n")
 endforeach()
 string(APPEND SOURCE "    identity(0)\n  result catch fn(error):\n    match error:\n      TaskError.AdmissionRejected { reason }: 42\n      _: 99\n")
-file(WRITE "${OUTPUT_DIR}/quota-recovery.kalandra" "${SOURCE}")
-RUN_OK("${COMPILER}" "${OUTPUT_DIR}/quota-recovery.kalandra" -o "${OUTPUT_DIR}/quota-recovery" ${EXTRA})
+file(WRITE "${OUTPUT_DIR}/quota-recovery.k" "${SOURCE}")
+RUN_OK("${COMPILER}" "${OUTPUT_DIR}/quota-recovery.k" -o "${OUTPUT_DIR}/quota-recovery" ${EXTRA})
 RUN_OK("${OUTPUT_DIR}/quota-recovery")
 if(NOT OUTPUT STREQUAL "42\n")
   message(FATAL_ERROR "AdmissionRejected was not recovered: ${OUTPUT}")
 endif()
 message(STATUS "Native catch/match, typed fields, re-propagation, handler boundaries, sticky failure, and checked-fault isolation pass")
 
-RUN_OK("${COMPILER}" "${FIXTURES}/task-lazy-handler.kalandra" -o "${OUTPUT_DIR}/task-lazy-handler" ${EXTRA})
+RUN_OK("${COMPILER}" "${FIXTURES}/task-lazy-handler.k" -o "${OUTPUT_DIR}/task-lazy-handler" ${EXTRA})
 RUN_OK("${OUTPUT_DIR}/task-lazy-handler")
 if(NOT OUTPUT STREQUAL "9\n")
   message(FATAL_ERROR "Handler-only shape guard ran on success: ${OUTPUT}")
 endif()
-RUN_OK("${COMPILER}" "${FIXTURES}/task-refine-result.kalandra" -o "${OUTPUT_DIR}/task-refine-result"
+RUN_OK("${COMPILER}" "${FIXTURES}/task-refine-result.k" -o "${OUTPUT_DIR}/task-refine-result"
   --emit-llvm "${OUTPUT_DIR}/task-refine-result.ll" ${EXTRA})
 RUN_OK("${OUTPUT_DIR}/task-refine-result")
 if(NOT OUTPUT STREQUAL "233\n")

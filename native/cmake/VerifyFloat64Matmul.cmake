@@ -83,9 +83,9 @@ COMPILE(fixed "fn product(a:Tensor[float,2,3],b:Tensor[float,3,2]) -> Tensor[flo
 EXPECT(fixed 415)
 COMPILE(rounding "fn main() -> float:\n  a:Tensor[float,1,2] = tensor([[1.0000000000000002,-1]])\n  b:Tensor[float,2,1] = tensor([[0.9999999999999998],[1]])\n  reduceSum(matmul(a,b))\n")
 EXPECT(rounding 0)
-file(WRITE "${OUTPUT_DIR}/metal.kalandra" "${SOURCE}")
+file(WRITE "${OUTPUT_DIR}/metal.k" "${SOURCE}")
 file(WRITE "${OUTPUT_DIR}/preserved" "preserved executable")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/metal.kalandra" --target metal -o "${OUTPUT_DIR}/preserved"
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/metal.k" --target metal -o "${OUTPUT_DIR}/preserved"
   RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
 file(READ "${OUTPUT_DIR}/preserved" PRESERVED)
 if(NOT STATUS EQUAL 1 OR NOT ERR MATCHES "float64" OR NOT PRESERVED STREQUAL "preserved executable")

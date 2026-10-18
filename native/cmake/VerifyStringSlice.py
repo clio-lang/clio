@@ -17,7 +17,7 @@ def run(args, expected=None):
     return result
 
 def compile(name,text):
-    file=output/(name+'.kalandra');file.write_text(text)
+    file=output/(name+'.k');file.write_text(text)
     exe=output/name
     run([compiler,file,'-o',exe,'--emit-llvm',str(exe)+'.ll','--emit-mlir',str(exe)+'.mlir',*extra])
     return exe
@@ -49,8 +49,8 @@ for dtype in widths:
         exe=compile('bounds-'+dtype+'-'+label,'fn cut(text:String,start:'+dtype+',end:'+dtype+')->String:\n  slice(text,start,end)\nfn main()->String:\n  cut("aé👩",'+start+','+end+')\n')
         result=subprocess.run([exe],capture_output=True)
         assert result.returncode and not result.stdout and b'BoundsFault' in result.stderr,result
-(output/'cut.kalandra').write_text('export fn cut(text:String,start:uint32,end:int64)->String:\n  slice(text,start,end)\n')
-exe=compile('imported','from "./cut.kalandra" import cut\nfn main():\n  cut("aé👩",1,3)+slice("a\\0b",1,2)\n')
+(output/'cut.k').write_text('export fn cut(text:String,start:uint32,end:int64)->String:\n  slice(text,start,end)\n')
+exe=compile('imported','from "./cut.k" import cut\nfn main():\n  cut("aé👩",1,3)+slice("a\\0b",1,2)\n')
 run([exe],'é👩\0\n'.encode())
 for attempt in range(1,13):
     env=dict(os.environ,KALANDRA_TEST_FAIL_ALLOC_AT=str(attempt),KALANDRA_TEST_REPORT_CLEANUP='1')
@@ -77,7 +77,7 @@ for name,start in [('source-fault','bad(0)'),('start-fault','good()')]:
 exe=compile('short-circuit','fn cut(text:String,start:int64,end:int64)->String:\n  slice(text,start,end)\nfn main()->Bool:\n  true or cut("a",2,1)=="x"\n')
 run([exe],b'true\n')
 for n,expr in enumerate(['slice("abc",2,1)','slice("é",0,2)','slice("a",-1,1)','slice("a",0,-1)','slice("",1,1)','slice("a",0,0)[0]','slice()','slice("a",0)','slice("a",0,1,1)','slice([1,2],0,1)','slice("a",true,1)','slice("a",0,1.0)']):
-    source=output/f'invalid-{n}.kalandra';source.write_text('fn main():\n  '+expr+'\n')
+    source=output/f'invalid-{n}.k';source.write_text('fn main():\n  '+expr+'\n')
     paths=[output/'preserved',output/'preserved.ll',output/'preserved.mlir']
     for p in paths:p.write_bytes(b'keep-existing-artifact')
     result=subprocess.run(list(map(str,[compiler,source,'-o',paths[0],'--emit-llvm',paths[1],'--emit-mlir',paths[2],*extra])),capture_output=True)

@@ -64,8 +64,8 @@ foreach(RANK IN ITEMS 0 1 2 3)
   endif()
   string(APPEND TYPE "]")
   SPECIALIZE("fn operation(values:${TYPE}) -> int32:\n  reduceSum(values)\nfn main() -> int32:\n  0\n" SOURCE)
-  file(WRITE "${OUTPUT_DIR}/rank-${RANK}.kalandra" "${SOURCE}")
-  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/rank-${RANK}.kalandra" -o "${OUTPUT_DIR}/rank-${RANK}"
+  file(WRITE "${OUTPUT_DIR}/rank-${RANK}.k" "${SOURCE}")
+  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/rank-${RANK}.k" -o "${OUTPUT_DIR}/rank-${RANK}"
     --test-entry operation --emit-llvm "${OUTPUT_DIR}/rank-${RANK}.ll"
     --emit-mlir "${OUTPUT_DIR}/rank-${RANK}.mlir" ${EXTRA})
   RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
@@ -81,8 +81,8 @@ foreach(RANK IN ITEMS 0 1 2 3)
 endforeach()
 function(COMPILE NAME SOURCE)
   SPECIALIZE("${SOURCE}" SOURCE)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${SOURCE}")
-  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" -o "${OUTPUT_DIR}/${NAME}"
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${SOURCE}")
+  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" -o "${OUTPUT_DIR}/${NAME}"
     --emit-llvm "${OUTPUT_DIR}/${NAME}.ll" --emit-mlir "${OUTPUT_DIR}/${NAME}.mlir" ${EXTRA})
 endfunction()
 function(VERIFY NAME EXPECTED)
@@ -156,7 +156,7 @@ if(INTEGER_BITS EQUAL 64)
   endforeach()
   message(STATUS "${NUMERIC_TYPE} allocation sweep positions 1..24 settled with 1/2/4 workers")
 endif()
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/nested.kalandra" --target metal
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/nested.k" --target metal
   -o "${OUTPUT_DIR}/unsupported-metal" RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
 if(NOT "${STATUS}" STREQUAL "1" OR NOT ERR MATCHES "${NUMERIC_TYPE}" OR EXISTS "${OUTPUT_DIR}/unsupported-metal")
   message(FATAL_ERROR "Metal integer reduction accidentally enabled: ${STATUS}: ${ERR}")

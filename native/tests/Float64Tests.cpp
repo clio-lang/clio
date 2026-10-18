@@ -8,7 +8,7 @@ static void require(bool ok, const char *message) {
     throw std::runtime_error(message);
 }
 static CheckResult analyze(const std::string &text) {
-  return check(parse(std::make_shared<SourceFile>("float64.kalandra", text)));
+  return check(parse(std::make_shared<SourceFile>("float64.k", text)));
 }
 #include "Float64TensorChecks.h"
 int main() {

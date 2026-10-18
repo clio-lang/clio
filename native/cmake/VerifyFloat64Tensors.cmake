@@ -53,14 +53,14 @@ QUALIFY(literal-3 3 6 4 "tensor([scalar,1.0000000000000002,4.9406564584124654e-3
 QUALIFY(literal-empty-vector 1 6 7 "tensor([])")
 QUALIFY(literal-empty-matrix 2 6 7 "tensor([],[0,3])")
 function(REJECT NAME SOURCE MATCH)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${SOURCE}")
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${SOURCE}")
   file(WRITE "${OUTPUT_DIR}/preserved" "preserved executable")
   file(WRITE "${OUTPUT_DIR}/preserved.ll" "preserved llvm")
   set(IR_FLAGS --emit-llvm "${OUTPUT_DIR}/preserved.ll")
   if(NAME STREQUAL "metal")
     set(IR_FLAGS)
   endif()
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" -o "${OUTPUT_DIR}/preserved" ${IR_FLAGS} ${ARGN}
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" -o "${OUTPUT_DIR}/preserved" ${IR_FLAGS} ${ARGN}
     RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
   file(READ "${OUTPUT_DIR}/preserved" EXE)
   file(READ "${OUTPUT_DIR}/preserved.ll" IR)

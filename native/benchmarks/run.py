@@ -40,7 +40,7 @@ def main():
         if not args.baseline.is_file():
             parser.error('--baseline executable does not exist')
     commands = [
-        [args.compiler.resolve(), ROOT / 'native/tests/fixtures/dynamic-projection.kalandra',
+        [args.compiler.resolve(), ROOT / 'native/tests/fixtures/dynamic-projection.k',
          '-o', build / 'projection', '--emit-llvm', ir, '--test-entry', 'reference', '-O2'],
         [clang, '-std=c++23', '-Wall', '-Wextra', '-Werror', '-O2', '-DNDEBUG',
          '-ffp-contract=off', '-Wno-override-module',
@@ -52,7 +52,7 @@ def main():
         run(command)
     build_seconds = time.monotonic() - start
     sources = ['native/benchmarks/CpuScaling.cpp', 'native/benchmarks/run.py',
-               'native/tests/fixtures/dynamic-projection.kalandra', 'native/runtime/Runtime.cpp',
+               'native/tests/fixtures/dynamic-projection.k', 'native/runtime/Runtime.cpp',
                'native/runtime/Runtime.h', 'native/runtime/Tasks.cpp', 'native/runtime/Tasks.h',
                'native/lib/Backend.cpp', 'native/lib/CheckedABI.cpp']
     hashes = {path: hashlib.sha256((ROOT / path).read_bytes()).hexdigest() for path in sources}

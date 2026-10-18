@@ -145,7 +145,7 @@ fn probe() -> Tensor[float,2] ! TaskError:
 fn main() -> float:
   0
 ]=] 1 6)
-file(READ "${SOURCE_DIR}/tests/fixtures/task-float64-tensor-mixed.kalandra" MIXED)
+file(READ "${SOURCE_DIR}/tests/fixtures/task-float64-tensor-mixed.k" MIXED)
 QUALIFY(mixed "${MIXED}" 1 1)
 file(READ "${OUTPUT_DIR}/mixed.ll" IR)
 foreach(TYPE IN ITEMS float64 uint64 int64 uint32 int32)

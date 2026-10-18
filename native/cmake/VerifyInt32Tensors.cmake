@@ -30,8 +30,8 @@ function(QUALIFY NAME RANK OP MODE EXPR)
   if(MODE EQUAL 5)
     set(PREFIX "fn fixed(x:Tensor[int32,2,2]) -> Tensor[int32,2,2]:\n  x + 1\n")
   endif()
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${PREFIX}fn operation(a:${TYPE},b:${TYPE},scalar:int32) -> ${TYPE}:\n  ${EXPR}\nfn main() -> int32:\n  0\n")
-  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" -o "${OUTPUT_DIR}/${NAME}" --test-entry operation
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${PREFIX}fn operation(a:${TYPE},b:${TYPE},scalar:int32) -> ${TYPE}:\n  ${EXPR}\nfn main() -> int32:\n  0\n")
+  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" -o "${OUTPUT_DIR}/${NAME}" --test-entry operation
     --emit-llvm "${OUTPUT_DIR}/${NAME}.ll" --emit-mlir "${OUTPUT_DIR}/${NAME}.mlir" ${EXTRA})
   RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
     "-DTENSOR_RANK=${RANK}" "${HARNESS_SOURCE}" "${OUTPUT_DIR}/${NAME}.ll" "${RUNTIME}" -o "${OUTPUT_DIR}/${NAME}-harness")

@@ -10,7 +10,7 @@ int main(int argc, char **argv) {
   kalandra::CheckOptions options;
   const char *path = nullptr;
   const auto usage = [] {
-    std::cerr << "usage: kalandra-check [--placement] [--dump-ir|--dump-plan] <source.kalandra>\n";
+    std::cerr << "usage: kalandra-check [--placement] [--dump-ir|--dump-plan] <source.k>\n";
     return 2;
   };
   for (std::size_t i = 1; i < arguments.size(); ++i) {

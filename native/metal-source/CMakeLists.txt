@@ -10,8 +10,8 @@ target_compile_definitions(kalandrac PRIVATE KALANDRA_HAS_METAL_SOURCE=1)
 function(add_source_fixture FIXTURE)
 set(GENERATED "${CMAKE_CURRENT_BINARY_DIR}/${FIXTURE}")
 add_custom_command(OUTPUT "${GENERATED}/host.cpp" "${GENERATED}/placement.ir" "${GENERATED}/continuation.plan" "${GENERATED}/kernel0.mlir" "${GENERATED}/manifest.txt"
-  COMMAND $<TARGET_FILE:kalandra-metal-source> "${CMAKE_CURRENT_SOURCE_DIR}/${FIXTURE}.kalandra" -o "${GENERATED}"
-  DEPENDS kalandra-metal-source "${FIXTURE}.kalandra" VERBATIM)
+  COMMAND $<TARGET_FILE:kalandra-metal-source> "${CMAKE_CURRENT_SOURCE_DIR}/${FIXTURE}.k" -o "${GENERATED}"
+  DEPENDS kalandra-metal-source "${FIXTURE}.k" VERBATIM)
 # Use the same pinned toolchain and strict integer lowering as the numerical proof.
 file(READ "${PROJECT_SOURCE_DIR}/native/metal-proof/toolchain.json" SOURCE_LOCK)
 foreach(KEY IN ITEMS spirvCrossRoot spirvToolsRoot metalToolchain strictMetalLanguageVersion strictMslVersion)
@@ -131,11 +131,11 @@ if(BUILD_TESTING)
     endif()
     set(CPU_BASE "${CMAKE_CURRENT_BINARY_DIR}/cpu-consumer-${VARIANT}")
     add_custom_command(OUTPUT "${CPU_BASE}.o" "${CPU_BASE}.ll"
-      COMMAND $<TARGET_FILE:kalandrac> "${CMAKE_CURRENT_SOURCE_DIR}/cpu-consumer.kalandra"
+      COMMAND $<TARGET_FILE:kalandrac> "${CMAKE_CURRENT_SOURCE_DIR}/cpu-consumer.k"
         -o "${CPU_BASE}" --emit-llvm "${CPU_BASE}.ll" --test-entry total ${CPU_OPTION}
       COMMAND "${CMAKE_CXX_COMPILER}" -Wno-override-module -ffp-contract=off ${CPU_FLAGS}
         -c "${CPU_BASE}.ll" -o "${CPU_BASE}.o"
-      DEPENDS kalandrac cpu-consumer.kalandra VERBATIM)
+      DEPENDS kalandrac cpu-consumer.k VERBATIM)
     set_source_files_properties("${CPU_BASE}.o" PROPERTIES GENERATED TRUE EXTERNAL_OBJECT TRUE)
     add_executable(kalandra-metal-interop-${VARIANT} InteropTests.cpp "${CPU_BASE}.o")
     target_include_directories(kalandra-metal-interop-${VARIANT} PRIVATE ../metal)
@@ -188,9 +188,9 @@ if(BUILD_TESTING)
       endif()
       set(MIXED_DIR "${CMAKE_CURRENT_BINARY_DIR}/${FIXTURE}-${VARIANT}")
       add_custom_command(OUTPUT "${MIXED_DIR}/host.cpp" "${MIXED_DIR}/placement.ir" "${MIXED_DIR}/continuation.plan" "${MIXED_DIR}/cpu.ll" "${MIXED_DIR}/cpu.o" "${MIXED_DIR}/kernel0.metallib"
-        COMMAND $<TARGET_FILE:kalandra-metal-source> "${CMAKE_CURRENT_SOURCE_DIR}/${FIXTURE}.kalandra" -o "${MIXED_DIR}" --build ${MIXED_OPTION}
+        COMMAND $<TARGET_FILE:kalandra-metal-source> "${CMAKE_CURRENT_SOURCE_DIR}/${FIXTURE}.k" -o "${MIXED_DIR}" --build ${MIXED_OPTION}
         COMMAND "${CMAKE_CXX_COMPILER}" -Wno-override-module -ffp-contract=off ${MIXED_FLAGS} -c "${MIXED_DIR}/cpu.ll" -o "${MIXED_DIR}/cpu.o"
-        DEPENDS kalandra-metal-source "${FIXTURE}.kalandra" VERBATIM)
+        DEPENDS kalandra-metal-source "${FIXTURE}.k" VERBATIM)
       set_source_files_properties("${MIXED_DIR}/cpu.o" PROPERTIES GENERATED TRUE EXTERNAL_OBJECT TRUE)
       add_executable(kalandra-metal-${FIXTURE}-${VARIANT} ${HARNESS} "${MIXED_DIR}/cpu.o" "${MIXED_DIR}/host.cpp")
       set_source_files_properties("${MIXED_DIR}/host.cpp" PROPERTIES HEADER_FILE_ONLY TRUE)
@@ -364,7 +364,7 @@ if(BUILD_TESTING)
   add_test(NAME native-ir-supervisor-cli COMMAND "${CMAKE_COMMAND}"
     "-DCOMPILER=$<TARGET_FILE:kalandrac>"
     "-DSANITIZED_COMPILER=$<TARGET_FILE:kalandra-metal-source-compiler-sanitized>"
-    "-DSOURCE=${CMAKE_CURRENT_SOURCE_DIR}/ir-supervisor.kalandra"
+    "-DSOURCE=${CMAKE_CURRENT_SOURCE_DIR}/ir-supervisor.k"
     "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/ir-supervisor-cli"
     -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyIRSupervisor.cmake")
   set_tests_properties(native-ir-supervisor-cli PROPERTIES TIMEOUT 240 RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")

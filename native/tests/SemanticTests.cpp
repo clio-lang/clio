@@ -10,7 +10,7 @@ void require(bool condition, const std::string &message) {
     throw std::runtime_error(message);
 }
 CheckResult analyze(std::string text, SemanticLimits limits = {}) {
-  return check(parse(std::make_shared<SourceFile>("semantic.kalandra", std::move(text))), limits);
+  return check(parse(std::make_shared<SourceFile>("semantic.k", std::move(text))), limits);
 }
 void accepted(const CheckResult &result) {
   if (!result.ok()) {

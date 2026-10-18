@@ -1,8 +1,8 @@
 # Explicit native module re-exports
 
-Use `export from "./file.kalandra" import name` to expose selected exported functions and record types through another module. Aliases become that module's public names. Ordinary imports remain private.
+Use `export from "./file.k" import name` to expose selected exported functions and record types through another module. Aliases become that module's public names. Ordinary imports remain private.
 
-`jobs.kalandra`:
+`jobs.k`:
 
 ```kalandra
 export type Job:
@@ -12,16 +12,16 @@ export fn decorate(job: Job) -> Job:
   job with {names: map(job.names, fn(name): name + "!")}
 ```
 
-`library.kalandra`:
+`library.k`:
 
 ```kalandra
-export from "./jobs.kalandra" import Job as Batch, decorate as process
+export from "./jobs.k" import Job as Batch, decorate as process
 ```
 
-`main.kalandra`:
+`main.k`:
 
 ```kalandra
-from "./library.kalandra" import Batch, process
+from "./library.k" import Batch, process
 
 fn main() -> [String] ! TaskError:
   original = Batch {names: ["north", "south"]}
@@ -36,7 +36,7 @@ Re-exporting preserves the original declaration. Record aliases do not create ne
 
 A source module must explicitly expose a declaration before it can be re-exported. Private types/functions and names available only through ordinary imports cannot be exposed through this syntax. Re-exporting an alias exposes its new name, not the original spelling. Duplicate names and conflicts with local declarations or other imports are errors; there is no last-wins behavior or implicit preference between functions and types.
 
-All imports and re-exports use the existing explicit relative `.kalandra` paths and bounded acyclic module loader. A file containing only re-exports is a valid library module. It does not supply the consuming program's `main`. Canonical diamonds/symlinks preserve source identity; cycles are rejected. Export resolution caches original identities and rejects cycles even in an in-memory forged graph.
+All imports and re-exports use the existing explicit relative `.k` paths and bounded acyclic module loader. A file containing only re-exports is a valid library module. It does not supply the consuming program's `main`. Canonical diamonds/symlinks preserve source identity; cycles are rejected. Export resolution caches original identities and rejects cycles even in an in-memory forged graph.
 
 This remains CPU local-module composition. Wildcards, namespace imports, export lists without a source module, packages and GPU module integration remain separate work. The runtime, worker ABI and record layout are unchanged.
 

@@ -39,8 +39,8 @@ function(QUALIFY NAME RANK OP MODE EXPR)
   if(MODE EQUAL 5)
     set(PREFIX "fn fixed(x:Tensor[${NUMERIC_TYPE},2,2]) -> Tensor[${NUMERIC_TYPE},2,2]:\n  x + 1\n")
   endif()
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${PREFIX}fn operation(a:${TYPE},b:${TYPE},scalar:${NUMERIC_TYPE}) -> ${TYPE}:\n  ${EXPR}\nfn main() -> ${NUMERIC_TYPE}:\n  0\n")
-  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" -o "${OUTPUT_DIR}/${NAME}" --test-entry operation
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${PREFIX}fn operation(a:${TYPE},b:${TYPE},scalar:${NUMERIC_TYPE}) -> ${TYPE}:\n  ${EXPR}\nfn main() -> ${NUMERIC_TYPE}:\n  0\n")
+  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" -o "${OUTPUT_DIR}/${NAME}" --test-entry operation
     --emit-llvm "${OUTPUT_DIR}/${NAME}.ll" --emit-mlir "${OUTPUT_DIR}/${NAME}.mlir" ${EXTRA})
   RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
     "-DTENSOR_RANK=${RANK}" "-DTENSOR_UNSIGNED=${UNSIGNED}" "${HARNESS_SOURCE}" "${OUTPUT_DIR}/${NAME}.ll" "${RUNTIME}" -o "${OUTPUT_DIR}/${NAME}-harness")
@@ -76,14 +76,14 @@ message(STATUS "Shared 64-bit CPU tensor literals, ranked checked integer arithm
 
 # Unsupported paths must diagnose without overwriting prior artifacts.
 function(REJECT NAME SOURCE MATCH)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${SOURCE}")
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${SOURCE}")
   file(WRITE "${OUTPUT_DIR}/preserved" "preserved executable")
   file(WRITE "${OUTPUT_DIR}/preserved.ll" "preserved llvm")
   set(IR_FLAGS --emit-llvm "${OUTPUT_DIR}/preserved.ll")
   if(NAME STREQUAL "metal")
     set(IR_FLAGS)
   endif()
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra"
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k"
     -o "${OUTPUT_DIR}/preserved" ${IR_FLAGS} ${ARGN}
     RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
   file(READ "${OUTPUT_DIR}/preserved" OLD)
@@ -94,14 +94,14 @@ function(REJECT NAME SOURCE MATCH)
   endif()
 endfunction()
 # Worker handoff is now qualified through the shared 64-bit task suites.
-file(WRITE "${OUTPUT_DIR}/task.kalandra" "fn identity(x:Tensor[${NUMERIC_TYPE},?]) -> Tensor[${NUMERIC_TYPE},?]:\n  x\nfn main() -> ${NUMERIC_TYPE} ! TaskError:\n  try parallel:\n    x:Tensor[${NUMERIC_TYPE},2] = tensor([1,2])\n    try await spawn identity(x)\n    0\n")
-RUN_OK("${COMPILER}" "${OUTPUT_DIR}/task.kalandra" -o "${OUTPUT_DIR}/task-identity" ${EXTRA})
+file(WRITE "${OUTPUT_DIR}/task.k" "fn identity(x:Tensor[${NUMERIC_TYPE},?]) -> Tensor[${NUMERIC_TYPE},?]:\n  x\nfn main() -> ${NUMERIC_TYPE} ! TaskError:\n  try parallel:\n    x:Tensor[${NUMERIC_TYPE},2] = tensor([1,2])\n    try await spawn identity(x)\n    0\n")
+RUN_OK("${COMPILER}" "${OUTPUT_DIR}/task.k" -o "${OUTPUT_DIR}/task-identity" ${EXTRA})
 RUN_OK("${OUTPUT_DIR}/task-identity")
-file(WRITE "${OUTPUT_DIR}/reduction.kalandra" "fn f(x:Tensor[${NUMERIC_TYPE},?]) -> ${NUMERIC_TYPE}:\n  reduceSum(x)\nfn main() -> ${NUMERIC_TYPE}:\n  0\n")
-RUN_OK("${COMPILER}" "${OUTPUT_DIR}/reduction.kalandra" -o "${OUTPUT_DIR}/supported-reduction" ${EXTRA})
+file(WRITE "${OUTPUT_DIR}/reduction.k" "fn f(x:Tensor[${NUMERIC_TYPE},?]) -> ${NUMERIC_TYPE}:\n  reduceSum(x)\nfn main() -> ${NUMERIC_TYPE}:\n  0\n")
+RUN_OK("${COMPILER}" "${OUTPUT_DIR}/reduction.k" -o "${OUTPUT_DIR}/supported-reduction" ${EXTRA})
 RUN_OK("${OUTPUT_DIR}/supported-reduction")
-file(WRITE "${OUTPUT_DIR}/matmul.kalandra" "fn f(x:Tensor[${NUMERIC_TYPE},?,?]) -> Tensor[${NUMERIC_TYPE},?,?]:\n  matmul(x,x)\nfn main() -> ${NUMERIC_TYPE}:\n  0\n")
-RUN_OK("${COMPILER}" "${OUTPUT_DIR}/matmul.kalandra" -o "${OUTPUT_DIR}/supported-matmul" ${EXTRA})
+file(WRITE "${OUTPUT_DIR}/matmul.k" "fn f(x:Tensor[${NUMERIC_TYPE},?,?]) -> Tensor[${NUMERIC_TYPE},?,?]:\n  matmul(x,x)\nfn main() -> ${NUMERIC_TYPE}:\n  0\n")
+RUN_OK("${COMPILER}" "${OUTPUT_DIR}/matmul.k" -o "${OUTPUT_DIR}/supported-matmul" ${EXTRA})
 RUN_OK("${OUTPUT_DIR}/supported-matmul")
 REJECT(metal "fn f(x:Tensor[${NUMERIC_TYPE},?]) -> Tensor[${NUMERIC_TYPE},?]:\n  x + 1\nfn main() -> ${NUMERIC_TYPE}:\n  0\n" "${NUMERIC_TYPE}" --target metal)
 REJECT(size "fn f(x:Tensor[${NUMERIC_TYPE},1152921504606846976]) -> ${NUMERIC_TYPE}:\n  0\n" "S002")

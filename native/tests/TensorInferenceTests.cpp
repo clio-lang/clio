@@ -9,7 +9,7 @@ static void require(bool condition, const std::string &message) {
     throw std::runtime_error(message);
 }
 static CheckResult analyze(const std::string &text, SemanticLimits limits = {}) {
-  return check(parse(std::make_shared<SourceFile>("inference.kalandra", text)), limits);
+  return check(parse(std::make_shared<SourceFile>("inference.k", text)), limits);
 }
 static void accepted(const std::string &body, NumericType element,
                      std::vector<std::uint64_t> shape) {

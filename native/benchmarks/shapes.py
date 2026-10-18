@@ -60,7 +60,7 @@ def main():
     lock = json.loads((ROOT / 'native/toolchain-proof/toolchain.json').read_text())
     clang = pathlib.Path(lock['defaultLlvmRoot']) / 'bin/clang++'
     sources = ['native/benchmarks/ShapeScaling.cpp', 'native/benchmarks/shapes.py',
-               'native/tests/fixtures/dynamic-projection.kalandra', 'native/runtime/Runtime.cpp',
+               'native/tests/fixtures/dynamic-projection.k', 'native/runtime/Runtime.cpp',
                'native/runtime/Runtime.h', 'native/runtime/Tasks.cpp', 'native/runtime/Tasks.h',
                'native/lib/Backend.cpp', 'native/lib/CheckedABI.cpp']
     hashes = {p: digest(ROOT / p) for p in sources}
@@ -71,7 +71,7 @@ def main():
         return run(command)
 
     def generate(name, extra):
-        execute([args.compiler.resolve(), ROOT / 'native/tests/fixtures/dynamic-projection.kalandra',
+        execute([args.compiler.resolve(), ROOT / 'native/tests/fixtures/dynamic-projection.k',
                  '-o', BUILD / (name + '-projection'), '--emit-llvm', BUILD / (name + '.ll'),
                  '--test-entry', 'reference', *extra])
 

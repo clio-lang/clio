@@ -190,15 +190,15 @@ Successful group closure checks that its task identities were observed. Stale ta
 
 This original deterministic mode remains available with TaskLimits.workers = 1 and explicit step/drain. The multi-worker extension below now synchronizes metadata, drives a fixed pool, and polls generated CPU loops. Physical deadline timers, external blocking calls, and general application-error payloads remain outside this implementation. Test-only deadline requests exercise the distinct DeadlineExceeded outcome without claiming a timer service exists.
 
-The three task-core CTest suites compile both runtime and tests in debug, optimized, and ASan/UBSan modes. They cover 100 repeated nine-level nested calculations, twelve-level chains with a one-slot queue, waits before/after completion, cached repeated reads, failure handling after nested settlement, queued/yielded/waiting-parent cancellation, admission allocation failure, partial managed packet/outcome construction, tensor results outliving group teardown, record/queue/unfinished/byte/depth/group-control limits, stale handles, abandoned results, unexpected host exceptions, and core teardown with retained arguments. Frame/result bytes, retained owner entries, unfinished work, and records/groups return to baseline. These foundation tests use synthetic native entries. The separate source suites below exercise compiled .kalandra spawn/await.
+The three task-core CTest suites compile both runtime and tests in debug, optimized, and ASan/UBSan modes. They cover 100 repeated nine-level nested calculations, twelve-level chains with a one-slot queue, waits before/after completion, cached repeated reads, failure handling after nested settlement, queued/yielded/waiting-parent cancellation, admission allocation failure, partial managed packet/outcome construction, tensor results outliving group teardown, record/queue/unfinished/byte/depth/group-control limits, stale handles, abandoned results, unexpected host exceptions, and core teardown with retained arguments. Frame/result bytes, retained owner entries, unfinished work, and records/groups return to baseline. These foundation tests use synthetic native entries. The separate source suites below exercise compiled .k spawn/await.
 
 ## Compiled source task subset
 
-The [scalar program](../../native/tests/fixtures/task-scalars.kalandra) compiles repeated and inline awaits to 16. The [tensor program](../../native/tests/fixtures/task-tensors.kalandra) returns a completed tensor across a group/function boundary and reduces it to 163. The [nested program](../../native/tests/fixtures/task-nested.kalandra) spawns functions which create their own groups and returns 40. [Shared inputs](../../native/tests/fixtures/task-aliases.kalandra) survive two child readers and a completed group, returning 20. [Lexically nested groups](../../native/tests/fixtures/task-lexical.kalandra) in one invocation return 10.
+The [scalar program](../../native/tests/fixtures/task-scalars.k) compiles repeated and inline awaits to 16. The [tensor program](../../native/tests/fixtures/task-tensors.k) returns a completed tensor across a group/function boundary and reduces it to 163. The [nested program](../../native/tests/fixtures/task-nested.k) spawns functions which create their own groups and returns 40. [Shared inputs](../../native/tests/fixtures/task-aliases.k) survive two child readers and a completed group, returning 20. [Lexically nested groups](../../native/tests/fixtures/task-lexical.k) in one invocation return 10.
 
 ```sh
 cmake --build --preset native
-build/native/native/kalandrac native/tests/fixtures/task-nested.kalandra \
+build/native/native/kalandrac native/tests/fixtures/task-nested.k \
   -o build/native/task-nested
 build/native/task-nested
 ctest --preset native
@@ -244,7 +244,7 @@ TaskError payloads remain typed values. Fault.kind maps the current shape/alloca
 
 LLVM emits a success/error branch for catch, tag tests for match, and a local propagation exit for the handler. Tensor fallbacks use the existing managed ownership ledger. Conditional shape guards execute only in their selected body. A refinement applied to a fallible tensor copies the failure header and skips the numerical kernel on error; it never reads the missing tensor payload.
 
-Four recovery CTest suites cover debug, optimized, ASan/UBSan, and TSan builds. They exercise [tensor fallback with queued sibling cancellation](../../native/tests/fixtures/task-recovery.kalandra), [newly allocated fallback storage](../../native/tests/fixtures/task-recovery-allocated.kalandra), [different fallback tensor shapes](../../native/tests/fixtures/task-fallback-shape.kalandra), [typed re-propagation](../../native/tests/fixtures/task-repropagate.kalandra), [handler propagation boundaries](../../native/tests/fixtures/task-handler-boundary.kalandra), successful try inside a handler, repeated awaits of a failed child, sticky group failure, real admission rejection, lazy handler-only shape checks, and fallible tensor refinement. Caller and handler allocation faults retain their checked classification and report zero remaining owners. The frontend suites also verify exhaustiveness, invalid fields/types, immutable binders, conditional obligations, and merged fallback shapes.
+Four recovery CTest suites cover debug, optimized, ASan/UBSan, and TSan builds. They exercise [tensor fallback with queued sibling cancellation](../../native/tests/fixtures/task-recovery.k), [newly allocated fallback storage](../../native/tests/fixtures/task-recovery-allocated.k), [different fallback tensor shapes](../../native/tests/fixtures/task-fallback-shape.k), [typed re-propagation](../../native/tests/fixtures/task-repropagate.k), [handler propagation boundaries](../../native/tests/fixtures/task-handler-boundary.k), successful try inside a handler, repeated awaits of a failed child, sticky group failure, real admission rejection, lazy handler-only shape checks, and fallible tensor refinement. Caller and handler allocation faults retain their checked classification and report zero remaining owners. The frontend suites also verify exhaustiveness, invalid fields/types, immutable binders, conditional obligations, and merged fallback shapes.
 
 ## Bounded multi-worker CPU execution
 
@@ -268,7 +268,7 @@ Generated functions poll at entry and checked call boundaries. Every generated L
 `--sanitize` now marks emitted functions with LLVM's AddressSanitizer attribute as well as linking the ASan/UBSan C++ runtime. The separate `--thread-sanitize` build marks every generated function for ThreadSanitizer and links a TSan-instrumented runtime. The options are mutually exclusive. Passing Clang sanitizer flags to unmarked LLVM input alone is insufficient; the compiled-worker tests also inspect the post-Clang IR for actual ASan/TSan load/store checks. UBSan covers C++ runtime operations; LLVM ASan covers the generated memory accesses.
 
 ```sh
-build/native/native/kalandrac native/tests/fixtures/task-nested.kalandra \
+build/native/native/kalandrac native/tests/fixtures/task-nested.k \
   --thread-sanitize -o build/native/task-nested-tsan
 KALANDRA_WORKERS=4 build/native/task-nested-tsan
 ctest --preset native -R 'native-(workers|compiled-workers|source-tasks|task-recovery)'

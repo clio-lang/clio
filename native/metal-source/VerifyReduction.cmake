@@ -1,8 +1,8 @@
-file(READ "${SOURCE_DIR}/reduction.kalandra" SOURCE)
+file(READ "${SOURCE_DIR}/reduction.k" SOURCE)
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
 function(run NAME CONTENT EXPECTED FLAG)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${CONTENT}")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" --target metal -o "${OUTPUT_DIR}/${NAME}" "${FLAG}"
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}" "${FLAG}"
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${NAME} build failed: ${OUT} ${ERROR}")
@@ -56,10 +56,10 @@ if(NOT STATUS EQUAL 0 OR NOT OUT STREQUAL "41f80000\n")
   message(FATAL_ERROR "Relocated reduction failed: ${OUT} ${ERROR}")
 endif()
 function(reject NAME CONTENT)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${CONTENT}")
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
   file(MAKE_DIRECTORY "${OUTPUT_DIR}/${NAME}")
   file(WRITE "${OUTPUT_DIR}/${NAME}/host.cpp" "sentinel")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" --target metal -o "${OUTPUT_DIR}/${NAME}"
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal -o "${OUTPUT_DIR}/${NAME}"
     RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
   if(STATUS EQUAL 0 OR NOT ERROR MATCHES "(G001|S0)")
     message(FATAL_ERROR "${NAME} accepted unsupported source: ${STATUS} ${ERROR}")

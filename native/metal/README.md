@@ -1,6 +1,6 @@
 # Apple device, transfer, and compute runtime
 
-This optional native C++23/Objective-C++ library implements retained tensor storage and asynchronous CPU↔Metal transfers through the existing task scheduler. It has been exercised on an Apple M2 Max. It also dispatches a private strict binary32 elementwise kernel through managed tasks. A separate optional source compiler now uses this bridge for a first bounded `.kalandra` placement slice.
+This optional native C++23/Objective-C++ library implements retained tensor storage and asynchronous CPU↔Metal transfers through the existing task scheduler. It has been exercised on an Apple M2 Max. It also dispatches a private strict binary32 elementwise kernel through managed tasks. A separate optional source compiler now uses this bridge for a first bounded `.k` placement slice.
 
 ## Build
 

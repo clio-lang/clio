@@ -8,7 +8,7 @@ static void require(bool ok, const std::string &message) {
     throw std::runtime_error(message);
 }
 static CheckResult analyze(const std::string &text) {
-  return check(parse(std::make_shared<SourceFile>("record-bool-fields.kalandra", text)));
+  return check(parse(std::make_shared<SourceFile>("record-bool-fields.k", text)));
 }
 int main() {
   try {

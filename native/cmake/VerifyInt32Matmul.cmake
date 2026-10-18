@@ -65,16 +65,16 @@ function(RUN_OK)
   message(STATUS "${OUT}")
 endfunction()
 SPECIALIZE("fn operation(a:Tensor[int32,?,?],b:Tensor[int32,?,?]) -> Tensor[int32,?,?]:\n  matmul(a,b)\nfn main() -> int32:\n  0\n" SOURCE)
-file(WRITE "${OUTPUT_DIR}/dynamic.kalandra" "${SOURCE}")
-RUN_OK("${COMPILER}" "${OUTPUT_DIR}/dynamic.kalandra" -o "${OUTPUT_DIR}/dynamic"
+file(WRITE "${OUTPUT_DIR}/dynamic.k" "${SOURCE}")
+RUN_OK("${COMPILER}" "${OUTPUT_DIR}/dynamic.k" -o "${OUTPUT_DIR}/dynamic"
   --test-entry operation --emit-llvm "${OUTPUT_DIR}/dynamic.ll" --emit-mlir "${OUTPUT_DIR}/dynamic.mlir" ${EXTRA})
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
   "-DUNSIGNED_INPUT=${UNSIGNED_INPUT}" "-DINTEGER_BITS=${INTEGER_BITS}" "${HARNESS_SOURCE}" "${OUTPUT_DIR}/dynamic.ll" "${RUNTIME}" -o "${OUTPUT_DIR}/dynamic-harness")
 RUN_OK("${OUTPUT_DIR}/dynamic-harness")
 function(COMPILE NAME SOURCE)
   SPECIALIZE("${SOURCE}" SOURCE)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${SOURCE}")
-  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" -o "${OUTPUT_DIR}/${NAME}"
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${SOURCE}")
+  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" -o "${OUTPUT_DIR}/${NAME}"
     --emit-llvm "${OUTPUT_DIR}/${NAME}.ll" --emit-mlir "${OUTPUT_DIR}/${NAME}.mlir" ${EXTRA})
 endfunction()
 function(VERIFY NAME EXPECTED)
@@ -109,7 +109,7 @@ if(UNSIGNED_INPUT)
 endif()
 set(PREFIX "fn product(a:Tensor[int32,?,?],b:Tensor[int32,?,?]) -> Tensor[int32,?,?]:\n  matmul(a,b)\nfn nested(values:Tensor[int32,?,?]) -> Tensor[int32,?,?] ! TaskError:\n  identity:Tensor[int32,2,2] = tensor([[1,0],[0,1]])\n  adjusted = values + 1\n  try parallel:\n    work = spawn product(adjusted,identity)\n    first = try await work\n    again = try await work\n    first + (again - first) + 1\n")
 COMPILE(nested "${PREFIX}fn probe() -> Tensor[int32,?,?] ! TaskError:\n  values:Tensor[int32,2,2] = tensor([[16777217,-10],[100,200]])\n  try parallel:\n    try await spawn nested(values)\nfn main() -> int32:\n  0\n")
-RUN_OK("${COMPILER}" "${OUTPUT_DIR}/nested.kalandra" -o "${OUTPUT_DIR}/nested"
+RUN_OK("${COMPILER}" "${OUTPUT_DIR}/nested.k" -o "${OUTPUT_DIR}/nested"
   --test-entry probe --emit-llvm "${OUTPUT_DIR}/nested.ll" --emit-mlir "${OUTPUT_DIR}/nested.mlir" ${EXTRA})
 set(OPT_LINK)
 if(VARIANT STREQUAL "optimized")
@@ -177,7 +177,7 @@ if(INTEGER_BITS EQUAL 64)
   VERIFY(endpoint ${ENDPOINT})
   message(STATUS "${NUMERIC_TYPE} exact endpoint and allocation probes 1..24 passed with 1/2/4 workers")
 endif()
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/nested.kalandra" --target metal
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/nested.k" --target metal
   -o "${OUTPUT_DIR}/unsupported-metal" RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
 if(NOT "${STATUS}" STREQUAL "1" OR NOT ERR MATCHES "${NUMERIC_TYPE}" OR EXISTS "${OUTPUT_DIR}/unsupported-metal")
   message(FATAL_ERROR "Metal integer matmul accidentally enabled: ${STATUS}: ${ERR}")
@@ -196,10 +196,10 @@ foreach(KIND IN ITEMS shape mixed rank)
     set(SOURCE "fn product(a:Tensor[${NUMERIC_TYPE},?]) -> Tensor[${NUMERIC_TYPE},?,?]:\n  matmul(a,a)\n")
     set(DIAGNOSTIC S028)
   endif()
-  file(WRITE "${OUTPUT_DIR}/invalid-${KIND}.kalandra" "${SOURCE}fn main() -> ${NUMERIC_TYPE}:\n  0\n")
+  file(WRITE "${OUTPUT_DIR}/invalid-${KIND}.k" "${SOURCE}fn main() -> ${NUMERIC_TYPE}:\n  0\n")
   file(WRITE "${OUTPUT_DIR}/preserved" "existing output")
   file(WRITE "${OUTPUT_DIR}/preserved.ll" "existing IR")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/invalid-${KIND}.kalandra" -o "${OUTPUT_DIR}/preserved"
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/invalid-${KIND}.k" -o "${OUTPUT_DIR}/preserved"
     --emit-llvm "${OUTPUT_DIR}/preserved.ll" RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
   file(READ "${OUTPUT_DIR}/preserved" EXE)
   file(READ "${OUTPUT_DIR}/preserved.ll" IR)

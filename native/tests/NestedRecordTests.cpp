@@ -9,7 +9,7 @@ static void require(bool ok, const std::string &message) {
     throw std::runtime_error(message);
 }
 static CheckResult analyze(const std::string &text, SemanticLimits limits = {}) {
-  return check(parse(std::make_shared<SourceFile>("nested-records.kalandra", text)), limits);
+  return check(parse(std::make_shared<SourceFile>("nested-records.k", text)), limits);
 }
 int main() {
   try {

@@ -9,7 +9,7 @@ static void require(bool ok, const std::string &message) {
     throw std::runtime_error(message);
 }
 static CheckResult analyze(const std::string &text, SemanticLimits limits = {}) {
-  return check(parse(std::make_shared<SourceFile>("arrays.kalandra", text)), limits);
+  return check(parse(std::make_shared<SourceFile>("arrays.k", text)), limits);
 }
 static void accept(const std::string &source, NumericType element) {
   auto typed = analyze(source);
@@ -48,7 +48,7 @@ int main() {
                 !choice.module->functions[0].resultType.shape[0].constant,
             "array branch length join lost");
     auto syntax = parse(
-        std::make_shared<SourceFile>("arrays.kalandra", "fn values(a:[int])->[float]:\n  []\n"));
+        std::make_shared<SourceFile>("arrays.k", "fn values(a:[int])->[float]:\n  []\n"));
     require(syntax.ok() && syntax.module.functions[0].parameters[0].type.array &&
                 syntax.module.functions[0].result->array,
             "array annotation AST lost");

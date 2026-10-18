@@ -1,8 +1,8 @@
-file(READ "${SOURCE_DIR}/nested-parallel.kalandra" SOURCE)
+file(READ "${SOURCE_DIR}/nested-parallel.k" SOURCE)
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
 function(build_run NAME CONTENT EXPECTED FLAG)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${CONTENT}")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" --target metal
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal
     -o "${OUTPUT_DIR}/${NAME}" ${FLAG} RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${NAME} compilation: ${STATUS}: ${OUT} ${ERROR}")
@@ -30,7 +30,7 @@ foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
 endforeach()
 file(SHA256 "${OUTPUT_DIR}/optimized/host.cpp" HOST)
 file(SHA256 "${OUTPUT_DIR}/optimized/cpu.ll" CPU)
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/optimized.kalandra" --target metal
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/optimized.k" --target metal
   -o "${OUTPUT_DIR}/optimized" RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 file(SHA256 "${OUTPUT_DIR}/optimized/host.cpp" HOST_AGAIN)
 file(SHA256 "${OUTPUT_DIR}/optimized/cpu.ll" CPU_AGAIN)
@@ -46,10 +46,10 @@ if(NOT STATUS EQUAL 0 OR NOT OUT STREQUAL EXPECTED)
 endif()
 
 function(reject NAME CONTENT PATTERN)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${CONTENT}")
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
   file(MAKE_DIRECTORY "${OUTPUT_DIR}/${NAME}")
   file(WRITE "${OUTPUT_DIR}/${NAME}/host.cpp" "sentinel")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" --target metal
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal
     -o "${OUTPUT_DIR}/${NAME}" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   file(READ "${OUTPUT_DIR}/${NAME}/host.cpp" SENTINEL)
   if(STATUS EQUAL 0 OR NOT ERROR MATCHES "${PATTERN}" OR NOT SENTINEL STREQUAL "sentinel")
@@ -86,8 +86,8 @@ reject(hidden-download "${BAD}" "explicit transfer")
 # A dynamically checked CPU child fault must settle both inner and outer groups.
 set(FIXED "fn fixed(values:Tensor[float32,2]) -> float32:\n  reduceSum(values)\n\nfn forward(values:Tensor[float32,?]) -> Tensor[float32,?]:\n  values\n\n")
 string(REPLACE "try await spawn total(host)" "try await spawn fixed(forward(host))" BAD "${SOURCE}")
-file(WRITE "${OUTPUT_DIR}/dynamic.kalandra" "${FIXED}${BAD}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/dynamic.kalandra" --target metal
+file(WRITE "${OUTPUT_DIR}/dynamic.k" "${FIXED}${BAD}")
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/dynamic.k" --target metal
   -o "${OUTPUT_DIR}/dynamic" --sanitize RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Dynamic nested task mismatch should compile: ${OUT} ${ERROR}")

@@ -31,7 +31,7 @@ def main():
         commands.append([str(v) for v in command])
         return run(command, timeout=600)
     started = time.monotonic()
-    execute([args.compiler.resolve(), ROOT / 'native/benchmarks/gpu.kalandra', '--target', 'metal', '-o', kernels, '-O2'])
+    execute([args.compiler.resolve(), ROOT / 'native/benchmarks/gpu.k', '--target', 'metal', '-o', kernels, '-O2'])
     for suffix in ['mlir', 'lowered.mlir', 'spv', 'metallib']:
         shutil.copyfile(kernels / f'kernel0.{suffix}', kernels / f'scalar.{suffix}')
     variants = ['scalar', 'shared8x8', 'register2x2', 'register2x1']

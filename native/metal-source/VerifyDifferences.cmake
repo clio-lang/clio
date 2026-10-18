@@ -1,4 +1,4 @@
-file(READ "${SOURCE_DIR}/differences.kalandra" SOURCE)
+file(READ "${SOURCE_DIR}/differences.k" SOURCE)
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
 set(EXPECTED "[c0400000,c0400000,c0400000,c0400000,c0400000,c0400000]\n")
 foreach(VARIANT IN ITEMS optimized sanitized thread-sanitized)
@@ -9,7 +9,7 @@ foreach(VARIANT IN ITEMS optimized sanitized thread-sanitized)
   else()
     set(FLAG --thread-sanitize)
   endif()
-  execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/differences.kalandra" --target metal
+  execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/differences.k" --target metal
     -o "${OUTPUT_DIR}/${VARIANT}" "${FLAG}" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${VARIANT} compilation failed: ${OUT} ${ERROR}")
@@ -53,10 +53,10 @@ endif()
 # Fixed mismatches are diagnosed transactionally; dynamic mismatches fail before reads.
 string(REPLACE "Tensor[float32, 2, 3] = tensor([[7, 8, 9], [10, 11, 12]])"
   "Tensor[float32, 3, 2] = tensor([[7, 8], [9, 10], [11, 12]])" BAD "${SOURCE}")
-file(WRITE "${OUTPUT_DIR}/bad.kalandra" "${BAD}")
+file(WRITE "${OUTPUT_DIR}/bad.k" "${BAD}")
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/bad")
 file(WRITE "${OUTPUT_DIR}/bad/host.cpp" "sentinel")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/bad.kalandra" --target metal -o "${OUTPUT_DIR}/bad"
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/bad.k" --target metal -o "${OUTPUT_DIR}/bad"
   RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 file(READ "${OUTPUT_DIR}/bad/host.cpp" SENTINEL)
 if(STATUS EQUAL 0 OR NOT ERROR MATCHES "(G001|S0)" OR NOT SENTINEL STREQUAL "sentinel")
@@ -64,8 +64,8 @@ if(STATUS EQUAL 0 OR NOT ERROR MATCHES "(G001|S0)" OR NOT SENTINEL STREQUAL "sen
 endif()
 set(FORWARD "fn forward(values: Tensor[float32, ?, ?]) -> Tensor[float32, ?, ?]:\n  values\n\n")
 string(REPLACE "transfer(right, gpu)" "transfer(forward(right), gpu)" BAD "${BAD}")
-file(WRITE "${OUTPUT_DIR}/dynamic.kalandra" "${FORWARD}${BAD}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/dynamic.kalandra" --target metal -o "${OUTPUT_DIR}/dynamic" --sanitize
+file(WRITE "${OUTPUT_DIR}/dynamic.k" "${FORWARD}${BAD}")
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/dynamic.k" --target metal -o "${OUTPUT_DIR}/dynamic" --sanitize
   RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "Dynamic subtraction mismatch should compile: ${OUT} ${ERROR}")
@@ -81,14 +81,14 @@ endforeach()
 string(FIND "${SOURCE}" "fn main()" MAIN)
 string(SUBSTRING "${SOURCE}" 0 ${MAIN} FUNCTIONS)
 set(CPU_MAIN "fn main() -> float32 ! TaskError:\n  try parallel:\n    a: Tensor[float32,2,3] = tensor([[1,2,3],[4,5,6]])\n    b: Tensor[float32,2,3] = tensor([[7,8,9],[10,11,12]])\n    work = spawn difference(a,b)\n    delta = try await work\n    positive = reverse(0,delta)\n    centered = lower(positive,1)\n    reduceSum(shift(centered,-1))\n")
-file(WRITE "${OUTPUT_DIR}/cpu-task.kalandra" "${FUNCTIONS}${CPU_MAIN}")
+file(WRITE "${OUTPUT_DIR}/cpu-task.k" "${FUNCTIONS}${CPU_MAIN}")
 foreach(FLAG IN ITEMS --sanitize --thread-sanitize)
   if(FLAG STREQUAL "--sanitize")
     set(NAME cpu-task-sanitized)
   else()
     set(NAME cpu-task-thread-sanitized)
   endif()
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/cpu-task.kalandra" --target cpu
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/cpu-task.k" --target cpu
     -o "${OUTPUT_DIR}/${NAME}" "${FLAG}" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "CPU subtraction task compilation failed: ${OUT} ${ERROR}")

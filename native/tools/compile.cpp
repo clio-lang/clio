@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
   }
   const std::span<char *> arguments(filtered);
   if (arguments.size() < 2) {
-    std::cerr << "usage: kalandrac source.kalandra -o executable [--emit-mlir file] [--emit-llvm "
+    std::cerr << "usage: kalandrac source.k -o executable [--emit-mlir file] [--emit-llvm "
                  "file] [--test-entry function] [--sanitize|--thread-sanitize] [-O0|-O2] [--target "
                  "cpu|metal]\n";
     return 2;

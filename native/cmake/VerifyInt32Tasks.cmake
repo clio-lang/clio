@@ -10,8 +10,8 @@ elseif(VARIANT STREQUAL "thread-sanitized")
 endif()
 function(COMPILE NAME SOURCE)
   SPECIALIZE("${SOURCE}" SOURCE)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${SOURCE}")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" -o "${OUTPUT_DIR}/${NAME}"
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${SOURCE}")
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" -o "${OUTPUT_DIR}/${NAME}"
     --emit-llvm "${OUTPUT_DIR}/${NAME}.ll" --emit-mlir "${OUTPUT_DIR}/${NAME}.mlir" ${EXTRA}
     RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
   if(NOT "${STATUS}" STREQUAL "0" OR NOT ERR STREQUAL "")
@@ -32,11 +32,11 @@ foreach(CASE IN ITEMS "scalars|-4" "mixed|16777218" "owned|16")
   string(REPLACE "|" ";" FIELDS "${CASE}")
   list(GET FIELDS 0 NAME)
   list(GET FIELDS 1 EXPECTED)
-  file(READ "${FIXTURES}/task-int32-${NAME}.kalandra" SOURCE)
+  file(READ "${FIXTURES}/task-int32-${NAME}.k" SOURCE)
   COMPILE("${NAME}" "${SOURCE}")
   VERIFY("${NAME}" "${EXPECTED}")
 endforeach()
-file(READ "${FIXTURES}/task-int32-mixed.kalandra" SOURCE)
+file(READ "${FIXTURES}/task-int32-mixed.k" SOURCE)
 string(REPLACE "fn main() -> int32" "fn main() -> float32" SOURCE "${SOURCE}")
 string(REGEX REPLACE "    value\n$" "    real\n" SOURCE "${SOURCE}")
 COMPILE(mixed-float-root "${SOURCE}")
@@ -159,8 +159,8 @@ if(INTEGER_BITS EQUAL 64)
       string(APPEND SOURCE "    r\n")
     endif()
     # This source intentionally mixes widths; do not specialize its int32 members.
-    file(WRITE "${OUTPUT_DIR}/families-${ROOT}.kalandra" "${SOURCE}")
-    execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/families-${ROOT}.kalandra" -o "${OUTPUT_DIR}/families-${ROOT}"
+    file(WRITE "${OUTPUT_DIR}/families-${ROOT}.k" "${SOURCE}")
+    execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/families-${ROOT}.k" -o "${OUTPUT_DIR}/families-${ROOT}"
       --emit-llvm "${OUTPUT_DIR}/families-${ROOT}.ll" --emit-mlir "${OUTPUT_DIR}/families-${ROOT}.mlir" ${EXTRA}
       RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
     if(NOT "${STATUS}" STREQUAL "0" OR NOT ERR STREQUAL "")

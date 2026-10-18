@@ -36,7 +36,7 @@ foreach(OP IN ITEMS add sub mul div rem neg pos)
   else()
     set(EXPR "+a")
   endif()
-  set(SOURCE "${OUTPUT_DIR}/${OP}.kalandra")
+  set(SOURCE "${OUTPUT_DIR}/${OP}.k")
   set(IR "${OUTPUT_DIR}/${OP}.ll")
   set(RAW_${OP} "fn operation(a:uint32,b:uint32) -> uint32:\n  ${EXPR}\nfn forward(a:uint32,b:uint32) -> uint32:\n  operation(a,b)\nfn main() -> uint32:\n  4294967295\n")
   WRITE_SOURCE("${SOURCE}" "${RAW_${OP}}")
@@ -58,8 +58,8 @@ foreach(OP IN ITEMS add sub mul div rem neg pos)
   endif()
 endforeach()
 function(COMPILE NAME SOURCE)
-  WRITE_SOURCE("${OUTPUT_DIR}/${NAME}.kalandra" "${SOURCE}")
-  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" -o "${OUTPUT_DIR}/${NAME}"
+  WRITE_SOURCE("${OUTPUT_DIR}/${NAME}.k" "${SOURCE}")
+  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" -o "${OUTPUT_DIR}/${NAME}"
     --emit-llvm "${OUTPUT_DIR}/${NAME}.ll" --emit-mlir "${OUTPUT_DIR}/${NAME}.mlir" ${EXTRA})
 endfunction()
 function(VERIFY NAME EXPECTED)
@@ -171,17 +171,17 @@ foreach(WORKERS IN ITEMS 1 2 4)
   endif()
 endforeach()
 # Static rejection must preserve existing output artifacts.
-WRITE_SOURCE("${OUTPUT_DIR}/invalid.kalandra" "fn main() -> uint32:\n  4294967295 * 4294967295\n")
+WRITE_SOURCE("${OUTPUT_DIR}/invalid.k" "fn main() -> uint32:\n  4294967295 * 4294967295\n")
 file(WRITE "${OUTPUT_DIR}/preserved" "existing output")
 file(WRITE "${OUTPUT_DIR}/preserved.ll" "existing IR")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/invalid.kalandra" -o "${OUTPUT_DIR}/preserved"
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/invalid.k" -o "${OUTPUT_DIR}/preserved"
   --emit-llvm "${OUTPUT_DIR}/preserved.ll" ${EXTRA} RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
 file(READ "${OUTPUT_DIR}/preserved" OLD_EXE)
 file(READ "${OUTPUT_DIR}/preserved.ll" OLD_IR)
 if(NOT "${STATUS}" STREQUAL "1" OR NOT ERR MATCHES "S052" OR NOT OLD_EXE STREQUAL "existing output" OR NOT OLD_IR STREQUAL "existing IR")
   message(FATAL_ERROR "Invalid unsigned constants published artifacts: ${STATUS}: ${ERR}")
 endif()
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/mixed.kalandra" --target metal
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/mixed.k" --target metal
   -o "${OUTPUT_DIR}/unsupported-metal" RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
 if(NOT "${STATUS}" STREQUAL "1" OR NOT ERR MATCHES "${NUMERIC_TYPE}" OR EXISTS "${OUTPUT_DIR}/unsupported-metal")
   message(FATAL_ERROR "Metal unsigned arithmetic accidentally enabled: ${STATUS}: ${ERR}")
@@ -214,8 +214,8 @@ if(INTEGER_BITS EQUAL 64)
     endif()
     set(SOURCE "${PREFIX}fn main() -> ${TYPE} ! TaskError:\n  try parallel:\n    wa = spawn wideUnsigned(18446744073709551615,-9223372036854775808,4294967295,-2147483648,1.5)\n    wb = spawn wideSigned(18446744073709551615,-9223372036854775808,4294967295,-2147483648,1.5)\n    wc = spawn narrowUnsigned(18446744073709551615,-9223372036854775808,4294967295,-2147483648,1.5)\n    wd = spawn narrowSigned(18446744073709551615,-9223372036854775808,4294967295,-2147483648,1.5)\n    we = spawn real(18446744073709551615,-9223372036854775808,4294967295,-2147483648,1.5)\n    a = try await wa\n    b = try await wb\n    c = try await wc\n    d = try await wd\n    e = try await we\n    ${RETURN}\n")
     # Preserve intentionally mixed widths; specialize neither the source nor expected value.
-    file(WRITE "${OUTPUT_DIR}/families-${ROOT}.kalandra" "${SOURCE}")
-    RUN_OK("${COMPILER}" "${OUTPUT_DIR}/families-${ROOT}.kalandra" -o "${OUTPUT_DIR}/families-${ROOT}"
+    file(WRITE "${OUTPUT_DIR}/families-${ROOT}.k" "${SOURCE}")
+    RUN_OK("${COMPILER}" "${OUTPUT_DIR}/families-${ROOT}.k" -o "${OUTPUT_DIR}/families-${ROOT}"
       --emit-llvm "${OUTPUT_DIR}/families-${ROOT}.ll" --emit-mlir "${OUTPUT_DIR}/families-${ROOT}.mlir" ${EXTRA})
     foreach(WORKERS IN ITEMS 1 2 4)
       RUN_OK("${CMAKE_COMMAND}" -E env "KALANDRA_WORKERS=${WORKERS}" "${OUTPUT_DIR}/families-${ROOT}")

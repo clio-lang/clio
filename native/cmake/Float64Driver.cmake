@@ -20,8 +20,8 @@ function(RUN_OK)
   set(OUTPUT "${OUT}" PARENT_SCOPE)
 endfunction()
 function(COMPILE NAME SOURCE)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${SOURCE}")
-  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" -o "${OUTPUT_DIR}/${NAME}"
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${SOURCE}")
+  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" -o "${OUTPUT_DIR}/${NAME}"
     --emit-llvm "${OUTPUT_DIR}/${NAME}.ll" --emit-mlir "${OUTPUT_DIR}/${NAME}.mlir" ${EXTRA} ${ARGN})
 endfunction()
 function(EXPECT NAME EXPECTED)

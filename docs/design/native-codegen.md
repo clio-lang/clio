@@ -1,6 +1,6 @@
 # Native CPU source compilation
 
-Implemented first source-to-native path — 2026-10-15. The C++23 compiler now lowers the [checked IR](semantics.md) through MLIR's native C++ API, bufferization, ownership/deallocation, explicit loops, LLVM translation, and native linking. The [projection source](fixtures/cpu-projection.kalandra) builds into an executable that prints 163.
+Implemented first source-to-native path — 2026-10-15. The C++23 compiler now lowers the [checked IR](semantics.md) through MLIR's native C++ API, bufferization, ownership/deallocation, explicit loops, LLVM translation, and native linking. The [projection source](fixtures/cpu-projection.k) builds into an executable that prints 163.
 
 This is the float32 CPU subset on macOS ARM64. It includes the [source task subset](native-tasks.md#compiled-source-task-subset) on a bounded multi-worker CPU core. Devices, remote execution, general arrays/records, integer arithmetic, and the final application IO/runtime APIs remain pending.
 
@@ -13,7 +13,7 @@ From the repository root:
 ```sh
 cmake --preset native
 cmake --build --preset native
-build/native/native/kalandrac docs/design/fixtures/cpu-projection.kalandra \
+build/native/native/kalandrac docs/design/fixtures/cpu-projection.k \
   -o build/native/projection
 build/native/projection
 ctest --preset native

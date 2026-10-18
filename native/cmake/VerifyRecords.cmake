@@ -27,9 +27,9 @@ EXPECT(inline-map "[2, 4, 6]")
 COMPILE(tensor-field "type Shape:\n  width:int\n  height:int\nfn main():\n  shape=Shape {height:2,width:2}\n  tensor([1,2,3,4],[shape.height,shape.width])\n")
 EXPECT(tensor-field "tensor([1, 2, 3, 4], [2, 2])")
 set(DECL "type Point:\n  x:int\n  y:int\n")
-file(WRITE "${OUTPUT_DIR}/a.kalandra" "${DECL}export fn make():\n  Point {x:1,y:2}\nexport fn total(p:Point):\n  p.x+p.y\n")
-file(WRITE "${OUTPUT_DIR}/b.kalandra" "from \"./a.kalandra\" import make, total\nexport fn go():\n  total(make() with {x:40})\n")
-COMPILE(modules "from \"./b.kalandra\" import go\nfn main():\n  go()\n")
+file(WRITE "${OUTPUT_DIR}/a.k" "${DECL}export fn make():\n  Point {x:1,y:2}\nexport fn total(p:Point):\n  p.x+p.y\n")
+file(WRITE "${OUTPUT_DIR}/b.k" "from \"./a.k\" import make, total\nexport fn go():\n  total(make() with {x:40})\n")
+COMPILE(modules "from \"./b.k\" import go\nfn main():\n  go()\n")
 EXPECT(modules 42)
 COMPILE(conditional "${DECL}fn choose(flag:Bool)->Point:\n  if flag: Point {x:1,y:2}\n  else: Point {x:3,y:4}\nfn main():\n  choose(false).x+choose(true).y\n")
 EXPECT(conditional 5)
@@ -48,11 +48,11 @@ COMPILE(selected-path "${HELPERS}fn choose(flag:Bool):\n  if flag: Point {x:over
 EXPECT(selected-path 7)
 # Failed record builds preserve existing artifacts, rather than publishing a
 # partially checked executable or emitted IR.
-file(WRITE "${OUTPUT_DIR}/reject.kalandra" "${DECL}fn main():\n  Point {x:1,y:2}\n")
+file(WRITE "${OUTPUT_DIR}/reject.k" "${DECL}fn main():\n  Point {x:1,y:2}\n")
 foreach(SUFFIX IN ITEMS exe ll mlir)
   file(WRITE "${OUTPUT_DIR}/reject.${SUFFIX}" "preserve-${SUFFIX}")
 endforeach()
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject.kalandra" -o "${OUTPUT_DIR}/reject.exe"
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject.k" -o "${OUTPUT_DIR}/reject.exe"
   --emit-llvm "${OUTPUT_DIR}/reject.ll" --emit-mlir "${OUTPUT_DIR}/reject.mlir" ${EXTRA}
   RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
 if(STATUS EQUAL 0 OR NOT ERR MATCHES "native entry requires")

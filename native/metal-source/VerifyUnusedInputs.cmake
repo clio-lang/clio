@@ -1,4 +1,4 @@
-file(READ "${SOURCE_DIR}/unused-inputs.kalandra" SOURCE)
+file(READ "${SOURCE_DIR}/unused-inputs.k" SOURCE)
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
 foreach(VARIANT IN ITEMS optimized sanitized thread-sanitized)
   if(VARIANT STREQUAL "optimized")
@@ -8,7 +8,7 @@ foreach(VARIANT IN ITEMS optimized sanitized thread-sanitized)
   else()
     set(FLAG --thread-sanitize)
   endif()
-  execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/unused-inputs.kalandra" --target metal
+  execute_process(COMMAND "${COMPILER}" "${SOURCE_DIR}/unused-inputs.k" --target metal
     -o "${OUTPUT_DIR}/${VARIANT}" "${FLAG}" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "${VARIANT}: ${OUT} ${ERROR}")
@@ -46,10 +46,10 @@ string(REPLACE "    dm = try await transfer(m, gpu)"
   BAD "${GPU_ONLY}")
 string(REPLACE "compute(dm, chosen, dm, db, 1)" "compute(dm, chosen, dn, db, 1)" BAD "${BAD}")
 function(reject NAME CONTENT EXPECTED)
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${CONTENT}")
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${CONTENT}")
   file(MAKE_DIRECTORY "${OUTPUT_DIR}/${NAME}")
   file(WRITE "${OUTPUT_DIR}/${NAME}/host.cpp" "sentinel")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" --target metal
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" --target metal
     -o "${OUTPUT_DIR}/${NAME}" RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
   file(READ "${OUTPUT_DIR}/${NAME}/host.cpp" SENTINEL)
   if(STATUS EQUAL 0 OR NOT ERROR MATCHES "${EXPECTED}" OR NOT SENTINEL STREQUAL "sentinel")
@@ -66,8 +66,8 @@ foreach(EMPTY IN ITEMS no yes)
     string(REPLACE "Tensor[float32, 3] = tensor([4, 5, 6])" "Tensor[float32, 0] = tensor([])" CONTENT "${CONTENT}")
     string(REPLACE "fn main() -> Tensor[float32, 3]" "fn main() -> Tensor[float32, 0]" CONTENT "${CONTENT}")
   endif()
-  file(WRITE "${OUTPUT_DIR}/dynamic-${EMPTY}.kalandra" "${CONTENT}")
-  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/dynamic-${EMPTY}.kalandra" --target metal
+  file(WRITE "${OUTPUT_DIR}/dynamic-${EMPTY}.k" "${CONTENT}")
+  execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/dynamic-${EMPTY}.k" --target metal
     -o "${OUTPUT_DIR}/dynamic-${EMPTY}" --sanitize RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
   if(NOT STATUS EQUAL 0)
     message(FATAL_ERROR "Dynamic discarded shape failed to compile: ${ERROR}")

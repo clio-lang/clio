@@ -30,8 +30,8 @@ function(QUALIFY NAME RANK OP MODE EXPR)
   if(MODE EQUAL 5)
     set(PREFIX "fn fixed(x:Tensor[uint32,2,2]) -> Tensor[uint32,2,2]:\n  x + 1\n")
   endif()
-  file(WRITE "${OUTPUT_DIR}/${NAME}.kalandra" "${PREFIX}fn operation(a:${TYPE},b:${TYPE},scalar:uint32) -> ${TYPE}:\n  ${EXPR}\nfn main() -> uint32:\n  0\n")
-  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/${NAME}.kalandra" -o "${OUTPUT_DIR}/${NAME}" --test-entry operation
+  file(WRITE "${OUTPUT_DIR}/${NAME}.k" "${PREFIX}fn operation(a:${TYPE},b:${TYPE},scalar:uint32) -> ${TYPE}:\n  ${EXPR}\nfn main() -> uint32:\n  0\n")
+  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/${NAME}.k" -o "${OUTPUT_DIR}/${NAME}" --test-entry operation
     --emit-llvm "${OUTPUT_DIR}/${NAME}.ll" --emit-mlir "${OUTPUT_DIR}/${NAME}.mlir" ${EXTRA})
   RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
     "-DTENSOR_RANK=${RANK}" "${HARNESS_SOURCE}" "${OUTPUT_DIR}/${NAME}.ll" "${RUNTIME}" -o "${OUTPUT_DIR}/${NAME}-harness")
@@ -65,8 +65,8 @@ QUALIFY(literal-2 2 literal 4 "tensor([[scalar,4294967295],[2147483648,16777217]
 QUALIFY(literal-3 3 literal 4 "tensor([scalar,4294967295,2147483648,16777217],[2,2,1])")
 message(STATUS "UInt32 CPU tensor literals, ranked checked unsigned arithmetic, scalar lifting, exact cells, shape/overflow faults and ownership passed")
 # The previous task-admission fixture is now a positive CLI handoff check.
-file(WRITE "${OUTPUT_DIR}/gate-task.kalandra" "fn identity(x:Tensor[uint32,?]) -> Tensor[uint32,?]:\n  x\nfn main() -> uint32 ! TaskError:\n  try parallel:\n    x:Tensor[uint32,2] = tensor([1,2])\n    try await spawn identity(x)\n    0\n")
-RUN_OK("${COMPILER}" "${OUTPUT_DIR}/gate-task.kalandra" -o "${OUTPUT_DIR}/task-identity" ${EXTRA})
+file(WRITE "${OUTPUT_DIR}/gate-task.k" "fn identity(x:Tensor[uint32,?]) -> Tensor[uint32,?]:\n  x\nfn main() -> uint32 ! TaskError:\n  try parallel:\n    x:Tensor[uint32,2] = tensor([1,2])\n    try await spawn identity(x)\n    0\n")
+RUN_OK("${COMPILER}" "${OUTPUT_DIR}/gate-task.k" -o "${OUTPUT_DIR}/task-identity" ${EXTRA})
 RUN_OK("${OUTPUT_DIR}/task-identity")
 foreach(OP IN ITEMS reduceSum matmul)
   if(OP STREQUAL "reduceSum")
@@ -74,11 +74,11 @@ foreach(OP IN ITEMS reduceSum matmul)
   else()
     set(SOURCE "fn f(x:Tensor[uint32,?,?]) -> Tensor[uint32,?,?]:\n  matmul(x,x)\nfn main() -> uint32:\n  0\n")
   endif()
-  file(WRITE "${OUTPUT_DIR}/gate-${OP}.kalandra" "${SOURCE}")
-  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/gate-${OP}.kalandra" -o "${OUTPUT_DIR}/supported-${OP}" ${EXTRA})
+  file(WRITE "${OUTPUT_DIR}/gate-${OP}.k" "${SOURCE}")
+  RUN_OK("${COMPILER}" "${OUTPUT_DIR}/gate-${OP}.k" -o "${OUTPUT_DIR}/supported-${OP}" ${EXTRA})
   RUN_OK("${OUTPUT_DIR}/supported-${OP}")
 endforeach()
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/add-pair.kalandra" --target metal
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/add-pair.k" --target metal
   -o "${OUTPUT_DIR}/unsupported-metal" RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
 if(NOT "${STATUS}" STREQUAL "1" OR NOT ERR MATCHES "uint32" OR EXISTS "${OUTPUT_DIR}/unsupported-metal")
   message(FATAL_ERROR "Metal uint32 tensor arithmetic accidentally enabled: ${STATUS}: ${ERR}")

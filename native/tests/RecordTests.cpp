@@ -11,7 +11,7 @@ static void require(bool ok, const std::string &message) {
     throw std::runtime_error(message);
 }
 static CheckResult analyze(const std::string &text) {
-  return check(parse(std::make_shared<SourceFile>("records.kalandra", text)));
+  return check(parse(std::make_shared<SourceFile>("records.k", text)));
 }
 int main(int argc, char **argv) {
   try {
@@ -160,25 +160,25 @@ int main(int argc, char **argv) {
       require(bool(parsed), "cannot load module fixture");
       return check(std::move(*parsed));
     };
-    write("a.kalandra",
+    write("a.k",
           declaration + "export fn make():\n  Point {x:1,y:2}\nexport fn take(p:Point):\n  p.x\n");
-    write("b.kalandra", declaration + "export fn make():\n  Point {x:3,y:4}\n");
+    write("b.k", declaration + "export fn make():\n  Point {x:3,y:4}\n");
     write(
-        "main.kalandra",
-        "from \"./a.kalandra\" import make, take\nfn main():\n  p=make() with {x:4}\n  take(p)\n");
-    auto module = loaded("main.kalandra");
+        "main.k",
+        "from \"./a.k\" import make, take\nfn main():\n  p=make() with {x:4}\n  take(p)\n");
+    auto module = loaded("main.k");
     require(module.ok(), "inferred imported record lost original type");
 #ifndef KALANDRA_RECORD_FRONTEND_ONLY
     require(bool(lowerNative(*module.module)), "imported record lowering failed");
 #endif
-    write("main.kalandra", "from \"./a.kalandra\" import take\nfrom \"./b.kalandra\" import "
+    write("main.k", "from \"./a.k\" import take\nfrom \"./b.k\" import "
                            "make\nfn main():\n  take(make())\n");
-    require(!loaded("main.kalandra").ok(), "distinct same-spelling module records unified");
-    write("main.kalandra", "from \"./a.kalandra\" import Point\nfn main():\n  0\n");
-    require(!loaded("main.kalandra").ok(), "type export silently enabled");
-    write("main.kalandra",
-          "from \"./a.kalandra\" import make as Point\n" + declaration + "fn main():\n  0\n");
-    require(!loaded("main.kalandra").ok(), "type/import namespace collision admitted");
+    require(!loaded("main.k").ok(), "distinct same-spelling module records unified");
+    write("main.k", "from \"./a.k\" import Point\nfn main():\n  0\n");
+    require(!loaded("main.k").ok(), "type export silently enabled");
+    write("main.k",
+          "from \"./a.k\" import make as Point\n" + declaration + "fn main():\n  0\n");
+    require(!loaded("main.k").ok(), "type/import namespace collision admitted");
     std::cout << "records: six numeric field types and Bool, construction/read/update, nominal "
                  "identity, source order, immutable syntax, imported values, malformed IR and "
                  "task-handle/GPU/CLI gates passed\n";

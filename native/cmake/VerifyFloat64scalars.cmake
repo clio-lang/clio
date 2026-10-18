@@ -24,18 +24,18 @@ foreach(TEST IN ITEMS "-0.0|-0" "4.9406564584124654e-324|4.9406564584124654e-324
   math(EXPR CASE "${CASE}+1")
 endforeach()
 # Preserve previously existing output files on finite-literal overflow.
-file(WRITE "${OUTPUT_DIR}/overflow.kalandra" "fn main() -> float:\n  1.8e308\n")
+file(WRITE "${OUTPUT_DIR}/overflow.k" "fn main() -> float:\n  1.8e308\n")
 file(WRITE "${OUTPUT_DIR}/preserved" "existing executable")
 file(WRITE "${OUTPUT_DIR}/preserved.ll" "existing LLVM")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/overflow.kalandra" -o "${OUTPUT_DIR}/preserved"
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/overflow.k" -o "${OUTPUT_DIR}/preserved"
   --emit-llvm "${OUTPUT_DIR}/preserved.ll" RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
 file(READ "${OUTPUT_DIR}/preserved" EXE)
 file(READ "${OUTPUT_DIR}/preserved.ll" IR)
 if(NOT STATUS EQUAL 1 OR NOT ERR MATCHES "S015" OR NOT EXE STREQUAL "existing executable" OR NOT IR STREQUAL "existing LLVM")
   message(FATAL_ERROR "Overflow literal published output: ${STATUS}: ${ERR}")
 endif()
-file(WRITE "${OUTPUT_DIR}/gpu.kalandra" "fn helper(x:float64) -> float64:\n  x+1\nfn main() -> float32 ! TaskError:\n  1\n")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/gpu.kalandra" --target metal -o "${OUTPUT_DIR}/gpu"
+file(WRITE "${OUTPUT_DIR}/gpu.k" "fn helper(x:float64) -> float64:\n  x+1\nfn main() -> float32 ! TaskError:\n  1\n")
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/gpu.k" --target metal -o "${OUTPUT_DIR}/gpu"
   RESULT_VARIABLE STATUS ERROR_VARIABLE ERR)
 if(NOT STATUS EQUAL 1 OR NOT ERR MATCHES "float32" OR EXISTS "${OUTPUT_DIR}/gpu")
   message(FATAL_ERROR "Unsupported Metal float64 module admitted: ${STATUS}: ${ERR}")

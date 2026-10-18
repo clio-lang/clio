@@ -18,8 +18,8 @@ static void write(const std::string &file, const std::string &text) {
   require(bool(out), "write failed");
 }
 static CheckResult analyze(const std::string &text, SemanticLimits limits = {}) {
-  write("main.kalandra", text);
-  auto loaded = loadModules((root / "main.kalandra").string());
+  write("main.k", text);
+  auto loaded = loadModules((root / "main.k").string());
   require(bool(loaded), "loader failed");
   return check(std::move(*loaded), limits);
 }
@@ -29,18 +29,18 @@ int main(int argc, char **argv) {
   try {
     root = fs::absolute(argv[1]);
     fs::create_directories(root);
-    write("core.kalandra", "export type Row:\n  names:[String]\n  value:int64\ntype Secret:\n  "
+    write("core.k", "export type Row:\n  names:[String]\n  value:int64\ntype Secret:\n  "
                            "flag:Bool\nfn helper(n:int64)->int64:\n  n+1\nexport fn make()->Row:\n "
                            " Row {names:[\"é\"],value:2}\nexport fn step(row:Row)->Row:\n  row "
                            "with {value:helper(row.value)}\n");
-    write("facade.kalandra",
-          "export from \"./core.kalandra\" import Row as Item, make as create, step as advance\n");
-    write("public.kalandra",
-          "export from \"./facade.kalandra\" import Item as Entry, create, advance\n");
-    write("private.kalandra", "from \"./core.kalandra\" import Row as Item, make\n");
-    write("other.kalandra", "export type Row:\n  names:[String]\n  value:int64\n");
-    const std::string imports = "from \"./public.kalandra\" import Entry, create, advance\nfrom "
-                                "\"./core.kalandra\" import Row\n";
+    write("facade.k",
+          "export from \"./core.k\" import Row as Item, make as create, step as advance\n");
+    write("public.k",
+          "export from \"./facade.k\" import Item as Entry, create, advance\n");
+    write("private.k", "from \"./core.k\" import Row as Item, make\n");
+    write("other.k", "export type Row:\n  names:[String]\n  value:int64\n");
+    const std::string imports = "from \"./public.k\" import Entry, create, advance\nfrom "
+                                "\"./core.k\" import Row\n";
     auto good = analyze(
         imports + "fn local(value:Entry)->Row:\n  advance(value)\nfn main()->int64 ! TaskError:\n  "
                   "changed=try parallel:\n    work=spawn local(create())\n    first=try await "
@@ -56,62 +56,62 @@ int main(int argc, char **argv) {
     require(bool(lowered), lowered ? "" : lowered.error());
 #endif
     auto constructors =
-        analyze("from \"./public.kalandra\" import Entry\nexport type Box:\n  row:Entry\nfn "
+        analyze("from \"./public.k\" import Entry\nexport type Box:\n  row:Entry\nfn "
                 "main()->[String]:\n  Box {row:Entry {names:[\"kept\"],value:4}}.row.names\n");
     require(constructors.ok(), "reexported constructors/fields rejected");
     for (const auto &source :
-         {"from \"./facade.kalandra\" import Row\nfn main():\n  0\n",
-          "from \"./private.kalandra\" import Item\nfn main():\n  0\n",
-          "from \"./private.kalandra\" import make\nfn main():\n  0\n",
-          "export from \"./core.kalandra\" import Secret\nfn main():\n  0\n",
-          "export from \"./core.kalandra\" import helper\nfn main():\n  0\n",
-          "export from \"./core.kalandra\" import missing\nfn main():\n  0\n",
-          "export from \"./core.kalandra\" import Row, Row\nfn main():\n  0\n",
-          "export from \"./core.kalandra\" import make, make\nfn main():\n  0\n",
-          "export from \"./core.kalandra\" import Row as Name, make as Name\nfn main():\n  0\n",
-          "export from \"./core.kalandra\" import make as Name, Row as Name\nfn main():\n  0\n",
-          "export from \"./core.kalandra\" import Row\ntype Row:\n  value:int\nfn main():\n  0\n",
-          "export from \"./core.kalandra\" import make\nfn make():\n  0\nfn main():\n  0\n",
-          "export from \"./core.kalandra\" import Row as int64\nfn main():\n  0\n",
-          "export from \"./core.kalandra\" import make as Bool\nfn main():\n  0\n",
-          "from \"./public.kalandra\" import Entry, create\nfrom \"./other.kalandra\" import "
+         {"from \"./facade.k\" import Row\nfn main():\n  0\n",
+          "from \"./private.k\" import Item\nfn main():\n  0\n",
+          "from \"./private.k\" import make\nfn main():\n  0\n",
+          "export from \"./core.k\" import Secret\nfn main():\n  0\n",
+          "export from \"./core.k\" import helper\nfn main():\n  0\n",
+          "export from \"./core.k\" import missing\nfn main():\n  0\n",
+          "export from \"./core.k\" import Row, Row\nfn main():\n  0\n",
+          "export from \"./core.k\" import make, make\nfn main():\n  0\n",
+          "export from \"./core.k\" import Row as Name, make as Name\nfn main():\n  0\n",
+          "export from \"./core.k\" import make as Name, Row as Name\nfn main():\n  0\n",
+          "export from \"./core.k\" import Row\ntype Row:\n  value:int\nfn main():\n  0\n",
+          "export from \"./core.k\" import make\nfn make():\n  0\nfn main():\n  0\n",
+          "export from \"./core.k\" import Row as int64\nfn main():\n  0\n",
+          "export from \"./core.k\" import make as Bool\nfn main():\n  0\n",
+          "from \"./public.k\" import Entry, create\nfrom \"./other.k\" import "
           "Row\nfn accept(value:Row)->Row:\n  value\nfn main():\n  accept(create()).value\n"})
       require(!analyze(source).ok(), "invalid/private/colliding reexport admitted");
-    auto local = analyze("type Box:\n  row:Entry\nexport from \"./public.kalandra\" import Entry, "
+    auto local = analyze("type Box:\n  row:Entry\nexport from \"./public.k\" import Entry, "
                          "create, advance\nfn main():\n  Box {row:advance(create())}.row.value\n");
     require(local.ok(), "local reexport use or order-independent field lookup failed");
-    write("entry.kalandra", "export fn main():\n  7\n");
-    write("entry-public.kalandra", "export from \"./entry.kalandra\" import main\n");
-    auto noEntry = analyze("from \"./entry-public.kalandra\" import main\n");
+    write("entry.k", "export fn main():\n  7\n");
+    write("entry-public.k", "export from \"./entry.k\" import main\n");
+    auto noEntry = analyze("from \"./entry-public.k\" import main\n");
     require(noEntry.ok(), "reexport-only entry fixture rejected");
 #ifndef KALANDRA_REEXPORT_FRONTEND_ONLY
     require(!lowerNative(*noEntry.module), "reexported dependency main became program entry");
 #endif
-    auto placed = loadModules((root / "main.kalandra").string());
+    auto placed = loadModules((root / "main.k").string());
     require(bool(placed) && !check(std::move(*placed), {}, {.placement = true}).ok(),
             "reexports enabled GPU modules silently");
     // A diamond through two public facades still ends at one original declaration.
-    write("second.kalandra",
-          "export from \"./core.kalandra\" import Row as Other, make as build\n");
+    write("second.k",
+          "export from \"./core.k\" import Row as Other, make as build\n");
     auto diamond =
-        analyze("from \"./second.kalandra\" import Other, build\nfrom \"./public.kalandra\" import "
+        analyze("from \"./second.k\" import Other, build\nfrom \"./public.k\" import "
                 "Entry\nfn same(row:Other)->Entry:\n  row\nfn main():\n  same(build()).value\n");
     require(diamond.ok() && diamond.module->records.size() == 2, "diamond cloned original type");
-    write("cycle.kalandra", "export from \"./main.kalandra\" import main\n");
-    require(!analyze("export from \"./cycle.kalandra\" import main\n").ok(),
+    write("cycle.k", "export from \"./main.k\" import main\n");
+    require(!analyze("export from \"./cycle.k\" import main\n").ok(),
             "reexport cycle admitted");
-    for (const auto &text : {"export from \"./core.kalandra\" import\n",
-                             "export from \"./core.kalandra\" import make as\n",
-                             "export from \"./core.kalandra\" import make,\n"})
-      require(!parse(std::make_shared<SourceFile>("bad.kalandra", text)).ok(),
+    for (const auto &text : {"export from \"./core.k\" import\n",
+                             "export from \"./core.k\" import make as\n",
+                             "export from \"./core.k\" import make,\n"})
+      require(!parse(std::make_shared<SourceFile>("bad.k", text)).ok(),
               "malformed reexport parsed");
     auto parsed = parse(std::make_shared<SourceFile>(
-        "memory.kalandra", "export from \"./core.kalandra\" import Row\n"));
+        "memory.k", "export from \"./core.k\" import Row\n"));
     require(parsed.ok() && parsed.module.imports[0].exported, "export import flag lost");
     require(!check(std::move(parsed)).ok(), "unloaded reexport admitted");
     // Even a forged cyclic graph must stop rather than recurse indefinitely.
     auto forged = parse(std::make_shared<SourceFile>(
-        "cycle.kalandra", "export from \"./self.kalandra\" import X\nfn main():\n  0\n"));
+        "cycle.k", "export from \"./self.k\" import X\nfn main():\n  0\n"));
     forged.module.imports[0].target = 0;
     require(!check(std::move(forged)).ok(), "forged reexport cycle admitted");
     std::cout << "reexports: functions/types/aliases, nominal identity, local helper scope, "

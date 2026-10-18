@@ -53,9 +53,9 @@ COMPILE(map "${DECL}fn read(x:int):\n  Point {x:x,y:1}.x\nfn work(p:Point,values
 EXPECT(map "[4, 5, 6]")
 COMPILE(tensor "${DECL}fn size(values:Tensor[int,?,?])->Point:\n  dimensions=shape(values)\n  Point {x:dimensions[0],y:dimensions[1]}\nfn main()->int ! TaskError:\n  p=try parallel:\n    try await spawn size(tensor([[1,2,3],[4,5,6]]))\n  p.x*p.y\n")
 EXPECT(tensor 6)
-file(WRITE "${OUTPUT_DIR}/points.kalandra" "${DECL}export fn make(x:int):\n  Point {x:x,y:2}\nexport fn shifted(p:Point):\n  p with {x:p.x+10}\n")
-file(WRITE "${OUTPUT_DIR}/service.kalandra" "from \"./points.kalandra\" import shifted,make\nexport fn run(value:int) ! TaskError:\n  try parallel:\n    try await spawn shifted(make(value))\n")
-COMPILE(modules "from \"./points.kalandra\" import make,shifted\nfrom \"./service.kalandra\" import run\nfn main()->int ! TaskError:\n  original=make(2)\n  moved=try parallel:\n    work=spawn shifted(original)\n    p=try await work\n    p\n  other=try run(2)\n  moved.x+original.x+other.x\n")
+file(WRITE "${OUTPUT_DIR}/points.k" "${DECL}export fn make(x:int):\n  Point {x:x,y:2}\nexport fn shifted(p:Point):\n  p with {x:p.x+10}\n")
+file(WRITE "${OUTPUT_DIR}/service.k" "from \"./points.k\" import shifted,make\nexport fn run(value:int) ! TaskError:\n  try parallel:\n    try await spawn shifted(make(value))\n")
+COMPILE(modules "from \"./points.k\" import make,shifted\nfrom \"./service.k\" import run\nfn main()->int ! TaskError:\n  original=make(2)\n  moved=try parallel:\n    work=spawn shifted(original)\n    p=try await work\n    p\n  other=try run(2)\n  moved.x+original.x+other.x\n")
 EXPECT(modules 26)
 # More fields and mixed packet sizes use the same generic aggregate machinery.
 set(WIDE "type Wide:\n")

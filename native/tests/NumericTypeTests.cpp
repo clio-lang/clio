@@ -17,7 +17,7 @@ static_assert(checkedNumericBytes(NumericType::UInt8, 3) == 3);
 static_assert(checkedNumericBytes(NumericType::Float64, 3) == 24);
 static_assert(!checkedNumericBytes(NumericType::Float64, UINT64_MAX));
 CheckResult analyze(const std::string &text) {
-  return check(parse(std::make_shared<SourceFile>("numeric.kalandra", text)));
+  return check(parse(std::make_shared<SourceFile>("numeric.k", text)));
 }
 int main() {
   try {
