@@ -1117,19 +1117,23 @@ private:
     }
     return invoke(frame, span, callee->name, call.arguments, expected);
   }
-  std::optional<ValueId> stringSlice(Frame &frame, SourceSpan span,
-                                     const std::vector<ExprId> &arguments) {
+  std::optional<ValueId> collectionSlice(Frame &frame, SourceSpan span,
+                                         const std::vector<ExprId> &arguments,
+                                         const std::optional<ValueType> &expected) {
     if (arguments.size() != 3) {
-      error("S027", "slice expects a String, start and end", span);
+      error("S027", "slice expects a String or array, start and end", span);
       return {};
     }
-    auto input = expression(frame, arguments[0]);
+    auto input =
+        expression(frame, arguments[0], expected && expected->array ? expected : std::nullopt);
     if (!input)
       return {};
-    const auto type = node(*input).type;
-    if (type.builtin != BuiltinValue::String || type.tensor || type.array || type.task ||
-        type.fallible || type.device) {
-      error("S061", "slice requires a completed CPU String", span);
+    auto type = node(*input).type;
+    const bool array = type.array && type.tensor && type.shape.size() == 1 &&
+                       (type.builtin == BuiltinValue::Numeric || isOwnedArray(type));
+    const bool string = type.builtin == BuiltinValue::String && !type.tensor && !type.array;
+    if ((!array && !string) || type.task || type.fallible || type.device || options_.placement) {
+      error("S061", "slice requires a completed CPU String or array without placement", span);
       return {};
     }
     std::vector<ValueId> bounds;
@@ -1140,23 +1144,34 @@ private:
       const auto i = node(*bound).type;
       if (i.builtin != BuiltinValue::Numeric || !isInteger(i.element) || i.tensor || i.array ||
           i.task || i.fallible || i.device) {
-        error("S061", "String slice bounds require completed CPU integer scalars", span);
+        error("S061", "slice bounds require completed CPU integer scalars", span);
         return {};
       }
       auto known = intConstants_.find(*bound);
-      auto extent = stringCounts_.find(*input);
+      auto textExtent = stringCounts_.find(*input);
+      std::optional<std::uint64_t> extent = array ? type.shape[0].constant
+                                            : textExtent != stringCounts_.end()
+                                                ? std::optional(textExtent->second)
+                                                : std::nullopt;
       if (known != intConstants_.end() &&
-          (known->second < 0 || known->second > INT64_MAX ||
-           (extent != stringCounts_.end() && known->second > extent->second))) {
-        error("S062", "String slice bound is outside its scalar range", span);
+          (known->second < 0 || known->second > INT64_MAX || (extent && known->second > *extent))) {
+        error("S062", "slice bound is outside its input range", span);
         return {};
       }
       bounds.push_back(*bound);
     }
     auto a = intConstants_.find(bounds[0]), b = intConstants_.find(bounds[1]);
     if (a != intConstants_.end() && b != intConstants_.end() && a->second > b->second) {
-      error("S062", "String slice start must not exceed end", span);
+      error("S062", "slice start must not exceed end", span);
       return {};
+    }
+    if (array) {
+      type.shape = {a != intConstants_.end() && b != intConstants_.end()
+                        ? Extent{static_cast<std::uint64_t>(b->second - a->second), 0}
+                        : Extent{{}, nextExtent_++}};
+      if (!validSize(type, span))
+        return {};
+      return add(frame, type, span, ArraySlice{*input, bounds[0], bounds[1]});
     }
     return add(frame, type, span, StringSlice{*input, bounds[0], bounds[1]});
   }
@@ -1397,6 +1412,7 @@ private:
           !std::holds_alternative<ArrayToTensor>(node(*value).operation) &&
           !std::holds_alternative<TensorReshape>(node(*value).operation) &&
           !std::holds_alternative<TensorToArray>(node(*value).operation) &&
+          !std::holds_alternative<ArraySlice>(node(*value).operation) &&
           !std::holds_alternative<CollectionQuery>(node(*value).operation)) {
         error("S037", "this invocation is not a supported task entry", span);
         return {};
@@ -2688,7 +2704,7 @@ private:
         return arrayTensor(frame, span, *input, arguments[1], expected, true);
       }
       if (callee == "slice")
-        return stringSlice(frame, span, arguments);
+        return collectionSlice(frame, span, arguments, expected);
       if (callee == "length" || callee == "shape" || callee == "byteLength")
         return collectionQuery(frame, span, callee, arguments);
       if (callee == "map")

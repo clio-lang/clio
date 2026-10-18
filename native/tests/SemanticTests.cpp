@@ -94,6 +94,10 @@ void validIR(const TypedModule &module) {
           else if constexpr (std::is_same_v<T, ArrayIndex>) {
             operand(op.input);
             operand(op.index);
+          } else if constexpr (std::is_same_v<T, ArraySlice>) {
+            operand(op.input);
+            operand(op.start);
+            operand(op.end);
           } else if constexpr (std::is_same_v<T, TensorReshape>) {
             operand(op.input);
             for (auto dimension : op.dimensions)

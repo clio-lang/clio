@@ -231,7 +231,7 @@ int main() {
     }
     for (const auto *source :
          {"fn main():\n  slice()\n", "fn main():\n  slice(\"a\",0)\n",
-          "fn main():\n  slice(\"a\",0,1,1)\n", "fn main():\n  slice([1,2],0,1)\n",
+          "fn main():\n  slice(\"a\",0,1,1)\n", "fn main():\n  slice(tensor([1,2]),0,1)\n",
           "fn main():\n  slice(1,0,1)\n", "fn main():\n  slice(\"a\",true,1)\n",
           "fn main():\n  slice(\"a\",0,1.0)\n", "fn main():\n  slice(\"a\",[0],1)\n",
           "fn main()->int64:\n  slice(\"a\",0,1)\n"})

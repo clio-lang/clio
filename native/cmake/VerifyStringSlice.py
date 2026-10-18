@@ -76,7 +76,7 @@ for name,start in [('source-fault','bad(0)'),('start-fault','good()')]:
     assert (b'at source 2:' if name=='source-fault' else b'at source 7:') in result.stderr,result
 exe=compile('short-circuit','fn cut(text:String,start:int64,end:int64)->String:\n  slice(text,start,end)\nfn main()->Bool:\n  true or cut("a",2,1)=="x"\n')
 run([exe],b'true\n')
-for n,expr in enumerate(['slice("abc",2,1)','slice("é",0,2)','slice("a",-1,1)','slice("a",0,-1)','slice("",1,1)','slice("a",0,0)[0]','slice()','slice("a",0)','slice("a",0,1,1)','slice([1,2],0,1)','slice("a",true,1)','slice("a",0,1.0)']):
+for n,expr in enumerate(['slice("abc",2,1)','slice("é",0,2)','slice("a",-1,1)','slice("a",0,-1)','slice("",1,1)','slice("a",0,0)[0]','slice()','slice("a",0)','slice("a",0,1,1)','slice(tensor([1,2]),0,1)','slice("a",true,1)','slice("a",0,1.0)']):
     source=output/f'invalid-{n}.k';source.write_text('fn main():\n  '+expr+'\n')
     paths=[output/'preserved',output/'preserved.ll',output/'preserved.mlir']
     for p in paths:p.write_bytes(b'keep-existing-artifact')

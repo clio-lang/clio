@@ -29,7 +29,7 @@ fn empty() -> [uint]:
   []
 ```
 
-Already typed values must conform exactly; contextual typing does not silently convert them. Empty arrays need element context, so an unannotated `values = []` is rejected. Nested arrays and arrays of Bool, functions, tasks or expected-error results are not implemented in this slice.
+Already typed values must conform exactly; contextual typing does not silently convert them. Empty arrays need element context, so an unannotated `values = []` is rejected. Nested arrays and arrays of functions, tasks or expected-error results remain separate work. Bool, String and finite record arrays now have their own implemented storage paths.
 
 Array elements evaluate left to right, once each. A runtime failure stops evaluation and retains its original source location. No partial array result is published. Source/value/depth limits and the existing bounded collection-element, indexing-range and allocation-byte checks apply.
 
@@ -66,6 +66,8 @@ A statically known wrong length is rejected; an unknown wrong length raises a ch
 The current implementation performs a checked ordered copy into managed tensor storage. It preserves raw floating-point representations, including signed zero and NaN payloads. Borrowed native input storage does not escape as an owned tensor result. Cancellation or allocation failure publishes no partial result and settles intermediate storage.
 
 Construction also works in ordinary worker functions, in anonymous map callbacks and through `spawn tensor(values)`. Worker handoff preserves the separate array-input and tensor-result categories and the existing retained ownership rules. Calls used as arguments are evaluated before dispatch; use a worker helper when the whole map/construction pipeline should run in that worker. GPU/mixed-target array construction is not part of this CPU slice.
+
+[Half-open CPU array slicing](array-slicing.md) now selects immutable ranges through `slice(values, start, end)`, preserving element type, bounds checks and retained worker ownership.
 
 ## Remaining collection work
 

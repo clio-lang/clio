@@ -940,3 +940,5 @@ endif()
 include(cmake/LocalPackages.cmake)
 
 include(cmake/Projects.cmake)
+
+include(cmake/ArraySlices.cmake)

@@ -36,7 +36,7 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
                            std::is_same_v<T, StringQuery> || std::is_same_v<T, NumericConvert> ||
                            std::is_same_v<T, TensorToArray> || std::is_same_v<T, ShapeCheck>)
           return {op.input};
-        else if constexpr (std::is_same_v<T, StringSlice>)
+        else if constexpr (std::is_same_v<T, StringSlice> || std::is_same_v<T, ArraySlice>)
           return {op.input, op.start, op.end};
         else if constexpr (std::is_same_v<T, ArrayIndex> || std::is_same_v<T, StringIndex>)
           return {op.input, op.index};
@@ -222,7 +222,7 @@ private:
             op.input = importValue(op.input);
             for (auto &capture : op.captures)
               capture = importValue(capture);
-          } else if constexpr (std::is_same_v<T, StringSlice>) {
+          } else if constexpr (std::is_same_v<T, StringSlice> || std::is_same_v<T, ArraySlice>) {
             op.input = importValue(op.input);
             op.start = importValue(op.start);
             op.end = importValue(op.end);
@@ -348,6 +348,10 @@ private:
       read->input = reads[0];
       read->index = reads[1];
     } else if (auto *slice = std::get_if<StringSlice>(&op)) {
+      slice->input = reads[0];
+      slice->start = reads[1];
+      slice->end = reads[2];
+    } else if (auto *slice = std::get_if<ArraySlice>(&op)) {
       slice->input = reads[0];
       slice->start = reads[1];
       slice->end = reads[2];

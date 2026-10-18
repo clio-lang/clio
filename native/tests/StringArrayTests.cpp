@@ -42,7 +42,7 @@ int main() {
           "fn main():\n  [[\"a\"]]\n", "fn main():\n  tensor([\"a\"])\n",
           "fn main():\n  map([\"a\"],fn(x):[x])\n", "fn main():\n  [\"a\"]+\"b\"\n",
           "fn main():\n  [\"a\"]==[\"a\"]\n", "fn main():\n  byteLength([\"a\"])\n",
-          "fn main():\n  slice([\"a\"],0,1)\n", "fn main():\n  [\"a\"][1]\n"})
+          "fn main():\n  slice([\"a\"],0,2)\n", "fn main():\n  [\"a\"][1]\n"})
       require(!analyze(source).ok(), "invalid String array admitted");
     for (unsigned mode = 0; mode < 7; ++mode) {
       auto value = analyze("fn main():\n  [\"a\"]\n");

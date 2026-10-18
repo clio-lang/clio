@@ -279,3 +279,5 @@ The native [sequential numeric array map](array-map.md) implements the anonymous
 The [proposed native String contract](strings.md) defines text encoding, exact equality, scalar length/indexing/slicing and managed lifetime requirements. Its implementation sequence begins with literal and value support; existing core String examples remain design examples until that slice is qualified.
 
 [Native project manifests](native-projects.md) now record an explicit root source and local library entries for CPU builds, without automatic discovery or installation.
+
+[Immutable CPU array slicing](array-slicing.md) selects checked half-open ranges for all existing array element types, including direct worker dispatch.

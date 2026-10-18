@@ -137,3 +137,5 @@ CPU records can also own [numeric arrays and tensors](../docs/design/record-coll
 [Explicit module re-exports](../docs/design/reexports.md) let a public entry file expose selected functions and record types from internal modules, including aliases, while preserving their original identity and helper scope.
 
 [Native project manifests](../docs/design/native-projects.md) record a `.k` entry and relative local library mappings in a versioned TOML file. Use `kalandrac --project kalandra.toml -o program` and `kalandra-check --project kalandra.toml`; the manifest is an explicit compiler input, protected from output replacement.
+
+[Immutable CPU array slicing](../docs/design/array-slicing.md) supports `slice(values, start, end)` for existing array types, with checked ranges and retained worker ownership.

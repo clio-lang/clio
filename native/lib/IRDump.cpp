@@ -308,6 +308,24 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
           return "conditional branch result type mismatch";
       }
     }
+    if (const auto *slice = std::get_if<ArraySlice>(&expression.operation)) {
+      if (slice->input >= module.expressions.size() || slice->start >= module.expressions.size() ||
+          slice->end >= module.expressions.size())
+        return "array slice references invalid operands";
+      const auto &a = module.expressions[slice->input].type;
+      const auto &r = expression.type;
+      if (target != NumericTarget::Cpu || !a.array || !a.tensor || a.shape.size() != 1 ||
+          !r.array || !r.tensor || r.shape.size() != 1 || !sameArray(a, r) ||
+          (a.builtin != BuiltinValue::Numeric && !isOwnedArray(a)) || a.task || a.fallible ||
+          a.device || r.task || r.fallible || r.device)
+        return "array slice requires completed CPU arrays with unchanged element type";
+      for (auto id : {slice->start, slice->end}) {
+        const auto &i = module.expressions[id].type;
+        if (i.builtin != BuiltinValue::Numeric || !isInteger(i.element) || i.tensor || i.array ||
+            i.task || i.fallible || i.device || !i.shape.empty())
+          return "array slice requires completed CPU integer bounds";
+      }
+    }
     if (const auto *slice = std::get_if<StringSlice>(&expression.operation)) {
       if (slice->input >= module.expressions.size() || slice->start >= module.expressions.size() ||
           slice->end >= module.expressions.size())
@@ -629,7 +647,10 @@ std::string dumpTypedIR(const TypedModule &module) {
       std::visit(
           [&](const auto &operation) {
             using T = std::decay_t<decltype(operation)>;
-            if constexpr (std::is_same_v<T, StringSlice>)
+            if constexpr (std::is_same_v<T, ArraySlice>)
+              out << "array.slice checked %" << operation.input << " %" << operation.start << " %"
+                  << operation.end;
+            else if constexpr (std::is_same_v<T, StringSlice>)
               out << "string.slice checked %" << operation.input << " %" << operation.start << " %"
                   << operation.end;
             else if constexpr (std::is_same_v<T, StringIndex>)

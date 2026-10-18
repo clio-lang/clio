@@ -1483,6 +1483,82 @@ private:
                   scf::YieldOp::create(builder_, loc, ValueRange{inserted});
                 });
             return loop.getResult(0);
+          } else if constexpr (std::is_same_v<T, ArraySlice>) {
+            auto input = expression(frame, operation.input);
+            Value start = expression(frame, operation.start);
+            Value end = expression(frame, operation.end);
+            const auto extend = [&](Value value, ValueId id) -> Value {
+              const auto element = input_.expressions[id].type.element;
+              if (!isInteger32(element))
+                return value;
+              if (isUnsigned(element))
+                return arith::ExtUIOp::create(builder_, loc, builder_.getI64Type(), value);
+              return arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), value);
+            };
+            start = extend(start, operation.start);
+            end = extend(end, operation.end);
+            const bool owned = isOwnedArray(node.type);
+            Value length;
+            if (owned)
+              length = recordArrayLength(loc, input, node.type);
+            else {
+              auto shape = dimensions(loc, input);
+              checkedCount(loc, shape, describeNumeric(node.type.element)->bytes());
+              length = arith::IndexCastOp::create(builder_, loc, builder_.getI64Type(), shape[0]);
+            }
+            // Unsigned comparisons also reject negative signed bounds and high uint64 values.
+            guard(loc, compare(loc, arith::CmpIPredicate::ule, start, end), 5);
+            guard(loc, compare(loc, arith::CmpIPredicate::ule, end, length), 5);
+            auto size = arith::SubIOp::create(builder_, loc, end, start);
+            auto count = arith::IndexCastOp::create(builder_, loc, builder_.getIndexType(), size);
+            if (node.type.shape[0].constant)
+              guard(loc,
+                    compare(loc, arith::CmpIPredicate::eq, size,
+                            integer(loc, *node.type.shape[0].constant)),
+                    1);
+            Value empty;
+            if (owned)
+              empty = recordArrayStorage(loc, node.type, count);
+            else {
+              checkedCount(loc, {count}, describeNumeric(node.type.element)->bytes());
+              auto output = cast<RankedTensorType>(type(node.type));
+              SmallVector<Value> dynamic;
+              if (output.isDynamicDim(0))
+                dynamic.push_back(count);
+              empty = tensor::EmptyOp::create(builder_, loc, output.getShape(),
+                                              output.getElementType(), dynamic);
+            }
+            auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
+            auto loop = scf::ForOp::create(
+                builder_, loc, index(loc, 0), count, index(loc, 1), ValueRange{empty},
+                [&](OpBuilder &, Location, Value i, ValueRange args) {
+                  auto position =
+                      arith::IndexCastOp::create(builder_, loc, builder_.getI64Type(), i);
+                  Value offset = arith::AddIOp::create(builder_, loc, start, position);
+                  Value result;
+                  if (owned) {
+                    auto storage =
+                        LLVM::ExtractValueOp::create(builder_, loc, input, ArrayRef<int64_t>{1});
+                    auto cell = arrayCellType(node.type);
+                    auto address =
+                        LLVM::GEPOp::create(builder_, loc, ptr, cell, storage, ValueRange{offset});
+                    auto value = arrayCellRead(loc, address, node.type);
+                    auto destination =
+                        LLVM::ExtractValueOp::create(builder_, loc, args[0], ArrayRef<int64_t>{1});
+                    auto target = LLVM::GEPOp::create(builder_, loc, ptr, cell, destination,
+                                                      ValueRange{position});
+                    arrayCellStore(loc, value, target, node.type);
+                    result = args[0];
+                  } else {
+                    auto source =
+                        arith::IndexCastOp::create(builder_, loc, builder_.getIndexType(), offset);
+                    auto value =
+                        tensor::ExtractOp::create(builder_, loc, input, ValueRange{source});
+                    result = tensor::InsertOp::create(builder_, loc, value, args[0], ValueRange{i});
+                  }
+                  scf::YieldOp::create(builder_, loc, ValueRange{result});
+                });
+            return loop.getResult(0);
           } else if constexpr (std::is_same_v<T, ArrayMap>) {
             auto input = expression(frame, operation.input);
             SmallVector<Value> captures;
