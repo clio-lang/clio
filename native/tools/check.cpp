@@ -28,15 +28,15 @@ int main(int argc, char **argv) {
   }
   if (!path)
     return usage();
-  auto source = kalandra::loadSource(path);
-  if (!source) {
-    std::cerr << path << ": " << source.error() << '\n';
+  auto syntax = kalandra::loadModules(path);
+  if (!syntax) {
+    std::cerr << path << ": " << syntax.error() << '\n';
     return 1;
   }
-  auto result = kalandra::check(kalandra::parse(*source), {}, options);
+  auto result = kalandra::check(std::move(*syntax), {}, options);
   if (!result.ok()) {
     for (const auto &diagnostic : result.diagnostics)
-      std::cerr << kalandra::renderDiagnostic(**source, diagnostic);
+      std::cerr << kalandra::renderDiagnostic(*result.source, diagnostic);
     return 1;
   }
   if (dumpPlan) {

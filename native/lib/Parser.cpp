@@ -34,13 +34,22 @@ public:
     while (!at(TokenKind::End) && result_.diagnostics.size() < limits_.maxDiagnostics) {
       if (consume(TokenKind::Newline))
         continue;
+      if (word("from")) {
+        auto imported = parseImport();
+        if (imported)
+          result_.module.imports.push_back(std::move(*imported));
+        else
+          synchronizeFunction();
+        continue;
+      }
       auto function = parseFunction();
       if (function)
         result_.module.functions.push_back(std::move(*function));
       else
         synchronizeFunction();
     }
-    if (result_.module.functions.empty() && result_.diagnostics.empty())
+    if (result_.module.functions.empty() && result_.module.imports.empty() &&
+        result_.diagnostics.empty())
       error("P001", "expected at least one named function", current().span);
     return std::move(result_);
   }
@@ -136,7 +145,41 @@ private:
     type.span.end = end->span.end;
     return type;
   }
+  std::optional<Import> parseImport() {
+    advance();
+    auto path = expect(TokenKind::String, "expected a quoted relative module path after 'from'");
+    if (!path)
+      return {};
+    if (!word("import")) {
+      error("P002", "expected 'import' after module path", current().span);
+      return {};
+    }
+    advance();
+    Import result{path->span, {}};
+    while (true) {
+      auto name = expect(TokenKind::Identifier, "expected an imported function name");
+      if (!name)
+        return {};
+      ImportedName imported{name->span, {}};
+      if (word("as")) {
+        advance();
+        auto alias = expect(TokenKind::Identifier, "expected an import alias");
+        if (!alias)
+          return {};
+        imported.alias = alias->span;
+      }
+      result.names.push_back(imported);
+      if (!consume(TokenKind::Comma))
+        break;
+    }
+    if (!expect(TokenKind::Newline, "expected end of import declaration"))
+      return {};
+    return result;
+  }
   std::optional<Function> parseFunction() {
+    const bool exported = word("export");
+    if (exported)
+      advance();
     if (!word("fn")) {
       error(
           "P005",
@@ -149,6 +192,7 @@ private:
     if (!name)
       return {};
     Function function;
+    function.exported = exported;
     function.name = name->span;
     if (!expect(TokenKind::LeftParen, "expected '(' after function name"))
       return {};
@@ -636,7 +680,8 @@ private:
   }
   void synchronizeFunction() {
     while (!at(TokenKind::End)) {
-      if (word("fn") && source_->location(current().span.begin).second == 1)
+      if ((word("fn") || word("export") || word("from")) &&
+          source_->location(current().span.begin).second == 1)
         return;
       advance();
     }

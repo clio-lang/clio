@@ -93,7 +93,8 @@ public:
 private:
   Location location(SourceSpan span) const {
     auto [line, column] = input_.source->location(span.begin);
-    return FileLineColLoc::get(builder_.getContext(), input_.source->path(), line, column);
+    return FileLineColLoc::get(builder_.getContext(),
+                               input_.source->origin(span.begin).first->path(), line, column);
   }
   Type type(const ValueType &value) {
     if (value.builtin == BuiltinValue::Bool)
@@ -1269,7 +1270,10 @@ std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,
     BackendOutput result;
     {
       llvm::raw_string_ostream source(result.mlir);
-      module->print(source);
+      OpPrintingFlags flags;
+      if (!input.source->parts().empty())
+        flags.enableDebugInfo();
+      module->print(source, flags);
     }
     // Keep the established binary32 CPU path unchanged. Only new scalar binary64
     // operations use the independently qualified strict integer implementation.

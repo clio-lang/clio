@@ -10,12 +10,33 @@ SourceFile::SourceFile(std::string path, std::string text)
     if (text_[i] == '\n')
       lines_.push_back(i + 1);
 }
+SourceFile::SourceFile(std::string path, std::string text, std::vector<Part> parts)
+    : SourceFile(std::move(path), std::move(text)) {
+  parts_ = std::move(parts);
+}
+std::size_t SourceFile::partIndex(std::size_t offset) const {
+  if (parts_.empty())
+    return 0;
+  auto found = std::upper_bound(parts_.begin(), parts_.end(), offset,
+                                [](std::size_t at, const Part &part) { return at < part.begin; });
+  return found == parts_.begin() ? 0 : std::size_t(found - parts_.begin() - 1);
+}
+std::pair<const SourceFile *, std::size_t> SourceFile::origin(std::size_t offset) const {
+  if (parts_.empty())
+    return {this, std::min(offset, text_.size())};
+  const auto &part = parts_[partIndex(offset)];
+  return part.source->origin(offset >= part.begin ? offset - part.begin : 0);
+}
 std::string_view SourceFile::slice(SourceSpan span) const {
   const auto begin = std::min(span.begin, text_.size());
   const auto end = std::clamp(span.end, begin, text_.size());
   return std::string_view(text_).substr(begin, end - begin);
 }
 std::pair<std::size_t, std::size_t> SourceFile::location(std::size_t offset) const {
+  if (!parts_.empty()) {
+    const auto [source, local] = origin(offset);
+    return source->location(local);
+  }
   offset = std::min(offset, text_.size());
   const auto line = static_cast<std::size_t>(
       std::upper_bound(lines_.begin(), lines_.end(), offset) - lines_.begin());
@@ -31,6 +52,12 @@ std::string_view SourceFile::line(std::size_t number) const {
   return slice({begin, end});
 }
 std::string renderDiagnostic(const SourceFile &source, const Diagnostic &diagnostic) {
+  if (!source.parts().empty()) {
+    const auto [original, offset] = source.origin(diagnostic.span.begin);
+    auto mapped = diagnostic;
+    mapped.span = {offset, offset + diagnostic.span.end - diagnostic.span.begin};
+    return renderDiagnostic(*original, mapped);
+  }
   const auto [line, column] = source.location(diagnostic.span.begin);
   const auto text = source.line(line);
   const auto start = column > 81 ? column - 81 : 0;

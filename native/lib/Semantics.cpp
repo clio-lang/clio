@@ -82,6 +82,15 @@ public:
 
 private:
   std::string name(SourceSpan span) const { return std::string(syntax_.source->slice(span)); }
+  static std::string functionKey(std::size_t module, const std::string &name) {
+    return std::to_string(module) + ":" + name;
+  }
+  std::string functionKey(const Frame &frame, const std::string &name) const {
+    const Frame *owner = &frame;
+    while (owner->closure)
+      owner = owner->closure->parent;
+    return functionKey(syntax_.functions[owner->function].moduleIndex, name);
+  }
   void error(std::string code, std::string message, SourceSpan span) {
     ++errorCount_;
     if (diagnostics_.size() < limits_.maxDiagnostics)
@@ -203,7 +212,7 @@ private:
         error("S049", "reserved placement builtin name", function.name);
         signatures_[id] = false;
       }
-      if (!functions_.emplace(target.name, id).second) {
+      if (!functions_.emplace(functionKey(function.moduleIndex, target.name), id).second) {
         error("S004", "duplicate function '" + target.name + "'", function.name);
         signatures_[id] = false;
       }
@@ -231,6 +240,31 @@ private:
           signatures_[id] = false;
         else
           target.declaredResult->fallible = function.taskError;
+      }
+      if (function.moduleIndex)
+        target.name = "__module_" + std::to_string(function.moduleIndex) + "::" + target.name;
+    }
+    const auto definitions = functions_;
+    for (const auto &import : syntax_.imports) {
+      if (!import.target || options_.placement) {
+        error("S067", "local imports require the CPU file-module loader", import.path);
+        continue;
+      }
+      for (const auto &imported : import.names) {
+        const auto binding = imported.alias.value_or(imported.name);
+        const auto local = name(binding);
+        if (local == "Bool" || reservedControl(local) || resolveNumeric(local)) {
+          error("S067", "reserved import alias '" + local + "'", binding);
+          continue;
+        }
+        auto found = definitions.find(functionKey(*import.target, name(imported.name)));
+        if (found == definitions.end() || !syntax_.functions[found->second].exported) {
+          error("S067", "module does not export function '" + name(imported.name) + "'",
+                imported.name);
+          continue;
+        }
+        if (!functions_.emplace(functionKey(import.moduleIndex, local), found->second).second)
+          error("S004", "duplicate module binding '" + local + "'", binding);
       }
     }
   }
@@ -599,7 +633,7 @@ private:
     if (auto found = lookupSymbol(frame, read.name))
       return add(frame, output_.symbols[*found].type, span, SymbolRead{*found});
     error("S016",
-          functions_.contains(identifier)
+          functions_.contains(functionKey(frame, identifier))
               ? "function values are not implemented; call '" + identifier + "'"
               : "unknown value '" + identifier + "'",
           read.name);
@@ -1974,7 +2008,7 @@ private:
             syntax_.expressions[arguments[1]].span);
       return {};
     }
-    auto found = functions_.find(name(callback->name));
+    auto found = functions_.find(functionKey(frame, name(callback->name)));
     if (found == functions_.end() || !analyzeFunction(found->second)) {
       error("S059", "map callback must name a declared function", callback->name);
       return {};
@@ -2179,7 +2213,7 @@ private:
       }
       return placementBuiltin(frame, span, callee, arguments);
     }
-    auto found = functions_.find(callee);
+    auto found = functions_.find(functionKey(frame, callee));
     if (found == functions_.end()) {
       if (selection) {
         error("S037", "placed spawn requires a statically named function", span);

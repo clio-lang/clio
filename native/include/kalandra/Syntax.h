@@ -18,18 +18,27 @@ struct SourceSpan {
 };
 class SourceFile {
 public:
+  struct Part {
+    std::size_t begin;
+    std::shared_ptr<const SourceFile> source;
+  };
   SourceFile(std::string path, std::string text);
+  SourceFile(std::string path, std::string text, std::vector<Part> parts);
   [[nodiscard]] const std::string &path() const { return path_; }
   [[nodiscard]] const std::string &text() const { return text_; }
   [[nodiscard]] std::string_view slice(SourceSpan span) const;
   // One-based lines and byte columns; offsets and spans are UTF-8 byte offsets.
   [[nodiscard]] std::pair<std::size_t, std::size_t> location(std::size_t offset) const;
   [[nodiscard]] std::string_view line(std::size_t number) const;
+  [[nodiscard]] std::pair<const SourceFile *, std::size_t> origin(std::size_t offset) const;
+  [[nodiscard]] std::size_t partIndex(std::size_t offset) const;
+  [[nodiscard]] const std::vector<Part> &parts() const { return parts_; }
 
 private:
   std::string path_;
   std::string text_;
   std::vector<std::size_t> lines_;
+  std::vector<Part> parts_;
 };
 struct Diagnostic {
   std::string code;
@@ -204,6 +213,18 @@ struct Function {
   std::optional<TypeSyntax> result;
   std::vector<Statement> body;
   bool taskError = false;
+  bool exported = false;
+  std::size_t moduleIndex = 0;
+};
+struct ImportedName {
+  SourceSpan name;
+  std::optional<SourceSpan> alias;
+};
+struct Import {
+  SourceSpan path;
+  std::vector<ImportedName> names;
+  std::size_t moduleIndex = 0;
+  std::optional<std::size_t> target = {};
 };
 struct Module {
   // Source storage outlives all borrowed slices/byte spans. Expressions use flat
@@ -211,6 +232,7 @@ struct Module {
   std::shared_ptr<const SourceFile> source;
   std::vector<Expr> expressions;
   std::vector<Function> functions;
+  std::vector<Import> imports;
 };
 struct ParseResult {
   Module module;
@@ -218,4 +240,11 @@ struct ParseResult {
   [[nodiscard]] bool ok() const { return diagnostics.empty(); }
 };
 [[nodiscard]] ParseResult parse(std::shared_ptr<const SourceFile> source, SyntaxLimits limits = {});
+struct ModuleLimits {
+  std::size_t maxFiles = 128;
+  std::size_t maxDepth = 32;
+};
+// CPU local-module loading: explicit relative .kalandra files, bounded acyclic graph.
+[[nodiscard]] std::expected<ParseResult, std::string>
+loadModules(std::string path, SyntaxLimits syntaxLimits = {}, ModuleLimits moduleLimits = {});
 } // namespace kalandra

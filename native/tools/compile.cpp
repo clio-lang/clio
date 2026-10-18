@@ -129,15 +129,30 @@ int main(int argc, char **argv) {
     }
     paths.push_back(path);
   }
-  auto source = kalandra::loadSource(arguments[1]);
-  if (!source) {
-    std::cerr << arguments[1] << ": " << source.error() << '\n';
+  auto syntax = kalandra::loadModules(arguments[1]);
+  if (!syntax) {
+    std::cerr << arguments[1] << ": " << syntax.error() << '\n';
     return 1;
   }
-  auto typed = kalandra::check(kalandra::parse(*source));
+  // Every dependency is source input: output publication must not overwrite it,
+  // including aliases through symlinks or hard links.
+  for (const auto &part : syntax->module.source->parts())
+    for (const auto &path : {output, mlirPath, llvmPath}) {
+      if (path.empty())
+        continue;
+      std::error_code error, firstError, secondError;
+      const bool equivalent = std::filesystem::equivalent(path, part.source->path(), error);
+      const auto a = std::filesystem::weakly_canonical(path, firstError);
+      const auto b = std::filesystem::weakly_canonical(part.source->path(), secondError);
+      if ((!error && equivalent) || (!firstError && !secondError && a == b)) {
+        std::cerr << "module source and output paths must be distinct\n";
+        return 2;
+      }
+    }
+  auto typed = kalandra::check(std::move(*syntax));
   if (!typed.ok()) {
     for (const auto &d : typed.diagnostics)
-      std::cerr << kalandra::renderDiagnostic(**source, d);
+      std::cerr << kalandra::renderDiagnostic(*typed.source, d);
     return 1;
   }
   auto lowered = kalandra::lowerNative(*typed.module, testEntry);

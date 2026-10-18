@@ -271,3 +271,5 @@ The [native immutable array foundation](arrays.md) now implements numeric array 
 The native [sequential numeric array map](array-map.md) implements the anonymous expression callback and lexical capture examples above. First-class function bindings, returned closures and anonymous block bodies remain separate work.
 
 [Explicit rank-one tensor construction from numeric arrays](arrays.md#explicit-tensor-construction-from-arrays) is now implemented through `tensor(values)`, including after a map and inside workers. [Runtime shape lists](reshape.md) now construct ranked tensors from flat arrays. [CPU tensor reshaping](tensor-reshape.md) and [explicit tensor-to-array construction](tensor-array.md) are now implemented, preserving numeric identity, logical row-major order and retained worker ownership.
+
+[Native local function modules](modules.md) now support `export fn` and explicit relative named imports with aliases. Visibility is file-local by default; calls and callbacks resolve names in the declaring module. This CPU subset does not yet provide packages, type exports, module cycles or GPU module integration.

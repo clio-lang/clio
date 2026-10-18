@@ -18,8 +18,10 @@ The projection fixture reports `Parsed 4 functions, 40 expressions (syntax only)
 The simplified grammar below describes syntax, not semantic validity. NEWLINE, INDENT, DEDENT, and EOF are lexer tokens. Identifiers in type positions remain unresolved names.
 
 ```ebnf
-module      = NEWLINE*, function, (NEWLINE* function)*, NEWLINE*, EOF ;
-function    = "fn", identifier, "(", parameters?, ")",
+module      = NEWLINE*, (function | import), (NEWLINE* (function | import))*, NEWLINE*, EOF ;
+import      = "from", string, "import", imported, (",", imported)*, NEWLINE ;
+imported    = identifier, ("as", identifier)? ;
+function    = "export"?, "fn", identifier, "(", parameters?, ")",
               ("->", type)?, ":", NEWLINE, INDENT, statement+, DEDENT ;
 parameters  = parameter, (",", parameter)*, ","? ;
 parameter   = identifier, ":", type ;
@@ -53,7 +55,7 @@ Bindings are statements only. `foo(x = 1)` is rejected, as is the prototype's `=
 - Numbers retain their original spelling: decimal whole numbers and decimal/exponent forms are tokenized. Numeric range, default family, float32 rounding, and context typing remain semantic work. Hex literals and suffixes are not in this first subset.
 - Strings are tokenized to retain lexical boundaries and diagnose unterminated quotes, but string expressions are explicitly unsupported by this parser. Escape decoding and general string semantics are not implemented here.
 
-[Numeric array and tensor indexing](tensor-indexing.md) now parse as postfix input/index-list expressions; semantic checking enforces the rank and index types. Inline anonymous functions in numeric maps and built-in TaskError handlers are also implemented. General field access, record construction, user-defined expected-error declarations and non-function top-level declarations remain unsupported. Their rejection is an implementation limit, not a reversal of the accepted designs. Parameter/local duplicate names, unknown functions, dtype compatibility, and matrix-shape requirements belong to the next semantic stage.
+[Numeric array and tensor indexing](tensor-indexing.md) now parse as postfix input/index-list expressions; semantic checking enforces the rank and index types. Inline anonymous functions in numeric maps and built-in TaskError handlers are also implemented. General field access, record construction, user-defined expected-error declarations and other non-function top-level declarations remain unsupported. Their rejection is an implementation limit, not a reversal of the accepted designs. Parameter/local duplicate names, unknown functions, dtype compatibility, and matrix-shape requirements belong to the next semantic stage.
 
 ## Ownership and diagnostics
 
@@ -100,3 +102,7 @@ The parser now represents `==`, `!=`, `<`, `<=`, `>` and `>=` with a distinct Co
 ## Conditional and logical syntax
 
 The CPU subset now accepts `if condition: ... else: ...` with inline or indented branch results, plus Boolean `not`, `and` and `or`. Both branches are required. Comparisons/pipelines bind above logical operators; `not` includes comparisons, `and` binds above `or`, and catch remains below them. ConditionalExpr and LogicalExpr keep explicit branch/operand IDs; semantic lowering retains conditional evaluation. See the [control-flow contract](control-flow.md).
+
+## Local module syntax and loading
+
+[Native local function modules](modules.md) now add top-level named imports with optional aliases and `export fn` declarations. The CPU compiler/checker use a bounded canonical-file graph loader with independent per-file parsing, module-local visibility and original source mappings. The parser alone retains declarations without reading dependencies; semantic checking rejects imports that have not been resolved by the loader.
