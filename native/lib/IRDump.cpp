@@ -628,7 +628,7 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
     if (const auto *multiply = std::get_if<Matmul>(&expression.operation)) {
       if (expression.type.element != module.expressions[multiply->left].type.element ||
           expression.type.element != module.expressions[multiply->right].type.element ||
-          !numericArithmeticAvailable(expression.type.element, target))
+          !numericMatmulAvailable(expression.type.element, target))
         return "unsupported matmul element type";
     }
   }
@@ -826,12 +826,14 @@ std::string dumpTypedIR(const TypedModule &module) {
               out << "call @" << operation.function;
               arguments(operation.arguments);
             } else if constexpr (std::is_same_v<T, Matmul>) {
-              out << "matmul "
-                  << (node.type.element == NumericType::UInt64 ? "checked_u64 balanced_adjacent checked_products "
-                      : node.type.element == NumericType::Int64 ? "checked_i64 balanced_adjacent checked_products "
-                      : node.type.element == NumericType::UInt32 ? "checked_u32 balanced_adjacent checked_products "
-                      : node.type.element == NumericType::Int32 ? "checked_i32 balanced_adjacent checked_products "
-                                                              : "strict_f32 balanced_adjacent separately_rounded_products ");
+              out << "matmul ";
+              if (isInteger(node.type.element))
+                out << "checked_" << (isUnsigned(node.type.element) ? 'u' : 'i')
+                    << describeNumeric(node.type.element)->bits
+                    << " balanced_adjacent checked_products ";
+              else
+                out << "strict_f" << describeNumeric(node.type.element)->bits
+                    << " balanced_adjacent separately_rounded_products ";
               value(operation.left);
               out << ", ";
               value(operation.right);

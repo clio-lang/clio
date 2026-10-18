@@ -58,6 +58,10 @@ int main() {
                        description.type == NumericType::UInt64 ||
                        description.type == NumericType::Float64))),
                 "type description accidentally enabled arithmetic");
+      require(numericMatmulAvailable(description.type, NumericTarget::Cpu) &&
+                  numericMatmulAvailable(description.type, NumericTarget::AppleGpu) ==
+                      (description.type == NumericType::Float32),
+              "matmul capability lost numeric identity");
       require(numericReductionAvailable(description.type, NumericTarget::Cpu) &&
                   numericReductionAvailable(description.type, NumericTarget::AppleGpu) ==
                       (description.type == NumericType::Float32),

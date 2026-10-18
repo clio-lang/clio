@@ -63,6 +63,8 @@ template <NumericType E = element> static std::vector<NumericValue<E>> expected(
     if (scenario == 1)
       return {std::numeric_limits<Value>::min(), std::numeric_limits<Value>::max(), Value(42),
               Value(0)};
+    if (scenario == 2)
+      return {44, UNSIGNED_RESULT ? Value(12) : Value(-8), 12, 22};
     if (scenario == 3)
       return {2, 4, 6, 8};
     if (scenario == 4)

@@ -100,6 +100,10 @@ constexpr bool numericTensorElementwiseAvailable(NumericType type, NumericTarget
 constexpr bool numericReductionAvailable(NumericType type, NumericTarget target) {
   return numericTensorElementwiseAvailable(type, target);
 }
+// Matmul checks each product before reducing it at the same element width.
+constexpr bool numericMatmulAvailable(NumericType type, NumericTarget target) {
+  return numericTensorElementwiseAvailable(type, target);
+}
 // Collection storage is separate from tensor arithmetic capability. CPU arrays
 // can retain every implemented scalar width without enabling tensor operations.
 constexpr bool numericCollectionStorageAvailable(NumericType type, NumericTarget target) {

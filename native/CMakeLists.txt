@@ -827,7 +827,7 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-  foreach(NUMERIC_TYPE IN ITEMS int64 uint64)
+  foreach(NUMERIC_TYPE IN ITEMS int8 uint8 int16 uint16 int64 uint64)
     foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
       if(VARIANT STREQUAL "sanitized")
         set(INTEGER64_MATMUL_RUNTIME "$<TARGET_FILE:kalandra-native-runtime-sanitized>")

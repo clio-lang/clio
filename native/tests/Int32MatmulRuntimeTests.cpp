@@ -14,17 +14,28 @@ using namespace kalandra::runtime;
 #ifndef UNSIGNED_INPUT
 #define UNSIGNED_INPUT 0
 #endif
-constexpr auto element = UNSIGNED_INPUT
-                             ? (INTEGER_BITS == 64 ? NumericType::UInt64 : NumericType::UInt32)
-                             : (INTEGER_BITS == 64 ? NumericType::Int64 : NumericType::Int32);
+static_assert(INTEGER_BITS == 8 || INTEGER_BITS == 16 || INTEGER_BITS == 32 || INTEGER_BITS == 64);
+constexpr auto element = UNSIGNED_INPUT ? (INTEGER_BITS == 8    ? NumericType::UInt8
+                                           : INTEGER_BITS == 16 ? NumericType::UInt16
+                                           : INTEGER_BITS == 64 ? NumericType::UInt64
+                                                                : NumericType::UInt32)
+                                        : (INTEGER_BITS == 8    ? NumericType::Int8
+                                           : INTEGER_BITS == 16 ? NumericType::Int16
+                                           : INTEGER_BITS == 64 ? NumericType::Int64
+                                                                : NumericType::Int32);
 using Cell = NumericValue<element>;
 using Wide = std::conditional_t<UNSIGNED_INPUT,
                                 std::conditional_t<INTEGER_BITS == 64, __uint128_t, std::uint64_t>,
                                 std::conditional_t<INTEGER_BITS == 64, __int128_t, std::int64_t>>;
 using State = std::conditional_t<INTEGER_BITS == 64, std::uint64_t, std::uint32_t>;
-constexpr Cell precision = INTEGER_BITS == 64 ? Cell(9007199254740993LL) : Cell(16777217);
+constexpr Cell precision = INTEGER_BITS < 32    ? Cell(42)
+                           : INTEGER_BITS == 64 ? Cell(9007199254740993LL)
+                                                : Cell(16777217);
 constexpr Cell upperHalf = std::numeric_limits<Cell>::max() / 2 + 1;
-constexpr Cell squareLimit = INTEGER_BITS == 64 ? Cell(4294967295ULL) : Cell(65535);
+constexpr Cell squareLimit = INTEGER_BITS == 8    ? Cell(15)
+                             : INTEGER_BITS == 16 ? Cell(255)
+                             : INTEGER_BITS == 64 ? Cell(4294967295ULL)
+                                                  : Cell(65535);
 constexpr auto minimum = std::numeric_limits<Cell>::min();
 constexpr auto maximum = std::numeric_limits<Cell>::max();
 using Tensor = CpuTensor<element, 2>;
@@ -34,7 +45,7 @@ struct View {
   std::vector<Cell> storage;
   Tensor tensor{};
   View(std::int64_t rows, std::int64_t columns, const std::vector<Cell> &values, bool transposed)
-      : storage(2 * rows * columns + 3 * (rows + columns) + 8, 7654321) {
+      : storage(2 * rows * columns + 3 * (rows + columns) + 8, Cell(42)) {
     tensor.allocated = storage.data();
     tensor.aligned = storage.data() + 1;
     tensor.offset = 2;
@@ -133,7 +144,8 @@ static bool verify(std::int64_t rows, std::int64_t inner, std::int64_t columns, 
     return reject("retained result lost after settlement");
   return true;
 }
-static bool metadata(std::array<std::int64_t, 2> a, std::array<std::int64_t, 2> b, int code) {
+static bool metadata(std::array<std::int64_t, 2> a, std::array<std::int64_t, 2> b, int code,
+                     unsigned fail = 0) {
   Cell value = 1;
   Tensor x{}, y{}, out{};
   x.allocated = x.aligned = y.allocated = y.aligned = &value;
@@ -141,6 +153,7 @@ static bool metadata(std::array<std::int64_t, 2> a, std::array<std::int64_t, 2> 
   y.sizes = b;
   x.strides = y.strides = {1, 1};
   Invocation context;
+  context.failAllocationAt(fail);
   _mlir_ciface_kalandra_test_entry(&out, &x, &y, &context);
   ++cases;
   faults += code != 0;
@@ -156,7 +169,7 @@ static bool metadata(std::array<std::int64_t, 2> a, std::array<std::int64_t, 2> 
 }
 static bool cancelled() {
   // Poll-triggered cancellation exercises generated loops, without fixed sleeps.
-  std::vector<Cell> a(257 * 8193, 1), b(8193 * 3, 1);
+  std::vector<Cell> a(257 * 8193, 1), b(8193 * 3, 0);
   View left(257, 8193, a, false), right(8193, 3, b, true);
   Invocation context;
   std::atomic<bool> token{false}, done{false}, ready{false};
@@ -238,28 +251,36 @@ int main() {
     std::vector<Cell> a(rows * inner), b(inner * cols);
     for (auto &v : a)
       if constexpr (UNSIGNED_INPUT)
-        v = trial % 2 ? next() : next() % 201;
+        v = trial % 2 ? next() : next() % (INTEGER_BITS < 32 ? 4 : 201);
       else
-        v = trial % 2 ? std::bit_cast<Cell>(next()) : std::int64_t(next() % 201) - 100;
+        v = trial % 2 ? std::bit_cast<Cell>(static_cast<std::make_unsigned_t<Cell>>(next()))
+            : INTEGER_BITS < 32 ? std::int64_t(next() % 7) - 3
+                                : std::int64_t(next() % 201) - 100;
     for (auto &v : b)
       if constexpr (UNSIGNED_INPUT)
-        v = trial % 2 ? next() : next() % 201;
+        v = trial % 2 ? next() : next() % (INTEGER_BITS < 32 ? 4 : 201);
       else
-        v = trial % 2 ? std::bit_cast<Cell>(next()) : std::int64_t(next() % 201) - 100;
+        v = trial % 2 ? std::bit_cast<Cell>(static_cast<std::make_unsigned_t<Cell>>(next()))
+            : INTEGER_BITS < 32 ? std::int64_t(next() % 7) - 3
+                                : std::int64_t(next() % 201) - 100;
     if (!verify(rows, inner, cols, a, b))
       return 1;
   }
+  constexpr std::int64_t cellLimit = INT64_MAX / sizeof(Cell);
+  // For byte elements INT64_MAX cells remain representable. Reject the actual
+  // huge allocation deterministically; do not manufacture a wrapped extent.
+  constexpr auto beyond = cellLimit + (sizeof(Cell) == 1 ? 0 : 1);
   if (!metadata({-1, 1}, {1, 1}, 1) || !metadata({1, -1}, {-1, 1}, 1) ||
       !metadata({0, 1}, {2, 0}, 1) || !metadata({1, 1}, {1, -1}, 1) ||
-      !metadata({INT64_MAX, 0}, {0, 2}, 2) || !metadata({1, INT64_MAX}, {INT64_MAX, 1}, 2) ||
+      !metadata({INT64_MAX, 0}, {0, 2}, 2) ||
+      !metadata({1, INT64_MAX}, {INT64_MAX, 1}, 2, sizeof(Cell) == 1 ? 1 : 0) ||
       !metadata({0, INT64_MAX}, {INT64_MAX, 3}, 2) ||
       !metadata({3, INT64_MAX}, {INT64_MAX, 0}, 2) ||
-      !metadata({INT64_MAX / sizeof(Cell) + 1, 0}, {0, 1}, 2) ||
-      !metadata({1, INT64_MAX / sizeof(Cell) + 1}, {INT64_MAX / sizeof(Cell) + 1, 0}, 2) ||
-      !metadata({0, INT64_MAX / sizeof(Cell) + 1}, {INT64_MAX / sizeof(Cell) + 1, 0}, 0) ||
-      !metadata({0, INT64_MAX}, {INT64_MAX, 0}, 0) ||
-      !metadata({0, INT64_MAX / sizeof(Cell)}, {INT64_MAX / sizeof(Cell), 1}, 0) ||
-      !metadata({1, INT64_MAX / sizeof(Cell)}, {INT64_MAX / sizeof(Cell), 0}, 0) || !cancelled())
+      !metadata({beyond, 0}, {0, 1}, 2, sizeof(Cell) == 1 ? 1 : 0) ||
+      !metadata({1, beyond}, {beyond, 0}, sizeof(Cell) == 1 ? 0 : 2) ||
+      !metadata({0, beyond}, {beyond, 0}, 0) || !metadata({0, INT64_MAX}, {INT64_MAX, 0}, 0) ||
+      !metadata({0, cellLimit}, {cellLimit, 1}, 0) ||
+      !metadata({1, cellLimit}, {cellLimit, 0}, 0) || !cancelled())
     return 1;
   std::cout << describeNumeric(element)->name << " matmul: " << cases << " runtime inputs, "
             << faults
