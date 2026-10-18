@@ -246,6 +246,7 @@ struct Import {
 struct RecordDeclaration {
   SourceSpan name;
   std::vector<Parameter> fields;
+  bool exported = false;
 };
 struct Module {
   // Source storage outlives all borrowed slices/byte spans. Expressions use flat

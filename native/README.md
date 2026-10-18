@@ -108,7 +108,7 @@ The shared strict arithmetic engine now has a [CPU-only binary64 specialization]
 
 ## Local CPU modules
 
-Split reusable functions into [local modules](../docs/design/modules.md): mark a declaration `export fn`, then use `from "./math.kalandra" import double as twice`. The compiler/checker resolve explicit relative files, preserve module-local helper names and type checks, and support imported callbacks and CPU workers. Cycles, packages, type exports and GPU module integration remain separate work.
+Split reusable functions into [local modules](../docs/design/modules.md): mark a declaration `export fn`, then use `from "./math.kalandra" import double as twice`. The compiler/checker resolve explicit relative files, preserve module-local helper names and type checks, and support imported callbacks and CPU workers. Cycles remain rejected; packages and GPU module integration remain separate work. [Record type exports](../docs/design/type-exports.md) are supported.
 
 ## Display collection results
 
@@ -129,3 +129,5 @@ CPU records can also own [numeric arrays and tensors](../docs/design/record-coll
 [Bool-array record fields](../docs/design/record-bool-fields.md) support nested records, immutable updates, record arrays, anonymous captures and retained CPU worker results. They reuse their existing immutable array backing.
 
 [CPU String values and operations](../docs/design/strings.md#exact-equality-and-concatenation) support immutable UTF-8 text, annotations, synchronous helpers, exact equality, checked concatenation and `length`/`byteLength` queries and scalar indexing/slicing with managed lifetimes. [Local CPU String workers and captures](../docs/design/strings.md#local-cpu-workers-and-captures) preserve ownership across nested tasks, cached awaits and recovery. [String record fields](../docs/design/record-string-fields.md) compose nested values, maps and retained worker results; [direct String arrays and maps](../docs/design/string-arrays.md) are supported; [String-array record fields](../docs/design/record-string-array-fields.md) are supported.
+
+[Native record type exports](../docs/design/type-exports.md) support explicit cross-file type imports and aliases in constructors, nested fields and function signatures, preserving nominal identity and existing worker ownership.

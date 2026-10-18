@@ -42,7 +42,7 @@ public:
           synchronizeFunction();
         continue;
       }
-      if (word("type")) {
+      if (word("type") || (word("export") && source_->slice(peek().span) == "type")) {
         auto record = parseRecord();
         if (record)
           result_.module.records.push_back(std::move(*record));
@@ -185,13 +185,16 @@ private:
     return result;
   }
   std::optional<RecordDeclaration> parseRecord() {
+    const bool exported = word("export");
+    if (exported)
+      advance();
     advance();
     auto name = expect(TokenKind::Identifier, "expected a record type name");
     if (!name || !expect(TokenKind::Colon, "expected ':' after record name") ||
         !expect(TokenKind::Newline, "record fields must start on the next line") ||
         !expect(TokenKind::Indent, "expected indented record fields"))
       return {};
-    RecordDeclaration result{name->span, {}};
+    RecordDeclaration result{name->span, {}, exported};
     while (!at(TokenKind::Dedent) && !at(TokenKind::End)) {
       auto field = expect(TokenKind::Identifier, "expected a field name");
       if (!field || !expect(TokenKind::Colon, "record fields require ': Type'"))

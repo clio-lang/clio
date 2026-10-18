@@ -32,7 +32,7 @@ There are no implicit field conversions, positional constructors, default field 
 
 Records can be bound, passed to CPU functions, returned with inferred or explicit types, and selected by conditionals. [CPU worker captures and results](record-workers.md) also support these records, including nested tasks and TaskError recovery. Record declarations are visible throughout their declaring file, independent of declaration order. Functions and import aliases cannot collide with a local record type name. A local value may shadow a constructor name; constructing through that shadowed name is diagnosed.
 
-Record identity belongs to its declaration, not its field layout or spelling. Two declarations named `Point` in different files are different types. An imported function can return its module's record, and callers can infer that type, read its fields, derive an updated value, and pass it back to functions expecting the original declaration. Importing or exporting the type name itself remains separate module work. Local declarations do not become visible merely because another function was imported.
+Record identity belongs to its declaration, not its field layout or spelling. Two declarations named `Point` in different files are different types. An imported function can return its module's record, and callers can infer that type, read its fields, derive an updated value, and pass it back to functions expecting the original declaration. [Explicit type exports/imports](type-exports.md) also allow consumers to name that original declaration. Local declarations do not become visible merely because another function was imported.
 
 Records can be used inside synchronous numeric map callbacks. [Anonymous numeric callbacks can capture whole records](record-closures.md), including nested collection fields. [Immutable record arrays](record-arrays.md) now support construction, indexing, length and CPU worker transport. [Sequential mapping](array-map.md#record-elements-and-results) now accepts record elements and record-valued results.
 
@@ -40,7 +40,7 @@ Records can be used inside synchronous numeric map callbacks. [Anonymous numeric
 
 [Nested records](nested-records.md) now extend these values through several inline levels. The typed IR carries nominal declaration identities and canonical field indices separately from written evaluation order. CPU lowering represents these numeric/Boolean/nested record values as native structs using MLIR's LLVM aggregate operations. Records with numeric/Boolean leaves require no managed heap allocation. [Numeric collection fields](record-collections.md) use owned backing storage and copies on construction and reads. [Bool-array fields](record-bool-fields.md) share their existing immutable backing. The underlying struct layout does not erase source-level nominal type checks. This internal representation is not a published C/C++ ABI or serialization format.
 
-[CPU worker integration](record-workers.md) now supports record captures/results, nested workers, repeated awaits, and record-valued TaskError recovery. GPU placement remains unsupported for record-containing source graphs, and the checker/backend diagnose that combination. User variants/errors, type exports, and GPU integration remain separate work. Native distributed execution still requires the agreed design discussion.
+[CPU worker integration](record-workers.md) now supports record captures/results, nested workers, repeated awaits, and record-valued TaskError recovery. GPU placement remains unsupported for record-containing source graphs, and the checker/backend diagnose that combination. User variants/errors and GPU integration remain separate work. Native distributed execution still requires the agreed design discussion.
 
 A program's `main` must return an already supported scalar, `Bool`, array, or tensor result; direct record display is not implemented. Record helper results can feed those outputs, as in the example above.
 
@@ -53,3 +53,5 @@ On Apple M2 Max, all 101 focused checks passed. Record programs passed in debug,
 Numeric arrays and tensors can now be stored inside records; see [collection field ownership](record-collections.md) for copy semantics and worker retention.
 
 [String fields](record-string-fields.md) now compose with these record rules, including nested records, immutable updates, record arrays/maps and retained local CPU worker arguments/results. [Direct String arrays](string-arrays.md) and [String-array record fields](record-string-array-fields.md) also compose with these rules.
+
+[Record type exports](type-exports.md) allow consumers of a local CPU module to name the original nominal type in constructors, fields and function signatures.

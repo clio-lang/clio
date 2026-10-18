@@ -181,7 +181,7 @@ int main(int argc, char **argv) {
                 .ok(),
             "standalone export rejected");
     for (auto source : {"from \"./x.kalandra\" import\n", "from \"./x.kalandra\" import x as\n",
-                        "from \"./x.kalandra\" import x,\n", "export type Point:\n  x:int\n"})
+                        "from \"./x.kalandra\" import x,\n", "export type Point\n  x:int\n"})
       require(!parse(std::make_shared<SourceFile>("invalid.kalandra", source)).ok(),
               "malformed import/export syntax accepted");
     std::cout << "modules: named exports/import aliases, scoped callbacks/helpers, canonical "

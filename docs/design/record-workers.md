@@ -26,7 +26,7 @@ Record fields can use the six implemented CPU numeric types, `Bool`, another [fi
 
 A task handle is not a record value. Use `try await work` before accessing or updating the success value, or recover the completed `await work` result with `catch`. Task handles cannot escape their owning group. Existing observation, cancellation, deadline and admission rules apply to record tasks.
 
-A record's identity belongs to its declaration. Two records with identical field layouts remain different types, including same-spelling declarations in different modules. Imported function results keep their original identity, and can be passed back to helpers or workers expecting that declaration. Type-name imports/exports remain separate work.
+A record's identity belongs to its declaration. Two records with identical field layouts remain different types, including same-spelling declarations in different modules. Imported function results keep their original identity, and can be passed back to helpers or workers expecting that declaration. [Type-name imports/exports](type-exports.md) preserve this same nominal identity.
 
 Records may be used alongside numeric array/tensor captures and results. Synchronous numeric map callbacks can construct and read records internally. [Anonymous callbacks can capture entire completed records](record-closures.md), including nested collection fields, directly or within CPU workers.
 

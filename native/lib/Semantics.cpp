@@ -255,7 +255,30 @@ private:
         error("S068", "duplicate record type '" + label + "'", record.name);
         continue;
       }
+      if (record.exported)
+        exportedRecords_.emplace(key, output_.records.size());
       output_.records.push_back({label, record.name, {}});
+    }
+    // Resolve type imports before checking fields or function annotations. Only
+    // original exported declarations are candidates; imported aliases do not re-export.
+    for (const auto &import : syntax_.imports) {
+      if (!import.target || options_.placement)
+        continue;
+      for (const auto &imported : import.names) {
+        const auto found = exportedRecords_.find(functionKey(*import.target, name(imported.name)));
+        if (found == exportedRecords_.end())
+          continue;
+        const auto binding = imported.alias.value_or(imported.name);
+        const auto label = name(binding);
+        if (reservedControl(label) || resolveNumeric(label) || label == "Bool" ||
+            label == "Tensor" || label == "TaskError" || label == "FaultKind" ||
+            label == "String" || label == "Device") {
+          error("S067", "reserved import alias '" + label + "'", binding);
+          continue;
+        }
+        if (!records_.emplace(functionKey(import.moduleIndex, label), found->second).second)
+          error("S068", "duplicate module type binding '" + label + "'", binding);
+      }
     }
     for (const auto &record : syntax_.records) {
       const auto key = functionKey(syntax_.source->partIndex(record.name.begin), name(record.name));
@@ -353,6 +376,8 @@ private:
       for (const auto &imported : import.names) {
         const auto binding = imported.alias.value_or(imported.name);
         const auto local = name(binding);
+        if (exportedRecords_.contains(functionKey(*import.target, name(imported.name))))
+          continue;
         if (records_.contains(functionKey(import.moduleIndex, local))) {
           error("S068", "import conflicts with record type name", binding);
           continue;
@@ -364,7 +389,7 @@ private:
         }
         auto found = definitions.find(functionKey(*import.target, name(imported.name)));
         if (found == definitions.end() || !syntax_.functions[found->second].exported) {
-          error("S067", "module does not export function '" + name(imported.name) + "'",
+          error("S067", "module does not export declaration '" + name(imported.name) + "'",
                 imported.name);
           continue;
         }
@@ -2738,6 +2763,7 @@ private:
   TypedModule output_;
   std::unordered_map<std::string, FunctionId> functions_;
   std::unordered_map<std::string, std::size_t> records_;
+  std::unordered_map<std::string, std::size_t> exportedRecords_;
   std::vector<State> states_;
   std::vector<bool> signatures_;
   std::vector<bool> literal_, floatingLiteral_;
