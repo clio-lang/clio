@@ -113,8 +113,8 @@ public:
          main->resultType.builtin != BuiltinValue::String) ||
         (main->resultType.tensor && main->resultType.shape.size() > cli::maximumCollectionRank))
       throw LoweringFailure{
-          "native entry requires fn main() -> float32, int32, uint32, int64, "
-          "uint64, float64, Bool, String or a CPU numeric array/tensor with no parameters"};
+          "native entry requires a parameterless main returning a supported CPU scalar, "
+          "String or numeric array/tensor"};
     builder_.setInsertionPointToEnd(module_->getBody());
     const auto entryName =
         main->resultType.tensor                            ? "kalandra_collection_entry"
@@ -122,20 +122,22 @@ public:
         : main->resultType.builtin == BuiltinValue::Bool   ? "kalandra_bool_entry"
         : main->resultType.element == NumericType::Float64 ? "kalandra_float64_entry"
         : (main->resultType.element == NumericType::UInt64 ||
-           main->resultType.element == NumericType::UInt8)
+           main->resultType.element == NumericType::UInt8 ||
+           main->resultType.element == NumericType::UInt16)
             ? "kalandra_uint64_entry"
         : (main->resultType.element == NumericType::Int64 ||
-           main->resultType.element == NumericType::Int8)
+           main->resultType.element == NumericType::Int8 ||
+           main->resultType.element == NumericType::Int16)
             ? "kalandra_int64_entry"
         : main->resultType.element == NumericType::UInt32 ? "kalandra_uint32_entry"
         : main->resultType.element == NumericType::Int32  ? "kalandra_int32_entry"
                                                           : "kalandra_entry";
     auto entry = func::FuncOp::create(
         builder_, location(main->declaration), entryName,
-        builder_.getFunctionType({},
-                                 {isInteger8(main->resultType.element) && !main->resultType.tensor
-                                      ? Type(builder_.getI64Type())
-                                      : type(main->declaredResult.value_or(main->resultType))}));
+        builder_.getFunctionType(
+            {}, {isNarrowInteger(main->resultType.element) && !main->resultType.tensor
+                     ? Type(builder_.getI64Type())
+                     : type(main->declaredResult.value_or(main->resultType))}));
     entry->setAttr("llvm.emit_c_interface", builder_.getUnitAttr());
     builder_.setInsertionPointToStart(entry.addEntryBlock());
     const auto mainId = static_cast<FunctionId>(main - input_.functions.begin());
@@ -144,7 +146,7 @@ public:
         main->resultType.builtin != BuiltinValue::String)
       func::CallOp::create(builder_, entry.getLoc(), "kalandra_record_cleanup", TypeRange{},
                            ValueRange{});
-    if (!main->resultType.tensor && isInteger8(main->resultType.element)) {
+    if (!main->resultType.tensor && isNarrowInteger(main->resultType.element)) {
       Value result = call.getResult(0);
       if (isUnsigned(main->resultType.element))
         result = arith::ExtUIOp::create(builder_, entry.getLoc(), builder_.getI64Type(), result);

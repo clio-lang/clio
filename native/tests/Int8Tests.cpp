@@ -48,7 +48,7 @@ int main() {
     for (const auto *source :
          {"fn main()->int8:\n  value=1\n  value\n", "fn main()->int8:\n  int8(128)\n",
           "fn main()->uint8:\n  uint8(-1)\n",
-          "fn bad(a:int8,b:uint8):\n  a+b\nfn main()->int:\n  0\n", "fn main()->int16:\n  1\n",
+          "fn bad(a:int8,b:uint8):\n  a+b\nfn main()->int:\n  0\n", "fn main()->int128:\n  1\n",
           "fn main()->[int8]:\n  []\n", "fn main():\n  [int8(1)]\n",
           "fn main():\n  tensor([uint8(1)])\n", "type Row:\n  value:int8\nfn main()->int:\n  0\n",
           "fn main():\n  map([1],fn(x):int8(x))\n"})

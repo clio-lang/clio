@@ -84,9 +84,12 @@ constexpr bool numericArithmeticAvailable(NumericType type, NumericTarget target
 constexpr bool isInteger8(NumericType type) {
   return type == NumericType::Int8 || type == NumericType::UInt8;
 }
+constexpr bool isNarrowInteger(NumericType type) {
+  return isInteger8(type) || type == NumericType::Int16 || type == NumericType::UInt16;
+}
 constexpr bool numericScalarArithmeticAvailable(NumericType type, NumericTarget target) {
   return numericArithmeticAvailable(type, target) ||
-         (target == NumericTarget::Cpu && isInteger8(type));
+         (target == NumericTarget::Cpu && isNarrowInteger(type));
 }
 constexpr std::uint64_t integerMaximum(NumericType type) {
   const auto bits = describeNumeric(type)->bits;

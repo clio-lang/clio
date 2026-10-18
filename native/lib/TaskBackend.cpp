@@ -120,16 +120,18 @@ public:
       entry->eraseFromParent();
       entry = Function::Create(
           llvm::FunctionType::get(
-              isInteger8(main->resultType.element) ? i64 : scalarType(main->resultType), {pointer},
-              false),
+              isNarrowInteger(main->resultType.element) ? i64 : scalarType(main->resultType),
+              {pointer}, false),
           llvm::GlobalValue::ExternalLinkage,
           main->resultType.builtin == BuiltinValue::Bool     ? "_mlir_ciface_kalandra_bool_entry"
           : main->resultType.element == NumericType::Float64 ? "_mlir_ciface_kalandra_float64_entry"
           : (main->resultType.element == NumericType::UInt64 ||
-             main->resultType.element == NumericType::UInt8)
+             main->resultType.element == NumericType::UInt8 ||
+             main->resultType.element == NumericType::UInt16)
               ? "_mlir_ciface_kalandra_uint64_entry"
           : (main->resultType.element == NumericType::Int64 ||
-             main->resultType.element == NumericType::Int8)
+             main->resultType.element == NumericType::Int8 ||
+             main->resultType.element == NumericType::Int16)
               ? "_mlir_ciface_kalandra_int64_entry"
           : main->resultType.element == NumericType::UInt32 ? "_mlir_ciface_kalandra_uint32_entry"
                                                             : "_mlir_ciface_kalandra_int32_entry",
@@ -193,7 +195,7 @@ public:
       builder.CreateRetVoid();
     } else {
       Value *value = builder.CreateLoad(scalarType(main->resultType), payload);
-      if (isInteger8(main->resultType.element))
+      if (isNarrowInteger(main->resultType.element))
         value = isUnsigned(main->resultType.element) ? builder.CreateZExt(value, i64)
                                                      : builder.CreateSExt(value, i64);
       if (hasRecordBacking(planner.input) ||
@@ -273,6 +275,8 @@ private:
            : type.element == NumericType::Int64      ? "scalar.int64"
            : type.element == NumericType::UInt32     ? "scalar.uint32"
            : type.element == NumericType::Int32      ? "scalar.int32"
+           : type.element == NumericType::Int16      ? "scalar.int16"
+           : type.element == NumericType::UInt16     ? "scalar.uint16"
            : type.element == NumericType::Int8       ? "scalar.int8"
            : type.element == NumericType::UInt8      ? "scalar.uint8"
                                                      : "scalar";

@@ -23,7 +23,7 @@ The shared integer lowering checks widened intermediates before narrowing the re
 
 ## Explicit conversions and metadata
 
-Numeric conversion calls now cover all scalar pairs among int8, uint8, int32, uint32, int64, uint64, float32 and float64: the original 36 pairs plus 28 involving the two byte types. Integer conversions preserve value or fail; floating conversions retain the existing rounding, truncation and nonfinite-value rules. For example, `int8(127.9)` is 127, while `uint8(-1)` is rejected. An annotation alone does not convert a typed value.
+Numeric conversion calls now cover all scalar pairs among int8, uint8, int32, uint32, int64, uint64, float32 and float64: the original 36 pairs plus 28 involving the two byte types. The subsequent [16-bit milestone](int16-scalars.md) extends scalar conversions to all 100 pairs among the ten accepted scalar types. Integer conversions preserve value or fail; floating conversions retain the existing rounding, truncation and nonfinite-value rules. For example, `int8(127.9)` is 127, while `uint8(-1)` is rejected. An annotation alone does not convert a typed value.
 
 8-bit integer scalars can also supply existing integer index, slice-bound and reshape-dimension parameters. They extend according to signedness before the existing range checks; a negative index does not become a positive offset.
 
@@ -33,7 +33,7 @@ Workers use distinct private layouts for signed and unsigned byte values, alongs
 
 The command-line display adapter widens a completed signed byte with sign extension and an unsigned byte with zero extension, then uses the existing 64-bit display entry. Language computation and worker storage remain 8-bit; displaying −128 or 255 does not change the source type.
 
-This milestone enables CPU scalars. Arrays/tensors of these types, byte fields in records, int16/uint16 arithmetic and GPU arithmetic remain gated until their own storage/execution qualification. Existing 32/64-bit collections can be indexed or reshaped with byte scalars, and callbacks can capture bytes while producing an already supported result type.
+This milestone enables CPU scalars. Arrays/tensors of these types, byte fields in records and GPU arithmetic remain gated until their own storage/execution qualification. Existing 32/64-bit collections can be indexed or reshaped with byte scalars, and callbacks can capture bytes while producing an already supported result type.
 
 ## Qualification
 

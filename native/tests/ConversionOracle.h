@@ -49,8 +49,8 @@ static Expected reference(std::uint64_t bits) {
 }
 static std::vector<std::uint64_t> conversionInputs() {
   std::vector<std::uint64_t> inputs;
-  if (describeNumeric(source)->bits == 8) {
-    for (unsigned value = 0; value < 256; ++value)
+  if (describeNumeric(source)->bits <= 16) {
+    for (unsigned value = 0; value < (UINT64_C(1) << describeNumeric(source)->bits); ++value)
       inputs.push_back(value);
     return inputs;
   }

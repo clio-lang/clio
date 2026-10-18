@@ -58,13 +58,12 @@ int main() {
                        description.type == NumericType::UInt64 ||
                        description.type == NumericType::Float64))),
                 "type description accidentally enabled arithmetic");
-      if (description.type != NumericType::Float32 && !isInteger32(description.type) &&
-          description.type != NumericType::Int64 && description.type != NumericType::UInt64 &&
-          description.type != NumericType::Float64 && !isInteger8(description.type)) {
-        auto rejected = analyze("fn main() -> " + std::string(description.name) + ":\n  1\n");
-        require(!rejected.ok() && rejected.diagnostics.front().code == "S003",
-                "unimplemented source arithmetic accepted");
-      }
+      require(numericScalarArithmeticAvailable(description.type, NumericTarget::Cpu) &&
+                  analyze("fn main() -> " + std::string(description.name) + ":\n  1\n").ok(),
+              "accepted CPU scalar type rejected");
+      require(numericScalarArithmeticAvailable(description.type, NumericTarget::AppleGpu) ==
+                  (description.type == NumericType::Float32),
+              "scalar admission accidentally enabled a GPU type");
     }
     for (auto name : {"Number", "bool", "Float32", "int128", "float16", "bfloat16", "int0"})
       require(!resolveNumeric(name), "unknown/deferred numeric type silently mapped");
@@ -91,17 +90,25 @@ int main() {
     // All entry surfaces must reject unsupported numeric IR before float lowering.
     for (unsigned surface = 0; surface < 4; ++surface) {
       auto forged = *numeric.module;
-      if (surface == 0)
+      if (surface == 0) {
         forged.functions[0].resultType.element = NumericType::Int16;
-      if (surface == 1)
+        forged.functions[0].resultType.tensor = true;
+      }
+      if (surface == 1) {
         forged.functions[0].declaredResult->element = NumericType::Int16;
-      if (surface == 2)
+        forged.functions[0].declaredResult->tensor = true;
+      }
+      if (surface == 2) {
         forged.symbols[0].type.element = NumericType::Int16;
-      if (surface == 3)
+        forged.symbols[0].type.tensor = true;
+      }
+      if (surface == 3) {
         forged.expressions[0].type.element = NumericType::Int16;
+        forged.expressions[0].operation = Float32Literal{0x3f800000u};
+      }
       auto failure = lowerNative(forged);
-      require(!failure && failure.error().find("int16") != std::string::npos,
-              "backend silently treated int16 as float32");
+      require(bool(numericCapabilityError(forged, NumericTarget::Cpu)) && !failure,
+              "backend accepted unsupported int16 aggregate or malformed literal");
     }
     auto task = analyze("fn identity(values:Tensor[float32,?]) -> Tensor[float32,?]:\n  values\n"
                         "fn main() -> float32 ! TaskError:\n  try parallel:\n"

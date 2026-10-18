@@ -946,3 +946,4 @@ include(cmake/ArraySlices.cmake)
 include(cmake/ArrayConcats.cmake)
 
 include(cmake/Int8.cmake)
+include(cmake/Int16.cmake)

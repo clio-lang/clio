@@ -257,19 +257,22 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
         expression.operation);
     if (arithmeticArray)
       return "arrays require explicit collection operations, not tensor/scalar arithmetic";
-    if (expression.type.builtin == BuiltinValue::Numeric && isInteger8(expression.type.element)) {
+    if (expression.type.builtin == BuiltinValue::Numeric &&
+        isNarrowInteger(expression.type.element)) {
       if (const auto *literal = std::get_if<Int32Literal>(&expression.operation)) {
-        if (expression.type.element != NumericType::Int8 || literal->value < INT8_MIN ||
-            literal->value > INT8_MAX)
-          return "int8 literal requires its exact signed range and identity";
+        if (isUnsigned(expression.type.element) ||
+            literal->value < integerMinimum(expression.type.element) ||
+            literal->value > static_cast<std::int64_t>(integerMaximum(expression.type.element)))
+          return "narrow signed literal requires its exact signed range and identity";
       } else if (const auto *literal = std::get_if<UInt32Literal>(&expression.operation)) {
-        if (expression.type.element != NumericType::UInt8 || literal->value > UINT8_MAX)
-          return "uint8 literal requires its exact unsigned range and identity";
+        if (!isUnsigned(expression.type.element) ||
+            literal->value > integerMaximum(expression.type.element))
+          return "narrow unsigned literal requires its exact unsigned range and identity";
       } else if (std::holds_alternative<Int64Literal>(expression.operation) ||
                  std::holds_alternative<UInt64Literal>(expression.operation) ||
                  std::holds_alternative<Float32Literal>(expression.operation) ||
                  std::holds_alternative<Float64Literal>(expression.operation))
-        return "8-bit integer literal uses an incompatible representation";
+        return "narrow integer literal uses an incompatible representation";
     }
     if (const auto *literal = std::get_if<StringLiteral>(&expression.operation);
         literal && (expression.type.builtin != BuiltinValue::String || expression.type.tensor ||
