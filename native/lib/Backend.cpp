@@ -49,7 +49,7 @@ public:
         builder_.getFunctionType(
             {builder_.getI64Type(), builder_.getI64Type(), builder_.getI64Type()}, {}));
     fault.setPrivate();
-    if (hasRecordCollections(input_) || hasOrdinaryStrings(input_)) {
+    if (hasRecordBacking(input_) || hasOrdinaryStrings(input_)) {
       const auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
       for (const auto &[name, signature] : std::vector<std::pair<std::string, FunctionType>>{
                {"kalandra_record_alloc", builder_.getFunctionType({builder_.getI64Type()}, {ptr})},
@@ -132,7 +132,7 @@ public:
     builder_.setInsertionPointToStart(entry.addEntryBlock());
     const auto mainId = static_cast<FunctionId>(main - input_.functions.begin());
     auto call = func::CallOp::create(builder_, entry.getLoc(), functions_[mainId], ValueRange{});
-    if ((hasRecordCollections(input_) || hasOrdinaryStrings(input_)) && !main->resultType.tensor &&
+    if ((hasRecordBacking(input_) || hasOrdinaryStrings(input_)) && !main->resultType.tensor &&
         main->resultType.builtin != BuiltinValue::String)
       func::CallOp::create(builder_, entry.getLoc(), "kalandra_record_cleanup", TypeRange{},
                            ValueRange{});
@@ -256,6 +256,21 @@ private:
   void validateString(Location loc, Value value) {
     auto slot = stringSlot(loc, value);
     func::CallOp::create(builder_, loc, "kalandra_string_validate", TypeRange{}, ValueRange{slot});
+  }
+  void validateStrings(Location loc, Value value, const ValueType &source) {
+    if (source.builtin == BuiltinValue::String)
+      validateString(loc, value);
+    else if (source.builtin == BuiltinValue::Record && !source.tensor) {
+      const auto &fields = input_.records[*source.record].fields;
+      for (std::size_t i = 0; i < fields.size(); ++i) {
+        const auto &field = fields[i].type;
+        if (field.builtin == BuiltinValue::String || field.builtin == BuiltinValue::Record) {
+          auto member = LLVM::ExtractValueOp::create(builder_, loc, value,
+                                                     ArrayRef<int64_t>{static_cast<int64_t>(i)});
+          validateStrings(loc, member, field);
+        }
+      }
+    }
   }
   Type arrayCellType(const ValueType &array) {
     return isBoolArray(array) ? builder_.getI8Type() : type(recordArrayElement(array));
@@ -1606,8 +1621,7 @@ private:
     for (std::size_t i = 0; i < input_.functions[id].parameters.size(); ++i) {
       const auto parameter = input_.functions[id].parameters[i];
       frame.symbols.emplace(parameter, entry->getArgument(i));
-      if (input_.symbols[parameter].type.builtin == BuiltinValue::String)
-        validateString(function.getLoc(), entry->getArgument(i));
+      validateStrings(function.getLoc(), entry->getArgument(i), input_.symbols[parameter].type);
     }
     Value result;
     for (const auto &statement : input_.functions[id].body) {
@@ -1616,8 +1630,7 @@ private:
         frame.symbols.emplace(*statement.binding, result);
     }
     auto value = castTensor(function.getLoc(), result, function.getResultTypes()[0]);
-    if (input_.functions[id].resultType.builtin == BuiltinValue::String)
-      validateString(function.getLoc(), value);
+    validateStrings(function.getLoc(), value, input_.functions[id].resultType);
     func::ReturnOp::create(builder_, function.getLoc(), value);
   }
   void interfaceWrapper(const std::string &name,

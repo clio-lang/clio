@@ -8,6 +8,10 @@
 
 namespace kalandra {
 bool hasOrdinaryStrings(const TypedModule &module) {
+  for (const auto &record : module.records)
+    for (const auto &field : record.fields)
+      if (field.type.builtin == BuiltinValue::String)
+        return true;
   return std::ranges::any_of(module.expressions,
                              [&](const auto &e) {
                                const auto *comparison = std::get_if<ScalarCompare>(&e.operation);

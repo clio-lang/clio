@@ -1,6 +1,6 @@
 # Immutable CPU records
 
-The native compiler supports named immutable records with numeric scalar, `Bool`, [nested record](nested-records.md), [numeric collection](record-collections.md), and [Bool-array](record-bool-fields.md) fields. This builds on the [accepted core design](core.md#3-construct-a-record-and-derive-another).
+The native compiler supports named immutable records with numeric scalar, `Bool`, [nested record](nested-records.md), [numeric collection](record-collections.md), [Bool-array](record-bool-fields.md), and [String](record-string-fields.md) fields. This builds on the [accepted core design](core.md#3-construct-a-record-and-derive-another).
 
 ```kalandra
 type Point:
@@ -51,3 +51,5 @@ The initial synchronous milestone is recorded below; [worker integration](record
 On Apple M2 Max, all 101 focused checks passed. Record programs passed in debug, optimized, ASan/UBSan, and separate ThreadSanitizer builds: 104 compiled source programs across those variants. Frontend checks also cover invalid declarations/fields, nominal identity, malformed typed IR, and unsupported execution paths. Runtime checks cover numeric endpoints, floating precision/signed zero, unchanged originals, functions/recursion, conditionals, maps, module composition, fault evaluation order, and failed-build artifact preservation. Existing frontend, collection, worker, ownership, continuation, and selected Metal regression checks passed. All 640 tracked numerical artifacts and 20 numerical/checked-ABI/runtime/storage sources remain unchanged. This is focused qualification, not a full-suite claim; the [evidence record](../../native/metal-proof/evidence/cpu-records-2026-10-18.json) records the scope and hashes.
 
 Numeric arrays and tensors can now be stored inside records; see [collection field ownership](record-collections.md) for copy semantics and worker retention.
+
+[String fields](record-string-fields.md) now compose with these record rules, including nested records, immutable updates, record arrays/maps and retained local CPU worker arguments/results. Direct String arrays remain separate.

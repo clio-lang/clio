@@ -35,7 +35,6 @@ int main() {
              "fn main()->int64:\n  \"1\"\n",
              "fn f(x:String)->String:\n  x\nfn main()->String:\n  f(true)\n",
              "fn main()->[String]:\n  [\"a\"]\n",
-             "type A:\n  text:String\nfn main()->int64:\n  1\n",
              "fn main()->[String]:\n  [1,2]->map(fn(x): \"a\")\n",
          })
       require(!analyze(source).ok(), "unsupported String source admitted");

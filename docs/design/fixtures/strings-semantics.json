@@ -1,5 +1,5 @@
 {
-  "status": "String literals, values, equality, concatenation, length queries, scalar indexing and slicing implemented for synchronous and local-worker CPU modules; compound String elements remain gated",
+  "status": "String literals, values, equality, concatenation, length queries, scalar indexing and slicing implemented for synchronous and local-worker CPU modules; String record fields implemented; direct String arrays remain gated",
   "text_cases": [
     {
       "text": "",

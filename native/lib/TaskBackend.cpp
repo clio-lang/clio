@@ -186,7 +186,7 @@ public:
       builder.CreateRetVoid();
     } else {
       auto *value = builder.CreateLoad(scalarType(main->resultType), payload);
-      if (hasRecordCollections(planner.input) ||
+      if (hasRecordBacking(planner.input) ||
           std::ranges::any_of(planner.input.expressions,
                               [](const auto &e) { return e.type.builtin == BuiltinValue::String; }))
         call("kalandra_record_cleanup_v1", voidType, {ctx});
@@ -331,7 +331,13 @@ private:
       auto *address = builder.CreateStructGEP(scalarType(type), input, i);
       if (field.builtin == BuiltinValue::Record)
         retainRecord(field, address, fn, failed);
-      else if (field.tensor) {
+      else if (field.builtin == BuiltinValue::String) {
+        auto *success =
+            call("kalandra_string_retain_v1", boolean, {fn->getArg(0), fn->getArg(2), address});
+        auto *next = Block::Create(context, "record.string.next", fn);
+        builder.CreateCondBr(success, next, failed);
+        builder.SetInsertPoint(next);
+      } else if (field.tensor) {
         auto *success = isBoolArray(field)
                             ? call("kalandra_bool_array_retain_v1", boolean,
                                    {fn->getArg(0), fn->getArg(2), address})
@@ -410,7 +416,7 @@ private:
       builder.CreateCondBr(success, ready, failed);
       builder.SetInsertPoint(failed);
       builder.CreateRet(builder.getFalse());
-    } else if (type.builtin == BuiltinValue::Record && hasRecordCollections(planner.input)) {
+    } else if (type.builtin == BuiltinValue::Record && hasRecordBacking(planner.input)) {
       auto *retain = Block::Create(context, "record.retain", fn);
       auto *failed = Block::Create(context, "record.failed", fn);
       builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,

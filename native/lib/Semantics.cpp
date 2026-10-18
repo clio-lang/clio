@@ -268,9 +268,11 @@ private:
              !isBoolArray(*fieldType)) ||
             (fieldType->builtin != BuiltinValue::Numeric &&
              fieldType->builtin != BuiltinValue::Bool &&
-             fieldType->builtin != BuiltinValue::Record)) {
+             fieldType->builtin != BuiltinValue::Record &&
+             fieldType->builtin != BuiltinValue::String)) {
           error("S068",
-                "record fields require CPU numbers, numeric collections, Bool, Bool arrays or "
+                "record fields require CPU numbers, numeric collections, Bool, Bool arrays, "
+                "Strings or "
                 "records",
                 field.type.span);
           continue;

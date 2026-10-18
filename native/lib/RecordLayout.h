@@ -4,7 +4,7 @@
 #include <functional>
 
 namespace kalandra {
-inline bool hasRecordCollections(const TypedModule &module) {
+inline bool hasRecordBacking(const TypedModule &module) {
   for (const auto &expression : module.expressions)
     if (isOwnedArray(expression.type))
       return true;
@@ -13,7 +13,7 @@ inline bool hasRecordCollections(const TypedModule &module) {
       return true;
   for (const auto &record : module.records)
     for (const auto &field : record.fields)
-      if (field.type.tensor)
+      if (field.type.tensor || field.type.builtin == BuiltinValue::String)
         return true;
   return false;
 }
@@ -34,17 +34,18 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
                           type.shape.size() > 128 || (type.array && type.shape.size() != 1))
                        : (type.array || !type.shape.empty())))
         return fail("record fields require completed CPU numbers, numeric collections, Bool, Bool "
-                    "arrays or records",
+                    "arrays, Strings or records",
                     field.declaration);
       if (type.builtin == BuiltinValue::Record) {
         if (!type.record || *type.record >= module.records.size())
           return fail("invalid nested record declaration identity", field.declaration);
-      } else if (type.record || (type.builtin != BuiltinValue::Bool &&
-                                 (type.builtin != BuiltinValue::Numeric ||
-                                  !numericArithmeticAvailable(type.element, NumericTarget::Cpu))))
-        return fail(
-            "record fields require CPU numbers, numeric collections, Bool, Bool arrays or records",
-            field.declaration);
+      } else if (type.record ||
+                 (type.builtin != BuiltinValue::Bool && type.builtin != BuiltinValue::String &&
+                  (type.builtin != BuiltinValue::Numeric ||
+                   !numericArithmeticAvailable(type.element, NumericTarget::Cpu))))
+        return fail("record fields require CPU numbers, numeric collections, Bool, Bool arrays, "
+                    "Strings or records",
+                    field.declaration);
     }
   }
   struct Frame {
@@ -69,7 +70,9 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
         continue;
       }
       const auto &field = record.fields[frame.next];
-      std::size_t count = field.type.tensor ? 3 + 2 * field.type.shape.size() : 1;
+      std::size_t count = field.type.builtin == BuiltinValue::String ? 3
+                          : field.type.tensor ? 3 + 2 * field.type.shape.size()
+                                              : 1;
       if (field.type.record) {
         const auto child = *field.type.record;
         if (state[child] == 1)
@@ -102,9 +105,10 @@ inline std::size_t recordInlineUnits(const TypedModule &module, std::size_t root
       return *cache[id];
     std::size_t total = 0;
     for (const auto &field : module.records[id].fields)
-      total += field.type.record   ? count(*field.type.record)
-               : field.type.tensor ? 3 + 2 * field.type.shape.size()
-                                   : 1;
+      total += field.type.record                            ? count(*field.type.record)
+               : field.type.builtin == BuiltinValue::String ? 3
+               : field.type.tensor                          ? 3 + 2 * field.type.shape.size()
+                                                            : 1;
     cache[id] = total;
     return total;
   };
