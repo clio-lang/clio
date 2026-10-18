@@ -69,7 +69,7 @@ Construction also works in ordinary worker functions, in anonymous map callbacks
 
 ## Remaining collection work
 
-This is an array value foundation, not the complete collection API. [Sequential `map` with named functions or inline anonymous numeric callbacks and lexical captures](array-map.md) is now implemented. First-class function values remain separate work. Tensor-to-tensor reshaping, tensor-to-array construction, nested/general element types remain unimplemented. [Checked read-only numeric array indexing](array-indexing.md) is implemented; [CPU tensor scalar indexing](tensor-indexing.md) is also implemented. Indexed writes are never part of the immutable model; any future replacement operation must produce another logical value.
+This is an array value foundation, not the complete collection API. [Sequential `map` with named functions or inline anonymous numeric callbacks and lexical captures](array-map.md) is now implemented. First-class function values remain separate work. [CPU tensor-to-tensor reshaping](tensor-reshape.md) is implemented separately. Tensor-to-array construction and nested/general element types remain unimplemented. [Checked read-only numeric array indexing](array-indexing.md) is implemented; [CPU tensor scalar indexing](tensor-indexing.md) is also implemented. Indexed writes are never part of the immutable model; any future replacement operation must produce another logical value.
 
 The development CLI still requires a scalar `main` result; displaying arrays directly is separate tooling work. Array-returning functions are qualified through checked native test interfaces and worker outcomes.
 

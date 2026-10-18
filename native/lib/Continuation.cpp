@@ -31,6 +31,10 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
           auto result = op.indices;
           result.insert(result.begin(), op.input);
           return result;
+        } else if constexpr (std::is_same_v<T, TensorReshape>) {
+          auto result = op.dimensions;
+          result.insert(result.begin(), op.input);
+          return result;
         } else if constexpr (std::is_same_v<T, ArrayToTensor>) {
           auto result = op.dimensions.value_or(std::vector<ValueId>{});
           result.insert(result.begin(), op.input);
@@ -203,6 +207,10 @@ private:
             op.input = importValue(op.input);
             for (auto &index : op.indices)
               index = importValue(index);
+          } else if constexpr (std::is_same_v<T, TensorReshape>) {
+            op.input = importValue(op.input);
+            for (auto &axis : op.dimensions)
+              axis = importValue(axis);
           } else if constexpr (std::is_same_v<T, ArrayToTensor>) {
             op.input = importValue(op.input);
             if (op.dimensions)
@@ -302,6 +310,9 @@ private:
     } else if (auto *read = std::get_if<TensorIndex>(&op)) {
       read->input = reads[0];
       read->indices.assign(reads.begin() + 1, reads.end());
+    } else if (auto *reshape = std::get_if<TensorReshape>(&op)) {
+      reshape->input = reads[0];
+      reshape->dimensions.assign(reads.begin() + 1, reads.end());
     } else if (auto *construction = std::get_if<ArrayToTensor>(&op)) {
       construction->input = reads[0];
       if (construction->dimensions)

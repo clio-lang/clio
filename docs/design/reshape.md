@@ -49,7 +49,7 @@ Construction in ordinary worker helpers and anonymous map callbacks also works. 
 
 ## Remaining work
 
-This constructor takes flat numeric arrays. A general tensor-to-tensor `reshape` operation, inferred dimensions, runtime-variable ranks and GPU/mixed-target array construction remain separate work. Distributed native execution is not implemented.
+This constructor takes flat numeric arrays. [CPU tensor-to-tensor `reshape`](tensor-reshape.md) is now implemented separately. Inferred dimensions, runtime-variable ranks and GPU/mixed-target array construction remain separate work. Distributed native execution is not implemented.
 
 ## Qualification
 

@@ -271,6 +271,25 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
                     r.shape[0].identity))
         return "collection query result shape mismatch";
     }
+    if (const auto *reshape = std::get_if<TensorReshape>(&expression.operation)) {
+      if (reshape->input >= module.expressions.size())
+        return "reshape references invalid input";
+      const auto &a = module.expressions[reshape->input].type;
+      const auto &r = expression.type;
+      if (target != NumericTarget::Cpu || !a.tensor || a.array || a.task || a.fallible ||
+          a.device || a.builtin != BuiltinValue::Numeric || !r.tensor || r.array || r.task ||
+          r.fallible || r.device || r.builtin != BuiltinValue::Numeric || a.element != r.element ||
+          r.shape.size() != reshape->dimensions.size())
+        return "reshape requires completed CPU tensors with unchanged element type and fixed rank";
+      for (auto id : reshape->dimensions) {
+        if (id >= module.expressions.size())
+          return "reshape references invalid dimension";
+        const auto &d = module.expressions[id].type;
+        if (d.builtin != BuiltinValue::Numeric || !isInteger(d.element) || d.tensor || d.array ||
+            d.task || d.fallible || d.device || !d.shape.empty())
+          return "reshape dimensions require completed CPU integer scalars";
+      }
+    }
     if (const auto *construction = std::get_if<ArrayToTensor>(&expression.operation)) {
       if (construction->input >= module.expressions.size())
         return "array-to-tensor construction references invalid input";
@@ -488,6 +507,11 @@ std::string dumpTypedIR(const TypedModule &module) {
               out << (operation.kind == CollectionQueryKind::Length ? "array.length checked "
                                                                     : "tensor.shape checked ");
               value(operation.input);
+            } else if constexpr (std::is_same_v<T, TensorReshape>) {
+              out << "tensor.reshape ordered_copy ";
+              value(operation.input);
+              out << " dimensions=";
+              arguments(operation.dimensions);
             } else if constexpr (std::is_same_v<T, ArrayToTensor>) {
               out << "tensor.from_array ordered_copy ";
               value(operation.input);

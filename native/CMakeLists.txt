@@ -874,3 +874,5 @@ include(cmake/ArrayIndex.cmake)
 include(cmake/TensorIndex.cmake)
 
 include(cmake/CollectionQuery.cmake)
+
+include(cmake/TensorReshape.cmake)

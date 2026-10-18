@@ -937,17 +937,20 @@ private:
                                                 ValueRange{index(loc, axis)});
             }
             return result;
-          } else if constexpr (std::is_same_v<T, ArrayToTensor>) {
-            if (operation.dimensions) {
+          } else if constexpr (std::is_same_v<T, ArrayToTensor> ||
+                               std::is_same_v<T, TensorReshape>) {
+            std::optional<std::vector<ValueId>> dimensionOperands = operation.dimensions;
+            if (dimensionOperands) {
               auto input = expression(frame, operation.input);
               auto inputShape = dimensions(loc, input);
-              checkedCount(loc, inputShape, describeNumeric(node.type.element)->bytes());
+              auto inputCount =
+                  checkedCount(loc, inputShape, describeNumeric(node.type.element)->bytes());
               SmallVector<Value> shape, dynamic, evaluated;
-              for (auto id : *operation.dimensions)
+              for (auto id : *dimensionOperands)
                 evaluated.push_back(expression(frame, id));
               const auto output = cast<RankedTensorType>(type(node.type));
-              for (std::size_t axis = 0; axis < operation.dimensions->size(); ++axis) {
-                auto id = (*operation.dimensions)[axis];
+              for (std::size_t axis = 0; axis < dimensionOperands->size(); ++axis) {
+                auto id = (*dimensionOperands)[axis];
                 auto dimension = evaluated[axis];
                 const auto element = input_.expressions[id].type.element;
                 if (describeNumeric(element)->bits == 32) {
@@ -990,13 +993,30 @@ private:
                       2);
                 stride = arith::MulIOp::create(builder_, loc, stride, *axis);
               }
-              guard(loc, compare(loc, arith::CmpIPredicate::eq, inputShape[0], count), 1);
+              guard(loc, compare(loc, arith::CmpIPredicate::eq, inputCount, count), 1);
               auto empty = tensor::EmptyOp::create(builder_, loc, output.getShape(),
                                                    output.getElementType(), dynamic);
               auto loop = scf::ForOp::create(
                   builder_, loc, index(loc, 0), count, index(loc, 1), ValueRange{empty},
                   [&](OpBuilder &, Location, Value i, ValueRange args) {
-                    auto element = tensor::ExtractOp::create(builder_, loc, input, ValueRange{i});
+                    SmallVector<Value> sourceIndices;
+                    if constexpr (std::is_same_v<T, ArrayToTensor>)
+                      sourceIndices.push_back(i);
+                    else {
+                      sourceIndices.resize(inputShape.size());
+                      Value remaining = i;
+                      for (std::size_t axis = inputShape.size(); axis > 0; --axis) {
+                        auto safe =
+                            arith::SelectOp::create(builder_, loc,
+                                                    compare(loc, arith::CmpIPredicate::eq,
+                                                            inputShape[axis - 1], index(loc, 0)),
+                                                    index(loc, 1), inputShape[axis - 1]);
+                        sourceIndices[axis - 1] =
+                            arith::RemUIOp::create(builder_, loc, remaining, safe);
+                        remaining = arith::DivUIOp::create(builder_, loc, remaining, safe);
+                      }
+                    }
+                    auto element = tensor::ExtractOp::create(builder_, loc, input, sourceIndices);
                     SmallVector<Value> indices(shape.size());
                     Value remaining = i;
                     for (std::size_t axis = shape.size(); axis > 0; --axis) {

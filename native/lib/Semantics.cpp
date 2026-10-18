@@ -975,6 +975,7 @@ private:
           !std::holds_alternative<ReduceSum>(node(*value).operation) &&
           !std::holds_alternative<ArrayMap>(node(*value).operation) &&
           !std::holds_alternative<ArrayToTensor>(node(*value).operation) &&
+          !std::holds_alternative<TensorReshape>(node(*value).operation) &&
           !std::holds_alternative<CollectionQuery>(node(*value).operation)) {
         error("S037", "this invocation is not a supported task entry", span);
         return {};
@@ -1484,11 +1485,16 @@ private:
   }
   std::optional<ValueId> arrayTensor(Frame &frame, SourceSpan span, ValueId input,
                                      std::optional<ExprId> shapeSyntax,
-                                     const std::optional<ValueType> &expected) {
+                                     const std::optional<ValueType> &expected,
+                                     bool reshaping = false) {
     auto output = node(input).type;
-    if (!output.array || output.task || output.fallible || output.device || !output.tensor ||
-        output.builtin != BuiltinValue::Numeric || output.shape.size() != 1) {
-      error("S026", "tensor construction requires a completed CPU numeric array", span);
+    if (output.array == reshaping || output.task || output.fallible || output.device ||
+        !output.tensor || output.builtin != BuiltinValue::Numeric ||
+        (!reshaping && output.shape.size() != 1)) {
+      error("S026",
+            reshaping ? "reshape requires a completed CPU numeric tensor"
+                      : "tensor construction requires a completed CPU numeric array",
+            span);
       return {};
     }
     output.array = false;
@@ -1567,17 +1573,36 @@ private:
         else
           for (const auto &axis : output.shape)
             count *= *axis.constant;
-        if (!requireEqual(frame, node(input).type.shape[0], Extent{count, 0}))
-          return {};
-        const auto length = node(input).type.shape[0].constant;
-        if (length && *length != count) {
-          error("S050", "tensor shape element count does not match array length", span);
-          return {};
+        if (!reshaping) {
+          if (!requireEqual(frame, node(input).type.shape[0], Extent{count, 0}))
+            return {};
+          const auto length = node(input).type.shape[0].constant;
+          if (length && *length != count) {
+            error("S050", "tensor shape element count does not match array length", span);
+            return {};
+          }
+        } else {
+          const auto &source = node(input).type.shape;
+          std::optional<std::uint64_t> length;
+          if (std::ranges::any_of(source, [](const Extent &d) { return d.constant == 0; }))
+            length = 0;
+          else if (std::ranges::all_of(source,
+                                       [](const Extent &d) { return d.constant.has_value(); })) {
+            length = 1;
+            for (const auto &d : source)
+              *length *= *d.constant;
+          }
+          if (length && *length != count) {
+            error("S050", "reshape must preserve the tensor element count", span);
+            return {};
+          }
         }
       }
     }
     if (!validSize(output, span))
       return {};
+    if (reshaping)
+      return add(frame, output, span, TensorReshape{input, std::move(*operation.dimensions)});
     return add(frame, output, span, std::move(operation));
   }
   std::optional<ValueId> tensor(Frame &frame, SourceSpan span, const std::vector<ExprId> &arguments,
@@ -2161,6 +2186,20 @@ private:
       }
       if (auto numeric = resolveNumeric(callee))
         return conversion(frame, span, *numeric, arguments);
+      if (callee == "reshape") {
+        if (arguments.size() != 2) {
+          error("S027", "reshape expects a tensor and a fixed-rank shape list", span);
+          return {};
+        }
+        if (expected && (!expected->tensor || expected->array)) {
+          error("S026", "reshape requires a tensor result context", span);
+          return {};
+        }
+        auto input = expression(frame, arguments[0]);
+        if (!input)
+          return {};
+        return arrayTensor(frame, span, *input, arguments[1], expected, true);
+      }
       if (callee == "length" || callee == "shape")
         return collectionQuery(frame, span, callee, arguments);
       if (callee == "map")

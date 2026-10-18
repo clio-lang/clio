@@ -68,7 +68,7 @@ Typed IR uses `CollectionQuery` with explicit Length/Shape kind and input. Seman
 
 CPU MLIR lowering reads dimensions, checks the source extent/byte range, and either returns the array extent or writes the ordered dimensions into a new int64 array. Continuation kernels and imported callback/helper graphs remap the input explicitly. Both operations use the existing checked invocation, allocation, retention and task machinery.
 
-This implementation handles CPU collections. Resident GPU inputs are rejected; there is no implicit download. Device-side queries and host metadata access without transferring a resident value need their own placement integration. The tensor constructor still requires its shape list at the call site: use `tensor(data, [dimensions[0], dimensions[1]])` rather than passing a stored shape array directly. It does not add general String/record queries, runtime-variable tensor rank, slicing or tensor-to-tensor reshaping. Native distributed execution remains behind its agreed design discussion.
+This implementation handles CPU collections. Resident GPU inputs are rejected; there is no implicit download. Device-side queries and host metadata access without transferring a resident value need their own placement integration. The tensor constructor still requires its shape list at the call site: use `tensor(data, [dimensions[0], dimensions[1]])` rather than passing a stored shape array directly. It does not add general String/record queries, runtime-variable tensor rank, slicing or device-side reshaping. [CPU tensor-to-tensor reshape](tensor-reshape.md) is now available separately. Native distributed execution remains behind its agreed design discussion.
 
 ## Qualification
 

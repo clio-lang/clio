@@ -170,7 +170,7 @@ Matrix multiplication uses matmul, not overloaded `*` or a new punctuation opera
 
 Indexing device-resident data may require synchronization/transfer; placement APIs must expose that cost rather than treat it as a free pointer read. Slicing and sub-tensor view syntax are a later API decision.
 
-Reshape and transpose produce immutable logical values. The compiler can share backing storage or copy it when required by physical layout. No user-visible mutation is permitted, and views keep their source storage valid.
+[Native CPU reshape](tensor-reshape.md) is implemented as an ordered managed copy preserving element type and count. Transpose remains separate work. Reshape and transpose produce immutable logical values. The compiler can share backing storage or copy it when required by physical layout. No user-visible mutation is permitted, and views keep their source storage valid.
 
 Zero-sized dimensions are legal. A tensor shaped `[0, 3]` has zero elements. Rank zero has one element, because the empty dimension product is one. Shape arithmetic is checked before allocation. ReduceSum of an empty tensor returns the additive zero of its element type. Operations with no useful identity, such as mean, need an explicit expected-error or optional-result contract.
 
