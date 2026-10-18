@@ -125,3 +125,5 @@ CPU records can also own [numeric arrays and tensors](../docs/design/record-coll
 [Record array mapping](../docs/design/array-map.md#record-elements-and-results) supports numeric-to-record, record-to-numeric and record-to-record transforms, including immutable updates, nested collection fields, anonymous captures and retained CPU worker results. Mapping is sequential; explicit tasks choose which worker runs it.
 
 [Bool-array record fields](../docs/design/record-bool-fields.md) support nested records, immutable updates, record arrays, anonymous captures and retained CPU worker results. They reuse their existing immutable array backing.
+
+The [proposed String contract](../docs/design/strings.md) defines UTF-8 text, scalar indexing, exact equality and managed lifetimes. String expressions and ordinary String annotations are not implemented yet; the first implementation slice is literal/value support.
