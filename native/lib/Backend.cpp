@@ -106,10 +106,13 @@ private:
   }
   Type type(const ValueType &value) {
     if (value.builtin == BuiltinValue::Record) {
+      if (auto found = recordTypes_.find(*value.record); found != recordTypes_.end())
+        return found->second;
       SmallVector<Type> fields;
       for (const auto &field : input_.records.at(*value.record).fields)
         fields.push_back(type(field.type));
-      return LLVM::LLVMStructType::getLiteral(builder_.getContext(), fields);
+      return recordTypes_[*value.record] =
+                 LLVM::LLVMStructType::getLiteral(builder_.getContext(), fields);
     }
     if (value.builtin == BuiltinValue::Bool)
       return builder_.getI1Type();
@@ -1263,6 +1266,7 @@ private:
   OpBuilder builder_;
   OwningOpRef<ModuleOp> module_;
   std::vector<func::FuncOp> functions_;
+  std::unordered_map<std::size_t, Type> recordTypes_;
   unsigned nextMatmulHelper_ = 0;
 };
 } // namespace

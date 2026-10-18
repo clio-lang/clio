@@ -1,3 +1,4 @@
+#include "RecordLayout.h"
 #include "kalandra/Continuation.h"
 #include "kalandra/Semantics.h"
 #include <algorithm>
@@ -86,18 +87,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
   const auto sameArray = [](const ValueType &a, const ValueType &b) {
     return a.record == b.record && a.array == b.array && (!a.array || a.element == b.element);
   };
-  for (const auto &record : module.records) {
-    if (record.fields.empty())
-      return "record declarations require fields";
-    for (const auto &field : record.fields) {
-      const auto &t = field.type;
-      if (t.tensor || t.array || t.task || t.fallible || t.device || t.record || !t.shape.empty() ||
-          (t.builtin != BuiltinValue::Numeric && t.builtin != BuiltinValue::Bool))
-        return "record fields require CPU numeric scalars or Bool";
-      if (auto failure = error(t))
-        return failure;
-    }
-  }
+  if (auto invalid = recordLayoutError(module))
+    return invalid->message;
   const auto scalarSame = [](const ValueType &a, const ValueType &b) {
     return a.builtin == b.builtin && a.record == b.record && !a.tensor && !a.array && !a.task &&
            !a.fallible && !a.device && a.shape.empty() &&

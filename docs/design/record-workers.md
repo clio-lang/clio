@@ -1,6 +1,6 @@
 # Records in CPU workers
 
-Native CPU workers can accept and return the [immutable scalar-field records](records.md) supported by the native compiler. Records retain their nominal declaration identity through nested tasks, helper calls, completed groups, and repeated awaits.
+Native CPU workers can accept and return the [immutable CPU records](records.md) supported by the native compiler. Records retain their nominal declaration identity through nested tasks, helper calls, completed groups, and repeated awaits.
 
 ```kalandra
 type Point:
@@ -22,7 +22,7 @@ The result is `14`. The child receives an immutable snapshot; `original.x` remai
 
 ## Types and completed values
 
-Record fields still require the six implemented CPU numeric types or `Bool`. A mixed record can contain different scalar types. Worker transport preserves the exact integer and floating-point field values, including signed zero and NaN payload bits; passing a record does not perform arithmetic or convert its fields.
+Record fields can use the six implemented CPU numeric types, `Bool`, or another [finite nested record](nested-records.md). A mixed record can contain different scalar types. Worker transport preserves the exact integer and floating-point field values, including signed zero and NaN payload bits; passing a record does not perform arithmetic or convert its fields.
 
 A task handle is not a record value. Use `try await work` before accessing or updating the success value, or recover the completed `await work` result with `catch`. Task handles cannot escape their owning group. Existing observation, cancellation, deadline and admission rules apply to record tasks.
 
@@ -40,9 +40,9 @@ No success fields are published when a task fails. Recovery runs under the exist
 
 The shared continuation planner carries the record declaration table into its MLIR kernel module and preserves record operands in written evaluation order. MLIR's C wrappers return aggregate results through an output pointer; record arguments remain values. The CPU task emitter uses matching native struct payloads and distinct canonical layout descriptors for each nominal record type.
 
-These records contain scalar fields only. Captures, frame values and cached results therefore copy the complete value and do not require backing-storage leases or per-record heap allocations. Scheduler frames and task bookkeeping still use the scheduler's bounded allocation and cleanup mechanisms. Larger records consume more of that existing task-memory budget. This internal layout is not a public C/C++ library ABI or wire contract.
+These records have numeric/Boolean leaves, either directly or inside nested inline records. Captures, frame values and cached results therefore copy the complete value and do not require backing-storage leases or per-record heap allocations. Scheduler frames and task bookkeeping still use the scheduler's bounded allocation and cleanup mechanisms. Larger records consume more of that existing task-memory budget. This internal layout is not a public C/C++ library ABI or wire contract.
 
-Nested records, collection fields, record arrays, general record printing and GPU/mixed-target record execution remain separate implementation gates. `main` must still return a supported numeric scalar, `Bool`, numeric array or tensor. Native distributed execution requires the agreed design discussion before implementation.
+Collection fields, record arrays, general record printing and GPU/mixed-target record execution remain separate implementation gates. `main` must still return a supported numeric scalar, `Bool`, numeric array or tensor. Native distributed execution requires the agreed design discussion before implementation.
 
 ## Qualification
 

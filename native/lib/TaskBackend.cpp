@@ -27,6 +27,7 @@ class Emitter {
   Type *pointer, *i32, *i64, *f32, *boolean, *voidType;
   llvm::StructType *failureType, *handleType, *packetType, *layoutType, *entryType;
   std::map<std::string, llvm::StructType *> values;
+  std::map<std::size_t, Type *> recordTypes;
   std::map<std::string, llvm::GlobalVariable *> layouts;
   std::vector<llvm::StructType *> frames, packets;
   std::vector<llvm::GlobalVariable *> entries;
@@ -195,12 +196,14 @@ private:
     auto *dims = llvm::ArrayType::get(i64, type.shape.size());
     return llvm::StructType::get(context, {pointer, pointer, i64, dims, dims});
   }
-  Type *scalarType(const ValueType &type) const {
+  Type *scalarType(const ValueType &type) {
     if (type.builtin == BuiltinValue::Record) {
+      if (auto found = recordTypes.find(*type.record); found != recordTypes.end())
+        return found->second;
       std::vector<Type *> fields;
       for (const auto &field : planner.input.records.at(*type.record).fields)
         fields.push_back(scalarType(field.type));
-      return llvm::StructType::get(context, fields);
+      return recordTypes[*type.record] = llvm::StructType::get(context, fields);
     }
     if (type.builtin == BuiltinValue::Bool)
       return boolean;

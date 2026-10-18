@@ -886,3 +886,5 @@ include(cmake/CollectionEntry.cmake)
 include(cmake/Records.cmake)
 
 include(cmake/RecordWorkers.cmake)
+
+include(cmake/NestedRecords.cmake)

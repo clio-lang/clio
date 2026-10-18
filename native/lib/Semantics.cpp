@@ -1,4 +1,5 @@
 #include "kalandra/Semantics.h"
+#include "RecordLayout.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/Support/Error.h"
@@ -68,6 +69,9 @@ public:
   }
   CheckResult run() {
     registerRecords();
+    if (diagnostics_.empty())
+      if (auto invalid = recordLayoutError(output_, limits_))
+        error(invalid->code, invalid->message, invalid->span);
     registerSignatures();
     for (FunctionId i = 0;
          i < syntax_.functions.size() && diagnostics_.size() < limits_.maxDiagnostics; ++i)
@@ -243,8 +247,9 @@ private:
         if (!fieldType)
           continue;
         if (fieldType->tensor || (fieldType->builtin != BuiltinValue::Numeric &&
-                                  fieldType->builtin != BuiltinValue::Bool)) {
-          error("S068", "record fields currently require CPU numeric scalars or Bool",
+                                  fieldType->builtin != BuiltinValue::Bool &&
+                                  fieldType->builtin != BuiltinValue::Record)) {
+          error("S068", "record fields currently require CPU numeric scalars, Bool or records",
                 field.type.span);
           continue;
         }

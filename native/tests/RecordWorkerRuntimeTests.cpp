@@ -10,10 +10,53 @@ using namespace kalandra::runtime;
 constexpr auto element = static_cast<NumericType>(NUMERIC_TYPE);
 using Cell = NumericValue<element>;
 using Raw = std::conditional_t<sizeof(Cell) == 4, std::uint32_t, std::uint64_t>;
+#ifdef NESTED_RECORD
+struct Position {
+  Cell x;
+  bool valid;
+  Cell y;
+};
+struct Metadata {
+  std::uint64_t stamp;
+  bool ready;
+};
+struct Reading {
+  bool enabled;
+  Position position;
+  Metadata metadata;
+};
+struct Record {
+  Reading reading;
+  std::int32_t generation;
+};
+static Record makeRecord(Raw x, Raw y, bool enabled) {
+  return {{enabled,
+           {std::bit_cast<Cell>(x), !enabled, std::bit_cast<Cell>(y)},
+           {UINT64_C(0xfedcba9876543210), true}},
+          -17};
+}
+static bool same(const Record &record, Raw x, Raw y, bool enabled) {
+  const auto &r = record.reading;
+  return std::bit_cast<Raw>(r.position.x) == x && std::bit_cast<Raw>(r.position.y) == y &&
+         r.enabled == enabled && r.position.valid == !enabled &&
+         r.metadata.stamp == UINT64_C(0xfedcba9876543210) && r.metadata.ready &&
+         record.generation == -17;
+}
+constexpr const char *recordLabel = "nested record worker ";
+#else
 struct Record {
   Cell x, y;
   bool enabled;
 };
+static Record makeRecord(Raw x, Raw y, bool enabled) {
+  return {std::bit_cast<Cell>(x), std::bit_cast<Cell>(y), enabled};
+}
+static bool same(const Record &record, Raw x, Raw y, bool enabled) {
+  return std::bit_cast<Raw>(record.x) == x && std::bit_cast<Raw>(record.y) == y &&
+         record.enabled == enabled;
+}
+constexpr const char *recordLabel = "record worker ";
+#endif
 struct Result {
   Failure failure;
   Record value;
@@ -22,10 +65,6 @@ extern "C" const TaskEntry *const kalandra_task_test_entry;
 static void require(bool ok, const char *message) {
   if (!ok)
     throw std::runtime_error(message);
-}
-static bool same(const Record &record, Raw x, Raw y, bool enabled) {
-  return std::bit_cast<Raw>(record.x) == x && std::bit_cast<Raw>(record.y) == y &&
-         record.enabled == enabled;
 }
 int main(int argc, char **argv) {
   try {
@@ -80,7 +119,7 @@ int main(int argc, char **argv) {
       const auto x = sample < edges.size() ? edges[sample] : Raw(seed);
       const auto y = sample < edges.size() ? edges[edges.size() - 1 - sample] : Raw(~seed);
       const bool enabled = sample % 2;
-      Result packet{{}, {std::bit_cast<Cell>(x), std::bit_cast<Cell>(y), enabled}};
+      Result packet{{}, makeRecord(x, y, enabled)};
       auto group = core->openRoot();
       require(bool(group), "root group rejected");
       Invocation source;
@@ -165,8 +204,8 @@ int main(int argc, char **argv) {
     if (anySuccess)
       require(same(surviving.value, finalX, finalY, finalEnabled),
               "record did not survive scheduler destruction");
-    std::cout << "record worker " << describeNumeric(element)->name << " workers " << workers
-              << " mode " << mode << " allocation " << attempt << ": " << count
+    std::cout << recordLabel << describeNumeric(element)->name << " workers " << workers << " mode "
+              << mode << " allocation " << attempt << ": " << count
               << " exact snapshot/cached/layout/settlement cases passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';
