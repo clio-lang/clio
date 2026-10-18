@@ -33,8 +33,8 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
                            std::is_same_v<T, StringConcat>)
           return {op.left, op.right};
         else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, CollectionQuery> ||
-                           std::is_same_v<T, NumericConvert> || std::is_same_v<T, TensorToArray> ||
-                           std::is_same_v<T, ShapeCheck>)
+                           std::is_same_v<T, StringQuery> || std::is_same_v<T, NumericConvert> ||
+                           std::is_same_v<T, TensorToArray> || std::is_same_v<T, ShapeCheck>)
           return {op.input};
         else if constexpr (std::is_same_v<T, ArrayIndex>)
           return {op.input, op.index};
@@ -238,7 +238,8 @@ private:
                 axis = importValue(axis);
           } else if constexpr (std::is_same_v<T, NumericConvert> ||
                                std::is_same_v<T, TensorToArray> ||
-                               std::is_same_v<T, CollectionQuery> || std::is_same_v<T, ReduceSum> ||
+                               std::is_same_v<T, CollectionQuery> ||
+                               std::is_same_v<T, StringQuery> || std::is_same_v<T, ReduceSum> ||
                                std::is_same_v<T, ShapeCheck>)
             op.input = importValue(op.input);
           else if constexpr (std::is_same_v<T, ConditionalOperation>) {

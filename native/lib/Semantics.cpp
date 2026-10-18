@@ -1034,11 +1034,23 @@ private:
       return {};
     const auto type = node(*input).type;
     const bool length = callee == "length";
+    if ((length || callee == "byteLength") && type.builtin == BuiltinValue::String &&
+        !type.tensor && !type.array && !type.task && !type.fallible && !type.device) {
+      ValueType result;
+      result.element = NumericType::Int64;
+      return add(
+          frame, result, span,
+          StringQuery{length ? StringQueryKind::Length : StringQueryKind::ByteLength, *input});
+    }
+    if (callee == "byteLength") {
+      error("S064", "byteLength requires a completed CPU String", span);
+      return {};
+    }
     if (!type.tensor ||
         (type.builtin != BuiltinValue::Numeric && !(length && isOwnedArray(type))) || type.task ||
         type.fallible || type.device || type.array != length) {
       error("S064",
-            callee + (length ? " requires a completed CPU array"
+            callee + (length ? " requires a completed CPU array or String"
                              : " requires a completed CPU numeric tensor"),
             span);
       return {};
@@ -2503,7 +2515,7 @@ private:
           return {};
         return arrayTensor(frame, span, *input, arguments[1], expected, true);
       }
-      if (callee == "length" || callee == "shape")
+      if (callee == "length" || callee == "shape" || callee == "byteLength")
         return collectionQuery(frame, span, callee, arguments);
       if (callee == "map")
         return arrayMap(frame, span, arguments);

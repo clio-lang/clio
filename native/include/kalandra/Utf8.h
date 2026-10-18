@@ -4,7 +4,8 @@
 namespace kalandra {
 enum class Utf8Status { Valid, Invalid, Interrupted };
 // A strict scalar decoder. Poll between bounded groups before touching bytes.
-template <class Poll> Utf8Status validateUtf8(std::string_view text, Poll poll) {
+template <class Poll>
+Utf8Status validateUtf8(std::string_view text, Poll poll, std::uint64_t *scalars = nullptr) {
   std::size_t count = 0;
   for (std::size_t i = 0; i < text.size();) {
     if ((count++ & 255) == 0 && !poll())
@@ -34,7 +35,11 @@ template <class Poll> Utf8Status validateUtf8(std::string_view text, Poll poll) 
       return Utf8Status::Invalid;
     i += length;
   }
-  return poll() ? Utf8Status::Valid : Utf8Status::Interrupted;
+  if (!poll())
+    return Utf8Status::Interrupted;
+  if (scalars)
+    *scalars = count;
+  return Utf8Status::Valid;
 }
 inline bool validUtf8(std::string_view text) {
   return validateUtf8(text, [] { return true; }) == Utf8Status::Valid;

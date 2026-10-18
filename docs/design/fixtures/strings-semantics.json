@@ -1,5 +1,5 @@
 {
-  "status": "String literals, values, equality and concatenation implemented; length/index/slice vectors remain proposed",
+  "status": "String literals, values, equality, concatenation and length queries implemented; index/slice vectors remain proposed",
   "text_cases": [
     {
       "text": "",

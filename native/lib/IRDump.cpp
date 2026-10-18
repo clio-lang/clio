@@ -17,7 +17,8 @@ bool hasOrdinaryStrings(const TypedModule &module) {
                                        BuiltinValue::String;
                                return stringComparison ||
                                       std::holds_alternative<StringLiteral>(e.operation) ||
-                                      std::holds_alternative<StringConcat>(e.operation);
+                                      std::holds_alternative<StringConcat>(e.operation) ||
+                                      std::holds_alternative<StringQuery>(e.operation);
                              }) ||
          std::ranges::any_of(module.functions,
                              [](const auto &f) {
@@ -302,6 +303,18 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
           return "conditional branch result type mismatch";
       }
     }
+    if (const auto *query = std::get_if<StringQuery>(&expression.operation)) {
+      if (query->input >= module.expressions.size())
+        return "String query references invalid input";
+      const auto &a = module.expressions[query->input].type;
+      const auto &r = expression.type;
+      if (target != NumericTarget::Cpu || a.builtin != BuiltinValue::String || a.task ||
+          a.fallible || a.tensor || a.array || a.device || !a.shape.empty() ||
+          r.builtin != BuiltinValue::Numeric || r.element != NumericType::Int64 || r.task ||
+          r.fallible || r.tensor || r.array || r.device || !r.shape.empty() ||
+          (query->kind != StringQueryKind::Length && query->kind != StringQueryKind::ByteLength))
+        return "String query requires a completed CPU String and scalar int64 result";
+    }
     if (const auto *concat = std::get_if<StringConcat>(&expression.operation)) {
       const auto string = [&](ValueId id) {
         return id < module.expressions.size() &&
@@ -582,7 +595,11 @@ std::string dumpTypedIR(const TypedModule &module) {
       std::visit(
           [&](const auto &operation) {
             using T = std::decay_t<decltype(operation)>;
-            if constexpr (std::is_same_v<T, StringConcat>)
+            if constexpr (std::is_same_v<T, StringQuery>)
+              out << (operation.kind == StringQueryKind::Length ? "string.length checked %"
+                                                                : "string.byte_length checked %")
+                  << operation.input;
+            else if constexpr (std::is_same_v<T, StringConcat>)
               out << "string.concat %" << operation.left << " %" << operation.right;
             else if constexpr (std::is_same_v<T, StringLiteral>) {
               out << "string.utf8 0x";

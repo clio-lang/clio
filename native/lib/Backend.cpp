@@ -69,6 +69,9 @@ public:
                {"kalandra_string_literal",
                 builder_.getFunctionType({ptr, ptr, builder_.getI64Type()}, {})},
                {"kalandra_string_validate", builder_.getFunctionType({ptr}, {})},
+               {"kalandra_string_length", builder_.getFunctionType({ptr}, {builder_.getI64Type()})},
+               {"kalandra_string_byte_length",
+                builder_.getFunctionType({ptr}, {builder_.getI64Type()})},
                {"kalandra_string_concat", builder_.getFunctionType({ptr, ptr, ptr}, {})},
                {"kalandra_string_equal",
                 builder_.getFunctionType({ptr, ptr}, {builder_.getI64Type()})}}) {
@@ -1112,6 +1115,15 @@ private:
             return operation.operation == TokenKind::Minus
                        ? arith::NegFOp::create(builder_, loc, operand).getResult()
                        : operand;
+          } else if constexpr (std::is_same_v<T, StringQuery>) {
+            auto value = expression(frame, operation.input);
+            auto slot = stringSlot(loc, value);
+            return func::CallOp::create(builder_, loc,
+                                        operation.kind == StringQueryKind::Length
+                                            ? "kalandra_string_length"
+                                            : "kalandra_string_byte_length",
+                                        TypeRange{builder_.getI64Type()}, ValueRange{slot})
+                .getResult(0);
           } else if constexpr (std::is_same_v<T, StringConcat>) {
             auto a = expression(frame, operation.left), b = expression(frame, operation.right);
             auto left = stringSlot(loc, a), right = stringSlot(loc, b);

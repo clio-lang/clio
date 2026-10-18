@@ -36,3 +36,9 @@ inline std::optional<std::uint64_t> combinedStringBytes(std::uint64_t a, std::ui
   return a + b;
 }
 } // namespace kalandra::runtime
+extern "C" {
+std::int64_t kalandra_string_length_v1(kalandra::runtime::Invocation *,
+                                       const kalandra::runtime::StringDescriptor *) noexcept;
+std::int64_t kalandra_string_byte_length_v1(kalandra::runtime::Invocation *,
+                                            const kalandra::runtime::StringDescriptor *) noexcept;
+}

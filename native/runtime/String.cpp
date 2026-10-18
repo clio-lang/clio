@@ -4,23 +4,41 @@
 #include <cstring>
 #include <limits>
 namespace kalandra::runtime {
-bool validateString(Invocation &context, const StringDescriptor &value) noexcept {
+namespace {
+bool inspectString(Invocation &context, const StringDescriptor &value,
+                   std::uint64_t *scalars = nullptr) noexcept {
   if (context.poll() != 0 || !context.usable())
     return false;
   const auto invalid = [&] {
     context.fault(3);
     return false;
   };
-  if (value.byteLength == 0)
-    return (!value.allocated && !value.data) || invalid();
+  if (value.byteLength == 0) {
+    if (value.allocated || value.data)
+      return invalid();
+    if (scalars)
+      *scalars = 0;
+    return true;
+  }
   if (value.byteLength < 0 || !value.allocated || value.data != value.allocated)
     return invalid();
   auto backing = context.lease(value.allocated);
   if (!backing || static_cast<std::uint64_t>(value.byteLength) > backing->bytes().size())
     return invalid();
-  auto status = validateUtf8(std::string_view(value.data, value.byteLength),
-                             [&] { return context.poll() == 0; });
+  auto status = validateUtf8(
+      std::string_view(value.data, value.byteLength), [&] { return context.poll() == 0; }, scalars);
   return status == Utf8Status::Valid || (status == Utf8Status::Invalid && invalid());
+}
+} // namespace
+bool validateString(Invocation &context, const StringDescriptor &value) noexcept {
+  return inspectString(context, value);
+}
+static std::int64_t stringLength(Invocation &context, const StringDescriptor &value,
+                                 bool bytes) noexcept {
+  std::uint64_t count = 0;
+  if (!inspectString(context, value, bytes ? nullptr : &count))
+    return 0;
+  return bytes ? value.byteLength : static_cast<std::int64_t>(count);
 }
 } // namespace kalandra::runtime
 extern "C" void kalandra_string_literal_v1(kalandra::runtime::Invocation *context,
@@ -114,4 +132,14 @@ kalandra_string_equal_v1(kalandra::runtime::Invocation *context,
     i += count;
   }
   return context->poll() == 0 ? 1 : 0;
+}
+extern "C" std::int64_t
+kalandra_string_length_v1(kalandra::runtime::Invocation *context,
+                          const kalandra::runtime::StringDescriptor *value) noexcept {
+  return kalandra::runtime::stringLength(*context, *value, false);
+}
+extern "C" std::int64_t
+kalandra_string_byte_length_v1(kalandra::runtime::Invocation *context,
+                               const kalandra::runtime::StringDescriptor *value) noexcept {
+  return kalandra::runtime::stringLength(*context, *value, true);
 }
