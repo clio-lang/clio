@@ -417,6 +417,8 @@ private:
           output_.symbols.push_back(
               {bindingName, node(*value).type, *statement.binding, id, false});
           frame.locals.emplace(bindingName, *symbol);
+          if (auto it = stringCounts_.find(*value); it != stringCounts_.end())
+            stringBindings_[*symbol] = it->second;
           if (auto it = intConstants_.find(*value); it != intConstants_.end())
             intBindings_[*symbol] = it->second;
           if (auto it = floatConstants_.find(*value); it != floatConstants_.end())
@@ -460,6 +462,8 @@ private:
     return success;
   }
   const TypedExpr &node(ValueId id) const { return output_.expressions[id]; }
+  std::unordered_map<ValueId, std::uint64_t> stringCounts_;
+  std::unordered_map<SymbolId, std::uint64_t> stringBindings_;
   template <class Operation>
   std::optional<ValueId> add(Frame &frame, ValueType type, SourceSpan span, Operation operation) {
     if (output_.expressions.size() >= limits_.maxValues) {
@@ -471,6 +475,22 @@ private:
       type.identity = id + 1;
       if (type.fallible && !type.task)
         frame.tasks->pending.insert(type.identity);
+    }
+    if constexpr (std::is_same_v<Operation, StringLiteral>) {
+      std::uint64_t count = 0;
+      validateUtf8(
+          operation.value, [] { return true; }, &count);
+      stringCounts_[id] = count;
+    } else if constexpr (std::is_same_v<Operation, StringIndex>)
+      stringCounts_[id] = 1;
+    else if constexpr (std::is_same_v<Operation, SymbolRead>) {
+      if (auto found = stringBindings_.find(operation.symbol); found != stringBindings_.end())
+        stringCounts_[id] = found->second;
+    } else if constexpr (std::is_same_v<Operation, StringConcat>) {
+      auto a = stringCounts_.find(operation.left), b = stringCounts_.find(operation.right);
+      if (a != stringCounts_.end() && b != stringCounts_.end() &&
+          b->second <= std::uint64_t(INT64_MAX) - a->second)
+        stringCounts_[id] = a->second + b->second;
     }
     output_.expressions.push_back({span, std::move(type), std::move(operation)});
     output_.functions[frame.function].expressions.push_back(id);
@@ -1079,9 +1099,35 @@ private:
     if (!input)
       return {};
     const auto a = node(*input).type;
+    if (a.builtin == BuiltinValue::String && !a.tensor && !a.array && !a.task && !a.fallible &&
+        !a.device) {
+      if (read.indices.size() != 1) {
+        error("S063", "String indexing requires exactly one integer scalar index", span);
+        return {};
+      }
+      auto index = expression(frame, read.indices[0]);
+      if (!index)
+        return {};
+      const auto i = node(*index).type;
+      if (i.builtin != BuiltinValue::Numeric || !isInteger(i.element) || i.tensor || i.array ||
+          i.task || i.fallible || i.device) {
+        error("S061", "String indexing requires a completed CPU integer scalar index", span);
+        return {};
+      }
+      auto extent = stringCounts_.find(*input);
+      auto known = intConstants_.find(*index);
+      if ((extent != stringCounts_.end() && extent->second == 0) ||
+          (known != intConstants_.end() &&
+           (known->second < 0 || known->second > INT64_MAX ||
+            (extent != stringCounts_.end() && known->second >= extent->second)))) {
+        error("S062", "String index is outside its valid zero-based scalar range", span);
+        return {};
+      }
+      return add(frame, a, span, StringIndex{*input, *index});
+    }
     if (!a.tensor || a.task || a.fallible || a.device ||
         (a.builtin != BuiltinValue::Numeric && !isOwnedArray(a))) {
-      error("S061", "indexing requires a completed CPU array or numeric tensor", span);
+      error("S061", "indexing requires a completed CPU String, array or numeric tensor", span);
       return {};
     }
     if (read.indices.size() != a.shape.size()) {
@@ -1312,6 +1358,8 @@ private:
         output_.symbols.push_back(
             {binding, node(*value).type, *statement.binding, frame.function, false});
         nested.locals[binding] = *symbol;
+        if (auto known = stringCounts_.find(*value); known != stringCounts_.end())
+          stringBindings_[*symbol] = known->second;
       }
       statements.push_back({statement.span, symbol, *value});
       result = value;
@@ -1381,6 +1429,8 @@ private:
         output_.symbols.push_back(
             {binding, node(*value).type, *statement.binding, frame.function, false});
         frame.locals[binding] = *symbol;
+        if (auto known = stringCounts_.find(*value); known != stringCounts_.end())
+          stringBindings_[*symbol] = known->second;
       }
       statements.push_back({statement.span, symbol, *value});
       result = value;

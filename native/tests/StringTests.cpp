@@ -34,7 +34,7 @@ int main() {
          {"fn main()->String:\n  1\n", "fn main()->int64:\n  \"1\"\n",
           "fn f(x:String)->String:\n  x\nfn main()->String:\n  f(true)\n",
           "fn main()->[String]:\n  [\"a\"]\n", "type A:\n  text:String\nfn main()->int64:\n  1\n",
-          "fn main()->String:\n  \"a\"[0]\n", "fn main()->[String]:\n  [1,2]->map(fn(x): \"a\")\n",
+          "fn main()->[String]:\n  [1,2]->map(fn(x): \"a\")\n",
           "fn f()->String:\n  \"a\"\nfn main()->String ! TaskError:\n  try parallel:\n    try "
           "await spawn f()\n",
           "fn helper()->int64:\n  1\nfn main()->int64 ! TaskError:\n  ignored=\"a\"\n  try "
@@ -139,6 +139,63 @@ int main() {
             value.module->expressions[q->input].type.task = true;
         }
       require(!lowerNative(*value.module), "forged String length admitted");
+    }
+#endif
+    for (const auto *source :
+         {"fn main()->String:\n  \"👩‍💻\"[1]\n",
+          "fn pick(text:String,index:int32)->String:\n  text[index]\nfn main():\n  pick(\"é\",0)\n",
+          "fn main():\n  letter=\"é\"[0]\n  letter[0]+\"!\"\n"}) {
+      auto value = analyze(source);
+      require(value.ok(), "valid String index rejected");
+#ifndef KALANDRA_STRING_FRONTEND_ONLY
+      require(bool(lowerNative(*value.module)), "String index lowering failed");
+#endif
+    }
+    for (const auto *source :
+         {"fn main():\n  \"é\"[1]\n", "fn main():\n  \"\"[0]\n", "fn main():\n  \"a\"[-1]\n",
+          "fn main():\n  text=\"é\"\n  text[1]\n", "fn main():\n  (\"é\"+\"a\")[2]\n",
+          "fn main()->String:\n  if true:\n    text=\"\"\n    text[0]\n  else:\n    \"ok\"\n",
+          "fn main():\n  \"é\"[0][1]\n",
+          "fn main():\n  position:uint64=18446744073709551615\n  \"a\"[position]\n"}) {
+      auto value = analyze(source);
+      bool bounds = false;
+      for (const auto &d : value.diagnostics)
+        bounds |= d.code == "S062";
+      require(!value.ok() && bounds, "known bad String index did not produce S062");
+    }
+    for (const auto *source :
+         {"fn main():\n  \"a\"[true]\n", "fn main():\n  \"a\"[1.0]\n", "fn main():\n  \"a\"[0,0]\n",
+          "fn main():\n  \"a\"[]\n", "fn main():\n  \"a\"[\"0\"]\n", "fn main():\n  \"a\"[[0]]\n",
+          "fn main()->int64:\n  \"a\"[0]\n"})
+      require(!analyze(source).ok(), "invalid String index type/arity admitted");
+    auto indexDiagnostic =
+        analyze("fn task()->int64 ! TaskError:\n  1\nfn main()->int64:\n  task() catch "
+                "fn(error):\n    match error:\n      TaskError.Fault { message }:\n        "
+                "first=message[0]\n        1\n      _: 0\n");
+    bool indexGate = false;
+    for (const auto &d : indexDiagnostic.diagnostics)
+      indexGate |= d.code == "S054";
+    require(!indexDiagnostic.ok() && indexGate,
+            "borrowed String index bypassed ordinary-String gate");
+#ifndef KALANDRA_STRING_FRONTEND_ONLY
+    for (unsigned mode = 0; mode < 6; ++mode) {
+      auto value = analyze("fn main():\n  \"é\"[0]\n");
+      for (auto &expr : value.module->expressions)
+        if (auto *read = std::get_if<StringIndex>(&expr.operation)) {
+          if (mode == 0)
+            read->input = value.module->expressions.size();
+          if (mode == 1)
+            read->index = value.module->expressions.size();
+          if (mode == 2)
+            expr.type.builtin = BuiltinValue::Bool;
+          if (mode == 3)
+            value.module->expressions[read->index].type.element = NumericType::Float64;
+          if (mode == 4)
+            value.module->expressions[read->index].type.task = true;
+          if (mode == 5)
+            expr.type.task = true;
+        }
+      require(!lowerNative(*value.module), "forged String index admitted");
     }
 #endif
     for (const auto *source : {"fn String()->int64:\n  1\n", "fn main():\n  [\"a\",\"b\"]\n",

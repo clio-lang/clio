@@ -3,15 +3,24 @@
 #include <string_view>
 namespace kalandra {
 enum class Utf8Status { Valid, Invalid, Interrupted };
+struct Utf8Scalar {
+  std::uint64_t index;
+  std::size_t offset = 0, bytes = 0;
+};
 // A strict scalar decoder. Poll between bounded groups before touching bytes.
 template <class Poll>
-Utf8Status validateUtf8(std::string_view text, Poll poll, std::uint64_t *scalars = nullptr) {
-  std::size_t count = 0;
+Utf8Status validateUtf8(std::string_view text, Poll poll, std::uint64_t *scalars = nullptr,
+                        Utf8Scalar *selected = nullptr) {
+  std::size_t count = 0, selectedOffset = 0, selectedBytes = 0;
   for (std::size_t i = 0; i < text.size();) {
     if ((count++ & 255) == 0 && !poll())
       return Utf8Status::Interrupted;
     const auto first = static_cast<unsigned char>(text[i]);
     if (first < 0x80) {
+      if (selected && selected->index == count - 1) {
+        selectedOffset = i;
+        selectedBytes = 1;
+      }
       ++i;
       continue;
     }
@@ -33,12 +42,20 @@ Utf8Status validateUtf8(std::string_view text, Poll poll, std::uint64_t *scalars
                                : 0x10000u) ||
         point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff))
       return Utf8Status::Invalid;
+    if (selected && selected->index == count - 1) {
+      selectedOffset = i;
+      selectedBytes = length;
+    }
     i += length;
   }
   if (!poll())
     return Utf8Status::Interrupted;
   if (scalars)
     *scalars = count;
+  if (selected) {
+    selected->offset = selectedOffset;
+    selected->bytes = selectedBytes;
+  }
   return Utf8Status::Valid;
 }
 inline bool validUtf8(std::string_view text) {

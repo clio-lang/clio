@@ -42,3 +42,7 @@ std::int64_t kalandra_string_length_v1(kalandra::runtime::Invocation *,
 std::int64_t kalandra_string_byte_length_v1(kalandra::runtime::Invocation *,
                                             const kalandra::runtime::StringDescriptor *) noexcept;
 }
+extern "C" void kalandra_string_index_v1(kalandra::runtime::Invocation *,
+                                         kalandra::runtime::StringDescriptor *,
+                                         const kalandra::runtime::StringDescriptor *,
+                                         std::uint64_t) noexcept;

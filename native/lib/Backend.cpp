@@ -69,6 +69,8 @@ public:
                {"kalandra_string_literal",
                 builder_.getFunctionType({ptr, ptr, builder_.getI64Type()}, {})},
                {"kalandra_string_validate", builder_.getFunctionType({ptr}, {})},
+               {"kalandra_string_index",
+                builder_.getFunctionType({ptr, ptr, builder_.getI64Type()}, {})},
                {"kalandra_string_length", builder_.getFunctionType({ptr}, {builder_.getI64Type()})},
                {"kalandra_string_byte_length",
                 builder_.getFunctionType({ptr}, {builder_.getI64Type()})},
@@ -1115,6 +1117,20 @@ private:
             return operation.operation == TokenKind::Minus
                        ? arith::NegFOp::create(builder_, loc, operand).getResult()
                        : operand;
+          } else if constexpr (std::is_same_v<T, StringIndex>) {
+            auto input = expression(frame, operation.input);
+            Value index = expression(frame, operation.index);
+            const auto element = input_.expressions[operation.index].type.element;
+            if (isInteger32(element)) {
+              if (isUnsigned(element))
+                index = arith::ExtUIOp::create(builder_, loc, builder_.getI64Type(), index);
+              else
+                index = arith::ExtSIOp::create(builder_, loc, builder_.getI64Type(), index);
+            }
+            auto source = stringSlot(loc, input), output = descriptorSlot(loc, type(node.type));
+            func::CallOp::create(builder_, loc, "kalandra_string_index", TypeRange{},
+                                 ValueRange{output, source, index});
+            return LLVM::LoadOp::create(builder_, loc, type(node.type), output);
           } else if constexpr (std::is_same_v<T, StringQuery>) {
             auto value = expression(frame, operation.input);
             auto slot = stringSlot(loc, value);

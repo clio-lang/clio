@@ -18,7 +18,8 @@ bool hasOrdinaryStrings(const TypedModule &module) {
                                return stringComparison ||
                                       std::holds_alternative<StringLiteral>(e.operation) ||
                                       std::holds_alternative<StringConcat>(e.operation) ||
-                                      std::holds_alternative<StringQuery>(e.operation);
+                                      std::holds_alternative<StringQuery>(e.operation) ||
+                                      std::holds_alternative<StringIndex>(e.operation);
                              }) ||
          std::ranges::any_of(module.functions,
                              [](const auto &f) {
@@ -302,6 +303,17 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
             (type.builtin == BuiltinValue::Numeric && type.element != expression.type.element))
           return "conditional branch result type mismatch";
       }
+    }
+    if (const auto *read = std::get_if<StringIndex>(&expression.operation)) {
+      if (read->input >= module.expressions.size() || read->index >= module.expressions.size())
+        return "String index references invalid operands";
+      const auto &a = module.expressions[read->input].type;
+      const auto &i = module.expressions[read->index].type;
+      if (target != NumericTarget::Cpu || a.builtin != BuiltinValue::String ||
+          expression.type.builtin != BuiltinValue::String || !scalarSame(a, expression.type) ||
+          i.builtin != BuiltinValue::Numeric || !isInteger(i.element) || i.tensor || i.array ||
+          i.task || i.fallible || i.device || !i.shape.empty())
+        return "String index requires a completed CPU String, integer index and String result";
     }
     if (const auto *query = std::get_if<StringQuery>(&expression.operation)) {
       if (query->input >= module.expressions.size())
@@ -595,7 +607,9 @@ std::string dumpTypedIR(const TypedModule &module) {
       std::visit(
           [&](const auto &operation) {
             using T = std::decay_t<decltype(operation)>;
-            if constexpr (std::is_same_v<T, StringQuery>)
+            if constexpr (std::is_same_v<T, StringIndex>)
+              out << "string.index checked %" << operation.input << " %" << operation.index;
+            else if constexpr (std::is_same_v<T, StringQuery>)
               out << (operation.kind == StringQueryKind::Length ? "string.length checked %"
                                                                 : "string.byte_length checked %")
                   << operation.input;

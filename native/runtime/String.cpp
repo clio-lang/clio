@@ -6,7 +6,7 @@
 namespace kalandra::runtime {
 namespace {
 bool inspectString(Invocation &context, const StringDescriptor &value,
-                   std::uint64_t *scalars = nullptr) noexcept {
+                   std::uint64_t *scalars = nullptr, Utf8Scalar *selected = nullptr) noexcept {
   if (context.poll() != 0 || !context.usable())
     return false;
   const auto invalid = [&] {
@@ -18,6 +18,9 @@ bool inspectString(Invocation &context, const StringDescriptor &value,
       return invalid();
     if (scalars)
       *scalars = 0;
+    if (selected) {
+      selected->offset = selected->bytes = 0;
+    }
     return true;
   }
   if (value.byteLength < 0 || !value.allocated || value.data != value.allocated)
@@ -26,7 +29,8 @@ bool inspectString(Invocation &context, const StringDescriptor &value,
   if (!backing || static_cast<std::uint64_t>(value.byteLength) > backing->bytes().size())
     return invalid();
   auto status = validateUtf8(
-      std::string_view(value.data, value.byteLength), [&] { return context.poll() == 0; }, scalars);
+      std::string_view(value.data, value.byteLength), [&] { return context.poll() == 0; }, scalars,
+      selected);
   return status == Utf8Status::Valid || (status == Utf8Status::Invalid && invalid());
 }
 } // namespace
@@ -39,6 +43,26 @@ static std::int64_t stringLength(Invocation &context, const StringDescriptor &va
   if (!inspectString(context, value, bytes ? nullptr : &count))
     return 0;
   return bytes ? value.byteLength : static_cast<std::int64_t>(count);
+}
+static void indexString(Invocation &context, StringDescriptor &output,
+                        const StringDescriptor &input, std::uint64_t position) noexcept {
+  const auto source = input;
+  output = {};
+  Utf8Scalar selected{position};
+  if (!inspectString(context, source, nullptr, &selected))
+    return;
+  if (!selected.bytes) {
+    context.fault(5);
+    return;
+  }
+  if (context.poll() != 0)
+    return;
+  auto *data = static_cast<char *>(context.allocateRecord(selected.bytes));
+  if (!data)
+    return;
+  std::memcpy(data, source.data + selected.offset, selected.bytes);
+  if (context.poll() == 0)
+    output = {data, data, static_cast<std::int64_t>(selected.bytes)};
 }
 } // namespace kalandra::runtime
 extern "C" void kalandra_string_literal_v1(kalandra::runtime::Invocation *context,
@@ -142,4 +166,10 @@ extern "C" std::int64_t
 kalandra_string_byte_length_v1(kalandra::runtime::Invocation *context,
                                const kalandra::runtime::StringDescriptor *value) noexcept {
   return kalandra::runtime::stringLength(*context, *value, true);
+}
+extern "C" void kalandra_string_index_v1(kalandra::runtime::Invocation *context,
+                                         kalandra::runtime::StringDescriptor *output,
+                                         const kalandra::runtime::StringDescriptor *input,
+                                         std::uint64_t position) noexcept {
+  kalandra::runtime::indexString(*context, *output, *input, position);
 }
