@@ -462,8 +462,9 @@ private:
       if (!left)
         return {};
     }
-    if (at(TokenKind::FatArrow) || at(TokenKind::Dot) || at(TokenKind::LeftBracket) ||
-        at(TokenKind::LeftBrace)) {
+    if ((!position_ || tokens_[position_ - 1].kind != TokenKind::Dedent) &&
+        (at(TokenKind::FatArrow) || at(TokenKind::Dot) || at(TokenKind::LeftBracket) ||
+         at(TokenKind::LeftBrace))) {
       error("P010", "this expression form is not implemented in the first frontend",
             current().span);
       return {};

@@ -334,7 +334,13 @@ private:
       auto *address = builder.CreateStructGEP(scalarType(type), input, i);
       if (field.builtin == BuiltinValue::Record)
         retainRecord(field, address, fn, failed);
-      else if (field.builtin == BuiltinValue::String) {
+      else if (isStringArray(field)) {
+        auto *success = call("kalandra_string_array_retain_v1", boolean,
+                             {fn->getArg(0), fn->getArg(2), address});
+        auto *next = Block::Create(context, "record.string.array.next", fn);
+        builder.CreateCondBr(success, next, failed);
+        builder.SetInsertPoint(next);
+      } else if (field.builtin == BuiltinValue::String) {
         auto *success =
             call("kalandra_string_retain_v1", boolean, {fn->getArg(0), fn->getArg(2), address});
         auto *next = Block::Create(context, "record.string.next", fn);

@@ -24,7 +24,7 @@ This prints `["north!", "south!"]`. `map(names, decorate)` and `names -> map(dec
 - `names[index]` returns a String. It accepts the existing four integer index types and uses checked array bounds. A subsequent `names[index][position]` uses String scalar bounds.
 - Empty maps do not invoke the callback. Output arrays have the same number of elements as their input; returning an array from a callback does not flatten it.
 
-Arrays cannot be concatenated with String `+`, compared as whole values, converted to tensors or indexed as text. `byteLength` and `slice` still require a scalar String. Nested arrays, String tensors, String-array fields in records and GPU String arrays remain separate work. Arrays of records containing scalar String fields remain supported.
+Arrays cannot be concatenated with String `+`, compared as whole values, converted to tensors or indexed as text. `byteLength` and `slice` still require a scalar String. Nested arrays, String tensors and GPU String arrays remain separate work. [String-array fields in records](record-string-array-fields.md) are supported. Arrays of records containing scalar String fields remain supported.
 
 ## Ownership and failure
 
@@ -46,4 +46,4 @@ Collection display options apply: the default shows up to 100 elements, `--limit
 
 The focused suite covers empty/Unicode/NUL values, nested worker and cached results, shared backing, mixed maps, captures, imported helpers, strict typing and forged IR, partial retention failure, malformed late elements, cancellation during long scans, allocation failure, recovery and escaped CLI output. A private CLI fixture rejects a hidden malformed tail at multiple display limits before printing. Rejected builds preserve existing output artifacts. The example above is compiled and executed in every build variant.
 
-See the [evidence record](../../native/metal-proof/evidence/cpu-string-arrays-2026-10-18.json) for the qualified checks and artifacts. String-array fields in records are the next composition step; distributed execution and public C/C++ interfaces remain separate roadmaps.
+See the [evidence record](../../native/metal-proof/evidence/cpu-string-arrays-2026-10-18.json) for the qualified checks and artifacts. [String-array fields in records](record-string-array-fields.md) are also supported; distributed execution and public C/C++ interfaces remain separate roadmaps.

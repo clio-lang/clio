@@ -205,6 +205,20 @@ void typesAndBindings() {
           "parser performed undeclared type/scope analysis");
   validTree(result);
 }
+void arraysAfterBlocks() {
+  for (const auto *text : {"fn f():\n  result=parallel:\n    1\n  [result]\n",
+                           "fn f():\n  result=if true:\n    1\n  else:\n    2\n  [result]\n",
+                           "fn f():\n  result=work() catch fn(error):\n    1\n  [result]\n"}) {
+    auto result = syntax(text);
+    require(result.ok(), "array after block parsed as a postfix");
+    const auto &body = result.module.functions[0].body;
+    require(
+        body.size() == 2 && body[0].binding && !body[1].binding &&
+            std::holds_alternative<ArrayExpr>(result.module.expressions[body[1].expression].value),
+        "block and following array did not form separate statements");
+    validTree(result);
+  }
+}
 void anonymousFunctions() {
   auto result = syntax("fn typed(values:[int]):\n"
                        "  map(values,fn(value:int)->float: float(value))\n"
@@ -368,6 +382,7 @@ int main(int argc, char **argv) {
         {"precedence and spans", precedenceAndSpans},
         {"types and bindings", typesAndBindings},
         {"anonymous functions", anonymousFunctions},
+        {"arrays after blocks", arraysAfterBlocks},
         {"recovery", parserFailuresAndRecovery},
         {"limits and source ownership", limitsAndOwnership},
         {"placement grouping", placementSyntax},

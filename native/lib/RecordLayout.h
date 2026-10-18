@@ -30,11 +30,12 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
     for (const auto &field : record.fields) {
       const auto &type = field.type;
       if (type.task || type.fallible || type.device ||
-          (type.tensor ? ((type.builtin != BuiltinValue::Numeric && !isBoolArray(type)) ||
+          (type.tensor ? ((type.builtin != BuiltinValue::Numeric && !isBoolArray(type) &&
+                           !isStringArray(type)) ||
                           type.shape.size() > 128 || (type.array && type.shape.size() != 1))
                        : (type.array || !type.shape.empty())))
         return fail("record fields require completed CPU numbers, numeric collections, Bool, Bool "
-                    "arrays, Strings or records",
+                    "arrays, Strings, String arrays or records",
                     field.declaration);
       if (type.builtin == BuiltinValue::Record) {
         if (!type.record || *type.record >= module.records.size())
@@ -44,7 +45,7 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
                   (type.builtin != BuiltinValue::Numeric ||
                    !numericArithmeticAvailable(type.element, NumericTarget::Cpu))))
         return fail("record fields require CPU numbers, numeric collections, Bool, Bool arrays, "
-                    "Strings or records",
+                    "Strings, String arrays or records",
                     field.declaration);
     }
   }
@@ -70,9 +71,9 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
         continue;
       }
       const auto &field = record.fields[frame.next];
-      std::size_t count = field.type.builtin == BuiltinValue::String ? 3
-                          : field.type.tensor ? 3 + 2 * field.type.shape.size()
-                                              : 1;
+      std::size_t count = field.type.tensor ? 3 + 2 * field.type.shape.size()
+                          : field.type.builtin == BuiltinValue::String ? 3
+                                                                       : 1;
       if (field.type.record) {
         const auto child = *field.type.record;
         if (state[child] == 1)
@@ -106,8 +107,8 @@ inline std::size_t recordInlineUnits(const TypedModule &module, std::size_t root
     std::size_t total = 0;
     for (const auto &field : module.records[id].fields)
       total += field.type.record                            ? count(*field.type.record)
-               : field.type.builtin == BuiltinValue::String ? 3
                : field.type.tensor                          ? 3 + 2 * field.type.shape.size()
+               : field.type.builtin == BuiltinValue::String ? 3
                                                             : 1;
     cache[id] = total;
     return total;

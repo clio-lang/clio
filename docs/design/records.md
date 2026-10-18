@@ -52,4 +52,4 @@ On Apple M2 Max, all 101 focused checks passed. Record programs passed in debug,
 
 Numeric arrays and tensors can now be stored inside records; see [collection field ownership](record-collections.md) for copy semantics and worker retention.
 
-[String fields](record-string-fields.md) now compose with these record rules, including nested records, immutable updates, record arrays/maps and retained local CPU worker arguments/results. Direct String arrays remain separate.
+[String fields](record-string-fields.md) now compose with these record rules, including nested records, immutable updates, record arrays/maps and retained local CPU worker arguments/results. [Direct String arrays](string-arrays.md) and [String-array record fields](record-string-array-fields.md) also compose with these rules.

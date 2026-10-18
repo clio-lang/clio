@@ -1,5 +1,5 @@
 {
-  "status": "String literals, values, equality, concatenation, length queries, scalar indexing and slicing implemented for synchronous and local-worker CPU modules; String record fields implemented; direct String arrays/maps implemented; String-array record fields remain gated",
+  "status": "String literals, values, equality, concatenation, length queries, scalar indexing and slicing implemented for synchronous and local-worker CPU modules; String record fields implemented; direct String arrays/maps implemented; String-array record fields implemented with recursive local-worker retention",
   "text_cases": [
     {
       "text": "",

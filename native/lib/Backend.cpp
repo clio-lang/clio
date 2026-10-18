@@ -1220,7 +1220,7 @@ private:
             for (const auto &field : operation.fields) {
               auto member = expression(frame, field.value);
               const auto &fieldType = input_.records[*node.type.record].fields[field.field].type;
-              if (fieldType.tensor && !isBoolArray(fieldType))
+              if (fieldType.tensor && !isOwnedArray(fieldType))
                 member = recordPack(loc, member, fieldType);
               value =
                   LLVM::InsertValueOp::create(builder_, loc, value, member,
@@ -1231,7 +1231,7 @@ private:
             Value member = LLVM::ExtractValueOp::create(
                 builder_, loc, expression(frame, operation.input),
                 ArrayRef<int64_t>{static_cast<int64_t>(operation.field)});
-            if (isBoolArray(node.type)) {
+            if (isOwnedArray(node.type)) {
               recordArrayLength(loc, member, node.type);
               return member;
             }

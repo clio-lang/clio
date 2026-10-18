@@ -47,7 +47,6 @@ int main() {
           "type Row:\n  text:String\nfn main():\n  Row {text:true}\n",
           "type Row:\n  text:String\nfn main():\n  row=Row {text:\"a\"}\n  row with {text:[1]}\n",
           "type Row:\n  text:String\nfn main():\n  Row {}\n",
-          "type Row:\n  text:[String]\nfn main():\n  0\n",
           "type Row:\n  text:Tensor[String,2]\nfn main():\n  0\n",
           "type Row:\n  text:String\n  next:Row\nfn main():\n  0\n"})
       require(!analyze(source).ok(), "invalid String field or String-element array admitted");
