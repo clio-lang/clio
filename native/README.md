@@ -110,7 +110,7 @@ The shared strict arithmetic engine now has a [CPU-only binary64 specialization]
 
 ## Local CPU modules
 
-Split reusable functions into [local modules](../docs/design/modules.md): mark a declaration `export fn`, then use `from "./math.k" import double as twice`. The compiler/checker resolve explicit relative files, preserve module-local helper names and type checks, and support imported callbacks and CPU workers. Cycles remain rejected; packages and GPU module integration remain separate work. [Record type exports](../docs/design/type-exports.md) are supported.
+Split reusable functions into [local modules](../docs/design/modules.md): mark a declaration `export fn`, then use `from "./math.k" import double as twice`. The compiler/checker resolve explicit relative files, preserve module-local helper names and type checks, and support imported callbacks and CPU workers. Cycles remain rejected; package installation/version resolution and GPU module integration remain separate work. [Explicit local package mappings](../docs/design/local-packages.md) are supported. [Record type exports](../docs/design/type-exports.md) are supported.
 
 ## Display collection results
 

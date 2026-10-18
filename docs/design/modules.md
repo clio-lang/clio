@@ -22,13 +22,13 @@ fn main():
   values -> tensor() -> reduceSum()
 ```
 
-Compiling `main.k` produces an executable that returns `12`. An imported function has the same ordinary call, pipeline, type-checking and worker behavior as a local function. This is the first local function-module subset; package management and broader declaration forms are separate work.
+Compiling `main.k` produces an executable that returns `12`. An imported function has the same ordinary call, pipeline, type-checking and worker behavior as a local function. This is the first local function-module subset; explicit offline package mappings are also supported; installation/version resolution and broader declaration forms are separate work.
 
 ## Imports and visibility
 
 Use `from "./file.k" import name`, optionally with `as alias`. Commas separate multiple imports, for example `from "./math.k" import double, total as sum`. Import declarations are top-level declarations. Their location among other declarations does not introduce runtime initialization or change function visibility.
 
-Paths require an explicit `.k` suffix and a `./` or `../` prefix. They resolve relative to the importing file's canonical location, independently of the process working directory. UTF-8 filenames are supported. Absolute paths, package names, extension searches, directory entry-point searches and string escapes in paths are not implemented.
+Paths require an explicit `.k` suffix and a `./` or `../` prefix. They resolve relative to the importing file's canonical location, independently of the process working directory. UTF-8 filenames are supported. Bare names can select [explicitly mapped local package entries](local-packages.md), supplied with `--package name=path.k`. Absolute import paths, extension searches, directory entry-point searches and string escapes in paths are not implemented. Package installation and version resolution are separate work.
 
 Named `export fn` declarations and [exported record types](type-exports.md) can be imported. A dependency's private helper stays private, even when the importing file has a helper with the same name. Imported aliases are local to the importing module. A function always resolves its own helpers and imports in its declaring module, including calls inside anonymous map callbacks. There is no accidental lookup in a caller's module.
 

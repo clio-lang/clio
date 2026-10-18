@@ -9,13 +9,24 @@ int main(int argc, char **argv) {
   bool dump = false, dumpPlan = false;
   kalandra::CheckOptions options;
   const char *path = nullptr;
+  std::vector<kalandra::ModulePackage> packages;
   const auto usage = [] {
-    std::cerr << "usage: kalandra-check [--placement] [--dump-ir|--dump-plan] <source.k>\n";
+    std::cerr << "usage: kalandra-check [--placement] [--dump-ir|--dump-plan] [--package "
+                 "name=path.k ...] <source.k>\n";
     return 2;
   };
   for (std::size_t i = 1; i < arguments.size(); ++i) {
     const std::string_view arg = arguments[i];
-    if (!path && arg == "--dump-ir" && !dump && !dumpPlan)
+    if (arg == "--package") {
+      if (i + 1 >= arguments.size())
+        return usage();
+      auto package = kalandra::parseModulePackage(arguments[++i]);
+      if (!package) {
+        std::cerr << package.error() << '\n';
+        return 2;
+      }
+      packages.push_back(std::move(*package));
+    } else if (!path && arg == "--dump-ir" && !dump && !dumpPlan)
       dump = true;
     else if (!path && arg == "--dump-plan" && !dumpPlan && !dump)
       dumpPlan = true;
@@ -28,7 +39,7 @@ int main(int argc, char **argv) {
   }
   if (!path)
     return usage();
-  auto syntax = kalandra::loadModules(path);
+  auto syntax = kalandra::loadModules(path, {}, {}, packages);
   if (!syntax) {
     std::cerr << path << ": " << syntax.error() << '\n';
     return 1;

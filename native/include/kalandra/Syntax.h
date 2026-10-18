@@ -5,6 +5,7 @@
 #include <expected>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -268,7 +269,14 @@ struct ModuleLimits {
   std::size_t maxFiles = 128;
   std::size_t maxDepth = 32;
 };
-// CPU local-module loading: explicit relative .k files, bounded acyclic graph.
+struct ModulePackage {
+  std::string name;
+  std::string entry;
+};
+// Explicit offline package entry mappings; no filesystem or network work while parsing.
+[[nodiscard]] std::expected<ModulePackage, std::string> parseModulePackage(std::string_view value);
+// CPU local-module loading: explicit relative .k files and supplied package entries.
 [[nodiscard]] std::expected<ParseResult, std::string>
-loadModules(std::string path, SyntaxLimits syntaxLimits = {}, ModuleLimits moduleLimits = {});
+loadModules(std::string path, SyntaxLimits syntaxLimits = {}, ModuleLimits moduleLimits = {},
+            std::span<const ModulePackage> packages = {});
 } // namespace kalandra

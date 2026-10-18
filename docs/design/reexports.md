@@ -38,6 +38,6 @@ A source module must explicitly expose a declaration before it can be re-exporte
 
 All imports and re-exports use the existing explicit relative `.k` paths and bounded acyclic module loader. A file containing only re-exports is a valid library module. It does not supply the consuming program's `main`. Canonical diamonds/symlinks preserve source identity; cycles are rejected. Export resolution caches original identities and rejects cycles even in an in-memory forged graph.
 
-This remains CPU local-module composition. Wildcards, namespace imports, export lists without a source module, packages and GPU module integration remain separate work. The runtime, worker ABI and record layout are unchanged.
+This remains CPU local-module composition. Wildcards, namespace imports, export lists without a source module, package installation/version resolution and GPU module integration remain separate work. [Explicit local package mappings](local-packages.md) can select public entry modules by name. The runtime, worker ABI and record layout are unchanged.
 
 Qualification covers four build modes (debug, optimized, ASan/UBSan and TSan), chained and diamond aliases, named callbacks and helper scope, fallible functions, six numeric families, retained workers, malformed/failing transfers, visibility/collision rejections and this three-file example. See the [evidence record](../../native/metal-proof/evidence/cpu-reexports-2026-10-18.json).

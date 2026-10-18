@@ -5,8 +5,33 @@
 #include <unordered_map>
 
 namespace kalandra {
+namespace {
+bool packageName(std::string_view name) {
+  const auto letter = [](char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+  };
+  if (name.empty() || !letter(name.front()))
+    return false;
+  return std::ranges::all_of(
+      name, [&](char c) { return letter(c) || (c >= '0' && c <= '9') || c == '-'; });
+}
+bool packageEntry(std::string_view entry) {
+  return !entry.empty() && entry.find('\0') == std::string_view::npos &&
+         entry.find_first_of("\r\n") == std::string_view::npos &&
+         std::filesystem::path(entry).extension() == ".k";
+}
+} // namespace
+std::expected<ModulePackage, std::string> parseModulePackage(std::string_view value) {
+  const auto equal = value.find('=');
+  if (equal == std::string_view::npos || !packageName(value.substr(0, equal)) ||
+      !packageEntry(value.substr(equal + 1)))
+    return std::unexpected(
+        "package mappings require name=path.k with an ASCII identifier or hyphenated name");
+  return ModulePackage{std::string(value.substr(0, equal)), std::string(value.substr(equal + 1))};
+}
 std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimits syntaxLimits,
-                                                    ModuleLimits moduleLimits) {
+                                                    ModuleLimits moduleLimits,
+                                                    std::span<const ModulePackage> packages) {
   namespace fs = std::filesystem;
   struct File {
     std::shared_ptr<const SourceFile> source;
@@ -24,10 +49,27 @@ std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimi
     failure->module.source = std::move(source);
     failure->diagnostics.push_back({std::move(code), std::move(message), span});
   };
+  auto root = std::make_shared<const SourceFile>(path, "");
+  std::unordered_map<std::string, fs::path> entries;
+  if (packages.size() > moduleLimits.maxFiles) {
+    fail(root, {}, "M004", "package mappings exceed configured file limit");
+    return std::move(*failure);
+  }
+  for (const auto &package : packages) {
+    if (!packageName(package.name) || !packageEntry(package.entry) ||
+        !entries.emplace(package.name, fs::path(package.entry)).second) {
+      fail(root, {}, "M005", "invalid or duplicate local package mapping '" + package.name + "'");
+      return std::move(*failure);
+    }
+  }
   std::function<std::optional<std::size_t>(fs::path, std::size_t, std::shared_ptr<const SourceFile>,
                                            SourceSpan)>
       visit = [&](fs::path requested, std::size_t depth, std::shared_ptr<const SourceFile> parent,
                   SourceSpan span) -> std::optional<std::size_t> {
+    if (requested.extension() != ".k") {
+      fail(std::move(parent), span, "M001", "source files must use the .k extension");
+      return {};
+    }
     std::error_code error;
     const auto canonical = fs::canonical(requested, error);
     if (error) {
@@ -71,15 +113,33 @@ std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimi
     for (const auto &import : parsed.module.imports) {
       const auto quoted = (*source)->slice(import.path);
       const std::string specifier(quoted.substr(1, quoted.size() - 2));
-      if ((!specifier.starts_with("./") && !specifier.starts_with("../")) ||
-          !specifier.ends_with(".k") ||
-          specifier.find_first_of("\\\r\n") != std::string::npos ||
+      fs::path requested;
+      if (specifier.find_first_of("\\\r\n") != std::string::npos ||
           specifier.find('\0') != std::string::npos) {
-        fail(*source, import.path, "M001",
-             "module paths require an explicit relative .k file without escapes");
+        fail(*source, import.path, "M001", "module specifiers cannot contain escapes");
         return {};
       }
-      auto target = visit(canonical.parent_path() / specifier, depth + 1, *source, import.path);
+      if (specifier.starts_with("./") || specifier.starts_with("../")) {
+        if (!specifier.ends_with(".k")) {
+          fail(*source, import.path, "M001", "relative module paths require an explicit .k file");
+          return {};
+        }
+        requested = canonical.parent_path() / specifier;
+      } else {
+        if (!packageName(specifier)) {
+          fail(*source, import.path, "M001",
+               "imports require a relative .k path or declared package name");
+          return {};
+        }
+        auto entry = entries.find(specifier);
+        if (entry == entries.end()) {
+          fail(*source, import.path, "M005",
+               "unknown local package '" + specifier + "'; supply --package name=path.k");
+          return {};
+        }
+        requested = entry->second;
+      }
+      auto target = visit(requested, depth + 1, *source, import.path);
       if (!target)
         return {};
       files[id].targets.push_back(*target);
@@ -88,7 +148,6 @@ std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimi
     files[id].complete = true;
     return id;
   };
-  auto root = std::make_shared<const SourceFile>(path, "");
   if (!visit(fs::path(path), 0, root, {}))
     return std::move(*failure);
   if (files.size() == 1) {

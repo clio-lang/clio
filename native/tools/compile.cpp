@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
     } else {
       filtered.push_back(argv[i]);
       if ((option == "-o" || option == "--emit-mlir" || option == "--emit-llvm" ||
-           option == "--test-entry") &&
+           option == "--test-entry" || option == "--package") &&
           i + 1 < argc)
         filtered.push_back(argv[++i]);
     }
@@ -72,17 +72,18 @@ int main(int argc, char **argv) {
   if (arguments.size() < 2) {
     std::cerr << "usage: kalandrac source.k -o executable [--emit-mlir file] [--emit-llvm "
                  "file] [--test-entry function] [--sanitize|--thread-sanitize] [-O0|-O2] [--target "
-                 "cpu|metal]\n";
+                 "cpu|metal] [--package name=path.k ...]\n";
     return 2;
   }
   std::filesystem::path output, mlirPath, llvmPath;
   std::optional<std::string> testEntry;
+  std::vector<kalandra::ModulePackage> packages;
   bool sanitize = false, threadSanitize = false;
   std::string optimization = "-O0";
   for (std::size_t i = 2; i < arguments.size(); ++i) {
     const std::string option = arguments[i];
     if ((option == "-o" || option == "--emit-mlir" || option == "--emit-llvm" ||
-         option == "--test-entry") &&
+         option == "--test-entry" || option == "--package") &&
         i + 1 < arguments.size()) {
       const std::string value = arguments[++i];
       if (option == "-o")
@@ -91,8 +92,16 @@ int main(int argc, char **argv) {
         mlirPath = value;
       else if (option == "--emit-llvm")
         llvmPath = value;
-      else
+      else if (option == "--test-entry")
         testEntry = value;
+      else {
+        auto package = kalandra::parseModulePackage(value);
+        if (!package) {
+          std::cerr << package.error() << '\n';
+          return 2;
+        }
+        packages.push_back(std::move(*package));
+      }
     } else if (option == "--sanitize")
       sanitize = true;
     else if (option == "--thread-sanitize")
@@ -129,7 +138,7 @@ int main(int argc, char **argv) {
     }
     paths.push_back(path);
   }
-  auto syntax = kalandra::loadModules(arguments[1]);
+  auto syntax = kalandra::loadModules(arguments[1], {}, {}, packages);
   if (!syntax) {
     std::cerr << arguments[1] << ": " << syntax.error() << '\n';
     return 1;

@@ -920,3 +920,5 @@ if(BUILD_TESTING)
     set_tests_properties(native-source-extension-${VARIANT} PROPERTIES TIMEOUT 90)
   endforeach()
 endif()
+
+include(cmake/LocalPackages.cmake)
