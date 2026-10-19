@@ -268,9 +268,9 @@ The core syntax and immutable transformations are accepted. Numeric families now
 Implementation follows the accepted core plus the required numeric and memory-safety decisions. Future conformance tests should assert the specified behavior and diagnostics rather than compare with generated prototype JavaScript.
 
 
-The [native immutable array foundation](arrays.md) now implements numeric array literals, `[T]` annotations, value passing and retained worker results. [Named numeric `map`](array-map.md) is now implemented; closures and broader element types remain unimplemented; the examples above continue to define the accepted complete core direction.
+The [native immutable array foundation](arrays.md) now implements numeric array literals, `[T]` annotations, value passing and retained worker results. [Sequential maps](array-map.md) support named and anonymous expression callbacks with lexical captures, including numeric, Bool, String and record elements. The examples above continue to define the accepted complete core direction.
 
-The native [sequential numeric array map](array-map.md) implements the anonymous expression callback and lexical capture examples above. First-class function bindings, returned closures and anonymous block bodies remain separate work.
+The native [sequential array map](array-map.md) implements the anonymous expression callback and lexical capture examples above. [Named CPU function values](native-function-values.md) now support general bindings, parameters, returned named functions and runtime-selected calls. Returned captured closures and anonymous block bodies remain separate work.
 
 [Explicit rank-one tensor construction from numeric arrays](arrays.md#explicit-tensor-construction-from-arrays) is now implemented through `tensor(values)`, including after a map and inside workers. [Runtime shape lists](reshape.md) now construct ranked tensors from flat arrays. [CPU tensor reshaping](tensor-reshape.md) and [explicit tensor-to-array construction](tensor-array.md) are now implemented, preserving numeric identity, logical row-major order and retained worker ownership.
 

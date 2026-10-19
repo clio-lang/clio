@@ -55,6 +55,17 @@ bool hasPlacement(const TypedModule &module) {
          });
 }
 std::string describeType(const ValueType &type) {
+  if (type.builtin == BuiltinValue::Function) {
+    if (!type.callable)
+      return "<invalid function type>";
+    std::string signature = "fn(";
+    for (std::size_t i = 0; i < type.callable->parameters.size(); ++i) {
+      if (i)
+        signature += ", ";
+      signature += describeType(type.callable->parameters[i]);
+    }
+    return signature + ") -> " + describeType(type.callable->result);
+  }
   if (type.builtin == BuiltinValue::Record) {
     const auto name = type.array ? "[" + type.recordName + "]" : type.recordName;
     return (type.task ? "task<" + name + ">" : name) + (type.fallible ? " ! TaskError" : "");
@@ -97,6 +108,8 @@ std::string describeType(const ValueType &type) {
   return out.str();
 }
 std::optional<std::string> numericCapabilityError(const TypedModule &module, NumericTarget target) {
+  if (auto error = functionValueCapabilityError(module, target))
+    return error;
   if (hasOrdinaryStrings(module)) {
     if (target != NumericTarget::Cpu || hasPlacement(module))
       return "ordinary Strings currently require CPU execution without placement";
@@ -713,7 +726,9 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
         const auto &formal = module.symbols[fn.parameters[i + 1]].type;
         if (actual.task || actual.fallible || actual.device ||
             (actual.builtin != BuiltinValue::Numeric && actual.builtin != BuiltinValue::Bool &&
-             actual.builtin != BuiltinValue::Record && actual.builtin != BuiltinValue::String) ||
+             actual.builtin != BuiltinValue::Record && actual.builtin != BuiltinValue::String &&
+             actual.builtin != BuiltinValue::Function) ||
+            (actual.builtin == BuiltinValue::Function && !sameFunctionValueType(actual, formal)) ||
             actual.builtin != formal.builtin || actual.record != formal.record ||
             (actual.builtin == BuiltinValue::Numeric && actual.element != formal.element) ||
             actual.tensor != formal.tensor || actual.array != formal.array || formal.task ||
@@ -962,6 +977,12 @@ std::string dumpTypedIR(const TypedModule &module) {
                 out << " captures=";
                 arguments(operation.captures);
               }
+            } else if constexpr (std::is_same_v<T, FunctionReference>) {
+              out << "function.ref @" << operation.function;
+            } else if constexpr (std::is_same_v<T, FunctionInvoke>) {
+              out << "function.call ";
+              value(operation.callee);
+              arguments(operation.arguments);
             } else if constexpr (std::is_same_v<T, FunctionCall>) {
               out << "call @" << operation.function;
               arguments(operation.arguments);

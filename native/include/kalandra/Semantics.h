@@ -12,7 +12,8 @@ struct Extent {
   ExtentId identity =
       0; // Nonzero identity for a dynamic extent, never an implicit equality of '?'.
 };
-enum class BuiltinValue { Numeric, TaskError, FaultKind, String, Device, Bool, Record };
+enum class BuiltinValue { Numeric, TaskError, FaultKind, String, Device, Bool, Record, Function };
+struct FunctionSignature;
 struct ValueType {
   // Ranked immutable storage; arrays use rank one with a separate source category.
   bool tensor = false;
@@ -30,6 +31,23 @@ struct ValueType {
   std::optional<std::size_t> errorRecord =
       {};                      // Expected application-error family; null means TaskError.
   std::string recordName = {}; // User-facing spelling; identity is the table index above.
+  std::shared_ptr<const FunctionSignature> callable = {};
+};
+struct FunctionSignature {
+  std::vector<ValueType> parameters;
+  ValueType result;
+};
+// Structural signatures ignore dynamic shape identities, never nominal record identities.
+[[nodiscard]] bool sameFunctionValueType(const ValueType &, const ValueType &,
+                                         std::size_t depth = 0);
+[[nodiscard]] std::optional<std::string> functionValueCapabilityError(const struct TypedModule &,
+                                                                      NumericTarget);
+struct FunctionReference {
+  FunctionId function;
+};
+struct FunctionInvoke {
+  ValueId callee;
+  std::vector<ValueId> arguments;
 };
 inline bool isRecordArray(const ValueType &type) {
   return type.builtin == BuiltinValue::Record && type.array;
@@ -296,7 +314,7 @@ struct TypedExpr {
                ArrayIndex, TensorIndex, CollectionQuery, ShapeCheck, DeviceSelection, Transfer,
                TaskOperation, ParallelOperation, ConditionalOperation, CatchOperation,
                MatchOperation, ErrorFieldRead, FailOperation, GuardOperation, RecordValue,
-               RecordFieldRead, ErrorNarrow>
+               RecordFieldRead, ErrorNarrow, FunctionReference, FunctionInvoke>
       operation;
 };
 struct ShapeEquality {

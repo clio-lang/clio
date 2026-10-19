@@ -80,11 +80,11 @@ This sends one sequential map to a worker. It does not run individual elements i
 
 ## Current limits
 
-This slice accepts named source functions and inline anonymous callbacks with lexical captures. Function-valued bindings, callback aliases, returned closures and anonymous block bodies are separate work. Named or anonymous wrappers can expose numeric conversions; numeric type names themselves are not first-class callbacks yet.
+This slice accepts named source functions and inline anonymous callbacks with lexical captures. [Named CPU function values](native-function-values.md) also supply bound, passed and returned callbacks, including runtime-selected targets. Inline callbacks can capture a compatible completed function reference. Returned captured closures and anonymous block bodies remain separate work. Named or anonymous wrappers can expose numeric conversions; numeric type names themselves are not first-class callbacks yet.
 
 Callbacks must be synchronous throughout their reachable helper graph. Task operations, expected-error channels and their recovery, transfers/device selection, and other resumable operations are rejected even when a particular branch or input is empty. Tensor, array and general-value callback results remain outside this map subset. GPU/mixed-target mapping is gated. Existing restrictions on ordinary recursion in task-enabled modules still apply.
 
-Explicit parallel mapping, additional element types, first-class functions and direct array display in the development CLI remain separate work. There is no new public native callback ABI in this implementation.
+Explicit parallel mapping, additional element types and broader first-class function support remain separate work. There is no public native callback ABI in this implementation.
 
 ## Qualification
 

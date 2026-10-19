@@ -278,6 +278,8 @@ private:
     return llvm::StructType::get(context, {pointer, pointer, i64, dims, dims});
   }
   Type *scalarType(const ValueType &type) {
+    if (type.builtin == BuiltinValue::Function)
+      return pointer;
     if (type.tensor)
       return descriptor(type);
     if (type.builtin == BuiltinValue::Record) {
@@ -303,6 +305,8 @@ private:
   std::string payloadKey(const ValueType &type) {
     if (type.task)
       return "handle";
+    if (type.builtin == BuiltinValue::Function)
+      return "function.reference";
     if (isStringArray(type) && !type.task)
       return "array.String";
     if (isBoolArray(type) && !type.task)

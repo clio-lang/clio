@@ -1,6 +1,7 @@
 #include "kalandra/Semantics.h"
 #include "ErrorFamilies.h"
 #include "RecordLayout.h"
+#include "kalandra/Continuation.h"
 #include "kalandra/StringLiteral.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APSInt.h"
@@ -102,6 +103,18 @@ public:
     for (FunctionId i = 0;
          i < syntax_.functions.size() && diagnostics_.size() < limits_.maxDiagnostics; ++i)
       analyzeFunction(i);
+    if (diagnostics_.empty() && std::ranges::any_of(output_.expressions, [](const auto &value) {
+          return std::holds_alternative<FunctionReference>(value.operation);
+        })) {
+      const auto resumable = continuation::resumableFunctions(output_);
+      for (const auto &value : output_.expressions)
+        if (const auto *reference = std::get_if<FunctionReference>(&value.operation))
+          if (resumable[reference->function])
+            error("S074",
+                  "function values require transitively synchronous CPU targets; "
+                  "task coordination and fallible targets are not implemented yet",
+                  value.span);
+    }
     if (diagnostics_.empty())
       if (auto unsupported = numericCapabilityError(output_, NumericTarget::Cpu))
         error("S054", *unsupported,
@@ -210,9 +223,21 @@ private:
   }
   std::optional<ValueType> type(const TypeSyntax &syntax) {
     if (syntax.function) {
-      error("S003", "function types are parsed, but function values are not implemented yet",
-            syntax.span);
-      return {};
+      if (!syntax.function->errorTypes.empty()) {
+        error("S074", "fallible function values are not implemented yet", syntax.span);
+        return {};
+      }
+      std::vector<ValueType> parameters;
+      for (const auto &parameter : syntax.function->parameters) {
+        auto resolved = type(parameter);
+        if (!resolved)
+          return {};
+        parameters.push_back(*resolved);
+      }
+      auto result = type(syntax.function->result);
+      if (!result)
+        return {};
+      return callableType(std::move(parameters), *result, syntax.span);
     }
     if (!syntax.tensor && !syntax.array && name(syntax.name) == "TaskError") {
       ValueType result;
@@ -285,6 +310,25 @@ private:
     if (!validSize(result, syntax.span))
       return {};
     return result;
+  }
+  std::optional<ValueType> callableType(std::vector<ValueType> parameters, ValueType result,
+                                        SourceSpan span) {
+    const auto supported = [](const ValueType &value) {
+      return !value.tensor && !value.array && !value.task && !value.fallible && !value.device &&
+             value.builtin != BuiltinValue::Device;
+    };
+    if (!supported(result) || !std::ranges::all_of(parameters, supported) || options_.placement) {
+      error("S074",
+            "function values currently require synchronous CPU scalar or record "
+            "signatures; collection signatures and fallible callables remain unimplemented",
+            span);
+      return {};
+    }
+    ValueType value;
+    value.builtin = BuiltinValue::Function;
+    value.callable = std::make_shared<const FunctionSignature>(
+        FunctionSignature{std::move(parameters), std::move(result)});
+    return value;
   }
   ValueType recordType(std::size_t id) const {
     ValueType type;
@@ -840,6 +884,8 @@ private:
       return {};
     }
     if (actual.builtin != expected.builtin || actual.record != expected.record ||
+        (actual.builtin == BuiltinValue::Function &&
+         !sameFunctionValueType(recordArrayElement(actual), recordArrayElement(expected))) ||
         (actual.builtin == BuiltinValue::Numeric && actual.element != expected.element) ||
         actual.tensor != expected.tensor || actual.array != expected.array ||
         actual.shape.size() != expected.shape.size()) {
@@ -1109,7 +1155,8 @@ private:
     const auto type = capture.type;
     if (type.task || type.fallible || type.device ||
         (type.builtin != BuiltinValue::Numeric && type.builtin != BuiltinValue::Bool &&
-         type.builtin != BuiltinValue::Record && type.builtin != BuiltinValue::String)) {
+         type.builtin != BuiltinValue::Record && type.builtin != BuiltinValue::String &&
+         type.builtin != BuiltinValue::Function)) {
       error("S060",
             "anonymous callbacks capture only completed CPU numbers, collections, Bool, records or "
             "Strings",
@@ -1270,11 +1317,21 @@ private:
     }
     if (auto found = lookupSymbol(frame, read.name))
       return add(frame, output_.symbols[*found].type, span, SymbolRead{*found});
-    error("S016",
-          functions_.contains(functionKey(frame, identifier))
-              ? "function values are not implemented; call '" + identifier + "'"
-              : "unknown value '" + identifier + "'",
-          read.name);
+    if (auto found = functions_.find(functionKey(frame, identifier)); found != functions_.end()) {
+      const auto id = found->second;
+      if (!analyzeFunction(id))
+        return {};
+      const auto &target = output_.functions[id];
+      std::vector<ValueType> parameters;
+      for (auto symbol : target.parameters)
+        parameters.push_back(output_.symbols[symbol].type);
+      auto signature = callableType(std::move(parameters),
+                                    target.declaredResult.value_or(target.resultType), span);
+      if (!signature)
+        return {};
+      return add(frame, *signature, span, FunctionReference{id});
+    }
+    error("S016", "unknown value '" + identifier + "'", read.name);
     return {};
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const UnaryExpr &unary,
@@ -1471,11 +1528,36 @@ private:
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const CallExpr &call,
                                const std::optional<ValueType> &expected) {
     const auto *callee = std::get_if<NameExpr>(&syntax_.expressions[call.callee].value);
-    if (!callee) {
-      error("S020", "only statically named calls are implemented in this subset", span);
+    if (!callee)
+      return invokeValue(frame, span, call.callee, call.arguments);
+    return invoke(frame, span, callee->name, call.arguments, expected);
+  }
+  std::optional<ValueId> invokeValue(Frame &frame, SourceSpan span, ExprId callee,
+                                     const std::vector<ExprId> &arguments) {
+    auto target = expression(frame, callee);
+    if (!target)
+      return {};
+    return callValue(frame, span, *target, arguments);
+  }
+  std::optional<ValueId> callValue(Frame &frame, SourceSpan span, ValueId target,
+                                   const std::vector<ExprId> &arguments) {
+    const auto type = node(target).type;
+    if (type.builtin != BuiltinValue::Function || !type.callable || type.task || type.fallible) {
+      error("S030", "call requires a completed function value", span);
       return {};
     }
-    return invoke(frame, span, callee->name, call.arguments, expected);
+    if (arguments.size() != type.callable->parameters.size()) {
+      error("S027", "wrong argument count for function value", span);
+      return {};
+    }
+    std::vector<ValueId> values;
+    for (std::size_t i = 0; i < arguments.size(); ++i) {
+      auto value = expression(frame, arguments[i], type.callable->parameters[i]);
+      if (!value)
+        return {};
+      values.push_back(*value);
+    }
+    return add(frame, type.callable->result, span, FunctionInvoke{target, std::move(values)});
   }
   std::optional<ValueId> arrayConcat(Frame &frame, SourceSpan span,
                                      const std::vector<ExprId> &arguments,
@@ -1822,7 +1904,7 @@ private:
     }
     std::optional<ValueId> placement;
     std::optional<ValueId> value;
-    if (operation.prefix == TaskPrefix::Spawn && options_.placement) {
+    if (operation.prefix == TaskPrefix::Spawn) {
       const auto &call = std::get<CallExpr>(syntax_.expressions[operation.operand].value);
       const auto *callee = std::get_if<NameExpr>(&syntax_.expressions[call.callee].value);
       if (!callee) {
@@ -2179,6 +2261,8 @@ private:
       }
       if (resultType) {
         if (actual.builtin != resultType->builtin || actual.record != resultType->record ||
+            (actual.builtin == BuiltinValue::Function &&
+             !sameFunctionValueType(actual, *resultType)) ||
             (actual.builtin == BuiltinValue::Numeric && actual.element != resultType->element) ||
             actual.tensor != resultType->tensor || actual.array != resultType->array ||
             actual.shape.size() != resultType->shape.size()) {
@@ -2444,6 +2528,8 @@ private:
           return {};
         }
         if (actual.builtin != resultType->builtin || actual.record != resultType->record ||
+            (actual.builtin == BuiltinValue::Function &&
+             !sameFunctionValueType(actual, *resultType)) ||
             (actual.builtin == BuiltinValue::Numeric && actual.element != resultType->element) ||
             actual.tensor != resultType->tensor || actual.array != resultType->array ||
             actual.shape.size() != resultType->shape.size()) {
@@ -3060,9 +3146,59 @@ private:
                           *lambda);
     const auto *callback = std::get_if<NameExpr>(&syntax_.expressions[arguments[1]].value);
     if (!callback || lookupSymbol(frame, callback->name)) {
-      error("S059", "map requires a statically named function in this subset",
-            syntax_.expressions[arguments[1]].span);
-      return {};
+      auto target = expression(frame, arguments[1]);
+      if (!target)
+        return {};
+      const auto targetType = node(*target).type;
+      const auto scalar = [](const ValueType &type) {
+        return !type.tensor && !type.task && !type.fallible && !type.device &&
+               (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Bool ||
+                type.builtin == BuiltinValue::String || type.builtin == BuiltinValue::Record);
+      };
+      if (targetType.builtin != BuiltinValue::Function || !targetType.callable ||
+          targetType.callable->parameters.size() != 1 ||
+          !scalar(targetType.callable->parameters[0]) || !scalar(targetType.callable->result)) {
+        error("S059", "map requires a one-argument scalar function value", span);
+        return {};
+      }
+      auto inputType = targetType.callable->parameters[0];
+      inputType.tensor = inputType.array = true;
+      inputType.shape = {dynamic()};
+      auto input = expression(frame, arguments[0], inputType);
+      if (!input)
+        return {};
+      const auto id = output_.functions.size();
+      output_.functions.push_back({});
+      output_.functions[id].name = "__function_map_" + std::to_string(id);
+      output_.functions[id].declaration = span;
+      Frame helper{};
+      helper.function = id;
+      std::vector<ValueId> reads;
+      for (const auto &parameter : {targetType.callable->parameters[0], targetType}) {
+        const auto symbol = output_.symbols.size();
+        output_.symbols.push_back({"argument", parameter, span, id, true});
+        output_.functions[id].parameters.push_back(symbol);
+        auto read = add(helper, parameter, span, SymbolRead{symbol});
+        if (!read)
+          return {};
+        reads.push_back(*read);
+      }
+      const auto resultType = targetType.callable->result;
+      auto result = add(helper, resultType, span, FunctionInvoke{reads[1], {reads[0]}});
+      if (!result)
+        return {};
+      output_.functions[id].declaredResult = resultType;
+      output_.functions[id].resultType = resultType;
+      output_.functions[id].result = *result;
+      output_.functions[id].body = {{span, {}, *result}};
+      auto output = node(*input).type;
+      output.builtin = resultType.builtin;
+      output.element = resultType.element;
+      output.record = resultType.record;
+      output.recordName = resultType.recordName;
+      if (!validSize(output, span))
+        return {};
+      return add(frame, output, span, ArrayMap{*input, id, {*target}});
     }
     auto found = functions_.find(functionKey(frame, name(callback->name)));
     if (found == functions_.end() || !analyzeFunction(found->second)) {
@@ -3264,7 +3400,17 @@ private:
          const std::optional<ValueType> &expected, std::optional<ExprId> selection = {},
          std::optional<ValueId> *checkedSelection = nullptr, bool spawned = false) {
     const auto callee = name(calleeSpan);
-    if (lookupSymbol(frame, calleeSpan)) {
+    if (auto symbol = lookupSymbol(frame, calleeSpan)) {
+      if (output_.symbols[*symbol].type.builtin == BuiltinValue::Function) {
+        if (spawned || selection) {
+          error("S074", "indirect spawn is not implemented yet", span);
+          return {};
+        }
+        auto target = add(frame, output_.symbols[*symbol].type, calleeSpan, SymbolRead{*symbol});
+        if (!target)
+          return {};
+        return callValue(frame, span, *target, arguments);
+      }
       error("S030", "local value '" + callee + "' is not callable", calleeSpan);
       return {};
     }
@@ -3366,6 +3512,10 @@ private:
       auto argument = expression(frame, arguments[i], expectedType, options_.placement && spawned);
       if (!argument)
         return {};
+      if (spawned && node(*argument).type.builtin == BuiltinValue::Function) {
+        error("S074", "function-valued worker arguments are not implemented yet", span);
+        return {};
+      }
       operands.push_back(*argument);
     }
     std::optional<std::uint32_t> device;
@@ -3431,6 +3581,10 @@ private:
       }
     }
     auto resultType = callResult(id, operands, options_.placement && !device);
+    if (spawned && resultType.builtin == BuiltinValue::Function) {
+      error("S074", "function-valued worker results are not implemented yet", span);
+      return {};
+    }
     if (resultType.tensor)
       resultType.device = device;
     resultType.fallible = syntax_.functions[id].taskError;

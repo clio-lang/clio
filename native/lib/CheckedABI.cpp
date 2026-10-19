@@ -14,7 +14,7 @@
 namespace kalandra {
 // Apply after bufferization/LLVM translation, so allocations and clones
 // introduced by ownership lowering receive the same checked convention too.
-std::optional<std::string> addCheckedInvocationABI(llvm::Module &module) {
+std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool functionValues) {
   using namespace llvm;
   auto &context = module.getContext();
   auto *pointer = PointerType::getUnqual(context);
@@ -61,13 +61,20 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module) {
           calls.push_back(call);
     for (auto *call : calls) {
       auto *target = call->getCalledFunction();
-      if (!target)
-        return "indirect call has no checked invocation convention";
       IRBuilder<> builder(call);
       std::vector<Value *> arguments(call->args().begin(), call->args().end());
       FunctionCallee callee;
       bool alwaysFail = false;
-      if (auto found = checked.find(target); found != checked.end()) {
+      if (!target) {
+        if (!functionValues || call->getFunctionType()->isVarArg())
+          return "indirect call has no checked invocation convention";
+        std::vector<Type *> parameters(call->getFunctionType()->param_begin(),
+                                       call->getFunctionType()->param_end());
+        parameters.push_back(pointer);
+        callee = FunctionCallee(FunctionType::get(call->getType(), parameters, false),
+                                call->getCalledOperand());
+        arguments.push_back(invocation);
+      } else if (auto found = checked.find(target); found != checked.end()) {
         callee = found->second;
         arguments.push_back(invocation);
       } else if (target->getName() == "_mlir_memref_to_llvm_alloc") {
@@ -162,6 +169,10 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module) {
     auto *code = builder.CreateCall(status, {invocation});
     builder.CreateCondBr(builder.CreateICmpNE(code, ConstantInt::get(i64, 0)), failed, start);
   }
+  // Source function references must point at the checked entry, including references
+  // passed through arguments, returned values and branch-selected pointers.
+  for (auto *old : originals)
+    old->replaceAllUsesWith(checked.at(old));
   for (auto *old : originals)
     old->eraseFromParent();
   for (const auto *name :

@@ -154,4 +154,4 @@ CPU records can also own [numeric arrays and tensors](../docs/design/record-coll
 
 [Error-family match narrowing](../docs/design/error-narrowing.md) lets a branch rethrow or pass its matched value using the selected family. Wildcards keep the remaining families; payload ownership and TaskError metadata are preserved.
 
-[Function-type syntax](../docs/design/function-values.md#implementation-status) now parses recursive callable annotations, including grouped returned functions and typed-error channels. General function values and indirect calls remain unimplemented and receive an explicit semantic diagnostic.
+[Named CPU function values](../docs/design/native-function-values.md) now support aliases, typed higher-order parameters/results, runtime-selected indirect calls, maps and worker-local invocation through the checked ABI. Direct collection/fallible callable signatures, general anonymous bindings and returned captured closures remain separate work.

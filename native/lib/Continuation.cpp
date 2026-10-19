@@ -16,7 +16,11 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
   return std::visit(
       [](const auto &op) -> std::vector<ValueId> {
         using T = std::decay_t<decltype(op)>;
-        if constexpr (std::is_same_v<T, RecordValue>) {
+        if constexpr (std::is_same_v<T, FunctionInvoke>) {
+          auto values = op.arguments;
+          values.insert(values.begin(), op.callee);
+          return values;
+        } else if constexpr (std::is_same_v<T, RecordValue>) {
           std::vector<ValueId> values;
           if (op.base)
             values.push_back(*op.base);
@@ -215,6 +219,12 @@ private:
           } else if constexpr (std::is_same_v<T, TensorLiteral>) {
             for (auto &element : op.elements)
               element = importValue(element);
+          } else if constexpr (std::is_same_v<T, FunctionReference>) {
+            op.function = importFunction(op.function);
+          } else if constexpr (std::is_same_v<T, FunctionInvoke>) {
+            op.callee = importValue(op.callee);
+            for (auto &argument : op.arguments)
+              argument = importValue(argument);
           } else if constexpr (std::is_same_v<T, FunctionCall>) {
             op.function = importFunction(op.function);
             for (auto &argument : op.arguments)
@@ -301,6 +311,8 @@ private:
     const auto args = operands(source);
     const auto *map = std::get_if<ArrayMap>(&source.operation);
     const auto callback = map ? importFunction(map->function) : FunctionId{};
+    const auto *reference = std::get_if<FunctionReference>(&source.operation);
+    const auto referenced = reference ? importFunction(reference->function) : FunctionId{};
     TypedFunction fn;
     const auto fnId = kernels.functions.size();
     fn.name = "__step_" + std::to_string(fnId);
@@ -316,7 +328,12 @@ private:
       kernels.expressions.push_back({source.span, type, SymbolRead{symbol}});
     }
     auto op = source.operation;
-    if (auto *record = std::get_if<RecordValue>(&op)) {
+    if (auto *reference = std::get_if<FunctionReference>(&op)) {
+      reference->function = referenced;
+    } else if (auto *call = std::get_if<FunctionInvoke>(&op)) {
+      call->callee = reads[0];
+      call->arguments.assign(reads.begin() + 1, reads.end());
+    } else if (auto *record = std::get_if<RecordValue>(&op)) {
       std::size_t next = 0;
       if (record->base)
         record->base = reads[next++];
@@ -668,6 +685,8 @@ std::vector<bool> resumableFunctions(const TypedModule &input) {
       const auto &op = input.expressions.at(value).operation;
       if (const auto *call = std::get_if<FunctionCall>(&op))
         callers.at(call->function).push_back(id);
+      if (const auto *reference = std::get_if<FunctionReference>(&op))
+        callers.at(reference->function).push_back(id);
       if (const auto *map = std::get_if<ArrayMap>(&op))
         callers.at(map->function).push_back(id);
       if (std::holds_alternative<TaskOperation>(op) ||

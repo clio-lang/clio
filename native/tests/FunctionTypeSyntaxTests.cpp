@@ -172,22 +172,14 @@ void limitsAndRecovery() {
 }
 void semanticBoundary() {
   for (const auto *text :
-       {"fn use(callback:fn(int)->int)->int:\n  0\n", "fn factory()->fn(int)->int:\n  0\n",
-        "fn main()->int:\n  value:fn(int)->int=0\n  0\n",
+       {"fn factory()->fn(int)->int:\n  0\n", "fn main()->int:\n  value:fn(int)->int=0\n  0\n",
         "type Holder:\n  callback:fn(int)->int\nfn main()->int:\n  0\n",
         "enum Choice:\n  Some:\n    callback:fn()->int\nfn main()->int:\n  0\n",
         "fn main()->[int]:\n  map([1],fn(value)->fn(int)->int:0)\n"}) {
     auto parsed = syntax(text);
     require(parsed.ok(), "semantic boundary input failed to parse");
     auto checked = check(std::move(parsed));
-    require(!checked.ok() &&
-                std::ranges::any_of(checked.diagnostics,
-                                    [](const auto &diagnostic) {
-                                      return diagnostic.code == "S003" &&
-                                             diagnostic.message.find("function values") !=
-                                                 std::string::npos;
-                                    }),
-            "parser support silently enabled unsupported function values");
+    require(!checked.ok(), "invalid or unsupported callable use accepted");
   }
   auto ordinary = check(syntax("fn identity(value:(((int))))->(int):\n  value\n"
                                "fn main()->int:\n  identity(7)\n"));
@@ -214,7 +206,7 @@ void moduleOrigins() {
   require(std::ranges::any_of(
               checked.diagnostics,
               [&](const auto &diagnostic) {
-                return diagnostic.code == "S003" &&
+                return diagnostic.code == "S074" &&
                        renderDiagnostic(*checked.source, diagnostic).find("helper.k:1:") !=
                            std::string::npos;
               }),

@@ -32,7 +32,7 @@
 namespace kalandra {
 std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &,
                                                           std::optional<std::string>);
-std::optional<std::string> addCheckedInvocationABI(llvm::Module &module);
+std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool functionValues);
 namespace {
 using namespace mlir;
 struct LoweringFailure {
@@ -168,6 +168,8 @@ private:
                                input_.source->origin(span.begin).first->path(), line, column);
   }
   Type type(const ValueType &value) {
+    if (value.builtin == BuiltinValue::Function)
+      return LLVM::LLVMPointerType::get(builder_.getContext());
     if (isOwnedArray(value))
       return recordDescriptor(value);
     if (value.builtin == BuiltinValue::Record) {
@@ -1844,6 +1846,28 @@ private:
               evaluate(operation.whenFalse, operation.falseResult);
             }
             return choice.getResult(0);
+          } else if constexpr (std::is_same_v<T, FunctionReference>) {
+            auto function = functions_[operation.function];
+            auto reference = func::ConstantOp::create(
+                builder_, loc, function.getFunctionType(),
+                FlatSymbolRefAttr::get(builder_.getContext(), function.getSymName()));
+            return UnrealizedConversionCastOp::create(builder_, loc, TypeRange{type(node.type)},
+                                                      ValueRange{reference})
+                .getResult(0);
+          } else if constexpr (std::is_same_v<T, FunctionInvoke>) {
+            const auto &signature = *input_.expressions[operation.callee].type.callable;
+            SmallVector<Type> parameters;
+            SmallVector<Value> arguments;
+            auto pointer = expression(frame, operation.callee);
+            for (std::size_t i = 0; i < operation.arguments.size(); ++i) {
+              parameters.push_back(type(signature.parameters[i]));
+              arguments.push_back(expression(frame, operation.arguments[i]));
+            }
+            auto signatureType = builder_.getFunctionType(parameters, {type(signature.result)});
+            auto reference = UnrealizedConversionCastOp::create(
+                                 builder_, loc, TypeRange{signatureType}, ValueRange{pointer})
+                                 .getResult(0);
+            return func::CallIndirectOp::create(builder_, loc, reference, arguments).getResult(0);
           } else if constexpr (std::is_same_v<T, FunctionCall>) {
             SmallVector<Value> arguments;
             for (std::size_t i = 0; i < operation.arguments.size(); ++i) {
@@ -2070,7 +2094,11 @@ std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,
     auto native = translateModuleToLLVMIR(*module, llvmContext);
     if (!native)
       return std::unexpected("LLVM translation failed");
-    if (auto error = addCheckedInvocationABI(*native))
+    const bool functionValues = std::ranges::any_of(input.expressions, [](const auto &value) {
+      return std::holds_alternative<FunctionReference>(value.operation) ||
+             std::holds_alternative<FunctionInvoke>(value.operation);
+    });
+    if (auto error = addCheckedInvocationABI(*native, functionValues))
       return std::unexpected(*error);
     if (exports.empty())
       for (const auto &function : input.functions)
