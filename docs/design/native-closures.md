@@ -44,7 +44,7 @@ This is a signature illustration with a separately declared `InputError` and com
 
 Compatible closures work with ordinary calls, pipelines and sequential maps. Existing inline map callbacks remain supported and may capture a closure. Empty maps do not execute the callback body. Maps still require completed element results; recover errors within a compatible callback rather than relying on implicit fallible-map aggregation.
 
-A local worker may create and invoke a closure and return ordinary supported data, including owned records. A coordinator may hold a completed closure across an await. [Capture-free named function arguments](native-worker-functions.md) now cross to named CPU workers. [CPU data-capturing closure arguments](native-worker-closures.md) are also supported. Nested function captures and unproven arguments, function-valued results and spawned-map captures, indirect spawn and task/device-coordinating callable targets remain rejected. This does not add scheduler waits to synchronous invocation.
+A local worker may create and invoke a closure and return ordinary supported data, including owned records. A coordinator may hold a completed closure across an await. [Capture-free named function arguments](native-worker-functions.md) now cross to named CPU workers. [CPU data-capturing closure arguments](native-worker-closures.md) are also supported. [Direct nested function captures](native-worker-nested-closures.md) are also supported. Function-containing aggregate captures and unproven arguments, function-valued results and spawned-map captures, indirect spawn and task/device-coordinating callable targets remain rejected. This does not add scheduler waits to synchronous invocation.
 
 ## Private representation and managed lifetime
 
@@ -56,7 +56,7 @@ Allocation failures and cancellation use existing checked execution rules. A fai
 
 ## Remaining work
 
-- Continue the [local CPU worker function-transport contract](worker-function-transport.md) with nested function captures after the implemented [CPU data capture stage](native-worker-closures.md), then results and indirect synchronous spawn; resumable callable values remain separate.
+- Continue the [local CPU worker function-transport contract](worker-function-transport.md) with broader proven provenance after the implemented [nested function capture stage](native-worker-nested-closures.md), then results and indirect synchronous spawn; resumable callable values remain separate.
 - Earlier environment reclamation, allocation elision and shared numeric capture backing, tracked in the [optimization roadmap](../roadmap.md#optimization).
 
 [Recursive synchronous callables](native-recursive-callables.md) and [direct control-flow map callbacks](native-control-maps.md) are now implemented.

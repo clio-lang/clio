@@ -689,9 +689,13 @@ private:
     auto *stopped = Block::Create(context, "function.stopped", fn);
     auto *header = Block::Create(context, "function.header", fn);
     auto *dispatch = Block::Create(context, "function.dispatch", fn);
-    auto *status = call("kalandra_poll_v1", i64, {fn->getArg(0)});
-    builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), header, stopped);
+    auto *denied = Block::Create(context, "function.denied", fn);
+    auto *entered = call("kalandra_call_enter_v1", boolean, {fn->getArg(0), c64(0), c64(0)});
+    builder.CreateCondBr(entered, header, denied);
+    builder.SetInsertPoint(denied);
+    builder.CreateRet(builder.getFalse());
     builder.SetInsertPoint(stopped);
+    call("kalandra_call_leave_v1", voidType, {fn->getArg(0)});
     builder.CreateRet(builder.getFalse());
     builder.SetInsertPoint(header);
     builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), failed,
@@ -739,7 +743,27 @@ private:
         builder.SetInsertPoint(ready);
         for (std::size_t i = 0; i < captures.size(); ++i) {
           auto *field = builder.CreateStructGEP(captureLayout, copied, i);
-          if (captures[i].builtin == BuiltinValue::Numeric && captures[i].tensor) {
+          if (captures[i].builtin == BuiltinValue::Function) {
+            // Register layouts before their bodies so equal-signature nested
+            // captures reuse this copy entry instead of expanding code forever.
+            layout(captures[i]);
+            auto *nested = module.getFunction("value.copy." + key(captures[i]));
+            auto *nestedType = valueType(captures[i]);
+            auto *source = builder.CreateAlloca(nestedType);
+            auto *destination = builder.CreateAlloca(nestedType);
+            auto *payload = builder.CreateLoad(scalarType(captures[i]), field);
+            builder.CreateStore(
+                builder.CreateInsertValue(llvm::Constant::getNullValue(nestedType), payload, {1}),
+                source);
+            auto *ok =
+                builder.CreateCall(nested, {fn->getArg(0), destination, fn->getArg(2), source});
+            auto *ready = Block::Create(context, "capture.function.copied", fn);
+            builder.CreateCondBr(ok, ready, failed);
+            builder.SetInsertPoint(ready);
+            builder.CreateStore(
+                builder.CreateExtractValue(builder.CreateLoad(nestedType, destination), {1}),
+                field);
+          } else if (captures[i].builtin == BuiltinValue::Numeric && captures[i].tensor) {
             auto *ok = call("kalandra_environment_tensor_retain_v1", boolean,
                             {fn->getArg(0), fn->getArg(2), field, c64(captures[i].shape.size()),
                              c64(static_cast<unsigned>(captures[i].element))});
@@ -762,6 +786,7 @@ private:
       }
       auto *closure = builder.CreateInsertValue(value, copied, {1});
       builder.CreateStore(builder.CreateInsertValue(input, closure, {1}), fn->getArg(1));
+      call("kalandra_call_leave_v1", voidType, {fn->getArg(0)});
       builder.CreateRet(builder.getTrue());
       builder.SetInsertPoint(next);
     };
@@ -779,7 +804,9 @@ private:
     builder.CreateCondBr(builder.CreateICmpEQ(current, c64(0)), fault, stopped);
     builder.SetInsertPoint(fault);
     call("kalandra_fault_v1", voidType, {fn->getArg(0), c64(3), c64(0), c64(0)});
-    builder.CreateRet(builder.getFalse());
+    builder.CreateBr(stopped);
+    if (auto error = nativeStackBudgetError(*fn, module.getDataLayout()))
+      throw std::runtime_error(*error);
   }
   llvm::GlobalVariable *layout(const ValueType &type) {
     const auto name = key(type);
@@ -788,6 +815,11 @@ private:
     llvm::IRBuilderBase::InsertPointGuard guard(builder);
     auto *wrapper = valueType(type);
     auto *fn = function("value.copy." + name, boolean, {pointer, pointer, pointer, pointer});
+    const auto layoutIndex = layouts.size();
+    auto *result =
+        new llvm::GlobalVariable(module, layoutType, true, llvm::GlobalValue::InternalLinkage,
+                                 nullptr, "value.layout." + name);
+    layouts[name] = result;
     const bool functionCopy =
         type.builtin == BuiltinValue::Function && !type.tensor && !type.task && !type.errorRecord;
     if (functionCopy)
@@ -915,7 +947,7 @@ private:
     }
     auto *constant = llvm::ConstantStruct::get(
         layoutType,
-        {c64(type.errorRecord ? 0x1000000 + layouts.size()
+        {c64(type.errorRecord ? 0x1000000 + layoutIndex
              : type.builtin == BuiltinValue::Function && !type.tensor && !type.task
                  ? 0x200000000ULL + functionSignature(type)
              : isFunctionArray(type) && !type.task                ? 0x90000
@@ -933,9 +965,8 @@ private:
              : type.element == NumericType::Float64 ? 0x20000 + static_cast<unsigned>(type.element)
                                                     : 1),
          c64(size(wrapper)), c64(alignment(wrapper)), fn, destroy});
-    return layouts[name] = new llvm::GlobalVariable(module, layoutType, true,
-                                                    llvm::GlobalValue::InternalLinkage, constant,
-                                                    "value.layout." + name);
+    result->setInitializer(constant);
+    return result;
   }
   void fillPacket(Value *packet, std::size_t target, Value *data, Value *ctx) {
     builder.CreateStore(c64(target + 100), builder.CreateStructGEP(packetType, packet, 0));

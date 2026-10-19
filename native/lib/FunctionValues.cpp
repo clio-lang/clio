@@ -35,6 +35,11 @@ bool sameFunctionValueType(const ValueType &a, const ValueType &b, std::size_t d
 }
 
 bool workerClosureCaptureTypeSupported(const TypedModule &module, const ValueType &root) {
+  // Direct function captures have their own checked recursive copy path.
+  // Functions inside aggregates remain a separate transport increment.
+  if (root.builtin == BuiltinValue::Function)
+    return root.callable && !root.tensor && !root.task && !root.fallible && !root.device &&
+           !root.errorRecord;
   std::vector<ValueType> pending{root};
   std::unordered_set<std::size_t> visited;
   while (!pending.empty()) {
@@ -117,10 +122,13 @@ bool workerFunctionArgument(const TypedModule &module, ValueId root) {
       const auto &fn = module.functions[ref->function];
       if (ref->captures.size() != fn.captureCount)
         return false;
-      for (auto capture : ref->captures)
+      for (auto capture : ref->captures) {
         if (capture >= module.expressions.size() ||
             !workerClosureCaptureTypeSupported(module, module.expressions[capture].type))
           return false;
+        if (module.expressions[capture].type.builtin == BuiltinValue::Function)
+          pending.push_back(capture);
+      }
       found = true;
     } else if (const auto *call = std::get_if<FunctionCall>(&value.operation)) {
       if (call->function >= module.functions.size())
@@ -190,8 +198,8 @@ std::optional<std::string> functionValueTransportError(const TypedModule &module
         type.builtin == BuiltinValue::Function && !type.tensor &&
         workerFunctionArgument(module, id))
       continue;
-    return "function-valued worker arguments require proven CPU data captures; nested function "
-           "captures, unproven targets and containing values are not implemented yet";
+    return "function-valued worker arguments require proven CPU closure captures; unproven "
+           "targets and function-containing aggregates are not implemented yet";
   }
   return {};
 }

@@ -1,6 +1,6 @@
 # Captured closures as local CPU worker arguments
 
-Implemented native subset — 2026-10-20. A statically named local CPU worker can receive a synchronous closure with supported immutable data captures. This extends [named function arguments](native-worker-functions.md) under the [function transport contract](worker-function-transport.md).
+Implemented native subset — 2026-10-20. [Direct nested function captures](native-worker-nested-closures.md) are now also supported; this page records the CPU data environment foundation. A statically named local CPU worker can receive a synchronous closure with supported immutable data captures. This extends [named function arguments](native-worker-functions.md) under the [function transport contract](worker-function-transport.md).
 
 ```kalandra
 fn apply(value: int, transform: fn(int) -> int) -> int:
@@ -34,7 +34,7 @@ Copied environment bytes have a private 1 MiB cumulative limit per invocation. T
 
 ## Remaining transport work
 
-Captures containing function values, including nested record/enum fields containing functions, remain rejected. Forwarded function parameters, aggregate projections, indirect factory invocation and pending factory results do not yet establish supported provenance. Functions inside worker argument aggregates, function-valued worker results, spawned-map function captures and indirect spawn remain staged. These are temporary implementation restrictions, not new function types.
+Direct proven function captures are supported recursively. Captured records/enums/arrays containing function values remain rejected. Forwarded function parameters, aggregate projections, indirect factory invocation and pending factory results do not yet establish supported provenance. Functions inside worker argument aggregates, function-valued worker results, spawned-map function captures and indirect spawn remain staged. These are temporary implementation restrictions, not new function types.
 
 GPU callbacks, distributed execution and public C/C++ callback interfaces are separate work. Whole-environment sharing and copy elimination belong to later optimization.
 
