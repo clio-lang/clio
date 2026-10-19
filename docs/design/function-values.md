@@ -1,6 +1,6 @@
 # Function values
 
-Proposal — 2026-10-19. The [core design](core.md) accepts function types, lexical captures and automatically managed capture lifetimes. This proposal fills in their spelling and the implementation order. General function values are **not implemented yet**; the examples below specify proposed behavior. Existing [inline map callbacks](array-map.md) remain the implemented baseline.
+Accepted direction — 2026-10-19. The project owner approved this syntax and staged scope. The [core design](core.md) accepts function types, lexical captures and automatically managed capture lifetimes. General function values are **not implemented yet**; the examples below specify their intended behavior. Existing [inline map callbacks](array-map.md) remain the executable baseline. [Function-type parsing](#implementation-status) is now implemented.
 
 ## The ordinary case
 
@@ -90,10 +90,22 @@ Do not freeze the synchronous-only restriction into an undocumented universal ca
 
 ## Implementation and qualification order
 
-1. Settle this syntax and scope. Add recursive function-type syntax and grouped type parsing, with bounded nesting, source spans and clear diagnostics. Distinguish a callable's expected error from a factory's error channel.
+1. **Parsing implemented:** recursive function-type syntax and grouped type parsing, with bounded nesting, source spans and clear diagnostics. Distinguish a callable's expected error from a factory's error channel. The syntax and staged scope are accepted.
 2. Add typed function values and calls: named references, immutable aliases, parameters, compatible branch results and sequential maps. Check exact signatures and preserve nominal identities across local imports. Keep current direct calls and callback behavior compatible.
 3. Add returned expression closures with managed environments, nested function captures and anonymous type inference. Keep the representation private. Prefer direct-call specialization where provable, but support runtime selection between compatible functions rather than relying on one statically chosen target.
 4. Qualify ownership and failures before extending transport: returned closures after creator exit, captured arrays/records/Strings, nested closures, repeated invocation, branch-selected targets, typed errors, empty maps, invalid signatures, shadowing, allocation failure and rejected task escapes. Exercise debug, optimized and sanitizer builds. Recheck existing map and local-worker regressions.
 5. Extend anonymous bodies, aggregate storage and local-worker transport in separate reviewable increments; address resumable calls explicitly. Keep GPU callbacks, distributed contracts and the public C/C++ ABI on their respective roadmaps.
 
-Each implementation increment must state its supported subset. This proposal does not claim compiler support, runtime qualification or a public closure representation.
+Each implementation increment must state its supported subset. This design does not claim executable function-value support, runtime qualification or a public closure representation.
+
+## Implementation status
+
+The native parser accepts recursive `fn(ParameterType, ...) -> ResultType` syntax in parameter, result, binding, field and anonymous-function annotation positions. Arrows associate to the right; parentheses group types. Function-type parameters contain types without parameter names and accept a trailing comma, like ordinary parameter lists. Grouping an ordinary type preserves its semantic identity.
+
+Each callable stores its own error-family spans separately from the enclosing named function's error channel. An ungrouped suffix belongs to the innermost returned callable. To give a factory an error channel, group the returned callable first. Ambiguous consecutive suffixes such as `fn factory() -> fn() -> int ! A ! B` are rejected with `P006`; spell `-> (fn() -> int ! A) ! B`. Error-family unions retain the existing required grouping after `!`.
+
+Recursive syntax owns its nested signatures and preserves source spans, including grouping and error suffixes. Type nesting uses the configured shared syntax-depth bound. A separate type-parsing node budget uses `SyntaxLimits.maxNodes`, including grouped types; the existing expression-node budget remains independent. Exceeding either type bound produces `P036`. There is no special small parameter-count cap.
+
+Parsing does not resolve types or make callables executable. The semantic checker currently rejects function types with `S003` and an explicit function-values-not-implemented message, including annotations in fields and map callbacks. General function values, indirect calls, escaping closures and their runtime representation remain the next implementation work. Anonymous fallible-body annotations and broader anonymous bodies remain separate from this type-parser increment.
+
+All 26 focused checks passed, including debug and ASan/UBSan frontend tests. They cover error-channel placement, nested and grouped types, heterogeneous parameter lists, forty parameters, anonymous annotations, malformed/truncated input, parser recovery, source spans and original module locations, copied syntax lifetime, configurable budgets and the semantic rejection boundary. Existing syntax, semantic, callback, module and error-channel suites provide regression coverage. Separate CLI checks parse the opening example, preserve existing output artifacts on semantic rejection, and compile/run an ordinary grouped-type map/worker program in debug and optimized builds. These checks do not qualify a closure runtime. The [evidence record](../../native/metal-proof/evidence/cpu-function-type-syntax-2026-10-19.json) records the scope and source hashes.

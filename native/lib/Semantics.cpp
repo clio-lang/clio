@@ -209,6 +209,11 @@ private:
            name == "or" || name == "not" || name == "type" || name == "with";
   }
   std::optional<ValueType> type(const TypeSyntax &syntax) {
+    if (syntax.function) {
+      error("S003", "function types are parsed, but function values are not implemented yet",
+            syntax.span);
+      return {};
+    }
     if (!syntax.tensor && !syntax.array && name(syntax.name) == "TaskError") {
       ValueType result;
       result.builtin = BuiltinValue::TaskError;

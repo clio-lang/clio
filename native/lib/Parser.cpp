@@ -99,6 +99,67 @@ private:
     return {};
   }
   std::optional<TypeSyntax> parseType() {
+    if (depth_ >= limits_.maxDepth) {
+      error("P036", "type nesting limit exceeded", current().span);
+      return {};
+    }
+    const Depth guard(depth_);
+    if (typeNodes_ >= limits_.maxNodes) {
+      error("P036", "type node limit exceeded", current().span);
+      return {};
+    }
+    ++typeNodes_;
+    if (at(TokenKind::LeftParen)) {
+      const auto start = advance().span;
+      auto type = parseType();
+      if (!type)
+        return {};
+      auto end = expect(TokenKind::RightParen, "expected ')' after grouped type");
+      if (!end)
+        return {};
+      type->span = {start.begin, end->span.end};
+      return type;
+    }
+    if (word("fn")) {
+      const auto start = advance().span;
+      if (!expect(TokenKind::LeftParen, "expected '(' after function type 'fn'"))
+        return {};
+      auto signature = std::make_shared<FunctionTypeSyntax>();
+      if (!at(TokenKind::RightParen)) {
+        do {
+          auto parameter = parseType();
+          if (!parameter)
+            return {};
+          signature->parameters.push_back(std::move(*parameter));
+        } while (consume(TokenKind::Comma) && !at(TokenKind::RightParen));
+      }
+      if (!expect(TokenKind::RightParen, "expected ')' after function type parameters") ||
+          !expect(TokenKind::Arrow, "expected '->' and a result type after function parameters"))
+        return {};
+      auto result = parseType();
+      if (!result)
+        return {};
+      signature->result = std::move(*result);
+      auto end = signature->result.span.end;
+      if (consume(TokenKind::Bang)) {
+        if (signature->result.function &&
+            signature->result.span.begin == signature->result.name.begin) {
+          error("P006", "parenthesize a returned function type before its factory error channel",
+                signature->result.span);
+          return {};
+        }
+        auto channels = errorMembers(true);
+        if (!channels)
+          return {};
+        signature->errorTypes = std::move(*channels);
+        end = tokens_[position_ - 1].span.end;
+      }
+      TypeSyntax type;
+      type.name = start;
+      type.span = {start.begin, end};
+      type.function = std::move(signature);
+      return type;
+    }
     if (at(TokenKind::LeftBracket)) {
       const auto start = advance().span;
       auto element = expect(TokenKind::Identifier, "expected a numeric array element type");
@@ -340,6 +401,12 @@ private:
     }
     if (at(TokenKind::Bang)) {
       advance();
+      if (function.result && function.result->function &&
+          function.result->span.begin == function.result->name.begin) {
+        error("P006", "parenthesize a returned function type before its factory error channel",
+              function.result->span);
+        return {};
+      }
       auto channels = errorMembers(true);
       if (!channels)
         return {};
@@ -867,6 +934,7 @@ private:
   SyntaxLimits limits_;
   std::size_t position_ = 0;
   std::size_t depth_ = 0;
+  std::size_t typeNodes_ = 0;
 };
 } // namespace
 ParseResult parse(std::shared_ptr<const SourceFile> source, SyntaxLimits limits) {

@@ -153,3 +153,5 @@ CPU records can also own [numeric arrays and tensors](../docs/design/record-coll
 [Error aliases in CPU record and enum payload fields](../docs/design/error-payload-fields.md) preserve completed application and TaskError values, including nested arrays, worker transport and original error metadata.
 
 [Error-family match narrowing](../docs/design/error-narrowing.md) lets a branch rethrow or pass its matched value using the selected family. Wildcards keep the remaining families; payload ownership and TaskError metadata are preserved.
+
+[Function-type syntax](../docs/design/function-values.md#implementation-status) now parses recursive callable annotations, including grouped returned functions and typed-error channels. General function values and indirect calls remain unimplemented and receive an explicit semantic diagnostic.

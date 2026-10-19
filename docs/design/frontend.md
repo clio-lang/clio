@@ -42,6 +42,17 @@ arguments   = expression, (",", expression)*, ","? ;
 
 A function body must end in an expression statement. The grammar's generic type-name alternative does not allow bare Tensor without its brackets. A tensor element name is retained separately from its dimensions. Dimensions must be decimal, nonnegative uint64-representable integers or `?`; this is syntactic validation, not a claim every extent can be allocated.
 
+The [function-type parser](function-values.md#implementation-status) extends type syntax with recursive callable signatures and grouping:
+
+```ebnf
+type         = identifier | array-type | tensor-type | "(", type, ")"
+             | "fn", "(", type-list?, ")", "->", type, error-channel? ;
+type-list    = type, (",", type)*, ","? ;
+error-channel = "!", (identifier | "(", identifier, ("|", identifier)*, ")") ;
+```
+
+Function arrows associate to the right. An error suffix belongs to the innermost ungrouped callable; group a returned function type before adding its factory's error channel. Repeated ungrouped suffixes are rejected. These signatures are syntax-only until function-value semantics and lowering are implemented; the checker diagnoses them explicitly rather than treating them as ordinary values.
+
 Calls and postfix indexing bind most tightly, then unary signs, multiplication/division/remainder, addition/subtraction, and pipelines. Binary arithmetic and pipeline operators associate left to right. Pipelines remain distinct AST nodes; first-argument insertion belongs to later typed lowering, not parser-side execution or rewriting that loses source information.
 
 Bindings are statements only. `foo(x = 1)` is rejected, as is the prototype's `=>` form. General arrays are syntactically represented to support tensor-constructor literals; the parser does not claim runtime array support or reject ragged literals as though it had checked shapes.

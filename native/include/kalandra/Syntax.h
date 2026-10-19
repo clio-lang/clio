@@ -103,6 +103,7 @@ struct Dimension {
   std::optional<std::uint64_t> extent;
   SourceSpan span;
 };
+struct FunctionTypeSyntax;
 struct TypeSyntax {
   SourceSpan name;
   SourceSpan span;
@@ -110,6 +111,14 @@ struct TypeSyntax {
   std::optional<SourceSpan> element;
   std::vector<Dimension> dimensions;
   bool array = false;
+  // Immutable recursive syntax; copies preserve ownership without borrowing parser storage.
+  std::shared_ptr<const FunctionTypeSyntax> function = {};
+};
+struct FunctionTypeSyntax {
+  std::vector<TypeSyntax> parameters;
+  TypeSyntax result;
+  // Errors of this callable's invocation, not errors constructing a returned callable.
+  std::vector<SourceSpan> errorTypes;
 };
 using ExprId = std::size_t;
 struct NameExpr {
