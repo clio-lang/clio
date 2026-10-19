@@ -28,7 +28,7 @@ Record updates produce a new record value:
 second = config with {apply: fn(value): value * 2}
 ```
 
-The original `config` keeps its original callback. Copying a function field copies its code/environment reference; it does not execute the function or mutate its captures. Nested records and ordinary record arrays can carry these fields within the same invocation. Existing array indexing, sequential mapping, slicing and concatenation preserve them.
+The original `config` keeps its original callback. Copying a function field copies its code/environment reference; it does not execute the function or mutate its captures. Nested records and ordinary record arrays can carry these fields within the same invocation. [Direct arrays of functions](native-function-arrays.md) can also be stored in fields. Existing array indexing, sequential mapping, slicing and concatenation preserve them.
 
 ## Enum and error payloads
 
@@ -63,7 +63,6 @@ Handling an error containing a callback inside the worker, before returning a co
 
 ## Remaining work
 
-- Direct arrays of functions.
 - Function transport, indirect spawn and resumable function values.
 - Recursive record/enum type dependencies, including dependencies through callable signatures.
 - Delimiter-aware indented callbacks and the existing direct static-map control-flow restriction.

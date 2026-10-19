@@ -119,10 +119,11 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
     for (const auto &field : record.fields) {
       const auto &type = field.type;
       if (type.task || type.fallible || type.errorRecord || type.device ||
-          (type.tensor ? ((type.builtin != BuiltinValue::Numeric && !isBoolArray(type) &&
-                           !isStringArray(type) && !isRecordArray(type)) ||
-                          type.shape.size() > 128 || (type.array && type.shape.size() != 1))
-                       : (type.array || !type.shape.empty())))
+          (type.tensor
+               ? ((type.builtin != BuiltinValue::Numeric && !isBoolArray(type) &&
+                   !isStringArray(type) && !isRecordArray(type) && !isFunctionArray(type)) ||
+                  type.shape.size() > 128 || (type.array && type.shape.size() != 1))
+               : (type.array || !type.shape.empty())))
         return fail(
             "record fields require completed CPU numbers, numeric collections, Bool, Bool "
             "arrays, Strings, String arrays, TaskError values, functions, records or record arrays",

@@ -485,7 +485,7 @@ if(NOT "${STATUS}" STREQUAL "1")
   message(FATAL_ERROR "Invalid callable field accepted/crashed: recursive-signature: ${STATUS}: ${OUT}${ERR}")
 endif()
 file(WRITE "${OUTPUT_DIR}/reject-direct-functions-array.k" [=[fn main()->int:
-  values=[fn(value:int):value]
+  values=[fn(value:int):value,fn(value:float):value]
   0
 ]=])
 execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-direct-functions-array.k" -o "${OUTPUT_DIR}/reject-direct-functions-array" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)

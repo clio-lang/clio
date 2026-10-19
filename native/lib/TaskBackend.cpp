@@ -342,7 +342,7 @@ private:
     return llvm::StructType::get(context, {pointer, pointer, i64, dims, dims});
   }
   Type *scalarType(const ValueType &type) {
-    if (type.builtin == BuiltinValue::Function)
+    if (type.builtin == BuiltinValue::Function && !type.tensor)
       return llvm::StructType::get(context, {pointer, pointer});
     if (type.tensor)
       return descriptor(type);
@@ -370,7 +370,7 @@ private:
     if (type.task)
       return "handle";
     if (type.builtin == BuiltinValue::Function)
-      return "function.reference";
+      return type.array ? "array.Function" : "function.reference";
     if (isStringArray(type) && !type.task)
       return "array.String";
     if (isBoolArray(type) && !type.task)
@@ -602,6 +602,12 @@ private:
                                                           builder.CreateICmpULE(kind, c32(4))),
                              next, failed);
         builder.SetInsertPoint(next);
+      } else if (isFunctionArray(field)) {
+        auto *success = call("kalandra_record_array_retain_v1", boolean,
+                             {fn->getArg(0), fn->getArg(2), address, c64(16), c64(8)});
+        auto *next = Block::Create(context, "function.array.next", fn);
+        builder.CreateCondBr(success, next, failed);
+        builder.SetInsertPoint(next);
       } else if (isRecordArray(field))
         retainRecordArray(field, address, fn, failed);
       else if (field.builtin == BuiltinValue::Record)
@@ -735,6 +741,18 @@ private:
       builder.CreateCondBr(success, ready, failed);
       builder.SetInsertPoint(failed);
       builder.CreateRet(builder.getFalse());
+    } else if (isFunctionArray(type)) {
+      auto *retain = Block::Create(context, "function.array.retain", fn);
+      auto *failed = Block::Create(context, "function.array.failed", fn);
+      builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
+                           retain);
+      builder.SetInsertPoint(retain);
+      auto *success = call("kalandra_record_array_retain_v1", boolean,
+                           {fn->getArg(0), fn->getArg(2),
+                            builder.CreateStructGEP(wrapper, fn->getArg(3), 1), c64(16), c64(8)});
+      builder.CreateCondBr(success, ready, failed);
+      builder.SetInsertPoint(failed);
+      builder.CreateRet(builder.getFalse());
     } else if (isRecordArray(type)) {
       auto *retain = Block::Create(context, "array.retain", fn);
       auto *failed = Block::Create(context, "array.failed", fn);
@@ -777,6 +795,7 @@ private:
     auto *constant = llvm::ConstantStruct::get(
         layoutType,
         {c64(type.errorRecord                                     ? 0x1000000 + layouts.size()
+             : isFunctionArray(type) && !type.task                ? 0x90000
              : isStringArray(type) && !type.task                  ? 0x80000
              : isBoolArray(type) && !type.task                    ? 0x70000
              : isRecordArray(type) && !type.task                  ? 0x60000 + *type.record

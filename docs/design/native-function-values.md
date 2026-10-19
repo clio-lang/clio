@@ -123,13 +123,13 @@ The compiler distinguishes synchronous error control flow from task/device coord
 
 ## Supported signatures and remaining gaps
 
-Callable signatures accept and return all ten CPU numeric scalar types, Bool, String, completed records/enums, numeric arrays/tensors, Bool/String/record arrays and other supported function values. Completed TaskError values can be ordinary data, and TaskError can also be an invocation channel, alone or in an application-error union. Records may contain the already supported collection fields and [function-valued fields](native-callable-fields.md). The latter also work in enum and expected-error payloads within one invocation; function storage remains rejected at worker boundaries. Parameter counts have no special small cap: the compiler's ordinary parsing and complexity budgets apply. Qualification includes a ten-argument call mixing six numeric types, Bool, String, a record and another function.
+Callable signatures accept and return all ten CPU numeric scalar types, Bool, String, completed records/enums, numeric arrays/tensors, Bool/String/record arrays, [arrays of functions](native-function-arrays.md) and other supported function values. Completed TaskError values can be ordinary data, and TaskError can also be an invocation channel, alone or in an application-error union. Records may contain the already supported collection fields and [function-valued fields](native-callable-fields.md). The latter also work in enum and expected-error payloads within one invocation; function storage remains rejected at worker boundaries. Parameter counts have no special small cap: the compiler's ordinary parsing and complexity budgets apply. Qualification includes a ten-argument call mixing six numeric types, Bool, String, a record and another function.
 
 The following remain implementation gaps under the accepted function-value design:
 
 - Callable targets requiring task/device coordination, and recursive control-flow callable references. Synchronous expected-error calls and factories are implemented.
 - Fallible map aggregation and direct static-map lowering of synchronous control-flow callback bodies. Bound completed-result function-value wrappers are supported.
-- Direct arrays of functions, indirect spawn, worker transport, GPU callbacks and remote function contracts.
+- Indirect spawn, worker transport, GPU callbacks and remote function contracts.
 
 These are staged implementation restrictions, not additional language design limits. Distributed contracts still require their separate design discussion; public C/C++ callback integration remains on its separate roadmap.
 

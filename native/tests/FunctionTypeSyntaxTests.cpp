@@ -23,7 +23,7 @@ void spans(const TypeSyntax &type, const SourceFile &source) {
   require(type.span.end <= source.text().size() && contains(type.span, type.name),
           "type span lost its source");
   if (type.function) {
-    require(!type.tensor && !type.array && !type.element && type.dimensions.empty(),
+    require(!type.tensor && !type.element && type.dimensions.empty(),
             "function syntax acquired a collection layout");
     for (const auto &parameter : type.function->parameters) {
       require(contains(type.span, parameter.span), "parameter outside function type");

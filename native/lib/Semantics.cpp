@@ -200,6 +200,13 @@ private:
     }
     if (isBoolArray(type))
       return true;
+    if (isFunctionArray(type)) {
+      if (count > maximum / 16) {
+        error("S002", "function array storage exceeds the indexing range", span);
+        return false;
+      }
+      return true;
+    }
     if (isStringArray(type)) {
       if (count > maximum / 24) {
         error("S002", "String array storage exceeds the indexing range", span);
@@ -248,7 +255,12 @@ private:
         result->fallible = true;
         result->errorRecord = normalizedError(*family);
       }
-      return callableType(std::move(parameters), *result, syntax.span);
+      auto callable = callableType(std::move(parameters), *result, syntax.span);
+      if (callable && syntax.array) {
+        callable->tensor = callable->array = true;
+        callable->shape = {dynamic()};
+      }
+      return callable;
     }
     if (!syntax.tensor && !syntax.array && name(syntax.name) == "TaskError") {
       ValueType result;
@@ -599,7 +611,7 @@ private:
           if (!value)
             continue;
           if ((value->tensor && value->builtin != BuiltinValue::Numeric && !isBoolArray(*value) &&
-               !isStringArray(*value) && !isRecordArray(*value)) ||
+               !isStringArray(*value) && !isRecordArray(*value) && !isFunctionArray(*value)) ||
               (value->builtin != BuiltinValue::Numeric && value->builtin != BuiltinValue::Bool &&
                value->builtin != BuiltinValue::String &&
                value->builtin != BuiltinValue::TaskError &&
@@ -626,7 +638,8 @@ private:
       if (!fieldType)
         continue;
       if ((fieldType->tensor && fieldType->builtin != BuiltinValue::Numeric &&
-           !isBoolArray(*fieldType) && !isStringArray(*fieldType) && !isRecordArray(*fieldType)) ||
+           !isBoolArray(*fieldType) && !isStringArray(*fieldType) && !isRecordArray(*fieldType) &&
+           !isFunctionArray(*fieldType)) ||
           (fieldType->builtin != BuiltinValue::Numeric &&
            fieldType->builtin != BuiltinValue::Bool && fieldType->builtin != BuiltinValue::Record &&
            fieldType->builtin != BuiltinValue::TaskError &&
@@ -1332,7 +1345,9 @@ private:
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const LambdaExpr &lambda,
                                const std::optional<ValueType> &expected) {
     const auto context =
-        expected && expected->builtin == BuiltinValue::Function ? expected->callable : nullptr;
+        expected && expected->builtin == BuiltinValue::Function && !expected->tensor
+            ? expected->callable
+            : nullptr;
     if (context && context->parameters.size() != lambda.parameters.size()) {
       error("S060", "anonymous function parameter count differs from its expected signature", span);
       return {};
@@ -1586,9 +1601,10 @@ private:
           return invoke(frame, span, callee->name, arguments, expected);
         return invokeValue(frame, span, target->callee, arguments);
       }
-      if (std::holds_alternative<FieldExpr>(right.value))
+      if (std::holds_alternative<FieldExpr>(right.value) ||
+          std::holds_alternative<IndexExpr>(right.value))
         return invokeValue(frame, span, binary.right, {binary.left});
-      error("S018", "pipeline requires a named function, function-valued field or call",
+      error("S018", "pipeline requires a named function, function-valued field/index or call",
             right.span);
       return {};
     }
@@ -1691,7 +1707,8 @@ private:
   std::optional<ValueId> callValue(Frame &frame, SourceSpan span, ValueId target,
                                    const std::vector<ExprId> &arguments) {
     const auto type = node(target).type;
-    if (type.builtin != BuiltinValue::Function || !type.callable || type.task || type.fallible) {
+    if (type.builtin != BuiltinValue::Function || !type.callable || type.tensor || type.array ||
+        type.task || type.fallible) {
       error("S030", "call requires a completed function value", span);
       return {};
     }
@@ -1770,6 +1787,8 @@ private:
     const auto other = node(*right).type;
     if (!array(type) || !array(other) || type.builtin != other.builtin ||
         type.record != other.record ||
+        (type.builtin == BuiltinValue::Function &&
+         !sameFunctionValueType(recordArrayElement(type), recordArrayElement(other))) ||
         (type.builtin == BuiltinValue::Numeric && type.element != other.element)) {
       error("S061", "concat requires completed CPU arrays with the same element type", span);
       return {};
@@ -1991,6 +2010,7 @@ private:
       output.builtin = expected->builtin;
       output.record = expected->record;
       output.recordName = expected->recordName;
+      output.callable = expected->callable;
     }
     std::vector<ValueId> elements;
     for (auto leaf : array.elements) {
@@ -2004,9 +2024,11 @@ private:
       const auto actual = node(*value).type;
       if (actual.tensor || actual.task || actual.fallible || actual.device ||
           (actual.builtin != BuiltinValue::Numeric && actual.builtin != BuiltinValue::Record &&
-           actual.builtin != BuiltinValue::Bool && actual.builtin != BuiltinValue::String)) {
+           actual.builtin != BuiltinValue::Bool && actual.builtin != BuiltinValue::String &&
+           actual.builtin != BuiltinValue::Function)) {
         error("S058",
-              "array elements require completed CPU numeric scalars, Bool, String or records",
+              "array elements require completed CPU numeric scalars, Bool, String, records or "
+              "functions",
               syntax_.expressions[leaf].span);
         return {};
       }
@@ -2015,6 +2037,7 @@ private:
         output.builtin = actual.builtin;
         output.record = actual.record;
         output.recordName = actual.recordName;
+        output.callable = actual.callable;
       }
       auto scalar = recordArrayElement(output);
       if (!conform(frame, *value, scalar, syntax_.expressions[leaf].span))
@@ -2026,6 +2049,10 @@ private:
     if (isRecordArray(output) &&
         elements.size() > limits_.maxValues / recordInlineUnits(output_, *output.record)) {
       error("S024", "record array literal exceeds configured expanded storage budget", span);
+      return {};
+    }
+    if (isFunctionArray(output) && elements.size() > limits_.maxValues / 2) {
+      error("S024", "function array literal exceeds expanded storage budget", span);
       return {};
     }
     if (isStringArray(output) && elements.size() > limits_.maxValues / 3) {
@@ -3215,7 +3242,8 @@ private:
     }
     const auto mapElement = [](const ValueType &type) {
       return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record ||
-              type.builtin == BuiltinValue::Bool || type.builtin == BuiltinValue::String) &&
+              type.builtin == BuiltinValue::Bool || type.builtin == BuiltinValue::String ||
+              type.builtin == BuiltinValue::Function) &&
              !type.tensor && !type.task && !type.fallible && !type.device;
     };
     std::optional<ValueType> inputContext;
@@ -3233,6 +3261,7 @@ private:
       inputContext->element = annotation->element;
       inputContext->builtin = annotation->builtin;
       inputContext->record = annotation->record;
+      inputContext->callable = annotation->callable;
     }
     auto input = expression(frame, inputSyntax, inputContext);
     if (!input)
@@ -3240,7 +3269,8 @@ private:
     const auto inputType = node(*input).type;
     if (!inputType.array ||
         (inputType.builtin != BuiltinValue::Numeric && inputType.builtin != BuiltinValue::Record &&
-         inputType.builtin != BuiltinValue::Bool && inputType.builtin != BuiltinValue::String) ||
+         inputType.builtin != BuiltinValue::Bool && inputType.builtin != BuiltinValue::String &&
+         inputType.builtin != BuiltinValue::Function) ||
         inputType.task || inputType.fallible || inputType.device) {
       error("S060", "anonymous map requires a completed CPU numeric, Bool or record array", span);
       return {};
@@ -3306,6 +3336,8 @@ private:
     output.element = resultType.element;
     output.builtin = resultType.builtin;
     output.record = resultType.record;
+    output.recordName = resultType.recordName;
+    output.callable = resultType.callable;
     if (!validSize(output, span))
       return {};
     return add(frame, output, span, ArrayMap{*input, id, std::move(captures)});
@@ -3328,10 +3360,11 @@ private:
       const auto scalar = [](const ValueType &type) {
         return !type.tensor && !type.task && !type.fallible && !type.device &&
                (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Bool ||
-                type.builtin == BuiltinValue::String || type.builtin == BuiltinValue::Record);
+                type.builtin == BuiltinValue::String || type.builtin == BuiltinValue::Record ||
+                type.builtin == BuiltinValue::Function);
       };
-      if (targetType.builtin != BuiltinValue::Function || !targetType.callable ||
-          targetType.callable->parameters.size() != 1 ||
+      if (targetType.builtin != BuiltinValue::Function || targetType.tensor ||
+          !targetType.callable || targetType.callable->parameters.size() != 1 ||
           !scalar(targetType.callable->parameters[0]) || !scalar(targetType.callable->result)) {
         error("S059", "map requires a one-argument scalar function value", span);
         return {};
@@ -3371,6 +3404,7 @@ private:
       output.element = resultType.element;
       output.record = resultType.record;
       output.recordName = resultType.recordName;
+      output.callable = resultType.callable;
       if (!validSize(output, span))
         return {};
       return add(frame, output, span, ArrayMap{*input, id, {*target}});
@@ -3384,7 +3418,8 @@ private:
     const auto &fn = output_.functions[id];
     const auto scalar = [](const ValueType &type) {
       return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record ||
-              type.builtin == BuiltinValue::Bool || type.builtin == BuiltinValue::String) &&
+              type.builtin == BuiltinValue::Bool || type.builtin == BuiltinValue::String ||
+              type.builtin == BuiltinValue::Function) &&
              !type.tensor && !type.task && !type.fallible && !type.device;
     };
     const auto result = fn.declaredResult.value_or(fn.resultType);
@@ -3402,6 +3437,7 @@ private:
     context.element = output_.symbols[fn.parameters[0]].type.element;
     context.builtin = output_.symbols[fn.parameters[0]].type.builtin;
     context.record = output_.symbols[fn.parameters[0]].type.record;
+    context.callable = output_.symbols[fn.parameters[0]].type.callable;
     auto input = expression(frame, arguments[0], context);
     if (!input)
       return {};
@@ -3409,6 +3445,7 @@ private:
     output.element = result.element;
     output.builtin = result.builtin;
     output.record = result.record;
+    output.callable = result.callable;
     if (!validSize(output, span))
       return {};
     return add(frame, output, span, ArrayMap{*input, id});

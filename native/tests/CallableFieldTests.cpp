@@ -143,7 +143,7 @@ int main() {
           "run(value:int)->int ! TaskError:\n  try parallel:\n    try await spawn "
           "worker(value)\nfn main()->int:\n  config=Config {apply:run}\n  0\n",
           "type Config:\n  apply:fn(Config)->int\nfn main()->int:\n  0\n",
-          "fn main()->int:\n  values=[fn(value:int):value]\n  0\n",
+          "fn main()->int:\n  values=[fn(value:int):value,fn(value:float):value]\n  0\n",
           "type Config:\n  apply:fn(int)->int\nfn worker(config:Config)->int:\n  "
           "config.apply(42)\nfn main()->int ! TaskError:\n  config=Config "
           "{apply:fn(value):value}\n  try parallel:\n    try await spawn worker(config)\n",

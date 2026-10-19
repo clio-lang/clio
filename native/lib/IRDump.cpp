@@ -55,6 +55,13 @@ bool hasPlacement(const TypedModule &module) {
          });
 }
 std::string describeType(const ValueType &type) {
+  if (isFunctionArray(type)) {
+    const auto name = "[" + describeType(recordArrayElement(type)) + "]";
+    return (type.task ? "task<" + name + ">" : name) +
+           (type.fallible ? (type.errorRecord ? " ! error#" + std::to_string(*type.errorRecord)
+                                              : " ! TaskError")
+                          : "");
+  }
   if (type.builtin == BuiltinValue::Function) {
     if (!type.callable)
       return "<invalid function type>";
@@ -160,7 +167,9 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
   };
   const auto sameArray = [](const ValueType &a, const ValueType &b) {
     return a.builtin == b.builtin && a.record == b.record && a.array == b.array &&
-           (!a.array || a.builtin != BuiltinValue::Numeric || a.element == b.element);
+           (!a.array || a.builtin != BuiltinValue::Numeric || a.element == b.element) &&
+           (a.builtin != BuiltinValue::Function ||
+            sameFunctionValueType(recordArrayElement(a), recordArrayElement(b)));
   };
   if (auto invalid = recordLayoutError(module))
     return invalid->message;
@@ -173,7 +182,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
     for (std::size_t i = 0; i < a.shape.size(); ++i)
       if (b.shape[i].constant && a.shape[i].constant != b.shape[i].constant)
         return false;
-    return a.builtin != BuiltinValue::Function || sameFunctionValueType(a, b);
+    return a.builtin != BuiltinValue::Function ||
+           sameFunctionValueType(recordArrayElement(a), recordArrayElement(b));
   };
   bool hasMap = false;
   for (const auto &expression : module.expressions)
@@ -433,6 +443,9 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       return "Boolean literal requires a completed CPU scalar Bool";
     if (const auto *literal = std::get_if<TensorLiteral>(&expression.operation)) {
       if (expression.type.array) {
+        if (isFunctionArray(expression.type) &&
+            literal->elements.size() > SemanticLimits{}.maxValues / 2)
+          return "function array literal exceeds expanded storage budget";
         if (isStringArray(expression.type) &&
             literal->elements.size() > SemanticLimits{}.maxValues / 3)
           return "String array literal exceeds expanded storage budget";
@@ -450,6 +463,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
           if (element.tensor || element.array || element.task || element.fallible ||
               element.device || element.builtin != expression.type.builtin ||
               element.record != expression.type.record ||
+              (element.builtin == BuiltinValue::Function &&
+               !sameFunctionValueType(element, recordArrayElement(expression.type))) ||
               (element.builtin == BuiltinValue::Numeric &&
                element.element != expression.type.element))
             return "array literal requires homogeneous completed numeric scalar elements";
@@ -614,9 +629,12 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       if (target != NumericTarget::Cpu || !a.array || !a.tensor || a.shape.size() != 1 ||
           (a.builtin != BuiltinValue::Numeric && !isOwnedArray(a)) || a.task || a.fallible ||
           a.device || !scalar(i) || !isInteger(i.element) ||
-          (isOwnedArray(a) ? (r.builtin != a.builtin || r.record != a.record || r.tensor ||
-                              r.array || r.task || r.fallible || r.device || !r.shape.empty())
-                           : (!scalar(r) || r.element != a.element)))
+          (isOwnedArray(a)
+               ? (r.builtin != a.builtin || r.record != a.record ||
+                  (r.builtin == BuiltinValue::Function &&
+                   !sameFunctionValueType(r, recordArrayElement(a))) ||
+                  r.tensor || r.array || r.task || r.fallible || r.device || !r.shape.empty())
+               : (!scalar(r) || r.element != a.element)))
         return "array indexing requires completed CPU numeric array and integer scalar operands";
     }
     if (const auto *read = std::get_if<TensorIndex>(&expression.operation)) {
@@ -721,7 +739,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       const auto &input = module.expressions[map->input].type;
       const auto scalar = [](const ValueType &type) {
         return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record ||
-                type.builtin == BuiltinValue::Bool || type.builtin == BuiltinValue::String) &&
+                type.builtin == BuiltinValue::Bool || type.builtin == BuiltinValue::String ||
+                type.builtin == BuiltinValue::Function) &&
                !type.tensor && !type.task && !type.fallible && !type.device && !type.array &&
                type.shape.empty();
       };
@@ -756,6 +775,11 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
           expression.type.fallible ||
           input.builtin != module.symbols[fn.parameters[0]].type.builtin ||
           input.record != module.symbols[fn.parameters[0]].type.record ||
+          (input.builtin == BuiltinValue::Function &&
+           !sameFunctionValueType(recordArrayElement(input),
+                                  module.symbols[fn.parameters[0]].type)) ||
+          (expression.type.builtin == BuiltinValue::Function &&
+           !sameFunctionValueType(recordArrayElement(expression.type), fn.resultType)) ||
           (input.builtin == BuiltinValue::Numeric &&
            input.element != module.symbols[fn.parameters[0]].type.element) ||
           expression.type.builtin != fn.resultType.builtin ||

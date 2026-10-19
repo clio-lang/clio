@@ -181,4 +181,35 @@ if(BUILD_TESTING)
     set_tests_properties(native-callable-fields-${VARIANT} PROPERTIES TIMEOUT 300)
   endforeach()
 
+  foreach(VARIANT IN ITEMS debug sanitized)
+    add_executable(kalandra-function-array-tests-${VARIANT} tests/FunctionArrayTests.cpp)
+    target_compile_options(kalandra-function-array-tests-${VARIANT} PRIVATE -Wall -Wextra -Werror)
+    if(VARIANT STREQUAL "sanitized")
+      target_link_libraries(kalandra-function-array-tests-${VARIANT} PRIVATE kalandra-semantics-sanitized)
+      target_compile_definitions(kalandra-function-array-tests-${VARIANT} PRIVATE KALANDRA_FUNCTION_FRONTEND_ONLY)
+      target_compile_options(kalandra-function-array-tests-${VARIANT} PRIVATE -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+      target_link_options(kalandra-function-array-tests-${VARIANT} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all)
+    else()
+      target_link_libraries(kalandra-function-array-tests-${VARIANT} PRIVATE kalandra-backend)
+    endif()
+    add_test(NAME native-function-arrays-frontend-${VARIANT} COMMAND kalandra-function-array-tests-${VARIANT})
+    set_tests_properties(native-function-arrays-frontend-${VARIANT} PROPERTIES TIMEOUT 120)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    if(VARIANT STREQUAL "sanitized")
+      set(FUNCTION_ARRAY_RUNTIME kalandra-native-runtime-sanitized)
+    elseif(VARIANT STREQUAL "thread-sanitized")
+      set(FUNCTION_ARRAY_RUNTIME kalandra-native-runtime-thread-sanitized)
+    else()
+      set(FUNCTION_ARRAY_RUNTIME kalandra-native-runtime)
+    endif()
+    add_test(NAME native-function-arrays-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DLLVM_ROOT=${KALANDRA_LLVM_ROOT}" "-DRUNTIME=$<TARGET_FILE:${FUNCTION_ARRAY_RUNTIME}>"
+        "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/function-arrays-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyFunctionArrays.cmake")
+    set_tests_properties(native-function-arrays-${VARIANT} PROPERTIES TIMEOUT 300)
+  endforeach()
+
 endif()

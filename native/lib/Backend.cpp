@@ -168,7 +168,7 @@ private:
                                input_.source->origin(span.begin).first->path(), line, column);
   }
   Type type(const ValueType &value) {
-    if (value.builtin == BuiltinValue::Function) {
+    if (value.builtin == BuiltinValue::Function && !value.tensor) {
       auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
       return LLVM::LLVMStructType::getLiteral(builder_.getContext(), {ptr, ptr});
     }
@@ -402,7 +402,7 @@ private:
       auto upper = arith::ConstantIntOp::create(builder_, loc, 4, 32);
       guard(loc, compare(loc, arith::CmpIPredicate::uge, kind, lower), 3);
       guard(loc, compare(loc, arith::CmpIPredicate::ule, kind, upper), 3);
-    } else if (isRecordArray(source)) {
+    } else if (isRecordArray(source) || isFunctionArray(source)) {
       recordArrayLength(loc, value, source);
     } else if (isStringArray(source)) {
       auto address = stringSlot(loc, value);
@@ -475,6 +475,8 @@ private:
       return {1, 1};
     if (isStringArray(array))
       return {24, 8};
+    if (isFunctionArray(array))
+      return {16, 8};
     if (auto found = recordLayouts_.find(*array.record); found != recordLayouts_.end())
       return found->second;
     llvm::LLVMContext context;

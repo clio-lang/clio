@@ -94,11 +94,15 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
     if (++visited > 300000 || depth >= 128)
       return false;
     present = true;
-    if (target != NumericTarget::Cpu || placed || !type.callable || type.tensor || type.array ||
+    const bool array = isFunctionArray(type);
+    if (target != NumericTarget::Cpu || placed || !type.callable ||
+        (array
+             ? (!type.tensor || type.shape.size() != 1 ||
+                (type.shape[0].constant && *type.shape[0].constant > std::uint64_t(INT64_MAX) / 16))
+             : (type.tensor || !type.shape.empty())) ||
         type.task || type.device || type.record ||
         (type.errorRecord && (!type.fallible || *type.errorRecord >= module.records.size() ||
-                              !module.records[*type.errorRecord].error)) ||
-        !type.shape.empty())
+                              !module.records[*type.errorRecord].error)))
       return false;
     if (type.callable->parameters.size() > 300000 - visited)
       return false;
@@ -157,6 +161,13 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
   }
   if (!present)
     return {};
+  // Array lengths are value facts; compare stored element signatures separately.
+  const auto sameStorageType = [](ValueType a, ValueType b) {
+    if (isFunctionArray(a) && isFunctionArray(b) && a.shape.size() == 1 && b.shape.size() == 1) {
+      a.shape[0] = b.shape[0] = Extent{};
+    }
+    return sameFunctionValueType(a, b);
+  };
   const auto completed = [](ValueType type) {
     type.fallible = false;
     type.errorRecord.reset();
@@ -171,7 +182,7 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
         const auto &symbol = module.symbols[*statement.binding].type;
         const auto &value = module.expressions[statement.value].type;
         if ((symbol.builtin == BuiltinValue::Function || value.builtin == BuiltinValue::Function) &&
-            !sameFunctionValueType(symbol, value))
+            !sameStorageType(symbol, value))
           return false;
       }
     }
@@ -185,9 +196,9 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
     if (fn.result >= module.expressions.size())
       return "function has an invalid result";
     if (fn.resultType.builtin == BuiltinValue::Function &&
-        (!sameFunctionValueType(completed(fn.resultType),
-                                completed(module.expressions[fn.result].type)) ||
-         (fn.declaredResult && !sameFunctionValueType(fn.resultType, *fn.declaredResult))))
+        (!sameStorageType(completed(fn.resultType),
+                          completed(module.expressions[fn.result].type)) ||
+         (fn.declaredResult && !sameStorageType(fn.resultType, *fn.declaredResult))))
       return "function changes its returned callable signature";
   }
   for (ValueId id = 0; id < module.expressions.size(); ++id) {
@@ -211,7 +222,7 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
     if (expression.type.builtin == BuiltinValue::Function) {
       if (const auto *read = std::get_if<SymbolRead>(&expression.operation)) {
         if (read->symbol >= module.symbols.size() ||
-            !sameFunctionValueType(expression.type, module.symbols[read->symbol].type))
+            !sameStorageType(expression.type, module.symbols[read->symbol].type))
           return "function read changes its binding signature";
       } else if (const auto *read = std::get_if<RecordFieldRead>(&expression.operation)) {
         if (read->input >= id)
@@ -221,36 +232,48 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
             *input.record >= module.records.size() || input.tensor || input.array || input.task ||
             input.fallible || input.device ||
             read->field >= module.records[*input.record].fields.size() ||
-            !sameFunctionValueType(expression.type,
-                                   module.records[*input.record].fields[read->field].type))
+            !sameStorageType(expression.type,
+                             module.records[*input.record].fields[read->field].type))
           return "function field read changes its declared signature";
       } else if (const auto *choice = std::get_if<ConditionalOperation>(&expression.operation)) {
         if (choice->trueResult >= id || choice->falseResult >= id ||
-            !sameFunctionValueType(completed(expression.type),
-                                   completed(module.expressions[choice->trueResult].type)) ||
-            !sameFunctionValueType(completed(expression.type),
-                                   completed(module.expressions[choice->falseResult].type)))
+            !sameStorageType(completed(expression.type),
+                             completed(module.expressions[choice->trueResult].type)) ||
+            !sameStorageType(completed(expression.type),
+                             completed(module.expressions[choice->falseResult].type)))
           return "conditional changes a function-value signature";
       } else if (const auto *caught = std::get_if<CatchOperation>(&expression.operation)) {
         if (caught->operand >= id || caught->result >= id ||
-            !sameFunctionValueType(completed(expression.type),
-                                   completed(module.expressions[caught->operand].type)) ||
-            !sameFunctionValueType(completed(expression.type),
-                                   completed(module.expressions[caught->result].type)))
+            !sameStorageType(completed(expression.type),
+                             completed(module.expressions[caught->operand].type)) ||
+            !sameStorageType(completed(expression.type),
+                             completed(module.expressions[caught->result].type)))
           return "catch changes a returned function signature";
       } else if (const auto *match = std::get_if<MatchOperation>(&expression.operation)) {
         for (const auto &arm : match->cases)
-          if (arm.result >= id ||
-              !sameFunctionValueType(completed(expression.type),
-                                     completed(module.expressions[arm.result].type)))
+          if (arm.result >= id || !sameStorageType(completed(expression.type),
+                                                   completed(module.expressions[arm.result].type)))
             return "match changes a returned function signature";
       } else if (const auto *task = std::get_if<TaskOperation>(&expression.operation);
                  task && task->prefix == TaskPrefix::Try) {
         if (task->operand >= id || !module.expressions[task->operand].type.fallible ||
             module.expressions[task->operand].type.task ||
-            !sameFunctionValueType(completed(expression.type),
-                                   completed(module.expressions[task->operand].type)))
+            !sameStorageType(completed(expression.type),
+                             completed(module.expressions[task->operand].type)))
           return "try changes a returned function signature";
+      } else if (const auto *read = std::get_if<ArrayIndex>(&expression.operation)) {
+        if (read->input >= id || expression.type.tensor ||
+            !isFunctionArray(module.expressions[read->input].type) ||
+            !sameStorageType(expression.type,
+                             recordArrayElement(module.expressions[read->input].type)))
+          return "array index changes its stored function signature";
+      } else if (isFunctionArray(expression.type) &&
+                 (std::holds_alternative<TensorLiteral>(expression.operation) ||
+                  std::holds_alternative<ArrayMap>(expression.operation) ||
+                  std::holds_alternative<ArrayConcat>(expression.operation) ||
+                  std::holds_alternative<ArraySlice>(expression.operation) ||
+                  std::holds_alternative<ShapeCheck>(expression.operation))) {
+        // Element and descriptor invariants are checked by numericCapabilityError.
       } else if (!std::holds_alternative<FunctionReference>(expression.operation) &&
                  !std::holds_alternative<FunctionInvoke>(expression.operation) &&
                  !std::holds_alternative<FunctionCall>(expression.operation) &&
@@ -264,7 +287,8 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
     }
     if (const auto *ref = std::get_if<FunctionReference>(&expression.operation)) {
       if (ref->function >= module.functions.size() || !expression.type.callable ||
-          expression.type.fallible || expression.type.task)
+          expression.type.fallible || expression.type.task || expression.type.tensor ||
+          expression.type.array)
         return "function reference has an invalid target or signature";
       const auto &fn = module.functions[ref->function];
       auto result = fn.declaredResult.value_or(fn.resultType);
@@ -274,22 +298,22 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
         result.shape[0] = expression.type.callable->result.shape[0];
       if (fn.captureCount > fn.parameters.size() || ref->captures.size() != fn.captureCount ||
           fn.parameters.size() - fn.captureCount != expression.type.callable->parameters.size() ||
-          !sameFunctionValueType(result, expression.type.callable->result))
+          !sameStorageType(result, expression.type.callable->result))
         return "function reference changes the target signature";
       const auto explicitCount = fn.parameters.size() - fn.captureCount;
       for (std::size_t i = 0; i < fn.parameters.size(); ++i) {
         if (fn.parameters[i] >= module.symbols.size())
           return "function reference has invalid parameter metadata";
         if (i < explicitCount) {
-          if (!sameFunctionValueType(module.symbols[fn.parameters[i]].type,
-                                     expression.type.callable->parameters[i]))
+          if (!sameStorageType(module.symbols[fn.parameters[i]].type,
+                               expression.type.callable->parameters[i]))
             return "function reference changes a target parameter";
         } else {
           const auto capture = ref->captures[i - explicitCount];
           const auto &parameter = module.symbols[fn.parameters[i]].type;
           if (capture >= id || parameter.task || parameter.fallible || parameter.device ||
               parameter.builtin == BuiltinValue::Device ||
-              !sameFunctionValueType(parameter, module.expressions[capture].type))
+              !sameStorageType(parameter, module.expressions[capture].type))
             return "function reference changes a capture type or escapes a scoped value";
         }
       }
@@ -298,8 +322,9 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
       if (call->callee >= id)
         return "function-value call has an invalid callee";
       const auto &callee = module.expressions[call->callee].type;
-      if (callee.builtin != BuiltinValue::Function || !callee.callable || callee.fallible ||
-          callee.task || callee.callable->parameters.size() != call->arguments.size() ||
+      if (callee.builtin != BuiltinValue::Function || !callee.callable || callee.tensor ||
+          callee.array || callee.fallible || callee.task ||
+          callee.callable->parameters.size() != call->arguments.size() ||
           !sameFunctionValueType(expression.type, callee.callable->result))
         return "function-value call changes its signature";
       for (std::size_t i = 0; i < call->arguments.size(); ++i)
@@ -313,7 +338,7 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
               for (std::size_t axis = 0; axis < formal.shape.size(); ++axis)
                 if (!formal.shape[axis].constant)
                   actual.shape[axis] = formal.shape[axis];
-              return sameFunctionValueType(actual, formal);
+              return sameStorageType(actual, formal);
             })())
           return "function-value call changes an argument type";
     }
@@ -324,7 +349,7 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
       if (fn.parameters.size() != call->arguments.size())
         return "call has an invalid argument count";
       if (expression.type.builtin == BuiltinValue::Function &&
-          !sameFunctionValueType(expression.type, fn.declaredResult.value_or(fn.resultType)))
+          !sameStorageType(expression.type, fn.declaredResult.value_or(fn.resultType)))
         return "call changes a returned function signature";
       for (std::size_t i = 0; i < call->arguments.size(); ++i) {
         if (fn.parameters[i] >= module.symbols.size() || call->arguments[i] >= id)
@@ -333,7 +358,7 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
         const auto &formal = module.symbols[fn.parameters[i]].type;
         if ((actual.builtin == BuiltinValue::Function ||
              formal.builtin == BuiltinValue::Function) &&
-            !sameFunctionValueType(actual, formal))
+            !sameStorageType(actual, formal))
           return "call changes a function parameter signature";
       }
     }

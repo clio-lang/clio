@@ -162,17 +162,19 @@ private:
     }
     if (at(TokenKind::LeftBracket)) {
       const auto start = advance().span;
-      auto element = expect(TokenKind::Identifier, "expected a numeric array element type");
+      auto element = parseType();
       if (!element)
         return {};
+      if (element->array || element->tensor) {
+        error("P006", "array elements require a scalar, record or function type", element->span);
+        return {};
+      }
       auto end = expect(TokenKind::RightBracket, "expected ']' after array element type");
       if (!end)
         return {};
-      TypeSyntax type;
-      type.name = element->span;
-      type.span = {start.begin, end->span.end};
-      type.array = true;
-      return type;
+      element->span = {start.begin, end->span.end};
+      element->array = true;
+      return element;
     }
     auto name = expect(TokenKind::Identifier, "expected a type name");
     if (!name)
