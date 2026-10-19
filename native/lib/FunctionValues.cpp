@@ -74,8 +74,11 @@ bool containsFunctionStorage(const TypedModule &module, const ValueType &type) {
   return false;
 }
 namespace {
-// Conservative expression provenance: ordinary references, aliases, branches
-// and direct factory results. Parameters and aggregate projections stay staged.
+// Whole-module, conservative provenance. Every direct caller contributes to a
+// parameter, so one unsafe source cannot be hidden by another safe call site.
+// Lifted capture parameters come from their closure construction sites. Explicit
+// parameters of functions used as values remain staged: those can also be fed by
+// indirect calls and map callbacks, outside this direct-call source graph.
 bool workerValueProvenance(const TypedModule &module, ValueId root) {
   std::unordered_map<SymbolId, ValueId> bindings;
   const auto statements = [&](const auto &body) {
@@ -98,6 +101,37 @@ bool workerValueProvenance(const TypedModule &module, ValueId root) {
               statements(arm.body);
         },
         expression.operation);
+  std::unordered_map<SymbolId, std::vector<ValueId>> parameterSources;
+  std::unordered_set<SymbolId> indirectParameters;
+  for (const auto &expression : module.expressions) {
+    if (const auto *call = std::get_if<FunctionCall>(&expression.operation)) {
+      if (call->function >= module.functions.size())
+        return false;
+      const auto &fn = module.functions[call->function];
+      if (call->arguments.size() != fn.parameters.size())
+        return false;
+      for (std::size_t i = 0; i < fn.parameters.size(); ++i)
+        parameterSources[fn.parameters[i]].push_back(call->arguments[i]);
+    } else if (const auto *map = std::get_if<ArrayMap>(&expression.operation)) {
+      // Named map callbacks do not necessarily have a FunctionReference node.
+      // Do not mistake their element/capture parameters for direct-call-only ones.
+      if (map->function >= module.functions.size())
+        return false;
+      for (auto parameter : module.functions[map->function].parameters)
+        indirectParameters.insert(parameter);
+    } else if (const auto *ref = std::get_if<FunctionReference>(&expression.operation)) {
+      if (ref->function >= module.functions.size())
+        return false;
+      const auto &fn = module.functions[ref->function];
+      if (fn.captureCount > fn.parameters.size() || ref->captures.size() != fn.captureCount)
+        return false;
+      const auto explicitCount = fn.parameters.size() - fn.captureCount;
+      for (std::size_t i = 0; i < explicitCount; ++i)
+        indirectParameters.insert(fn.parameters[i]);
+      for (std::size_t i = 0; i < fn.captureCount; ++i)
+        parameterSources[fn.parameters[explicitCount + i]].push_back(ref->captures[i]);
+    }
+  }
   std::vector<ValueId> pending{root};
   std::unordered_set<ValueId> visited;
   std::size_t budget = 300000;
@@ -173,13 +207,19 @@ bool workerValueProvenance(const TypedModule &module, ValueId root) {
       found = true;
     } else if (const auto *read = std::get_if<SymbolRead>(&value.operation)) {
       const auto binding = bindings.find(read->symbol);
-      if (read->symbol >= module.symbols.size() || module.symbols[read->symbol].parameter ||
-          binding == bindings.end())
+      if (read->symbol >= module.symbols.size())
         return false;
-      // Published IR only permits reads of earlier immutable initializers.
-      if (binding->second >= id)
-        return false;
-      pending.push_back(binding->second);
+      if (module.symbols[read->symbol].parameter) {
+        const auto sources = parameterSources.find(read->symbol);
+        if (indirectParameters.contains(read->symbol) || sources == parameterSources.end() ||
+            sources->second.empty())
+          return false;
+        pending.insert(pending.end(), sources->second.begin(), sources->second.end());
+      } else {
+        if (binding == bindings.end() || binding->second >= id)
+          return false;
+        pending.push_back(binding->second);
+      }
     } else if (const auto *choice = std::get_if<ConditionalOperation>(&value.operation)) {
       if (choice->trueResult >= id || choice->falseResult >= id)
         return false;

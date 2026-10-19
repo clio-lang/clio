@@ -82,6 +82,15 @@ void negative() {
   const std::string base = "error E:\n  Bad:\n    value:int\nfn checked(value:int)->int ! E:\n  if "
                            "value==0:fail E.Bad {value:42}\n  value*2\nfn other(value:int)->int ! "
                            "E:\n  if value==0:fail E.Bad {value:21}\n  value*3\n";
+  require(
+      analyze(
+          base +
+          "fn use(value:int,f:fn(int)->int ! E)->int ! E:\n  try f(value)\n"
+          "fn forward(f:fn(int)->int ! E)->int ! (E | TaskError):\n  try parallel:\n    try await "
+          "spawn use(0,f)\n"
+          "fn main()->int ! (E | TaskError):\n  try forward(checked)\n")
+          .ok(),
+      "fallible callable parameter forwarding rejected");
   for (const auto *source :
        {"fn main()->int:\n  f=checked\n  f(1)+1\n",
         "fn main()->int:\n  f:fn(int)->int=checked\n  0\n",
@@ -92,10 +101,6 @@ void negative() {
         "fn main()->int:\n  f=checked\n  result=map([1],f)\n  result[0]\n",
         "fn main()->int ! (E | TaskError):\n  f=checked\n  try parallel:\n    try await spawn "
         "f(0)\n",
-        "fn use(value:int,f:fn(int)->int ! E)->int ! E:\n  try f(value)\n"
-        "fn forward(f:fn(int)->int ! E)->int ! (E | TaskError):\n  try parallel:\n    try await "
-        "spawn use(0,f)\n"
-        "fn main()->int ! (E | TaskError):\n  try forward(checked)\n",
         "fn worker(value:int)->int ! (E | TaskError):\n  try parallel:\n    try await spawn "
         "other(value)\nfn hidden(value:int)->int:\n  worker(value) catch fn(error):0\nfn "
         "main()->int:\n  f=hidden\n  f(1)\n",

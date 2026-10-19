@@ -19,7 +19,7 @@ int main() {
     for (const auto *directory :
          {KALANDRA_WORKER_FUNCTION_FIXTURES, KALANDRA_WORKER_CLOSURE_FIXTURES,
           KALANDRA_WORKER_NESTED_FIXTURES, KALANDRA_WORKER_RESULT_FIXTURES,
-          KALANDRA_WORKER_AGGREGATE_FIXTURES}) {
+          KALANDRA_WORKER_AGGREGATE_FIXTURES, KALANDRA_WORKER_PARAMETER_FIXTURES}) {
       for (const auto &file : std::filesystem::directory_iterator(directory)) {
         if (file.path().extension() != ".k")
           continue;
@@ -33,7 +33,7 @@ int main() {
         ++count;
       }
     }
-    require(count == 64, "worker callable fixture catalog incomplete");
+    require(count == 77, "worker callable fixture catalog incomplete");
     const std::string base = "fn double(value:int)->int:\n  value*2\nfn "
                              "apply(value:int,transform:fn(int)->int)->int:\n  transform(value)\n";
     for (const auto *body :
@@ -43,8 +43,12 @@ int main() {
           "fn make(target:fn(int)->int)->fn(int)->int:\n  target\nfn main()->int ! TaskError:\n  "
           "try parallel:\n    try await spawn apply(21,make(double))\n",
           "fn forward(f:fn(int)->int)->int ! TaskError:\n  try parallel:\n    try await spawn "
-          "apply(21,f)\nfn main()->int ! TaskError:\n  try forward(double)\n",
-          "fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    try await spawn f(21)\n",
+          "apply(21,f)\nfn main()->int ! TaskError:\n  try forward(double)\n"}) {
+      auto result = analyze(base + body);
+      require(result.ok(), "direct parameter provenance rejected");
+    }
+    for (const auto *body :
+         {"fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    try await spawn f(21)\n",
           "fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    values=try await spawn "
           "map([21],f)\n    values[0]\n"}) {
       auto result = analyze(base + body);
@@ -52,6 +56,16 @@ int main() {
       require(
           std::ranges::any_of(result.diagnostics, [](const auto &d) { return d.code == "S074"; }),
           "unsupported transport lost its capability diagnostic");
+    }
+    for (const auto &file : std::filesystem::directory_iterator(
+             std::filesystem::path(KALANDRA_WORKER_PARAMETER_FIXTURES) / "rejected")) {
+      if (file.path().extension() != ".k")
+        continue;
+      std::ifstream stream(file.path());
+      auto result = analyze({std::istreambuf_iterator<char>(stream), {}});
+      require(!result.ok() && std::ranges::any_of(result.diagnostics,
+                                                  [](const auto &d) { return d.code == "S074"; }),
+              "unproven parameter sources admitted");
     }
     auto result = analyze(base + "fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    "
                                  "try await spawn apply(21,f)\n");
@@ -96,7 +110,7 @@ int main() {
       require(changed && numericCapabilityError(module, NumericTarget::Cpu).has_value(),
               "forged function result task/signature admitted");
     }
-    std::cout << "Worker named functions: 64 valid programs, 5 rejected boundaries, 6 forged IR "
+    std::cout << "Worker named functions: 77 valid programs, 8 rejected boundaries, 6 forged IR "
                  "cases passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';
