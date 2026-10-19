@@ -65,7 +65,6 @@ int main() {
           "    match error:\n      A.Missing:0\n      A.Missing:1\n      _:2\n",
           "fn joined()->int ! Both:\n  first()\nfn main()->int:\n  joined() catch fn(error):\n"
           "    match error:\n      Both.Missing:0\n      _:1\n",
-          "fn main()->int ! (Both | TaskError):\n  0\n",
           "fn child()->int ! Both:\n  first()\nfn main()->int ! TaskError:\n"
           "  try parallel:\n    try await spawn child()\n"})
       require(!analyze(types + functions + body).ok(), "invalid union admitted");

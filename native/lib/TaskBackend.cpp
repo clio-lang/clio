@@ -206,9 +206,18 @@ public:
         builder.SetInsertPoint(report);
         const auto [original, variant] = errorOrigin(planner.input, family, i);
         const auto &source = planner.input.records[original];
-        call("kalandra_expected_application_error_v1", voidType,
-             {ctx, builder.CreateGlobalString(source.name),
-              builder.CreateGlobalString(source.variants[variant].name)});
+        if (source.taskErrorFamily) {
+          const auto slot = record.variants[i].fields.front();
+          auto *failure = builder.CreateStructGEP(scalarType(errorRecordType(family)), data, slot);
+          call("kalandra_expected_task_error_v1", voidType,
+               {ctx,
+                builder.CreateZExt(
+                    builder.CreateLoad(i32, builder.CreateStructGEP(failureType, failure, 0)), i64),
+                loadFailure(failure, 1), loadFailure(failure, 2), loadFailure(failure, 3)});
+        } else
+          call("kalandra_expected_application_error_v1", voidType,
+               {ctx, builder.CreateGlobalString(source.name),
+                builder.CreateGlobalString(source.variants[variant].name)});
         returnFailure();
       }
       builder.SetInsertPoint(invalid);
@@ -266,6 +275,10 @@ private:
         fields.push_back(scalarType(field.type));
       return recordTypes[*type.record] = llvm::StructType::get(context, fields);
     }
+    if (type.builtin == BuiltinValue::TaskError)
+      return failureType;
+    if (type.builtin == BuiltinValue::FaultKind)
+      return i32;
     if (type.builtin == BuiltinValue::Bool)
       return boolean;
     if (type.builtin == BuiltinValue::String)
@@ -323,9 +336,9 @@ private:
     const auto name = key(type);
     if (auto found = values.find(name); found != values.end())
       return found->second;
-    Type *payload = type.builtin == BuiltinValue::TaskError   ? static_cast<Type *>(failureType)
+    Type *payload = type.task                                 ? static_cast<Type *>(handleType)
+                    : type.builtin == BuiltinValue::TaskError ? static_cast<Type *>(failureType)
                     : type.builtin == BuiltinValue::FaultKind ? i32
-                    : type.task                               ? static_cast<Type *>(handleType)
                     : type.tensor ? static_cast<Type *>(descriptor(type))
                                   : scalarType(type);
     std::vector<Type *> fields{failureType, payload};
@@ -389,16 +402,60 @@ private:
     builder.CreateBr(done);
     builder.SetInsertPoint(done);
   }
+  void injectTaskError(std::size_t target, Value *output, Value *failure) {
+    if (!errorSubset(planner.input, {}, target))
+      throw std::runtime_error("destination does not cover TaskError");
+    const auto &record = planner.input.records[target];
+    auto *outType = scalarType(errorRecordType(target));
+    builder.CreateStore(llvm::Constant::getNullValue(outType), output);
+    auto *fn = builder.GetInsertBlock()->getParent();
+    auto *done = Block::Create(context, "task.error.injected", fn);
+    auto *invalid = Block::Create(context, "task.error.invalid", fn);
+    auto *kind = builder.CreateLoad(i32, builder.CreateStructGEP(failureType, failure, 0));
+    auto *dispatch = builder.CreateSwitch(kind, invalid, 4);
+    for (std::size_t i = 0; i < record.variants.size(); ++i) {
+      const auto [original, variant] = errorOrigin(planner.input, target, i);
+      if (!planner.input.records[original].taskErrorFamily)
+        continue;
+      auto *active = Block::Create(context, "task.error.payload", fn);
+      dispatch->addCase(c32(variant + 1), active);
+      builder.SetInsertPoint(active);
+      builder.CreateStore(c64(i + 1), builder.CreateStructGEP(outType, output, 0));
+      copy(builder.CreateStructGEP(outType, output, record.variants[i].fields.front()), failure,
+           failureType);
+      builder.CreateBr(done);
+    }
+    builder.SetInsertPoint(invalid);
+    builder.CreateStore(c64(UINT64_MAX), builder.CreateStructGEP(outType, output, 0));
+    builder.CreateBr(done);
+    builder.SetInsertPoint(done);
+  }
+  void copyErrorPayload(std::size_t target, Value *output, const ValueType &source, Value *input) {
+    if (source.errorRecord)
+      copyErrorValue(target, output, *source.errorRecord, application(source, input));
+    else
+      builder.CreateStore(llvm::Constant::getNullValue(scalarType(errorRecordType(target))),
+                          output);
+    if (errorSubset(planner.input, {}, target)) {
+      auto *fn = builder.GetInsertBlock()->getParent();
+      auto *active = Block::Create(context, "task.error.normalize", fn);
+      auto *done = Block::Create(context, "task.error.normalized", fn);
+      auto *header = builder.CreateStructGEP(valueType(source), input, 0);
+      builder.CreateCondBr(hasFailure(header), active, done);
+      builder.SetInsertPoint(active);
+      injectTaskError(target, output, header);
+      builder.CreateBr(done);
+      builder.SetInsertPoint(done);
+    }
+  }
   void copyErrors(const ValueType &outType, Value *output, const ValueType &inType, Value *input) {
     copy(builder.CreateStructGEP(valueType(outType), output, 0),
          builder.CreateStructGEP(valueType(inType), input, 0), failureType);
     if (outType.errorRecord) {
-      auto *errorType = scalarType(errorRecordType(*outType.errorRecord));
-      if (inType.errorRecord) {
-        copyErrorValue(*outType.errorRecord, application(outType, output), *inType.errorRecord,
-                       application(inType, input));
-      } else
-        builder.CreateStore(llvm::Constant::getNullValue(errorType), application(outType, output));
+      copyErrorPayload(*outType.errorRecord, application(outType, output), inType, input);
+      if (errorSubset(planner.input, {}, outType.errorRecord))
+        builder.CreateStore(llvm::Constant::getNullValue(failureType),
+                            builder.CreateStructGEP(valueType(outType), output, 0));
     }
   }
   void copyResult(const ValueType &outType, Value *output, const ValueType &inType, Value *input) {
@@ -453,10 +510,17 @@ private:
   void retainRecord(const ValueType &type, Value *input, Function *fn, Block *failed) {
     const auto &record = planner.input.records[*type.record];
     const auto &fields = record.fields;
-    const auto retainField = [&](std::size_t i) {
+    const auto retainField = [&](std::size_t i, std::optional<std::size_t> taskKind = {}) {
       const auto &field = fields[i].type;
       auto *address = builder.CreateStructGEP(scalarType(type), input, i);
-      if (isRecordArray(field))
+      if (field.builtin == BuiltinValue::TaskError) {
+        if (!taskKind)
+          throw std::runtime_error("TaskError payload lacks its declared variant");
+        auto *kind = builder.CreateLoad(i32, builder.CreateStructGEP(failureType, address, 0));
+        auto *next = Block::Create(context, "task.error.validated", fn);
+        builder.CreateCondBr(builder.CreateICmpEQ(kind, c32(*taskKind)), next, failed);
+        builder.SetInsertPoint(next);
+      } else if (isRecordArray(field))
         retainRecordArray(field, address, fn, failed);
       else if (field.builtin == BuiltinValue::Record)
         retainRecord(field, address, fn, failed);
@@ -504,8 +568,11 @@ private:
         auto *active = Block::Create(context, "enum.payload", fn);
         dispatch->addCase(c64(i + 1), active);
         builder.SetInsertPoint(active);
+        const auto [origin, variant] = errorOrigin(planner.input, *type.record, i);
         for (auto slot : record.variants[i].fields)
-          retainField(slot);
+          retainField(slot, planner.input.records[origin].taskErrorFamily
+                                ? std::optional{variant + 1}
+                                : std::nullopt);
         builder.CreateBr(done);
       }
       builder.SetInsertPoint(done);
@@ -537,7 +604,20 @@ private:
       builder.CreateRet(builder.getFalse());
       builder.SetInsertPoint(success);
     }
-    if (isStringArray(type) && !type.task) {
+    if (type.builtin == BuiltinValue::TaskError && !type.task) {
+      auto *validate = Block::Create(context, "task.value.success", fn);
+      builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
+                           validate);
+      builder.SetInsertPoint(validate);
+      auto *data = builder.CreateStructGEP(wrapper, fn->getArg(3), 1);
+      auto *kind = builder.CreateLoad(i32, builder.CreateStructGEP(failureType, data, 0));
+      auto *failed = Block::Create(context, "task.value.invalid", fn);
+      builder.CreateCondBr(builder.CreateAnd(builder.CreateICmpUGE(kind, c32(1)),
+                                             builder.CreateICmpULE(kind, c32(4))),
+                           ready, failed);
+      builder.SetInsertPoint(failed);
+      builder.CreateRet(builder.getFalse());
+    } else if (isStringArray(type) && !type.task) {
       auto *retain = Block::Create(context, "string.array.retain", fn);
       auto *failed = Block::Create(context, "string.array.failed", fn);
       builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
@@ -821,7 +901,8 @@ private:
         // MLIR C wrappers return both memrefs and LLVM aggregate values through
         // a leading output pointer, while record arguments remain values.
         const bool indirectResult = type.tensor || type.builtin == BuiltinValue::Record ||
-                                    type.builtin == BuiltinValue::String;
+                                    type.builtin == BuiltinValue::String ||
+                                    type.builtin == BuiltinValue::TaskError;
         if (indirectResult)
           arguments.push_back(payload(instruction.output));
         for (auto argument : instruction.args)
@@ -920,10 +1001,14 @@ private:
             throw std::runtime_error("application fail lost its declared error family");
           copyErrorValue(*target.errorRecord, application(target, slot(instruction.target)),
                          *source.record, payload(input));
-        } else if (explicitFail)
-          copy(builder.CreateStructGEP(valueType(target), slot(instruction.target), 0), header,
-               failureType);
-        else
+        } else if (explicitFail) {
+          if (target.errorRecord)
+            injectTaskError(*target.errorRecord, application(target, slot(instruction.target)),
+                            header);
+          else
+            copy(builder.CreateStructGEP(valueType(target), slot(instruction.target), 0), header,
+                 failureType);
+        } else
           copyErrors(target, slot(instruction.target), source, slot(input));
         builder.CreateBr(blocks[instruction.jump]);
         builder.SetInsertPoint(success);
@@ -940,8 +1025,8 @@ private:
         builder.CreateCondBr(hasResultError(plan.slots[input], slot(input)), handle, success);
         builder.SetInsertPoint(handle);
         if (plan.slots[input].errorRecord)
-          copy(payload(instruction.args[1]), application(plan.slots[input], slot(input)),
-               scalarType(plan.slots[instruction.args[1]]));
+          copyErrorPayload(*plan.slots[input].errorRecord, payload(instruction.args[1]),
+                           plan.slots[input], slot(input));
         else
           copy(payload(instruction.args[1]), header, failureType);
         builder.CreateBr(blocks[instruction.jump]);
@@ -971,7 +1056,12 @@ private:
         builder.CreateBr(blocks[instruction.jump]);
         break;
       case Code::Field: {
+        const auto &read =
+            std::get<ErrorFieldRead>(planner.input.expressions[instruction.source].operation);
         auto *error = payload(instruction.args[0]);
+        if (read.taskSlot)
+          error = builder.CreateStructGEP(scalarType(plan.slots[instruction.args[0]]), error,
+                                          *read.taskSlot);
         auto *code = loadFailure(error, 1);
         auto field = static_cast<ErrorField>(instruction.target);
         if (field == ErrorField::Kind) {

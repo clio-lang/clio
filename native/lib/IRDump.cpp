@@ -205,6 +205,37 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
             (statement.binding && *statement.binding >= module.symbols.size()))
           return "invalid failure guard statement";
     }
+    if (const auto *read = std::get_if<ErrorFieldRead>(&expression.operation)) {
+      if (read->subject >= module.expressions.size() ||
+          static_cast<unsigned>(read->field) > static_cast<unsigned>(ErrorField::Reason))
+        return "invalid TaskError field read";
+      const auto &input = module.expressions[read->subject].type;
+      if (input.task || input.fallible || input.tensor || input.array || expression.type.task ||
+          expression.type.fallible || expression.type.tensor || expression.type.array ||
+          expression.type.builtin !=
+              (read->field == ErrorField::Kind ? BuiltinValue::FaultKind : BuiltinValue::String))
+        return "invalid completed TaskError field type";
+      if (read->taskSlot) {
+        if (input.builtin != BuiltinValue::Record || !input.record ||
+            *input.record >= module.records.size())
+          return "invalid mixed TaskError field subject";
+        const auto &record = module.records[*input.record];
+        if (*read->taskSlot >= record.fields.size() ||
+            record.fields[*read->taskSlot].type.builtin != BuiltinValue::TaskError)
+          return "invalid mixed TaskError payload slot";
+        bool valid = false;
+        for (std::size_t v = 0; v < record.variants.size(); ++v)
+          if (std::ranges::find(record.variants[v].fields, *read->taskSlot) !=
+              record.variants[v].fields.end()) {
+            const auto [original, variant] = errorOrigin(module, *input.record, v);
+            valid = module.records[original].taskErrorFamily &&
+                    variant == (read->field == ErrorField::Reason ? 3 : 0);
+          }
+        if (!valid)
+          return "TaskError field is unavailable in selected variant";
+      } else if (input.builtin != BuiltinValue::TaskError)
+        return "TaskError field requires a typed TaskError subject";
+    }
     if (const auto *failure = std::get_if<FailOperation>(&expression.operation)) {
       if (failure->error >= module.expressions.size() || !expression.type.fallible ||
           expression.type.task)

@@ -178,6 +178,12 @@ private:
       return recordTypes_[*value.record] =
                  LLVM::LLVMStructType::getLiteral(builder_.getContext(), fields);
     }
+    if (value.builtin == BuiltinValue::TaskError)
+      return LLVM::LLVMStructType::getLiteral(builder_.getContext(),
+                                              {builder_.getI32Type(), builder_.getI64Type(),
+                                               builder_.getI64Type(), builder_.getI64Type()});
+    if (value.builtin == BuiltinValue::FaultKind)
+      return builder_.getI32Type();
     if (value.builtin == BuiltinValue::Bool)
       return builder_.getI1Type();
     if (value.builtin == BuiltinValue::String) {
@@ -274,7 +280,13 @@ private:
     func::CallOp::create(builder_, loc, "kalandra_string_validate", TypeRange{}, ValueRange{slot});
   }
   void validateStrings(Location loc, Value value, const ValueType &source) {
-    if (isRecordArray(source)) {
+    if (source.builtin == BuiltinValue::TaskError && !source.tensor) {
+      auto kind = LLVM::ExtractValueOp::create(builder_, loc, value, ArrayRef<int64_t>{0});
+      auto lower = arith::ConstantIntOp::create(builder_, loc, 1, 32);
+      auto upper = arith::ConstantIntOp::create(builder_, loc, 4, 32);
+      guard(loc, compare(loc, arith::CmpIPredicate::uge, kind, lower), 3);
+      guard(loc, compare(loc, arith::CmpIPredicate::ule, kind, upper), 3);
+    } else if (isRecordArray(source)) {
       recordArrayLength(loc, value, source);
     } else if (isStringArray(source)) {
       auto address = stringSlot(loc, value);

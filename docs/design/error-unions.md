@@ -1,6 +1,6 @@
 # Local application-error unions and aliases
 
-The native CPU compiler supports combining declared application-error families in one expected-error channel. This implements the local union/alias portion of the accepted [variant design](variants.md), building on [local application errors](application-errors.md). `TaskError` composition and application errors escaping workers remain the next stage.
+The native CPU compiler supports combining declared application-error families in one expected-error channel. This implements the local union/alias portion of the accepted [variant design](variants.md), building on [local application errors](application-errors.md). [Local TaskError composition](mixed-error-channels.md) is now implemented. Application errors escaping workers remain the next stage.
 
 ```kalandra
 error ReadError:
@@ -84,7 +84,7 @@ Unhandled CLI errors still print the original `Family.Variant` and exit with sta
 
 ## Remaining boundaries
 
-Combining application families with built-in `TaskError` is still rejected explicitly. Source-level `spawn` of a fallible application result and propagation of application errors out of a parallel group remain gated until `E | TaskError` preserves both application and execution outcomes. Fully recovering an application union inside a worker is supported.
+[Local mixed application/TaskError channels](mixed-error-channels.md) are implemented. Source-level `spawn` of a fallible application result and propagation of application errors out of a parallel group remain gated pending worker/group transport of both application and execution outcomes. Fully recovering an application union inside a worker is supported.
 
 GPU error transport, distributed schemas, public foreign interfaces, recursive payloads and general function values are not introduced by this milestone.
 

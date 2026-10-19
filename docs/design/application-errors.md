@@ -1,6 +1,6 @@
 # Local application-error channels
 
-This document describes the initial native implementation of a single declared application-error family per function. It is the first implementation stage of the [accepted errors](errors.md) and [variant](variants.md) design. [Application-family unions and aliases](error-unions.md) are now implemented in a subsequent milestone. Composition with `TaskError` and application errors escaping through `spawn`/`await` remain follow-up work.
+This document describes the initial native implementation of a single declared application-error family per function. It is the first implementation stage of the [accepted errors](errors.md) and [variant](variants.md) design. [Application-family unions and aliases](error-unions.md) are now implemented in a subsequent milestone. [Local composition with TaskError](mixed-error-channels.md) is also implemented; application errors escaping through `spawn`/`await` remain follow-up work.
 
 ```kalandra
 error StatisticsError:
@@ -59,7 +59,7 @@ fn publicAverage(samples: [float]) -> float ! PublicError:
   average(samples) catch fn(error): fail PublicError.Unavailable
 ```
 
-The handler replaces the handled channel; it does not nest results or wrap `StatisticsError` in `PublicError`. Success bypasses the handler and remains success. Handlers can now escape with multiple application families through the [local union support](error-unions.md); mixed application/TaskError channels remain pending. Matches remain exhaustive unless an explicit final `_` supplies a policy for remaining variants.
+The handler replaces the handled channel; it does not nest results or wrap `StatisticsError` in `PublicError`. Success bypasses the handler and remains success. Handlers can now escape with multiple application families through the [local union support](error-unions.md); [local mixed application/TaskError channels](mixed-error-channels.md) are also implemented. Matches remain exhaustive unless an explicit final `_` supplies a policy for remaining variants.
 
 Arithmetic, bounds and implicit allocation faults retain their execution-fault behavior. An application-error handler cannot swallow such a fault. Existing `TaskError` propagation and recovery remain available for execution failures at task boundaries.
 
@@ -67,7 +67,7 @@ Arithmetic, bounds and implicit allocation faults retain their execution-fault b
 
 Application payloads use automatic managed ownership. Strings, numeric/Bool/String arrays, tensors, nested records/enums and record/enum arrays retain their backing when a typed result is transferred by the private runtime. Observations may outlive the originating task and scheduler. Failed retention must leave the output untouched and release partially acquired owners on settlement.
 
-A worker may call an application-fallible helper and fully handle its error locally before returning an ordinary value. A function returning `T ! E` cannot yet be spawned as a source-level worker, and propagating E out of a parallel group is rejected. Those operations need `E | TaskError` so application failures and cancellation/fault/admission failures both remain typed. No implicit conversion to `TaskError.Fault` is supplied.
+A worker may call an application-fallible helper and fully handle its error locally before returning an ordinary value. A function returning `T ! E` cannot yet be spawned as a source-level worker, and propagating E out of a parallel group is rejected. The required `E | TaskError` channel is now implemented locally; worker/group transport of both application and execution outcomes remains pending. No implicit conversion to `TaskError.Fault` is supplied.
 
 An unhandled application error at the CLI prints its original `Family.Variant`, exits with status `89`, and settles managed backing. No success output is printed. This diagnostic does not expose an ordinal, host layout, or public C/C++ or network ABI.
 

@@ -240,6 +240,7 @@ enum class ErrorField { Kind, Message, Reason };
 struct ErrorFieldRead {
   ValueId subject;
   ErrorField field;
+  std::optional<std::size_t> taskSlot = {}; // Private TaskError payload inside a mixed union.
 };
 struct FailOperation {
   ValueId error;
@@ -273,6 +274,7 @@ struct TypedRecord {
   std::vector<TypedRecordField> fields;
   std::vector<TypedVariant> variants = {};
   bool error = false; // Only declared errors may appear in expected-error channels.
+  bool taskErrorFamily = false; // Private canonical identity for built-in TaskError in unions.
   std::vector<std::size_t> errorMembers =
       {}; // Canonical original families for a transparent union.
   std::vector<std::pair<std::size_t, std::size_t>> errorOrigins =

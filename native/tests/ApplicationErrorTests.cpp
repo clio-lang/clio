@@ -69,7 +69,6 @@ int main() {
           "fn main()->int ! InputError:\n  result=if true:\n    fail InputError.Empty\n  1\n",
           "fn main()->int ! InputError:\n  if true:\n    fail InputError.Empty\n",
           "fn main()->int ! InputError:\n  if 1:\n    fail InputError.Empty\n  1\n",
-          "fn main()->int ! (InputError | TaskError):\n  1\n",
           "fn main()->int ! InputError | TaskError:\n  1\n"})
       require(!analyze(decl + body).ok(),
               "invalid/unsupported error program admitted: " + std::string(body));

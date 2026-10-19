@@ -31,3 +31,5 @@ if(BUILD_TESTING)
 endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/ErrorUnions.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/MixedErrors.cmake")

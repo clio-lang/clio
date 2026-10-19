@@ -265,6 +265,10 @@ private:
   }
   ValueType recordType(std::size_t id) const {
     ValueType type;
+    if (output_.records[id].taskErrorFamily) {
+      type.builtin = BuiltinValue::TaskError;
+      return type;
+    }
     type.builtin = BuiltinValue::Record;
     type.record = id;
     type.recordName = output_.records[id].name;
@@ -288,6 +292,31 @@ private:
     resolvingExports_.erase(key);
     exports_.emplace(key, resolved);
     return resolved;
+  }
+  std::size_t taskFamily() {
+    if (auto found = taskErrorFamily(output_))
+      return *found;
+    TypedRecord task{"TaskError", {}, {}};
+    task.error = task.taskErrorFamily = true;
+    ValueType tag;
+    tag.element = NumericType::Int64;
+    task.fields.push_back({"$tag", tag, {}});
+    ValueType payload;
+    payload.builtin = BuiltinValue::TaskError;
+    for (const auto *label : {"Fault", "Cancelled", "DeadlineExceeded", "AdmissionRejected"}) {
+      auto slot = task.fields.size();
+      task.fields.push_back({"$failure" + std::to_string(slot), payload, {}});
+      task.variants.push_back({label, {}, {slot}});
+    }
+    const auto id = output_.records.size();
+    output_.records.push_back(std::move(task));
+    return id;
+  }
+  std::size_t concreteError(std::optional<std::size_t> family) {
+    return family ? *family : taskFamily();
+  }
+  std::optional<std::size_t> normalizedError(std::size_t family) const {
+    return output_.records[family].taskErrorFamily ? std::nullopt : std::optional{family};
   }
   std::optional<std::size_t> combineErrors(std::vector<std::size_t> members, SourceSpan span) {
     std::vector<std::size_t> flattened;
@@ -358,17 +387,15 @@ private:
   }
   std::optional<std::size_t> resolveError(SourceSpan member,
                                           std::unordered_set<std::size_t> &active) {
+    if (name(member) == "TaskError")
+      return taskFamily();
     const auto key = functionKey(syntax_.source->partIndex(member.begin), name(member));
     if (auto alias = aliases_.find(key); alias != aliases_.end())
       return resolveAlias(alias->second, active);
     if (auto found = records_.find(key);
         found != records_.end() && output_.records[found->second].error)
       return found->second;
-    error("S072",
-          name(member) == "TaskError"
-              ? "mixing TaskError with application errors is pending task-boundary support"
-              : "expected a declared error family or error alias",
-          member);
+    error("S072", "expected a declared error family or error alias", member);
     return {};
   }
   void registerRecords() {
@@ -556,8 +583,12 @@ private:
           else
             signatures_[id] = false;
         }
-        if (signatures_[id])
-          errorFamilies_[id] = combineErrors(std::move(families), *function.errorType);
+        if (signatures_[id]) {
+          if (auto family = combineErrors(std::move(families), *function.errorType))
+            errorFamilies_[id] = normalizedError(*family);
+          else
+            signatures_[id] = false;
+        }
       }
       if (function.result) {
         target.declaredResult = type(*function.result);
@@ -969,15 +1000,11 @@ private:
   bool propagateError(Frame &frame, std::optional<std::size_t> family, SourceSpan span) {
     if (frame.handlerFallible && frame.groups.size() == frame.handlerDepth) {
       if (*frame.handlerFallible && *frame.handlerErrorRecord != family) {
-        if (!*frame.handlerErrorRecord || !family) {
-          error("S072", "mixing TaskError with application errors is pending task-boundary support",
-                span);
-          return false;
-        }
-        auto combined = combineErrors({**frame.handlerErrorRecord, *family}, span);
+        auto combined =
+            combineErrors({concreteError(*frame.handlerErrorRecord), concreteError(family)}, span);
         if (!combined)
           return false;
-        family = combined;
+        family = normalizedError(*combined);
       }
       *frame.handlerFallible = true;
       *frame.handlerErrorRecord = family;
@@ -985,7 +1012,7 @@ private:
     }
     if (!frame.groups.empty()) {
       if (family) {
-        error("S072", "application errors crossing a parallel boundary require error-union support",
+        error("S072", "application-error propagation out of parallel groups is not implemented yet",
               span);
         return false;
       }
@@ -1006,14 +1033,11 @@ private:
       return true;
     auto family = other.errorRecord;
     if (result.fallible && result.errorRecord != family) {
-      if (!result.errorRecord || !family) {
-        error("S072", "mixing TaskError with application errors is pending task-boundary support",
-              span);
+      auto combined =
+          combineErrors({concreteError(result.errorRecord), concreteError(family)}, span);
+      if (!combined)
         return false;
-      }
-      family = combineErrors({*result.errorRecord, *family}, span);
-      if (!family)
-        return false;
+      family = normalizedError(*combined);
     }
     result.fallible = true;
     result.errorRecord = family;
@@ -1767,7 +1791,7 @@ private:
     auto result = node(*value).type;
     if (operation.prefix == TaskPrefix::Spawn) {
       if (result.errorRecord) {
-        error("S072", "spawning an application-error result requires error-union support", span);
+        error("S072", "application-error worker results are not implemented yet", span);
         return {};
       }
       if (!std::holds_alternative<FunctionCall>(node(*value).operation) &&
@@ -2221,10 +2245,13 @@ private:
         const auto owner = records_.find(functionKey(frame, name(*arm.family)));
         if (enumeration && !output_.records[*subjectType.record].errorMembers.empty()) {
           const auto &joined = output_.records[*subjectType.record];
-          if (owner != records_.end() && !lookupSymbol(frame, *arm.family))
+          const auto selectedFamily = name(*arm.family) == "TaskError" ? taskErrorFamily(output_)
+                                      : owner != records_.end() ? std::optional{owner->second}
+                                                                : std::nullopt;
+          if (selectedFamily && !lookupSymbol(frame, *arm.family))
             for (std::size_t i = 0; i < joined.errorOrigins.size(); ++i) {
               const auto [original, variant] = joined.errorOrigins[i];
-              if (original == owner->second &&
+              if (original == *selectedFamily &&
                   output_.records[original].variants[variant].name == name(*arm.variant))
                 tag = static_cast<unsigned>(i + 1);
             }
@@ -2268,9 +2295,17 @@ private:
           return {};
         }
         ErrorField fieldId = ErrorField::Kind;
-        std::optional<std::size_t> slot;
-        ValueType fieldType;
+        std::optional<std::size_t> slot, taskSlot;
+        std::optional<unsigned> taskVariant = taskError && tag ? tag : std::nullopt;
         if (enumeration && tag) {
+          const auto [original, variant] = errorOrigin(output_, *subjectType.record, *tag - 1);
+          if (output_.records[original].taskErrorFamily) {
+            taskVariant = static_cast<unsigned>(variant + 1);
+            taskSlot = output_.records[*subjectType.record].variants[*tag - 1].fields.front();
+          }
+        }
+        ValueType fieldType;
+        if (enumeration && tag && !taskVariant) {
           const auto &record = output_.records[*subjectType.record];
           const auto &variant = record.variants[*tag - 1];
           const auto found = std::ranges::find_if(
@@ -2284,13 +2319,13 @@ private:
           for (auto &extent : fieldType.shape)
             if (!extent.constant)
               extent = dynamic();
-        } else if (taskError && tag == 1 && field == "kind") {
+        } else if (taskVariant == 1 && field == "kind") {
           fieldId = ErrorField::Kind;
           fieldType.builtin = BuiltinValue::FaultKind;
-        } else if (taskError && tag == 1 && field == "message") {
+        } else if (taskVariant == 1 && field == "message") {
           fieldId = ErrorField::Message;
           fieldType.builtin = BuiltinValue::String;
-        } else if (taskError && tag == 4 && field == "reason") {
+        } else if (taskVariant == 4 && field == "reason") {
           fieldId = ErrorField::Reason;
           fieldType.builtin = BuiltinValue::String;
         } else {
@@ -2301,8 +2336,9 @@ private:
           error("S042", "duplicate pattern field", fieldSpan);
           return {};
         }
-        auto value = slot ? add(branch, fieldType, fieldSpan, RecordFieldRead{*subject, *slot})
-                          : add(branch, fieldType, fieldSpan, ErrorFieldRead{*subject, fieldId});
+        auto value =
+            slot ? add(branch, fieldType, fieldSpan, RecordFieldRead{*subject, *slot})
+                 : add(branch, fieldType, fieldSpan, ErrorFieldRead{*subject, fieldId, taskSlot});
         if (!value)
           return {};
         const auto symbol = output_.symbols.size();

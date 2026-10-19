@@ -146,6 +146,6 @@ CPU records can also own [numeric arrays and tensors](../docs/design/record-coll
 
 [Native CPU enums](../docs/design/native-enums.md) support user-defined alternatives, named scalar, collection and nested record/enum payloads and exhaustive matching, including immutable record/array storage and local workers. [Record/enum arrays](../docs/design/record-array-fields.md) are supported as fields, including nested worker transport. Recursive type dependencies remain explicitly gated.
 
-[Local application errors](../docs/design/application-errors.md) support declared error families, typed propagation/recovery, early failure guards and managed payloads. Mixed application/TaskError channels and application errors escaping worker boundaries remain gated.
+[Local application errors](../docs/design/application-errors.md) support declared error families, typed propagation/recovery, early failure guards and managed payloads. Application errors escaping worker boundaries remain gated.
 
-[Local application-error unions and aliases](../docs/design/error-unions.md) support canonical error-family combinations, subset propagation and exhaustive qualified handlers on CPU. Composition with `TaskError` and escaping application errors through workers remain follow-up work.
+[Local application-error unions and aliases](../docs/design/error-unions.md) support canonical error-family combinations, subset propagation and exhaustive qualified handlers on CPU. [Local mixed channels](../docs/design/mixed-error-channels.md) also combine application families with `TaskError`, preserving its fields and original diagnostic details. Application-error worker and parallel-group transport remains follow-up work.

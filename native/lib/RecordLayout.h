@@ -27,7 +27,22 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
   const auto fail = [](std::string message, SourceSpan span) {
     return std::optional<Diagnostic>{{"S068", std::move(message), span}};
   };
+  bool sawTaskError = false;
   for (const auto &record : module.records) {
+    if (record.taskErrorFamily) {
+      if (sawTaskError || !record.error || record.name != "TaskError" ||
+          !record.errorMembers.empty() || !record.errorOrigins.empty() ||
+          record.fields.size() != 5 || record.variants.size() != 4)
+        return fail("invalid canonical TaskError family", record.declaration);
+      sawTaskError = true;
+      const std::vector<std::string> labels{"Fault", "Cancelled", "DeadlineExceeded",
+                                            "AdmissionRejected"};
+      for (std::size_t i = 0; i < 4; ++i)
+        if (record.variants[i].name != labels[i] ||
+            record.variants[i].fields != std::vector<std::size_t>{i + 1} ||
+            record.fields[i + 1].type.builtin != BuiltinValue::TaskError)
+          return fail("invalid canonical TaskError variant", record.declaration);
+    }
     if (!record.errorMembers.empty()) {
       if (!record.error || record.errorMembers.size() < 2 ||
           !std::ranges::is_sorted(record.errorMembers) ||
@@ -105,6 +120,8 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
           return fail("invalid nested record declaration identity", field.declaration);
       } else if (type.record ||
                  (type.builtin != BuiltinValue::Bool && type.builtin != BuiltinValue::String &&
+                  !(type.builtin == BuiltinValue::TaskError &&
+                    (record.taskErrorFamily || !record.errorMembers.empty())) &&
                   (type.builtin != BuiltinValue::Numeric ||
                    !(type.array
                          ? numericCollectionStorageAvailable(type.element, NumericTarget::Cpu)
@@ -139,8 +156,9 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
       }
       const auto &field = record.fields[frame.next];
       std::size_t count = field.type.tensor ? 3 + 2 * field.type.shape.size()
-                          : field.type.builtin == BuiltinValue::String ? 3
-                                                                       : 1;
+                          : field.type.builtin == BuiltinValue::TaskError ? 4
+                          : field.type.builtin == BuiltinValue::String    ? 3
+                                                                          : 1;
       if (field.type.record) {
         const auto child = *field.type.record;
         if (state[child] == 1)

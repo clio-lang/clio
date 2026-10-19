@@ -602,7 +602,8 @@ private:
         plan.code[jump].jump = exit;
     } else if (const auto *field = std::get_if<ErrorFieldRead>(&node.operation)) {
       auto subject = expression(plan, field->subject, env, stack);
-      plan.code.push_back({Code::Field, output, {subject}, static_cast<std::size_t>(field->field)});
+      plan.code.push_back(
+          {Code::Field, output, {subject}, static_cast<std::size_t>(field->field), 0, 0, id});
     } else if (const auto *failure = std::get_if<FailOperation>(&node.operation)) {
       auto error = expression(plan, failure->error, env, stack);
       const auto index = plan.code.size();
