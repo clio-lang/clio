@@ -35,6 +35,7 @@ class Checker {
     bool conditional = false;
     std::shared_ptr<ClosureScope> closure = {};
     std::size_t enumBranchDepth = 0;
+    std::shared_ptr<std::optional<std::size_t>> handlerErrorRecord = {};
   };
   struct TensorData {
     std::vector<std::uint64_t> shape;
@@ -48,6 +49,7 @@ public:
     output_.functions.resize(syntax_.functions.size());
     states_.resize(syntax_.functions.size(), State::Unseen);
     signatures_.resize(syntax_.functions.size(), true);
+    errorFamilies_.resize(syntax_.functions.size());
     requirements_.resize(syntax_.functions.size());
     literal_.resize(syntax_.expressions.size());
     floatingLiteral_.resize(syntax_.expressions.size());
@@ -321,6 +323,7 @@ private:
       if (found == records_.end())
         continue;
       auto &target = output_.records[found->second];
+      target.error = record.error;
       // Duplicate declarations have already been diagnosed; do not merge fields.
       if (target.declaration.begin != record.name.begin)
         continue;
@@ -430,12 +433,22 @@ private:
         output_.symbols.push_back(
             {parameterName, std::move(*parameterType), parameter.name, id, true});
       }
+      if (function.errorType && name(*function.errorType) != "TaskError") {
+        auto found = records_.find(functionKey(function.moduleIndex, name(*function.errorType)));
+        if (found == records_.end() || !output_.records[found->second].error) {
+          error("S072", "expected a declared error family", *function.errorType);
+          signatures_[id] = false;
+        } else
+          errorFamilies_[id] = found->second;
+      }
       if (function.result) {
         target.declaredResult = type(*function.result);
         if (!target.declaredResult)
           signatures_[id] = false;
-        else
+        else {
           target.declaredResult->fallible = function.taskError;
+          target.declaredResult->errorRecord = errorFamilies_[id];
+        }
       }
       if (function.moduleIndex)
         target.name = "__module_" + std::to_string(function.moduleIndex) + "::" + target.name;
@@ -512,7 +525,7 @@ private:
         }
       } else if (index + 1 == body.size() && !statement.binding)
         expected = output_.functions[id].declaredResult;
-      auto value = expression(frame, statement.expression, expected);
+      auto value = statementValue(frame, statement, expected, index + 1 == body.size());
       std::optional<SymbolId> symbol;
       if (statement.binding) {
         const auto bindingName = name(*statement.binding);
@@ -554,16 +567,21 @@ private:
         if (node(*value).type.fallible) {
           frame.tasks->handled.insert(node(*value).type.identity);
           if (!syntax_.functions[id].taskError)
-            error("S036", "a fallible function must declare its TaskError return channel",
+            error("S036", "a fallible function must declare its error return channel",
+                  statement.span);
+          else if (node(*value).type.errorRecord != errorFamilies_[id])
+            error("S072", "returning a different error family requires a declared error union",
                   statement.span);
         }
       }
     }
-    if (syntax_.functions[id].taskError)
+    if (syntax_.functions[id].taskError) {
       output_.functions[id].resultType.fallible = true;
+      output_.functions[id].resultType.errorRecord = errorFamilies_[id];
+    }
     for (auto pending : frame.tasks->pending)
       if (!frame.tasks->handled.contains(pending))
-        error("S036", "expected task error must be propagated with try or returned",
+        error("S036", "expected error must be propagated with try or returned",
               syntax_.functions[id].name);
     --functionDepth_;
     // Any diagnostic means no module is published; success still tracks failed
@@ -620,7 +638,7 @@ private:
       return {};
     }
     if (actual.fallible && !expected.fallible) {
-      error("S036", "expected task error requires try before using the success value", span);
+      error("S036", "expected error requires try before using the success value", span);
       return {};
     }
     if (actual.builtin != expected.builtin || actual.record != expected.record ||
@@ -829,6 +847,45 @@ private:
       return add(frame, output, span, Float64Literal{value.bitcastToAPInt().getZExtValue()});
     return add(frame, output, span,
                Float32Literal{static_cast<std::uint32_t>(value.bitcastToAPInt().getZExtValue())});
+  }
+  bool propagateError(Frame &frame, std::optional<std::size_t> family, SourceSpan span) {
+    if (frame.handlerFallible && frame.groups.size() == frame.handlerDepth) {
+      if (*frame.handlerFallible && *frame.handlerErrorRecord != family) {
+        error("S072", "multiple escaping error families require error-union support", span);
+        return false;
+      }
+      *frame.handlerFallible = true;
+      *frame.handlerErrorRecord = family;
+      return true;
+    }
+    if (!frame.groups.empty()) {
+      if (family) {
+        error("S072", "application errors crossing a parallel boundary require error-union support",
+              span);
+        return false;
+      }
+      return true;
+    }
+    if (!sourceTaskError(frame.function)) {
+      error("S036", "error propagation requires a declared error channel", span);
+      return false;
+    }
+    if (errorFamilies_[frame.function] != family) {
+      error("S072", "propagating a different error family requires a declared error union", span);
+      return false;
+    }
+    return true;
+  }
+  bool joinErrors(ValueType &result, const ValueType &other, SourceSpan span) {
+    if (!other.fallible)
+      return true;
+    if (result.fallible && result.errorRecord != other.errorRecord) {
+      error("S072", "multiple error families require error-union support", span);
+      return false;
+    }
+    result.fallible = true;
+    result.errorRecord = other.errorRecord;
+    return true;
   }
   bool sourceTaskError(FunctionId id) const {
     return id < syntax_.functions.size() && syntax_.functions[id].taskError;
@@ -1577,6 +1634,10 @@ private:
       return {};
     auto result = node(*value).type;
     if (operation.prefix == TaskPrefix::Spawn) {
+      if (result.errorRecord) {
+        error("S072", "spawning an application-error result requires error-union support", span);
+        return {};
+      }
       if (!std::holds_alternative<FunctionCall>(node(*value).operation) &&
           !std::holds_alternative<Matmul>(node(*value).operation) &&
           !std::holds_alternative<NumericConvert>(node(*value).operation) &&
@@ -1622,15 +1683,11 @@ private:
       error("S036", "try requires an expected-error result", span);
       return {};
     }
-    if (frame.groups.empty() && !frame.handlerFallible && !sourceTaskError(frame.function)) {
-      error("S036", "try propagation requires a TaskError return channel or parallel boundary",
-            span);
+    if (!propagateError(frame, result.errorRecord, span))
       return {};
-    }
-    if (frame.handlerFallible && frame.groups.size() == frame.handlerDepth)
-      *frame.handlerFallible = true;
     frame.tasks->handled.insert(result.identity);
     result.fallible = false;
+    result.errorRecord.reset();
     result.identity = 0;
     return add(frame, result, span, TaskOperation{operation.prefix, *value});
   }
@@ -1709,6 +1766,40 @@ private:
       }
     }
   }
+  std::optional<ValueId> statementValue(Frame &frame, const Statement &statement,
+                                        const std::optional<ValueType> &expected, bool last) {
+    const auto &ast = syntax_.expressions[statement.expression];
+    const auto *guard = std::get_if<ConditionalExpr>(&ast.value);
+    if (!guard || !guard->whenFalse.empty())
+      return expression(frame, statement.expression, expected);
+    if (last || statement.binding || guard->whenTrue.empty() ||
+        !std::holds_alternative<FailExpr>(
+            syntax_.expressions[guard->whenTrue.back().expression].value)) {
+      error("S073", "an if without else is a non-result guard whose body must end with fail",
+            ast.span);
+      return {};
+    }
+    auto condition = expression(frame, guard->condition);
+    if (!condition)
+      return {};
+    const auto &t = node(*condition).type;
+    if (t.builtin != BuiltinValue::Bool || t.tensor || t.task || t.fallible) {
+      error("S057", "guard conditions require a completed Bool", ast.span);
+      return {};
+    }
+    auto branch = frame;
+    branch.conditional = true;
+    branch.tasks = std::make_shared<TaskChecks>(*frame.tasks);
+    std::vector<TypedStatement> body;
+    auto context = expected ? expected : output_.functions[frame.function].declaredResult;
+    auto result = suite(branch, guard->whenTrue, context, body);
+    if (!result)
+      return {};
+    finishBranch(*frame.tasks, branch, *result, ast.span);
+    ValueType unit;
+    unit.builtin = BuiltinValue::Bool;
+    return add(frame, unit, ast.span, GuardOperation{*condition, std::move(body), *result});
+  }
   std::optional<ValueId> suite(Frame &frame, const std::vector<Statement> &body,
                                std::optional<ValueType> context,
                                std::vector<TypedStatement> &statements,
@@ -1723,7 +1814,7 @@ private:
         if (!expected)
           return {};
       }
-      auto value = expression(frame, statement.expression, expected);
+      auto value = statementValue(frame, statement, expected, index + 1 == body.size());
       if (!value)
         return {};
       std::optional<SymbolId> symbol;
@@ -1771,10 +1862,14 @@ private:
     auto nested = frame;
     nested.tasks = std::make_shared<TaskChecks>(before);
     nested.handlerFallible = std::make_shared<bool>(false);
+    nested.handlerErrorRecord = std::make_shared<std::optional<std::size_t>>();
     nested.handlerDepth = nested.groups.size();
     nested.conditional = true;
     ValueType errorType;
-    errorType.builtin = BuiltinValue::TaskError;
+    if (resultType.errorRecord)
+      errorType = recordType(*resultType.errorRecord);
+    else
+      errorType.builtin = BuiltinValue::TaskError;
     const auto symbol = output_.symbols.size();
     output_.symbols.push_back(
         {name(handler.parameter), errorType, handler.parameter, frame.function, true});
@@ -1801,7 +1896,17 @@ private:
     for (std::size_t axis = 0; axis < resultType.shape.size(); ++axis)
       if (!same(resultType.shape[axis], handlerType.shape[axis]))
         resultType.shape[axis] = dynamic();
-    resultType.fallible = handlerType.fallible || *nested.handlerFallible;
+    resultType.fallible = false;
+    resultType.errorRecord.reset();
+    if (!joinErrors(resultType, handlerType, span))
+      return {};
+    if (*nested.handlerFallible) {
+      auto escaping = resultType;
+      escaping.fallible = true;
+      escaping.errorRecord = *nested.handlerErrorRecord;
+      if (!joinErrors(resultType, escaping, span))
+        return {};
+    }
     resultType.identity = 0;
     return add(frame, resultType, span, CatchOperation{*operand, symbol, std::move(body), *result});
   }
@@ -1810,9 +1915,12 @@ private:
     auto value = expression(frame, failure.operand);
     if (!value)
       return {};
-    if (node(*value).type.builtin != BuiltinValue::TaskError || node(*value).type.fallible ||
-        node(*value).type.task) {
-      error("S039", "fail requires a typed TaskError value", span);
+    const auto &errorValue = node(*value).type;
+    const bool application = errorValue.builtin == BuiltinValue::Record && errorValue.record &&
+                             output_.records[*errorValue.record].error && !errorValue.tensor;
+    if ((!application && errorValue.builtin != BuiltinValue::TaskError) || errorValue.fallible ||
+        errorValue.task) {
+      error("S039", "fail requires a declared error value", span);
       return {};
     }
     if (!expected ||
@@ -1822,14 +1930,12 @@ private:
       error("S039", "fail needs a concrete success-type context in this subset", span);
       return {};
     }
-    if (frame.groups.empty() && !frame.handlerFallible && !sourceTaskError(frame.function)) {
-      error("S036", "fail requires a fallible function, handler, or parallel boundary", span);
+    const auto family = application ? errorValue.record : std::optional<std::size_t>{};
+    if (!propagateError(frame, family, span))
       return {};
-    }
-    if (frame.handlerFallible && frame.groups.size() == frame.handlerDepth)
-      *frame.handlerFallible = true;
     auto result = *expected;
     result.fallible = true;
+    result.errorRecord = family;
     result.identity = 0;
     return add(frame, result, span, FailOperation{*value});
   }
@@ -1874,7 +1980,8 @@ private:
           error("S047", "conditional branches require matching residency", span);
           return {};
         }
-        resultType->fallible |= actual.fallible;
+        if (!joinErrors(*resultType, actual, span))
+          return {};
         for (std::size_t axis = 0; axis < actual.shape.size(); ++axis)
           if (!same(resultType->shape[axis], actual.shape[axis]))
             resultType->shape[axis] = dynamic();
@@ -1901,6 +2008,10 @@ private:
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const ConditionalExpr &choice,
                                const std::optional<ValueType> &expected) {
+    if (choice.whenFalse.empty()) {
+      error("S073", "if expressions require an else branch", span);
+      return {};
+    }
     auto condition = expression(frame, choice.condition);
     if (!condition)
       return {};
@@ -2077,7 +2188,8 @@ private:
           error("S043", "match branches need a common success type", arm.span);
           return {};
         }
-        resultType->fallible |= actual.fallible;
+        if (!joinErrors(*resultType, actual, span))
+          return {};
         for (std::size_t axis = 0; axis < actual.shape.size(); ++axis)
           if (!same(resultType->shape[axis], actual.shape[axis]))
             resultType->shape[axis] = dynamic();
@@ -3056,6 +3168,8 @@ private:
     if (resultType.tensor)
       resultType.device = device;
     resultType.fallible = syntax_.functions[id].taskError;
+    if (resultType.fallible)
+      resultType.errorRecord = errorFamilies_[id];
     resultType.identity = 0;
     if (!validSize(resultType, span))
       return {};
@@ -3072,6 +3186,7 @@ private:
   std::unordered_map<std::string, std::pair<std::size_t, std::string>> reexports_;
   std::vector<State> states_;
   std::vector<bool> signatures_;
+  std::vector<std::optional<std::size_t>> errorFamilies_;
   std::vector<bool> literal_, floatingLiteral_;
   std::vector<std::unordered_set<std::string>> requirements_;
   std::vector<Diagnostic> diagnostics_;

@@ -1787,7 +1787,8 @@ private:
                              std::is_same_v<T, CatchOperation> ||
                              std::is_same_v<T, MatchOperation> ||
                              std::is_same_v<T, ErrorFieldRead> ||
-                             std::is_same_v<T, FailOperation>) {
+                             std::is_same_v<T, FailOperation> ||
+                             std::is_same_v<T, GuardOperation>) {
             throw LoweringFailure{"task operation requires continuation lowering"};
           } else if constexpr (std::is_same_v<T, ShapeCheck>) {
             auto input = expression(frame, operation.input);

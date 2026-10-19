@@ -92,7 +92,7 @@ std::string describeType(const ValueType &type) {
   if (type.task)
     out << " task";
   if (type.fallible)
-    out << " ! TaskError";
+    out << (type.errorRecord ? " ! error#" + std::to_string(*type.errorRecord) : " ! TaskError");
   return out.str();
 }
 std::optional<std::string> numericCapabilityError(const TypedModule &module, NumericTarget target) {
@@ -103,6 +103,10 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
   if (!module.records.empty() && (target != NumericTarget::Cpu || hasPlacement(module)))
     return "record values currently require CPU execution";
   const auto error = [&](const ValueType &type) -> std::optional<std::string> {
+    if (type.errorRecord &&
+        (!type.fallible || type.task || *type.errorRecord >= module.records.size() ||
+         !module.records[*type.errorRecord].error))
+      return "invalid application-error channel";
     if (type.builtin == BuiltinValue::String &&
         (type.device || (type.array ? (!type.tensor || type.shape.size() != 1)
                                     : (type.tensor || !type.shape.empty()))))
@@ -164,6 +168,10 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
   for (const auto &fn : module.functions) {
     if (auto failure = error(fn.resultType))
       return failure;
+    if ((fn.declaredResult && fn.resultType.errorRecord != fn.declaredResult->errorRecord) ||
+        (module.expressions[fn.result].type.fallible &&
+         fn.resultType.errorRecord != module.expressions[fn.result].type.errorRecord))
+      return "function result changes its declared error family";
     if (!sameArray(fn.resultType, module.expressions[fn.result].type) ||
         (fn.declaredResult && !sameArray(fn.resultType, *fn.declaredResult)))
       return "function result changes array category or element identity";
@@ -177,6 +185,48 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
   for (const auto &expression : module.expressions) {
     if (auto failure = error(expression.type))
       return failure;
+    if (const auto *guard = std::get_if<GuardOperation>(&expression.operation)) {
+      if (guard->condition >= module.expressions.size() ||
+          guard->result >= module.expressions.size() ||
+          expression.type.builtin != BuiltinValue::Bool || expression.type.fallible ||
+          expression.type.tensor || expression.type.task || expression.type.device ||
+          module.expressions[guard->condition].type.builtin != BuiltinValue::Bool ||
+          module.expressions[guard->condition].type.fallible ||
+          module.expressions[guard->condition].type.tensor ||
+          module.expressions[guard->condition].type.task ||
+          module.expressions[guard->condition].type.device || guard->body.empty() ||
+          guard->body.back().value != guard->result ||
+          !std::holds_alternative<FailOperation>(module.expressions[guard->result].operation))
+        return "invalid failure guard";
+      for (const auto &statement : guard->body)
+        if (statement.value >= module.expressions.size() ||
+            (statement.binding && *statement.binding >= module.symbols.size()))
+          return "invalid failure guard statement";
+    }
+    if (const auto *failure = std::get_if<FailOperation>(&expression.operation)) {
+      if (failure->error >= module.expressions.size() || !expression.type.fallible ||
+          expression.type.task)
+        return "invalid fail operation";
+      const auto &t = module.expressions[failure->error].type;
+      if (t.task || t.fallible || t.tensor || t.array ||
+          (t.builtin == BuiltinValue::Record
+               ? (!t.record || !module.records[*t.record].error ||
+                  expression.type.errorRecord != t.record)
+               : (t.builtin != BuiltinValue::TaskError || expression.type.errorRecord)))
+        return "fail requires a matching declared error family";
+    }
+    if (const auto *handler = std::get_if<CatchOperation>(&expression.operation)) {
+      if (handler->operand >= module.expressions.size() ||
+          handler->parameter >= module.symbols.size())
+        return "invalid error handler";
+      const auto &input = module.expressions[handler->operand].type;
+      const auto &parameter = module.symbols[handler->parameter].type;
+      if (!input.fallible || parameter.fallible || parameter.task || parameter.tensor ||
+          (input.errorRecord ? (parameter.builtin != BuiltinValue::Record ||
+                                parameter.record != input.errorRecord)
+                             : parameter.builtin != BuiltinValue::TaskError))
+        return "handler parameter changes its error family";
+    }
     if (const auto *value = std::get_if<RecordValue>(&expression.operation)) {
       const auto &t = expression.type;
       if (t.builtin != BuiltinValue::Record || !t.record || t.tensor || t.array || t.task ||
@@ -664,7 +714,7 @@ std::string dumpTypedIR(const TypedModule &module) {
   for (const auto &record : module.records) {
     if (record.variants.empty())
       continue;
-    out << "enum " << record.name << " {\n";
+    out << (record.error ? "error " : "enum ") << record.name << " {\n";
     for (const auto &variant : record.variants) {
       out << "  " << variant.name;
       for (auto slot : variant.fields)
@@ -907,6 +957,9 @@ std::string dumpTypedIR(const TypedModule &module) {
             } else if constexpr (std::is_same_v<T, ParallelOperation>) {
               out << "parallel group=" << operation.group << " result=";
               value(operation.result);
+              body(operation.body);
+            } else if constexpr (std::is_same_v<T, GuardOperation>) {
+              out << "guard %" << operation.condition << " fail %" << operation.result;
               body(operation.body);
             } else if constexpr (std::is_same_v<T, CatchOperation>) {
               out << "result.catch ";

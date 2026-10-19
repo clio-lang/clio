@@ -9,6 +9,7 @@ namespace {
 ValueType plain(ValueType type) {
   type.task = type.fallible = false;
   type.identity = 0;
+  type.errorRecord.reset();
   return type;
 }
 std::vector<ValueId> operands(const TypedExpr &expression) {
@@ -514,9 +515,7 @@ private:
       }
     } else if (const auto *handler = std::get_if<CatchOperation>(&node.operation)) {
       auto operand = expression(plan, handler->operand, env, stack);
-      ValueType errorType;
-      errorType.builtin = BuiltinValue::TaskError;
-      const auto error = slot(plan, errorType);
+      const auto error = slot(plan, input.symbols[handler->parameter].type);
       auto nested = env;
       nested.symbols[handler->parameter] = error;
       Boundary boundary{output, {}, {}};
@@ -536,6 +535,18 @@ private:
       plan.code[dispatch].target = exit;
       for (auto jump : boundary.jumps)
         plan.code[jump].jump = exit;
+    } else if (const auto *guard = std::get_if<GuardOperation>(&node.operation)) {
+      auto condition = expression(plan, guard->condition, env, stack);
+      const auto dispatch = plan.code.size();
+      plan.code.push_back({Code::Branch, output, {condition}});
+      auto branch = env;
+      for (const auto &statement : guard->body) {
+        auto value = expression(plan, statement.value, branch, stack);
+        if (statement.binding)
+          branch.symbols[*statement.binding] = value;
+      }
+      plan.code[dispatch].jump = plan.code.size();
+      plan.code.push_back({Code::Label, 0, {}});
     } else if (const auto *choice = std::get_if<ConditionalOperation>(&node.operation)) {
       auto condition = expression(plan, choice->condition, env, stack);
       const auto dispatch = plan.code.size();
@@ -658,7 +669,8 @@ std::vector<bool> resumableFunctions(const TypedModule &input) {
       if (std::holds_alternative<TaskOperation>(op) ||
           std::holds_alternative<ParallelOperation>(op) ||
           std::holds_alternative<CatchOperation>(op) ||
-          std::holds_alternative<MatchOperation>(op) || std::holds_alternative<FailOperation>(op) ||
+          std::holds_alternative<MatchOperation>(op) ||
+          std::holds_alternative<GuardOperation>(op) || std::holds_alternative<FailOperation>(op) ||
           std::holds_alternative<ErrorFieldRead>(op) ||
           std::holds_alternative<DeviceSelection>(op) || std::holds_alternative<Transfer>(op))
         result[id] = true;

@@ -10,7 +10,7 @@ int main() {
     context.reportFailure();
   auto backing = value.allocated ? context.lease(value.allocated) : std::nullopt;
   context.settle();
-  if (context.status() || context.hasTaskError())
+  if (context.status() || context.hasExpectedError())
     context.reportFailure();
   if ((value.byteLength && std::fwrite(value.data, 1, static_cast<std::size_t>(value.byteLength),
                                        stdout) != static_cast<std::size_t>(value.byteLength)) ||

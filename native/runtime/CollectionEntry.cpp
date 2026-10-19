@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
   }
   cli::CollectionDescriptor descriptor;
   _mlir_ciface_kalandra_collection_entry(&descriptor, &context);
-  if (context.status() || context.hasTaskError())
+  if (context.status() || context.hasExpectedError())
     context.reportFailure();
   auto retained = boolean ? retainBoolForDisplay(context, descriptor)
                           : retainForDisplay(context, descriptor, rank, element, array);

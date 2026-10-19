@@ -45,7 +45,7 @@ The current lowering uses private, fully initialized tagged aggregates and the e
 
 The [accepted variant design](variants.md) remains the language contract. Collection, record and nested-enum payload fields use the same syntax and automatic lifetime model. Arrays of records/enums can contain these values and can themselves be payload fields; see [record and enum array fields](record-array-fields.md). Recursive type dependencies are rejected even through an intermediate record or array; supporting them requires a separate representation decision.
 
-GPU enums, recursive payloads, application `error` declarations, error-family unions, generics, guards and nested destructuring are not introduced here. Distributed execution and public C/C++ contracts remain separate roadmaps. Native CLI entry results retain their existing supported output types; return a matched scalar, String or numeric collection rather than an enum directly.
+[Local application `error` declarations and channels](application-errors.md) are now implemented. GPU enums, recursive payloads, error-family unions, generics, match guards and nested destructuring remain separate work. Distributed execution and public C/C++ contracts remain separate roadmaps. Native CLI entry results retain their existing supported output types; return a matched scalar, String or numeric collection rather than an enum directly.
 
 ## Qualification
 

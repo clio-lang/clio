@@ -52,13 +52,16 @@ public:
   void release(void *buffer) noexcept;
   // Requires exclusive source-context access, like retainFrom. Reject unknown,
   // faulted or settled contexts before acquiring a backing reference.
-  bool usable() const noexcept { return !settled_ && !code_ && !taskError_; }
+  bool usable() const noexcept { return !settled_ && !code_ && !taskError_ && !applicationFamily_; }
   std::optional<AllocationLease> lease(const void *allocated) const noexcept;
   void fault(std::int64_t code, std::int64_t line = 0, std::int64_t column = 0) noexcept;
   void settle() noexcept;
   void expectedTaskError(std::int64_t kind, std::int64_t code, std::int64_t line,
                          std::int64_t column) noexcept;
+  void expectedApplicationError(const char *family, const char *variant) noexcept;
   bool hasTaskError() const noexcept { return taskError_ != 0; }
+  bool hasApplicationError() const noexcept { return applicationFamily_ != nullptr; }
+  bool hasExpectedError() const noexcept { return hasTaskError() || hasApplicationError(); }
   [[noreturn]] void reportFailure() noexcept; // CLI boundary only, never generated code.
   void failAllocationAt(std::uint64_t attempt) noexcept { failAt_ = attempt; }
   std::int64_t status() const noexcept { return code_; }
@@ -82,6 +85,7 @@ private:
   std::int64_t code_ = 0, line_ = 0, column_ = 0;
   bool settled_ = false;
   std::int64_t taskError_ = 0, expectedCode_ = 0, expectedLine_ = 0, expectedColumn_ = 0;
+  const char *applicationFamily_ = nullptr, *applicationVariant_ = nullptr;
   bool reserve() noexcept;
   void attach(Owner *owner) noexcept;
   void remove(Owner *owner) noexcept;
@@ -91,6 +95,8 @@ private:
 // Revision is encoded in the symbols: mismatched compiler/runtime builds fail
 // at link time. No process-global or thread-local current invocation exists.
 extern "C" {
+void kalandra_expected_application_error_v1(kalandra::runtime::Invocation *, const char *,
+                                            const char *) noexcept;
 void kalandra_bool_array_validate_v1(kalandra::runtime::Invocation *, const void *) noexcept;
 bool kalandra_bool_array_retain_v1(kalandra::runtime::Invocation *,
                                    const kalandra::runtime::Invocation *, const void *) noexcept;

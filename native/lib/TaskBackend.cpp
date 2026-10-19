@@ -189,6 +189,30 @@ public:
          {ctx, kind, loadFailure(header, 1), loadFailure(header, 2), loadFailure(header, 3)});
     returnFailure();
     builder.SetInsertPoint(success);
+    if (main->resultType.errorRecord) {
+      const auto family = *main->resultType.errorRecord;
+      const auto &record = planner.input.records[family];
+      auto *data = application(main->resultType, result);
+      auto *tag = builder.CreateLoad(
+          i64, builder.CreateStructGEP(scalarType(errorRecordType(family)), data, 0));
+      auto *valid = Block::Create(context, "root.application.success", entry);
+      auto *invalid = Block::Create(context, "root.application.invalid", entry);
+      auto *dispatch = builder.CreateSwitch(tag, invalid, record.variants.size() + 1);
+      dispatch->addCase(c64(0), valid);
+      for (std::size_t i = 0; i < record.variants.size(); ++i) {
+        auto *report = Block::Create(context, "root.application.error", entry);
+        dispatch->addCase(c64(i + 1), report);
+        builder.SetInsertPoint(report);
+        call("kalandra_expected_application_error_v1", voidType,
+             {ctx, builder.CreateGlobalString(record.name),
+              builder.CreateGlobalString(record.variants[i].name)});
+        returnFailure();
+      }
+      builder.SetInsertPoint(invalid);
+      call("kalandra_fault_v1", voidType, {ctx, c64(3), c64(0), c64(0)});
+      returnFailure();
+      builder.SetInsertPoint(valid);
+    }
     auto *payload = builder.CreateStructGEP(valueType(main->resultType), result, 1);
     if (indirectResult) {
       copy(entry->getArg(0), payload, scalarType(main->resultType));
@@ -247,7 +271,7 @@ private:
            : type.element == NumericType::Float64 ? Type::getDoubleTy(context)
                                                   : f32;
   }
-  std::string key(const ValueType &type) {
+  std::string payloadKey(const ValueType &type) {
     if (type.task)
       return "handle";
     if (isStringArray(type) && !type.task)
@@ -282,6 +306,16 @@ private:
                                                      : "scalar";
   }
 
+  std::string key(const ValueType &type) {
+    return payloadKey(type) +
+           (type.errorRecord ? ".error." + std::to_string(*type.errorRecord) : "");
+  }
+  ValueType errorRecordType(std::size_t id) {
+    ValueType type;
+    type.builtin = BuiltinValue::Record;
+    type.record = id;
+    return type;
+  }
   llvm::StructType *valueType(const ValueType &type) {
     const auto name = key(type);
     if (auto found = values.find(name); found != values.end())
@@ -291,12 +325,45 @@ private:
                     : type.task                               ? static_cast<Type *>(handleType)
                     : type.tensor ? static_cast<Type *>(descriptor(type))
                                   : scalarType(type);
-    return values[name] =
-               llvm::StructType::create(context, {failureType, payload}, "result." + name);
+    std::vector<Type *> fields{failureType, payload};
+    if (type.errorRecord)
+      fields.push_back(scalarType(errorRecordType(*type.errorRecord)));
+    return values[name] = llvm::StructType::create(context, fields, "result." + name);
   }
   void copy(Value *output, Value *input, Type *type) {
     builder.CreateMemCpy(output, llvm::MaybeAlign(alignment(type)), input,
                          llvm::MaybeAlign(alignment(type)), size(type));
+  }
+  Value *application(const ValueType &type, Value *slot) {
+    return builder.CreateStructGEP(valueType(type), slot, 2);
+  }
+  Value *hasResultError(const ValueType &type, Value *slot) {
+    auto *failure = hasFailure(builder.CreateStructGEP(valueType(type), slot, 0));
+    if (!type.errorRecord)
+      return failure;
+    auto *record = application(type, slot);
+    auto *tag = builder.CreateLoad(
+        i64, builder.CreateStructGEP(scalarType(errorRecordType(*type.errorRecord)), record, 0));
+    return builder.CreateOr(failure, builder.CreateICmpNE(tag, c64(0)));
+  }
+  void copyErrors(const ValueType &outType, Value *output, const ValueType &inType, Value *input) {
+    copy(builder.CreateStructGEP(valueType(outType), output, 0),
+         builder.CreateStructGEP(valueType(inType), input, 0), failureType);
+    if (outType.errorRecord) {
+      auto *errorType = scalarType(errorRecordType(*outType.errorRecord));
+      if (inType.errorRecord) {
+        if (outType.errorRecord != inType.errorRecord)
+          throw std::runtime_error("error-family conversion requires error-union lowering");
+        copy(application(outType, output), application(inType, input), errorType);
+      } else
+        builder.CreateStore(llvm::Constant::getNullValue(errorType), application(outType, output));
+    }
+  }
+  void copyResult(const ValueType &outType, Value *output, const ValueType &inType, Value *input) {
+    copyErrors(outType, output, inType, input);
+    copy(builder.CreateStructGEP(valueType(outType), output, 1),
+         builder.CreateStructGEP(valueType(inType), input, 1),
+         valueType(outType)->getElementType(1));
   }
   Value *loadFailure(Value *pointer, unsigned index) {
     return builder.CreateLoad(i64, builder.CreateStructGEP(failureType, pointer, index));
@@ -411,6 +478,23 @@ private:
     auto *fn = function("value.copy." + name, boolean, {pointer, pointer, pointer, pointer});
     builder.SetInsertPoint(Block::Create(context, "entry", fn));
     auto *ready = Block::Create(context, "copy", fn);
+    if (type.errorRecord) {
+      auto *dispatch = Block::Create(context, "application.dispatch", fn);
+      auto *active = Block::Create(context, "application.retain", fn);
+      auto *success = Block::Create(context, "application.success", fn);
+      auto *failed = Block::Create(context, "application.failed", fn);
+      builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
+                           dispatch);
+      builder.SetInsertPoint(dispatch);
+      builder.CreateCondBr(hasResultError(type, fn->getArg(3)), active, success);
+      builder.SetInsertPoint(active);
+      retainRecord(errorRecordType(*type.errorRecord), application(type, fn->getArg(3)), fn,
+                   failed);
+      builder.CreateBr(ready);
+      builder.SetInsertPoint(failed);
+      builder.CreateRet(builder.getFalse());
+      builder.SetInsertPoint(success);
+    }
     if (isStringArray(type) && !type.task) {
       auto *retain = Block::Create(context, "string.array.retain", fn);
       auto *failed = Block::Create(context, "string.array.failed", fn);
@@ -488,7 +572,8 @@ private:
     builder.CreateRet(builder.getTrue());
     auto *constant = llvm::ConstantStruct::get(
         layoutType,
-        {c64(isStringArray(type) && !type.task                    ? 0x80000
+        {c64(type.errorRecord                                     ? 0x1000000 + layouts.size()
+             : isStringArray(type) && !type.task                  ? 0x80000
              : isBoolArray(type) && !type.task                    ? 0x70000
              : isRecordArray(type) && !type.task                  ? 0x60000 + *type.record
              : type.builtin == BuiltinValue::Record && !type.task ? 0x50000 + *type.record
@@ -680,13 +765,11 @@ private:
                 planner.input.expressions[instruction.source].operation) &&
             plan.slots[instruction.args[0]].fallible) {
           auto input = instruction.args[0];
-          auto *header = builder.CreateStructGEP(valueType(plan.slots[input]), slot(input), 0);
           auto *error = Block::Create(context, "refine.error", resume);
           auto *success = Block::Create(context, "refine.success", resume);
-          builder.CreateCondBr(hasFailure(header), error, success);
+          builder.CreateCondBr(hasResultError(plan.slots[input], slot(input)), error, success);
           builder.SetInsertPoint(error);
-          copy(builder.CreateStructGEP(valueType(type), slot(instruction.output), 0), header,
-               failureType);
+          copyErrors(type, slot(instruction.output), plan.slots[input], slot(input));
           builder.CreateBr(next);
           builder.SetInsertPoint(success);
         }
@@ -718,7 +801,8 @@ private:
         break;
       }
       case Code::Copy:
-        copy(slot(instruction.output), slot(instruction.args[0]), valueType(type));
+        copyResult(type, slot(instruction.output), plan.slots[instruction.args[0]],
+                   slot(instruction.args[0]));
         builder.CreateBr(next);
         break;
       case Code::Open: {
@@ -772,25 +856,36 @@ private:
       }
       case Code::Fail:
       case Code::Try: {
-        auto *header = builder.CreateStructGEP(valueType(plan.slots[instruction.args[0]]),
-                                               slot(instruction.args[0]),
-                                               instruction.code == Code::Fail ? 1 : 0);
+        const auto input = instruction.args[0];
+        const auto &source = plan.slots[input];
+        const auto &target = plan.slots[instruction.target];
+        const bool explicitFail = instruction.code == Code::Fail;
+        auto *header =
+            builder.CreateStructGEP(valueType(source), slot(input), explicitFail ? 1 : 0);
         auto *propagate = Block::Create(context, "try.propagate", resume);
         auto *success = Block::Create(context, "try.success", resume);
-        if (instruction.code == Code::Fail)
+        if (explicitFail)
           builder.CreateBr(propagate);
         else
-          builder.CreateCondBr(hasFailure(header), propagate, success);
+          builder.CreateCondBr(hasResultError(source, slot(input)), propagate, success);
         builder.SetInsertPoint(propagate);
-        if (instruction.group != SIZE_MAX)
+        if (instruction.group != SIZE_MAX) {
+          if (source.errorRecord || (explicitFail && source.builtin == BuiltinValue::Record))
+            throw std::runtime_error("application error parallel propagation is not implemented");
           call("kalandra_task_fail_group_v1", voidType, {task, group(instruction.group), header});
+        } else if (explicitFail && source.builtin == BuiltinValue::Record) {
+          if (target.errorRecord != source.record)
+            throw std::runtime_error("application fail changed its declared error family");
+          copy(application(target, slot(instruction.target)), payload(input), scalarType(source));
+        } else if (explicitFail)
+          copy(builder.CreateStructGEP(valueType(target), slot(instruction.target), 0), header,
+               failureType);
         else
-          copy(builder.CreateStructGEP(valueType(plan.slots[instruction.target]),
-                                       slot(instruction.target), 0),
-               header, failureType);
+          copyErrors(target, slot(instruction.target), source, slot(input));
         builder.CreateBr(blocks[instruction.jump]);
         builder.SetInsertPoint(success);
-        copy(slot(instruction.output), slot(instruction.args[0]), valueType(type));
+        if (!explicitFail)
+          copyResult(type, slot(instruction.output), source, slot(input));
         builder.CreateBr(next);
         break;
       }
@@ -799,12 +894,19 @@ private:
         auto *header = builder.CreateStructGEP(valueType(plan.slots[input]), slot(input), 0);
         auto *handle = Block::Create(context, "catch.error", resume);
         auto *success = Block::Create(context, "catch.success", resume);
-        builder.CreateCondBr(hasFailure(header), handle, success);
+        builder.CreateCondBr(hasResultError(plan.slots[input], slot(input)), handle, success);
         builder.SetInsertPoint(handle);
-        copy(payload(instruction.args[1]), header, failureType);
+        if (plan.slots[input].errorRecord)
+          copy(payload(instruction.args[1]), application(plan.slots[input], slot(input)),
+               scalarType(plan.slots[instruction.args[1]]));
+        else
+          copy(payload(instruction.args[1]), header, failureType);
         builder.CreateBr(blocks[instruction.jump]);
         builder.SetInsertPoint(success);
-        copy(slot(instruction.output), slot(input), valueType(type));
+        builder.CreateStore(llvm::Constant::getNullValue(valueType(type)),
+                            slot(instruction.output));
+        copy(builder.CreateStructGEP(valueType(type), slot(instruction.output), 1), payload(input),
+             valueType(type)->getElementType(1));
         builder.CreateBr(blocks[instruction.target]);
         break;
       }
@@ -876,7 +978,8 @@ private:
         auto *success = Block::Create(context, "group.success", resume);
         builder.CreateCondBr(hasFailure(header), next, success);
         builder.SetInsertPoint(success);
-        copy(slot(instruction.output), slot(instruction.args[0]), valueType(type));
+        copyResult(type, slot(instruction.output), plan.slots[instruction.args[0]],
+                   slot(instruction.args[0]));
         builder.CreateBr(next);
         break;
       }

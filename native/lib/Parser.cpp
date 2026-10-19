@@ -42,9 +42,10 @@ public:
           synchronizeFunction();
         continue;
       }
-      if (word("type") || word("enum") ||
+      if (word("type") || word("enum") || word("error") ||
           (word("export") &&
-           (source_->slice(peek().span) == "type" || source_->slice(peek().span) == "enum"))) {
+           (source_->slice(peek().span) == "type" || source_->slice(peek().span) == "enum" ||
+            source_->slice(peek().span) == "error"))) {
         auto record = parseRecord();
         if (record)
           result_.module.records.push_back(std::move(*record));
@@ -194,7 +195,8 @@ private:
     const bool exported = word("export");
     if (exported)
       advance();
-    const bool enumeration = word("enum");
+    const bool applicationError = word("error");
+    const bool enumeration = word("enum") || applicationError;
     advance();
     auto name = expect(TokenKind::Identifier, "expected a record or enum type name");
     if (!name || !expect(TokenKind::Colon, "expected ':' after record name") ||
@@ -202,6 +204,7 @@ private:
         !expect(TokenKind::Indent, "expected indented record fields"))
       return {};
     RecordDeclaration result{name->span, {}, exported};
+    result.error = applicationError;
     if (enumeration) {
       while (!at(TokenKind::Dedent) && !at(TokenKind::End)) {
         auto variant = expect(TokenKind::Identifier, "expected an enum variant name");
@@ -306,11 +309,18 @@ private:
     }
     if (at(TokenKind::Bang)) {
       advance();
-      if (!word("TaskError")) {
-        error("P006", "only the TaskError channel is implemented in this subset", current().span);
+      if (at(TokenKind::LeftParen)) {
+        error("P006", "error-family unions are not implemented yet", current().span);
         return {};
       }
-      advance();
+      auto channel = expect(TokenKind::Identifier, "expected an error family after '!'");
+      if (!channel)
+        return {};
+      if (at(TokenKind::Pipe)) {
+        error("P006", "error-family unions are not implemented yet", current().span);
+        return {};
+      }
+      function.errorType = channel->span;
       function.taskError = true;
     }
     if (!expect(TokenKind::Colon, "expected ':' before function body") ||
@@ -617,8 +627,12 @@ private:
             !expect(TokenKind::Newline, "expected newline before else"))
           return {};
         if (!word("else")) {
-          error("P035", "if expressions require an else branch", current().span);
-          return {};
+          if (!std::holds_alternative<FailExpr>(node(yes->back().expression).value)) {
+            error("P035", "if expressions require an else branch", current().span);
+            return {};
+          }
+          return add({{token.span.begin, yes->back().span.end},
+                      ConditionalExpr{*condition, std::move(*yes), {}}});
         }
         advance();
         if (!expect(TokenKind::Colon, "expected ':' after else"))
@@ -812,7 +826,8 @@ private:
   }
   void synchronizeFunction() {
     while (!at(TokenKind::End)) {
-      if ((word("fn") || word("export") || word("from") || word("type") || word("enum")) &&
+      if ((word("fn") || word("export") || word("from") || word("type") || word("enum") ||
+           word("error")) &&
           source_->location(current().span.begin).second == 1)
         return;
       advance();

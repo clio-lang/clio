@@ -29,6 +29,8 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
   for (const auto &record : module.records) {
     if (record.fields.empty())
       return fail("record declarations require fields", record.declaration);
+    if (record.error && record.variants.empty())
+      return fail("error declarations require variants", record.declaration);
     if (!record.variants.empty()) {
       const auto &tag = record.fields.front().type;
       if (tag.builtin != BuiltinValue::Numeric || tag.element != NumericType::Int64 || tag.tensor ||
@@ -51,7 +53,7 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
     }
     for (const auto &field : record.fields) {
       const auto &type = field.type;
-      if (type.task || type.fallible || type.device ||
+      if (type.task || type.fallible || type.errorRecord || type.device ||
           (type.tensor ? ((type.builtin != BuiltinValue::Numeric && !isBoolArray(type) &&
                            !isStringArray(type) && !isRecordArray(type)) ||
                           type.shape.size() > 128 || (type.array && type.shape.size() != 1))

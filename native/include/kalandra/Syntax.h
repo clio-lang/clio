@@ -75,7 +75,8 @@ enum class TokenKind {
   Percent,
   Dot,
   Comparison,
-  Bang
+  Bang,
+  Pipe
 };
 struct Token {
   TokenKind kind;
@@ -234,6 +235,7 @@ struct Function {
   bool taskError = false;
   bool exported = false;
   std::size_t moduleIndex = 0;
+  std::optional<SourceSpan> errorType = {};
 };
 struct ImportedName {
   SourceSpan name;
@@ -255,6 +257,7 @@ struct RecordDeclaration {
   std::vector<Parameter> fields;
   bool exported = false;
   std::vector<VariantDeclaration> variants = {};
+  bool error = false;
 };
 struct Module {
   // Source storage outlives all borrowed slices/byte spans. Expressions use flat

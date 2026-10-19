@@ -144,6 +144,9 @@ public:
                          : TokenKind::Equal,
              begin, position_);
         break;
+      case '|':
+        emit(TokenKind::Pipe, begin, position_);
+        break;
       case '!':
         emit(take('=') ? TokenKind::Comparison : TokenKind::Bang, begin, position_);
         break;

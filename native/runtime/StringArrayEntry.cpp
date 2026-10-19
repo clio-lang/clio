@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
   }
   cli::CollectionDescriptor output;
   _mlir_ciface_kalandra_collection_entry(&output, &context);
-  if (context.status() || context.hasTaskError())
+  if (context.status() || context.hasExpectedError())
     context.reportFailure();
   StringArrayDescriptor array{output.allocated, output.aligned, output.offset, output.dimensions[0],
                               output.dimensions[1]};

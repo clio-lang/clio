@@ -196,15 +196,21 @@ void Invocation::settle() noexcept {
 }
 void Invocation::expectedTaskError(std::int64_t kind, std::int64_t code, std::int64_t line,
                                    std::int64_t column) noexcept {
-  if (!taskError_ && !code_) {
+  if (!taskError_ && !code_ && !applicationFamily_) {
     taskError_ = kind;
     expectedCode_ = code;
     expectedLine_ = line;
     expectedColumn_ = column;
   }
 }
+void Invocation::expectedApplicationError(const char *family, const char *variant) noexcept {
+  if (!code_ && !taskError_ && !applicationFamily_ && family && variant) {
+    applicationFamily_ = family;
+    applicationVariant_ = variant;
+  }
+}
 [[noreturn]] void Invocation::reportFailure() noexcept {
-  if (!code_ && !taskError_)
+  if (!code_ && !taskError_ && !applicationFamily_)
     fault(3);
   const char *name = code_ == 1   ? "ShapeFault"
                      : code_ == 2 ? "AllocationFault"
@@ -216,16 +222,19 @@ void Invocation::expectedTaskError(std::int64_t kind, std::int64_t code, std::in
            : taskError_ == 2 ? "TaskError.Cancelled"
            : taskError_ == 3 ? "TaskError.DeadlineExceeded"
                              : "TaskError.AdmissionRejected";
-  std::fprintf(stderr, "%s at source %lld:%lld\n", name,
-               static_cast<long long>(taskError_ ? expectedLine_ : line_),
-               static_cast<long long>(taskError_ ? expectedColumn_ : column_));
+  if (applicationFamily_)
+    std::fprintf(stderr, "%s.%s\n", applicationFamily_, applicationVariant_);
+  else
+    std::fprintf(stderr, "%s at source %lld:%lld\n", name,
+                 static_cast<long long>(taskError_ ? expectedLine_ : line_),
+                 static_cast<long long>(taskError_ ? expectedColumn_ : column_));
   settle();
   if (std::getenv("KALANDRA_TEST_REPORT_CLEANUP"))
     std::fprintf(stderr, "cleanup: live=%llu allocations=%llu releases=%llu\n",
                  static_cast<unsigned long long>(live_.load()),
                  static_cast<unsigned long long>(allocations_),
                  static_cast<unsigned long long>(releases_));
-  std::exit(taskError_ ? 88 : code_ == 1 ? 87 : 86);
+  std::exit(applicationFamily_ ? 89 : taskError_ ? 88 : code_ == 1 ? 87 : 86);
 }
 } // namespace kalandra::runtime
 extern "C" void *kalandra_alloc_v1(kalandra::runtime::Invocation *context,
@@ -423,4 +432,10 @@ extern "C" bool kalandra_bool_array_retain_v1(kalandra::runtime::Invocation *des
   if (!validBoolArray(*destination, *source, descriptor, allocated))
     return false;
   return !allocated || destination->retainFrom(*source, allocated);
+}
+
+extern "C" void kalandra_expected_application_error_v1(kalandra::runtime::Invocation *context,
+                                                       const char *family,
+                                                       const char *variant) noexcept {
+  context->expectedApplicationError(family, variant);
 }

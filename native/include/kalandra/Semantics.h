@@ -27,6 +27,8 @@ struct ValueType {
   NumericType element = NumericType::Float32;
   bool array = false; // Source [T], distinct from Tensor[T,...]; never an implicit conversion.
   std::optional<std::size_t> record = {}; // Nominal module-local declaration identity.
+  std::optional<std::size_t> errorRecord =
+      {};                      // Expected application-error family; null means TaskError.
   std::string recordName = {}; // User-facing spelling; identity is the table index above.
 };
 inline bool isRecordArray(const ValueType &type) {
@@ -45,6 +47,7 @@ inline ValueType recordArrayElement(ValueType type) {
   type.tensor = type.array = type.task = type.fallible = false;
   type.shape.clear();
   type.identity = 0;
+  type.errorRecord.reset();
   return type;
 }
 struct Symbol {
@@ -213,6 +216,11 @@ struct ConditionalOperation {
   std::vector<TypedStatement> whenTrue, whenFalse;
   ValueId trueResult, falseResult;
 };
+struct GuardOperation {
+  ValueId condition;
+  std::vector<TypedStatement> body;
+  ValueId result; // The body ends in an explicit fail; the guard has no source value.
+};
 struct CatchOperation {
   ValueId operand;
   SymbolId parameter;
@@ -263,7 +271,8 @@ struct TypedRecord {
   std::string name;
   SourceSpan declaration;
   std::vector<TypedRecordField> fields;
-  std::vector<TypedVariant> variants = {}; // Nonempty identifies a nominal enum.
+  std::vector<TypedVariant> variants = {};
+  bool error = false; // Only declared errors may appear in expected-error channels.
 };
 struct TypedExpr {
   SourceSpan span;
@@ -275,7 +284,8 @@ struct TypedExpr {
                ArrayMap, ArrayToTensor, TensorReshape, TensorToArray, ArrayConcat, ArraySlice,
                ArrayIndex, TensorIndex, CollectionQuery, ShapeCheck, DeviceSelection, Transfer,
                TaskOperation, ParallelOperation, ConditionalOperation, CatchOperation,
-               MatchOperation, ErrorFieldRead, FailOperation, RecordValue, RecordFieldRead>
+               MatchOperation, ErrorFieldRead, FailOperation, GuardOperation, RecordValue,
+               RecordFieldRead>
       operation;
 };
 struct ShapeEquality {

@@ -6,7 +6,7 @@ int main() {
   const auto value = _mlir_ciface_kalandra_entry(&context);
   if (context.live() != 0)
     context.fault(3);
-  if (context.status() || context.hasTaskError())
+  if (context.status() || context.hasExpectedError())
     context.reportFailure();
   std::printf("%.9g\n", static_cast<double>(value));
 }
