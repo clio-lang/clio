@@ -173,7 +173,7 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
     for (std::size_t i = 0; i < a.shape.size(); ++i)
       if (b.shape[i].constant && a.shape[i].constant != b.shape[i].constant)
         return false;
-    return true;
+    return a.builtin != BuiltinValue::Function || sameFunctionValueType(a, b);
   };
   bool hasMap = false;
   for (const auto &expression : module.expressions)

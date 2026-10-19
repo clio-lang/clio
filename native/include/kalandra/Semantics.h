@@ -42,6 +42,9 @@ struct FunctionSignature {
                                          std::size_t depth = 0);
 [[nodiscard]] std::optional<std::string> functionValueCapabilityError(const struct TypedModule &,
                                                                       NumericTarget);
+// Reject function storage, including nested aggregate/error payloads, at worker boundaries.
+[[nodiscard]] std::optional<std::string> functionValueTransportError(const struct TypedModule &,
+                                                                     const struct TypedExpr &);
 struct FunctionReference {
   FunctionId function;
   std::vector<ValueId> captures = {};

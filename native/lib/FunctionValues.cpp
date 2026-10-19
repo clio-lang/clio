@@ -1,6 +1,7 @@
 #include "kalandra/Continuation.h"
 #include <algorithm>
 #include <limits>
+#include <unordered_set>
 
 namespace kalandra {
 bool sameFunctionValueType(const ValueType &a, const ValueType &b, std::size_t depth) {
@@ -30,6 +31,56 @@ bool sameFunctionValueType(const ValueType &a, const ValueType &b, std::size_t d
     return self(self, a.callable->result, b.callable->result, depth + 1);
   };
   return compare(compare, a, b, depth);
+}
+
+namespace {
+bool containsFunctionStorage(const TypedModule &module, const ValueType &type) {
+  std::vector<const ValueType *> pending{&type};
+  std::unordered_set<std::size_t> visited;
+  while (!pending.empty()) {
+    const auto &value = *pending.back();
+    pending.pop_back();
+    if (value.builtin == BuiltinValue::Function)
+      return true;
+    for (auto record : {value.record, value.errorRecord})
+      if (record && *record < module.records.size() && visited.insert(*record).second)
+        for (const auto &field : module.records[*record].fields)
+          pending.push_back(&field.type);
+  }
+  return false;
+}
+} // namespace
+std::optional<std::string> functionValueTransportError(const TypedModule &module,
+                                                       const TypedExpr &invocation) {
+  if (containsFunctionStorage(module, invocation.type))
+    return "function-valued worker results and error payloads are not implemented yet";
+  const auto arguments = std::visit(
+      [](const auto &op) -> std::vector<ValueId> {
+        using T = std::decay_t<decltype(op)>;
+        if constexpr (std::is_same_v<T, FunctionCall> || std::is_same_v<T, FunctionInvoke>)
+          return op.arguments;
+        else if constexpr (std::is_same_v<T, ArrayMap>) {
+          auto args = op.captures;
+          args.push_back(op.input);
+          return args;
+        } else if constexpr (requires { op.input; })
+          return {op.input};
+        else if constexpr (requires {
+                             op.left;
+                             op.right;
+                           })
+          return {op.left, op.right};
+        else
+          return {};
+      },
+      invocation.operation);
+  if (std::holds_alternative<FunctionInvoke>(invocation.operation))
+    return "indirect spawn is not implemented yet";
+  for (auto id : arguments)
+    if (id >= module.expressions.size() ||
+        containsFunctionStorage(module, module.expressions[id].type))
+      return "function-valued worker arguments and captures are not implemented yet";
+  return {};
 }
 
 std::optional<std::string> functionValueCapabilityError(const TypedModule &module,
@@ -86,6 +137,10 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
     result.errorRecord.reset();
     return plain(result) && std::ranges::all_of(type.callable->parameters, plain);
   };
+  for (const auto &record : module.records)
+    for (const auto &field : record.fields)
+      if (!valid(valid, field.type, 0))
+        return "invalid or unsupported function-valued field type";
   for (const auto &symbol : module.symbols)
     if (!valid(valid, symbol.type, 0))
       return "invalid or unsupported function-value type";
@@ -158,6 +213,17 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
         if (read->symbol >= module.symbols.size() ||
             !sameFunctionValueType(expression.type, module.symbols[read->symbol].type))
           return "function read changes its binding signature";
+      } else if (const auto *read = std::get_if<RecordFieldRead>(&expression.operation)) {
+        if (read->input >= id)
+          return "function field read requires a preceding aggregate";
+        const auto &input = module.expressions[read->input].type;
+        if (input.builtin != BuiltinValue::Record || !input.record ||
+            *input.record >= module.records.size() || input.tensor || input.array || input.task ||
+            input.fallible || input.device ||
+            read->field >= module.records[*input.record].fields.size() ||
+            !sameFunctionValueType(expression.type,
+                                   module.records[*input.record].fields[read->field].type))
+          return "function field read changes its declared signature";
       } else if (const auto *choice = std::get_if<ConditionalOperation>(&expression.operation)) {
         if (choice->trueResult >= id || choice->falseResult >= id ||
             !sameFunctionValueType(completed(expression.type),
@@ -279,19 +345,8 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
       if (task->operand >= module.expressions.size())
         return "spawn has an invalid operand";
       const auto &invocation = module.expressions[task->operand];
-      std::vector<ValueId> arguments;
-      if (const auto *call = std::get_if<FunctionCall>(&invocation.operation))
-        arguments = call->arguments;
-      else if (const auto *map = std::get_if<ArrayMap>(&invocation.operation))
-        arguments = map->captures;
-      else if (std::holds_alternative<FunctionInvoke>(invocation.operation))
-        return "indirect spawn is not implemented yet";
-      if (invocation.type.builtin == BuiltinValue::Function)
-        return "function-valued worker results are not implemented yet";
-      for (auto argument : arguments)
-        if (argument >= module.expressions.size() ||
-            module.expressions[argument].type.builtin == BuiltinValue::Function)
-          return "function-valued worker captures are not implemented yet";
+      if (auto error = functionValueTransportError(module, invocation))
+        return error;
     }
   }
   const auto resumable = continuation::coordinatingFunctions(module);

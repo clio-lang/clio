@@ -62,7 +62,7 @@ Direct declarations work with captured values, higher-order parameters/results, 
 
 Sequential `map` still requires completed elements. A directly annotated fallible callback is rejected even if its body always succeeds. Bind an infallible wrapper that handles the errors before mapping. This applies to both inline and bound callbacks.
 
-No runtime representation changes are needed: existing code/environment pairs and synchronous checked outcome entries carry these signatures. Callable aggregate fields, worker transport, indirect spawn and resumable function values remain separate work. Indented callbacks inside open call/collection delimiters remain subject to the [existing layout restriction](native-block-closures.md#calls-maps-and-workers). Public ABI and distributed execution are not qualified by this increment.
+No runtime representation changes are needed: existing code/environment pairs and synchronous checked outcome entries carry these signatures. [Function-valued record and enum fields](native-callable-fields.md) now preserve these signatures. Direct arrays of functions, worker transport, indirect spawn and resumable function values remain separate work. Indented callbacks inside open call/collection delimiters remain subject to the [existing layout restriction](native-block-closures.md#calls-maps-and-workers). Public ABI and distributed execution are not qualified by this increment.
 
 ## Qualification
 

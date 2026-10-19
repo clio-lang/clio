@@ -55,3 +55,5 @@ Numeric arrays and tensors can now be stored inside records; see [collection fie
 [String fields](record-string-fields.md) now compose with these record rules, including nested records, immutable updates, record arrays/maps and retained local CPU worker arguments/results. [Direct String arrays](string-arrays.md) and [String-array record fields](record-string-array-fields.md) also compose with these rules.
 
 [Record type exports](type-exports.md) allow consumers of a local CPU module to name the original nominal type in constructors, fields and function signatures.
+
+[Function-valued fields](native-callable-fields.md) now support managed callbacks in records and variant payloads within one invocation. Types containing function storage remain rejected as worker arguments, results, captures or expected-error payloads until function transport is implemented.

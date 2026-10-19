@@ -75,7 +75,8 @@ void negative() {
         "fn bad(value:float)->float:\n  value\n"
         "fn main()->int:\n  f=if true:double\n  else:bad\n  0\n",
         "fn main()->int:\n  f=fn(value):value+1\n  f(1)\n",
-        "type Holder:\n  callback:fn(int)->int\nfn main()->int:\n  0\n",
+        "type Holder:\n  callback:fn(int)->int\nfn main()->int:\n  holder=Holder {callback:0}\n  "
+        "0\n",
         "fn main()->int:\n  values=[double,triple]\n  0\n",
         "fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    try await spawn f(1)\n",
         "fn main()->int ! TaskError:\n  try parallel:\n    try await spawn apply(1,double)\n",

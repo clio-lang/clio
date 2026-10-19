@@ -78,7 +78,9 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
             if (x.name != y.name || x.type.builtin != y.type.builtin ||
                 x.type.record != y.type.record || x.type.tensor != y.type.tensor ||
                 x.type.array != y.type.array || x.type.element != y.type.element ||
-                x.type.shape.size() != y.type.shape.size())
+                x.type.shape.size() != y.type.shape.size() ||
+                (x.type.builtin == BuiltinValue::Function &&
+                 !sameFunctionValueType(x.type, y.type)))
               return fail("invalid error-union payload type", record.declaration);
             for (std::size_t axis = 0; axis < x.type.shape.size(); ++axis)
               if (x.type.shape[axis].constant != y.type.shape[axis].constant)
@@ -121,15 +123,17 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
                            !isStringArray(type) && !isRecordArray(type)) ||
                           type.shape.size() > 128 || (type.array && type.shape.size() != 1))
                        : (type.array || !type.shape.empty())))
-        return fail("record fields require completed CPU numbers, numeric collections, Bool, Bool "
-                    "arrays, Strings, String arrays, TaskError values, records or record arrays",
-                    field.declaration);
+        return fail(
+            "record fields require completed CPU numbers, numeric collections, Bool, Bool "
+            "arrays, Strings, String arrays, TaskError values, functions, records or record arrays",
+            field.declaration);
       if (type.builtin == BuiltinValue::Record) {
         if (!type.record || *type.record >= module.records.size())
           return fail("invalid nested record declaration identity", field.declaration);
       } else if (type.record ||
                  (type.builtin != BuiltinValue::Bool && type.builtin != BuiltinValue::String &&
                   type.builtin != BuiltinValue::TaskError &&
+                  type.builtin != BuiltinValue::Function &&
                   (type.builtin != BuiltinValue::Numeric ||
                    !(type.array
                          ? numericCollectionStorageAvailable(type.element, NumericTarget::Cpu)
@@ -137,7 +141,7 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
                          ? numericTensorElementwiseAvailable(type.element, NumericTarget::Cpu)
                          : numericScalarArithmeticAvailable(type.element, NumericTarget::Cpu)))))
         return fail("record fields require CPU numbers, numeric collections, Bool, Bool arrays, "
-                    "Strings, String arrays, TaskError values, records or record arrays",
+                    "Strings, String arrays, TaskError values, functions, records or record arrays",
                     field.declaration);
     }
   }
@@ -165,6 +169,7 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
       const auto &field = record.fields[frame.next];
       std::size_t count = field.type.tensor ? 3 + 2 * field.type.shape.size()
                           : field.type.builtin == BuiltinValue::TaskError ? 4
+                          : field.type.builtin == BuiltinValue::Function  ? 2
                           : field.type.builtin == BuiltinValue::String    ? 3
                                                                           : 1;
       if (field.type.record) {
@@ -201,10 +206,11 @@ inline std::size_t recordInlineUnits(const TypedModule &module, std::size_t root
       return *cache[id];
     std::size_t total = 0;
     for (const auto &field : module.records[id].fields)
-      total += field.type.tensor                            ? 3 + 2 * field.type.shape.size()
-               : field.type.record                          ? count(*field.type.record)
-               : field.type.builtin == BuiltinValue::String ? 3
-                                                            : 1;
+      total += field.type.tensor                              ? 3 + 2 * field.type.shape.size()
+               : field.type.record                            ? count(*field.type.record)
+               : field.type.builtin == BuiltinValue::Function ? 2
+               : field.type.builtin == BuiltinValue::String   ? 3
+                                                              : 1;
     cache[id] = total;
     return total;
   };

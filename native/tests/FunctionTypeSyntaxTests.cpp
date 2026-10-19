@@ -173,8 +173,10 @@ void limitsAndRecovery() {
 void semanticBoundary() {
   for (const auto *text :
        {"fn factory()->fn(int)->int:\n  0\n", "fn main()->int:\n  value:fn(int)->int=0\n  0\n",
-        "type Holder:\n  callback:fn(int)->int\nfn main()->int:\n  0\n",
-        "enum Choice:\n  Some:\n    callback:fn()->int\nfn main()->int:\n  0\n",
+        "type Holder:\n  callback:fn(int)->int\nfn main()->int:\n  holder=Holder {callback:0}\n  "
+        "0\n",
+        "enum Choice:\n  Some:\n    callback:fn()->int\nfn main()->int:\n  value=Choice.Some "
+        "{callback:0}\n  0\n",
         "fn main()->[int]:\n  map([1],fn(value)->fn(int)->int:0)\n"}) {
     auto parsed = syntax(text);
     require(parsed.ok(), "semantic boundary input failed to parse");

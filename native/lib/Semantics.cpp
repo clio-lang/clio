@@ -603,7 +603,8 @@ private:
               (value->builtin != BuiltinValue::Numeric && value->builtin != BuiltinValue::Bool &&
                value->builtin != BuiltinValue::String &&
                value->builtin != BuiltinValue::TaskError &&
-               value->builtin != BuiltinValue::Record)) {
+               value->builtin != BuiltinValue::Record &&
+               value->builtin != BuiltinValue::Function)) {
             error("S071", "enum payload requires a supported completed CPU value", field.type.span);
             continue;
           }
@@ -629,10 +630,11 @@ private:
           (fieldType->builtin != BuiltinValue::Numeric &&
            fieldType->builtin != BuiltinValue::Bool && fieldType->builtin != BuiltinValue::Record &&
            fieldType->builtin != BuiltinValue::TaskError &&
-           fieldType->builtin != BuiltinValue::String)) {
+           fieldType->builtin != BuiltinValue::String &&
+           fieldType->builtin != BuiltinValue::Function)) {
         error("S068",
               "record fields require CPU numbers, numeric collections, Bool, Bool arrays, "
-              "Strings, String arrays, TaskError values, records or record arrays",
+              "Strings, String arrays, TaskError values, functions, records or record arrays",
               field.type.span);
         continue;
       }
@@ -1578,14 +1580,16 @@ private:
       if (const auto *target = std::get_if<NameExpr>(&right.value))
         return invoke(frame, span, target->name, {binary.left}, expected);
       if (const auto *target = std::get_if<CallExpr>(&right.value)) {
-        const auto *callee = std::get_if<NameExpr>(&syntax_.expressions[target->callee].value);
-        if (callee) {
-          std::vector<ExprId> arguments{binary.left};
-          arguments.insert(arguments.end(), target->arguments.begin(), target->arguments.end());
+        std::vector<ExprId> arguments{binary.left};
+        arguments.insert(arguments.end(), target->arguments.begin(), target->arguments.end());
+        if (const auto *callee = std::get_if<NameExpr>(&syntax_.expressions[target->callee].value))
           return invoke(frame, span, callee->name, arguments, expected);
-        }
+        return invokeValue(frame, span, target->callee, arguments);
       }
-      error("S018", "pipeline requires a named function or named call in this subset", right.span);
+      if (std::holds_alternative<FieldExpr>(right.value))
+        return invokeValue(frame, span, binary.right, {binary.left});
+      error("S018", "pipeline requires a named function, function-valued field or call",
+            right.span);
       return {};
     }
     const auto operand = [&](ExprId id, std::optional<ValueType> context) {
@@ -2070,6 +2074,10 @@ private:
       return {};
     auto result = node(*value).type;
     if (operation.prefix == TaskPrefix::Spawn) {
+      if (auto unsupported = functionValueTransportError(output_, node(*value))) {
+        error("S074", *unsupported, span);
+        return {};
+      }
       if (!std::holds_alternative<FunctionCall>(node(*value).operation) &&
           !std::holds_alternative<Matmul>(node(*value).operation) &&
           !std::holds_alternative<NumericConvert>(node(*value).operation) &&

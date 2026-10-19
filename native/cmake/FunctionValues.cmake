@@ -150,4 +150,35 @@ if(BUILD_TESTING)
     set_tests_properties(native-anonymous-errors-${VARIANT} PROPERTIES TIMEOUT 300)
   endforeach()
 
+  foreach(VARIANT IN ITEMS debug sanitized)
+    add_executable(kalandra-callable-field-tests-${VARIANT} tests/CallableFieldTests.cpp)
+    target_compile_options(kalandra-callable-field-tests-${VARIANT} PRIVATE -Wall -Wextra -Werror)
+    if(VARIANT STREQUAL "sanitized")
+      target_link_libraries(kalandra-callable-field-tests-${VARIANT} PRIVATE kalandra-semantics-sanitized)
+      target_compile_definitions(kalandra-callable-field-tests-${VARIANT} PRIVATE KALANDRA_FUNCTION_FRONTEND_ONLY)
+      target_compile_options(kalandra-callable-field-tests-${VARIANT} PRIVATE -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+      target_link_options(kalandra-callable-field-tests-${VARIANT} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all)
+    else()
+      target_link_libraries(kalandra-callable-field-tests-${VARIANT} PRIVATE kalandra-backend)
+    endif()
+    add_test(NAME native-callable-fields-frontend-${VARIANT} COMMAND kalandra-callable-field-tests-${VARIANT})
+    set_tests_properties(native-callable-fields-frontend-${VARIANT} PROPERTIES TIMEOUT 120)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    if(VARIANT STREQUAL "sanitized")
+      set(CALLABLE_FIELD_RUNTIME kalandra-native-runtime-sanitized)
+    elseif(VARIANT STREQUAL "thread-sanitized")
+      set(CALLABLE_FIELD_RUNTIME kalandra-native-runtime-thread-sanitized)
+    else()
+      set(CALLABLE_FIELD_RUNTIME kalandra-native-runtime)
+    endif()
+    add_test(NAME native-callable-fields-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DLLVM_ROOT=${KALANDRA_LLVM_ROOT}" "-DRUNTIME=$<TARGET_FILE:${CALLABLE_FIELD_RUNTIME}>"
+        "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/callable-fields-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyCallableFields.cmake")
+    set_tests_properties(native-callable-fields-${VARIANT} PROPERTIES TIMEOUT 300)
+  endforeach()
+
 endif()
