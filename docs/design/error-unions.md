@@ -1,6 +1,6 @@
 # Local application-error unions and aliases
 
-The native CPU compiler supports combining declared application-error families in one expected-error channel. This implements the local union/alias portion of the accepted [variant design](variants.md), building on [local application errors](application-errors.md). [Local TaskError composition](mixed-error-channels.md) is now implemented. Application errors escaping workers remain the next stage.
+The native CPU compiler supports combining declared application-error families in one expected-error channel. This implements the local union/alias portion of the accepted [variant design](variants.md), building on [local application errors](application-errors.md). [Local TaskError composition](mixed-error-channels.md) is now implemented. [Local CPU worker transport](worker-errors.md) preserves these channels across worker boundaries.
 
 ```kalandra
 error ReadError:
@@ -47,7 +47,7 @@ Both denote the same set. `ReadError | ReadError` is just `ReadError`. An alias 
 
 Aliases can be exported, imported with a local name, and re-exported. Import the original member families as well when a caller needs to name their variants in a handler. Re-exporting an alias does not implicitly export its members. Alias cycles, unknown members, ordinary enums/numeric types as members, reserved names and duplicate module bindings are rejected.
 
-This milestone supports aliases in error channels and function type annotations. Record and enum payload field declarations continue to use the original named error families; general alias support in those field declarations is not introduced here. There are no general structural or untagged value unions.
+Aliases work in error channels and function type annotations. [Record and enum payload fields](error-payload-fields.md) also support aliases as completed error data, including nested storage and TaskError fields. There are no general structural or untagged value unions.
 
 ## Widening and recovery
 

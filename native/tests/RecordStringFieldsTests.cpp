@@ -71,7 +71,8 @@ int main() {
       if (mode == 6)
         type.record = 0;
       if (mode == 7)
-        type.builtin = BuiltinValue::TaskError;
+        // TaskError is now valid field data; FaultKind remains unsupported here.
+        type.builtin = BuiltinValue::FaultKind;
       require(numericCapabilityError(forged, NumericTarget::Cpu).has_value(),
               "forged String field admitted");
     }

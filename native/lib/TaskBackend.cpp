@@ -527,11 +527,12 @@ private:
       const auto &field = fields[i].type;
       auto *address = builder.CreateStructGEP(scalarType(type), input, i);
       if (field.builtin == BuiltinValue::TaskError) {
-        if (!taskKind)
-          throw std::runtime_error("TaskError payload lacks its declared variant");
         auto *kind = builder.CreateLoad(i32, builder.CreateStructGEP(failureType, address, 0));
         auto *next = Block::Create(context, "task.error.validated", fn);
-        builder.CreateCondBr(builder.CreateICmpEQ(kind, c32(*taskKind)), next, failed);
+        builder.CreateCondBr(taskKind ? builder.CreateICmpEQ(kind, c32(*taskKind))
+                                      : builder.CreateAnd(builder.CreateICmpUGE(kind, c32(1)),
+                                                          builder.CreateICmpULE(kind, c32(4))),
+                             next, failed);
         builder.SetInsertPoint(next);
       } else if (isRecordArray(field))
         retainRecordArray(field, address, fn, failed);
@@ -690,7 +691,7 @@ private:
       builder.CreateCondBr(success, ready, failed);
       builder.SetInsertPoint(failed);
       builder.CreateRet(builder.getFalse());
-    } else if (type.builtin == BuiltinValue::Record && hasRecordBacking(planner.input)) {
+    } else if (type.builtin == BuiltinValue::Record && !type.task) {
       auto *retain = Block::Create(context, "record.retain", fn);
       auto *failed = Block::Create(context, "record.failed", fn);
       builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,

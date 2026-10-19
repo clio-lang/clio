@@ -78,7 +78,7 @@ The example above spawns an ordinary function whose checked fault is handled by 
 
 `spawn applicationFallible()` preserves the child's channel alongside TaskError. Application errors may be handled inside the group without cancelling siblings, or propagated through group cancellation and settlement while retaining their original payload.
 
-No distributed execution, GPU error transport, public foreign interface or change to sibling-cancellation policy is introduced here. Error aliases in record/enum payload declarations and whole-value match-arm narrowing remain tracked local refinements.
+No distributed execution, GPU error transport, public foreign interface or change to sibling-cancellation policy is introduced here. [Error aliases in record/enum payload fields](error-payload-fields.md) are supported as completed data. Whole-value match-arm narrowing remains a tracked local refinement.
 
 ## Qualification
 

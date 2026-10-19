@@ -209,6 +209,11 @@ private:
            name == "or" || name == "not" || name == "type" || name == "with";
   }
   std::optional<ValueType> type(const TypeSyntax &syntax) {
+    if (!syntax.tensor && !syntax.array && name(syntax.name) == "TaskError") {
+      ValueType result;
+      result.builtin = BuiltinValue::TaskError;
+      return result;
+    }
     if (!syntax.tensor && name(syntax.name) == "String") {
       ValueType result;
       result.builtin = BuiltinValue::String;
@@ -229,8 +234,19 @@ private:
     }
     if (!syntax.tensor) {
       const auto key = functionKey(syntax_.source->partIndex(syntax.name.begin), name(syntax.name));
+      if (!records_.contains(key))
+        if (auto alias = aliases_.find(key); alias != aliases_.end()) {
+          std::unordered_set<std::size_t> active;
+          if (auto resolved = resolveAlias(alias->second, active))
+            records_[key] = *resolved;
+          else
+            return {};
+        }
       if (auto found = records_.find(key); found != records_.end()) {
-        auto result = recordType(found->second);
+        const auto id = found->second;
+        if (!populateRecord(id, syntax.span))
+          return {};
+        auto result = recordType(id);
         if (syntax.array) {
           result.tensor = result.array = true;
           result.shape = {dynamic()};
@@ -246,7 +262,8 @@ private:
           : syntax.tensor ? numericTensorElementwiseAvailable(*numeric, NumericTarget::Cpu)
                           : numericScalarArithmeticAvailable(*numeric, NumericTarget::Cpu))) {
       error("S003",
-            "expected a declared record or enum type, String, Bool, or a supported numeric scalar, "
+            "expected a declared record or enum type, String, Bool, TaskError, or a supported "
+            "numeric scalar, "
             "tensor "
             "or array "
             "type",
@@ -358,10 +375,11 @@ private:
     }
     const auto id = output_.records.size();
     output_.records.push_back(std::move(joined));
-    if (auto invalid = recordLayoutError(output_, limits_)) {
-      error(invalid->code, invalid->message, invalid->span);
-      return {};
-    }
+    if (!registeringRecords_)
+      if (auto invalid = recordLayoutError(output_, limits_)) {
+        error(invalid->code, invalid->message, invalid->span);
+        return {};
+      }
     return id;
   }
   std::optional<std::size_t> resolveAlias(std::size_t id, std::unordered_set<std::size_t> &active) {
@@ -394,8 +412,10 @@ private:
     if (auto alias = aliases_.find(key); alias != aliases_.end())
       return resolveAlias(alias->second, active);
     if (auto found = records_.find(key);
-        found != records_.end() && output_.records[found->second].error)
-      return found->second;
+        found != records_.end() && output_.records[found->second].error) {
+      const auto id = found->second;
+      return populateRecord(id, member) ? std::optional{id} : std::nullopt;
+    }
     error("S072", "expected a declared error family or error alias", member);
     return {};
   }
@@ -425,7 +445,11 @@ private:
       }
       if (record.exported)
         exports_.emplace(key, ExportBinding{true, output_.records.size()});
-      output_.records.push_back({label, record.name, {}});
+      TypedRecord header{label, record.name, {}};
+      header.error = record.error;
+      output_.records.push_back(std::move(header));
+      recordDeclarations_.push_back(declaration);
+      recordStates_.push_back(State::Unseen);
     }
     // Resolve type imports before checking fields or function annotations. Explicit
     // re-exports follow the original declaration; ordinary imports remain private.
@@ -453,81 +477,100 @@ private:
           records_.emplace(key, found->id);
       }
     }
-    for (const auto &record : syntax_.records) {
-      if (!record.errorAlias.empty())
-        continue;
-      const auto key = functionKey(syntax_.source->partIndex(record.name.begin), name(record.name));
-      const auto found = records_.find(key);
-      if (found == records_.end())
-        continue;
-      auto &target = output_.records[found->second];
-      target.error = record.error;
-      // Duplicate declarations have already been diagnosed; do not merge fields.
-      if (target.declaration.begin != record.name.begin)
-        continue;
-      if (!record.variants.empty()) {
-        ValueType tag;
-        tag.element = NumericType::Int64;
-        target.fields.push_back({"$tag", tag, record.name});
-        std::unordered_set<std::string> cases;
-        for (const auto &variant : record.variants) {
-          const auto label = name(variant.name);
-          if (reservedControl(label) || !cases.insert(label).second) {
-            error("S071", "duplicate or reserved enum variant '" + label + "'", variant.name);
+    // Resolve fields lazily so aliases only copy fully populated families,
+    // independent of declaration order. No references into records survive a
+    // recursive type lookup, which can append canonical union records.
+    for (std::size_t id = 0; id < recordDeclarations_.size(); ++id)
+      populateRecord(id);
+    registeringRecords_ = false;
+  }
+  bool populateRecord(std::size_t id, std::optional<SourceSpan> reference = {}) {
+    if (id >= recordStates_.size() || recordStates_[id] == State::Complete)
+      return true; // Canonical unions and TaskError are populated at creation.
+    if (recordStates_[id] == State::Failed)
+      return false;
+    if (recordStates_[id] == State::Checking) {
+      error("S068", "recursive record/enum field type cycles are not yet supported",
+            reference.value_or(output_.records[id].declaration));
+      return false;
+    }
+    if (recordDepth_ >= limits_.maxDepth) {
+      error("S068", "record layout exceeds configured nesting depth",
+            reference.value_or(output_.records[id].declaration));
+      return false;
+    }
+    const auto before = errorCount_;
+    recordStates_[id] = State::Checking;
+    ++recordDepth_;
+    fillRecord(id);
+    --recordDepth_;
+    const bool valid = errorCount_ == before;
+    recordStates_[id] = valid ? State::Complete : State::Failed;
+    return valid;
+  }
+  void fillRecord(std::size_t id) {
+    const auto &record = syntax_.records[recordDeclarations_[id]];
+    if (!record.variants.empty()) {
+      ValueType tag;
+      tag.element = NumericType::Int64;
+      output_.records[id].fields.push_back({"$tag", tag, record.name});
+      std::unordered_set<std::string> cases;
+      for (const auto &variant : record.variants) {
+        const auto label = name(variant.name);
+        if (reservedControl(label) || !cases.insert(label).second) {
+          error("S071", "duplicate or reserved enum variant '" + label + "'", variant.name);
+          continue;
+        }
+        TypedVariant typed{label, variant.name, {}};
+        std::unordered_set<std::string> fields;
+        for (const auto &field : variant.fields) {
+          const auto label = name(field.name);
+          if (reservedControl(label) || !fields.insert(label).second) {
+            error("S071", "duplicate or reserved variant field '" + label + "'", field.name);
             continue;
           }
-          TypedVariant typed{label, variant.name, {}};
-          std::unordered_set<std::string> fields;
-          for (const auto &field : variant.fields) {
-            const auto label = name(field.name);
-            if (reservedControl(label) || !fields.insert(label).second) {
-              error("S071", "duplicate or reserved variant field '" + label + "'", field.name);
-              continue;
-            }
-            auto value = type(field.type);
-            if (!value)
-              continue;
-            if ((value->tensor && value->builtin != BuiltinValue::Numeric && !isBoolArray(*value) &&
-                 !isStringArray(*value) && !isRecordArray(*value)) ||
-                (value->builtin != BuiltinValue::Numeric && value->builtin != BuiltinValue::Bool &&
-                 value->builtin != BuiltinValue::String &&
-                 value->builtin != BuiltinValue::Record)) {
-              error("S071", "enum payload requires a supported completed CPU value",
-                    field.type.span);
-              continue;
-            }
-            typed.fields.push_back(target.fields.size());
-            target.fields.push_back({label, *value, field.name});
+          auto value = type(field.type);
+          if (!value)
+            continue;
+          if ((value->tensor && value->builtin != BuiltinValue::Numeric && !isBoolArray(*value) &&
+               !isStringArray(*value) && !isRecordArray(*value)) ||
+              (value->builtin != BuiltinValue::Numeric && value->builtin != BuiltinValue::Bool &&
+               value->builtin != BuiltinValue::String &&
+               value->builtin != BuiltinValue::TaskError &&
+               value->builtin != BuiltinValue::Record)) {
+            error("S071", "enum payload requires a supported completed CPU value", field.type.span);
+            continue;
           }
-          target.variants.push_back(std::move(typed));
+          typed.fields.push_back(output_.records[id].fields.size());
+          output_.records[id].fields.push_back({label, *value, field.name});
         }
+        output_.records[id].variants.push_back(std::move(typed));
+      }
+      return;
+    }
+    std::unordered_set<std::string> fields;
+    for (const auto &field : record.fields) {
+      const auto label = name(field.name);
+      if (reservedControl(label) || !fields.insert(label).second) {
+        error("S068", "duplicate or reserved record field '" + label + "'", field.name);
         continue;
       }
-      std::unordered_set<std::string> fields;
-      for (const auto &field : record.fields) {
-        const auto label = name(field.name);
-        if (reservedControl(label) || !fields.insert(label).second) {
-          error("S068", "duplicate or reserved record field '" + label + "'", field.name);
-          continue;
-        }
-        auto fieldType = type(field.type);
-        if (!fieldType)
-          continue;
-        if ((fieldType->tensor && fieldType->builtin != BuiltinValue::Numeric &&
-             !isBoolArray(*fieldType) && !isStringArray(*fieldType) &&
-             !isRecordArray(*fieldType)) ||
-            (fieldType->builtin != BuiltinValue::Numeric &&
-             fieldType->builtin != BuiltinValue::Bool &&
-             fieldType->builtin != BuiltinValue::Record &&
-             fieldType->builtin != BuiltinValue::String)) {
-          error("S068",
-                "record fields require CPU numbers, numeric collections, Bool, Bool arrays, "
-                "Strings, String arrays, records or record arrays",
-                field.type.span);
-          continue;
-        }
-        target.fields.push_back({label, *fieldType, field.name});
+      auto fieldType = type(field.type);
+      if (!fieldType)
+        continue;
+      if ((fieldType->tensor && fieldType->builtin != BuiltinValue::Numeric &&
+           !isBoolArray(*fieldType) && !isStringArray(*fieldType) && !isRecordArray(*fieldType)) ||
+          (fieldType->builtin != BuiltinValue::Numeric &&
+           fieldType->builtin != BuiltinValue::Bool && fieldType->builtin != BuiltinValue::Record &&
+           fieldType->builtin != BuiltinValue::TaskError &&
+           fieldType->builtin != BuiltinValue::String)) {
+        error("S068",
+              "record fields require CPU numbers, numeric collections, Bool, Bool arrays, "
+              "Strings, String arrays, TaskError values, records or record arrays",
+              field.type.span);
+        continue;
       }
+      output_.records[id].fields.push_back({label, *fieldType, field.name});
     }
   }
   void registerSignatures() {
@@ -3371,6 +3414,10 @@ private:
   std::unordered_map<std::string, FunctionId> functions_;
   std::unordered_map<std::string, std::size_t> records_;
   std::unordered_map<std::string, std::size_t> aliases_;
+  std::vector<std::size_t> recordDeclarations_;
+  std::vector<State> recordStates_;
+  bool registeringRecords_ = true;
+  std::size_t recordDepth_ = 0;
   std::unordered_map<std::size_t, std::optional<std::size_t>> resolvedAliases_;
   std::unordered_map<std::string, std::optional<ExportBinding>> exports_;
   std::unordered_set<std::string> resolvingExports_;

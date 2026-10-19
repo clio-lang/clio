@@ -29,6 +29,9 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
   };
   bool sawTaskError = false;
   for (const auto &record : module.records) {
+    if (record.name == "TaskError" && !record.taskErrorFamily)
+      return fail("reserved TaskError identity requires its canonical family metadata",
+                  record.declaration);
     if (record.taskErrorFamily) {
       if (sawTaskError || !record.error || record.name != "TaskError" ||
           !record.errorMembers.empty() || !record.errorOrigins.empty() ||
@@ -113,15 +116,14 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
                           type.shape.size() > 128 || (type.array && type.shape.size() != 1))
                        : (type.array || !type.shape.empty())))
         return fail("record fields require completed CPU numbers, numeric collections, Bool, Bool "
-                    "arrays, Strings, String arrays, records or record arrays",
+                    "arrays, Strings, String arrays, TaskError values, records or record arrays",
                     field.declaration);
       if (type.builtin == BuiltinValue::Record) {
         if (!type.record || *type.record >= module.records.size())
           return fail("invalid nested record declaration identity", field.declaration);
       } else if (type.record ||
                  (type.builtin != BuiltinValue::Bool && type.builtin != BuiltinValue::String &&
-                  !(type.builtin == BuiltinValue::TaskError &&
-                    (record.taskErrorFamily || !record.errorMembers.empty())) &&
+                  type.builtin != BuiltinValue::TaskError &&
                   (type.builtin != BuiltinValue::Numeric ||
                    !(type.array
                          ? numericCollectionStorageAvailable(type.element, NumericTarget::Cpu)
@@ -129,7 +131,7 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
                          ? numericTensorElementwiseAvailable(type.element, NumericTarget::Cpu)
                          : numericScalarArithmeticAvailable(type.element, NumericTarget::Cpu)))))
         return fail("record fields require CPU numbers, numeric collections, Bool, Bool arrays, "
-                    "Strings, String arrays, records or record arrays",
+                    "Strings, String arrays, TaskError values, records or record arrays",
                     field.declaration);
     }
   }

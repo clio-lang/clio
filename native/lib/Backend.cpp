@@ -298,7 +298,8 @@ private:
       const auto &record = input_.records[*source.record];
       const auto validateField = [&](std::size_t i) {
         const auto &field = record.fields[i].type;
-        if (field.builtin == BuiltinValue::String || field.builtin == BuiltinValue::Record) {
+        if (field.builtin == BuiltinValue::String || field.builtin == BuiltinValue::Record ||
+            field.builtin == BuiltinValue::TaskError) {
           auto member = LLVM::ExtractValueOp::create(builder_, loc, value,
                                                      ArrayRef<int64_t>{static_cast<int64_t>(i)});
           validateStrings(loc, member, field);
