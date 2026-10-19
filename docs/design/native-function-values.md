@@ -129,7 +129,7 @@ The following remain implementation gaps under the accepted function-value desig
 
 - Callable targets requiring task/device coordination, and recursive control-flow callable references. Synchronous expected-error calls and factories are implemented.
 - Fallible map aggregation and direct static-map lowering of synchronous control-flow callback bodies. Bound completed-result function-value wrappers are supported.
-- Anonymous block bodies and direct anonymous error annotations. General expression bindings and returned captured closures are now supported; see [managed CPU closures](native-closures.md).
+- Direct anonymous error annotations. Expression and [indented anonymous bodies](native-block-closures.md), general bindings and returned captured closures are supported; see [managed CPU closures](native-closures.md).
 - Function-valued record/enum fields, arrays of functions, indirect spawn, worker transport, GPU callbacks and remote function contracts.
 
 These are staged implementation restrictions, not additional language design limits. Distributed contracts still require their separate design discussion; public C/C++ callback integration remains on its separate roadmap.

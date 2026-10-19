@@ -178,7 +178,7 @@ struct LambdaParameter {
 struct LambdaExpr {
   std::vector<LambdaParameter> parameters;
   std::optional<TypeSyntax> result;
-  ExprId body;
+  std::vector<Statement> body;
 };
 enum class TaskPrefix { Spawn, Await, Try };
 struct TaskExpr {

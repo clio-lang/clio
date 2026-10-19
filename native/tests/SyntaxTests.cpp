@@ -83,7 +83,12 @@ void validTree(const ParseResult &result) {
           } else if constexpr (std::is_same_v<T, FailExpr>)
             id(value.operand);
           else if constexpr (std::is_same_v<T, LambdaExpr>) {
-            id(value.body);
+            for (const auto &statement : value.body) {
+              span(statement.span);
+              id(statement.expression);
+              if (statement.binding)
+                span(*statement.binding);
+            }
             for (const auto &parameter : value.parameters)
               span(parameter.name);
           } else if constexpr (std::is_same_v<T, IndexExpr>) {

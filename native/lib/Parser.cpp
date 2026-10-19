@@ -698,13 +698,14 @@ private:
           if (!lambda.result)
             return {};
         }
-        if (!expect(TokenKind::Colon, "expected ':' before anonymous expression body"))
+        if (!expect(TokenKind::Colon, "expected ':' before anonymous body"))
           return {};
-        auto body = parseExpression();
+        auto body = suite();
         if (!body)
           return {};
-        lambda.body = *body;
-        return add({{token.span.begin, node(*body).span.end}, std::move(lambda)});
+        const auto end = body->back().span.end;
+        lambda.body = std::move(*body);
+        return add({{token.span.begin, end}, std::move(lambda)});
       }
       if (text == "if") {
         advance();

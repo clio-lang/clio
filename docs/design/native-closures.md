@@ -1,6 +1,6 @@
-# Managed CPU expression closures
+# Managed CPU closures
 
-Implemented native subset — 2026-10-19. Anonymous expression functions can be bound, passed, selected and returned with immutable lexical captures. This extends [native function values](native-function-values.md) under the [accepted function-value design](function-values.md).
+Implemented native subset — 2026-10-19. Anonymous functions can be bound, passed, selected and returned with immutable lexical captures. [Indented anonymous bodies](native-block-closures.md) now extend the initial expression form. This extends [native function values](native-function-values.md) under the [accepted function-value design](function-values.md).
 
 ```kalandra
 fn makeAdder(offset: int) -> fn(int) -> int:
@@ -25,7 +25,7 @@ increment: fn(int) -> int = fn(value): value + 1
 twice = fn(value: int): value * 2
 ```
 
-Without an expected signature, each parameter needs an annotation. Result types are inferred from the expression body or checked against the expected/annotated result. Later calls do not retroactively infer missing parameter types. Exact numeric widths, nominal record identities, collection categories/shapes and canonical expected-error sets retain the existing callable rules.
+Without an expected signature, each parameter needs an annotation. Result types are inferred from the body’s final expression or checked against the expected/annotated result. Later calls do not retroactively infer missing parameter types. Exact numeric widths, nominal record identities, collection categories/shapes and canonical expected-error sets retain the existing callable rules.
 
 Only referenced lexical bindings are captured. Repeated references to one binding produce one capture. Parameters shadow outer bindings, nested closures capture through their enclosing scopes, and captured function values keep their own environments valid transitively. Named functions and closures with the same signature can be selected at runtime or passed to the same higher-order parameter. Parameter and capture counts have no special small limit; ordinary compiler complexity and allocation limits apply.
 
@@ -56,7 +56,7 @@ Allocation failures and cancellation use existing checked execution rules. A fai
 
 ## Remaining work
 
-- Anonymous block bodies and direct anonymous invocation error annotations. The implemented body is `fn(parameters): expression`; expected callable signatures supply channels for `try`.
+- Direct anonymous invocation error annotations. Both expression and [indented bodies](native-block-closures.md) are implemented; expected callable signatures supply channels for `try`.
 - Function-valued record/enum fields and arrays of functions.
 - Function transport across local workers, indirect spawn and resumable callables.
 - Recursive control-flow callable references and direct static-map control-flow callbacks.
@@ -66,8 +66,14 @@ GPU callbacks, distributed contracts and public C/C++ integration retain their s
 
 ## Qualification
 
+### Initial expression closures
+
 All 183 selected checks passed on Apple M2 Max, including existing frontend, function-value, map, collection, module, task, error and inline-capture regressions. The new closure execution suites compile 176 programs across debug, optimized, ASan/UBSan and separate ThreadSanitizer builds. Frontend checks cover 28 valid programs, 15 rejected programs and six malformed capture-metadata cases per variant.
 
 Private lifetime probes invoke returned closures 256 times after their creators exit, checking independent record/String/array environments. They exercise 52 context allocation probes and 32 returned-environment creation probes, including untouched output on failed creation, stopped creator/callee contexts and balanced storage after settlement. CLI sweeps run 960 allocation-failure processes. Owned worker results are additionally checked with worker pools of one, two and four threads, including repeated awaits. Empty and rank-zero captures, runtime shape mismatches, all ten scalar widths, nested functions, lexical shadowing, typed errors and empty maps are covered. A separate debug check verifies imported creators retain their helper-module name resolution.
 
 The [qualification evidence](../../native/metal-proof/evidence/cpu-managed-closures-2026-10-19.json) records the selected tests, per-variant probes, manual import check and frozen source hashes. This is focused macOS ARM64 qualification; it does not qualify the remaining body/storage/transport features, a public callback ABI, earlier reclamation or performance improvements.
+
+### Indented anonymous bodies
+
+[Anonymous statement suites](native-block-closures.md) extend the same managed closures with ordered immutable bindings and a final expression. All 56 selected checks passed for that increment, including four new execution variants and relevant debug/ASan/UBSan regressions. See its [qualification record](native-block-closures.md#qualification) for the block-body, capture, parser and failure coverage.

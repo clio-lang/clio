@@ -1380,14 +1380,18 @@ private:
       output_.functions[id].parameters.push_back(symbol);
       nested.locals.emplace(label, symbol);
     }
-    auto result = expression(nested, lambda.body, resultContext);
+    std::unordered_set<std::string> introduced;
+    for (const auto &parameter : lambda.parameters)
+      introduced.insert(name(parameter.name));
+    std::vector<TypedStatement> statements;
+    auto result = suite(nested, lambda.body, resultContext, statements, introduced);
     if (!result)
       return {};
     const auto resultType = node(*result).type;
     auto signature = callableType(parameters, resultContext.value_or(resultType), span);
     if (!signature)
       return {};
-    output_.functions[id].body = {{syntax_.expressions[lambda.body].span, {}, *result}};
+    output_.functions[id].body = std::move(statements);
     output_.functions[id].result = *result;
     output_.functions[id].resultType = resultType;
     if (resultContext && resultContext->fallible) {
@@ -3225,7 +3229,9 @@ private:
     Frame nested{id, {}, frame.depth, std::make_shared<TaskChecks>(), {}, {}, {}, 0, false};
     nested.locals.emplace(name(lambda.parameters[0].name), parameter);
     nested.closure = std::make_shared<ClosureScope>(ClosureScope{&frame, {}, {}});
-    auto result = expression(nested, lambda.body, resultContext);
+    std::vector<TypedStatement> statements;
+    auto result =
+        suite(nested, lambda.body, resultContext, statements, {name(lambda.parameters[0].name)});
     if (!result)
       return {};
     const auto resultType = node(*result).type;
@@ -3234,7 +3240,13 @@ private:
             lambdaSpan);
       return {};
     }
-    output_.functions[id].body = {{syntax_.expressions[lambda.body].span, {}, *result}};
+    for (auto pending : nested.tasks->pending)
+      if (!nested.tasks->handled.contains(pending)) {
+        error("S036", "anonymous map must handle each expected error before returning an element",
+              lambdaSpan);
+        return {};
+      }
+    output_.functions[id].body = std::move(statements);
     output_.functions[id].result = *result;
     output_.functions[id].resultType = resultType;
     std::vector<ValueId> captures;
