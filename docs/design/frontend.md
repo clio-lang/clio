@@ -49,9 +49,14 @@ type         = identifier | array-type | tensor-type | "(", type, ")"
              | "fn", "(", type-list?, ")", "->", type, error-channel? ;
 type-list    = type, (",", type)*, ","? ;
 error-channel = "!", (identifier | "(", identifier, ("|", identifier)*, ")") ;
+anonymous    = "fn", "(", anonymous-parameters?, ")", ("->", type)?,
+               error-channel?, ":", suite ;
+anonymous-parameters = anonymous-parameter, (",", anonymous-parameter)*, ","? ;
+anonymous-parameter = identifier, (":", type)? ;
+suite        = expression | NEWLINE, INDENT, statement+, DEDENT ;
 ```
 
-Function arrows associate to the right. An error suffix belongs to the innermost ungrouped callable; group a returned function type before adding its factory's error channel. Repeated ungrouped suffixes are rejected. The [named CPU function-value subset](native-function-values.md) now implements the supported scalar, record and collection signatures and typed indirect calls. Parsing broader signatures does not imply execution support; expected-error callable signatures resolve canonical error sets, and [managed expression closures](native-closures.md) add lexical captures and expected-signature inference. [Anonymous bodies](native-block-closures.md) use the same statement-suite AST as other bodies. Function-valued fields and direct anonymous invocation error annotations remain unsupported.
+Function arrows associate to the right. An error suffix belongs to the innermost ungrouped callable; group a returned function type before adding its factory's error channel. Repeated ungrouped suffixes are rejected. The [named CPU function-value subset](native-function-values.md) now implements the supported scalar, record and collection signatures and typed indirect calls. Parsing broader signatures does not imply execution support; expected-error callable signatures resolve canonical error sets, and [managed expression closures](native-closures.md) add lexical captures and expected-signature inference. [Anonymous bodies](native-block-closures.md) use the same statement-suite AST as other bodies. [Direct anonymous invocation error annotations](anonymous-errors.md) now follow the same suffix/grouping rules. Function-valued fields remain unsupported.
 
 Calls and postfix indexing bind most tightly, then unary signs, multiplication/division/remainder, addition/subtraction, and pipelines. Binary arithmetic and pipeline operators associate left to right. Pipelines remain distinct AST nodes; first-argument insertion belongs to later typed lowering, not parser-side execution or rewriting that loses source information.
 

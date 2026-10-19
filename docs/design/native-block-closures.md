@@ -38,7 +38,7 @@ fn makeValidator(offset: int) -> fn(int) -> int ! InputError:
 
 This is an illustration with separately declared `InputError` and `checked`. The error suffix belongs to the returned function. The compiler preserves that channel even when the last expression succeeds. A guard failure exits the body before subsequent bindings execute. Each expected result must be handled, propagated or returned; binding an error-producing call and then ignoring it is rejected.
 
-Direct anonymous invocation error annotations, such as `fn(value: int) -> int ! InputError:`, remain a separate increment. Expected signatures already support the block behavior above.
+[Direct anonymous error declarations](anonymous-errors.md), such as `fn(value: int) -> int ! InputError:`, are now supported too. Expected signatures remain an alternative.
 
 ## Calls, maps and workers
 

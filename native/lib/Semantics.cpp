@@ -1134,6 +1134,8 @@ private:
     }
     const auto declaredFamily = frame.function < errorFamilies_.size()
                                     ? errorFamilies_[frame.function]
+                                : anonymousErrors_.contains(frame.function)
+                                    ? anonymousErrors_.at(frame.function)
                                     : output_.functions[frame.function].declaredResult->errorRecord;
     if (!errorSubset(output_, family, declaredFamily)) {
       error("S072", "declared channel does not cover every propagated error family", span);
@@ -1157,9 +1159,10 @@ private:
     return true;
   }
   bool sourceTaskError(FunctionId id) const {
-    return id < syntax_.functions.size() ? syntax_.functions[id].taskError
-                                         : output_.functions[id].declaredResult &&
-                                               output_.functions[id].declaredResult->fallible;
+    return id < syntax_.functions.size()
+               ? syntax_.functions[id].taskError
+               : anonymousErrors_.contains(id) || (output_.functions[id].declaredResult &&
+                                                   output_.functions[id].declaredResult->fallible);
   }
   std::optional<SymbolId> lookupSymbol(Frame &frame, SourceSpan span) {
     const auto identifier = name(span);
@@ -1361,7 +1364,28 @@ private:
                                        : std::nullopt;
     if (lambda.result && !resultContext)
       return {};
+    std::optional<std::size_t> declaredError;
+    if (!lambda.errorTypes.empty()) {
+      std::vector<std::size_t> families;
+      std::unordered_set<std::size_t> active;
+      for (auto channel : lambda.errorTypes) {
+        auto family = resolveError(channel, active);
+        if (!family)
+          return {};
+        families.push_back(*family);
+      }
+      auto family = combineErrors(std::move(families), span);
+      if (!family)
+        return {};
+      declaredError = normalizedError(*family);
+      if (resultContext) {
+        resultContext->fallible = true;
+        resultContext->errorRecord = declaredError;
+      }
+    }
     const auto id = output_.functions.size();
+    if (!lambda.errorTypes.empty())
+      anonymousErrors_.emplace(id, declaredError);
     output_.functions.emplace_back();
     requirements_.resize(output_.functions.size());
     output_.functions[id].name = "__closure_" + std::to_string(id);
@@ -1388,20 +1412,27 @@ private:
     if (!result)
       return {};
     const auto resultType = node(*result).type;
-    auto signature = callableType(parameters, resultContext.value_or(resultType), span);
+    auto declaredResult = resultContext.value_or(resultType);
+    if (!lambda.errorTypes.empty()) {
+      declaredResult.fallible = true;
+      declaredResult.errorRecord = declaredError;
+    }
+    if (declaredResult.fallible && resultType.fallible &&
+        !errorSubset(output_, resultType.errorRecord, declaredResult.errorRecord)) {
+      error("S072", "anonymous function return channel does not cover every error family", span);
+      return {};
+    }
+    auto signature = callableType(parameters, declaredResult, span);
     if (!signature)
       return {};
     output_.functions[id].body = std::move(statements);
     output_.functions[id].result = *result;
     output_.functions[id].resultType = resultType;
-    if (resultContext && resultContext->fallible) {
-      if (resultType.fallible &&
-          !errorSubset(output_, resultType.errorRecord, resultContext->errorRecord)) {
-        error("S072", "anonymous function return channel does not cover every error family", span);
-        return {};
-      }
+    if (!lambda.errorTypes.empty())
+      output_.functions[id].declaredResult = declaredResult;
+    if (declaredResult.fallible) {
       output_.functions[id].resultType.fallible = true;
-      output_.functions[id].resultType.errorRecord = resultContext->errorRecord;
+      output_.functions[id].resultType.errorRecord = declaredResult.errorRecord;
     }
     if (resultType.fallible)
       nested.tasks->handled.insert(resultType.identity);
@@ -3163,6 +3194,13 @@ private:
   }
   std::optional<ValueId> anonymousMap(Frame &frame, SourceSpan span, ExprId inputSyntax,
                                       SourceSpan lambdaSpan, const LambdaExpr &lambda) {
+    if (!lambda.errorTypes.empty()) {
+      error("S060",
+            "map callbacks must return completed elements; handle errors inside an infallible "
+            "callback",
+            lambdaSpan);
+      return {};
+    }
     if (lambda.parameters.size() != 1 || reservedControl(name(lambda.parameters[0].name))) {
       error("S060", "map anonymous functions require one element parameter", lambdaSpan);
       return {};
@@ -3744,6 +3782,8 @@ private:
   std::vector<std::optional<std::size_t>> errorFamilies_;
   std::vector<bool> literal_, floatingLiteral_;
   std::vector<std::unordered_set<std::string>> requirements_;
+  // Keep declared channels available while an anonymous success type is inferred.
+  std::unordered_map<FunctionId, std::optional<std::size_t>> anonymousErrors_;
   std::vector<Diagnostic> diagnostics_;
   ExtentId nextExtent_ = 1;
   std::size_t functionDepth_ = 0;

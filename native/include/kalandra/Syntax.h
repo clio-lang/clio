@@ -179,6 +179,7 @@ struct LambdaExpr {
   std::vector<LambdaParameter> parameters;
   std::optional<TypeSyntax> result;
   std::vector<Statement> body;
+  std::vector<SourceSpan> errorTypes = {};
 };
 enum class TaskPrefix { Spawn, Await, Try };
 struct TaskExpr {

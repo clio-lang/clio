@@ -1,6 +1,6 @@
 # Managed CPU closures
 
-Implemented native subset — 2026-10-19. Anonymous functions can be bound, passed, selected and returned with immutable lexical captures. [Indented anonymous bodies](native-block-closures.md) now extend the initial expression form. This extends [native function values](native-function-values.md) under the [accepted function-value design](function-values.md).
+Implemented native subset — 2026-10-19. Anonymous functions can be bound, passed, selected and returned with immutable lexical captures. [Indented anonymous bodies](native-block-closures.md) and [direct error declarations](anonymous-errors.md) now extend the initial expression form. This extends [native function values](native-function-values.md) under the [accepted function-value design](function-values.md).
 
 ```kalandra
 fn makeAdder(offset: int) -> fn(int) -> int:
@@ -56,7 +56,6 @@ Allocation failures and cancellation use existing checked execution rules. A fai
 
 ## Remaining work
 
-- Direct anonymous invocation error annotations. Both expression and [indented bodies](native-block-closures.md) are implemented; expected callable signatures supply channels for `try`.
 - Function-valued record/enum fields and arrays of functions.
 - Function transport across local workers, indirect spawn and resumable callables.
 - Recursive control-flow callable references and direct static-map control-flow callbacks.

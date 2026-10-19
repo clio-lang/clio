@@ -698,6 +698,18 @@ private:
           if (!lambda.result)
             return {};
         }
+        if (consume(TokenKind::Bang)) {
+          if (lambda.result && lambda.result->function &&
+              lambda.result->span.begin == lambda.result->name.begin) {
+            error("P006", "parenthesize a returned function type before its factory error channel",
+                  lambda.result->span);
+            return {};
+          }
+          auto channels = errorMembers(true);
+          if (!channels)
+            return {};
+          lambda.errorTypes = std::move(*channels);
+        }
         if (!expect(TokenKind::Colon, "expected ':' before anonymous body"))
           return {};
         auto body = suite();

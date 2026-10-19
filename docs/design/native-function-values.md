@@ -129,7 +129,6 @@ The following remain implementation gaps under the accepted function-value desig
 
 - Callable targets requiring task/device coordination, and recursive control-flow callable references. Synchronous expected-error calls and factories are implemented.
 - Fallible map aggregation and direct static-map lowering of synchronous control-flow callback bodies. Bound completed-result function-value wrappers are supported.
-- Direct anonymous error annotations. Expression and [indented anonymous bodies](native-block-closures.md), general bindings and returned captured closures are supported; see [managed CPU closures](native-closures.md).
 - Function-valued record/enum fields, arrays of functions, indirect spawn, worker transport, GPU callbacks and remote function contracts.
 
 These are staged implementation restrictions, not additional language design limits. Distributed contracts still require their separate design discussion; public C/C++ callback integration remains on its separate roadmap.
@@ -170,3 +169,5 @@ The [expected-error qualification evidence](../../native/metal-proof/evidence/cp
 ### Managed expression closures
 
 [Managed CPU expression closures](native-closures.md) extend the same callable signatures with anonymous bindings, returned environments and nested immutable captures. The private representation is now a code/environment pair. All 183 selected checks passed after that representation change, including the earlier named, collection and fallible callable suites; see the [closure qualification](native-closures.md#qualification) and its evidence record for the new capture/lifetime coverage.
+
+[Direct anonymous error declarations](anonymous-errors.md) now use these same checked invocation signatures, including inferred success types, canonical error unions and separate factory/returned-function channels.
