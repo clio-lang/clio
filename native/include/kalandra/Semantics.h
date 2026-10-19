@@ -42,7 +42,9 @@ struct FunctionSignature {
                                          std::size_t depth = 0);
 [[nodiscard]] std::optional<std::string> functionValueCapabilityError(const struct TypedModule &,
                                                                       NumericTarget);
-// Permit proven capture-free named arguments; reject other function transport.
+// CPU data captures supported by the first worker closure-environment copy.
+[[nodiscard]] bool workerClosureCaptureTypeSupported(const struct TypedModule &, const ValueType &);
+// Permit proven supported function arguments; reject other function transport.
 [[nodiscard]] std::optional<std::string> functionValueTransportError(const struct TypedModule &,
                                                                      const struct TypedExpr &);
 struct FunctionReference {

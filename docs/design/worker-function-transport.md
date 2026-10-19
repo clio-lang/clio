@@ -1,6 +1,6 @@
 # Function values across local CPU workers
 
-Implementation contract — 2026-10-19. This specifies the next stages of the accepted [function-value design](function-values.md), using the existing [native task contract](native-tasks.md). The first [capture-free named argument stage](native-worker-functions.md) is now implemented. Current compiler diagnostics continue to reject captured/unproven function arguments, function-valued worker results and indirect spawn. The examples below are syntax-checked future acceptance programs; they do not run with the current compiler.
+Implementation contract — 2026-10-19. This specifies the next stages of the accepted [function-value design](function-values.md), using the existing [native task contract](native-tasks.md). The [capture-free named argument stage](native-worker-functions.md) and [data-capturing closure argument stage](native-worker-closures.md) are implemented. Nested function captures, unproven function arguments, function-valued worker results and indirect spawn remain staged. The argument example below runs now; the result and indirect-spawn examples remain future acceptance programs.
 
 Local workers are threads in one native executable. Transfer a typed function value and its immutable captures within that process. No network serialization, source-code shipment, dynamic library loading, or public callback ABI is involved. Distributed execution still requires the separate design discussion.
 
@@ -22,7 +22,7 @@ fn main() -> int ! TaskError:
     first + second - 42
 ```
 
-The [argument fixture](fixtures/worker-function-arguments.k) should return `42`. Creating `transform` captures the completed array once; submitting the task does not invoke the callback or reevaluate its initializer. The parent retains its own usable binding. Both awaits observe the same cached outcome.
+The [argument fixture](fixtures/worker-function-arguments.k) returns `42`. Creating `transform` captures the completed array once; submitting the task does not invoke the callback or reevaluate its initializer. The parent retains its own usable binding. Both awaits observe the same cached outcome.
 
 A worker can return a function which remains usable after the parallel group has settled:
 
@@ -89,7 +89,7 @@ Expected errors from executing the callback retain their declared error channels
 ## Reviewable implementation sequence
 
 1. **Capture-free named function arguments (implemented):** private trusted target/layout metadata, copy validation and a function parameter of a statically named CPU worker. Keep all captured environments, worker function results and indirect spawn rejected until their own increments pass. Use conservative compiler provenance: a value whose capture-free eligibility cannot yet be established remains an implementation diagnostic, not a runtime surprise.
-2. **Captured function arguments and spawned-map captures:** destination-owned environments, nested eligible captures, shared backing retention, runtime-selected targets and concurrent worker-local invocation. State the exact capture subset and retain transitive rejection elsewhere.
+2. **Captured function arguments (CPU data captures implemented):** destination-owned environments, nested eligible captures, shared backing retention, runtime-selected targets and concurrent worker-local invocation. The [implemented CPU data subset](native-worker-closures.md) covers direct arguments; nested function captures and spawned-map captures remain pending. Retain transitive rejection elsewhere.
 3. **Function results:** transfer child → outcome → observer, including captured functions used after group release, cached awaits and onward submission. Separate factory errors from invocation errors.
 4. **Containing values:** extend the same descriptor traversal to records, enum variants, function/record arrays and expected-error payloads in both directions. Do not remove blanket aggregate checks before each representation is qualified.
 5. **Indirect synchronous spawn:** generate a scheduler-owned task entry for a runtime callable, preserving callee/argument evaluation, admission, cancellation and settlement. This does not introduce resumable callable bodies.

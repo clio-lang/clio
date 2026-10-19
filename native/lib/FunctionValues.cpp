@@ -34,6 +34,26 @@ bool sameFunctionValueType(const ValueType &a, const ValueType &b, std::size_t d
   return compare(compare, a, b, depth);
 }
 
+bool workerClosureCaptureTypeSupported(const TypedModule &module, const ValueType &root) {
+  std::vector<ValueType> pending{root};
+  std::unordered_set<std::size_t> visited;
+  while (!pending.empty()) {
+    const auto value = pending.back();
+    pending.pop_back();
+    if (value.task || value.fallible || value.device || value.errorRecord ||
+        (value.builtin != BuiltinValue::Numeric && value.builtin != BuiltinValue::Bool &&
+         value.builtin != BuiltinValue::String && value.builtin != BuiltinValue::Record))
+      return false;
+    if (value.builtin == BuiltinValue::Record) {
+      if (!value.record || *value.record >= module.records.size())
+        return false;
+      if (visited.insert(*value.record).second)
+        for (const auto &field : module.records[*value.record].fields)
+          pending.push_back(field.type);
+    }
+  }
+  return true;
+}
 namespace {
 bool containsFunctionStorage(const TypedModule &module, const ValueType &type) {
   std::vector<const ValueType *> pending{&type};
@@ -50,9 +70,9 @@ bool containsFunctionStorage(const TypedModule &module, const ValueType &type) {
   }
   return false;
 }
-// Conservative expression provenance only: parameters, factories, aggregate
-// projections and anonymous functions remain outside this first transport stage.
-bool namedFunctionArgument(const TypedModule &module, ValueId root) {
+// Conservative expression provenance: ordinary references, aliases, branches
+// and direct factory results. Parameters and aggregate projections stay staged.
+bool workerFunctionArgument(const TypedModule &module, ValueId root) {
   std::unordered_map<SymbolId, ValueId> bindings;
   const auto statements = [&](const auto &body) {
     for (const auto &statement : body)
@@ -95,9 +115,17 @@ bool namedFunctionArgument(const TypedModule &module, ValueId root) {
       if (ref->function >= module.functions.size())
         return false;
       const auto &fn = module.functions[ref->function];
-      if (fn.anonymous || fn.captureCount || !ref->captures.empty())
+      if (ref->captures.size() != fn.captureCount)
         return false;
+      for (auto capture : ref->captures)
+        if (capture >= module.expressions.size() ||
+            !workerClosureCaptureTypeSupported(module, module.expressions[capture].type))
+          return false;
       found = true;
+    } else if (const auto *call = std::get_if<FunctionCall>(&value.operation)) {
+      if (call->function >= module.functions.size())
+        return false;
+      pending.push_back(module.functions[call->function].result);
     } else if (const auto *read = std::get_if<SymbolRead>(&value.operation)) {
       const auto binding = bindings.find(read->symbol);
       if (read->symbol >= module.symbols.size() || module.symbols[read->symbol].parameter ||
@@ -159,10 +187,11 @@ std::optional<std::string> functionValueTransportError(const TypedModule &module
     if (!containsFunctionStorage(module, type))
       continue;
     if (std::holds_alternative<FunctionCall>(invocation.operation) &&
-        type.builtin == BuiltinValue::Function && !type.tensor && namedFunctionArgument(module, id))
+        type.builtin == BuiltinValue::Function && !type.tensor &&
+        workerFunctionArgument(module, id))
       continue;
-    return "function-valued worker arguments require proven capture-free named functions; "
-           "captured environments, unproven targets and containing values are not implemented yet";
+    return "function-valued worker arguments require proven CPU data captures; nested function "
+           "captures, unproven targets and containing values are not implemented yet";
   }
   return {};
 }

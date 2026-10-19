@@ -138,7 +138,7 @@ execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-result.k" -o 
 if("${STATUS}" STREQUAL "0")
   message(FATAL_ERROR "Invalid closure accepted: worker-result: ${OUT}${ERR}")
 endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-argument.k" "fn apply(value:int,f:fn(int)->int)->int:\n  f(value)\nfn main()->int ! TaskError:\n  f=fn(value:int):value*2\n  try parallel:\n    try await spawn apply(21,f)\n")
+file(WRITE "${OUTPUT_DIR}/reject-worker-argument.k" "fn apply(value:int,f:fn(int)->int)->int:\n  f(value)\nfn main()->int ! TaskError:\n  target=fn(value:int):value*2\n  f=fn(value:int):target(value)\n  try parallel:\n    try await spawn apply(21,f)\n")
 execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-argument.k" -o "${OUTPUT_DIR}/reject-worker-argument" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
 if("${STATUS}" STREQUAL "0")
   message(FATAL_ERROR "Invalid closure accepted: worker-argument: ${OUT}${ERR}")

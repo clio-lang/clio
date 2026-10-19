@@ -79,7 +79,8 @@ void negative() {
         "0\n",
         "fn main()->int:\n  values=[double,fn(value:float):value]\n  0\n",
         "fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    try await spawn f(1)\n",
-        "fn main()->int ! TaskError:\n  try parallel:\n    try await spawn apply(1,choose(true))\n",
+        "fn forward(f:fn(int)->int)->int ! TaskError:\n  try parallel:\n    try await spawn "
+        "apply(1,f)\nfn main()->int ! TaskError:\n  try forward(double)\n",
         "fn main()->int ! TaskError:\n  try parallel:\n    f=try await spawn choose(true)\n    "
         "f(1)\n",
         "fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    result=try await spawn "

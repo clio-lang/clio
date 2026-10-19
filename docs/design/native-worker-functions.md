@@ -1,5 +1,7 @@
 # Named function arguments to local CPU workers
 
+Initial native subset — 2026-10-19. **Current extension:** [captured closure arguments](native-worker-closures.md) now support anonymous targets, direct factory results and immutable CPU data captures. The details below record the original capture-free increment.
+
 Implemented native subset — 2026-10-19. A statically named CPU worker can receive a proven capture-free named synchronous function as an ordinary argument. This implements the first stage of the [local-worker function transport contract](worker-function-transport.md). Captured environments, function-valued worker results and indirect spawn remain separate implementation stages.
 
 ```kalandra

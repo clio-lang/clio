@@ -135,7 +135,8 @@ int main() {
           "fn make(value:int)->fn(int)->int:\n  fn(item:int):item+value\nfn main()->int ! "
           "TaskError:\n  try parallel:\n    f=try await spawn make(21)\n    f(21)\n",
           "fn apply(value:int,f:fn(int)->int)->int:\n  f(value)\nfn main()->int ! TaskError:\n  "
-          "f=fn(value:int):value*2\n  try parallel:\n    try await spawn apply(21,f)\n",
+          "target=fn(value:int):value*2\n  f=fn(value:int):target(value)\n  try parallel:\n    try "
+          "await spawn apply(21,f)\n",
           "fn main()->int ! TaskError:\n  f=fn(value:int):value*2\n  try parallel:\n    try await "
           "spawn f(21)\n",
           "error E:\n  Bad\nfn checked()->int ! E:\n  fail E.Bad\nfn main()->int:\n  "

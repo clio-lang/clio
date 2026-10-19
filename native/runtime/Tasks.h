@@ -56,7 +56,7 @@ struct TaskLimits {
   std::size_t bytes = 1024 * 1024;
 };
 struct TaskStats {
-  std::size_t retainedBytes = 0, peakBytes = 0;
+  std::size_t retainedBytes = 0, peakBytes = 0, environmentBytes = 0;
   std::uint64_t retainedOwners = 0;
   std::uint32_t unfinished = 0, records = 0, groups = 0;
   std::uint32_t ready = 0, pending = 0, maintenanceTasks = 0, externalPending = 0;

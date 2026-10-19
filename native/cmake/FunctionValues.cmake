@@ -308,7 +308,7 @@ if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug sanitized)
     add_executable(kalandra-worker-function-tests-${VARIANT} tests/WorkerNamedFunctionTests.cpp)
     target_compile_options(kalandra-worker-function-tests-${VARIANT} PRIVATE -Wall -Wextra -Werror)
-    target_compile_definitions(kalandra-worker-function-tests-${VARIANT} PRIVATE KALANDRA_WORKER_FUNCTION_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-named-functions")
+    target_compile_definitions(kalandra-worker-function-tests-${VARIANT} PRIVATE KALANDRA_WORKER_CLOSURE_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-closures" KALANDRA_WORKER_FUNCTION_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-named-functions")
     if(VARIANT STREQUAL "sanitized")
       target_link_libraries(kalandra-worker-function-tests-${VARIANT} PRIVATE kalandra-semantics-sanitized)
       target_compile_options(kalandra-worker-function-tests-${VARIANT} PRIVATE -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
@@ -334,6 +334,13 @@ if(BUILD_TESTING)
         "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/worker-functions-${VARIANT}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyWorkerFunctions.cmake")
     set_tests_properties(native-worker-functions-${VARIANT} PROPERTIES TIMEOUT 300)
+    add_test(NAME native-worker-closures-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DLLVM_ROOT=${KALANDRA_LLVM_ROOT}" "-DRUNTIME=$<TARGET_FILE:${WORKER_FUNCTION_RUNTIME}>"
+        "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/worker-closures-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyWorkerClosures.cmake")
+    set_tests_properties(native-worker-closures-${VARIANT} PROPERTIES TIMEOUT 300)
   endforeach()
 
 endif()

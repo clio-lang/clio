@@ -257,6 +257,22 @@ struct TaskCore::Impl : std::enable_shared_from_this<TaskCore::Impl> {
     auto &group = groups[h.slot];
     return group.used && !group.disposing && group.generation == h.generation ? &group : nullptr;
   }
+  static bool reserveEnvironmentBytes(void *state, std::uint64_t bytes) noexcept {
+    auto &core = *static_cast<Impl *>(state);
+    Guard guard(core);
+    if (bytes > core.limits.bytes - core.stats.retainedBytes)
+      return false;
+    core.stats.retainedBytes += static_cast<std::size_t>(bytes);
+    core.stats.environmentBytes += static_cast<std::size_t>(bytes);
+    core.stats.peakBytes = std::max(core.stats.peakBytes, core.stats.retainedBytes);
+    return true;
+  }
+  static void releaseEnvironmentBytes(void *state, std::uint64_t bytes) noexcept {
+    auto &core = *static_cast<Impl *>(state);
+    Guard guard(core);
+    core.stats.retainedBytes -= static_cast<std::size_t>(bytes);
+    core.stats.environmentBytes -= static_cast<std::size_t>(bytes);
+  }
   void freeBytes(void *&pointer, std::size_t bytes) {
     if (pointer) {
 #ifdef KALANDRA_TASK_PROFILE
@@ -480,6 +496,7 @@ struct TaskCore::Impl : std::enable_shared_from_this<TaskCore::Impl> {
     ++stats.records;
     task.value = allocate(entry.result->bytes);
     task.execution.bindCancellation(&task.cancel);
+    task.execution.bindEnvironmentBudget(this, reserveEnvironmentBytes, releaseEnvironmentBytes);
     if (task.value)
       task.frame = allocate(entry.frameBytes);
     if (!task.value || !task.frame)

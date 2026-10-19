@@ -601,62 +601,65 @@ private:
     builder.CreateBr(head);
     builder.SetInsertPoint(done);
   }
+  void retainValue(const ValueType &field, Value *address, Function *fn, Block *failed,
+                   std::optional<std::size_t> taskKind = {}) {
+    if (field.builtin == BuiltinValue::TaskError) {
+      auto *kind = builder.CreateLoad(i32, builder.CreateStructGEP(failureType, address, 0));
+      auto *next = Block::Create(context, "task.error.validated", fn);
+      builder.CreateCondBr(taskKind ? builder.CreateICmpEQ(kind, c32(*taskKind))
+                                    : builder.CreateAnd(builder.CreateICmpUGE(kind, c32(1)),
+                                                        builder.CreateICmpULE(kind, c32(4))),
+                           next, failed);
+      builder.SetInsertPoint(next);
+    } else if (isFunctionArray(field)) {
+      auto *success = call("kalandra_record_array_retain_v1", boolean,
+                           {fn->getArg(0), fn->getArg(2), address, c64(16), c64(8)});
+      auto *next = Block::Create(context, "function.array.next", fn);
+      builder.CreateCondBr(success, next, failed);
+      builder.SetInsertPoint(next);
+    } else if (isRecordArray(field))
+      retainRecordArray(field, address, fn, failed);
+    else if (field.builtin == BuiltinValue::Record)
+      retainRecord(field, address, fn, failed);
+    else if (isStringArray(field)) {
+      auto *success =
+          call("kalandra_string_array_retain_v1", boolean, {fn->getArg(0), fn->getArg(2), address});
+      auto *next = Block::Create(context, "record.string.array.next", fn);
+      builder.CreateCondBr(success, next, failed);
+      builder.SetInsertPoint(next);
+    } else if (field.builtin == BuiltinValue::String) {
+      auto *success =
+          call("kalandra_string_retain_v1", boolean, {fn->getArg(0), fn->getArg(2), address});
+      auto *next = Block::Create(context, "record.string.next", fn);
+      builder.CreateCondBr(success, next, failed);
+      builder.SetInsertPoint(next);
+    } else if (field.tensor) {
+      auto *success = isBoolArray(field)
+                          ? call("kalandra_bool_array_retain_v1", boolean,
+                                 {fn->getArg(0), fn->getArg(2), address})
+                          : call("kalandra_record_retain_v1", boolean,
+                                 {fn->getArg(0), fn->getArg(2), address, c64(field.shape.size()),
+                                  c64(static_cast<unsigned>(field.element))});
+      for (std::size_t axis = 0; axis < field.shape.size(); ++axis)
+        if (field.shape[axis].constant) {
+          auto *dimensions = builder.CreateStructGEP(descriptor(field), address, 3);
+          auto *extent = builder.CreateLoad(
+              i64, builder.CreateInBoundsGEP(llvm::ArrayType::get(i64, field.shape.size()),
+                                             dimensions, {c64(0), c64(axis)}));
+          success = builder.CreateAnd(
+              success, builder.CreateICmpEQ(extent, c64(*field.shape[axis].constant)));
+        }
+      auto *next = Block::Create(context, "record.next", fn);
+      builder.CreateCondBr(success, next, failed);
+      builder.SetInsertPoint(next);
+    }
+  }
   void retainRecord(const ValueType &type, Value *input, Function *fn, Block *failed) {
     const auto &record = planner.input.records[*type.record];
     const auto &fields = record.fields;
     const auto retainField = [&](std::size_t i, std::optional<std::size_t> taskKind = {}) {
-      const auto &field = fields[i].type;
-      auto *address = builder.CreateStructGEP(scalarType(type), input, i);
-      if (field.builtin == BuiltinValue::TaskError) {
-        auto *kind = builder.CreateLoad(i32, builder.CreateStructGEP(failureType, address, 0));
-        auto *next = Block::Create(context, "task.error.validated", fn);
-        builder.CreateCondBr(taskKind ? builder.CreateICmpEQ(kind, c32(*taskKind))
-                                      : builder.CreateAnd(builder.CreateICmpUGE(kind, c32(1)),
-                                                          builder.CreateICmpULE(kind, c32(4))),
-                             next, failed);
-        builder.SetInsertPoint(next);
-      } else if (isFunctionArray(field)) {
-        auto *success = call("kalandra_record_array_retain_v1", boolean,
-                             {fn->getArg(0), fn->getArg(2), address, c64(16), c64(8)});
-        auto *next = Block::Create(context, "function.array.next", fn);
-        builder.CreateCondBr(success, next, failed);
-        builder.SetInsertPoint(next);
-      } else if (isRecordArray(field))
-        retainRecordArray(field, address, fn, failed);
-      else if (field.builtin == BuiltinValue::Record)
-        retainRecord(field, address, fn, failed);
-      else if (isStringArray(field)) {
-        auto *success = call("kalandra_string_array_retain_v1", boolean,
-                             {fn->getArg(0), fn->getArg(2), address});
-        auto *next = Block::Create(context, "record.string.array.next", fn);
-        builder.CreateCondBr(success, next, failed);
-        builder.SetInsertPoint(next);
-      } else if (field.builtin == BuiltinValue::String) {
-        auto *success =
-            call("kalandra_string_retain_v1", boolean, {fn->getArg(0), fn->getArg(2), address});
-        auto *next = Block::Create(context, "record.string.next", fn);
-        builder.CreateCondBr(success, next, failed);
-        builder.SetInsertPoint(next);
-      } else if (field.tensor) {
-        auto *success = isBoolArray(field)
-                            ? call("kalandra_bool_array_retain_v1", boolean,
-                                   {fn->getArg(0), fn->getArg(2), address})
-                            : call("kalandra_record_retain_v1", boolean,
-                                   {fn->getArg(0), fn->getArg(2), address, c64(field.shape.size()),
-                                    c64(static_cast<unsigned>(field.element))});
-        for (std::size_t axis = 0; axis < field.shape.size(); ++axis)
-          if (field.shape[axis].constant) {
-            auto *dimensions = builder.CreateStructGEP(descriptor(field), address, 3);
-            auto *extent = builder.CreateLoad(
-                i64, builder.CreateInBoundsGEP(llvm::ArrayType::get(i64, field.shape.size()),
-                                               dimensions, {c64(0), c64(axis)}));
-            success = builder.CreateAnd(
-                success, builder.CreateICmpEQ(extent, c64(*field.shape[axis].constant)));
-          }
-        auto *next = Block::Create(context, "record.next", fn);
-        builder.CreateCondBr(success, next, failed);
-        builder.SetInsertPoint(next);
-      }
+      retainValue(fields[i].type, builder.CreateStructGEP(scalarType(type), input, i), fn, failed,
+                  taskKind);
     };
     if (record.variants.empty()) {
       for (std::size_t i = 0; i < fields.size(); ++i)
@@ -679,6 +682,105 @@ private:
       builder.SetInsertPoint(done);
     }
   }
+  void emitFunctionCopy(const ValueType &type, Function *fn) {
+    auto *wrapper = valueType(type);
+    builder.SetInsertPoint(Block::Create(context, "entry", fn));
+    auto *failed = Block::Create(context, "function.invalid", fn);
+    auto *stopped = Block::Create(context, "function.stopped", fn);
+    auto *header = Block::Create(context, "function.header", fn);
+    auto *dispatch = Block::Create(context, "function.dispatch", fn);
+    auto *status = call("kalandra_poll_v1", i64, {fn->getArg(0)});
+    builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), header, stopped);
+    builder.SetInsertPoint(stopped);
+    builder.CreateRet(builder.getFalse());
+    builder.SetInsertPoint(header);
+    builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), failed,
+                         dispatch);
+    builder.SetInsertPoint(dispatch);
+    auto *input = builder.CreateLoad(wrapper, fn->getArg(3));
+    auto *value = builder.CreateExtractValue(input, {1});
+    auto *code = builder.CreateExtractValue(value, {0});
+    auto *environment = builder.CreateExtractValue(value, {1});
+    std::unordered_set<Function *> accepted;
+    const auto accept = [&](const TypedModule &inputModule, const FunctionReference &ref,
+                            const ValueType &actual, Function *entry) {
+      const auto &target = inputModule.functions.at(ref.function);
+      if (!entry || !sameFunctionValueType(type, actual) || accepted.contains(entry))
+        return;
+      std::vector<ValueType> captures;
+      std::vector<Type *> fields;
+      for (std::size_t n = target.parameters.size() - target.captureCount;
+           n < target.parameters.size(); ++n) {
+        auto capture = inputModule.symbols.at(target.parameters[n]).type;
+        if (!workerClosureCaptureTypeSupported(inputModule, capture))
+          return;
+        captures.push_back(capture);
+        fields.push_back(scalarType(capture));
+      }
+      accepted.insert(entry);
+      auto *selected = Block::Create(context, "function.target", fn);
+      auto *next = Block::Create(context, "function.next", fn);
+      builder.CreateCondBr(builder.CreateICmpEQ(code, entry), selected, next);
+      builder.SetInsertPoint(selected);
+      Value *copied = environment;
+      if (captures.empty()) {
+        auto *ready = Block::Create(context, "function.empty", fn);
+        builder.CreateCondBr(
+            builder.CreateICmpEQ(environment, llvm::ConstantPointerNull::get(builder.getPtrTy())),
+            ready, failed);
+        builder.SetInsertPoint(ready);
+      } else {
+        auto *captureLayout = llvm::StructType::get(context, fields);
+        copied = call("kalandra_environment_clone_v1", pointer,
+                      {fn->getArg(0), fn->getArg(2), environment, c64(size(captureLayout)),
+                       c64(alignment(captureLayout)), entry});
+        auto *ready = Block::Create(context, "function.cloned", fn);
+        builder.CreateCondBr(builder.CreateIsNotNull(copied), ready, failed);
+        builder.SetInsertPoint(ready);
+        for (std::size_t i = 0; i < captures.size(); ++i) {
+          auto *field = builder.CreateStructGEP(captureLayout, copied, i);
+          if (captures[i].builtin == BuiltinValue::Numeric && captures[i].tensor) {
+            auto *ok = call("kalandra_environment_tensor_retain_v1", boolean,
+                            {fn->getArg(0), fn->getArg(2), field, c64(captures[i].shape.size()),
+                             c64(static_cast<unsigned>(captures[i].element))});
+            for (std::size_t axis = 0; axis < captures[i].shape.size(); ++axis)
+              if (captures[i].shape[axis].constant) {
+                auto *dims = builder.CreateStructGEP(descriptor(captures[i]), field, 3);
+                auto *extent = builder.CreateLoad(
+                    i64,
+                    builder.CreateInBoundsGEP(llvm::ArrayType::get(i64, captures[i].shape.size()),
+                                              dims, {c64(0), c64(axis)}));
+                ok = builder.CreateAnd(
+                    ok, builder.CreateICmpEQ(extent, c64(*captures[i].shape[axis].constant)));
+              }
+            auto *ready = Block::Create(context, "capture.retained", fn);
+            builder.CreateCondBr(ok, ready, failed);
+            builder.SetInsertPoint(ready);
+          } else
+            retainValue(captures[i], field, fn, failed);
+        }
+      }
+      auto *closure = builder.CreateInsertValue(value, copied, {1});
+      builder.CreateStore(builder.CreateInsertValue(input, closure, {1}), fn->getArg(1));
+      builder.CreateRet(builder.getTrue());
+      builder.SetInsertPoint(next);
+    };
+    for (const auto &expression : planner.kernels.expressions)
+      if (const auto *ref = std::get_if<FunctionReference>(&expression.operation))
+        accept(planner.kernels, *ref, expression.type,
+               module.getFunction("kalandra_callable_" + std::to_string(ref->function)));
+    for (const auto &expression : planner.input.expressions)
+      if (const auto *ref = std::get_if<FunctionReference>(&expression.operation))
+        accept(planner.input, *ref, expression.type, synchronousEntries.at(ref->function));
+    builder.CreateBr(failed);
+    builder.SetInsertPoint(failed);
+    auto *fault = Block::Create(context, "function.fault", fn);
+    auto *current = call("kalandra_poll_v1", i64, {fn->getArg(0)});
+    builder.CreateCondBr(builder.CreateICmpEQ(current, c64(0)), fault, stopped);
+    builder.SetInsertPoint(fault);
+    call("kalandra_fault_v1", voidType, {fn->getArg(0), c64(3), c64(0), c64(0)});
+    builder.CreateRet(builder.getFalse());
+  }
   llvm::GlobalVariable *layout(const ValueType &type) {
     const auto name = key(type);
     if (auto found = layouts.find(name); found != layouts.end())
@@ -686,165 +788,131 @@ private:
     llvm::IRBuilderBase::InsertPointGuard guard(builder);
     auto *wrapper = valueType(type);
     auto *fn = function("value.copy." + name, boolean, {pointer, pointer, pointer, pointer});
-    builder.SetInsertPoint(Block::Create(context, "entry", fn));
-    auto *ready = Block::Create(context, "copy", fn);
-    if (type.errorRecord) {
-      auto *dispatch = Block::Create(context, "application.dispatch", fn);
-      auto *active = Block::Create(context, "application.retain", fn);
-      auto *success = Block::Create(context, "application.success", fn);
-      auto *failed = Block::Create(context, "application.failed", fn);
-      builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
-                           dispatch);
-      builder.SetInsertPoint(dispatch);
-      builder.CreateCondBr(hasResultError(type, fn->getArg(3)), active, success);
-      builder.SetInsertPoint(active);
-      retainRecord(errorRecordType(*type.errorRecord), application(type, fn->getArg(3)), fn,
-                   failed);
-      builder.CreateBr(ready);
-      builder.SetInsertPoint(failed);
-      builder.CreateRet(builder.getFalse());
-      builder.SetInsertPoint(success);
+    const bool functionCopy =
+        type.builtin == BuiltinValue::Function && !type.tensor && !type.task && !type.errorRecord;
+    if (functionCopy)
+      emitFunctionCopy(type, fn);
+    else {
+      builder.SetInsertPoint(Block::Create(context, "entry", fn));
+      auto *ready = Block::Create(context, "copy", fn);
+      if (type.errorRecord) {
+        auto *dispatch = Block::Create(context, "application.dispatch", fn);
+        auto *active = Block::Create(context, "application.retain", fn);
+        auto *success = Block::Create(context, "application.success", fn);
+        auto *failed = Block::Create(context, "application.failed", fn);
+        builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
+                             dispatch);
+        builder.SetInsertPoint(dispatch);
+        builder.CreateCondBr(hasResultError(type, fn->getArg(3)), active, success);
+        builder.SetInsertPoint(active);
+        retainRecord(errorRecordType(*type.errorRecord), application(type, fn->getArg(3)), fn,
+                     failed);
+        builder.CreateBr(ready);
+        builder.SetInsertPoint(failed);
+        builder.CreateRet(builder.getFalse());
+        builder.SetInsertPoint(success);
+      }
+      if (type.builtin == BuiltinValue::TaskError && !type.task) {
+        auto *validate = Block::Create(context, "task.value.success", fn);
+        builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
+                             validate);
+        builder.SetInsertPoint(validate);
+        auto *data = builder.CreateStructGEP(wrapper, fn->getArg(3), 1);
+        auto *kind = builder.CreateLoad(i32, builder.CreateStructGEP(failureType, data, 0));
+        auto *failed = Block::Create(context, "task.value.invalid", fn);
+        builder.CreateCondBr(builder.CreateAnd(builder.CreateICmpUGE(kind, c32(1)),
+                                               builder.CreateICmpULE(kind, c32(4))),
+                             ready, failed);
+        builder.SetInsertPoint(failed);
+        builder.CreateRet(builder.getFalse());
+      } else if (isStringArray(type) && !type.task) {
+        auto *retain = Block::Create(context, "string.array.retain", fn);
+        auto *failed = Block::Create(context, "string.array.failed", fn);
+        builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
+                             retain);
+        builder.SetInsertPoint(retain);
+        auto *success = call(
+            "kalandra_string_array_retain_v1", boolean,
+            {fn->getArg(0), fn->getArg(2), builder.CreateStructGEP(wrapper, fn->getArg(3), 1)});
+        builder.CreateCondBr(success, ready, failed);
+        builder.SetInsertPoint(failed);
+        builder.CreateRet(builder.getFalse());
+      } else if (type.builtin == BuiltinValue::String && !type.task) {
+        auto *retain = Block::Create(context, "string.retain", fn);
+        auto *failed = Block::Create(context, "string.failed", fn);
+        builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
+                             retain);
+        builder.SetInsertPoint(retain);
+        auto *success = call(
+            "kalandra_string_retain_v1", boolean,
+            {fn->getArg(0), fn->getArg(2), builder.CreateStructGEP(wrapper, fn->getArg(3), 1)});
+        builder.CreateCondBr(success, ready, failed);
+        builder.SetInsertPoint(failed);
+        builder.CreateRet(builder.getFalse());
+      } else if (isBoolArray(type)) {
+        auto *retain = Block::Create(context, "bool.array.retain", fn);
+        auto *failed = Block::Create(context, "bool.array.failed", fn);
+        builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
+                             retain);
+        builder.SetInsertPoint(retain);
+        auto *success = call(
+            "kalandra_bool_array_retain_v1", boolean,
+            {fn->getArg(0), fn->getArg(2), builder.CreateStructGEP(wrapper, fn->getArg(3), 1)});
+        builder.CreateCondBr(success, ready, failed);
+        builder.SetInsertPoint(failed);
+        builder.CreateRet(builder.getFalse());
+      } else if (isFunctionArray(type)) {
+        auto *retain = Block::Create(context, "function.array.retain", fn);
+        auto *failed = Block::Create(context, "function.array.failed", fn);
+        builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
+                             retain);
+        builder.SetInsertPoint(retain);
+        auto *success = call("kalandra_record_array_retain_v1", boolean,
+                             {fn->getArg(0), fn->getArg(2),
+                              builder.CreateStructGEP(wrapper, fn->getArg(3), 1), c64(16), c64(8)});
+        builder.CreateCondBr(success, ready, failed);
+        builder.SetInsertPoint(failed);
+        builder.CreateRet(builder.getFalse());
+      } else if (isRecordArray(type)) {
+        auto *retain = Block::Create(context, "array.retain", fn);
+        auto *failed = Block::Create(context, "array.failed", fn);
+        builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
+                             retain);
+        builder.SetInsertPoint(retain);
+        retainRecordArray(type, builder.CreateStructGEP(wrapper, fn->getArg(3), 1), fn, failed);
+        builder.CreateBr(ready);
+        builder.SetInsertPoint(failed);
+        builder.CreateRet(builder.getFalse());
+      } else if (type.tensor) {
+        auto *retain = Block::Create(context, "retain", fn);
+        builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
+                             retain);
+        builder.SetInsertPoint(retain);
+        auto *tensor = builder.CreateStructGEP(wrapper, fn->getArg(3), 1);
+        auto *allocated =
+            builder.CreateLoad(pointer, builder.CreateStructGEP(descriptor(type), tensor, 0));
+        auto *success =
+            call("kalandra_retain_v1", boolean, {fn->getArg(0), fn->getArg(2), allocated});
+        auto *failed = Block::Create(context, "failed", fn);
+        builder.CreateCondBr(success, ready, failed);
+        builder.SetInsertPoint(failed);
+        builder.CreateRet(builder.getFalse());
+      } else if (type.builtin == BuiltinValue::Record && !type.task) {
+        auto *retain = Block::Create(context, "record.retain", fn);
+        auto *failed = Block::Create(context, "record.failed", fn);
+        builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
+                             retain);
+        builder.SetInsertPoint(retain);
+        retainRecord(type, builder.CreateStructGEP(wrapper, fn->getArg(3), 1), fn, failed);
+        builder.CreateBr(ready);
+        builder.SetInsertPoint(failed);
+        builder.CreateRet(builder.getFalse());
+      } else
+        builder.CreateBr(ready);
+      builder.SetInsertPoint(ready);
+      copy(fn->getArg(1), fn->getArg(3), wrapper);
+      builder.CreateRet(builder.getTrue());
     }
-    if (type.builtin == BuiltinValue::Function && !type.tensor && !type.task && !type.errorRecord) {
-      auto *failed = Block::Create(context, "function.invalid", fn);
-      auto *validate = Block::Create(context, "function.validate", fn);
-      auto *stopped = Block::Create(context, "function.stopped", fn);
-      auto *headerCheck = Block::Create(context, "function.header", fn);
-      auto *status = call("kalandra_poll_v1", i64, {fn->getArg(0)});
-      builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), headerCheck, stopped);
-      builder.SetInsertPoint(stopped);
-      builder.CreateRet(builder.getFalse());
-      builder.SetInsertPoint(headerCheck);
-      auto *header = builder.CreateStructGEP(wrapper, fn->getArg(3), 0);
-      builder.CreateCondBr(hasFailure(header), failed, validate);
-      builder.SetInsertPoint(validate);
-      auto *address = builder.CreateStructGEP(wrapper, fn->getArg(3), 1);
-      auto *value = builder.CreateLoad(scalarType(type), address);
-      auto *code = builder.CreateExtractValue(value, {0});
-      auto *environment = builder.CreateExtractValue(value, {1});
-      Value *known = builder.getFalse();
-      std::unordered_set<Function *> accepted;
-      const auto accept = [&](const TypedModule &input, const FunctionReference &ref,
-                              const ValueType &actual, Function *entry) {
-        const auto &target = input.functions.at(ref.function);
-        if (entry && !target.anonymous && !target.captureCount && ref.captures.empty() &&
-            sameFunctionValueType(type, actual) && accepted.insert(entry).second)
-          known = builder.CreateOr(known, builder.CreateICmpEQ(code, entry));
-      };
-      for (const auto &expression : planner.kernels.expressions)
-        if (const auto *ref = std::get_if<FunctionReference>(&expression.operation))
-          accept(planner.kernels, *ref, expression.type,
-                 module.getFunction("kalandra_callable_" + std::to_string(ref->function)));
-      for (const auto &expression : planner.input.expressions)
-        if (const auto *ref = std::get_if<FunctionReference>(&expression.operation))
-          accept(planner.input, *ref, expression.type, synchronousEntries.at(ref->function));
-      auto *empty =
-          builder.CreateICmpEQ(environment, llvm::ConstantPointerNull::get(builder.getPtrTy()));
-      builder.CreateCondBr(builder.CreateAnd(known, empty), ready, failed);
-      builder.SetInsertPoint(failed);
-      // Invalid metadata never publishes partial output or invokes its target.
-      call("kalandra_fault_v1", voidType, {fn->getArg(0), c64(3), c64(0), c64(0)});
-      builder.CreateRet(builder.getFalse());
-    } else if (type.builtin == BuiltinValue::TaskError && !type.task) {
-      auto *validate = Block::Create(context, "task.value.success", fn);
-      builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
-                           validate);
-      builder.SetInsertPoint(validate);
-      auto *data = builder.CreateStructGEP(wrapper, fn->getArg(3), 1);
-      auto *kind = builder.CreateLoad(i32, builder.CreateStructGEP(failureType, data, 0));
-      auto *failed = Block::Create(context, "task.value.invalid", fn);
-      builder.CreateCondBr(builder.CreateAnd(builder.CreateICmpUGE(kind, c32(1)),
-                                             builder.CreateICmpULE(kind, c32(4))),
-                           ready, failed);
-      builder.SetInsertPoint(failed);
-      builder.CreateRet(builder.getFalse());
-    } else if (isStringArray(type) && !type.task) {
-      auto *retain = Block::Create(context, "string.array.retain", fn);
-      auto *failed = Block::Create(context, "string.array.failed", fn);
-      builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
-                           retain);
-      builder.SetInsertPoint(retain);
-      auto *success =
-          call("kalandra_string_array_retain_v1", boolean,
-               {fn->getArg(0), fn->getArg(2), builder.CreateStructGEP(wrapper, fn->getArg(3), 1)});
-      builder.CreateCondBr(success, ready, failed);
-      builder.SetInsertPoint(failed);
-      builder.CreateRet(builder.getFalse());
-    } else if (type.builtin == BuiltinValue::String && !type.task) {
-      auto *retain = Block::Create(context, "string.retain", fn);
-      auto *failed = Block::Create(context, "string.failed", fn);
-      builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
-                           retain);
-      builder.SetInsertPoint(retain);
-      auto *success =
-          call("kalandra_string_retain_v1", boolean,
-               {fn->getArg(0), fn->getArg(2), builder.CreateStructGEP(wrapper, fn->getArg(3), 1)});
-      builder.CreateCondBr(success, ready, failed);
-      builder.SetInsertPoint(failed);
-      builder.CreateRet(builder.getFalse());
-    } else if (isBoolArray(type)) {
-      auto *retain = Block::Create(context, "bool.array.retain", fn);
-      auto *failed = Block::Create(context, "bool.array.failed", fn);
-      builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
-                           retain);
-      builder.SetInsertPoint(retain);
-      auto *success =
-          call("kalandra_bool_array_retain_v1", boolean,
-               {fn->getArg(0), fn->getArg(2), builder.CreateStructGEP(wrapper, fn->getArg(3), 1)});
-      builder.CreateCondBr(success, ready, failed);
-      builder.SetInsertPoint(failed);
-      builder.CreateRet(builder.getFalse());
-    } else if (isFunctionArray(type)) {
-      auto *retain = Block::Create(context, "function.array.retain", fn);
-      auto *failed = Block::Create(context, "function.array.failed", fn);
-      builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
-                           retain);
-      builder.SetInsertPoint(retain);
-      auto *success = call("kalandra_record_array_retain_v1", boolean,
-                           {fn->getArg(0), fn->getArg(2),
-                            builder.CreateStructGEP(wrapper, fn->getArg(3), 1), c64(16), c64(8)});
-      builder.CreateCondBr(success, ready, failed);
-      builder.SetInsertPoint(failed);
-      builder.CreateRet(builder.getFalse());
-    } else if (isRecordArray(type)) {
-      auto *retain = Block::Create(context, "array.retain", fn);
-      auto *failed = Block::Create(context, "array.failed", fn);
-      builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
-                           retain);
-      builder.SetInsertPoint(retain);
-      retainRecordArray(type, builder.CreateStructGEP(wrapper, fn->getArg(3), 1), fn, failed);
-      builder.CreateBr(ready);
-      builder.SetInsertPoint(failed);
-      builder.CreateRet(builder.getFalse());
-    } else if (type.tensor) {
-      auto *retain = Block::Create(context, "retain", fn);
-      builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
-                           retain);
-      builder.SetInsertPoint(retain);
-      auto *tensor = builder.CreateStructGEP(wrapper, fn->getArg(3), 1);
-      auto *allocated =
-          builder.CreateLoad(pointer, builder.CreateStructGEP(descriptor(type), tensor, 0));
-      auto *success =
-          call("kalandra_retain_v1", boolean, {fn->getArg(0), fn->getArg(2), allocated});
-      auto *failed = Block::Create(context, "failed", fn);
-      builder.CreateCondBr(success, ready, failed);
-      builder.SetInsertPoint(failed);
-      builder.CreateRet(builder.getFalse());
-    } else if (type.builtin == BuiltinValue::Record && !type.task) {
-      auto *retain = Block::Create(context, "record.retain", fn);
-      auto *failed = Block::Create(context, "record.failed", fn);
-      builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
-                           retain);
-      builder.SetInsertPoint(retain);
-      retainRecord(type, builder.CreateStructGEP(wrapper, fn->getArg(3), 1), fn, failed);
-      builder.CreateBr(ready);
-      builder.SetInsertPoint(failed);
-      builder.CreateRet(builder.getFalse());
-    } else
-      builder.CreateBr(ready);
-    builder.SetInsertPoint(ready);
-    copy(fn->getArg(1), fn->getArg(3), wrapper);
-    builder.CreateRet(builder.getTrue());
     auto *constant = llvm::ConstantStruct::get(
         layoutType,
         {c64(type.errorRecord ? 0x1000000 + layouts.size()
@@ -1173,7 +1241,8 @@ private:
           for (auto capture : instruction.args)
             fields.push_back(scalarType(plan.slots[capture]));
           auto *layout = llvm::StructType::get(context, fields);
-          environment = call("kalandra_alloc_v1", pointer, {ctx, c64(size(layout))});
+          environment = call("kalandra_environment_alloc_v1", pointer,
+                             {ctx, c64(size(layout)), synchronousEntries.at(instruction.target)});
           auto *ready = Block::Create(context, "closure.ready", resume);
           auto *status = call("kalandra_poll_v1", i64, {ctx});
           builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), ready, abort);

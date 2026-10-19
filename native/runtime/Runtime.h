@@ -52,6 +52,14 @@ public:
   // Field backing remains invocation-owned across inline aggregate copies.
   // Release only at a scalar CLI boundary; ordinary helpers may return records.
   void *allocateRecord(std::uint64_t bytes) noexcept;
+  using EnvironmentReserve = bool (*)(void *, std::uint64_t) noexcept;
+  using EnvironmentRelease = void (*)(void *, std::uint64_t) noexcept;
+  void bindEnvironmentBudget(void *state, EnvironmentReserve reserve,
+                             EnvironmentRelease release) noexcept;
+  std::uint64_t environmentBytes() const noexcept { return environmentBytes_; }
+  void *allocateEnvironment(std::uint64_t bytes, const void *key) noexcept;
+  void *cloneEnvironment(const Invocation &source, const void *environment, std::uint64_t bytes,
+                         std::uint64_t alignment, const void *key) noexcept;
   void releaseRecords() noexcept;
   bool retainFrom(const Invocation &source, void *buffer) noexcept;
   void release(void *buffer) noexcept;
@@ -86,7 +94,10 @@ private:
   std::atomic<std::uint64_t> live_{0};
   const std::atomic<bool> *cancellation_ = nullptr;
   std::atomic<std::uint64_t> *pollCounter_ = nullptr;
-  std::uint64_t callDepth_ = 0;
+  std::uint64_t callDepth_ = 0, environmentBytes_ = 0;
+  void *environmentBudget_ = nullptr;
+  EnvironmentReserve environmentReserve_ = nullptr;
+  EnvironmentRelease environmentRelease_ = nullptr;
   std::uint64_t allocations_ = 0, releases_ = 0, attempts_ = 0, failAt_ = 0;
   std::int64_t code_ = 0, line_ = 0, column_ = 0;
   bool settled_ = false;
@@ -112,6 +123,14 @@ bool kalandra_record_array_retain_v1(kalandra::runtime::Invocation *,
                                      const kalandra::runtime::Invocation *, const void *,
                                      std::uint64_t, std::uint64_t) noexcept;
 void *kalandra_record_alloc_v1(kalandra::runtime::Invocation *, std::uint64_t) noexcept;
+void *kalandra_environment_alloc_v1(kalandra::runtime::Invocation *, std::uint64_t,
+                                    const void *) noexcept;
+bool kalandra_environment_tensor_retain_v1(kalandra::runtime::Invocation *,
+                                           const kalandra::runtime::Invocation *, const void *,
+                                           std::uint64_t, std::uint64_t) noexcept;
+void *kalandra_environment_clone_v1(kalandra::runtime::Invocation *,
+                                    const kalandra::runtime::Invocation *, const void *,
+                                    std::uint64_t, std::uint64_t, const void *) noexcept;
 void kalandra_record_cleanup_v1(kalandra::runtime::Invocation *) noexcept;
 void kalandra_record_validate_v1(kalandra::runtime::Invocation *, const void *, std::uint64_t,
                                  std::uint64_t) noexcept;

@@ -1,8 +1,9 @@
 #if defined(__APPLE__)
 #include <pthread.h>
 #endif
-#include "Runtime.h"
 #include "../include/kalandra/NumericType.h"
+#include "Runtime.h"
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <cstdio>
@@ -25,6 +26,7 @@ struct alignas(std::max_align_t) Backing {
   Owner initial{nullptr, nullptr, this, true};
   std::uint64_t bytes = 0;
   bool record = false;
+  const void *environmentKey = nullptr;
 };
 namespace {
 void releaseBacking(Backing *backing) noexcept {
@@ -143,6 +145,62 @@ void *Invocation::allocateRecord(std::uint64_t bytes) noexcept {
     head_->backing->record = true;
   return buffer;
 }
+void Invocation::bindEnvironmentBudget(void *state, EnvironmentReserve reserve,
+                                       EnvironmentRelease release) noexcept {
+  if (environmentBytes_ || environmentReserve_ || !state || !reserve || !release) {
+    fault(3);
+    return;
+  }
+  environmentBudget_ = state;
+  environmentReserve_ = reserve;
+  environmentRelease_ = release;
+}
+void *Invocation::allocateEnvironment(std::uint64_t bytes, const void *key) noexcept {
+  if (poll())
+    return nullptr;
+  if (!key || !bytes) {
+    fault(3);
+    return nullptr;
+  }
+  auto *result = allocateRecord(bytes);
+  if (result)
+    head_->backing->environmentKey = key;
+  return result;
+}
+void *Invocation::cloneEnvironment(const Invocation &source, const void *environment,
+                                   std::uint64_t bytes, std::uint64_t alignment,
+                                   const void *key) noexcept {
+  if (poll())
+    return nullptr;
+  if (!key || !bytes || !alignment || alignment > alignof(std::max_align_t) ||
+      (alignment & (alignment - 1)) || reinterpret_cast<std::uintptr_t>(environment) % alignment) {
+    fault(3);
+    return nullptr;
+  }
+  auto lease = source.lease(environment);
+  if (!lease || lease->bytes().size() != bytes || lease->backing_->environmentKey != key) {
+    fault(3);
+    return nullptr;
+  }
+  // Bound one synchronous metadata copy; captured collection payloads are retained
+  // separately through their checked value handoff, not copied in this buffer.
+  if (bytes > 1024 * 1024 - environmentBytes_ ||
+      (environmentReserve_ && !environmentReserve_(environmentBudget_, bytes))) {
+    fault(2);
+    return nullptr;
+  }
+  environmentBytes_ += bytes;
+  auto *output = static_cast<std::byte *>(allocateEnvironment(bytes, key));
+  if (!output)
+    return nullptr;
+  for (std::uint64_t offset = 0; offset < bytes; offset += 4096) {
+    if (poll())
+      return nullptr;
+    const auto count = std::min<std::uint64_t>(4096, bytes - offset);
+    std::memcpy(output + offset, lease->bytes().data() + offset, static_cast<std::size_t>(count));
+  }
+  return output;
+}
 void Invocation::releaseRecords() noexcept {
   auto *owner = head_;
   while (owner) {
@@ -196,6 +254,9 @@ void Invocation::settle() noexcept {
   while (head_)
     remove(head_);
   settled_ = true;
+  if (environmentBytes_ && environmentRelease_)
+    environmentRelease_(environmentBudget_, environmentBytes_);
+  environmentBytes_ = 0;
 }
 bool Invocation::enterCall(std::int64_t line, std::int64_t column) noexcept {
   if (poll())
@@ -283,6 +344,84 @@ extern "C" std::int64_t kalandra_status_v1(kalandra::runtime::Invocation *contex
   return context->executionStatus();
 }
 
+extern "C" void *kalandra_environment_alloc_v1(kalandra::runtime::Invocation *context,
+                                               std::uint64_t bytes, const void *key) noexcept {
+  return context->allocateEnvironment(bytes, key);
+}
+extern "C" void *kalandra_environment_clone_v1(kalandra::runtime::Invocation *destination,
+                                               const kalandra::runtime::Invocation *source,
+                                               const void *environment, std::uint64_t bytes,
+                                               std::uint64_t alignment, const void *key) noexcept {
+  if (!source) {
+    if (!destination->poll())
+      destination->fault(3);
+    return nullptr;
+  }
+  return destination->cloneEnvironment(*source, environment, bytes, alignment, key);
+}
+// Captured numeric views can use aligned/offset backing from MLIR rather than
+// the canonical packed representation required by inline record fields.
+extern "C" bool kalandra_environment_tensor_retain_v1(kalandra::runtime::Invocation *destination,
+                                                      const kalandra::runtime::Invocation *source,
+                                                      const void *descriptor, std::uint64_t rank,
+                                                      std::uint64_t element) noexcept {
+  using namespace kalandra;
+  if (destination->poll())
+    return false;
+  const auto invalid = [&] {
+    destination->fault(3);
+    return false;
+  };
+  if (!source || !source->usable() || !descriptor || rank > 128 ||
+      element > static_cast<unsigned>(NumericType::Float64))
+    return invalid();
+  const auto type = static_cast<NumericType>(element);
+  if (!numericCollectionStorageAvailable(type, NumericTarget::Cpu))
+    return invalid();
+  const auto *data = static_cast<const std::byte *>(descriptor);
+  void *allocated, *aligned;
+  std::int64_t offset, sizes[128], strides[128];
+  std::memcpy(&allocated, data, sizeof(void *));
+  std::memcpy(&aligned, data + sizeof(void *), sizeof(void *));
+  std::memcpy(&offset, data + 2 * sizeof(void *), 8);
+  std::memcpy(sizes, data + 2 * sizeof(void *) + 8, rank * 8);
+  std::memcpy(strides, data + 2 * sizeof(void *) + 8 + rank * 8, rank * 8);
+  if (offset < 0)
+    return invalid();
+  bool empty = false;
+  for (std::size_t i = 0; i < rank; ++i) {
+    if (sizes[i] < 0 || strides[i] < 0)
+      return invalid();
+    empty |= sizes[i] == 0;
+  }
+  if (empty && !allocated)
+    return !aligned && offset == 0 ? true : invalid();
+  auto lease = source->lease(allocated);
+  if (!lease)
+    return invalid();
+  const auto base = reinterpret_cast<std::uintptr_t>(allocated),
+             start = reinterpret_cast<std::uintptr_t>(aligned);
+  const auto width = describeNumeric(type)->bytes();
+  if (start < base || start % width || start - base > lease->bytes().size())
+    return invalid();
+  const auto capacity = (lease->bytes().size() - (start - base)) / width;
+  auto maximum = static_cast<std::uint64_t>(offset);
+  if (empty) {
+    if (maximum > capacity)
+      return invalid();
+  } else {
+    if (maximum >= capacity)
+      return invalid();
+    for (std::size_t i = 0; i < rank; ++i) {
+      const auto steps = static_cast<std::uint64_t>(sizes[i] - 1),
+                 stride = static_cast<std::uint64_t>(strides[i]);
+      if (stride && steps > (capacity - 1 - maximum) / stride)
+        return invalid();
+      maximum += steps * stride;
+    }
+  }
+  return destination->retainFrom(*source, allocated);
+}
 extern "C" bool kalandra_retain_v1(kalandra::runtime::Invocation *destination,
                                    const kalandra::runtime::Invocation *source,
                                    void *buffer) noexcept {

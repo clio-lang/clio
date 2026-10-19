@@ -54,6 +54,8 @@ public:
       const auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
       for (const auto &[name, signature] : std::vector<std::pair<std::string, FunctionType>>{
                {"kalandra_record_alloc", builder_.getFunctionType({builder_.getI64Type()}, {ptr})},
+               {"kalandra_environment_alloc",
+                builder_.getFunctionType({builder_.getI64Type(), ptr}, {ptr})},
                {"kalandra_record_cleanup", builder_.getFunctionType({}, {})},
                {"kalandra_record_array_validate",
                 builder_.getFunctionType({ptr, builder_.getI64Type(), builder_.getI64Type()}, {})},
@@ -1928,11 +1930,14 @@ private:
                 contents = LLVM::InsertValueOp::create(builder_, loc, contents, value,
                                                        ArrayRef<int64_t>{static_cast<int64_t>(i)});
               }
-              Value end = LLVM::GEPOp::create(builder_, loc, ptr, layout, environment,
-                                              ValueRange{integer(loc, 1)});
-              Value bytes = LLVM::PtrToIntOp::create(builder_, loc, builder_.getI64Type(), end);
-              environment = func::CallOp::create(builder_, loc, "kalandra_record_alloc",
-                                                 TypeRange{ptr}, ValueRange{bytes})
+              llvm::LLVMContext llvmContext;
+              LLVM::TypeToLLVMIRTranslator translator(llvmContext);
+              llvm::DataLayout dataLayout(nativeCpuDataLayout);
+              Value bytes = integer(
+                  loc,
+                  dataLayout.getTypeAllocSize(translator.translateType(layout)).getFixedValue());
+              environment = func::CallOp::create(builder_, loc, "kalandra_environment_alloc",
+                                                 TypeRange{ptr}, ValueRange{bytes, code})
                                 .getResult(0);
               LLVM::StoreOp::create(builder_, loc, contents, environment);
             }
