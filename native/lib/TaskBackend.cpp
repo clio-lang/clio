@@ -102,11 +102,11 @@ public:
               }))
             throw std::runtime_error("synchronous callable plan contains task/device coordination");
           const auto result = source.declaredResult.value_or(source.resultType);
-          std::vector<Type *> parameters;
+          std::vector<Type *> parameters{pointer}; // Immutable capture environment.
           if (result.fallible)
             parameters.push_back(pointer);
-          for (auto parameter : source.parameters)
-            parameters.push_back(scalarType(planner.input.symbols[parameter].type));
+          for (std::size_t i = 0; i < source.parameters.size() - source.captureCount; ++i)
+            parameters.push_back(scalarType(planner.input.symbols[source.parameters[i]].type));
           parameters.push_back(pointer);
           synchronousEntries[id] =
               function("kalandra_callable_plan_" + std::to_string(id),
@@ -151,9 +151,23 @@ public:
       // Trusted native test export, not a dynamic/public task or wire ABI.
       new llvm::GlobalVariable(module, pointer, true, llvm::GlobalValue::ExternalLinkage,
                                entries[id], "kalandra_task_test_entry");
-      if (synchronousEntries[id])
-        new llvm::GlobalVariable(module, pointer, true, llvm::GlobalValue::ExternalLinkage,
-                                 synchronousEntries[id], "kalandra_callable_test_entry");
+      if (synchronousEntries[id] && !found->captureCount) {
+        auto *entry = synchronousEntries[id];
+        std::vector<Type *> parameters(entry->getFunctionType()->param_begin() + 1,
+                                       entry->getFunctionType()->param_end());
+        auto *probe = function("kalandra_callable_probe", entry->getReturnType(), parameters);
+        builder.SetInsertPoint(Block::Create(context, "entry", probe));
+        std::vector<Value *> args{llvm::ConstantPointerNull::get(builder.getPtrTy())};
+        for (auto &arg : probe->args())
+          args.push_back(&arg);
+        auto *value = builder.CreateCall(entry, args);
+        if (entry->getReturnType()->isVoidTy())
+          builder.CreateRetVoid();
+        else
+          builder.CreateRet(value);
+        new llvm::GlobalVariable(module, pointer, true, llvm::GlobalValue::ExternalLinkage, probe,
+                                 "kalandra_callable_test_entry");
+      }
     }
     auto main = std::ranges::find_if(planner.input.functions,
                                      [](const auto &f) { return f.name == "main"; });
@@ -329,7 +343,7 @@ private:
   }
   Type *scalarType(const ValueType &type) {
     if (type.builtin == BuiltinValue::Function)
-      return pointer;
+      return llvm::StructType::get(context, {pointer, pointer});
     if (type.tensor)
       return descriptor(type);
     if (type.builtin == BuiltinValue::Record) {
@@ -872,10 +886,22 @@ private:
       builder.SetInsertPoint(initialized);
       builder.CreateMemSet(frame, builder.getInt8(0), size(frameType),
                            llvm::MaybeAlign(alignment(frameType)));
+      const auto captures = planner.input.functions[id].captureCount;
+      const auto explicitCount = plan.parameters.size() - captures;
+      std::vector<Type *> captureTypes;
+      for (std::size_t n = explicitCount; n < plan.parameters.size(); ++n)
+        captureTypes.push_back(scalarType(plan.slots[plan.parameters[n]]));
+      auto *environment = llvm::StructType::get(context, captureTypes);
       for (std::size_t n = 0; n < plan.parameters.size(); ++n) {
         const auto parameter = plan.parameters[n];
         auto *slot = builder.CreateStructGEP(frameType, frame, parameter + 1);
-        builder.CreateStore(resume->getArg(n + (resultType.fallible ? 1 : 0)),
+        Value *value =
+            n < explicitCount
+                ? static_cast<Value *>(resume->getArg(1 + n + (resultType.fallible ? 1 : 0)))
+                : builder.CreateLoad(
+                      captureTypes[n - explicitCount],
+                      builder.CreateStructGEP(environment, resume->getArg(0), n - explicitCount));
+        builder.CreateStore(value,
                             builder.CreateStructGEP(valueType(plan.slots[parameter]), slot, 1));
       }
       builder.CreateBr(blocks.front());
@@ -1037,7 +1063,8 @@ private:
         // a leading output pointer, while record arguments remain values.
         const bool indirectResult = type.tensor || type.builtin == BuiltinValue::Record ||
                                     type.builtin == BuiltinValue::String ||
-                                    type.builtin == BuiltinValue::TaskError;
+                                    type.builtin == BuiltinValue::TaskError ||
+                                    type.builtin == BuiltinValue::Function;
         if (indirectResult)
           arguments.push_back(payload(instruction.output));
         for (auto argument : instruction.args)
@@ -1058,16 +1085,40 @@ private:
           check();
         break;
       }
-      case Code::FunctionReference:
-        builder.CreateStore(synchronousEntries.at(instruction.target), payload(instruction.output));
+      case Code::FunctionReference: {
+        Value *environment = llvm::ConstantPointerNull::get(builder.getPtrTy());
+        if (!instruction.args.empty()) {
+          std::vector<Type *> fields;
+          for (auto capture : instruction.args)
+            fields.push_back(scalarType(plan.slots[capture]));
+          auto *layout = llvm::StructType::get(context, fields);
+          environment = call("kalandra_alloc_v1", pointer, {ctx, c64(size(layout))});
+          auto *ready = Block::Create(context, "closure.ready", resume);
+          auto *status = call("kalandra_poll_v1", i64, {ctx});
+          builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), ready, abort);
+          builder.SetInsertPoint(ready);
+          for (std::size_t i = 0; i < fields.size(); ++i)
+            builder.CreateStore(builder.CreateLoad(fields[i], payload(instruction.args[i])),
+                                builder.CreateStructGEP(layout, environment, i));
+        }
+        auto *layout = scalarType(type);
+        Value *closure = llvm::Constant::getNullValue(layout);
+        closure =
+            builder.CreateInsertValue(closure, synchronousEntries.at(instruction.target), {0});
+        closure = builder.CreateInsertValue(closure, environment, {1});
+        builder.CreateStore(closure, payload(instruction.output));
         builder.CreateBr(next);
         break;
+      }
       case Code::FunctionInvoke: {
         const auto &operation = std::get<kalandra::FunctionInvoke>(
             planner.input.expressions[instruction.source].operation);
         const auto &signature = *planner.input.expressions[operation.callee].type.callable;
-        std::vector<Type *> parameters{pointer};
-        std::vector<Value *> arguments{slot(instruction.output)};
+        auto *closure = builder.CreateLoad(scalarType(plan.slots[instruction.args[0]]),
+                                           payload(instruction.args[0]));
+        std::vector<Type *> parameters{pointer, pointer};
+        std::vector<Value *> arguments{builder.CreateExtractValue(closure, {1}),
+                                       slot(instruction.output)};
         for (std::size_t i = 0; i < signature.parameters.size(); ++i) {
           auto *parameter = scalarType(signature.parameters[i]);
           parameters.push_back(parameter);
@@ -1075,7 +1126,7 @@ private:
         }
         parameters.push_back(pointer);
         arguments.push_back(ctx);
-        auto *callee = builder.CreateLoad(pointer, payload(instruction.args[0]));
+        auto *callee = builder.CreateExtractValue(closure, {0});
         builder.CreateCall(llvm::FunctionType::get(voidType, parameters, false), callee, arguments);
         check();
         break;
@@ -1313,7 +1364,7 @@ private:
       case Code::Return:
         if (synchronous) {
           if (resultType.fallible) {
-            copyResult(resultType, resume->getArg(0), plan.slots[instruction.args[0]],
+            copyResult(resultType, resume->getArg(1), plan.slots[instruction.args[0]],
                        slot(instruction.args[0]));
             call("kalandra_free_v1", voidType, {ctx, frame});
             builder.CreateRetVoid();

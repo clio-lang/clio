@@ -1,6 +1,6 @@
 # Named CPU function values
 
-Implemented native subset — 2026-10-19. Named synchronous CPU functions, including expected-error callables, can now be assigned to bindings, passed as parameters, selected at runtime and returned as values. This implements the first executable part of the accepted [function-value design](function-values.md); returning an anonymous closure with captured data remains separate work.
+Implemented native subset — 2026-10-19. Named synchronous CPU functions, including expected-error callables, can now be assigned to bindings, passed as parameters, selected at runtime and returned as values. This implements the first executable part of the accepted [function-value design](function-values.md); [managed expression closures](native-closures.md) extend this subset with returned captured functions.
 
 ## Assign, pass, return and call
 
@@ -129,14 +129,14 @@ The following remain implementation gaps under the accepted function-value desig
 
 - Callable targets requiring task/device coordination, and recursive control-flow callable references. Synchronous expected-error calls and factories are implemented.
 - Fallible map aggregation and direct static-map lowering of synchronous control-flow callback bodies. Bound completed-result function-value wrappers are supported.
-- General anonymous function bindings and returned closures with captured environments. The existing inline map callback remains supported.
+- Anonymous block bodies and direct anonymous error annotations. General expression bindings and returned captured closures are now supported; see [managed CPU closures](native-closures.md).
 - Function-valued record/enum fields, arrays of functions, indirect spawn, worker transport, GPU callbacks and remote function contracts.
 
 These are staged implementation restrictions, not additional language design limits. Distributed contracts still require their separate design discussion; public C/C++ callback integration remains on its separate roadmap.
 
 ## Native lowering and checked execution
 
-Typed IR distinguishes a named function reference from an invocation through a function value, including the invocation’s expected-error channel. The latter stores the callee value and checked argument types rather than choosing a single declaration during type checking. Completed-result calls use a typed MLIR indirect call; expected-error calls use the synchronous LLVM outcome entry described above; the current private runtime representation is a native code pointer. It has no captured environment and requires no runtime environment allocation.
+Typed IR distinguishes a named function reference from an invocation through a function value, including the invocation’s expected-error channel. The latter stores the callee value and checked argument types rather than choosing a single declaration during type checking. Completed-result calls use a typed MLIR indirect call; expected-error calls use the synchronous LLVM outcome entry described above; the current private representation is a code/environment pair. Named references need no environment allocation; captured anonymous functions use managed environments as described in [native closures](native-closures.md).
 
 After LLVM translation, pure function addresses are redirected to checked entries and indirect calls receive the current invocation context. Synchronous control-flow entries are emitted with that context explicitly. The same failure polling, cancellation checks and cleanup rules used by direct calls therefore apply. A fault while computing the callee stops evaluation before its arguments; a fault during invocation stops subsequent result use. Original source locations are preserved. This is compiler/runtime plumbing, not a public native callback ABI or a serialization format.
 
@@ -166,3 +166,7 @@ All 169 selected checks passed on Apple M2 Max, including existing frontend, fun
 The suites run 768 CLI allocation-failure processes and 68 private synchronous allocation probes across success, expected-error and checked-fault outcomes. Already-failed and pre-cancelled contexts leave output untouched and perform no allocations. Owned error payload leases survive invocation settlement, and eight task-ownership harness runs check worker pools of one and four threads. Worker-local callables preserve repeated error observations; coordinating functions can keep a callable across an await. Generated synchronous entries are checked for absence of task/group API calls. Invalid signatures preserve existing executable and IR output artifacts.
 
 The [expected-error qualification evidence](../../native/metal-proof/evidence/cpu-fallible-functions-2026-10-19.json) records the selected checks, per-variant probes and frozen source hashes. These results qualify the implemented macOS ARM64 subset; they do not establish a public callback ABI, escaping closure support, function transport or performance improvements.
+
+### Managed expression closures
+
+[Managed CPU expression closures](native-closures.md) extend the same callable signatures with anonymous bindings, returned environments and nested immutable captures. The private representation is now a code/environment pair. All 183 selected checks passed after that representation change, including the earlier named, collection and fallible callable suites; see the [closure qualification](native-closures.md#qualification) and its evidence record for the new capture/lifetime coverage.

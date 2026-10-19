@@ -168,8 +168,10 @@ private:
                                input_.source->origin(span.begin).first->path(), line, column);
   }
   Type type(const ValueType &value) {
-    if (value.builtin == BuiltinValue::Function)
-      return LLVM::LLVMPointerType::get(builder_.getContext());
+    if (value.builtin == BuiltinValue::Function) {
+      auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
+      return LLVM::LLVMStructType::getLiteral(builder_.getContext(), {ptr, ptr});
+    }
     if (isOwnedArray(value))
       return recordDescriptor(value);
     if (value.builtin == BuiltinValue::Record) {
@@ -225,21 +227,27 @@ private:
   Value callableUnpack(Location loc, Value value, const ValueType &target) {
     return target.tensor && !isOwnedArray(target) ? recordUnpack(loc, value, target) : value;
   }
+  Type closureEnvironment(FunctionId id) {
+    const auto &source = input_.functions[id];
+    SmallVector<Type> fields;
+    for (std::size_t i = source.parameters.size() - source.captureCount;
+         i < source.parameters.size(); ++i)
+      fields.push_back(callableABIType(input_.symbols[source.parameters[i]].type));
+    return LLVM::LLVMStructType::getLiteral(builder_.getContext(), fields);
+  }
   func::FuncOp callableEntry(FunctionId id) {
     const auto &source = input_.functions[id];
     const auto result = source.declaredResult.value_or(source.resultType);
-    if (!result.tensor && std::ranges::none_of(source.parameters, [&](auto parameter) {
-          return input_.symbols[parameter].type.tensor;
-        }))
-      return functions_[id];
     if (auto found = callableEntries_.find(id); found != callableEntries_.end())
       return found->second;
     OpBuilder::InsertionGuard insertion(builder_);
     builder_.setInsertionPointToEnd(module_->getBody());
     auto loc = location(source.declaration);
-    SmallVector<Type> parameters;
-    for (auto parameter : source.parameters)
-      parameters.push_back(callableABIType(input_.symbols[parameter].type));
+    auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
+    const auto explicitCount = source.parameters.size() - source.captureCount;
+    SmallVector<Type> parameters{ptr};
+    for (std::size_t i = 0; i < explicitCount; ++i)
+      parameters.push_back(callableABIType(input_.symbols[source.parameters[i]].type));
     auto entry =
         func::FuncOp::create(builder_, loc, "kalandra_callable_" + std::to_string(id),
                              builder_.getFunctionType(parameters, {callableABIType(result)}));
@@ -247,9 +255,19 @@ private:
     callableEntries_.emplace(id, entry);
     builder_.setInsertionPointToStart(entry.addEntryBlock());
     SmallVector<Value> arguments;
-    for (std::size_t i = 0; i < source.parameters.size(); ++i)
+    for (std::size_t i = 0; i < explicitCount; ++i)
       arguments.push_back(
-          callableUnpack(loc, entry.getArgument(i), input_.symbols[source.parameters[i]].type));
+          callableUnpack(loc, entry.getArgument(i + 1), input_.symbols[source.parameters[i]].type));
+    if (source.captureCount) {
+      Value environment =
+          LLVM::LoadOp::create(builder_, loc, closureEnvironment(id), entry.getArgument(0));
+      for (std::size_t i = 0; i < source.captureCount; ++i) {
+        Value capture = LLVM::ExtractValueOp::create(builder_, loc, environment,
+                                                     ArrayRef<int64_t>{static_cast<int64_t>(i)});
+        arguments.push_back(callableUnpack(
+            loc, capture, input_.symbols[source.parameters[explicitCount + i]].type));
+      }
+    }
     auto value = func::CallOp::create(builder_, loc, functions_[id], arguments).getResult(0);
     func::ReturnOp::create(builder_, loc, ValueRange{callablePack(loc, value, result)});
     return entry;
@@ -1893,14 +1911,43 @@ private:
             auto reference = func::ConstantOp::create(
                 builder_, loc, function.getFunctionType(),
                 FlatSymbolRefAttr::get(builder_.getContext(), function.getSymName()));
-            return UnrealizedConversionCastOp::create(builder_, loc, TypeRange{type(node.type)},
-                                                      ValueRange{reference})
-                .getResult(0);
+            auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
+            Value code = UnrealizedConversionCastOp::create(builder_, loc, TypeRange{ptr},
+                                                            ValueRange{reference})
+                             .getResult(0);
+            Value environment = LLVM::ZeroOp::create(builder_, loc, ptr);
+            if (!operation.captures.empty()) {
+              auto layout = closureEnvironment(operation.function);
+              Value contents = LLVM::ZeroOp::create(builder_, loc, layout);
+              for (std::size_t i = 0; i < operation.captures.size(); ++i) {
+                auto capture = operation.captures[i];
+                auto value =
+                    callablePack(loc, expression(frame, capture), input_.expressions[capture].type);
+                contents = LLVM::InsertValueOp::create(builder_, loc, contents, value,
+                                                       ArrayRef<int64_t>{static_cast<int64_t>(i)});
+              }
+              Value end = LLVM::GEPOp::create(builder_, loc, ptr, layout, environment,
+                                              ValueRange{integer(loc, 1)});
+              Value bytes = LLVM::PtrToIntOp::create(builder_, loc, builder_.getI64Type(), end);
+              environment = func::CallOp::create(builder_, loc, "kalandra_record_alloc",
+                                                 TypeRange{ptr}, ValueRange{bytes})
+                                .getResult(0);
+              LLVM::StoreOp::create(builder_, loc, contents, environment);
+            }
+            Value result = LLVM::ZeroOp::create(builder_, loc, type(node.type));
+            result = LLVM::InsertValueOp::create(builder_, loc, result, code, ArrayRef<int64_t>{0});
+            return LLVM::InsertValueOp::create(builder_, loc, result, environment,
+                                               ArrayRef<int64_t>{1});
           } else if constexpr (std::is_same_v<T, FunctionInvoke>) {
             const auto &signature = *input_.expressions[operation.callee].type.callable;
-            SmallVector<Type> parameters;
-            SmallVector<Value> arguments;
-            auto pointer = expression(frame, operation.callee);
+            auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
+            auto closure = expression(frame, operation.callee);
+            Value pointer =
+                LLVM::ExtractValueOp::create(builder_, loc, closure, ArrayRef<int64_t>{0});
+            Value environment =
+                LLVM::ExtractValueOp::create(builder_, loc, closure, ArrayRef<int64_t>{1});
+            SmallVector<Type> parameters{ptr};
+            SmallVector<Value> arguments{environment};
             for (std::size_t i = 0; i < operation.arguments.size(); ++i) {
               parameters.push_back(callableABIType(signature.parameters[i]));
               arguments.push_back(callablePack(loc, expression(frame, operation.arguments[i]),

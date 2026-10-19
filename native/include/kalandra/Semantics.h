@@ -44,6 +44,7 @@ struct FunctionSignature {
                                                                       NumericTarget);
 struct FunctionReference {
   FunctionId function;
+  std::vector<ValueId> captures = {};
 };
 struct FunctionInvoke {
   ValueId callee;
@@ -331,6 +332,8 @@ struct TypedFunction {
   std::vector<TypedStatement> body;
   std::vector<ValueId> expressions;
   std::vector<ShapeEquality> preconditions;
+  // Lifted anonymous functions keep explicit parameters first, lexical captures last.
+  std::size_t captureCount = 0;
 };
 struct TypedModule {
   std::shared_ptr<const SourceFile> source;

@@ -16,7 +16,9 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
   return std::visit(
       [](const auto &op) -> std::vector<ValueId> {
         using T = std::decay_t<decltype(op)>;
-        if constexpr (std::is_same_v<T, FunctionInvoke>) {
+        if constexpr (std::is_same_v<T, FunctionReference>)
+          return op.captures;
+        else if constexpr (std::is_same_v<T, FunctionInvoke>) {
           auto values = op.arguments;
           values.insert(values.begin(), op.callee);
           return values;
@@ -221,6 +223,8 @@ private:
               element = importValue(element);
           } else if constexpr (std::is_same_v<T, FunctionReference>) {
             op.function = importFunction(op.function);
+            for (auto &capture : op.captures)
+              capture = importValue(capture);
           } else if constexpr (std::is_same_v<T, FunctionInvoke>) {
             op.callee = importValue(op.callee);
             for (auto &argument : op.arguments)
@@ -330,6 +334,7 @@ private:
     auto op = source.operation;
     if (auto *reference = std::get_if<FunctionReference>(&op)) {
       reference->function = referenced;
+      reference->captures = reads;
     } else if (auto *call = std::get_if<FunctionInvoke>(&op)) {
       call->callee = reads[0];
       call->arguments.assign(reads.begin() + 1, reads.end());
@@ -461,7 +466,11 @@ private:
     auto output = slot(plan, node.type);
     if (const auto *reference = std::get_if<kalandra::FunctionReference>(&node.operation);
         reference && resumable.at(reference->function)) {
-      plan.code.push_back({Code::FunctionReference, output, {}, reference->function, 0, 0, id});
+      std::vector<Slot> captures;
+      for (auto capture : reference->captures)
+        captures.push_back(expression(plan, capture, env, stack));
+      plan.code.push_back(
+          {Code::FunctionReference, output, captures, reference->function, 0, 0, id});
     } else if (const auto *call = std::get_if<kalandra::FunctionInvoke>(&node.operation);
                call && node.type.fallible) {
       std::vector<Slot> args{expression(plan, call->callee, env, stack)};

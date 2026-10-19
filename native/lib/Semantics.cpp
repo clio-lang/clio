@@ -1132,7 +1132,10 @@ private:
       error("S036", "error propagation requires a declared error channel", span);
       return false;
     }
-    if (!errorSubset(output_, family, errorFamilies_[frame.function])) {
+    const auto declaredFamily = frame.function < errorFamilies_.size()
+                                    ? errorFamilies_[frame.function]
+                                    : output_.functions[frame.function].declaredResult->errorRecord;
+    if (!errorSubset(output_, family, declaredFamily)) {
       error("S072", "declared channel does not cover every propagated error family", span);
       return false;
     }
@@ -1154,7 +1157,9 @@ private:
     return true;
   }
   bool sourceTaskError(FunctionId id) const {
-    return id < syntax_.functions.size() && syntax_.functions[id].taskError;
+    return id < syntax_.functions.size() ? syntax_.functions[id].taskError
+                                         : output_.functions[id].declaredResult &&
+                                               output_.functions[id].declaredResult->fallible;
   }
   std::optional<SymbolId> lookupSymbol(Frame &frame, SourceSpan span) {
     const auto identifier = name(span);
@@ -1319,10 +1324,98 @@ private:
     return add(frame, result, span,
                RecordFieldRead{*input, static_cast<std::size_t>(found - fields.begin())});
   }
-  std::optional<ValueId> infer(Frame &, SourceSpan span, const LambdaExpr &,
-                               const std::optional<ValueType> &) {
-    error("S060", "anonymous functions currently require a map callback context", span);
-    return {};
+  std::optional<ValueId> infer(Frame &frame, SourceSpan span, const LambdaExpr &lambda,
+                               const std::optional<ValueType> &expected) {
+    const auto context =
+        expected && expected->builtin == BuiltinValue::Function ? expected->callable : nullptr;
+    if (context && context->parameters.size() != lambda.parameters.size()) {
+      error("S060", "anonymous function parameter count differs from its expected signature", span);
+      return {};
+    }
+    if (functionDepth_ >= limits_.maxDepth || frame.depth >= limits_.maxDepth) {
+      error("S007", "anonymous function analysis depth limit exceeded", span);
+      return {};
+    }
+    const Depth functionDepth(functionDepth_);
+    std::vector<ValueType> parameters;
+    for (std::size_t i = 0; i < lambda.parameters.size(); ++i) {
+      const auto &parameter = lambda.parameters[i];
+      auto resolved = parameter.annotation ? type(*parameter.annotation)
+                      : context            ? std::optional<ValueType>{context->parameters[i]}
+                                           : std::nullopt;
+      if (!resolved) {
+        if (!parameter.annotation)
+          error("S060", "anonymous parameter needs a type annotation or an expected function type",
+                parameter.name);
+        return {};
+      }
+      if (context && !sameFunctionValueType(*resolved, context->parameters[i])) {
+        error("S060", "anonymous parameter differs from its expected function type",
+              parameter.name);
+        return {};
+      }
+      parameters.push_back(*resolved);
+    }
+    auto resultContext = lambda.result ? type(*lambda.result)
+                         : context     ? std::optional<ValueType>{context->result}
+                                       : std::nullopt;
+    if (lambda.result && !resultContext)
+      return {};
+    const auto id = output_.functions.size();
+    output_.functions.emplace_back();
+    requirements_.resize(output_.functions.size());
+    output_.functions[id].name = "__closure_" + std::to_string(id);
+    output_.functions[id].declaration = span;
+    output_.functions[id].declaredResult = resultContext;
+    Frame nested{id, {}, frame.depth, std::make_shared<TaskChecks>(), {}, {}, {}, 0, false};
+    nested.closure = std::make_shared<ClosureScope>(ClosureScope{&frame, {}, {}});
+    for (std::size_t i = 0; i < parameters.size(); ++i) {
+      const auto label = name(lambda.parameters[i].name);
+      if (reservedControl(label) || nested.locals.contains(label)) {
+        error("S060", "invalid or duplicate anonymous parameter name", lambda.parameters[i].name);
+        return {};
+      }
+      auto symbol = output_.symbols.size();
+      output_.symbols.push_back({label, parameters[i], lambda.parameters[i].name, id, true});
+      output_.functions[id].parameters.push_back(symbol);
+      nested.locals.emplace(label, symbol);
+    }
+    auto result = expression(nested, lambda.body, resultContext);
+    if (!result)
+      return {};
+    const auto resultType = node(*result).type;
+    auto signature = callableType(parameters, resultContext.value_or(resultType), span);
+    if (!signature)
+      return {};
+    output_.functions[id].body = {{syntax_.expressions[lambda.body].span, {}, *result}};
+    output_.functions[id].result = *result;
+    output_.functions[id].resultType = resultType;
+    if (resultContext && resultContext->fallible) {
+      if (resultType.fallible &&
+          !errorSubset(output_, resultType.errorRecord, resultContext->errorRecord)) {
+        error("S072", "anonymous function return channel does not cover every error family", span);
+        return {};
+      }
+      output_.functions[id].resultType.fallible = true;
+      output_.functions[id].resultType.errorRecord = resultContext->errorRecord;
+    }
+    if (resultType.fallible)
+      nested.tasks->handled.insert(resultType.identity);
+    for (auto pending : nested.tasks->pending)
+      if (!nested.tasks->handled.contains(pending)) {
+        error("S036", "anonymous function must handle, propagate or return each expected error",
+              span);
+        return {};
+      }
+    output_.functions[id].captureCount = nested.closure->origins.size();
+    std::vector<ValueId> captures;
+    for (auto origin : nested.closure->origins) {
+      auto value = add(frame, output_.symbols[origin].type, span, SymbolRead{origin});
+      if (!value)
+        return {};
+      captures.push_back(*value);
+    }
+    return add(frame, *signature, span, FunctionReference{id, std::move(captures)});
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const NameExpr &read,
                                const std::optional<ValueType> &) {

@@ -8,7 +8,9 @@
 namespace kalandra {
 inline bool hasRecordBacking(const TypedModule &module) {
   for (const auto &expression : module.expressions)
-    if (isOwnedArray(expression.type) ||
+    if ((std::get_if<FunctionReference>(&expression.operation) &&
+         !std::get<FunctionReference>(expression.operation).captures.empty()) ||
+        isOwnedArray(expression.type) ||
         (expression.type.callable &&
          (expression.type.callable->result.tensor ||
           std::ranges::any_of(expression.type.callable->parameters,

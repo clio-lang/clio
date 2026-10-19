@@ -988,6 +988,10 @@ std::string dumpTypedIR(const TypedModule &module) {
               }
             } else if constexpr (std::is_same_v<T, FunctionReference>) {
               out << "function.ref @" << operation.function;
+              if (!operation.captures.empty()) {
+                out << " captures=";
+                arguments(operation.captures);
+              }
             } else if constexpr (std::is_same_v<T, FunctionInvoke>) {
               out << "function.call ";
               value(operation.callee);

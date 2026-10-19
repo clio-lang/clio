@@ -1,0 +1,73 @@
+# Managed CPU expression closures
+
+Implemented native subset — 2026-10-19. Anonymous expression functions can be bound, passed, selected and returned with immutable lexical captures. This extends [native function values](native-function-values.md) under the [accepted function-value design](function-values.md).
+
+```kalandra
+fn makeAdder(offset: int) -> fn(int) -> int:
+  fn(value: int): value + offset
+
+fn apply(value: int, transform: fn(int) -> int) -> int:
+  transform(value)
+
+export fn main() -> int:
+  addTen = makeAdder(10)
+  apply(22, addTen) + addTen(0)
+```
+
+The [complete fixture](fixtures/closures.k) returns `42`. `addTen` keeps its captured `offset` after `makeAdder` returns. Calling it repeatedly does not reevaluate the capture's initializer. Distinct calls to the creator keep separate immutable environments.
+
+## Types and lexical scope
+
+An expected function type supplies anonymous parameter types:
+
+```kalandra
+increment: fn(int) -> int = fn(value): value + 1
+twice = fn(value: int): value * 2
+```
+
+Without an expected signature, each parameter needs an annotation. Result types are inferred from the expression body or checked against the expected/annotated result. Later calls do not retroactively infer missing parameter types. Exact numeric widths, nominal record identities, collection categories/shapes and canonical expected-error sets retain the existing callable rules.
+
+Only referenced lexical bindings are captured. Repeated references to one binding produce one capture. Parameters shadow outer bindings, nested closures capture through their enclosing scopes, and captured function values keep their own environments valid transitively. Named functions and closures with the same signature can be selected at runtime or passed to the same higher-order parameter. Parameter and capture counts have no special small limit; ordinary compiler complexity and allocation limits apply.
+
+Supported captures are completed CPU numeric scalars, Bool, String, arrays, tensors, records/enums and function values. Pending expected results, task handles, resident device values and device selectors are rejected. Completed built-in TaskError/FaultKind captures remain outside this first capture subset. Returning a closure cannot hide an escaping task or device capability.
+
+## Expected errors and local execution
+
+A closure can return an expected error or propagate one through a declared expected signature:
+
+```kalandra
+fn makeValidator(offset: int) -> fn(int) -> int ! InputError:
+  fn(value): try checked(value, offset)
+```
+
+This is a signature illustration with a separately declared `InputError` and compatible `checked` function. The invocation error belongs to the returned function. A factory's own error channel remains separate, as described in [fallible signatures](native-function-values.md#factories-and-returned-functions). Result/error inference does not turn an unhandled expected result into a completed value.
+
+Compatible closures work with ordinary calls, pipelines and sequential maps. Existing inline map callbacks remain supported and may capture a closure. Empty maps do not execute the callback body. Maps still require completed element results; recover errors within a compatible callback rather than relying on implicit fallible-map aggregation.
+
+A local worker may create and invoke a closure and return ordinary supported data, including owned records. A coordinator may hold a completed closure across an await. Function-valued worker arguments, results and spawned-map captures, indirect spawn and task/device-coordinating callable targets remain rejected. This does not add scheduler waits to synchronous invocation.
+
+## Private representation and managed lifetime
+
+A function value now contains a code pointer and an environment pointer. Named references and capture-free anonymous functions need no environment allocation. Capturing closures allocate immutable, invocation-owned environment storage; creators store completed values there rather than pointers to stack locals. Both pure MLIR adapters and synchronous expected-error entries use the environment argument alongside the existing checked invocation context.
+
+Captured numeric arrays/tensors currently use checked descriptor packing and reconstruction, which can copy data. Captured owned arrays, records, Strings and other closures retain their existing invocation-owned backing. The environment and transitive backing stay alive until invocation settlement; this is automatic lifetime management, not a source allocator or a promise of prompt reclamation. Worker output data uses the ordinary retained-result path. Transporting a closure or keeping one beyond its invocation is not a public runtime API.
+
+Allocation failures and cancellation use existing checked execution rules. A failed or pre-cancelled invocation cannot enter a closure creator, publish a partial callable, or execute its body. Checked arithmetic/shape faults retain their source locations. Temporary synchronous control-flow frames remain separate from captured environments and are released when the call exits.
+
+## Remaining work
+
+- Anonymous block bodies and direct anonymous invocation error annotations. The implemented body is `fn(parameters): expression`; expected callable signatures supply channels for `try`.
+- Function-valued record/enum fields and arrays of functions.
+- Function transport across local workers, indirect spawn and resumable callables.
+- Recursive control-flow callable references and direct static-map control-flow callbacks.
+- Earlier environment reclamation, allocation elision and shared numeric capture backing, tracked in the [optimization roadmap](../roadmap.md#optimization).
+
+GPU callbacks, distributed contracts and public C/C++ integration retain their separate roadmaps. The code/environment representation and test exports are private compiler details.
+
+## Qualification
+
+All 183 selected checks passed on Apple M2 Max, including existing frontend, function-value, map, collection, module, task, error and inline-capture regressions. The new closure execution suites compile 176 programs across debug, optimized, ASan/UBSan and separate ThreadSanitizer builds. Frontend checks cover 28 valid programs, 15 rejected programs and six malformed capture-metadata cases per variant.
+
+Private lifetime probes invoke returned closures 256 times after their creators exit, checking independent record/String/array environments. They exercise 52 context allocation probes and 32 returned-environment creation probes, including untouched output on failed creation, stopped creator/callee contexts and balanced storage after settlement. CLI sweeps run 960 allocation-failure processes. Owned worker results are additionally checked with worker pools of one, two and four threads, including repeated awaits. Empty and rank-zero captures, runtime shape mismatches, all ten scalar widths, nested functions, lexical shadowing, typed errors and empty maps are covered. A separate debug check verifies imported creators retain their helper-module name resolution.
+
+The [qualification evidence](../../native/metal-proof/evidence/cpu-managed-closures-2026-10-19.json) records the selected tests, per-variant probes, manual import check and frozen source hashes. This is focused macOS ARM64 qualification; it does not qualify the remaining body/storage/transport features, a public callback ABI, earlier reclamation or performance improvements.

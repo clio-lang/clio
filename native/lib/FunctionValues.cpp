@@ -123,9 +123,9 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
     return true;
   };
   for (const auto &fn : module.functions) {
-    if (!bindings(fn.body) || std::ranges::any_of(fn.expressions, [&](auto id) {
-          return id >= module.expressions.size();
-        }))
+    if (fn.captureCount > fn.parameters.size() || !bindings(fn.body) ||
+        std::ranges::any_of(fn.expressions,
+                            [&](auto id) { return id >= module.expressions.size(); }))
       return "function has invalid expression/binding metadata";
     if (fn.result >= module.expressions.size())
       return "function has an invalid result";
@@ -206,14 +206,27 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
       if (result.array && result.shape.size() == 1 && expression.type.callable->result.array &&
           expression.type.callable->result.shape.size() == 1)
         result.shape[0] = expression.type.callable->result.shape[0];
-      if (fn.parameters.size() != expression.type.callable->parameters.size() ||
+      if (fn.captureCount > fn.parameters.size() || ref->captures.size() != fn.captureCount ||
+          fn.parameters.size() - fn.captureCount != expression.type.callable->parameters.size() ||
           !sameFunctionValueType(result, expression.type.callable->result))
         return "function reference changes the target signature";
-      for (std::size_t i = 0; i < fn.parameters.size(); ++i)
-        if (fn.parameters[i] >= module.symbols.size() ||
-            !sameFunctionValueType(module.symbols[fn.parameters[i]].type,
-                                   expression.type.callable->parameters[i]))
-          return "function reference changes a target parameter";
+      const auto explicitCount = fn.parameters.size() - fn.captureCount;
+      for (std::size_t i = 0; i < fn.parameters.size(); ++i) {
+        if (fn.parameters[i] >= module.symbols.size())
+          return "function reference has invalid parameter metadata";
+        if (i < explicitCount) {
+          if (!sameFunctionValueType(module.symbols[fn.parameters[i]].type,
+                                     expression.type.callable->parameters[i]))
+            return "function reference changes a target parameter";
+        } else {
+          const auto capture = ref->captures[i - explicitCount];
+          const auto &parameter = module.symbols[fn.parameters[i]].type;
+          if (capture >= id || parameter.task || parameter.fallible || parameter.device ||
+              parameter.builtin == BuiltinValue::Device ||
+              !sameFunctionValueType(parameter, module.expressions[capture].type))
+            return "function reference changes a capture type or escapes a scoped value";
+        }
+      }
     }
     if (const auto *call = std::get_if<FunctionInvoke>(&expression.operation)) {
       if (call->callee >= id)
