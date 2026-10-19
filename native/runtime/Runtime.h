@@ -43,6 +43,11 @@ public:
     const auto code = executionStatus();
     return code ? code : cancellation_ && cancellation_->load(std::memory_order_acquire) ? -1 : 0;
   }
+  // Checked native call admission is invocation-local, including indirect calls.
+  static constexpr std::uint64_t maxCallDepth = 128;
+  bool enterCall(std::int64_t line, std::int64_t column) noexcept;
+  void leaveCall() noexcept;
+  std::uint64_t callDepth() const noexcept { return callDepth_; }
   void *allocate(std::uint64_t bytes) noexcept;
   // Field backing remains invocation-owned across inline aggregate copies.
   // Release only at a scalar CLI boundary; ordinary helpers may return records.
@@ -81,6 +86,7 @@ private:
   std::atomic<std::uint64_t> live_{0};
   const std::atomic<bool> *cancellation_ = nullptr;
   std::atomic<std::uint64_t> *pollCounter_ = nullptr;
+  std::uint64_t callDepth_ = 0;
   std::uint64_t allocations_ = 0, releases_ = 0, attempts_ = 0, failAt_ = 0;
   std::int64_t code_ = 0, line_ = 0, column_ = 0;
   bool settled_ = false;
@@ -120,6 +126,8 @@ void *kalandra_alloc_v1(kalandra::runtime::Invocation *, std::uint64_t bytes) no
 void kalandra_free_v1(kalandra::runtime::Invocation *, void *buffer) noexcept;
 void kalandra_fault_v1(kalandra::runtime::Invocation *, std::int64_t code, std::int64_t line,
                        std::int64_t column) noexcept;
+bool kalandra_call_enter_v1(kalandra::runtime::Invocation *, std::int64_t, std::int64_t) noexcept;
+void kalandra_call_leave_v1(kalandra::runtime::Invocation *) noexcept;
 std::int64_t kalandra_poll_v1(kalandra::runtime::Invocation *) noexcept;
 std::int64_t kalandra_status_v1(kalandra::runtime::Invocation *) noexcept;
 }

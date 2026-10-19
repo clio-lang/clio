@@ -119,7 +119,7 @@ Maps continue to require completed element results. A bound infallible wrapper t
 
 Expected-error callables run on the caller's thread. Their entries reuse the existing continuation plan's error branches with a private outcome slot and the current invocation context. A checked temporary frame holds local values and is released on success, expected error, checked fault or cancellation. These entries do not submit tasks, enter scheduler waits or run a nested scheduler. Collection arguments/results use descriptors and keep their existing context ownership.
 
-The compiler distinguishes synchronous error control flow from task/device coordination. Named functions that recover errors or match variants can now be function values too. A target that performs task/device work, including through a helper that catches its failures, remains rejected. Recursive references among control-flow callable entries are also rejected until bounded native recursion is implemented. Frame allocation and direct-call specialization are tracked optimization work, not source-level allocation responsibilities.
+The compiler distinguishes synchronous error control flow from task/device coordination. Named functions that recover errors or match variants can now be function values too. A target that performs task/device work, including through a helper that catches its failures, remains rejected. [Recursive synchronous entries](native-recursive-callables.md) now support self/mutual calls and references with checked call admission. Frame allocation and direct-call specialization are tracked optimization work, not source-level allocation responsibilities.
 
 ## Supported signatures and remaining gaps
 
@@ -127,7 +127,7 @@ Callable signatures accept and return all ten CPU numeric scalar types, Bool, St
 
 The following remain implementation gaps under the accepted function-value design:
 
-- Callable targets requiring task/device coordination, and recursive control-flow callable references. Synchronous expected-error calls and factories are implemented.
+- Callable targets requiring task/device coordination. [Recursive synchronous calls](native-recursive-callables.md), expected-error calls and factories are implemented.
 - Fallible map aggregation and direct static-map lowering of synchronous control-flow callback bodies. Bound completed-result function-value wrappers are supported.
 - Indirect spawn, worker transport, GPU callbacks and remote function contracts.
 

@@ -29,7 +29,8 @@ enum class Code {
   Transfer,
   Branch,
   FunctionReference,
-  FunctionInvoke
+  FunctionInvoke,
+  SynchronousCall
 };
 struct Instruction {
   Code code;

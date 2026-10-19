@@ -1082,6 +1082,7 @@ class Compiler {
       }
       case Code::FunctionReference:
       case Code::FunctionInvoke:
+      case Code::SynchronousCall:
         reject(span, "function values require the CPU backend");
       case Code::Label:
         break;

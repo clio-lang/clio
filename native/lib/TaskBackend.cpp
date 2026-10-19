@@ -1,6 +1,7 @@
 #include "CollectionMetadata.h"
 #include "ErrorFamilies.h"
 #include "NativeLayout.h"
+#include "NativeStack.h"
 #include "RecordLayout.h"
 #include "kalandra/Backend.h"
 #include "kalandra/Continuation.h"
@@ -33,7 +34,7 @@ class Emitter {
   std::map<std::size_t, Type *> recordTypes;
   std::map<std::string, llvm::GlobalVariable *> layouts;
   std::vector<llvm::StructType *> frames, packets;
-  std::vector<std::map<std::size_t, std::size_t>> observationFields;
+  std::vector<std::map<std::size_t, std::size_t>> observationFields, recursiveResultFields;
   std::vector<llvm::GlobalVariable *> entries;
   Function *destroy;
   std::vector<Function *> synchronousEntries;
@@ -76,6 +77,15 @@ public:
             fields.push_back(valueType(child.slots[child.result]));
           }
         }
+      recursiveResultFields.emplace_back();
+      for (std::size_t n = 0; n < plan.code.size(); ++n)
+        if (plan.code[n].code == Code::SynchronousCall) {
+          const auto &target = planner.input.functions.at(plan.code[n].target);
+          if (target.resultType.fallible) {
+            recursiveResultFields.back()[n] = fields.size();
+            fields.push_back(valueType(target.resultType));
+          }
+        }
       for (auto slot : plan.parameters)
         parameters.push_back(valueType(plan.slots[slot]));
       frames.push_back(
@@ -90,7 +100,8 @@ public:
     synchronousEntries.resize(planner.plans.size());
     for (const auto &plan : planner.plans)
       for (const auto &instruction : plan->code)
-        if (instruction.code == Code::FunctionReference &&
+        if ((instruction.code == Code::FunctionReference ||
+             instruction.code == Code::SynchronousCall) &&
             !synchronousEntries[instruction.target]) {
           const auto id = instruction.target;
           const auto &source = planner.input.functions.at(id);
@@ -112,35 +123,25 @@ public:
               function("kalandra_callable_plan_" + std::to_string(id),
                        result.fallible ? voidType : scalarType(result), parameters);
         }
-    // References create no scheduling work. Recursive control-flow callables
-    // need a separate bounded native recursion implementation.
-    std::vector<unsigned> state(planner.plans.size());
-    const auto visit = [&](auto &&self, std::size_t id, unsigned depth) -> void {
-      if (state[id] == 1 || depth > 128)
-        throw std::runtime_error(
-            "recursive synchronous control-flow function values are not implemented yet");
-      if (state[id] == 2)
-        return;
-      state[id] = 1;
-      for (const auto &instruction : planner.plans[id]->code)
-        if (instruction.code == Code::FunctionReference)
-          self(self, instruction.target, depth + 1);
-      state[id] = 2;
-    };
-    for (std::size_t id = 0; id < synchronousEntries.size(); ++id)
-      if (synchronousEntries[id])
-        visit(visit, id, 0);
+    // All synchronous entry declarations exist before emitting bodies, so
+    // self/mutual references and recursive direct calls need no expansion.
     for (std::size_t id = 0; id < planner.plans.size(); ++id)
       emitPlan(id);
     for (std::size_t id = 0; id < synchronousEntries.size(); ++id)
-      if (synchronousEntries[id])
+      if (synchronousEntries[id]) {
         emitPlan(id, true);
+        if (auto error = nativeStackBudgetError(*synchronousEntries[id], module.getDataLayout()))
+          throw std::runtime_error(*error);
+      }
     if (testEntry) {
       const auto found = std::ranges::find_if(planner.input.functions,
                                            [&](const auto &f) { return f.name == *testEntry; });
+      const bool callableProbe = found != planner.input.functions.end() && !found->captureCount &&
+                                 synchronousEntries[found - planner.input.functions.begin()];
       if (found == planner.input.functions.end() ||
-          (!found->parameters.empty() && found->resultType.builtin != BuiltinValue::Record &&
-           !isBoolArray(found->resultType) && found->resultType.builtin != BuiltinValue::String) ||
+          (!callableProbe && !found->parameters.empty() &&
+           found->resultType.builtin != BuiltinValue::Record && !isBoolArray(found->resultType) &&
+           found->resultType.builtin != BuiltinValue::String) ||
           (found->resultType.builtin != BuiltinValue::Numeric &&
            found->resultType.builtin != BuiltinValue::Bool &&
            found->resultType.builtin != BuiltinValue::Record &&
@@ -861,7 +862,9 @@ private:
     Value *ctx = synchronous ? resume->getArg(resume->arg_size() - 1)
                              : call("kalandra_task_context_v1", pointer, {task});
     Value *frame;
-    auto returnZero = [&] {
+    auto returnZero = [&](bool admitted = true) {
+      if (synchronous && admitted)
+        call("kalandra_call_leave_v1", voidType, {ctx});
       if (resume->getReturnType()->isVoidTy())
         builder.CreateRetVoid();
       else
@@ -870,10 +873,12 @@ private:
     if (synchronous) {
       auto *ready = Block::Create(context, "call.ready", resume);
       auto *stopped = Block::Create(context, "call.stopped", resume);
-      auto *status = call("kalandra_poll_v1", i64, {ctx});
-      builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), ready, stopped);
+      const auto [line, column] =
+          planner.input.source->location(planner.input.functions[id].declaration.begin);
+      auto *admitted = call("kalandra_call_enter_v1", boolean, {ctx, c64(line), c64(column)});
+      builder.CreateCondBr(admitted, ready, stopped);
       builder.SetInsertPoint(stopped);
-      returnZero();
+      returnZero(false);
       builder.SetInsertPoint(ready);
       frame = call("kalandra_alloc_v1", pointer, {ctx, c64(size(frameType))});
     } else
@@ -885,6 +890,9 @@ private:
       if (instruction.code == Code::Spawn && !staging.contains(instruction.target))
         staging[instruction.target] = builder.CreateAlloca(packets[instruction.target]);
     auto *spawnFailure = staging.empty() ? nullptr : builder.CreateAlloca(failureType);
+    std::unordered_map<std::size_t, Value *> callResults;
+    for (const auto &[instruction, field] : recursiveResultFields[id])
+      callResults[instruction] = builder.CreateStructGEP(frameType, frame, field);
     std::unordered_map<std::size_t, Value *> observations;
     for (const auto &[target, field] : observationFields[id])
       observations[target] = builder.CreateStructGEP(frameType, frame, field);
@@ -1126,6 +1134,27 @@ private:
             builder.CreateInsertValue(closure, synchronousEntries.at(instruction.target), {0});
         closure = builder.CreateInsertValue(closure, environment, {1});
         builder.CreateStore(closure, payload(instruction.output));
+        builder.CreateBr(next);
+        break;
+      }
+      case Code::SynchronousCall: {
+        const auto &target = planner.input.functions.at(instruction.target);
+        std::vector<Value *> arguments{llvm::ConstantPointerNull::get(builder.getPtrTy())};
+        if (target.resultType.fallible)
+          arguments.push_back(callResults.at(n));
+        for (auto argument : instruction.args)
+          arguments.push_back(
+              builder.CreateLoad(scalarType(plan.slots[argument]), payload(argument)));
+        arguments.push_back(ctx);
+        auto *value = builder.CreateCall(synchronousEntries.at(instruction.target), arguments);
+        auto *ready = Block::Create(context, "recursive.call.ready", resume);
+        auto *status = call("kalandra_poll_v1", i64, {ctx});
+        builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), ready, abort);
+        builder.SetInsertPoint(ready);
+        if (target.resultType.fallible)
+          copyResult(type, slot(instruction.output), target.resultType, callResults.at(n));
+        else
+          builder.CreateStore(value, payload(instruction.output));
         builder.CreateBr(next);
         break;
       }
@@ -1386,10 +1415,12 @@ private:
             copyResult(resultType, resume->getArg(1), plan.slots[instruction.args[0]],
                        slot(instruction.args[0]));
             call("kalandra_free_v1", voidType, {ctx, frame});
+            call("kalandra_call_leave_v1", voidType, {ctx});
             builder.CreateRetVoid();
           } else {
             auto *value = builder.CreateLoad(scalarType(resultType), payload(instruction.args[0]));
             call("kalandra_free_v1", voidType, {ctx, frame});
+            call("kalandra_call_leave_v1", voidType, {ctx});
             builder.CreateRet(value);
           }
         } else {

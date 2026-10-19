@@ -85,11 +85,12 @@ class Builder : public ModulePlan {
 public:
   std::size_t totalSlots = 0;
   Options options;
-  std::vector<bool> resumable;
+  std::vector<bool> resumable, coordinating;
   std::vector<FunctionId> pending;
   std::vector<bool> scheduled;
   explicit Builder(const TypedModule &input, Options options)
-      : ModulePlan(input), options(options), resumable(resumableFunctions(input)) {
+      : ModulePlan(input), options(options), resumable(resumableFunctions(input)),
+        coordinating(coordinatingFunctions(input)) {
     if (options.entry && *options.entry >= input.functions.size())
       throw std::runtime_error("continuation entry function is out of range");
     if (hasPlacement(input) && !options.preserveCalls)
@@ -508,6 +509,15 @@ private:
       std::vector<Slot> args;
       for (auto arg : call->arguments)
         args.push_back(expression(plan, arg, env, stack));
+      if (!options.preserveCalls && stack.contains(call->function) &&
+          !coordinating.at(call->function)) {
+        if (input.functions.at(call->function).captureCount)
+          throw std::runtime_error("direct recursive calls require a named function entry");
+        auto value = slot(plan, node.type);
+        plan.code.push_back({Code::SynchronousCall, value, args, call->function, 0, 0, id});
+        env.values[id] = value;
+        return value;
+      }
       const bool preserve = options.preserveCalls && !resumable.at(call->function);
       auto value =
           preserve ? slot(plan, node.type) : function(plan, call->function, args, stack, env.group);
@@ -862,7 +872,8 @@ std::string dump(const ModulePlan &module) {
                                           "transfer",
                                           "branch",
                                           "function.reference",
-                                          "function.invoke"};
+                                          "function.invoke",
+                                          "synchronous.call"};
   std::ostringstream out;
   for (std::size_t f = 0; f < module.plans.size(); ++f) {
     const auto &plan = *module.plans[f];

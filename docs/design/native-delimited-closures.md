@@ -48,7 +48,7 @@ The lexer recognizes anonymous `fn(...)` headers and temporarily restores layout
 
 The parser already accepts statement suites for anonymous functions; no parser grammar, backend, runtime or scheduler changes are needed. Existing token, indentation, delimiter, expression/type and diagnostic budgets remain in force. Source spans identify the anonymous body without swallowing its enclosing call's closing delimiter.
 
-This increment supports anonymous-function and `catch fn(error)` suites inside delimiters. Other standalone indented expressions directly inside delimiters, such as an unwrapped `if` argument, are not added here. Recursive control-flow callables, function transport, GPU callbacks and public foreign-function interfaces remain separate work.
+This increment supports anonymous-function and `catch fn(error)` suites inside delimiters. Other standalone indented expressions directly inside delimiters, such as an unwrapped `if` argument, are not added here. [Recursive synchronous callables](native-recursive-callables.md) are supported with checked call admission. Function transport, GPU callbacks and public foreign-function interfaces remain separate work.
 
 ## Qualification
 

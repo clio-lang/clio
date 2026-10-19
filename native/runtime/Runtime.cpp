@@ -1,3 +1,6 @@
+#if defined(__APPLE__)
+#include <pthread.h>
+#endif
 #include "Runtime.h"
 #include "../include/kalandra/NumericType.h"
 #include <atomic>
@@ -194,6 +197,33 @@ void Invocation::settle() noexcept {
     remove(head_);
   settled_ = true;
 }
+bool Invocation::enterCall(std::int64_t line, std::int64_t column) noexcept {
+  if (poll())
+    return false;
+  bool exhausted = callDepth_ >= maxCallDepth;
+#if defined(__APPLE__)
+  // Contexts can migrate between workers: query the executing thread rather
+  // than caching a stack address in the invocation or thread-local state.
+  const auto position = reinterpret_cast<std::uintptr_t>(__builtin_frame_address(0));
+  const auto high = reinterpret_cast<std::uintptr_t>(pthread_get_stackaddr_np(pthread_self()));
+  const auto size = pthread_get_stacksize_np(pthread_self());
+  constexpr std::uintptr_t reserve = 128 * 1024;
+  exhausted = exhausted || size <= reserve || high < size || position > high ||
+              position <= high - size + reserve;
+#endif
+  if (exhausted) {
+    fault(6, line, column);
+    return false;
+  }
+  ++callDepth_;
+  return true;
+}
+void Invocation::leaveCall() noexcept {
+  if (callDepth_)
+    --callDepth_;
+  else
+    fault(3);
+}
 void Invocation::expectedTaskError(std::int64_t kind, std::int64_t code, std::int64_t line,
                                    std::int64_t column) noexcept {
   if (!taskError_ && !code_ && !applicationFamily_) {
@@ -216,6 +246,7 @@ void Invocation::expectedApplicationError(const char *family, const char *varian
                      : code_ == 2 ? "AllocationFault"
                      : code_ == 4 ? "ArithmeticFault"
                      : code_ == 5 ? "BoundsFault"
+                     : code_ == 6 ? "CallLimitFault"
                                   : "RuntimeFault";
   if (taskError_)
     name = taskError_ == 1   ? "TaskError.Fault"
@@ -263,6 +294,13 @@ extern "C" void kalandra_expected_task_error_v1(kalandra::runtime::Invocation *c
   context->expectedTaskError(kind, code, line, column);
 }
 
+extern "C" bool kalandra_call_enter_v1(kalandra::runtime::Invocation *context, std::int64_t line,
+                                       std::int64_t column) noexcept {
+  return context->enterCall(line, column);
+}
+extern "C" void kalandra_call_leave_v1(kalandra::runtime::Invocation *context) noexcept {
+  context->leaveCall();
+}
 extern "C" std::int64_t kalandra_poll_v1(kalandra::runtime::Invocation *context) noexcept {
   return context->poll();
 }

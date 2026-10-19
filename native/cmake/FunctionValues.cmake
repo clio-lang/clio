@@ -274,4 +274,35 @@ if(BUILD_TESTING)
     set_tests_properties(native-delimited-closures-${VARIANT} PROPERTIES TIMEOUT 300)
   endforeach()
 
+  foreach(VARIANT IN ITEMS debug sanitized)
+    add_executable(kalandra-recursive-callable-tests-${VARIANT} tests/RecursiveCallableTests.cpp)
+    target_compile_options(kalandra-recursive-callable-tests-${VARIANT} PRIVATE -Wall -Wextra -Werror)
+    target_compile_definitions(kalandra-recursive-callable-tests-${VARIANT} PRIVATE KALANDRA_RECURSIVE_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/recursive-callables")
+    if(VARIANT STREQUAL "sanitized")
+      target_link_libraries(kalandra-recursive-callable-tests-${VARIANT} PRIVATE kalandra-semantics-sanitized)
+      target_compile_options(kalandra-recursive-callable-tests-${VARIANT} PRIVATE -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+      target_link_options(kalandra-recursive-callable-tests-${VARIANT} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all)
+    else()
+      target_link_libraries(kalandra-recursive-callable-tests-${VARIANT} PRIVATE kalandra-semantics)
+    endif()
+    add_test(NAME native-recursive-callables-frontend-${VARIANT} COMMAND kalandra-recursive-callable-tests-${VARIANT})
+    set_tests_properties(native-recursive-callables-frontend-${VARIANT} PROPERTIES TIMEOUT 120)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    if(VARIANT STREQUAL "sanitized")
+      set(RECURSIVE_CALLABLE_RUNTIME kalandra-native-runtime-sanitized)
+    elseif(VARIANT STREQUAL "thread-sanitized")
+      set(RECURSIVE_CALLABLE_RUNTIME kalandra-native-runtime-thread-sanitized)
+    else()
+      set(RECURSIVE_CALLABLE_RUNTIME kalandra-native-runtime)
+    endif()
+    add_test(NAME native-recursive-callables-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DLLVM_ROOT=${KALANDRA_LLVM_ROOT}" "-DRUNTIME=$<TARGET_FILE:${RECURSIVE_CALLABLE_RUNTIME}>"
+        "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/recursive-callables-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyRecursiveCallables.cmake")
+    set_tests_properties(native-recursive-callables-${VARIANT} PROPERTIES TIMEOUT 300)
+  endforeach()
+
 endif()

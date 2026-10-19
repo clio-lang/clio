@@ -202,7 +202,14 @@ int main(int argc, char **argv) {
             "resumable control flow admitted as a GPU shader");
     auto recursive = analyze("fn loop(x:float32) -> float32:\n  loop(x)\nfn main() -> float32 ! "
                              "TaskError:\n  try parallel:\n    try await spawn loop(1)\n");
-    require(recursive.ok() && !plan(*recursive.module), "recursive CPU expansion lost its limit");
+    require(recursive.ok(), "recursive CPU fixture rejected");
+    auto recursivePlan = plan(*recursive.module);
+    require(bool(recursivePlan), "recursive CPU calls were expanded instead of planned");
+    bool backedge = false;
+    for (const auto &entry : recursivePlan->plans)
+      for (const auto &op : entry->code)
+        backedge |= op.code == Code::SynchronousCall;
+    require(backedge, "recursive CPU plan omitted its synchronous backedge");
     auto builtin =
         analyze("fn main() -> float32 ! TaskError:\n  try parallel:\n    data:Tensor[float32,2] = "
                 "tensor([1,2])\n    try await spawn reduceSum(data)\n");

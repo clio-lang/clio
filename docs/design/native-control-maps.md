@@ -45,7 +45,7 @@ This implementation favors correctness over allocation reduction: synchronous ca
 
 - Callback task/device coordination is rejected transitively, including on empty inputs.
 - Fallible callback results require an explicit recovery wrapper; there is no fallible-map result model.
-- GPU/mixed-target maps and recursive synchronous control-flow callables remain unsupported.
+- GPU/mixed-target maps remain unsupported. [Recursive synchronous callbacks](native-recursive-callables.md) use the bounded checked CPU calling path.
 - [Indented anonymous suites inside call delimiters](native-delimited-closures.md) are supported; general standalone indented expressions in delimiters remain separate syntax work.
 - Function transport, indirect spawn, distributed execution and the public C/C++ ABI remain separate work.
 

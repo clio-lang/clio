@@ -1,3 +1,5 @@
+#include "NativeLayout.h"
+#include "NativeStack.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
@@ -24,6 +26,9 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool fu
   auto release = module.getOrInsertFunction("kalandra_free_v1", voidType, pointer, pointer);
   auto fault = module.getOrInsertFunction("kalandra_fault_v1", voidType, pointer, i64, i64, i64);
   auto status = module.getOrInsertFunction("kalandra_poll_v1", i64, pointer);
+  auto enter = module.getOrInsertFunction("kalandra_call_enter_v1", Type::getInt1Ty(context),
+                                          pointer, i64, i64);
+  auto leave = module.getOrInsertFunction("kalandra_call_leave_v1", voidType, pointer);
   std::vector<Function *> originals;
   for (auto &function : module)
     if (!function.isDeclaration())
@@ -161,13 +166,34 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool fu
       auto *code = poll.CreateCall(status, {invocation});
       poll.CreateCondBr(poll.CreateICmpNE(code, ConstantInt::get(i64, 0)), failed, body);
     }
+    // The compiler-owned SIMD matmul leaf cannot re-enter source code. Its
+    // register-heavy SSA follows separate numeric qualification; still bound
+    // fixed allocas/arguments and verify the leaf-call restriction.
+    const bool numericLeaf = function->getName().starts_with("kalandra_fn_matmul_wide_");
+    if (auto error =
+            nativeStackBudgetError(*function, llvm::DataLayout(nativeCpuDataLayout), numericLeaf))
+      return error;
+    // Balance every admitted return, including fault/cancellation exits. The
+    // rejected-entry block below never acquired a call slot and must not leave.
+    for (auto &block : *function)
+      if (auto *ret = dyn_cast<ReturnInst>(block.getTerminator())) {
+        IRBuilder<> exit(ret);
+        exit.CreateCall(leave, {invocation});
+      }
+    auto *denied = BasicBlock::Create(context, "invocation.denied", function);
+    IRBuilder<> reject(denied);
+    if (function->getReturnType()->isVoidTy())
+      reject.CreateRetVoid();
+    else
+      reject.CreateRet(Constant::getNullValue(function->getReturnType()));
     // Re-entering an already faulted/cancelled context cannot execute source operations.
     auto *entry = &function->getEntryBlock();
     auto *start = entry->splitBasicBlock(entry->getFirstInsertionPt(), "invocation.start");
     entry->getTerminator()->eraseFromParent();
     IRBuilder<> builder(entry);
-    auto *code = builder.CreateCall(status, {invocation});
-    builder.CreateCondBr(builder.CreateICmpNE(code, ConstantInt::get(i64, 0)), failed, start);
+    auto *admitted =
+        builder.CreateCall(enter, {invocation, ConstantInt::get(i64, 0), ConstantInt::get(i64, 0)});
+    builder.CreateCondBr(admitted, start, denied);
   }
   // Source function references must point at the checked entry, including references
   // passed through arguments, returned values and branch-selected pointers.
