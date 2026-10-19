@@ -308,23 +308,64 @@ private:
     kernels.functions[copied] = std::move(fn);
     return copied;
   }
+  ValueType mapCallableType(const ArrayMap &map) const {
+    const auto &fn = input.functions.at(map.function);
+    ValueType type;
+    type.builtin = BuiltinValue::Function;
+    type.callable = std::make_shared<const FunctionSignature>(
+        FunctionSignature{{input.symbols.at(fn.parameters.at(0)).type}, fn.resultType});
+    return type;
+  }
+  // Keep the MLIR loop ordinary; its extra argument carries a checked
+  // synchronous entry rather than importing control flow into a pure kernel.
+  FunctionId mapAdapter(const ArrayMap &map, SourceSpan span) {
+    const auto id = kernels.functions.size();
+    const auto callable = mapCallableType(map);
+    TypedFunction fn;
+    fn.name = "__map_control_" + std::to_string(id);
+    fn.declaration = span;
+    std::vector<ValueId> reads;
+    for (const auto &type : {callable.callable->parameters[0], callable}) {
+      const auto symbol = kernels.symbols.size();
+      fn.parameters.push_back(symbol);
+      kernels.symbols.push_back({"argument", type, span, id, true});
+      reads.push_back(kernels.expressions.size());
+      fn.expressions.push_back(reads.back());
+      kernels.expressions.push_back({span, type, SymbolRead{symbol}});
+    }
+    fn.resultType = callable.callable->result;
+    fn.declaredResult = fn.resultType;
+    fn.result = kernels.expressions.size();
+    fn.expressions.push_back(fn.result);
+    fn.body = {{span, {}, fn.result}};
+    kernels.expressions.push_back({span, fn.resultType, FunctionInvoke{reads[1], {reads[0]}}});
+    kernels.functions.push_back(std::move(fn));
+    return id;
+  }
   FunctionId kernel(ValueId id) {
     if (auto found = kernelIds.find(id); found != kernelIds.end())
       return found->second;
     const auto &source = input.expressions[id];
-    const auto args = operands(source);
     const auto *map = std::get_if<ArrayMap>(&source.operation);
-    const auto callback = map ? importFunction(map->function) : FunctionId{};
+    const bool controlMap = map && resumable.at(map->function);
+    const auto callback =
+        map ? (controlMap ? mapAdapter(*map, source.span) : importFunction(map->function))
+            : FunctionId{};
     const auto *reference = std::get_if<FunctionReference>(&source.operation);
     const auto referenced = reference ? importFunction(reference->function) : FunctionId{};
+    std::vector<ValueType> parameters;
+    if (controlMap)
+      parameters = {plain(input.expressions[map->input].type), mapCallableType(*map)};
+    else
+      for (auto arg : operands(source))
+        parameters.push_back(plain(input.expressions[arg].type));
     TypedFunction fn;
     const auto fnId = kernels.functions.size();
     fn.name = "__step_" + std::to_string(fnId);
     fn.declaration = source.span;
     std::vector<ValueId> reads;
-    for (auto arg : args) {
+    for (const auto &type : parameters) {
       const auto symbol = kernels.symbols.size();
-      const auto type = plain(input.expressions[arg].type);
       fn.parameters.push_back(symbol);
       kernels.symbols.push_back({"argument", type, source.span, fnId, true});
       reads.push_back(kernels.expressions.size());
@@ -429,8 +470,20 @@ private:
     for (auto arg : operands(input.expressions[id]))
       args.push_back(slot(*plan, input.expressions[arg].type));
     plan->parameters = args;
-    plan->result = slot(*plan, plain(input.expressions[id].type));
-    plan->code.push_back({Code::Kernel, plan->result, args, kernel(id), 0, 0, id});
+    if (const auto *map = std::get_if<ArrayMap>(&input.expressions[id].operation);
+        map && resumable.at(map->function)) {
+      // Build the callable inside the worker, after its ordinary captures have
+      // crossed the checked boundary. No function environment is transported.
+      Environment env;
+      const auto inputs = operands(input.expressions[id]);
+      for (std::size_t i = 0; i < inputs.size(); ++i)
+        env.values[inputs[i]] = args[i];
+      std::set<FunctionId> stack;
+      plan->result = expression(*plan, id, env, stack);
+    } else {
+      plan->result = slot(*plan, plain(input.expressions[id].type));
+      plan->code.push_back({Code::Kernel, plan->result, args, kernel(id), 0, 0, id});
+    }
     plan->code.push_back({Code::Return, 0, {plan->result}});
     plans.push_back(std::move(plan));
     return plans.size() - 1;
@@ -471,6 +524,17 @@ private:
         captures.push_back(expression(plan, capture, env, stack));
       plan.code.push_back(
           {Code::FunctionReference, output, captures, reference->function, 0, 0, id});
+    } else if (const auto *map = std::get_if<ArrayMap>(&node.operation);
+               map && resumable.at(map->function)) {
+      if (options.preserveCalls)
+        throw std::runtime_error("control-flow maps require CPU continuation lowering");
+      const auto inputSlot = expression(plan, map->input, env, stack);
+      std::vector<Slot> captures;
+      for (auto capture : map->captures)
+        captures.push_back(expression(plan, capture, env, stack));
+      const auto callable = slot(plan, mapCallableType(*map));
+      plan.code.push_back({Code::FunctionReference, callable, captures, map->function, 0, 0, id});
+      plan.code.push_back({Code::Kernel, output, {inputSlot, callable}, kernel(id), 0, 0, id});
     } else if (const auto *call = std::get_if<kalandra::FunctionInvoke>(&node.operation);
                call && node.type.fallible) {
       std::vector<Slot> args{expression(plan, call->callee, env, stack)};

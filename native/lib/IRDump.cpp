@@ -197,6 +197,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
     }
   const auto resumable = hasMap ? continuation::resumableFunctions(module)
                                 : std::vector<bool>(module.functions.size());
+  const auto coordinating = hasMap ? continuation::coordinatingFunctions(module)
+                                   : std::vector<bool>(module.functions.size());
   for (const auto &fn : module.functions) {
     if (auto failure = error(fn.resultType))
       return failure;
@@ -767,7 +769,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
                         }))
           return "map requires matching completed CPU captures";
       }
-      if (target != NumericTarget::Cpu || resumable[map->function] ||
+      if (target != NumericTarget::Cpu || coordinating[map->function] ||
+          (resumable[map->function] && fn.captureCount != map->captures.size()) ||
           fn.parameters.size() != 1 + map->captures.size() || !scalar(fn.resultType) ||
           !scalar(module.symbols[fn.parameters[0]].type) || !input.array || input.device ||
           input.task || input.fallible || !expression.type.array || expression.type.device ||

@@ -39,7 +39,7 @@ An element type `[fn(int) -> int ! InputError]` describes functions whose invoca
 
 A factory may separately return an array or a factory error: `fn make() -> [fn(int) -> int ! InputError] ! BuildError`. The brackets delimit the element's callable type; the outer suffix belongs to the factory.
 
-Sequential maps require completed elements. Returning an error-producing function value is allowed because the value itself is completed. Invoking it inside a map requires handling its errors before returning the mapped element. The existing direct static-map control-flow restriction still applies; a bound infallible recovery callback supplies the currently supported route.
+Sequential maps require completed elements. Returning an error-producing function value is allowed because the value itself is completed. Invoking it inside a map requires handling its errors before returning the mapped element. [Direct static-map callbacks](native-control-maps.md) and bound function-value callbacks both support synchronous recovery before returning an element.
 
 Function arrays also work in records, enum variants and expected-error payloads within one invocation. Imported helpers preserve the same declared signatures. Native executable output does not display function values: `main` must return a supported printable result, such as a count or a callback's numeric result.
 
@@ -53,7 +53,7 @@ The descriptor retention used internally does not establish callback ownership a
 
 ## Remaining work
 
-- Direct synchronous control-flow callbacks in static `map` lowering.
+- Indented callbacks inside open call delimiters.
 - Delimiter-aware indented anonymous bodies.
 - Recursive control-flow callables, indirect spawn and function transport.
 - Earlier reclamation, shared storage and allocation/copy elimination.

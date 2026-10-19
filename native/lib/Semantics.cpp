@@ -3322,6 +3322,7 @@ private:
               lambdaSpan);
         return {};
       }
+    output_.functions[id].captureCount = nested.closure->origins.size();
     output_.functions[id].body = std::move(statements);
     output_.functions[id].result = *result;
     output_.functions[id].resultType = resultType;
