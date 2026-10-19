@@ -383,29 +383,23 @@ execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-fallible-map-aggrega
 if(NOT "${STATUS}" STREQUAL "1")
   message(FATAL_ERROR "Invalid function array accepted/crashed: fallible-map-aggregation: ${STATUS}: ${OUT}${ERR}")
 endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-argument.k" [=[fn worker(callbacks:[fn(int)->int])->int:
+COMPILE(supported-worker-argument [=[fn worker(callbacks:[fn(int)->int])->int:
   callbacks[0](42)
 fn main()->int ! TaskError:
   callbacks:[fn(int)->int]=[fn(value):value]
   try parallel:
     try await spawn worker(callbacks)
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-argument.k" -o "${OUTPUT_DIR}/reject-worker-argument" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid function array accepted/crashed: worker-argument: ${STATUS}: ${OUT}${ERR}")
-endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-result.k" [=[fn worker(offset:int)->[fn(int)->int]:
+EXPECT(supported-worker-argument 42)
+COMPILE(supported-worker-result [=[fn worker(offset:int)->[fn(int)->int]:
   [fn(value):value+offset]
 fn main()->int ! TaskError:
   try parallel:
     callbacks=try await spawn worker(20)
     callbacks[0](22)
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-result.k" -o "${OUTPUT_DIR}/reject-worker-result" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid function array accepted/crashed: worker-result: ${STATUS}: ${OUT}${ERR}")
-endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-nested-field.k" [=[type Config:
+EXPECT(supported-worker-result 42)
+COMPILE(supported-worker-nested-field [=[type Config:
   callbacks:[fn(int)->int]
 fn worker(config:Config)->int:
   config.callbacks[0](42)
@@ -414,10 +408,7 @@ fn main()->int ! TaskError:
   try parallel:
     try await spawn worker(config)
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-nested-field.k" -o "${OUTPUT_DIR}/reject-worker-nested-field" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid function array accepted/crashed: worker-nested-field: ${STATUS}: ${OUT}${ERR}")
-endif()
+EXPECT(supported-worker-nested-field 42)
 file(WRITE "${OUTPUT_DIR}/reject-worker-error-payload.k" [=[error E:
   Bad:
     callbacks:[fn(int)->int]

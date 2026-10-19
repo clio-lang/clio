@@ -133,16 +133,24 @@ execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-capture-task.k" -o "
 if("${STATUS}" STREQUAL "0")
   message(FATAL_ERROR "Invalid closure accepted: capture-task: ${OUT}${ERR}")
 endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-result.k" "fn make(value:int)->fn(int)->int:\n  targets=[fn(item:int):item+value]\n  fn(item:int):targets[0](item)\nfn main()->int ! TaskError:\n  try parallel:\n    f=try await spawn make(21)\n    f(21)\n")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-result.k" -o "${OUTPUT_DIR}/reject-worker-result" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if("${STATUS}" STREQUAL "0")
-  message(FATAL_ERROR "Invalid closure accepted: worker-result: ${OUT}${ERR}")
-endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-argument.k" "fn apply(value:int,f:fn(int)->int)->int:\n  f(value)\nfn main()->int ! TaskError:\n  targets=[fn(value:int):value*2]\n  f=fn(value:int):targets[0](value)\n  try parallel:\n    try await spawn apply(21,f)\n")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-argument.k" -o "${OUTPUT_DIR}/reject-worker-argument" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if("${STATUS}" STREQUAL "0")
-  message(FATAL_ERROR "Invalid closure accepted: worker-argument: ${OUT}${ERR}")
-endif()
+COMPILE(supported-worker-result [=[fn make(value:int)->fn(int)->int:
+  targets=[fn(item:int):item+value]
+  fn(item:int):targets[0](item)
+fn main()->int ! TaskError:
+  try parallel:
+    f=try await spawn make(21)
+    f(21)
+]=])
+EXPECT(supported-worker-result 42)
+COMPILE(supported-worker-argument [=[fn apply(value:int,f:fn(int)->int)->int:
+  f(value)
+fn main()->int ! TaskError:
+  targets=[fn(value:int):value*2]
+  f=fn(value:int):targets[0](value)
+  try parallel:
+    try await spawn apply(21,f)
+]=])
+EXPECT(supported-worker-argument 42)
 file(WRITE "${OUTPUT_DIR}/reject-indirect-spawn.k" "fn main()->int ! TaskError:\n  f=fn(value:int):value*2\n  try parallel:\n    try await spawn f(21)\n")
 execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-indirect-spawn.k" -o "${OUTPUT_DIR}/reject-indirect-spawn" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
 if("${STATUS}" STREQUAL "0")

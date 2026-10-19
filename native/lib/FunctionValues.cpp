@@ -35,11 +35,6 @@ bool sameFunctionValueType(const ValueType &a, const ValueType &b, std::size_t d
 }
 
 bool workerClosureCaptureTypeSupported(const TypedModule &module, const ValueType &root) {
-  // Direct function captures have their own checked recursive copy path.
-  // Functions inside aggregates remain a separate transport increment.
-  if (root.builtin == BuiltinValue::Function)
-    return root.callable && !root.tensor && !root.task && !root.fallible && !root.device &&
-           !root.errorRecord;
   std::vector<ValueType> pending{root};
   std::unordered_set<std::size_t> visited;
   while (!pending.empty()) {
@@ -47,7 +42,11 @@ bool workerClosureCaptureTypeSupported(const TypedModule &module, const ValueTyp
     pending.pop_back();
     if (value.task || value.fallible || value.device || value.errorRecord ||
         (value.builtin != BuiltinValue::Numeric && value.builtin != BuiltinValue::Bool &&
-         value.builtin != BuiltinValue::String && value.builtin != BuiltinValue::Record))
+         value.builtin != BuiltinValue::String && value.builtin != BuiltinValue::Record &&
+         value.builtin != BuiltinValue::Function))
+      return false;
+    if (value.builtin == BuiltinValue::Function &&
+        (!value.callable || (value.tensor && !isFunctionArray(value))))
       return false;
     if (value.builtin == BuiltinValue::Record) {
       if (!value.record || *value.record >= module.records.size())
@@ -59,7 +58,6 @@ bool workerClosureCaptureTypeSupported(const TypedModule &module, const ValueTyp
   }
   return true;
 }
-namespace {
 bool containsFunctionStorage(const TypedModule &module, const ValueType &type) {
   std::vector<const ValueType *> pending{&type};
   std::unordered_set<std::size_t> visited;
@@ -75,9 +73,10 @@ bool containsFunctionStorage(const TypedModule &module, const ValueType &type) {
   }
   return false;
 }
+namespace {
 // Conservative expression provenance: ordinary references, aliases, branches
 // and direct factory results. Parameters and aggregate projections stay staged.
-bool workerFunctionArgument(const TypedModule &module, ValueId root) {
+bool workerValueProvenance(const TypedModule &module, ValueId root) {
   std::unordered_map<SymbolId, ValueId> bindings;
   const auto statements = [&](const auto &body) {
     for (const auto &statement : body)
@@ -113,8 +112,10 @@ bool workerFunctionArgument(const TypedModule &module, ValueId root) {
     if (!visited.insert(id).second)
       continue;
     const auto &value = module.expressions[id];
-    if (value.type.builtin != BuiltinValue::Function || value.type.tensor || value.type.device)
+    if (value.type.device)
       return false;
+    if (!containsFunctionStorage(module, value.type))
+      continue;
     if (const auto *ref = std::get_if<FunctionReference>(&value.operation)) {
       if (ref->function >= module.functions.size())
         return false;
@@ -125,10 +126,31 @@ bool workerFunctionArgument(const TypedModule &module, ValueId root) {
         if (capture >= module.expressions.size() ||
             !workerClosureCaptureTypeSupported(module, module.expressions[capture].type))
           return false;
-        if (module.expressions[capture].type.builtin == BuiltinValue::Function)
+        if (containsFunctionStorage(module, module.expressions[capture].type))
           pending.push_back(capture);
       }
       found = true;
+    } else if (const auto *record = std::get_if<RecordValue>(&value.operation)) {
+      if (record->base)
+        pending.push_back(*record->base);
+      for (const auto &field : record->fields)
+        pending.push_back(field.value);
+      found = true;
+    } else if (const auto *array = std::get_if<TensorLiteral>(&value.operation)) {
+      for (auto element : array->elements)
+        pending.push_back(element);
+      found = true;
+    } else if (const auto *field = std::get_if<RecordFieldRead>(&value.operation)) {
+      pending.push_back(field->input);
+    } else if (const auto *index = std::get_if<ArrayIndex>(&value.operation)) {
+      pending.push_back(index->input);
+    } else if (const auto *slice = std::get_if<ArraySlice>(&value.operation)) {
+      pending.push_back(slice->input);
+    } else if (const auto *concat = std::get_if<ArrayConcat>(&value.operation)) {
+      pending.push_back(concat->left);
+      pending.push_back(concat->right);
+    } else if (const auto *shape = std::get_if<ShapeCheck>(&value.operation)) {
+      pending.push_back(shape->input);
     } else if (const auto *call = std::get_if<FunctionCall>(&value.operation)) {
       if (call->function >= module.functions.size())
         return false;
@@ -188,11 +210,10 @@ std::optional<std::string> functionValueTransportError(const TypedModule &module
   }
   if (containsFunctionStorage(module, invocation.type)) {
     const auto *call = std::get_if<FunctionCall>(&invocation.operation);
-    if (invocation.type.builtin != BuiltinValue::Function || invocation.type.tensor || !call ||
-        call->function >= module.functions.size() ||
-        !workerFunctionArgument(module, module.functions[call->function].result))
+    if (!call || call->function >= module.functions.size() ||
+        !workerValueProvenance(module, module.functions[call->function].result))
       return "function-valued worker results require proven CPU closure captures; "
-             "unproven results and function-containing aggregates are not implemented yet";
+             "unproven result provenance is not implemented yet";
   }
   const auto arguments = std::visit(
       [](const auto &op) -> std::vector<ValueId> {
@@ -222,12 +243,11 @@ std::optional<std::string> functionValueTransportError(const TypedModule &module
     const auto &type = module.expressions[id].type;
     if (!containsFunctionStorage(module, type))
       continue;
-    if (std::holds_alternative<FunctionCall>(invocation.operation) &&
-        type.builtin == BuiltinValue::Function && !type.tensor && !type.task && !type.fallible &&
-        workerFunctionArgument(module, id))
+    if (std::holds_alternative<FunctionCall>(invocation.operation) && !type.task &&
+        !type.fallible && workerValueProvenance(module, id))
       continue;
     return "function-valued worker arguments require proven CPU closure captures; unproven "
-           "targets and function-containing aggregates are not implemented yet";
+           "capture provenance is not implemented yet";
   }
   return {};
 }
@@ -249,7 +269,7 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
              ? (!type.tensor || type.shape.size() != 1 ||
                 (type.shape[0].constant && *type.shape[0].constant > std::uint64_t(INT64_MAX) / 16))
              : (type.tensor || !type.shape.empty())) ||
-        (type.task && array) || type.device || type.record ||
+        type.device || type.record ||
         (type.errorRecord && (!type.fallible || *type.errorRecord >= module.records.size() ||
                               !module.records[*type.errorRecord].error)))
       return false;

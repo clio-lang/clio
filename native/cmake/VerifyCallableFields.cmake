@@ -492,7 +492,7 @@ execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-direct-functions-arr
 if(NOT "${STATUS}" STREQUAL "1")
   message(FATAL_ERROR "Invalid callable field accepted/crashed: direct-functions-array: ${STATUS}: ${OUT}${ERR}")
 endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-argument.k" [=[type Config:
+COMPILE(supported-worker-argument [=[type Config:
   apply:fn(int)->int
 fn worker(config:Config)->int:
   config.apply(42)
@@ -501,11 +501,8 @@ fn main()->int ! TaskError:
   try parallel:
     try await spawn worker(config)
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-argument.k" -o "${OUTPUT_DIR}/reject-worker-argument" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid callable field accepted/crashed: worker-argument: ${STATUS}: ${OUT}${ERR}")
-endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-nested-array.k" [=[type Config:
+EXPECT(supported-worker-argument 42)
+COMPILE(supported-worker-nested-array [=[type Config:
   apply:fn(int)->int
 type Outer:
   values:[Config]
@@ -516,11 +513,8 @@ fn main()->int ! TaskError:
   try parallel:
     try await spawn worker(outer)
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-nested-array.k" -o "${OUTPUT_DIR}/reject-worker-nested-array" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid callable field accepted/crashed: worker-nested-array: ${STATUS}: ${OUT}${ERR}")
-endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-result.k" [=[type Config:
+EXPECT(supported-worker-nested-array 42)
+COMPILE(supported-worker-result [=[type Config:
   apply:fn(int)->int
 fn worker(value:int)->Config:
   Config {apply:fn(input):input+value}
@@ -529,10 +523,7 @@ fn main()->int ! TaskError:
     config=try await spawn worker(20)
     config.apply(22)
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-result.k" -o "${OUTPUT_DIR}/reject-worker-result" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid callable field accepted/crashed: worker-result: ${STATUS}: ${OUT}${ERR}")
-endif()
+EXPECT(supported-worker-result 42)
 file(WRITE "${OUTPUT_DIR}/reject-worker-error-payload.k" [=[type Config:
   apply:fn(int)->int
 error E:

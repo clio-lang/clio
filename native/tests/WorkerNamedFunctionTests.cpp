@@ -18,7 +18,8 @@ int main() {
     unsigned count = 0;
     for (const auto *directory :
          {KALANDRA_WORKER_FUNCTION_FIXTURES, KALANDRA_WORKER_CLOSURE_FIXTURES,
-          KALANDRA_WORKER_NESTED_FIXTURES, KALANDRA_WORKER_RESULT_FIXTURES}) {
+          KALANDRA_WORKER_NESTED_FIXTURES, KALANDRA_WORKER_RESULT_FIXTURES,
+          KALANDRA_WORKER_AGGREGATE_FIXTURES}) {
       for (const auto &file : std::filesystem::directory_iterator(directory)) {
         if (file.path().extension() != ".k")
           continue;
@@ -32,31 +33,20 @@ int main() {
         ++count;
       }
     }
-    require(count == 48, "worker callable fixture catalog incomplete");
+    require(count == 64, "worker callable fixture catalog incomplete");
     const std::string base = "fn double(value:int)->int:\n  value*2\nfn "
                              "apply(value:int,transform:fn(int)->int)->int:\n  transform(value)\n";
     for (const auto *body :
          {"fn wrap(target:fn(int)->int)->fn(int)->int:\n  fn(value:int):target(value)\nfn "
           "main()->int ! TaskError:\n  f=wrap(double)\n  try parallel:\n    try await spawn "
           "apply(21,f)\n",
-          "type Box:\n  f:fn(int)->int\nfn main()->int ! TaskError:\n  box=Box {f:double}\n  "
-          "f=fn(value:int):box.f(value)\n  try parallel:\n    try await spawn apply(21,f)\n",
           "fn make(target:fn(int)->int)->fn(int)->int:\n  target\nfn main()->int ! TaskError:\n  "
           "try parallel:\n    try await spawn apply(21,make(double))\n",
           "fn forward(f:fn(int)->int)->int ! TaskError:\n  try parallel:\n    try await spawn "
           "apply(21,f)\nfn main()->int ! TaskError:\n  try forward(double)\n",
-          "type Box:\n  f:fn(int)->int\nfn worker(box:Box)->int:\n  box.f(21)\nfn main()->int ! "
-          "TaskError:\n  try parallel:\n    try await spawn worker(Box {f:double})\n",
-          "fn worker(values:[fn(int)->int])->int:\n  values[0](21)\nfn main()->int ! TaskError:\n  "
-          "try parallel:\n    try await spawn worker([double])\n",
-          "fn make()->fn(int)->int:\n  values=[double]\n  fn(value:int):values[0](value)\nfn "
-          "main()->int ! TaskError:\n  f=try parallel:\n    try await spawn make()\n  f(21)\n",
           "fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    try await spawn f(21)\n",
           "fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    values=try await spawn "
-          "map([21],f)\n    values[0]\n",
-          "type Box:\n  f:fn(int)->int\nfn run(flag:Bool)->int ! TaskError:\n  box=Box "
-          "{f:double}\n  f=if flag:double\n  else:fn(value:int):box.f(value)\n  try parallel:\n    "
-          "try await spawn apply(21,f)\nfn main()->int ! TaskError:\n  try run(true)\n"}) {
+          "map([21],f)\n    values[0]\n"}) {
       auto result = analyze(base + body);
       require(!result.ok(), "unsupported function transport admitted");
       require(
@@ -106,7 +96,7 @@ int main() {
       require(changed && numericCapabilityError(module, NumericTarget::Cpu).has_value(),
               "forged function result task/signature admitted");
     }
-    std::cout << "Worker named functions: 48 valid programs, 10 rejected boundaries, 6 forged IR "
+    std::cout << "Worker named functions: 64 valid programs, 5 rejected boundaries, 6 forged IR "
                  "cases passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

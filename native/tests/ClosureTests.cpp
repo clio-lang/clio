@@ -114,6 +114,15 @@ int main() {
       require(bool(native), native ? "" : native.error().c_str());
 #endif
     }
+    // Worker aggregate transport now supports these former rejection cases.
+    for (const auto *accepted :
+         {"fn make(value:int)->fn(int)->int:\n  targets=[fn(item:int):item+value]\n  "
+          "fn(item:int):targets[0](item)\nfn main()->int ! TaskError:\n  try parallel:\n    f=try "
+          "await spawn make(21)\n    f(21)\n",
+          "fn apply(value:int,f:fn(int)->int)->int:\n  f(value)\nfn main()->int ! TaskError:\n  "
+          "targets=[fn(value:int):value*2]\n  f=fn(value:int):targets[0](value)\n  try parallel:\n "
+          "   try await spawn apply(21,f)\n"})
+      require(analyze(accepted).ok(), "supported worker aggregate rejected");
     for (const auto *source :
          {"fn main()->int:\n  f=fn(value):value+1\n  f(41)\n",
           "fn main()->int:\n  f:fn(int)->int=fn(a,b):a+b\n  0\n",
@@ -132,13 +141,6 @@ int main() {
           "f=fn(value:int):run(value) catch fn(error):0\n  f(42)\n",
           "fn worker(value:int)->int:\n  value\nfn main()->int ! TaskError:\n  try parallel:\n    "
           "task=spawn worker(42)\n    f=fn(value:int):task\n    try await task\n",
-          "fn make(value:int)->fn(int)->int:\n  targets=[fn(item:int):item+value]\n  "
-          "fn(item:int):targets[0](item)\nfn main()->int ! "
-          "TaskError:\n  try parallel:\n    f=try await spawn make(21)\n    f(21)\n",
-          "fn apply(value:int,f:fn(int)->int)->int:\n  f(value)\nfn main()->int ! TaskError:\n  "
-          "targets=[fn(value:int):value*2]\n  f=fn(value:int):targets[0](value)\n  try parallel:\n "
-          "   try "
-          "await spawn apply(21,f)\n",
           "fn main()->int ! TaskError:\n  f=fn(value:int):value*2\n  try parallel:\n    try await "
           "spawn f(21)\n",
           "error E:\n  Bad\nfn checked()->int ! E:\n  fail E.Bad\nfn main()->int:\n  "

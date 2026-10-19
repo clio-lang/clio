@@ -382,8 +382,9 @@ private:
     if (type.task)
       return "handle";
     if (type.builtin == BuiltinValue::Function)
-      return type.array ? "array.Function"
-                        : "function.reference." + std::to_string(functionSignature(type));
+      return type.array
+                 ? "array.Function." + std::to_string(functionSignature(recordArrayElement(type)))
+                 : "function.reference." + std::to_string(functionSignature(type));
     if (isStringArray(type) && !type.task)
       return "array.String";
     if (isBoolArray(type) && !type.task)
@@ -603,7 +604,9 @@ private:
   }
   void retainValue(const ValueType &field, Value *address, Function *fn, Block *failed,
                    std::optional<std::size_t> taskKind = {}) {
-    if (field.builtin == BuiltinValue::TaskError) {
+    if (containsFunctionStorage(planner.input, field)) {
+      copyFunctionPayload(field, address, fn, failed);
+    } else if (field.builtin == BuiltinValue::TaskError) {
       auto *kind = builder.CreateLoad(i32, builder.CreateStructGEP(failureType, address, 0));
       auto *next = Block::Create(context, "task.error.validated", fn);
       builder.CreateCondBr(taskKind ? builder.CreateICmpEQ(kind, c32(*taskKind))
@@ -682,6 +685,107 @@ private:
       builder.SetInsertPoint(done);
     }
   }
+  void copyFunctionPayload(const ValueType &type, Value *address, Function *fn, Block *failed) {
+    layout(type);
+    auto *wrapper = valueType(type);
+    llvm::IRBuilder<> entry(&fn->getEntryBlock(), fn->getEntryBlock().begin());
+    auto *input = entry.CreateAlloca(wrapper);
+    auto *output = entry.CreateAlloca(wrapper);
+    auto *value = builder.CreateLoad(scalarType(type), address);
+    builder.CreateStore(
+        builder.CreateInsertValue(llvm::Constant::getNullValue(wrapper), value, {1}), input);
+    auto *ok = builder.CreateCall(module.getFunction("value.copy." + key(type)),
+                                  {fn->getArg(0), output, fn->getArg(2), input});
+    auto *ready = Block::Create(context, "function.payload.copied", fn);
+    builder.CreateCondBr(ok, ready, failed);
+    builder.SetInsertPoint(ready);
+    builder.CreateStore(builder.CreateExtractValue(builder.CreateLoad(wrapper, output), {1}),
+                        address);
+  }
+  void emitAggregateCopy(const ValueType &type, Function *fn) {
+    auto *wrapper = valueType(type);
+    builder.SetInsertPoint(Block::Create(context, "entry", fn));
+    auto *scratch = builder.CreateAlloca(wrapper);
+    auto *denied = Block::Create(context, "copy.denied", fn);
+    auto *start = Block::Create(context, "copy.start", fn);
+    auto *failed = Block::Create(context, "copy.failed", fn);
+    auto *done = Block::Create(context, "copy.done", fn);
+    auto *success = Block::Create(context, "copy.success", fn);
+    auto *entered = call("kalandra_call_enter_v1", boolean, {fn->getArg(0), c64(0), c64(0)});
+    builder.CreateCondBr(entered, start, denied);
+    builder.SetInsertPoint(denied);
+    builder.CreateRet(builder.getFalse());
+    builder.SetInsertPoint(start);
+    copy(scratch, fn->getArg(3), wrapper);
+    builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, scratch, 0)),
+                         type.fallible ? done : failed, success);
+    builder.SetInsertPoint(success);
+    if (type.errorRecord) {
+      auto *error = Block::Create(context, "copy.error", fn);
+      auto *payload = Block::Create(context, "copy.payload", fn);
+      builder.CreateCondBr(hasResultError(type, scratch), error, payload);
+      builder.SetInsertPoint(error);
+      retainRecord(errorRecordType(*type.errorRecord), application(type, scratch), fn, failed);
+      builder.CreateBr(done);
+      builder.SetInsertPoint(payload);
+    }
+    auto *payload = builder.CreateStructGEP(wrapper, scratch, 1);
+    if (isFunctionArray(type) || isRecordArray(type)) {
+      const auto cellType = recordArrayElement(type);
+      auto *cell = scalarType(cellType);
+      auto *ok = call("kalandra_function_array_clone_v1", boolean,
+                      {fn->getArg(0), payload, fn->getArg(2),
+                       builder.CreateStructGEP(wrapper, fn->getArg(3), 1), c64(size(cell)),
+                       c64(alignment(cell)), fn});
+      auto *begin = Block::Create(context, "array.begin", fn);
+      builder.CreateCondBr(ok, begin, failed);
+      builder.SetInsertPoint(begin);
+      auto *data = builder.CreateLoad(descriptor(type), payload);
+      auto *count = builder.CreateExtractValue(data, {3, 0});
+      auto *storage = builder.CreateExtractValue(data, {1});
+      auto *head = Block::Create(context, "array.head", fn);
+      auto *body = Block::Create(context, "array.body", fn);
+      builder.CreateBr(head);
+      builder.SetInsertPoint(head);
+      auto *index = builder.CreatePHI(i64, 2);
+      index->addIncoming(c64(0), begin);
+      builder.CreateCondBr(builder.CreateICmpULT(index, count), body, done);
+      builder.SetInsertPoint(body);
+      auto *address = builder.CreateInBoundsGEP(cell, storage, index);
+      copyFunctionPayload(cellType, address, fn, failed);
+      auto *next = builder.CreateAdd(index, c64(1));
+      index->addIncoming(next, builder.GetInsertBlock());
+      builder.CreateBr(head);
+    } else if (type.builtin == BuiltinValue::Record) {
+      retainRecord(type, payload, fn, failed);
+      builder.CreateBr(done);
+    } else {
+      // Only an expected-error payload contains functions; the success value
+      // still follows its existing ordinary retention rules.
+      auto completed = type;
+      completed.fallible = false;
+      completed.errorRecord.reset();
+      retainValue(completed, payload, fn, failed);
+      builder.CreateBr(done);
+    }
+    builder.SetInsertPoint(done);
+    copy(fn->getArg(1), scratch, wrapper);
+    call("kalandra_call_leave_v1", voidType, {fn->getArg(0)});
+    builder.CreateRet(builder.getTrue());
+    builder.SetInsertPoint(failed);
+    auto *status = call("kalandra_poll_v1", i64, {fn->getArg(0)});
+    auto *fault = Block::Create(context, "copy.invalid", fn);
+    auto *leave = Block::Create(context, "copy.leave", fn);
+    builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), fault, leave);
+    builder.SetInsertPoint(fault);
+    call("kalandra_fault_v1", voidType, {fn->getArg(0), c64(3), c64(0), c64(0)});
+    builder.CreateBr(leave);
+    builder.SetInsertPoint(leave);
+    call("kalandra_call_leave_v1", voidType, {fn->getArg(0)});
+    builder.CreateRet(builder.getFalse());
+    if (auto error = nativeStackBudgetError(*fn, module.getDataLayout()))
+      throw std::runtime_error(*error);
+  }
   void emitFunctionCopy(const ValueType &type, Function *fn) {
     auto *wrapper = valueType(type);
     builder.SetInsertPoint(Block::Create(context, "entry", fn));
@@ -698,6 +802,11 @@ private:
     call("kalandra_call_leave_v1", voidType, {fn->getArg(0)});
     builder.CreateRet(builder.getFalse());
     builder.SetInsertPoint(header);
+    Value *errorInput = fn->getArg(3);
+    if (type.errorRecord) {
+      errorInput = builder.CreateAlloca(wrapper);
+      copy(errorInput, fn->getArg(3), wrapper);
+    }
     auto *errorReady = type.fallible ? Block::Create(context, "function.error.ready", fn) : failed;
     auto *success = type.errorRecord ? Block::Create(context, "function.success", fn) : dispatch;
     builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), errorReady,
@@ -707,13 +816,12 @@ private:
       auto *active = Block::Create(context, "function.application.error", fn);
       builder.CreateCondBr(hasResultError(type, fn->getArg(3)), active, dispatch);
       builder.SetInsertPoint(active);
-      retainRecord(errorRecordType(*type.errorRecord), application(type, fn->getArg(3)), fn,
-                   failed);
+      retainRecord(errorRecordType(*type.errorRecord), application(type, errorInput), fn, failed);
       builder.CreateBr(errorReady);
     }
     if (type.fallible) {
       builder.SetInsertPoint(errorReady);
-      copy(fn->getArg(1), fn->getArg(3), wrapper);
+      copy(fn->getArg(1), errorInput, wrapper);
       call("kalandra_call_leave_v1", voidType, {fn->getArg(0)});
       builder.CreateRet(builder.getTrue());
     }
@@ -843,6 +951,8 @@ private:
     const bool functionCopy = type.builtin == BuiltinValue::Function && !type.tensor && !type.task;
     if (functionCopy)
       emitFunctionCopy(type, fn);
+    else if (!type.task && containsFunctionStorage(planner.input, type))
+      emitAggregateCopy(type, fn);
     else {
       builder.SetInsertPoint(Block::Create(context, "entry", fn));
       auto *ready = Block::Create(context, "copy", fn);
@@ -969,7 +1079,8 @@ private:
         {c64(type.errorRecord ? 0x1000000 + layoutIndex
              : type.builtin == BuiltinValue::Function && !type.tensor && !type.task
                  ? 0x200000000ULL + functionSignature(type)
-             : isFunctionArray(type) && !type.task                ? 0x90000
+             : isFunctionArray(type) && !type.task
+                 ? 0x900000000ULL + functionSignature(recordArrayElement(type))
              : isStringArray(type) && !type.task                  ? 0x80000
              : isBoolArray(type) && !type.task                    ? 0x70000
              : isRecordArray(type) && !type.task                  ? 0x60000 + *type.record

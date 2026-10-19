@@ -167,6 +167,21 @@ void *Invocation::allocateEnvironment(std::uint64_t bytes, const void *key) noex
     head_->backing->environmentKey = key;
   return result;
 }
+void *Invocation::allocateTransportStorage(std::uint64_t bytes, const void *key) noexcept {
+  if (poll())
+    return nullptr;
+  if (!key || !bytes) {
+    fault(3);
+    return nullptr;
+  }
+  if (bytes > 1024 * 1024 - environmentBytes_ ||
+      (environmentReserve_ && !environmentReserve_(environmentBudget_, bytes))) {
+    fault(2);
+    return nullptr;
+  }
+  environmentBytes_ += bytes;
+  return allocateEnvironment(bytes, key);
+}
 void *Invocation::cloneEnvironment(const Invocation &source, const void *environment,
                                    std::uint64_t bytes, std::uint64_t alignment,
                                    const void *key) noexcept {
@@ -182,15 +197,7 @@ void *Invocation::cloneEnvironment(const Invocation &source, const void *environ
     fault(3);
     return nullptr;
   }
-  // Bound one synchronous metadata copy; captured collection payloads are retained
-  // separately through their checked value handoff, not copied in this buffer.
-  if (bytes > 1024 * 1024 - environmentBytes_ ||
-      (environmentReserve_ && !environmentReserve_(environmentBudget_, bytes))) {
-    fault(2);
-    return nullptr;
-  }
-  environmentBytes_ += bytes;
-  auto *output = static_cast<std::byte *>(allocateEnvironment(bytes, key));
+  auto *output = static_cast<std::byte *>(allocateTransportStorage(bytes, key));
   if (!output)
     return nullptr;
   for (std::uint64_t offset = 0; offset < bytes; offset += 4096) {
@@ -554,6 +561,48 @@ bool validRecordArray(const kalandra::runtime::Invocation &source, const void *d
   return lease && lease->bytes().size() >= count * cellBytes;
 }
 } // namespace
+extern "C" bool kalandra_function_array_clone_v1(kalandra::runtime::Invocation *destination,
+                                                 void *output,
+                                                 const kalandra::runtime::Invocation *source,
+                                                 const void *input, std::uint64_t cellBytes,
+                                                 std::uint64_t alignment,
+                                                 const void *key) noexcept {
+  if (destination->poll())
+    return false;
+  void *allocated = nullptr;
+  std::uint64_t count = 0;
+  if (!source || !output || !key ||
+      !validRecordArray(*source, input, cellBytes, alignment, allocated, count)) {
+    destination->fault(3);
+    return false;
+  }
+  struct Descriptor {
+    void *allocated, *aligned;
+    std::int64_t offset, count, stride;
+  };
+  static_assert(sizeof(Descriptor) == 40);
+  Descriptor result{};
+  if (count) {
+    auto lease = source->lease(allocated);
+    if (!lease) {
+      destination->fault(3);
+      return false;
+    }
+    const auto bytes = count * cellBytes;
+    auto *buffer = static_cast<std::byte *>(destination->allocateTransportStorage(bytes, key));
+    if (!buffer)
+      return false;
+    for (std::uint64_t offset = 0; offset < bytes; offset += 4096) {
+      if (destination->poll())
+        return false;
+      const auto chunk = std::min<std::uint64_t>(4096, bytes - offset);
+      std::memcpy(buffer + offset, lease->bytes().data() + offset, chunk);
+    }
+    result = {buffer, buffer, 0, static_cast<std::int64_t>(count), 1};
+  }
+  std::memcpy(output, &result, sizeof result);
+  return true;
+}
 extern "C" void kalandra_record_array_validate_v1(kalandra::runtime::Invocation *context,
                                                   const void *descriptor, std::uint64_t cellBytes,
                                                   std::uint64_t alignment) noexcept {

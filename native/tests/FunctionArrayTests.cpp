@@ -102,6 +102,18 @@ int main() {
       require(bool(native), native ? "" : native.error().c_str());
 #endif
     }
+    // Worker aggregate transport now supports these former rejection cases.
+    for (const auto *accepted :
+         {"fn worker(callbacks:[fn(int)->int])->int:\n  callbacks[0](42)\nfn main()->int ! "
+          "TaskError:\n  callbacks:[fn(int)->int]=[fn(value):value]\n  try parallel:\n    try "
+          "await spawn worker(callbacks)\n",
+          "fn worker(offset:int)->[fn(int)->int]:\n  [fn(value):value+offset]\nfn main()->int ! "
+          "TaskError:\n  try parallel:\n    callbacks=try await spawn worker(20)\n    "
+          "callbacks[0](22)\n",
+          "type Config:\n  callbacks:[fn(int)->int]\nfn worker(config:Config)->int:\n  "
+          "config.callbacks[0](42)\nfn main()->int ! TaskError:\n  config=Config "
+          "{callbacks:[fn(value):value]}\n  try parallel:\n    try await spawn worker(config)\n"})
+      require(analyze(accepted).ok(), "supported worker aggregate rejected");
     for (const auto *text :
          {"fn main()->int:\n  callbacks=[fn(value):value]\n  0\n",
           "fn main()->int:\n  callbacks=[]\n  0\n",
@@ -122,15 +134,6 @@ int main() {
           "error E:\n  Bad\nfn main()->int:\n  callback=fn(value:int)->int ! E:value\n  "
           "callbacks=[callback]\n  evaluate=fn(fnValue:fn(int)->int ! E)->int ! E:try fnValue(0)\n "
           " values=map(callbacks,evaluate)\n  0\n",
-          "fn worker(callbacks:[fn(int)->int])->int:\n  callbacks[0](42)\nfn main()->int ! "
-          "TaskError:\n  callbacks:[fn(int)->int]=[fn(value):value]\n  try parallel:\n    try "
-          "await spawn worker(callbacks)\n",
-          "fn worker(offset:int)->[fn(int)->int]:\n  [fn(value):value+offset]\nfn main()->int ! "
-          "TaskError:\n  try parallel:\n    callbacks=try await spawn worker(20)\n    "
-          "callbacks[0](22)\n",
-          "type Config:\n  callbacks:[fn(int)->int]\nfn worker(config:Config)->int:\n  "
-          "config.callbacks[0](42)\nfn main()->int ! TaskError:\n  config=Config "
-          "{callbacks:[fn(value):value]}\n  try parallel:\n    try await spawn worker(config)\n",
           "error E:\n  Bad:\n    callbacks:[fn(int)->int]\nfn worker(value:int)->int ! E:\n  "
           "value\nfn main()->int ! (E | TaskError):\n  try parallel:\n    try await spawn "
           "worker(42)\n",

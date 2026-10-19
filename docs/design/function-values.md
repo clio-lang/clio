@@ -1,5 +1,7 @@
 # Function values
 
+Current aggregate extension: [proven function-containing CPU worker values](native-worker-callable-aggregates.md) now support records, ordinary enums, function arrays, record arrays and transitive captures. Unproven parameters, expected-error payloads and indirect spawn remain staged. Earlier subset restrictions below describe the preceding increments.
+
 Accepted direction — 2026-10-19. The project owner approved this syntax and staged scope. The [core design](core.md) accepts function types, lexical captures and automatically managed capture lifetimes. [Named CPU function values](native-function-values.md) and [managed expression closures](native-closures.md) are now executable. The examples below describe the complete accepted direction, including those remaining parts. [Function-type parsing](#implementation-status) is also implemented.
 
 ## The ordinary case

@@ -118,6 +118,19 @@ int main() {
       require(bool(native), native ? "" : native.error().c_str());
 #endif
     }
+    // Worker aggregate transport now supports these former rejection cases.
+    for (const auto *accepted :
+         {"type Config:\n  apply:fn(int)->int\nfn worker(config:Config)->int:\n  "
+          "config.apply(42)\nfn main()->int ! TaskError:\n  config=Config "
+          "{apply:fn(value):value}\n  try parallel:\n    try await spawn worker(config)\n",
+          "type Config:\n  apply:fn(int)->int\ntype Outer:\n  values:[Config]\nfn "
+          "worker(outer:Outer)->int:\n  outer.values[0].apply(42)\nfn main()->int ! TaskError:\n  "
+          "outer=Outer {values:[Config {apply:fn(value):value}]}\n  try parallel:\n    try await "
+          "spawn worker(outer)\n",
+          "type Config:\n  apply:fn(int)->int\nfn worker(value:int)->Config:\n  Config "
+          "{apply:fn(input):input+value}\nfn main()->int ! TaskError:\n  try parallel:\n    "
+          "config=try await spawn worker(20)\n    config.apply(22)\n"})
+      require(analyze(accepted).ok(), "supported worker aggregate rejected");
     for (const auto *text :
          {"type Config:\n  apply:fn(int)->int\nfn main()->int:\n  config=Config "
           "{apply:fn(value:float)->float:value}\n  0\n",
@@ -144,16 +157,6 @@ int main() {
           "worker(value)\nfn main()->int:\n  config=Config {apply:run}\n  0\n",
           "type Config:\n  apply:fn(Config)->int\nfn main()->int:\n  0\n",
           "fn main()->int:\n  values=[fn(value:int):value,fn(value:float):value]\n  0\n",
-          "type Config:\n  apply:fn(int)->int\nfn worker(config:Config)->int:\n  "
-          "config.apply(42)\nfn main()->int ! TaskError:\n  config=Config "
-          "{apply:fn(value):value}\n  try parallel:\n    try await spawn worker(config)\n",
-          "type Config:\n  apply:fn(int)->int\ntype Outer:\n  values:[Config]\nfn "
-          "worker(outer:Outer)->int:\n  outer.values[0].apply(42)\nfn main()->int ! TaskError:\n  "
-          "outer=Outer {values:[Config {apply:fn(value):value}]}\n  try parallel:\n    try await "
-          "spawn worker(outer)\n",
-          "type Config:\n  apply:fn(int)->int\nfn worker(value:int)->Config:\n  Config "
-          "{apply:fn(input):input+value}\nfn main()->int ! TaskError:\n  try parallel:\n    "
-          "config=try await spawn worker(20)\n    config.apply(22)\n",
           "type Config:\n  apply:fn(int)->int\nerror E:\n  Bad:\n    config:Config\nfn "
           "worker(value:int)->int ! E:\n  value\nfn main()->int ! (E | TaskError):\n  try "
           "parallel:\n    try await spawn worker(42)\n",

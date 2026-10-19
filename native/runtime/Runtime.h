@@ -58,6 +58,7 @@ public:
                              EnvironmentRelease release) noexcept;
   std::uint64_t environmentBytes() const noexcept { return environmentBytes_; }
   void *allocateEnvironment(std::uint64_t bytes, const void *key) noexcept;
+  void *allocateTransportStorage(std::uint64_t bytes, const void *key) noexcept;
   void *cloneEnvironment(const Invocation &source, const void *environment, std::uint64_t bytes,
                          std::uint64_t alignment, const void *key) noexcept;
   void releaseRecords() noexcept;
@@ -128,6 +129,9 @@ void *kalandra_environment_alloc_v1(kalandra::runtime::Invocation *, std::uint64
 bool kalandra_environment_tensor_retain_v1(kalandra::runtime::Invocation *,
                                            const kalandra::runtime::Invocation *, const void *,
                                            std::uint64_t, std::uint64_t) noexcept;
+bool kalandra_function_array_clone_v1(kalandra::runtime::Invocation *, void *,
+                                      const kalandra::runtime::Invocation *, const void *,
+                                      std::uint64_t, std::uint64_t, const void *) noexcept;
 void *kalandra_environment_clone_v1(kalandra::runtime::Invocation *,
                                     const kalandra::runtime::Invocation *, const void *,
                                     std::uint64_t, std::uint64_t, const void *) noexcept;

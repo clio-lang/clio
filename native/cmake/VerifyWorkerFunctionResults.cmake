@@ -42,7 +42,7 @@ foreach(NAME IN ITEMS cached nested owned)
   endforeach()
 endforeach()
 set(REJECTIONS
-  "fn make()->fn(int)->int:\n  functions=[fn(value:int):value]\n  fn(value:int):functions[0](value)\nfn main()->int ! TaskError:\n  f=try parallel:\n    try await spawn make()\n  f(42)\n"
+  "fn make(functions:[fn(int)->int])->fn(int)->int:\n  fn(value:int):functions[0](value)\nfn main()->int ! TaskError:\n  f=try parallel:\n    try await spawn make([fn(value:int):value])\n  f(42)\n"
   "fn double(value:int)->int:\n  value*2\nfn forward(f:fn(int)->int)->fn(int)->int:\n  f\nfn main()->int ! TaskError:\n  f=try parallel:\n    try await spawn forward(double)\n  f(21)\n"
   "error E:\n  Bad:\n    callback:fn(int)->int\nfn double(value:int)->int:\n  value*2\nfn make()->(fn(int)->int) ! E:\n  fail E.Bad {callback:double}\nfn main()->int ! (E | TaskError):\n  f=try parallel:\n    try await spawn make()\n  f(21)\n")
 set(INDEX 0)

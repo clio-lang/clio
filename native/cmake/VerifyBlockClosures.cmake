@@ -127,11 +127,17 @@ execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-capture-pending.k" -
 if("${STATUS}" STREQUAL "0")
   message(FATAL_ERROR "Invalid block closure accepted: capture-pending: ${OUT}${ERR}")
 endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-result.k" "fn make(value:int)->fn(int)->int:\n  targets=[fn(item:int):item+value]\n  fn(item):\n    result=targets[0](item)\n    result\nfn main()->int ! TaskError:\n  try parallel:\n    f=try await spawn make(21)\n    f(21)\n")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-result.k" -o "${OUTPUT_DIR}/reject-worker-result" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if("${STATUS}" STREQUAL "0")
-  message(FATAL_ERROR "Invalid block closure accepted: worker-result: ${OUT}${ERR}")
-endif()
+COMPILE(supported-worker-result [=[fn make(value:int)->fn(int)->int:
+  targets=[fn(item:int):item+value]
+  fn(item):
+    result=targets[0](item)
+    result
+fn main()->int ! TaskError:
+  try parallel:
+    f=try await spawn make(21)
+    f(21)
+]=])
+EXPECT(supported-worker-result 42)
 file(WRITE "${OUTPUT_DIR}/reject-final-binding.k" "fn main()->int:\n  f=fn(value:int):\n    adjusted=value+1\n  42\n")
 execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-final-binding.k" -o "${OUTPUT_DIR}/reject-final-binding" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
 if("${STATUS}" STREQUAL "0")

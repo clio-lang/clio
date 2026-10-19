@@ -1,5 +1,7 @@
 # Named CPU function values
 
+Current aggregate extension: [proven function-containing CPU worker values](native-worker-callable-aggregates.md) now support records, ordinary enums, function arrays, record arrays and transitive captures. Unproven parameters, expected-error payloads and indirect spawn remain staged. Earlier subset restrictions below describe the preceding increments.
+
 Implemented native subset — 2026-10-19. Named synchronous CPU functions, including expected-error callables, can now be assigned to bindings, passed as parameters, selected at runtime and returned as values. This implements the first executable part of the accepted [function-value design](function-values.md); [managed expression closures](native-closures.md) extend this subset with returned captured functions.
 
 ## Assign, pass, return and call

@@ -1,5 +1,7 @@
 # Function-valued local CPU worker results
 
+Current aggregate extension: [proven function-containing CPU worker values](native-worker-callable-aggregates.md) now support records, ordinary enums, function arrays, record arrays and transitive captures. Unproven parameters, expected-error payloads and indirect spawn remain staged. Earlier subset restrictions below describe the preceding increments.
+
 Implemented native subset — 2026-10-20. A statically named CPU worker can return a proven synchronous function value, including a closure with supported immutable data and direct nested function captures. This extends [worker closure arguments](native-worker-closures.md) and [nested captures](native-worker-nested-closures.md) under the [transport contract](worker-function-transport.md).
 
 ```kalandra

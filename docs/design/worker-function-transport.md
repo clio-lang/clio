@@ -1,5 +1,7 @@
 # Function values across local CPU workers
 
+Current aggregate extension: [proven function-containing CPU worker values](native-worker-callable-aggregates.md) now support records, ordinary enums, function arrays, record arrays and transitive captures. Unproven parameters, expected-error payloads and indirect spawn remain staged. Earlier subset restrictions below describe the preceding increments.
+
 Implementation contract — 2026-10-19. This specifies the next stages of the accepted [function-value design](function-values.md), using the existing [native task contract](native-tasks.md). The [capture-free named argument stage](native-worker-functions.md) and [data-capturing closure argument stage](native-worker-closures.md) are implemented. [Direct nested function captures](native-worker-nested-closures.md) are also implemented. Function-containing capture aggregates, unproven function arguments and indirect spawn remain staged. [Proven function-valued worker results](native-worker-function-results.md) are now implemented. The argument example below runs now; the result example also runs now; indirect spawn remains a future acceptance program.
 
 Local workers are threads in one native executable. Transfer a typed function value and its immutable captures within that process. No network serialization, source-code shipment, dynamic library loading, or public callback ABI is involved. Distributed execution still requires the separate design discussion.
