@@ -127,7 +127,7 @@ execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-capture-pending.k" -
 if("${STATUS}" STREQUAL "0")
   message(FATAL_ERROR "Invalid block closure accepted: capture-pending: ${OUT}${ERR}")
 endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-result.k" "fn make(value:int)->fn(int)->int:\n  fn(item):\n    result=item+value\n    result\nfn main()->int ! TaskError:\n  try parallel:\n    f=try await spawn make(21)\n    f(21)\n")
+file(WRITE "${OUTPUT_DIR}/reject-worker-result.k" "fn make(value:int)->fn(int)->int:\n  targets=[fn(item:int):item+value]\n  fn(item):\n    result=targets[0](item)\n    result\nfn main()->int ! TaskError:\n  try parallel:\n    f=try await spawn make(21)\n    f(21)\n")
 execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-result.k" -o "${OUTPUT_DIR}/reject-worker-result" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
 if("${STATUS}" STREQUAL "0")
   message(FATAL_ERROR "Invalid block closure accepted: worker-result: ${OUT}${ERR}")
@@ -191,3 +191,7 @@ file(WRITE "${OUTPUT_DIR}/helper.k" "fn double(value:int)->int:\n  value*2\nexpo
 COMPILE(imported "from \"./helper.k\" import make\nfn double(value:int)->int:\n  value*3\nfn main()->int:\n  f=make(22)\n  f(10)\n")
 EXPECT(imported 42)
 message(STATUS "Block closures: ordered immutable bindings, nested captures, typed errors, faults and managed lifetimes passed")
+
+# A returned ordinary block closure is now a supported worker result.
+COMPILE(worker-result-body "fn make(value:int)->fn(int)->int:\n  fn(item):\n    result=item+value\n    result\nfn main()->int ! TaskError:\n  f=try parallel:\n    try await spawn make(21)\n  f(21)\n")
+EXPECT(worker-result-body 42)

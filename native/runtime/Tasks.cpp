@@ -497,6 +497,8 @@ struct TaskCore::Impl : std::enable_shared_from_this<TaskCore::Impl> {
     task.value = allocate(entry.result->bytes);
     task.execution.bindCancellation(&task.cancel);
     task.execution.bindEnvironmentBudget(this, reserveEnvironmentBytes, releaseEnvironmentBytes);
+    task.outcome.bindCancellation(&task.cancel);
+    task.outcome.bindEnvironmentBudget(this, reserveEnvironmentBytes, releaseEnvironmentBytes);
     if (task.value)
       task.frame = allocate(entry.frameBytes);
     if (!task.value || !task.frame)
@@ -553,7 +555,7 @@ struct TaskCore::Impl : std::enable_shared_from_this<TaskCore::Impl> {
     const auto copied = layout.copy(destination, output, task->outcome, task->value);
     acquire(lock);
     --task->readers;
-    if (!copied)
+    if (!copied && !destination.poll())
       destination.fault(3);
     return copied;
   }
@@ -1113,6 +1115,10 @@ void Task::complete(const void *value) noexcept {
     core_.acquire(guard.lock);
   }
   if (!copied) {
+    if (task.cancel.load() && !task.outcome.status()) {
+      core_.finish(slot_, {TaskFailure::Cancelled});
+      return;
+    }
     task.execution.fault(task.outcome.status() ? task.outcome.status() : 3);
     core_.finish(slot_, invocationFailure(task.execution));
     return;

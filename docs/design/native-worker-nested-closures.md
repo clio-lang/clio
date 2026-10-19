@@ -20,7 +20,7 @@ The result is `42`. Both closures and the captured array remain valid independen
 
 Direct function captures can themselves capture supported CPU data or further proven functions. Immutable aliases, conditional/match alternatives and direct named factory results retain conservative provenance checking. Every possible function target and its captures must qualify. Captures can have different signatures, including zero arguments, String parameters and typed expected-error channels. All ten numeric widths use the same transport implementation.
 
-Function-valued parameters forwarded through factories or worker arguments still lack proven provenance. Functions inside captured records/enums/arrays remain staged, as do function-containing worker argument aggregates, function-valued worker results, spawned-map function captures and indirect spawn. These restrictions remain diagnostics; they are not new source-level types or permanent language limits.
+Function-valued parameters forwarded through factories or worker arguments still lack proven provenance. Functions inside captured records/enums/arrays remain staged, as do function-containing worker argument aggregates, unproven function-valued worker results, spawned-map function captures and indirect spawn. These restrictions remain diagnostics; they are not new source-level types or permanent language limits.
 
 ## Recursive copying and bounded execution
 
@@ -43,3 +43,5 @@ The [CPU qualification record](../../native/metal-proof/evidence/cpu-worker-nest
 New suites compile/run 80 source programs across debug, optimized, ASan/UBSan and separate ThreadSanitizer modes. Private harnesses cover 516 calls after creator destruction, 40 invalid/stopped environment graphs including forged cycles, 20 copy allocation probes and four cases preserving preexisting call admission. They run 144 tasks and 288 cached observations across one/two/four-worker pools, plus quota and cancellation checks. An additional 72 CLI worker runs and 384 allocation-failure probes check execution and cleanup. Both frontend modes accept 37 worker-callable programs and reject ten unsupported boundaries and three forged IR cases.
 
 Existing named/data-capturing worker arguments, ordinary and block closures, callable aggregates, recursion, expected errors and module execution retain their selected regression coverage.
+
+Current result extension: [proven function-valued CPU worker results](native-worker-function-results.md) now support cached awaits, use after group release and onward submission. Containing values and unproven provenance remain staged.

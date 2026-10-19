@@ -35,7 +35,7 @@ Function-valued parameters and results may themselves contain function signature
 
 Sequential `map(values, transform)` accepts a compatible function-valued binding, parameter or expression. It keeps the existing one-element callback contract and input order. An inline map callback may also capture a completed function reference and invoke it. Callback creation is evaluated even for an empty input; the callback body is not invoked for empty inputs.
 
-A local CPU worker can create and call function references internally, including expected-error calls and completed-result maps. A coordinating function can hold an ordinary function reference across its own task suspension and invoke it after awaiting data. [Capture-free named function arguments](native-worker-functions.md) can now cross to statically named CPU workers. [CPU data-capturing closure arguments](native-worker-closures.md) are also supported. [Direct nested function captures](native-worker-nested-closures.md) are also supported. Function-containing aggregate captures and unproven arguments, function-valued worker results, spawned-map function captures and indirect spawn remain unsupported. The [local-worker transport contract](worker-function-transport.md) defines the planned ownership and implementation sequence.
+A local CPU worker can create and call function references internally, including expected-error calls and completed-result maps. A coordinating function can hold an ordinary function reference across its own task suspension and invoke it after awaiting data. [Capture-free named function arguments](native-worker-functions.md) can now cross to statically named CPU workers. [CPU data-capturing closure arguments](native-worker-closures.md) are also supported. [Direct nested function captures](native-worker-nested-closures.md) are also supported. Function-containing aggregate captures and unproven arguments, unproven function-valued worker results, spawned-map function captures and indirect spawn remain unsupported. The [local-worker transport contract](worker-function-transport.md) defines the planned ownership and implementation sequence.
 
 Ordinary immutable records returned by these calls keep their existing managed field ownership. Record values with String and array fields can still be returned from a worker and observed repeatedly; the function reference itself is not part of that transported data.
 
@@ -129,7 +129,7 @@ The following remain implementation gaps under the accepted function-value desig
 
 - Callable targets requiring task/device coordination. [Recursive synchronous calls](native-recursive-callables.md), expected-error calls and factories are implemented.
 - Fallible map aggregation. [Direct synchronous control-flow callbacks](native-control-maps.md) and bound completed-result wrappers are supported.
-- Captured/unproven worker function arguments, function-valued worker results, containing-value transport, indirect spawn, GPU callbacks and remote function contracts.
+- Captured/unproven worker function arguments, unproven function-valued worker results, containing-value transport, indirect spawn, GPU callbacks and remote function contracts.
 
 These are staged implementation restrictions, not additional language design limits. Distributed contracts still require their separate design discussion; public C/C++ callback integration remains on its separate roadmap.
 
@@ -171,3 +171,5 @@ The [expected-error qualification evidence](../../native/metal-proof/evidence/cp
 [Managed CPU expression closures](native-closures.md) extend the same callable signatures with anonymous bindings, returned environments and nested immutable captures. The private representation is now a code/environment pair. All 183 selected checks passed after that representation change, including the earlier named, collection and fallible callable suites; see the [closure qualification](native-closures.md#qualification) and its evidence record for the new capture/lifetime coverage.
 
 [Direct anonymous error declarations](anonymous-errors.md) now use these same checked invocation signatures, including inferred success types, canonical error unions and separate factory/returned-function channels.
+
+Current result extension: [proven function-valued CPU worker results](native-worker-function-results.md) now support cached awaits, use after group release and onward submission. Containing values and unproven provenance remain staged.

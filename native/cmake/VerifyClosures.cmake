@@ -133,7 +133,7 @@ execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-capture-task.k" -o "
 if("${STATUS}" STREQUAL "0")
   message(FATAL_ERROR "Invalid closure accepted: capture-task: ${OUT}${ERR}")
 endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-result.k" "fn make(value:int)->fn(int)->int:\n  fn(item:int):item+value\nfn main()->int ! TaskError:\n  try parallel:\n    f=try await spawn make(21)\n    f(21)\n")
+file(WRITE "${OUTPUT_DIR}/reject-worker-result.k" "fn make(value:int)->fn(int)->int:\n  targets=[fn(item:int):item+value]\n  fn(item:int):targets[0](item)\nfn main()->int ! TaskError:\n  try parallel:\n    f=try await spawn make(21)\n    f(21)\n")
 execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-result.k" -o "${OUTPUT_DIR}/reject-worker-result" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
 if("${STATUS}" STREQUAL "0")
   message(FATAL_ERROR "Invalid closure accepted: worker-result: ${OUT}${ERR}")

@@ -3798,10 +3798,6 @@ private:
       }
     }
     auto resultType = callResult(id, operands, options_.placement && !device);
-    if (spawned && resultType.builtin == BuiltinValue::Function) {
-      error("S074", "function-valued worker results are not implemented yet", span);
-      return {};
-    }
     if (resultType.tensor)
       resultType.device = device;
     resultType.fallible = syntax_.functions[id].taskError;

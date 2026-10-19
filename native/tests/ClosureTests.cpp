@@ -132,7 +132,8 @@ int main() {
           "f=fn(value:int):run(value) catch fn(error):0\n  f(42)\n",
           "fn worker(value:int)->int:\n  value\nfn main()->int ! TaskError:\n  try parallel:\n    "
           "task=spawn worker(42)\n    f=fn(value:int):task\n    try await task\n",
-          "fn make(value:int)->fn(int)->int:\n  fn(item:int):item+value\nfn main()->int ! "
+          "fn make(value:int)->fn(int)->int:\n  targets=[fn(item:int):item+value]\n  "
+          "fn(item:int):targets[0](item)\nfn main()->int ! "
           "TaskError:\n  try parallel:\n    f=try await spawn make(21)\n    f(21)\n",
           "fn apply(value:int,f:fn(int)->int)->int:\n  f(value)\nfn main()->int ! TaskError:\n  "
           "targets=[fn(value:int):value*2]\n  f=fn(value:int):targets[0](value)\n  try parallel:\n "

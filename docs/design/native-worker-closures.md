@@ -34,7 +34,7 @@ Copied environment bytes have a private 1 MiB cumulative limit per invocation. T
 
 ## Remaining transport work
 
-Direct proven function captures are supported recursively. Captured records/enums/arrays containing function values remain rejected. Forwarded function parameters, aggregate projections, indirect factory invocation and pending factory results do not yet establish supported provenance. Functions inside worker argument aggregates, function-valued worker results, spawned-map function captures and indirect spawn remain staged. These are temporary implementation restrictions, not new function types.
+Direct proven function captures are supported recursively. Captured records/enums/arrays containing function values remain rejected. Forwarded function parameters, aggregate projections, indirect factory invocation and pending factory results do not yet establish supported provenance. Functions inside worker argument aggregates, unproven function-valued worker results, spawned-map function captures and indirect spawn remain staged. These are temporary implementation restrictions, not new function types.
 
 GPU callbacks, distributed execution and public C/C++ callback interfaces are separate work. Whole-environment sharing and copy elimination belong to later optimization.
 
@@ -45,3 +45,5 @@ The [CPU qualification record](../../native/metal-proof/evidence/cpu-worker-clos
 The new execution suites compile/run 92 source programs across debug, optimized, ASan/UBSan and separate ThreadSanitizer modes. Private harnesses check 1,028 calls after creator destruction, 36 invalid/stopped copies, 16 allocation probes, 192 scheduled tasks and 384 cached observations across one/two/four-worker pools. They also cover root byte quota, invocation copy limits and cancellation cleanup. An additional 96 CLI worker runs, 288 allocation-failure probes and 12 preserved rejection artifacts pass. Frontend suites accept 28 worker-callable programs and reject ten unsupported boundaries and three forged IR cases in both ordinary and sanitized builds.
 
 Preflight checks caught and repaired mixed Bool/integer environment padding and noncanonical numeric capture view retention. Existing closure, callable aggregate, error, module, map, recursion and scheduler checks pass with the extended argument support.
+
+Current result extension: [proven function-valued CPU worker results](native-worker-function-results.md) now support cached awaits, use after group release and onward submission. Containing values and unproven provenance remain staged.

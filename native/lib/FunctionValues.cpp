@@ -113,8 +113,7 @@ bool workerFunctionArgument(const TypedModule &module, ValueId root) {
     if (!visited.insert(id).second)
       continue;
     const auto &value = module.expressions[id];
-    if (value.type.builtin != BuiltinValue::Function || value.type.tensor || value.type.task ||
-        value.type.fallible || value.type.device)
+    if (value.type.builtin != BuiltinValue::Function || value.type.tensor || value.type.device)
       return false;
     if (const auto *ref = std::get_if<FunctionReference>(&value.operation)) {
       if (ref->function >= module.functions.size())
@@ -134,6 +133,22 @@ bool workerFunctionArgument(const TypedModule &module, ValueId root) {
       if (call->function >= module.functions.size())
         return false;
       pending.push_back(module.functions[call->function].result);
+    } else if (const auto *task = std::get_if<TaskOperation>(&value.operation)) {
+      if (task->operand >= id)
+        return false;
+      pending.push_back(task->operand);
+    } else if (const auto *group = std::get_if<ParallelOperation>(&value.operation)) {
+      if (group->result >= id)
+        return false;
+      pending.push_back(group->result);
+    } else if (const auto *caught = std::get_if<CatchOperation>(&value.operation)) {
+      if (caught->operand >= id || caught->result >= id)
+        return false;
+      pending.push_back(caught->operand);
+      pending.push_back(caught->result);
+    } else if (std::holds_alternative<FailOperation>(value.operation) && value.type.fallible) {
+      // An expected-error path publishes no function payload.
+      found = true;
     } else if (const auto *read = std::get_if<SymbolRead>(&value.operation)) {
       const auto binding = bindings.find(read->symbol);
       if (read->symbol >= module.symbols.size() || module.symbols[read->symbol].parameter ||
@@ -164,8 +179,21 @@ bool workerFunctionArgument(const TypedModule &module, ValueId root) {
 } // namespace
 std::optional<std::string> functionValueTransportError(const TypedModule &module,
                                                        const TypedExpr &invocation) {
-  if (containsFunctionStorage(module, invocation.type))
-    return "function-valued worker results and error payloads are not implemented yet";
+  if (invocation.type.errorRecord) {
+    ValueType error;
+    error.builtin = BuiltinValue::Record;
+    error.record = invocation.type.errorRecord;
+    if (containsFunctionStorage(module, error))
+      return "function-containing worker error payloads are not implemented yet";
+  }
+  if (containsFunctionStorage(module, invocation.type)) {
+    const auto *call = std::get_if<FunctionCall>(&invocation.operation);
+    if (invocation.type.builtin != BuiltinValue::Function || invocation.type.tensor || !call ||
+        call->function >= module.functions.size() ||
+        !workerFunctionArgument(module, module.functions[call->function].result))
+      return "function-valued worker results require proven CPU closure captures; "
+             "unproven results and function-containing aggregates are not implemented yet";
+  }
   const auto arguments = std::visit(
       [](const auto &op) -> std::vector<ValueId> {
         using T = std::decay_t<decltype(op)>;
@@ -195,7 +223,7 @@ std::optional<std::string> functionValueTransportError(const TypedModule &module
     if (!containsFunctionStorage(module, type))
       continue;
     if (std::holds_alternative<FunctionCall>(invocation.operation) &&
-        type.builtin == BuiltinValue::Function && !type.tensor &&
+        type.builtin == BuiltinValue::Function && !type.tensor && !type.task && !type.fallible &&
         workerFunctionArgument(module, id))
       continue;
     return "function-valued worker arguments require proven CPU closure captures; unproven "
@@ -221,7 +249,7 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
              ? (!type.tensor || type.shape.size() != 1 ||
                 (type.shape[0].constant && *type.shape[0].constant > std::uint64_t(INT64_MAX) / 16))
              : (type.tensor || !type.shape.empty())) ||
-        type.task || type.device || type.record ||
+        (type.task && array) || type.device || type.record ||
         (type.errorRecord && (!type.fallible || *type.errorRecord >= module.records.size() ||
                               !module.records[*type.errorRecord].error)))
       return false;
@@ -363,6 +391,11 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
             !sameStorageType(completed(expression.type),
                              completed(module.expressions[choice->falseResult].type)))
           return "conditional changes a function-value signature";
+      } else if (const auto *group = std::get_if<ParallelOperation>(&expression.operation)) {
+        if (group->result >= id ||
+            !sameStorageType(completed(expression.type),
+                             completed(module.expressions[group->result].type)))
+          return "parallel group changes a returned function signature";
       } else if (const auto *caught = std::get_if<CatchOperation>(&expression.operation)) {
         if (caught->operand >= id || caught->result >= id ||
             !sameStorageType(completed(expression.type),
@@ -375,13 +408,18 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
           if (arm.result >= id || !sameStorageType(completed(expression.type),
                                                    completed(module.expressions[arm.result].type)))
             return "match changes a returned function signature";
-      } else if (const auto *task = std::get_if<TaskOperation>(&expression.operation);
-                 task && task->prefix == TaskPrefix::Try) {
-        if (task->operand >= id || !module.expressions[task->operand].type.fallible ||
-            module.expressions[task->operand].type.task ||
-            !sameStorageType(completed(expression.type),
-                             completed(module.expressions[task->operand].type)))
-          return "try changes a returned function signature";
+      } else if (const auto *task = std::get_if<TaskOperation>(&expression.operation)) {
+        if (task->operand >= id)
+          return "task changes a returned function signature";
+        const auto &input = module.expressions[task->operand].type;
+        auto outputType = completed(expression.type), inputType = completed(input);
+        outputType.task = inputType.task = false;
+        const bool flags = task->prefix == TaskPrefix::Spawn ? expression.type.task && !input.task
+                           : task->prefix == TaskPrefix::Await
+                               ? !expression.type.task && input.task && expression.type.fallible
+                               : !expression.type.task && !input.task && input.fallible;
+        if (!flags || !sameStorageType(outputType, inputType))
+          return "task changes a returned function signature";
       } else if (const auto *read = std::get_if<ArrayIndex>(&expression.operation)) {
         if (read->input >= id || expression.type.tensor ||
             !isFunctionArray(module.expressions[read->input].type) ||

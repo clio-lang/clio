@@ -18,7 +18,7 @@ int main() {
     unsigned count = 0;
     for (const auto *directory :
          {KALANDRA_WORKER_FUNCTION_FIXTURES, KALANDRA_WORKER_CLOSURE_FIXTURES,
-          KALANDRA_WORKER_NESTED_FIXTURES}) {
+          KALANDRA_WORKER_NESTED_FIXTURES, KALANDRA_WORKER_RESULT_FIXTURES}) {
       for (const auto &file : std::filesystem::directory_iterator(directory)) {
         if (file.path().extension() != ".k")
           continue;
@@ -32,7 +32,7 @@ int main() {
         ++count;
       }
     }
-    require(count == 37, "worker callable fixture catalog incomplete");
+    require(count == 48, "worker callable fixture catalog incomplete");
     const std::string base = "fn double(value:int)->int:\n  value*2\nfn "
                              "apply(value:int,transform:fn(int)->int)->int:\n  transform(value)\n";
     for (const auto *body :
@@ -49,8 +49,8 @@ int main() {
           "TaskError:\n  try parallel:\n    try await spawn worker(Box {f:double})\n",
           "fn worker(values:[fn(int)->int])->int:\n  values[0](21)\nfn main()->int ! TaskError:\n  "
           "try parallel:\n    try await spawn worker([double])\n",
-          "fn make()->fn(int)->int:\n  double\nfn main()->int ! TaskError:\n  f=try parallel:\n    "
-          "try await spawn make()\n  f(21)\n",
+          "fn make()->fn(int)->int:\n  values=[double]\n  fn(value:int):values[0](value)\nfn "
+          "main()->int ! TaskError:\n  f=try parallel:\n    try await spawn make()\n  f(21)\n",
           "fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    try await spawn f(21)\n",
           "fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    values=try await spawn "
           "map([21],f)\n    values[0]\n",
@@ -81,7 +81,32 @@ int main() {
       require(numericCapabilityError(module, NumericTarget::Cpu).has_value(),
               "forged worker callable provenance accepted");
     }
-    std::cout << "Worker named functions: 37 valid programs, 10 rejected boundaries, 3 forged IR "
+    auto returned = analyze("fn make()->fn(int)->int:\n  fn(value:int):value\nfn main()->int ! "
+                            "TaskError:\n  f=try parallel:\n    try await spawn make()\n  f(42)\n");
+    require(returned.ok(), "returned function mutation fixture rejected");
+    for (unsigned mode = 0; mode < 3; ++mode) {
+      auto module = *returned.module;
+      bool changed = false;
+      for (auto &expression : module.expressions) {
+        if (const auto *task = std::get_if<TaskOperation>(&expression.operation)) {
+          if ((mode == 0 && task->prefix == TaskPrefix::Spawn) ||
+              (mode == 1 && task->prefix == TaskPrefix::Await)) {
+            expression.type.task = !expression.type.task;
+            changed = true;
+            break;
+          }
+        }
+        if (mode == 2 && expression.type.builtin == BuiltinValue::Function &&
+            std::holds_alternative<FunctionCall>(expression.operation)) {
+          expression.type.callable.reset();
+          changed = true;
+          break;
+        }
+      }
+      require(changed && numericCapabilityError(module, NumericTarget::Cpu).has_value(),
+              "forged function result task/signature admitted");
+    }
+    std::cout << "Worker named functions: 48 valid programs, 10 rejected boundaries, 6 forged IR "
                  "cases passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

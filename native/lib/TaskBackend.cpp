@@ -698,8 +698,25 @@ private:
     call("kalandra_call_leave_v1", voidType, {fn->getArg(0)});
     builder.CreateRet(builder.getFalse());
     builder.SetInsertPoint(header);
-    builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), failed,
-                         dispatch);
+    auto *errorReady = type.fallible ? Block::Create(context, "function.error.ready", fn) : failed;
+    auto *success = type.errorRecord ? Block::Create(context, "function.success", fn) : dispatch;
+    builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), errorReady,
+                         success);
+    if (type.errorRecord) {
+      builder.SetInsertPoint(success);
+      auto *active = Block::Create(context, "function.application.error", fn);
+      builder.CreateCondBr(hasResultError(type, fn->getArg(3)), active, dispatch);
+      builder.SetInsertPoint(active);
+      retainRecord(errorRecordType(*type.errorRecord), application(type, fn->getArg(3)), fn,
+                   failed);
+      builder.CreateBr(errorReady);
+    }
+    if (type.fallible) {
+      builder.SetInsertPoint(errorReady);
+      copy(fn->getArg(1), fn->getArg(3), wrapper);
+      call("kalandra_call_leave_v1", voidType, {fn->getArg(0)});
+      builder.CreateRet(builder.getTrue());
+    }
     builder.SetInsertPoint(dispatch);
     auto *input = builder.CreateLoad(wrapper, fn->getArg(3));
     auto *value = builder.CreateExtractValue(input, {1});
@@ -709,7 +726,10 @@ private:
     const auto accept = [&](const TypedModule &inputModule, const FunctionReference &ref,
                             const ValueType &actual, Function *entry) {
       const auto &target = inputModule.functions.at(ref.function);
-      if (!entry || !sameFunctionValueType(type, actual) || accepted.contains(entry))
+      auto signature = type;
+      signature.fallible = false;
+      signature.errorRecord.reset();
+      if (!entry || !sameFunctionValueType(signature, actual) || accepted.contains(entry))
         return;
       std::vector<ValueType> captures;
       std::vector<Type *> fields;
@@ -820,8 +840,7 @@ private:
         new llvm::GlobalVariable(module, layoutType, true, llvm::GlobalValue::InternalLinkage,
                                  nullptr, "value.layout." + name);
     layouts[name] = result;
-    const bool functionCopy =
-        type.builtin == BuiltinValue::Function && !type.tensor && !type.task && !type.errorRecord;
+    const bool functionCopy = type.builtin == BuiltinValue::Function && !type.tensor && !type.task;
     if (functionCopy)
       emitFunctionCopy(type, fn);
     else {
