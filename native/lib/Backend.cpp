@@ -25,6 +25,7 @@
 #include "llvm/IR/Verifier.h"
 #include <functional>
 #include <limits>
+#include <map>
 #include <mutex>
 #include <unordered_map>
 
@@ -279,6 +280,59 @@ private:
     auto slot = stringSlot(loc, value);
     func::CallOp::create(builder_, loc, "kalandra_string_validate", TypeRange{}, ValueRange{slot});
   }
+  Value narrowError(Location loc, Value input, const ValueType &source, const ValueType &target) {
+    const auto &from = input_.records[*source.record];
+    auto tag = LLVM::ExtractValueOp::create(builder_, loc, input, ArrayRef<int64_t>{0});
+    Value result = LLVM::ZeroOp::create(builder_, loc, type(target));
+    Value found = arith::ConstantIntOp::create(builder_, loc, 0, 1);
+    std::map<std::pair<std::size_t, std::size_t>, std::size_t> targetVariants;
+    if (target.record)
+      for (std::size_t i = 0; i < input_.records[*target.record].variants.size(); ++i)
+        targetVariants.emplace(errorOrigin(input_, *target.record, i), i);
+    for (std::size_t i = 0; i < from.variants.size(); ++i) {
+      const auto origin = errorOrigin(input_, *source.record, i);
+      std::optional<std::size_t> selected;
+      if (target.builtin == BuiltinValue::TaskError) {
+        if (input_.records[origin.first].taskErrorFamily)
+          selected = origin.second;
+      } else if (auto found = targetVariants.find(origin); found != targetVariants.end())
+        selected = found->second;
+      if (!selected)
+        continue;
+      auto condition = compare(loc, arith::CmpIPredicate::eq, tag, integer(loc, i + 1));
+      auto choice = scf::IfOp::create(builder_, loc, TypeRange{type(target)}, condition, true);
+      {
+        OpBuilder::InsertionGuard insertion(builder_);
+        builder_.setInsertionPointToStart(&choice.getThenRegion().front());
+        Value value;
+        if (target.builtin == BuiltinValue::TaskError)
+          value = LLVM::ExtractValueOp::create(
+              builder_, loc, input,
+              ArrayRef<int64_t>{static_cast<int64_t>(from.variants[i].fields.front())});
+        else {
+          value = LLVM::ZeroOp::create(builder_, loc, type(target));
+          value = LLVM::InsertValueOp::create(builder_, loc, value, integer(loc, *selected + 1),
+                                              ArrayRef<int64_t>{0});
+          const auto &to = input_.records[*target.record];
+          for (std::size_t field = 0; field < from.variants[i].fields.size(); ++field) {
+            auto member = LLVM::ExtractValueOp::create(
+                builder_, loc, input,
+                ArrayRef<int64_t>{static_cast<int64_t>(from.variants[i].fields[field])});
+            value = LLVM::InsertValueOp::create(
+                builder_, loc, value, member,
+                ArrayRef<int64_t>{static_cast<int64_t>(to.variants[*selected].fields[field])});
+          }
+        }
+        scf::YieldOp::create(builder_, loc, value);
+        builder_.setInsertionPointToStart(&choice.getElseRegion().front());
+        scf::YieldOp::create(builder_, loc, result);
+      }
+      result = choice.getResult(0);
+      found = arith::OrIOp::create(builder_, loc, found, condition);
+    }
+    guard(loc, found, 3);
+    return result;
+  }
   void validateStrings(Location loc, Value value, const ValueType &source) {
     if (source.builtin == BuiltinValue::TaskError && !source.tensor) {
       auto kind = LLVM::ExtractValueOp::create(builder_, loc, value, ArrayRef<int64_t>{0});
@@ -296,13 +350,18 @@ private:
       validateString(loc, value);
     else if (source.builtin == BuiltinValue::Record && !source.tensor) {
       const auto &record = input_.records[*source.record];
-      const auto validateField = [&](std::size_t i) {
+      const auto validateField = [&](std::size_t i, std::optional<std::size_t> taskKind = {}) {
         const auto &field = record.fields[i].type;
         if (field.builtin == BuiltinValue::String || field.builtin == BuiltinValue::Record ||
             field.builtin == BuiltinValue::TaskError) {
           auto member = LLVM::ExtractValueOp::create(builder_, loc, value,
                                                      ArrayRef<int64_t>{static_cast<int64_t>(i)});
           validateStrings(loc, member, field);
+          if (field.builtin == BuiltinValue::TaskError && taskKind) {
+            auto kind = LLVM::ExtractValueOp::create(builder_, loc, member, ArrayRef<int64_t>{0});
+            auto expected = arith::ConstantIntOp::create(builder_, loc, *taskKind, 32);
+            guard(loc, compare(loc, arith::CmpIPredicate::eq, kind, expected), 3);
+          }
         }
       };
       if (record.variants.empty()) {
@@ -321,8 +380,11 @@ private:
           OpBuilder::InsertionGuard insertion(builder_);
           auto &block = choice.getThenRegion().front();
           builder_.setInsertionPointToStart(&block);
+          const auto [original, variant] = errorOrigin(input_, *source.record, i);
           for (auto slot : record.variants[i].fields)
-            validateField(slot);
+            validateField(slot, input_.records[original].taskErrorFamily
+                                    ? std::optional<std::size_t>{variant + 1}
+                                    : std::nullopt);
           if (block.empty() || !block.back().hasTrait<OpTrait::IsTerminator>())
             scf::YieldOp::create(builder_, loc);
         }
@@ -1286,6 +1348,9 @@ private:
                                               ArrayRef<int64_t>{static_cast<int64_t>(field.field)});
             }
             return value;
+          } else if constexpr (std::is_same_v<T, ErrorNarrow>) {
+            return narrowError(loc, expression(frame, operation.input),
+                               input_.expressions[operation.input].type, node.type);
           } else if constexpr (std::is_same_v<T, RecordFieldRead>) {
             Value member = LLVM::ExtractValueOp::create(
                 builder_, loc, expression(frame, operation.input),

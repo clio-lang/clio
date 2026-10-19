@@ -62,11 +62,10 @@ fn loadOrDefault(available: Bool) -> int ! ValidationError:
   load(available) catch fn(error):
     match error:
       ReadError.Missing: 20
-      ValidationError.TooSmall { minimum }:
-        fail ValidationError.TooSmall { minimum: minimum }
+      ValidationError.TooSmall: fail error
 ```
 
-`fail error` re-propagates the handler's entire union. To narrow the output channel, handle the unwanted families and return the selected original family explicitly, as above. Whole-value flow narrowing inside individual match arms remains separate follow-up work.
+[Whole-value match-arm narrowing](error-narrowing.md) gives `error` the selected family inside each branch. The example rethrows the original ValidationError without reconstructing its fields. Outside a narrowed branch, `fail error` still propagates its complete current family set. Wildcards retain every family with unmatched variants.
 
 ## Qualified, exhaustive matching
 

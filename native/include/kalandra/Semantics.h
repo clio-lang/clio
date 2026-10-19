@@ -75,6 +75,11 @@ struct Float64Literal {
 struct Float32Literal {
   std::uint32_t bits;
 };
+// Checked projection of a completed error union to a strict family subset.
+// Introduced for the matched binding inside a selected match branch.
+struct ErrorNarrow {
+  ValueId input;
+};
 struct SymbolRead {
   SymbolId symbol;
 };
@@ -291,7 +296,7 @@ struct TypedExpr {
                ArrayIndex, TensorIndex, CollectionQuery, ShapeCheck, DeviceSelection, Transfer,
                TaskOperation, ParallelOperation, ConditionalOperation, CatchOperation,
                MatchOperation, ErrorFieldRead, FailOperation, GuardOperation, RecordValue,
-               RecordFieldRead>
+               RecordFieldRead, ErrorNarrow>
       operation;
 };
 struct ShapeEquality {

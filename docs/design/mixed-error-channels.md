@@ -44,7 +44,7 @@ A `T ! TaskError` result may be propagated or returned into `T ! (E | TaskError)
 
 Catch handlers infer mixed replacement channels when their branches propagate different families. They may recover to an ordinary success value, replace an execution error with an application error, replace an application error with an explicitly called fallible operation, or rethrow the complete mixed value with `fail error`. There is one success channel; handler composition does not nest results.
 
-As with the previous union milestone, `fail error` retains the entire subject's family set. Whole-value narrowing inside an individual match arm remains follow-up work. Recovering TaskError cases and reconstructing an original application variant can narrow to an application-only channel; reconstructing built-in task errors is not introduced by this milestone.
+[Whole-value match-arm narrowing](error-narrowing.md) gives the matched binding its selected or residual family set within each branch. `fail error` preserves that narrowed value and its payload, including original TaskError metadata. Outside those branches it still propagates the complete current set.
 
 ## TaskError patterns and fields
 
@@ -78,10 +78,10 @@ The example above spawns an ordinary function whose checked fault is handled by 
 
 `spawn applicationFallible()` preserves the child's channel alongside TaskError. Application errors may be handled inside the group without cancelling siblings, or propagated through group cancellation and settlement while retaining their original payload.
 
-No distributed execution, GPU error transport, public foreign interface or change to sibling-cancellation policy is introduced here. [Error aliases in record/enum payload fields](error-payload-fields.md) are supported as completed data. Whole-value match-arm narrowing remains a tracked local refinement.
+No distributed execution, GPU error transport, public foreign interface or change to sibling-cancellation policy is introduced here. [Error aliases in record/enum payload fields](error-payload-fields.md) are supported as completed data. [Whole-value match-arm narrowing](error-narrowing.md) is also supported.
 
 ## Qualification
 
-[Frontend checks](../../native/tests/MixedErrorTests.cpp) cover canonical TaskError aliases, subset propagation, exhaustive mixed handlers, exact field types, rethrows, replacements, rejected narrowing, strict worker channel coverage and malformed metadata. [Compiled cases](../../native/cmake/VerifyMixedErrors.cmake) cover all ten numeric widths, local legacy workers, real arithmetic/bounds/shape/allocation task faults, admission rejection, shape refinement, rethrows, channel replacement, imports and CLI classification/source-location preservation.
+[Frontend checks](../../native/tests/MixedErrorTests.cpp) cover canonical TaskError aliases, subset propagation, exhaustive mixed handlers, exact field types, rethrows, replacements, rejected family loss, strict worker channel coverage and malformed metadata. [Compiled cases](../../native/cmake/VerifyMixedErrors.cmake) cover all ten numeric widths, local legacy workers, real arithmetic/bounds/shape/allocation task faults, admission rejection, shape refinement, rethrows, channel replacement, imports and CLI classification/source-location preservation.
 
 A [source regression](../../native/tests/fixtures/mixed-task-error-value.k) verifies a worker whose success type is TaskError but which returns an expected failure, preserving its original arithmetic classification. The [private result harness](../../native/tests/MixedErrorRuntimeTests.cpp) checks all four task variants, original fault codes/locations, active managed application backing, shared observations, inactive-arm isolation, malformed task metadata, partial-retention failure and scheduler teardown. Debug, optimized, ASan/UBSan and TSan qualification is recorded in the [evidence](../../native/metal-proof/evidence/cpu-mixed-errors-2026-10-19.json).

@@ -2333,6 +2333,35 @@ private:
       branch.conditional = true;
       branch.tasks = std::make_shared<TaskChecks>(before);
       std::vector<TypedStatement> statements;
+      // The original subject remains the source for dispatch and field slots.
+      // Only its lexical binding is replaced in this branch; snapshots and
+      // bindings in other branches retain their original types.
+      const auto *read = std::get_if<SymbolRead>(&node(*subject).operation);
+      if (read && enumeration && !output_.records[*subjectType.record].errorMembers.empty()) {
+        const auto originalSymbol = read->symbol;
+        std::vector<std::size_t> remaining;
+        if (tag)
+          remaining.push_back(errorOrigin(output_, *subjectType.record, *tag - 1).first);
+        else
+          for (std::size_t i = 0; i < names.size(); ++i)
+            if (!seen.contains(static_cast<unsigned>(i + 1)))
+              remaining.push_back(errorOrigin(output_, *subjectType.record, i).first);
+        auto family = combineErrors(std::move(remaining), arm.span);
+        if (!family)
+          return {};
+        if (*family != *subjectType.record) {
+          auto narrowedType = recordType(*family);
+          auto narrowed = add(branch, narrowedType, arm.span, ErrorNarrow{*subject});
+          if (!narrowed)
+            return {};
+          const auto binding = output_.symbols[originalSymbol].name;
+          const auto declaration = output_.symbols[originalSymbol].declaration;
+          const auto symbol = output_.symbols.size();
+          output_.symbols.push_back({binding, narrowedType, declaration, frame.function, false});
+          branch.locals[binding] = symbol;
+          statements.push_back({arm.span, symbol, *narrowed});
+        }
+      }
       std::unordered_set<std::string> fields, fieldBindings;
       for (const auto &pattern : arm.fields) {
         const auto fieldSpan = pattern.name;

@@ -314,6 +314,23 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
           !scalarSame(expression.type, module.records[*t.record].fields[read->field].type))
         return "invalid record field read";
     }
+    if (const auto *narrow = std::get_if<ErrorNarrow>(&expression.operation)) {
+      if (narrow->input >= static_cast<std::size_t>(&expression - module.expressions.data()))
+        return "error narrowing requires a preceding subject";
+      const auto &from = module.expressions[narrow->input].type;
+      const auto &to = expression.type;
+      if (from.builtin != BuiltinValue::Record || !from.record ||
+          *from.record >= module.records.size() || from.task || from.fallible || from.tensor ||
+          from.array || from.device || module.records[*from.record].errorMembers.empty() ||
+          to.task || to.fallible || to.tensor || to.array || to.device ||
+          (to.builtin == BuiltinValue::Record
+               ? (!to.record || *to.record >= module.records.size() ||
+                  !module.records[*to.record].error || to.record == from.record)
+               : to.builtin != BuiltinValue::TaskError) ||
+          (!errorSubset(module, to.record, from.record) ||
+           errorSubset(module, from.record, to.record)))
+        return "error narrowing requires a strict completed family subset";
+    }
     const auto sameResult = [&](ValueId id) {
       return sameArray(expression.type, module.expressions[id].type);
     };
@@ -838,6 +855,8 @@ std::string dumpTypedIR(const TypedModule &module) {
                 out << " field[" << field.field << "]=%" << field.value;
             } else if constexpr (std::is_same_v<T, RecordFieldRead>)
               out << "field %" << operation.input << '[' << operation.field << ']';
+            else if constexpr (std::is_same_v<T, ErrorNarrow>)
+              out << "narrow error %" << operation.input;
             else if constexpr (std::is_same_v<T, ConditionalOperation>)
               out << "if %" << operation.condition << " then %" << operation.trueResult << " else %"
                   << operation.falseResult;

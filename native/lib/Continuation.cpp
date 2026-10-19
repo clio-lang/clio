@@ -23,7 +23,7 @@ std::vector<ValueId> operands(const TypedExpr &expression) {
           for (const auto &field : op.fields)
             values.push_back(field.value);
           return values;
-        } else if constexpr (std::is_same_v<T, RecordFieldRead>)
+        } else if constexpr (std::is_same_v<T, RecordFieldRead> || std::is_same_v<T, ErrorNarrow>)
           return {op.input};
         else if constexpr (std::is_same_v<T, TensorLiteral>)
           return op.elements;
@@ -209,7 +209,8 @@ private:
               op.base = importValue(*op.base);
             for (auto &field : op.fields)
               field.value = importValue(field.value);
-          } else if constexpr (std::is_same_v<T, RecordFieldRead>) {
+          } else if constexpr (std::is_same_v<T, RecordFieldRead> ||
+                               std::is_same_v<T, ErrorNarrow>) {
             op.input = importValue(op.input);
           } else if constexpr (std::is_same_v<T, TensorLiteral>) {
             for (auto &element : op.elements)
@@ -323,6 +324,8 @@ private:
         field.value = reads[next++];
     } else if (auto *field = std::get_if<RecordFieldRead>(&op))
       field->input = reads[0];
+    else if (auto *narrow = std::get_if<ErrorNarrow>(&op))
+      narrow->input = reads[0];
     else if (auto *literal = std::get_if<TensorLiteral>(&op))
       literal->elements = reads;
     else if (auto *multiply = std::get_if<Matmul>(&op)) {

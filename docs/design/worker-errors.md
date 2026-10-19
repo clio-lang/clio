@@ -46,7 +46,7 @@ The compiler observes the child's own result layout, then widens its channel whe
 
 A propagated application error stays in the owner's typed continuation frame while the scheduler drains its group. A private scheduler operation reserves the primary outcome under the scheduler lock. Its internal cancellation marker has no application payload and is consumed by the generated group-exit path. It is never substituted for the original error exposed to the program.
 
-This is local CPU support. GPU error transport, distributed contracts and public C/C++ interfaces belong to separate work. [Error aliases in record/enum payload fields](error-payload-fields.md) are supported as completed data. Whole-value narrowing in match arms remains a tracked language refinement.
+This is local CPU support. GPU error transport, distributed contracts and public C/C++ interfaces belong to separate work. [Error aliases in record/enum payload fields](error-payload-fields.md) are supported as completed data. [Whole-value narrowing in match arms](error-narrowing.md) preserves those values through selected and residual family rethrows.
 
 ## Qualification
 

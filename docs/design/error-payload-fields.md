@@ -64,7 +64,7 @@ Field resolution follows type dependencies before constructing canonical error u
 
 Both synchronous native calls and worker copies validate TaskError field tags. Record validation also runs for records without heap-backed fields. Malformed TaskError data cannot become a valid observation merely because its wrapper has no owned storage. Failed private result copies leave their destination untouched.
 
-This is CPU support. It does not add general untagged unions, GPU error transport, distributed schemas or a public C/C++ ABI. Whole-value narrowing inside match arms remains a separate refinement.
+This is CPU support. It does not add general untagged unions, GPU error transport, distributed schemas or a public C/C++ ABI. [Whole-value narrowing inside match arms](error-narrowing.md) is supported; field assignments continue to require their exact canonical types.
 
 ## Qualification
 

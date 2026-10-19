@@ -151,3 +151,5 @@ CPU records can also own [numeric arrays and tensors](../docs/design/record-coll
 [Local application-error unions and aliases](../docs/design/error-unions.md) support canonical error-family combinations, subset propagation and exhaustive qualified handlers on CPU. [Local mixed channels](../docs/design/mixed-error-channels.md) also combine application families with `TaskError`, preserving its fields and original diagnostic details. [Worker and parallel-group transport](../docs/design/worker-errors.md) preserves these channels through observation, cancellation and settlement.
 
 [Error aliases in CPU record and enum payload fields](../docs/design/error-payload-fields.md) preserve completed application and TaskError values, including nested arrays, worker transport and original error metadata.
+
+[Error-family match narrowing](../docs/design/error-narrowing.md) lets a branch rethrow or pass its matched value using the selected family. Wildcards keep the remaining families; payload ownership and TaskError metadata are preserved.
