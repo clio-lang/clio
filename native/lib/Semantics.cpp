@@ -31,6 +31,7 @@ class Checker {
     std::size_t depth = 0;
     std::shared_ptr<TaskChecks> tasks = std::make_shared<TaskChecks>();
     std::vector<std::size_t> groups;
+    std::vector<std::shared_ptr<ValueType>> groupErrors;
     std::shared_ptr<bool> handlerFallible;
     std::size_t handlerDepth = 0;
     bool conditional = false;
@@ -656,7 +657,7 @@ private:
     }
     ++functionDepth_;
     states_[id] = State::Checking;
-    Frame frame{id, {}, 0, std::make_shared<TaskChecks>(), {}, {}, 0, false};
+    Frame frame{id, {}, 0, std::make_shared<TaskChecks>(), {}, {}, {}, 0, false};
     for (auto parameter : output_.functions[id].parameters)
       frame.locals.emplace(output_.symbols[parameter].name, parameter);
     const auto initialErrors = errorCount_;
@@ -1011,12 +1012,10 @@ private:
       return true;
     }
     if (!frame.groups.empty()) {
-      if (family) {
-        error("S072", "application-error propagation out of parallel groups is not implemented yet",
-              span);
-        return false;
-      }
-      return true;
+      ValueType errorType;
+      errorType.fallible = true;
+      errorType.errorRecord = family;
+      return joinErrors(*frame.groupErrors.back(), errorType, span);
     }
     if (!sourceTaskError(frame.function)) {
       error("S036", "error propagation requires a declared error channel", span);
@@ -1790,10 +1789,6 @@ private:
       return {};
     auto result = node(*value).type;
     if (operation.prefix == TaskPrefix::Spawn) {
-      if (result.errorRecord) {
-        error("S072", "application-error worker results are not implemented yet", span);
-        return {};
-      }
       if (!std::holds_alternative<FunctionCall>(node(*value).operation) &&
           !std::holds_alternative<Matmul>(node(*value).operation) &&
           !std::holds_alternative<NumericConvert>(node(*value).operation) &&
@@ -1831,6 +1826,12 @@ private:
       }
       frame.tasks->observed.insert(result.identity);
       result.task = false;
+      if (result.errorRecord) {
+        auto family = combineErrors({*result.errorRecord, taskFamily()}, span);
+        if (!family)
+          return {};
+        result.errorRecord = normalizedError(*family);
+      }
       result.fallible = true;
       result.identity = 0;
       return add(frame, result, span, TaskOperation{operation.prefix, *value});
@@ -1852,6 +1853,9 @@ private:
     Frame nested = frame;
     const auto group = nextGroup_++;
     nested.groups.push_back(group);
+    auto errors = std::make_shared<ValueType>();
+    errors->fallible = true; // Every group can fail during execution.
+    nested.groupErrors.push_back(errors);
     std::vector<TypedStatement> statements;
     std::unordered_set<std::string> bindings;
     std::optional<ValueId> result;
@@ -1865,7 +1869,7 @@ private:
         context->task = context->fallible = false;
         context->identity = 0;
       }
-      auto value = expression(nested, statement.expression, context);
+      auto value = statementValue(nested, statement, context, index + 1 == block.body.size());
       if (!value)
         return {};
       std::optional<SymbolId> symbol;
@@ -1901,6 +1905,7 @@ private:
       return {};
     }
     resultType.fallible = true;
+    resultType.errorRecord = errors->errorRecord;
     resultType.identity = 0;
     return add(frame, resultType, span, ParallelOperation{std::move(statements), *result, group});
   }
@@ -2937,7 +2942,7 @@ private:
     output_.symbols.push_back(
         {name(lambda.parameters[0].name), element, lambda.parameters[0].name, id, true});
     output_.functions[id].parameters.push_back(parameter);
-    Frame nested{id, {}, frame.depth, std::make_shared<TaskChecks>(), {}, {}, 0, false};
+    Frame nested{id, {}, frame.depth, std::make_shared<TaskChecks>(), {}, {}, {}, 0, false};
     nested.locals.emplace(name(lambda.parameters[0].name), parameter);
     nested.closure = std::make_shared<ClosureScope>(ClosureScope{&frame, {}, {}});
     auto result = expression(nested, lambda.body, resultContext);

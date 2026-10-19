@@ -144,6 +144,10 @@ public:
   bool close(GroupHandle) noexcept;
   bool cancel(GroupHandle, bool deadline = false) noexcept;
   bool failGroup(GroupHandle, Failure) noexcept;
+  // Reserve the primary group outcome for an application error held in the
+  // owning compiler frame, then cancel/drain descendants. No payload crosses
+  // this private scheduler boundary. False preserves an earlier task failure.
+  bool stopGroup(GroupHandle) noexcept;
   bool cancelled() const noexcept;
   ExternalCompletion suspendExternal() noexcept;
   void yield() noexcept;

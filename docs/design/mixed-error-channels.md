@@ -72,16 +72,16 @@ These aggregates and generated discriminators are private implementation details
 
 An unhandled application error still prints its original `Family.Variant` and exits with status `89`. An unhandled TaskError still reports its task classification and original source location and exits with status `88`. A mixed alias does not change either policy. Execution faults retain their existing diagnostics and exit codes.
 
-## Remaining execution work
+## Local worker execution
 
-The example spawns an ordinary function whose checked fault is handled by the existing scheduler. It does **not** spawn a function returning application errors.
+The example above spawns an ordinary function whose checked fault is handled by the scheduler. [Local CPU worker transport](worker-errors.md) also supports spawning a function returning application errors.
 
-`spawn applicationFallible()` and application errors escaping a parallel body remain explicitly rejected. The next milestone must preserve a child's application outcome through observation and group settlement while separately preserving scheduling, cancellation, deadline and execution failures. The language can now express the required `E | TaskError` channel; those worker and parallel-group mechanisms still need implementation and qualification.
+`spawn applicationFallible()` preserves the child's channel alongside TaskError. Application errors may be handled inside the group without cancelling siblings, or propagated through group cancellation and settlement while retaining their original payload.
 
 No distributed execution, GPU error transport, public foreign interface or change to sibling-cancellation policy is introduced here. Error aliases in record/enum payload declarations and whole-value match-arm narrowing remain tracked local refinements.
 
 ## Qualification
 
-[Frontend checks](../../native/tests/MixedErrorTests.cpp) cover canonical TaskError aliases, subset propagation, exhaustive mixed handlers, exact field types, rethrows, replacements, rejected narrowing, worker gates and malformed metadata. [Compiled cases](../../native/cmake/VerifyMixedErrors.cmake) cover all ten numeric widths, local legacy workers, real arithmetic/bounds/shape/allocation task faults, admission rejection, shape refinement, rethrows, channel replacement, imports and CLI classification/source-location preservation.
+[Frontend checks](../../native/tests/MixedErrorTests.cpp) cover canonical TaskError aliases, subset propagation, exhaustive mixed handlers, exact field types, rethrows, replacements, rejected narrowing, strict worker channel coverage and malformed metadata. [Compiled cases](../../native/cmake/VerifyMixedErrors.cmake) cover all ten numeric widths, local legacy workers, real arithmetic/bounds/shape/allocation task faults, admission rejection, shape refinement, rethrows, channel replacement, imports and CLI classification/source-location preservation.
 
 A [source regression](../../native/tests/fixtures/mixed-task-error-value.k) verifies a worker whose success type is TaskError but which returns an expected failure, preserving its original arithmetic classification. The [private result harness](../../native/tests/MixedErrorRuntimeTests.cpp) checks all four task variants, original fault codes/locations, active managed application backing, shared observations, inactive-arm isolation, malformed task metadata, partial-retention failure and scheduler teardown. Debug, optimized, ASan/UBSan and TSan qualification is recorded in the [evidence](../../native/metal-proof/evidence/cpu-mixed-errors-2026-10-19.json).

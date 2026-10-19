@@ -38,6 +38,9 @@ void kalandra_group_failure_v1(Task *task, const GroupHandle *group, Failure *ou
 void kalandra_task_close_v1(Task *task, const GroupHandle *group) noexcept {
   (void)task->close(*group);
 }
+bool kalandra_task_stop_group_v1(Task *task, const GroupHandle *group) noexcept {
+  return task->stopGroup(*group);
+}
 void kalandra_task_fail_group_v1(Task *task, const GroupHandle *group,
                                  const Failure *failure) noexcept {
   (void)task->failGroup(*group, *failure);

@@ -33,6 +33,7 @@ class Emitter {
   std::map<std::size_t, Type *> recordTypes;
   std::map<std::string, llvm::GlobalVariable *> layouts;
   std::vector<llvm::StructType *> frames, packets;
+  std::vector<std::map<std::size_t, std::size_t>> observationFields;
   std::vector<llvm::GlobalVariable *> entries;
   Function *destroy;
 
@@ -62,6 +63,18 @@ public:
         fields.push_back(valueType(slot));
       for (std::size_t g = 0; g < plan.groups; ++g)
         fields.push_back(handleType);
+      // Widening observes a child using its own layout. Keep that temporary
+      // in the budgeted frame rather than growing the native worker stack.
+      observationFields.emplace_back();
+      for (const auto &instruction : plan.code)
+        if (instruction.code == Code::Await &&
+            !observationFields.back().contains(instruction.target)) {
+          const auto &child = *planner.plans[instruction.target];
+          if (key(child.slots[child.result]) != key(plan.slots[instruction.output])) {
+            observationFields.back()[instruction.target] = fields.size();
+            fields.push_back(valueType(child.slots[child.result]));
+          }
+        }
       for (auto slot : plan.parameters)
         parameters.push_back(valueType(plan.slots[slot]));
       frames.push_back(
@@ -759,6 +772,9 @@ private:
       if (instruction.code == Code::Spawn && !staging.contains(instruction.target))
         staging[instruction.target] = builder.CreateAlloca(packets[instruction.target]);
     auto *spawnFailure = staging.empty() ? nullptr : builder.CreateAlloca(failureType);
+    std::unordered_map<std::size_t, Value *> observations;
+    for (const auto &[target, field] : observationFields[id])
+      observations[target] = builder.CreateStructGEP(frameType, frame, field);
     std::vector<std::size_t> groupExits(plan.groups, SIZE_MAX);
     for (std::size_t n = 0; n < plan.code.size(); ++n)
       if (plan.code[n].code == Code::Join)
@@ -970,11 +986,22 @@ private:
         auto *read = Block::Create(context, "await.success", resume);
         builder.CreateCondBr(hasFailure(header), next, read);
         builder.SetInsertPoint(read);
-        auto *resultLayout = layout(
-            planner.plans[instruction.target]->slots[planner.plans[instruction.target]->result]);
-        auto *ok = call("kalandra_task_read_v1", boolean,
-                        {task, handle, resultLayout, slot(instruction.output)});
-        builder.CreateCondBr(ok, next, abort);
+        const auto &child = *planner.plans[instruction.target];
+        const auto &childType = child.slots[child.result];
+        if (key(childType) == key(type)) {
+          auto *ok = call("kalandra_task_read_v1", boolean,
+                          {task, handle, layout(childType), slot(instruction.output)});
+          builder.CreateCondBr(ok, next, abort);
+          break;
+        }
+        auto *observed = observations.at(instruction.target);
+        auto *ok =
+            call("kalandra_task_read_v1", boolean, {task, handle, layout(childType), observed});
+        auto *copied = Block::Create(context, "await.observed", resume);
+        builder.CreateCondBr(ok, copied, abort);
+        builder.SetInsertPoint(copied);
+        copyResult(type, slot(instruction.output), childType, observed);
+        builder.CreateBr(next);
         break;
       }
       case Code::Fail:
@@ -992,9 +1019,21 @@ private:
         else
           builder.CreateCondBr(hasResultError(source, slot(input)), propagate, success);
         builder.SetInsertPoint(propagate);
-        if (instruction.group != SIZE_MAX) {
-          if (source.errorRecord || (explicitFail && source.builtin == BuiltinValue::Record))
-            throw std::runtime_error("application error parallel propagation is not implemented");
+        if (instruction.group != SIZE_MAX && target.errorRecord) {
+          auto *accepted =
+              call("kalandra_task_stop_group_v1", boolean, {task, group(instruction.group)});
+          auto *store = Block::Create(context, "group.primary", resume);
+          builder.CreateCondBr(accepted, store, blocks[instruction.jump]);
+          builder.SetInsertPoint(store);
+          if (explicitFail && source.builtin == BuiltinValue::Record)
+            copyErrorValue(*target.errorRecord, application(target, slot(instruction.target)),
+                           *source.record, payload(input));
+          else if (explicitFail)
+            injectTaskError(*target.errorRecord, application(target, slot(instruction.target)),
+                            header);
+          else
+            copyErrors(target, slot(instruction.target), source, slot(input));
+        } else if (instruction.group != SIZE_MAX) {
           call("kalandra_task_fail_group_v1", voidType, {task, group(instruction.group), header});
         } else if (explicitFail && source.builtin == BuiltinValue::Record) {
           if (!target.errorRecord || !source.record)
@@ -1107,6 +1146,13 @@ private:
         call("kalandra_task_close_v1", voidType, {task, group(instruction.group)});
         wait(call("kalandra_task_join_v1", boolean, {task, group(instruction.group)}));
         auto *header = builder.CreateStructGEP(valueType(type), slot(instruction.output), 0);
+        // The primary typed error lives in this frame until all children settle.
+        // Do not replace it with the scheduler's internal stop marker.
+        if (type.errorRecord) {
+          auto *settled = Block::Create(context, "group.outcome", resume);
+          builder.CreateCondBr(hasResultError(type, slot(instruction.output)), next, settled);
+          builder.SetInsertPoint(settled);
+        }
         call("kalandra_group_failure_v1", voidType, {task, group(instruction.group), header});
         auto *success = Block::Create(context, "group.success", resume);
         builder.CreateCondBr(hasFailure(header), next, success);

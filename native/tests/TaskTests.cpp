@@ -321,6 +321,46 @@ static const TaskEntry lexicalEntry{1,
                                     nothing,
                                     resumeLexical,
                                     &scalar};
+// The compiler keeps an application payload in its own typed frame. The
+// scheduler only reserves the primary outcome and drains descendants.
+static void resumeStop(Task &task) {
+  auto &frame = *static_cast<LexicalFrame *>(task.frame());
+  if (!frame.phase) {
+    frame.outer = task.openGroup();
+    auto child = frame.input;
+    child.fault = 0;
+    CHECK(task.spawn(frame.outer, leaf, packet(child)));
+    if (frame.input.fault) {
+      CHECK(task.failGroup(frame.outer, {TaskFailure(frame.input.fault), 42, 17, 4}));
+      CHECK(!task.stopGroup(frame.outer));
+      const auto failure = task.failure(frame.outer);
+      CHECK(failure.kind == TaskFailure(frame.input.fault) && failure.code == 42 &&
+            failure.line == 17 && failure.column == 4);
+    } else {
+      CHECK(task.stopGroup(frame.outer));
+      CHECK(!task.stopGroup(frame.outer));
+      CHECK(task.failure(frame.outer).kind == TaskFailure::Cancelled);
+    }
+    CHECK(!task.stopGroup({}));
+    CHECK(task.close(frame.outer));
+    frame.phase = 1;
+  }
+  if (!task.join(frame.outer))
+    return;
+  CHECK(!task.stopGroup(frame.outer));
+  float value = 42;
+  task.complete(&value);
+}
+static const TaskEntry stopEntry{1,
+                                 10,
+                                 sizeof(Input),
+                                 alignof(Input),
+                                 sizeof(LexicalFrame),
+                                 alignof(LexicalFrame),
+                                 constructLexical,
+                                 nothing,
+                                 resumeStop,
+                                 &scalar};
 static void empty(TaskCore &core) {
   auto stats = core.stats();
   CHECK(stats.unfinished == 0 && stats.records == 0 && stats.groups == 0 &&
@@ -605,6 +645,18 @@ int main() {
     float value = 0;
     Invocation receiver;
     CHECK(core->observe(task, scalar, receiver, &value) && value == 5);
+    CHECK(core->close(root) && core->drain() && core->release(root));
+    empty(*core);
+  }
+  for (int kind = 0; kind <= 4; ++kind) {
+    auto root = core->openRoot();
+    unsigned invoked = 0;
+    Input input{1, 20, kind, &invoked};
+    auto task = core->submit(root, stopEntry, packet(input));
+    CHECK(core->drain() && invoked == 0);
+    Invocation receiver;
+    float value = 0;
+    CHECK(core->observe(task, scalar, receiver, &value) && value == 42);
     CHECK(core->close(root) && core->drain() && core->release(root));
     empty(*core);
   }

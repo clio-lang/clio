@@ -36,6 +36,9 @@ int main() {
           types + legacy +
               "fn main()->int ! Mixed:\n  legacy(1) catch fn(error):\n    if true:fail error\n    "
               "fail A.Bad {text:\"bad\"}\n",
+          types + legacy + work +
+              "fn main()->int ! Mixed:\n  try parallel:\n    try await spawn work(1)\n",
+          types + legacy + work + "fn main()->int ! Mixed:\n  try parallel:\n    try work(1)\n",
           types + legacy +
               "fn forward(error:Only)->int ! Mixed:\n  fail error\nfn main()->int:\n  0\n"}) {
       auto result = analyze(program);
@@ -58,8 +61,8 @@ int main() {
           "TaskError.Cancelled {reason}:1\n      _:2\n",
           "fn main()->int:\n  work(1) catch fn(error):\n    match error:\n      TaskError.Fault "
           "{reason}:1\n      _:2\n",
-          "fn main()->int ! Mixed:\n  try parallel:\n    try await spawn work(1)\n",
-          "fn main()->int ! Mixed:\n  try parallel:\n    try work(1)\n"})
+          "fn main()->int ! A:\n  try parallel:\n    try await spawn work(1)\n",
+          "fn main()->int ! A:\n  try parallel:\n    try work(1)\n"})
       require(!analyze(types + legacy + work + body).ok(), "invalid mixed channel admitted");
     auto checked = analyze(types + legacy + work + match);
     require(checked.ok(), "metadata fixture rejected");

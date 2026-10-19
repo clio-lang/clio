@@ -33,3 +33,4 @@ endif()
 include("${CMAKE_CURRENT_LIST_DIR}/ErrorUnions.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/MixedErrors.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/WorkerErrors.cmake")

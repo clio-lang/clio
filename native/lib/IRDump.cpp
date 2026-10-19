@@ -104,9 +104,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
   if (!module.records.empty() && (target != NumericTarget::Cpu || hasPlacement(module)))
     return "record values currently require CPU execution";
   const auto error = [&](const ValueType &type) -> std::optional<std::string> {
-    if (type.errorRecord &&
-        (!type.fallible || type.task || *type.errorRecord >= module.records.size() ||
-         !module.records[*type.errorRecord].error))
+    if (type.errorRecord && (!type.fallible || *type.errorRecord >= module.records.size() ||
+                             !module.records[*type.errorRecord].error))
       return "invalid application-error channel";
     if (type.builtin == BuiltinValue::String &&
         (type.device || (type.array ? (!type.tensor || type.shape.size() != 1)

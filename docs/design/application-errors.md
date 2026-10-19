@@ -1,6 +1,6 @@
 # Local application-error channels
 
-This document describes the initial native implementation of a single declared application-error family per function. It is the first implementation stage of the [accepted errors](errors.md) and [variant](variants.md) design. [Application-family unions and aliases](error-unions.md) are now implemented in a subsequent milestone. [Local composition with TaskError](mixed-error-channels.md) is also implemented; application errors escaping through `spawn`/`await` remain follow-up work.
+This document describes the initial native implementation of a single declared application-error family per function. It is the first implementation stage of the [accepted errors](errors.md) and [variant](variants.md) design. [Application-family unions and aliases](error-unions.md) are now implemented in a subsequent milestone. [Local composition with TaskError](mixed-error-channels.md) is implemented; [local CPU worker transport](worker-errors.md) also preserves application errors through `spawn`/`await` and group settlement.
 
 ```kalandra
 error StatisticsError:
@@ -67,7 +67,7 @@ Arithmetic, bounds and implicit allocation faults retain their execution-fault b
 
 Application payloads use automatic managed ownership. Strings, numeric/Bool/String arrays, tensors, nested records/enums and record/enum arrays retain their backing when a typed result is transferred by the private runtime. Observations may outlive the originating task and scheduler. Failed retention must leave the output untouched and release partially acquired owners on settlement.
 
-A worker may call an application-fallible helper and fully handle its error locally before returning an ordinary value. A function returning `T ! E` cannot yet be spawned as a source-level worker, and propagating E out of a parallel group is rejected. The required `E | TaskError` channel is now implemented locally; worker/group transport of both application and execution outcomes remains pending. No implicit conversion to `TaskError.Fault` is supplied.
+A worker may return `T ! E` directly or handle an application-fallible helper locally. [Local CPU worker transport](worker-errors.md) preserves application outcomes alongside execution failures as `E | TaskError`, including group propagation and settlement. No implicit conversion to `TaskError.Fault` is supplied.
 
 An unhandled application error at the CLI prints its original `Family.Variant`, exits with status `89`, and settles managed backing. No success output is printed. This diagnostic does not expose an ordinal, host layout, or public C/C++ or network ABI.
 
@@ -79,6 +79,6 @@ This is a correctness baseline using the current tagged-aggregate implementation
 
 ## Qualification
 
-[Frontend tests](../../native/tests/ApplicationErrorTests.cpp) cover declared families, strict propagation and handler typing, guards, rethrows, channel replacement, ordinary error values, malformed metadata and explicit unsupported union/worker diagnostics. [Compiled programs](../../native/cmake/VerifyApplicationErrors.cmake) exercise all ten numeric widths, typed and nested payloads, modules/re-exports, guard execution, absent tensor success values, unhandled CLI errors, checked-fault separation and allocation cleanup.
+[Frontend tests](../../native/tests/ApplicationErrorTests.cpp) cover declared families, strict propagation and handler typing, guards, rethrows, channel replacement, ordinary error values, malformed metadata and strict channel coverage diagnostics. [Compiled programs](../../native/cmake/VerifyApplicationErrors.cmake) exercise all ten numeric widths, typed and nested payloads, modules/re-exports, guard execution, absent tensor success values, unhandled CLI errors, checked-fault separation and allocation cleanup.
 
 The [private result harness](../../native/tests/ApplicationErrorRuntimeTests.cpp) checks exact payloads, shared cached observations, source/scheduler settlement, malformed tags/descriptors and untouched output on partial retention failure. Debug, optimized, ASan/UBSan and TSan variants share the same cases. The [qualification record](../../native/metal-proof/evidence/cpu-application-errors-2026-10-19.json) records sources, programs and regression scope.

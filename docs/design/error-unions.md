@@ -84,7 +84,7 @@ Unhandled CLI errors still print the original `Family.Variant` and exit with sta
 
 ## Remaining boundaries
 
-[Local mixed application/TaskError channels](mixed-error-channels.md) are implemented. Source-level `spawn` of a fallible application result and propagation of application errors out of a parallel group remain gated pending worker/group transport of both application and execution outcomes. Fully recovering an application union inside a worker is supported.
+[Local mixed application/TaskError channels](mixed-error-channels.md) are implemented. [Local CPU workers and parallel groups](worker-errors.md) also preserve application unions alongside execution failures through observation and settlement. Fully recovering an application union inside a worker is supported.
 
 GPU error transport, distributed schemas, public foreign interfaces, recursive payloads and general function values are not introduced by this milestone.
 

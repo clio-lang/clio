@@ -1017,6 +1017,17 @@ bool Task::failGroup(GroupHandle group, Failure failure) noexcept {
   core_.failGroup(group, failure);
   return true;
 }
+bool Task::stopGroup(GroupHandle group) noexcept {
+  TaskCore::Impl::Guard guard(core_);
+  auto *record = core_.get(group);
+  if (!record || record->owner != core_.handle(slot_) || record->settled ||
+      record->failure.kind != TaskFailure::None)
+    return false;
+  // This cancellation marker is consumed by the owning frame, which keeps the
+  // original typed application outcome across suspension and group settlement.
+  core_.failGroup(group, {TaskFailure::Cancelled});
+  return true;
+}
 bool Task::cancelled() const noexcept {
   return core_.tasks[slot_].cancel.load(std::memory_order_acquire);
 }
