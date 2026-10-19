@@ -206,7 +206,7 @@ void moduleOrigins() {
   require(std::ranges::any_of(
               checked.diagnostics,
               [&](const auto &diagnostic) {
-                return diagnostic.code == "S074" &&
+                return diagnostic.code == "S072" &&
                        renderDiagnostic(*checked.source, diagnostic).find("helper.k:1:") !=
                            std::string::npos;
               }),

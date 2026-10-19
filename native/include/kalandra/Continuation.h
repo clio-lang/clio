@@ -27,7 +27,9 @@ enum class Code {
   Call,
   Device,
   Transfer,
-  Branch
+  Branch,
+  FunctionReference,
+  FunctionInvoke
 };
 struct Instruction {
   Code code;
@@ -60,6 +62,8 @@ struct ModulePlan {
 };
 // Direct/transitive task or control effects require continuation lowering.
 [[nodiscard]] std::vector<bool> resumableFunctions(const TypedModule &input);
+// Suspension/device effects, excluding synchronous expected-error control flow.
+[[nodiscard]] std::vector<bool> coordinatingFunctions(const TypedModule &input);
 [[nodiscard]] std::expected<ModulePlan, std::string> plan(const TypedModule &input,
                                                           Options options = {});
 [[nodiscard]] std::string dump(const ModulePlan &module);

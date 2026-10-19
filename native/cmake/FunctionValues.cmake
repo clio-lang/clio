@@ -12,6 +12,18 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME native-function-values-frontend-${VARIANT} COMMAND kalandra-function-value-tests-${VARIANT})
     set_tests_properties(native-function-values-frontend-${VARIANT} PROPERTIES TIMEOUT 120)
+    add_executable(kalandra-fallible-function-tests-${VARIANT} tests/FallibleFunctionTests.cpp)
+    target_compile_options(kalandra-fallible-function-tests-${VARIANT} PRIVATE -Wall -Wextra -Werror)
+    if(VARIANT STREQUAL "sanitized")
+      target_link_libraries(kalandra-fallible-function-tests-${VARIANT} PRIVATE kalandra-semantics-sanitized)
+      target_compile_definitions(kalandra-fallible-function-tests-${VARIANT} PRIVATE KALANDRA_FUNCTION_FRONTEND_ONLY)
+      target_compile_options(kalandra-fallible-function-tests-${VARIANT} PRIVATE -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+      target_link_options(kalandra-fallible-function-tests-${VARIANT} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all)
+    else()
+      target_link_libraries(kalandra-fallible-function-tests-${VARIANT} PRIVATE kalandra-backend)
+    endif()
+    add_test(NAME native-fallible-functions-frontend-${VARIANT} COMMAND kalandra-fallible-function-tests-${VARIANT})
+    set_tests_properties(native-fallible-functions-frontend-${VARIANT} PROPERTIES TIMEOUT 120)
   endforeach()
   foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
     if(VARIANT STREQUAL "sanitized")
@@ -37,5 +49,12 @@ if(BUILD_TESTING)
         "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/function-collections-${VARIANT}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyFunctionCollections.cmake")
     set_tests_properties(native-function-collections-${VARIANT} PROPERTIES TIMEOUT 300)
+    add_test(NAME native-fallible-functions-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DLLVM_ROOT=${KALANDRA_LLVM_ROOT}" "-DRUNTIME=$<TARGET_FILE:${FUNCTION_RUNTIME}>"
+        "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/fallible-functions-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyFallibleFunctions.cmake")
+    set_tests_properties(native-fallible-functions-${VARIANT} PROPERTIES TIMEOUT 300)
   endforeach()
 endif()

@@ -106,13 +106,13 @@ public:
     if (diagnostics_.empty() && std::ranges::any_of(output_.expressions, [](const auto &value) {
           return std::holds_alternative<FunctionReference>(value.operation);
         })) {
-      const auto resumable = continuation::resumableFunctions(output_);
+      const auto resumable = continuation::coordinatingFunctions(output_);
       for (const auto &value : output_.expressions)
         if (const auto *reference = std::get_if<FunctionReference>(&value.operation))
           if (resumable[reference->function])
             error("S074",
                   "function values require transitively synchronous CPU targets; "
-                  "task coordination and fallible targets are not implemented yet",
+                  "task/device coordination is not supported through function values",
                   value.span);
     }
     if (diagnostics_.empty())
@@ -223,10 +223,6 @@ private:
   }
   std::optional<ValueType> type(const TypeSyntax &syntax) {
     if (syntax.function) {
-      if (!syntax.function->errorTypes.empty()) {
-        error("S074", "fallible function values are not implemented yet", syntax.span);
-        return {};
-      }
       std::vector<ValueType> parameters;
       for (const auto &parameter : syntax.function->parameters) {
         auto resolved = type(parameter);
@@ -237,6 +233,21 @@ private:
       auto result = type(syntax.function->result);
       if (!result)
         return {};
+      if (!syntax.function->errorTypes.empty()) {
+        std::vector<std::size_t> families;
+        std::unordered_set<std::size_t> active;
+        for (auto channel : syntax.function->errorTypes) {
+          auto family = resolveError(channel, active);
+          if (!family)
+            return {};
+          families.push_back(*family);
+        }
+        auto family = combineErrors(std::move(families), syntax.span);
+        if (!family)
+          return {};
+        result->fallible = true;
+        result->errorRecord = normalizedError(*family);
+      }
       return callableType(std::move(parameters), *result, syntax.span);
     }
     if (!syntax.tensor && !syntax.array && name(syntax.name) == "TaskError") {
@@ -317,10 +328,11 @@ private:
       return !value.task && !value.fallible && !value.device &&
              value.builtin != BuiltinValue::Device;
     };
-    if (!supported(result) || !std::ranges::all_of(parameters, supported) || options_.placement) {
-      error("S074",
-            "function values require synchronous CPU signatures; "
-            "fallible callables remain unimplemented",
+    auto success = result;
+    success.fallible = false;
+    success.errorRecord.reset();
+    if (!supported(success) || !std::ranges::all_of(parameters, supported) || options_.placement) {
+      error("S074", "function values require completed CPU parameters and synchronous CPU results",
             span);
       return {};
     }
@@ -2227,7 +2239,8 @@ private:
     }
     if (!expected ||
         (expected->builtin != BuiltinValue::Numeric && expected->builtin != BuiltinValue::Bool &&
-         expected->builtin != BuiltinValue::Record && expected->builtin != BuiltinValue::String) ||
+         expected->builtin != BuiltinValue::Record && expected->builtin != BuiltinValue::String &&
+         expected->builtin != BuiltinValue::Function) ||
         expected->task) {
       error("S039", "fail needs a concrete success-type context in this subset", span);
       return {};
@@ -2273,7 +2286,7 @@ private:
       if (resultType) {
         if (actual.builtin != resultType->builtin || actual.record != resultType->record ||
             (actual.builtin == BuiltinValue::Function &&
-             !sameFunctionValueType(actual, *resultType)) ||
+             !sameFunctionValueType(recordArrayElement(actual), recordArrayElement(*resultType))) ||
             (actual.builtin == BuiltinValue::Numeric && actual.element != resultType->element) ||
             actual.tensor != resultType->tensor || actual.array != resultType->array ||
             actual.shape.size() != resultType->shape.size()) {
@@ -2540,7 +2553,7 @@ private:
         }
         if (actual.builtin != resultType->builtin || actual.record != resultType->record ||
             (actual.builtin == BuiltinValue::Function &&
-             !sameFunctionValueType(actual, *resultType)) ||
+             !sameFunctionValueType(recordArrayElement(actual), recordArrayElement(*resultType))) ||
             (actual.builtin == BuiltinValue::Numeric && actual.element != resultType->element) ||
             actual.tensor != resultType->tensor || actual.array != resultType->array ||
             actual.shape.size() != resultType->shape.size()) {

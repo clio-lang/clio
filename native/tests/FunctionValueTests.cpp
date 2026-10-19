@@ -86,7 +86,6 @@ void negative() {
         "fn coordinate(value:int)->int:\n  run(value) catch fn(error):0\n"
         "fn run(value:int)->int ! TaskError:\n  try parallel:\n    try await spawn double(value)\n"
         "fn main()->int:\n  f=coordinate\n  f(1)\n",
-        "fn use(f:fn(int)->int ! TaskError)->int:\n  0\nfn main()->int:\n  0\n",
         "fn arrays(values:[int])->[int]:\n  values\nfn main()->int:\n  "
         "f:fn(Tensor[int,?])->[int]=arrays\n  0\n",
         "fn matrix(values:Tensor[int,2])->Tensor[int,2]:\n  values\nfn main()->int:\n  "

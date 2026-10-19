@@ -36,6 +36,7 @@ class Emitter {
   std::vector<std::map<std::size_t, std::size_t>> observationFields;
   std::vector<llvm::GlobalVariable *> entries;
   Function *destroy;
+  std::vector<Function *> synchronousEntries;
 
 public:
   Emitter(ModulePlan &planner, llvm::Module &module)
@@ -86,8 +87,54 @@ public:
     }
   }
   void run(const std::optional<std::string> &testEntry) {
+    synchronousEntries.resize(planner.plans.size());
+    for (const auto &plan : planner.plans)
+      for (const auto &instruction : plan->code)
+        if (instruction.code == Code::FunctionReference &&
+            !synchronousEntries[instruction.target]) {
+          const auto id = instruction.target;
+          const auto &source = planner.input.functions.at(id);
+          if (planner.plans[id]->groups ||
+              std::ranges::any_of(planner.plans[id]->code, [](const auto &op) {
+                return op.code == Code::Open || op.code == Code::Spawn || op.code == Code::Await ||
+                       op.code == Code::Join || op.code == Code::Device ||
+                       op.code == Code::Transfer;
+              }))
+            throw std::runtime_error("synchronous callable plan contains task/device coordination");
+          const auto result = source.declaredResult.value_or(source.resultType);
+          std::vector<Type *> parameters;
+          if (result.fallible)
+            parameters.push_back(pointer);
+          for (auto parameter : source.parameters)
+            parameters.push_back(scalarType(planner.input.symbols[parameter].type));
+          parameters.push_back(pointer);
+          synchronousEntries[id] =
+              function("kalandra_callable_plan_" + std::to_string(id),
+                       result.fallible ? voidType : scalarType(result), parameters);
+        }
+    // References create no scheduling work. Recursive control-flow callables
+    // need a separate bounded native recursion implementation.
+    std::vector<unsigned> state(planner.plans.size());
+    const auto visit = [&](auto &&self, std::size_t id, unsigned depth) -> void {
+      if (state[id] == 1 || depth > 128)
+        throw std::runtime_error(
+            "recursive synchronous control-flow function values are not implemented yet");
+      if (state[id] == 2)
+        return;
+      state[id] = 1;
+      for (const auto &instruction : planner.plans[id]->code)
+        if (instruction.code == Code::FunctionReference)
+          self(self, instruction.target, depth + 1);
+      state[id] = 2;
+    };
+    for (std::size_t id = 0; id < synchronousEntries.size(); ++id)
+      if (synchronousEntries[id])
+        visit(visit, id, 0);
     for (std::size_t id = 0; id < planner.plans.size(); ++id)
       emitPlan(id);
+    for (std::size_t id = 0; id < synchronousEntries.size(); ++id)
+      if (synchronousEntries[id])
+        emitPlan(id, true);
     if (testEntry) {
       const auto found = std::ranges::find_if(planner.input.functions,
                                            [&](const auto &f) { return f.name == *testEntry; });
@@ -104,6 +151,9 @@ public:
       // Trusted native test export, not a dynamic/public task or wire ABI.
       new llvm::GlobalVariable(module, pointer, true, llvm::GlobalValue::ExternalLinkage,
                                entries[id], "kalandra_task_test_entry");
+      if (synchronousEntries[id])
+        new llvm::GlobalVariable(module, pointer, true, llvm::GlobalValue::ExternalLinkage,
+                                 synchronousEntries[id], "kalandra_callable_test_entry");
     }
     auto main = std::ranges::find_if(planner.input.functions,
                                      [](const auto &f) { return f.name == "main"; });
@@ -737,39 +787,64 @@ private:
     builder.CreateStore(c64(size(packets[target])), builder.CreateStructGEP(packetType, packet, 2));
     builder.CreateStore(ctx, builder.CreateStructGEP(packetType, packet, 3));
   }
-  void emitPlan(std::size_t id) {
+  void emitPlan(std::size_t id, bool synchronous = false) {
     const auto &plan = *planner.plans[id];
     auto *frameType = frames[id];
-    auto *construct =
-        function("task.construct." + std::to_string(id), boolean, {pointer, pointer, pointer});
-    builder.SetInsertPoint(Block::Create(context, "entry", construct));
-    builder.CreateMemSet(construct->getArg(1), builder.getInt8(0), size(frameType),
-                         llvm::MaybeAlign(alignment(frameType)));
-    auto *data =
-        builder.CreateLoad(pointer, builder.CreateStructGEP(packetType, construct->getArg(2), 1));
-    auto *source =
-        builder.CreateLoad(pointer, builder.CreateStructGEP(packetType, construct->getArg(2), 3));
-    auto *failed = Block::Create(context, "failed", construct);
-    for (std::size_t n = 0; n < plan.parameters.size(); ++n) {
-      auto slot = plan.parameters[n];
-      auto *target = builder.CreateStructGEP(frameType, construct->getArg(1), slot + 1);
-      auto *input = builder.CreateStructGEP(packets[id], data, n);
-      auto *layoutValue = layout(plan.slots[slot]);
-      auto *fn = llvm::cast<llvm::ConstantStruct>(layoutValue->getInitializer())->getOperand(3);
-      auto *copyFn = llvm::cast<Function>(fn);
-      auto *ok = builder.CreateCall(copyFn, {construct->getArg(0), target, source, input});
-      auto *next = Block::Create(context, "parameter", construct);
-      builder.CreateCondBr(ok, next, failed);
-      builder.SetInsertPoint(next);
+    Function *construct = nullptr;
+    if (!synchronous) {
+      construct =
+          function("task.construct." + std::to_string(id), boolean, {pointer, pointer, pointer});
+      builder.SetInsertPoint(Block::Create(context, "entry", construct));
+      builder.CreateMemSet(construct->getArg(1), builder.getInt8(0), size(frameType),
+                           llvm::MaybeAlign(alignment(frameType)));
+      auto *data =
+          builder.CreateLoad(pointer, builder.CreateStructGEP(packetType, construct->getArg(2), 1));
+      auto *source =
+          builder.CreateLoad(pointer, builder.CreateStructGEP(packetType, construct->getArg(2), 3));
+      auto *failed = Block::Create(context, "failed", construct);
+      for (std::size_t n = 0; n < plan.parameters.size(); ++n) {
+        auto slot = plan.parameters[n];
+        auto *target = builder.CreateStructGEP(frameType, construct->getArg(1), slot + 1);
+        auto *input = builder.CreateStructGEP(packets[id], data, n);
+        auto *layoutValue = layout(plan.slots[slot]);
+        auto *fn = llvm::cast<llvm::ConstantStruct>(layoutValue->getInitializer())->getOperand(3);
+        auto *copyFn = llvm::cast<Function>(fn);
+        auto *ok = builder.CreateCall(copyFn, {construct->getArg(0), target, source, input});
+        auto *next = Block::Create(context, "parameter", construct);
+        builder.CreateCondBr(ok, next, failed);
+        builder.SetInsertPoint(next);
+      }
+      builder.CreateRet(builder.getTrue());
+      builder.SetInsertPoint(failed);
+      builder.CreateRet(builder.getFalse());
     }
-    builder.CreateRet(builder.getTrue());
-    builder.SetInsertPoint(failed);
-    builder.CreateRet(builder.getFalse());
-    auto *resume = function("task.resume." + std::to_string(id), voidType, {pointer});
+    const auto resultType = plan.slots[plan.result];
+    auto *resume = synchronous ? synchronousEntries.at(id)
+                               : function("task.resume." + std::to_string(id), voidType, {pointer});
     builder.SetInsertPoint(Block::Create(context, "entry", resume));
-    auto *task = resume->getArg(0);
-    auto *frame = call("kalandra_task_frame_v1", pointer, {task});
-    auto *ctx = call("kalandra_task_context_v1", pointer, {task});
+    Value *task = synchronous
+                      ? static_cast<Value *>(llvm::ConstantPointerNull::get(builder.getPtrTy()))
+                      : resume->getArg(0);
+    Value *ctx = synchronous ? resume->getArg(resume->arg_size() - 1)
+                             : call("kalandra_task_context_v1", pointer, {task});
+    Value *frame;
+    auto returnZero = [&] {
+      if (resume->getReturnType()->isVoidTy())
+        builder.CreateRetVoid();
+      else
+        builder.CreateRet(llvm::Constant::getNullValue(resume->getReturnType()));
+    };
+    if (synchronous) {
+      auto *ready = Block::Create(context, "call.ready", resume);
+      auto *stopped = Block::Create(context, "call.stopped", resume);
+      auto *status = call("kalandra_poll_v1", i64, {ctx});
+      builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), ready, stopped);
+      builder.SetInsertPoint(stopped);
+      returnZero();
+      builder.SetInsertPoint(ready);
+      frame = call("kalandra_alloc_v1", pointer, {ctx, c64(size(frameType))});
+    } else
+      frame = call("kalandra_task_frame_v1", pointer, {task});
     auto *packet = builder.CreateAlloca(packetType);
     // Packet staging belongs to one resume interval, never to a suspended frame.
     std::unordered_map<std::size_t, Value *> staging;
@@ -790,24 +865,63 @@ private:
     for (std::size_t n = 0; n < plan.code.size(); ++n)
       blocks.push_back(Block::Create(context, "step." + std::to_string(n), resume));
     auto *pc = builder.CreateStructGEP(frameType, frame, 0);
-    auto *dispatch = builder.CreateSwitch(builder.CreateLoad(i32, pc), abort, blocks.size());
-    for (std::size_t n = 0; n < blocks.size(); ++n)
-      dispatch->addCase(c32(n), blocks[n]);
+    if (synchronous) {
+      auto *initialized = Block::Create(context, "call.initialize", resume);
+      auto *status = call("kalandra_poll_v1", i64, {ctx});
+      builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), initialized, abort);
+      builder.SetInsertPoint(initialized);
+      builder.CreateMemSet(frame, builder.getInt8(0), size(frameType),
+                           llvm::MaybeAlign(alignment(frameType)));
+      for (std::size_t n = 0; n < plan.parameters.size(); ++n) {
+        const auto parameter = plan.parameters[n];
+        auto *slot = builder.CreateStructGEP(frameType, frame, parameter + 1);
+        builder.CreateStore(resume->getArg(n + (resultType.fallible ? 1 : 0)),
+                            builder.CreateStructGEP(valueType(plan.slots[parameter]), slot, 1));
+      }
+      builder.CreateBr(blocks.front());
+    } else {
+      auto *dispatch = builder.CreateSwitch(builder.CreateLoad(i32, pc), abort, blocks.size());
+      for (std::size_t n = 0; n < blocks.size(); ++n)
+        dispatch->addCase(c32(n), blocks[n]);
+    }
     builder.SetInsertPoint(leave);
-    builder.CreateRetVoid();
+    returnZero();
     builder.SetInsertPoint(abort);
-    auto *status = call("kalandra_status_v1", i64, {ctx});
-    auto *cancelled = call("kalandra_task_cancelled_v1", boolean, {task});
-    auto *cancelExit = Block::Create(context, "cancelled", resume);
-    auto *faultExit = Block::Create(context, "checked.fault", resume);
-    builder.CreateCondBr(builder.CreateAnd(cancelled, builder.CreateICmpEQ(status, c64(0))),
-                         cancelExit, faultExit);
-    builder.SetInsertPoint(cancelExit);
-    builder.CreateRetVoid();
-    builder.SetInsertPoint(faultExit);
-    status = builder.CreateSelect(builder.CreateICmpEQ(status, c64(0)), c64(3), status);
-    call("kalandra_task_fault_v1", voidType, {task, status, c64(0), c64(0)});
-    builder.CreateRetVoid();
+    if (synchronous) {
+      auto *invalid = Block::Create(context, "call.invalid", resume);
+      auto *cleanup = Block::Create(context, "call.cleanup", resume);
+      auto *status = call("kalandra_poll_v1", i64, {ctx});
+      builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), invalid, cleanup);
+      builder.SetInsertPoint(invalid);
+      const auto [line, column] =
+          planner.input.source->location(planner.input.functions[id].declaration.begin);
+      call("kalandra_fault_v1", voidType, {ctx, c64(3), c64(line), c64(column)});
+      builder.CreateBr(cleanup);
+      builder.SetInsertPoint(cleanup);
+      auto *release = Block::Create(context, "call.release", resume);
+      auto *done = Block::Create(context, "call.failed", resume);
+      builder.CreateCondBr(
+          builder.CreateICmpNE(frame, llvm::ConstantPointerNull::get(builder.getPtrTy())), release,
+          done);
+      builder.SetInsertPoint(release);
+      call("kalandra_free_v1", voidType, {ctx, frame});
+      builder.CreateBr(done);
+      builder.SetInsertPoint(done);
+      returnZero();
+    } else {
+      auto *status = call("kalandra_status_v1", i64, {ctx});
+      auto *cancelled = call("kalandra_task_cancelled_v1", boolean, {task});
+      auto *cancelExit = Block::Create(context, "cancelled", resume);
+      auto *faultExit = Block::Create(context, "checked.fault", resume);
+      builder.CreateCondBr(builder.CreateAnd(cancelled, builder.CreateICmpEQ(status, c64(0))),
+                           cancelExit, faultExit);
+      builder.SetInsertPoint(cancelExit);
+      builder.CreateRetVoid();
+      builder.SetInsertPoint(faultExit);
+      status = builder.CreateSelect(builder.CreateICmpEQ(status, c64(0)), c64(3), status);
+      call("kalandra_task_fault_v1", voidType, {task, status, c64(0), c64(0)});
+      builder.CreateRetVoid();
+    }
     const auto slot = [&](Slot n) { return builder.CreateStructGEP(frameType, frame, n + 1); };
     const auto payload = [&](Slot n) {
       return builder.CreateStructGEP(valueType(plan.slots[n]), slot(n), 1);
@@ -942,6 +1056,28 @@ private:
           builder.CreateBr(next);
         } else
           check();
+        break;
+      }
+      case Code::FunctionReference:
+        builder.CreateStore(synchronousEntries.at(instruction.target), payload(instruction.output));
+        builder.CreateBr(next);
+        break;
+      case Code::FunctionInvoke: {
+        const auto &operation = std::get<kalandra::FunctionInvoke>(
+            planner.input.expressions[instruction.source].operation);
+        const auto &signature = *planner.input.expressions[operation.callee].type.callable;
+        std::vector<Type *> parameters{pointer};
+        std::vector<Value *> arguments{slot(instruction.output)};
+        for (std::size_t i = 0; i < signature.parameters.size(); ++i) {
+          auto *parameter = scalarType(signature.parameters[i]);
+          parameters.push_back(parameter);
+          arguments.push_back(builder.CreateLoad(parameter, payload(instruction.args[i + 1])));
+        }
+        parameters.push_back(pointer);
+        arguments.push_back(ctx);
+        auto *callee = builder.CreateLoad(pointer, payload(instruction.args[0]));
+        builder.CreateCall(llvm::FunctionType::get(voidType, parameters, false), callee, arguments);
+        check();
         break;
       }
       case Code::Copy:
@@ -1175,16 +1311,31 @@ private:
       case Code::Transfer:
         throw std::runtime_error("CPU emitter received an unsupported placed operation");
       case Code::Return:
-        call("kalandra_task_complete_v1", voidType, {task, slot(instruction.args[0])});
-        builder.CreateRetVoid();
+        if (synchronous) {
+          if (resultType.fallible) {
+            copyResult(resultType, resume->getArg(0), plan.slots[instruction.args[0]],
+                       slot(instruction.args[0]));
+            call("kalandra_free_v1", voidType, {ctx, frame});
+            builder.CreateRetVoid();
+          } else {
+            auto *value = builder.CreateLoad(scalarType(resultType), payload(instruction.args[0]));
+            call("kalandra_free_v1", voidType, {ctx, frame});
+            builder.CreateRet(value);
+          }
+        } else {
+          call("kalandra_task_complete_v1", voidType, {task, slot(instruction.args[0])});
+          builder.CreateRetVoid();
+        }
         break;
       }
     }
-    auto *resultLayout = layout(plan.slots[plan.result]);
-    entries[id]->setInitializer(llvm::ConstantStruct::get(
-        entryType, {c32(1), c64(id + 100), c64(size(packets[id])), c64(alignment(packets[id])),
-                    c64(size(frameType)), c64(alignment(frameType)), construct, destroy, resume,
-                    resultLayout}));
+    if (!synchronous) {
+      auto *resultLayout = layout(plan.slots[plan.result]);
+      entries[id]->setInitializer(llvm::ConstantStruct::get(
+          entryType, {c32(1), c64(id + 100), c64(size(packets[id])), c64(alignment(packets[id])),
+                      c64(size(frameType)), c64(alignment(frameType)), construct, destroy, resume,
+                      resultLayout}));
+    }
   }
 };
 } // namespace

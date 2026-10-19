@@ -1,6 +1,6 @@
 # Named CPU function values
 
-Implemented native subset — 2026-10-19. Named synchronous CPU functions can now be assigned to bindings, passed as parameters, selected at runtime and returned as values. This implements the first executable part of the accepted [function-value design](function-values.md); returning an anonymous closure with captured data remains separate work.
+Implemented native subset — 2026-10-19. Named synchronous CPU functions, including expected-error callables, can now be assigned to bindings, passed as parameters, selected at runtime and returned as values. This implements the first executable part of the accepted [function-value design](function-values.md); returning an anonymous closure with captured data remains separate work.
 
 ## Assign, pass, return and call
 
@@ -35,7 +35,7 @@ Function-valued parameters and results may themselves contain function signature
 
 Sequential `map(values, transform)` accepts a compatible function-valued binding, parameter or expression. It keeps the existing one-element callback contract and input order. An inline map callback may also capture a completed function reference and invoke it. Callback creation is evaluated even for an empty input; the callback body is not invoked for empty inputs.
 
-A local CPU worker can create and call function references internally, including through maps. A coordinating function can hold an ordinary function reference across its own task suspension and invoke it after awaiting data. This does not permit indirect spawn or transporting a function value as a worker argument, worker result or captured argument of a directly spawned map.
+A local CPU worker can create and call function references internally, including expected-error calls and completed-result maps. A coordinating function can hold an ordinary function reference across its own task suspension and invoke it after awaiting data. This does not permit indirect spawn or transporting a function value as a worker argument, worker result or captured argument of a directly spawned map.
 
 Ordinary immutable records returned by these calls keep their existing managed field ownership. Record values with String and array fields can still be returned from a worker and observed repeatedly; the function reference itself is not part of that transported data.
 
@@ -69,15 +69,66 @@ An array length is a value fact, not part of the `[T]` signature. Inferred array
 
 Bool, String and record arrays preserve the existing descriptor representation and managed child storage. A named local worker may create a function reference, invoke it on collections and return collection data through the ordinary retained-result path, including repeated awaits. Transporting the function reference itself remains unsupported. Inline map callbacks can call a captured function on a collection and produce a supported scalar element; arrays of arrays and tensor-valued map elements are not introduced.
 
-The current numeric indirect-call boundary uses private checked descriptor adapters. It copies logical elements into managed backing and reconstructs tensors in the callee and caller. This preserves immutable values, borrowed/strided input ordering, empty shapes and checked failures, but it adds allocations and copies compared with a direct call. Shared-storage adapters and copy elimination are tracked in the [optimization roadmap](../roadmap.md#optimization); this implementation makes no zero-copy or performance claim. Ordinary statically named collection calls retain their existing lowering.
+The pure-MLIR numeric indirect-call path uses private checked descriptor adapters. It copies logical elements into managed backing and reconstructs tensors in the callee and caller. This preserves immutable values, borrowed/strided input ordering, empty shapes and checked failures, but it adds allocations and copies compared with a direct call. Shared-storage adapters and copy elimination are tracked in the [optimization roadmap](../roadmap.md#optimization); this implementation makes no zero-copy or performance claim. Ordinary statically named collection calls retain their existing lowering. Expected-error entries use the descriptor-valued LLVM path described below; surrounding operations and kernel bridges can still allocate or copy.
+
+## Expected-error signatures
+
+A callable's declared error set is part of its type:
+
+```kalandra
+error InputError:
+  Invalid:
+    value: int
+
+fn checked(value: int) -> int ! InputError:
+  if value == 0:
+    fail InputError.Invalid {value: 42}
+  value * 2
+
+fn apply(value: int, transform: fn(int) -> int ! InputError) -> int ! InputError:
+  try transform(value)
+
+export fn main() -> int:
+  transform = checked
+  apply(0, transform) catch fn(error):
+    match error:
+      InputError.Invalid {value}: value
+```
+
+The [complete fixture](fixtures/fallible-functions.k) returns `42`. Binding `checked` creates a function value; invoking it produces a result whose error must be handled, propagated with `try`, or returned through a compatible channel. Numeric widths, nominal declarations and canonical error sets must match exactly. An infallible signature is a different type from one declaring an error, even when a particular implementation always succeeds. Aliases, repeated members and reordered unions resolve to the same canonical set.
+
+Expected-error results can contain every supported completed callable result, including scalars, Strings, records, arrays, fixed/dynamic tensors and rank-zero tensors. Owned error fields keep their existing managed lifetimes. A result can be handled repeatedly without reevaluating its call; worker-produced errors preserve their fields through cached awaits and scheduler settlement. Shape refinements check successful collection values and forward an error without reading its absent tensor payload.
+
+### Factories and returned functions
+
+Group the returned function type before adding the factory's own error channel:
+
+```kalandra
+fn make(flag: Bool) -> (fn(int) -> int) ! BuildError
+fn make(flag: Bool) -> fn(int) -> int ! InputError
+fn make(flag: Bool) -> (fn(int) -> int ! InputError) ! BuildError
+```
+
+These are signature illustrations with separately declared error families. The first factory may return `BuildError`; its returned function is infallible. The second factory returns a function whose invocation may return `InputError`. The third has both channels. Function values can represent these factories, and `try`/`catch` can extract or replace their returned functions. Calling a pending factory result directly is rejected.
+
+Callees evaluate before arguments, and arguments evaluate once in source order. If obtaining a callee propagates an expected error, its arguments are not evaluated. Checked arithmetic/allocation faults and cancellation still use the invocation context; a worker exposes such faults through its existing TaskError boundary. Returning an application error does not poison that context.
+
+Maps continue to require completed element results. A bound infallible wrapper that recovers its own expected errors can be a callback. Mapping a fallible callable does not introduce an implicit aggregate-error policy. Static callbacks containing control-flow IR retain the current direct-map lowering restriction; the bound function-value route is qualified.
+
+### Synchronous execution
+
+Expected-error callables run on the caller's thread. Their entries reuse the existing continuation plan's error branches with a private outcome slot and the current invocation context. A checked temporary frame holds local values and is released on success, expected error, checked fault or cancellation. These entries do not submit tasks, enter scheduler waits or run a nested scheduler. Collection arguments/results use descriptors and keep their existing context ownership.
+
+The compiler distinguishes synchronous error control flow from task/device coordination. Named functions that recover errors or match variants can now be function values too. A target that performs task/device work, including through a helper that catches its failures, remains rejected. Recursive references among control-flow callable entries are also rejected until bounded native recursion is implemented. Frame allocation and direct-call specialization are tracked optimization work, not source-level allocation responsibilities.
 
 ## Supported signatures and remaining gaps
 
-Callable signatures accept and return all ten CPU numeric scalar types, Bool, String, completed records/enums, numeric arrays/tensors, Bool/String/record arrays and other supported function values. Completed TaskError values can be ordinary data; an expected-error channel is a separate concept. Records may contain the already supported collection fields. Parameter counts have no special small cap: the compiler's ordinary parsing and complexity budgets apply. Qualification includes a ten-argument call mixing six numeric types, Bool, String, a record and another function.
+Callable signatures accept and return all ten CPU numeric scalar types, Bool, String, completed records/enums, numeric arrays/tensors, Bool/String/record arrays and other supported function values. Completed TaskError values can be ordinary data, and TaskError can also be an invocation channel, alone or in an application-error union. Records may contain the already supported collection fields. Parameter counts have no special small cap: the compiler's ordinary parsing and complexity budgets apply. Qualification includes a ten-argument call mixing six numeric types, Bool, String, a record and another function.
 
 The following remain implementation gaps under the accepted function-value design:
 
-- Expected-error callable signatures such as `fn(int) -> int ! ValidationError`, fallible factories returning functions, and callable targets requiring continuation lowering. Targets are checked transitively, including helpers that catch task failures internally. Ordinary checked arithmetic faults remain supported and supervised.
+- Callable targets requiring task/device coordination, and recursive control-flow callable references. Synchronous expected-error calls and factories are implemented.
+- Fallible map aggregation and direct static-map lowering of synchronous control-flow callback bodies. Bound completed-result function-value wrappers are supported.
 - General anonymous function bindings and returned closures with captured environments. The existing inline map callback remains supported.
 - Function-valued record/enum fields, arrays of functions, indirect spawn, worker transport, GPU callbacks and remote function contracts.
 
@@ -85,9 +136,9 @@ These are staged implementation restrictions, not additional language design lim
 
 ## Native lowering and checked execution
 
-Typed IR distinguishes a named function reference from an invocation through a function value. The latter stores the callee value and checked argument types rather than choosing a single declaration during type checking. MLIR lowers it through a typed indirect call; the current private runtime representation is a native code pointer. It has no captured environment and requires no runtime environment allocation.
+Typed IR distinguishes a named function reference from an invocation through a function value, including the invocation’s expected-error channel. The latter stores the callee value and checked argument types rather than choosing a single declaration during type checking. Completed-result calls use a typed MLIR indirect call; expected-error calls use the synchronous LLVM outcome entry described above; the current private runtime representation is a native code pointer. It has no captured environment and requires no runtime environment allocation.
 
-After LLVM translation, function addresses are redirected to checked entries and indirect calls receive the current invocation context. The same failure polling, cancellation checks and cleanup rules used by direct calls therefore apply. A fault while computing the callee stops evaluation before its arguments; a fault during invocation stops subsequent result use. Original source locations are preserved. This is compiler/runtime plumbing, not a public native callback ABI or a serialization format.
+After LLVM translation, pure function addresses are redirected to checked entries and indirect calls receive the current invocation context. Synchronous control-flow entries are emitted with that context explicitly. The same failure polling, cancellation checks and cleanup rules used by direct calls therefore apply. A fault while computing the callee stops evaluation before its arguments; a fault during invocation stops subsequent result use. Original source locations are preserved. This is compiler/runtime plumbing, not a public native callback ABI or a serialization format.
 
 Backend validation checks function signatures, producer operations, references, argument counts/types, compatible branch results, binding reads, returned function types and execution boundaries. Recursive signature comparison and validation have depth/work budgets. Invalid typed IR is rejected before lowering.
 
@@ -106,3 +157,12 @@ All 171 selected checks passed on Apple M2 Max: three focused frontend/debug che
 Raw collection probes execute 2,944 invocations and compare 1,053,184 lanes exactly, including floating-point edge bit patterns, offset/strided borrowed input, immutable snapshots and retained output leases after settlement. The extension also runs 1,664 CLI allocation-failure processes and 100 aggregate-context allocation probes. Checked faults retain their original source locations; already-failed and pre-cancelled contexts do not enter the target. Invalid collection signatures preserve existing executable and IR output artifacts. Existing named-function, frontend, collection, module, task and error regression suites also pass.
 
 The [collection qualification evidence](../../native/metal-proof/evidence/cpu-function-collections-2026-10-19.json) records the regression and final callable batches with their corresponding frozen implementation/test hashes. This is focused macOS ARM64 qualification; the remaining callable, closure, transport and platform gaps listed above are unchanged.
+
+
+### Expected-error signature extension
+
+All 169 selected checks passed on Apple M2 Max, including existing frontend, function-value, collection, map, module, task and expected-error regressions. The new execution suites compile 148 programs across debug, optimized, ASan/UBSan and separate ThreadSanitizer builds. They cover all ten numeric scalar widths and numeric tensor signatures, canonical error aliases/unions, independent factory/invocation channels, higher-order calls, local imports, Strings, Bool arrays, records, rank-zero tensors and checked shape refinements.
+
+The suites run 768 CLI allocation-failure processes and 68 private synchronous allocation probes across success, expected-error and checked-fault outcomes. Already-failed and pre-cancelled contexts leave output untouched and perform no allocations. Owned error payload leases survive invocation settlement, and eight task-ownership harness runs check worker pools of one and four threads. Worker-local callables preserve repeated error observations; coordinating functions can keep a callable across an await. Generated synchronous entries are checked for absence of task/group API calls. Invalid signatures preserve existing executable and IR output artifacts.
+
+The [expected-error qualification evidence](../../native/metal-proof/evidence/cpu-fallible-functions-2026-10-19.json) records the selected checks, per-variant probes and frozen source hashes. These results qualify the implemented macOS ARM64 subset; they do not establish a public callback ABI, escaping closure support, function transport or performance improvements.

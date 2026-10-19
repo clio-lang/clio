@@ -44,7 +44,9 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
       return false;
     present = true;
     if (target != NumericTarget::Cpu || placed || !type.callable || type.tensor || type.array ||
-        type.task || type.fallible || type.device || type.record || type.errorRecord ||
+        type.task || type.device || type.record ||
+        (type.errorRecord && (!type.fallible || *type.errorRecord >= module.records.size() ||
+                              !module.records[*type.errorRecord].error)) ||
         !type.shape.empty())
       return false;
     if (type.callable->parameters.size() > 300000 - visited)
@@ -76,7 +78,13 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
               numericScalarArithmeticAvailable(value.element, NumericTarget::Cpu)) &&
              self(self, value, depth + 1);
     };
-    return plain(type.callable->result) && std::ranges::all_of(type.callable->parameters, plain);
+    auto result = type.callable->result;
+    if (result.errorRecord && (!result.fallible || *result.errorRecord >= module.records.size() ||
+                               !module.records[*result.errorRecord].error))
+      return false;
+    result.fallible = false;
+    result.errorRecord.reset();
+    return plain(result) && std::ranges::all_of(type.callable->parameters, plain);
   };
   for (const auto &symbol : module.symbols)
     if (!valid(valid, symbol.type, 0))
@@ -94,16 +102,57 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
   }
   if (!present)
     return {};
+  const auto completed = [](ValueType type) {
+    type.fallible = false;
+    type.errorRecord.reset();
+    return type;
+  };
+  const auto bindings = [&](const std::vector<TypedStatement> &body) {
+    for (const auto &statement : body) {
+      if (statement.value >= module.expressions.size() ||
+          (statement.binding && *statement.binding >= module.symbols.size()))
+        return false;
+      if (statement.binding) {
+        const auto &symbol = module.symbols[*statement.binding].type;
+        const auto &value = module.expressions[statement.value].type;
+        if ((symbol.builtin == BuiltinValue::Function || value.builtin == BuiltinValue::Function) &&
+            !sameFunctionValueType(symbol, value))
+          return false;
+      }
+    }
+    return true;
+  };
   for (const auto &fn : module.functions) {
+    if (!bindings(fn.body) || std::ranges::any_of(fn.expressions, [&](auto id) {
+          return id >= module.expressions.size();
+        }))
+      return "function has invalid expression/binding metadata";
     if (fn.result >= module.expressions.size())
       return "function has an invalid result";
     if (fn.resultType.builtin == BuiltinValue::Function &&
-        (!sameFunctionValueType(fn.resultType, module.expressions[fn.result].type) ||
+        (!sameFunctionValueType(completed(fn.resultType),
+                                completed(module.expressions[fn.result].type)) ||
          (fn.declaredResult && !sameFunctionValueType(fn.resultType, *fn.declaredResult))))
       return "function changes its returned callable signature";
   }
   for (ValueId id = 0; id < module.expressions.size(); ++id) {
     const auto &expression = module.expressions[id];
+    if (const auto *choice = std::get_if<ConditionalOperation>(&expression.operation);
+        choice && (!bindings(choice->whenTrue) || !bindings(choice->whenFalse)))
+      return "conditional changes a function binding signature";
+    if (const auto *caught = std::get_if<CatchOperation>(&expression.operation);
+        caught && !bindings(caught->body))
+      return "catch changes a function binding signature";
+    if (const auto *match = std::get_if<MatchOperation>(&expression.operation))
+      for (const auto &arm : match->cases)
+        if (!bindings(arm.body))
+          return "match changes a function binding signature";
+    if (const auto *guard = std::get_if<GuardOperation>(&expression.operation);
+        guard && !bindings(guard->body))
+      return "guard changes a function binding signature";
+    if (const auto *group = std::get_if<ParallelOperation>(&expression.operation);
+        group && !bindings(group->body))
+      return "parallel group changes a function binding signature";
     if (expression.type.builtin == BuiltinValue::Function) {
       if (const auto *read = std::get_if<SymbolRead>(&expression.operation)) {
         if (read->symbol >= module.symbols.size() ||
@@ -111,16 +160,45 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
           return "function read changes its binding signature";
       } else if (const auto *choice = std::get_if<ConditionalOperation>(&expression.operation)) {
         if (choice->trueResult >= id || choice->falseResult >= id ||
-            !sameFunctionValueType(expression.type, module.expressions[choice->trueResult].type) ||
-            !sameFunctionValueType(expression.type, module.expressions[choice->falseResult].type))
+            !sameFunctionValueType(completed(expression.type),
+                                   completed(module.expressions[choice->trueResult].type)) ||
+            !sameFunctionValueType(completed(expression.type),
+                                   completed(module.expressions[choice->falseResult].type)))
           return "conditional changes a function-value signature";
+      } else if (const auto *caught = std::get_if<CatchOperation>(&expression.operation)) {
+        if (caught->operand >= id || caught->result >= id ||
+            !sameFunctionValueType(completed(expression.type),
+                                   completed(module.expressions[caught->operand].type)) ||
+            !sameFunctionValueType(completed(expression.type),
+                                   completed(module.expressions[caught->result].type)))
+          return "catch changes a returned function signature";
+      } else if (const auto *match = std::get_if<MatchOperation>(&expression.operation)) {
+        for (const auto &arm : match->cases)
+          if (arm.result >= id ||
+              !sameFunctionValueType(completed(expression.type),
+                                     completed(module.expressions[arm.result].type)))
+            return "match changes a returned function signature";
+      } else if (const auto *task = std::get_if<TaskOperation>(&expression.operation);
+                 task && task->prefix == TaskPrefix::Try) {
+        if (task->operand >= id || !module.expressions[task->operand].type.fallible ||
+            module.expressions[task->operand].type.task ||
+            !sameFunctionValueType(completed(expression.type),
+                                   completed(module.expressions[task->operand].type)))
+          return "try changes a returned function signature";
       } else if (!std::holds_alternative<FunctionReference>(expression.operation) &&
                  !std::holds_alternative<FunctionInvoke>(expression.operation) &&
-                 !std::holds_alternative<FunctionCall>(expression.operation))
+                 !std::holds_alternative<FunctionCall>(expression.operation) &&
+                 !std::holds_alternative<CatchOperation>(expression.operation) &&
+                 !std::holds_alternative<MatchOperation>(expression.operation) &&
+                 !(std::holds_alternative<FailOperation>(expression.operation) &&
+                   expression.type.fallible) &&
+                 !(std::get_if<TaskOperation>(&expression.operation) &&
+                   std::get<TaskOperation>(expression.operation).prefix == TaskPrefix::Try))
         return "unsupported function-value producer";
     }
     if (const auto *ref = std::get_if<FunctionReference>(&expression.operation)) {
-      if (ref->function >= module.functions.size() || !expression.type.callable)
+      if (ref->function >= module.functions.size() || !expression.type.callable ||
+          expression.type.fallible || expression.type.task)
         return "function reference has an invalid target or signature";
       const auto &fn = module.functions[ref->function];
       auto result = fn.declaredResult.value_or(fn.resultType);
@@ -141,8 +219,8 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
       if (call->callee >= id)
         return "function-value call has an invalid callee";
       const auto &callee = module.expressions[call->callee].type;
-      if (callee.builtin != BuiltinValue::Function || !callee.callable ||
-          callee.callable->parameters.size() != call->arguments.size() ||
+      if (callee.builtin != BuiltinValue::Function || !callee.callable || callee.fallible ||
+          callee.task || callee.callable->parameters.size() != call->arguments.size() ||
           !sameFunctionValueType(expression.type, callee.callable->result))
         return "function-value call changes its signature";
       for (std::size_t i = 0; i < call->arguments.size(); ++i)
@@ -203,12 +281,12 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
           return "function-valued worker captures are not implemented yet";
     }
   }
-  const auto resumable = continuation::resumableFunctions(module);
+  const auto resumable = continuation::coordinatingFunctions(module);
   for (const auto &expression : module.expressions)
     if (const auto *ref = std::get_if<FunctionReference>(&expression.operation))
       if (resumable[ref->function])
         return "function values require transitively synchronous targets; task coordination "
-               "and fallible targets are not implemented yet";
+               "is not supported through function values";
   return {};
 }
 } // namespace kalandra

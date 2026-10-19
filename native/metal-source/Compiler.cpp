@@ -1080,6 +1080,9 @@ class Compiler {
                         ".kind==TaskFailure::None){\n" + payloadCopy(output, args.at(0)) + "}\n");
         break;
       }
+      case Code::FunctionReference:
+      case Code::FunctionInvoke:
+        reject(span, "function values require the CPU backend");
       case Code::Label:
         break;
       case Code::Return: {

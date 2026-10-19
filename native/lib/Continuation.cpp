@@ -459,7 +459,16 @@ private:
       return value;
     }
     auto output = slot(plan, node.type);
-    if (const auto *block = std::get_if<ParallelOperation>(&node.operation)) {
+    if (const auto *reference = std::get_if<kalandra::FunctionReference>(&node.operation);
+        reference && resumable.at(reference->function)) {
+      plan.code.push_back({Code::FunctionReference, output, {}, reference->function, 0, 0, id});
+    } else if (const auto *call = std::get_if<kalandra::FunctionInvoke>(&node.operation);
+               call && node.type.fallible) {
+      std::vector<Slot> args{expression(plan, call->callee, env, stack)};
+      for (auto argument : call->arguments)
+        args.push_back(expression(plan, argument, env, stack));
+      plan.code.push_back({Code::FunctionInvoke, output, args, 0, 0, 0, id});
+    } else if (const auto *block = std::get_if<ParallelOperation>(&node.operation)) {
       const auto group = plan.groups++;
       Boundary boundary{output, group, {}};
       auto nested = env;
@@ -689,7 +698,7 @@ std::vector<bool> resumableFunctions(const TypedModule &input) {
         callers.at(reference->function).push_back(id);
       if (const auto *map = std::get_if<ArrayMap>(&op))
         callers.at(map->function).push_back(id);
-      if (std::holds_alternative<TaskOperation>(op) ||
+      if (input.expressions[value].type.fallible || std::holds_alternative<TaskOperation>(op) ||
           std::holds_alternative<ParallelOperation>(op) ||
           std::holds_alternative<CatchOperation>(op) ||
           std::holds_alternative<MatchOperation>(op) ||
@@ -703,6 +712,37 @@ std::vector<bool> resumableFunctions(const TypedModule &input) {
   }
   while (!pending.empty()) {
     auto id = pending.back();
+    pending.pop_back();
+    for (auto caller : callers[id])
+      if (!result[caller]) {
+        result[caller] = true;
+        pending.push_back(caller);
+      }
+  }
+  return result;
+}
+std::vector<bool> coordinatingFunctions(const TypedModule &input) {
+  std::vector<bool> result(input.functions.size());
+  std::vector<std::vector<FunctionId>> callers(input.functions.size());
+  std::vector<FunctionId> pending;
+  for (FunctionId id = 0; id < input.functions.size(); ++id) {
+    for (auto value : input.functions[id].expressions) {
+      const auto &op = input.expressions.at(value).operation;
+      if (const auto *call = std::get_if<FunctionCall>(&op))
+        callers.at(call->function).push_back(id);
+      if (const auto *map = std::get_if<ArrayMap>(&op))
+        callers.at(map->function).push_back(id);
+      const auto *task = std::get_if<TaskOperation>(&op);
+      if ((task && task->prefix != TaskPrefix::Try) ||
+          std::holds_alternative<ParallelOperation>(op) ||
+          std::holds_alternative<DeviceSelection>(op) || std::holds_alternative<Transfer>(op))
+        result[id] = true;
+    }
+    if (result[id])
+      pending.push_back(id);
+  }
+  while (!pending.empty()) {
+    const auto id = pending.back();
     pending.pop_back();
     for (auto caller : callers[id])
       if (!result[caller]) {
@@ -727,10 +767,29 @@ std::expected<ModulePlan, std::string> plan(const TypedModule &input, Options op
   }
 }
 std::string dump(const ModulePlan &module) {
-  static constexpr const char *names[] = {
-      "literal", "unary", "binary", "kernel", "copy",   "open",     "spawn",
-      "await",   "try",   "join",   "label",  "return", "catch",    "case",
-      "jump",    "field", "fail",   "call",   "device", "transfer", "branch"};
+  static constexpr const char *names[] = {"literal",
+                                          "unary",
+                                          "binary",
+                                          "kernel",
+                                          "copy",
+                                          "open",
+                                          "spawn",
+                                          "await",
+                                          "try",
+                                          "join",
+                                          "label",
+                                          "return",
+                                          "catch",
+                                          "case",
+                                          "jump",
+                                          "field",
+                                          "fail",
+                                          "call",
+                                          "device",
+                                          "transfer",
+                                          "branch",
+                                          "function.reference",
+                                          "function.invoke"};
   std::ostringstream out;
   for (std::size_t f = 0; f < module.plans.size(); ++f) {
     const auto &plan = *module.plans[f];

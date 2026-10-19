@@ -64,7 +64,16 @@ std::string describeType(const ValueType &type) {
         signature += ", ";
       signature += describeType(type.callable->parameters[i]);
     }
-    return signature + ") -> " + describeType(type.callable->result);
+    auto result = type.callable->result;
+    const bool fallible = result.fallible;
+    const auto family = result.errorRecord;
+    result.fallible = false;
+    result.errorRecord.reset();
+    auto description = describeType(result);
+    if (fallible && result.builtin == BuiltinValue::Function)
+      description = "(" + description + ")";
+    return signature + ") -> " + description +
+           (fallible ? (family ? " ! error#" + std::to_string(*family) : " ! TaskError") : "");
   }
   if (type.builtin == BuiltinValue::Record) {
     const auto name = type.array ? "[" + type.recordName + "]" : type.recordName;
