@@ -1,6 +1,7 @@
 #include "kalandra/Continuation.h"
 #include <algorithm>
 #include <limits>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace kalandra {
@@ -49,6 +50,81 @@ bool containsFunctionStorage(const TypedModule &module, const ValueType &type) {
   }
   return false;
 }
+// Conservative expression provenance only: parameters, factories, aggregate
+// projections and anonymous functions remain outside this first transport stage.
+bool namedFunctionArgument(const TypedModule &module, ValueId root) {
+  std::unordered_map<SymbolId, ValueId> bindings;
+  const auto statements = [&](const auto &body) {
+    for (const auto &statement : body)
+      if (statement.binding)
+        bindings.emplace(*statement.binding, statement.value);
+  };
+  for (const auto &fn : module.functions)
+    statements(fn.body);
+  for (const auto &expression : module.expressions)
+    std::visit(
+        [&](const auto &op) {
+          if constexpr (requires { op.body; })
+            statements(op.body);
+          else if constexpr (std::is_same_v<std::decay_t<decltype(op)>, ConditionalOperation>) {
+            statements(op.whenTrue);
+            statements(op.whenFalse);
+          } else if constexpr (std::is_same_v<std::decay_t<decltype(op)>, MatchOperation>)
+            for (const auto &arm : op.cases)
+              statements(arm.body);
+        },
+        expression.operation);
+  std::vector<ValueId> pending{root};
+  std::unordered_set<ValueId> visited;
+  std::size_t budget = 300000;
+  bool found = false;
+  while (!pending.empty()) {
+    if (!budget--)
+      return false;
+    const auto id = pending.back();
+    pending.pop_back();
+    if (id >= module.expressions.size())
+      return false;
+    if (!visited.insert(id).second)
+      continue;
+    const auto &value = module.expressions[id];
+    if (value.type.builtin != BuiltinValue::Function || value.type.tensor || value.type.task ||
+        value.type.fallible || value.type.device)
+      return false;
+    if (const auto *ref = std::get_if<FunctionReference>(&value.operation)) {
+      if (ref->function >= module.functions.size())
+        return false;
+      const auto &fn = module.functions[ref->function];
+      if (fn.anonymous || fn.captureCount || !ref->captures.empty())
+        return false;
+      found = true;
+    } else if (const auto *read = std::get_if<SymbolRead>(&value.operation)) {
+      const auto binding = bindings.find(read->symbol);
+      if (read->symbol >= module.symbols.size() || module.symbols[read->symbol].parameter ||
+          binding == bindings.end())
+        return false;
+      // Published IR only permits reads of earlier immutable initializers.
+      if (binding->second >= id)
+        return false;
+      pending.push_back(binding->second);
+    } else if (const auto *choice = std::get_if<ConditionalOperation>(&value.operation)) {
+      if (choice->trueResult >= id || choice->falseResult >= id)
+        return false;
+      pending.push_back(choice->trueResult);
+      pending.push_back(choice->falseResult);
+    } else if (const auto *match = std::get_if<MatchOperation>(&value.operation)) {
+      if (match->cases.empty())
+        return false;
+      for (const auto &arm : match->cases) {
+        if (arm.result >= id)
+          return false;
+        pending.push_back(arm.result);
+      }
+    } else
+      return false;
+  }
+  return found;
+}
 } // namespace
 std::optional<std::string> functionValueTransportError(const TypedModule &module,
                                                        const TypedExpr &invocation) {
@@ -76,10 +152,18 @@ std::optional<std::string> functionValueTransportError(const TypedModule &module
       invocation.operation);
   if (std::holds_alternative<FunctionInvoke>(invocation.operation))
     return "indirect spawn is not implemented yet";
-  for (auto id : arguments)
-    if (id >= module.expressions.size() ||
-        containsFunctionStorage(module, module.expressions[id].type))
-      return "function-valued worker arguments and captures are not implemented yet";
+  for (auto id : arguments) {
+    if (id >= module.expressions.size())
+      return "worker argument has invalid provenance";
+    const auto &type = module.expressions[id].type;
+    if (!containsFunctionStorage(module, type))
+      continue;
+    if (std::holds_alternative<FunctionCall>(invocation.operation) &&
+        type.builtin == BuiltinValue::Function && !type.tensor && namedFunctionArgument(module, id))
+      continue;
+    return "function-valued worker arguments require proven capture-free named functions; "
+           "captured environments, unproven targets and containing values are not implemented yet";
+  }
   return {};
 }
 

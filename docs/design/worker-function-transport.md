@@ -1,6 +1,6 @@
 # Function values across local CPU workers
 
-Implementation contract — 2026-10-19. This specifies the next stages of the accepted [function-value design](function-values.md), using the existing [native task contract](native-tasks.md). It is design work, not implemented transport. Current compiler diagnostics continue to reject function-valued worker arguments/results and indirect spawn. The examples below are syntax-checked future acceptance programs; they do not run with the current compiler.
+Implementation contract — 2026-10-19. This specifies the next stages of the accepted [function-value design](function-values.md), using the existing [native task contract](native-tasks.md). The first [capture-free named argument stage](native-worker-functions.md) is now implemented. Current compiler diagnostics continue to reject captured/unproven function arguments, function-valued worker results and indirect spawn. The examples below are syntax-checked future acceptance programs; they do not run with the current compiler.
 
 Local workers are threads in one native executable. Transfer a typed function value and its immutable captures within that process. No network serialization, source-code shipment, dynamic library loading, or public callback ABI is involved. Distributed execution still requires the separate design discussion.
 
@@ -88,7 +88,7 @@ Expected errors from executing the callback retain their declared error channels
 
 ## Reviewable implementation sequence
 
-1. **Capture-free named function arguments:** private trusted target/layout metadata, copy validation and a function parameter of a statically named CPU worker. Keep all captured environments, worker function results and indirect spawn rejected until their own increments pass. Use conservative compiler provenance: a value whose capture-free eligibility cannot yet be established remains an implementation diagnostic, not a runtime surprise.
+1. **Capture-free named function arguments (implemented):** private trusted target/layout metadata, copy validation and a function parameter of a statically named CPU worker. Keep all captured environments, worker function results and indirect spawn rejected until their own increments pass. Use conservative compiler provenance: a value whose capture-free eligibility cannot yet be established remains an implementation diagnostic, not a runtime surprise.
 2. **Captured function arguments and spawned-map captures:** destination-owned environments, nested eligible captures, shared backing retention, runtime-selected targets and concurrent worker-local invocation. State the exact capture subset and retain transitive rejection elsewhere.
 3. **Function results:** transfer child → outcome → observer, including captured functions used after group release, cached awaits and onward submission. Separate factory errors from invocation errors.
 4. **Containing values:** extend the same descriptor traversal to records, enum variants, function/record arrays and expected-error payloads in both directions. Do not remove blanket aggregate checks before each representation is qualified.

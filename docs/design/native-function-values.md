@@ -35,7 +35,7 @@ Function-valued parameters and results may themselves contain function signature
 
 Sequential `map(values, transform)` accepts a compatible function-valued binding, parameter or expression. It keeps the existing one-element callback contract and input order. An inline map callback may also capture a completed function reference and invoke it. Callback creation is evaluated even for an empty input; the callback body is not invoked for empty inputs.
 
-A local CPU worker can create and call function references internally, including expected-error calls and completed-result maps. A coordinating function can hold an ordinary function reference across its own task suspension and invoke it after awaiting data. This does not permit indirect spawn or transporting a function value as a worker argument, worker result or captured argument of a directly spawned map. The [local-worker transport contract](worker-function-transport.md) defines the planned ownership and implementation sequence.
+A local CPU worker can create and call function references internally, including expected-error calls and completed-result maps. A coordinating function can hold an ordinary function reference across its own task suspension and invoke it after awaiting data. [Capture-free named function arguments](native-worker-functions.md) can now cross to statically named CPU workers. Captured/unproven arguments, function-valued worker results, spawned-map function captures and indirect spawn remain unsupported. The [local-worker transport contract](worker-function-transport.md) defines the planned ownership and implementation sequence.
 
 Ordinary immutable records returned by these calls keep their existing managed field ownership. Record values with String and array fields can still be returned from a worker and observed repeatedly; the function reference itself is not part of that transported data.
 
@@ -123,13 +123,13 @@ The compiler distinguishes synchronous error control flow from task/device coord
 
 ## Supported signatures and remaining gaps
 
-Callable signatures accept and return all ten CPU numeric scalar types, Bool, String, completed records/enums, numeric arrays/tensors, Bool/String/record arrays, [arrays of functions](native-function-arrays.md) and other supported function values. Completed TaskError values can be ordinary data, and TaskError can also be an invocation channel, alone or in an application-error union. Records may contain the already supported collection fields and [function-valued fields](native-callable-fields.md). The latter also work in enum and expected-error payloads within one invocation; function storage remains rejected at worker boundaries. Parameter counts have no special small cap: the compiler's ordinary parsing and complexity budgets apply. Qualification includes a ten-argument call mixing six numeric types, Bool, String, a record and another function.
+Callable signatures accept and return all ten CPU numeric scalar types, Bool, String, completed records/enums, numeric arrays/tensors, Bool/String/record arrays, [arrays of functions](native-function-arrays.md) and other supported function values. Completed TaskError values can be ordinary data, and TaskError can also be an invocation channel, alone or in an application-error union. Records may contain the already supported collection fields and [function-valued fields](native-callable-fields.md). The latter also work in enum and expected-error payloads within one invocation; function storage inside those containing types remains rejected at worker boundaries. Parameter counts have no special small cap: the compiler's ordinary parsing and complexity budgets apply. Qualification includes a ten-argument call mixing six numeric types, Bool, String, a record and another function.
 
 The following remain implementation gaps under the accepted function-value design:
 
 - Callable targets requiring task/device coordination. [Recursive synchronous calls](native-recursive-callables.md), expected-error calls and factories are implemented.
-- Fallible map aggregation and direct static-map lowering of synchronous control-flow callback bodies. Bound completed-result function-value wrappers are supported.
-- Indirect spawn, worker transport, GPU callbacks and remote function contracts.
+- Fallible map aggregation. [Direct synchronous control-flow callbacks](native-control-maps.md) and bound completed-result wrappers are supported.
+- Captured/unproven worker function arguments, function-valued worker results, containing-value transport, indirect spawn, GPU callbacks and remote function contracts.
 
 These are staged implementation restrictions, not additional language design limits. Distributed contracts still require their separate design discussion; public C/C++ callback integration remains on its separate roadmap.
 

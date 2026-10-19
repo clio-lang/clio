@@ -103,6 +103,15 @@ public:
     for (FunctionId i = 0;
          i < syntax_.functions.size() && diagnostics_.size() < limits_.maxDiagnostics; ++i)
       analyzeFunction(i);
+    // Transport provenance needs complete immutable bindings, including statements
+    // in the parallel/conditional body currently being checked.
+    if (diagnostics_.empty())
+      for (const auto &value : output_.expressions)
+        if (const auto *task = std::get_if<TaskOperation>(&value.operation);
+            task && task->prefix == TaskPrefix::Spawn)
+          if (auto unsupported =
+                  functionValueTransportError(output_, output_.expressions[task->operand]))
+            error("S074", *unsupported, value.span);
     if (diagnostics_.empty() && std::ranges::any_of(output_.expressions, [](const auto &value) {
           return std::holds_alternative<FunctionReference>(value.operation);
         })) {
@@ -1406,6 +1415,7 @@ private:
     output_.functions.emplace_back();
     requirements_.resize(output_.functions.size());
     output_.functions[id].name = "__closure_" + std::to_string(id);
+    output_.functions[id].anonymous = true;
     output_.functions[id].declaration = span;
     output_.functions[id].declaredResult = resultContext;
     Frame nested{id, {}, frame.depth, std::make_shared<TaskChecks>(), {}, {}, {}, 0, false};
@@ -2101,10 +2111,6 @@ private:
       return {};
     auto result = node(*value).type;
     if (operation.prefix == TaskPrefix::Spawn) {
-      if (auto unsupported = functionValueTransportError(output_, node(*value))) {
-        error("S074", *unsupported, span);
-        return {};
-      }
       if (!std::holds_alternative<FunctionCall>(node(*value).operation) &&
           !std::holds_alternative<Matmul>(node(*value).operation) &&
           !std::holds_alternative<NumericConvert>(node(*value).operation) &&
@@ -3295,6 +3301,7 @@ private:
     output_.functions.emplace_back();
     requirements_.resize(output_.functions.size());
     output_.functions[id].name = "__lambda_" + std::to_string(id);
+    output_.functions[id].anonymous = true;
     output_.functions[id].declaration = lambdaSpan;
     output_.functions[id].declaredResult = resultContext;
     auto element = recordArrayElement(inputType);
@@ -3379,6 +3386,7 @@ private:
       const auto id = output_.functions.size();
       output_.functions.push_back({});
       output_.functions[id].name = "__function_map_" + std::to_string(id);
+      output_.functions[id].anonymous = true;
       output_.functions[id].declaration = span;
       Frame helper{};
       helper.function = id;
@@ -3725,10 +3733,6 @@ private:
       auto argument = expression(frame, arguments[i], expectedType, options_.placement && spawned);
       if (!argument)
         return {};
-      if (spawned && node(*argument).type.builtin == BuiltinValue::Function) {
-        error("S074", "function-valued worker arguments are not implemented yet", span);
-        return {};
-      }
       operands.push_back(*argument);
     }
     std::optional<std::uint32_t> device;

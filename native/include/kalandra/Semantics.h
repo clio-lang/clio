@@ -42,7 +42,7 @@ struct FunctionSignature {
                                          std::size_t depth = 0);
 [[nodiscard]] std::optional<std::string> functionValueCapabilityError(const struct TypedModule &,
                                                                       NumericTarget);
-// Reject function storage, including nested aggregate/error payloads, at worker boundaries.
+// Permit proven capture-free named arguments; reject other function transport.
 [[nodiscard]] std::optional<std::string> functionValueTransportError(const struct TypedModule &,
                                                                      const struct TypedExpr &);
 struct FunctionReference {
@@ -340,6 +340,7 @@ struct TypedFunction {
   std::vector<ShapeEquality> preconditions;
   // Lifted anonymous functions keep explicit parameters first, lexical captures last.
   std::size_t captureCount = 0;
+  bool anonymous = false;
 };
 struct TypedModule {
   std::shared_ptr<const SourceFile> source;

@@ -15,6 +15,7 @@
 #include <set>
 #include <stdexcept>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace kalandra {
 namespace {
@@ -38,6 +39,7 @@ class Emitter {
   std::vector<llvm::GlobalVariable *> entries;
   Function *destroy;
   std::vector<Function *> synchronousEntries;
+  std::vector<ValueType> functionSignatures;
 
 public:
   Emitter(ModulePlan &planner, llvm::Module &module)
@@ -367,11 +369,21 @@ private:
            : type.element == NumericType::Float64 ? Type::getDoubleTy(context)
                                                   : f32;
   }
+  std::size_t functionSignature(ValueType type) {
+    type.fallible = false;
+    type.errorRecord.reset();
+    for (std::size_t i = 0; i < functionSignatures.size(); ++i)
+      if (sameFunctionValueType(type, functionSignatures[i]))
+        return i;
+    functionSignatures.push_back(std::move(type));
+    return functionSignatures.size() - 1;
+  }
   std::string payloadKey(const ValueType &type) {
     if (type.task)
       return "handle";
     if (type.builtin == BuiltinValue::Function)
-      return type.array ? "array.Function" : "function.reference";
+      return type.array ? "array.Function"
+                        : "function.reference." + std::to_string(functionSignature(type));
     if (isStringArray(type) && !type.task)
       return "array.String";
     if (isBoolArray(type) && !type.task)
@@ -693,7 +705,47 @@ private:
       builder.CreateRet(builder.getFalse());
       builder.SetInsertPoint(success);
     }
-    if (type.builtin == BuiltinValue::TaskError && !type.task) {
+    if (type.builtin == BuiltinValue::Function && !type.tensor && !type.task && !type.errorRecord) {
+      auto *failed = Block::Create(context, "function.invalid", fn);
+      auto *validate = Block::Create(context, "function.validate", fn);
+      auto *stopped = Block::Create(context, "function.stopped", fn);
+      auto *headerCheck = Block::Create(context, "function.header", fn);
+      auto *status = call("kalandra_poll_v1", i64, {fn->getArg(0)});
+      builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), headerCheck, stopped);
+      builder.SetInsertPoint(stopped);
+      builder.CreateRet(builder.getFalse());
+      builder.SetInsertPoint(headerCheck);
+      auto *header = builder.CreateStructGEP(wrapper, fn->getArg(3), 0);
+      builder.CreateCondBr(hasFailure(header), failed, validate);
+      builder.SetInsertPoint(validate);
+      auto *address = builder.CreateStructGEP(wrapper, fn->getArg(3), 1);
+      auto *value = builder.CreateLoad(scalarType(type), address);
+      auto *code = builder.CreateExtractValue(value, {0});
+      auto *environment = builder.CreateExtractValue(value, {1});
+      Value *known = builder.getFalse();
+      std::unordered_set<Function *> accepted;
+      const auto accept = [&](const TypedModule &input, const FunctionReference &ref,
+                              const ValueType &actual, Function *entry) {
+        const auto &target = input.functions.at(ref.function);
+        if (entry && !target.anonymous && !target.captureCount && ref.captures.empty() &&
+            sameFunctionValueType(type, actual) && accepted.insert(entry).second)
+          known = builder.CreateOr(known, builder.CreateICmpEQ(code, entry));
+      };
+      for (const auto &expression : planner.kernels.expressions)
+        if (const auto *ref = std::get_if<FunctionReference>(&expression.operation))
+          accept(planner.kernels, *ref, expression.type,
+                 module.getFunction("kalandra_callable_" + std::to_string(ref->function)));
+      for (const auto &expression : planner.input.expressions)
+        if (const auto *ref = std::get_if<FunctionReference>(&expression.operation))
+          accept(planner.input, *ref, expression.type, synchronousEntries.at(ref->function));
+      auto *empty =
+          builder.CreateICmpEQ(environment, llvm::ConstantPointerNull::get(builder.getPtrTy()));
+      builder.CreateCondBr(builder.CreateAnd(known, empty), ready, failed);
+      builder.SetInsertPoint(failed);
+      // Invalid metadata never publishes partial output or invokes its target.
+      call("kalandra_fault_v1", voidType, {fn->getArg(0), c64(3), c64(0), c64(0)});
+      builder.CreateRet(builder.getFalse());
+    } else if (type.builtin == BuiltinValue::TaskError && !type.task) {
       auto *validate = Block::Create(context, "task.value.success", fn);
       builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, fn->getArg(3), 0)), ready,
                            validate);
@@ -795,7 +847,9 @@ private:
     builder.CreateRet(builder.getTrue());
     auto *constant = llvm::ConstantStruct::get(
         layoutType,
-        {c64(type.errorRecord                                     ? 0x1000000 + layouts.size()
+        {c64(type.errorRecord ? 0x1000000 + layouts.size()
+             : type.builtin == BuiltinValue::Function && !type.tensor && !type.task
+                 ? 0x200000000ULL + functionSignature(type)
              : isFunctionArray(type) && !type.task                ? 0x90000
              : isStringArray(type) && !type.task                  ? 0x80000
              : isBoolArray(type) && !type.task                    ? 0x70000

@@ -305,4 +305,35 @@ if(BUILD_TESTING)
     set_tests_properties(native-recursive-callables-${VARIANT} PROPERTIES TIMEOUT 300)
   endforeach()
 
+  foreach(VARIANT IN ITEMS debug sanitized)
+    add_executable(kalandra-worker-function-tests-${VARIANT} tests/WorkerNamedFunctionTests.cpp)
+    target_compile_options(kalandra-worker-function-tests-${VARIANT} PRIVATE -Wall -Wextra -Werror)
+    target_compile_definitions(kalandra-worker-function-tests-${VARIANT} PRIVATE KALANDRA_WORKER_FUNCTION_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-named-functions")
+    if(VARIANT STREQUAL "sanitized")
+      target_link_libraries(kalandra-worker-function-tests-${VARIANT} PRIVATE kalandra-semantics-sanitized)
+      target_compile_options(kalandra-worker-function-tests-${VARIANT} PRIVATE -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+      target_link_options(kalandra-worker-function-tests-${VARIANT} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all)
+    else()
+      target_link_libraries(kalandra-worker-function-tests-${VARIANT} PRIVATE kalandra-semantics)
+    endif()
+    add_test(NAME native-worker-functions-frontend-${VARIANT} COMMAND kalandra-worker-function-tests-${VARIANT})
+    set_tests_properties(native-worker-functions-frontend-${VARIANT} PROPERTIES TIMEOUT 120)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    if(VARIANT STREQUAL "sanitized")
+      set(WORKER_FUNCTION_RUNTIME kalandra-native-runtime-sanitized)
+    elseif(VARIANT STREQUAL "thread-sanitized")
+      set(WORKER_FUNCTION_RUNTIME kalandra-native-runtime-thread-sanitized)
+    else()
+      set(WORKER_FUNCTION_RUNTIME kalandra-native-runtime)
+    endif()
+    add_test(NAME native-worker-functions-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DLLVM_ROOT=${KALANDRA_LLVM_ROOT}" "-DRUNTIME=$<TARGET_FILE:${WORKER_FUNCTION_RUNTIME}>"
+        "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/worker-functions-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyWorkerFunctions.cmake")
+    set_tests_properties(native-worker-functions-${VARIANT} PROPERTIES TIMEOUT 300)
+  endforeach()
+
 endif()

@@ -44,7 +44,7 @@ This is a signature illustration with a separately declared `InputError` and com
 
 Compatible closures work with ordinary calls, pipelines and sequential maps. Existing inline map callbacks remain supported and may capture a closure. Empty maps do not execute the callback body. Maps still require completed element results; recover errors within a compatible callback rather than relying on implicit fallible-map aggregation.
 
-A local worker may create and invoke a closure and return ordinary supported data, including owned records. A coordinator may hold a completed closure across an await. Function-valued worker arguments, results and spawned-map captures, indirect spawn and task/device-coordinating callable targets remain rejected. This does not add scheduler waits to synchronous invocation.
+A local worker may create and invoke a closure and return ordinary supported data, including owned records. A coordinator may hold a completed closure across an await. [Capture-free named function arguments](native-worker-functions.md) now cross to named CPU workers. Captured/unproven function arguments, function-valued results and spawned-map captures, indirect spawn and task/device-coordinating callable targets remain rejected. This does not add scheduler waits to synchronous invocation.
 
 ## Private representation and managed lifetime
 
@@ -56,7 +56,7 @@ Allocation failures and cancellation use existing checked execution rules. A fai
 
 ## Remaining work
 
-- Implement the [local CPU worker function-transport contract](worker-function-transport.md) in stages, then indirect synchronous spawn; resumable callable values remain separate.
+- Continue the [local CPU worker function-transport contract](worker-function-transport.md) with captured function arguments after the implemented named capture-free stage, then results and indirect synchronous spawn; resumable callable values remain separate.
 - Earlier environment reclamation, allocation elision and shared numeric capture backing, tracked in the [optimization roadmap](../roadmap.md#optimization).
 
 [Recursive synchronous callables](native-recursive-callables.md) and [direct control-flow map callbacks](native-control-maps.md) are now implemented.
