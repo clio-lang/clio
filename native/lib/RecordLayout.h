@@ -8,7 +8,11 @@
 namespace kalandra {
 inline bool hasRecordBacking(const TypedModule &module) {
   for (const auto &expression : module.expressions)
-    if (isOwnedArray(expression.type))
+    if (isOwnedArray(expression.type) ||
+        (expression.type.callable &&
+         (expression.type.callable->result.tensor ||
+          std::ranges::any_of(expression.type.callable->parameters,
+                              [](const auto &type) { return type.tensor; }))))
       return true;
   for (const auto &symbol : module.symbols)
     if (isOwnedArray(symbol.type))

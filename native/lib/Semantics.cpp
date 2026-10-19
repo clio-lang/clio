@@ -314,16 +314,21 @@ private:
   std::optional<ValueType> callableType(std::vector<ValueType> parameters, ValueType result,
                                         SourceSpan span) {
     const auto supported = [](const ValueType &value) {
-      return !value.tensor && !value.array && !value.task && !value.fallible && !value.device &&
+      return !value.task && !value.fallible && !value.device &&
              value.builtin != BuiltinValue::Device;
     };
     if (!supported(result) || !std::ranges::all_of(parameters, supported) || options_.placement) {
       error("S074",
-            "function values currently require synchronous CPU scalar or record "
-            "signatures; collection signatures and fallible callables remain unimplemented",
+            "function values require synchronous CPU signatures; "
+            "fallible callables remain unimplemented",
             span);
       return {};
     }
+    // Array lengths are value facts, not part of the [T] callable contract.
+    // Inferred constant-length results must agree with annotated [T] results
+    // and with other array-producing targets selected at runtime.
+    if (result.array)
+      result.shape[0] = dynamic();
     ValueType value;
     value.builtin = BuiltinValue::Function;
     value.callable = std::make_shared<const FunctionSignature>(
@@ -1557,7 +1562,13 @@ private:
         return {};
       values.push_back(*value);
     }
-    return add(frame, type.callable->result, span, FunctionInvoke{target, std::move(values)});
+    // A callable signature promises a rank and any fixed extents, not a
+    // relationship between the shapes returned by separate invocations.
+    auto result = type.callable->result;
+    for (auto &extent : result.shape)
+      if (!extent.constant)
+        extent = dynamic();
+    return add(frame, std::move(result), span, FunctionInvoke{target, std::move(values)});
   }
   std::optional<ValueId> arrayConcat(Frame &frame, SourceSpan span,
                                      const std::vector<ExprId> &arguments,

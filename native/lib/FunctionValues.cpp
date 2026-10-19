@@ -1,5 +1,6 @@
 #include "kalandra/Continuation.h"
 #include <algorithm>
+#include <limits>
 
 namespace kalandra {
 bool sameFunctionValueType(const ValueType &a, const ValueType &b, std::size_t depth) {
@@ -50,8 +51,19 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
       return false;
     visited += type.callable->parameters.size();
     const auto plain = [&](const ValueType &value) {
-      return !value.tensor && !value.array && !value.task && !value.fallible && !value.device &&
-             value.shape.empty() && !value.errorRecord &&
+      const bool collection =
+          value.tensor ? (value.shape.size() <= 128 &&
+                          std::ranges::all_of(
+                              value.shape,
+                              [](const auto &extent) {
+                                return !extent.constant ||
+                                       *extent.constant <=
+                                           std::uint64_t(std::numeric_limits<std::int64_t>::max());
+                              }) &&
+                          (!value.array || (value.shape.size() == 1 && !value.shape[0].constant)) &&
+                          (value.builtin == BuiltinValue::Numeric || isOwnedArray(value)))
+                       : (!value.array && value.shape.empty());
+      return collection && !value.task && !value.fallible && !value.device && !value.errorRecord &&
              (value.builtin == BuiltinValue::Numeric || value.builtin == BuiltinValue::Bool ||
               value.builtin == BuiltinValue::String || value.builtin == BuiltinValue::Record ||
               value.builtin == BuiltinValue::TaskError ||
@@ -111,9 +123,13 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
       if (ref->function >= module.functions.size() || !expression.type.callable)
         return "function reference has an invalid target or signature";
       const auto &fn = module.functions[ref->function];
+      auto result = fn.declaredResult.value_or(fn.resultType);
+      // An inferred array length is not a promise in its callable signature.
+      if (result.array && result.shape.size() == 1 && expression.type.callable->result.array &&
+          expression.type.callable->result.shape.size() == 1)
+        result.shape[0] = expression.type.callable->result.shape[0];
       if (fn.parameters.size() != expression.type.callable->parameters.size() ||
-          !sameFunctionValueType(fn.declaredResult.value_or(fn.resultType),
-                                 expression.type.callable->result))
+          !sameFunctionValueType(result, expression.type.callable->result))
         return "function reference changes the target signature";
       for (std::size_t i = 0; i < fn.parameters.size(); ++i)
         if (fn.parameters[i] >= module.symbols.size() ||
@@ -130,9 +146,18 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
           !sameFunctionValueType(expression.type, callee.callable->result))
         return "function-value call changes its signature";
       for (std::size_t i = 0; i < call->arguments.size(); ++i)
-        if (call->arguments[i] >= id ||
-            !sameFunctionValueType(module.expressions[call->arguments[i]].type,
-                                   callee.callable->parameters[i]))
+        if (call->arguments[i] >= id || !([&] {
+              auto actual = module.expressions[call->arguments[i]].type;
+              const auto &formal = callee.callable->parameters[i];
+              if (actual.shape.size() != formal.shape.size())
+                return false;
+              // Dynamic formal extents accept concrete sizes. Fixed formal
+              // extents must already have been checked by semantic conformance.
+              for (std::size_t axis = 0; axis < formal.shape.size(); ++axis)
+                if (!formal.shape[axis].constant)
+                  actual.shape[axis] = formal.shape[axis];
+              return sameFunctionValueType(actual, formal);
+            })())
           return "function-value call changes an argument type";
     }
     if (const auto *call = std::get_if<FunctionCall>(&expression.operation)) {

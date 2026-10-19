@@ -29,5 +29,13 @@ if(BUILD_TESTING)
         "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/function-values-${VARIANT}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyFunctionValues.cmake")
     set_tests_properties(native-function-values-${VARIANT} PROPERTIES TIMEOUT 240)
+    add_test(NAME native-function-collections-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DLLVM_ROOT=${KALANDRA_LLVM_ROOT}"
+        "-DRUNTIME=$<TARGET_FILE:${FUNCTION_RUNTIME}>"
+        "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/function-collections-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyFunctionCollections.cmake")
+    set_tests_properties(native-function-collections-${VARIANT} PROPERTIES TIMEOUT 300)
   endforeach()
 endif()

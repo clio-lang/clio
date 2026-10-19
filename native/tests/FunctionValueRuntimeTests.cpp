@@ -30,13 +30,22 @@ int main() {
       std::atomic<std::uint64_t> polls{0};
       context.watchPolls(&polls);
       auto result = _mlir_ciface_kalandra_test_entry(input, &context);
+#ifdef KALANDRA_FUNCTION_COLLECTIONS
+      context.settle();
+      require(context.allocations() == context.releases(), "collection call leaked storage");
+#endif
       require(context.status() == 0 && result == 84 / input && context.live() == 0,
               "indirect invocation changed a scalar result or retained storage");
       require(polls.load() >= 4, "indirect target bypassed checked invocation polling");
     }
     Invocation fault;
-    require(_mlir_ciface_kalandra_test_entry(0, &fault) == 0 && fault.status() == 4 &&
-                fault.line() == 2 && fault.column() == 3 && fault.live() == 0,
+    const auto faultResult = _mlir_ciface_kalandra_test_entry(0, &fault);
+#ifdef KALANDRA_FUNCTION_COLLECTIONS
+    fault.settle();
+    require(fault.allocations() == fault.releases(), "failed collection call leaked storage");
+#endif
+    require(faultResult == 0 && fault.status() == 4 && fault.line() == 2 && fault.column() == 3 &&
+                fault.live() == 0,
             "indirect arithmetic fault lost its context or original source location");
     Invocation alreadyFailed;
     alreadyFailed.fault(1, 99, 12);

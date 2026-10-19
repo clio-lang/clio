@@ -212,6 +212,48 @@ private:
     return LLVM::LLVMStructType::getLiteral(builder_.getContext(),
                                             {ptr, ptr, builder_.getI64Type(), dims, dims});
   }
+  // Ranked tensors cannot cross a generic indirect call during bufferization.
+  // Use the existing checked collection descriptors at this private boundary.
+  // Numeric collections are copied into invocation-owned storage; owned arrays
+  // already have descriptor representations and preserve their existing owners.
+  Type callableABIType(const ValueType &value) {
+    return value.tensor ? recordDescriptor(value) : type(value);
+  }
+  Value callablePack(Location loc, Value value, const ValueType &source) {
+    return source.tensor && !isOwnedArray(source) ? recordPack(loc, value, source) : value;
+  }
+  Value callableUnpack(Location loc, Value value, const ValueType &target) {
+    return target.tensor && !isOwnedArray(target) ? recordUnpack(loc, value, target) : value;
+  }
+  func::FuncOp callableEntry(FunctionId id) {
+    const auto &source = input_.functions[id];
+    const auto result = source.declaredResult.value_or(source.resultType);
+    if (!result.tensor && std::ranges::none_of(source.parameters, [&](auto parameter) {
+          return input_.symbols[parameter].type.tensor;
+        }))
+      return functions_[id];
+    if (auto found = callableEntries_.find(id); found != callableEntries_.end())
+      return found->second;
+    OpBuilder::InsertionGuard insertion(builder_);
+    builder_.setInsertionPointToEnd(module_->getBody());
+    auto loc = location(source.declaration);
+    SmallVector<Type> parameters;
+    for (auto parameter : source.parameters)
+      parameters.push_back(callableABIType(input_.symbols[parameter].type));
+    auto entry =
+        func::FuncOp::create(builder_, loc, "kalandra_callable_" + std::to_string(id),
+                             builder_.getFunctionType(parameters, {callableABIType(result)}));
+    entry.setPrivate();
+    callableEntries_.emplace(id, entry);
+    builder_.setInsertionPointToStart(entry.addEntryBlock());
+    SmallVector<Value> arguments;
+    for (std::size_t i = 0; i < source.parameters.size(); ++i)
+      arguments.push_back(
+          callableUnpack(loc, entry.getArgument(i), input_.symbols[source.parameters[i]].type));
+    auto value = func::CallOp::create(builder_, loc, functions_[id], arguments).getResult(0);
+    func::ReturnOp::create(builder_, loc, ValueRange{callablePack(loc, value, result)});
+    return entry;
+  }
   SmallVector<Value> recordIndices(Location loc, Value flat, ArrayRef<Value> shape) {
     SmallVector<Value> indices(shape.size());
     for (std::size_t axis = shape.size(); axis > 0; --axis) {
@@ -1847,7 +1889,7 @@ private:
             }
             return choice.getResult(0);
           } else if constexpr (std::is_same_v<T, FunctionReference>) {
-            auto function = functions_[operation.function];
+            auto function = callableEntry(operation.function);
             auto reference = func::ConstantOp::create(
                 builder_, loc, function.getFunctionType(),
                 FlatSymbolRefAttr::get(builder_.getContext(), function.getSymName()));
@@ -1860,14 +1902,18 @@ private:
             SmallVector<Value> arguments;
             auto pointer = expression(frame, operation.callee);
             for (std::size_t i = 0; i < operation.arguments.size(); ++i) {
-              parameters.push_back(type(signature.parameters[i]));
-              arguments.push_back(expression(frame, operation.arguments[i]));
+              parameters.push_back(callableABIType(signature.parameters[i]));
+              arguments.push_back(callablePack(loc, expression(frame, operation.arguments[i]),
+                                               signature.parameters[i]));
             }
-            auto signatureType = builder_.getFunctionType(parameters, {type(signature.result)});
+            auto signatureType =
+                builder_.getFunctionType(parameters, {callableABIType(signature.result)});
             auto reference = UnrealizedConversionCastOp::create(
                                  builder_, loc, TypeRange{signatureType}, ValueRange{pointer})
                                  .getResult(0);
-            return func::CallIndirectOp::create(builder_, loc, reference, arguments).getResult(0);
+            auto result =
+                func::CallIndirectOp::create(builder_, loc, reference, arguments).getResult(0);
+            return callableUnpack(loc, result, node.type);
           } else if constexpr (std::is_same_v<T, FunctionCall>) {
             SmallVector<Value> arguments;
             for (std::size_t i = 0; i < operation.arguments.size(); ++i) {
@@ -1993,6 +2039,7 @@ private:
   OpBuilder builder_;
   OwningOpRef<ModuleOp> module_;
   std::vector<func::FuncOp> functions_;
+  std::unordered_map<FunctionId, func::FuncOp> callableEntries_;
   std::unordered_map<std::size_t, Type> recordTypes_;
   std::unordered_map<std::size_t, std::pair<std::uint64_t, std::uint64_t>> recordLayouts_;
   unsigned nextMatmulHelper_ = 0, nextStringLiteral_ = 0;
