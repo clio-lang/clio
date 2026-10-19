@@ -189,6 +189,28 @@ private:
     }
     result_.tokens.push_back({kind, {begin, end}});
     if (kind != TokenKind::Indent && kind != TokenKind::Dedent && kind != TokenKind::Newline &&
+        kind != TokenKind::End) {
+      lambdaColon_ = false;
+      if (kind == TokenKind::LeftParen && functionStart_ &&
+          *functionStart_ + 1 == delimiters_.size())
+        functionHeaders_.push_back(*functionStart_);
+      functionStart_.reset();
+      if (kind == TokenKind::Identifier && text_.substr(begin, end - begin) == "fn" &&
+          !delimiters_.empty() &&
+          (result_.tokens.size() < 2 ||
+           result_.tokens[result_.tokens.size() - 2].kind != TokenKind::Dot))
+        functionStart_ = delimiters_.size();
+      if (kind == TokenKind::Comma)
+        while (!functionHeaders_.empty() && functionHeaders_.back() == delimiters_.size())
+          functionHeaders_.pop_back();
+      if (kind == TokenKind::Colon && !functionHeaders_.empty() &&
+          functionHeaders_.back() == delimiters_.size()) {
+        lambdaColon_ = true;
+        while (!functionHeaders_.empty() && functionHeaders_.back() == delimiters_.size())
+          functionHeaders_.pop_back();
+      }
+    }
+    if (kind != TokenKind::Indent && kind != TokenKind::Dedent && kind != TokenKind::Newline &&
         kind != TokenKind::End)
       lineHasTokens_ = true;
   }
@@ -208,17 +230,31 @@ private:
       ++position_;
     }
     if (position_ == text_.size() || text_[position_] == '#' || text_[position_] == '\n' ||
-        text_[position_] == '\r' || !delimiters_.empty())
+        text_[position_] == '\r')
       return;
     const auto width = position_ - begin;
-    if (width > indents_.back()) {
-      if (indents_.size() > limits_.maxDepth) {
-        error("L007", "indentation nesting limit exceeded", {begin, position_});
-        stopped_ = true;
+    lineIndent_ = width;
+    while (!layouts_.empty() && delimiters_.size() == layouts_.back().depth) {
+      auto &layout = layouts_.back();
+      if (width <= layout.base) {
+        while (indents_.size() > layout.floor) {
+          indents_.pop_back();
+          emit(TokenKind::Dedent, position_, position_);
+        }
+        layouts_.pop_back();
+        continue;
+      }
+      if (layout.pending) {
+        layout.pending = false;
+        indent(width, begin);
         return;
       }
-      indents_.push_back(width);
-      emit(TokenKind::Indent, position_, position_);
+      break;
+    }
+    if (!delimiters_.empty() && (layouts_.empty() || delimiters_.size() != layouts_.back().depth))
+      return;
+    if (width > indents_.back()) {
+      indent(width, begin);
     } else {
       while (width < indents_.back()) {
         indents_.pop_back();
@@ -228,14 +264,30 @@ private:
         error("L008", "dedent does not match an enclosing indentation level", {begin, position_});
     }
   }
+  void indent(std::size_t width, std::size_t begin) {
+    if (indents_.size() > limits_.maxDepth) {
+      error("L007", "indentation nesting limit exceeded", {begin, position_});
+      stopped_ = true;
+      return;
+    }
+    indents_.push_back(width);
+    emit(TokenKind::Indent, position_, position_);
+  }
   void newline() {
     const auto begin = position_++;
     if (text_[begin] == '\r' && !take('\n'))
       error("L009", "use LF or CRLF line endings", {begin, position_});
-    if (delimiters_.empty() && lineHasTokens_) {
+    if (lambdaColon_ && !delimiters_.empty() &&
+        (layouts_.empty() || layouts_.back().depth != delimiters_.size()))
+      layouts_.push_back(
+          {delimiters_.size(), std::max(lineIndent_, indents_.back()), indents_.size(), true});
+    if ((delimiters_.empty() ||
+         (!layouts_.empty() && layouts_.back().depth == delimiters_.size())) &&
+        lineHasTokens_) {
       emit(TokenKind::Newline, begin, position_);
       lineHasTokens_ = false;
     }
+    lambdaColon_ = false;
     lineStart_ = true;
   }
   void open(TokenKind kind, std::size_t begin) {
@@ -248,6 +300,17 @@ private:
     emit(kind, begin, position_);
   }
   void close(TokenKind kind, TokenKind expected, std::size_t begin) {
+    if (!layouts_.empty() && layouts_.back().depth == delimiters_.size()) {
+      error("L016", "close the delimiter on a dedented line after the anonymous body",
+            {begin, position_});
+      while (indents_.size() > layouts_.back().floor) {
+        indents_.pop_back();
+        emit(TokenKind::Dedent, begin, begin);
+      }
+      layouts_.pop_back();
+    }
+    while (!functionHeaders_.empty() && functionHeaders_.back() >= delimiters_.size())
+      functionHeaders_.pop_back();
     if (delimiters_.empty() || delimiters_.back().kind != expected)
       error("L011", "mismatched closing delimiter", {begin, position_});
     else
@@ -306,6 +369,17 @@ private:
   std::size_t position_ = 0;
   std::vector<std::size_t> indents_{0};
   std::vector<Token> delimiters_;
+  struct Layout {
+    std::size_t depth, base, floor;
+    bool pending;
+  };
+  // Delimited anonymous suites temporarily restore layout at their delimiter
+  // depth. Deeper calls and collections still use ordinary line continuation.
+  std::vector<Layout> layouts_;
+  std::vector<std::size_t> functionHeaders_;
+  std::optional<std::size_t> functionStart_;
+  std::size_t lineIndent_ = 0;
+  bool lambdaColon_ = false;
   bool lineStart_ = true;
   bool lineHasTokens_ = false;
   bool stopped_ = false;

@@ -53,7 +53,7 @@ The descriptor retention used internally does not establish callback ownership a
 
 ## Remaining work
 
-- Indented callbacks inside open call delimiters.
+- General standalone indented expressions inside delimiters. [Anonymous suites](native-delimited-closures.md) are supported, including function-array elements.
 - Delimiter-aware indented anonymous bodies.
 - Recursive control-flow callables, indirect spawn and function transport.
 - Earlier reclamation, shared storage and allocation/copy elimination.

@@ -53,7 +53,7 @@ transform = fn(value: int):
 result = map([1, 2, 3], transform)
 ```
 
-An indented body directly inside `map(..., fn(...): ...)` is not supported by the current delimiter rules. Supporting indented expression suites within open delimiters requires a separate lexer/parser increment; this is not a restriction on the callable itself.
+[Indented bodies directly inside `map(..., fn(...): ...)`](native-delimited-closures.md) are now supported. Close the call on a dedented line after the body. Calls and collections nested inside that body keep their ordinary multiline continuation rules.
 
 ## Lowering and lifetime
 
