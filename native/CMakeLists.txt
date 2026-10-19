@@ -951,3 +951,5 @@ include(cmake/NarrowArrays.cmake)
 include(cmake/NarrowTensors.cmake)
 
 include(cmake/Enums.cmake)
+
+include(cmake/RecordArrayFields.cmake)

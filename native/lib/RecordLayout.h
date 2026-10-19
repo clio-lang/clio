@@ -18,8 +18,9 @@ inline bool hasRecordBacking(const TypedModule &module) {
         return true;
   return false;
 }
-// Inline records must have a finite layout. Bound depth and expanded storage
-// units before recursive target type construction or textual IR printing.
+// Bound inline storage and type-dependency depth before recursive lowering.
+// Array-element cycles remain unsupported: generated retention traverses element
+// types as well as inline fields, even though an array itself is a descriptor.
 inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
                                                    const SemanticLimits &limits = {}) {
   const auto fail = [](std::string message, SourceSpan span) {
@@ -52,11 +53,11 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
       const auto &type = field.type;
       if (type.task || type.fallible || type.device ||
           (type.tensor ? ((type.builtin != BuiltinValue::Numeric && !isBoolArray(type) &&
-                           !isStringArray(type)) ||
+                           !isStringArray(type) && !isRecordArray(type)) ||
                           type.shape.size() > 128 || (type.array && type.shape.size() != 1))
                        : (type.array || !type.shape.empty())))
         return fail("record fields require completed CPU numbers, numeric collections, Bool, Bool "
-                    "arrays, Strings, String arrays or records",
+                    "arrays, Strings, String arrays, records or record arrays",
                     field.declaration);
       if (type.builtin == BuiltinValue::Record) {
         if (!type.record || *type.record >= module.records.size())
@@ -70,7 +71,7 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
                          ? numericTensorElementwiseAvailable(type.element, NumericTarget::Cpu)
                          : numericScalarArithmeticAvailable(type.element, NumericTarget::Cpu)))))
         return fail("record fields require CPU numbers, numeric collections, Bool, Bool arrays, "
-                    "Strings, String arrays or records",
+                    "Strings, String arrays, records or record arrays",
                     field.declaration);
     }
   }
@@ -102,7 +103,8 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
       if (field.type.record) {
         const auto child = *field.type.record;
         if (state[child] == 1)
-          return fail("record fields form an inline storage cycle", field.declaration);
+          return fail("recursive record/enum field type cycles are not yet supported",
+                      field.declaration);
         if (!state[child]) {
           // Also bound the explicit DFS stack before completing a long chain.
           if (stack.size() >= limits.maxDepth)
@@ -112,7 +114,8 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
           continue;
         }
         heights[id] = std::max(heights[id], heights[child] + 1);
-        count = leaves[child];
+        if (!field.type.tensor)
+          count = leaves[child];
       }
       if (count > limits.maxValues - leaves[id])
         return fail("record layout exceeds configured expanded scalar-field budget",
@@ -131,8 +134,8 @@ inline std::size_t recordInlineUnits(const TypedModule &module, std::size_t root
       return *cache[id];
     std::size_t total = 0;
     for (const auto &field : module.records[id].fields)
-      total += field.type.record                            ? count(*field.type.record)
-               : field.type.tensor                          ? 3 + 2 * field.type.shape.size()
+      total += field.type.tensor                            ? 3 + 2 * field.type.shape.size()
+               : field.type.record                          ? count(*field.type.record)
                : field.type.builtin == BuiltinValue::String ? 3
                                                             : 1;
     cache[id] = total;

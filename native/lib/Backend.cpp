@@ -274,7 +274,9 @@ private:
     func::CallOp::create(builder_, loc, "kalandra_string_validate", TypeRange{}, ValueRange{slot});
   }
   void validateStrings(Location loc, Value value, const ValueType &source) {
-    if (isStringArray(source)) {
+    if (isRecordArray(source)) {
+      recordArrayLength(loc, value, source);
+    } else if (isStringArray(source)) {
       auto address = stringSlot(loc, value);
       func::CallOp::create(builder_, loc, "kalandra_string_array_validate", TypeRange{},
                            ValueRange{address});

@@ -71,9 +71,21 @@ int main() {
                      "fn main()->int:\n  0\n")
                  .ok(),
             "mutually recursive enum/record admitted");
-    require(
-        !analyze(prefix + "enum Rows:\n  Value:\n    items:[Reading]\nfn main()->int:\n  0\n").ok(),
-        "unimplemented record-array payload admitted");
+    auto rows = analyze(prefix + "enum Rows:\n  Empty\n  Value:\n    items:[Reading]\n"
+                                 "fn echo(x:Rows)->Rows:\n  x\nfn main()->int ! TaskError:\n"
+                                 "  value=try parallel:\n    try await spawn echo(Rows.Value "
+                                 "{items:[Reading.Missing]})\n  match value:\n"
+                                 "    Rows.Empty:0\n    Rows.Value {items}:length(items)\n");
+    require(rows.ok(), "enum-array payload rejected");
+    require(bool(continuation::plan(*rows.module)), "enum-array payload plan rejected");
+#ifndef KALANDRA_ENUM_FRONTEND_ONLY
+    auto loweredRows = lowerNative(*rows.module);
+    require(bool(loweredRows), loweredRows ? "" : loweredRows.error());
+#endif
+    require(!analyze("enum Recursive:\n  Empty\n  Value:\n    next:[Recursive]\n"
+                     "fn main()->int:\n  0\n")
+                 .ok(),
+            "recursive enum-array payload admitted");
     for (const auto &tail :
          {"fn main():\n  Reading.Value\n",
           "fn main():\n  Reading.Unknown\n",

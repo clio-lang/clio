@@ -347,7 +347,7 @@ private:
             if (!value)
               continue;
             if ((value->tensor && value->builtin != BuiltinValue::Numeric && !isBoolArray(*value) &&
-                 !isStringArray(*value)) ||
+                 !isStringArray(*value) && !isRecordArray(*value)) ||
                 (value->builtin != BuiltinValue::Numeric && value->builtin != BuiltinValue::Bool &&
                  value->builtin != BuiltinValue::String &&
                  value->builtin != BuiltinValue::Record)) {
@@ -373,15 +373,15 @@ private:
         if (!fieldType)
           continue;
         if ((fieldType->tensor && fieldType->builtin != BuiltinValue::Numeric &&
-             !isBoolArray(*fieldType) && !isStringArray(*fieldType)) ||
+             !isBoolArray(*fieldType) && !isStringArray(*fieldType) &&
+             !isRecordArray(*fieldType)) ||
             (fieldType->builtin != BuiltinValue::Numeric &&
              fieldType->builtin != BuiltinValue::Bool &&
              fieldType->builtin != BuiltinValue::Record &&
              fieldType->builtin != BuiltinValue::String)) {
           error("S068",
                 "record fields require CPU numbers, numeric collections, Bool, Bool arrays, "
-                "Strings, String arrays or "
-                "records",
+                "Strings, String arrays, records or record arrays",
                 field.type.span);
           continue;
         }
@@ -2026,6 +2026,9 @@ private:
           }
           slot = *found;
           fieldType = record.fields[*slot].type;
+          for (auto &extent : fieldType.shape)
+            if (!extent.constant)
+              extent = dynamic();
         } else if (taskError && tag == 1 && field == "kind") {
           fieldId = ErrorField::Kind;
           fieldType.builtin = BuiltinValue::FaultKind;

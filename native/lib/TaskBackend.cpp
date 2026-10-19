@@ -347,7 +347,9 @@ private:
     const auto retainField = [&](std::size_t i) {
       const auto &field = fields[i].type;
       auto *address = builder.CreateStructGEP(scalarType(type), input, i);
-      if (field.builtin == BuiltinValue::Record)
+      if (isRecordArray(field))
+        retainRecordArray(field, address, fn, failed);
+      else if (field.builtin == BuiltinValue::Record)
         retainRecord(field, address, fn, failed);
       else if (isStringArray(field)) {
         auto *success = call("kalandra_string_array_retain_v1", boolean,

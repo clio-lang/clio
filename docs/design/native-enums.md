@@ -1,6 +1,6 @@
 # Native CPU enums
 
-User-defined enums support payload-free variants and named fields containing any of the ten implemented CPU numeric scalar types, `Bool`, `String`, numeric arrays/tensors, Bool/String arrays, records and nested enums. Payload fields follow the existing completed CPU record-field rules.
+User-defined enums support payload-free variants and named fields containing any of the ten implemented CPU numeric scalar types, `Bool`, `String`, numeric arrays/tensors, Bool/String arrays, records, nested enums and arrays of either. Payload fields follow the existing completed CPU record-field rules.
 
 ```kalandra
 enum Reading:
@@ -43,7 +43,7 @@ The current lowering uses private, fully initialized tagged aggregates and the e
 
 ## Remaining accepted variant work
 
-The [accepted variant design](variants.md) remains the language contract. Collection, record and nested-enum payload fields use the same syntax and automatic lifetime model. Arrays of records/enums may contain these values, but a record-array field inside a payload is still rejected, matching the existing record-field limitation. Recursive layouts are rejected even through an intermediate record; supporting them requires a separate representation decision.
+The [accepted variant design](variants.md) remains the language contract. Collection, record and nested-enum payload fields use the same syntax and automatic lifetime model. Arrays of records/enums can contain these values and can themselves be payload fields; see [record and enum array fields](record-array-fields.md). Recursive type dependencies are rejected even through an intermediate record or array; supporting them requires a separate representation decision.
 
 GPU enums, recursive payloads, application `error` declarations, error-family unions, generics, guards and nested destructuring are not introduced here. Distributed execution and public C/C++ contracts remain separate roadmaps. Native CLI entry results retain their existing supported output types; return a matched scalar, String or numeric collection rather than an enum directly.
 

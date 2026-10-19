@@ -89,8 +89,16 @@ int main(int argc, char **argv) {
     if (mode == 3)
       core->failAllocationAt(std::strtoull(argv[3], nullptr, 10));
     auto *entry = kalandra_task_test_entry;
+#ifdef KALANDRA_RECORD_ARRAY_FIELD
+    // The private wrapper has one descriptor field and the same physical bytes
+    // as the root array fixture. Its nominal task layout is a record identity.
+    constexpr std::uint64_t expectedIdentity = 0x50001;
+#else
+    constexpr std::uint64_t expectedIdentity = 0x60000;
+#endif
     require(entry && entry->packetBytes == sizeof(Result) &&
-                entry->result->bytes == sizeof(Result) && entry->result->identity == 0x60000,
+                entry->result->bytes == sizeof(Result) &&
+                entry->result->identity == expectedIdentity,
             "record array task layout mismatch");
     Invocation survivor;
     Result surviving{};
