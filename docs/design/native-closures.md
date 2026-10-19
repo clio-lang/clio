@@ -56,9 +56,10 @@ Allocation failures and cancellation use existing checked execution rules. A fai
 
 ## Remaining work
 
-- Function transport across local workers, indirect spawn and resumable callables.
-- Recursive control-flow callable references and direct static-map control-flow callbacks.
+- Implement the [local CPU worker function-transport contract](worker-function-transport.md) in stages, then indirect synchronous spawn; resumable callable values remain separate.
 - Earlier environment reclamation, allocation elision and shared numeric capture backing, tracked in the [optimization roadmap](../roadmap.md#optimization).
+
+[Recursive synchronous callables](native-recursive-callables.md) and [direct control-flow map callbacks](native-control-maps.md) are now implemented.
 
 GPU callbacks, distributed contracts and public C/C++ integration retain their separate roadmaps. The code/environment representation and test exports are private compiler details.
 

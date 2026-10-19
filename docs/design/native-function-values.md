@@ -35,7 +35,7 @@ Function-valued parameters and results may themselves contain function signature
 
 Sequential `map(values, transform)` accepts a compatible function-valued binding, parameter or expression. It keeps the existing one-element callback contract and input order. An inline map callback may also capture a completed function reference and invoke it. Callback creation is evaluated even for an empty input; the callback body is not invoked for empty inputs.
 
-A local CPU worker can create and call function references internally, including expected-error calls and completed-result maps. A coordinating function can hold an ordinary function reference across its own task suspension and invoke it after awaiting data. This does not permit indirect spawn or transporting a function value as a worker argument, worker result or captured argument of a directly spawned map.
+A local CPU worker can create and call function references internally, including expected-error calls and completed-result maps. A coordinating function can hold an ordinary function reference across its own task suspension and invoke it after awaiting data. This does not permit indirect spawn or transporting a function value as a worker argument, worker result or captured argument of a directly spawned map. The [local-worker transport contract](worker-function-transport.md) defines the planned ownership and implementation sequence.
 
 Ordinary immutable records returned by these calls keep their existing managed field ownership. Record values with String and array fields can still be returned from a worker and observed repeatedly; the function reference itself is not part of that transported data.
 
