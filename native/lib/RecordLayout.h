@@ -1,4 +1,5 @@
 #pragma once
+#include "ErrorFamilies.h"
 #include "kalandra/Semantics.h"
 #include <algorithm>
 #include <functional>
@@ -27,6 +28,44 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
     return std::optional<Diagnostic>{{"S068", std::move(message), span}};
   };
   for (const auto &record : module.records) {
+    if (!record.errorMembers.empty()) {
+      if (!record.error || record.errorMembers.size() < 2 ||
+          !std::ranges::is_sorted(record.errorMembers) ||
+          std::adjacent_find(record.errorMembers.begin(), record.errorMembers.end()) !=
+              record.errorMembers.end() ||
+          record.errorOrigins.size() != record.variants.size())
+        return fail("invalid error-union family metadata", record.declaration);
+      std::size_t count = 0;
+      for (auto member : record.errorMembers) {
+        if (member >= module.records.size() || !module.records[member].error ||
+            !module.records[member].errorMembers.empty())
+          return fail("invalid error-union member", record.declaration);
+        const auto &original = module.records[member];
+        for (std::size_t variant = 0; variant < original.variants.size(); ++variant, ++count) {
+          if (count >= record.errorOrigins.size() ||
+              record.errorOrigins[count] != std::pair{member, variant} ||
+              record.variants[count].fields.size() != original.variants[variant].fields.size())
+            return fail("invalid error-union variant identity", record.declaration);
+          for (std::size_t i = 0; i < original.variants[variant].fields.size(); ++i) {
+            auto a = record.variants[count].fields[i], b = original.variants[variant].fields[i];
+            if (a >= record.fields.size() || b >= original.fields.size())
+              return fail("invalid error-union payload slot", record.declaration);
+            const auto &x = record.fields[a], &y = original.fields[b];
+            if (x.name != y.name || x.type.builtin != y.type.builtin ||
+                x.type.record != y.type.record || x.type.tensor != y.type.tensor ||
+                x.type.array != y.type.array || x.type.element != y.type.element ||
+                x.type.shape.size() != y.type.shape.size())
+              return fail("invalid error-union payload type", record.declaration);
+            for (std::size_t axis = 0; axis < x.type.shape.size(); ++axis)
+              if (x.type.shape[axis].constant != y.type.shape[axis].constant)
+                return fail("invalid error-union payload extent", record.declaration);
+          }
+        }
+      }
+      if (count != record.variants.size())
+        return fail("invalid error-union variant count", record.declaration);
+    } else if (!record.errorOrigins.empty())
+      return fail("non-union type carries error origins", record.declaration);
     if (record.fields.empty())
       return fail("record declarations require fields", record.declaration);
     if (record.error && record.variants.empty())

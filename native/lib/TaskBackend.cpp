@@ -1,4 +1,5 @@
 #include "CollectionMetadata.h"
+#include "ErrorFamilies.h"
 #include "NativeLayout.h"
 #include "RecordLayout.h"
 #include "kalandra/Backend.h"
@@ -203,9 +204,11 @@ public:
         auto *report = Block::Create(context, "root.application.error", entry);
         dispatch->addCase(c64(i + 1), report);
         builder.SetInsertPoint(report);
+        const auto [original, variant] = errorOrigin(planner.input, family, i);
+        const auto &source = planner.input.records[original];
         call("kalandra_expected_application_error_v1", voidType,
-             {ctx, builder.CreateGlobalString(record.name),
-              builder.CreateGlobalString(record.variants[i].name)});
+             {ctx, builder.CreateGlobalString(source.name),
+              builder.CreateGlobalString(source.variants[variant].name)});
         returnFailure();
       }
       builder.SetInsertPoint(invalid);
@@ -346,15 +349,54 @@ private:
         i64, builder.CreateStructGEP(scalarType(errorRecordType(*type.errorRecord)), record, 0));
     return builder.CreateOr(failure, builder.CreateICmpNE(tag, c64(0)));
   }
+  void copyErrorValue(std::size_t target, Value *output, std::size_t source, Value *input) {
+    auto *outType = scalarType(errorRecordType(target));
+    auto *inType = scalarType(errorRecordType(source));
+    if (source == target) {
+      copy(output, input, outType);
+      return;
+    }
+    if (!errorSubset(planner.input, source, target))
+      throw std::runtime_error("error conversion loses a declared family");
+    const auto &from = planner.input.records[source], &to = planner.input.records[target];
+    builder.CreateStore(llvm::Constant::getNullValue(outType), output);
+    auto *fn = builder.GetInsertBlock()->getParent();
+    auto *done = Block::Create(context, "error.converted", fn);
+    auto *invalid = Block::Create(context, "error.invalid", fn);
+    auto *tag = builder.CreateLoad(i64, builder.CreateStructGEP(inType, input, 0));
+    auto *dispatch = builder.CreateSwitch(tag, invalid, from.variants.size() + 1);
+    dispatch->addCase(c64(0), done);
+    for (std::size_t i = 0; i < from.variants.size(); ++i) {
+      auto origin = errorOrigin(planner.input, source, i);
+      std::size_t j = 0;
+      while (j < to.variants.size() && errorOrigin(planner.input, target, j) != origin)
+        ++j;
+      if (j == to.variants.size())
+        throw std::runtime_error("missing error-union variant");
+      auto *active = Block::Create(context, "error.inject", fn);
+      dispatch->addCase(c64(i + 1), active);
+      builder.SetInsertPoint(active);
+      builder.CreateStore(c64(j + 1), builder.CreateStructGEP(outType, output, 0));
+      for (std::size_t field = 0; field < from.variants[i].fields.size(); ++field) {
+        const auto a = from.variants[i].fields[field], b = to.variants[j].fields[field];
+        copy(builder.CreateStructGEP(outType, output, b), builder.CreateStructGEP(inType, input, a),
+             scalarType(from.fields[a].type));
+      }
+      builder.CreateBr(done);
+    }
+    builder.SetInsertPoint(invalid);
+    builder.CreateStore(c64(UINT64_MAX), builder.CreateStructGEP(outType, output, 0));
+    builder.CreateBr(done);
+    builder.SetInsertPoint(done);
+  }
   void copyErrors(const ValueType &outType, Value *output, const ValueType &inType, Value *input) {
     copy(builder.CreateStructGEP(valueType(outType), output, 0),
          builder.CreateStructGEP(valueType(inType), input, 0), failureType);
     if (outType.errorRecord) {
       auto *errorType = scalarType(errorRecordType(*outType.errorRecord));
       if (inType.errorRecord) {
-        if (outType.errorRecord != inType.errorRecord)
-          throw std::runtime_error("error-family conversion requires error-union lowering");
-        copy(application(outType, output), application(inType, input), errorType);
+        copyErrorValue(*outType.errorRecord, application(outType, output), *inType.errorRecord,
+                       application(inType, input));
       } else
         builder.CreateStore(llvm::Constant::getNullValue(errorType), application(outType, output));
     }
@@ -874,9 +916,10 @@ private:
             throw std::runtime_error("application error parallel propagation is not implemented");
           call("kalandra_task_fail_group_v1", voidType, {task, group(instruction.group), header});
         } else if (explicitFail && source.builtin == BuiltinValue::Record) {
-          if (target.errorRecord != source.record)
-            throw std::runtime_error("application fail changed its declared error family");
-          copy(application(target, slot(instruction.target)), payload(input), scalarType(source));
+          if (!target.errorRecord || !source.record)
+            throw std::runtime_error("application fail lost its declared error family");
+          copyErrorValue(*target.errorRecord, application(target, slot(instruction.target)),
+                         *source.record, payload(input));
         } else if (explicitFail)
           copy(builder.CreateStructGEP(valueType(target), slot(instruction.target), 0), header,
                failureType);

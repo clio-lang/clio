@@ -1,6 +1,6 @@
 # Local application-error channels
 
-The native compiler now implements a single declared application-error family per function. This is the first implementation stage of the [accepted errors](errors.md) and [variant](variants.md) design. Error-family unions, union aliases and application errors escaping through `spawn`/`await` remain explicit follow-up work.
+This document describes the initial native implementation of a single declared application-error family per function. It is the first implementation stage of the [accepted errors](errors.md) and [variant](variants.md) design. [Application-family unions and aliases](error-unions.md) are now implemented in a subsequent milestone. Composition with `TaskError` and application errors escaping through `spawn`/`await` remain follow-up work.
 
 ```kalandra
 error StatisticsError:
@@ -59,7 +59,7 @@ fn publicAverage(samples: [float]) -> float ! PublicError:
   average(samples) catch fn(error): fail PublicError.Unavailable
 ```
 
-The handler replaces the handled channel; it does not nest results or wrap `StatisticsError` in `PublicError`. Success bypasses the handler and remains success. A handler that can escape with multiple distinct families requires the pending error-union support and is rejected for now. Matches remain exhaustive unless an explicit final `_` supplies a policy for remaining variants.
+The handler replaces the handled channel; it does not nest results or wrap `StatisticsError` in `PublicError`. Success bypasses the handler and remains success. Handlers can now escape with multiple application families through the [local union support](error-unions.md); mixed application/TaskError channels remain pending. Matches remain exhaustive unless an explicit final `_` supplies a policy for remaining variants.
 
 Arithmetic, bounds and implicit allocation faults retain their execution-fault behavior. An application-error handler cannot swallow such a fault. Existing `TaskError` propagation and recovery remain available for execution failures at task boundaries.
 

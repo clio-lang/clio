@@ -236,6 +236,7 @@ struct Function {
   bool exported = false;
   std::size_t moduleIndex = 0;
   std::optional<SourceSpan> errorType = {};
+  std::vector<SourceSpan> errorTypes = {};
 };
 struct ImportedName {
   SourceSpan name;
@@ -258,6 +259,7 @@ struct RecordDeclaration {
   bool exported = false;
   std::vector<VariantDeclaration> variants = {};
   bool error = false;
+  std::vector<SourceSpan> errorAlias = {};
 };
 struct Module {
   // Source storage outlives all borrowed slices/byte spans. Expressions use flat

@@ -29,3 +29,5 @@ if(BUILD_TESTING)
     set_tests_properties(native-application-errors-${VARIANT} PROPERTIES TIMEOUT 600)
   endforeach()
 endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/ErrorUnions.cmake")

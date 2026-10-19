@@ -1,3 +1,4 @@
+#include "ErrorFamilies.h"
 #include "RecordLayout.h"
 #include "kalandra/Continuation.h"
 #include "kalandra/Semantics.h"
@@ -170,7 +171,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       return failure;
     if ((fn.declaredResult && fn.resultType.errorRecord != fn.declaredResult->errorRecord) ||
         (module.expressions[fn.result].type.fallible &&
-         fn.resultType.errorRecord != module.expressions[fn.result].type.errorRecord))
+         !errorSubset(module, module.expressions[fn.result].type.errorRecord,
+                      fn.resultType.errorRecord)))
       return "function result changes its declared error family";
     if (!sameArray(fn.resultType, module.expressions[fn.result].type) ||
         (fn.declaredResult && !sameArray(fn.resultType, *fn.declaredResult)))

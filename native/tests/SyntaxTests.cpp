@@ -252,7 +252,7 @@ void parserFailuresAndRecovery() {
       {"fn f():\n  map([1],fn(x) x)\n", "P002"},
       {"fn f():\n  map([1],fn(1): 1)\n", "P002"},
       {"type Point:\n  x:\n", "P002"},
-      {"fn f() -> float32 ! (Error | TaskError):\n  1\n", "P006"},
+      {"fn f() -> float32 ! Error | TaskError:\n  1\n", "P006"},
       {"fn f(a: Tensor[float32, 1.5]):\n  1\n", "P004"},
       {"fn f(a: Tensor[float32, 18446744073709551616]):\n  1\n", "P004"},
       {"", "P001"},

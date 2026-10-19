@@ -2,7 +2,7 @@
 
 Accepted variants and error payload direction — 2026-10-14. The project owner approved the decisions below. This extends the accepted [core](core.md), [errors/effects](errors.md), and [task lifetimes](execution.md). The goal is to describe a value with several possible forms, attach typed details to failures, and handle those forms without dynamic error objects or hidden fields.
 
-These examples describe the native design; they are not supported by the released Kalandra 0.13 compiler. The native branch now implements the [first CPU enum subset](native-enums.md): scalar and collection payloads, nested records/enums, exhaustive matching and local worker transport. Record/enum arrays are also supported as payload fields. [Local user-defined error channels](application-errors.md) are now implemented. Recursive type dependencies, error-family unions and application-error worker boundaries remain ahead.
+These examples describe the native design; they are not supported by the released Kalandra 0.13 compiler. The native branch now implements the [first CPU enum subset](native-enums.md): scalar and collection payloads, nested records/enums, exhaustive matching and local worker transport. Record/enum arrays are also supported as payload fields. [Local user-defined error channels](application-errors.md) are now implemented. [Local application-family unions and aliases](error-unions.md) are implemented. Recursive type dependencies, mixed application/TaskError channels and application-error worker boundaries remain ahead.
 
 ## Accepted decisions
 

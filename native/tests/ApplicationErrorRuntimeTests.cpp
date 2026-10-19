@@ -13,7 +13,30 @@ struct Error {
   std::int64_t tag;
   StringDescriptor reason;
   Descriptor numbers;
+#ifdef KALANDRA_ERROR_UNION_TAG
+  StringDescriptor otherReason;
+  Descriptor otherNumbers;
+#endif
 };
+template <class T> static decltype(auto) text(T &error) {
+#ifdef KALANDRA_ERROR_UNION_TAG
+  if (error.tag == 3)
+    return (error.otherReason);
+#endif
+  return (error.reason);
+}
+template <class T> static decltype(auto) numbers(T &error) {
+#ifdef KALANDRA_ERROR_UNION_TAG
+  if (error.tag == 3)
+    return (error.otherNumbers);
+#endif
+  return (error.numbers);
+}
+#ifdef KALANDRA_ERROR_UNION_TAG
+static constexpr auto expectedTag = KALANDRA_ERROR_UNION_TAG;
+#else
+static constexpr auto expectedTag = 2;
+#endif
 struct Result {
   Failure failure;
   std::int64_t value;
@@ -25,16 +48,16 @@ static void require(bool ok, const char *message) {
     throw std::runtime_error(message);
 }
 static void verify(Invocation &context, const Result &result) {
-  require(result.failure.kind == TaskFailure::None && result.error.tag == 2,
+  require(result.failure.kind == TaskFailure::None && result.error.tag == expectedTag,
           "application error became a task failure or changed variant");
-  const auto &text = result.error.reason;
-  require(validateString(context, text) && text.byteLength == 6 &&
-              !std::memcmp(text.data, "é🙂", 6),
+  const auto &value = text(result.error);
+  require(validateString(context, value) && value.byteLength == 6 &&
+              !std::memcmp(value.data, "é🙂", 6),
           "application text lost after settlement");
-  const auto &numbers = result.error.numbers;
-  auto lease = context.lease(numbers.allocated);
-  require(lease && numbers.data == numbers.allocated && numbers.offset == 0 && numbers.size == 2 &&
-              numbers.stride == 1,
+  const auto &array = numbers(result.error);
+  auto lease = context.lease(array.allocated);
+  require(lease && array.data == array.allocated && array.offset == 0 && array.size == 2 &&
+              array.stride == 1,
           "application array backing lost");
   std::array<std::int64_t, 2> values{};
   require(lease->bytes().size() == sizeof(values), "application array size changed");
@@ -78,14 +101,30 @@ int main(int argc, char **argv) {
     require(core->observe(task, *entry->result, survivor, &result),
             "application observation failed");
     verify(survivor, result);
+#ifdef KALANDRA_ERROR_UNION_TAG
+    // Inactive arms must never be interpreted or retained.
+    auto poisoned = result;
+    auto &inactiveText = expectedTag == 3 ? poisoned.error.reason : poisoned.error.otherReason;
+    auto &inactiveArray = expectedTag == 3 ? poisoned.error.numbers : poisoned.error.otherNumbers;
+    inactiveText.byteLength = -1;
+    inactiveArray.stride = -1;
+    Invocation selected;
+    Result observed{};
+    require(entry->result->copy(selected, &observed, survivor, &poisoned),
+            "inactive union payload was interpreted");
+    verify(selected, observed);
+    selected.settle();
+    require(!selected.live() && selected.allocations() == selected.releases(),
+            "selected union payload leaked");
+#endif
     for (unsigned mode = 0; mode < 3; ++mode) {
       auto invalid = result;
       if (mode == 0)
         invalid.error.tag = 999;
       if (mode == 1)
-        invalid.error.numbers.stride = 2;
+        numbers(invalid.error).stride = 2;
       if (mode == 2)
-        invalid.error.reason.byteLength = -1;
+        text(invalid.error).byteLength = -1;
       Invocation rejected;
       alignas(Result) std::array<std::byte, sizeof(Result)> output;
       output.fill(std::byte{0x5a});
@@ -99,8 +138,8 @@ int main(int argc, char **argv) {
     Result again{};
     require(core->observe(task, *entry->result, survivor, &again),
             "cached application observation failed");
-    require(result.error.reason.allocated == again.error.reason.allocated &&
-                result.error.numbers.allocated == again.error.numbers.allocated,
+    require(text(result.error).allocated == text(again.error).allocated &&
+                numbers(result.error).allocated == numbers(again.error).allocated,
             "application backing unexpectedly copied");
     require(core->release(group), "application group release failed");
     const auto stats = core->stats();

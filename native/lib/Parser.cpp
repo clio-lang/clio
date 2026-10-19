@@ -191,6 +191,27 @@ private:
       return {};
     return result;
   }
+  std::optional<std::vector<SourceSpan>> errorMembers(bool channel) {
+    const bool grouped = consume(TokenKind::LeftParen);
+    std::vector<SourceSpan> members;
+    do {
+      auto member = expect(TokenKind::Identifier, "expected an error family");
+      if (!member)
+        return {};
+      members.push_back(member->span);
+      if (members.size() > limits_.maxTokens) {
+        error("P006", "error union exceeds configured token budget", member->span);
+        return {};
+      }
+    } while (consume(TokenKind::Pipe));
+    if (grouped && !expect(TokenKind::RightParen, "expected ')' after error union"))
+      return {};
+    if (channel && members.size() > 1 && !grouped) {
+      error("P006", "parenthesize an error union after '!'", members.front());
+      return {};
+    }
+    return members;
+  }
   std::optional<RecordDeclaration> parseRecord() {
     const bool exported = word("export");
     if (exported)
@@ -199,7 +220,17 @@ private:
     const bool enumeration = word("enum") || applicationError;
     advance();
     auto name = expect(TokenKind::Identifier, "expected a record or enum type name");
-    if (!name || !expect(TokenKind::Colon, "expected ':' after record name") ||
+    if (!name)
+      return {};
+    if (!enumeration && consume(TokenKind::Equal)) {
+      auto members = errorMembers(false);
+      if (!members || !expect(TokenKind::Newline, "expected end of error alias"))
+        return {};
+      RecordDeclaration alias{name->span, {}, exported};
+      alias.errorAlias = std::move(*members);
+      return alias;
+    }
+    if (!expect(TokenKind::Colon, "expected ':' after record name") ||
         !expect(TokenKind::Newline, "record fields must start on the next line") ||
         !expect(TokenKind::Indent, "expected indented record fields"))
       return {};
@@ -309,18 +340,11 @@ private:
     }
     if (at(TokenKind::Bang)) {
       advance();
-      if (at(TokenKind::LeftParen)) {
-        error("P006", "error-family unions are not implemented yet", current().span);
+      auto channels = errorMembers(true);
+      if (!channels)
         return {};
-      }
-      auto channel = expect(TokenKind::Identifier, "expected an error family after '!'");
-      if (!channel)
-        return {};
-      if (at(TokenKind::Pipe)) {
-        error("P006", "error-family unions are not implemented yet", current().span);
-        return {};
-      }
-      function.errorType = channel->span;
+      function.errorType = channels->front();
+      function.errorTypes = std::move(*channels);
       function.taskError = true;
     }
     if (!expect(TokenKind::Colon, "expected ':' before function body") ||
@@ -623,14 +647,18 @@ private:
         auto yes = suite();
         if (!yes)
           return {};
-        if (tokens_[position_ - 1].kind != TokenKind::Dedent &&
-            !expect(TokenKind::Newline, "expected newline before else"))
+        const auto endOfTrue = position_;
+        const bool inlineTrue = tokens_[position_ - 1].kind != TokenKind::Dedent;
+        if (inlineTrue && !expect(TokenKind::Newline, "expected newline before else"))
           return {};
         if (!word("else")) {
           if (!std::holds_alternative<FailExpr>(node(yes->back().expression).value)) {
             error("P035", "if expressions require an else branch", current().span);
             return {};
           }
+          // An inline guard leaves its terminating newline to its enclosing statement.
+          if (inlineTrue)
+            position_ = endOfTrue;
           return add({{token.span.begin, yes->back().span.end},
                       ConditionalExpr{*condition, std::move(*yes), {}}});
         }

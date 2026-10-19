@@ -1,4 +1,5 @@
 #include "kalandra/Semantics.h"
+#include "ErrorFamilies.h"
 #include "RecordLayout.h"
 #include "kalandra/StringLiteral.h"
 #include "llvm/ADT/APFloat.h"
@@ -85,10 +86,18 @@ public:
               functionKey(import.moduleIndex, name(imported.alias.value_or(imported.name))),
               std::pair{*import.target, name(imported.name)});
     registerRecords();
+    for (const auto &[key, id] : aliases_) {
+      std::unordered_set<std::size_t> active;
+      if (auto resolved = resolveAlias(id, active))
+        records_[key] = *resolved;
+    }
     if (diagnostics_.empty())
       if (auto invalid = recordLayoutError(output_, limits_))
         error(invalid->code, invalid->message, invalid->span);
     registerSignatures();
+    if (diagnostics_.empty())
+      if (auto invalid = recordLayoutError(output_, limits_))
+        error(invalid->code, invalid->message, invalid->span);
     for (FunctionId i = 0;
          i < syntax_.functions.size() && diagnostics_.size() < limits_.maxDiagnostics; ++i)
       analyzeFunction(i);
@@ -264,6 +273,7 @@ private:
   struct ExportBinding {
     bool record;
     std::size_t id;
+    bool alias = false;
   };
   std::optional<ExportBinding> exportedBinding(std::size_t module, const std::string &label,
                                                std::size_t depth = 0) {
@@ -279,8 +289,91 @@ private:
     exports_.emplace(key, resolved);
     return resolved;
   }
+  std::optional<std::size_t> combineErrors(std::vector<std::size_t> members, SourceSpan span) {
+    std::vector<std::size_t> flattened;
+    for (auto id : members) {
+      const auto part = errorMembers(output_, id);
+      flattened.insert(flattened.end(), part.begin(), part.end());
+    }
+    std::ranges::sort(flattened);
+    flattened.erase(std::unique(flattened.begin(), flattened.end()), flattened.end());
+    if (flattened.empty())
+      return {};
+    if (flattened.size() == 1)
+      return flattened.front();
+    for (std::size_t i = 0; i < output_.records.size(); ++i)
+      if (output_.records[i].errorMembers == flattened)
+        return i;
+    TypedRecord joined{"", span, {}};
+    joined.error = true;
+    joined.errorMembers = flattened;
+    ValueType tag;
+    tag.element = NumericType::Int64;
+    joined.fields.push_back({"$tag", tag, span});
+    for (auto id : flattened) {
+      const auto &source = output_.records[id];
+      if (!joined.name.empty())
+        joined.name += " | ";
+      joined.name += source.name;
+      for (std::size_t v = 0; v < source.variants.size(); ++v) {
+        const auto &original = source.variants[v];
+        TypedVariant variant{std::to_string(id) + "." + original.name, original.declaration, {}};
+        for (auto field : original.fields) {
+          variant.fields.push_back(joined.fields.size());
+          joined.fields.push_back(source.fields[field]);
+        }
+        joined.variants.push_back(std::move(variant));
+        joined.errorOrigins.push_back({id, v});
+      }
+    }
+    const auto id = output_.records.size();
+    output_.records.push_back(std::move(joined));
+    if (auto invalid = recordLayoutError(output_, limits_)) {
+      error(invalid->code, invalid->message, invalid->span);
+      return {};
+    }
+    return id;
+  }
+  std::optional<std::size_t> resolveAlias(std::size_t id, std::unordered_set<std::size_t> &active) {
+    if (auto cached = resolvedAliases_.find(id); cached != resolvedAliases_.end())
+      return cached->second;
+    const auto &alias = syntax_.records[id];
+    if (active.size() >= limits_.maxDepth || !active.insert(id).second) {
+      error("S072", "cyclic or excessively nested error alias", alias.name);
+      return {};
+    }
+    std::vector<std::size_t> members;
+    bool valid = true;
+    for (auto member : alias.errorAlias) {
+      auto family = resolveError(member, active);
+      if (!family)
+        valid = false;
+      else
+        members.push_back(*family);
+    }
+    active.erase(id);
+    auto result = valid ? combineErrors(std::move(members), alias.name) : std::nullopt;
+    resolvedAliases_[id] = result;
+    return result;
+  }
+  std::optional<std::size_t> resolveError(SourceSpan member,
+                                          std::unordered_set<std::size_t> &active) {
+    const auto key = functionKey(syntax_.source->partIndex(member.begin), name(member));
+    if (auto alias = aliases_.find(key); alias != aliases_.end())
+      return resolveAlias(alias->second, active);
+    if (auto found = records_.find(key);
+        found != records_.end() && output_.records[found->second].error)
+      return found->second;
+    error("S072",
+          name(member) == "TaskError"
+              ? "mixing TaskError with application errors is pending task-boundary support"
+              : "expected a declared error family or error alias",
+          member);
+    return {};
+  }
   void registerRecords() {
-    for (const auto &record : syntax_.records) {
+    for (std::size_t declaration = 0; declaration < syntax_.records.size(); ++declaration) {
+      const auto &record = syntax_.records[declaration];
       const auto label = name(record.name);
       if (reservedControl(label) || resolveNumeric(label) || label == "Bool" || label == "Tensor" ||
           label == "TaskError" || label == "FaultKind" || label == "String" || label == "Device") {
@@ -288,6 +381,16 @@ private:
         continue;
       }
       const auto key = functionKey(syntax_.source->partIndex(record.name.begin), label);
+      if (records_.contains(key) || aliases_.contains(key)) {
+        error("S068", "duplicate type '" + label + "'", record.name);
+        continue;
+      }
+      if (!record.errorAlias.empty()) {
+        aliases_.emplace(key, declaration);
+        if (record.exported)
+          exports_.emplace(key, ExportBinding{false, declaration, true});
+        continue;
+      }
       if (!records_.emplace(key, output_.records.size()).second) {
         error("S068", "duplicate record type '" + label + "'", record.name);
         continue;
@@ -303,7 +406,7 @@ private:
         continue;
       for (const auto &imported : import.names) {
         const auto found = exportedBinding(*import.target, name(imported.name));
-        if (!found || !found->record)
+        if (!found || (!found->record && !found->alias))
           continue;
         const auto binding = imported.alias.value_or(imported.name);
         const auto label = name(binding);
@@ -313,11 +416,18 @@ private:
           error("S067", "reserved import alias '" + label + "'", binding);
           continue;
         }
-        if (!records_.emplace(functionKey(import.moduleIndex, label), found->id).second)
+        const auto key = functionKey(import.moduleIndex, label);
+        if (records_.contains(key) || aliases_.contains(key))
           error("S068", "duplicate module type binding '" + label + "'", binding);
+        else if (found->alias)
+          aliases_.emplace(key, found->id);
+        else
+          records_.emplace(key, found->id);
       }
     }
     for (const auto &record : syntax_.records) {
+      if (!record.errorAlias.empty())
+        continue;
       const auto key = functionKey(syntax_.source->partIndex(record.name.begin), name(record.name));
       const auto found = records_.find(key);
       if (found == records_.end())
@@ -433,13 +543,21 @@ private:
         output_.symbols.push_back(
             {parameterName, std::move(*parameterType), parameter.name, id, true});
       }
-      if (function.errorType && name(*function.errorType) != "TaskError") {
-        auto found = records_.find(functionKey(function.moduleIndex, name(*function.errorType)));
-        if (found == records_.end() || !output_.records[found->second].error) {
-          error("S072", "expected a declared error family", *function.errorType);
-          signatures_[id] = false;
-        } else
-          errorFamilies_[id] = found->second;
+      if (function.errorType &&
+          !(function.errorTypes.size() <= 1 && name(*function.errorType) == "TaskError")) {
+        auto channels = function.errorTypes;
+        if (channels.empty())
+          channels.push_back(*function.errorType);
+        std::vector<std::size_t> families;
+        std::unordered_set<std::size_t> active;
+        for (auto channel : channels) {
+          if (auto family = resolveError(channel, active))
+            families.push_back(*family);
+          else
+            signatures_[id] = false;
+        }
+        if (signatures_[id])
+          errorFamilies_[id] = combineErrors(std::move(families), *function.errorType);
       }
       if (function.result) {
         target.declaredResult = type(*function.result);
@@ -462,7 +580,7 @@ private:
         const auto binding = imported.alias.value_or(imported.name);
         const auto local = name(binding);
         const auto found = exportedBinding(*import.target, name(imported.name));
-        if (found && found->record)
+        if (found && (found->record || found->alias))
           continue;
         if (records_.contains(functionKey(import.moduleIndex, local))) {
           error("S068", "import conflicts with record type name", binding);
@@ -569,8 +687,8 @@ private:
           if (!syntax_.functions[id].taskError)
             error("S036", "a fallible function must declare its error return channel",
                   statement.span);
-          else if (node(*value).type.errorRecord != errorFamilies_[id])
-            error("S072", "returning a different error family requires a declared error union",
+          else if (!errorSubset(output_, node(*value).type.errorRecord, errorFamilies_[id]))
+            error("S072", "return channel does not cover every returned error family",
                   statement.span);
         }
       }
@@ -851,8 +969,15 @@ private:
   bool propagateError(Frame &frame, std::optional<std::size_t> family, SourceSpan span) {
     if (frame.handlerFallible && frame.groups.size() == frame.handlerDepth) {
       if (*frame.handlerFallible && *frame.handlerErrorRecord != family) {
-        error("S072", "multiple escaping error families require error-union support", span);
-        return false;
+        if (!*frame.handlerErrorRecord || !family) {
+          error("S072", "mixing TaskError with application errors is pending task-boundary support",
+                span);
+          return false;
+        }
+        auto combined = combineErrors({**frame.handlerErrorRecord, *family}, span);
+        if (!combined)
+          return false;
+        family = combined;
       }
       *frame.handlerFallible = true;
       *frame.handlerErrorRecord = family;
@@ -870,8 +995,8 @@ private:
       error("S036", "error propagation requires a declared error channel", span);
       return false;
     }
-    if (errorFamilies_[frame.function] != family) {
-      error("S072", "propagating a different error family requires a declared error union", span);
+    if (!errorSubset(output_, family, errorFamilies_[frame.function])) {
+      error("S072", "declared channel does not cover every propagated error family", span);
       return false;
     }
     return true;
@@ -879,12 +1004,19 @@ private:
   bool joinErrors(ValueType &result, const ValueType &other, SourceSpan span) {
     if (!other.fallible)
       return true;
-    if (result.fallible && result.errorRecord != other.errorRecord) {
-      error("S072", "multiple error families require error-union support", span);
-      return false;
+    auto family = other.errorRecord;
+    if (result.fallible && result.errorRecord != family) {
+      if (!result.errorRecord || !family) {
+        error("S072", "mixing TaskError with application errors is pending task-boundary support",
+              span);
+        return false;
+      }
+      family = combineErrors({*result.errorRecord, *family}, span);
+      if (!family)
+        return false;
     }
     result.fallible = true;
-    result.errorRecord = other.errorRecord;
+    result.errorRecord = family;
     return true;
   }
   bool sourceTaskError(FunctionId id) const {
@@ -2086,17 +2218,29 @@ private:
     for (const auto &arm : match.arms) {
       std::optional<unsigned> tag;
       if (arm.variant) {
-        auto found = std::ranges::find(names, name(*arm.variant));
         const auto owner = records_.find(functionKey(frame, name(*arm.family)));
-        const bool sameFamily =
-            enumeration ? (owner != records_.end() && owner->second == *subjectType.record &&
-                           !lookupSymbol(frame, *arm.family))
-                        : name(*arm.family) == family;
-        if (!sameFamily || found == names.end()) {
+        if (enumeration && !output_.records[*subjectType.record].errorMembers.empty()) {
+          const auto &joined = output_.records[*subjectType.record];
+          if (owner != records_.end() && !lookupSymbol(frame, *arm.family))
+            for (std::size_t i = 0; i < joined.errorOrigins.size(); ++i) {
+              const auto [original, variant] = joined.errorOrigins[i];
+              if (original == owner->second &&
+                  output_.records[original].variants[variant].name == name(*arm.variant))
+                tag = static_cast<unsigned>(i + 1);
+            }
+        } else {
+          auto found = std::ranges::find(names, name(*arm.variant));
+          const bool sameFamily =
+              enumeration ? (owner != records_.end() && owner->second == *subjectType.record &&
+                             !lookupSymbol(frame, *arm.family))
+                          : name(*arm.family) == family;
+          if (sameFamily && found != names.end())
+            tag = static_cast<unsigned>(found - names.begin()) + 1;
+        }
+        if (!tag) {
           error("S040", "unknown variant for " + std::string(family), arm.span);
           return {};
         }
-        tag = static_cast<unsigned>(found - names.begin()) + 1;
         if (fallback || !seen.insert(*tag).second) {
           error("S041", "duplicate or unreachable match case", arm.span);
           return {};
@@ -2245,6 +2389,10 @@ private:
             add(frame, boolean, span, ScalarCompare{ComparisonKind::Equal, *selected, *tag});
         if (!condition)
           return {};
+        // Only synthesized dispatch nodes create an obligation in this frame.
+        // Incoming results retain the all-branches handling rule above.
+        if (i + 1 < cases.size() && node(result).type.fallible)
+          frame.tasks->handled.insert(node(result).type.identity);
         auto choice = add(frame, *resultType, span,
                           ConditionalOperation{*condition, std::move(arm.body),
                                                std::move(otherwise), arm.result, result});
@@ -3181,6 +3329,8 @@ private:
   TypedModule output_;
   std::unordered_map<std::string, FunctionId> functions_;
   std::unordered_map<std::string, std::size_t> records_;
+  std::unordered_map<std::string, std::size_t> aliases_;
+  std::unordered_map<std::size_t, std::optional<std::size_t>> resolvedAliases_;
   std::unordered_map<std::string, std::optional<ExportBinding>> exports_;
   std::unordered_set<std::string> resolvingExports_;
   std::unordered_map<std::string, std::pair<std::size_t, std::string>> reexports_;

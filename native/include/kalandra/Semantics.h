@@ -273,6 +273,10 @@ struct TypedRecord {
   std::vector<TypedRecordField> fields;
   std::vector<TypedVariant> variants = {};
   bool error = false; // Only declared errors may appear in expected-error channels.
+  std::vector<std::size_t> errorMembers =
+      {}; // Canonical original families for a transparent union.
+  std::vector<std::pair<std::size_t, std::size_t>> errorOrigins =
+      {}; // Original family/variant per case.
 };
 struct TypedExpr {
   SourceSpan span;
