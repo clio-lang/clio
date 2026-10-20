@@ -21,7 +21,7 @@ int main() {
           KALANDRA_WORKER_NESTED_FIXTURES, KALANDRA_WORKER_RESULT_FIXTURES,
           KALANDRA_WORKER_AGGREGATE_FIXTURES, KALANDRA_WORKER_PARAMETER_FIXTURES,
           KALANDRA_WORKER_INDIRECT_FIXTURES, KALANDRA_INDIRECT_SPAWN_FIXTURES,
-          KALANDRA_WORKER_MAP_FIXTURES}) {
+          KALANDRA_WORKER_MAP_FIXTURES, KALANDRA_WORKER_COLLECTION_FIXTURES}) {
       for (const auto &file : std::filesystem::directory_iterator(directory)) {
         if (file.path().extension() != ".k")
           continue;
@@ -35,7 +35,7 @@ int main() {
         ++count;
       }
     }
-    require(count == 122, "worker callable fixture catalog incomplete");
+    require(count == 133, "worker callable fixture catalog incomplete");
     const std::string base = "fn double(value:int)->int:\n  value*2\nfn "
                              "apply(value:int,transform:fn(int)->int)->int:\n  transform(value)\n";
     for (const auto *body :
@@ -51,7 +51,8 @@ int main() {
     }
     for (const auto *directory :
          {KALANDRA_WORKER_PARAMETER_FIXTURES, KALANDRA_WORKER_INDIRECT_FIXTURES,
-          KALANDRA_INDIRECT_SPAWN_FIXTURES, KALANDRA_WORKER_MAP_FIXTURES})
+          KALANDRA_INDIRECT_SPAWN_FIXTURES, KALANDRA_WORKER_MAP_FIXTURES,
+          KALANDRA_WORKER_COLLECTION_FIXTURES})
       for (const auto &file :
            std::filesystem::directory_iterator(std::filesystem::path(directory) / "rejected")) {
         if (file.path().extension() != ".k")
@@ -156,7 +157,31 @@ int main() {
         rejectedMap = functionValueTransportError(forgedMap, forgedMap.expressions[task->operand])
                           .has_value();
     require(changedMap && rejectedMap, "forged map callback provenance admitted");
-    std::cout << "Worker named functions: 122 valid programs, 12 rejected boundaries, 9 forged IR "
+    for (const auto *operation :
+         {"slice(callbacks,0,1)", "concat(callbacks,callbacks)", "length(callbacks)"}) {
+      const std::string query =
+          std::string(operation).starts_with("length") ? "values" : "length(values)";
+      auto checked = analyze(base +
+                             "fn main()->int ! TaskError:\n  callbacks=[double]\n  try parallel:\n "
+                             "   values=try await spawn " +
+                             operation + "\n    " + query + "\n");
+      require(checked.ok(), "collection provenance mutation fixture rejected");
+      auto module = *checked.module;
+      bool changed = false, rejected = false;
+      for (auto &value : module.expressions)
+        if (std::holds_alternative<FunctionReference>(value.operation)) {
+          value.operation = BoolLiteral{false};
+          changed = true;
+          break;
+        }
+      for (const auto &value : module.expressions)
+        if (const auto *task = std::get_if<TaskOperation>(&value.operation);
+            task && task->prefix == TaskPrefix::Spawn)
+          rejected =
+              functionValueTransportError(module, module.expressions[task->operand]).has_value();
+      require(changed && rejected, "forged collection element provenance admitted");
+    }
+    std::cout << "Worker named functions: 133 valid programs, 17 rejected boundaries, 12 forged IR "
                  "cases passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

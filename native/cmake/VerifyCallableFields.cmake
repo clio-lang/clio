@@ -557,18 +557,15 @@ fn main()->int ! TaskError:
     values[0]
 ]=])
 EXPECT(supported-worker-map-input 42)
-file(WRITE "${OUTPUT_DIR}/reject-worker-query.k" [=[type Config:
+COMPILE(supported-worker-query [=[type Config:
   apply:fn(int)->int
 fn main()->int ! TaskError:
   configs=[Config {apply:fn(value):value}]
   try parallel:
     try await spawn length(configs)
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-query.k" -o "${OUTPUT_DIR}/reject-worker-query" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid callable field accepted/crashed: worker-query: ${STATUS}: ${OUT}${ERR}")
-endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-slice.k" [=[type Config:
+EXPECT(supported-worker-query 1)
+COMPILE(supported-worker-slice [=[type Config:
   apply:fn(int)->int
 fn main()->int ! TaskError:
   configs=[Config {apply:fn(value):value}]
@@ -576,11 +573,8 @@ fn main()->int ! TaskError:
     values=try await spawn slice(configs,0,1)
     length(values)
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-slice.k" -o "${OUTPUT_DIR}/reject-worker-slice" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid callable field accepted/crashed: worker-slice: ${STATUS}: ${OUT}${ERR}")
-endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-concat.k" [=[type Config:
+EXPECT(supported-worker-slice 1)
+COMPILE(supported-worker-concat [=[type Config:
   apply:fn(int)->int
 fn main()->int ! TaskError:
   configs=[Config {apply:fn(value):value}]
@@ -588,10 +582,7 @@ fn main()->int ! TaskError:
     values=try await spawn concat(configs,configs)
     length(values)
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-concat.k" -o "${OUTPUT_DIR}/reject-worker-concat" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid callable field accepted/crashed: worker-concat: ${STATUS}: ${OUT}${ERR}")
-endif()
+EXPECT(supported-worker-concat 2)
 foreach(NAME IN ITEMS owned nested array error-union factory-field array-callback-result)
   foreach(ATTEMPT RANGE 1 40)
     execute_process(COMMAND "${CMAKE_COMMAND}" -E env "KALANDRA_TEST_FAIL_ALLOC_AT=${ATTEMPT}" KALANDRA_TEST_REPORT_CLEANUP=1 "${OUTPUT_DIR}/${NAME}" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)

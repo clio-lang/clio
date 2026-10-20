@@ -137,10 +137,6 @@ int main() {
           "error E:\n  Bad:\n    callbacks:[fn(int)->int]\nfn worker(value:int)->int ! E:\n  "
           "value\nfn main()->int ! (E | TaskError):\n  try parallel:\n    try await spawn "
           "worker(42)\n",
-          "fn main()->int ! TaskError:\n  callbacks:[fn(int)->int]=[fn(value):value]\n  try "
-          "parallel:\n    try await spawn length(callbacks)\n",
-          "fn main()->int ! TaskError:\n  callbacks:[fn(int)->int]=[fn(value):value]\n  try "
-          "parallel:\n    values=try await spawn slice(callbacks,0,1)\n    length(values)\n",
           "fn worker(value:int)->int:\n  value\nfn coordinate(value:int)->int ! TaskError:\n  try "
           "parallel:\n    try await spawn worker(value)\nfn main()->int:\n  "
           "callbacks=[coordinate]\n  0\n",

@@ -33,7 +33,7 @@ Unknown producers and source-less parameters cannot disappear from a partially k
 
 The analysis remains context-insensitive: every possible caller contributes sources. Aggregate projections conservatively join fields/elements, and branches are not specialized for a known condition. Creating separate instances of the same closure expression does not give them independent proofs. An unused higher-order helper with unresolved incoming values can therefore also prevent a proof elsewhere. More precise context, field and reachability analysis is future compiler work.
 
-The existing runtime still checks exact function signatures, validates copy layouts, copies owned environments and preserves retained backing lifetimes. No worker runtime or callable ABI changes are needed for this milestone. [Function-containing spawned maps](native-worker-callable-maps.md) now use these proofs. Function-containing expected-error payloads, other spawned collection boundaries, GPU callbacks and distributed execution remain separate work.
+The existing runtime still checks exact function signatures, validates copy layouts, copies owned environments and preserves retained backing lifetimes. No worker runtime or callable ABI changes are needed for this milestone. [Function-containing spawned maps](native-worker-callable-maps.md) now use these proofs. [Function-containing spawned collections](native-worker-callable-collections.md) now use these proofs too. Function-containing expected-error payloads, GPU callbacks and distributed execution remain separate work.
 
 ## Qualification
 

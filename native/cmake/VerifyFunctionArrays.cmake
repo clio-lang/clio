@@ -435,25 +435,19 @@ COMPILE(supported-worker-map-result [=[fn main()->int ! TaskError:
     length(values)
 ]=])
 EXPECT(supported-worker-map-result 1)
-file(WRITE "${OUTPUT_DIR}/reject-worker-query.k" [=[fn main()->int ! TaskError:
+COMPILE(supported-worker-query [=[fn main()->int ! TaskError:
   callbacks:[fn(int)->int]=[fn(value):value]
   try parallel:
     try await spawn length(callbacks)
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-query.k" -o "${OUTPUT_DIR}/reject-worker-query" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid function array accepted/crashed: worker-query: ${STATUS}: ${OUT}${ERR}")
-endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-slice.k" [=[fn main()->int ! TaskError:
+EXPECT(supported-worker-query 1)
+COMPILE(supported-worker-slice [=[fn main()->int ! TaskError:
   callbacks:[fn(int)->int]=[fn(value):value]
   try parallel:
     values=try await spawn slice(callbacks,0,1)
     length(values)
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-slice.k" -o "${OUTPUT_DIR}/reject-worker-slice" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid function array accepted/crashed: worker-slice: ${STATUS}: ${OUT}${ERR}")
-endif()
+EXPECT(supported-worker-slice 1)
 file(WRITE "${OUTPUT_DIR}/reject-coordination.k" [=[fn worker(value:int)->int:
   value
 fn coordinate(value:int)->int ! TaskError:

@@ -159,15 +159,7 @@ int main() {
           "fn main()->int:\n  values=[fn(value:int):value,fn(value:float):value]\n  0\n",
           "type Config:\n  apply:fn(int)->int\nerror E:\n  Bad:\n    config:Config\nfn "
           "worker(value:int)->int ! E:\n  value\nfn main()->int ! (E | TaskError):\n  try "
-          "parallel:\n    try await spawn worker(42)\n",
-          "type Config:\n  apply:fn(int)->int\nfn main()->int ! TaskError:\n  configs=[Config "
-          "{apply:fn(value):value}]\n  try parallel:\n    try await spawn length(configs)\n",
-          "type Config:\n  apply:fn(int)->int\nfn main()->int ! TaskError:\n  configs=[Config "
-          "{apply:fn(value):value}]\n  try parallel:\n    values=try await spawn "
-          "slice(configs,0,1)\n    length(values)\n",
-          "type Config:\n  apply:fn(int)->int\nfn main()->int ! TaskError:\n  configs=[Config "
-          "{apply:fn(value):value}]\n  try parallel:\n    values=try await spawn "
-          "concat(configs,configs)\n    length(values)\n"})
+          "parallel:\n    try await spawn worker(42)\n"})
       require(!analyze(text).ok(), "invalid callable field use accepted");
 
     auto base = analyze("type Config:\n  apply:fn(int)->int\nfn main()->int:\n  config=Config "
