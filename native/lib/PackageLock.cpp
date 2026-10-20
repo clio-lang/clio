@@ -1,5 +1,6 @@
 #include "kalandra/PackageLock.h"
 #include "kalandra/GitRepository.h"
+#include "kalandra/GitRevision.h"
 #include <algorithm>
 #include <functional>
 #include <set>
@@ -30,21 +31,25 @@ NativePackageKey key(const toml::table &item) {
           "invalid package source identity in kalandra.lock");
   return {*repository, *commit};
 }
-std::vector<NativeDependency> requests(const toml::node_view<const toml::node> &node) {
+std::vector<LockedNativeDependency> requests(const toml::node_view<const toml::node> &node) {
   const auto *items = node.as_array();
   require(items && items->size() <= 128, "invalid or oversized dependency list in kalandra.lock");
-  std::vector<NativeDependency> result;
+  std::vector<LockedNativeDependency> result;
   std::set<std::string> names;
   for (const auto &item : *items) {
     const auto *table = item.as_table();
-    require(table && table->size() == 3, "invalid dependency record in kalandra.lock");
+    require(table && table->size() == 4, "invalid dependency record in kalandra.lock");
     auto name = (*table)["name"].value<std::string>();
     require(name && alias(*name) && names.insert(*name).second,
             "invalid or duplicate dependency alias in kalandra.lock");
     auto source = key(*table);
-    result.push_back({*name, std::move(source.first), std::move(source.second)});
+    auto revision = (*table)["rev"].value<std::string>();
+    require(revision && validGitRevision(*revision) &&
+                (!exactGitCommit(*revision) || *revision == source.second),
+            "invalid request or conflicting exact pin in kalandra.lock");
+    result.push_back({*name, std::move(source.first), *revision, std::move(source.second)});
   }
-  std::ranges::sort(result, {}, &NativeDependency::name);
+  std::ranges::sort(result, {}, &LockedNativeDependency::name);
   return result;
 }
 bool entryPath(const std::string &text) {
@@ -58,20 +63,22 @@ bool entryPath(const std::string &text) {
       return false;
   return true;
 }
-toml::array serializeRequests(const std::vector<NativeDependency> &values) {
+toml::array serializeRequests(const std::vector<LockedNativeDependency> &values) {
   auto ordered = values;
-  std::ranges::sort(ordered, {}, &NativeDependency::name);
+  std::ranges::sort(ordered, {}, &LockedNativeDependency::name);
   toml::array result;
   for (const auto &value : ordered)
-    result.push_back(toml::table{
-        {"name", value.name}, {"repository", value.repository}, {"commit", value.commit}});
+    result.push_back(toml::table{{"name", value.name},
+                                 {"repository", value.repository},
+                                 {"rev", value.revision},
+                                 {"commit", value.commit}});
   return result;
 }
 } // namespace
 bool sameNativeDependencies(const std::vector<NativeDependency> &left,
-                            const std::vector<NativeDependency> &right) {
+                            const std::vector<LockedNativeDependency> &right) {
   return std::ranges::equal(left, right, [](const auto &a, const auto &b) {
-    return a.name == b.name && a.repository == b.repository && a.commit == b.commit;
+    return a.name == b.name && a.repository == b.repository && a.revision == b.revision;
   });
 }
 std::expected<NativePackageLock, std::string> parseNativePackageLock(std::string_view contents,
@@ -79,7 +86,7 @@ std::expected<NativePackageLock, std::string> parseNativePackageLock(std::string
   try {
     require(contents.size() <= limits.maxBytes, "kalandra.lock exceeds configured byte limit");
     const auto table = toml::parse(contents);
-    require(table.size() == 4 && table["format"].is_integer() && table["format"].value<int>() == 1,
+    require(table.size() == 4 && table["format"].is_integer() && table["format"].value<int>() == 2,
             "invalid kalandra.lock format");
     auto manifest = table["manifest_digest"].value<std::string>();
     const auto *packages = table["packages"].as_array();
@@ -102,8 +109,8 @@ std::expected<NativePackageLock, std::string> parseNativePackageLock(std::string
     }
     std::map<NativePackageKey, std::size_t> heights;
     std::set<NativePackageKey> visiting;
-    std::function<std::size_t(const NativeDependency &, std::size_t)> visit =
-        [&](const NativeDependency &dependency, std::size_t depth) -> std::size_t {
+    std::function<std::size_t(const LockedNativeDependency &, std::size_t)> visit =
+        [&](const LockedNativeDependency &dependency, std::size_t depth) -> std::size_t {
       require(depth <= limits.maxDepth, "kalandra.lock exceeds configured dependency depth");
       const NativePackageKey source{dependency.repository, dependency.commit};
       if (auto cached = heights.find(source); cached != heights.end()) {
@@ -138,7 +145,7 @@ std::string serializeNativePackageLock(const NativePackageLock &lock) {
                                    {"digest", value.digest},
                                    {"entry", value.entry},
                                    {"dependencies", serializeRequests(value.dependencies)}});
-  const toml::table table{{"format", 1},
+  const toml::table table{{"format", 2},
                           {"manifest_digest", lock.manifest},
                           {"roots", serializeRequests(lock.roots)},
                           {"packages", std::move(packages)}};

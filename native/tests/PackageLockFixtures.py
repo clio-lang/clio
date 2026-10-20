@@ -71,7 +71,7 @@ assert not (app / '.kalandra').exists()
 run(args.compiler, 'install', '--project', manifest)
 active = lock.read_bytes()
 data = tomllib.loads(active.decode())
-assert data['format'] == 1 and len(data['packages']) == 3 and len(data['roots']) == 2
+assert data['format'] == 2 and len(data['packages']) == 3 and len(data['roots']) == 2
 assert b'.kalandra' not in active and str(app).encode() not in active
 assert all(not Path(item['entry']).is_absolute() for item in data['packages'])
 assert not (app / '.kalandra/installed.toml').exists()
@@ -116,7 +116,8 @@ def case(change):
     value = copy.deepcopy(data)
     change(value)
     invalid.append(value)
-case(lambda x: x.update(format=2))
+case(lambda x: x.update(format=3))
+case(lambda x: x.update(format=1))
 case(lambda x: x.update(extra='unknown'))
 case(lambda x: x.update(manifest_digest='x' * 64))
 case(lambda x: x['roots'].append(x['roots'][0]))
@@ -125,12 +126,14 @@ case(lambda x: x['packages'][0].update(extra=True))
 case(lambda x: x['packages'][0].update(commit='main'))
 case(lambda x: x['packages'][0].update(repository='https://user:secret@example.com/repo'))
 case(lambda x: x['roots'][0].update(commit='f' * 40))
+case(lambda x: x['roots'][0].update(rev='main', commit='f' * 40))
+case(lambda x: x['roots'][0].update(rev='HEAD'))
 case(lambda x: x['packages'].append({**x['packages'][0], 'repository':'https://example.com/unreachable.git'}))
 for entry in ['/tmp/escape.k', 'C:/escape.k', '../escape.k', 'a/../public.k', './public.k', 'public.cpp', 'a\\public.k']:
     case(lambda x, entry=entry: x['packages'][0].update(entry=entry))
 def cycle(value):
     item = value['packages'][0]
-    item['dependencies'] = [{'name':'self', 'repository':item['repository'], 'commit':item['commit']}]
+    item['dependencies'] = [{'name':'self', 'repository':item['repository'], 'rev':item['commit'], 'commit':item['commit']}]
 case(cycle)
 for number, value in enumerate(invalid):
     candidate = root / f'invalid-{number}.lock'

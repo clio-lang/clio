@@ -116,7 +116,7 @@ int main(int argc, char **argv) {
     require(declared && declared->dependencies.size() == 1 &&
                 declared->dependencies[0].name == "geometrydep" &&
                 declared->dependencies[0].repository == "/nonexistent/repository" &&
-                declared->dependencies[0].commit == std::string(40, 'f'),
+                declared->dependencies[0].revision == std::string(40, 'f'),
             "exact dependency metadata was fetched or lost");
     require(!load(base + dependency, {256 * 1024, 0}), "dependency count limit ignored");
     require(!load(base + "[packages]\ngeometrydep='src/helper.k'\n" + dependency),

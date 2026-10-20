@@ -254,7 +254,7 @@ if args.lsp:
 for bad in [
     "bad='value'", "'a.b'={git=" + quote(geometry) + ",rev=" + quote(first) + "}",
     "bad={git='./relative',rev=" + quote(first) + "}",
-    "bad={git=" + quote(geometry) + ",rev='main'}",
+    "bad={git=" + quote(geometry) + ",rev='HEAD'}",
     "bad={git=" + quote(geometry) + ",rev=" + quote(first) + ",extra=true}",
 ]:
     malformed = app / "bad.toml"

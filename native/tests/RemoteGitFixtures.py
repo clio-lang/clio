@@ -151,6 +151,21 @@ def request(name, url, revision):
 
 simple = 'export fn next(n:int64)->int64:\n  n+1\n'
 first = repository('geometry', simple)
+remote_geometry = repositories / 'geometry.git'
+git(remote_geometry, 'tag', '-a', 'release', first, '-m', 'release')
+git(remote_geometry, 'tag', '-a', 'nested', 'release', '-m', 'nested')
+git(remote_geometry, 'tag', 'light', first)
+git(remote_geometry, 'tag', 'collision', first)
+git(remote_geometry, 'branch', 'collision', first)
+blob = git(remote_geometry, 'rev-parse', first + ':public.k')
+git(remote_geometry, 'tag', 'blob', blob)
+geometry_work = root / 'geometry-work'
+(geometry_work / 'public.k').write_text(simple.replace('n+1', 'n+2'))
+git(geometry_work, 'add', '--all')
+git(geometry_work, 'commit', '-m', 'next remote revision')
+second = git(geometry_work, 'rev-parse', 'HEAD')
+git(geometry_work, 'push', remote_geometry, 'HEAD:refs/heads/future')
+
 parent = repository('parent', 'from "geometry" import next\nexport fn compute(n:int64)->int64:\n  next(n)\n',
                     request('geometry', base + '/geometry.git', first))
 large = repository('large', simple, extra=lambda path: (path / 'large.bin').write_bytes(os.urandom(1024 * 1024)))
@@ -270,6 +285,49 @@ try:
         installed_manifest.write_text(text)
         (installed_app / 'main.k').write_bytes((app / 'main.k').read_bytes())
         run(installed, 'install', '--project', installed_manifest)
+    # Ref lookup uses the same actual HTTP(S) transport as pinned fetches.
+    for number, (revision, expected) in enumerate([('main', first), ('release', first),
+            ('nested', first), ('light', first), ('refs/heads/future', second),
+            ('refs/tags/collision', first), ('refs/heads/collision', first)]):
+        result = api('revision', root / f'remote-ref-{number}', base + '/geometry.git', revision)
+        assert result.stdout.splitlines()[0].decode() == expected
+    for number, revision in enumerate(['collision', 'missing', 'blob']):
+        failed_cache = root / f'remote-ref-failed-{number}'
+        result = api('revision', failed_cache, base + '/geometry.git', revision, ok=False)
+        if revision == 'collision':
+            assert b'ambiguous' in result.stderr
+        assert not list(failed_cache.iterdir())
+    api('revision', root / 'remote-ref-budget', base + '/geometry.git', 'main', budget='listing', ok=False)
+    stalled_ref = root / 'remote-ref-timeout'
+    assert b'timeout' in api('revision', stalled_ref, base + '/stall/repo.git', 'main', budget='timeout', ok=False).stderr
+    assert not list(stalled_ref.iterdir())
+    api('revision', root / 'remote-ref-untrusted', tls + '/geometry.git', 'release', ok=False)
+    assert api('revision', root / 'remote-ref-tls', tls + '/geometry.git', 'release', certificate=ca).stdout.splitlines()[0].decode() == first
+    ref_app = root / 'ref application'
+    ref_app.mkdir()
+    ref_manifest = ref_app / 'kalandra.toml'
+    ref_manifest.write_text("format=1\n[project]\nentry='main.k'\n[dependencies]\n" + request('geometry', base + '/geometry.git', 'main'))
+    (ref_app / 'main.k').write_bytes((tls_app / 'main.k').read_bytes())
+    run(args.compiler, 'install', '--project', ref_manifest)
+    ref_lock = (ref_app / 'kalandra.lock').read_bytes()
+    assert tomllib.loads(ref_lock.decode())['roots'][0]['commit'] == first
+    # Mutate only the fixture server's trusted bare repository, clearing injected
+    # Git configuration so the fixture does not run its own test attack marker.
+    for reference in ['refs/heads/main', 'refs/tags/release']:
+        changed = subprocess.run(['/usr/bin/git', '-C', str(remote_geometry), 'update-ref', reference, second],
+            env={**env, 'GIT_CONFIG_COUNT':'0'}, capture_output=True, timeout=30)
+        assert changed.returncode == 0, changed.stderr
+    before_reuse = len(requests)
+    for options in [[], ['--frozen'], ['--offline']]:
+        run(args.compiler, 'install', '--project', ref_manifest, *options)
+        assert (ref_app / 'kalandra.lock').read_bytes() == ref_lock
+    assert len(requests) == before_reuse
+    ref_fresh = root / 'fresh ref checkout'
+    ref_fresh.mkdir()
+    for filename in ['main.k', 'kalandra.toml', 'kalandra.lock']:
+        (ref_fresh / filename).write_bytes((ref_app / filename).read_bytes())
+    run(args.compiler, 'install', '--project', ref_fresh / 'kalandra.toml', '--frozen')
+    assert (ref_fresh / 'kalandra.lock').read_bytes() == ref_lock
     assert not marker.exists()
 finally:
     stopped.set()
@@ -288,6 +346,9 @@ run(args.checker, '--project', fresh_manifest)
 run(args.compiler, '--project', fresh_manifest, '-o', fresh_app / 'program')
 assert run(fresh_app / 'program').stdout == b'42\n'
 run(args.checker, '--project', manifest)
+run(args.checker, '--project', ref_fresh / 'kalandra.toml')
+run(args.compiler, '--project', ref_fresh / 'kalandra.toml', '-o', ref_fresh / 'program')
+assert run(ref_fresh / 'program').stdout == b'42\n'
 run(args.checker, '--project', tls_manifest)
 run(args.compiler, '--project', tls_manifest, '-o', tls_app / 'program')
 assert run(tls_app / 'program').stdout == b'42\n'

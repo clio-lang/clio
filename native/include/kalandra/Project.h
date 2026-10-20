@@ -4,7 +4,7 @@ namespace kalandra {
 struct NativeDependency {
   std::string name;
   std::string repository;
-  std::string commit;
+  std::string revision; // Requested commit or ref; source identity uses the locked commit.
 };
 struct NativeProject {
   std::string manifest;

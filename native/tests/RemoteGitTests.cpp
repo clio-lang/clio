@@ -40,6 +40,17 @@ int main(int argc, char **argv) {
     return 0;
   }
   std::filesystem::create_directories(argv[2]);
+  if (mode == "revision") {
+    auto result = kalandra::installGitRevision(argv[2], argv[3], argv[4], limits);
+    if (!result) {
+      std::cerr << result.error() << '\n';
+      return 1;
+    }
+    std::cout << result->commit << '\n'
+              << result->snapshot.identity << '\n'
+              << result->snapshot.digest << '\n';
+    return 0;
+  }
   const kalandra::GitSnapshotRequest request{argv[3], argv[4]};
   auto result = mode == "load" ? kalandra::loadGitSnapshot(argv[2], request, limits)
                                : kalandra::installGitSnapshot(argv[2], request, limits);

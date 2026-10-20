@@ -87,7 +87,7 @@ are closed before rename, but fsync/power-loss durability is not promised.
 
 This API provides snapshot-level publication. [Project installation](native-package-install.md)
 now adds complete-graph validation, a guard, manifest-change detection and
-[public lock activation](native-package-lock.md). Mutable refs remain separate work.
+[public lock activation](native-package-lock.md). [Branch/tag installation](native-git-refs.md) now selects exact commits for the snapshot API.
 The cache is writable by its owner: digest verification detects accidental edits,
 not coordinated modification of both source and integrity metadata. It is not an
 operating-system sandbox or a defense against hostile concurrent filesystem edits.
@@ -123,4 +123,4 @@ The snapshot importer and graph checking also run under ASan/UBSan. See the
 Exact dependency declarations, complete managed graph activation and
 CLI/checker/Metal source consumption/output protection are now implemented.
 [Remote transport](native-remote-git.md) and [exact-commit public locks](native-package-lock.md)
-are also implemented. Mutable Git refs, broader installed tools and editor onboarding remain in the [package workflow](native-packages.md).
+are also implemented. [Branch/tag resolution](native-git-refs.md) is implemented. Broader installed tools and editor onboarding remain in the [package workflow](native-packages.md).

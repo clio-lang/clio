@@ -87,7 +87,7 @@ snapshot integrity are verified without fetching during builds. Standalone local
 mappings retain their global behavior; in managed graphs they belong to the
 workspace or library owner declaring them. [Public HTTPS transport](native-remote-git.md)
 and [public locks](native-package-lock.md) are implemented for exact commits.
-Mutable refs and managed editor integration remain in the
+[Branch/tag resolution](native-git-refs.md) retains owner-local pins. Managed editor integration remains in the
 [package workflow](native-packages.md). No version solver or public native ABI
 is introduced.
 

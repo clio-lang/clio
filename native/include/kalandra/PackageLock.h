@@ -3,14 +3,21 @@
 #include <map>
 namespace kalandra {
 using NativePackageKey = std::pair<std::string, std::string>;
+struct LockedNativeDependency {
+  std::string name;
+  std::string repository;
+  std::string revision;
+  std::string commit;
+  bool operator==(const LockedNativeDependency &) const = default;
+};
 struct LockedNativePackage {
   std::string digest;
   std::string entry;
-  std::vector<NativeDependency> dependencies;
+  std::vector<LockedNativeDependency> dependencies;
 };
 struct NativePackageLock {
   std::string manifest;
-  std::vector<NativeDependency> roots;
+  std::vector<LockedNativeDependency> roots;
   std::map<NativePackageKey, LockedNativePackage> packages;
 };
 struct PackageLockLimits {
@@ -23,5 +30,5 @@ struct PackageLockLimits {
 parseNativePackageLock(std::string_view contents, PackageLockLimits limits = {});
 [[nodiscard]] std::string serializeNativePackageLock(const NativePackageLock &);
 [[nodiscard]] bool sameNativeDependencies(const std::vector<NativeDependency> &,
-                                          const std::vector<NativeDependency> &);
+                                          const std::vector<LockedNativeDependency> &);
 } // namespace kalandra

@@ -16,8 +16,8 @@ struct PackageInstallOptions {
   bool frozen = false;
   bool offline = false;
 };
-// Explicit exact-commit installation. Publishes a lock only after the
-// entire declared graph and reachable source imports validate. No mutable refs.
+// Explicit installation with owner-local revision pins. Publishes a lock only
+// after the entire declared graph and reachable source imports validate.
 [[nodiscard]] std::expected<void, std::string>
 installNativeProject(std::string manifest, PackageInstallLimits limits = {},
                      PackageInstallOptions options = {});

@@ -3,9 +3,9 @@
 The native installer now accepts public HTTPS repositories alongside local Git
 paths. Source imports, package-local scopes, nominal identity, graph activation
 and offline builds follow the existing [installation contract](native-package-install.md).
-This implements remote transport for exact commits.
-[Public locks and frozen/offline modes](native-package-lock.md) now support
-reproducible graph reinstalls; mutable refs remain separate work.
+Snapshot transport fetches exact commits.
+[Branch/tag lookup](native-git-refs.md) selects commits for new requests;
+[public locks and frozen/offline modes](native-package-lock.md) keep reinstalls pinned.
 
 ```toml
 [dependencies]
@@ -14,9 +14,10 @@ geometry = { git = "https://example.com/team/geometry.git", rev = "0123456789abc
 
 The URL and full lowercase 40-digit SHA-1 commit above are illustrative. Install
 explicitly with `kalandra install --project path/to/kalandra.toml`. The selected
-server must support smart HTTP Git transport and permit fetching that exact commit. Branches, tags, abbreviated IDs
-and SHA-256-format repositories are not supported. The current graph requires
-native library manifests at repository roots.
+server must support smart HTTP Git transport and permit fetching that exact
+commit. Branch/tag declarations use the [revision rules](native-git-refs.md) and
+resolve to exact commits. Abbreviated IDs and SHA-256-format repositories are not
+supported. The current graph requires native library manifests at repository roots.
 
 ## URL and trust policy
 
@@ -109,5 +110,5 @@ not a hosted native-library end-to-end result.
 
 Controlled servers and that probe do not establish compatibility with every hosted Git service,
 proxy, certificate setup, authentication method or Git version. Broader public-host qualification,
-authenticated/SSH transport, mutable refs, crash recovery
+authenticated/SSH transport, broader ref-host qualification, crash recovery
 and broader installed Metal execution remain separate qualification work.

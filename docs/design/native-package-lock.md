@@ -1,27 +1,28 @@
-# Exact-commit package locks
+# Native package locks
 
 Native projects now use `kalandra.lock` beside their explicit project manifest.
 Commit this file with the application. It selects the complete dependency graph;
 `.kalandra/` remains generated, private cache state. The lock is the single graph
 activation point. There is no separate private `installed.toml` activation index.
 
-This first lock format supports exact lowercase 40-digit SHA-1 commits, through
-[local and public HTTPS Git transport](native-remote-git.md). Tags, branches and
-version-range solving are not implemented yet.
+The lock selects exact lowercase 40-digit SHA-1 commits through
+[local and public HTTPS Git transport](native-remote-git.md).
+[Branch/tag requests](native-git-refs.md) are resolved during installation and stay
+pinned afterward. Version-range solving remains separate work.
 
 ## File contract
 
-Format 1 records four top-level fields:
+Format 2 records four top-level fields:
 
-- `format`: the integer `1`.
+- `format`: the integer `2`.
 - `manifest_digest`: SHA-256 of the exact root manifest bytes.
-- `roots`: the root dependency requests, each with `name`, `repository`, `commit`.
+- `roots`: the root dependency requests, each with `name`, `repository`, requested `rev`, and selected `commit`.
 - `packages`: unique repository/commit records, each with `repository`, `commit`,
   `digest`, `entry`, and `dependencies`.
 
 A package's `digest` is the existing SHA-256 source-tree digest. Its `entry` is a
 normalized relative `.k` public entry inside the immutable source snapshot.
-`dependencies` uses the same three-field request records as `roots`, preserving
+`dependencies` uses the same four-field request/pin records as `roots`, preserving
 private library aliases and transitive versions. Metadata names or SemVer labels
 do not merge distinct repositories/commits. Multiple aliases of the same source
 identity refer to one package record.
@@ -31,6 +32,10 @@ stored. Remote URL identities and relative entries can be reused by a fresh
 checkout. Local Git requests still contain their declared absolute repository
 identities; those projects require the same paths or an explicit manifest edit
 on another machine. Locks do not make local absolute declarations portable.
+
+Exact-commit requests must select that same commit. Other requests must use a
+supported ref spelling; their selected commits remain exact IDs. The earlier
+experimental format 1 is rejected rather than implicitly upgraded.
 
 Parsing is bounded and validates the entire graph without opening repositories
 or source files. Reject unknown formats/fields, invalid aliases/source identities,
@@ -53,9 +58,12 @@ kalandra install --project my-app/kalandra.toml --offline
 ```
 
 Normal installation creates a lock if absent. A present lock must parse correctly;
-it is never silently discarded or repaired. Unchanged exact source identities
-retain their locked digests, public entries and dependency edges, including when
-the root manifest changes. New requests may import new snapshots, removed requests
+it is never silently discarded or repaired. Unchanged requests retain their
+selected commits; unchanged source identities
+retain locked digests, public entries and dependency edges, including when
+the root manifest changes. Pins are matched within the declaring workspace or
+library owner by alias, repository and requested revision. New requests may
+import new snapshots, removed requests
 leave the new lock, and unused snapshots remain cached. Manifest comment edits
 also require explicit installation because the root digest covers exact bytes.
 
@@ -121,6 +129,6 @@ down both HTTP/TLS servers. Installed CPU compiler and Metal source checks consu
 the public lock; Metal source emission is not new GPU execution qualification.
 
 See the [qualification record](../../native/metal-proof/evidence/native-package-lock-2026-10-20.json).
-Mutable-ref resolution/pin preservation, explicit update policy, package-aware
+A deliberate update command, package-aware
 editor integration, authenticated/SSH transport, broader installed Metal execution
 and crash durability remain separate work.

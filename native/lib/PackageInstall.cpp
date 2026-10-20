@@ -1,4 +1,5 @@
 #include "kalandra/PackageInstall.h"
+#include "kalandra/GitRevision.h"
 #include "kalandra/PackageLock.h"
 #include <algorithm>
 #include <cerrno>
@@ -71,7 +72,8 @@ struct Resolved {
   NativePackageLock selected;
 };
 Resolved resolve(const NativeProject &project, const NativePackageLock &active, bool fetch,
-                 bool validateSources, bool strict, PackageInstallLimits limits) {
+                 bool validateSources, bool strict, bool allowResolution,
+                 PackageInstallLimits limits) {
   require(!strict || sameNativeDependencies(project.dependencies, active.roots),
           "dependency declarations differ from kalandra.lock; run kalandra install");
   const auto root = cache(project);
@@ -80,81 +82,124 @@ Resolved resolve(const NativeProject &project, const NativePackageLock &active, 
                      project.entry,
                      {},
                      project.packages}}},
-                  {hash(project.manifestContents), project.dependencies, {}}};
+                  {hash(project.manifestContents), {}, {}}};
   std::map<Key, std::size_t> known;
+  std::map<Key, std::string> resolvedRequests;
   std::vector<bool> complete{false};
   std::vector<std::size_t> heights{0};
   std::size_t entries = 0, bytes = 0;
-  std::function<std::size_t(const NativeDependency &, std::size_t)> visit =
-      [&](const NativeDependency &dependency, std::size_t depth) {
-        require(depth <= limits.maxDepth, "package dependencies exceed configured depth");
-        const Key key{dependency.repository, dependency.commit};
-        if (auto found = known.find(key); found != known.end()) {
-          require(complete[found->second],
-                  "package dependency cycle reaches '" + dependency.name + "'");
-          require(heights[found->second] <= limits.maxDepth - depth,
-                  "package dependencies exceed configured depth");
-          return found->second;
+  const std::vector<LockedNativeDependency> noPrior;
+  using Visit = std::pair<std::size_t, LockedNativeDependency>;
+  std::function<Visit(const NativeDependency &, const std::vector<LockedNativeDependency> &,
+                      std::size_t)>
+      visit = [&](const NativeDependency &dependency,
+                  const std::vector<LockedNativeDependency> &prior, std::size_t depth) -> Visit {
+    require(depth <= limits.maxDepth, "package dependencies exceed configured depth");
+    const auto pinned = std::ranges::find_if(prior, [&](const auto &item) {
+      return item.name == dependency.name && item.repository == dependency.repository &&
+             item.revision == dependency.revision;
+    });
+    std::string commit;
+    std::optional<NativeGitSnapshot> materialized;
+    if (pinned != prior.end())
+      commit = pinned->commit;
+    else {
+      require(allowResolution, "dependency request is not pinned in kalandra.lock");
+      if (exactGitCommit(dependency.revision))
+        commit = dependency.revision;
+      else {
+        const Key request{dependency.repository, dependency.revision};
+        if (auto previous = resolvedRequests.find(request); previous != resolvedRequests.end())
+          commit = previous->second;
+        else {
+          require(known.size() < limits.maxPackages,
+                  "package graph exceeds configured package limit");
+          auto resolved = installGitRevision((root / "snapshots").string(), dependency.repository,
+                                             dependency.revision, limits.snapshot);
+          require(bool(resolved), resolved ? "" : resolved.error());
+          commit = resolved->commit;
+          materialized = std::move(resolved->snapshot);
+          resolvedRequests.emplace(request, commit);
         }
-        require(known.size() < limits.maxPackages,
-                "package graph exceeds configured package limit");
-        const auto selected = active.packages.find(key);
-        require(fetch || selected != active.packages.end(),
-                "dependency is not active; run kalandra install --project " + project.manifest);
-        auto snapshot = fetch ? installGitSnapshot((root / "snapshots").string(),
-                                                   {key.first, key.second}, limits.snapshot)
-                              : loadGitSnapshot((root / "snapshots").string(),
-                                                {key.first, key.second}, limits.snapshot);
-        require(bool(snapshot), snapshot ? "" : snapshot.error());
-        LockedNativePackage record{snapshot->digest,
-                                   fs::path(snapshot->library.entry)
-                                       .lexically_relative(fs::path(snapshot->directory) / "source")
-                                       .generic_string(),
-                                   snapshot->library.dependencies};
-        if (selected != active.packages.end())
-          require(record.digest == selected->second.digest &&
-                      record.entry == selected->second.entry &&
-                      sameNativeDependencies(record.dependencies, selected->second.dependencies),
-                  "installed snapshot does not match kalandra.lock digest, entry or dependencies");
-        for (const auto &entry :
-             fs::recursive_directory_iterator(fs::path(snapshot->directory) / "source")) {
-          require(entries++ < limits.maxSourceEntries,
-                  "package graph exceeds configured source entry limit");
-          if (entry.is_regular_file()) {
-            const auto size = entry.file_size();
-            require(size <= limits.maxSourceBytes - bytes,
-                    "package graph exceeds configured source byte limit");
-            bytes += size;
-          }
-        }
-        require(fs::is_regular_file(fs::symlink_status(snapshot->library.entry)),
-                "library public entry is missing");
-        for (const auto &local : snapshot->library.packages)
-          require(fs::is_regular_file(fs::symlink_status(local.entry)),
-                  "library local mapping entry is missing");
-        const auto id = result.graph.nodes.size();
-        known.emplace(key, id);
-        result.selected.packages.emplace(key, std::move(record));
-        result.graph.nodes.push_back(snapshot->library.node(snapshot->identity));
-        complete.push_back(false);
-        heights.push_back(0);
-        for (const auto &child : snapshot->library.dependencies) {
-          const auto target = visit(child, depth + 1);
-          result.graph.nodes[id].dependencies.push_back({child.name, target});
-          heights[id] = std::max(heights[id], heights[target] + 1);
-        }
-        complete[id] = true;
-        return id;
-      };
+      }
+    }
+    const Key key{dependency.repository, commit};
+    LockedNativeDependency edge{dependency.name, dependency.repository, dependency.revision,
+                                commit};
+    if (auto found = known.find(key); found != known.end()) {
+      require(complete[found->second],
+              "package dependency cycle reaches '" + dependency.name + "'");
+      require(heights[found->second] <= limits.maxDepth - depth,
+              "package dependencies exceed configured depth");
+      return {found->second, std::move(edge)};
+    }
+    require(known.size() < limits.maxPackages, "package graph exceeds configured package limit");
+    const auto selected = active.packages.find(key);
+    require(allowResolution || selected != active.packages.end(),
+            "dependency target is not pinned in kalandra.lock");
+    if (!materialized) {
+      auto loaded = fetch ? installGitSnapshot((root / "snapshots").string(),
+                                               {key.first, key.second}, limits.snapshot)
+                          : loadGitSnapshot((root / "snapshots").string(), {key.first, key.second},
+                                            limits.snapshot);
+      require(bool(loaded), loaded ? "" : loaded.error());
+      materialized = std::move(*loaded);
+    }
+    auto &snapshot = *materialized;
+    LockedNativePackage record{snapshot.digest,
+                               fs::path(snapshot.library.entry)
+                                   .lexically_relative(fs::path(snapshot.directory) / "source")
+                                   .generic_string(),
+                               {}};
+    if (selected != active.packages.end())
+      require(
+          record.digest == selected->second.digest && record.entry == selected->second.entry &&
+              sameNativeDependencies(snapshot.library.dependencies, selected->second.dependencies),
+          "installed snapshot does not match kalandra.lock digest, entry or dependencies");
+    for (const auto &entry :
+         fs::recursive_directory_iterator(fs::path(snapshot.directory) / "source")) {
+      require(entries++ < limits.maxSourceEntries,
+              "package graph exceeds configured source entry limit");
+      if (entry.is_regular_file()) {
+        const auto size = entry.file_size();
+        require(size <= limits.maxSourceBytes - bytes,
+                "package graph exceeds configured source byte limit");
+        bytes += size;
+      }
+    }
+    require(fs::is_regular_file(fs::symlink_status(snapshot.library.entry)),
+            "library public entry is missing");
+    for (const auto &local : snapshot.library.packages)
+      require(fs::is_regular_file(fs::symlink_status(local.entry)),
+              "library local mapping entry is missing");
+    const auto id = result.graph.nodes.size();
+    known.emplace(key, id);
+    result.selected.packages.emplace(key, std::move(record));
+    result.graph.nodes.push_back(snapshot.library.node(snapshot.identity));
+    complete.push_back(false);
+    heights.push_back(0);
+    for (const auto &child : snapshot.library.dependencies) {
+      auto [target, childPin] =
+          visit(child, selected == active.packages.end() ? noPrior : selected->second.dependencies,
+                depth + 1);
+      result.graph.nodes[id].dependencies.push_back({child.name, target});
+      result.selected.packages.at(key).dependencies.push_back(std::move(childPin));
+      heights[id] = std::max(heights[id], heights[target] + 1);
+    }
+    require(selected == active.packages.end() ||
+                result.selected.packages.at(key).dependencies == selected->second.dependencies,
+            "resolved dependencies disagree with kalandra.lock pins");
+    complete[id] = true;
+    return {id, std::move(edge)};
+  };
   for (const auto &dependency : project.dependencies) {
-    const auto target = visit(dependency, 1);
+    auto [target, pin] = visit(dependency, active.roots, 1);
     result.graph.nodes[0].dependencies.push_back({dependency.name, target});
+    result.selected.roots.push_back(std::move(pin));
   }
   require(!strict || result.selected.packages.size() == active.packages.size(),
           "kalandra.lock contains unexpected graph nodes");
   if (validateSources) {
-    // Installation checks the reachable source imports before activation. Builds
-    // perform this check later, with their own root overlays and CLI mappings.
     auto parsed = loadPackageModules(result.graph.nodes, {}, {128, limits.maxDepth});
     require(bool(parsed), parsed ? "" : parsed.error());
     if (!parsed->ok())
@@ -220,7 +265,8 @@ std::expected<void, std::string> installNativeProject(std::string manifest,
     require(::flock(guard.fd, LOCK_EX | LOCK_NB) == 0,
             "another package installation is in progress");
     directory(root / "snapshots", !options.offline);
-    auto resolved = resolve(*project, active, !options.offline, true, matching, limits);
+    auto resolved = resolve(*project, active, !options.offline, true, matching,
+                            !options.frozen && !options.offline, limits);
     const auto contents = serializeNativePackageLock(resolved.selected);
     // Validate generated records too; no unchecked graph is ever activated.
     lock(contents, limits);
@@ -283,7 +329,7 @@ loadInstalledNativeProject(const NativeProject &project, PackageInstallLimits li
                 project.manifest);
     directory(root, false);
     directory(root / "snapshots", false);
-    return resolve(project, active, false, false, true, limits).graph;
+    return resolve(project, active, false, false, true, false, limits).graph;
   } catch (const std::exception &error) {
     return std::unexpected(error.what());
   }

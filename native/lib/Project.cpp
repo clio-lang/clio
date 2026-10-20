@@ -1,5 +1,6 @@
 #include "kalandra/Project.h"
 #include "kalandra/GitRepository.h"
+#include "kalandra/GitRevision.h"
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -210,13 +211,11 @@ std::expected<Manifest, std::string> loadManifest(std::string path, ProjectLimit
           return fail(
               request->get("git") ? *request->get("git") : value,
               "dependency git requires a normalized local path or supported remote URL");
-        auto commit = (*request)["rev"].value<std::string>();
-        if (!commit || commit->size() != 40 || !std::ranges::all_of(*commit, [](char c) {
-              return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
-            }))
+        auto revision = (*request)["rev"].value<std::string>();
+        if (!revision || !validGitRevision(*revision))
           return fail(request->get("rev") ? *request->get("rev") : value,
-                      "dependency rev currently requires a full lowercase 40-digit Git commit");
-        result.dependencies.push_back({name, std::move(*repository), std::move(*commit)});
+                      "dependency rev requires a full lowercase commit or supported branch/tag name");
+        result.dependencies.push_back({name, std::move(*repository), std::move(*revision)});
       }
     }
     return result;

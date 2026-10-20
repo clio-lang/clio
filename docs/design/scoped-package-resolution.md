@@ -83,6 +83,6 @@ acceptance guards the original mapping API.
 Exact-commit resolver/activation, managed output protection and
 [public HTTPS transport](native-remote-git.md) are implemented.
 [Public exact-commit locks](native-package-lock.md) and frozen/offline modes are implemented.
-Mutable refs, authenticated/SSH transport, editor integration and scoped Metal execution
+[Branch/tag resolution](native-git-refs.md) preserves pins. Authenticated/SSH transport, editor integration and scoped Metal execution
 qualification remain follow-ups in
 [N3-A–D](native-packages.md#implementation-sequence-and-gates).

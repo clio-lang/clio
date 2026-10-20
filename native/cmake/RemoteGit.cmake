@@ -22,5 +22,11 @@ if(BUILD_TESTING)
       --compiler "$<TARGET_FILE:kalandra>" --checker "$<TARGET_FILE:kalandra-check>"
       --root "${CMAKE_CURRENT_BINARY_DIR}/remote-git-${VARIANT}" ${REMOTE_GIT_EXTRA})
     set_tests_properties(native-remote-git-${VARIANT} PROPERTIES TIMEOUT 180)
+    add_test(NAME native-git-refs-${VARIANT} COMMAND "${KALANDRA_PYTHON3}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/GitRefFixtures.py"
+      --api "$<TARGET_FILE:kalandra-remote-git-tests-${VARIANT}>"
+      --compiler "$<TARGET_FILE:kalandra>" --checker "$<TARGET_FILE:kalandra-check>"
+      --root "${CMAKE_CURRENT_BINARY_DIR}/git-refs-${VARIANT}")
+    set_tests_properties(native-git-refs-${VARIANT} PROPERTIES TIMEOUT 180)
   endforeach()
 endif()

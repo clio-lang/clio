@@ -23,6 +23,15 @@ struct NativeGitSnapshot {
   std::string digest;
   NativePackage library;
 };
+struct ResolvedGitSnapshot {
+  std::string commit;
+  NativeGitSnapshot snapshot;
+};
+// Resolve one new request and publish a verified commit snapshot. Existing locks
+// bypass this API: they always install/load their exact selected commit instead.
+[[nodiscard]] std::expected<ResolvedGitSnapshot, std::string>
+installGitRevision(std::string cache, std::string repository, std::string revision,
+                   GitSnapshotLimits limits = {});
 [[nodiscard]] std::expected<NativeGitSnapshot, std::string>
 installGitSnapshot(std::string cache, GitSnapshotRequest request, GitSnapshotLimits limits = {});
 [[nodiscard]] std::expected<NativeGitSnapshot, std::string>

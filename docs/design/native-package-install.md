@@ -2,7 +2,8 @@
 
 The native tools support `[dependencies]`, explicit `kalandra install --project`,
 and a locked graph for compiler/checker/Metal source builds. Dependencies use
-local or public HTTPS Git repositories and exact SHA-1 commits. Numeric-loopback
+local or public HTTPS Git repositories with exact commits or supported branch/tag
+requests, always locked to exact commits. Numeric-loopback
 HTTP is supported for local development. See [remote transport](native-remote-git.md)
 for URL/TLS/download rules and [package locks](native-package-lock.md) for the file
 format, activation and frozen/offline contracts.
@@ -23,7 +24,7 @@ geometry = { git = "https://example.com/team/geometry.git", rev = "0123456789abc
 
 Replace the illustrative URL and ID with a repository and full lowercase 40-digit
 commit ID. Local repositories use canonical absolute paths. A managed library
-uses the same `[dependencies]` format. Tags, branches, abbreviations, unsupported
+uses the same `[dependencies]` format. Abbreviated IDs, revision expressions, unsupported
 remote protocols, relative local repository paths, unknown request fields and
 alias conflicts with `[packages]` are rejected. Declaration parsing does not open
 Git repositories or install anything.
@@ -70,8 +71,9 @@ and preserves the lock exactly. Offline installation also requires a complete
 verified cache and never invokes Git. Neither mode bootstraps a missing lock or
 rewrites source/manifest/lock files. Normal installation may create or update the
 lock after validating the complete graph. Existing source pins remain checked,
-including when the manifest changes. Mutable refs/version solving are not yet
-implemented.
+including when the manifest changes. [Branch/tag requests](native-git-refs.md) retain existing owner-local pins when
+refs move; new/changed requests resolve explicitly during normal installation.
+Version solving remains separate work.
 
 Changing manifest bytes, even comments, requires explicit normal reinstallation.
 Source edits alone do not. Compilation/checking never fetches, installs, repairs
@@ -110,6 +112,6 @@ cover numerical imports and source emission/protection without new GPU execution
 Qualification records: [initial installation](../../native/metal-proof/evidence/native-package-install-2026-10-20.json),
 [remote transport](../../native/metal-proof/evidence/native-remote-git-2026-10-20.json),
 and [public locks](../../native/metal-proof/evidence/native-package-lock-2026-10-20.json).
-Remaining work includes mutable refs and update policy, authenticated/SSH transport,
+Remaining work includes a deliberate update command, authenticated/SSH transport,
 package-aware editor support, broader host/installed Metal qualification and crash
 recovery.

@@ -1,5 +1,6 @@
 #include "kalandra/GitSnapshot.h"
 #include "kalandra/GitRepository.h"
+#include "kalandra/GitRevision.h"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -10,6 +11,7 @@
 #include <fstream>
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/SHA256.h>
+#include <map>
 #include <poll.h>
 #include <sstream>
 #include <stdexcept>
@@ -321,7 +323,7 @@ void initializeDatabase(const fs::path &database) {
   write(database / "HEAD", "ref: refs/heads/unused\n");
   write(database / "config", "[core]\n bare = true\n repositoryformatversion = 0\n");
 }
-void copyObjects(const fs::path &repository, const fs::path &database, GitSnapshotLimits limits) {
+fs::path localGitDirectory(const fs::path &repository) {
   require(fs::canonical(repository).string() == repository.string(),
           "local Git repository must use its canonical absolute path");
   auto gitdir = repository;
@@ -332,6 +334,10 @@ void copyObjects(const fs::path &repository, const fs::path &database, GitSnapsh
               fs::is_regular_file(fs::symlink_status(gitdir / "HEAD")),
           "snapshot requires a local worktree or bare Git repository; linked worktrees are "
           "unsupported");
+  return gitdir;
+}
+void copyObjects(const fs::path &repository, const fs::path &database, GitSnapshotLimits limits) {
+  const auto gitdir = localGitDirectory(repository);
   initializeDatabase(database);
   const auto objects = gitdir / "objects";
   std::size_t files = 0, bytes = 0;
@@ -362,6 +368,115 @@ void copyObjects(const fs::path &repository, const fs::path &database, GitSnapsh
     fs::create_directories((database / "objects" / relative).parent_path());
     write(database / "objects" / relative, contents);
   }
+}
+std::vector<std::string> revisionNames(const std::string &revision) {
+  if (revision.starts_with("refs/"))
+    return {revision};
+  return {"refs/heads/" + revision, "refs/tags/" + revision};
+}
+std::string chooseRevision(const std::map<std::string, std::string> &refs,
+                           const std::vector<std::string> &names, bool peeled) {
+  std::string result;
+  for (const auto &name : names) {
+    auto found = refs.find(name);
+    if (found == refs.end())
+      continue;
+    require(result.empty(), "ambiguous Git revision; use refs/heads/... or refs/tags/...");
+    result = found->second;
+    if (peeled) {
+      if (auto tag = refs.find(name + "^{}"); tag != refs.end())
+        result = tag->second;
+    }
+  }
+  require(!result.empty(), "Git revision does not name an available branch or tag");
+  return result;
+}
+std::string localRevision(const fs::path &repository, const fs::path &database,
+                          const std::vector<std::string> &names, GitSnapshotLimits limits) {
+  copyObjects(repository, database, limits);
+  const auto source = localGitDirectory(repository);
+  std::map<std::string, std::string> selected;
+  if (fs::exists(fs::symlink_status(source / "packed-refs"))) {
+    std::istringstream packed(read(source / "packed-refs", limits.maxListingBytes));
+    std::string line;
+    std::size_t count = 0;
+    bool previous = false;
+    while (std::getline(packed, line)) {
+      require(count++ < limits.maxObjectFiles, "Git refs exceed configured entry limit");
+      if (line.starts_with('#')) {
+        previous = false;
+        continue;
+      }
+      if (line.starts_with('^')) {
+        require(previous && hex(std::string_view(line).substr(1), 40),
+                "invalid peeled packed Git ref");
+        previous = false;
+        continue;
+      }
+      require(line.size() > 41 && line[40] == ' ' && hex(std::string_view(line).substr(0, 40), 40),
+              "invalid packed Git ref record");
+      const auto name = line.substr(41);
+      if (std::ranges::find(names, name) != names.end())
+        require(selected.emplace(name, line.substr(0, 40)).second, "duplicate packed Git ref");
+      previous = true;
+    }
+  }
+  for (const auto &name : names) {
+    fs::path path = source;
+    for (const auto &component : fs::path(name)) {
+      path /= component;
+      const auto status = fs::symlink_status(path);
+      if (!fs::exists(status))
+        break;
+      if (path != source / name) {
+        require(fs::is_directory(status), "Git ref paths must use real directories");
+        continue;
+      }
+      auto value = read(path, 64);
+      if (value.ends_with('\n'))
+        value.pop_back();
+      require(hex(value, 40), "local Git refs must contain exact object IDs, not symbolic refs");
+      selected[name] = std::move(value); // A loose ref overrides its packed value.
+    }
+  }
+  const auto object = chooseRevision(selected, names, false);
+  const auto commit =
+      git(database, {"rev-parse", "--verify", object + "^{commit}"}, 64, limits.processSeconds);
+  require(commit.size() == 41 && commit.back() == '\n' &&
+              hex(std::string_view(commit).substr(0, 40), 40),
+          "Git revision does not identify a commit");
+  return commit.substr(0, 40);
+}
+std::string remoteRevision(const std::string &repository, const fs::path &database,
+                           const std::vector<std::string> &names, GitSnapshotLimits limits,
+                           GitTransport transport) {
+  initializeDatabase(database);
+  std::vector<std::string> arguments{"ls-remote", "--", repository};
+  auto expected = names;
+  for (const auto &name : names) {
+    arguments.push_back(name);
+    if (name.starts_with("refs/tags/")) {
+      arguments.push_back(name + "^{}");
+      expected.push_back(name + "^{}");
+    }
+  }
+  const auto advertisement = git(database, std::move(arguments), limits.maxListingBytes,
+                                 limits.processSeconds, &limits, transport);
+  std::map<std::string, std::string> selected;
+  std::istringstream lines(advertisement);
+  std::string line;
+  while (std::getline(lines, line)) {
+    require(line.size() > 41 && line[40] == '\t' && hex(std::string_view(line).substr(0, 40), 40),
+            "invalid Git revision advertisement");
+    const auto name = line.substr(41);
+    require(std::ranges::find(expected, name) != expected.end() &&
+                selected.emplace(name, line.substr(0, 40)).second,
+            "unexpected or duplicate Git revision advertisement");
+  }
+  for (const auto &[name, object] : selected)
+    if (name.ends_with("^{}"))
+      require(selected.contains(name.substr(0, name.size() - 3)), "peeled Git ref lacks its tag");
+  return chooseRevision(selected, names, true);
 }
 std::string extract(const fs::path &database, const std::string &commit, const fs::path &source,
                     GitSnapshotLimits limits) {
@@ -447,6 +562,29 @@ NativeGitSnapshot load(const fs::path &cache, const GitSnapshotRequest &request,
           std::move(*library)};
 }
 } // namespace
+std::expected<ResolvedGitSnapshot, std::string> installGitRevision(std::string cache,
+                                                                   std::string repository,
+                                                                   std::string revision,
+                                                                   GitSnapshotLimits limits) {
+  try {
+    const auto transport = gitTransport(repository);
+    require(bool(transport) && validGitRevision(revision),
+            "invalid Git repository or revision request");
+    std::string commit = revision;
+    if (!exactGitCommit(revision)) {
+      Stage stage(cacheRoot(cache));
+      const auto names = revisionNames(revision);
+      commit = *transport == GitTransport::Local
+                   ? localRevision(repository, stage.path / "git", names, limits)
+                   : remoteRevision(repository, stage.path / "git", names, limits, *transport);
+    }
+    auto snapshot = installGitSnapshot(std::move(cache), {std::move(repository), commit}, limits);
+    require(bool(snapshot), snapshot ? "" : snapshot.error());
+    return ResolvedGitSnapshot{commit, std::move(*snapshot)};
+  } catch (const std::exception &error) {
+    return std::unexpected(error.what());
+  }
+}
 std::expected<NativeGitSnapshot, std::string>
 loadGitSnapshot(std::string cache, GitSnapshotRequest request, GitSnapshotLimits limits) {
   try {
