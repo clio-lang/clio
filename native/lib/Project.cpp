@@ -73,6 +73,8 @@ struct Manifest {
   std::optional<std::string> project;
   std::optional<LibraryMetadata> library;
   std::vector<ModulePackage> packages;
+  std::vector<NativeDependency> dependencies;
+  std::string contents;
 };
 std::expected<Manifest, std::string> loadManifest(std::string path, ProjectLimits limits) {
   namespace fs = std::filesystem;
@@ -102,7 +104,8 @@ std::expected<Manifest, std::string> loadManifest(std::string path, ProjectLimit
                              std::to_string(at.column) + ": " + message);
     };
     for (const auto &[key, value] : table)
-      if (key != "format" && key != "project" && key != "packages" && key != "package")
+      if (key != "format" && key != "project" && key != "packages" && key != "package" &&
+          key != "dependencies")
         return fail(value, "unknown native project field '" + std::string(key.str()) + "'");
     auto *format = table.get("format");
     if (!format || !format->is_integer() || format->value<std::int64_t>() != 1)
@@ -123,7 +126,7 @@ std::expected<Manifest, std::string> loadManifest(std::string path, ProjectLimit
         return {};
       return canonical.string();
     };
-    Manifest result{manifest.string(), {}, {}, {}};
+    Manifest result{manifest.string(), {}, {}, {}, {}, text};
     if (const auto *node = table.get("project")) {
       const auto *project = node->as_table();
       if (!project)
@@ -182,6 +185,41 @@ std::expected<Manifest, std::string> loadManifest(std::string path, ProjectLimit
         result.packages.push_back({std::string(key.str()), std::move(*package)});
       }
     }
+    if (const auto *node = table.get("dependencies")) {
+      const auto *dependencies = node->as_table();
+      if (!dependencies)
+        return fail(*node, "dependencies must be a table of Git requests");
+      if (dependencies->size() > limits.maxPackages ||
+          result.packages.size() > limits.maxPackages - dependencies->size())
+        return fail(*node, "native manifest exceeds configured dependency/mapping limit");
+      for (const auto &[key, value] : *dependencies) {
+        const std::string name(key.str());
+        if (!packageName(name) || std::ranges::any_of(result.packages, [&](const auto &local) {
+              return local.name == name;
+            }))
+          return fail(value, "invalid or conflicting dependency alias '" + name + "'");
+        const auto *request = value.as_table();
+        if (!request)
+          return fail(value, "dependency requests require git and rev strings");
+        for (const auto &[field, entry] : *request)
+          if (field != "git" && field != "rev")
+            return fail(entry, "unknown dependency field '" + std::string(field.str()) + "'");
+        auto repository = (*request)["git"].value<std::string>();
+        if (!repository || repository->find_first_of("\r\n") != std::string::npos ||
+            repository->find('\0') != std::string::npos || !fs::path(*repository).is_absolute() ||
+            fs::path(*repository).lexically_normal().string() != *repository)
+          return fail(
+              request->get("git") ? *request->get("git") : value,
+              "dependency git currently requires a normalized absolute local repository path");
+        auto commit = (*request)["rev"].value<std::string>();
+        if (!commit || commit->size() != 40 || !std::ranges::all_of(*commit, [](char c) {
+              return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+            }))
+          return fail(request->get("rev") ? *request->get("rev") : value,
+                      "dependency rev currently requires a full lowercase 40-digit Git commit");
+        result.dependencies.push_back({name, std::move(*repository), std::move(*commit)});
+      }
+    }
     return result;
   } catch (const toml::parse_error &error) {
     std::ostringstream message;
@@ -197,9 +235,12 @@ std::expected<NativeProject, std::string> loadNativeProject(std::string path,
     return std::unexpected(manifest.error());
   if (!manifest->project)
     return std::unexpected(manifest->path + ": native project requires a [project] entry");
-  return NativeProject{std::move(manifest->path), std::move(*manifest->project),
+  return NativeProject{std::move(manifest->path),
+                       std::move(*manifest->project),
                        std::move(manifest->packages),
-                       manifest->library ? std::optional(manifest->library->entry) : std::nullopt};
+                       manifest->library ? std::optional(manifest->library->entry) : std::nullopt,
+                       std::move(manifest->dependencies),
+                       std::move(manifest->contents)};
 }
 std::expected<NativePackage, std::string> loadNativePackage(std::string path,
                                                             ProjectLimits limits) {
@@ -209,9 +250,10 @@ std::expected<NativePackage, std::string> loadNativePackage(std::string path,
   if (!manifest->library)
     return std::unexpected(manifest->path + ": native library requires a [package] entry");
   auto &library = *manifest->library;
-  return NativePackage{std::move(manifest->path),    std::move(library.name),
-                       std::move(library.version),   std::move(library.entry),
-                       std::move(manifest->project), std::move(manifest->packages)};
+  return NativePackage{std::move(manifest->path),        std::move(library.name),
+                       std::move(library.version),       std::move(library.entry),
+                       std::move(manifest->project),     std::move(manifest->packages),
+                       std::move(manifest->dependencies)};
 }
 PackageNode NativePackage::node(std::string identity,
                                 std::vector<PackageDependency> dependencies) const {

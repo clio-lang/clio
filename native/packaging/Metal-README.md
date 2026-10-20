@@ -31,3 +31,5 @@ and licenses. SHA256SUMS covers the complete installed bundle; an archive checks
 is supplied separately. Signing/notarization, self-contained dependencies and
 other platforms remain unqualified. This Metal bundle is not yet uploaded by the
 CPU-only version-tag workflow.
+
+Exact local Git dependencies can be installed explicitly with `kalandra install --project path/to/kalandra.toml`. Installation requires system Git; subsequent project builds verify the activated cache offline. Remote Git URLs, mutable refs and public lockfiles are not supported yet.

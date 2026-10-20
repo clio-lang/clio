@@ -1,12 +1,19 @@
 #pragma once
 #include "kalandra/Syntax.h"
 namespace kalandra {
+struct NativeDependency {
+  std::string name;
+  std::string repository;
+  std::string commit;
+};
 struct NativeProject {
   std::string manifest;
   std::string entry;
   std::vector<ModulePackage> packages;
   // Also protect a declared public entry when building the example application.
   std::optional<std::string> libraryEntry = {};
+  std::vector<NativeDependency> dependencies = {};
+  std::string manifestContents = {};
 };
 struct NativePackage {
   std::string manifest;
@@ -15,6 +22,7 @@ struct NativePackage {
   std::string entry;
   std::optional<std::string> projectEntry;
   std::vector<ModulePackage> packages;
+  std::vector<NativeDependency> dependencies = {};
   // Metadata does not select a resolved identity. The offline resolver supplies
   // that identity and dependency edges; graph validation remains in the loader.
   [[nodiscard]] PackageNode node(std::string identity,

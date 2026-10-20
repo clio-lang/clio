@@ -1,5 +1,6 @@
 """CPU bundle acceptance: relocate, compile outside checkout, and reject missing resources."""
 import hashlib
+import json
 import os
 from pathlib import Path
 import shutil
@@ -72,6 +73,30 @@ with tempfile.TemporaryDirectory(prefix="kalandra cpu install ") as temporary:
         (cwd / "strings.k").write_text('fn main() -> [String]:\n  ["hello", "world"]\n')
         run([compiler, cwd / "strings.k", "-o", cwd / "program", *mode], cwd)
         assert "hello" in run([cwd / "program"], cwd).stdout
+    # The relocated public compiler installs exact local dependencies, then builds
+    # solely from the activated cache with the original Git repository absent.
+    repository = cwd / "installed Git library"
+    repository.mkdir()
+    repository = repository.resolve()
+    git = ["/usr/bin/env", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null",
+           "GIT_CONFIG_SYSTEM=/dev/null", "GIT_CONFIG_COUNT=0", "/usr/bin/git",
+           "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+           "-c", "commit.gpgsign=false", "-C", repository]
+    run([*git, "init", "--template=", "--initial-branch=main"], cwd)
+    (repository / "kalandra.toml").write_text("format=1\n[package]\nname='installed'\nversion='0.1.0'\nentry='public.k'\n")
+    (repository / "public.k").write_text("export fn next(n:int)->int:\n  n+1\n")
+    run([*git, "add", "--all"], cwd)
+    run([*git, "commit", "-m", "fixture"], cwd)
+    revision = run([*git, "rev-parse", "HEAD"], cwd).stdout.strip()
+    application = cwd / "installed dependency application"
+    application.mkdir()
+    (application / "main.k").write_text('from "installed" import next\nfn main()->int ! TaskError:\n  try parallel:\n    try await spawn next(41)\n')
+    (application / "kalandra.toml").write_text("format=1\n[project]\nentry='main.k'\n[dependencies]\ninstalled={git=" + json.dumps(str(repository)) + ",rev=" + json.dumps(revision) + "}\n")
+    run([compiler, "install", "--project", application / "kalandra.toml"], cwd)
+    repository.rename(repository.with_name("unavailable Git library"))
+    for mode in ([], ["--sanitize"], ["--thread-sanitize"]):
+        run([compiler, "--project", application / "kalandra.toml", "-o", cwd / "program", *mode], cwd)
+        assert run([cwd / "program"], cwd).stdout.strip() == "42"
     saved = (cwd / "program").read_bytes()
     runtime = prefix / "lib/kalandra/native/libkalandra-native-runtime.a"
     runtime.unlink()
@@ -81,4 +106,4 @@ with tempfile.TemporaryDirectory(prefix="kalandra cpu install ") as temporary:
     result = run([compiler, cwd / "main.k", "--target", "metal", "-o", cwd / "program"], cwd, 2)
     assert "supports CPU only" in result.stderr
     assert (cwd / "program").read_bytes() == saved
-print("CPU bundle: relocation, symlink, 45 scalar/collection/worker sanitizer programs, project imports, resource failures passed")
+print("CPU bundle: relocation, symlink, 45 scalar/collection/worker sanitizer programs, project imports, exact dependency installation/offline workers, resource failures passed")

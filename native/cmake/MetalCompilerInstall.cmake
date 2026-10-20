@@ -11,7 +11,7 @@ target_compile_definitions(kalandra-metal-installed PRIVATE ${CPU_INSTALL_DEFINI
   KALANDRA_HAS_METAL_SOURCE=1)
 target_include_directories(kalandra-metal-installed SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
 target_include_directories(kalandra-metal-installed PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/metal-source")
-target_link_libraries(kalandra-metal-installed PRIVATE kalandra-metal-source-backend kalandra-backend kalandra-project LLVM MLIR)
+target_link_libraries(kalandra-metal-installed PRIVATE kalandra-metal-source-backend kalandra-backend kalandra-packages LLVM MLIR)
 target_compile_options(kalandra-metal-installed PRIVATE -Wall -Wextra -Werror)
 add_dependencies(kalandra-metal-installed ${KALANDRA_CPU_RUNTIME_TARGETS}
   kalandra-metal-strict kalandra-metal-extract kalandra-task-core-optimized)

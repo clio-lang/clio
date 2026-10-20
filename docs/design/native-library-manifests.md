@@ -58,8 +58,8 @@ the module loader visits them. The example application's entry keeps the existin
 project path rules. Application-only manifests retain their existing explicit
 parent-relative source and local-mapping behavior.
 
-`[packages]` maps names to local `.k` paths; it is distinct from the proposed
-`[dependencies]` Git table. Unknown fields, wrong types, invalid names/versions,
+`[packages]` maps names to local `.k` paths; it is distinct from the
+`[dependencies]` Git table, which now accepts exact local requests. Unknown fields, wrong types, invalid names/versions,
 retired extensions and escaping library paths are errors. Diagnostics locate
 invalid fields in the original TOML file. The existing 256 KiB manifest and 128
 local-mapping limits apply; API callers can lower them. Reads are fresh, with no
@@ -81,11 +81,13 @@ through a telemetry worker, producing `[12, 11]` in debug, optimized and sanitiz
 configurations. This qualifies the metadata-to-scoped-loader path; it does not
 claim automatic dependency discovery through CLI mappings.
 
-Managed graph construction for CLI/editor builds, `[dependencies]`, Git snapshots,
-installation, integrity metadata and lockfiles remain in the
-[native package workflow](native-packages.md). The CLI's existing `--package` and
-`[packages]` mappings retain their global local-file behavior until managed
-resolution is connected. No version solver or public native ABI is introduced.
+[Exact local installation](native-package-install.md) now builds complete managed
+graphs for compiler/checker/Metal source builds. Dependency declarations and
+snapshot integrity are verified without fetching during builds. Standalone local
+mappings retain their global behavior; in managed graphs they belong to the
+workspace or library owner declaring them. Remote transport, locks and managed
+editor integration remain in the [package workflow](native-packages.md). No version
+solver or public native ABI is introduced.
 
 The [qualification record](../../native/metal-proof/evidence/native-library-manifests-2026-10-20.json)
 records the selected checks. Metal qualification here covers source emission and

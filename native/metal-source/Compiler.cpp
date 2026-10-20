@@ -5,6 +5,7 @@
 #include "kalandra/Backend.h"
 #include "kalandra/Continuation.h"
 #include "kalandra/MetalSource.h"
+#include "kalandra/PackageInstall.h"
 #include "kalandra/Project.h"
 #include "kalandra/Semantics.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -1849,7 +1850,18 @@ int kalandra::compileMetalCommand(int argc, char **argv) {
   }
   if (sourcePath.empty())
     return usage();
-  auto parsed = loadModules(sourcePath, {}, {}, packages);
+  std::optional<InstalledNativeProject> managed;
+  if (project && !project->dependencies.empty()) {
+    auto loaded = loadInstalledNativeProject(*project);
+    if (!loaded) {
+      std::cerr << loaded.error() << '\n';
+      return 1;
+    }
+    managed = std::move(*loaded);
+    managed->nodes[0].localPackages = packages;
+  }
+  auto parsed =
+      managed ? loadPackageModules(managed->nodes) : loadModules(sourcePath, {}, {}, packages);
   if (!parsed) {
     std::cerr << parsed.error() << '\n';
     return 1;
@@ -1889,6 +1901,11 @@ int kalandra::compileMetalCommand(int argc, char **argv) {
       paths.push_back("program");
     for (const auto &name : paths) {
       auto target = directory / name;
+      if (project) {
+        auto allowed = protectNativePackageOutput(*project, target.string());
+        if (!allowed)
+          throw std::runtime_error(allowed.error());
+      }
       std::error_code ec;
       auto protect = [&](const std::filesystem::path &input) {
         std::error_code first, second;

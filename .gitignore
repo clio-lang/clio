@@ -16,3 +16,5 @@ apps/website/src/docs/guide/
 .vercel/
 
 __pycache__/
+
+.kalandra/

@@ -109,6 +109,18 @@ int main(int argc, char **argv) {
     require(!load(replace(base, "src/public.k", "src/escape.k")), "symlink entry escape accepted");
     require(!load(base + "[packages]\nunused='src/escape.k'\n"),
             "symlink local mapping escape accepted");
+    const std::string dependency =
+        "[dependencies]\ngeometrydep={git='/nonexistent/repository',rev='" + std::string(40, 'f') +
+        "'}\n";
+    auto declared = load(base + dependency);
+    require(declared && declared->dependencies.size() == 1 &&
+                declared->dependencies[0].name == "geometrydep" &&
+                declared->dependencies[0].repository == "/nonexistent/repository" &&
+                declared->dependencies[0].commit == std::string(40, 'f'),
+            "exact dependency metadata was fetched or lost");
+    require(!load(base + dependency, {256 * 1024, 0}), "dependency count limit ignored");
+    require(!load(base + "[packages]\ngeometrydep='src/helper.k'\n" + dependency),
+            "local/dependency alias conflict accepted");
     require(!loadNativePackage((root / "absent.toml").string()), "missing library admitted");
     library = load(valid);
     require(bool(library), "restore failed");

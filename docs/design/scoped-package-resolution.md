@@ -2,8 +2,10 @@
 
 The compiler library now accepts an explicit, already-resolved package graph
 through `loadPackageModules`. This implements the import/type-identity foundation
-of [N3-A](native-packages.md#implementation-sequence-and-gates). It does not add
-an installer, a lockfile or managed command-line dependency resolution.
+of [N3-A](native-packages.md#implementation-sequence-and-gates). The graph API is separate from
+[exact local dependency installation](native-package-install.md), which now builds
+these graphs for compiler/checker and Metal source commands. Public locks remain
+planned.
 [Library manifests](native-library-manifests.md) now supply metadata, public entries
 and local mappings through `NativePackage::node`. The existing
 `loadModules`, `--package` and `[packages]` workflows keep their previous global
@@ -78,7 +80,7 @@ one and four workers. Sanitizer configurations also instrument the generated LLV
 functions for address/thread checks. Existing local-module, package and type-export
 acceptance guards the original mapping API.
 
-The resolver that selects dependencies and constructs complete graphs, CLI/editor
-integration of managed graphs, managed metadata/output protection, Git snapshots,
-lock generations and scoped Metal execution qualification remain follow-ups in
+Exact local resolver/activation and managed output protection are now implemented.
+Remote transport, lock generations, editor integration and scoped Metal execution
+qualification remain follow-ups in
 [N3-A–D](native-packages.md#implementation-sequence-and-gates).

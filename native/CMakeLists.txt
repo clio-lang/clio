@@ -30,6 +30,11 @@ target_link_libraries(kalandra-git-snapshots PUBLIC kalandra-project PRIVATE LLV
 target_include_directories(kalandra-git-snapshots SYSTEM PRIVATE ${KALANDRA_TOML_INCLUDES} ${LLVM_INCLUDE_DIRS})
 target_compile_definitions(kalandra-git-snapshots PRIVATE TOML_HEADER_ONLY=1 TOML_ENABLE_UNRELEASED_FEATURES=0)
 target_compile_options(kalandra-git-snapshots PRIVATE -Wall -Wextra -Werror)
+add_library(kalandra-packages STATIC lib/PackageInstall.cpp)
+target_link_libraries(kalandra-packages PUBLIC kalandra-git-snapshots PRIVATE LLVM)
+target_include_directories(kalandra-packages SYSTEM PRIVATE ${KALANDRA_TOML_INCLUDES} ${LLVM_INCLUDE_DIRS})
+target_compile_definitions(kalandra-packages PRIVATE TOML_HEADER_ONLY=1 TOML_ENABLE_UNRELEASED_FEATURES=0)
+target_compile_options(kalandra-packages PRIVATE -Wall -Wextra -Werror)
 add_executable(kalandra-parse tools/parse.cpp)
 target_link_libraries(kalandra-parse PRIVATE kalandra-syntax)
 target_compile_options(kalandra-parse PRIVATE -Wall -Wextra -Werror)
@@ -76,7 +81,7 @@ target_include_directories(kalandra-semantics SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS
 target_link_libraries(kalandra-semantics PUBLIC kalandra-syntax PRIVATE LLVM)
 target_compile_options(kalandra-semantics PRIVATE -Wall -Wextra -Werror)
 add_executable(kalandra-check tools/check.cpp)
-target_link_libraries(kalandra-check PRIVATE kalandra-semantics kalandra-project)
+target_link_libraries(kalandra-check PRIVATE kalandra-semantics kalandra-packages)
 target_compile_options(kalandra-check PRIVATE -Wall -Wextra -Werror)
 if(BUILD_TESTING)
   add_executable(kalandra-semantic-tests tests/SemanticTests.cpp)
@@ -149,7 +154,7 @@ target_compile_options(kalandra-native-runtime-thread-sanitized PRIVATE -Wall -W
   -fsanitize=thread -fno-omit-frame-pointer)
 add_executable(kalandra tools/compile.cpp)
 target_include_directories(kalandra SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
-target_link_libraries(kalandra PRIVATE kalandra-backend kalandra-project LLVM MLIR)
+target_link_libraries(kalandra PRIVATE kalandra-backend kalandra-packages LLVM MLIR)
 target_compile_options(kalandra PRIVATE -Wall -Wextra -Werror)
 target_compile_definitions(kalandra PRIVATE
   KALANDRA_CLANGXX="${CMAKE_CXX_COMPILER}"
@@ -965,6 +970,7 @@ include(cmake/ScopedPackages.cmake)
 
 include(cmake/Projects.cmake)
 include(cmake/GitSnapshots.cmake)
+include(cmake/PackageInstall.cmake)
 
 include(cmake/ArraySlices.cmake)
 

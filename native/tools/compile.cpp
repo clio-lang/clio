@@ -1,4 +1,5 @@
 #include "kalandra/Backend.h"
+#include "kalandra/PackageInstall.h"
 #include "kalandra/Project.h"
 #ifdef KALANDRA_HAS_METAL_SOURCE
 #include "kalandra/MetalSource.h"
@@ -25,6 +26,20 @@ bool write(const std::filesystem::path &path, const std::string &contents) {
 }
 } // namespace
 int main(int argc, char **argv) {
+  if (argc >= 2 && std::string_view(argv[1]) == "install") {
+    if (argc != 4 || std::string_view(argv[2]) != "--project" ||
+        std::string_view(argv[3]).empty()) {
+      std::cerr << "usage: kalandra install --project manifest.toml\n";
+      return 2;
+    }
+    auto installed = kalandra::installNativeProject(argv[3]);
+    if (!installed) {
+      std::cerr << installed.error() << '\n';
+      return 1;
+    }
+    std::cout << "Installed native dependency graph.\n";
+    return 0;
+  }
   if (argc >= 2 && std::string_view(argv[1]) == "new") {
     if (argc != 3 || std::string_view(argv[2]) == "--help") {
       std::cerr << "usage: kalandra new directory\n";
@@ -171,6 +186,16 @@ int main(int argc, char **argv) {
     std::cerr << "missing -o executable\n";
     return 2;
   }
+  std::optional<kalandra::InstalledNativeProject> managed;
+  if (project && !project->dependencies.empty()) {
+    auto loaded = kalandra::loadInstalledNativeProject(*project);
+    if (!loaded) {
+      std::cerr << loaded.error() << '\n';
+      return 1;
+    }
+    managed = std::move(*loaded);
+    managed->nodes[0].localPackages = packages;
+  }
   std::vector<std::filesystem::path> paths{sourcePath};
   if (project) {
     paths.emplace_back(project->manifest);
@@ -180,6 +205,13 @@ int main(int argc, char **argv) {
   for (const auto &path : {output, mlirPath, llvmPath}) {
     if (path.empty())
       continue;
+    if (project) {
+      auto allowed = kalandra::protectNativePackageOutput(*project, path.string());
+      if (!allowed) {
+        std::cerr << allowed.error() << '\n';
+        return 2;
+      }
+    }
     for (const auto &previous : paths) {
       std::error_code error;
       const bool equivalent = std::filesystem::equivalent(path, previous, error);
@@ -193,7 +225,8 @@ int main(int argc, char **argv) {
     }
     paths.push_back(path);
   }
-  auto syntax = kalandra::loadModules(sourcePath, {}, {}, packages);
+  auto syntax = managed ? kalandra::loadPackageModules(managed->nodes)
+                        : kalandra::loadModules(sourcePath, {}, {}, packages);
   if (!syntax) {
     std::cerr << sourcePath << ": " << syntax.error() << '\n';
     return 1;

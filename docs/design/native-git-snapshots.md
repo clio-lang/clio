@@ -1,9 +1,10 @@
 # Exact-commit local Git snapshots
 
 The first N3-B slice adds a snapshot API for pinned local Git repositories. It is
-an installer foundation, not a public `kalandra install` command, dependency
-manifest resolver, complete project activation or lockfile implementation.
-Existing compiler/checker/editor builds do not invoke it or fetch dependencies.
+a snapshot API foundation now used by the [public local installer](native-package-install.md).
+The installer adds declarations and complete project activation; the snapshot API
+itself does not implement lockfiles. Compiler/checker builds verify installed
+snapshots offline and never invoke import/fetch operations.
 
 ## API and identity
 
@@ -81,13 +82,14 @@ failures clean staging and preserve already published snapshots. Process death
 can leave unused staging directories; there is no garbage collector yet. Files
 are closed before rename, but fsync/power-loss durability is not promised.
 
-This is snapshot-level publication. Project-wide graph validation, an installation
-guard, manifest-change detection and lock/index activation remain separate work.
+This API provides snapshot-level publication. [Project installation](native-package-install.md)
+now adds complete-graph validation, a guard, manifest-change detection and private
+index activation. Public lockfile semantics remain separate work.
 The cache is writable by its owner: digest verification detects accidental edits,
 not coordinated modification of both source and integrity metadata. It is not an
 operating-system sandbox or a defense against hostile concurrent filesystem edits.
-Build-time source/metadata capture and output protection for managed graphs must be
-integrated before exposing project installation.
+The project installer/loader now adds an independently anchored digest index and
+managed output protection.
 
 ## Bounds and qualification
 
@@ -113,7 +115,7 @@ telemetry worker, with all three libraries imported as snapshots. It produces
 The snapshot importer and graph checking also run under ASan/UBSan. See the
 [qualification record](../../native/metal-proof/evidence/native-git-snapshots-2026-10-20.json).
 
-Next: exact dependency declarations and complete managed graph activation, then
-CLI/checker/Metal consumption and managed output protection. Remote transport,
+Exact dependency declarations, complete managed graph activation and
+CLI/checker/Metal source consumption/output protection are now implemented. Remote transport,
 mutable Git refs, public locks, frozen/offline install modes, installed tools and
 editor onboarding remain in the [package workflow](native-packages.md).

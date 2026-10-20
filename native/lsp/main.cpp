@@ -793,6 +793,11 @@ int main(int argc, char **argv) {
           std::cerr << loaded.error() << '\n';
           return 2;
         }
+        if (!loaded->dependencies.empty()) {
+          std::cerr << "managed dependencies are not supported by the native language server yet; "
+                       "use kalandra-check --project for package-aware checking\n";
+          return 2;
+        }
         project = std::move(*loaded);
       } else {
         std::cerr << "usage: kalandra-lsp [--placement] [--project manifest.toml]\n";

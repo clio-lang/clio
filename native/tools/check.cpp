@@ -1,5 +1,6 @@
 #include "kalandra/Continuation.h"
 #include "kalandra/Diagnostics.h"
+#include "kalandra/PackageInstall.h"
 #include "kalandra/Project.h"
 #include <algorithm>
 #include <iostream>
@@ -103,7 +104,16 @@ int main(int argc, char **argv) {
       return failure("IO001", "cannot read stdin source", 1, path);
     overlays.push_back({path, std::move(text)});
   }
-  auto syntax = kalandra::loadModules(path, {}, {}, packages, overlays);
+  std::optional<kalandra::InstalledNativeProject> managed;
+  if (project && !project->dependencies.empty()) {
+    auto loaded = kalandra::loadInstalledNativeProject(*project);
+    if (!loaded)
+      return failure("PRJ001", loaded.error(), 1, projectPath);
+    managed = std::move(*loaded);
+    managed->nodes[0].localPackages = packages;
+  }
+  auto syntax = managed ? kalandra::loadPackageModules(managed->nodes, {}, {}, overlays)
+                        : kalandra::loadModules(path, {}, {}, packages, overlays);
   if (!syntax) {
     return failure("IO001", std::string(path) + ": " + syntax.error(), 1, path);
   }

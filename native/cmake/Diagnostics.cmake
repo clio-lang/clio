@@ -1,6 +1,6 @@
 if(BUILD_TESTING)
   add_executable(kalandra-check-sanitized tools/check.cpp)
-  target_link_libraries(kalandra-check-sanitized PRIVATE kalandra-semantics-sanitized kalandra-project-sanitized)
+  target_link_libraries(kalandra-check-sanitized PRIVATE kalandra-semantics-sanitized kalandra-packages-sanitized)
   target_compile_options(kalandra-check-sanitized PRIVATE -Wall -Wextra -Werror
     -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
   target_link_options(kalandra-check-sanitized PRIVATE -fsanitize=address,undefined)

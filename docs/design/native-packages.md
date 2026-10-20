@@ -6,8 +6,10 @@ implements an [explicit scoped offline graph API](scoped-package-resolution.md).
 public entries and optional example applications, and construct scoped nodes.
 An [exact-commit local Git snapshot API](native-git-snapshots.md) now supplies the
 first N3-B foundation, including integrity and exclusive publication.
-The Git dependency declarations, public installer and lockfile below remain planned.
-Existing explicit local mappings retain their global behavior.
+The first [public local installer](native-package-install.md) now activates complete
+exact-commit graphs for compiler/checker and Metal source builds. Remote transports,
+mutable refs and the public lockfile below remain planned. Existing standalone
+local mapping workflows retain their behavior.
 
 The first native package workflow should support Git libraries, transitive
 source dependencies, a reproducible lockfile and offline builds. It should use
@@ -40,8 +42,10 @@ version = "0.2.0"
 entry = "src/public.k"
 ```
 
-The `[package]` table now extends the native manifest. `[dependencies]` remains
-planned and is rejected until installation/resolution is implemented. A library can also have a
+The `[package]` and `[dependencies]` tables now extend the native manifest;
+currently dependency requests require canonical absolute local repository paths
+and exact commits. The remote URLs/mutable refs above describe the planned
+extension. A library can also have a
 `[project]` entry for an example executable. At least one entry is required;
 `[package].entry` is selected when another package imports the library, while
 `[project].entry` is selected when compiling its application. Public entries use
@@ -113,7 +117,9 @@ initially, rather than introducing recursive resolution environments.
 
 ## Installation and the lockfile
 
-The intended public commands are:
+The intended complete public workflow is below. Only the first install command
+(with exact local requests) and builds are currently implemented; frozen/offline
+flags and public locks remain planned:
 
 ```sh
 kalandra install --project my-app/kalandra.toml
@@ -202,8 +208,10 @@ checked and lowered by the selected CPU/Metal compiler with existing restriction
 The accepted package-owner/type-identity decision adds package-resolution
 context while keeping source import syntax unchanged. N3-A's graph loader is
 implemented, including library metadata and manifest-backed graph qualification.
-N3-B now has a qualified local snapshot import/verification API; complete managed
-graph activation and CLI/editor dependency resolution are still pending.
+N3-B now has a qualified local snapshot importer and complete exact-local graph
+activation through the compiler/checker and Metal source tools. Remote transport
+qualification remains. Managed editor support and broader installed Metal
+onboarding are pending, along with N3-C public locks and mutable refs.
 Registry discovery, SemVer ranges, add/remove/update conveniences,
 monorepo workspaces and cache pruning remain future work rather than hidden
 requirements of this first Git-based workflow.
