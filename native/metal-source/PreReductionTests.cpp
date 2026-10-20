@@ -61,7 +61,7 @@ std::uint32_t oracle(std::vector<std::uint32_t> bits, std::array<float, 2> scala
     v = float_proof::oracle({v, std::bit_cast<std::uint32_t>(scalars[1])}, 1);
   }
   if (bits.empty())
-    return 0;
+    bits.push_back(0);
   while (bits.size() > 1) {
     const auto n = bits.size();
     for (std::size_t i = 0; i < n / 2; ++i)
@@ -70,7 +70,12 @@ std::uint32_t oracle(std::vector<std::uint32_t> bits, std::array<float, 2> scala
       bits[n / 2] = bits.back();
     bits.resize((n + 1) / 2);
   }
+#ifdef KALANDRA_POST_REDUCTION
+  auto shifted = float_proof::oracle({bits[0], std::bit_cast<std::uint32_t>(scalars[0])}, 0);
+  return float_proof::oracle({shifted ^ 0x80000000u, std::bit_cast<std::uint32_t>(scalars[1])}, 5);
+#else
   return bits[0];
+#endif
 }
 template <class F> void until(TaskCore &core, F predicate) {
   auto end = std::chrono::steady_clock::now() + std::chrono::seconds(10);
@@ -92,9 +97,19 @@ int main(int argc, char **argv) {
   CHECK(map);
   auto reduce = r.loadReductionKernel(directory + "/kernel0-reduce.metallib", *device);
   CHECK(reduce);
+  m::Kernel post;
+#ifdef KALANDRA_POST_REDUCTION
+  auto loadedPost = r.loadElementwiseKernel(directory + "/kernel0-post.metallib", *device, {1, 2});
+  CHECK(loadedPost);
+  post = *loadedPost;
+#endif
   const std::array<std::uint32_t, 14> edges{
       0,           0x80000000u, 1,           0x80000001u, 0x007fffffu, 0x00800000u, 0x3f800001u,
       0xbf800000u, 0x7f7fffffu, 0xff7fffffu, 0x7f800000u, 0xff800000u, 0x7fc01234u, 0x7f801234u};
+  std::vector<std::array<float, 2>> parameterCases{{2, 3}, {-0.0f, 1}, {1e-38f, -1.5f}};
+#ifdef KALANDRA_POST_REDUCTION
+  parameterCases.push_back({0.0f, 0.0f}); // IEEE division by zero, including 0/0.
+#endif
   std::uint64_t cases = 0;
   for (bool matrix : {false, true})
     for (unsigned n : {0u, 1u, 2u, 3u, 5u, 17u, 65u, 129u, 1025u}) {
@@ -107,17 +122,17 @@ int main(int argc, char **argv) {
                                    : i * 2654435761u;
         auto input = upload(r, bits, matrix);
         const auto baseline = r.stats().bytes;
-        for (auto parameters : {std::array<float, 2>{2, 3}, std::array<float, 2>{-0.0f, 1},
-                                std::array<float, 2>{1e-38f, -1.5f}}) {
+        for (auto parameters : parameterCases) {
           auto core = TaskCore::create();
           CHECK(core);
           auto group = core->openRoot();
-          auto graph =
-              r.elementwiseReduceSum(*core, group, *map, *reduce, std::array{input}, parameters);
+          auto graph = r.elementwiseReduceSum(*core, group, *map, *reduce, std::array{input},
+                                              parameters, post);
           auto mapped = r.elementwise(*core, group, *map, std::array{input}, parameters);
           CHECK(graph && mapped && core->drain());
           auto intermediate = buffer(*core, mapped);
-          auto separate = r.reduceSum(*core, group, *reduce, intermediate);
+          auto separate = r.reduceSum(*core, group, *reduce, intermediate, post,
+                                      post ? std::span(parameters) : std::span<const float>{});
           CHECK(separate && core->drain());
           auto expected = oracle(bits, parameters);
           CHECK(float_proof::equal(scalar(*core, graph), expected));
@@ -139,10 +154,11 @@ int main(int argc, char **argv) {
     CHECK(core);
     auto group = core->openRoot();
     auto work = r.elementwiseReduceSum(*core, group, *map, *reduce, std::array{input},
-                                       std::array{2.0f, 3.0f});
+                                       std::array{2.0f, 3.0f}, post);
     CHECK(work && core->drain());
     if (success)
-      CHECK(scalar(*core, work) == std::bit_cast<std::uint32_t>(585.0f));
+      CHECK(scalar(*core, work) ==
+            oracle(std::vector<std::uint32_t>(65, 0x3f800000u), {2.0f, 3.0f}));
     else {
       CHECK(core->failure(work).kind == TaskFailure::Fault && core->failure(work).code == 2);
       Invocation context;
@@ -161,6 +177,36 @@ int main(int argc, char **argv) {
     run(false);
   }
   r.failAllocationAt(0);
+#ifdef KALANDRA_POST_REDUCTION
+  // Empty reduction identity still reaches the GPU epilogue, including every
+  // seed-buffer preparation failure. No intermediate scalar may be published.
+  {
+    auto emptyInput = upload(r, {}, false);
+    auto runEmpty = [&](bool success) {
+      auto core = TaskCore::create();
+      CHECK(core);
+      auto group = core->openRoot();
+      auto work = r.reduceSum(*core, group, *reduce, emptyInput, post, std::array{2.0f, 3.0f});
+      CHECK(work && core->drain());
+      if (success)
+        CHECK(scalar(*core, work) == oracle({}, {2.0f, 3.0f}));
+      else
+        CHECK(core->failure(work).kind == TaskFailure::Fault && core->failure(work).code == 2);
+      retire(*core, group);
+      empty(r, baseline);
+    };
+    r.failAllocationAt(0);
+    runEmpty(true);
+    auto emptyAttempts = r.stats().attempts;
+    for (std::uint64_t i = 1; i <= emptyAttempts; ++i) {
+      r.failAllocationAt(i);
+      runEmpty(false);
+    }
+    r.failAllocationAt(0);
+    std::printf("Empty reduction epilogue allocation checkpoints: %llu\n",
+                (unsigned long long)emptyAttempts);
+  }
+#endif
   // Hold acknowledgement independently in both stages: cancellation, deadline, device fault.
   for (unsigned stage : {0u, 1u})
     for (unsigned scenario : {0u, 1u, 2u}) {
@@ -170,7 +216,7 @@ int main(int argc, char **argv) {
       const auto before = r.stats().submissions;
       r.holdCompletions(stage == 0);
       auto work = r.elementwiseReduceSum(*core, group, *map, *reduce, std::array{input},
-                                         std::array{2.0f, 3.0f});
+                                         std::array{2.0f, 3.0f}, post);
       CHECK(work);
       if (stage == 1) {
         // Acknowledging map queues scheduler work but does not start reduction until step().
@@ -207,7 +253,7 @@ int main(int argc, char **argv) {
     auto group = core->openRoot();
     r.holdCompletions(true);
     CHECK(r.elementwiseReduceSum(*core, group, *map, *reduce, std::array{input},
-                                 std::array{2.0f, 3.0f}));
+                                 std::array{2.0f, 3.0f}, post));
     until(*core, [&] { return core->stats().externalPending == 1; });
     std::thread release([&] {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -223,7 +269,7 @@ int main(int argc, char **argv) {
     CHECK(core);
     auto group = core->openRoot();
     auto work = r.elementwiseReduceSum(*core, group, *map, invalid, std::array{input},
-                                       std::array{2.0f, 3.0f});
+                                       std::array{2.0f, 3.0f}, post);
     CHECK(work && core->drain());
     CHECK(core->failure(work).kind == TaskFailure::Fault && core->failure(work).code == 3);
     retire(*core, group);
@@ -243,6 +289,12 @@ int main(int argc, char **argv) {
     CHECK(mapping);
     auto reduction = runtime.loadReductionKernel(directory + "/kernel0-reduce.metallib", *d);
     CHECK(reduction);
+    m::Kernel boundedPost;
+#ifdef KALANDRA_POST_REDUCTION
+    auto loaded = runtime.loadElementwiseKernel(directory + "/kernel0-post.metallib", *d, {1, 2});
+    CHECK(loaded);
+    boundedPost = *loaded;
+#endif
     auto source = upload(runtime, std::vector<std::uint32_t>(65, 0x3f800000u), false);
     m::Buffer padding;
     if (limited) {
@@ -258,13 +310,14 @@ int main(int argc, char **argv) {
     auto group = core->openRoot();
     const auto before = runtime.stats().submissions;
     auto work = runtime.elementwiseReduceSum(*core, group, *mapping, *reduction, std::array{source},
-                                             std::array{2.0f, 3.0f});
+                                             std::array{2.0f, 3.0f}, boundedPost);
     CHECK(work && core->drain());
     if (limited) {
       CHECK(core->failure(work).kind == TaskFailure::Fault && core->failure(work).code == 6);
       CHECK(runtime.stats().submissions == before + 1);
     } else
-      CHECK(scalar(*core, work) == std::bit_cast<std::uint32_t>(585.0f));
+      CHECK(scalar(*core, work) ==
+            oracle(std::vector<std::uint32_t>(65, 0x3f800000u), {2.0f, 3.0f}));
     retire(*core, group);
     source = {};
     padding = {};
@@ -272,7 +325,8 @@ int main(int argc, char **argv) {
   }
   CHECK(generated_main(argc, argv) == 0);
   empty(r);
-  std::printf("Pre-reduction: %llu graph/separate/APFloat cases, %llu allocation checkpoints, "
+  std::printf("%s: %llu graph/separate/APFloat cases, %llu allocation checkpoints, "
               "both-stage cancellation/failure passed\n",
-              (unsigned long long)cases, (unsigned long long)attempts);
+              post ? "Post-reduction" : "Pre-reduction", (unsigned long long)cases,
+              (unsigned long long)attempts);
 }

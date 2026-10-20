@@ -33,7 +33,7 @@ GPU program is rejected rather than silently run on the CPU.
 | Rank-three device tensors | GPU | **Not admitted.** Current source bridge admits ranks one and two | [source](../../native/metal-source/capabilities/rank-three.k) |
 | Scalar-only GPU functions | GPU | **Not admitted.** Scalar parameters are supported alongside tensors; arbitrary scalar GPU entries are not | [source](../../native/metal-source/capabilities/scalar-only.k) |
 | Elementwise expressions before a reduction | GPU | **Supported.** One float32 elementwise stage and one balanced reduction under one task; resident intermediate; rank one/two and mixed parameters | [source](../../native/metal-source/capabilities/reduce-expression.k) (+1 additional probes), [device evidence](../../native/metal-proof/evidence/gpu-pre-reduction-2026-10-21.json) |
-| Arithmetic after a reduction inside one entry | GPU | **Not admitted.** A scalar GPU result currently requires a single forwarded reduceSum | [source](../../native/metal-source/capabilities/post-reduction.k) |
+| Arithmetic after a reduction inside one entry | GPU | **Supported.** Strict float32 scalar expression after one reduction, optionally with an elementwise input stage; only the final scalar returns to the host | [source](../../native/metal-source/capabilities/post-reduction.k) (+1 additional probes), [device evidence](../../native/metal-proof/evidence/gpu-post-reduction-2026-10-21.json) |
 | Data-dependent kernel branches | GPU | **Not admitted.** Host control flow is distinct from data-dependent shader control flow | [source](../../native/metal-source/capabilities/branch.k) |
 | Arithmetic fused into a matmul entry | GPU | **Not admitted.** Use separate matmul and elementwise dispatches; general one-entry composition is pending | [source](../../native/metal-source/capabilities/post-matmul.k) |
 
@@ -87,9 +87,10 @@ records current acceptance and retained safety checks.
 
 [Elementwise expressions before one reduction](native-gpu-pre-reduction.md),
 such as `reduceSum(values + 1)`, now lower to two resident GPU stages under one
-task. Remaining composition gaps include arithmetic after a scalar reduction,
-multiple numerical primitives and `matmul(input, weights) + bias` inside one
-helper. Separate placed calls already express those computations. Extending the
+task. [Scalar arithmetic after that reduction](native-gpu-post-reduction.md)
+also stays on the GPU, including empty inputs. Remaining composition gaps include
+multiple independent numerical primitives and `matmul(input, weights) + bias`
+inside one helper. Separate placed calls already express those computations. Extending the
 internal graph must preserve strict reduction and rounding contracts; it does not require putting host closures or TaskError
 handlers into shaders. Scalar-only kernels, broader numeric types, higher tensor
 ranks and device control flow remain distinct unimplemented boundaries.

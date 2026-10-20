@@ -154,13 +154,17 @@ public:
   std::expected<Kernel, Error> loadMatmulKernel(std::string_view metallib, Device) noexcept;
   TaskHandle matmul(TaskCore &, GroupHandle, Kernel, Buffer, Buffer) noexcept;
   TaskHandle matmul(Task &, GroupHandle, Kernel, Buffer, Buffer) noexcept;
-  TaskHandle reduceSum(TaskCore &, GroupHandle, Kernel, Buffer) noexcept;
-  TaskHandle reduceSum(Task &, GroupHandle, Kernel, Buffer) noexcept;
+  TaskHandle reduceSum(TaskCore &, GroupHandle, Kernel, Buffer, Kernel epilogue = {},
+                       std::span<const float> scalars = {}) noexcept;
+  TaskHandle reduceSum(Task &, GroupHandle, Kernel, Buffer, Kernel epilogue = {},
+                       std::span<const float> scalars = {}) noexcept;
   // One scheduled scalar task; a resident elementwise stage precedes the fixed reduction tree.
   TaskHandle elementwiseReduceSum(TaskCore &, GroupHandle, Kernel elementwise, Kernel reduction,
-                                  std::span<const Buffer>, std::span<const float>) noexcept;
+                                  std::span<const Buffer>, std::span<const float>,
+                                  Kernel epilogue = {}) noexcept;
   TaskHandle elementwiseReduceSum(Task &, GroupHandle, Kernel elementwise, Kernel reduction,
-                                  std::span<const Buffer>, std::span<const float>) noexcept;
+                                  std::span<const Buffer>, std::span<const float>,
+                                  Kernel epilogue = {}) noexcept;
   static const ValueLayout &scalarLayout() noexcept;
   TaskHandle elementwise(TaskCore &, GroupHandle, Kernel, std::span<const Buffer>,
                          std::span<const float>) noexcept;

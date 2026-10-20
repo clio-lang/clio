@@ -258,12 +258,15 @@
       "id": "post-reduction",
       "feature": "Arithmetic after a reduction inside one entry",
       "scope": "GPU",
-      "status": "rejected",
+      "status": "supported",
       "fixtures": [
-        "capabilities/post-reduction.k"
+        "capabilities/post-reduction.k",
+        "post-reduction.k"
       ],
-      "notes": "A scalar GPU result currently requires a single forwarded reduceSum",
-      "diagnostic": "G00[13]"
+      "notes": "Strict float32 scalar expression after one reduction, optionally with an elementwise input stage; only the final scalar returns to the host",
+      "evidence": [
+        "gpu-post-reduction-2026-10-21.json"
+      ]
     },
     {
       "id": "branch",

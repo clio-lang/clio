@@ -235,7 +235,8 @@ struct Bridge {
     Buffer right;
     std::shared_ptr<const Arguments> arguments{};
     std::optional<Error> preparation{};
-    Kernel reduction{};
+    Kernel reduction{}, epilogue{};
+    std::shared_ptr<const Arguments> postArguments{};
   };
   static std::expected<std::shared_ptr<const Arguments>, Error>
   capture(std::shared_ptr<State> state, const Kernel &kernel, std::span<const Buffer> tensors,
@@ -287,6 +288,7 @@ struct Bridge {
     // Apple-family devices pack all words into counts[0]. Other GPUs retain
     // separate offset-zero buffers rather than assuming Apple offset alignment.
     std::array<std::shared_ptr<MetalAllocation>, 32> counts{};
+    std::shared_ptr<MetalAllocation> seed, postOutput, postParameters;
   };
   struct Frame {
     PacketData packet;
@@ -331,8 +333,41 @@ struct Bridge {
     id<MTLCommandBuffer> command = state->permit() ? [state->queues[index] commandBuffer] : nil;
     if (!command)
       return nil;
-    id<MTLBuffer> input = f.packet.input.storage_->metal->buffer;
     std::uint64_t length = f.packet.input.bytes() / 4;
+    // Empty device storage has no Metal allocation. The epilogue uses a
+    // separately owned positive-zero seed rather than dereferencing that storage.
+    id<MTLBuffer> input = length ? f.packet.input.storage_->metal->buffer : nil;
+    if (f.packet.epilogue) {
+      // All fallible epilogue storage is prepared before opening any encoder.
+      auto output = allocateMetal(state, index, 4, false);
+      if (!output) {
+        f.error = output.error();
+        return nil;
+      }
+      f.scratch->postOutput = *output;
+      const auto &bits = f.packet.postArguments->scalarBits;
+      auto parameters = allocateMetal(state, index, (std::uint64_t(bits.size()) + 1) * 4, true);
+      if (!parameters) {
+        f.error = parameters.error();
+        return nil;
+      }
+      f.scratch->postParameters = *parameters;
+      auto *words = static_cast<std::uint32_t *>(f.scratch->postParameters->buffer.contents);
+      words[0] = 1;
+      std::copy(bits.begin(), bits.end(), words + 1);
+      if (!length) {
+        auto seed = allocateMetal(state, index, 4, true);
+        if (!seed) {
+          f.error = seed.error();
+          return nil;
+        }
+        f.scratch->seed = *seed;
+        std::uint32_t zero = 0;
+        std::memcpy(f.scratch->seed->buffer.contents, &zero, 4);
+        input = f.scratch->seed->buffer;
+        length = 1;
+      }
+    }
     const bool packedCounts = [state->devices[index] supportsFamily:MTLGPUFamilyApple1];
     unsigned levels = 0;
     for (auto remaining = length; remaining > 1; remaining = (remaining + 1) / 2)
@@ -400,6 +435,20 @@ struct Bridge {
       }
       [encoder endEncoding];
     }
+    if (f.packet.epilogue) {
+      id<MTLComputeCommandEncoder> encoder =
+          state->permit() ? [command computeCommandEncoder] : nil;
+      if (!encoder)
+        return nil;
+      [encoder setComputePipelineState:f.packet.epilogue.state_->pipeline];
+      [encoder setBuffer:input offset:0 atIndex:0];
+      [encoder setBuffer:f.scratch->postOutput->buffer offset:0 atIndex:1];
+      [encoder setBuffer:f.scratch->postParameters->buffer offset:0 atIndex:2];
+      [encoder dispatchThreadgroups:MTLSizeMake(1, 1, 1)
+              threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
+      [encoder endEncoding];
+      input = f.scratch->postOutput->buffer;
+    }
     // Only the final scalar crosses back to the host. No CPU arithmetic fallback.
     id<MTLBlitCommandEncoder> blit = state->permit() ? [command blitCommandEncoder] : nil;
     if (!blit)
@@ -438,6 +487,8 @@ struct Bridge {
         f.packet.kernel = Kernel{};
         f.packet.arguments.reset();
         if (!f.packet.reduction) {
+          f.packet.epilogue = Kernel{};
+          f.packet.postArguments.reset();
           task.complete(f.packet.kind == Kind::Reduce ? static_cast<const void *>(&f.scalar)
                                                       : &f.result);
           return;
@@ -456,6 +507,19 @@ struct Bridge {
       if (f.packet.preparation) {
         task.fault(std::int64_t(*f.packet.preparation));
         return;
+      }
+      if (f.packet.epilogue) {
+        const auto &kernel = f.packet.epilogue.state_;
+        const auto &base = f.packet.kernel.state_;
+        const auto signature = kernel->signature.value_or(ElementwiseSignature{2, 0});
+        if (!base || !kernel->elementwise || kernel->reduction || kernel->matrix ||
+            kernel->projected || kernel->indirect() || signature.tensors != 1 ||
+            !f.packet.postArguments ||
+            signature.scalars != f.packet.postArguments->scalarBits.size() ||
+            kernel->registry != state || kernel->index != base->index) {
+          task.fault(std::int64_t(Error::Invalid));
+          return;
+        }
       }
       if (f.packet.reduction) {
         const auto &reduction = f.packet.reduction.state_;
@@ -522,7 +586,7 @@ struct Bridge {
           task.fault(std::int64_t(Error::Residency));
           return;
         }
-        if (!source->size) {
+        if (!source->size && !f.packet.epilogue) {
           task.complete(&f.scalar);
           return;
         }
@@ -625,7 +689,15 @@ struct Bridge {
         f.result = Buffer(*result);
         if (!f.result.bytes()) {
           // Empty composed reductions still validate both stages and all arguments.
-          task.complete(f.packet.reduction ? static_cast<const void *>(&f.scalar) : &f.result);
+          if (f.packet.reduction && f.packet.epilogue) {
+            // Empty maps submit no command; release their admission before the
+            // single bounded handoff to the reduction/epilogue command.
+            --state->inFlight;
+            f.active = false;
+            f.succeeded = true;
+            resume(task);
+          } else
+            task.complete(f.packet.reduction ? static_cast<const void *>(&f.scalar) : &f.result);
           return;
         }
 
@@ -1204,18 +1276,37 @@ TaskHandle Runtime::matmul(Task &task, GroupHandle group, Kernel kernel, Buffer 
                             std::move(right)};
   return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
 }
-TaskHandle Runtime::reduceSum(TaskCore &core, GroupHandle group, Kernel kernel,
-                              Buffer input) noexcept {
+TaskHandle Runtime::reduceSum(TaskCore &core, GroupHandle group, Kernel kernel, Buffer input,
+                              Kernel epilogue, std::span<const float> scalars) noexcept {
   Bridge::PacketData packet{
       state_, std::move(input), {}, Bridge::Kind::Reduce, std::move(kernel), BinaryOperation::Add,
       {}};
+  if (epilogue) {
+    auto arguments = Bridge::capture(state_, epilogue, std::array{packet.input}, scalars);
+    if (arguments)
+      packet.postArguments = *arguments;
+    else
+      packet.preparation = arguments.error();
+    packet.epilogue = std::move(epilogue);
+  } else if (!scalars.empty())
+    packet.preparation = Error::Invalid;
   return core.submit(group, Bridge::reductionEntry,
                      {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
 }
-TaskHandle Runtime::reduceSum(Task &task, GroupHandle group, Kernel kernel, Buffer input) noexcept {
+TaskHandle Runtime::reduceSum(Task &task, GroupHandle group, Kernel kernel, Buffer input,
+                              Kernel epilogue, std::span<const float> scalars) noexcept {
   Bridge::PacketData packet{
       state_, std::move(input), {}, Bridge::Kind::Reduce, std::move(kernel), BinaryOperation::Add,
       {}};
+  if (epilogue) {
+    auto arguments = Bridge::capture(state_, epilogue, std::array{packet.input}, scalars);
+    if (arguments)
+      packet.postArguments = *arguments;
+    else
+      packet.preparation = arguments.error();
+    packet.epilogue = std::move(epilogue);
+  } else if (!scalars.empty())
+    packet.preparation = Error::Invalid;
   return task.spawn(group, Bridge::reductionEntry,
                     {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
 }
@@ -1224,7 +1315,7 @@ const ValueLayout &Runtime::scalarLayout() noexcept {
 }
 TaskHandle Runtime::elementwiseReduceSum(TaskCore &core, GroupHandle group, Kernel mapping,
                                          Kernel reduction, std::span<const Buffer> tensors,
-                                         std::span<const float> scalars) noexcept {
+                                         std::span<const float> scalars, Kernel epilogue) noexcept {
   Bridge::PacketData packet{state_,
                             tensors.empty() ? Buffer{} : tensors[0],
                             {},
@@ -1240,12 +1331,16 @@ TaskHandle Runtime::elementwiseReduceSum(TaskCore &core, GroupHandle group, Kern
   if (!reduction)
     packet.preparation = Error::Invalid;
   packet.reduction = std::move(reduction);
+  if (epilogue) {
+    packet.epilogue = std::move(epilogue);
+    packet.postArguments = packet.arguments;
+  }
   return core.submit(group, Bridge::reductionEntry,
                      {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
 }
 TaskHandle Runtime::elementwiseReduceSum(Task &task, GroupHandle group, Kernel mapping,
                                          Kernel reduction, std::span<const Buffer> tensors,
-                                         std::span<const float> scalars) noexcept {
+                                         std::span<const float> scalars, Kernel epilogue) noexcept {
   Bridge::PacketData packet{state_,
                             tensors.empty() ? Buffer{} : tensors[0],
                             {},
@@ -1261,6 +1356,10 @@ TaskHandle Runtime::elementwiseReduceSum(Task &task, GroupHandle group, Kernel m
   if (!reduction)
     packet.preparation = Error::Invalid;
   packet.reduction = std::move(reduction);
+  if (epilogue) {
+    packet.epilogue = std::move(epilogue);
+    packet.postArguments = packet.arguments;
+  }
   return task.spawn(group, Bridge::reductionEntry,
                     {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
 }

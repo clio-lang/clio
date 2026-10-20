@@ -50,9 +50,9 @@ no unbounded task tree or CPU numerical fallback.
 ## Boundaries
 
 The bounded primitive analysis still requires exactly one reduction in an entry
-and visits every statement. Arithmetic on the scalar *after* reduction, multiple
-reductions, matmul composition, recursive calls and data-dependent GPU branches
-remain unsupported. Supported pure arithmetic in unused bindings may be removed
+and visits every statement. [Scalar arithmetic after reduction](native-gpu-post-reduction.md) now adds an
+optional final GPU stage. Multiple independent reductions, matmul composition,
+recursive calls and data-dependent GPU branches remain unsupported. Supported pure arithmetic in unused bindings may be removed
 just as in ordinary elementwise shaders, while its shape obligations remain.
 This does not add other GPU numeric types, tensor ranks, managed host values or
 custom shaders.
@@ -72,8 +72,8 @@ scalar. Resource accounting returns to its baseline after group release.
 [`VerifyPreReduction.cmake`](../../native/metal-source/VerifyPreReduction.cmake)
 checks imported/re-exported helpers with mixed arguments, exact graph/separate
 results, cached awaits, relocation and equal-element-count shape mismatches.
-Source-only checks also preserve existing output on rejected post-reduction,
-multiple-reduction and branch programs. Both compiler modes run those checks;
+Source-only checks admit post-reduction composition and preserve existing output
+on rejected multiple-reduction and branch programs. Both compiler modes run those checks;
 GPU/runtime checks run Debug, optimized, ASan/UBSan and TSan hosts. The existing
 reduction CLI additionally covers rank-two and empty/singleton paths.
 

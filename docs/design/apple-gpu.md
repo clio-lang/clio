@@ -282,7 +282,7 @@ After explicit upload or another GPU computation, `result = try await spawn tota
 
 The [source fixture](../../native/metal-source/reduction.k) calls `total` on CPU, scales a tensor on GPU, reduces the device result, and passes the scalar to a CPU function. It prints `41f80000` (31) through the diagnostic executable's existing bit-output interface.
 
-A reduction entry has one rank-one or rank-two float32 tensor parameter and resolves to one checked `ReduceSum` with the balanced-adjacent, row-major policy. [Forwarding helpers](native-gpu-forwarding.md) now support aliases, local bindings and imported helper calls around that operation; [fixed and dynamic extents](native-gpu-fixed-shapes.md) retain their shape contracts. Additional arithmetic before/after the reduction, extra entry parameters, ranks above two, other formats and general scalar GPU functions remain unsupported. Use separate placed calls for broader composition; their tensor intermediates stay on GPU. CPU execution retains its broader operation support. There is no CPU fallback for unsupported GPU bodies.
+A reduction entry resolves to one checked `ReduceSum` over rank-one or rank-two float32 tensors with the balanced-adjacent, row-major policy. [Forwarding helpers](native-gpu-forwarding.md) support aliases, local bindings and imported helper calls; [fixed and dynamic extents](native-gpu-fixed-shapes.md) retain their shape contracts. [Elementwise input expressions](native-gpu-pre-reduction.md) and [scalar result arithmetic](native-gpu-post-reduction.md) now compose around that reduction, including mixed tensor/scalar parameters. Multiple independent primitives, ranks above two, other formats and general scalar-only GPU functions remain unsupported. Use separate placed calls for broader composition; their tensor intermediates stay on GPU. CPU execution retains its broader operation support. There is no CPU fallback for unsupported GPU bodies.
 
 The GPU shader performs one tree level: adjacent pairs add with strict binary32 rounding, and an odd final element is copied unchanged. The runtime encodes successive levels in order, using one serial compute encoder and two alternating private output buffers, until one value remains. Each buffer is sized for its first use; subsequent levels only shrink. Serial dispatch ordering and tracked buffer dependencies preserve accesses when storage is reused. This matches the CPU/reference tree independently of thread scheduling. Empty input returns positive zero without a command; singleton input copies its exact bits without adding zero. Every nonempty reduction uses one command buffer and finishes with a four-byte staging copy. It neither uses a host arithmetic reduction nor reassociates the tree into scheduling-dependent partial sums.
 
@@ -689,7 +689,9 @@ Resumable helpers currently expand into their caller's continuation. [Independen
 [Elementwise expressions before a reduction](native-gpu-pre-reduction.md) now
 compose strict float32 arithmetic and one reduceSum inside a numerical GPU helper.
 Two GPU stages share one scheduled task and retain the intermediate on device.
-Post-reduction arithmetic and matmul composition remain separate lowering work.
+[Post-reduction scalar arithmetic](native-gpu-post-reduction.md) now runs once
+on the GPU before final scalar readback. Matmul composition remains separate
+lowering work.
 
 ## Planned GPU interoperability
 
