@@ -15,6 +15,24 @@ std::shared_ptr<const SourceFile> originalSource(std::shared_ptr<const SourceFil
       return original;
   return {};
 }
+std::map<SpanKey, SourceSpan> callSites(const Module &module) {
+  std::map<SpanKey, SourceSpan> callees;
+  for (const auto &expression : module.expressions) {
+    if (const auto *call = std::get_if<CallExpr>(&expression.value))
+      callees.emplace(SpanKey{expression.span.begin, expression.span.end},
+                      module.expressions[call->callee].span);
+    if (const auto *pipeline = std::get_if<BinaryExpr>(&expression.value);
+        pipeline && pipeline->operation == TokenKind::Arrow) {
+      const auto &right = module.expressions[pipeline->right];
+      if (std::holds_alternative<NameExpr>(right.value))
+        callees.emplace(SpanKey{expression.span.begin, expression.span.end}, right.span);
+      else if (const auto *call = std::get_if<CallExpr>(&right.value))
+        callees.emplace(SpanKey{expression.span.begin, expression.span.end},
+                        module.expressions[call->callee].span);
+    }
+  }
+  return callees;
+}
 } // namespace
 std::optional<SourceLocation> sourceLocation(std::shared_ptr<const SourceFile> source,
                                              SourceSpan span) {
@@ -28,6 +46,98 @@ std::optional<SourceLocation> sourceLocation(std::shared_ptr<const SourceFile> s
   if (!original)
     return {};
   return SourceLocation{std::move(original), {begin, end}};
+}
+std::optional<std::vector<SourceLocation>> references(ParseResult syntax,
+                                                      const SourceLocation &declaration,
+                                                      bool includeDeclaration,
+                                                      CheckOptions options) {
+  if (!syntax.ok() || !syntax.module.source)
+    return {};
+  const auto callees = callSites(syntax.module);
+  auto checked = check(std::move(syntax), {}, options);
+  if (!checked.ok())
+    return {};
+  const auto &module = *checked.module;
+  // Global byte spans are unique within this composed graph; spelling is only a
+  // guard against synthetic symbols, never the identity used to find references.
+  const auto lexed = lex(module.source);
+  if (!lexed.diagnostics.empty())
+    return {};
+  std::map<SpanKey, std::string_view> identifiers;
+  std::map<std::size_t, SourceSpan> ending;
+  for (const auto &token : lexed.tokens)
+    if (token.kind == TokenKind::Identifier) {
+      identifiers.emplace(SpanKey{token.span.begin, token.span.end},
+                          module.source->slice(token.span));
+      ending.emplace(token.span.end, token.span);
+    }
+  std::map<SpanKey, SourceSpan> occurrences;
+  const auto add = [&](SourceSpan use, SourceSpan target, std::string_view name) {
+    const SpanKey key{use.begin, use.end};
+    const auto token = identifiers.find(key);
+    if (token != identifiers.end() && token->second == name)
+      occurrences.try_emplace(key, target);
+  };
+  // Imported nominal/function names may be privately qualified by the checker.
+  // Their declaration spans still identify the original source token.
+  const auto addDeclaration = [&](SourceSpan span) {
+    const auto token = identifiers.find({span.begin, span.end});
+    if (token != identifiers.end())
+      add(span, span, token->second);
+  };
+  for (const auto &symbol : module.symbols)
+    add(symbol.declaration, symbol.definition.value_or(symbol.declaration), symbol.name);
+  for (const auto &function : module.functions)
+    if (!function.anonymous)
+      addDeclaration(function.declaration);
+  for (const auto &record : module.records) {
+    addDeclaration(record.declaration);
+    for (const auto &field : record.fields)
+      add(field.declaration, field.declaration, field.name);
+  }
+  for (const auto &expression : module.expressions) {
+    if (const auto *read = std::get_if<SymbolRead>(&expression.operation)) {
+      const auto &symbol = module.symbols[read->symbol];
+      add(expression.span, symbol.definition.value_or(symbol.declaration), symbol.name);
+    } else if (const auto *reference = std::get_if<FunctionReference>(&expression.operation)) {
+      const auto &function = module.functions[reference->function];
+      if (!function.anonymous) {
+        const auto token = identifiers.find({expression.span.begin, expression.span.end});
+        if (token != identifiers.end())
+          add(expression.span, function.declaration, token->second);
+      }
+    } else if (const auto *call = std::get_if<FunctionCall>(&expression.operation)) {
+      const auto &function = module.functions[call->function];
+      const auto callee = callees.find({expression.span.begin, expression.span.end});
+      if (!function.anonymous && callee != callees.end()) {
+        const auto token = identifiers.find({callee->second.begin, callee->second.end});
+        if (token != identifiers.end())
+          add(callee->second, function.declaration, token->second);
+      }
+    } else if (const auto *read = std::get_if<RecordFieldRead>(&expression.operation)) {
+      const auto &receiver = module.expressions[read->input].type;
+      const auto token = ending.find(expression.span.end);
+      if (receiver.record && token != ending.end() &&
+          token->second.begin >= expression.span.begin) {
+        const auto &field = module.records[*receiver.record].fields[read->field];
+        add(token->second, field.declaration, field.name);
+      }
+    }
+  }
+  const auto same = [](const SourceLocation &a, const SourceLocation &b) {
+    return a.source->path() == b.source->path() && a.span.begin == b.span.begin &&
+           a.span.end == b.span.end;
+  };
+  std::vector<SourceLocation> result;
+  for (const auto &[use, target] : occurrences) {
+    auto destination = sourceLocation(module.source, target);
+    if (!destination || !same(*destination, declaration))
+      continue;
+    auto location = sourceLocation(module.source, {use.first, use.second});
+    if (location && (includeDeclaration || !same(*location, declaration)))
+      result.push_back(std::move(*location));
+  }
+  return result;
 }
 std::optional<SemanticToken> semanticToken(ParseResult syntax, std::string_view path,
                                            std::size_t offset, CheckOptions options) {
@@ -45,21 +155,7 @@ std::optional<SemanticToken> semanticToken(ParseResult syntax, std::string_view 
        token->kind != TokenKind::Number))
     return {};
   const auto word = original->slice(token->span);
-  std::map<SpanKey, SourceSpan> callees;
-  for (const auto &expression : syntax.module.expressions) {
-    if (const auto *call = std::get_if<CallExpr>(&expression.value))
-      callees.emplace(SpanKey{expression.span.begin, expression.span.end},
-                      syntax.module.expressions[call->callee].span);
-    if (const auto *pipeline = std::get_if<BinaryExpr>(&expression.value);
-        pipeline && pipeline->operation == TokenKind::Arrow) {
-      const auto &right = syntax.module.expressions[pipeline->right];
-      if (std::holds_alternative<NameExpr>(right.value))
-        callees.emplace(SpanKey{expression.span.begin, expression.span.end}, right.span);
-      else if (const auto *call = std::get_if<CallExpr>(&right.value))
-        callees.emplace(SpanKey{expression.span.begin, expression.span.end},
-                        syntax.module.expressions[call->callee].span);
-    }
-  }
+  const auto callees = callSites(syntax.module);
   auto checked = check(std::move(syntax), {}, options);
   if (!checked.ok())
     return {};

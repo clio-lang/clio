@@ -75,6 +75,7 @@ class Client:
         assert caps["textDocumentSync"]["change"] == 2  # Incremental UTF-16 changes.
         assert caps["hoverProvider"] is True
         assert caps["definitionProvider"] is True
+        assert caps["referencesProvider"] is True
         assert not caps.get("completionProvider")
         self.send("initialized", {})
 
@@ -97,6 +98,11 @@ class Client:
     def definition(self, path, line, character):
         return self.rpc("textDocument/definition", {"textDocument": {"uri": path.as_uri()},
                                                    "position": {"line": line, "character": character}})
+
+    def references(self, path, line, character, include=False):
+        return self.rpc("textDocument/references", {"textDocument": {"uri": path.as_uri()},
+            "position": {"line": line, "character": character},
+            "context": {"includeDeclaration": include}})
 
     def close(self, path):
         self.send("textDocument/didClose", {"textDocument": {"uri": path.as_uri()}})
@@ -390,6 +396,31 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert client.definition(main, 0, 4)["result"] is None
     client.finish()
 
+    # References distinguish lexical identities and honor declaration filtering.
+    client = Client()
+    client.init()
+    source = "fn main()->int:\n  value=1\n  if true:\n    value=2\n    value\n  else:\n    value\n"
+    client.open(main, source)
+    refs = client.references(main, 1, 3)["result"]
+    assert len(refs) == 1 and refs[0]["range"]["start"] == {"line": 6, "character": 4}
+    refs = client.references(main, 1, 3, True)["result"]
+    assert [r["range"]["start"]["line"] for r in refs] == [1, 6]
+    assert client.references(main, 3, 5)["result"][0]["range"]["start"]["line"] == 4
+    assert client.references(main, 0, 0)["result"] is None
+    assert client.references(main, 999, 0)["result"] is None
+    assert client.references(main, 0, -1)["error"]["code"] == -32602
+    for context in ({}, {"includeDeclaration": 1}, {"includeDeclaration": "true"}):
+        assert client.rpc("textDocument/references", {"textDocument": {"uri": main.as_uri()},
+            "position": {"line": 1, "character": 3}, "context": context})["error"]["code"] == -32602
+    client.change(main, 'fn main()->String:\r\n  text="é"\r\n  "😀" + text\r\n', 2)
+    refs = client.references(main, 1, 3)["result"]
+    assert refs == [{"uri": main.as_uri(), "range": {"start": {"line": 2, "character": 9},
+                                                      "end": {"line": 2, "character": 13}}}]
+    assert client.references(main, 2, 4)["result"] is None
+    client.close(main)
+    assert client.references(main, 0, 3)["result"] is None
+    client.finish()
+
     # A same-spelled local function cannot steal a re-exported alias's destination.
     leaf = root / "deep space#é.k"
     original = "export fn scale(value:int):\n  value*2\n"
@@ -404,6 +435,16 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     target = client.definition(main, 4, 4)["result"]
     assert target == {"uri": leaf.as_uri(), "range": {"start": {"line": 0, "character": 10},
                                                         "end": {"line": 0, "character": 15}}}
+    refs = client.references(main, 4, 4, True)["result"]
+    assert {(r["uri"], r["range"]["start"]["line"]) for r in refs} == {(leaf.as_uri(), 0), (main.as_uri(), 4)}, refs
+    other = root / "other.k"
+    client.open(other, 'from "./public.k" import advertised\nfn main():\n  advertised(3)\n')
+    refs = client.references(main, 4, 4)["result"]
+    assert {r["uri"] for r in refs} == {main.as_uri(), other.as_uri()}
+    assert len(refs) == 2  # Shared dependency occurrences are deduplicated.
+    client.change(other, "fn main():\n  missing\n", 2)
+    assert client.references(main, 4, 4)["error"]["code"] == -32803
+    client.close(other)
     local_uri = leaf.as_uri().replace("file:///", "file://localhost/")
     client.send("textDocument/didOpen", {"textDocument": {"uri": local_uri,
         "languageId": "kalandra", "version": 1, "text": "\n\n" + original}})
@@ -412,9 +453,14 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     client.send("textDocument/didChange", {"textDocument": {"uri": local_uri, "version": 2},
         "contentChanges": [edit(0, 0, 0, "# 😀\n")]})
     assert client.definition(main, 4, 4)["result"]["range"]["start"]["line"] == 3
+    refs = client.references(main, 4, 4, True)["result"]
+    assert len(refs) == 2
+    assert any(r["uri"] == local_uri and r["range"]["start"]["line"] == 3 for r in refs)
     client.send("textDocument/didClose", {"textDocument": {"uri": local_uri}})
     target = client.definition(main, 4, 4)["result"]
     assert target["uri"] == leaf.as_uri() and target["range"]["start"]["line"] == 0
+    refs = client.references(main, 4, 4, True)["result"]
+    assert any(r["uri"] == leaf.as_uri() and r["range"]["start"]["line"] == 0 for r in refs)
     assert leaf.read_text() == original
     client.finish()
 
@@ -424,6 +470,7 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     client.init()
     client.open(main, caller.replace('"./public.k"', '"math"'))
     assert client.definition(main, 4, 4)["result"]["uri"] == leaf.as_uri()
+    assert len(client.references(main, 4, 4, True)["result"]) == 2
     client.finish()
 
     invalid_stream(b"Content-Length: 0\r\n\r\n")

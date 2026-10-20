@@ -22,13 +22,14 @@ The explicit project manifest is loaded at startup and supplies its entry and lo
 
 ## Supported protocol slice
 
-The server implements the [Language Server Protocol 3.17](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/) lifecycle and advertises incremental document synchronization (`TextDocumentSyncKind.Incremental`) and UTF-16 positions, plus `hoverProvider: true` and `definitionProvider: true`:
+The server implements the [Language Server Protocol 3.17](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/) lifecycle and advertises incremental document synchronization (`TextDocumentSyncKind.Incremental`) and UTF-16 positions, plus `hoverProvider: true`, `definitionProvider: true` and `referencesProvider: true`:
 
 - `initialize`, `initialized`, `shutdown`, `exit`.
 - `textDocument/didOpen`, `didChange`, `didSave`, `didClose`.
 - `textDocument/publishDiagnostics`, including open-buffer versions, compiler codes, source names and severity.
 - `textDocument/hover` for checked token types and function signatures.
 - `textDocument/definition` for resolved source declaration locations.
+- `textDocument/references` for resolved occurrences in open/project source graphs.
 
 Changes can replace a UTF-16 range or supply full replacement text without a range. Apply changes in their array order against the evolving buffer: later ranges refer to the text after earlier changes. Full replacements and ranged edits can be mixed; the compiler checks the final buffer once. Empty change arrays are valid no-ops that advance the version.
 
@@ -70,9 +71,21 @@ Calls through a function-valued binding jump to that binding's declaration. They
 
 Definition and hover share checked token resolution. Both use the current unsaved source graph, fail closed when checking fails, and perform fresh synchronous analysis per request. Closing a dependency restores its disk contents and destination positions. The server preserves the URI spelling of an open target document; unopened targets use canonical percent-encoded file URIs. Jumps do not write files or require the destination to be open.
 
-Unmapped tokens, literals, whitespace, keywords, builtins without source declarations, generated helper locations and failed graphs return `null`. The source document must be open under its registered URI. As with hover, malformed parameters return invalid-params, while invalid lines or split-surrogate positions return `null`. Type-annotation and import/re-export declaration tokens, constructor initializer labels and enum case/constructor details remain unmapped. Definition links, workspace symbols and references/rename are separate work.
+Unmapped tokens, literals, whitespace, keywords, builtins without source declarations, generated helper locations and failed graphs return `null`. The source document must be open under its registered URI. As with hover, malformed parameters return invalid-params, while invalid lines or split-surrogate positions return `null`. Type-annotation and import/re-export declaration tokens, constructor initializer labels and enum case/constructor details remain unmapped. Definition links, workspace symbols and rename are separate work.
 
 The [definition qualification record](../../native/metal-proof/evidence/native-lsp-definition-2026-10-20.json) covers normal and sanitized semantic/protocol checks, including shadowing, nested captures, cross-file aliases/re-exports, package mappings, Unicode URIs, unsaved destination changes, close-to-disk behavior and hover regressions. These are protocol tests, not a real-editor qualification claim.
+
+## Find references
+
+[`textDocument/references`](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_references) returns source `Location` entries for the selected checked identity. It covers binding/parameter declarations and reads, nested closure captures, named function references, direct/pipeline calls, function-valued bindings, and record field declarations/reads. Shadowed bindings and fields with the same spelling remain distinct. Imported calls and function references resolve through aliases, re-exports and configured packages to their original declaration.
+
+The search checks every open root and, when configured, the project entry, using current unsaved buffers. It includes their reachable dependencies. Identity across separately checked graphs uses the canonical original declaration path and byte span, not graph-local numeric IDs or name matching. Results are deduplicated and sorted by canonical path and source position; open documents retain their registered URI spelling. `context.includeDeclaration` is required and controls inclusion of the original declaration. A mapped but unused symbol returns an empty array when declaration inclusion is false.
+
+This is a bounded semantic search, **not a complete workspace index**. Unopened reverse importers are not discovered. Type-annotation tokens, import/re-export declaration tokens, record construction/initializer tokens and enum constructor/case details are not indexed yet; consequently this result is not sufficient for safe automated rename. Function-valued calls refer to the lexical binding, not every possible runtime target. Unmapped or invalid positions and failed query graphs return `null`, as for definition. If selection succeeds but any searched graph cannot load/check, the request fails with `RequestFailed` (-32803); no partial array is returned. An unrelated broken open root can therefore prevent a search until corrected or closed.
+
+Each graph is checked once during collection and its identifiers indexed once; the implementation does not recheck per token. Queries remain synchronous and uncached. Aggregate composed source scanning is capped at 64 MiB per request (shared dependencies count per root), and unique results at 100,000 locations. Exceeding either budget fails the request rather than truncating it. Existing per-graph compiler limits also apply. No files are modified.
+
+The [references qualification record](../../native/metal-proof/evidence/native-lsp-references-2026-10-20.json) records normal and ASan/UBSan semantic/protocol tests, including declaration filtering, shadowing, nested captures, cross-file aliases/re-exports, deduplication, Unicode/CRLF, current unsaved destination positions, registered URIs and failure isolation. This does not qualify real-editor behavior or full-workspace coverage.
 
 ## Limits and qualification
 
@@ -82,4 +95,4 @@ Malformed JSON with valid framing returns a parse error and leaves the session u
 
 Independent Python-stdlib protocol tests launch normal and ASan/UBSan builds, exercise interactive pipe framing, lifecycle, versions, Unicode ranges/URIs, source isolation, dependency changes/clearing, project packages, budgets and malformed input. The [initial qualification record](../../native/metal-proof/evidence/native-lsp-2026-10-20.json) covers the first full-sync implementation. [Incremental edit qualification](../../native/metal-proof/evidence/native-lsp-edits-2026-10-20.json) adds sequential/mixed edits, Unicode scalar boundaries, CRLF/CR positions, line-end clamping, transactional failure, deprecated lengths and edit limits. Third-party LLVM libraries are not rebuilt with sanitizers. No real editor or additional operating system is qualified by these protocol tests.
 
-Next: find references, completion and formatter integration. Filesystem watching, workspace indexing, asynchronous scheduling and editor distribution remain separate work.
+Next: expand semantic token coverage before safe rename, then completion and formatter integration. Filesystem watching, workspace indexing, asynchronous scheduling and editor distribution remain separate work.

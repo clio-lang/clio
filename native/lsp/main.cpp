@@ -16,6 +16,7 @@
 #include <map>
 #include <set>
 #include <stdexcept>
+#include <tuple>
 #ifdef _WIN32
 #include <fcntl.h>
 #include <io.h>
@@ -292,11 +293,19 @@ public:
     }
     published = std::move(next);
   }
-  void symbolRequest(const j::Value &id, const j::Object *params, bool goDefinition) {
+  void symbolRequest(const j::Value &id, const j::Object *params, bool goDefinition,
+                     bool findReferences = false) {
     const auto item = params ? params->getObject("textDocument") : nullptr;
     const auto uri = item ? item->getString("uri") : std::nullopt;
     const auto path = uri ? pathFromUri(*uri) : std::nullopt;
     const auto position = editPosition(params ? params->getObject("position") : nullptr);
+    const auto context = params ? params->getObject("context") : nullptr;
+    const auto includeDeclaration =
+        context ? context->getBoolean("includeDeclaration") : std::nullopt;
+    if (findReferences && !includeDeclaration) {
+      error(id, -32602, "Expected references context.includeDeclaration boolean");
+      return;
+    }
     if (!path || !position) {
       error(id, -32602, "Expected a local .k URI and UTF-16 position");
       return;
@@ -321,6 +330,64 @@ public:
     auto syntax = loadModules(*path, {}, {}, project ? project->packages : empty, overlays);
     if (!syntax) {
       respond(nullptr);
+      return;
+    }
+    if (findReferences) {
+      auto target = lsp::definition(std::move(*syntax), *path, *offset, options);
+      if (!target) {
+        respond(nullptr);
+        return;
+      }
+      std::set<std::string> roots;
+      for (const auto &[file, document] : documents)
+        roots.insert(file);
+      if (project)
+        roots.insert(project->entry);
+      std::map<std::tuple<std::string, std::size_t, std::size_t>, lsp::SourceLocation> found;
+      std::size_t scanned = 0;
+      for (const auto &root : roots) {
+        auto graph = loadModules(root, {}, {}, project ? project->packages : empty, overlays);
+        if (!graph || !graph->module.source) {
+          error(id, -32803, "Cannot search references: a source graph could not be loaded");
+          return;
+        }
+        scanned += graph->module.source->text().size();
+        if (scanned > 64 * 1024 * 1024) {
+          error(id, -32803, "Reference search exceeds the 64 MiB graph budget");
+          return;
+        }
+        auto locations = lsp::references(std::move(*graph), *target, *includeDeclaration, options);
+        if (!locations) {
+          error(id, -32803, "Cannot search references: an open or project source graph has errors");
+          return;
+        }
+        for (auto &location : *locations) {
+          auto key = std::tuple{location.source->path(), location.span.begin, location.span.end};
+          found.try_emplace(std::move(key), std::move(location));
+        }
+        if (found.size() > 100000) {
+          error(id, -32803, "Reference search exceeds the 100000 location budget");
+          return;
+        }
+      }
+      j::Array result;
+      for (const auto &[key, location] : found) {
+        const Diagnostic range{"", "", location.span};
+        auto encoded = j::parse(renderDiagnosticsJson(location.source.get(), {&range, 1}));
+        if (!encoded) {
+          llvm::consumeError(encoded.takeError());
+          error(id, -32603, "Cannot encode reference range");
+          return;
+        }
+        const auto &diagnostic =
+            *(*encoded->getAsObject()->getArray("diagnostics"))[0].getAsObject();
+        const auto opened = documents.find(location.source->path());
+        result.push_back(
+            j::Object{{"uri", opened == documents.end() ? uriFromPath(location.source->path())
+                                                        : opened->second.uri},
+                      {"range", *diagnostic.get("range")}});
+      }
+      respond(std::move(result));
       return;
     }
     if (goDefinition) {
@@ -534,6 +601,7 @@ int main(int argc, char **argv) {
                         j::Object{{"positionEncoding", "utf-16"},
                                   {"hoverProvider", true},
                                   {"definitionProvider", true},
+                                  {"referencesProvider", true},
                                   {"textDocumentSync",
                                    j::Object{{"openClose", true},
                                              {"change", 2},
@@ -548,10 +616,12 @@ int main(int argc, char **argv) {
       } else if (*method == "shutdown" && request) {
         session.shutdown = true;
         send(j::Object{{"jsonrpc", "2.0"}, {"id", *id}, {"result", nullptr}});
-      } else if ((*method == "textDocument/hover" || *method == "textDocument/definition") &&
+      } else if ((*method == "textDocument/hover" || *method == "textDocument/definition" ||
+                  *method == "textDocument/references") &&
                  request) {
         session.symbolRequest(*id, object->getObject("params"),
-                              *method == "textDocument/definition");
+                              *method == "textDocument/definition",
+                              *method == "textDocument/references");
       } else if (request)
         error(*id, *method == "initialize" ? -32600 : -32601, "Unsupported request");
       else if (*method == "textDocument/didOpen" || *method == "textDocument/didChange" ||
