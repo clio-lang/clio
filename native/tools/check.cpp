@@ -1,4 +1,5 @@
 #include "kalandra/Continuation.h"
+#include "kalandra/Diagnostics.h"
 #include "kalandra/Project.h"
 #include <algorithm>
 #include <iostream>
@@ -7,20 +8,43 @@
 
 int main(int argc, char **argv) {
   const std::span<char *> arguments(argv, static_cast<std::size_t>(argc));
-  bool dump = false, dumpPlan = false;
+  bool dump = false, dumpPlan = false, json = false, selectedJson = false;
+  // Select the response protocol before parsing errors, while respecting option values.
+  for (std::size_t i = 1; i < arguments.size(); ++i) {
+    const std::string_view arg = arguments[i];
+    if ((arg == "--project" || arg == "--package") && i + 1 < arguments.size())
+      ++i;
+    else if (arg == "--diagnostics=json")
+      json = true;
+  }
+  const auto failure = [&](std::string code, std::string message, int status,
+                           std::string_view file = {}) {
+    if (json) {
+      const kalandra::Diagnostic diagnostic{std::move(code), std::move(message), {}};
+      std::cout << kalandra::renderDiagnosticsJson(nullptr, {&diagnostic, 1}, {}, file);
+    } else
+      std::cerr << message << '\n';
+    return status;
+  };
   kalandra::CheckOptions options;
   const char *path = nullptr;
   std::string projectPath;
   std::optional<kalandra::NativeProject> project;
   std::vector<kalandra::ModulePackage> packages;
-  const auto usage = [] {
-    std::cerr << "usage: kalandra-check [--placement] [--dump-ir|--dump-plan] [--package "
-                 "name=path.k ...] <source.k | --project manifest.toml>\n";
-    return 2;
+  const auto usage = [&] {
+    return failure("CLI001",
+                   "usage: kalandra-check [--diagnostics=json] [--placement] "
+                   "[--dump-ir|--dump-plan] [--package name=path.k ...] "
+                   "<source.k | --project manifest.toml>",
+                   2);
   };
   for (std::size_t i = 1; i < arguments.size(); ++i) {
     const std::string_view arg = arguments[i];
-    if (arg == "--project") {
+    if (arg == "--diagnostics=json") {
+      if (selectedJson)
+        return usage();
+      selectedJson = true;
+    } else if (arg == "--project") {
       if (i + 1 >= arguments.size() || !projectPath.empty() ||
           std::string_view(arguments[i + 1]).empty())
         return usage();
@@ -30,8 +54,7 @@ int main(int argc, char **argv) {
         return usage();
       auto package = kalandra::parseModulePackage(arguments[++i]);
       if (!package) {
-        std::cerr << package.error() << '\n';
-        return 2;
+        return failure("CLI001", package.error(), 2);
       }
       packages.push_back(std::move(*package));
     } else if (!path && arg == "--dump-ir" && !dump && !dumpPlan)
@@ -45,13 +68,15 @@ int main(int argc, char **argv) {
     else
       path = arguments[i];
   }
+  if (json && (dump || dumpPlan))
+    return failure("CLI001", "--diagnostics=json cannot be combined with --dump-ir or --dump-plan",
+                   2);
   if (!projectPath.empty()) {
     if (path)
       return usage();
     auto loaded = kalandra::loadNativeProject(projectPath);
     if (!loaded) {
-      std::cerr << loaded.error() << '\n';
-      return 1;
+      return failure("PRJ001", loaded.error(), 1, projectPath);
     }
     project = std::move(*loaded);
     path = project->entry.c_str();
@@ -61,16 +86,30 @@ int main(int argc, char **argv) {
     return usage();
   auto syntax = kalandra::loadModules(path, {}, {}, packages);
   if (!syntax) {
-    std::cerr << path << ": " << syntax.error() << '\n';
-    return 1;
+    return failure("IO001", std::string(path) + ": " + syntax.error(), 1, path);
   }
   auto result = kalandra::check(std::move(*syntax), {}, options);
   if (!result.ok()) {
-    for (const auto &diagnostic : result.diagnostics)
-      std::cerr << kalandra::renderDiagnostic(*result.source, diagnostic);
+    if (json) {
+      // Loader preflight failures can carry an empty synthetic source for text
+      // rendering; they do not provide a trustworthy editor range.
+      const bool synthetic = result.source && result.source->text().empty() &&
+                             std::ranges::all_of(result.diagnostics, [](const auto &d) {
+                               return d.code.starts_with("M");
+                             });
+      std::cout << kalandra::renderDiagnosticsJson(synthetic ? nullptr : result.source.get(),
+                                                   result.diagnostics, {},
+                                                   result.source ? result.source->path() : "");
+    } else
+      for (const auto &diagnostic : result.diagnostics)
+        std::cerr << kalandra::renderDiagnostic(*result.source, diagnostic);
     return 1;
   }
-  if (dumpPlan) {
+  if (json) {
+    std::cout << kalandra::renderDiagnosticsJson(
+        result.source.get(), {},
+        kalandra::CheckSummary{result.module->functions.size(), result.module->expressions.size()});
+  } else if (dumpPlan) {
     kalandra::continuation::Options planning;
     planning.preserveCalls = options.placement;
     if (options.placement) {

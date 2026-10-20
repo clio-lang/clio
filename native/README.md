@@ -44,12 +44,14 @@ Compiler implementation ownership is separate from Kalandra's automatic memory m
 
 ## Current targets
 
+The checker supports [versioned JSON diagnostics](../docs/design/native-diagnostics.md) through `--diagnostics=json`, including original module filenames and UTF-16 editor ranges.
+
 | Target                    | Purpose                                                                                   |
 | ------------------------- | ----------------------------------------------------------------------------------------- |
 | `kalandrac`               | Compile the checked CPU subset through MLIR/LLVM into a native executable                 |
 | `kalandra-backend`        | Native MLIR construction, verified passes, LLVM translation                               |
 | `kalandra-native-runtime` | Invocation storage, checked faults, bounded task scheduler, and development entry wrapper |
-| `kalandra-check`          | Symbol/type/shape checking and `--dump-ir` inspection                                     |
+| `kalandra-check`          | Symbol/type/shape checking, JSON diagnostics and `--dump-ir` inspection                   |
 | `kalandra-semantics`      | Typed values, resolved calls, shape facts/guards, strict numeric metadata                 |
 | `kalandra-parse`          | Handwritten lexer/parser CLI with source diagnostics (syntax only)                        |
 | `kalandra-syntax`         | Source ownership, tokens, AST, lexer, recursive-descent/Pratt parser                      |

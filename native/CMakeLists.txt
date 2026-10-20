@@ -12,7 +12,7 @@ add_executable(kalandra-proof-cases toolchain-proof/cases.cpp)
 target_compile_options(kalandra-proof-cases PRIVATE -Wall -Wextra -Werror -ffp-contract=off)
 add_subdirectory(toolchain-proof)
 
-set(KALANDRA_SYNTAX_SOURCES lib/Source.cpp lib/Lexer.cpp lib/Parser.cpp lib/Modules.cpp)
+set(KALANDRA_SYNTAX_SOURCES lib/Source.cpp lib/Diagnostics.cpp lib/Lexer.cpp lib/Parser.cpp lib/Modules.cpp)
 add_library(kalandra-syntax STATIC ${KALANDRA_SYNTAX_SOURCES})
 target_include_directories(kalandra-syntax PUBLIC include)
 target_compile_options(kalandra-syntax PRIVATE -Wall -Wextra -Werror)
@@ -975,3 +975,5 @@ include(cmake/RecordArrayFields.cmake)
 include(cmake/ApplicationErrors.cmake)
 
 include(cmake/FunctionValues.cmake)
+
+include(cmake/Diagnostics.cmake)
