@@ -81,7 +81,7 @@ class Client:
         assert caps["referencesProvider"] is True
         assert caps["renameProvider"] == ({"prepareProvider": True} if rename else False)
         assert caps["workspace"]["workspaceFolders"] == {"supported": True, "changeNotifications": False}
-        assert not caps.get("completionProvider")
+        assert caps["completionProvider"] == {"resolveProvider": False}
         self.send("initialized", {})
 
     def open(self, path, text, version=1):
@@ -99,6 +99,10 @@ class Client:
     def hover(self, path, line, character):
         return self.rpc("textDocument/hover", {"textDocument": {"uri": path.as_uri()},
                                               "position": {"line": line, "character": character}})
+
+    def completion(self, path, line, character):
+        return self.rpc("textDocument/completion", {"textDocument": {"uri": path.as_uri()},
+            "position": {"line": line, "character": character}})
 
     def definition(self, path, line, character):
         return self.rpc("textDocument/definition", {"textDocument": {"uri": path.as_uri()},
@@ -877,6 +881,52 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert response["error"]["code"] == -32803 and "resolution" in response["error"]["message"]
     assert client.prepare_rename(capture_file, 1, 3)["result"]["placeholder"] == "value"
     assert capture_file.read_text() == capture_source
+    client.finish()
+
+    # Completion probes unsaved buffers, returns plain UTF-16 edits, and leaves
+    # diagnostics and source buffers alone. Dependencies use the same overlays.
+    completion_root = Path(temp) / "completion"
+    completion_root.mkdir()
+    library = completion_root / "library.k"
+    library.write_text("export fn hidden(value:int):\n  value\n")
+    document = completion_root / "main.k"
+    client = Client()
+    client.init()
+    text = ('from "./library.k" import hidden as publicName\n'
+            'fn main():\n  earlier = 1\n  pubSuffix\n')
+    client.open(document, text)
+    client.barrier()
+    result = client.completion(document, 3, 5)["result"]
+    assert not result["isIncomplete"]
+    assert [item["label"] for item in result["items"]] == ["publicName"], result
+    item = result["items"][0]
+    assert item["kind"] == 3 and item["insertTextFormat"] == 1
+    assert item["textEdit"] == {"newText": "publicName", "range": {
+        "start": {"line": 3, "character": 2}, "end": {"line": 3, "character": 11}}}, item
+    assert not document.exists(), "completion wrote the unsaved document"
+    assert not client.barrier(), "completion published probe diagnostics"
+    client.open(library, "export fn changed(value:int):\n  value\n")
+    client.barrier()
+    assert client.completion(document, 3, 5)["result"]["items"] == [], "stale import suggestions"
+    client.close(library)
+    client.barrier()
+    assert client.completion(document, 3, 5)["result"]["items"][0]["label"] == "publicName"
+    # Astral Unicode before a cursor must not shift the UTF-16 replacement edit.
+    # Use a preceding String argument instead of an unsupported statement separator.
+    text = 'fn join(text:String, value:int):\n  value\nfn main():\n  earlier = 2\n  join("😀", earSuffix)\n'
+    client.change(document, text, 2)
+    client.barrier()
+    result = client.completion(document, 4, 16)["result"]
+    assert [item["label"] for item in result["items"]] == ["earlier"], result
+    assert result["items"][0]["textEdit"]["range"] == {
+        "start": {"line": 4, "character": 13}, "end": {"line": 4, "character": 22}}
+    assert client.completion(document, 4, 9)["result"] is None, "surrogate split"
+    assert client.completion(document, 300, 0)["result"] is None
+    assert client.rpc("textDocument/completion", {"textDocument": {"uri": document.as_uri()},
+        "position": {"line": -1, "character": 0}})["error"]["code"] == -32602
+    client.close(document)
+    client.barrier()
+    assert client.completion(document, 4, 16)["result"] is None
     client.finish()
 
     invalid_stream(b"Content-Length: 0\r\n\r\n")

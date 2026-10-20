@@ -44,7 +44,7 @@ Compiler implementation ownership is separate from Kalandra's automatic memory m
 
 ## Current targets
 
-The [native language server](../docs/design/native-language-server.md) checks open `.k` buffers and publishes diagnostics over stdio. References also search eligible unopened `.k` files in the configured workspace, subject to documented exclusions and scan limits. Supported clients can prepare rename and receive validated, versioned edit proposals that preserve aliases and pattern bindings. Build the `kalandra-lsp` target to connect an editor client.
+The [native language server](../docs/design/native-language-server.md) checks open `.k` buffers and publishes diagnostics over stdio. References also search eligible unopened `.k` files in the configured workspace, subject to documented exclusions and scan limits. Scope completion suggests visible bindings, functions and imported aliases while typing expression names. Supported clients can prepare rename and receive validated, versioned edit proposals that preserve aliases and pattern bindings. Build the `kalandra-lsp` target to connect an editor client.
 
 The checker supports [versioned JSON diagnostics](../docs/design/native-diagnostics.md) through `--diagnostics=json`, including original module filenames and UTF-16 editor ranges. [Unsaved source checking](../docs/design/native-source-overlays.md) supports a root buffer via `--stdin` and multiple replacement buffers through the native loader API.
 
@@ -53,7 +53,7 @@ The checker supports [versioned JSON diagnostics](../docs/design/native-diagnost
 | `kalandrac`               | Compile the checked CPU subset through MLIR/LLVM into a native executable                 |
 | `kalandra-backend`        | Native MLIR construction, verified passes, LLVM translation                               |
 | `kalandra-native-runtime` | Invocation storage, checked faults, bounded task scheduler, and development entry wrapper |
-| `kalandra-lsp`            | Native diagnostics, incremental edits, type hover, definition, references and validated rename             |
+| `kalandra-lsp`            | Native diagnostics, incremental edits, type hover, definition, references, scope completion and validated rename |
 | `kalandra-check`          | Symbol/type/shape checking, JSON diagnostics and `--dump-ir` inspection                   |
 | `kalandra-semantics`      | Typed values, resolved calls, shape facts/guards, strict numeric metadata                 |
 | `kalandra-parse`          | Handwritten lexer/parser CLI with source diagnostics (syntax only)                        |

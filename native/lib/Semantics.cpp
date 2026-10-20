@@ -136,6 +136,55 @@ private:
       owner = owner->closure->parent;
     return functionKey(syntax_.functions[owner->function].moduleIndex, name);
   }
+  void completeScope(const Frame &frame, SourceSpan site) {
+    auto *query = options_.completion;
+    if (!query || query->reached || !diagnostics_.empty() || query->site.begin != site.begin ||
+        query->site.end != site.end)
+      return;
+    query->reached = true;
+    std::map<std::string, ScopeNameKind> names;
+    std::unordered_set<std::string> hidden;
+    const auto insert = [&](const std::string &label, ScopeNameKind kind) {
+      if (label.starts_with(query->prefix) && hidden.insert(label).second)
+        names.try_emplace(label, kind);
+    };
+    const Frame *scope = &frame;
+    bool captured = false;
+    while (true) {
+      for (const auto &[label, id] : scope->locals) {
+        const auto &symbol = output_.symbols[id];
+        const auto &type = symbol.type;
+        // Mirror closure capture eligibility without lifting a capture or mutating IR.
+        if (captured &&
+            (type.task || type.fallible || type.device ||
+             (type.builtin != BuiltinValue::Numeric && type.builtin != BuiltinValue::Bool &&
+              type.builtin != BuiltinValue::Record && type.builtin != BuiltinValue::String &&
+              type.builtin != BuiltinValue::Function))) {
+          hidden.insert(label);
+          continue;
+        }
+        insert(label, symbol.parameter ? ScopeNameKind::Parameter : ScopeNameKind::Variable);
+      }
+      if (!scope->closure)
+        break;
+      scope = scope->closure->parent;
+      captured = true;
+    }
+    const auto prefix = functionKey(frame, "");
+    for (const auto &[key, id] : functions_)
+      if (key.starts_with(prefix) && signatures_[id])
+        insert(key.substr(prefix.size()), ScopeNameKind::Function);
+    for (const auto &[key, id] : records_)
+      if (key.starts_with(prefix))
+        insert(key.substr(prefix.size()), ScopeNameKind::Type);
+    for (const auto &[label, kind] : names) {
+      if (query->names.size() == 256) {
+        query->truncated = true;
+        break;
+      }
+      query->names.push_back({label, kind});
+    }
+  }
   void error(std::string code, std::string message, SourceSpan span) {
     ++errorCount_;
     if (diagnostics_.size() < limits_.maxDiagnostics)
@@ -1562,6 +1611,7 @@ private:
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const NameExpr &read,
                                const std::optional<ValueType> &) {
+    completeScope(frame, read.name);
     const auto identifier = name(read.name);
     if (identifier == "true" || identifier == "false") {
       ValueType boolean;
@@ -3511,6 +3561,8 @@ private:
       return anonymousMap(frame, span, arguments[0], syntax_.expressions[arguments[1]].span,
                           *lambda, parallel);
     const auto *callback = std::get_if<NameExpr>(&syntax_.expressions[arguments[1]].value);
+    if (callback)
+      completeScope(frame, callback->name);
     if (!callback || lookupSymbol(frame, callback->name)) {
       auto target = expression(frame, arguments[1]);
       if (!target)
@@ -3774,6 +3826,7 @@ private:
   invoke(Frame &frame, SourceSpan span, SourceSpan calleeSpan, const std::vector<ExprId> &arguments,
          const std::optional<ValueType> &expected, std::optional<ExprId> selection = {},
          std::optional<ValueId> *checkedSelection = nullptr, bool spawned = false) {
+    completeScope(frame, calleeSpan);
     const auto callee = name(calleeSpan);
     if (auto symbol = lookupSymbol(frame, calleeSpan)) {
       if (output_.symbols[*symbol].type.builtin == BuiltinValue::Function) {
@@ -3994,6 +4047,10 @@ private:
 };
 } // namespace
 CheckResult check(ParseResult syntax, SemanticLimits limits, CheckOptions options) {
+  if (options.completion) {
+    options.completion->names.clear();
+    options.completion->reached = options.completion->truncated = false;
+  }
   if (!syntax.ok())
     return {syntax.module.source, {}, std::move(syntax.diagnostics)};
   limits.maxDiagnostics = std::max<std::size_t>(1, limits.maxDiagnostics);

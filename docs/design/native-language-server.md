@@ -28,6 +28,7 @@ The server implements the [Language Server Protocol 3.17](https://microsoft.gith
 - `textDocument/didOpen`, `didChange`, `didSave`, `didClose`.
 - `textDocument/publishDiagnostics`, including open-buffer versions, compiler codes, source names and severity.
 - `textDocument/hover` for checked token types and function signatures.
+- `textDocument/completion` for prefix-filtered names in the current lexical/module scope.
 - `textDocument/definition` for resolved source declaration locations.
 - `textDocument/references` for resolved occurrences in workspace/open/project source graphs.
 - `textDocument/prepareRename` and `textDocument/rename` for validated workspace edit proposals when supported by the client.
@@ -134,6 +135,18 @@ Discovery permits at most 512 source files, 20,000 visited directory entries and
 
 The server advertises workspace-folder support with change notifications disabled. Restart it after changing workspace folders or project configuration. The [workspace qualification record](../../native/metal-proof/evidence/native-lsp-workspace-2026-10-20.json) covers normal and ASan/UBSan discovery/protocol tests: unopened callers, fresh disk changes, buffer precedence, URI preservation, root precedence/isolation, nested roots, project/package mappings, external dependencies, exclusions, symlinks, scan limits and failure recovery. These are protocol and filesystem tests, not real-editor or additional-platform qualification.
 
+## Scope completion
+
+The server advertises `completionProvider: {resolveProvider: false}`. Completion returns plain-text items and UTF-16 `textEdit` ranges covering the entire current identifier, including any suffix after the cursor. An empty expression position can also request names. The document must be open under its registered URI; unopened documents and invalid positions return `null`, and malformed parameters return InvalidParams (-32602).
+
+Suggestions include parameters, preceding immutable bindings, eligible closure captures, named functions, nominal constructor names, and imported aliases visible in the current module. The checker supplies the actual lexical frame, so later bindings, other branches, unimported dependency names and shadowed declarations do not leak into the list. Matches use a case-sensitive prefix and deterministic alphabetical order. Results are limited to 256 names; `isIncomplete` asks the client to request again after the prefix narrows. Item details distinguish bindings, parameters, functions and types; these are name suggestions rather than expected-type filtering or inferred signature presentation.
+
+The request replaces only the current identifier (or inserts one at an empty position) in a temporary source overlay, then parses the graph and snapshots scope immediately before the checker resolves that identifier. Current dependency buffers and configured package mappings participate. Probe diagnostics are discarded: the request does not publish diagnostics, change buffers, write files, run code or contact hardware. Normal checking still never publishes partial typed IR. Completion exposes only scope names, without partial/stale inferred types.
+
+This deliberately bounded first slice needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; member names, annotations, import paths, pattern syntax and declaration names are not completion contexts yet. Strings/comments do not supply lexical-name suggestions. There is no parser recovery, member completion, auto-import, fuzzy ranking, snippet expansion, completion resolve or signature help. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
+
+The [completion qualification record](../../native/metal-proof/evidence/native-lsp-completion-2026-10-20.json) records semantic and stdio tests in normal and ASan/UBSan builds. Real-editor interaction remains unqualified.
+
 ## Safe rename proposals
 
 Rename requires a configured workspace containing the query document. The client must advertise `workspace.workspaceEdit.documentChanges`; otherwise `renameProvider` is false and rename requests fail rather than falling back to unversioned edits. With that capability, the server advertises `renameProvider: true`, or `{prepareProvider: true}` when the client also advertises `textDocument.rename.prepareSupport`. `prepareRename` returns the selected token's UTF-16 range and placeholder, or `null` for unsupported tokens. The document must be open under its registered URI.
@@ -160,4 +173,4 @@ Malformed JSON with valid framing returns a parse error and leaves the session u
 
 Independent Python-stdlib protocol tests launch normal and ASan/UBSan builds, exercise interactive pipe framing, lifecycle, versions, Unicode ranges/URIs, source isolation, dependency changes/clearing, project packages, budgets and malformed input. The [initial qualification record](../../native/metal-proof/evidence/native-lsp-2026-10-20.json) covers the first full-sync implementation. [Incremental edit qualification](../../native/metal-proof/evidence/native-lsp-edits-2026-10-20.json) adds sequential/mixed edits, Unicode scalar boundaries, CRLF/CR positions, line-end clamping, transactional failure, deprecated lengths and edit limits. Third-party LLVM libraries are not rebuilt with sanitizers. No real editor or additional operating system is qualified by these protocol tests.
 
-Next: native completion and formatter integration. Filesystem watching, persistent workspace indexing, asynchronous scheduling and editor distribution remain separate work.
+Next: native formatter integration. Completion recovery, members and signature help remain follow-ups. Filesystem watching, persistent workspace indexing, asynchronous scheduling and editor distribution remain separate work.

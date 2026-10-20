@@ -1,3 +1,4 @@
+#include "Completion.h"
 #include "Edits.h"
 #include "Hover.h"
 #include "Rename.h"
@@ -447,6 +448,63 @@ public:
     }
     published = std::move(next);
   }
+  void completionRequest(const j::Value &id, const j::Object *params) {
+    const auto item = params ? params->getObject("textDocument") : nullptr;
+    const auto uri = item ? item->getString("uri") : std::nullopt;
+    const auto path = uri ? pathFromUri(*uri) : std::nullopt;
+    const auto position = editPosition(params ? params->getObject("position") : nullptr);
+    if (!path || !position) {
+      error(id, -32602, "Expected a local .k URI and UTF-16 position");
+      return;
+    }
+    const auto respond = [&](j::Value result) {
+      send(j::Object{{"jsonrpc", "2.0"}, {"id", id}, {"result", std::move(result)}});
+    };
+    const auto open = documents.find(*path);
+    if (open == documents.end() || open->second.uri != *uri) {
+      respond(nullptr);
+      return;
+    }
+    const auto offset = lsp::textOffset(open->second.text, *position);
+    if (!offset) {
+      respond(nullptr);
+      return;
+    }
+    std::vector<SourceOverlay> overlays;
+    for (const auto &[file, document] : documents)
+      overlays.push_back({file, document.text});
+    const std::vector<ModulePackage> empty;
+    auto info =
+        lsp::completeNames(*path, open->second.text, *offset, project ? project->packages : empty,
+                           std::move(overlays), options);
+    j::Array items;
+    if (!info.names.empty()) {
+      const SourceFile source(*path, open->second.text);
+      const Diagnostic location{"", "", info.replacement};
+      auto encoded = j::parse(renderDiagnosticsJson(&source, {&location, 1}));
+      if (!encoded) {
+        llvm::consumeError(encoded.takeError());
+        error(id, -32603, "Cannot encode completion range");
+        return;
+      }
+      const auto &diagnostic = *(*encoded->getAsObject()->getArray("diagnostics"))[0].getAsObject();
+      for (const auto &name : info.names) {
+        const auto kind = name.kind == ScopeNameKind::Function ? 3
+                          : name.kind == ScopeNameKind::Type   ? 22
+                                                               : 6;
+        items.push_back(j::Object{
+            {"label", name.name},
+            {"kind", kind},
+            {"insertTextFormat", 1},
+            {"detail", name.kind == ScopeNameKind::Parameter  ? "parameter"
+                       : name.kind == ScopeNameKind::Variable ? "binding"
+                       : name.kind == ScopeNameKind::Function ? "function"
+                                                              : "type"},
+            {"textEdit", j::Object{{"range", *diagnostic.get("range")}, {"newText", name.name}}}});
+      }
+    }
+    respond(j::Object{{"isIncomplete", info.incomplete}, {"items", std::move(items)}});
+  }
   void symbolRequest(const j::Value &id, const j::Object *params, bool goDefinition,
                      bool findReferences = false) {
     const auto item = params ? params->getObject("textDocument") : nullptr;
@@ -767,6 +825,7 @@ int main(int argc, char **argv) {
                  {"capabilities",
                   j::Object{{"positionEncoding", "utf-16"},
                             {"hoverProvider", true},
+                            {"completionProvider", j::Object{{"resolveProvider", false}}},
                             {"definitionProvider", true},
                             {"referencesProvider", true},
                             {"renameProvider", !session.renameDocuments ? j::Value(false)
@@ -794,6 +853,8 @@ int main(int argc, char **argv) {
                  request) {
         session.renameRequest(*id, object->getObject("params"),
                               *method == "textDocument/prepareRename");
+      } else if (*method == "textDocument/completion" && request) {
+        session.completionRequest(*id, object->getObject("params"));
       } else if ((*method == "textDocument/hover" || *method == "textDocument/definition" ||
                   *method == "textDocument/references") &&
                  request) {

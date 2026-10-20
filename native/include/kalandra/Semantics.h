@@ -406,10 +406,24 @@ struct CheckResult {
 [[nodiscard]] bool hasOrdinaryStrings(const TypedModule &module);
 // True for device/transfer/placed-call IR or resident/selector types.
 [[nodiscard]] bool hasPlacement(const TypedModule &module);
+// Editor-only scope snapshot. Names are captured before checking the queried name;
+// no partial typed IR or inferred type information escapes a failed check.
+enum class ScopeNameKind { Variable, Parameter, Function, Type };
+struct ScopeName {
+  std::string name;
+  ScopeNameKind kind;
+};
+struct ScopeCompletion {
+  SourceSpan site;
+  std::string prefix;
+  std::vector<ScopeName> names;
+  bool reached = false, truncated = false;
+};
 struct CheckOptions {
   // Build placement-aware IR without probing hardware or selecting a backend.
   // The ordinary CPU entry keeps rejecting placement syntax by default.
   bool placement = false;
+  ScopeCompletion *completion = nullptr; // Caller-owned, optional editor query.
 };
 [[nodiscard]] CheckResult check(ParseResult syntax, SemanticLimits limits = {},
                                 CheckOptions options = {});
