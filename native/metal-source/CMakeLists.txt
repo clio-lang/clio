@@ -422,3 +422,22 @@ if(BUILD_TESTING)
       RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
   endforeach()
 endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-fixed-shapes COMMAND "${CMAKE_COMMAND}"
+      "-DCOMPILER=$<TARGET_FILE:${COMPILER_TARGET}>" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-fixed-shapes"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyFixedShapes.cmake")
+    set_tests_properties(${COMPILER_TARGET}-fixed-shapes PROPERTIES TIMEOUT 90)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-fixed-shapes-${VARIANT} COMMAND "${CMAKE_COMMAND}"
+      "-DCOMPILER=$<TARGET_FILE:kalandrac>" "-DVARIANT=${VARIANT}"
+      "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/fixed-shapes-${VARIANT}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyFixedShapes.cmake")
+    set_tests_properties(native-metal-fixed-shapes-${VARIANT} PROPERTIES TIMEOUT 300
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
+endif()

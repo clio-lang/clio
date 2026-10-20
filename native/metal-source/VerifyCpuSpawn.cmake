@@ -87,7 +87,7 @@ reject(scalar-as-tensor "${BAD}" "S010")
 string(REPLACE "extra = try await spawn fixed(host)" "extra = try await spawn fixed(weights)" BAD "${SOURCE}")
 reject(fixed-shape "${BAD}" "S011")
 string(REPLACE "extra = try await spawn fixed(host)" "extra = try await spawn fixed(doubled) on gpu" BAD "${SOURCE}")
-reject(gpu-fixed-shape "${BAD}" "dynamic extents")
+build_run(gpu-fixed-shape "${BAD}" "${EXPECTED}" --sanitize)
 # The same fixed shape is checked inside the child when its dimensions are unknown to the caller.
 set(FORWARD "fn forward(values:Tensor[float32,?,?]) -> Tensor[float32,?,?]:\n  values\n\n")
 string(REPLACE "extra = try await spawn fixed(host)" "extra = try await spawn fixed(forward(weights))" BAD "${SOURCE}")

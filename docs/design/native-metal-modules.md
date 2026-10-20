@@ -57,7 +57,7 @@ With this mapping, the import becomes `from "math" import scale`. Compile using 
 
 ## Target limits and diagnostics
 
-Module support preserves the current Metal compiler subset: explicit function result annotations, float32 scalar and rank-one/rank-two tensor helpers, explicit residency/transfers, and supported elementwise, reduction and matrix operations. Kernel signatures still require dynamic tensor extents. This does not add GPU integer/float64 arithmetic, imported record/error types, managed strings, arbitrary callable values or task coordination inside shaders. CPU-only numerical helpers can coexist with GPU helpers when the existing mixed compiler admits their signatures.
+Module support preserves the current Metal compiler subset: explicit function result annotations, float32 scalar and rank-one/rank-two tensor helpers, explicit residency/transfers, and supported elementwise, reduction and matrix operations. Kernel signatures accept [fixed and dynamic extents](native-gpu-fixed-shapes.md), with known mismatches diagnosed and unknown sizes guarded before dispatch. This does not add GPU integer/float64 arithmetic, imported record/error types, managed strings, arbitrary callable values or task coordination inside shaders. CPU-only numerical helpers can coexist with GPU helpers when the existing mixed compiler admits their signatures.
 
 Private/missing exports, duplicate bindings, cycles and loader resource limits follow the [common module rules](modules.md). Semantic and source-capability diagnostics refer to the original file and source line. Runtime fault payloads still carry line/column without a file identity; that remains diagnostics work.
 

@@ -77,7 +77,7 @@ class Compiler {
     return code + "} " + error("m::Error::Invalid") + "}\n";
   }
   // Admit the placed function's typed closure, not CPU expressions used to
-  // compute its arguments. CPU-only functions may keep fixed shape signatures.
+  // compute its arguments. Host preflight checks fixed and inferred shape contracts.
   void admitGpuTypes(FunctionId root) const {
     std::set<FunctionId> visited;
     std::vector<FunctionId> pending{root};
@@ -95,16 +95,6 @@ class Compiler {
       supported(fn.resultType);
       for (auto parameter : fn.parameters)
         supported(cpu.symbols[parameter].type);
-      auto dynamic = [&](const ValueType &type) {
-        for (const auto &axis : type.shape)
-          if (axis.constant)
-            reject(fn.declaration,
-                   "GPU tensor parameters/results currently require dynamic extents");
-      };
-      if (fn.declaredResult)
-        dynamic(*fn.declaredResult);
-      for (auto parameter : fn.parameters)
-        dynamic(cpu.symbols[parameter].type);
       for (auto value : fn.expressions)
         if (auto *call = std::get_if<FunctionCall>(&cpu.expressions[value].operation))
           pending.push_back(call->function);
@@ -202,6 +192,12 @@ class Compiler {
     if (auto guard = lengthGuard(value, wanted, span, axis); !guard.empty())
       steps.push_back(std::move(guard));
   }
+  ValueId numericalResult(const TypedFunction &fn) const {
+    auto value = fn.result;
+    while (const auto *check = std::get_if<ShapeCheck>(&cpu.expressions[value].operation))
+      value = check->input;
+    return value;
+  }
   bool reduction(std::size_t function) const {
     const auto &fn = cpu.functions[function];
     if (fn.resultType.tensor || fn.parameters.size() != 1 ||
@@ -209,7 +205,7 @@ class Compiler {
          cpu.symbols[fn.parameters[0]].type.shape.size() != 2) ||
         fn.body.size() != 1 || fn.body[0].binding)
       return false;
-    auto *sum = std::get_if<ReduceSum>(&cpu.expressions[fn.result].operation);
+    auto *sum = std::get_if<ReduceSum>(&cpu.expressions[numericalResult(fn)].operation);
     if (!sum || sum->order != ReductionOrder::BalancedAdjacent || !sum->rowMajor)
       return false;
     auto *input = std::get_if<SymbolRead>(&cpu.expressions[sum->input].operation);
@@ -223,7 +219,7 @@ class Compiler {
     if (cpu.symbols[fn.parameters[0]].type.shape.size() != 2 ||
         cpu.symbols[fn.parameters[1]].type.shape.size() != 2)
       return false;
-    auto *product = std::get_if<Matmul>(&cpu.expressions[fn.result].operation);
+    auto *product = std::get_if<Matmul>(&cpu.expressions[numericalResult(fn)].operation);
     if (!product || product->order != ReductionOrder::BalancedAdjacent ||
         !product->separatelyRoundedProducts)
       return false;
@@ -620,6 +616,10 @@ class Compiler {
         reject(span, "GPU argument type mismatch");
       if (tensor && value.rank != type.shape.size())
         reject(span, "GPU tensor ranks must match their parameters");
+      if (tensor)
+        for (unsigned axis = 0; axis < type.shape.size(); ++axis)
+          if (type.shape[axis].constant)
+            requireLength(value, *type.shape[axis].constant, span, axis);
       (tensor ? tensors : scalars).push_back(value);
     }
     if (tensors.empty())
@@ -1292,6 +1292,10 @@ class Compiler {
             instruction << "        " << result << " = arith.negf " << operand << " : f32\n";
           } else if (op != TokenKind::Plus)
             reject(n.span, "GPU unary arithmetic is not implemented");
+        } else if (auto *check = std::get_if<ShapeCheck>(&n.operation)) {
+          // Straight-line helper checks become the entry's transitive shape
+          // preconditions, validated on the host before kernel admission.
+          result = emit(check->input);
         } else if (auto *call = std::get_if<FunctionCall>(&n.operation)) {
           std::vector<std::string> inputs;
           for (auto arg : call->arguments)

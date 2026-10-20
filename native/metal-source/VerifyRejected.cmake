@@ -123,7 +123,12 @@ set(BAD "fn scalar(a: float32, b: float32) -> float32:\n  a+b\n${SHARED}")
 string(REPLACE "spawn combine(a, b)" "spawn scalar(a, b)" BAD "${BAD}")
 reject_case(shared-scalar-gpu-entry "${BAD}")
 string(REPLACE "fn add(left: Tensor[float32, ?]" "fn add(left: Tensor[float32, 3]" BAD "${SHARED}")
-reject_case(shared-static-gpu-helper "${BAD}")
+file(WRITE "${ROOT}/shared-static-gpu-helper.k" "${BAD}")
+execute_process(COMMAND "${COMPILER}" "${ROOT}/shared-static-gpu-helper.k"
+  -o "${ROOT}/shared-static-gpu-helper" RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
+if(NOT STATUS EQUAL 0)
+  message(FATAL_ERROR "Fixed transitive GPU helper rejected: ${ERROR}")
+endif()
 
 # Exercise the new rank-two constructor and placement path in both compiler builds,
 # including the ASan/UBSan-instrumented compiler used by this script's second test.
