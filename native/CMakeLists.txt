@@ -970,6 +970,7 @@ include(cmake/ScopedPackages.cmake)
 
 include(cmake/Projects.cmake)
 include(cmake/GitSnapshots.cmake)
+include(cmake/RemoteGit.cmake)
 include(cmake/PackageInstall.cmake)
 
 include(cmake/ArraySlices.cmake)

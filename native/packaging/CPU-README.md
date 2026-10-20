@@ -37,4 +37,4 @@ toolchain dependencies and additional platform qualification remain release work
 See the accompanying editor-tools README, toolchain metadata, licenses and
 SHA256SUMS for the rest of the package contract.
 
-Exact local Git dependencies can be installed explicitly with `kalandra install --project path/to/kalandra.toml`. Installation requires system Git; subsequent project builds verify the activated cache offline. Remote Git URLs, mutable refs and public lockfiles are not supported yet.
+Exact-commit local or public HTTPS Git dependencies can be installed explicitly with `kalandra install --project path/to/kalandra.toml`. Installation requires system Git; subsequent project builds verify the activated cache offline. Remote installs verify TLS and require public repositories with full commit IDs. SSH, authenticated repositories, mutable refs and public lockfiles are not supported yet.

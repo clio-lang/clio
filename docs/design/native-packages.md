@@ -6,10 +6,11 @@ implements an [explicit scoped offline graph API](scoped-package-resolution.md).
 public entries and optional example applications, and construct scoped nodes.
 An [exact-commit local Git snapshot API](native-git-snapshots.md) now supplies the
 first N3-B foundation, including integrity and exclusive publication.
-The first [public local installer](native-package-install.md) now activates complete
-exact-commit graphs for compiler/checker and Metal source builds. Remote transports,
-mutable refs and the public lockfile below remain planned. Existing standalone
-local mapping workflows retain their behavior.
+The first [public installer](native-package-install.md) now activates complete
+exact-commit graphs for compiler/checker and Metal source builds.
+[Public HTTPS transport](native-remote-git.md) now extends the local snapshot path.
+Authenticated/SSH transport, mutable refs and the public lockfile below remain
+planned. Existing standalone local mapping workflows retain their behavior.
 
 The first native package workflow should support Git libraries, transitive
 source dependencies, a reproducible lockfile and offline builds. It should use
@@ -43,9 +44,9 @@ entry = "src/public.k"
 ```
 
 The `[package]` and `[dependencies]` tables now extend the native manifest;
-currently dependency requests require canonical absolute local repository paths
-and exact commits. The remote URLs/mutable refs above describe the planned
-extension. A library can also have a
+currently dependency requests accept canonical absolute local repository paths
+or supported HTTP(S) URLs with exact commits. Mutable refs above describe the
+planned extension. A library can also have a
 `[project]` entry for an example executable. At least one entry is required;
 `[package].entry` is selected when another package imports the library, while
 `[project].entry` is selected when compiling its application. Public entries use
@@ -118,7 +119,7 @@ initially, rather than introducing recursive resolution environments.
 ## Installation and the lockfile
 
 The intended complete public workflow is below. Only the first install command
-(with exact local requests) and builds are currently implemented; frozen/offline
+(with exact commit requests) and builds are currently implemented; frozen/offline
 flags and public locks remain planned:
 
 ```sh
@@ -210,8 +211,9 @@ context while keeping source import syntax unchanged. N3-A's graph loader is
 implemented, including library metadata and manifest-backed graph qualification.
 N3-B now has a qualified local snapshot importer and complete exact-local graph
 activation through the compiler/checker and Metal source tools. Remote transport
-qualification remains. Managed editor support and broader installed Metal
-onboarding are pending, along with N3-C public locks and mutable refs.
+is implemented for public HTTPS and numeric-loopback HTTP with exact commits;
+SSH/authentication and wider hosted-server qualification remain. Managed editor
+support and broader installed Metal onboarding are pending, along with N3-C public locks and mutable refs.
 Registry discovery, SemVer ranges, add/remove/update conveniences,
 monorepo workspaces and cache pruning remain future work rather than hidden
 requirements of this first Git-based workflow.

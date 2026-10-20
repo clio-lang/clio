@@ -1,4 +1,5 @@
 #include "kalandra/Project.h"
+#include "kalandra/GitRepository.h"
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -205,12 +206,10 @@ std::expected<Manifest, std::string> loadManifest(std::string path, ProjectLimit
           if (field != "git" && field != "rev")
             return fail(entry, "unknown dependency field '" + std::string(field.str()) + "'");
         auto repository = (*request)["git"].value<std::string>();
-        if (!repository || repository->find_first_of("\r\n") != std::string::npos ||
-            repository->find('\0') != std::string::npos || !fs::path(*repository).is_absolute() ||
-            fs::path(*repository).lexically_normal().string() != *repository)
+        if (!repository || !gitTransport(*repository))
           return fail(
               request->get("git") ? *request->get("git") : value,
-              "dependency git currently requires a normalized absolute local repository path");
+              "dependency git requires a normalized local path or supported remote URL");
         auto commit = (*request)["rev"].value<std::string>();
         if (!commit || commit->size() != 40 || !std::ranges::all_of(*commit, [](char c) {
               return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');

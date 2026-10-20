@@ -80,7 +80,8 @@ one and four workers. Sanitizer configurations also instrument the generated LLV
 functions for address/thread checks. Existing local-module, package and type-export
 acceptance guards the original mapping API.
 
-Exact local resolver/activation and managed output protection are now implemented.
-Remote transport, lock generations, editor integration and scoped Metal execution
+Exact-commit resolver/activation, managed output protection and
+[public HTTPS transport](native-remote-git.md) are implemented.
+Lock generations, authenticated/SSH transport, editor integration and scoped Metal execution
 qualification remain follow-ups in
 [N3-A–D](native-packages.md#implementation-sequence-and-gates).

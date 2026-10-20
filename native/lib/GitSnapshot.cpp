@@ -1,4 +1,5 @@
 #include "kalandra/GitSnapshot.h"
+#include "kalandra/GitRepository.h"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -12,6 +13,7 @@
 #include <poll.h>
 #include <sstream>
 #include <stdexcept>
+#include <sys/resource.h>
 #include <sys/stdio.h>
 #include <sys/wait.h>
 #include <toml++/toml.hpp>
@@ -43,15 +45,12 @@ void field(llvm::SHA256 &hash, std::string_view text) {
   hash.update(llvm::StringRef(text.data(), text.size()));
 }
 std::string requestKey(const GitSnapshotRequest &request) {
-  require(fs::path(request.repository).is_absolute() &&
-              request.repository.find_first_of("\r\n") == std::string::npos &&
-              request.repository.find('\0') == std::string::npos,
-          "snapshot repository must be an absolute local path");
-  require(fs::path(request.repository).lexically_normal().string() == request.repository,
-          "snapshot repository path must be normalized");
+  const auto transport = gitTransport(request.repository);
+  require(bool(transport), transport ? "" : transport.error());
   require(hex(request.commit, 40), "snapshot requires a full lowercase 40-digit Git commit");
   llvm::SHA256 hash;
-  field(hash, "kalandra-local-git-v1");
+  field(hash,
+        *transport == GitTransport::Local ? "kalandra-local-git-v1" : "kalandra-remote-git-v1");
   field(hash, request.repository);
   field(hash, request.commit);
   return digest(hash);
@@ -97,10 +96,37 @@ struct Stage {
     fs::remove_all(path, ignored);
   }
 };
-// Only plumbing in our private object database is executed. Clear inherited Git
-// configuration/environment; bounded pipe capture avoids unbounded stdout files.
+void objectBudget(const fs::path &database, GitSnapshotLimits limits) {
+  std::size_t entries = 0, bytes = 0;
+  for (const auto &entry : fs::recursive_directory_iterator(database / "objects")) {
+    std::error_code statusError;
+    const auto status = entry.symlink_status(statusError);
+    if (statusError == std::errc::no_such_file_or_directory)
+      continue;
+    require(!statusError, "cannot inspect downloaded Git store entry");
+    require(fs::is_directory(status) || fs::is_regular_file(status),
+            "downloaded Git store contains unsupported entries");
+    require(entries++ < limits.maxObjectFiles,
+            "downloaded Git store exceeds configured entry limit");
+    if (fs::is_regular_file(status)) {
+      std::error_code error;
+      const auto size = fs::file_size(entry.path(), error);
+      // Git can rename its own temporary pack/index while it is being observed.
+      require(!error || error == std::errc::no_such_file_or_directory,
+              "cannot inspect downloaded Git store");
+      if (!error) {
+        require(size <= limits.maxObjectBytes - bytes,
+                "downloaded Git store exceeds configured byte limit");
+        bytes += size;
+      }
+    }
+  }
+}
+// Only our private object database is used. Fetch permits just the selected
+// HTTP(S) transport; plumbing permits none. No inherited config or credentials.
 std::string git(const fs::path &database, std::vector<std::string> arguments, std::size_t maximum,
-                unsigned seconds) {
+                unsigned seconds, const GitSnapshotLimits *network = nullptr,
+                GitTransport transport = GitTransport::Local) {
   require(seconds > 0, "Git process timeout must be nonzero");
   std::vector<std::string> command = {"/usr/bin/git",
                                       "--no-pager",
@@ -112,6 +138,46 @@ std::string git(const fs::path &database, std::vector<std::string> arguments, st
                                       "protocol.allow=never",
                                       "-c",
                                       "core.fsmonitor=false"};
+  if (network) {
+    command.insert(command.end(), {"-c",
+                                   transport == GitTransport::HTTPS ? "protocol.https.allow=always"
+                                                                    : "protocol.http.allow=always",
+                                   "-c",
+                                   "http.followRedirects=false",
+                                   "-c",
+                                   "http.sslVerify=true",
+                                   "-c",
+                                   "credential.helper=",
+                                   "-c",
+                                   "credential.interactive=false",
+                                   "-c",
+                                   "core.askPass=/usr/bin/false",
+                                   "-c",
+                                   "gc.auto=0",
+                                   "-c",
+                                   "maintenance.auto=false",
+                                   "-c",
+                                   "fetch.writeCommitGraph=false",
+                                   "-c",
+                                   "fetch.fsckObjects=true",
+                                   "-c",
+                                   "transfer.fsckObjects=true",
+                                   "-c",
+                                   "fetch.unpackLimit=0",
+                                   "-c",
+                                   "pack.threads=1",
+                                   "-c",
+                                   "core.packedGitLimit=64m",
+                                   "-c",
+                                   "core.packedGitWindowSize=1m"});
+    if (!network->certificateAuthorityFile.empty()) {
+      const fs::path ca(network->certificateAuthorityFile);
+      require(ca.is_absolute() && fs::canonical(ca) == ca &&
+                  fs::is_regular_file(fs::symlink_status(ca)),
+              "explicit TLS certificate authority must be a canonical regular file");
+      command.insert(command.end(), {"-c", "http.sslCAInfo=" + ca.string()});
+    }
+  }
   command.insert(command.end(), arguments.begin(), arguments.end());
   std::vector<char *> argv;
   for (auto &item : command)
@@ -124,6 +190,7 @@ std::string git(const fs::path &database, std::vector<std::string> arguments, st
                                           "GIT_CONFIG_SYSTEM=/dev/null",
                                           "GIT_CONFIG_GLOBAL=/dev/null",
                                           "GIT_TERMINAL_PROMPT=0",
+                                          "GIT_ASKPASS=/usr/bin/false",
                                           "GIT_ATTR_NOSYSTEM=1",
                                           "GIT_NO_LAZY_FETCH=1",
                                           "GIT_NO_REPLACE_OBJECTS=1",
@@ -148,6 +215,11 @@ std::string git(const fs::path &database, std::vector<std::string> arguments, st
   }
   if (pid == 0) {
     ::setpgid(0, 0);
+    if (network) {
+      const rlimit limit{rlim_t(network->maxObjectBytes), rlim_t(network->maxObjectBytes)};
+      if (::setrlimit(RLIMIT_FSIZE, &limit))
+        ::_exit(126);
+    }
     const auto null = ::open("/dev/null", O_RDWR);
     if (null == -1 || ::dup2(null, STDIN_FILENO) == -1 || ::dup2(null, STDERR_FILENO) == -1 ||
         ::dup2(pipeFD[1], STDOUT_FILENO) == -1)
@@ -162,10 +234,11 @@ std::string git(const fs::path &database, std::vector<std::string> arguments, st
   struct Child {
     pid_t pid;
     int fd;
+    bool reaped = false;
     ~Child() {
       ::close(fd);
-      if (pid > 0) {
-        ::kill(-pid, SIGKILL);
+      ::kill(-pid, SIGKILL);
+      if (!reaped) {
         ::kill(pid, SIGKILL);
         while (::waitpid(pid, nullptr, 0) < 0 && errno == EINTR) {
         }
@@ -179,12 +252,14 @@ std::string git(const fs::path &database, std::vector<std::string> arguments, st
   while (!eof || !exited) {
     require(std::chrono::steady_clock::now() < deadline,
             "Git plumbing exceeded configured timeout");
+    if (network)
+      objectBudget(database, *network);
     if (!exited) {
       const auto waited = ::waitpid(pid, &status, WNOHANG);
       require(waited >= 0 || errno == EINTR, "cannot wait for Git plumbing");
       exited = waited == pid;
       if (exited)
-        child.pid = -1;
+        child.reaped = true;
     }
     if (!eof) {
       pollfd descriptor{pipeFD[0], POLLIN, 0};
@@ -205,7 +280,12 @@ std::string git(const fs::path &database, std::vector<std::string> arguments, st
       ::poll(nullptr, 0, 10);
   }
   require(WIFEXITED(status) && WEXITSTATUS(status) == 0,
-          "Git plumbing failed while reading the pinned commit (missing or invalid objects)");
+          network
+              ? "Git fetch failed (network, TLS, authentication, object budget, or unavailable "
+                "pinned commit)"
+              : "Git plumbing failed while reading the pinned commit (missing or invalid objects)");
+  if (network)
+    objectBudget(database, *network);
   return result;
 }
 std::string treeDigest(const fs::path &source, GitSnapshotLimits limits) {
@@ -235,6 +315,12 @@ std::string treeDigest(const fs::path &source, GitSnapshotLimits limits) {
   }
   return digest(hash);
 }
+void initializeDatabase(const fs::path &database) {
+  fs::create_directories(database / "objects");
+  fs::create_directory(database / "refs");
+  write(database / "HEAD", "ref: refs/heads/unused\n");
+  write(database / "config", "[core]\n bare = true\n repositoryformatversion = 0\n");
+}
 void copyObjects(const fs::path &repository, const fs::path &database, GitSnapshotLimits limits) {
   require(fs::canonical(repository).string() == repository.string(),
           "local Git repository must use its canonical absolute path");
@@ -246,10 +332,7 @@ void copyObjects(const fs::path &repository, const fs::path &database, GitSnapsh
               fs::is_regular_file(fs::symlink_status(gitdir / "HEAD")),
           "snapshot requires a local worktree or bare Git repository; linked worktrees are "
           "unsupported");
-  fs::create_directories(database / "objects");
-  fs::create_directory(database / "refs");
-  write(database / "HEAD", "ref: refs/heads/unused\n");
-  write(database / "config", "[core]\n bare = true\n repositoryformatversion = 0\n");
+  initializeDatabase(database);
   const auto objects = gitdir / "objects";
   std::size_t files = 0, bytes = 0;
   for (const auto &entry : fs::recursive_directory_iterator(objects)) {
@@ -355,11 +438,17 @@ NativeGitSnapshot load(const fs::path &cache, const GitSnapshotRequest &request,
           "snapshot source integrity mismatch");
   auto library = loadNativePackage((directory / "source/kalandra.toml").string());
   require(bool(library), library ? "" : library.error());
-  return {"git-local-v1:" + key, directory.string(), *expected, std::move(*library)};
+  const bool local = *gitTransport(request.repository) == GitTransport::Local;
+  if (!local)
+    for (const auto &dependency : library->dependencies)
+      require(*gitTransport(dependency.repository) != GitTransport::Local,
+              "remote libraries cannot declare local Git dependencies");
+  return {(local ? "git-local-v1:" : "git-remote-v1:") + key, directory.string(), *expected,
+          std::move(*library)};
 }
 } // namespace
 std::expected<NativeGitSnapshot, std::string>
-loadLocalGitSnapshot(std::string cache, GitSnapshotRequest request, GitSnapshotLimits limits) {
+loadGitSnapshot(std::string cache, GitSnapshotRequest request, GitSnapshotLimits limits) {
   try {
     return load(cacheRoot(cache), request, limits);
   } catch (const std::exception &error) {
@@ -367,7 +456,7 @@ loadLocalGitSnapshot(std::string cache, GitSnapshotRequest request, GitSnapshotL
   }
 }
 std::expected<NativeGitSnapshot, std::string>
-installLocalGitSnapshot(std::string cache, GitSnapshotRequest request, GitSnapshotLimits limits) {
+installGitSnapshot(std::string cache, GitSnapshotRequest request, GitSnapshotLimits limits) {
   try {
     const auto root = cacheRoot(cache);
     const auto key = requestKey(request);
@@ -375,12 +464,25 @@ installLocalGitSnapshot(std::string cache, GitSnapshotRequest request, GitSnapsh
     if (fs::exists(fs::symlink_status(destination)))
       return load(root, request, limits);
     Stage stage(root);
-    copyObjects(request.repository, stage.path / "git", limits);
+    const auto transport = *gitTransport(request.repository);
+    if (transport == GitTransport::Local)
+      copyObjects(request.repository, stage.path / "git", limits);
+    else {
+      initializeDatabase(stage.path / "git");
+      git(stage.path / "git",
+          {"fetch", "--no-tags", "--no-write-fetch-head", "--no-recurse-submodules",
+           "--no-auto-maintenance", "--depth=1", "--", request.repository, request.commit},
+          limits.maxListingBytes, limits.processSeconds, &limits, transport);
+    }
     fs::create_directory(stage.path / "published");
     const auto tree =
         extract(stage.path / "git", request.commit, stage.path / "published/source", limits);
     auto library = loadNativePackage((stage.path / "published/source/kalandra.toml").string());
     require(bool(library), library ? "" : library.error());
+    if (transport != GitTransport::Local)
+      for (const auto &dependency : library->dependencies)
+        require(*gitTransport(dependency.repository) != GitTransport::Local,
+                "remote libraries cannot declare local Git dependencies");
     const toml::table metadata{{"format", 1},
                                {"repository", request.repository},
                                {"commit", request.commit},
@@ -403,5 +505,19 @@ installLocalGitSnapshot(std::string cache, GitSnapshotRequest request, GitSnapsh
   } catch (const std::exception &error) {
     return std::unexpected(error.what());
   }
+}
+std::expected<NativeGitSnapshot, std::string>
+loadLocalGitSnapshot(std::string cache, GitSnapshotRequest request, GitSnapshotLimits limits) {
+  const auto transport = gitTransport(request.repository);
+  if (!transport || *transport != GitTransport::Local)
+    return std::unexpected("local snapshot API requires a normalized absolute repository path");
+  return loadGitSnapshot(std::move(cache), std::move(request), std::move(limits));
+}
+std::expected<NativeGitSnapshot, std::string>
+installLocalGitSnapshot(std::string cache, GitSnapshotRequest request, GitSnapshotLimits limits) {
+  const auto transport = gitTransport(request.repository);
+  if (!transport || *transport != GitTransport::Local)
+    return std::unexpected("local snapshot API requires a normalized absolute repository path");
+  return installGitSnapshot(std::move(cache), std::move(request), std::move(limits));
 }
 } // namespace kalandra

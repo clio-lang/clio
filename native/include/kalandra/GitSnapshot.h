@@ -2,7 +2,7 @@
 #include "kalandra/Project.h"
 namespace kalandra {
 struct GitSnapshotRequest {
-  // Initial transport: canonical absolute local worktree/bare repository path.
+  // Canonical absolute local path, HTTPS URL or numeric-loopback HTTP URL.
   std::string repository;
   std::string commit;
 };
@@ -13,6 +13,9 @@ struct GitSnapshotLimits {
   std::size_t maxSourceBytes = 64 * 1024 * 1024;
   std::size_t maxListingBytes = 1024 * 1024;
   unsigned processSeconds = 30;
+  // Explicit embedding/test trust override; never read from ambient environment.
+  // Empty uses the system TLS trust store. No certificate-verification bypass.
+  std::string certificateAuthorityFile = {};
 };
 struct NativeGitSnapshot {
   std::string identity;
@@ -20,8 +23,12 @@ struct NativeGitSnapshot {
   std::string digest;
   NativePackage library;
 };
-// Snapshot-level foundation, not a project installer or lockfile API. The cache
-// directory must exist. Never checks out a worktree or executes source programs.
+[[nodiscard]] std::expected<NativeGitSnapshot, std::string>
+installGitSnapshot(std::string cache, GitSnapshotRequest request, GitSnapshotLimits limits = {});
+[[nodiscard]] std::expected<NativeGitSnapshot, std::string>
+loadGitSnapshot(std::string cache, GitSnapshotRequest request, GitSnapshotLimits limits = {});
+// Local-only wrapper. The cache directory must exist. Never checks out a
+// worktree or executes source programs.
 [[nodiscard]] std::expected<NativeGitSnapshot, std::string>
 installLocalGitSnapshot(std::string cache, GitSnapshotRequest request,
                         GitSnapshotLimits limits = {});

@@ -1,9 +1,11 @@
-# Exact local dependency installation
+# Exact dependency installation
 
 The native tools now support `[dependencies]`, `kalandra install --project`, and
 an activated package graph for compiler/checker/Metal source builds. This initial
-transport accepts **local Git repositories and exact SHA-1 commits only**. HTTPS,
-SSH, mutable refs, public locks and registry/version solving remain later work.
+workflow accepts **local or public HTTPS Git repositories and exact SHA-1 commits**.
+Numeric-loopback HTTP is supported for local development. SSH, authentication,
+mutable refs, public locks and registry/version solving remain later work. See
+[remote Git transport](native-remote-git.md) for URL, TLS and download rules.
 
 ## Declare and install
 
@@ -16,14 +18,15 @@ format = 1
 entry = "src/main.k"
 
 [dependencies]
-geometry = { git = "/absolute/path/to/geometry", rev = "0123456789abcdef0123456789abcdef01234567" }
+geometry = { git = "https://example.com/team/geometry.git", rev = "0123456789abcdef0123456789abcdef01234567" }
 ```
 
-Replace the illustrative path and ID with a canonical absolute repository path
-and its full lowercase 40-digit commit ID. `git -C /absolute/path/to/geometry
-rev-parse HEAD` can identify a commit. A managed library declares its own
-`[dependencies]` in the same format. Tags, branches, abbreviations, remote URLs,
-relative repository paths, unknown request fields and alias conflicts with
+Replace the illustrative URL and ID with a repository URL and its full lowercase
+40-digit commit ID. Local repositories instead use canonical absolute paths;
+`git -C /absolute/path/to/geometry rev-parse HEAD` can identify a local commit.
+A managed library declares its own `[dependencies]` in the same format. Tags,
+branches, abbreviations, unsupported remote protocols,
+relative local repository paths, unknown request fields and alias conflicts with
 `[packages]` are rejected. The parser validates declarations without opening Git
 repositories or installing anything.
 
@@ -85,7 +88,9 @@ Snapshot digests cover all source files/directories, and the activation index
 anchors those digests independently of per-snapshot metadata. Extra/missing
 activation records and conflicting digests are rejected. Relocating an application
 with its cache works while keeping its declared repository identities unchanged;
-local absolute repository declarations are not portable across machines.
+local absolute repository declarations are not portable across machines. Remote
+URL identities are portable, but the current private index does not yet supply
+the public source-lock contract needed for a clean-machine reproducible reinstall.
 
 ## Output protection and boundaries
 
@@ -123,11 +128,14 @@ child resolution, held guards, manifest changes during staging, deterministic
 activation, source/cache alias protection, offline builds and project relocation.
 Generated workers run in debug, optimized, ASan/UBSan and TSan modes with one/four
 workers; importer/resolver/checker paths and smaller budgets run under ASan/UBSan.
+[Remote acceptance](native-remote-git.md) adds controlled HTTP/TLS downloads,
+verification failures, redirection/authentication rejection, time/storage bounds,
+transitive rollback, offline workers and a relocated installed CPU compiler.
 Metal acceptance covers managed numerical imports and source emission/protection
 without GPU execution. The relocated CPU bundle also installs an exact dependency
 and builds workers with the original repository absent.
 
 See the [qualification record](../../native/metal-proof/evidence/native-package-install-2026-10-20.json).
-Remaining work includes remote Git transport and its resource qualification,
+Remaining work includes authenticated/SSH transport, wider remote-host qualification,
 mutable refs/public locks, explicit frozen/offline modes, broader failure and
 crash qualification, installed Metal execution and package-aware editor support.

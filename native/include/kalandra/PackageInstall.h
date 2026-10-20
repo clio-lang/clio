@@ -12,7 +12,7 @@ struct PackageInstallLimits {
 struct InstalledNativeProject {
   std::vector<PackageNode> nodes;
 };
-// Explicit local exact-commit installation. Publishes an index only after the
+// Explicit exact-commit installation. Publishes an index only after the
 // entire declared graph and reachable source imports validate. No mutable refs.
 [[nodiscard]] std::expected<void, std::string>
 installNativeProject(std::string manifest, PackageInstallLimits limits = {});

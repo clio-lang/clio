@@ -1,10 +1,13 @@
 # Exact-commit local Git snapshots
 
 The first N3-B slice adds a snapshot API for pinned local Git repositories. It is
-a snapshot API foundation now used by the [public local installer](native-package-install.md).
+a snapshot API foundation now used by the [public installer](native-package-install.md).
 The installer adds declarations and complete project activation; the snapshot API
 itself does not implement lockfiles. Compiler/checker builds verify installed
-snapshots offline and never invoke import/fetch operations.
+snapshots offline and never invoke import/fetch operations. The generic
+`installGitSnapshot` / `loadGitSnapshot` APIs now also support
+[public HTTPS transport](native-remote-git.md); the local-only wrappers preserve
+their original contract and cache identity.
 
 ## API and identity
 

@@ -132,10 +132,10 @@ Resolved resolve(const NativeProject &project, const Index &active, bool install
         const auto selected = active.snapshots.find(key);
         require(install || selected != active.snapshots.end(),
                 "dependency is not active; run kalandra install --project " + project.manifest);
-        auto snapshot = install ? installLocalGitSnapshot((root / "snapshots").string(),
-                                                          {key.first, key.second}, limits.snapshot)
-                                : loadLocalGitSnapshot((root / "snapshots").string(),
-                                                       {key.first, key.second}, limits.snapshot);
+        auto snapshot = install ? installGitSnapshot((root / "snapshots").string(),
+                                                     {key.first, key.second}, limits.snapshot)
+                                : loadGitSnapshot((root / "snapshots").string(),
+                                                  {key.first, key.second}, limits.snapshot);
         require(bool(snapshot), snapshot ? "" : snapshot.error());
         if (selected != active.snapshots.end())
           require(snapshot->digest == selected->second,
