@@ -43,6 +43,12 @@ int main() {
         text.find("\"start\":{\"line\":0,\"character\":1},\"end\":{\"line\":1,\"character\":0}") !=
             std::string::npos,
         "CRLF range incorrect");
+    SourceFile carriageReturn("carriage.k", "x\ry");
+    text = report(carriageReturn, {2, 3});
+    require(
+        text.find("\"start\":{\"line\":1,\"character\":0},\"end\":{\"line\":1,\"character\":1}") !=
+            std::string::npos,
+        "standalone CR editor range incorrect");
     auto first = std::make_shared<SourceFile>("first.k", "one");
     auto second = std::make_shared<SourceFile>("lib\"\\é.k", "😀\nmissing");
     SourceFile graph("first.k", first->text() + "\n" + second->text(), {{0, first}, {4, second}});

@@ -37,7 +37,7 @@ The summary counts functions and typed expressions in the checked source graph. 
 | `byteRange` | Half-open UTF-8 byte offsets `{ "start": n, "end": n }`, or `null` |
 | `range` | Half-open `{ "start": { "line": n, "character": n }, "end": ... }`, or `null` |
 
-Lines and characters are zero-based. Characters count UTF-16 code units, so a supplementary Unicode scalar such as an emoji occupies two units. CRLF is one line ending. Invalid UTF-8 bytes are replaced with U+FFFD in JSON strings and counted individually when locating invalid source. Offsets inside a valid multibyte scalar map to its beginning for the editor range; the byte range remains a byte range.
+Lines and characters are zero-based. Characters count UTF-16 code units, so a supplementary Unicode scalar such as an emoji occupies two units. CRLF is one line ending; standalone CR also advances the editor line. This range convention does not change which line endings the lexer accepts. Invalid UTF-8 bytes are replaced with U+FFFD in JSON strings and counted individually when locating invalid source. Offsets inside a valid multibyte scalar map to its beginning for the editor range; the byte range remains a byte range.
 
 Composed module offsets map back to the original file before ranges are calculated. Ranges are clipped to that file, including end-of-file and malformed spans. File paths follow the loader's naming; consumers should not assume every path is absolute or a URI.
 
@@ -49,4 +49,4 @@ Command-level codes are `CLI001` for usage, `PRJ001` for project-manifest failur
 
 Normal and ASan/UBSan tests cover Unicode and CRLF, original module paths, span bounds, JSON escaping, invalid UTF-8, batched positions, project/package inputs, placement checking, usage errors and default terminal behavior. See the [qualification record](../../native/metal-proof/evidence/diagnostics-2026-10-20.json).
 
-This is a checker protocol foundation. Unsaved source overlays and [full-sync native language-server diagnostics](native-language-server.md) are implemented; incremental edits, completion/navigation, formatting and distribution remain separate work. The JavaScript prototype's language server does not implement this native language.
+This is a checker protocol foundation. Unsaved source overlays and [native language-server diagnostics](native-language-server.md) are implemented; incremental edits are also supported, while completion/navigation, formatting and distribution remain separate work. The JavaScript prototype's language server does not implement this native language.

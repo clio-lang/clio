@@ -83,7 +83,8 @@ std::string renderDiagnosticsJson(const SourceFile *source, std::span<const Diag
         const auto bytes = std::max<std::size_t>(1, unit(text, at));
         if (bytes > offset - at)
           break; // A byte inside a valid scalar maps to that scalar's start.
-        if (text[at] == '\n') {
+        if (text[at] == '\n' ||
+            (text[at] == '\r' && (at + 1 == text.size() || text[at + 1] != '\n'))) {
           ++position.line;
           position.character = 0;
         } else if (!(text[at] == '\r' && at + 1 < text.size() && text[at + 1] == '\n'))

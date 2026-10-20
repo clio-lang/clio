@@ -71,7 +71,7 @@ class Client:
         result = self.rpc("initialize", {"capabilities": {}})["result"]
         caps = result["capabilities"]
         assert caps["positionEncoding"] == "utf-16"
-        assert caps["textDocumentSync"]["change"] == 1  # Full buffer, not incremental.
+        assert caps["textDocumentSync"]["change"] == 2  # Incremental UTF-16 changes.
         assert not caps.get("completionProvider")
         self.send("initialized", {})
 
@@ -83,6 +83,10 @@ class Client:
         self.send("textDocument/didChange", {"textDocument": {
             "uri": path.as_uri(), "version": version}, "contentChanges": [{"text": text}]})
 
+    def edits(self, path, changes, version):
+        self.send("textDocument/didChange", {"textDocument": {
+            "uri": path.as_uri(), "version": version}, "contentChanges": changes})
+
     def close(self, path):
         self.send("textDocument/didClose", {"textDocument": {"uri": path.as_uri()}})
 
@@ -93,6 +97,11 @@ class Client:
         assert self.process.wait(timeout=10) == 0
         assert self.process.stdout.read() == b"", "unexpected trailing protocol data"
         assert self.process.stderr.read() == b"", "unexpected server diagnostics/sanitizer output"
+
+
+def edit(line, start, end, text, **extra):
+    return {"range": {"start": {"line": line, "character": start},
+                      "end": {"line": line, "character": end}}, "text": text, **extra}
 
 
 def publications(events):
@@ -133,7 +142,7 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert not publications(client.barrier())
     client.send("textDocument/didChange", {"textDocument": {"uri": main.as_uri(), "version": 3},
         "contentChanges": [{"range": {"start": {"line": 0, "character": 0},
-                                      "end": {"line": 0, "character": 1}}, "text": "bad"}]})
+                                      "end": {"line": 9, "character": 1}}, "text": "bad"}]})
     assert any(e.get("method") == "window/logMessage" for e in client.barrier())
     client.change(main, "bad", 9.223372036854776e18)
     assert any(e.get("method") == "window/logMessage" for e in client.barrier())
@@ -153,6 +162,44 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert not main.exists(), "server wrote an unsaved file"
     client.finish()
 
+    # Incremental UTF-16 edits over CRLF, sequential ranges and transactional rollback.
+    client = Client()
+    client.init()
+    client.open(main, 'fn main()->String:\r\n  "😀é" + missing\r\n')
+    client.barrier()
+    client.edits(main, [edit(1, 3, 5, "猫", rangeLength=2), edit(1, 9, 16, '"ok"')], 2)
+    assert not publications(client.barrier())[main.as_uri()]["diagnostics"]
+    client.edits(main, [{"text": "bad"}, edit(999, 0, 0, "x")], 3)
+    assert any(e.get("method") == "window/logMessage" for e in client.barrier())
+    client.edits(main, [edit(1, 9, 13, "missing")], 3)
+    pub = publications(client.barrier())[main.as_uri()]
+    assert pub["version"] == 3 and pub["diagnostics"][0]["code"] == "S016"
+    assert pub["diagnostics"][0]["range"]["start"]["character"] == 9
+    client.edits(main, [edit(1, 3, 4, "😀"), edit(1, 10, 17, '"ok"')], 4)
+    assert not publications(client.barrier())[main.as_uri()]["diagnostics"]
+    invalid_changes = [
+        [edit(1, 3, 4, "x")],  # Half of a surrogate pair.
+        [edit(1, 5, 3, "x")],
+        [edit(-1, 0, 0, "x")],
+        [edit(1, 0.5, 0.5, "x")],
+        [edit(9.223372036854776e18, 0, 0, "x")],
+        [edit(1, 3, 5, "x", rangeLength=1)],
+        [{"text": "bad", "range": None}],
+        [{"text": "bad", "rangeLength": 0}],
+        [edit(1, 0, 0, "")] * 1025,
+    ]
+    for changes in invalid_changes:
+        client.edits(main, changes, 5)
+        events = client.barrier()
+        assert not publications(events) and any(e.get("method") == "window/logMessage" for e in events)
+    client.edits(main, [], 5)  # Valid no-op still advances the document version.
+    assert publications(client.barrier())[main.as_uri()]["version"] == 5
+    client.edits(main, [edit(999, 0, 0, "bad")], 4)  # Stale even when malformed.
+    assert not client.barrier()
+    client.edits(main, [{"text": good}, edit(1, 200, 200, " ")], 6)
+    assert not publications(client.barrier())[main.as_uri()]["diagnostics"]
+    client.finish()
+
     # Open dependencies, changed export signatures, deduplication and close-to-disk.
     lib = root / "lib.k"
     lib.write_text("export fn value()->int:\n  42\n")
@@ -163,7 +210,7 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     client.open(lib, lib.read_text())
     client.open(main, caller)
     assert not publications(client.barrier())[main.as_uri()]["diagnostics"]
-    client.change(lib, 'export fn value()->String:\n  "text"\n', 2)
+    client.edits(lib, [edit(0, 19, 22, "String"), edit(1, 2, 4, '"text"')], 2)
     assert publications(client.barrier())[main.as_uri()]["diagnostics"]
     client.change(main, caller.replace("->int", "->String"), 2)
     assert not publications(client.barrier())[main.as_uri()]["diagnostics"]

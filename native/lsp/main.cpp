@@ -1,3 +1,4 @@
+#include "Edits.h"
 #include "kalandra/Diagnostics.h"
 #include "kalandra/Project.h"
 #include "kalandra/Semantics.h"
@@ -191,6 +192,13 @@ std::optional<std::int64_t> protocolInteger(const j::Value *value) {
     return {};
   return value->getAsInteger();
 }
+std::optional<lsp::Position> editPosition(const j::Object *position) {
+  const auto line = position ? protocolInteger(position->get("line")) : std::nullopt;
+  const auto character = position ? protocolInteger(position->get("character")) : std::nullopt;
+  if (!line || !character || *line < 0 || *character < 0)
+    return {};
+  return lsp::Position{static_cast<std::size_t>(*line), static_cast<std::size_t>(*character)};
+}
 struct Document {
   std::string uri, text;
   std::int64_t version;
@@ -310,13 +318,15 @@ public:
       log("Expected an integer document version");
       return;
     }
-    std::optional<llvm::StringRef> text;
+    std::optional<std::string> text;
+    const auto oldBytes = found == documents.end() ? 0 : found->second.text.size() + 1;
     if (method == "textDocument/didOpen") {
       if (found != documents.end()) {
         log("Document identity is already open");
         return;
       }
-      text = item->getString("text");
+      if (auto value = item->getString("text"))
+        text = std::string(*value);
     } else {
       if (found == documents.end() || found->second.uri != *uri) {
         log("Document is not open under this URI");
@@ -325,20 +335,48 @@ public:
       if (*version <= found->second.version)
         return;
       const auto changes = params->getArray("contentChanges");
-      if (!changes || changes->empty()) {
-        log("Expected full-document content changes");
+      if (!changes || changes->size() > lsp::EditLimits{}.maxChanges) {
+        log("Missing or excessive document content changes");
         return;
       }
+      std::vector<lsp::TextChange> edits;
       for (const auto &change : *changes) {
-        const auto full = change.getAsObject();
-        if (!full || full->get("range") || !full->getString("text")) {
-          log("Expected full-document content changes");
+        const auto event = change.getAsObject();
+        const auto replacement = event ? event->getString("text") : std::nullopt;
+        if (!replacement) {
+          log("Expected replacement text for document edit");
           return;
         }
-        text = full->getString("text");
+        lsp::TextChange edit{{}, std::string(*replacement), {}};
+        if (event->get("range")) {
+          const auto range = event->getObject("range");
+          const auto start = editPosition(range ? range->getObject("start") : nullptr);
+          const auto end = editPosition(range ? range->getObject("end") : nullptr);
+          if (!start || !end) {
+            log("Expected a nonnegative UTF-16 document range");
+            return;
+          }
+          edit.range = lsp::Range{*start, *end};
+        }
+        if (event->get("rangeLength")) {
+          const auto length = protocolInteger(event->get("rangeLength"));
+          if (!length || *length < 0) {
+            log("Invalid document rangeLength");
+            return;
+          }
+          edit.rangeLength = static_cast<std::size_t>(*length);
+        }
+        edits.push_back(std::move(edit));
       }
+      lsp::EditLimits limits;
+      limits.maxBytes = SyntaxLimits{}.maxSourceBytes - 1 - (bytes - oldBytes);
+      auto applied = lsp::applyChanges(found->second.text, edits, limits);
+      if (!applied) {
+        log(applied.error());
+        return;
+      }
+      text = std::move(*applied);
     }
-    const auto oldBytes = found == documents.end() ? 0 : found->second.text.size() + 1;
     if (!text || text->size() >= SyntaxLimits{}.maxSourceBytes - (bytes - oldBytes) ||
         (found == documents.end() && documents.size() >= ModuleLimits{}.maxFiles)) {
       log("Document text is missing or open-buffer budgets are exceeded");
@@ -411,7 +449,7 @@ int main(int argc, char **argv) {
                         j::Object{{"positionEncoding", "utf-16"},
                                   {"textDocumentSync",
                                    j::Object{{"openClose", true},
-                                             {"change", 1},
+                                             {"change", 2},
                                              {"save", j::Object{{"includeText", false}}}}}}},
                        {"serverInfo", j::Object{{"name", "kalandra-native"}}}}}});
       } else if (!session.initialized) {
