@@ -482,3 +482,13 @@ if(BUILD_TESTING)
     set_tests_properties(native-resumable-callable-extras-${VARIANT} PROPERTIES TIMEOUT 120)
   endforeach()
 endif()
+
+if(BUILD_TESTING)
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-stack-outline-${VARIANT} COMMAND "${CMAKE_COMMAND}"
+      "-DCOMPILER=$<TARGET_FILE:kalandra>" "-DVARIANT=${VARIANT}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/stack-outline-${VARIANT}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyStackOutline.cmake")
+    set_tests_properties(native-stack-outline-${VARIANT} PROPERTIES TIMEOUT 180)
+  endforeach()
+endif()

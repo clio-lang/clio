@@ -19,7 +19,7 @@ GPU program is rejected rather than silently run on the CPU.
 | Tensor division and scalar lifting | GPU | **Supported.** IEEE division, including either scalar operand order | [source](../../native/metal-source/division.k), [device evidence](../../native/metal-proof/evidence/gpu-division-2026-10-16.json) |
 | Tensor unary signs | GPU | **Supported.** float32 vectors and matrices | [source](../../native/metal-source/tensor-negation.k), [device evidence](../../native/metal-proof/evidence/gpu-tensor-negation-2026-10-16.json) |
 | Mixed scalar and tensor parameters | GPU | **Supported.** float32 scalars alongside tensor inputs; scalar-only kernels remain unsupported | [source](../../native/metal-source/scalar-entry.k), [device evidence](../../native/metal-proof/evidence/gpu-entry-signatures-2026-10-15.json) |
-| High-arity CPU/GPU bridge exports | GPU | **Not admitted.** The current 29/40-tensor examples exceed the conservative CPU-bridge stack budget; device argument buffers are separately qualified, with no fixed language parameter cap | [source](../../native/metal-source/indirect-arguments.k) (+1 additional probes), [device evidence](../../native/metal-proof/evidence/gpu-indirect-arguments-2026-10-16.json) |
+| High-arity CPU/GPU bridge exports | GPU | **Supported.** 29/40-tensor examples use direct/indirect GPU buffers and bounded checked CPU helpers; compiler/device resource limits still apply | [source](../../native/metal-source/indirect-arguments.k) (+1 additional probes), [device evidence](../../native/metal-proof/evidence/gpu-indirect-arguments-2026-10-16.json) |
 | Balanced reduceSum | GPU | **Supported.** Rank one/two inputs; one reduction per entry, including forwarding helpers | [source](../../native/metal-source/matrix-reduction.k), [device evidence](../../native/metal-proof/evidence/gpu-forwarding-2026-10-20.json) |
 | Matrix multiplication | GPU | **Supported.** Rank two; one matmul per entry, including forwarding helpers | [source](../../native/metal-source/matmul.k), [device evidence](../../native/metal-proof/evidence/gpu-forwarding-2026-10-20.json) |
 | Composed numerical dispatches | Host | **Supported.** Separate GPU calls for matmul, elementwise adjustment and reduction; intermediates remain resident | [source](../../native/metal-source/matrix-pipeline.k), [device evidence](../../native/metal-proof/evidence/gpu-forwarding-2026-10-20.json) |
@@ -64,35 +64,28 @@ against the current compiler. [Installed numerical library acceptance](native-me
 adds current LLVM 23 Debug/Release bundle execution on the M2 Max, including
 CPU/GPU private dependency versions and all four generated host modes.
 
-The [current matrix qualification record](../../native/metal-proof/evidence/gpu-capability-matrix-2026-10-20.json)
-records 32 probes per normal/sanitized compiler, related regression checks, and
-the two existing high-arity positive gates that remain failing.
+The [initial matrix audit](../../native/metal-proof/evidence/gpu-capability-matrix-2026-10-20.json)
+records the pre-repair 32-probe audit, including the two high-arity positive
+gates that failed at that point. The repair record below covers current acceptance.
 
-## GPU-HOST-001: high-arity source admission regression
+## GPU-HOST-001: repaired high-arity source admission
 
-The older `arguments.k` and `indirect-arguments.k` full-program examples now
-reject with `G001: function exceeds the conservative native stack budget`.
-Their source signatures and placement check remain valid. They include 29- and
-40-tensor helpers, respectively. The CPU bridge exports synchronous helpers and
-applies the CPU backend's conservative stack estimate even though some helpers
-are only used as GPU kernels. These fixtures also include CPU calls, so removing
-unused exports alone is not sufficient to restore the complete examples.
+The older `arguments.k` and `indirect-arguments.k` full-program examples had begun
+rejecting with `G001: function exceeds the conservative native stack budget`.
+Their signatures and placement remained valid, but their CPU bridge contained
+redundant tensor descriptor SSA and long inlined elementwise bodies.
 
-This is an end-to-end admission regression relative to the older device evidence,
-not a new language parameter-count rule and not evidence that indirect Metal
-argument buffers stopped working. The matrix records the current rejection and
-keeps the older numerical/device evidence visible. Its green source-admission
-tests do **not** mean the older positive high-arity CLI gates are green.
-
-Restore those positive gates without bypassing the CPU stack guard. Possible
-implementation work includes reducing unnecessary CPU exports and reducing the
-actual or conservatively estimated storage of admitted numeric functions. Keep
-recursive/oversized native-call rejection, invocation headroom and failure cleanup
-covered. This is the next N2 repair before expanding numerical graph lowering.
+[Bounded tensor helpers and checked IR simplification](native-stack-admission.md)
+restore those examples without raising the 16 KiB frame budget or exempting
+source functions from admission. The matrix now requires positive source emission
+for both, and their positive GPU CLI gates remain required. The older audit record
+above describes the failure before this repair; the
+[repair qualification](../../native/metal-proof/evidence/gpu-host-stack-repair-2026-10-20.json)
+records current acceptance and retained safety checks.
 
 ## Remaining N2 work
 
-After GPU-HOST-001, the next substantive lowering gap is composition **inside** a numerical GPU
+The next substantive lowering gap is composition **inside** a numerical GPU
 function, such as `reduceSum(values + 1)` or `matmul(input, weights) + bias`.
 Separate placed calls already express those computations and retain device
 intermediates. Supporting them inside one helper requires planning multiple

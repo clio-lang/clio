@@ -8,16 +8,45 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Passes/PassBuilder.h"
+#include "llvm/Transforms/InstCombine/InstCombine.h"
+#include "llvm/Transforms/Scalar/DCE.h"
+#include "llvm/Transforms/Scalar/EarlyCSE.h"
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 namespace kalandra {
+namespace {
+void simplifyCheckedStackIR(llvm::Function &function) {
+  using namespace llvm;
+  // Simplify only after checked allocation/fault/poll calls are installed, so
+  // optimizations cannot assume an unchecked fault path continues to execute.
+  LoopAnalysisManager loopAnalyses;
+  FunctionAnalysisManager functionAnalyses;
+  CGSCCAnalysisManager callAnalyses;
+  ModuleAnalysisManager moduleAnalyses;
+  PassBuilder passes;
+  passes.registerLoopAnalyses(loopAnalyses);
+  passes.registerFunctionAnalyses(functionAnalyses);
+  passes.registerCGSCCAnalyses(callAnalyses);
+  passes.registerModuleAnalyses(moduleAnalyses);
+  passes.crossRegisterProxies(loopAnalyses, functionAnalyses, callAnalyses, moduleAnalyses);
+  FunctionPassManager simplify;
+  simplify.addPass(InstCombinePass());
+  simplify.addPass(EarlyCSEPass());
+  simplify.addPass(DCEPass());
+  simplify.run(function, functionAnalyses);
+}
+} // namespace
 // Apply after bufferization/LLVM translation, so allocations and clones
 // introduced by ownership lowering receive the same checked convention too.
 std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool functionValues) {
   using namespace llvm;
+  // Structural simplification must use the same target layout as storage and
+  // stack admission, including i64/i128 alignment on the pinned ARM64 target.
+  module.setDataLayout(nativeCpuDataLayout);
   auto &context = module.getContext();
   auto *pointer = PointerType::getUnqual(context);
   auto *i64 = Type::getInt64Ty(context);
@@ -167,6 +196,24 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool fu
       auto *code = poll.CreateCall(status, {invocation});
       poll.CreateCondBr(poll.CreateICmpNE(code, ConstantInt::get(i64, 0)), failed, body);
     }
+
+  }
+  // Source function references must point at the checked entry, including references
+  // passed through arguments, returned values and branch-selected pointers.
+  for (auto *old : originals)
+    old->replaceAllUsesWith(checked.at(old));
+  for (auto *old : originals)
+    old->eraseFromParent();
+  // Resolve every function pointer to its final checked signature before LLVM
+  // simplification, including constants feeding indirect calls and closures.
+  for (auto &body : module) {
+    if (body.isDeclaration())
+      continue;
+    auto *function = &body;
+    auto *invocation = function->getArg(function->arg_size() - 1);
+    // Emit the simplified IR even at -O0, then apply the unchanged budget to
+    // those actual instructions, without assuming register/stack-slot reuse.
+    simplifyCheckedStackIR(*function);
     // The compiler-owned SIMD matmul leaf cannot re-enter source code. Its
     // register-heavy SSA follows separate numeric qualification; still bound
     // fixed allocas/arguments and verify the leaf-call restriction.
@@ -196,12 +243,6 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool fu
         builder.CreateCall(enter, {invocation, ConstantInt::get(i64, 0), ConstantInt::get(i64, 0)});
     builder.CreateCondBr(admitted, start, denied);
   }
-  // Source function references must point at the checked entry, including references
-  // passed through arguments, returned values and branch-selected pointers.
-  for (auto *old : originals)
-    old->replaceAllUsesWith(checked.at(old));
-  for (auto *old : originals)
-    old->eraseFromParent();
   for (const auto *name :
        {"kalandra_fault", "_mlir_memref_to_llvm_alloc", "_mlir_memref_to_llvm_free",
         "kalandra_record_alloc", "kalandra_environment_alloc", "kalandra_record_cleanup",

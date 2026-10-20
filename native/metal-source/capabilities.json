@@ -72,17 +72,15 @@
       "id": "indirect-arguments",
       "feature": "High-arity CPU/GPU bridge exports",
       "scope": "GPU",
-      "status": "rejected",
+      "status": "supported",
       "fixtures": [
         "indirect-arguments.k",
         "arguments.k"
       ],
-      "notes": "The current 29/40-tensor examples exceed the conservative CPU-bridge stack budget; device argument buffers are separately qualified, with no fixed language parameter cap",
+      "notes": "29/40-tensor examples use direct/indirect GPU buffers and bounded checked CPU helpers; compiler/device resource limits still apply",
       "evidence": [
         "gpu-indirect-arguments-2026-10-16.json"
-      ],
-      "diagnostic": "G001",
-      "message": "conservative native stack budget"
+      ]
     },
     {
       "id": "reduction",

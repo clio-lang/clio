@@ -1295,7 +1295,30 @@ private:
     };
     return loop(0, empty);
   }
+  Value outlinedElementwise(Location loc, Value a, Value b, RankedTensorType output,
+                            TokenKind op, NumericType element) {
+    func::FuncOp helper;
+    SmallVector<Value> operands{a};
+    if (b)
+      operands.push_back(b);
+    {
+      OpBuilder::InsertionGuard restore(builder_);
+      builder_.setInsertionPointToEnd(module_->getBody());
+      SmallVector<Type> parameters;
+      for (auto operand : operands)
+        parameters.push_back(operand.getType());
+      helper = func::FuncOp::create(
+          builder_, loc, "kalandra_fn_elementwise_" + std::to_string(nextElementwiseHelper_++),
+          builder_.getFunctionType(parameters, {output}));
+      builder_.setInsertionPointToStart(helper.addEntryBlock());
+      auto result = elementwise(loc, helper.getArgument(0), b ? helper.getArgument(1) : Value{},
+                                output, op, element);
+      func::ReturnOp::create(builder_, loc, ValueRange{result});
+    }
+    return func::CallOp::create(builder_, loc, helper, operands).getResult(0);
+  }
   struct Frame {
+    bool outlineElementwise = false;
     std::unordered_map<ValueId, Value> values;
     std::unordered_map<SymbolId, Value> symbols;
   };
@@ -1462,10 +1485,17 @@ private:
             guard(loc, valid, 4);
             return converted;
           } else if constexpr (std::is_same_v<T, TensorUnary>) {
-            return elementwise(loc, expression(frame, operation.operand), {},
-                               cast<RankedTensorType>(type(node.type)), operation.operation, node.type.element);
+            auto input = expression(frame, operation.operand);
+            if (frame.outlineElementwise && node.type.element == NumericType::Float32)
+              return outlinedElementwise(loc, input, {}, cast<RankedTensorType>(type(node.type)),
+                                         operation.operation, node.type.element);
+            return elementwise(loc, input, {}, cast<RankedTensorType>(type(node.type)),
+                               operation.operation, node.type.element);
           } else if constexpr (std::is_same_v<T, TensorBinary>) {
             auto a = expression(frame, operation.left), b = expression(frame, operation.right);
+            if (frame.outlineElementwise && node.type.element == NumericType::Float32)
+              return outlinedElementwise(loc, a, b, cast<RankedTensorType>(type(node.type)),
+                                         operation.operation, node.type.element);
             return elementwise(loc, a, b, cast<RankedTensorType>(type(node.type)),
                                operation.operation, node.type.element);
           } else if constexpr (std::is_same_v<T, ArrayIndex> || std::is_same_v<T, TensorIndex>) {
@@ -2024,6 +2054,16 @@ private:
     auto *entry = function.addEntryBlock();
     builder_.setInsertionPointToStart(entry);
     Frame frame;
+    // Long float32 tensor expressions otherwise inline many allocation/shape/
+    // loop bodies into one native frame. Outline operations into ordinary
+    // checked, non-inlined helpers; every frame retains the same stack budget.
+    frame.outlineElementwise = std::ranges::count_if(
+        input_.functions[id].expressions, [&](ValueId value) {
+          const auto &node = input_.expressions[value];
+          return node.type.element == NumericType::Float32 &&
+                 (std::holds_alternative<TensorBinary>(node.operation) ||
+                  std::holds_alternative<TensorUnary>(node.operation));
+        }) >= 16;
     for (std::size_t i = 0; i < input_.functions[id].parameters.size(); ++i) {
       const auto parameter = input_.functions[id].parameters[i];
       frame.symbols.emplace(parameter, entry->getArgument(i));
@@ -2098,7 +2138,7 @@ private:
   std::unordered_map<FunctionId, func::FuncOp> callableEntries_;
   std::unordered_map<std::size_t, Type> recordTypes_;
   std::unordered_map<std::size_t, std::pair<std::uint64_t, std::uint64_t>> recordLayouts_;
-  unsigned nextMatmulHelper_ = 0, nextStringLiteral_ = 0;
+  unsigned nextMatmulHelper_ = 0, nextStringLiteral_ = 0, nextElementwiseHelper_ = 0;
 };
 } // namespace
 std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,
