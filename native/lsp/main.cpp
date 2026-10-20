@@ -1,5 +1,6 @@
 #include "Edits.h"
 #include "Hover.h"
+#include "Rename.h"
 #include "SemanticQuery.h"
 #include "Workspace.h"
 #include "kalandra/Diagnostics.h"
@@ -217,6 +218,7 @@ class Session {
 
 public:
   bool initialized = false, shutdown = false, hoverMarkdown = false;
+  bool renameDocuments = false, renamePrepare = false;
   Session(std::optional<NativeProject> p, bool placement) : project(std::move(p)) {
     options.placement = placement;
   }
@@ -251,6 +253,124 @@ public:
     }
     workspaces.assign(roots.begin(), roots.end());
     return {};
+  }
+  std::expected<std::set<std::string>, std::string> searchRoots(const std::string &path) {
+    std::set<std::string> roots;
+    const auto workspace = lsp::containingWorkspace(workspaces, path);
+    if (workspace) {
+      auto discovered = lsp::discoverSources(*workspace);
+      if (!discovered) {
+        return std::unexpected(discovered.error());
+      }
+      roots.insert(discovered->begin(), discovered->end());
+    }
+    for (const auto &[file, document] : documents)
+      if (workspace ? lsp::containsPath(*workspace, file) : workspaces.empty() || file == path)
+        roots.insert(file);
+    if (project && (workspace ? lsp::containsPath(*workspace, project->entry) : workspaces.empty()))
+      roots.insert(project->entry);
+    return roots;
+  }
+  void renameRequest(const j::Value &id, const j::Object *params, bool prepare) {
+    const auto item = params ? params->getObject("textDocument") : nullptr;
+    const auto uri = item ? item->getString("uri") : std::nullopt;
+    const auto path = uri ? pathFromUri(*uri) : std::nullopt;
+    const auto position = editPosition(params ? params->getObject("position") : nullptr);
+    const auto name = params ? params->getString("newName") : std::nullopt;
+    if (!path || !position || (!prepare && (!name || !lsp::validRenameName(*name)))) {
+      error(id, -32602,
+            "Expected a local .k URI, UTF-16 position and valid nonreserved rename identifier");
+      return;
+    }
+    const auto respond = [&](j::Value result) {
+      send(j::Object{{"jsonrpc", "2.0"}, {"id", id}, {"result", std::move(result)}});
+    };
+    const auto open = documents.find(*path);
+    if (open == documents.end() || open->second.uri != *uri) {
+      respond(nullptr);
+      return;
+    }
+    const auto offset = lsp::textOffset(open->second.text, *position);
+    if (!offset) {
+      respond(nullptr);
+      return;
+    }
+    if (!prepare && !renameDocuments) {
+      error(id, -32803, "Rename requires client support for versioned workspace documentChanges");
+      return;
+    }
+    const auto workspace = lsp::containingWorkspace(workspaces, *path);
+    if (!workspace) {
+      error(id, -32803, "Rename requires a configured containing workspace");
+      return;
+    }
+    auto roots = searchRoots(*path);
+    if (!roots) {
+      error(id, -32803, roots.error());
+      return;
+    }
+    std::vector<SourceOverlay> overlays;
+    for (const auto &[file, document] : documents)
+      overlays.push_back({file, document.text});
+    const std::vector<ModulePackage> empty;
+    auto plan =
+        lsp::planRename(std::vector<std::string>(roots->begin(), roots->end()), *workspace,
+                        project ? project->packages : empty, overlays, *path, *offset,
+                        prepare ? std::nullopt : std::optional{std::string(*name)}, options);
+    if (!plan) {
+      error(id, -32803, plan.error());
+      return;
+    }
+    if (!plan->selection) {
+      respond(nullptr);
+      return;
+    }
+    if (prepare) {
+      const Diagnostic location{"", "", plan->selection->span};
+      auto encoded = j::parse(renderDiagnosticsJson(plan->selection->source.get(), {&location, 1}));
+      if (!encoded) {
+        llvm::consumeError(encoded.takeError());
+        error(id, -32603, "Cannot encode rename selection");
+        return;
+      }
+      const auto &diagnostic = *(*encoded->getAsObject()->getArray("diagnostics"))[0].getAsObject();
+      respond(j::Object{{"range", *diagnostic.get("range")}, {"placeholder", plan->placeholder}});
+      return;
+    }
+    auto currentRoots = searchRoots(*path);
+    if (!currentRoots || *currentRoots != *roots) {
+      error(id, -32803, "Workspace sources changed during rename");
+      return;
+    }
+    std::map<std::string, std::vector<const lsp::SourceEdit *>> groups;
+    for (const auto &edit : plan->edits)
+      groups[edit.location.source->path()].push_back(&edit);
+    j::Array changes;
+    for (const auto &[file, edits] : groups) {
+      std::vector<Diagnostic> locations;
+      for (const auto *edit : edits)
+        locations.push_back({"", "", edit->location.span});
+      auto encoded =
+          j::parse(renderDiagnosticsJson(edits.front()->location.source.get(), locations));
+      if (!encoded) {
+        llvm::consumeError(encoded.takeError());
+        error(id, -32603, "Cannot encode rename edits");
+        return;
+      }
+      const auto &diagnostics = *encoded->getAsObject()->getArray("diagnostics");
+      j::Array textEdits;
+      for (std::size_t i = 0; i < edits.size(); ++i)
+        textEdits.push_back(j::Object{{"range", *diagnostics[i].getAsObject()->get("range")},
+                                      {"newText", edits[i]->text}});
+      const auto opened = documents.find(file);
+      j::Object document{
+          {"uri", opened == documents.end() ? uriFromPath(file) : opened->second.uri},
+          {"version",
+           opened == documents.end() ? j::Value(nullptr) : j::Value(opened->second.version)}};
+      changes.push_back(
+          j::Object{{"textDocument", std::move(document)}, {"edits", std::move(textEdits)}});
+    }
+    respond(j::Object{{"documentChanges", std::move(changes)}});
   }
   void refresh() {
     std::vector<SourceOverlay> overlays;
@@ -372,25 +492,14 @@ public:
         respond(nullptr);
         return;
       }
-      std::set<std::string> roots;
-      const auto workspace = lsp::containingWorkspace(workspaces, *path);
-      if (workspace) {
-        auto discovered = lsp::discoverSources(*workspace);
-        if (!discovered) {
-          error(id, -32803, discovered.error());
-          return;
-        }
-        roots.insert(discovered->begin(), discovered->end());
+      auto roots = searchRoots(*path);
+      if (!roots) {
+        error(id, -32803, roots.error());
+        return;
       }
-      for (const auto &[file, document] : documents)
-        if (workspace ? lsp::containsPath(*workspace, file) : workspaces.empty() || file == *path)
-          roots.insert(file);
-      if (project &&
-          (workspace ? lsp::containsPath(*workspace, project->entry) : workspaces.empty()))
-        roots.insert(project->entry);
       std::map<std::tuple<std::string, std::size_t, std::size_t>, lsp::SourceLocation> found;
       std::size_t scanned = 0;
-      for (const auto &root : roots) {
+      for (const auto &root : *roots) {
         auto graph = loadModules(root, {}, {}, project ? project->packages : empty, overlays);
         if (!graph || !graph->module.source) {
           error(id, -32803, "Cannot search references: a source graph could not be loaded");
@@ -631,6 +740,14 @@ int main(int argc, char **argv) {
         }
         const auto capabilities = params->getObject("capabilities");
         const auto document = capabilities ? capabilities->getObject("textDocument") : nullptr;
+        const auto workspaceCapabilities =
+            capabilities ? capabilities->getObject("workspace") : nullptr;
+        const auto workspaceEdit =
+            workspaceCapabilities ? workspaceCapabilities->getObject("workspaceEdit") : nullptr;
+        session.renameDocuments =
+            workspaceEdit && workspaceEdit->getBoolean("documentChanges").value_or(false);
+        const auto rename = document ? document->getObject("rename") : nullptr;
+        session.renamePrepare = rename && rename->getBoolean("prepareSupport").value_or(false);
         const auto hover = document ? document->getObject("hover") : nullptr;
         const auto formats = hover ? hover->getArray("contentFormat") : nullptr;
         if (formats)
@@ -652,6 +769,10 @@ int main(int argc, char **argv) {
                             {"hoverProvider", true},
                             {"definitionProvider", true},
                             {"referencesProvider", true},
+                            {"renameProvider", !session.renameDocuments ? j::Value(false)
+                                               : session.renamePrepare
+                                                   ? j::Value(j::Object{{"prepareProvider", true}})
+                                                   : j::Value(true)},
                             {"workspace", j::Object{{"workspaceFolders",
                                                      j::Object{{"supported", true},
                                                                {"changeNotifications", false}}}}},
@@ -669,6 +790,10 @@ int main(int argc, char **argv) {
       } else if (*method == "shutdown" && request) {
         session.shutdown = true;
         send(j::Object{{"jsonrpc", "2.0"}, {"id", *id}, {"result", nullptr}});
+      } else if ((*method == "textDocument/rename" || *method == "textDocument/prepareRename") &&
+                 request) {
+        session.renameRequest(*id, object->getObject("params"),
+                              *method == "textDocument/prepareRename");
       } else if ((*method == "textDocument/hover" || *method == "textDocument/definition" ||
                   *method == "textDocument/references") &&
                  request) {

@@ -67,8 +67,11 @@ class Client:
         events, self.events = self.events, []
         return events
 
-    def init(self, formats=None, **workspace):
+    def init(self, formats=None, rename=False, **workspace):
         capabilities = {} if formats is None else {"textDocument": {"hover": {"contentFormat": formats}}}
+        if rename:
+            capabilities["workspace"] = {"workspaceEdit": {"documentChanges": True}}
+            capabilities.setdefault("textDocument", {})["rename"] = {"prepareSupport": True}
         result = self.rpc("initialize", {"capabilities": capabilities, **workspace})["result"]
         caps = result["capabilities"]
         assert caps["positionEncoding"] == "utf-16"
@@ -76,6 +79,7 @@ class Client:
         assert caps["hoverProvider"] is True
         assert caps["definitionProvider"] is True
         assert caps["referencesProvider"] is True
+        assert caps["renameProvider"] == ({"prepareProvider": True} if rename else False)
         assert caps["workspace"]["workspaceFolders"] == {"supported": True, "changeNotifications": False}
         assert not caps.get("completionProvider")
         self.send("initialized", {})
@@ -105,6 +109,16 @@ class Client:
             "position": {"line": line, "character": character},
             "context": {"includeDeclaration": include}})
 
+    def rename(self, path, line, character, name):
+        uri = path.as_uri() if isinstance(path, Path) else path
+        return self.rpc("textDocument/rename", {"textDocument": {"uri": uri},
+            "position": {"line": line, "character": character}, "newName": name})
+
+    def prepare_rename(self, path, line, character):
+        uri = path.as_uri() if isinstance(path, Path) else path
+        return self.rpc("textDocument/prepareRename", {"textDocument": {"uri": uri},
+            "position": {"line": line, "character": character}})
+
     def close(self, path):
         self.send("textDocument/didClose", {"textDocument": {"uri": path.as_uri()}})
 
@@ -120,6 +134,27 @@ class Client:
 def edit(line, start, end, text, **extra):
     return {"range": {"start": {"line": line, "character": start},
                       "end": {"line": line, "character": end}}, "text": text, **extra}
+
+
+def apply_workspace_edit(result, sources):
+    # Independently interpret UTF-16 protocol edits against the original texts.
+    output = dict(sources)
+    def offset(text, position):
+        lines = text.splitlines(keepends=True)
+        prefix = lines[position["line"]].encode("utf-16-le")[:2*position["character"]].decode("utf-16-le")
+        return sum(len(line) for line in lines[:position["line"]]) + len(prefix)
+    for change in result["documentChanges"]:
+        uri = change["textDocument"]["uri"]
+        text = output[uri]
+        replacements = [(offset(text, edit["range"]["start"]), offset(text, edit["range"]["end"]), edit["newText"])
+                        for edit in change["edits"]]
+        previous = len(text)+1
+        for start, end, replacement in sorted(replacements, reverse=True):
+            assert start < end <= previous, "overlapping or empty rename edit"
+            text = text[:start] + replacement + text[end:]
+            previous = start
+        output[uri] = text
+    return output
 
 
 def publications(events):
@@ -709,6 +744,139 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     for number in range(512):
         (limited / f"{number}.k").unlink()
     assert client.references(limited_lib, 0, 11)["result"] == []
+    client.finish()
+
+    # Versioned rename proposals preserve Unicode/CRLF and never write buffers or files.
+    rename_root = root / "rename-unicode"
+    rename_root.mkdir()
+    rename_file = rename_root / "main.k"
+    disk = "fn main():\n  0\n"
+    rename_file.write_text(disk)
+    rename_text = '# 😀\r\nfn main()->String:\r\n  value="é"\r\n  "😀" + value\r\n'
+    rename_uri = rename_file.as_uri().replace("file:///", "file://localhost/")
+    client = Client()
+    client.init(rename=True, rootUri=rename_root.as_uri())
+    client.send("textDocument/didOpen", {"textDocument": {"uri": rename_uri,
+        "languageId": "kalandra", "version": 7, "text": rename_text}})
+    prepared = client.prepare_rename(rename_uri, 3, 10)["result"]
+    assert prepared == {"placeholder": "value", "range": {"start": {"line": 3, "character": 9},
+                                                           "end": {"line": 3, "character": 14}}}
+    change = client.rename(rename_uri, 3, 10, "textValue")["result"]
+    assert len(change["documentChanges"]) == 1
+    assert change["documentChanges"][0]["textDocument"] == {"uri": rename_uri, "version": 7}
+    assert len(change["documentChanges"][0]["edits"]) == 2
+    applied = apply_workspace_edit(change, {rename_uri: rename_text})[rename_uri]
+    assert applied == rename_text.replace("value", "textValue")
+    assert rename_file.read_text() == disk
+    assert client.prepare_rename(rename_uri, 3, 10)["result"] == prepared  # Proposal did not mutate state.
+    assert client.rename(rename_uri, 3, 10, "value")["result"] == {"documentChanges": []}
+    for invalid in ("", "fn", "String", "float32", "_", "main", "é", "a b", "9name"):
+        assert client.rename(rename_uri, 3, 10, invalid)["error"]["code"] == -32602
+    assert client.prepare_rename(rename_uri, 1, 4)["result"] is None  # main entry.
+    assert client.prepare_rename(rename_uri, 1, 0)["result"] is None  # keyword.
+    assert client.prepare_rename(rename_uri, 3, 4)["result"] is None  # split surrogate.
+    assert client.rename(rename_uri, 999, 0, "other")["result"] is None
+    assert client.rename(rename_uri, 0, -1, "other")["error"]["code"] == -32602
+    client.send("textDocument/didChange", {"textDocument": {"uri": rename_uri, "version": 8},
+        "contentChanges": [{"text": applied}]})
+    assert client.prepare_rename(rename_uri, 3, 10)["result"]["placeholder"] == "textValue"
+    client.finish()
+
+    # No unversioned edit fallback and no implicit workspace for rename.
+    client = Client()
+    client.init(rootUri=rename_root.as_uri())
+    client.open(rename_file, rename_text)
+    assert client.rename(rename_file, 2, 3, "other")["error"]["code"] == -32803
+    client.finish()
+    client = Client()
+    client.init(rename=True)
+    client.open(rename_file, rename_text)
+    assert client.rename(rename_file, 2, 3, "other")["error"]["code"] == -32803
+    client.finish()
+    client = Client()
+    caps = client.rpc("initialize", {"rootUri": rename_root.as_uri(), "capabilities": {
+        "workspace": {"workspaceEdit": {"documentChanges": True}}}})["result"]["capabilities"]
+    assert caps["renameProvider"] is True  # No options object without prepareSupport.
+    client.send("initialized", {})
+    client.open(rename_file, rename_text)
+    assert client.rename(rename_file, 2, 3, "other")["result"]["documentChanges"]
+    client.finish()
+
+    # Original export rename stops at explicit aliases, including identical spelling aliases.
+    alias_root = root / "rename-aliases"
+    alias_root.mkdir()
+    alias_sources = {
+        "lib.k": "export fn scale(value:int):\n  value*2\n",
+        "facade.k": 'export from "./lib.k" import scale as publicScale\n',
+        "relay.k": 'export from "./facade.k" import publicScale\n',
+        "main.k": 'from "./relay.k" import publicScale as localScale\nfn main():\n  localScale(2)\n',
+        "unopened.k": 'from "./lib.k" import scale\nfn main():\n  scale(2)\n',
+        "same.k": 'from "./lib.k" import scale as scale\nfn main():\n  scale(2)\n'}
+    for file, text in alias_sources.items():
+        (alias_root/file).write_text(text)
+    alias_uris = {(alias_root/file).as_uri(): text for file, text in alias_sources.items()}
+    client = Client()
+    client.init(rename=True, rootUri=alias_root.as_uri())
+    client.open(alias_root/"lib.k", alias_sources["lib.k"], 4)
+    change = client.rename(alias_root/"lib.k", 0, 11, "amplify")["result"]
+    assert {entry["textDocument"]["uri"] for entry in change["documentChanges"]} == {
+        (alias_root/file).as_uri() for file in ("lib.k", "facade.k", "unopened.k", "same.k")}
+    for entry in change["documentChanges"]:
+        assert entry["textDocument"]["version"] == (4 if entry["textDocument"]["uri"] == (alias_root/"lib.k").as_uri() else None)
+    applied = apply_workspace_edit(change, alias_uris)
+    assert 'import amplify as scale' in applied[(alias_root/"same.k").as_uri()]
+    assert '  scale(2)' in applied[(alias_root/"same.k").as_uri()]
+    assert applied[(alias_root/"main.k").as_uri()] == alias_sources["main.k"]
+    assert '  amplify(2)' in applied[(alias_root/"unopened.k").as_uri()]
+    client.open(alias_root/"facade.k", alias_sources["facade.k"])
+    at = alias_sources["facade.k"].index("publicScale")
+    change = client.rename(alias_root/"facade.k", 0, at, "published")["result"]
+    applied = apply_workspace_edit(change, alias_uris)
+    assert 'import published' in applied[(alias_root/"relay.k").as_uri()]
+    assert 'published as localScale' in applied[(alias_root/"main.k").as_uri()]
+    assert applied[(alias_root/"lib.k").as_uri()] == alias_sources["lib.k"]
+    client.open(alias_root/"main.k", alias_sources["main.k"], 2)
+    change = client.rename(alias_root/"main.k", 2, 3, "transform")["result"]
+    assert len(change["documentChanges"]) == 1 and change["documentChanges"][0]["textDocument"]["version"] == 2
+    applied = apply_workspace_edit(change, alias_uris)
+    assert 'publicScale as transform' in applied[(alias_root/"main.k").as_uri()]
+    assert '  transform(2)' in applied[(alias_root/"main.k").as_uri()]
+    for file, text in alias_sources.items():
+        assert (alias_root/file).read_text() == text
+    client.finish()
+
+    # Shorthand field rename and local rename expand opposite roles.
+    pattern_root = root / "rename-patterns"
+    pattern_root.mkdir()
+    pattern_file = pattern_root / "main.k"
+    pattern_source = ('enum Box:\n  Some:\n    value:int\nfn read(box:Box)->int:\n'
+                      '  match box:\n    Box.Some {value}:value\nfn main():\n  read(Box.Some {value:2})\n')
+    pattern_file.write_text(pattern_source)
+    client = Client()
+    client.init(rename=True, rootUri=pattern_root.as_uri())
+    client.open(pattern_file, pattern_source)
+    change = client.rename(pattern_file, 2, 5, "amount")["result"]
+    applied = apply_workspace_edit(change, {pattern_file.as_uri(): pattern_source})[pattern_file.as_uri()]
+    assert '{amount:value}:value' in applied and '{amount:2}' in applied
+    at = pattern_source.splitlines()[5].index("value")
+    change = client.rename(pattern_file, 5, at, "amount")["result"]
+    applied = apply_workspace_edit(change, {pattern_file.as_uri(): pattern_source})[pattern_file.as_uri()]
+    assert '{value:amount}:amount' in applied and '{value:2}' in applied
+    client.finish()
+
+    # A compiling rename that captures another binding is rejected without changing the buffer.
+    capture_root = root / "rename-capture"
+    capture_root.mkdir()
+    capture_file = capture_root/"main.k"
+    capture_source = "fn main():\n  value=1\n  read=fn(other:int):value+other\n  read(2)\n"
+    capture_file.write_text(capture_source)
+    client = Client()
+    client.init(rename=True, rootUri=capture_root.as_uri())
+    client.open(capture_file, capture_source)
+    response = client.rename(capture_file, 1, 3, "other")
+    assert response["error"]["code"] == -32803 and "resolution" in response["error"]["message"]
+    assert client.prepare_rename(capture_file, 1, 3)["result"]["placeholder"] == "value"
+    assert capture_file.read_text() == capture_source
     client.finish()
 
     invalid_stream(b"Content-Length: 0\r\n\r\n")

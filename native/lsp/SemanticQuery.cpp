@@ -47,10 +47,7 @@ std::optional<SourceLocation> sourceLocation(std::shared_ptr<const SourceFile> s
     return {};
   return SourceLocation{std::move(original), {begin, end}};
 }
-std::optional<std::vector<SourceLocation>> references(ParseResult syntax,
-                                                      const SourceLocation &declaration,
-                                                      bool includeDeclaration,
-                                                      CheckOptions options) {
+std::optional<SourceIndex> sourceIndex(ParseResult syntax, CheckOptions options) {
   if (!syntax.ok() || !syntax.module.source)
     return {};
   const auto callees = callSites(syntax.module);
@@ -147,6 +144,21 @@ std::optional<std::vector<SourceLocation>> references(ParseResult syntax,
       }
     }
   }
+  SourceIndex index{std::move(*checked.module), {}};
+  for (const auto &[use, target] : occurrences)
+    index.occurrences.push_back({{use.first, use.second}, target, false});
+  for (const auto &[use, target] : secondary)
+    index.occurrences.push_back({{use.first, use.second}, target, true});
+  return index;
+}
+std::optional<std::vector<SourceLocation>> references(ParseResult syntax,
+                                                      const SourceLocation &declaration,
+                                                      bool includeDeclaration,
+                                                      CheckOptions options) {
+  auto index = sourceIndex(std::move(syntax), options);
+  if (!index)
+    return {};
+  const auto &module = index->module;
   const auto same = [](const SourceLocation &a, const SourceLocation &b) {
     return a.source->path() == b.source->path() && a.span.begin == b.span.begin &&
            a.span.end == b.span.end;
@@ -160,10 +172,8 @@ std::optional<std::vector<SourceLocation>> references(ParseResult syntax,
     if (location && (includeDeclaration || !same(*location, declaration)))
       matches.try_emplace(use, std::move(*location));
   };
-  for (const auto &[use, target] : occurrences)
-    collect(use, target);
-  for (const auto &[use, target] : secondary)
-    collect(use, target);
+  for (const auto &occurrence : index->occurrences)
+    collect({occurrence.span.begin, occurrence.span.end}, occurrence.declaration);
   std::vector<SourceLocation> result;
   for (auto &[span, location] : matches)
     result.push_back(std::move(location));

@@ -22,6 +22,16 @@ struct SemanticToken {
 [[nodiscard]] std::optional<SourceLocation> definition(ParseResult syntax, std::string_view path,
                                                        std::size_t offset,
                                                        CheckOptions options = {});
+struct SourceOccurrence {
+  SourceSpan span, declaration;
+  bool secondary = false;
+};
+struct SourceIndex {
+  TypedModule module;
+  std::vector<SourceOccurrence> occurrences;
+};
+// All compiler-resolved identifier relationships, including secondary pattern roles.
+[[nodiscard]] std::optional<SourceIndex> sourceIndex(ParseResult syntax, CheckOptions options = {});
 // One check and one indexed identifier pass per graph. A failed check returns nullopt.
 [[nodiscard]] std::optional<std::vector<SourceLocation>>
 references(ParseResult syntax, const SourceLocation &declaration, bool includeDeclaration,
