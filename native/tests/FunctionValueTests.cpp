@@ -78,7 +78,6 @@ void negative() {
         "type Holder:\n  callback:fn(int)->int\nfn main()->int:\n  holder=Holder {callback:0}\n  "
         "0\n",
         "fn main()->int:\n  values=[double,fn(value:float):value]\n  0\n",
-        "fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    try await spawn f(1)\n",
         "fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    result=try await spawn "
         "map([1],f)\n    result[0]\n",
         "fn coordinate(value:int)->int:\n  run(value) catch fn(error):0\n"

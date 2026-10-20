@@ -2086,7 +2086,7 @@ private:
     }
     if (operation.prefix == TaskPrefix::Spawn &&
         !std::holds_alternative<CallExpr>(syntax_.expressions[operation.operand].value)) {
-      error("S037", "spawn requires a statically named invocation", span);
+      error("S037", "spawn requires a function invocation", span);
       return {};
     }
     std::optional<ValueType> context;
@@ -2100,11 +2100,15 @@ private:
       const auto &call = std::get<CallExpr>(syntax_.expressions[operation.operand].value);
       const auto *callee = std::get_if<NameExpr>(&syntax_.expressions[call.callee].value);
       if (!callee) {
-        error("S037", "spawn requires a statically named invocation", span);
-        return {};
-      }
-      value = invoke(frame, syntax_.expressions[operation.operand].span, callee->name,
-                     call.arguments, {}, operation.placement, &placement, true);
+        if (operation.placement) {
+          error("S074", "indirect spawn requires ordinary CPU execution", span);
+          return {};
+        }
+        value = invokeValue(frame, syntax_.expressions[operation.operand].span, call.callee,
+                            call.arguments);
+      } else
+        value = invoke(frame, syntax_.expressions[operation.operand].span, callee->name,
+                       call.arguments, {}, operation.placement, &placement, true);
     } else
       value = expression(frame, operation.operand, context);
     if (!value)
@@ -2112,6 +2116,7 @@ private:
     auto result = node(*value).type;
     if (operation.prefix == TaskPrefix::Spawn) {
       if (!std::holds_alternative<FunctionCall>(node(*value).operation) &&
+          !std::holds_alternative<FunctionInvoke>(node(*value).operation) &&
           !std::holds_alternative<Matmul>(node(*value).operation) &&
           !std::holds_alternative<NumericConvert>(node(*value).operation) &&
           !std::holds_alternative<ReduceSum>(node(*value).operation) &&
@@ -3623,8 +3628,8 @@ private:
     const auto callee = name(calleeSpan);
     if (auto symbol = lookupSymbol(frame, calleeSpan)) {
       if (output_.symbols[*symbol].type.builtin == BuiltinValue::Function) {
-        if (spawned || selection) {
-          error("S074", "indirect spawn is not implemented yet", span);
+        if (selection) {
+          error("S074", "indirect spawn requires ordinary CPU execution", span);
           return {};
         }
         auto target = add(frame, output_.symbols[*symbol].type, calleeSpan, SymbolRead{*symbol});

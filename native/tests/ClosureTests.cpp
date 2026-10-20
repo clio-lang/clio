@@ -141,8 +141,6 @@ int main() {
           "f=fn(value:int):run(value) catch fn(error):0\n  f(42)\n",
           "fn worker(value:int)->int:\n  value\nfn main()->int ! TaskError:\n  try parallel:\n    "
           "task=spawn worker(42)\n    f=fn(value:int):task\n    try await task\n",
-          "fn main()->int ! TaskError:\n  f=fn(value:int):value*2\n  try parallel:\n    try await "
-          "spawn f(21)\n",
           "error E:\n  Bad\nfn checked()->int ! E:\n  fail E.Bad\nfn main()->int:\n  "
           "f=fn(value:int):checked()+value\n  0\n"})
       require(!analyze(source).ok(), "invalid closure accepted");

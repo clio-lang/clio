@@ -446,19 +446,32 @@ std::optional<std::string> functionValueTransportError(const TypedModule &module
     if (containsFunctionStorage(module, error))
       return "function-containing worker error payloads are not implemented yet";
   }
+  const bool indirect = std::holds_alternative<FunctionInvoke>(invocation.operation);
   if (containsFunctionStorage(module, invocation.type)) {
-    const auto *call = std::get_if<FunctionCall>(&invocation.operation);
-    if (!call || call->function >= module.functions.size() ||
-        !workerValueProvenance(module, module.functions[call->function].result))
+    bool proven = false;
+    if (const auto *call = std::get_if<FunctionCall>(&invocation.operation))
+      proven = call->function < module.functions.size() &&
+               workerValueProvenance(module, module.functions[call->function].result);
+    else if (indirect) {
+      const auto found = std::find_if(module.expressions.begin(), module.expressions.end(),
+                                      [&](const auto &value) { return &value == &invocation; });
+      proven = found != module.expressions.end() &&
+               workerValueProvenance(module, found - module.expressions.begin());
+    }
+    if (!proven)
       return "function-valued worker results require proven CPU closure captures; "
              "unproven result provenance is not implemented yet";
   }
   const auto arguments = std::visit(
       [](const auto &op) -> std::vector<ValueId> {
         using T = std::decay_t<decltype(op)>;
-        if constexpr (std::is_same_v<T, FunctionCall> || std::is_same_v<T, FunctionInvoke>)
+        if constexpr (std::is_same_v<T, FunctionCall>)
           return op.arguments;
-        else if constexpr (std::is_same_v<T, ArrayMap>) {
+        else if constexpr (std::is_same_v<T, FunctionInvoke>) {
+          auto args = op.arguments;
+          args.insert(args.begin(), op.callee);
+          return args;
+        } else if constexpr (std::is_same_v<T, ArrayMap>) {
           auto args = op.captures;
           args.push_back(op.input);
           return args;
@@ -473,15 +486,13 @@ std::optional<std::string> functionValueTransportError(const TypedModule &module
           return {};
       },
       invocation.operation);
-  if (std::holds_alternative<FunctionInvoke>(invocation.operation))
-    return "indirect spawn is not implemented yet";
   for (auto id : arguments) {
     if (id >= module.expressions.size())
       return "worker argument has invalid provenance";
     const auto &type = module.expressions[id].type;
     if (!containsFunctionStorage(module, type))
       continue;
-    if (std::holds_alternative<FunctionCall>(invocation.operation) && !type.task &&
+    if ((std::holds_alternative<FunctionCall>(invocation.operation) || indirect) && !type.task &&
         !type.fallible && workerValueProvenance(module, id))
       continue;
     return "function-valued worker arguments require proven CPU closure captures; unproven "

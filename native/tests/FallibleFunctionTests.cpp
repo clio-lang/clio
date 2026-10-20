@@ -99,8 +99,6 @@ void negative() {
         "fn main()->int:\n  f=checked\n  f() catch fn(error):0\n",
         "fn use(f:fn(int)->int ! Missing)->int:\n  0\nfn main()->int:\n  0\n",
         "fn main()->int:\n  f=checked\n  result=map([1],f)\n  result[0]\n",
-        "fn main()->int ! (E | TaskError):\n  f=checked\n  try parallel:\n    try await spawn "
-        "f(0)\n",
         "fn worker(value:int)->int ! (E | TaskError):\n  try parallel:\n    try await spawn "
         "other(value)\nfn hidden(value:int)->int:\n  worker(value) catch fn(error):0\nfn "
         "main()->int:\n  f=hidden\n  f(1)\n",

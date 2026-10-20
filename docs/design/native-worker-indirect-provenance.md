@@ -1,6 +1,6 @@
 # Indirect-call provenance for CPU worker values
 
-Implemented native subset — 2026-10-20. Function values and function-containing aggregates produced by synchronous indirect calls can now cross statically named CPU worker boundaries. This extends [parameter forwarding](native-worker-parameters.md); it does not implement indirect `spawn`.
+Implemented native subset — 2026-10-20. Function values and function-containing aggregates produced by synchronous indirect calls can now cross statically named CPU worker boundaries. This extends [parameter forwarding](native-worker-parameters.md); [indirect spawn](native-indirect-spawn.md) now builds on this proof for ordinary CPU execution.
 
 ```kalandra
 fn double(value: int) -> int:
@@ -33,7 +33,7 @@ Unknown producers and source-less parameters cannot disappear from a partially k
 
 The analysis remains context-insensitive: every possible caller contributes sources. Aggregate projections conservatively join fields/elements, and branches are not specialized for a known condition. Creating separate instances of the same closure expression does not give them independent proofs. An unused higher-order helper with unresolved incoming values can therefore also prevent a proof elsewhere. More precise context, field and reachability analysis is future compiler work.
 
-The existing runtime still checks exact function signatures, validates copy layouts, copies owned environments and preserves retained backing lifetimes. No worker runtime or callable ABI changes are needed for this milestone. Function-containing expected-error payloads, indirect spawn, function-containing spawned collection/map boundaries, GPU callbacks and distributed execution remain separate work.
+The existing runtime still checks exact function signatures, validates copy layouts, copies owned environments and preserves retained backing lifetimes. No worker runtime or callable ABI changes are needed for this milestone. Function-containing expected-error payloads, function-containing spawned collection/map boundaries, GPU callbacks and distributed execution remain separate work.
 
 ## Qualification
 

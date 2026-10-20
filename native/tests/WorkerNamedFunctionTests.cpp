@@ -20,7 +20,7 @@ int main() {
          {KALANDRA_WORKER_FUNCTION_FIXTURES, KALANDRA_WORKER_CLOSURE_FIXTURES,
           KALANDRA_WORKER_NESTED_FIXTURES, KALANDRA_WORKER_RESULT_FIXTURES,
           KALANDRA_WORKER_AGGREGATE_FIXTURES, KALANDRA_WORKER_PARAMETER_FIXTURES,
-          KALANDRA_WORKER_INDIRECT_FIXTURES}) {
+          KALANDRA_WORKER_INDIRECT_FIXTURES, KALANDRA_INDIRECT_SPAWN_FIXTURES}) {
       for (const auto &file : std::filesystem::directory_iterator(directory)) {
         if (file.path().extension() != ".k")
           continue;
@@ -34,7 +34,7 @@ int main() {
         ++count;
       }
     }
-    require(count == 94, "worker callable fixture catalog incomplete");
+    require(count == 110, "worker callable fixture catalog incomplete");
     const std::string base = "fn double(value:int)->int:\n  value*2\nfn "
                              "apply(value:int,transform:fn(int)->int)->int:\n  transform(value)\n";
     for (const auto *body :
@@ -49,8 +49,7 @@ int main() {
       require(result.ok(), "direct parameter provenance rejected");
     }
     for (const auto *body :
-         {"fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    try await spawn f(21)\n",
-          "fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    values=try await spawn "
+         {"fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    values=try await spawn "
           "map([21],f)\n    values[0]\n"}) {
       auto result = analyze(base + body);
       require(!result.ok(), "unsupported function transport admitted");
@@ -59,7 +58,8 @@ int main() {
           "unsupported transport lost its capability diagnostic");
     }
     for (const auto *directory :
-         {KALANDRA_WORKER_PARAMETER_FIXTURES, KALANDRA_WORKER_INDIRECT_FIXTURES})
+         {KALANDRA_WORKER_PARAMETER_FIXTURES, KALANDRA_WORKER_INDIRECT_FIXTURES,
+          KALANDRA_INDIRECT_SPAWN_FIXTURES})
       for (const auto &file :
            std::filesystem::directory_iterator(std::filesystem::path(directory) / "rejected")) {
         if (file.path().extension() != ".k")
@@ -146,7 +146,7 @@ int main() {
       require(changed && rejected && numericCapabilityError(module, NumericTarget::Cpu).has_value(),
               "partial or malformed indirect provenance admitted");
     }
-    std::cout << "Worker named functions: 94 valid programs, 8 rejected boundaries, 8 forged IR "
+    std::cout << "Worker named functions: 110 valid programs, 11 rejected boundaries, 8 forged IR "
                  "cases passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

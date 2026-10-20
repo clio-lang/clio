@@ -472,9 +472,11 @@ private:
       args.push_back(slot(*plan, input.expressions[arg].type));
     plan->parameters = args;
     if (const auto *map = std::get_if<ArrayMap>(&input.expressions[id].operation);
-        map && resumable.at(map->function)) {
-      // Build the callable inside the worker, after its ordinary captures have
-      // crossed the checked boundary. No function environment is transported.
+        (map && resumable.at(map->function)) ||
+        std::holds_alternative<FunctionInvoke>(input.expressions[id].operation)) {
+      // Evaluate indirect calls in the child, after the callee and arguments
+      // have crossed the checked copy boundary. Preserve their error channel.
+      // Control-flow maps instead construct their callback from copied captures.
       Environment env;
       const auto inputs = operands(input.expressions[id]);
       for (std::size_t i = 0; i < inputs.size(); ++i)

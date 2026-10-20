@@ -196,6 +196,17 @@ void contracts() {
   require(!cpuDefault.ok(), "ordinary CPU frontend silently enabled placement");
 }
 void failures() {
+  for (const auto *selector : {"devices.cpu()", "devices.gpu()"}) {
+    const std::string target = selector;
+    reject("fn double(value:int)->int:\n  value*2\nfn main()->int ! TaskError:\n"
+           "  f=double\n  try parallel:\n    try await spawn f(21) on " +
+               target + "\n",
+           "S074");
+    reject("fn double(value:int)->int:\n  value*2\nfn main()->int ! TaskError:\n"
+           "  functions=[double]\n  try parallel:\n    try await spawn functions[0](21) on " +
+               target + "\n",
+           "S074");
+  }
   reject(start + "    try await spawn scale(values,2) on gpu\n", "S047");
   reject(start + "    try await spawn scale(input,2) on cpu\n", "S047");
   reject(start + "    try await spawn scale(input,2)\n", "S047");
