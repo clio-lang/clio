@@ -86,12 +86,12 @@ can leave unused staging directories; there is no garbage collector yet. Files
 are closed before rename, but fsync/power-loss durability is not promised.
 
 This API provides snapshot-level publication. [Project installation](native-package-install.md)
-now adds complete-graph validation, a guard, manifest-change detection and private
-index activation. Public lockfile semantics remain separate work.
+now adds complete-graph validation, a guard, manifest-change detection and
+[public lock activation](native-package-lock.md). Mutable refs remain separate work.
 The cache is writable by its owner: digest verification detects accidental edits,
 not coordinated modification of both source and integrity metadata. It is not an
 operating-system sandbox or a defense against hostile concurrent filesystem edits.
-The project installer/loader now adds an independently anchored digest index and
+The project installer/loader now adds independently locked source digests and
 managed output protection.
 
 ## Bounds and qualification
@@ -101,15 +101,17 @@ materialized source files/directories to 4096 and contents to 64 MiB; Git listin
 to 1 MiB; and each Git process to 30 seconds. Output capture is bounded through a
 pipe, and rejected or timed-out children are killed/reaped. Callers can lower
 these limits. These are per-snapshot/per-command bounds, not an overall graph
-installation deadline or a hard child-process memory limit. Untrusted remote
-transport qualification must revisit decompression and memory budgets.
+installation deadline or a hard child-process memory limit. The [remote transport](native-remote-git.md) adds live object-store monitoring
+and inherited per-file limits; it does not promise a hard memory sandbox.
 
 Acceptance covers loose and packed bare stores, exact commit identity, raw blob
 semantics, unsafe config/environment isolation, invalid revisions/trees/manifests,
 corrupt objects, alternates, size/count/capture limits, nonzero-timeout validation,
 source/metadata edits, extra files/directories, symlink rejection, no replacement,
 staging cleanup, competing processes and loading after the original repository is
-removed. Actual timeout expiry and resource exhaustion are not fault-injected.
+removed. The original local snapshot checks did not inject actual timeout expiry
+or hard resource exhaustion; remote transport fixtures separately test stalled
+servers and download/source budgets.
 Path-alias acceptance is qualified on this macOS filesystem.
 
 A manifest-backed graph uses geometry v2 directly and geometry v1 through a
@@ -119,6 +121,6 @@ The snapshot importer and graph checking also run under ASan/UBSan. See the
 [qualification record](../../native/metal-proof/evidence/native-git-snapshots-2026-10-20.json).
 
 Exact dependency declarations, complete managed graph activation and
-CLI/checker/Metal source consumption/output protection are now implemented. Remote transport,
-mutable Git refs, public locks, frozen/offline install modes, installed tools and
-editor onboarding remain in the [package workflow](native-packages.md).
+CLI/checker/Metal source consumption/output protection are now implemented.
+[Remote transport](native-remote-git.md) and [exact-commit public locks](native-package-lock.md)
+are also implemented. Mutable Git refs, broader installed tools and editor onboarding remain in the [package workflow](native-packages.md).

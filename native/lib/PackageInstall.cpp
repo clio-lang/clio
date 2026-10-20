@@ -1,4 +1,5 @@
 #include "kalandra/PackageInstall.h"
+#include "kalandra/PackageLock.h"
 #include <algorithm>
 #include <cerrno>
 #include <fcntl.h>
@@ -8,11 +9,9 @@
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/SHA256.h>
 #include <map>
-#include <sstream>
 #include <stdexcept>
 #include <sys/file.h>
 #include <sys/stat.h>
-#include <toml++/toml.hpp>
 #include <unistd.h>
 namespace kalandra {
 namespace {
@@ -30,11 +29,6 @@ std::string hash(std::string_view contents) {
     result += "0123456789abcdef"[c & 15];
   }
   return result;
-}
-bool digest(std::string_view value) {
-  return value.size() == 64 && std::ranges::all_of(value, [](char c) {
-           return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
-         });
 }
 std::string read(const fs::path &path, std::size_t maximum) {
   require(fs::is_regular_file(fs::symlink_status(path)),
@@ -62,56 +56,31 @@ void directory(const fs::path &path, bool create) {
   require(fs::is_directory(fs::symlink_status(path)),
           "package cache must use real directories: " + path.string());
 }
-using Key = std::pair<std::string, std::string>;
-struct Index {
-  std::string manifest;
-  std::map<Key, std::string> snapshots;
-};
-Index index(std::string_view contents, PackageInstallLimits limits) {
-  const auto table = toml::parse(contents);
-  require(table.size() == 3 && table["format"].is_integer() && table["format"].value<int>() == 1,
-          "invalid installed package index format");
-  auto manifest = table["manifest_digest"].value<std::string>();
-  const auto *packages = table["snapshots"].as_array();
-  require(manifest && digest(*manifest) && packages && packages->size() <= limits.maxPackages,
-          "invalid or oversized installed package index");
-  Index result{*manifest, {}};
-  for (const auto &node : *packages) {
-    const auto *item = node.as_table();
-    require(item && item->size() == 3, "invalid installed package record");
-    auto repository = (*item)["repository"].value<std::string>();
-    auto commit = (*item)["commit"].value<std::string>();
-    auto expected = (*item)["digest"].value<std::string>();
-    require(repository && commit && expected && digest(*expected) &&
-                result.snapshots.emplace(Key{*repository, *commit}, *expected).second,
-            "invalid or duplicate installed package identity");
-  }
-  return result;
+using Key = NativePackageKey;
+fs::path lockPath(const NativeProject &project) {
+  return fs::path(project.manifest).parent_path() / "kalandra.lock";
 }
-std::string serialize(const Index &index) {
-  toml::array snapshots;
-  for (const auto &[key, value] : index.snapshots)
-    snapshots.push_back(
-        toml::table{{"repository", key.first}, {"commit", key.second}, {"digest", value}});
-  const toml::table table{
-      {"format", 1}, {"manifest_digest", index.manifest}, {"snapshots", std::move(snapshots)}};
-  std::ostringstream text;
-  text << table;
-  return text.str();
+NativePackageLock lock(std::string_view contents, PackageInstallLimits limits) {
+  auto parsed =
+      parseNativePackageLock(contents, {limits.maxLockBytes, limits.maxPackages, limits.maxDepth});
+  require(bool(parsed), parsed ? "" : parsed.error());
+  return std::move(*parsed);
 }
 struct Resolved {
   InstalledNativeProject graph;
-  Index selected;
+  NativePackageLock selected;
 };
-Resolved resolve(const NativeProject &project, const Index &active, bool install,
-                 PackageInstallLimits limits) {
+Resolved resolve(const NativeProject &project, const NativePackageLock &active, bool fetch,
+                 bool validateSources, bool strict, PackageInstallLimits limits) {
+  require(!strict || sameNativeDependencies(project.dependencies, active.roots),
+          "dependency declarations differ from kalandra.lock; run kalandra install");
   const auto root = cache(project);
   Resolved result{{{{"workspace",
                      fs::path(project.manifest).parent_path().string(),
                      project.entry,
                      {},
                      project.packages}}},
-                  {hash(project.manifestContents), {}}};
+                  {hash(project.manifestContents), project.dependencies, {}}};
   std::map<Key, std::size_t> known;
   std::vector<bool> complete{false};
   std::vector<std::size_t> heights{0};
@@ -129,17 +98,24 @@ Resolved resolve(const NativeProject &project, const Index &active, bool install
         }
         require(known.size() < limits.maxPackages,
                 "package graph exceeds configured package limit");
-        const auto selected = active.snapshots.find(key);
-        require(install || selected != active.snapshots.end(),
+        const auto selected = active.packages.find(key);
+        require(fetch || selected != active.packages.end(),
                 "dependency is not active; run kalandra install --project " + project.manifest);
-        auto snapshot = install ? installGitSnapshot((root / "snapshots").string(),
-                                                     {key.first, key.second}, limits.snapshot)
-                                : loadGitSnapshot((root / "snapshots").string(),
-                                                  {key.first, key.second}, limits.snapshot);
+        auto snapshot = fetch ? installGitSnapshot((root / "snapshots").string(),
+                                                   {key.first, key.second}, limits.snapshot)
+                              : loadGitSnapshot((root / "snapshots").string(),
+                                                {key.first, key.second}, limits.snapshot);
         require(bool(snapshot), snapshot ? "" : snapshot.error());
-        if (selected != active.snapshots.end())
-          require(snapshot->digest == selected->second,
-                  "installed snapshot no longer matches its activation digest");
+        LockedNativePackage record{snapshot->digest,
+                                   fs::path(snapshot->library.entry)
+                                       .lexically_relative(fs::path(snapshot->directory) / "source")
+                                       .generic_string(),
+                                   snapshot->library.dependencies};
+        if (selected != active.packages.end())
+          require(record.digest == selected->second.digest &&
+                      record.entry == selected->second.entry &&
+                      sameNativeDependencies(record.dependencies, selected->second.dependencies),
+                  "installed snapshot does not match kalandra.lock digest, entry or dependencies");
         for (const auto &entry :
              fs::recursive_directory_iterator(fs::path(snapshot->directory) / "source")) {
           require(entries++ < limits.maxSourceEntries,
@@ -158,7 +134,7 @@ Resolved resolve(const NativeProject &project, const Index &active, bool install
                   "library local mapping entry is missing");
         const auto id = result.graph.nodes.size();
         known.emplace(key, id);
-        result.selected.snapshots.emplace(key, snapshot->digest);
+        result.selected.packages.emplace(key, std::move(record));
         result.graph.nodes.push_back(snapshot->library.node(snapshot->identity));
         complete.push_back(false);
         heights.push_back(0);
@@ -174,9 +150,9 @@ Resolved resolve(const NativeProject &project, const Index &active, bool install
     const auto target = visit(dependency, 1);
     result.graph.nodes[0].dependencies.push_back({dependency.name, target});
   }
-  require(install || result.selected.snapshots.size() == active.snapshots.size(),
-          "installed package index contains unexpected graph nodes");
-  if (install) {
+  require(!strict || result.selected.packages.size() == active.packages.size(),
+          "kalandra.lock contains unexpected graph nodes");
+  if (validateSources) {
     // Installation checks the reachable source imports before activation. Builds
     // perform this check later, with their own root overlays and CLI mappings.
     auto parsed = loadPackageModules(result.graph.nodes, {}, {128, limits.maxDepth});
@@ -203,14 +179,37 @@ bool within(const fs::path &path, const fs::path &root) {
   const auto relative = path.lexically_relative(root);
   return !relative.empty() && !relative.has_root_path() && *relative.begin() != "..";
 }
+fs::path outputIdentity(fs::path path) {
+  // weakly_canonical alone leaves a dangling final symlink unresolved. Follow
+  // that link too so outputs cannot create a missing reserved lock through it.
+  for (unsigned links = 0; links < 40; ++links) {
+    path = fs::weakly_canonical(path.parent_path()) / path.filename();
+    if (!fs::is_symlink(fs::symlink_status(path)))
+      return path.lexically_normal();
+    const auto target = fs::read_symlink(path);
+    path = (target.is_absolute() ? target : path.parent_path() / target).lexically_normal();
+  }
+  throw std::runtime_error("package output path contains too many symbolic links");
+}
 } // namespace
 std::expected<void, std::string> installNativeProject(std::string manifest,
-                                                      PackageInstallLimits limits) {
+                                                      PackageInstallLimits limits,
+                                                      PackageInstallOptions options) {
   try {
     auto project = loadNativeProject(std::move(manifest));
     require(bool(project), project ? "" : project.error());
+    const auto destination = lockPath(*project);
+    std::optional<std::string> before;
+    NativePackageLock active;
+    if (fs::exists(fs::symlink_status(destination))) {
+      before = read(destination, limits.maxLockBytes);
+      active = lock(*before, limits);
+    }
+    const bool matching = before && active.manifest == hash(project->manifestContents);
+    require((!options.frozen && !options.offline) || matching,
+            "frozen/offline install requires a matching kalandra.lock");
     const auto root = cache(*project);
-    directory(root, true);
+    directory(root, !options.offline);
     Guard guard;
     guard.fd =
         ::open((root / "install.guard").c_str(), O_CREAT | O_RDWR | O_NOFOLLOW | O_CLOEXEC, 0600);
@@ -220,21 +219,28 @@ std::expected<void, std::string> installNativeProject(std::string manifest,
             "package installation guard must be a private regular file");
     require(::flock(guard.fd, LOCK_EX | LOCK_NB) == 0,
             "another package installation is in progress");
-    directory(root / "snapshots", true);
-    const auto destination = root / "installed.toml";
-    std::optional<std::string> before;
-    Index active;
-    if (fs::exists(fs::symlink_status(destination))) {
-      before = read(destination, limits.maxIndexBytes);
-      active = index(*before, limits);
+    directory(root / "snapshots", !options.offline);
+    auto resolved = resolve(*project, active, !options.offline, true, matching, limits);
+    const auto contents = serializeNativePackageLock(resolved.selected);
+    // Validate generated records too; no unchecked graph is ever activated.
+    lock(contents, limits);
+    const auto unchanged = [&] {
+      require(read(project->manifest, 256 * 1024) == project->manifestContents,
+              "project manifest changed during installation; activation cancelled");
+      if (before)
+        require(read(destination, limits.maxLockBytes) == *before,
+                "kalandra.lock changed during installation; activation cancelled");
+      else
+        require(!fs::exists(fs::symlink_status(destination)),
+                "kalandra.lock appeared during installation; activation cancelled");
+    };
+    if (options.frozen || options.offline) {
+      unchanged();
+      return {}; // Neither mode rewrites even the lock's formatting or comments.
     }
-    auto resolved = resolve(*project, active, true, limits);
-    const auto contents = serialize(resolved.selected);
-    require(contents.size() <= limits.maxIndexBytes,
-            "installed package index exceeds configured byte limit");
     auto name = (root / ".activate-XXXXXX").string();
     const int fd = ::mkstemp(name.data());
-    require(fd >= 0, "cannot stage package activation");
+    require(fd >= 0, "cannot stage package lock activation");
     guard.temporary = name;
     std::size_t written = 0;
     while (written < contents.size()) {
@@ -243,21 +249,14 @@ std::expected<void, std::string> installNativeProject(std::string manifest,
         continue;
       if (count <= 0) {
         ::close(fd);
-        throw std::runtime_error("cannot write package activation");
+        throw std::runtime_error("cannot write package lock activation");
       }
       written += std::size_t(count);
     }
-    require(::close(fd) == 0, "cannot close package activation");
-    require(read(project->manifest, 256 * 1024) == project->manifestContents,
-            "project manifest changed during installation; activation cancelled");
-    if (before)
-      require(read(destination, limits.maxIndexBytes) == *before,
-              "package activation changed during installation");
-    else
-      require(!fs::exists(fs::symlink_status(destination)),
-              "package activation appeared during installation");
+    require(::close(fd) == 0, "cannot close package lock activation");
+    unchanged();
     require(::rename(guard.temporary.c_str(), destination.c_str()) == 0,
-            "cannot activate installed package graph");
+            "cannot activate kalandra.lock");
     guard.temporary.clear();
     return {};
   } catch (const std::exception &error) {
@@ -274,17 +273,17 @@ loadInstalledNativeProject(const NativeProject &project, PackageInstallLimits li
                                       project.entry,
                                       {},
                                       project.packages}}};
-    require(fs::exists(fs::symlink_status(root)),
-            "dependencies are not installed; run kalandra install --project " + project.manifest);
-    directory(root, false);
-    require(fs::exists(fs::symlink_status(root / "installed.toml")),
-            "dependency graph is not active; run kalandra install --project " + project.manifest);
-    directory(root / "snapshots", false);
-    const auto active = index(read(root / "installed.toml", limits.maxIndexBytes), limits);
-    require(active.manifest == hash(project.manifestContents),
-            "project manifest differs from installed graph; run kalandra install --project " +
+    const auto destination = lockPath(project);
+    require(fs::exists(fs::symlink_status(destination)),
+            "dependencies have no kalandra.lock; run kalandra install --project " +
                 project.manifest);
-    return resolve(project, active, false, limits).graph;
+    const auto active = lock(read(destination, limits.maxLockBytes), limits);
+    require(active.manifest == hash(project.manifestContents),
+            "project manifest differs from kalandra.lock; run kalandra install --project " +
+                project.manifest);
+    directory(root, false);
+    directory(root / "snapshots", false);
+    return resolve(project, active, false, false, true, limits).graph;
   } catch (const std::exception &error) {
     return std::unexpected(error.what());
   }
@@ -295,7 +294,12 @@ std::expected<void, std::string> protectNativePackageOutput(const NativeProject 
   try {
     const auto root = cache(project);
     const auto target = fs::absolute(output).lexically_normal();
-    const auto canonical = fs::weakly_canonical(target);
+    const auto canonical = outputIdentity(target);
+    const auto publicLock = lockPath(project);
+    std::error_code lockError;
+    require(!within(target, publicLock) && !within(canonical, outputIdentity(publicLock)) &&
+                !fs::equivalent(target, publicLock, lockError),
+            "package lock and output paths must be distinct");
     require(!within(target, root) && !within(canonical, root),
             "package cache and output paths must be distinct");
     if (!fs::exists(fs::symlink_status(root)))

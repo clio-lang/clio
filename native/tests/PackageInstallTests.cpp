@@ -15,8 +15,8 @@ int main(int argc, char **argv) {
     limits.maxSourceEntries = 0;
   else if (limit == "bytes")
     limits.maxSourceBytes = 1;
-  else if (limit == "index")
-    limits.maxIndexBytes = 1;
+  else if (limit == "lock")
+    limits.maxLockBytes = 1;
   else if (limit != "normal")
     return 2;
   if (mode == "install") {

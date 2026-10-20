@@ -1,11 +1,11 @@
 # Exact dependency installation
 
-The native tools now support `[dependencies]`, `kalandra install --project`, and
-an activated package graph for compiler/checker/Metal source builds. This initial
-workflow accepts **local or public HTTPS Git repositories and exact SHA-1 commits**.
-Numeric-loopback HTTP is supported for local development. SSH, authentication,
-mutable refs, public locks and registry/version solving remain later work. See
-[remote Git transport](native-remote-git.md) for URL, TLS and download rules.
+The native tools support `[dependencies]`, explicit `kalandra install --project`,
+and a locked graph for compiler/checker/Metal source builds. Dependencies use
+local or public HTTPS Git repositories and exact SHA-1 commits. Numeric-loopback
+HTTP is supported for local development. See [remote transport](native-remote-git.md)
+for URL/TLS/download rules and [package locks](native-package-lock.md) for the file
+format, activation and frozen/offline contracts.
 
 ## Declare and install
 
@@ -21,14 +21,12 @@ entry = "src/main.k"
 geometry = { git = "https://example.com/team/geometry.git", rev = "0123456789abcdef0123456789abcdef01234567" }
 ```
 
-Replace the illustrative URL and ID with a repository URL and its full lowercase
-40-digit commit ID. Local repositories instead use canonical absolute paths;
-`git -C /absolute/path/to/geometry rev-parse HEAD` can identify a local commit.
-A managed library declares its own `[dependencies]` in the same format. Tags,
-branches, abbreviations, unsupported remote protocols,
-relative local repository paths, unknown request fields and alias conflicts with
-`[packages]` are rejected. The parser validates declarations without opening Git
-repositories or installing anything.
+Replace the illustrative URL and ID with a repository and full lowercase 40-digit
+commit ID. Local repositories use canonical absolute paths. A managed library
+uses the same `[dependencies]` format. Tags, branches, abbreviations, unsupported
+remote protocols, relative local repository paths, unknown request fields and
+alias conflicts with `[packages]` are rejected. Declaration parsing does not open
+Git repositories or install anything.
 
 ```sh
 kalandra install --project my-app/kalandra.toml
@@ -36,106 +34,82 @@ kalandra-check --project my-app/kalandra.toml
 kalandra --project my-app/kalandra.toml -o my-app/program
 ```
 
-Installation requires an application `[project]` entry; libraries are installed
-transitively through their public `[package]` entries. Libraries can also supply
-example applications using both tables. The source imports remain ordinary bare
-aliases. Each library resolves through its own declared dependencies and private
-local mappings, so different versions retain distinct nominal types. Repeated
-aliases of one repository/commit share a node. Workspace `[packages]` and extra
-CLI `--package` mappings belong only to the workspace owner in a managed graph;
-they cannot override managed dependency aliases or leak into library scopes.
+Installation requires an application `[project]` entry. Libraries are installed
+transitively through their public `[package]` entries, and may supply example
+applications using both tables. Each library resolves imports through its own
+private aliases, local mappings and dependency versions. Different source
+identities retain distinct nominal types; repeated aliases of one identity share
+a node. Workspace/CLI `--package` mappings cannot override managed aliases or leak
+into library scopes.
 
-## Activation and offline builds
+## Lock and cache
 
-Generated state lives beside the manifest:
+Generated state is kept beside the manifest:
 
 ```text
+kalandra.lock
 .kalandra/
   install.guard
-  installed.toml
   snapshots/<identity>/snapshot.toml
   snapshots/<identity>/source/...
 ```
 
-Keep `.kalandra/` out of version control. `installed.toml` is a **private local
-activation index**, not the planned portable `kalandra.lock`. It binds the exact
-manifest bytes to selected repository/commit identities and snapshot digests.
-The index has a strict versioned schema and deterministic ordering. Cache paths
-are derived, not accepted from index data.
+Commit `kalandra.lock`. Keep `.kalandra/` out of version control. The public lock
+records root requests, exact identities, private dependency edges, relative
+public entries and source digests. It is the sole graph activation point; builds
+capture one complete lock generation and verify all selected snapshots offline.
+There is no private activation index to synchronize with it.
 
-The installer obtains a nonblocking project guard, imports/verifies every declared
-transitive snapshot and checks entry availability, alias scopes, dependency
-cycles/depth and reachable source imports. It validates syntax/import structure,
-not the complete language semantics or GPU execution capabilities. New snapshots
-can be published before activation; a failed graph leaves them unused and retains
-the previous index. An active graph never depends on partial snapshot staging.
+```sh
+kalandra install --project my-app/kalandra.toml --frozen
+kalandra install --project my-app/kalandra.toml --offline
+```
 
-The index is staged privately and atomically renamed last. Before activation,
-the installer checks that the manifest and prior index still match its captured
-inputs. Concurrent cooperating installers fail clearly on the held guard. A build
-reads one complete index generation, verifies each selected digest and reconstructs
-package scopes without Git access. Existing published snapshots are retained, so
-publishing a newer generation does not remove older build inputs.
+Frozen installation requires a matching lock, may import missing locked snapshots,
+and preserves the lock exactly. Offline installation also requires a complete
+verified cache and never invokes Git. Neither mode bootstraps a missing lock or
+rewrites source/manifest/lock files. Normal installation may create or update the
+lock after validating the complete graph. Existing source pins remain checked,
+including when the manifest changes. Mutable refs/version solving are not yet
+implemented.
 
-Editing the manifest, even a comment, requires explicit reinstallation. Editing
-source alone does not. Compiling/checking never fetches, installs, repairs cache
-files or activates a graph. Missing, stale, malformed, incomplete or corrupted
-state fails before output publication. Existing snapshots can be reused during
-installation even when their original repositories are unavailable; this does
-not add a separate `--offline` mode. `--offline` and `--frozen` are not accepted yet.
+Changing manifest bytes, even comments, requires explicit normal reinstallation.
+Source edits alone do not. Compilation/checking never fetches, installs, repairs
+cache files or activates a graph. Missing/stale/malformed locks, changed source
+pins and corrupt snapshots fail before output publication. Relocating a project
+with its cache works; remote identities can also reinstall a fresh cache using the
+committed lock. Absolute local repository identities remain machine-specific.
 
-Snapshot digests cover all source files/directories, and the activation index
-anchors those digests independently of per-snapshot metadata. Extra/missing
-activation records and conflicting digests are rejected. Relocating an application
-with its cache works while keeping its declared repository identities unchanged;
-local absolute repository declarations are not portable across machines. Remote
-URL identities are portable, but the current private index does not yet supply
-the public source-lock contract needed for a clean-machine reproducible reinstall.
+## Boundaries and qualification
 
-## Output protection and boundaries
+The installer holds a project guard and atomically publishes the complete lock
+last, after rechecking captured manifest/lock inputs. Failed resolution leaves an
+old lock intact; unused snapshots may remain. No package programs/hooks or source
+checkout filters execute. New cache directories are private. Process interruption
+can leave staging; no fsync/power-loss durability, hostile-filesystem sandbox or
+automatic pruning is promised. See the detailed [lock activation contract](native-package-lock.md).
 
-Project builds reserve the `.kalandra` namespace and reject output aliases to
-published cache files, including metadata, guards, unused snapshots and older
-generations. Direct paths, symlinks and hard links are checked for CPU executable,
-LLVM/MLIR and Metal source-emission outputs. Private staging is skipped during
-cache traversal because concurrent installers can remove it; output paths spelled
-inside the cache remain forbidden. Existing source/manifest protection still applies.
+Project outputs reserve the lock/cache namespaces and protect persistent files
+against direct, symlink and hard-link replacement. Old/unused snapshots remain
+protected. Private cache staging is skipped during traversal because a concurrent
+installer can remove it; paths explicitly inside the cache remain forbidden.
+Default whole-graph budgets are 64 packages, depth 32, 32768 source entries,
+128 MiB of source and 1 MiB of lock data. Snapshot and compiler limits also apply.
 
-New cache directories are private to the user. Existing directory permissions are
-not rewritten. Normal failures clean activation staging. A terminated process can
-leave unused staging files or snapshots; cleanup/pruning is later work. Files are
-closed before rename, but fsync/power-loss durability is not promised. The guard
-coordinates installers, not arbitrary hostile local edits; this is not a filesystem
-sandbox or a defense against coordinated source/metadata tampering by its owner.
+The native language server explicitly rejects managed dependency projects until
+its scoped integration is qualified. Use `kalandra-check --project` for checking.
+Formatting a source file remains independent of dependency installation.
 
-Defaults bound the graph to 64 unique packages, dependency depth to 32, aggregate
-source entries to 32768 and source bytes to 128 MiB, and index bytes to 1 MiB.
-Existing per-snapshot and compiler module/source budgets also apply. Output-alias
-scanning is bounded over persistent cache entries, so accumulated old generations
-can eventually require explicit cleanup. The resolver counts shared nodes once
-and retains path-height checks when a cached node is reached through a longer path.
+Acceptance covers private scopes, transitive versions, workers, JSON/stdin
+checking, rollback, guards, manifest/lock edits, stale/corrupt state, output aliases,
+offline builds and relocation. Generated workers run in debug, optimized,
+ASan/UBSan and TSan modes with one/four workers. Remote TLS/HTTP fixtures and
+relocated CPU compiler checks cover installation and offline use. Metal checks
+cover numerical imports and source emission/protection without new GPU execution.
 
-The native language server currently rejects managed dependency projects with an
-explicit message instead of flattening their scopes. Use `kalandra-check --project`
-for package-aware checking until editor integration is qualified. Formatting a
-source file remains independent of dependency installation.
-
-## Qualification and follow-ups
-
-Acceptance covers public installation, shared aliases, transitive versions and
-workers, JSON/stdin checking, malformed declarations, stale/corrupt state, failed
-child resolution, held guards, manifest changes during staging, deterministic
-activation, source/cache alias protection, offline builds and project relocation.
-Generated workers run in debug, optimized, ASan/UBSan and TSan modes with one/four
-workers; importer/resolver/checker paths and smaller budgets run under ASan/UBSan.
-[Remote acceptance](native-remote-git.md) adds controlled HTTP/TLS downloads,
-verification failures, redirection/authentication rejection, time/storage bounds,
-transitive rollback, offline workers and a relocated installed CPU compiler.
-Metal acceptance covers managed numerical imports and source emission/protection
-without GPU execution. The relocated CPU bundle also installs an exact dependency
-and builds workers with the original repository absent.
-
-See the [qualification record](../../native/metal-proof/evidence/native-package-install-2026-10-20.json).
-Remaining work includes authenticated/SSH transport, wider remote-host qualification,
-mutable refs/public locks, explicit frozen/offline modes, broader failure and
-crash qualification, installed Metal execution and package-aware editor support.
+Qualification records: [initial installation](../../native/metal-proof/evidence/native-package-install-2026-10-20.json),
+[remote transport](../../native/metal-proof/evidence/native-remote-git-2026-10-20.json),
+and [public locks](../../native/metal-proof/evidence/native-package-lock-2026-10-20.json).
+Remaining work includes mutable refs and update policy, authenticated/SSH transport,
+package-aware editor support, broader host/installed Metal qualification and crash
+recovery.

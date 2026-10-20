@@ -202,7 +202,7 @@ try:
     tls_manifest.write_text("format=1\n[project]\nentry='main.k'\n[dependencies]\n" + request('geometry', tls + '/geometry.git', first))
     (tls_app / 'main.k').write_text('from "geometry" import next\nfn main()->int64 ! TaskError:\n  try parallel:\n    try await spawn next(41)\n')
     run(args.compiler, 'install', '--project', tls_manifest, ok=False)
-    assert not (tls_app / '.kalandra/installed.toml').exists()
+    assert not (tls_app / 'kalandra.lock').exists()
     api('project', tls_manifest, tls + '/geometry.git', certificate=ca)
     # Installation from remote source must reject source links and local dependencies.
     for name, revision in [('unsafe', unsafe), ('local-dependency', local)]:
@@ -228,9 +228,23 @@ try:
     # Public CLI installs a complete transitive graph. Failed extension keeps it active.
     run(args.compiler, 'install', '--project', manifest)
     run(args.checker, '--project', manifest)
-    active = app / '.kalandra/installed.toml'
+    active = app / 'kalandra.lock'
     original = active.read_bytes()
-    assert len(tomllib.loads(original.decode())['snapshots']) == 2
+    assert len(tomllib.loads(original.decode())['packages']) == 2
+    fresh_app = root / 'fresh locked checkout'
+    fresh_app.mkdir()
+    fresh_manifest = fresh_app / 'kalandra.toml'
+    fresh_manifest.write_bytes(manifest.read_bytes())
+    (fresh_app / 'main.k').write_bytes((app / 'main.k').read_bytes())
+    (fresh_app / 'kalandra.lock').write_bytes(original)
+    with request_lock:
+        before_offline = len(requests)
+    run(args.compiler, 'install', '--project', fresh_manifest, '--offline', ok=False)
+    with request_lock:
+        assert len(requests) == before_offline
+    assert not (fresh_app / '.kalandra').exists()
+    run(args.compiler, 'install', '--project', fresh_manifest, '--frozen')
+    assert (fresh_app / 'kalandra.lock').read_bytes() == original
     text = manifest.read_text()
     manifest.write_text(text + request('missing', base + '/missing.git', first))
     run(args.compiler, 'install', '--project', manifest, ok=False)
@@ -267,8 +281,12 @@ finally:
 observed = len(requests)
 assert api('load', trusted, tls + '/geometry.git').stdout == trusted_result
 assert api('install', trusted, tls + '/geometry.git').stdout == trusted_result
-run(args.compiler, 'install', '--project', manifest)
+run(args.compiler, 'install', '--project', manifest, '--offline')
+run(args.compiler, 'install', '--project', manifest, '--frozen')
 assert active.read_bytes() == original
+run(args.checker, '--project', fresh_manifest)
+run(args.compiler, '--project', fresh_manifest, '-o', fresh_app / 'program')
+assert run(fresh_app / 'program').stdout == b'42\n'
 run(args.checker, '--project', manifest)
 run(args.checker, '--project', tls_manifest)
 run(args.compiler, '--project', tls_manifest, '-o', tls_app / 'program')

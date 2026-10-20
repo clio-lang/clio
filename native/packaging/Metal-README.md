@@ -32,4 +32,4 @@ is supplied separately. Signing/notarization, self-contained dependencies and
 other platforms remain unqualified. This Metal bundle is not yet uploaded by the
 CPU-only version-tag workflow.
 
-Exact-commit local or public HTTPS Git dependencies can be installed explicitly with `kalandra install --project path/to/kalandra.toml`. Installation requires system Git; subsequent project builds verify the activated cache offline. Remote installs verify TLS and require public repositories with full commit IDs. SSH, authenticated repositories, mutable refs and public lockfiles are not supported yet.
+Exact-commit local or public HTTPS Git dependencies can be installed explicitly with `kalandra install --project path/to/kalandra.toml`. Installation requires system Git; subsequent project builds verify the activated cache offline. Remote installs verify TLS and require public repositories with full commit IDs. Commit the generated `kalandra.lock`. Use `--frozen` to populate a cache from a matching lock without rewriting it, or `--offline` to require verified cached sources without invoking Git. SSH, authenticated repositories and mutable refs are not supported yet.

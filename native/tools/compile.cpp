@@ -27,12 +27,26 @@ bool write(const std::filesystem::path &path, const std::string &contents) {
 } // namespace
 int main(int argc, char **argv) {
   if (argc >= 2 && std::string_view(argv[1]) == "install") {
-    if (argc != 4 || std::string_view(argv[2]) != "--project" ||
-        std::string_view(argv[3]).empty()) {
-      std::cerr << "usage: kalandra install --project manifest.toml\n";
+    std::string manifest;
+    kalandra::PackageInstallOptions options;
+    bool invalid = false;
+    for (int i = 2; i < argc; ++i) {
+      const std::string_view argument = argv[i];
+      if (argument == "--project" && manifest.empty() && i + 1 < argc &&
+          !std::string_view(argv[i + 1]).starts_with("--"))
+        manifest = argv[++i];
+      else if (argument == "--frozen" && !options.frozen)
+        options.frozen = true;
+      else if (argument == "--offline" && !options.offline)
+        options.offline = true;
+      else
+        invalid = true;
+    }
+    if (invalid || manifest.empty()) {
+      std::cerr << "usage: kalandra install --project manifest.toml [--frozen] [--offline]\n";
       return 2;
     }
-    auto installed = kalandra::installNativeProject(argv[3]);
+    auto installed = kalandra::installNativeProject(manifest, {}, options);
     if (!installed) {
       std::cerr << installed.error() << '\n';
       return 1;

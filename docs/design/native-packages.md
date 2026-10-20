@@ -9,8 +9,9 @@ first N3-B foundation, including integrity and exclusive publication.
 The first [public installer](native-package-install.md) now activates complete
 exact-commit graphs for compiler/checker and Metal source builds.
 [Public HTTPS transport](native-remote-git.md) now extends the local snapshot path.
-Authenticated/SSH transport, mutable refs and the public lockfile below remain
-planned. Existing standalone local mapping workflows retain their behavior.
+[Public exact-commit locks](native-package-lock.md) now support frozen reinstalls
+and cache-only offline installation. Authenticated/SSH transport and mutable refs
+remain planned. Existing standalone local mapping workflows retain their behavior.
 
 The first native package workflow should support Git libraries, transitive
 source dependencies, a reproducible lockfile and offline builds. It should use
@@ -58,7 +59,7 @@ metadata, including prereleases; it does not override the resolved Git identity
 or imply that a range solver exists. A Git ref and a metadata version are not
 assumed to be equivalent merely because their strings resemble each other.
 
-A `rev` can select a tag, branch or exact commit. Mutable refs resolve to exact
+The planned `rev` extension can select a tag, branch or exact commit. Mutable refs will resolve to exact
 commits during installation and remain fixed by the lockfile afterward. Ref
 validation and branch/tag ambiguity must have explicit, tested rules; ambiguous
 selection should fail rather than silently prefer an unrelated ref.
@@ -118,9 +119,8 @@ initially, rather than introducing recursive resolution environments.
 
 ## Installation and the lockfile
 
-The intended complete public workflow is below. Only the first install command
-(with exact commit requests) and builds are currently implemented; frozen/offline
-flags and public locks remain planned:
+The public workflow below is implemented for exact commits. Mutable refs and
+their pin/update rules remain planned:
 
 ```sh
 kalandra install --project my-app/kalandra.toml
@@ -141,9 +141,11 @@ not machine-specific absolute cache paths. Commit it with the application.
 Unknown lock formats, mismatched declarations, inconsistent edges and malformed
 or out-of-bounds paths fail clearly; no partial graph is accepted.
 
-Normal installation reuses locked commits for unchanged requests even when a
-tag/branch moves. Changed declarations resolve the changed requests; the installer
-does not silently refresh unrelated locked dependencies. A later explicit update
+The planned mutable-ref extension will reuse locked commits for unchanged
+requests even when a tag/branch moves. Exact-commit installation already checks
+locked digests, public entries and dependency edges for unchanged identities.
+Changed declarations resolve the changed requests; the installer does not
+silently refresh unrelated locked dependencies. A later explicit update
 command can provide deliberate refresh behavior. `--frozen` requires a matching
 lockfile and cannot resolve a new version; it may fetch a missing locked snapshot.
 `--offline` requires both a matching lockfile and all verified snapshots locally,
@@ -213,7 +215,9 @@ N3-B now has a qualified local snapshot importer and complete exact-local graph
 activation through the compiler/checker and Metal source tools. Remote transport
 is implemented for public HTTPS and numeric-loopback HTTP with exact commits;
 SSH/authentication and wider hosted-server qualification remain. Managed editor
-support and broader installed Metal onboarding are pending, along with N3-C public locks and mutable refs.
+support and broader installed Metal onboarding are pending. N3-C now has
+[public locks and frozen/offline modes](native-package-lock.md) for exact commits;
+mutable refs and deliberate update policy remain.
 Registry discovery, SemVer ranges, add/remove/update conveniences,
 monorepo workspaces and cache pruning remain future work rather than hidden
 requirements of this first Git-based workflow.

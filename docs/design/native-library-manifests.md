@@ -86,8 +86,10 @@ graphs for compiler/checker/Metal source builds. Dependency declarations and
 snapshot integrity are verified without fetching during builds. Standalone local
 mappings retain their global behavior; in managed graphs they belong to the
 workspace or library owner declaring them. [Public HTTPS transport](native-remote-git.md)
-is implemented for exact commits. Public locks and managed editor integration remain in the [package workflow](native-packages.md). No version
-solver or public native ABI is introduced.
+and [public locks](native-package-lock.md) are implemented for exact commits.
+Mutable refs and managed editor integration remain in the
+[package workflow](native-packages.md). No version solver or public native ABI
+is introduced.
 
 The [qualification record](../../native/metal-proof/evidence/native-library-manifests-2026-10-20.json)
 records the selected checks. Metal qualification here covers source emission and

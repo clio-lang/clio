@@ -3,8 +3,9 @@
 The native installer now accepts public HTTPS repositories alongside local Git
 paths. Source imports, package-local scopes, nominal identity, graph activation
 and offline builds follow the existing [installation contract](native-package-install.md).
-This implements remote transport for exact commits; mutable refs and portable
-public lockfiles remain separate work.
+This implements remote transport for exact commits.
+[Public locks and frozen/offline modes](native-package-lock.md) now support
+reproducible graph reinstalls; mutable refs remain separate work.
 
 ```toml
 [dependencies]
@@ -66,6 +67,9 @@ limits do not promise a hard CPU or memory sandbox for system Git or its helpers
 Source/listing and whole-graph budgets still apply after fetch. No partially
 downloaded database is published, and ordinary failures remove staging.
 
+Frozen installs can populate a fresh cache from a matching committed lock.
+Offline installs require every snapshot and never fetch.
+
 Remote keys and nominal identities include the exact validated URL and commit,
 with a distinct versioned remote domain. Local cache keys remain unchanged.
 Different repository URLs are distinct identities even if they host identical
@@ -86,7 +90,7 @@ including trusted/untrusted certificates, hostname mismatch, redirects, authenti
 malformed packets, missing commits, a stalled server, object byte/entry limits,
 source/listing limits, symlink rejection and remote-to-local dependency rejection.
 Tests inject hostile ambient Git/proxy/TLS settings and verify that they are not
-used. Failed graph extension preserves the previous index and temporary snapshots
+used. Failed graph extension preserves the previous public lock and temporary snapshots
 are cleaned after normal failures.
 
 After shutting down both servers, acceptance reloads and reinstalls snapshots,
@@ -105,5 +109,5 @@ not a hosted native-library end-to-end result.
 
 Controlled servers and that probe do not establish compatibility with every hosted Git service,
 proxy, certificate setup, authentication method or Git version. Broader public-host qualification,
-authenticated/SSH transport, portable locks, frozen/offline flags, crash recovery
+authenticated/SSH transport, mutable refs, crash recovery
 and broader installed Metal execution remain separate qualification work.
