@@ -421,6 +421,34 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert client.references(main, 0, 3)["result"] is None
     client.finish()
 
+    # Nominal annotations, constructors and update labels use checked source identities.
+    client = Client()
+    client.init()
+    types = ("type Point:\n  x:int\ntype Other:\n  x:int\n"
+             "fn copy(point:Point)->Point:\n  point with {x:point.x+1}\n"
+             "fn main()->Point:\n  value:Point=Point {x:2}\n  copy(value)\n")
+    client.open(main, types)
+    line = types.splitlines()[7]
+    target = {"uri": main.as_uri(), "range": {"start": {"line": 0, "character": 5},
+                                               "end": {"line": 0, "character": 10}}}
+    for column in (line.index("Point"), line.rindex("Point")):
+        assert client.definition(main, 7, column)["result"] == target
+        assert client.hover(main, 7, column)["result"]["contents"]["value"] == "type Point"
+    assert len(client.references(main, 7, line.index("Point"))["result"]) == 5
+    assert len(client.references(main, 7, line.index("Point"), True)["result"]) == 6
+    label = line.index("x:")
+    field = client.definition(main, 7, label)["result"]
+    assert field["range"]["start"] == {"line": 1, "character": 2}
+    refs = client.references(main, 7, label)["result"]
+    assert len(refs) == 3 and {r["range"]["start"]["line"] for r in refs} == {5, 7}
+    assert client.hover(main, 7, label)["result"]["contents"]["value"] == "x: int64"
+    assert client.definition(main, 1, 4)["result"] is None  # Builtin type has no source declaration.
+    client.edits(main, [edit(0, 0, 0, "# 😀\r\n")], 2)
+    assert client.definition(main, 8, label)["result"]["range"]["start"]["line"] == 2
+    client.change(main, "type Point:\n  x:int\nfn main():\n  Point {bad:1}\n", 3)
+    assert client.definition(main, 3, 3)["result"] is None
+    client.finish()
+
     # A same-spelled local function cannot steal a re-exported alias's destination.
     leaf = root / "deep space#é.k"
     original = "export fn scale(value:int):\n  value*2\n"

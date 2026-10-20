@@ -369,6 +369,13 @@ struct ResolvedImport {
   std::optional<std::size_t> record;
   bool exported = false;
 };
+struct ResolvedSourceToken {
+  SourceSpan span;
+  std::optional<SourceSpan> declaration;
+  std::optional<ValueType> type;
+  // Nominal type tokens use a declaration header on hover; fields use their value type.
+  std::optional<std::size_t> record;
+};
 struct TypedModule {
   std::shared_ptr<const SourceFile> source;
   std::vector<Symbol> symbols;
@@ -376,6 +383,7 @@ struct TypedModule {
   std::vector<TypedFunction> functions;
   std::vector<TypedRecord> records;
   std::vector<ResolvedImport> imports = {};
+  std::vector<ResolvedSourceToken> sourceTokens = {};
 };
 struct SemanticLimits {
   std::size_t maxDepth = 128;

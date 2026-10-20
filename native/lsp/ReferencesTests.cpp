@@ -44,7 +44,7 @@ int main() {
     expect(shadow, shadow.find("value=2"), {shadow.find("value\n")});
     const std::string field =
         "type Box:\n  value:int\nfn main():\n  value=Box {value:42}\n  value.value\n";
-    expect(field, field.find("value:int"), {field.rfind("value")});
+    expect(field, field.find("value:int"), {field.find("value:42"), field.rfind("value")});
     expect(field, field.find("value=Box"), {field.find("value.value")});
     const std::string unused = "fn unused(value:int):\n  42\nfn main():\n  0\n";
     expect(unused, unused.find("unused"), {});

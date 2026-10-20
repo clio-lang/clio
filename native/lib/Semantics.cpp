@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <charconv>
 #include <limits>
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -119,6 +120,8 @@ public:
     if (!diagnostics_.empty())
       return {syntax_.source, {}, std::move(diagnostics_)};
     recordImportOrigins();
+    for (auto &[span, token] : sourceTokens_)
+      output_.sourceTokens.push_back(std::move(token));
     return {syntax_.source, std::move(output_), {}};
   }
 
@@ -226,7 +229,43 @@ private:
     return name == "true" || name == "false" || name == "if" || name == "else" || name == "and" ||
            name == "or" || name == "not" || name == "type" || name == "with";
   }
+  void rememberSourceToken(ResolvedSourceToken token) {
+    if (token.span.end > token.span.begin)
+      sourceTokens_.insert_or_assign(std::pair{token.span.begin, token.span.end}, std::move(token));
+  }
+  void rememberTypeUse(SourceSpan span, ValueType value) {
+    ResolvedSourceToken token{span, {}, value, {}};
+    const auto key = functionKey(syntax_.source->partIndex(span.begin), name(span));
+    if (const auto alias = aliases_.find(key); alias != aliases_.end())
+      token.declaration = syntax_.records[alias->second].name;
+    else if (value.record && *value.record < output_.records.size()) {
+      const auto declaration = output_.records[*value.record].declaration;
+      if (declaration.end > declaration.begin) {
+        token.declaration = declaration;
+        token.record = value.record;
+      }
+    }
+    rememberSourceToken(std::move(token));
+  }
   std::optional<ValueType> type(const TypeSyntax &syntax) {
+    auto result = resolveType(syntax);
+    if (result && !syntax.function) {
+      auto named = *result;
+      if (syntax.array) {
+        named.tensor = named.array = false;
+        named.shape.clear();
+      }
+      rememberTypeUse(syntax.name, named);
+      if (syntax.element) {
+        auto element = *result;
+        element.tensor = element.array = false;
+        element.shape.clear();
+        rememberTypeUse(*syntax.element, element);
+      }
+    }
+    return result;
+  }
+  std::optional<ValueType> resolveType(const TypeSyntax &syntax) {
     if (syntax.function) {
       std::vector<ValueType> parameters;
       for (const auto &parameter : syntax.function->parameters) {
@@ -500,19 +539,33 @@ private:
     active.erase(id);
     auto result = valid ? combineErrors(std::move(members), alias.name) : std::nullopt;
     resolvedAliases_[id] = result;
+    if (result)
+      rememberTypeUse(alias.name, recordType(*result));
     return result;
   }
   std::optional<std::size_t> resolveError(SourceSpan member,
                                           std::unordered_set<std::size_t> &active) {
-    if (name(member) == "TaskError")
-      return taskFamily();
+    if (name(member) == "TaskError") {
+      const auto id = taskFamily();
+      ValueType value;
+      value.builtin = BuiltinValue::TaskError;
+      rememberTypeUse(member, value);
+      return id;
+    }
     const auto key = functionKey(syntax_.source->partIndex(member.begin), name(member));
-    if (auto alias = aliases_.find(key); alias != aliases_.end())
-      return resolveAlias(alias->second, active);
+    if (auto alias = aliases_.find(key); alias != aliases_.end()) {
+      auto resolved = resolveAlias(alias->second, active);
+      if (resolved)
+        rememberTypeUse(member, recordType(*resolved));
+      return resolved;
+    }
     if (auto found = records_.find(key);
         found != records_.end() && output_.records[found->second].error) {
       const auto id = found->second;
-      return populateRecord(id, member) ? std::optional{id} : std::nullopt;
+      if (!populateRecord(id, member))
+        return {};
+      rememberTypeUse(member, recordType(id));
+      return id;
     }
     error("S072", "expected a declared error family or error alias", member);
     return {};
@@ -1305,6 +1358,8 @@ private:
             span);
       return {};
     }
+    if (!base)
+      rememberTypeUse(record.name, result);
     std::unordered_set<std::string> seen;
     std::vector<RecordFieldValue> values;
     for (const auto &field : record.fields) {
@@ -1316,6 +1371,7 @@ private:
               field.name);
         return {};
       }
+      rememberSourceToken({field.name, found->declaration, found->type, {}});
       auto value = expression(frame, field.value, found->type);
       if (!value)
         return {};
@@ -3876,6 +3932,7 @@ private:
   SemanticLimits limits_;
   CheckOptions options_;
   TypedModule output_;
+  std::map<std::pair<std::size_t, std::size_t>, ResolvedSourceToken> sourceTokens_;
   std::unordered_map<std::string, FunctionId> functions_;
   std::unordered_map<std::string, std::size_t> records_;
   std::unordered_map<std::string, std::size_t> aliases_;

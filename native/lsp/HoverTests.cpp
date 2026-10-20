@@ -77,7 +77,7 @@ int main() {
         "fn first(value:int):\n  value\nfn second(value:String):\n  value\nfn main():\n  0\n";
     expect(shadow, "value:int", "value: int64");
     expect(shadow, "value:String", "value: String");
-    require(!query(code, "int):"), "unmapped annotation guessed a type");
+    expect(code, "int):", "int: int64");
     auto parsed = parse(std::make_shared<const SourceFile>("hover.k", code));
     require(!lsp::hoverInfo(std::move(parsed), "other.k", 3), "foreign source position matched");
     std::string large = "fn large(";

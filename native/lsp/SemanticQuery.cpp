@@ -85,6 +85,13 @@ std::optional<std::vector<SourceLocation>> references(ParseResult syntax,
     if (token != identifiers.end())
       add(span, span, token->second);
   };
+  for (const auto &token : module.sourceTokens)
+    if (token.declaration) {
+      addDeclaration(*token.declaration);
+      const auto word = identifiers.find({token.span.begin, token.span.end});
+      if (word != identifiers.end())
+        add(token.span, *token.declaration, word->second);
+    }
   for (const auto &import : module.imports) {
     const auto addImport = [&](SourceSpan span) {
       const auto token = identifiers.find({span.begin, span.end});
@@ -177,6 +184,13 @@ std::optional<SemanticToken> semanticToken(ParseResult syntax, std::string_view 
     return mapped && mapped->source->path() == path && mapped->span.begin == token->span.begin &&
            mapped->span.end == token->span.end;
   };
+  for (const auto &token : module.sourceTokens)
+    if (exact(token.span)) {
+      selected.declaration = token.declaration;
+      selected.type = token.type;
+      selected.record = token.record;
+      return selected;
+    }
   for (const auto &import : module.imports)
     if (exact(import.name) || (import.alias && exact(*import.alias))) {
       selected.declaration = import.declaration;

@@ -81,6 +81,19 @@ int main(int argc, char **argv) {
     write("main.k", caller.substr(0, caller.find("fn main")) + "fn main():\n  0\n");
     auto refs = lsp::references(syntax(), *imported, false);
     require(refs && refs->size() == 4, "unused import origins lost");
+    const std::string typed = "from \"./facade.k\" import PublicBox as LocalBox\nfn "
+                              "identity(value:LocalBox)->LocalBox:\n  value with "
+                              "{value:value.value}\nfn main():\n  identity(LocalBox {value:2})\n";
+    write("main.k", typed);
+    const auto importedType = lsp::definition(syntax(), path, typed.find("value:LocalBox") + 6);
+    require(importedType && importedType->source->slice(importedType->span) == "Box",
+            "imported annotation target");
+    refs = lsp::references(syntax(), *importedType, false);
+    require(refs && refs->size() == 7, "imported annotation/constructor references");
+    auto field = lsp::definition(syntax(), path, typed.find("{value:") + 1);
+    require(field && field->source->path() == (root / "library.k").string() &&
+                field->span.begin == library.find("value:int", library.find("type Box")),
+            "imported update field target");
     write("main.k", "from \"./library.k\" import missing\nfn main():\n  0\n");
     require(!lsp::definition(syntax(), path, 27), "invalid import leaked partial navigation");
     std::cout << "Native import origins: functions, records, error aliases, re-exports, alias "
