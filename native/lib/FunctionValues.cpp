@@ -74,11 +74,223 @@ bool containsFunctionStorage(const TypedModule &module, const ValueType &type) {
   return false;
 }
 namespace {
-// Whole-module, conservative provenance. Every direct caller contributes to a
-// parameter, so one unsafe source cannot be hidden by another safe call site.
-// Lifted capture parameters come from their closure construction sites. Explicit
-// parameters of functions used as values remain staged: those can also be fed by
-// indirect calls and map callbacks, outside this direct-call source graph.
+// A bounded, whole-module may-flow graph. Aggregate projections deliberately
+// overapproximate fields/elements, but callable edges require exact signatures.
+class WorkerValueFlow {
+public:
+  WorkerValueFlow(const TypedModule &module, const std::unordered_map<SymbolId, ValueId> &bindings)
+      : targets(module.expressions.size()), module_(module), bindings_(bindings),
+        edges_(module.expressions.size()), uses_(module.expressions.size()),
+        references_(module.functions.size()) {}
+
+  std::unordered_map<SymbolId, std::unordered_set<ValueId>> parameterSources;
+  std::unordered_map<ValueId, std::unordered_set<FunctionId>> invocationTargets;
+  std::vector<std::unordered_set<FunctionId>> targets;
+
+  bool unknown(ValueId id) const {
+    return id >= targets.size() || targets[id].contains(module_.functions.size());
+  }
+
+  bool build() {
+    for (ValueId id = 0; id < module_.expressions.size(); ++id) {
+      const auto &value = module_.expressions[id];
+      if (const auto *read = std::get_if<SymbolRead>(&value.operation)) {
+        if (read->symbol >= module_.symbols.size())
+          return false;
+        reads_[read->symbol].push_back(id);
+      }
+      if (const auto *ref = std::get_if<FunctionReference>(&value.operation)) {
+        if (ref->function >= module_.functions.size())
+          return false;
+        references_[ref->function] = id;
+      }
+    }
+    for (ValueId id = 0; id < module_.expressions.size() && valid_; ++id) {
+      const auto &value = module_.expressions[id];
+      if (const auto *ref = std::get_if<FunctionReference>(&value.operation)) {
+        const auto &fn = module_.functions[ref->function];
+        if (fn.captureCount > fn.parameters.size() || ref->captures.size() != fn.captureCount)
+          return false;
+        seed(id, ref->function);
+        const auto explicitCount = fn.parameters.size() - fn.captureCount;
+        for (std::size_t i = 0; i < fn.captureCount; ++i)
+          source(fn.parameters[explicitCount + i], ref->captures[i]);
+      } else if (const auto *call = std::get_if<FunctionCall>(&value.operation)) {
+        if (call->function >= module_.functions.size())
+          return false;
+        const auto &fn = module_.functions[call->function];
+        if (fn.parameters.size() != call->arguments.size())
+          return false;
+        for (std::size_t i = 0; i < fn.parameters.size(); ++i)
+          source(fn.parameters[i], call->arguments[i]);
+        edge(fn.result, id);
+      } else if (const auto *call = std::get_if<FunctionInvoke>(&value.operation)) {
+        if (call->callee >= id)
+          return false;
+        uses_[call->callee].push_back(id);
+      } else if (const auto *map = std::get_if<ArrayMap>(&value.operation)) {
+        if (map->function >= module_.functions.size())
+          return false;
+        const auto &fn = module_.functions[map->function];
+        if (fn.parameters.size() != map->captures.size() + 1)
+          return false;
+        source(fn.parameters[0], map->input);
+        for (std::size_t i = 0; i < map->captures.size(); ++i)
+          source(fn.parameters[i + 1], map->captures[i]);
+        edge(fn.result, id);
+      } else if (const auto *read = std::get_if<SymbolRead>(&value.operation)) {
+        if (!module_.symbols[read->symbol].parameter) {
+          const auto found = bindings_.find(read->symbol);
+          if (found == bindings_.end() || found->second >= id)
+            seed(id, module_.functions.size());
+          else
+            edge(found->second, id);
+        }
+      } else if (const auto *record = std::get_if<RecordValue>(&value.operation)) {
+        if (record->base)
+          edge(*record->base, id);
+        for (const auto &field : record->fields)
+          edge(field.value, id);
+      } else if (const auto *array = std::get_if<TensorLiteral>(&value.operation)) {
+        for (auto element : array->elements)
+          edge(element, id);
+      } else if (const auto *field = std::get_if<RecordFieldRead>(&value.operation)) {
+        edge(field->input, id);
+      } else if (const auto *index = std::get_if<ArrayIndex>(&value.operation)) {
+        edge(index->input, id);
+      } else if (const auto *slice = std::get_if<ArraySlice>(&value.operation)) {
+        edge(slice->input, id);
+      } else if (const auto *concat = std::get_if<ArrayConcat>(&value.operation)) {
+        edge(concat->left, id);
+        edge(concat->right, id);
+      } else if (const auto *shape = std::get_if<ShapeCheck>(&value.operation)) {
+        edge(shape->input, id);
+      } else if (const auto *task = std::get_if<TaskOperation>(&value.operation)) {
+        edge(task->operand, id);
+      } else if (const auto *group = std::get_if<ParallelOperation>(&value.operation)) {
+        edge(group->result, id);
+      } else if (const auto *caught = std::get_if<CatchOperation>(&value.operation)) {
+        edge(caught->operand, id);
+        edge(caught->result, id);
+      } else if (const auto *choice = std::get_if<ConditionalOperation>(&value.operation)) {
+        edge(choice->trueResult, id);
+        edge(choice->falseResult, id);
+      } else if (const auto *match = std::get_if<MatchOperation>(&value.operation)) {
+        for (const auto &arm : match->cases)
+          edge(arm.result, id);
+      } else if (!std::holds_alternative<FailOperation>(value.operation)) {
+        seed(id, module_.functions.size());
+      }
+    }
+    drain();
+    // Missing sources and unresolved calls must not silently disappear from a
+    // partial target set. Unknown callees poison every compatible target's
+    // incoming parameters, preserving conservative checking of all callers.
+    for (const auto &[symbol, reads] : reads_)
+      if (module_.symbols[symbol].parameter && parameterSources[symbol].empty())
+        for (auto id : reads)
+          seed(id, module_.functions.size());
+    for (ValueId id = 0; id < module_.expressions.size(); ++id)
+      if (const auto *call = std::get_if<FunctionInvoke>(&module_.expressions[id].operation))
+        if (invocationTargets[id].empty())
+          seed(call->callee, module_.functions.size());
+    drain();
+    return valid_;
+  }
+
+private:
+  const TypedModule &module_;
+  const std::unordered_map<SymbolId, ValueId> &bindings_;
+  std::unordered_map<SymbolId, std::vector<ValueId>> reads_;
+  std::vector<std::unordered_set<ValueId>> edges_;
+  std::vector<std::vector<ValueId>> uses_;
+  std::vector<std::optional<ValueId>> references_;
+  std::vector<std::pair<ValueId, FunctionId>> pending_;
+  std::size_t next_ = 0;
+  std::size_t remaining_ = 300000;
+  bool valid_ = true;
+
+  bool step() {
+    if (!remaining_) {
+      valid_ = false;
+      return false;
+    }
+    --remaining_;
+    return valid_;
+  }
+  void seed(ValueId id, FunctionId target) {
+    if (!step() || id >= targets.size()) {
+      valid_ = false;
+      return;
+    }
+    if (containsFunctionStorage(module_, module_.expressions[id].type) &&
+        targets[id].insert(target).second)
+      pending_.emplace_back(id, target);
+  }
+  void edge(ValueId from, ValueId to) {
+    if (!step() || from >= targets.size() || to >= targets.size()) {
+      valid_ = false;
+      return;
+    }
+    if (!containsFunctionStorage(module_, module_.expressions[to].type) ||
+        !edges_[from].insert(to).second)
+      return;
+    const auto previous = targets[from];
+    for (auto target : previous)
+      seed(to, target);
+  }
+  void source(SymbolId symbol, ValueId value) {
+    if (!step() || symbol >= module_.symbols.size() || value >= targets.size()) {
+      valid_ = false;
+      return;
+    }
+    if (parameterSources[symbol].insert(value).second)
+      for (auto read : reads_[symbol])
+        edge(value, read);
+  }
+  bool compatible(FunctionId fn, ValueId callee) const {
+    return fn < references_.size() && references_[fn] &&
+           sameFunctionValueType(module_.expressions[*references_[fn]].type,
+                                 module_.expressions[callee].type);
+  }
+  void connect(ValueId id, FunctionId target) {
+    const auto &call = std::get<FunctionInvoke>(module_.expressions[id].operation);
+    if (!compatible(target, call.callee) || !invocationTargets[id].insert(target).second)
+      return;
+    const auto &fn = module_.functions[target];
+    if (fn.captureCount > fn.parameters.size() ||
+        fn.parameters.size() - fn.captureCount != call.arguments.size()) {
+      valid_ = false;
+      return;
+    }
+    for (std::size_t i = 0; i < call.arguments.size(); ++i) {
+      source(fn.parameters[i], call.arguments[i]);
+    }
+    edge(fn.result, id);
+  }
+  void drain() {
+    while (next_ < pending_.size() && step()) {
+      const auto [id, target] = pending_[next_++];
+      for (auto to : edges_[id])
+        seed(to, target);
+      for (auto call : uses_[id]) {
+        if (target < module_.functions.size()) {
+          connect(call, target);
+        } else {
+          seed(call, target);
+          for (FunctionId fn = 0; fn < references_.size() && step(); ++fn)
+            if (compatible(fn, id)) {
+              connect(call, fn);
+              for (auto symbol : module_.functions[fn].parameters)
+                for (auto read : reads_[symbol])
+                  seed(read, target);
+            }
+        }
+      }
+    }
+  }
+};
+
 bool workerValueProvenance(const TypedModule &module, ValueId root) {
   std::unordered_map<SymbolId, ValueId> bindings;
   const auto statements = [&](const auto &body) {
@@ -101,37 +313,9 @@ bool workerValueProvenance(const TypedModule &module, ValueId root) {
               statements(arm.body);
         },
         expression.operation);
-  std::unordered_map<SymbolId, std::vector<ValueId>> parameterSources;
-  std::unordered_set<SymbolId> indirectParameters;
-  for (const auto &expression : module.expressions) {
-    if (const auto *call = std::get_if<FunctionCall>(&expression.operation)) {
-      if (call->function >= module.functions.size())
-        return false;
-      const auto &fn = module.functions[call->function];
-      if (call->arguments.size() != fn.parameters.size())
-        return false;
-      for (std::size_t i = 0; i < fn.parameters.size(); ++i)
-        parameterSources[fn.parameters[i]].push_back(call->arguments[i]);
-    } else if (const auto *map = std::get_if<ArrayMap>(&expression.operation)) {
-      // Named map callbacks do not necessarily have a FunctionReference node.
-      // Do not mistake their element/capture parameters for direct-call-only ones.
-      if (map->function >= module.functions.size())
-        return false;
-      for (auto parameter : module.functions[map->function].parameters)
-        indirectParameters.insert(parameter);
-    } else if (const auto *ref = std::get_if<FunctionReference>(&expression.operation)) {
-      if (ref->function >= module.functions.size())
-        return false;
-      const auto &fn = module.functions[ref->function];
-      if (fn.captureCount > fn.parameters.size() || ref->captures.size() != fn.captureCount)
-        return false;
-      const auto explicitCount = fn.parameters.size() - fn.captureCount;
-      for (std::size_t i = 0; i < explicitCount; ++i)
-        indirectParameters.insert(fn.parameters[i]);
-      for (std::size_t i = 0; i < fn.captureCount; ++i)
-        parameterSources[fn.parameters[explicitCount + i]].push_back(ref->captures[i]);
-    }
-  }
+  WorkerValueFlow flow(module, bindings);
+  if (!flow.build())
+    return false;
   std::vector<ValueId> pending{root};
   std::unordered_set<ValueId> visited;
   std::size_t budget = 300000;
@@ -146,7 +330,7 @@ bool workerValueProvenance(const TypedModule &module, ValueId root) {
     if (!visited.insert(id).second)
       continue;
     const auto &value = module.expressions[id];
-    if (value.type.device)
+    if (value.type.device || flow.unknown(id))
       return false;
     if (!containsFunctionStorage(module, value.type))
       continue;
@@ -189,6 +373,21 @@ bool workerValueProvenance(const TypedModule &module, ValueId root) {
       if (call->function >= module.functions.size())
         return false;
       pending.push_back(module.functions[call->function].result);
+    } else if (const auto *call = std::get_if<FunctionInvoke>(&value.operation)) {
+      const auto candidates = flow.invocationTargets.find(id);
+      if (call->callee >= id || candidates == flow.invocationTargets.end() ||
+          candidates->second.empty())
+        return false;
+      if (flow.unknown(call->callee))
+        return false;
+      for (auto fn : candidates->second)
+        pending.push_back(module.functions[fn].result);
+    } else if (const auto *map = std::get_if<ArrayMap>(&value.operation)) {
+      if (map->function >= module.functions.size())
+        return false;
+      pending.push_back(module.functions[map->function].result);
+      pending.push_back(map->input);
+      pending.insert(pending.end(), map->captures.begin(), map->captures.end());
     } else if (const auto *task = std::get_if<TaskOperation>(&value.operation)) {
       if (task->operand >= id)
         return false;
@@ -210,9 +409,8 @@ bool workerValueProvenance(const TypedModule &module, ValueId root) {
       if (read->symbol >= module.symbols.size())
         return false;
       if (module.symbols[read->symbol].parameter) {
-        const auto sources = parameterSources.find(read->symbol);
-        if (indirectParameters.contains(read->symbol) || sources == parameterSources.end() ||
-            sources->second.empty())
+        const auto sources = flow.parameterSources.find(read->symbol);
+        if (sources == flow.parameterSources.end() || sources->second.empty())
           return false;
         pending.insert(pending.end(), sources->second.begin(), sources->second.end());
       } else {

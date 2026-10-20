@@ -19,7 +19,8 @@ int main() {
     for (const auto *directory :
          {KALANDRA_WORKER_FUNCTION_FIXTURES, KALANDRA_WORKER_CLOSURE_FIXTURES,
           KALANDRA_WORKER_NESTED_FIXTURES, KALANDRA_WORKER_RESULT_FIXTURES,
-          KALANDRA_WORKER_AGGREGATE_FIXTURES, KALANDRA_WORKER_PARAMETER_FIXTURES}) {
+          KALANDRA_WORKER_AGGREGATE_FIXTURES, KALANDRA_WORKER_PARAMETER_FIXTURES,
+          KALANDRA_WORKER_INDIRECT_FIXTURES}) {
       for (const auto &file : std::filesystem::directory_iterator(directory)) {
         if (file.path().extension() != ".k")
           continue;
@@ -33,7 +34,7 @@ int main() {
         ++count;
       }
     }
-    require(count == 77, "worker callable fixture catalog incomplete");
+    require(count == 94, "worker callable fixture catalog incomplete");
     const std::string base = "fn double(value:int)->int:\n  value*2\nfn "
                              "apply(value:int,transform:fn(int)->int)->int:\n  transform(value)\n";
     for (const auto *body :
@@ -57,16 +58,18 @@ int main() {
           std::ranges::any_of(result.diagnostics, [](const auto &d) { return d.code == "S074"; }),
           "unsupported transport lost its capability diagnostic");
     }
-    for (const auto &file : std::filesystem::directory_iterator(
-             std::filesystem::path(KALANDRA_WORKER_PARAMETER_FIXTURES) / "rejected")) {
-      if (file.path().extension() != ".k")
-        continue;
-      std::ifstream stream(file.path());
-      auto result = analyze({std::istreambuf_iterator<char>(stream), {}});
-      require(!result.ok() && std::ranges::any_of(result.diagnostics,
-                                                  [](const auto &d) { return d.code == "S074"; }),
-              "unproven parameter sources admitted");
-    }
+    for (const auto *directory :
+         {KALANDRA_WORKER_PARAMETER_FIXTURES, KALANDRA_WORKER_INDIRECT_FIXTURES})
+      for (const auto &file :
+           std::filesystem::directory_iterator(std::filesystem::path(directory) / "rejected")) {
+        if (file.path().extension() != ".k")
+          continue;
+        std::ifstream stream(file.path());
+        auto result = analyze({std::istreambuf_iterator<char>(stream), {}});
+        require(!result.ok() && std::ranges::any_of(result.diagnostics,
+                                                    [](const auto &d) { return d.code == "S074"; }),
+                "unproven parameter sources admitted");
+      }
     auto result = analyze(base + "fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    "
                                  "try await spawn apply(21,f)\n");
     require(result.ok(), "mutation fixture rejected");
@@ -110,7 +113,40 @@ int main() {
       require(changed && numericCapabilityError(module, NumericTarget::Cpu).has_value(),
               "forged function result task/signature admitted");
     }
-    std::cout << "Worker named functions: 77 valid programs, 8 rejected boundaries, 6 forged IR "
+    auto indirect =
+        analyze(base + "fn make()->fn(int)->int:\n  double\n"
+                       "fn main()->int ! TaskError:\n  factory=if true:make\n  else:make\n"
+                       "  f=factory()\n  try parallel:\n    try await spawn apply(21,f)\n");
+    require(indirect.ok(), "indirect provenance mutation fixture rejected");
+    for (unsigned mode = 0; mode < 2; ++mode) {
+      auto module = *indirect.module;
+      bool changed = false;
+      for (auto &expression : module.expressions) {
+        if (mode == 0)
+          if (const auto *ref = std::get_if<FunctionReference>(&expression.operation);
+              ref && module.functions[ref->function].name == "make") {
+            // One known branch must not hide an unknown branch's target.
+            expression.operation = BoolLiteral{false};
+            changed = true;
+            break;
+          }
+        if (mode == 1)
+          if (auto *call = std::get_if<FunctionInvoke>(&expression.operation)) {
+            call->callee = module.expressions.size();
+            changed = true;
+            break;
+          }
+      }
+      bool rejected = false;
+      for (const auto &expression : module.expressions)
+        if (const auto *task = std::get_if<TaskOperation>(&expression.operation);
+            task && task->prefix == TaskPrefix::Spawn)
+          rejected =
+              functionValueTransportError(module, module.expressions[task->operand]).has_value();
+      require(changed && rejected && numericCapabilityError(module, NumericTarget::Cpu).has_value(),
+              "partial or malformed indirect provenance admitted");
+    }
+    std::cout << "Worker named functions: 94 valid programs, 8 rejected boundaries, 8 forged IR "
                  "cases passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';
