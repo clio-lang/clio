@@ -86,7 +86,7 @@ cmake --build build/native --target native-editor-tools-package
 cmake --install build/native --prefix "$HOME/.local" --component NativeEditorTools
 ```
 
-The [installation guide](../docs/design/native-tools-install.md) covers the four installed commands, archive/checksums, PATH and the VS Code server setting. These tools can run independently of the checkout but still require the pinned LLVM runtime. `kalandrac`, generated-program runtimes and GPU bundles are separate distribution work.
+The [installation guide](../docs/design/native-tools-install.md) covers the four installed commands, archive/checksums, PATH and the VS Code server setting. These tools can run independently of the checkout but still require the pinned LLVM runtime. The [CPU compiler bundle](../docs/design/native-cpu-install.md) now adds `kalandrac` and its private runtime archives with `native-cpu-package`. [Version-tag release automation](../docs/design/native-releases.md) qualifies and uploads CPU/editor packages, classifying SemVer prereleases automatically. GPU bundles remain separate distribution work.
 
 ## Apple GPU toolchain proof
 

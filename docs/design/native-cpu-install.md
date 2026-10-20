@@ -1,0 +1,45 @@
+# Installing the native CPU compiler
+
+The CPU distribution combines the four [native editor tools](native-tools-install.md)
+with `kalandrac` and its compiler-private runtime archives. It targets macOS ARM64;
+Metal distribution remains separate work.
+
+```sh
+cmake --build build/native --target native-cpu-package
+```
+
+Extract `build/native/native-cpu/kalandra-native-cpu-macos-arm64.tar.gz` and add
+its `bin` directory to PATH. Keep `lib/kalandra/native` beside `bin`: the compiler
+resolves resources relative to its actual executable, including symlink invocation.
+It never falls back to archives from the development checkout.
+
+```sh
+kalandrac main.k -o program
+./program
+kalandrac --project path/to/kalandra.toml -O2 -o program
+```
+
+The package includes normal, ASan/UBSan and TSan runtime variants. `--sanitize`
+and `--thread-sanitize` remain separate builds. The 30 static archives are private
+implementation resources, not an installed C/C++ interoperability interface.
+Generated ordinary programs have no LLVM/MLIR dependency; sanitized programs also
+need the platform sanitizer runtime.
+
+LLVM/MLIR and Clang 22.1.8 remain external at the configured/linked paths, along
+with the Apple SDK. CI packages use Homebrew `llvm@22`. Install it with
+`brew install llvm@22` and install Apple command-line tools before compiling.
+Moving the bundle does not relocate LLVM or Clang. This is not a self-contained,
+signed or notarized toolchain, and other platforms are not qualified.
+
+For a custom prefix, build `native-cpu-toolchain`, then install **both** CMake
+components `NativeEditorTools` and `NativeCPUCompiler` with the same `--prefix`.
+Direct installation honors GNUInstallDirs and DESTDIR. The packaged archive
+requires the default `bin`, `lib` and `share` layout. Check the archive sidecar
+and extracted `SHA256SUMS` to detect accidental changes.
+
+`ctest --test-dir build/native -R '^native-cpu-install$' --output-on-failure`
+packages, relocates and removes the original stage, compiles from an unrelated
+working directory, checks result-entry and sanitizer variants, worker dispatch,
+project imports, generated-program dependencies and missing-resource failures.
+The independent editor-tools installation test covers the complete relocated LSP
+protocol suite. [Tag releases](native-releases.md) run both gates before upload.

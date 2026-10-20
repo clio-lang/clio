@@ -1,5 +1,5 @@
-# Initial developer-tool installation. Compiler/runtime and GPU bundles have
-# their own unresolved relocatable-resource requirements and are not installed.
+# Developer tools are independent of the adjacent CPU compiler component.
+# GPU bundles retain separate distribution requirements.
 include(GNUInstallDirs)
 set(KALANDRA_EDITOR_TOOLS kalandra-check kalandra-fmt kalandra-parse kalandra-lsp)
 add_custom_target(native-editor-tools DEPENDS ${KALANDRA_EDITOR_TOOLS})

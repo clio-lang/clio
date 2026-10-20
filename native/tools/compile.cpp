@@ -60,8 +60,13 @@ int main(int argc, char **argv) {
       filtered.push_back(build);
     return kalandra::compileMetalCommand(static_cast<int>(filtered.size()), filtered.data());
 #else
+#ifdef KALANDRA_INSTALLED_COMPILER
+    std::cerr
+        << "This installed compiler package supports CPU only; Metal packaging is not included\n";
+#else
     std::cerr << "Metal source support is disabled; configure both KALANDRA_BUILD_METAL_RUNTIME "
                  "and KALANDRA_BUILD_METAL_PROOF\n";
+#endif
     return 2;
 #endif
   }
@@ -219,6 +224,84 @@ int main(int argc, char **argv) {
     llvm::raw_string_ostream outputIR(lowered->llvm);
     module->print(outputIR, nullptr);
   }
+  // Installed compilers resolve only their adjacent private runtime resources.
+  // Never fall back to the build-tree archives when an installed file is missing.
+#ifdef KALANDRA_INSTALLED_COMPILER
+  static int executableAnchor;
+  std::error_code resourceError;
+  const auto executable = std::filesystem::canonical(
+      llvm::sys::fs::getMainExecutable(argv[0], &executableAnchor), resourceError);
+  if (resourceError) {
+    std::cerr << "cannot locate installed compiler executable\n";
+    return 1;
+  }
+  const auto runtimeRoot = executable.parent_path() / KALANDRA_RUNTIME_RELATIVE_DIR;
+  const auto runtimePath = [&](std::string_view name) { return (runtimeRoot / name).string(); };
+#else
+  const auto runtimePath = [](std::string_view name) { return std::string(name); };
+#endif
+  std::vector<std::string> archives{runtimePath(threadSanitize ? KALANDRA_THREAD_SANITIZED_RUNTIME
+                                                : sanitize     ? KALANDRA_SANITIZED_RUNTIME
+                                                               : KALANDRA_RUNTIME)};
+  const auto main =
+      std::ranges::find_if(typed.module->functions, [](const auto &f) { return f.name == "main"; });
+  const bool scalarMain = main != typed.module->functions.end() && !main->resultType.tensor;
+  if (main != typed.module->functions.end() && kalandra::isStringArray(main->resultType))
+    archives.insert(archives.begin(),
+                    threadSanitize ? runtimePath(KALANDRA_STRING_ARRAY_THREAD_SANITIZED_ENTRY)
+                    : sanitize     ? runtimePath(KALANDRA_STRING_ARRAY_SANITIZED_ENTRY)
+                                   : runtimePath(KALANDRA_STRING_ARRAY_ENTRY));
+  else if (main != typed.module->functions.end() && main->resultType.tensor)
+    archives.insert(archives.begin(), threadSanitize
+                                          ? runtimePath(KALANDRA_COLLECTION_THREAD_SANITIZED_ENTRY)
+                                      : sanitize ? runtimePath(KALANDRA_COLLECTION_SANITIZED_ENTRY)
+                                                 : runtimePath(KALANDRA_COLLECTION_ENTRY));
+  if (scalarMain && main->resultType.element == kalandra::NumericType::Int32)
+    archives.insert(archives.begin(), threadSanitize
+                                          ? runtimePath(KALANDRA_INT32_THREAD_SANITIZED_ENTRY)
+                                      : sanitize ? runtimePath(KALANDRA_INT32_SANITIZED_ENTRY)
+                                                 : runtimePath(KALANDRA_INT32_ENTRY));
+  if (scalarMain && main->resultType.element == kalandra::NumericType::UInt32)
+    archives.insert(archives.begin(), threadSanitize
+                                          ? runtimePath(KALANDRA_UINT32_THREAD_SANITIZED_ENTRY)
+                                      : sanitize ? runtimePath(KALANDRA_UINT32_SANITIZED_ENTRY)
+                                                 : runtimePath(KALANDRA_UINT32_ENTRY));
+  if (scalarMain && (main->resultType.element == kalandra::NumericType::Int64 ||
+                     main->resultType.element == kalandra::NumericType::Int8 ||
+                     main->resultType.element == kalandra::NumericType::Int16))
+    archives.insert(archives.begin(), threadSanitize
+                                          ? runtimePath(KALANDRA_INT64_THREAD_SANITIZED_ENTRY)
+                                      : sanitize ? runtimePath(KALANDRA_INT64_SANITIZED_ENTRY)
+                                                 : runtimePath(KALANDRA_INT64_ENTRY));
+  if (scalarMain && main->resultType.element == kalandra::NumericType::Float64)
+    archives.insert(archives.begin(), threadSanitize
+                                          ? runtimePath(KALANDRA_FLOAT64_THREAD_SANITIZED_ENTRY)
+                                      : sanitize ? runtimePath(KALANDRA_FLOAT64_SANITIZED_ENTRY)
+                                                 : runtimePath(KALANDRA_FLOAT64_ENTRY));
+  if (scalarMain && (main->resultType.element == kalandra::NumericType::UInt64 ||
+                     main->resultType.element == kalandra::NumericType::UInt8 ||
+                     main->resultType.element == kalandra::NumericType::UInt16))
+    archives.insert(archives.begin(), threadSanitize
+                                          ? runtimePath(KALANDRA_UINT64_THREAD_SANITIZED_ENTRY)
+                                      : sanitize ? runtimePath(KALANDRA_UINT64_SANITIZED_ENTRY)
+                                                 : runtimePath(KALANDRA_UINT64_ENTRY));
+  if (scalarMain && main->resultType.builtin == kalandra::BuiltinValue::String)
+    archives.insert(archives.begin(), threadSanitize
+                                          ? runtimePath(KALANDRA_STRING_THREAD_SANITIZED_ENTRY)
+                                      : sanitize ? runtimePath(KALANDRA_STRING_SANITIZED_ENTRY)
+                                                 : runtimePath(KALANDRA_STRING_ENTRY));
+  if (scalarMain && main->resultType.builtin == kalandra::BuiltinValue::Bool)
+    archives.insert(archives.begin(), threadSanitize
+                                          ? runtimePath(KALANDRA_BOOL_THREAD_SANITIZED_ENTRY)
+                                      : sanitize ? runtimePath(KALANDRA_BOOL_SANITIZED_ENTRY)
+                                                 : runtimePath(KALANDRA_BOOL_ENTRY));
+  for (const auto &archive : archives) {
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(archive, error)) {
+      std::cerr << "native runtime archive is missing: " << archive << '\n';
+      return 1;
+    }
+  }
   if (!mlirPath.empty() && !write(mlirPath, lowered->mlir)) {
     std::cerr << "cannot write MLIR\n";
     return 1;
@@ -251,60 +334,10 @@ int main(int argc, char **argv) {
   }
   llvm::sys::fs::closeFile(descriptor);
   llvm::FileRemover removeOutput(linkedOutput);
-  std::vector<std::string> command{KALANDRA_CLANGXX,
-                                   optimization,
-                                   "-ffp-contract=off",
-                                   "-Wno-override-module",
-                                   std::string(temporary),
-                                   threadSanitize ? KALANDRA_THREAD_SANITIZED_RUNTIME
-                                   : sanitize     ? KALANDRA_SANITIZED_RUNTIME
-                                                  : KALANDRA_RUNTIME,
-                                   "-o",
-                                   std::string(linkedOutput)};
-  const auto main = std::ranges::find_if(typed.module->functions,
-                                       [](const auto &f) { return f.name == "main"; });
-  const bool scalarMain = main != typed.module->functions.end() && !main->resultType.tensor;
-  if (main != typed.module->functions.end() && kalandra::isStringArray(main->resultType))
-    command.insert(command.begin() + 5, threadSanitize
-                                            ? KALANDRA_STRING_ARRAY_THREAD_SANITIZED_ENTRY
-                                        : sanitize ? KALANDRA_STRING_ARRAY_SANITIZED_ENTRY
-                                                   : KALANDRA_STRING_ARRAY_ENTRY);
-  else if (main != typed.module->functions.end() && main->resultType.tensor)
-    command.insert(command.begin() + 5, threadSanitize ? KALANDRA_COLLECTION_THREAD_SANITIZED_ENTRY
-                                        : sanitize     ? KALANDRA_COLLECTION_SANITIZED_ENTRY
-                                                       : KALANDRA_COLLECTION_ENTRY);
-  if (scalarMain && main->resultType.element == kalandra::NumericType::Int32)
-    command.insert(command.begin() + 5,
-                   threadSanitize ? KALANDRA_INT32_THREAD_SANITIZED_ENTRY
-                   : sanitize ? KALANDRA_INT32_SANITIZED_ENTRY : KALANDRA_INT32_ENTRY);
-  if (scalarMain && main->resultType.element == kalandra::NumericType::UInt32)
-    command.insert(command.begin() + 5, threadSanitize ? KALANDRA_UINT32_THREAD_SANITIZED_ENTRY
-                                        : sanitize     ? KALANDRA_UINT32_SANITIZED_ENTRY
-                                                       : KALANDRA_UINT32_ENTRY);
-  if (scalarMain && (main->resultType.element == kalandra::NumericType::Int64 ||
-                     main->resultType.element == kalandra::NumericType::Int8 ||
-                     main->resultType.element == kalandra::NumericType::Int16))
-    command.insert(command.begin() + 5, threadSanitize ? KALANDRA_INT64_THREAD_SANITIZED_ENTRY
-                                        : sanitize     ? KALANDRA_INT64_SANITIZED_ENTRY
-                                                       : KALANDRA_INT64_ENTRY);
-  if (scalarMain && main->resultType.element == kalandra::NumericType::Float64)
-    command.insert(command.begin() + 5, threadSanitize ? KALANDRA_FLOAT64_THREAD_SANITIZED_ENTRY
-                                        : sanitize     ? KALANDRA_FLOAT64_SANITIZED_ENTRY
-                                                       : KALANDRA_FLOAT64_ENTRY);
-  if (scalarMain && (main->resultType.element == kalandra::NumericType::UInt64 ||
-                     main->resultType.element == kalandra::NumericType::UInt8 ||
-                     main->resultType.element == kalandra::NumericType::UInt16))
-    command.insert(command.begin() + 5, threadSanitize ? KALANDRA_UINT64_THREAD_SANITIZED_ENTRY
-                                        : sanitize     ? KALANDRA_UINT64_SANITIZED_ENTRY
-                                                       : KALANDRA_UINT64_ENTRY);
-  if (scalarMain && main->resultType.builtin == kalandra::BuiltinValue::String)
-    command.insert(command.begin() + 5, threadSanitize ? KALANDRA_STRING_THREAD_SANITIZED_ENTRY
-                                        : sanitize     ? KALANDRA_STRING_SANITIZED_ENTRY
-                                                       : KALANDRA_STRING_ENTRY);
-  if (scalarMain && main->resultType.builtin == kalandra::BuiltinValue::Bool)
-    command.insert(command.begin() + 5, threadSanitize ? KALANDRA_BOOL_THREAD_SANITIZED_ENTRY
-                                        : sanitize     ? KALANDRA_BOOL_SANITIZED_ENTRY
-                                                       : KALANDRA_BOOL_ENTRY);
+  std::vector<std::string> command{KALANDRA_CLANGXX, optimization, "-ffp-contract=off",
+                                   "-Wno-override-module", std::string(temporary)};
+  command.insert(command.end(), archives.begin(), archives.end());
+  command.insert(command.end(), {"-o", std::string(linkedOutput)});
   if (sanitize) {
     command.push_back("-fsanitize=address,undefined");
     command.push_back("-fno-sanitize-recover=all");
