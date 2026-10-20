@@ -1,6 +1,7 @@
 #include "Edits.h"
 #include "Hover.h"
 #include "SemanticQuery.h"
+#include "Workspace.h"
 #include "kalandra/Diagnostics.h"
 #include "kalandra/Project.h"
 #include "kalandra/Semantics.h"
@@ -144,7 +145,7 @@ int hex(char c) {
     return c - 'A' + 10;
   return -1;
 }
-std::optional<std::string> pathFromUri(llvm::StringRef ref) {
+std::optional<std::string> pathFromUri(llvm::StringRef ref, bool source = true) {
   std::string_view uri(ref.data(), ref.size());
   if (!uri.starts_with("file://"))
     return {};
@@ -164,7 +165,7 @@ std::optional<std::string> pathFromUri(llvm::StringRef ref) {
       path += uri[at];
   }
   if (!validUtf8(path) || path.find_first_of(std::string("\0\r\n", 3)) != path.npos ||
-      fs::path(path).extension() != ".k")
+      (source && fs::path(path).extension() != ".k"))
     return {};
   std::error_code ec;
   const auto canonical = fs::weakly_canonical(fs::path(path), ec);
@@ -212,11 +213,44 @@ class Session {
   std::size_t bytes = 0;
   std::optional<NativeProject> project;
   CheckOptions options;
+  std::vector<std::string> workspaces;
 
 public:
   bool initialized = false, shutdown = false, hoverMarkdown = false;
   Session(std::optional<NativeProject> p, bool placement) : project(std::move(p)) {
     options.placement = placement;
+  }
+  std::optional<std::string> configureWorkspaces(const j::Object &params) {
+    std::set<std::string> roots;
+    const auto add = [&](llvm::StringRef uri) {
+      auto path = pathFromUri(uri, false);
+      std::error_code ec;
+      if (!path || !fs::is_directory(*path, ec) || ec)
+        return false;
+      roots.insert(std::move(*path));
+      return true;
+    };
+    const auto folders = params.get("workspaceFolders");
+    const auto root = params.get("rootUri");
+    if (folders && !folders->getAsNull()) {
+      const auto array = folders->getAsArray();
+      if (!array || array->size() > 16)
+        return "Expected at most 16 workspace folders";
+      for (const auto &value : *array) {
+        const auto folder = value.getAsObject();
+        const auto uri = folder ? folder->getString("uri") : std::nullopt;
+        if (!uri || !add(*uri))
+          return "Expected accessible local workspace directory URIs";
+      }
+    } else if (root && !root->getAsNull()) {
+      const auto uri = root->getAsString();
+      if (!uri || !add(*uri))
+        return "Expected an accessible local rootUri directory";
+    } else if (!folders && !root && project) {
+      roots.insert(fs::path(project->manifest).parent_path().string());
+    }
+    workspaces.assign(roots.begin(), roots.end());
+    return {};
   }
   void refresh() {
     std::vector<SourceOverlay> overlays;
@@ -339,9 +373,20 @@ public:
         return;
       }
       std::set<std::string> roots;
+      const auto workspace = lsp::containingWorkspace(workspaces, *path);
+      if (workspace) {
+        auto discovered = lsp::discoverSources(*workspace);
+        if (!discovered) {
+          error(id, -32803, discovered.error());
+          return;
+        }
+        roots.insert(discovered->begin(), discovered->end());
+      }
       for (const auto &[file, document] : documents)
-        roots.insert(file);
-      if (project)
+        if (workspace ? lsp::containsPath(*workspace, file) : workspaces.empty() || file == *path)
+          roots.insert(file);
+      if (project &&
+          (workspace ? lsp::containsPath(*workspace, project->entry) : workspaces.empty()))
         roots.insert(project->entry);
       std::map<std::tuple<std::string, std::size_t, std::size_t>, lsp::SourceLocation> found;
       std::size_t scanned = 0;
@@ -358,7 +403,7 @@ public:
         }
         auto locations = lsp::references(std::move(*graph), *target, *includeDeclaration, options);
         if (!locations) {
-          error(id, -32803, "Cannot search references: an open or project source graph has errors");
+          error(id, -32803, "Cannot search references: a searched source graph has errors");
           return;
         }
         for (auto &location : *locations) {
@@ -580,6 +625,10 @@ int main(int argc, char **argv) {
           continue;
         }
         const auto params = object->getObject("params");
+        if (auto failure = session.configureWorkspaces(*params)) {
+          error(*id, -32602, *failure);
+          continue;
+        }
         const auto capabilities = params->getObject("capabilities");
         const auto document = capabilities ? capabilities->getObject("textDocument") : nullptr;
         const auto hover = document ? document->getObject("hover") : nullptr;
@@ -597,16 +646,20 @@ int main(int argc, char **argv) {
             {"jsonrpc", "2.0"},
             {"id", *id},
             {"result",
-             j::Object{{"capabilities",
-                        j::Object{{"positionEncoding", "utf-16"},
-                                  {"hoverProvider", true},
-                                  {"definitionProvider", true},
-                                  {"referencesProvider", true},
-                                  {"textDocumentSync",
-                                   j::Object{{"openClose", true},
-                                             {"change", 2},
-                                             {"save", j::Object{{"includeText", false}}}}}}},
-                       {"serverInfo", j::Object{{"name", "kalandra-native"}}}}}});
+             j::Object{
+                 {"capabilities",
+                  j::Object{{"positionEncoding", "utf-16"},
+                            {"hoverProvider", true},
+                            {"definitionProvider", true},
+                            {"referencesProvider", true},
+                            {"workspace", j::Object{{"workspaceFolders",
+                                                     j::Object{{"supported", true},
+                                                               {"changeNotifications", false}}}}},
+                            {"textDocumentSync",
+                             j::Object{{"openClose", true},
+                                       {"change", 2},
+                                       {"save", j::Object{{"includeText", false}}}}}}},
+                 {"serverInfo", j::Object{{"name", "kalandra-native"}}}}}});
       } else if (!session.initialized) {
         if (request)
           error(*id, -32002, "Server not initialized");

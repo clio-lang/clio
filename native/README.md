@@ -44,7 +44,7 @@ Compiler implementation ownership is separate from Kalandra's automatic memory m
 
 ## Current targets
 
-The [native language server](../docs/design/native-language-server.md) checks open `.k` buffers and publishes diagnostics over stdio. Build the `kalandra-lsp` target to connect an editor client.
+The [native language server](../docs/design/native-language-server.md) checks open `.k` buffers and publishes diagnostics over stdio. References also search eligible unopened `.k` files in the configured workspace, subject to documented exclusions and scan limits. Build the `kalandra-lsp` target to connect an editor client.
 
 The checker supports [versioned JSON diagnostics](../docs/design/native-diagnostics.md) through `--diagnostics=json`, including original module filenames and UTF-16 editor ranges. [Unsaved source checking](../docs/design/native-source-overlays.md) supports a root buffer via `--stdin` and multiple replacement buffers through the native loader API.
 

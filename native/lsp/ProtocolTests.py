@@ -67,15 +67,16 @@ class Client:
         events, self.events = self.events, []
         return events
 
-    def init(self, formats=None):
+    def init(self, formats=None, **workspace):
         capabilities = {} if formats is None else {"textDocument": {"hover": {"contentFormat": formats}}}
-        result = self.rpc("initialize", {"capabilities": capabilities})["result"]
+        result = self.rpc("initialize", {"capabilities": capabilities, **workspace})["result"]
         caps = result["capabilities"]
         assert caps["positionEncoding"] == "utf-16"
         assert caps["textDocumentSync"]["change"] == 2  # Incremental UTF-16 changes.
         assert caps["hoverProvider"] is True
         assert caps["definitionProvider"] is True
         assert caps["referencesProvider"] is True
+        assert caps["workspace"]["workspaceFolders"] == {"supported": True, "changeNotifications": False}
         assert not caps.get("completionProvider")
         self.send("initialized", {})
 
@@ -559,10 +560,155 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     # Explicit package mappings also retain the ultimate source declaration.
     manifest.write_text('format=1\n[project]\nentry="main.k"\n[packages]\nmath="public.k"\n')
     client = Client("--project", str(manifest))
-    client.init()
+    client.init(workspaceFolders=[])
     client.open(main, caller.replace('"./public.k"', '"math"'))
     assert client.definition(main, 4, 4)["result"]["uri"] == leaf.as_uri()
     assert len(client.references(main, 4, 4, True)["result"]) == 6
+    client.finish()
+
+    # Workspace discovery includes unopened importers, with fresh reads and buffer precedence.
+    workspace = root / "workspace space#é"
+    workspace.mkdir()
+    (workspace / "nested").mkdir()
+    ws_lib = workspace / "lib.k"
+    ws_source = "export fn twice(value:int):\n  value*2\n"
+    ws_lib.write_text(ws_source)
+    first = workspace / "first.k"
+    first_source = 'from "./lib.k" import twice\nfn main():\n  twice(1)\n'
+    first.write_text(first_source)
+    second = workspace / "nested" / "second.k"
+    second.write_text(first_source.replace('"./lib.k"', '"../lib.k"'))
+    sibling = root / "workspace-other"
+    sibling.mkdir()
+    broken = sibling / "bad.k"
+    broken.write_text("fn main():\n  unknown\n")
+    folders = [{"uri": workspace.as_uri(), "name": "project"},
+               {"uri": sibling.as_uri(), "name": "other"}]
+    client = Client()
+    client.init(workspaceFolders=folders)
+    client.open(ws_lib, ws_source)
+    client.open(broken, broken.read_text())
+    refs = client.references(ws_lib, 0, 11)["result"]
+    assert len(refs) == 4 and {r["uri"] for r in refs} == {first.as_uri(), second.as_uri()}
+    assert len(client.references(ws_lib, 0, 11, True)["result"]) == 5
+    first.write_text("# disk edit\n"+first_source)
+    refs = client.references(ws_lib, 0, 11)["result"]
+    assert any(r["uri"] == first.as_uri() and r["range"]["start"]["line"] == 3 for r in refs)
+    added = workspace / "added.k"
+    added.write_text(first_source)
+    assert len(client.references(ws_lib, 0, 11)["result"]) == 6
+    added.unlink()
+    assert len(client.references(ws_lib, 0, 11)["result"]) == 4
+    first.write_text("fn main():\n  missing\n")
+    first_uri = first.as_uri().replace("file:///", "file://localhost/")
+    client.send("textDocument/didOpen", {"textDocument": {"uri": first_uri,
+        "languageId": "kalandra", "version": 1, "text": first_source}})
+    refs = client.references(ws_lib, 0, 11)["result"]
+    assert len(refs) == 4 and any(r["uri"] == first_uri for r in refs)
+    client.send("textDocument/didClose", {"textDocument": {"uri": first_uri}})
+    assert client.references(ws_lib, 0, 11)["error"]["code"] == -32803
+    first.write_text(first_source)
+    client.change(ws_lib, "export fn twice(value:String):\n  value\n", 2)
+    assert client.references(ws_lib, 0, 11)["error"]["code"] == -32803
+    client.change(ws_lib, ws_source, 3)
+    for excluded in (".git", ".hg", ".svn", "node_modules", "build", "dist", "target",
+                     ".cache", ".svelte-kit", ".vercel"):
+        directory = workspace / excluded
+        directory.mkdir()
+        (directory / "bad.k").write_text("fn main():\n  unknown\n")
+    (workspace / "external-link").symlink_to(sibling, target_is_directory=True)
+    (workspace / "file-link.k").symlink_to(broken)
+    assert len(client.references(ws_lib, 0, 11)["result"]) == 4
+    client.finish()
+
+    # rootUri fallback and workspaceFolders precedence; no dynamic folder changes advertised.
+    client = Client()
+    client.init(rootUri=workspace.as_uri())
+    client.open(ws_lib, ws_source)
+    assert len(client.references(ws_lib, 0, 11)["result"]) == 4
+    client.finish()
+    client = Client()
+    client.init(workspaceFolders=folders, rootUri="invalid ignored root")
+    client.open(ws_lib, ws_source)
+    assert len(client.references(ws_lib, 0, 11)["result"]) == 4
+    outside = root / "standalone.k"
+    standalone = "fn only()->int:\n  1\nfn main():\n  only()\n"
+    client.open(outside, standalone)
+    assert len(client.references(outside, 0, 4)["result"]) == 1  # Outside configured roots: own graph only.
+    client.finish()
+
+    # An explicitly nested workspace isolates its query from the containing project's errors.
+    nested_workspace = workspace / "island"
+    nested_workspace.mkdir()
+    island_lib = nested_workspace / "lib.k"
+    island_lib.write_text(ws_source)
+    (nested_workspace / "caller.k").write_text(first_source)
+    outer_bad = workspace / "bad.k"
+    outer_bad.write_text("fn main():\n  missing\n")
+    client = Client()
+    client.init(workspaceFolders=[folders[0], {"uri": nested_workspace.as_uri(), "name": "nested"}])
+    client.open(island_lib, ws_source)
+    assert len(client.references(island_lib, 0, 11)["result"]) == 2
+    client.finish()
+    outer_bad.unlink()
+
+    # Explicit manifest-directory discovery supplies package mappings to unopened roots.
+    project_dir = root / "discovered-project"
+    project_dir.mkdir()
+    project_lib = project_dir / "lib.k"
+    project_lib.write_text(ws_source)
+    package_caller = first_source.replace('"./lib.k"', '"math"')
+    (project_dir / "main.k").write_text(package_caller)
+    (project_dir / "unopened.k").write_text(package_caller)
+    project_manifest = project_dir / "kalandra.toml"
+    project_manifest.write_text('format=1\n[project]\nentry="main.k"\n[packages]\nmath="lib.k"\n')
+    client = Client("--project", str(project_manifest))
+    client.init()
+    client.open(project_lib, ws_source)
+    assert len(client.references(project_lib, 0, 11)["result"]) == 4
+    client.finish()
+    client = Client("--project", str(project_manifest))
+    client.init(workspaceFolders=[])
+    client.open(project_lib, ws_source)
+    assert len(client.references(project_lib, 0, 11)["result"]) == 2  # Explicit opt-out, project entry retained.
+    client.finish()
+
+    # Explicit imports may reach external packages; discovery does not crawl their directories.
+    external_package = root / "external-package.k"
+    external_package.write_text(ws_source)
+    project_manifest.write_text('format=1\n[project]\nentry="main.k"\n[packages]\nmath="../external-package.k"\n')
+    client = Client("--project", str(project_manifest))
+    client.init()
+    client.open(project_dir / "main.k", package_caller)
+    refs = client.references(project_dir / "main.k", 2, 3, True)["result"]
+    assert len(refs) == 5 and any(r["uri"] == external_package.as_uri() for r in refs)
+    assert all(r["uri"] != project_lib.as_uri() for r in refs)  # Same spelling, distinct declaration.
+    client.finish()
+
+    # Initialization validates roots transactionally and permits a corrected initialize request.
+    for params in ({"workspaceFolders": {}}, {"workspaceFolders": [{"uri": broken.as_uri()}]},
+                   {"rootUri": "https://example.com/"}, {"rootUri": (root/"missing").as_uri()},
+                   {"workspaceFolders": [folders[0]]*17}):
+        client = Client()
+        assert client.rpc("initialize", {"capabilities": {}, **params})["error"]["code"] == -32602
+        client.init(workspaceFolders=[])
+        client.finish()
+
+    # Discovery budgets fail explicitly before yielding a partial array, and recover next request.
+    limited = root / "limited-workspace"
+    limited.mkdir()
+    limited_lib = limited / "lib.k"
+    limited_lib.write_text(ws_source)
+    for number in range(512):
+        (limited / f"{number}.k").write_text("")
+    client = Client()
+    client.init(rootUri=limited.as_uri())
+    client.open(limited_lib, ws_source)
+    response = client.references(limited_lib, 0, 11)
+    assert response["error"]["code"] == -32803 and "source-file budget" in response["error"]["message"]
+    for number in range(512):
+        (limited / f"{number}.k").unlink()
+    assert client.references(limited_lib, 0, 11)["result"] == []
     client.finish()
 
     invalid_stream(b"Content-Length: 0\r\n\r\n")
