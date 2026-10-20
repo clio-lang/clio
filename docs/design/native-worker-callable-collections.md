@@ -22,9 +22,9 @@ Unknown function origins and unsupported transitive captures remain `S074` error
 
 This milestone does not extend `shape` to ordinary arrays: it remains a numeric tensor query. [Function-containing worker error payloads](native-worker-error-functions.md) are now supported. Resumable first-class functions and placement-aware/GPU callbacks remain separate work.
 
-## Parallel mapping remains a core requirement
+## Parallel mapping
 
-`spawn map(values, callback)` still schedules one sequential loop as one CPU task. This does not fulfill the [planned parallel-map requirement](../roadmap.md#immediate-accepted-core-queue). Parallel mapping must be a simple language/runtime operation with bounded scheduling, ordered results, grouped errors and cancellation. Users should not have to write recursive split/spawn/join helpers or assemble intermediate slices and concatenations.
+`spawn map(values, callback)` schedules one sequential loop as one CPU task. Use [`parallelMap(values, callback)`](native-parallel-map.md) to run element calls through bounded CPU task batches and receive ordered results. Users do not assemble recursive split/spawn/join helpers.
 
 ## Qualification
 

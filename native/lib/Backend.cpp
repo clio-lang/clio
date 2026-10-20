@@ -1818,6 +1818,8 @@ private:
                 });
             return loop.getResult(0);
           } else if constexpr (std::is_same_v<T, ArrayMap>) {
+            if (operation.parallel)
+              throw std::runtime_error("parallelMap requires CPU continuation lowering");
             auto input = expression(frame, operation.input);
             SmallVector<Value> captures;
             for (auto capture : operation.captures)

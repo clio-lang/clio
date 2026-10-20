@@ -4,6 +4,8 @@ Implementation design — 2026-10-15. This makes the accepted [execution model](
 
 Keep the source model small: immutable values, a parallel group, spawn, and await. Scheduling frames, buffer owners, cancellation tokens, and cleanup machinery remain compiler/runtime details. No allocator parameters, moves, lifetime annotations, or new decorators are introduced.
 
+Current extension: [`parallelMap`](native-parallel-map.md) now provides explicit bounded CPU array mapping through the same scheduler and ownership rules.
+
 ## First executable task slice
 
 ```kalandra

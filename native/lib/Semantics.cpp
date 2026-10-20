@@ -3238,9 +3238,24 @@ private:
       floatConstants_.insert_or_assign(*id, *floating);
     return id;
   }
+  std::optional<ValueId> finishMap(Frame &frame, SourceSpan span, ValueType output, ArrayMap map,
+                                   bool parallel) {
+    if (parallel) {
+      const auto &fn = output_.functions[map.function];
+      const auto result = fn.declaredResult.value_or(fn.resultType);
+      auto family = combineErrors({concreteError(result.errorRecord), taskFamily()}, span);
+      if (!family)
+        return {};
+      output.fallible = true;
+      output.errorRecord = normalizedError(*family);
+      map.parallel = true;
+    }
+    return add(frame, output, span, std::move(map));
+  }
   std::optional<ValueId> anonymousMap(Frame &frame, SourceSpan span, ExprId inputSyntax,
-                                      SourceSpan lambdaSpan, const LambdaExpr &lambda) {
-    if (!lambda.errorTypes.empty()) {
+                                      SourceSpan lambdaSpan, const LambdaExpr &lambda,
+                                      bool parallel = false) {
+    if (!parallel && !lambda.errorTypes.empty()) {
       error("S060",
             "map callbacks must return completed elements; handle errors inside an infallible "
             "callback",
@@ -3251,11 +3266,11 @@ private:
       error("S060", "map anonymous functions require one element parameter", lambdaSpan);
       return {};
     }
-    const auto mapElement = [](const ValueType &type) {
+    const auto mapElement = [parallel](const ValueType &type) {
       return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record ||
               type.builtin == BuiltinValue::Bool || type.builtin == BuiltinValue::String ||
               type.builtin == BuiltinValue::Function) &&
-             !type.tensor && !type.task && !type.fallible && !type.device;
+             !type.tensor && !type.task && (!type.fallible || parallel) && !type.device;
     };
     std::optional<ValueType> inputContext;
     if (lambda.parameters[0].annotation) {
@@ -3302,7 +3317,28 @@ private:
       return {};
     }
     const Depth functionDepth(functionDepth_);
+    std::optional<std::size_t> declaredError;
+    if (parallel && !lambda.errorTypes.empty()) {
+      std::vector<std::size_t> families;
+      std::unordered_set<std::size_t> active;
+      for (auto channel : lambda.errorTypes) {
+        auto family = resolveError(channel, active);
+        if (!family)
+          return {};
+        families.push_back(*family);
+      }
+      auto family = combineErrors(std::move(families), lambdaSpan);
+      if (!family)
+        return {};
+      declaredError = normalizedError(*family);
+      if (resultContext) {
+        resultContext->fallible = true;
+        resultContext->errorRecord = declaredError;
+      }
+    }
     const auto id = output_.functions.size();
+    if (parallel && !lambda.errorTypes.empty())
+      anonymousErrors_.emplace(id, declaredError);
     output_.functions.emplace_back();
     requirements_.resize(output_.functions.size());
     output_.functions[id].name = "__lambda_" + std::to_string(id);
@@ -3328,6 +3364,8 @@ private:
             lambdaSpan);
       return {};
     }
+    if (parallel && resultType.fallible)
+      nested.tasks->handled.insert(resultType.identity);
     for (auto pending : nested.tasks->pending)
       if (!nested.tasks->handled.contains(pending)) {
         error("S036", "anonymous map must handle each expected error before returning an element",
@@ -3338,6 +3376,11 @@ private:
     output_.functions[id].body = std::move(statements);
     output_.functions[id].result = *result;
     output_.functions[id].resultType = resultType;
+    if (parallel && !lambda.errorTypes.empty()) {
+      output_.functions[id].resultType.fallible = true;
+      output_.functions[id].resultType.errorRecord = declaredError;
+      output_.functions[id].declaredResult = output_.functions[id].resultType;
+    }
     std::vector<ValueId> captures;
     for (auto origin : nested.closure->origins) {
       auto value = add(frame, output_.symbols[origin].type, lambdaSpan, SymbolRead{origin});
@@ -3353,31 +3396,33 @@ private:
     output.callable = resultType.callable;
     if (!validSize(output, span))
       return {};
-    return add(frame, output, span, ArrayMap{*input, id, std::move(captures)});
+    return finishMap(frame, span, output, ArrayMap{*input, id, std::move(captures)}, parallel);
   }
   std::optional<ValueId> arrayMap(Frame &frame, SourceSpan span,
-                                  const std::vector<ExprId> &arguments) {
+                                  const std::vector<ExprId> &arguments, bool parallel = false) {
     if (arguments.size() != 2) {
       error("S027", "map expects an array and a one-argument function", span);
       return {};
     }
     if (const auto *lambda = std::get_if<LambdaExpr>(&syntax_.expressions[arguments[1]].value))
       return anonymousMap(frame, span, arguments[0], syntax_.expressions[arguments[1]].span,
-                          *lambda);
+                          *lambda, parallel);
     const auto *callback = std::get_if<NameExpr>(&syntax_.expressions[arguments[1]].value);
     if (!callback || lookupSymbol(frame, callback->name)) {
       auto target = expression(frame, arguments[1]);
       if (!target)
         return {};
       const auto targetType = node(*target).type;
-      const auto scalar = [](const ValueType &type) {
-        return !type.tensor && !type.task && !type.fallible && !type.device &&
+      const auto scalar = [parallel](const ValueType &type) {
+        return !type.tensor && !type.task && (!type.fallible || parallel) && !type.device &&
                (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Bool ||
                 type.builtin == BuiltinValue::String || type.builtin == BuiltinValue::Record ||
                 type.builtin == BuiltinValue::Function);
       };
       if (targetType.builtin != BuiltinValue::Function || targetType.tensor ||
-          !targetType.callable || targetType.callable->parameters.size() != 1 ||
+          targetType.fallible || targetType.task || !targetType.callable ||
+          targetType.callable->parameters.size() != 1 ||
+          targetType.callable->parameters[0].fallible ||
           !scalar(targetType.callable->parameters[0]) || !scalar(targetType.callable->result)) {
         error("S059", "map requires a one-argument scalar function value", span);
         return {};
@@ -3421,7 +3466,7 @@ private:
       output.callable = resultType.callable;
       if (!validSize(output, span))
         return {};
-      return add(frame, output, span, ArrayMap{*input, id, {*target}});
+      return finishMap(frame, span, output, ArrayMap{*input, id, {*target}}, parallel);
     }
     auto found = functions_.find(functionKey(frame, name(callback->name)));
     if (found == functions_.end() || !analyzeFunction(found->second)) {
@@ -3430,15 +3475,16 @@ private:
     }
     const auto id = found->second;
     const auto &fn = output_.functions[id];
-    const auto scalar = [](const ValueType &type) {
+    const auto scalar = [parallel](const ValueType &type) {
       return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record ||
               type.builtin == BuiltinValue::Bool || type.builtin == BuiltinValue::String ||
               type.builtin == BuiltinValue::Function) &&
-             !type.tensor && !type.task && !type.fallible && !type.device;
+             !type.tensor && !type.task && (!type.fallible || parallel) && !type.device;
     };
     const auto result = fn.declaredResult.value_or(fn.resultType);
     if (fn.parameters.size() != 1 || !scalar(result) ||
-        !scalar(output_.symbols[fn.parameters[0]].type)) {
+        (output_.symbols[fn.parameters[0]].type.fallible ||
+         !scalar(output_.symbols[fn.parameters[0]].type))) {
       error("S059",
             "map callback requires one numeric scalar, Bool or record parameter and a numeric "
             "scalar or "
@@ -3462,7 +3508,7 @@ private:
     output.callable = result.callable;
     if (!validSize(output, span))
       return {};
-    return add(frame, output, span, ArrayMap{*input, id});
+    return finishMap(frame, span, output, ArrayMap{*input, id}, parallel);
   }
   std::optional<ValueId> builtin(Frame &frame, SourceSpan span, const std::string &callee,
                                  const std::vector<ExprId> &arguments,
@@ -3716,8 +3762,8 @@ private:
         return collectionSlice(frame, span, arguments, expected);
       if (callee == "length" || callee == "shape" || callee == "byteLength")
         return collectionQuery(frame, span, callee, arguments);
-      if (callee == "map")
-        return arrayMap(frame, span, arguments);
+      if (callee == "map" || callee == "parallelMap")
+        return arrayMap(frame, span, arguments, callee == "parallelMap");
       if (callee == "tensor" || callee == "matmul" || callee == "reduceSum")
         return builtin(frame, span, callee, arguments, expected);
       error("S031", "unknown function '" + callee + "'", calleeSpan);

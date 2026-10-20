@@ -319,6 +319,19 @@ if(BUILD_TESTING)
     add_test(NAME native-worker-functions-frontend-${VARIANT} COMMAND kalandra-worker-function-tests-${VARIANT})
     set_tests_properties(native-worker-functions-frontend-${VARIANT} PROPERTIES TIMEOUT 120)
   endforeach()
+  foreach(VARIANT IN ITEMS debug sanitized)
+    add_executable(kalandra-parallel-map-tests-${VARIANT} tests/ParallelMapTests.cpp)
+    target_compile_options(kalandra-parallel-map-tests-${VARIANT} PRIVATE -Wall -Wextra -Werror)
+    target_compile_definitions(kalandra-parallel-map-tests-${VARIANT} PRIVATE KALANDRA_PARALLEL_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/parallel-map")
+    if(VARIANT STREQUAL "sanitized")
+      target_link_libraries(kalandra-parallel-map-tests-${VARIANT} PRIVATE kalandra-semantics-sanitized)
+      target_compile_options(kalandra-parallel-map-tests-${VARIANT} PRIVATE -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all)
+      target_link_options(kalandra-parallel-map-tests-${VARIANT} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all)
+    else()
+      target_link_libraries(kalandra-parallel-map-tests-${VARIANT} PRIVATE kalandra-semantics)
+    endif()
+    add_test(NAME native-parallel-map-frontend-${VARIANT} COMMAND kalandra-parallel-map-tests-${VARIANT})
+  endforeach()
   foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
     if(VARIANT STREQUAL "sanitized")
       set(WORKER_FUNCTION_RUNTIME kalandra-native-runtime-sanitized)
@@ -355,6 +368,13 @@ if(BUILD_TESTING)
         "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/worker-function-results-${VARIANT}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyWorkerFunctionResults.cmake")
     set_tests_properties(native-worker-function-results-${VARIANT} PROPERTIES TIMEOUT 300)
+    add_test(NAME native-parallel-map-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DLLVM_ROOT=${KALANDRA_LLVM_ROOT}" "-DRUNTIME=$<TARGET_FILE:${WORKER_FUNCTION_RUNTIME}>"
+        "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/parallel-map-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyParallelMap.cmake")
+    set_tests_properties(native-parallel-map-${VARIANT} PROPERTIES TIMEOUT 300)
     add_test(NAME native-worker-error-functions-${VARIANT}
       COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"

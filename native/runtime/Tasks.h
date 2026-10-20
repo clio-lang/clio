@@ -138,6 +138,7 @@ public:
   TaskHandle spawn(GroupHandle, const TaskEntry &, Packet) noexcept;
   bool await(TaskHandle) noexcept;
   bool join(GroupHandle) noexcept;
+  bool releaseGroup(GroupHandle) noexcept;
   bool read(TaskHandle, const ValueLayout &, void *output) noexcept;
   Failure failure(GroupHandle) const noexcept;
   Failure failure(TaskHandle) const noexcept;

@@ -302,7 +302,7 @@ fn main()->int:
   values=map([1],recover)
   values[0]
 ]=])
-REJECT(transport [=[error E:
+COMPILE(transport [=[error E:
   Bad
 fn checked(value:int)->int ! E:
   fail E.Bad
@@ -314,6 +314,7 @@ fn main()->int ! TaskError:
     values=try await spawn map(callbacks,recover)
     values[0]
 ]=])
+EXPECT(transport 42)
 foreach(POOL IN ITEMS 1 2 4)
   foreach(NAME IN ITEMS worker direct-spawn direct-spawn-capture owned-worker)
     RUN_OK("${CMAKE_COMMAND}" -E env "KALANDRA_WORKERS=${POOL}" "${OUTPUT_DIR}/${NAME}")

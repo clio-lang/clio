@@ -1002,6 +1002,14 @@ bool Task::join(GroupHandle h) noexcept {
   ++core_.stats.maintenanceTasks;
   return false;
 }
+bool Task::releaseGroup(GroupHandle h) noexcept {
+  TaskCore::Impl::Guard guard(core_);
+  auto *group = core_.get(h);
+  if (core_.tasks[slot_].state != State::Running || !group || group->owner != core_.handle(slot_) ||
+      !group->closed || !group->settled || !group->observed)
+    return false;
+  return core_.dispose(h, guard.lock);
+}
 bool Task::read(TaskHandle h, const ValueLayout &layout, void *output) noexcept {
   TaskCore::Impl::Guard guard(core_);
   return core_.read(h, layout, context(), output, core_.handle(slot_), guard.lock);

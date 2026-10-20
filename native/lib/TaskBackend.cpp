@@ -1463,6 +1463,113 @@ private:
         check();
         break;
       }
+      case Code::MapInit: {
+        const auto input = instruction.args[0];
+        const auto inputElement = recordArrayElement(plan.slots[input]);
+        const auto outputElement = recordArrayElement(type);
+        const auto inputBytes = size(scalarType(inputElement));
+        const auto outputBytes = size(scalarType(outputElement));
+        if (plan.slots[input].builtin == BuiltinValue::Numeric)
+          call("kalandra_environment_tensor_retain_v1", boolean,
+               {ctx, ctx, payload(input), c64(1),
+                c64(static_cast<unsigned>(plan.slots[input].element))});
+        else
+          call("kalandra_record_array_validate_v1", voidType,
+               {ctx, payload(input), c64(inputBytes), c64(alignment(scalarType(inputElement)))});
+        auto *valid = Block::Create(context, "map.valid", resume);
+        builder.CreateCondBr(builder.CreateICmpEQ(call("kalandra_poll_v1", i64, {ctx}), c64(0)),
+                             valid, abort);
+        builder.SetInsertPoint(valid);
+        auto *source = builder.CreateLoad(descriptor(plan.slots[input]), payload(input));
+        auto *count = builder.CreateExtractValue(source, {3, 0});
+        auto *allocate = Block::Create(context, "map.allocate", resume);
+        auto *invalid = Block::Create(context, "map.size.invalid", resume);
+        builder.CreateCondBr(builder.CreateICmpULE(count, c64(INT64_MAX / outputBytes)), allocate,
+                             invalid);
+        builder.SetInsertPoint(invalid);
+        call("kalandra_fault_v1", voidType, {ctx, c64(2), c64(0), c64(0)});
+        builder.CreateBr(abort);
+        builder.SetInsertPoint(allocate);
+        auto *empty = Block::Create(context, "map.empty", resume);
+        auto *storage = Block::Create(context, "map.storage", resume);
+        auto *ready = Block::Create(context, "map.allocated", resume);
+        builder.CreateCondBr(builder.CreateICmpEQ(count, c64(0)), empty, storage);
+        builder.SetInsertPoint(empty);
+        builder.CreateBr(ready);
+        builder.SetInsertPoint(storage);
+        auto *data = call(isOwnedArray(type) ? "kalandra_record_alloc_v1" : "kalandra_alloc_v1",
+                          pointer, {ctx, builder.CreateMul(count, c64(outputBytes))});
+        auto *allocated = builder.GetInsertBlock();
+        builder.CreateCondBr(builder.CreateICmpEQ(call("kalandra_poll_v1", i64, {ctx}), c64(0)),
+                             ready, abort);
+        builder.SetInsertPoint(ready);
+        auto *buffer = builder.CreatePHI(pointer, 2);
+        buffer->addIncoming(llvm::ConstantPointerNull::get(builder.getPtrTy()), empty);
+        buffer->addIncoming(data, allocated);
+        Value *value = llvm::Constant::getNullValue(descriptor(type));
+        value = builder.CreateInsertValue(value, buffer, {0});
+        value = builder.CreateInsertValue(value, buffer, {1});
+        value = builder.CreateInsertValue(value, count, {3, 0});
+        value = builder.CreateInsertValue(
+            value, builder.CreateSelect(builder.CreateICmpEQ(count, c64(0)), c64(0), c64(1)),
+            {4, 0});
+        builder.CreateStore(value, payload(instruction.output));
+        builder.CreateBr(next);
+        break;
+      }
+      case Code::MapCheck: {
+        auto *value = builder.CreateLoad(descriptor(plan.slots[instruction.args[0]]),
+                                         payload(instruction.args[0]));
+        auto *index = builder.CreateAdd(builder.CreateLoad(i64, payload(instruction.args[1])),
+                                        c64(instruction.target));
+        builder.CreateStore(builder.CreateICmpULT(index, builder.CreateExtractValue(value, {3, 0})),
+                            payload(instruction.output));
+        builder.CreateBr(next);
+        break;
+      }
+      case Code::MapLoad: {
+        auto *value = builder.CreateLoad(descriptor(plan.slots[instruction.args[0]]),
+                                         payload(instruction.args[0]));
+        auto *index = builder.CreateAdd(builder.CreateLoad(i64, payload(instruction.args[1])),
+                                        c64(instruction.target));
+        auto *position =
+            builder.CreateAdd(builder.CreateExtractValue(value, {2}),
+                              builder.CreateMul(index, builder.CreateExtractValue(value, {4, 0})));
+        auto *address = builder.CreateInBoundsGEP(scalarType(type),
+                                                  builder.CreateExtractValue(value, {1}), position);
+        builder.CreateStore(builder.CreateLoad(scalarType(type), address),
+                            payload(instruction.output));
+        builder.CreateBr(next);
+        break;
+      }
+      case Code::MapStore: {
+        auto *value = builder.CreateLoad(descriptor(type), payload(instruction.output));
+        auto *index = builder.CreateAdd(builder.CreateLoad(i64, payload(instruction.args[0])),
+                                        c64(instruction.target));
+        auto *cell = scalarType(recordArrayElement(type));
+        auto *address =
+            builder.CreateInBoundsGEP(cell, builder.CreateExtractValue(value, {1}), index);
+        builder.CreateStore(builder.CreateLoad(cell, payload(instruction.args[1])), address);
+        check();
+        break;
+      }
+      case Code::MapAdvance:
+        builder.CreateStore(builder.CreateAdd(builder.CreateLoad(i64, payload(instruction.output)),
+                                              c64(instruction.target)),
+                            payload(instruction.output));
+        check();
+        break;
+      case Code::MapSuccess:
+        builder.CreateStore(builder.CreateNot(hasResultError(plan.slots[instruction.args[0]],
+                                                             slot(instruction.args[0]))),
+                            payload(instruction.output));
+        builder.CreateBr(next);
+        break;
+      case Code::ReleaseGroup:
+        builder.CreateCondBr(
+            call("kalandra_task_release_group_v1", boolean, {task, group(instruction.group)}), next,
+            abort);
+        break;
       case Code::Copy:
         copyResult(type, slot(instruction.output), plan.slots[instruction.args[0]],
                    slot(instruction.args[0]));

@@ -38,6 +38,6 @@ The analysis is conservative: it joins all function-containing error producers i
 
 The focused suite covers direct and indirect workers, early guards, propagation, rethrows, narrowed families, nested workers, captured closures, function/record payloads, arrays of callbacks, cached observations, onward submission, unused declared error variants, and independent function-valued success/error outcomes. It also exercises unsafe/unknown payload rejection, forged early-error origins, worker counts 1/2/4 and allocation-failure cleanup.
 
-General task/device-coordinating function values and placement-aware/GPU callbacks remain separate work. The [proper parallel-map requirement](../roadmap.md#immediate-accepted-core-queue) remains planned; none of these payload changes implement it. Distributed execution and public C/C++ integration retain their separate roadmaps.
+General task/device-coordinating function values and placement-aware/GPU callbacks remain separate work. The separate [CPU parallel-map implementation](native-parallel-map.md) now uses these payload checks for callback errors. Distributed execution and public C/C++ integration retain their separate roadmaps.
 
 **52/52 selected CTest checks passed.** The [qualification record](../../native/metal-proof/evidence/cpu-worker-error-functions-2026-10-20.json) lists the disjoint selections and coverage; this is not the full project suite.

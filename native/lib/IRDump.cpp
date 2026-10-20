@@ -738,6 +738,19 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       if (map->function >= module.functions.size() || map->input >= module.expressions.size())
         return "map references invalid input or callback";
       const auto &fn = module.functions[map->function];
+      auto result = fn.declaredResult.value_or(fn.resultType);
+      if ((!map->parallel && result.fallible) ||
+          (map->parallel &&
+           (hasPlacement(module) || !errorSubset(module, {}, expression.type.errorRecord) ||
+            (result.fallible &&
+             !errorSubset(module, result.errorRecord, expression.type.errorRecord)))))
+        return "parallelMap requires ordinary CPU execution and the complete callback/TaskError "
+               "channel";
+      result.fallible = false;
+      result.errorRecord.reset();
+      auto outputElement = recordArrayElement(expression.type);
+      outputElement.fallible = false;
+      outputElement.errorRecord.reset();
       const auto &input = module.expressions[map->input].type;
       const auto scalar = [](const ValueType &type) {
         return (type.builtin == BuiltinValue::Numeric || type.builtin == BuiltinValue::Record ||
@@ -769,26 +782,25 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
                         }))
           return "map requires matching completed CPU captures";
       }
-      if (target != NumericTarget::Cpu || coordinating[map->function] ||
-          (resumable[map->function] && fn.captureCount != map->captures.size()) ||
-          fn.parameters.size() != 1 + map->captures.size() || !scalar(fn.resultType) ||
+      if (target != NumericTarget::Cpu || (!map->parallel && coordinating[map->function]) ||
+          (!map->parallel && resumable[map->function] && fn.captureCount != map->captures.size()) ||
+          fn.parameters.size() != 1 + map->captures.size() || !scalar(result) ||
           !scalar(module.symbols[fn.parameters[0]].type) || !input.array || input.device ||
           input.task || input.fallible || !expression.type.array || expression.type.device ||
           input.shape.size() != 1 || expression.type.shape.size() != 1 || expression.type.task ||
-          expression.type.fallible ||
+          (expression.type.fallible != map->parallel) ||
           input.builtin != module.symbols[fn.parameters[0]].type.builtin ||
           input.record != module.symbols[fn.parameters[0]].type.record ||
           (input.builtin == BuiltinValue::Function &&
            !sameFunctionValueType(recordArrayElement(input),
                                   module.symbols[fn.parameters[0]].type)) ||
           (expression.type.builtin == BuiltinValue::Function &&
-           !sameFunctionValueType(recordArrayElement(expression.type), fn.resultType)) ||
+           !sameFunctionValueType(outputElement, result)) ||
           (input.builtin == BuiltinValue::Numeric &&
            input.element != module.symbols[fn.parameters[0]].type.element) ||
-          expression.type.builtin != fn.resultType.builtin ||
-          expression.type.record != fn.resultType.record ||
+          expression.type.builtin != result.builtin || expression.type.record != result.record ||
           (expression.type.builtin == BuiltinValue::Numeric &&
-           expression.type.element != fn.resultType.element) ||
+           expression.type.element != result.element) ||
           input.shape[0].constant != expression.type.shape[0].constant ||
           input.shape[0].identity != expression.type.shape[0].identity)
         return "map requires an unchanged-length CPU array and a synchronous one-argument numeric "
@@ -1007,7 +1019,8 @@ std::string dumpTypedIR(const TypedModule &module) {
                 arguments(*operation.dimensions);
               }
             } else if constexpr (std::is_same_v<T, ArrayMap>) {
-              out << "array.map sequential @" << operation.function << " ";
+              out << (operation.parallel ? "array.parallelMap bounded @" : "array.map sequential @")
+                  << operation.function << " ";
               value(operation.input);
               if (!operation.captures.empty()) {
                 out << " captures=";

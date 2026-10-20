@@ -25,6 +25,12 @@ bool kalandra_task_await_v1(Task *task, const TaskHandle *handle) noexcept {
 bool kalandra_task_join_v1(Task *task, const GroupHandle *group) noexcept {
   return task->join(*group);
 }
+bool kalandra_task_release_group_v1(Task *task, const GroupHandle *group) noexcept {
+  if (task->releaseGroup(*group))
+    return true;
+  task->context().fault(3);
+  return false;
+}
 bool kalandra_task_read_v1(Task *task, const TaskHandle *handle, const ValueLayout *layout,
                            void *out) noexcept {
   return task->read(*handle, *layout, out);

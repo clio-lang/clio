@@ -200,6 +200,7 @@ struct ArrayMap {
   ValueId input;
   FunctionId function; // One explicit element parameter, followed by lifted captures.
   std::vector<ValueId> captures = {};
+  bool parallel = false;
 };
 enum class ReductionOrder { BalancedAdjacent };
 struct Matmul {

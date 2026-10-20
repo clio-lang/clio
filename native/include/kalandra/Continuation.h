@@ -30,7 +30,14 @@ enum class Code {
   Branch,
   FunctionReference,
   FunctionInvoke,
-  SynchronousCall
+  SynchronousCall,
+  MapInit,
+  MapCheck,
+  MapLoad,
+  MapStore,
+  MapAdvance,
+  MapSuccess,
+  ReleaseGroup
 };
 struct Instruction {
   Code code;

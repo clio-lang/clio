@@ -154,6 +154,9 @@ public:
         for (std::size_t i = 0; i < map->captures.size(); ++i)
           source(fn.parameters[i + 1], map->captures[i]);
         edge(fn.result, id);
+        if (map->parallel)
+          for (auto outcome : outcomes[map->function])
+            edge(outcome, id);
       } else if (const auto *read = std::get_if<SymbolRead>(&value.operation)) {
         if (!module_.symbols[read->symbol].parameter) {
           const auto found = bindings_.find(read->symbol);
@@ -423,6 +426,9 @@ bool workerValueProvenance(const TypedModule &module, ValueId root) {
       if (map->function >= module.functions.size())
         return false;
       pending.push_back(module.functions[map->function].result);
+      if (map->parallel)
+        pending.insert(pending.end(), flow.outcomes[map->function].begin(),
+                       flow.outcomes[map->function].end());
       pending.push_back(map->input);
       pending.insert(pending.end(), map->captures.begin(), map->captures.end());
     } else if (const auto *task = std::get_if<TaskOperation>(&value.operation)) {
@@ -828,9 +834,13 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
           return "call changes a function parameter signature";
       }
     }
-    if (const auto *map = std::get_if<ArrayMap>(&expression.operation))
+    if (const auto *map = std::get_if<ArrayMap>(&expression.operation)) {
       if (map->function >= module.functions.size())
         return "map has an invalid function target";
+      if (map->parallel)
+        if (auto error = functionValueTransportError(module, expression))
+          return error;
+    }
     if (const auto *task = std::get_if<TaskOperation>(&expression.operation);
         task && task->prefix == TaskPrefix::Spawn) {
       if (task->operand >= module.expressions.size())

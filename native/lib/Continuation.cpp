@@ -465,6 +465,80 @@ private:
     kernelIds[id] = fnId;
     return fnId;
   }
+  void parallelMap(Plan &plan, ValueId id, Slot output, const ArrayMap &map, Environment &env,
+                   std::set<FunctionId> &stack) {
+    if (options.preserveCalls)
+      throw std::runtime_error("parallelMap requires ordinary CPU execution");
+    const auto inputSlot = expression(plan, map.input, env, stack);
+    std::vector<Slot> captures;
+    for (auto capture : map.captures)
+      captures.push_back(expression(plan, capture, env, stack));
+    const auto buffer = slot(plan, plain(input.expressions[id].type));
+    ValueType integer;
+    integer.element = NumericType::Int64;
+    const auto index = slot(plan, integer);
+    ValueType boolean;
+    boolean.builtin = BuiltinValue::Bool;
+    const auto active = slot(plan, boolean);
+    plan.code.push_back({Code::MapInit, buffer, {inputSlot}, 0, 0, 0, id});
+    plan.code.push_back({Code::Copy, output, {buffer}});
+    const auto loop = plan.code.size();
+    plan.code.push_back({Code::MapCheck, active, {inputSlot, index}});
+    const auto empty = plan.code.size();
+    plan.code.push_back({Code::Branch, 0, {active}});
+    const auto group = plan.groups++;
+    plan.code.push_back({Code::Open, 0, {}, env.group.value_or(SIZE_MAX), group, 0, id});
+    std::vector<Slot> handles;
+    constexpr unsigned width = 8;
+    const auto &fn = input.functions[map.function];
+    const auto elementType = recordArrayElement(input.expressions[map.input].type);
+    auto childResult = fn.declaredResult.value_or(fn.resultType);
+    auto observedType = childResult;
+    observedType.fallible = true;
+    observedType.errorRecord = input.expressions[id].type.errorRecord;
+    std::vector<std::size_t> errors;
+    for (unsigned lane = 0; lane < width; ++lane) {
+      plan.code.push_back({Code::MapCheck, active, {inputSlot, index}, lane});
+      const auto skip = plan.code.size();
+      plan.code.push_back({Code::Branch, 0, {active}});
+      const auto element = slot(plan, elementType);
+      plan.code.push_back({Code::MapLoad, element, {inputSlot, index}, lane, 0, 0, id});
+      auto taskType = childResult;
+      taskType.task = true;
+      const auto handle = slot(plan, taskType);
+      handles.push_back(handle);
+      std::vector<Slot> arguments{element};
+      arguments.insert(arguments.end(), captures.begin(), captures.end());
+      plan.code.push_back({Code::Spawn, handle, arguments, map.function, group, 0, id});
+      plan.code[skip].jump = plan.code.size();
+      plan.code.push_back({Code::Label, 0, {}});
+    }
+    for (unsigned lane = 0; lane < width; ++lane) {
+      plan.code.push_back({Code::MapCheck, active, {inputSlot, index}, lane});
+      const auto skip = plan.code.size();
+      plan.code.push_back({Code::Branch, 0, {active}});
+      const auto observed = slot(plan, observedType);
+      const auto element = slot(plan, plain(childResult));
+      plan.code.push_back({Code::Await, observed, {handles[lane]}, map.function});
+      errors.push_back(plan.code.size());
+      plan.code.push_back({Code::Try, element, {observed}, output, group, 0, id});
+      plan.code.push_back({Code::MapStore, buffer, {index, element}, lane, 0, 0, id});
+      plan.code[skip].jump = plan.code.size();
+      plan.code.push_back({Code::Label, 0, {}});
+    }
+    const auto join = plan.code.size();
+    for (auto error : errors)
+      plan.code[error].jump = join;
+    plan.code.push_back({Code::Join, output, {buffer}, 0, group, 0, id});
+    plan.code.push_back({Code::ReleaseGroup, 0, {}, 0, group, 0, id});
+    plan.code.push_back({Code::MapSuccess, active, {output}});
+    const auto failed = plan.code.size();
+    plan.code.push_back({Code::Branch, 0, {active}});
+    plan.code.push_back({Code::MapAdvance, index, {}, width});
+    plan.code.push_back({Code::Jump, 0, {}, 0, 0, loop});
+    plan.code[empty].jump = plan.code[failed].jump = plan.code.size();
+    plan.code.push_back({Code::Label, 0, {}});
+  }
   std::size_t builtinPlan(ValueId id) {
     auto plan = std::make_unique<Plan>();
     std::vector<Slot> args;
@@ -472,7 +546,7 @@ private:
       args.push_back(slot(*plan, input.expressions[arg].type));
     plan->parameters = args;
     if (const auto *map = std::get_if<ArrayMap>(&input.expressions[id].operation);
-        (map && resumable.at(map->function)) ||
+        (map && (map->parallel || resumable.at(map->function))) ||
         std::holds_alternative<FunctionInvoke>(input.expressions[id].operation)) {
       // Evaluate indirect calls in the child, after the callee and arguments
       // have crossed the checked copy boundary. Preserve their error channel.
@@ -529,8 +603,10 @@ private:
       return value;
     }
     auto output = slot(plan, node.type);
-    if (const auto *reference = std::get_if<kalandra::FunctionReference>(&node.operation);
-        reference && resumable.at(reference->function)) {
+    if (const auto *map = std::get_if<ArrayMap>(&node.operation); map && map->parallel) {
+      parallelMap(plan, id, output, *map, env, stack);
+    } else if (const auto *reference = std::get_if<kalandra::FunctionReference>(&node.operation);
+               reference && resumable.at(reference->function)) {
       std::vector<Slot> captures;
       for (auto capture : reference->captures)
         captures.push_back(expression(plan, capture, env, stack));
@@ -818,7 +894,8 @@ std::vector<bool> coordinatingFunctions(const TypedModule &input) {
       if (const auto *map = std::get_if<ArrayMap>(&op))
         callers.at(map->function).push_back(id);
       const auto *task = std::get_if<TaskOperation>(&op);
-      if ((task && task->prefix != TaskPrefix::Try) ||
+      const auto *map = std::get_if<ArrayMap>(&op);
+      if ((map && map->parallel) || (task && task->prefix != TaskPrefix::Try) ||
           std::holds_alternative<ParallelOperation>(op) ||
           std::holds_alternative<DeviceSelection>(op) || std::holds_alternative<Transfer>(op))
         result[id] = true;
@@ -875,7 +952,14 @@ std::string dump(const ModulePlan &module) {
                                           "branch",
                                           "function.reference",
                                           "function.invoke",
-                                          "synchronous.call"};
+                                          "synchronous.call",
+                                          "map.init",
+                                          "map.check",
+                                          "map.load",
+                                          "map.store",
+                                          "map.advance",
+                                          "map.success",
+                                          "group.release"};
   std::ostringstream out;
   for (std::size_t f = 0; f < module.plans.size(); ++f) {
     const auto &plan = *module.plans[f];

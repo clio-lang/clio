@@ -1080,6 +1080,13 @@ class Compiler {
                         ".kind==TaskFailure::None){\n" + payloadCopy(output, args.at(0)) + "}\n");
         break;
       }
+      case Code::MapInit:
+      case Code::MapCheck:
+      case Code::MapLoad:
+      case Code::MapStore:
+      case Code::MapAdvance:
+      case Code::MapSuccess:
+      case Code::ReleaseGroup:
       case Code::FunctionReference:
       case Code::FunctionInvoke:
       case Code::SynchronousCall:

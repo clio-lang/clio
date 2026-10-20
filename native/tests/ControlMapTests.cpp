@@ -320,7 +320,7 @@ fn main()->int:
 )k")
                  .ok(),
             "invalid control-flow map accepted");
-    require(!analyze(R"k(error E:
+    require(analyze(R"k(error E:
   Bad
 fn checked(value:int)->int ! E:
   fail E.Bad
@@ -333,8 +333,8 @@ fn main()->int ! TaskError:
     values[0]
 )k")
                  .ok(),
-            "invalid control-flow map accepted");
-    std::cout << "Control maps: 11 source programs, 6 forged ABI cases and 4 effect/transport "
+            "supported function-array transport rejected");
+    std::cout << "Control maps: 12 source programs, 6 forged ABI cases and 3 effect "
                  "rejections passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';
