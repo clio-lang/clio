@@ -4,7 +4,9 @@ Status: package-local dependency scopes accepted. The first N3-A slice now
 implements an [explicit scoped offline graph API](scoped-package-resolution.md).
 [Library manifests](native-library-manifests.md) now validate package metadata,
 public entries and optional example applications, and construct scoped nodes.
-The Git dependency declarations, installer and lockfile below remain planned.
+An [exact-commit local Git snapshot API](native-git-snapshots.md) now supplies the
+first N3-B foundation, including integrity and exclusive publication.
+The Git dependency declarations, public installer and lockfile below remain planned.
 Existing explicit local mappings retain their global behavior.
 
 The first native package workflow should support Git libraries, transitive
@@ -200,7 +202,8 @@ checked and lowered by the selected CPU/Metal compiler with existing restriction
 The accepted package-owner/type-identity decision adds package-resolution
 context while keeping source import syntax unchanged. N3-A's graph loader is
 implemented, including library metadata and manifest-backed graph qualification.
-Managed CLI/editor dependency resolution is still pending.
+N3-B now has a qualified local snapshot import/verification API; complete managed
+graph activation and CLI/editor dependency resolution are still pending.
 Registry discovery, SemVer ranges, add/remove/update conveniences,
 monorepo workspaces and cache pruning remain future work rather than hidden
 requirements of this first Git-based workflow.

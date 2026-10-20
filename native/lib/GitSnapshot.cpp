@@ -1,0 +1,407 @@
+#include "kalandra/GitSnapshot.h"
+#include <algorithm>
+#include <array>
+#include <cerrno>
+#include <chrono>
+#include <csignal>
+#include <fcntl.h>
+#include <filesystem>
+#include <fstream>
+#include <llvm/ADT/StringRef.h>
+#include <llvm/Support/SHA256.h>
+#include <poll.h>
+#include <sstream>
+#include <stdexcept>
+#include <sys/stdio.h>
+#include <sys/wait.h>
+#include <toml++/toml.hpp>
+#include <unistd.h>
+#include <unordered_set>
+namespace kalandra {
+namespace {
+namespace fs = std::filesystem;
+void require(bool ok, const std::string &message) {
+  if (!ok)
+    throw std::runtime_error(message);
+}
+bool hex(std::string_view text, std::size_t size) {
+  return text.size() == size && std::ranges::all_of(text, [](char c) {
+           return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+         });
+}
+std::string digest(llvm::SHA256 &hash) {
+  std::string result;
+  for (auto byte : hash.final()) {
+    result += "0123456789abcdef"[byte >> 4];
+    result += "0123456789abcdef"[byte & 15];
+  }
+  return result;
+}
+void field(llvm::SHA256 &hash, std::string_view text) {
+  const auto size = std::to_string(text.size()) + ":";
+  hash.update(size);
+  hash.update(llvm::StringRef(text.data(), text.size()));
+}
+std::string requestKey(const GitSnapshotRequest &request) {
+  require(fs::path(request.repository).is_absolute() &&
+              request.repository.find_first_of("\r\n") == std::string::npos &&
+              request.repository.find('\0') == std::string::npos,
+          "snapshot repository must be an absolute local path");
+  require(fs::path(request.repository).lexically_normal().string() == request.repository,
+          "snapshot repository path must be normalized");
+  require(hex(request.commit, 40), "snapshot requires a full lowercase 40-digit Git commit");
+  llvm::SHA256 hash;
+  field(hash, "kalandra-local-git-v1");
+  field(hash, request.repository);
+  field(hash, request.commit);
+  return digest(hash);
+}
+fs::path cacheRoot(const std::string &path) {
+  require(!path.empty() && path.find('\0') == std::string::npos,
+          "snapshot cache requires a directory path");
+  require(!fs::is_symlink(fs::symlink_status(path)) && fs::is_directory(path),
+          "snapshot cache must be an existing directory, not a symlink");
+  return fs::canonical(path);
+}
+std::string read(const fs::path &path, std::size_t maximum) {
+  require(fs::is_regular_file(fs::symlink_status(path)),
+          "snapshot file is not regular: " + path.string());
+  require(fs::file_size(path) <= maximum, "snapshot file exceeds configured byte limit");
+  std::ifstream input(path, std::ios::binary);
+  require(bool(input), "cannot read snapshot file");
+  std::string result;
+  char buffer[16384];
+  while (input.read(buffer, sizeof(buffer)) || input.gcount()) {
+    require(std::size_t(input.gcount()) <= maximum - result.size(),
+            "snapshot file exceeds configured byte limit");
+    result.append(buffer, std::size_t(input.gcount()));
+  }
+  require(input.eof(), "cannot read snapshot file");
+  return result;
+}
+void write(const fs::path &path, std::string_view text) {
+  std::ofstream output(path, std::ios::binary);
+  output.write(text.data(), std::streamsize(text.size()));
+  output.close();
+  require(bool(output), "cannot write snapshot staging file");
+}
+struct Stage {
+  fs::path path;
+  explicit Stage(const fs::path &parent) {
+    auto pattern = (parent / ".kalandra-snapshot-XXXXXX").string();
+    require(::mkdtemp(pattern.data()), "cannot create private snapshot staging directory");
+    path = pattern;
+  }
+  ~Stage() {
+    std::error_code ignored;
+    fs::remove_all(path, ignored);
+  }
+};
+// Only plumbing in our private object database is executed. Clear inherited Git
+// configuration/environment; bounded pipe capture avoids unbounded stdout files.
+std::string git(const fs::path &database, std::vector<std::string> arguments, std::size_t maximum,
+                unsigned seconds) {
+  require(seconds > 0, "Git process timeout must be nonzero");
+  std::vector<std::string> command = {"/usr/bin/git",
+                                      "--no-pager",
+                                      "--no-replace-objects",
+                                      "--git-dir=" + database.string(),
+                                      "-c",
+                                      "core.hooksPath=/dev/null",
+                                      "-c",
+                                      "protocol.allow=never",
+                                      "-c",
+                                      "core.fsmonitor=false"};
+  command.insert(command.end(), arguments.begin(), arguments.end());
+  std::vector<char *> argv;
+  for (auto &item : command)
+    argv.push_back(item.data());
+  argv.push_back(nullptr);
+  std::vector<std::string> environment = {"PATH=/usr/bin:/bin",
+                                          "HOME=/dev/null",
+                                          "LC_ALL=C",
+                                          "GIT_CONFIG_NOSYSTEM=1",
+                                          "GIT_CONFIG_SYSTEM=/dev/null",
+                                          "GIT_CONFIG_GLOBAL=/dev/null",
+                                          "GIT_TERMINAL_PROMPT=0",
+                                          "GIT_ATTR_NOSYSTEM=1",
+                                          "GIT_NO_LAZY_FETCH=1",
+                                          "GIT_NO_REPLACE_OBJECTS=1",
+                                          "GIT_OPTIONAL_LOCKS=0"};
+  std::vector<char *> env;
+  for (auto &item : environment)
+    env.push_back(item.data());
+  env.push_back(nullptr);
+  int pipeFD[2];
+  require(::pipe(pipeFD) == 0, "cannot create Git output pipe");
+  if (::fcntl(pipeFD[0], F_SETFD, FD_CLOEXEC) == -1 ||
+      ::fcntl(pipeFD[1], F_SETFD, FD_CLOEXEC) == -1) {
+    ::close(pipeFD[0]);
+    ::close(pipeFD[1]);
+    throw std::runtime_error("cannot isolate Git output descriptors");
+  }
+  const auto pid = ::fork();
+  if (pid == -1) {
+    ::close(pipeFD[0]);
+    ::close(pipeFD[1]);
+    throw std::runtime_error("cannot start Git plumbing process");
+  }
+  if (pid == 0) {
+    ::setpgid(0, 0);
+    const auto null = ::open("/dev/null", O_RDWR);
+    if (null == -1 || ::dup2(null, STDIN_FILENO) == -1 || ::dup2(null, STDERR_FILENO) == -1 ||
+        ::dup2(pipeFD[1], STDOUT_FILENO) == -1)
+      ::_exit(126);
+    ::close(null);
+    ::close(pipeFD[0]);
+    ::close(pipeFD[1]);
+    ::execve(argv[0], argv.data(), env.data());
+    ::_exit(127);
+  }
+  ::close(pipeFD[1]);
+  struct Child {
+    pid_t pid;
+    int fd;
+    ~Child() {
+      ::close(fd);
+      if (pid > 0) {
+        ::kill(-pid, SIGKILL);
+        ::kill(pid, SIGKILL);
+        while (::waitpid(pid, nullptr, 0) < 0 && errno == EINTR) {
+        }
+      }
+    }
+  } child{pid, pipeFD[0]};
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(seconds);
+  std::string result;
+  bool eof = false, exited = false;
+  int status = 0;
+  while (!eof || !exited) {
+    require(std::chrono::steady_clock::now() < deadline,
+            "Git plumbing exceeded configured timeout");
+    if (!exited) {
+      const auto waited = ::waitpid(pid, &status, WNOHANG);
+      require(waited >= 0 || errno == EINTR, "cannot wait for Git plumbing");
+      exited = waited == pid;
+      if (exited)
+        child.pid = -1;
+    }
+    if (!eof) {
+      pollfd descriptor{pipeFD[0], POLLIN, 0};
+      const auto ready = ::poll(&descriptor, 1, 10);
+      require(ready >= 0 || errno == EINTR, "cannot poll Git output");
+      if (ready > 0) {
+        char buffer[16384];
+        const auto count = ::read(pipeFD[0], buffer, sizeof(buffer));
+        require(count >= 0 || errno == EINTR, "cannot read Git output");
+        if (count > 0) {
+          require(std::size_t(count) <= maximum - result.size(),
+                  "Git output exceeds configured byte limit");
+          result.append(buffer, std::size_t(count));
+        } else if (count == 0)
+          eof = true;
+      }
+    } else if (!exited)
+      ::poll(nullptr, 0, 10);
+  }
+  require(WIFEXITED(status) && WEXITSTATUS(status) == 0,
+          "Git plumbing failed while reading the pinned commit (missing or invalid objects)");
+  return result;
+}
+std::string treeDigest(const fs::path &source, GitSnapshotLimits limits) {
+  require(fs::is_directory(fs::symlink_status(source)), "snapshot source root must be a directory");
+  std::vector<fs::path> entries;
+  for (const auto &entry : fs::recursive_directory_iterator(source)) {
+    const auto status = entry.symlink_status();
+    require(fs::is_regular_file(status) || fs::is_directory(status),
+            "snapshot contains a symlink or unsupported filesystem entry");
+    require(entries.size() < limits.maxSourceEntries, "snapshot exceeds configured entry limit");
+    entries.push_back(entry.path());
+  }
+  std::ranges::sort(entries);
+  llvm::SHA256 hash;
+  field(hash, "kalandra-source-tree-v1");
+  std::size_t bytes = 0;
+  for (const auto &path : entries) {
+    field(hash, path.lexically_relative(source).generic_string());
+    if (fs::is_directory(fs::symlink_status(path)))
+      field(hash, "directory");
+    else {
+      field(hash, "file");
+      auto contents = read(path, limits.maxSourceBytes - bytes);
+      bytes += contents.size();
+      field(hash, contents);
+    }
+  }
+  return digest(hash);
+}
+void copyObjects(const fs::path &repository, const fs::path &database, GitSnapshotLimits limits) {
+  require(fs::canonical(repository).string() == repository.string(),
+          "local Git repository must use its canonical absolute path");
+  auto gitdir = repository;
+  if (fs::exists(fs::symlink_status(repository / ".git")))
+    gitdir /= ".git";
+  require(fs::is_directory(fs::symlink_status(gitdir)) &&
+              fs::is_directory(fs::symlink_status(gitdir / "objects")) &&
+              fs::is_regular_file(fs::symlink_status(gitdir / "HEAD")),
+          "snapshot requires a local worktree or bare Git repository; linked worktrees are "
+          "unsupported");
+  fs::create_directories(database / "objects");
+  fs::create_directory(database / "refs");
+  write(database / "HEAD", "ref: refs/heads/unused\n");
+  write(database / "config", "[core]\n bare = true\n repositoryformatversion = 0\n");
+  const auto objects = gitdir / "objects";
+  std::size_t files = 0, bytes = 0;
+  for (const auto &entry : fs::recursive_directory_iterator(objects)) {
+    const auto status = entry.symlink_status();
+    require(fs::is_regular_file(status) || fs::is_directory(status),
+            "Git object store contains a symlink or unsupported entry");
+    require(++files <= limits.maxObjectFiles, "Git object store exceeds configured entry limit");
+    if (fs::is_directory(status))
+      continue;
+    const auto relative = entry.path().lexically_relative(objects);
+    const auto parent = relative.parent_path().string();
+    const auto name = relative.filename().string();
+    require(relative != "info/alternates" && relative != "info/http-alternates" &&
+                !name.ends_with(".promisor"),
+            "alternate or partial Git object stores are unsupported");
+    if (parent == "info")
+      continue; // Never copy commit graphs or other source metadata.
+    const bool loose = hex(parent, 2) && hex(name, 38);
+    const auto extension = relative.extension().string();
+    const bool pack = parent == "pack" && name.starts_with("pack-") &&
+                      hex(name.substr(5, 40), 40) && name.size() == 45 + extension.size() &&
+                      (extension == ".pack" || extension == ".idx" || extension == ".rev" ||
+                       extension == ".bitmap");
+    require(loose || pack, "unsupported Git object-store file");
+    auto contents = read(entry.path(), limits.maxObjectBytes - bytes);
+    bytes += contents.size();
+    fs::create_directories((database / "objects" / relative).parent_path());
+    write(database / "objects" / relative, contents);
+  }
+}
+std::string extract(const fs::path &database, const std::string &commit, const fs::path &source,
+                    GitSnapshotLimits limits) {
+  require(git(database, {"cat-file", "-t", commit}, 32, limits.processSeconds) == "commit\n",
+          "snapshot revision must identify a commit, not a tree or tag object");
+  git(database, {"fsck", "--strict", "--no-reflogs", "--no-dangling", commit},
+      limits.maxListingBytes, limits.processSeconds);
+  auto listing = git(database, {"ls-tree", "-r", "-z", "--full-tree", commit},
+                     limits.maxListingBytes, limits.processSeconds);
+  fs::create_directory(source);
+  std::size_t offset = 0, files = 0, bytes = 0;
+  std::unordered_set<std::string> directories;
+  while (offset < listing.size()) {
+    auto end = listing.find('\0', offset);
+    require(end != std::string::npos && ++files <= limits.maxSourceEntries,
+            "Git tree exceeds configured file limit or has an invalid listing");
+    const auto line = std::string_view(listing).substr(offset, end - offset);
+    const auto tab = line.find('\t');
+    require(tab == 52 && (line.starts_with("100644 blob ") || line.starts_with("100755 blob ")),
+            "Git tree contains a symlink, submodule or unsupported mode");
+    const std::string object(line.substr(12, 40));
+    const fs::path relative(std::string(line.substr(tab + 1)));
+    require(hex(object, 40) && !relative.empty() && !relative.has_root_path(),
+            "invalid Git tree entry");
+    for (const auto &part : relative) {
+      auto name = part.string();
+      std::ranges::transform(name, name.begin(), [](unsigned char c) {
+        return char(c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c);
+      });
+      require(name != "." && name != ".." && name != ".git", "unsafe Git source path");
+    }
+    const auto target = source / relative;
+    require(!fs::exists(target), "Git source paths collide on this filesystem");
+    auto contents = git(database, {"cat-file", "blob", object}, limits.maxSourceBytes - bytes,
+                        limits.processSeconds);
+    bytes += contents.size();
+    fs::path parent;
+    for (const auto &part : relative.parent_path()) {
+      parent /= part;
+      if (fs::exists(source / parent))
+        require(directories.contains(parent.generic_string()),
+                "Git source directories collide on this filesystem");
+      else {
+        require(files + directories.size() < limits.maxSourceEntries,
+                "Git source exceeds configured directory limit");
+        fs::create_directory(source / parent);
+        directories.insert(parent.generic_string());
+      }
+    }
+    require(files + directories.size() <= limits.maxSourceEntries,
+            "Git source exceeds configured entry limit");
+    write(target, contents); // Source executable modes are intentionally stripped.
+    offset = end + 1;
+  }
+  return treeDigest(source, limits);
+}
+NativeGitSnapshot load(const fs::path &cache, const GitSnapshotRequest &request,
+                       GitSnapshotLimits limits) {
+  const auto key = requestKey(request);
+  const auto directory = cache / key;
+  require(fs::is_directory(fs::symlink_status(directory)),
+          "snapshot is missing or is not a directory");
+  const auto table = toml::parse(read(directory / "snapshot.toml", 16384));
+  require(table.size() == 4 && table["format"].is_integer() && table["format"].value<int>() == 1 &&
+              table["repository"].value<std::string>() == request.repository &&
+              table["commit"].value<std::string>() == request.commit,
+          "snapshot metadata does not match request");
+  auto expected = table["digest"].value<std::string>();
+  require(expected && hex(*expected, 64), "invalid snapshot integrity digest");
+  for (const auto &entry : fs::directory_iterator(directory))
+    require(entry.path().filename() == "source" || entry.path().filename() == "snapshot.toml",
+            "snapshot contains unexpected metadata entries");
+  require(treeDigest(directory / "source", limits) == *expected,
+          "snapshot source integrity mismatch");
+  auto library = loadNativePackage((directory / "source/kalandra.toml").string());
+  require(bool(library), library ? "" : library.error());
+  return {"git-local-v1:" + key, directory.string(), *expected, std::move(*library)};
+}
+} // namespace
+std::expected<NativeGitSnapshot, std::string>
+loadLocalGitSnapshot(std::string cache, GitSnapshotRequest request, GitSnapshotLimits limits) {
+  try {
+    return load(cacheRoot(cache), request, limits);
+  } catch (const std::exception &error) {
+    return std::unexpected(error.what());
+  }
+}
+std::expected<NativeGitSnapshot, std::string>
+installLocalGitSnapshot(std::string cache, GitSnapshotRequest request, GitSnapshotLimits limits) {
+  try {
+    const auto root = cacheRoot(cache);
+    const auto key = requestKey(request);
+    const auto destination = root / key;
+    if (fs::exists(fs::symlink_status(destination)))
+      return load(root, request, limits);
+    Stage stage(root);
+    copyObjects(request.repository, stage.path / "git", limits);
+    fs::create_directory(stage.path / "published");
+    const auto tree =
+        extract(stage.path / "git", request.commit, stage.path / "published/source", limits);
+    auto library = loadNativePackage((stage.path / "published/source/kalandra.toml").string());
+    require(bool(library), library ? "" : library.error());
+    const toml::table metadata{{"format", 1},
+                               {"repository", request.repository},
+                               {"commit", request.commit},
+                               {"digest", tree}};
+    std::ostringstream text;
+    text << metadata;
+    require(text.str().size() <= 16384, "snapshot metadata exceeds configured size limit");
+    write(stage.path / "published/snapshot.toml", text.str());
+    // Darwin exclusive rename never replaces a competing or preexisting snapshot.
+    if (::renameatx_np(AT_FDCWD, (stage.path / "published").c_str(), AT_FDCWD, destination.c_str(),
+                       RENAME_EXCL)) {
+      const auto error = errno;
+      require(error == EEXIST || error == ENOTEMPTY,
+              "cannot publish snapshot without replacing an existing path");
+      auto winner = load(root, request, limits);
+      require(winner.digest == tree, "competing snapshot has different source contents");
+      return winner;
+    }
+    return load(root, request, limits);
+  } catch (const std::exception &error) {
+    return std::unexpected(error.what());
+  }
+}
+} // namespace kalandra
