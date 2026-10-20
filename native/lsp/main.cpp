@@ -5,6 +5,7 @@
 #include "SemanticQuery.h"
 #include "Workspace.h"
 #include "kalandra/Diagnostics.h"
+#include "kalandra/Formatter.h"
 #include "kalandra/Project.h"
 #include "kalandra/Semantics.h"
 #include "kalandra/Utf8.h"
@@ -448,6 +449,41 @@ public:
     }
     published = std::move(next);
   }
+  void formattingRequest(const j::Value &id, const j::Object *params) {
+    const auto item = params ? params->getObject("textDocument") : nullptr;
+    const auto uri = item ? item->getString("uri") : std::nullopt;
+    const auto path = uri ? pathFromUri(*uri) : std::nullopt;
+    const auto format = params ? params->getObject("options") : nullptr;
+    const auto tabSize = format ? protocolInteger(format->get("tabSize")) : std::nullopt;
+    const auto spaces = format ? format->getBoolean("insertSpaces") : std::nullopt;
+    if (!path || !tabSize || *tabSize <= 0 || !spaces) {
+      error(id, -32602, "Expected a local .k URI and formatting options");
+      return;
+    }
+    j::Array edits;
+    const auto open = documents.find(*path);
+    if (open != documents.end() && open->second.uri == *uri) {
+      const auto source = std::make_shared<const SourceFile>(*path, open->second.text);
+      auto result = formatSource(source);
+      if (!result.text && !result.diagnostics.empty() && result.diagnostics[0].code == "F001") {
+        error(id, -32803, result.diagnostics[0].message);
+        return;
+      }
+      if (result.text && *result.text != open->second.text) {
+        const Diagnostic location{"", "", {0, open->second.text.size()}};
+        auto encoded = j::parse(renderDiagnosticsJson(source.get(), {&location, 1}));
+        if (!encoded) {
+          llvm::consumeError(encoded.takeError());
+          error(id, -32603, "Cannot encode formatting range");
+          return;
+        }
+        const auto &diagnostic =
+            *(*encoded->getAsObject()->getArray("diagnostics"))[0].getAsObject();
+        edits.push_back(j::Object{{"range", *diagnostic.get("range")}, {"newText", *result.text}});
+      }
+    }
+    send(j::Object{{"jsonrpc", "2.0"}, {"id", id}, {"result", std::move(edits)}});
+  }
   void completionRequest(const j::Value &id, const j::Object *params) {
     const auto item = params ? params->getObject("textDocument") : nullptr;
     const auto uri = item ? item->getString("uri") : std::nullopt;
@@ -826,6 +862,7 @@ int main(int argc, char **argv) {
                   j::Object{{"positionEncoding", "utf-16"},
                             {"hoverProvider", true},
                             {"completionProvider", j::Object{{"resolveProvider", false}}},
+                            {"documentFormattingProvider", true},
                             {"definitionProvider", true},
                             {"referencesProvider", true},
                             {"renameProvider", !session.renameDocuments ? j::Value(false)
@@ -853,6 +890,8 @@ int main(int argc, char **argv) {
                  request) {
         session.renameRequest(*id, object->getObject("params"),
                               *method == "textDocument/prepareRename");
+      } else if (*method == "textDocument/formatting" && request) {
+        session.formattingRequest(*id, object->getObject("params"));
       } else if (*method == "textDocument/completion" && request) {
         session.completionRequest(*id, object->getObject("params"));
       } else if ((*method == "textDocument/hover" || *method == "textDocument/definition" ||

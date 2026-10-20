@@ -29,6 +29,7 @@ The server implements the [Language Server Protocol 3.17](https://microsoft.gith
 - `textDocument/publishDiagnostics`, including open-buffer versions, compiler codes, source names and severity.
 - `textDocument/hover` for checked token types and function signatures.
 - `textDocument/completion` for prefix-filtered names in the current lexical/module scope.
+- `textDocument/formatting` for verified, syntax-preserving whole-document edits.
 - `textDocument/definition` for resolved source declaration locations.
 - `textDocument/references` for resolved occurrences in workspace/open/project source graphs.
 - `textDocument/prepareRename` and `textDocument/rename` for validated workspace edit proposals when supported by the client.
@@ -135,6 +136,10 @@ Discovery permits at most 512 source files, 20,000 visited directory entries and
 
 The server advertises workspace-folder support with change notifications disabled. Restart it after changing workspace folders or project configuration. The [workspace qualification record](../../native/metal-proof/evidence/native-lsp-workspace-2026-10-20.json) covers normal and ASan/UBSan discovery/protocol tests: unopened callers, fresh disk changes, buffer precedence, URI preservation, root precedence/isolation, nested roots, project/package mappings, external dependencies, exclusions, symlinks, scan limits and failure recovery. These are protocol and filesystem tests, not real-editor or additional-platform qualification.
 
+## Document formatting
+
+The server advertises `documentFormattingProvider: true`. Format Document uses the [shared native formatter](native-formatter.md) on the current open buffer, independently of dependency resolution or type checking. It returns a whole-document UTF-16 edit for the editor to apply, with fixed two-space indentation and LF line endings. Unchanged/invalid source or unopened documents return no edits. Formatting does not write files, update server buffers or publish diagnostics; the editor's subsequent change notification updates the buffer. See the formatter contract for options, verification failures and resource limits. Range/on-type formatting and real-editor qualification remain work.
+
 ## Scope completion
 
 The server advertises `completionProvider: {resolveProvider: false}`. Completion returns plain-text items and UTF-16 `textEdit` ranges covering the entire current identifier, including any suffix after the cursor. An empty expression position can also request names. The document must be open under its registered URI; unopened documents and invalid positions return `null`, and malformed parameters return InvalidParams (-32602).
@@ -173,4 +178,4 @@ Malformed JSON with valid framing returns a parse error and leaves the session u
 
 Independent Python-stdlib protocol tests launch normal and ASan/UBSan builds, exercise interactive pipe framing, lifecycle, versions, Unicode ranges/URIs, source isolation, dependency changes/clearing, project packages, budgets and malformed input. The [initial qualification record](../../native/metal-proof/evidence/native-lsp-2026-10-20.json) covers the first full-sync implementation. [Incremental edit qualification](../../native/metal-proof/evidence/native-lsp-edits-2026-10-20.json) adds sequential/mixed edits, Unicode scalar boundaries, CRLF/CR positions, line-end clamping, transactional failure, deprecated lengths and edit limits. Third-party LLVM libraries are not rebuilt with sanitizers. No real editor or additional operating system is qualified by these protocol tests.
 
-Next: native formatter integration. Completion recovery, members and signature help remain follow-ups. Filesystem watching, persistent workspace indexing, asynchronous scheduling and editor distribution remain separate work.
+Next: real-editor qualification and editor distribution. Completion recovery, members and signature help remain follow-ups. Filesystem watching, persistent workspace indexing, asynchronous scheduling and editor distribution remain separate work.

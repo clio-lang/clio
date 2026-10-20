@@ -82,6 +82,7 @@ class Client:
         assert caps["renameProvider"] == ({"prepareProvider": True} if rename else False)
         assert caps["workspace"]["workspaceFolders"] == {"supported": True, "changeNotifications": False}
         assert caps["completionProvider"] == {"resolveProvider": False}
+        assert caps["documentFormattingProvider"] is True
         self.send("initialized", {})
 
     def open(self, path, text, version=1):
@@ -99,6 +100,10 @@ class Client:
     def hover(self, path, line, character):
         return self.rpc("textDocument/hover", {"textDocument": {"uri": path.as_uri()},
                                               "position": {"line": line, "character": character}})
+
+    def formatting(self, path, options=None):
+        return self.rpc("textDocument/formatting", {"textDocument": {"uri": path.as_uri()},
+            "options": options if options is not None else {"tabSize": 4, "insertSpaces": True}})
 
     def completion(self, path, line, character):
         return self.rpc("textDocument/completion", {"textDocument": {"uri": path.as_uri()},
@@ -927,6 +932,51 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     client.close(document)
     client.barrier()
     assert client.completion(document, 4, 16)["result"] is None
+    client.finish()
+
+    # Format the current buffer only; the client independently applies the edit.
+    formatter = Path(temp) / "format.k"
+    disk = b"fn main():\n  99\n"
+    formatter.write_bytes(disk)
+    client = Client()
+    client.init()
+    text = '# 👩\r\nfn main( ):\r\n    "😀"'
+    expected = '# 👩\nfn main():\n  "😀"\n'
+    client.open(formatter, text)
+    client.barrier()
+    edits = client.formatting(formatter)["result"]
+    assert edits == [{"range": {"start": {"line": 0, "character": 0},
+        "end": {"line": 2, "character": 8}}, "newText": expected}], edits
+    applied = apply_workspace_edit({"documentChanges": [{"textDocument": {"uri": formatter.as_uri()},
+        "edits": edits}]}, {formatter.as_uri(): text})[formatter.as_uri()]
+    assert applied == expected
+    assert client.formatting(formatter, {"tabSize": 8, "insertSpaces": False})["result"] == edits
+    assert not client.barrier(), "formatting published diagnostics or changed buffers"
+    assert formatter.read_bytes() == disk
+    client.change(formatter, applied, 2)
+    client.barrier()
+    assert client.formatting(formatter)["result"] == [], "formatter not idempotent"
+    client.change(formatter, 'fn main(\n', 3)
+    client.barrier()
+    assert client.formatting(formatter)["result"] == [], "invalid source offered edits"
+    # Formatting is syntax-only; imports need not be available to format a file.
+    client.change(formatter, 'from "./missing.k" import helper\nfn main():\n    helper( 1 )\n', 4)
+    client.barrier()
+    edits = client.formatting(formatter)["result"]
+    assert len(edits) == 1 and edits[0]["newText"].endswith('  helper(1)\n')
+    client.change(formatter, 'fn main():\n  devices . gpu(1)\n', 5)
+    client.barrier()
+    assert client.formatting(formatter)["error"]["code"] == -32803, "verification refusal lost"
+    client.change(formatter, '', 6)
+    client.barrier()
+    assert client.formatting(formatter)["result"] == []
+    for options in ({}, {"tabSize": 0, "insertSpaces": True},
+                    {"tabSize": True, "insertSpaces": True}, {"tabSize": 2}):
+        assert client.formatting(formatter, options)["error"]["code"] == -32602
+    client.close(formatter)
+    client.barrier()
+    assert client.formatting(formatter)["result"] == []
+    assert formatter.read_bytes() == disk
     client.finish()
 
     invalid_stream(b"Content-Length: 0\r\n\r\n")
