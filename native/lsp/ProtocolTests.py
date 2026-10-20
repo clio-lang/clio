@@ -74,6 +74,7 @@ class Client:
         assert caps["positionEncoding"] == "utf-16"
         assert caps["textDocumentSync"]["change"] == 2  # Incremental UTF-16 changes.
         assert caps["hoverProvider"] is True
+        assert caps["definitionProvider"] is True
         assert not caps.get("completionProvider")
         self.send("initialized", {})
 
@@ -92,6 +93,10 @@ class Client:
     def hover(self, path, line, character):
         return self.rpc("textDocument/hover", {"textDocument": {"uri": path.as_uri()},
                                               "position": {"line": line, "character": character}})
+
+    def definition(self, path, line, character):
+        return self.rpc("textDocument/definition", {"textDocument": {"uri": path.as_uri()},
+                                                   "position": {"line": line, "character": character}})
 
     def close(self, path):
         self.send("textDocument/didClose", {"textDocument": {"uri": path.as_uri()}})
@@ -358,6 +363,67 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert "float64" in client.hover(main, 2, 3)["result"]["contents"]["value"]
     client.close(lib)
     assert client.hover(main, 2, 3)["result"] is None
+    client.finish()
+
+    # Definition locations follow checked symbol identity and current source offsets.
+    client = Client()
+    client.init()
+    source = "fn twice(value:int):\n  value*2\nfn main():\n  transform=twice\n  transform(21)\n"
+    client.open(main, source)
+    target = client.definition(main, 1, 3)["result"]
+    assert target == {"uri": main.as_uri(), "range": {"start": {"line": 0, "character": 9},
+                                                        "end": {"line": 0, "character": 14}}}
+    assert client.definition(main, 3, 14)["result"]["range"]["start"] == {"line": 0, "character": 3}
+    assert client.definition(main, 4, 4)["result"]["range"]["start"] == {"line": 3, "character": 2}
+    client.change(main, 'fn main()->String:\r\n  text="é"\r\n  "😀" + text\r\n', 2)
+    assert client.definition(main, 2, 10)["result"]["range"]["start"] == {"line": 1, "character": 2}
+    assert client.definition(main, 2, 4)["result"] is None  # Inside the emoji's surrogate pair.
+    assert client.definition(main, 1, 8)["result"] is None  # String literal.
+    assert client.definition(main, 999, 0)["result"] is None
+    assert client.definition(main, 0, -1)["error"]["code"] == -32602
+    assert client.rpc("textDocument/definition", {})["error"]["code"] == -32602
+    client.change(main, "fn main():\n  value=1\n  callback=fn(x:int):x+value\n  callback(2)\n", 3)
+    assert client.definition(main, 2, 25)["result"]["range"]["start"] == {"line": 1, "character": 2}
+    client.change(main, "fn main():\n  missing\n", 4)
+    assert client.definition(main, 0, 4)["result"] is None
+    client.close(main)
+    assert client.definition(main, 0, 4)["result"] is None
+    client.finish()
+
+    # A same-spelled local function cannot steal a re-exported alias's destination.
+    leaf = root / "deep space#é.k"
+    original = "export fn scale(value:int):\n  value*2\n"
+    leaf.write_text(original)
+    facade = root / "public.k"
+    facade.write_text('export from "./deep space#é.k" import scale as advertised\n')
+    caller = ('from "./public.k" import advertised as twice\n'
+              'fn scale(value:String):\n  value\nfn main():\n  twice(21)\n')
+    client = Client()
+    client.init()
+    client.open(main, caller)
+    target = client.definition(main, 4, 4)["result"]
+    assert target == {"uri": leaf.as_uri(), "range": {"start": {"line": 0, "character": 10},
+                                                        "end": {"line": 0, "character": 15}}}
+    local_uri = leaf.as_uri().replace("file:///", "file://localhost/")
+    client.send("textDocument/didOpen", {"textDocument": {"uri": local_uri,
+        "languageId": "kalandra", "version": 1, "text": "\n\n" + original}})
+    target = client.definition(main, 4, 4)["result"]
+    assert target["uri"] == local_uri and target["range"]["start"]["line"] == 2
+    client.send("textDocument/didChange", {"textDocument": {"uri": local_uri, "version": 2},
+        "contentChanges": [edit(0, 0, 0, "# 😀\n")]})
+    assert client.definition(main, 4, 4)["result"]["range"]["start"]["line"] == 3
+    client.send("textDocument/didClose", {"textDocument": {"uri": local_uri}})
+    target = client.definition(main, 4, 4)["result"]
+    assert target["uri"] == leaf.as_uri() and target["range"]["start"]["line"] == 0
+    assert leaf.read_text() == original
+    client.finish()
+
+    # Explicit package mappings also retain the ultimate source declaration.
+    manifest.write_text('format=1\n[project]\nentry="main.k"\n[packages]\nmath="public.k"\n')
+    client = Client("--project", str(manifest))
+    client.init()
+    client.open(main, caller.replace('"./public.k"', '"math"'))
+    assert client.definition(main, 4, 4)["result"]["uri"] == leaf.as_uri()
     client.finish()
 
     invalid_stream(b"Content-Length: 0\r\n\r\n")

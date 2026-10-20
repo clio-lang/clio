@@ -95,6 +95,8 @@ struct Symbol {
   SourceSpan declaration;
   FunctionId owner;
   bool parameter;
+  // Source definition of a lifted capture/narrowed alias. Diagnostics retain declaration.
+  std::optional<SourceSpan> definition = {};
 };
 struct Int32Literal {
   std::int32_t value;

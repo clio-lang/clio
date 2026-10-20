@@ -1,10 +1,7 @@
 #include "Hover.h"
-#include <algorithm>
-#include <map>
-#include <tuple>
+#include "SemanticQuery.h"
 namespace kalandra::lsp {
 namespace {
-using SpanKey = std::pair<std::size_t, std::size_t>;
 struct TypePrinter {
   const TypedModule &module;
   std::size_t budget = 4096;
@@ -117,113 +114,30 @@ struct TypePrinter {
     return result;
   }
 };
-std::shared_ptr<const SourceFile> originalSource(std::shared_ptr<const SourceFile> source,
-                                                 std::string_view path, unsigned depth = 0) {
-  if (depth > 32)
-    return {};
-  if (source->parts().empty())
-    return source->path() == path ? source : nullptr;
-  for (const auto &part : source->parts())
-    if (auto original = originalSource(part.source, path, depth + 1))
-      return original;
-  return {};
-}
 } // namespace
 std::optional<HoverInfo> hoverInfo(ParseResult syntax, std::string_view path, std::size_t offset,
                                    CheckOptions options) {
-  if (!syntax.ok() || !syntax.module.source)
+  auto selected = semanticToken(std::move(syntax), path, offset, options);
+  if (!selected)
     return {};
-  auto original = originalSource(syntax.module.source, path);
-  if (!original || offset >= original->text().size())
-    return {};
-  auto tokens = lex(original);
-  const auto token = std::ranges::find_if(tokens.tokens, [&](const auto &token) {
-    return token.span.begin <= offset && offset < token.span.end;
-  });
-  if (token == tokens.tokens.end() ||
-      (token->kind != TokenKind::Identifier && token->kind != TokenKind::String &&
-       token->kind != TokenKind::Number))
-    return {};
-  const auto word = original->slice(token->span);
-  // Retain syntactic callee spans while the checker resolves their target identities.
-  std::map<SpanKey, SourceSpan> callees;
-  for (const auto &expression : syntax.module.expressions) {
-    if (const auto *call = std::get_if<CallExpr>(&expression.value))
-      callees.emplace(SpanKey{expression.span.begin, expression.span.end},
-                      syntax.module.expressions[call->callee].span);
-    if (const auto *pipeline = std::get_if<BinaryExpr>(&expression.value);
-        pipeline && pipeline->operation == TokenKind::Arrow) {
-      const auto &right = syntax.module.expressions[pipeline->right];
-      if (std::holds_alternative<NameExpr>(right.value))
-        callees.emplace(SpanKey{expression.span.begin, expression.span.end}, right.span);
-      else if (const auto *call = std::get_if<CallExpr>(&right.value))
-        callees.emplace(SpanKey{expression.span.begin, expression.span.end},
-                        syntax.module.expressions[call->callee].span);
-    }
+  TypePrinter printer{selected->module};
+  const auto word = selected->token.source->slice(selected->token.span);
+  std::string text;
+  if (selected->function)
+    text = printer.function(selected->module.functions[*selected->function], word);
+  else if (selected->record) {
+    const auto &record = selected->module.records[*selected->record];
+    text = std::string(record.error              ? "error "
+                       : record.variants.empty() ? "type "
+                                                 : "enum ") +
+           std::string(word);
+  } else if (selected->type) {
+    text = printer.type(*selected->type);
+    if (!word.starts_with('"'))
+      text = std::string(word) + ": " + text;
   }
-  auto checked = check(std::move(syntax), {}, options);
-  if (!checked.ok())
+  if (!printer.valid || text.empty() || text.size() > 16384)
     return {};
-  const auto &module = *checked.module;
-  TypePrinter printer{module};
-  const auto local = [&](SourceSpan span) -> std::optional<SourceSpan> {
-    const auto [file, begin] = module.source->origin(span.begin);
-    const auto [endFile, end] = module.source->origin(span.end);
-    if (file->path() != path || endFile != file || end <= begin)
-      return {};
-    return SourceSpan{begin, end};
-  };
-  const auto exact = [&](SourceSpan span) {
-    auto mapped = local(span);
-    return mapped && mapped->begin == token->span.begin && mapped->end == token->span.end;
-  };
-  const auto result = [&](std::string text) -> std::optional<HoverInfo> {
-    if (!printer.valid || text.empty() || text.size() > 16384)
-      return {};
-    return HoverInfo{std::move(text), original, token->span};
-  };
-  for (const auto &symbol : module.symbols)
-    if (exact(symbol.declaration))
-      return result(std::string(word) + ": " + printer.type(symbol.type));
-  for (const auto &function : module.functions)
-    if (!function.anonymous && exact(function.declaration))
-      return result(printer.function(function, word));
-  for (const auto &record : module.records) {
-    if (exact(record.declaration))
-      return result(std::string(record.error              ? "error "
-                                : record.variants.empty() ? "type "
-                                                          : "enum ") +
-                    std::string(word));
-    for (const auto &field : record.fields)
-      if (exact(field.declaration))
-        return result(std::string(word) + ": " + printer.type(field.type));
-  }
-  // Prefer exact value spans; field names use the resolved field's type, not its receiver.
-  for (const auto &expression : module.expressions) {
-    if (exact(expression.span)) {
-      if (const auto *reference = std::get_if<FunctionReference>(&expression.operation))
-        return result(printer.function(module.functions[reference->function], word));
-      if (token->kind == TokenKind::String)
-        return result(printer.type(expression.type));
-      return result(std::string(word) + ": " + printer.type(expression.type));
-    }
-    if (const auto *field = std::get_if<RecordFieldRead>(&expression.operation)) {
-      auto mapped = local(expression.span);
-      if (mapped && mapped->end == token->span.end && mapped->begin <= token->span.begin) {
-        const auto &receiver = module.expressions[field->input].type;
-        if (receiver.record && *receiver.record < module.records.size() &&
-            module.records[*receiver.record].fields[field->field].name == word)
-          if (token->kind == TokenKind::String)
-            return result(printer.type(expression.type));
-        return result(std::string(word) + ": " + printer.type(expression.type));
-      }
-    }
-    if (const auto *call = std::get_if<FunctionCall>(&expression.operation)) {
-      const auto found = callees.find({expression.span.begin, expression.span.end});
-      if (found != callees.end() && exact(found->second))
-        return result(printer.function(module.functions[call->function], word));
-    }
-  }
-  return {};
+  return HoverInfo{std::move(text), selected->token.source, selected->token.span};
 }
 } // namespace kalandra::lsp

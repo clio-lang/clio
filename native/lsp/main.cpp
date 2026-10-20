@@ -1,5 +1,6 @@
 #include "Edits.h"
 #include "Hover.h"
+#include "SemanticQuery.h"
 #include "kalandra/Diagnostics.h"
 #include "kalandra/Project.h"
 #include "kalandra/Semantics.h"
@@ -291,7 +292,7 @@ public:
     }
     published = std::move(next);
   }
-  void hover(const j::Value &id, const j::Object *params) {
+  void symbolRequest(const j::Value &id, const j::Object *params, bool goDefinition) {
     const auto item = params ? params->getObject("textDocument") : nullptr;
     const auto uri = item ? item->getString("uri") : std::nullopt;
     const auto path = uri ? pathFromUri(*uri) : std::nullopt;
@@ -320,6 +321,26 @@ public:
     auto syntax = loadModules(*path, {}, {}, project ? project->packages : empty, overlays);
     if (!syntax) {
       respond(nullptr);
+      return;
+    }
+    if (goDefinition) {
+      auto target = lsp::definition(std::move(*syntax), *path, *offset, options);
+      if (!target) {
+        respond(nullptr);
+        return;
+      }
+      const Diagnostic location{"", "", target->span};
+      auto encoded = j::parse(renderDiagnosticsJson(target->source.get(), {&location, 1}));
+      if (!encoded) {
+        llvm::consumeError(encoded.takeError());
+        error(id, -32603, "Cannot encode definition range");
+        return;
+      }
+      const auto &diagnostic = *(*encoded->getAsObject()->getArray("diagnostics"))[0].getAsObject();
+      const auto opened = documents.find(target->source->path());
+      auto targetUri =
+          opened == documents.end() ? uriFromPath(target->source->path()) : opened->second.uri;
+      respond(j::Object{{"uri", std::move(targetUri)}, {"range", *diagnostic.get("range")}});
       return;
     }
     auto info = lsp::hoverInfo(std::move(*syntax), *path, *offset, options);
@@ -512,6 +533,7 @@ int main(int argc, char **argv) {
              j::Object{{"capabilities",
                         j::Object{{"positionEncoding", "utf-16"},
                                   {"hoverProvider", true},
+                                  {"definitionProvider", true},
                                   {"textDocumentSync",
                                    j::Object{{"openClose", true},
                                              {"change", 2},
@@ -526,8 +548,10 @@ int main(int argc, char **argv) {
       } else if (*method == "shutdown" && request) {
         session.shutdown = true;
         send(j::Object{{"jsonrpc", "2.0"}, {"id", *id}, {"result", nullptr}});
-      } else if (*method == "textDocument/hover" && request) {
-        session.hover(*id, object->getObject("params"));
+      } else if ((*method == "textDocument/hover" || *method == "textDocument/definition") &&
+                 request) {
+        session.symbolRequest(*id, object->getObject("params"),
+                              *method == "textDocument/definition");
       } else if (request)
         error(*id, *method == "initialize" ? -32600 : -32601, "Unsupported request");
       else if (*method == "textDocument/didOpen" || *method == "textDocument/didChange" ||

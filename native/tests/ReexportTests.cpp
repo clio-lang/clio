@@ -88,8 +88,10 @@ int main(int argc, char **argv) {
     require(!lowerNative(*noEntry.module), "reexported dependency main became program entry");
 #endif
     auto placed = loadModules((root / "main.k").string());
-    require(bool(placed) && !check(std::move(*placed), {}, {.placement = true}).ok(),
-            "reexports enabled GPU modules silently");
+    // Placement-aware checking also accepts ordinary CPU module graphs. This
+    // fixture contains no GPU dispatch and does not qualify records on device.
+    require(bool(placed) && check(std::move(*placed), {}, {.placement = true}).ok(),
+            "placement-aware checking rejected an ordinary CPU reexport graph");
     // A diamond through two public facades still ends at one original declaration.
     write("second.k",
           "export from \"./core.k\" import Row as Other, make as build\n");

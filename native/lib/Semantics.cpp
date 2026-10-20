@@ -1201,7 +1201,8 @@ private:
       return {};
     }
     const auto symbol = output_.symbols.size();
-    output_.symbols.push_back({identifier, type, span, frame.function, true});
+    output_.symbols.push_back({identifier, type, span, frame.function, true,
+                               capture.definition.value_or(capture.declaration)});
     output_.functions[frame.function].parameters.push_back(symbol);
     frame.closure->captures.emplace(identifier, symbol);
     frame.closure->origins.push_back(*origin);
@@ -2632,7 +2633,8 @@ private:
           const auto binding = output_.symbols[originalSymbol].name;
           const auto declaration = output_.symbols[originalSymbol].declaration;
           const auto symbol = output_.symbols.size();
-          output_.symbols.push_back({binding, narrowedType, declaration, frame.function, false});
+          output_.symbols.push_back({binding, narrowedType, declaration, frame.function, false,
+                                     output_.symbols[originalSymbol].definition});
           branch.locals[binding] = symbol;
           statements.push_back({arm.span, symbol, *narrowed});
         }
