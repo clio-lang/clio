@@ -122,6 +122,11 @@ def main():
                         assert (destination / (entry + '.mlir')).is_file()
                         assert re.search(r'gpu.func @kalandra_elementwise_v[23]', (destination / (stage + '.mlir')).read_text())
                         assert stage + '.metallib' in (destination / 'host.cpp').read_text()
+                    for entry, side, stage in re.findall(r'^(kernel\d+)\.(left|right)_stage=(kernel\d+-(?:left|right))$', manifest, re.M):
+                        assert (destination / (entry + '.mlir')).is_file()
+                        assert re.search(r'gpu.func @kalandra_elementwise(?:_v[23])?', (destination / (stage + '.mlir')).read_text())
+                        assert stage + '.metallib' in (destination / 'host.cpp').read_text()
+                        assert re.search(r'^' + entry + r'\.' + side + r'_tensor_bindings=\d+', manifest, re.M)
                     outcomes.append({'fixture': fixture, 'status': 'supported', 'kernels': count})
                 else:
                     assert emitted.returncode == 1, (fixture, emitted.stdout, emitted.stderr)

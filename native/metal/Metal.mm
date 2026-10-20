@@ -238,6 +238,8 @@ struct Bridge {
     Kernel reduction{}, epilogue{}, matrixPost{};
     Buffer replacement{};
     std::shared_ptr<const Arguments> postArguments{};
+    Kernel matrixLeftMap{}, matrixRightMap{};
+    std::shared_ptr<const Arguments> leftArguments{}, rightArguments{};
   };
   static std::expected<std::shared_ptr<const Arguments>, Error>
   capture(std::shared_ptr<State> state, const Kernel &kernel, std::span<const Buffer> tensors,
@@ -294,6 +296,9 @@ struct Bridge {
   struct Frame {
     PacketData packet;
     Buffer result;
+    Buffer matrixLeft{}, matrixRight{};
+    Kernel matrixKernel{};
+    unsigned matrixStage = 0; // 1: left map, 2: right map, 3: multiply.
     float scalar = 0;
     std::unique_ptr<ReductionScratch> scratch;
     std::shared_ptr<MetalAllocation> staging, resources;
@@ -318,6 +323,31 @@ struct Bridge {
   static const Buffer &tensor(const Frame &frame, std::size_t index) {
     return index == 0 && frame.packet.replacement ? frame.packet.replacement
                                                   : frame.packet.arguments->tensors[index];
+  }
+  static void matrixMaps(PacketData &packet, Kernel left, Kernel right,
+                         std::span<const Buffer> inputs, std::span<const float> scalars) noexcept {
+    if (!left && !right) {
+      if (!inputs.empty() || !scalars.empty())
+        packet.preparation = Error::Invalid;
+      return;
+    }
+    const auto &base = packet.kernel.state_;
+    for (auto *map : {&left, &right}) {
+      if (!*map)
+        continue;
+      if (!base || !base->matrix || !map->state_ || map->state_->index != base->index) {
+        packet.preparation = Error::Invalid;
+        return;
+      }
+      auto args = capture(packet.state, *map, inputs, scalars);
+      if (!args) {
+        packet.preparation = args.error();
+        return;
+      }
+      (map == &left ? packet.leftArguments : packet.rightArguments) = *args;
+    }
+    packet.matrixLeftMap = std::move(left);
+    packet.matrixRightMap = std::move(right);
   }
   static const ValueLayout layout;
   static const TaskEntry entry, reductionEntry;
@@ -468,10 +498,37 @@ struct Bridge {
       return nil;
     return command;
   }
+  static void nextMatrixStage(Frame &f) {
+    if (f.packet.matrixLeftMap) {
+      f.matrixStage = 1;
+      f.packet.kernel = std::move(f.packet.matrixLeftMap);
+      f.packet.arguments = std::move(f.packet.leftArguments);
+      f.packet.kind = Kind::Elementwise;
+    } else if (f.packet.matrixRightMap) {
+      f.matrixStage = 2;
+      f.packet.kernel = std::move(f.packet.matrixRightMap);
+      f.packet.arguments = std::move(f.packet.rightArguments);
+      f.packet.kind = Kind::Elementwise;
+    } else {
+      f.matrixStage = 3;
+      f.packet.kernel = std::move(f.matrixKernel);
+      f.packet.input = std::move(f.matrixLeft);
+      f.packet.right = std::move(f.matrixRight);
+      f.packet.kind = Kind::Matmul;
+    }
+  }
   static void resume(Task &task) {
     @autoreleasepool {
       auto &f = *static_cast<Frame *>(task.frame());
       auto state = f.packet.state;
+      if (!f.started && !f.matrixStage && (f.packet.matrixLeftMap || f.packet.matrixRightMap) &&
+          !f.packet.preparation) {
+        // Keep both original operands until their independent maps acknowledge.
+        f.matrixLeft = std::move(f.packet.input);
+        f.matrixRight = std::move(f.packet.right);
+        f.matrixKernel = std::move(f.packet.kernel);
+        nextMatrixStage(f);
+      }
       if (f.started) {
         if (!f.succeeded) {
           task.fault(static_cast<std::int64_t>(f.error));
@@ -492,7 +549,11 @@ struct Bridge {
         f.packet.kernel = Kernel{};
         f.packet.arguments.reset();
         f.packet.replacement = Buffer{};
-        if (!f.packet.reduction && !f.packet.matrixPost) {
+        const bool beforeMatrix = f.matrixStage == 1 || f.matrixStage == 2;
+        if (beforeMatrix) {
+          (f.matrixStage == 1 ? f.matrixLeft : f.matrixRight) = std::move(f.result);
+          nextMatrixStage(f);
+        } else if (!f.packet.reduction && !f.packet.matrixPost) {
           f.packet.epilogue = Kernel{};
           f.packet.postArguments.reset();
           task.complete(f.packet.kind == Kind::Reduce ? static_cast<const void *>(&f.scalar)
@@ -501,7 +562,9 @@ struct Bridge {
         }
         // Acknowledgement transfers the resident result into the next stage.
         // Source argument packs remain immutable; slot zero may select this result.
-        if (f.packet.matrixPost) {
+        if (beforeMatrix) {
+          // nextMatrixStage has selected the next resident operand or primitive.
+        } else if (f.packet.matrixPost) {
           f.packet.replacement = std::move(f.result);
           f.packet.kernel = std::move(f.packet.matrixPost);
           f.packet.arguments = std::move(f.packet.postArguments);
@@ -521,7 +584,7 @@ struct Bridge {
         task.fault(std::int64_t(*f.packet.preparation));
         return;
       }
-      if (f.packet.matrixPost) {
+      if (f.packet.matrixPost && f.packet.kind == Kind::Matmul) {
         const auto &kernel = f.packet.matrixPost.state_;
         const auto &base = f.packet.kernel.state_;
         if (!base || !base->matrix || kernel->registry != state || kernel->index != base->index ||
@@ -712,9 +775,10 @@ struct Bridge {
         f.result = Buffer(*result);
         if (!f.result.bytes()) {
           // Empty composed results still validate both stages and all arguments.
-          if ((f.packet.reduction && f.packet.epilogue) || f.packet.matrixPost) {
+          if ((f.packet.reduction && f.packet.epilogue) || f.packet.matrixPost ||
+              f.matrixStage == 1 || f.matrixStage == 2) {
             // Empty first stages submit no command; release their admission
-            // before the single bounded handoff to the following stage.
+            // before the bounded handoff (at most two operand maps and one post stage).
             --state->inFlight;
             f.active = false;
             f.succeeded = true;
@@ -1277,7 +1341,9 @@ std::expected<Kernel, Error> Runtime::loadMatmulKernel(std::string_view path,
 }
 TaskHandle Runtime::matmul(TaskCore &core, GroupHandle group, Kernel kernel, Buffer left,
                            Buffer right, Kernel post, std::span<const Buffer> postInputs,
-                           std::span<const float> scalars) noexcept {
+                           std::span<const float> scalars, Kernel leftMap, Kernel rightMap,
+                           std::span<const Buffer> mapInputs,
+                           std::span<const float> mapScalars) noexcept {
   Bridge::PacketData packet{state_,
                             std::move(left),
                             {},
@@ -1294,11 +1360,14 @@ TaskHandle Runtime::matmul(TaskCore &core, GroupHandle group, Kernel kernel, Buf
     packet.matrixPost = std::move(post);
   } else if (!postInputs.empty() || !scalars.empty())
     packet.preparation = Error::Invalid;
+  Bridge::matrixMaps(packet, std::move(leftMap), std::move(rightMap), mapInputs, mapScalars);
   return core.submit(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
 }
 TaskHandle Runtime::matmul(Task &task, GroupHandle group, Kernel kernel, Buffer left, Buffer right,
                            Kernel post, std::span<const Buffer> postInputs,
-                           std::span<const float> scalars) noexcept {
+                           std::span<const float> scalars, Kernel leftMap, Kernel rightMap,
+                           std::span<const Buffer> mapInputs,
+                           std::span<const float> mapScalars) noexcept {
   Bridge::PacketData packet{state_,
                             std::move(left),
                             {},
@@ -1315,6 +1384,7 @@ TaskHandle Runtime::matmul(Task &task, GroupHandle group, Kernel kernel, Buffer 
     packet.matrixPost = std::move(post);
   } else if (!postInputs.empty() || !scalars.empty())
     packet.preparation = Error::Invalid;
+  Bridge::matrixMaps(packet, std::move(leftMap), std::move(rightMap), mapInputs, mapScalars);
   return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
 }
 TaskHandle Runtime::reduceSum(TaskCore &core, GroupHandle group, Kernel kernel, Buffer input,

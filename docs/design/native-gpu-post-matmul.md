@@ -61,8 +61,8 @@ pack are released independently.
 
 ## Boundaries and qualification
 
-Arithmetic that transforms a multiplication operand, such as
-`matmul(input + 1, weights)`, still needs a separate placed stage. Multiple
+[Arithmetic on multiplication operands](native-gpu-pre-matmul.md), such as
+`matmul(input + 1, weights)`, now uses resident input stages within the same task. Multiple
 independent matrix/reduction primitives, data-dependent GPU branches, recursive
 helpers, other numeric types and higher ranks remain separate lowering work.
 Supported pure arithmetic in unused bindings may be eliminated, while its shape
@@ -81,7 +81,7 @@ checks imports/re-exports, mixed argument order, tensor/scalar operands, a reuse
 product, one repeated tensor input, direct/Tier 2 bindings, full-shape faults,
 relocation and byte-identical underlying multiplication shaders. CLI programs
 run with 1/2/4 workers in Debug, optimized, ASan/UBSan and TSan modes. Source-only
-checks preserve existing outputs on rejected operand transformations, extra
+checks admit operand transformations and preserve existing outputs on rejected extra
 matrix operations and branches. The installed Release compiler additionally
 builds a relocated application carrying its post shader after compiler removal.
 

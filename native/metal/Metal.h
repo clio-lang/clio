@@ -152,13 +152,18 @@ public:
                                                      std::span<const std::uint32_t> reads) noexcept;
   std::expected<Kernel, Error> loadReductionKernel(std::string_view metallib, Device) noexcept;
   std::expected<Kernel, Error> loadMatmulKernel(std::string_view metallib, Device) noexcept;
-  // Post inputs contain a logical slot zero replaced by the completed matrix.
+  // One task owns optional operand maps and a post stage. Map inputs are the
+  // original immutable arguments; post slot zero selects the completed matrix.
   TaskHandle matmul(TaskCore &, GroupHandle, Kernel, Buffer, Buffer, Kernel post = {},
-                    std::span<const Buffer> postInputs = {},
-                    std::span<const float> scalars = {}) noexcept;
+                    std::span<const Buffer> postInputs = {}, std::span<const float> scalars = {},
+                    Kernel leftMap = {}, Kernel rightMap = {},
+                    std::span<const Buffer> mapInputs = {},
+                    std::span<const float> mapScalars = {}) noexcept;
   TaskHandle matmul(Task &, GroupHandle, Kernel, Buffer, Buffer, Kernel post = {},
-                    std::span<const Buffer> postInputs = {},
-                    std::span<const float> scalars = {}) noexcept;
+                    std::span<const Buffer> postInputs = {}, std::span<const float> scalars = {},
+                    Kernel leftMap = {}, Kernel rightMap = {},
+                    std::span<const Buffer> mapInputs = {},
+                    std::span<const float> mapScalars = {}) noexcept;
   TaskHandle reduceSum(TaskCore &, GroupHandle, Kernel, Buffer, Kernel epilogue = {},
                        std::span<const float> scalars = {}) noexcept;
   TaskHandle reduceSum(Task &, GroupHandle, Kernel, Buffer, Kernel epilogue = {},

@@ -333,7 +333,7 @@ With `input` shaped `[M, K]` and `weights` shaped `[K, N]`, ordinary `project(in
 
 The mixed-source supervisor now tracks both matrix axes through literals, CPU calls/results, transfers, placed calls, awaits, annotations and main results. Nested rectangular literals construct matrices; an empty outer literal uses its annotated column extent. The CPU bridge exports/imports rank-two descriptors and propagates axis-specific shape requirements. Known mismatches are compilation errors; unknown inner dimensions and fixed-width annotations have runtime guards before calls or host descriptor access. GPU runtime admission independently checks format, rank, inner dimensions, selected-device residency, byte bounds, and uint32 dimension/input/output index capacity. Inputs may alias; each result has fresh immutable storage.
 
-A matrix GPU entry resolves to one checked `Matmul` with separately rounded products and balanced-adjacent reduction. [Forwarding helpers](native-gpu-forwarding.md) preserve local bindings, aliases, imported calls and reordered or repeated operands. Signatures can mix tensor/scalar parameters, including one tensor used as both operands. [Elementwise matrix results](native-gpu-post-matmul.md) now apply strict arithmetic to the product with scalar or matching full-shape tensor operands, using resident stages and projected direct/Tier 2 bindings. Fixed, dynamic and mixed extents preserve host-side guards. Transforming matrix operands or adding independent primitives inside one entry remains unsupported; separate placed tasks can compose those calculations while intermediates stay on device. GPU-ABI-001 remains a separate interface scope. Elementwise GPU calls and GPU `reduceSum` retain their existing support.
+A matrix GPU entry resolves to one checked `Matmul` with separately rounded products and balanced-adjacent reduction. [Forwarding helpers](native-gpu-forwarding.md) preserve local bindings, aliases, imported calls and reordered or repeated operands. Signatures can mix tensor/scalar parameters, including one tensor used as both operands. [Elementwise matrix results](native-gpu-post-matmul.md) now apply strict arithmetic to the product with scalar or matching full-shape tensor operands, using resident stages and projected direct/Tier 2 bindings. Fixed, dynamic and mixed extents preserve host-side guards. [Matrix operand arithmetic](native-gpu-pre-matmul.md) now adds resident elementwise input stages. Additional independent primitives still need separate placed tasks, with intermediates remaining on device. GPU-ABI-001 remains a separate interface scope. Elementwise GPU calls and GPU `reduceSum` retain their existing support.
 
 The [generated kernel](../../native/metal-source/MatmulShader.h) assigns one output cell to a lane in a guarded 64-thread workgroup. It rounds every product to float32 before addition. A private stack stores aligned power-of-two subtree roots as products arrive; occupied roots combine from low to high level, placing each larger subtree on the left. This reproduces the accepted adjacent-pair tree even for odd contraction lengths, without adding an initial zero to a nonempty sum. The stack holds 32 float32 roots per lane under the current uint32 indexing bound, rather than allocating `M*N*K` global products. Strict scalar multiplication/addition use the existing integer GPU lowering; vendor matmul, hardware float32 reassociation and fusion are not substituted.
 
@@ -692,8 +692,21 @@ Two GPU stages share one scheduled task and retain the intermediate on device.
 [Post-reduction scalar arithmetic](native-gpu-post-reduction.md) now runs once
 on the GPU before final scalar readback. [Elementwise matrix results](native-gpu-post-matmul.md)
 now compose tensor/scalar arithmetic after one multiplication using resident
-stages. Matrix operand transformations and additional primitives remain separate work.
+stages. [Matrix input arithmetic](native-gpu-pre-matmul.md) now adds independent
+resident maps of either/both operands; additional primitives remain separate work.
 
 ## Planned GPU interoperability
 
 The [advanced GPU interoperability follow-up](../roadmap.md#advanced-gpu-interoperability--planned-follow-up) tracks two deferred workstreams: application-supplied compute shaders/kernels and adapters for external GPU compute libraries. Custom kernels provide specialized computation; library adapters reuse existing optimized operations. These are separate interfaces and qualification efforts, outside the current release gates. Custom shader loading would use the managed GPU task runtime. Apple Metal comes first. Public loading syntax, artifact formats and binding declarations are not designed yet. Existing private kernel loaders are not a public foreign-shader API, and reflection does not validate arbitrary shader behavior.
+
+## Elementwise matrix inputs
+
+[Matrix input arithmetic](native-gpu-pre-matmul.md) now composes independent
+float32 elementwise maps of either/both operands with one multiplication and an
+optional post stage. One tensor task retains GPU intermediates and original
+immutable captures. Each map has its own projected direct/Tier 2 binding layout;
+strict multiplication shaders, shape contracts, memory/in-flight budgets and
+cancellation acknowledgement remain unchanged. Source/CPU/GPU/APFloat,
+four-mode lifecycle and installed relocation qualification are recorded in the
+linked design. Additional primitives and broader GPU language/type integration
+remain N2 work.

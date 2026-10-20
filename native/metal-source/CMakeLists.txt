@@ -162,7 +162,7 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-  foreach(FIXTURE IN ITEMS mixed tensor-results shared-helpers scalar-entry matrix-elementwise differences arguments unused-inputs indirect-arguments tensor-negation division host-expressions cpu-spawn nested-parallel recovery resumable-helpers spawned-helpers reduction pre-reduction post-reduction matmul post-matmul)
+  foreach(FIXTURE IN ITEMS mixed tensor-results shared-helpers scalar-entry matrix-elementwise differences arguments unused-inputs indirect-arguments tensor-negation division host-expressions cpu-spawn nested-parallel recovery resumable-helpers spawned-helpers reduction pre-reduction post-reduction matmul post-matmul pre-matmul)
     if(FIXTURE STREQUAL "mixed")
       set(HARNESS MixedTests.cpp)
     elseif(FIXTURE STREQUAL "spawned-helpers")
@@ -175,7 +175,7 @@ if(BUILD_TESTING)
       set(HARNESS CpuSpawnTests.cpp)
     elseif(FIXTURE STREQUAL "host-expressions")
       set(HARNESS HostExpressionTests.cpp)
-    elseif(FIXTURE STREQUAL "post-matmul")
+    elseif(FIXTURE STREQUAL "post-matmul" OR FIXTURE STREQUAL "pre-matmul")
       set(HARNESS MatmulPostTests.cpp)
     elseif(FIXTURE STREQUAL "matmul")
       set(HARNESS MatmulTests.cpp)
@@ -211,6 +211,9 @@ if(BUILD_TESTING)
       target_compile_options(kalandra-metal-${FIXTURE}-${VARIANT} PRIVATE -Wall -Wextra -Werror -ffp-contract=off ${MIXED_FLAGS})
       target_link_options(kalandra-metal-${FIXTURE}-${VARIANT} PRIVATE ${MIXED_FLAGS})
       target_link_libraries(kalandra-metal-${FIXTURE}-${VARIANT} PRIVATE kalandra-metal-${VARIANT})
+      if(FIXTURE STREQUAL "pre-matmul")
+        target_compile_definitions(kalandra-metal-${FIXTURE}-${VARIANT} PRIVATE KALANDRA_PRE_MATMUL)
+      endif()
       if(FIXTURE STREQUAL "post-reduction")
         target_compile_definitions(kalandra-metal-${FIXTURE}-${VARIANT} PRIVATE KALANDRA_POST_REDUCTION)
       endif()
@@ -241,7 +244,7 @@ if(BUILD_TESTING)
       if(FIXTURE STREQUAL "shared-helpers")
         target_compile_definitions(kalandra-metal-${FIXTURE}-${VARIANT} PRIVATE KALANDRA_SHARED_HELPERS)
       endif()
-      if(FIXTURE STREQUAL "shared-helpers" OR FIXTURE STREQUAL "scalar-entry" OR FIXTURE STREQUAL "matrix-elementwise" OR FIXTURE STREQUAL "differences" OR FIXTURE STREQUAL "arguments" OR FIXTURE STREQUAL "unused-inputs" OR FIXTURE STREQUAL "indirect-arguments" OR FIXTURE STREQUAL "tensor-negation" OR FIXTURE STREQUAL "division" OR FIXTURE STREQUAL "reduction" OR FIXTURE STREQUAL "pre-reduction" OR FIXTURE STREQUAL "post-reduction" OR FIXTURE STREQUAL "matmul" OR FIXTURE STREQUAL "post-matmul")
+      if(FIXTURE STREQUAL "shared-helpers" OR FIXTURE STREQUAL "scalar-entry" OR FIXTURE STREQUAL "matrix-elementwise" OR FIXTURE STREQUAL "differences" OR FIXTURE STREQUAL "arguments" OR FIXTURE STREQUAL "unused-inputs" OR FIXTURE STREQUAL "indirect-arguments" OR FIXTURE STREQUAL "tensor-negation" OR FIXTURE STREQUAL "division" OR FIXTURE STREQUAL "reduction" OR FIXTURE STREQUAL "pre-reduction" OR FIXTURE STREQUAL "post-reduction" OR FIXTURE STREQUAL "matmul" OR FIXTURE STREQUAL "post-matmul" OR FIXTURE STREQUAL "pre-matmul")
         target_link_libraries(kalandra-metal-${FIXTURE}-${VARIANT} PRIVATE LLVM)
         target_include_directories(kalandra-metal-${FIXTURE}-${VARIANT} SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
       endif()
@@ -532,6 +535,25 @@ if(BUILD_TESTING)
       "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/post-matmul-cli-${VARIANT}"
       -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyPostMatmul.cmake")
     set_tests_properties(native-metal-post-matmul-cli-${VARIANT} PROPERTIES TIMEOUT 300
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-pre-matmul COMMAND "${CMAKE_COMMAND}"
+      "-DCOMPILER=$<TARGET_FILE:${COMPILER_TARGET}>" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-pre-matmul"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyPreMatmul.cmake")
+    set_tests_properties(${COMPILER_TARGET}-pre-matmul PROPERTIES TIMEOUT 120)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-pre-matmul-cli-${VARIANT} COMMAND "${CMAKE_COMMAND}"
+      "-DCOMPILER=$<TARGET_FILE:kalandra>" "-DVARIANT=${VARIANT}"
+      "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/pre-matmul-cli-${VARIANT}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyPreMatmul.cmake")
+    set_tests_properties(native-metal-pre-matmul-cli-${VARIANT} PROPERTIES TIMEOUT 300
       RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
   endforeach()
 endif()

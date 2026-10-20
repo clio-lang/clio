@@ -198,6 +198,7 @@ class Compiler {
     enum Kind { Input, Sum, Matrix, Scalar } kind = Input;
     std::size_t left = 0, right = 0;
     bool mapped = false, post = false;
+    bool leftMapped = false, rightMapped = false;
   };
   mutable std::map<FunctionId, std::optional<PrimitiveEntry>> primitiveEntries;
   std::optional<PrimitiveEntry> primitiveEntry(FunctionId root) const {
@@ -255,10 +256,11 @@ class Compiler {
         } else if (const auto *matrix = std::get_if<Matmul>(&node.operation)) {
           auto left = emit(matrix->left), right = emit(matrix->right);
           if (left && right && left->kind == PrimitiveEntry::Input &&
-              right->kind == PrimitiveEntry::Input && !left->mapped && !right->mapped &&
+              right->kind == PrimitiveEntry::Input &&
               matrix->order == ReductionOrder::BalancedAdjacent &&
               matrix->separatelyRoundedProducts && ++primitives == 1)
-            result = PrimitiveEntry{PrimitiveEntry::Matrix, left->left, right->left};
+            result = PrimitiveEntry{PrimitiveEntry::Matrix, left->left,   right->left, false, false,
+                                    left->mapped,           right->mapped};
         } else if ((sumSignature || matrixSignature) &&
                    std::holds_alternative<Float32Literal>(node.operation)) {
           result = PrimitiveEntry{PrimitiveEntry::Scalar};
@@ -881,6 +883,40 @@ class Compiler {
       if (!mapped)
         arguments += ", " + pack(scalars, "float");
     }
+    if (matrix && (primitiveEntry(function)->leftMapped || primitiveEntry(function)->rightMapped)) {
+      // Both operand maps read the original immutable argument pack. Their
+      // projected read tables and shapes are independent.
+      if (!post)
+        arguments += ", m::Kernel{}, std::span<const m::Buffer>{}, std::span<const float>{}";
+      for (int operand = 0; operand < 2; ++operand) {
+        const bool enabled = operand == 0 ? primitiveEntry(function)->leftMapped
+                                          : primitiveEntry(function)->rightMapped;
+        if (!enabled) {
+          arguments += ", m::Kernel{}";
+          continue;
+        }
+        std::vector<std::uint32_t> mapReads;
+        shader(function, &mapReads, false, operand);
+        const auto mapKernel = field("m::Kernel");
+        const auto label = operand == 0 ? "left" : "right";
+        const bool indirectMap =
+            !kalandra::runtime::metal::directElementwiseLayout(mapReads.size(), scalars.size());
+        std::string mapSignature = ", m::ElementwiseSignature{" + std::to_string(tensors.size()) +
+                                   "," + std::to_string(scalars.size()) +
+                                   (indirectMap ? ",m::ElementwiseBinding::ArgumentBuffer}" : "}");
+        mapSignature += ", std::array<std::uint32_t," + std::to_string(mapReads.size()) + ">{";
+        for (std::size_t i = 0; i < mapReads.size(); ++i)
+          mapSignature += (i ? "," : "") + std::to_string(mapReads[i]);
+        mapSignature += "}";
+        mappedSetup +=
+            "auto " + std::string(label) + "Map = r.loadElementwiseKernel(f.directory + \"/kernel" +
+            std::to_string(entry->second) + "-" + label + ".metallib\", *target" + mapSignature +
+            ");\nif(!" + label + "Map){" + error(std::string(label) + "Map.error()") + "}\nf." +
+            mapKernel + "=*" + label + "Map;\n";
+        arguments += ", f." + mapKernel;
+      }
+      arguments += ", " + pack(tensors, "m::Buffer") + ", " + pack(scalars, "float");
+    }
     steps.push_back(
         "auto target = " + device(target) + ";\nif (!target) { " + error("target.error()") +
         " }\n" + std::string("auto kernel = r.") +
@@ -1380,9 +1416,9 @@ class Compiler {
 )";
   }
   std::string shader(std::size_t function, std::vector<std::uint32_t> *readInputs = nullptr,
-                     bool post = false) const {
+                     bool post = false, int matrixOperand = -1) const {
     const bool matrixPost = post && matrixFunction(function);
-    if (!post && matrixFunction(function))
+    if (!post && matrixOperand < 0 && matrixFunction(function))
       return matmulShader;
     if (!post && reduction(function) && !primitiveEntry(function)->mapped)
       return reductionShader();
@@ -1395,7 +1431,7 @@ class Compiler {
     std::unordered_map<std::string, std::size_t> definitions;
     std::unordered_map<std::string, std::uint32_t> tensorInputs;
     std::size_t counter = 0, callDepth = 0;
-    std::optional<std::string> reductionInput;
+    std::optional<std::string> reductionInput, matrixInput;
     std::set<std::size_t> active;
     auto temporary = [&] {
       if (counter >= 100000)
@@ -1481,8 +1517,13 @@ class Compiler {
             reject(n.span, "unexpected reduction in elementwise shader");
           result = post ? "%lane0" : emit(sum->input);
           reductionInput = result;
-        } else if (std::holds_alternative<Matmul>(n.operation) && matrixPost) {
-          result = "%lane0"; // The completed matrix is the first logical post-stage tensor.
+        } else if (const auto *matrix = std::get_if<Matmul>(&n.operation);
+                   matrix && (matrixPost || matrixOperand >= 0)) {
+          if (matrixOperand >= 0)
+            matrixInput = emit(matrixOperand == 0 ? matrix->left : matrix->right);
+          result = matrixPost ? "%lane0" : "%matrix";
+          // The primitive is a stage boundary. Only the selected operand (or
+          // the completed matrix) survives scalar SSA liveness below.
         } else if (auto *check = std::get_if<ShapeCheck>(&n.operation)) {
           // Straight-line helper checks become the entry's transitive shape
           // preconditions, validated on the host before kernel admission.
@@ -1528,6 +1569,10 @@ class Compiler {
     if (post) {
       tensors = matrixPost ? tensors + 1 : 1;
       tensorInputs.emplace("%lane0", 0);
+    } else if (matrixOperand >= 0) {
+      if (!matrixInput)
+        reject({}, "missing GPU matrix input");
+      result = *matrixInput;
     } else if (reduction(function)) {
       if (!reductionInput)
         reject({}, "missing GPU reduction input");
@@ -1749,8 +1794,12 @@ public:
       auto base = "kernel" + std::to_string(index);
       outputs[base + ".mlir"] = shader(function);
       if (auto entry = primitiveEntry(function); entry) {
-        if (entry->mapped)
+        if (entry->kind == PrimitiveEntry::Sum && entry->mapped)
           outputs[base + "-reduce.mlir"] = reductionShader();
+        if (entry->leftMapped)
+          outputs[base + "-left.mlir"] = shader(function, nullptr, false, 0);
+        if (entry->rightMapped)
+          outputs[base + "-right.mlir"] = shader(function, nullptr, false, 1);
         if (entry->post)
           outputs[base + "-post.mlir"] = shader(function, nullptr, true);
       }
@@ -1883,6 +1932,32 @@ void resume(Task &task) {
     outputs["host.cpp"] = host.str();
     std::string manifest = "kernel_count=" + std::to_string(entries.size()) + "\n";
     for (auto [function, index] : entries) {
+      if (auto entry = primitiveEntry(function); entry && matrixFunction(function)) {
+        unsigned tensors = 0, scalars = 0;
+        for (auto parameter : cpu.functions[function].parameters) {
+          tensors += cpu.symbols[parameter].type.tensor;
+          scalars += !cpu.symbols[parameter].type.tensor;
+        }
+        for (int operand = 0; operand < 2; ++operand) {
+          if (!(operand == 0 ? entry->leftMapped : entry->rightMapped))
+            continue;
+          const auto label = operand == 0 ? "left" : "right";
+          const auto prefix = "kernel" + std::to_string(index) + "." + label + "_";
+          std::vector<std::uint32_t> reads;
+          shader(function, &reads, false, operand);
+          std::string bindings;
+          for (auto input : reads)
+            bindings += (bindings.empty() ? "" : ",") + std::to_string(input);
+          manifest += prefix + "stage=kernel" + std::to_string(index) + "-" + label + "\n" +
+                      prefix + "tensors=" + std::to_string(tensors) + "\n" + prefix +
+                      "scalars=" + std::to_string(scalars) + "\n" + prefix +
+                      "tensor_bindings=" + bindings + "\n" + prefix + "binding_layout=" +
+                      (kalandra::runtime::metal::directElementwiseLayout(reads.size(), scalars)
+                           ? "direct"
+                           : "argument_buffer_tier2") +
+                      "\n";
+        }
+      }
       if (auto entry = primitiveEntry(function); entry && entry->post) {
         std::size_t scalars = 0, tensors = 0;
         for (auto parameter : cpu.functions[function].parameters) {

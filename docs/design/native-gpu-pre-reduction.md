@@ -51,7 +51,8 @@ no unbounded task tree or CPU numerical fallback.
 
 The bounded primitive analysis still requires exactly one reduction in an entry
 and visits every statement. [Scalar arithmetic after reduction](native-gpu-post-reduction.md) now adds an
-optional final GPU stage. Multiple independent reductions, matrix operand transformations,
+optional final GPU stage. [Matrix operand arithmetic](native-gpu-pre-matmul.md)
+has its own resident input stages. Multiple independent reductions,
 recursive calls and data-dependent GPU branches remain unsupported. Supported pure arithmetic in unused bindings may be removed
 just as in ordinary elementwise shaders, while its shape obligations remain.
 This does not add other GPU numeric types, tensor ranks, managed host values or

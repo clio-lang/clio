@@ -297,12 +297,15 @@
       "id": "pre-matmul",
       "feature": "Arithmetic transforming matrix operands",
       "scope": "GPU",
-      "status": "rejected",
+      "status": "supported",
       "fixtures": [
-        "capabilities/pre-matmul.k"
+        "capabilities/pre-matmul.k",
+        "pre-matmul.k"
       ],
-      "notes": "Use a separate placed input stage for matmul(input + 1, weights); one-entry operand transformation remains pending",
-      "diagnostic": "G001"
+      "notes": "Independent resident elementwise maps of either/both operands, one strict matrix product and optional post arithmetic; direct/Tier 2 bindings",
+      "evidence": [
+        "gpu-pre-matmul-2026-10-21.json"
+      ]
     }
   ]
 }

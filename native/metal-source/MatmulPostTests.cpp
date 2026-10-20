@@ -81,6 +81,27 @@ int main(int argc, char **argv) {
   const std::array<std::uint32_t, 2> reads{0, 2};
   auto post = r.loadElementwiseKernel(directory + "/kernel0-post.metallib", *d, {4, 1}, reads);
   CHECK(post);
+  m::Kernel leftMap, rightMap;
+#ifdef KALANDRA_PRE_MATMUL
+  auto lm = r.loadElementwiseKernel(directory + "/kernel0-left.metallib", *d, {3, 1},
+                                    std::array<std::uint32_t, 1>{0});
+  auto rm = r.loadElementwiseKernel(directory + "/kernel0-right.metallib", *d, {3, 1},
+                                    std::array<std::uint32_t, 1>{2});
+  CHECK(lm && rm);
+  leftMap = *lm;
+  rightMap = *rm;
+#endif
+  auto composed = [&](TaskCore &core, GroupHandle group, m::Buffer left, m::Buffer right,
+                      m::Buffer bias, float scale) {
+#ifdef KALANDRA_PRE_MATMUL
+    return r.matmul(core, group, *matrix, left, right, *post, std::array{left, left, bias, right},
+                    std::array{scale}, leftMap, rightMap, std::array{left, bias, right},
+                    std::array{scale});
+#else
+    return r.matmul(core, group, *matrix, left, right, *post, std::array{left, left, bias, right},
+                    std::array{scale});
+#endif
+  };
   std::uint64_t cases = 0, cells = 0;
   std::uint32_t seed = 0x65ed348b;
   auto random = [&] {
@@ -125,12 +146,21 @@ int main(int argc, char **argv) {
         auto core = TaskCore::create();
         CHECK(core);
         auto group = core->openRoot();
-        auto work = r.matmul(*core, group, *matrix, ga, gb, *post, std::array{ga, ga, gc, gb},
-                             std::array{scale});
+        auto work = composed(*core, group, ga, gb, gc, scale);
         CHECK(work && core->drain());
         auto result = observe(*core, work), cached = observe(*core, work);
         CHECK(result.onDevice() && result.shape()[0] == m && result.shape()[1] == n);
-        auto product = r.matmul(*core, group, *matrix, ga, gb);
+        auto matrixLeft = ga, matrixRight = gb;
+#ifdef KALANDRA_PRE_MATMUL
+        auto leftWork =
+            r.elementwise(*core, group, leftMap, std::array{ga, gc, gb}, std::array{scale});
+        auto rightWork =
+            r.elementwise(*core, group, rightMap, std::array{ga, gc, gb}, std::array{scale});
+        CHECK(leftWork && rightWork && core->drain());
+        matrixLeft = observe(*core, leftWork);
+        matrixRight = observe(*core, rightWork);
+#endif
+        auto product = r.matmul(*core, group, *matrix, matrixLeft, matrixRight);
         CHECK(product && core->drain());
         auto resident = observe(*core, product);
         auto separate =
@@ -158,8 +188,14 @@ int main(int argc, char **argv) {
         for (std::int64_t row = 0; row < m; ++row)
           for (std::int64_t col = 0; col < n; ++col) {
             std::vector<std::uint32_t> terms(k);
-            for (std::int64_t i = 0; i < k; ++i)
-              terms[i] = float_proof::oracle({a[row * k + i], b[i * n + col]}, 1);
+            for (std::int64_t i = 0; i < k; ++i) {
+              auto left = a[row * k + i], right = b[i * n + col];
+#ifdef KALANDRA_PRE_MATMUL
+              left = float_proof::oracle({left, std::bit_cast<std::uint32_t>(scale)}, 0);
+              right = float_proof::oracle({right, 0x3f800000u}, 3);
+#endif
+              terms[i] = float_proof::oracle({left, right}, 1);
+            }
             auto expected = float_proof::oracle({sum(std::move(terms)), bias[row * n + col]}, 0);
             expected = float_proof::oracle({expected, std::bit_cast<std::uint32_t>(scale)}, 1);
             std::uint32_t actual, split;
@@ -171,6 +207,8 @@ int main(int argc, char **argv) {
                   float_proof::equal(cpuBits, expected));
             ++cells;
           }
+        matrixLeft = {};
+        matrixRight = {};
         result = {};
         cached = {};
         resident = {};
@@ -191,8 +229,7 @@ int main(int argc, char **argv) {
     auto core = TaskCore::create();
     CHECK(core);
     auto group = core->openRoot();
-    auto work =
-        r.matmul(*core, group, *matrix, a, b, *post, std::array{a, a, bias, b}, std::array{2.0f});
+    auto work = composed(*core, group, a, b, bias, 2.0f);
     CHECK(work && core->drain());
     if (success) {
       auto result = observe(*core, work);
@@ -214,22 +251,28 @@ int main(int argc, char **argv) {
     run(false);
   }
   r.failAllocationAt(0);
-  for (unsigned stage : {0u, 1u})
+#ifdef KALANDRA_PRE_MATMUL
+  constexpr unsigned stages = 4;
+#else
+  constexpr unsigned stages = 2;
+#endif
+  for (unsigned stage = 0; stage < stages; ++stage)
     for (unsigned scenario : {0u, 1u, 2u}) {
       auto core = TaskCore::create();
       CHECK(core);
       auto group = core->openRoot();
       auto before = r.stats().submissions;
-      r.holdCompletions(stage == 0);
-      auto work =
-          r.matmul(*core, group, *matrix, a, b, *post, std::array{a, a, bias, b}, std::array{2.0f});
+      r.holdCompletions(true);
+      auto work = composed(*core, group, a, b, bias, 2.0f);
       CHECK(work);
-      if (stage == 1) {
+      for (unsigned completed = 0; completed < stage; ++completed) {
         until(*core, [&] {
-          return r.stats().submissions == before + 1 && core->stats().externalPending == 1;
+          return r.stats().submissions == before + completed + 1 &&
+                 core->stats().externalPending == 1;
         });
+        r.holdCompletions(false);
         auto end = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-        while (r.stats().completions < before + 1) {
+        while (r.stats().completions < before + completed + 1) {
           CHECK(std::chrono::steady_clock::now() < end);
           std::this_thread::yield();
         }
@@ -256,8 +299,7 @@ int main(int argc, char **argv) {
     CHECK(core);
     auto group = core->openRoot();
     r.holdCompletions(true);
-    CHECK(
-        r.matmul(*core, group, *matrix, a, b, *post, std::array{a, a, bias, b}, std::array{2.0f}));
+    CHECK(composed(*core, group, a, b, bias, 2.0f));
     until(*core, [&] { return core->stats().externalPending == 1; });
     std::thread release([&] {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -282,13 +324,31 @@ int main(int argc, char **argv) {
     retire(*core, group);
     empty(r, baseline);
   }
+#ifdef KALANDRA_PRE_MATMUL
+  // Invalid map captures fail before submitting any command, releasing earlier packs.
+  for (bool wrongKernel : {false, true}) {
+    auto core = TaskCore::create();
+    CHECK(core);
+    auto group = core->openRoot();
+    auto before = r.stats().submissions;
+    auto inputs = std::array{a, bias, b};
+    auto work =
+        r.matmul(*core, group, *matrix, a, b, *post, std::array{a, a, bias, b}, std::array{2.0f},
+                 leftMap, wrongKernel ? *matrix : rightMap,
+                 std::span<const m::Buffer>(inputs).first(wrongKernel ? 3 : 2), std::array{2.0f});
+    CHECK(work && core->drain());
+    CHECK(core->failure(work).kind == TaskFailure::Fault && core->failure(work).code == 3);
+    CHECK(r.stats().submissions == before);
+    retire(*core, group);
+    empty(r, baseline);
+  }
+#endif
   // The returned immutable tensor survives removal of its input and group owners.
   {
     auto core = TaskCore::create();
     CHECK(core);
     auto group = core->openRoot();
-    auto work =
-        r.matmul(*core, group, *matrix, a, b, *post, std::array{a, a, bias, b}, std::array{2.0f});
+    auto work = composed(*core, group, a, b, bias, 2.0f);
     CHECK(work && core->drain());
     auto retained = observe(*core, work);
     retire(*core, group);
@@ -305,7 +365,11 @@ int main(int argc, char **argv) {
     for (unsigned i = 0; i < 12; ++i) {
       std::uint32_t bits;
       std::memcpy(&bits, bytes->data() + i * 4, 4);
+#ifdef KALANDRA_PRE_MATMUL
+      CHECK(bits == 0x40000000u); // (matmul(1 + 2, 1 - 1) + 1) * 2.
+#else
       CHECK(bits == 0x41400000u);
+#endif
     }
     host = {};
     retained = {};
@@ -330,8 +394,12 @@ int main(int argc, char **argv) {
     auto offset = upload(runtime, std::vector<std::uint32_t>(12, 0x3f800000u), {3, 4});
     m::Buffer padding;
     if (limited) {
+#ifdef KALANDRA_PRE_MATMUL
+      std::vector<std::uint32_t> data(60);
+#else
       std::vector<std::uint32_t> data(64);
-      const std::array<std::int64_t, 2> shape{1, 64};
+#endif
+      const std::array<std::int64_t, 2> shape{1, std::int64_t(data.size())};
       auto host = runtime.hostTensor(std::as_bytes(std::span(data)), shape, m::Format::Float32);
       CHECK(host);
       padding = *host;
@@ -340,8 +408,19 @@ int main(int argc, char **argv) {
     CHECK(core);
     auto group = core->openRoot();
     auto before = runtime.stats().submissions;
+#ifdef KALANDRA_PRE_MATMUL
+    auto lm = runtime.loadElementwiseKernel(directory + "/kernel0-left.metallib", *device, {3, 1},
+                                            std::array<std::uint32_t, 1>{0});
+    auto rm = runtime.loadElementwiseKernel(directory + "/kernel0-right.metallib", *device, {3, 1},
+                                            std::array<std::uint32_t, 1>{2});
+    CHECK(lm && rm);
+    auto work = runtime.matmul(*core, group, *mul, left, right, *final,
+                               std::array{left, left, offset, right}, std::array{2.0f}, *lm, *rm,
+                               std::array{left, offset, right}, std::array{2.0f});
+#else
     auto work = runtime.matmul(*core, group, *mul, left, right, *final,
                                std::array{left, left, offset, right}, std::array{2.0f});
+#endif
     CHECK(work && core->drain());
     if (limited) {
       CHECK(core->failure(work).kind == TaskFailure::Fault && core->failure(work).code == 6);
@@ -359,7 +438,8 @@ int main(int argc, char **argv) {
   }
   CHECK(generated_main(argc, argv) == 0);
   empty(r);
-  std::printf("Matmul post: %llu CPU/GPU/separate/APFloat cases, %llu cells, %llu allocation "
-              "checkpoints, both-stage failure/cancellation and retained output passed\n",
-              (unsigned long long)cases, (unsigned long long)cells, (unsigned long long)attempts);
+  std::printf(
+      "Matmul composition: %llu CPU/GPU/separate/APFloat cases, %llu cells, %llu allocation "
+      "checkpoints, all-stage failure/cancellation and retained output passed\n",
+      (unsigned long long)cases, (unsigned long long)cells, (unsigned long long)attempts);
 }
