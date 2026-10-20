@@ -118,6 +118,7 @@ public:
               syntax_.functions.empty() ? SourceSpan{} : syntax_.functions[0].name);
     if (!diagnostics_.empty())
       return {syntax_.source, {}, std::move(diagnostics_)};
+    recordImportOrigins();
     return {syntax_.source, std::move(output_), {}};
   }
 
@@ -385,6 +386,28 @@ private:
     resolvingExports_.erase(key);
     exports_.emplace(key, resolved);
     return resolved;
+  }
+  void recordImportOrigins() {
+    for (const auto &import : syntax_.imports) {
+      if (!import.target)
+        continue;
+      for (const auto &imported : import.names) {
+        const auto target = exportedBinding(*import.target, name(imported.name));
+        if (!target)
+          continue; // Invalid graphs are never published.
+        ResolvedImport origin{imported.name, imported.alias, {}, {}, {}, import.exported};
+        if (target->alias)
+          origin.declaration = syntax_.records[target->id].name;
+        else if (target->record) {
+          origin.declaration = output_.records[target->id].declaration;
+          origin.record = target->id;
+        } else {
+          origin.declaration = output_.functions[target->id].declaration;
+          origin.function = target->id;
+        }
+        output_.imports.push_back(std::move(origin));
+      }
+    }
   }
   std::size_t taskFamily() {
     if (auto found = taskErrorFamily(output_))

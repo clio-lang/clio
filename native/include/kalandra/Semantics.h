@@ -359,12 +359,23 @@ struct TypedFunction {
   std::size_t captureCount = 0;
   bool anonymous = false;
 };
+// Original import tokens and compiler-resolved targets, retained for source tools.
+// An explicit alias is recorded separately so future rename can preserve it.
+struct ResolvedImport {
+  SourceSpan name;
+  std::optional<SourceSpan> alias;
+  SourceSpan declaration;
+  std::optional<FunctionId> function;
+  std::optional<std::size_t> record;
+  bool exported = false;
+};
 struct TypedModule {
   std::shared_ptr<const SourceFile> source;
   std::vector<Symbol> symbols;
   std::vector<TypedExpr> expressions;
   std::vector<TypedFunction> functions;
   std::vector<TypedRecord> records;
+  std::vector<ResolvedImport> imports = {};
 };
 struct SemanticLimits {
   std::size_t maxDepth = 128;

@@ -436,12 +436,16 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert target == {"uri": leaf.as_uri(), "range": {"start": {"line": 0, "character": 10},
                                                         "end": {"line": 0, "character": 15}}}
     refs = client.references(main, 4, 4, True)["result"]
-    assert {(r["uri"], r["range"]["start"]["line"]) for r in refs} == {(leaf.as_uri(), 0), (main.as_uri(), 4)}, refs
+    assert {(r["uri"], r["range"]["start"]["line"]) for r in refs} == {(leaf.as_uri(), 0), (main.as_uri(), 0), (main.as_uri(), 4), (facade.as_uri(), 0)}, refs
+    assert len(refs) == 6  # Original declaration, two import spellings per alias, and call.
+    assert client.definition(main, 0, caller.index("advertised"))["result"] == target
+    assert client.definition(main, 0, caller.index("twice"))["result"] == target
+    assert "fn twice(" in client.hover(main, 0, caller.index("twice"))["result"]["contents"]["value"]
     other = root / "other.k"
     client.open(other, 'from "./public.k" import advertised\nfn main():\n  advertised(3)\n')
     refs = client.references(main, 4, 4)["result"]
-    assert {r["uri"] for r in refs} == {main.as_uri(), other.as_uri()}
-    assert len(refs) == 2  # Shared dependency occurrences are deduplicated.
+    assert {r["uri"] for r in refs} == {main.as_uri(), other.as_uri(), facade.as_uri()}
+    assert len(refs) == 7  # Shared dependency occurrences are deduplicated.
     client.change(other, "fn main():\n  missing\n", 2)
     assert client.references(main, 4, 4)["error"]["code"] == -32803
     client.close(other)
@@ -454,7 +458,7 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
         "contentChanges": [edit(0, 0, 0, "# 😀\n")]})
     assert client.definition(main, 4, 4)["result"]["range"]["start"]["line"] == 3
     refs = client.references(main, 4, 4, True)["result"]
-    assert len(refs) == 2
+    assert len(refs) == 6
     assert any(r["uri"] == local_uri and r["range"]["start"]["line"] == 3 for r in refs)
     client.send("textDocument/didClose", {"textDocument": {"uri": local_uri}})
     target = client.definition(main, 4, 4)["result"]
@@ -470,7 +474,7 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     client.init()
     client.open(main, caller.replace('"./public.k"', '"math"'))
     assert client.definition(main, 4, 4)["result"]["uri"] == leaf.as_uri()
-    assert len(client.references(main, 4, 4, True)["result"]) == 2
+    assert len(client.references(main, 4, 4, True)["result"]) == 6
     client.finish()
 
     invalid_stream(b"Content-Length: 0\r\n\r\n")
