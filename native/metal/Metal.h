@@ -164,6 +164,15 @@ public:
                     Kernel leftMap = {}, Kernel rightMap = {},
                     std::span<const Buffer> mapInputs = {},
                     std::span<const float> mapScalars = {}) noexcept;
+  // One scalar task: optional input maps, one resident matrix, fixed reduction tree.
+  TaskHandle matmulReduceSum(TaskCore &, GroupHandle, Kernel matrix, Kernel reduction, Buffer left,
+                             Buffer right, Kernel leftMap = {}, Kernel rightMap = {},
+                             std::span<const Buffer> mapInputs = {},
+                             std::span<const float> mapScalars = {}) noexcept;
+  TaskHandle matmulReduceSum(Task &, GroupHandle, Kernel matrix, Kernel reduction, Buffer left,
+                             Buffer right, Kernel leftMap = {}, Kernel rightMap = {},
+                             std::span<const Buffer> mapInputs = {},
+                             std::span<const float> mapScalars = {}) noexcept;
   TaskHandle reduceSum(TaskCore &, GroupHandle, Kernel, Buffer, Kernel epilogue = {},
                        std::span<const float> scalars = {}) noexcept;
   TaskHandle reduceSum(Task &, GroupHandle, Kernel, Buffer, Kernel epilogue = {},

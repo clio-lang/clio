@@ -306,6 +306,20 @@
       "evidence": [
         "gpu-pre-matmul-2026-10-21.json"
       ]
+    },
+    {
+      "id": "matmul-reduction",
+      "feature": "Matrix product consumed by reduction",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "capabilities/matmul-reduction.k",
+        "matmul-reduction.k"
+      ],
+      "notes": "One strict matmul followed by one row-major reduceSum under a scalar task; optional independent input maps; intermediate/post arithmetic and additional primitives remain separate work",
+      "evidence": [
+        "gpu-matmul-reduction-2026-10-21.json"
+      ]
     }
   ]
 }

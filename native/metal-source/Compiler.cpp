@@ -195,7 +195,7 @@ class Compiler {
       steps.push_back(std::move(guard));
   }
   struct PrimitiveEntry {
-    enum Kind { Input, Sum, Matrix, Scalar } kind = Input;
+    enum Kind { Input, Sum, Matrix, Scalar, MatrixSum } kind = Input;
     std::size_t left = 0, right = 0;
     bool mapped = false, post = false;
     bool leftMapped = false, rightMapped = false;
@@ -250,9 +250,14 @@ class Compiler {
           result = emit(check->input);
         else if (const auto *sum = std::get_if<ReduceSum>(&node.operation)) {
           auto input = emit(sum->input);
-          if (input && input->kind == PrimitiveEntry::Input &&
-              sum->order == ReductionOrder::BalancedAdjacent && sum->rowMajor && ++primitives == 1)
-            result = PrimitiveEntry{PrimitiveEntry::Sum, input->left, 0, input->mapped};
+          if (input && sum->order == ReductionOrder::BalancedAdjacent && sum->rowMajor) {
+            if (input->kind == PrimitiveEntry::Input && ++primitives == 1)
+              result = PrimitiveEntry{PrimitiveEntry::Sum, input->left, 0, input->mapped};
+            else if (input->kind == PrimitiveEntry::Matrix && !input->post && ++primitives == 2) {
+              result = input;
+              result->kind = PrimitiveEntry::MatrixSum;
+            }
+          }
         } else if (const auto *matrix = std::get_if<Matmul>(&node.operation)) {
           auto left = emit(matrix->left), right = emit(matrix->right);
           if (left && right && left->kind == PrimitiveEntry::Input &&
@@ -342,19 +347,22 @@ class Compiler {
                               ? PrimitiveEntry{PrimitiveEntry::Input, tensorIndex++, 0}
                               : PrimitiveEntry{PrimitiveEntry::Scalar});
     auto result = invoke(root, arguments);
-    if (result && primitives == 1 &&
-        ((sumSignature && result->kind == PrimitiveEntry::Sum) ||
-         (matrixSignature && result->kind == PrimitiveEntry::Matrix)))
+    if (result &&
+        ((primitives == 1 && ((sumSignature && result->kind == PrimitiveEntry::Sum) ||
+                              (matrixSignature && result->kind == PrimitiveEntry::Matrix))) ||
+         (primitives == 2 && sumSignature && result->kind == PrimitiveEntry::MatrixSum)))
       cached = result;
     return cached;
   }
   bool reduction(std::size_t function) const {
     auto entry = primitiveEntry(function);
-    return entry && entry->kind == PrimitiveEntry::Sum;
+    return entry &&
+           (entry->kind == PrimitiveEntry::Sum || entry->kind == PrimitiveEntry::MatrixSum);
   }
   bool matrixFunction(std::size_t function) const {
     auto entry = primitiveEntry(function);
-    return entry && entry->kind == PrimitiveEntry::Matrix;
+    return entry &&
+           (entry->kind == PrimitiveEntry::Matrix || entry->kind == PrimitiveEntry::MatrixSum);
   }
   std::map<std::string, FunctionId> hostOperations;
   ExtentId hostExtent = 0;
@@ -732,6 +740,7 @@ class Compiler {
     const auto &entryFunction = cpu.functions[function];
     const bool sum = reduction(function);
     const bool matrix = matrixFunction(function);
+    const bool matrixSum = sum && matrix;
     const bool mapped = sum && primitiveEntry(function)->mapped;
     const bool post = (sum || matrix) && primitiveEntry(function)->post;
     if (!entryFunction.resultType.tensor && !sum)
@@ -852,6 +861,14 @@ class Compiler {
     }
     if (matrix)
       arguments = ref(left) + ", " + ref(right);
+    if (matrixSum) {
+      const auto reductionKernel = field("m::Kernel");
+      mappedSetup += "auto reduction = r.loadReductionKernel(f.directory + \"/kernel" +
+                     std::to_string(entry->second) + "-reduce.metallib\", *target);\n" +
+                     "if(!reduction){" + error("reduction.error()") + "}\nf." + reductionKernel +
+                     "=*reduction;\n";
+      arguments = "f." + reductionKernel + ", " + arguments;
+    }
     if (post) {
       std::vector<std::uint32_t> postReads;
       shader(function, &postReads, true); // Validate before publishing any host/shader artifacts.
@@ -886,7 +903,7 @@ class Compiler {
     if (matrix && (primitiveEntry(function)->leftMapped || primitiveEntry(function)->rightMapped)) {
       // Both operand maps read the original immutable argument pack. Their
       // projected read tables and shapes are independent.
-      if (!post)
+      if (!post && !matrixSum)
         arguments += ", m::Kernel{}, std::span<const m::Buffer>{}, std::span<const float>{}";
       for (int operand = 0; operand < 2; ++operand) {
         const bool enabled = operand == 0 ? primitiveEntry(function)->leftMapped
@@ -917,24 +934,26 @@ class Compiler {
       }
       arguments += ", " + pack(tensors, "m::Buffer") + ", " + pack(scalars, "float");
     }
-    steps.push_back(
-        "auto target = " + device(target) + ";\nif (!target) { " + error("target.error()") +
-        " }\n" + std::string("auto kernel = r.") +
-        (matrix           ? "loadMatmulKernel"
-         : sum && !mapped ? "loadReductionKernel"
-                          : "loadElementwiseKernel") +
-        "(f.directory + \"/kernel" + std::to_string(entry->second) + ".metallib\", *target" +
-        ((legacy && !mapped) || (sum && !mapped) || matrix ? "" : signature) +
-        ");\n"
-        "if (!kernel) { " +
-        error("kernel.error()") + " }\nf." + kernel + " = *kernel;\n" + mappedSetup + "f." + out +
-        " = r." +
-        (matrix   ? "matmul"
-         : mapped ? "elementwiseReduceSum"
-         : sum    ? "reduceSum"
-                  : "elementwise") +
-        "(task, " + activeGroup + ", f." + kernel + ", " +
-        (sum && !mapped && !post ? ref(left) : arguments) + ");\n" + admitted("f." + out));
+    steps.push_back("auto target = " + device(target) + ";\nif (!target) { " +
+                    error("target.error()") + " }\n" + std::string("auto kernel = r.") +
+                    (matrix           ? "loadMatmulKernel"
+                     : sum && !mapped ? "loadReductionKernel"
+                                      : "loadElementwiseKernel") +
+                    "(f.directory + \"/kernel" + std::to_string(entry->second) +
+                    ".metallib\", *target" +
+                    ((legacy && !mapped) || (sum && !mapped) || matrix ? "" : signature) +
+                    ");\n"
+                    "if (!kernel) { " +
+                    error("kernel.error()") + " }\nf." + kernel + " = *kernel;\n" + mappedSetup +
+                    "f." + out + " = r." +
+                    (matrixSum ? "matmulReduceSum"
+                     : matrix  ? "matmul"
+                     : mapped  ? "elementwiseReduceSum"
+                     : sum     ? "reduceSum"
+                               : "elementwise") +
+                    "(task, " + activeGroup + ", f." + kernel + ", " +
+                    (sum && !matrix && !mapped && !post ? ref(left) : arguments) + ");\n" +
+                    admitted("f." + out));
     result.scalarTask = sum;
     return result;
   }
@@ -1420,7 +1439,8 @@ class Compiler {
     const bool matrixPost = post && matrixFunction(function);
     if (!post && matrixOperand < 0 && matrixFunction(function))
       return matmulShader;
-    if (!post && reduction(function) && !primitiveEntry(function)->mapped)
+    if (!post && !matrixFunction(function) && reduction(function) &&
+        !primitiveEntry(function)->mapped)
       return reductionShader();
     // Emit scalar typed SSA once per lane. Source names never become IR identifiers.
     struct Instruction {
@@ -1794,7 +1814,8 @@ public:
       auto base = "kernel" + std::to_string(index);
       outputs[base + ".mlir"] = shader(function);
       if (auto entry = primitiveEntry(function); entry) {
-        if (entry->kind == PrimitiveEntry::Sum && entry->mapped)
+        if ((entry->kind == PrimitiveEntry::Sum && entry->mapped) ||
+            entry->kind == PrimitiveEntry::MatrixSum)
           outputs[base + "-reduce.mlir"] = reductionShader();
         if (entry->leftMapped)
           outputs[base + "-left.mlir"] = shader(function, nullptr, false, 0);
@@ -1982,6 +2003,9 @@ void resume(Task &task) {
                       "\n";
         }
       }
+      if (auto entry = primitiveEntry(function); entry && entry->kind == PrimitiveEntry::MatrixSum)
+        manifest += "kernel" + std::to_string(index) + ".reduction_stage=kernel" +
+                    std::to_string(index) + "-reduce\n";
       if ((reduction(function) && !primitiveEntry(function)->mapped) || matrixFunction(function))
         continue;
       unsigned tensors = 0, scalars = 0;

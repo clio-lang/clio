@@ -1387,6 +1387,42 @@ TaskHandle Runtime::matmul(Task &task, GroupHandle group, Kernel kernel, Buffer 
   Bridge::matrixMaps(packet, std::move(leftMap), std::move(rightMap), mapInputs, mapScalars);
   return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
 }
+TaskHandle Runtime::matmulReduceSum(TaskCore &task, GroupHandle group, Kernel matrix,
+                                    Kernel reduction, Buffer left, Buffer right, Kernel leftMap,
+                                    Kernel rightMap, std::span<const Buffer> mapInputs,
+                                    std::span<const float> mapScalars) noexcept {
+  Bridge::PacketData packet{state_,
+                            std::move(left),
+                            {},
+                            Bridge::Kind::Matmul,
+                            std::move(matrix),
+                            BinaryOperation::Add,
+                            std::move(right)};
+  if (!reduction)
+    packet.preparation = Error::Invalid;
+  packet.reduction = std::move(reduction);
+  Bridge::matrixMaps(packet, std::move(leftMap), std::move(rightMap), mapInputs, mapScalars);
+  return task.submit(group, Bridge::reductionEntry,
+                     {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::matmulReduceSum(Task &task, GroupHandle group, Kernel matrix, Kernel reduction,
+                                    Buffer left, Buffer right, Kernel leftMap, Kernel rightMap,
+                                    std::span<const Buffer> mapInputs,
+                                    std::span<const float> mapScalars) noexcept {
+  Bridge::PacketData packet{state_,
+                            std::move(left),
+                            {},
+                            Bridge::Kind::Matmul,
+                            std::move(matrix),
+                            BinaryOperation::Add,
+                            std::move(right)};
+  if (!reduction)
+    packet.preparation = Error::Invalid;
+  packet.reduction = std::move(reduction);
+  Bridge::matrixMaps(packet, std::move(leftMap), std::move(rightMap), mapInputs, mapScalars);
+  return task.spawn(group, Bridge::reductionEntry,
+                    {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
+}
 TaskHandle Runtime::reduceSum(TaskCore &core, GroupHandle group, Kernel kernel, Buffer input,
                               Kernel epilogue, std::span<const float> scalars) noexcept {
   Bridge::PacketData packet{

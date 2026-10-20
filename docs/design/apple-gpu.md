@@ -693,7 +693,8 @@ Two GPU stages share one scheduled task and retain the intermediate on device.
 on the GPU before final scalar readback. [Elementwise matrix results](native-gpu-post-matmul.md)
 now compose tensor/scalar arithmetic after one multiplication using resident
 stages. [Matrix input arithmetic](native-gpu-pre-matmul.md) now adds independent
-resident maps of either/both operands; additional primitives remain separate work.
+resident maps of either/both operands. [One matrix consumed by one reduction](native-gpu-matmul-reduction.md)
+can now share a scalar task; further primitives remain separate work.
 
 ## Planned GPU interoperability
 
@@ -710,3 +711,12 @@ cancellation acknowledgement remain unchanged. Source/CPU/GPU/APFloat,
 four-mode lifecycle and installed relocation qualification are recorded in the
 linked design. Additional primitives and broader GPU language/type integration
 remain N2 work.
+
+## Matrix multiplication consumed by reduction
+
+[Matrix-to-reduction composition](native-gpu-matmul-reduction.md) now lets one
+float32 helper return `reduceSum(matmul(input, weights))`, optionally transforming
+either/both matrix inputs first. One scalar task retains the resident matrix
+and reads back only its final scalar. Matrix/reduction shaders, strict trees,
+shape guards, budgets and command acknowledgement rules remain unchanged.
+Arithmetic between/after this pair and broader numerical graphs remain N2 work.

@@ -37,6 +37,7 @@ GPU program is rejected rather than silently run on the CPU.
 | Data-dependent kernel branches | GPU | **Not admitted.** Host control flow is distinct from data-dependent shader control flow | [source](../../native/metal-source/capabilities/branch.k) |
 | Elementwise expressions after matrix multiplication | GPU | **Supported.** One resident matrix stage then strict elementwise arithmetic; matching full-shape tensor and scalar operands; direct/Tier 2 bindings | [source](../../native/metal-source/capabilities/post-matmul.k) (+1 additional probes), [device evidence](../../native/metal-proof/evidence/gpu-post-matmul-2026-10-21.json) |
 | Arithmetic transforming matrix operands | GPU | **Supported.** Independent resident elementwise maps of either/both operands, one strict matrix product and optional post arithmetic; direct/Tier 2 bindings | [source](../../native/metal-source/capabilities/pre-matmul.k) (+1 additional probes), [device evidence](../../native/metal-proof/evidence/gpu-pre-matmul-2026-10-21.json) |
+| Matrix product consumed by reduction | GPU | **Supported.** One strict matmul followed by one row-major reduceSum under a scalar task; optional independent input maps; intermediate/post arithmetic and additional primitives remain separate work | [source](../../native/metal-source/capabilities/matmul-reduction.k) (+1 additional probes), [device evidence](../../native/metal-proof/evidence/gpu-matmul-reduction-2026-10-21.json) |
 
 <!-- capability-matrix:end -->
 
@@ -92,8 +93,8 @@ task. [Scalar arithmetic after that reduction](native-gpu-post-reduction.md)
 also stays on the GPU, including empty inputs. [Elementwise matrix results](native-gpu-post-matmul.md),
 such as `matmul(input, weights) + bias`, now use two resident stages under one
 tensor task. [Matrix operand arithmetic](native-gpu-pre-matmul.md) now adds
-independent maps of either/both inputs with an optional post stage. Remaining
-composition gaps include multiple independent numerical primitives inside one helper. Separate placed calls already express those computations. Extending the
+independent maps of either/both inputs with an optional post stage. Composition
+now also includes [one matrix product consumed by one reduction](native-gpu-matmul-reduction.md), returning a scalar task. Arithmetic around that pair and broader numerical graphs remain gaps. Separate placed calls already express those computations. Extending the
 internal graph must preserve strict reduction and rounding contracts; it does not require putting host closures or TaskError
 handlers into shaders. Scalar-only kernels, broader numeric types, higher tensor
 ranks and device control flow remain distinct unimplemented boundaries.
