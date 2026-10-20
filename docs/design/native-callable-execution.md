@@ -2,7 +2,7 @@
 
 Kalandra's callable type describes its parameters, completed result and expected-error channel. It does not require an author-written effect list. Before enabling function values whose bodies coordinate tasks, the compiler must discover which functions an indirect call can execute and propagate their execution requirements to callers.
 
-This milestone implements that analysis foundation. **Resumable first-class calls are not executable yet.** Existing synchronous function values and statically named coordinating calls retain their supported behavior. Creating a function value that transitively coordinates tasks still produces a compile-time diagnostic.
+This milestone introduced the analysis foundation. [CPU resumable callable dispatch](native-resumable-callables.md) now uses that information to execute finite proven coordinating targets. Unknown target sets, recursive coordinating graphs and GPU function values remain gated.
 
 ## May-call graph
 
@@ -18,15 +18,13 @@ Constructing, capturing or returning a function does not execute its body. Coord
 
 Unknown is distinct from known task/device coordination. For example, a private generated map adapter receives a synchronous callback through a checked calling boundary; its isolated typed module need not contain the original caller. Classifying every unknown source as a coordinating target would incorrectly reject that adapter.
 
-The coordination bit alone is not a general proof that an arbitrary function value can run synchronously. The current source capability gate permits only synchronous first-class targets. Future resumable dispatch must consume the unknown-source information as well as the known target set, and validate the selected entry at the execution boundary.
+The coordination bit alone is not a general proof that an arbitrary function value can run synchronously. The current source capability gate requires complete proven target sets for coordinating indirect calls. Resumable dispatch must consume the unknown-source information as well as the known target set, and validate the selected entry at the execution boundary.
 
 The analysis has a configurable work budget, with the existing default of 300,000 graph steps. Exhaustion returns no flow proof rather than exposing partially computed targets. Continuation/effect classification treats affected indirect callers conservatively when analysis fails. This does not enable an unchecked fallback entry or silently choose one candidate.
 
-## Remaining execution work
+## Dispatch and remaining work
 
-The next stage is the continuation calling convention: distinguish synchronous and resumable entries, preserve a selected callable's managed environment, and suspend/resume the caller without blocking a worker. Qualify runtime-selected targets, higher-order calls, returned closures, nested parallel maps, typed errors, cancellation, settlement and admission failures before relaxing the source gate. Unknown or forged entries must fail through a checked boundary.
-
-This analysis does not add GPU callable execution, distributed contracts or a public C/C++ callback ABI.
+[CPU callable dispatch](native-resumable-callables.md) now distinguishes synchronous and coordinating entries, preserves selected managed environments and suspends/resumes finite proven calls without blocking workers. Unknown targets and malformed entries retain checked failure paths. Recursive coordinating graphs and placement-aware/GPU callables remain gated; distributed contracts and the public C/C++ callback ABI have separate roadmaps.
 
 ## Qualification
 

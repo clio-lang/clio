@@ -17,7 +17,10 @@ int main() {
   try {
     for (
         const auto *text :
-        {"type Config:\n  apply: fn(int)->int\nfn double(value:int)->int:\n  value*2\nfn "
+        {"type Config:\n  apply:fn(int)->int ! TaskError\nfn worker(value:int)->int:\n  value\nfn "
+         "run(value:int)->int ! TaskError:\n  try parallel:\n    try await spawn "
+         "worker(value)\nfn main()->int:\n  config=Config {apply:run}\n  0\n",
+         "type Config:\n  apply: fn(int)->int\nfn double(value:int)->int:\n  value*2\nfn "
          "main()->int:\n  config=Config {apply:double}\n  config.apply(21)\n",
          "type Config:\n  apply: fn(int)->int\nfn make(offset:int)->Config:\n  Config "
          "{apply:fn(value):value+offset}\nfn main()->int:\n  config=make(20)\n  config.apply(22)\n",
@@ -152,9 +155,7 @@ int main() {
           "type A:\n  value:int\ntype B:\n  value:int\ntype Config:\n  apply:fn(A)->int\nfn "
           "accept(value:B)->int:\n  value.value\nfn main()->int:\n  config=Config {apply:accept}\n "
           " 0\n",
-          "type Config:\n  apply:fn(int)->int ! TaskError\nfn worker(value:int)->int:\n  value\nfn "
-          "run(value:int)->int ! TaskError:\n  try parallel:\n    try await spawn "
-          "worker(value)\nfn main()->int:\n  config=Config {apply:run}\n  0\n",
+
           "type Config:\n  apply:fn(Config)->int\nfn main()->int:\n  0\n",
           "fn main()->int:\n  values=[fn(value:int):value,fn(value:float):value]\n  0\n"})
       require(!analyze(text).ok(), "invalid callable field use accepted");

@@ -460,7 +460,7 @@ execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-wrong-nominal.k" -o 
 if(NOT "${STATUS}" STREQUAL "1")
   message(FATAL_ERROR "Invalid callable field accepted/crashed: wrong-nominal: ${STATUS}: ${OUT}${ERR}")
 endif()
-file(WRITE "${OUTPUT_DIR}/reject-coordination.k" [=[type Config:
+COMPILE(supported-coordination [=[type Config:
   apply:fn(int)->int ! TaskError
 fn worker(value:int)->int:
   value
@@ -471,10 +471,7 @@ fn main()->int:
   config=Config {apply:run}
   0
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-coordination.k" -o "${OUTPUT_DIR}/reject-coordination" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid callable field accepted/crashed: coordination: ${STATUS}: ${OUT}${ERR}")
-endif()
+EXPECT(supported-coordination 0)
 file(WRITE "${OUTPUT_DIR}/reject-recursive-signature.k" [=[type Config:
   apply:fn(Config)->int
 fn main()->int:

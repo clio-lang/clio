@@ -42,7 +42,7 @@ int main() {
       require(!checked.ok(), "invalid parallel map admitted");
       ++rejected;
     }
-    require(accepted == 20 && rejected == 4, "parallel map catalog changed");
+    require(accepted == 21 && rejected == 3, "parallel map catalog changed");
     auto checked = analyze(read(std::filesystem::path(KALANDRA_PARALLEL_FIXTURES) / "errors.k"));
     require(checked.ok(), "parallel error mutation fixture rejected");
     for (unsigned mode = 0; mode < 4; ++mode) {
@@ -64,7 +64,7 @@ int main() {
       require(changed && numericCapabilityError(module, NumericTarget::Cpu).has_value(),
               "forged parallel map type/channel admitted");
     }
-    std::cout << "Parallel map: 20 accepted, 4 rejected, 4 forged IR cases passed\n";
+    std::cout << "Parallel map: 21 accepted, 3 rejected, 4 forged IR cases passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';
     return 1;

@@ -443,3 +443,42 @@ if(BUILD_TESTING)
     set_tests_properties(frontend-execution-flow-${VARIANT} PROPERTIES TIMEOUT 60)
   endforeach()
 endif()
+
+if(BUILD_TESTING)
+  foreach(VARIANT IN ITEMS debug sanitized)
+    add_executable(kalandra-resumable-callable-tests-${VARIANT} tests/ResumableCallableTests.cpp)
+    target_compile_options(kalandra-resumable-callable-tests-${VARIANT} PRIVATE -Wall -Wextra -Werror)
+    target_compile_definitions(kalandra-resumable-callable-tests-${VARIANT} PRIVATE KALANDRA_RESUMABLE_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/resumable-callables")
+    if(VARIANT STREQUAL "sanitized")
+      target_link_libraries(kalandra-resumable-callable-tests-${VARIANT} PRIVATE kalandra-semantics-sanitized)
+      target_compile_options(kalandra-resumable-callable-tests-${VARIANT} PRIVATE -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all)
+      target_link_options(kalandra-resumable-callable-tests-${VARIANT} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all)
+    else()
+      target_link_libraries(kalandra-resumable-callable-tests-${VARIANT} PRIVATE kalandra-semantics)
+    endif()
+    add_test(NAME frontend-resumable-callables-${VARIANT} COMMAND kalandra-resumable-callable-tests-${VARIANT})
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    if(VARIANT STREQUAL "sanitized")
+      set(CALLABLE_RUNTIME kalandra-native-runtime-sanitized)
+    elseif(VARIANT STREQUAL "thread-sanitized")
+      set(CALLABLE_RUNTIME kalandra-native-runtime-thread-sanitized)
+    else()
+      set(CALLABLE_RUNTIME kalandra-native-runtime)
+    endif()
+    add_test(NAME native-resumable-callables-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DLLVM_ROOT=${KALANDRA_LLVM_ROOT}" "-DRUNTIME=$<TARGET_FILE:${CALLABLE_RUNTIME}>"
+        "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/resumable-callables-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyResumableCallables.cmake")
+    set_tests_properties(native-resumable-callables-${VARIANT} PROPERTIES TIMEOUT 300)
+    add_test(NAME native-resumable-callable-extras-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DLLVM_ROOT=${KALANDRA_LLVM_ROOT}" "-DRUNTIME=$<TARGET_FILE:${CALLABLE_RUNTIME}>"
+        "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/resumable-callable-extras-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyResumableCallableExtras.cmake")
+    set_tests_properties(native-resumable-callable-extras-${VARIANT} PROPERTIES TIMEOUT 120)
+  endforeach()
+endif()

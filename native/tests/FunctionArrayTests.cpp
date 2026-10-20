@@ -17,7 +17,10 @@ int main() {
   try {
     for (
         const auto *text :
-        {"fn double(value:int)->int:\n  value*2\nfn triple(value:int)->int:\n  value*3\nfn "
+        {"fn worker(value:int)->int:\n  value\nfn coordinate(value:int)->int ! TaskError:\n  try "
+         "parallel:\n    try await spawn worker(value)\nfn main()->int:\n  "
+         "callbacks=[coordinate]\n  0\n",
+         "fn double(value:int)->int:\n  value*2\nfn triple(value:int)->int:\n  value*3\nfn "
          "main()->int:\n  callbacks=[double,triple]\n  callbacks[0](12)+callbacks[1](6)\n",
          "fn make(offset:int)->[fn(int)->int]:\n  "
          "[fn(value):value+offset,fn(value):value*offset]\nfn main()->int:\n  callbacks=make(20)\n "
@@ -134,9 +137,7 @@ int main() {
           "error E:\n  Bad\nfn main()->int:\n  callback=fn(value:int)->int ! E:value\n  "
           "callbacks=[callback]\n  evaluate=fn(fnValue:fn(int)->int ! E)->int ! E:try fnValue(0)\n "
           " values=map(callbacks,evaluate)\n  0\n",
-          "fn worker(value:int)->int:\n  value\nfn coordinate(value:int)->int ! TaskError:\n  try "
-          "parallel:\n    try await spawn worker(value)\nfn main()->int:\n  "
-          "callbacks=[coordinate]\n  0\n",
+
           "fn main()->int:\n  callbacks:[[fn(int)->int]]=[]\n  0\n",
           "fn main()->int:\n  callbacks:[fn(int)->int]=[fn(value):value]\n  "
           "value=tensor(callbacks)\n  0\n",

@@ -40,10 +40,12 @@ class Emitter {
   Function *destroy;
   std::vector<Function *> synchronousEntries;
   std::vector<ValueType> functionSignatures;
+  std::vector<bool> coordinating;
 
 public:
   Emitter(ModulePlan &planner, llvm::Module &module)
-      : planner(planner), module(module), context(module.getContext()), builder(context) {
+      : planner(planner), module(module), context(module.getContext()), builder(context),
+        coordinating(coordinatingFunctions(planner.input)) {
     module.setDataLayout(nativeCpuDataLayout);
     pointer = builder.getPtrTy();
     i32 = builder.getInt32Ty();
@@ -106,6 +108,8 @@ public:
              instruction.code == Code::SynchronousCall) &&
             !synchronousEntries[instruction.target]) {
           const auto id = instruction.target;
+          if (instruction.code == Code::FunctionReference && coordinating.at(id))
+            continue;
           const auto &source = planner.input.functions.at(id);
           if (planner.plans[id]->groups ||
               std::ranges::any_of(planner.plans[id]->code, [](const auto &op) {
@@ -830,9 +834,9 @@ private:
     auto *value = builder.CreateExtractValue(input, {1});
     auto *code = builder.CreateExtractValue(value, {0});
     auto *environment = builder.CreateExtractValue(value, {1});
-    std::unordered_set<Function *> accepted;
+    std::unordered_set<Value *> accepted;
     const auto accept = [&](const TypedModule &inputModule, const FunctionReference &ref,
-                            const ValueType &actual, Function *entry) {
+                            const ValueType &actual, Value *entry) {
       const auto &target = inputModule.functions.at(ref.function);
       auto signature = type;
       signature.fallible = false;
@@ -924,7 +928,9 @@ private:
                module.getFunction("kalandra_callable_" + std::to_string(ref->function)));
     for (const auto &expression : planner.input.expressions)
       if (const auto *ref = std::get_if<FunctionReference>(&expression.operation))
-        accept(planner.input, *ref, expression.type, synchronousEntries.at(ref->function));
+        accept(planner.input, *ref, expression.type,
+               coordinating.at(ref->function) ? static_cast<Value *>(entries.at(ref->function))
+                                              : synchronousEntries.at(ref->function));
     builder.CreateBr(failed);
     builder.SetInsertPoint(failed);
     auto *fault = Block::Create(context, "function.fault", fn);
@@ -1396,14 +1402,17 @@ private:
         break;
       }
       case Code::FunctionReference: {
+        Value *code = coordinating.at(instruction.target)
+                          ? static_cast<Value *>(entries.at(instruction.target))
+                          : synchronousEntries.at(instruction.target);
         Value *environment = llvm::ConstantPointerNull::get(builder.getPtrTy());
         if (!instruction.args.empty()) {
           std::vector<Type *> fields;
           for (auto capture : instruction.args)
             fields.push_back(scalarType(plan.slots[capture]));
           auto *layout = llvm::StructType::get(context, fields);
-          environment = call("kalandra_environment_alloc_v1", pointer,
-                             {ctx, c64(size(layout)), synchronousEntries.at(instruction.target)});
+          environment =
+              call("kalandra_environment_alloc_v1", pointer, {ctx, c64(size(layout)), code});
           auto *ready = Block::Create(context, "closure.ready", resume);
           auto *status = call("kalandra_poll_v1", i64, {ctx});
           builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), ready, abort);
@@ -1414,13 +1423,60 @@ private:
         }
         auto *layout = scalarType(type);
         Value *closure = llvm::Constant::getNullValue(layout);
-        closure =
-            builder.CreateInsertValue(closure, synchronousEntries.at(instruction.target), {0});
+        closure = builder.CreateInsertValue(closure, code, {0});
         closure = builder.CreateInsertValue(closure, environment, {1});
         builder.CreateStore(closure, payload(instruction.output));
         builder.CreateBr(next);
         break;
       }
+      case Code::CallableTarget: {
+        const auto input = instruction.args[0];
+        auto *closure = builder.CreateLoad(scalarType(plan.slots[input]), payload(input));
+        builder.CreateStore(builder.CreateICmpEQ(builder.CreateExtractValue(closure, {0}),
+                                                 entries.at(instruction.target)),
+                            payload(instruction.output));
+        builder.CreateBr(next);
+        break;
+      }
+      case Code::CallableCaptures:
+      case Code::CallableSyncGuard: {
+        layout(type);
+        auto *copy = module.getFunction("value.copy." + key(type));
+        auto *ready = Block::Create(context, "callable.checked", resume);
+        auto *ok = builder.CreateCall(
+            copy, {ctx, slot(instruction.output), ctx, slot(instruction.args[0])});
+        builder.CreateCondBr(ok, ready, abort);
+        builder.SetInsertPoint(ready);
+        auto *closure = builder.CreateLoad(scalarType(type), payload(instruction.output));
+        if (instruction.code == Code::CallableCaptures) {
+          auto *environment = builder.CreateExtractValue(closure, {1});
+          std::vector<Type *> fields;
+          for (std::size_t i = 1; i < instruction.args.size(); ++i)
+            fields.push_back(scalarType(plan.slots[instruction.args[i]]));
+          auto *captureType = llvm::StructType::get(context, fields);
+          for (std::size_t i = 0; i < fields.size(); ++i)
+            builder.CreateStore(
+                builder.CreateLoad(fields[i], builder.CreateStructGEP(captureType, environment, i)),
+                payload(instruction.args[i + 1]));
+          builder.CreateBr(next);
+        } else {
+          auto *code = builder.CreateExtractValue(closure, {0});
+          Value *valid = builder.getTrue();
+          for (std::size_t i = 0; i < coordinating.size(); ++i)
+            if (coordinating[i])
+              valid = builder.CreateAnd(valid, builder.CreateICmpNE(code, entries[i]));
+          auto *invalid = Block::Create(context, "callable.invalid", resume);
+          builder.CreateCondBr(valid, next, invalid);
+          builder.SetInsertPoint(invalid);
+          call("kalandra_fault_v1", voidType, {ctx, c64(3), c64(0), c64(0)});
+          builder.CreateBr(abort);
+        }
+        break;
+      }
+      case Code::InvalidCallable:
+        call("kalandra_fault_v1", voidType, {ctx, c64(3), c64(0), c64(0)});
+        builder.CreateBr(abort);
+        break;
       case Code::SynchronousCall: {
         const auto &target = planner.input.functions.at(instruction.target);
         std::vector<Value *> arguments{llvm::ConstantPointerNull::get(builder.getPtrTy())};

@@ -19,10 +19,14 @@ const std::string functions =
     "fn choose(flag:Bool)->fn(int)->int:\n  if flag:double\n  else:triple\n";
 void positive() {
   for (const auto *body :
-       {"fn main()->int:\n  f=double\n  alias:fn(int)->int=f\n  alias(21)\n",
+       {"fn coordinate(value:int)->int:\n  run(value) catch fn(error):0\n"
+        "fn run(value:int)->int ! TaskError:\n  try parallel:\n    try await spawn double(value)\n"
+        "fn main()->int:\n  f=coordinate\n  f(1)\n",
+        "fn main()->int:\n  f=double\n  alias:fn(int)->int=f\n  alias(21)\n",
         "fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    result=try await spawn "
         "map([1],f)\n    result[0]\n",
-        "fn main()->int:\n  apply(14,choose(false))\n", "fn main()->int:\n  choose(true)(21)\n",
+        "fn main()->int:\n  apply(14,choose(false))\n",
+        "fn main()->int:\n  choose(true)(21)\n",
         "fn main()->int:\n  f=choose(false)\n  14->f\n",
         "fn main()->int:\n  f=choose(true)\n  values=map([1,2,3],f)\n  values[2]\n",
         "fn main()->int:\n  f=choose(true)\n  values=map([1,2,3],fn(value):f(value))\n  "
@@ -71,8 +75,7 @@ void positive() {
 void negative() {
   for (const auto *body :
        {"fn main()->int:\n  f:fn(float)->float=double\n  0\n",
-        "fn main()->int:\n  f=double\n  f()\n",
-        "fn main()->int:\n  f=double\n  f(\"bad\")\n",
+        "fn main()->int:\n  f=double\n  f()\n", "fn main()->int:\n  f=double\n  f(\"bad\")\n",
         "fn main()->int:\n  f=double\n  f(1,2)\n",
         "fn bad(value:float)->float:\n  value\n"
         "fn main()->int:\n  f=if true:double\n  else:bad\n  0\n",
@@ -80,9 +83,7 @@ void negative() {
         "type Holder:\n  callback:fn(int)->int\nfn main()->int:\n  holder=Holder {callback:0}\n  "
         "0\n",
         "fn main()->int:\n  values=[double,fn(value:float):value]\n  0\n",
-        "fn coordinate(value:int)->int:\n  run(value) catch fn(error):0\n"
-        "fn run(value:int)->int ! TaskError:\n  try parallel:\n    try await spawn double(value)\n"
-        "fn main()->int:\n  f=coordinate\n  f(1)\n",
+
         "fn arrays(values:[int])->[int]:\n  values\nfn main()->int:\n  "
         "f:fn(Tensor[int,?])->[int]=arrays\n  0\n",
         "fn matrix(values:Tensor[int,2])->Tensor[int,2]:\n  values\nfn main()->int:\n  "

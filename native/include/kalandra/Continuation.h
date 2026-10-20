@@ -37,7 +37,11 @@ enum class Code {
   MapStore,
   MapAdvance,
   MapSuccess,
-  ReleaseGroup
+  ReleaseGroup,
+  CallableTarget,
+  CallableCaptures,
+  CallableSyncGuard,
+  InvalidCallable
 };
 struct Instruction {
   Code code;

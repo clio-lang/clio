@@ -505,6 +505,7 @@ std::optional<FunctionInvocationFlow> functionInvocationFlow(const TypedModule &
   FunctionInvocationFlow result;
   result.targets.resize(module.expressions.size());
   result.unknown.resize(module.expressions.size());
+  result.reachable.resize(module.expressions.size());
   for (ValueId id = 0; id < module.expressions.size(); ++id)
     if (const auto *call = std::get_if<FunctionInvoke>(&module.expressions[id].operation)) {
       result.unknown[id] = flow.unknown(call->callee);
@@ -514,6 +515,32 @@ std::optional<FunctionInvocationFlow> functionInvocationFlow(const TypedModule &
         std::ranges::sort(result.targets[id]);
       }
     }
+  std::vector<bool> visited(module.functions.size());
+  std::vector<FunctionId> pending;
+  for (FunctionId id = 0; id < module.functions.size(); ++id)
+    if (module.functions[id].name == "main")
+      pending.push_back(id);
+  while (!pending.empty()) {
+    if (!budget--)
+      return {};
+    const auto id = pending.back();
+    pending.pop_back();
+    if (visited.at(id))
+      continue;
+    visited[id] = true;
+    for (auto value : module.functions[id].expressions) {
+      if (!budget--)
+        return {};
+      result.reachable.at(value) = true;
+      const auto &op = module.expressions[value].operation;
+      if (const auto *call = std::get_if<FunctionCall>(&op))
+        pending.push_back(call->function);
+      else if (const auto *map = std::get_if<ArrayMap>(&op))
+        pending.push_back(map->function);
+      else if (std::holds_alternative<FunctionInvoke>(op))
+        pending.insert(pending.end(), result.targets[value].begin(), result.targets[value].end());
+    }
+  }
   return result;
 }
 std::optional<std::string> functionValueTransportError(const TypedModule &module,
@@ -876,12 +903,61 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
         return error;
     }
   }
-  const auto resumable = continuation::coordinatingFunctions(module);
-  for (const auto &expression : module.expressions)
-    if (const auto *ref = std::get_if<FunctionReference>(&expression.operation))
-      if (resumable[ref->function])
-        return "function values require transitively synchronous targets; task coordination "
-               "is not supported through function values";
+  const auto coordinating = continuation::coordinatingFunctions(module);
+  const bool resumableReference = std::ranges::any_of(module.expressions, [&](const auto &value) {
+    const auto *ref = std::get_if<FunctionReference>(&value.operation);
+    return ref && coordinating.at(ref->function);
+  });
+  if (resumableReference) {
+    const auto flow = functionInvocationFlow(module);
+    if (!flow)
+      return "resumable function-value analysis exceeded its proof budget";
+    for (ValueId id = 0; id < module.expressions.size(); ++id) {
+      const auto &value = module.expressions[id];
+      if (const auto *ref = std::get_if<FunctionReference>(&value.operation);
+          ref && flow->reachable[id] && coordinating[ref->function])
+        if (auto error = functionValueTransportError(module, value))
+          return "resumable callable environments require proven CPU captures: " + *error;
+    }
+    for (ValueId id = 0; id < module.expressions.size(); ++id)
+      if (std::holds_alternative<FunctionInvoke>(module.expressions[id].operation) &&
+          std::ranges::any_of(flow->targets[id],
+                              [&](auto target) { return coordinating[target]; }) &&
+          flow->reachable[id] && flow->unknown[id])
+        return "resumable function-value calls require a complete set of proven CPU targets";
+    std::vector<unsigned> state(module.functions.size());
+    std::size_t remaining = 300000;
+    const auto visit = [&](auto &&self, FunctionId id, unsigned depth) -> bool {
+      if (!remaining || depth > 128 || state[id] == 1)
+        return false;
+      if (state[id] == 2)
+        return true;
+      state[id] = 1;
+      for (auto value : module.functions[id].expressions) {
+        if (!remaining--)
+          return false;
+        const auto &op = module.expressions[value].operation;
+        std::vector<FunctionId> targets;
+        if (const auto *call = std::get_if<FunctionCall>(&op))
+          targets.push_back(call->function);
+        else if (const auto *map = std::get_if<ArrayMap>(&op))
+          targets.push_back(map->function);
+        else if (std::holds_alternative<FunctionInvoke>(op))
+          targets = flow->targets[value];
+        for (auto target : targets)
+          if (coordinating[target] && !self(self, target, depth + 1))
+            return false;
+      }
+      state[id] = 2;
+      return true;
+    };
+    for (FunctionId id = 0; id < module.functions.size(); ++id)
+      if (coordinating[id] &&
+          std::ranges::any_of(module.functions[id].expressions,
+                              [&](auto value) { return flow->reachable[value]; }) &&
+          !visit(visit, id, 0))
+        return "recursive or over-budget coordinating function-value graphs are not implemented";
+  }
   return {};
 }
 } // namespace kalandra

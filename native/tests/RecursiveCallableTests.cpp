@@ -45,8 +45,9 @@ int main() {
           "0\n",
           "fn main()->int:\n  f=fn(n:int):\n    if n==0:\n      0\n    else:\n      f(n-1)\n  "
           "f(20)\n",
-          "fn leaf(n:int)->int:\n  n\nfn recur(n:int)->int ! TaskError:\n  try parallel:\n    try "
-          "await spawn leaf(n)\nfn main()->int:\n  callback=recur\n  0\n"})
+          "fn leaf(n:int)->int:\n  n\nfn recur(n:int)->int ! TaskError:\n  if n==0:\n"
+          "    try parallel:\n      try await spawn leaf(n)\n  else:\n    f=recur\n    try f(n-1)\n"
+          "fn main()->int ! TaskError:\n  f=recur\n  try f(1)\n"})
       require(!analyze(text).ok(), "unsupported recursion/inference/coordination admitted");
     auto co = analyze("fn leaf(n:int)->int:\n  n\nfn recur(n:int)->int ! TaskError:\n  if n==0:\n  "
                       "  try parallel:\n      try await spawn leaf(n)\n  else:\n    try "

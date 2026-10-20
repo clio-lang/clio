@@ -115,3 +115,5 @@ The initial parser milestone passed 26 focused checks, including debug and ASan/
 Current result extension: [proven function-valued CPU worker results](native-worker-function-results.md) now support cached awaits, use after group release and onward submission. Containing values and unproven provenance remain staged.
 
 [Inferred execution through function values](native-callable-execution.md) now supplies bounded indirect target sets and transitive continuation/coordination analysis. It preserves unknown sources separately and does not yet enable resumable first-class execution.
+
+[CPU coordinating function values](native-resumable-callables.md) now implement finite proven resumable targets, including captured/returned closures, indirect spawn and bound parallel-map callbacks. This supersedes the initial synchronous-only execution gate described above; unknown sources, recursive coordinating graphs and GPU callables remain gated.

@@ -445,7 +445,7 @@ COMPILE(supported-worker-slice [=[fn main()->int ! TaskError:
     length(values)
 ]=])
 EXPECT(supported-worker-slice 1)
-file(WRITE "${OUTPUT_DIR}/reject-coordination.k" [=[fn worker(value:int)->int:
+COMPILE(supported-coordination [=[fn worker(value:int)->int:
   value
 fn coordinate(value:int)->int ! TaskError:
   try parallel:
@@ -454,10 +454,7 @@ fn main()->int:
   callbacks=[coordinate]
   0
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-coordination.k" -o "${OUTPUT_DIR}/reject-coordination" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid function array accepted/crashed: coordination: ${STATUS}: ${OUT}${ERR}")
-endif()
+EXPECT(supported-coordination 0)
 file(WRITE "${OUTPUT_DIR}/reject-nested-array-type.k" [=[fn main()->int:
   callbacks:[[fn(int)->int]]=[]
   0

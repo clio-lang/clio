@@ -1,5 +1,7 @@
 # Managed CPU closures
 
+Current CPU extension: [proven coordinating function values](native-resumable-callables.md) now use checked continuation dispatch, managed environments and the shared worker scheduler. This supersedes the synchronous-only coordination restriction in this earlier implementation record; unknown targets, recursive coordinating graphs and GPU callables remain gated.
+
 Current aggregate extension: [proven function-containing CPU worker values](native-worker-callable-aggregates.md) now support records, ordinary enums, function arrays, record arrays and transitive captures. Unproven parameters, expected-error payloads and indirect spawn remain staged. Earlier subset restrictions below describe the preceding increments.
 
 Implemented native subset — 2026-10-19. Anonymous functions can be bound, passed, selected and returned with immutable lexical captures. [Indented anonymous bodies](native-block-closures.md) and [direct error declarations](anonymous-errors.md) now extend the initial expression form. [Function-valued fields](native-callable-fields.md) now also store these closures in records and enum payloads. [Arrays of functions](native-function-arrays.md) now also preserve managed captures. This extends [native function values](native-function-values.md) under the [accepted function-value design](function-values.md).

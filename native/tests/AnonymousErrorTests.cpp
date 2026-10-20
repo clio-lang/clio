@@ -17,7 +17,13 @@ int main() {
   try {
     for (
         const auto *source :
-        {"error E:\n  Bad:\n    value:int\nfn main()->int:\n  offset:int=42\n  "
+        {"error E:\n  Bad\nfn apply(value:int,f:fn(int)->int ! E)->int ! E:\n  try f(value)\nfn "
+         "main()->int ! (E | TaskError):\n  f=fn(value:int)->int ! E:value\n  try parallel:\n    "
+         "try await spawn apply(42,f)\n",
+         "fn worker(value:int)->int:\n  value\nfn run(value:int)->int ! TaskError:\n  try "
+         "parallel:\n    try await spawn worker(value)\nfn main()->int:\n  f=fn(value:int)->int ! "
+         "TaskError:try run(value)\n  0\n",
+         "error E:\n  Bad:\n    value:int\nfn main()->int:\n  offset:int=42\n  "
          "validate=fn(value:int)->int ! E:\n    if value<0:\n      fail E.Bad {value:offset}\n    "
          "value+offset\n  validate(-1) catch fn(error):\n    match error:\n      E.Bad "
          "{value}:value\n",
@@ -146,12 +152,7 @@ int main() {
           "error E:\n  Bad\nfn main()->int:\n  f=fn(value)->int ! E:value\n  0\n",
           "error E:\n  Bad\nfn checked()->int ! E:\n  fail E.Bad\nfn main()->int:\n  "
           "result=checked()\n  f=fn()->int ! E:try result\n  0\n",
-          "fn worker(value:int)->int:\n  value\nfn run(value:int)->int ! TaskError:\n  try "
-          "parallel:\n    try await spawn worker(value)\nfn main()->int:\n  f=fn(value:int)->int ! "
-          "TaskError:try run(value)\n  0\n",
-          "error E:\n  Bad\nfn apply(value:int,f:fn(int)->int ! E)->int ! E:\n  try f(value)\nfn "
-          "main()->int ! (E | TaskError):\n  f=fn(value:int)->int ! E:value\n  try parallel:\n    "
-          "try await spawn apply(42,f)\n",
+
           "fn main()->int:\n  f=fn()->fn(int)->int ! E ! Other:0\n  0\n",
           "fn main()->int:\n  f=fn(value:int)->int ! E | Other:value\n  0\n",
           "fn main()->int:\n  f=fn(value:int)->int ! :value\n  0\n"})

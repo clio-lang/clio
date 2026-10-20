@@ -1087,6 +1087,10 @@ class Compiler {
       case Code::MapAdvance:
       case Code::MapSuccess:
       case Code::ReleaseGroup:
+      case Code::CallableTarget:
+      case Code::CallableCaptures:
+      case Code::CallableSyncGuard:
+      case Code::InvalidCallable:
       case Code::FunctionReference:
       case Code::FunctionInvoke:
       case Code::SynchronousCall:

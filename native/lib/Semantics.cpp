@@ -112,18 +112,6 @@ public:
           if (auto unsupported =
                   functionValueTransportError(output_, output_.expressions[task->operand]))
             error("S074", *unsupported, value.span);
-    if (diagnostics_.empty() && std::ranges::any_of(output_.expressions, [](const auto &value) {
-          return std::holds_alternative<FunctionReference>(value.operation);
-        })) {
-      const auto resumable = continuation::coordinatingFunctions(output_);
-      for (const auto &value : output_.expressions)
-        if (const auto *reference = std::get_if<FunctionReference>(&value.operation))
-          if (resumable[reference->function])
-            error("S074",
-                  "function values require transitively synchronous CPU targets; "
-                  "task/device coordination is not supported through function values",
-                  value.span);
-    }
     if (diagnostics_.empty())
       if (auto unsupported = numericCapabilityError(output_, NumericTarget::Cpu))
         error("S054", *unsupported,

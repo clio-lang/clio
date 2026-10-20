@@ -17,7 +17,10 @@ int main() {
   try {
     for (
         const auto *source :
-        {"fn makeAdder(offset:int)->fn(int)->int:\n  fn(value):\n    adjusted=value+offset\n    "
+        {"fn worker(value:int)->int:\n  value\nfn run(value:int)->int ! TaskError:\n  try "
+         "parallel:\n    try await spawn worker(value)\nfn main()->int:\n  f=fn(value:int):\n    "
+         "result=run(value) catch fn(error):0\n    result\n  f(42)\n",
+         "fn makeAdder(offset:int)->fn(int)->int:\n  fn(value):\n    adjusted=value+offset\n    "
          "adjusted*2\nfn main()->int:\n  addOne=makeAdder(1)\n  addOne(20)\n",
          "fn main()->int:\n  f:fn(int)->int=fn(value):\n    adjusted=value+1\n    adjusted*2\n  "
          "f(20)\n",
@@ -137,9 +140,7 @@ int main() {
           "   value\n  f(42)\n",
           "error E:\n  Bad\nfn make()->fn(int)->int ! E:\n  fn(value):\n    if value==0:fail "
           "E.Bad\nfn main()->int:\n  0\n",
-          "fn worker(value:int)->int:\n  value\nfn run(value:int)->int ! TaskError:\n  try "
-          "parallel:\n    try await spawn worker(value)\nfn main()->int:\n  f=fn(value:int):\n    "
-          "result=run(value) catch fn(error):0\n    result\n  f(42)\n",
+
           "error E:\n  Bad\nfn checked()->int ! E:\n  fail E.Bad\nfn main()->int:\n  "
           "outcome=checked()\n  f=fn(value:int):\n    result=outcome\n    result\n  0\n",
           "fn main()->int:\n  f=fn(value:int):\n    adjusted=value+1\n  42\n",

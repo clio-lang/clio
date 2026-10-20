@@ -15,7 +15,10 @@ CheckResult analyze(const char *source) {
 int main() {
   try {
     for (const auto *source :
-         {"fn makeAdder(offset:int)->fn(int)->int:\n  fn(value:int):value+offset\nfn "
+         {"fn worker(value:int)->int:\n  value\nfn run(value:int)->int ! TaskError:\n  try "
+          "parallel:\n    try await spawn worker(value)\nfn main()->int:\n  "
+          "f=fn(value:int):run(value) catch fn(error):0\n  f(42)\n",
+          "fn makeAdder(offset:int)->fn(int)->int:\n  fn(value:int):value+offset\nfn "
           "apply(value:int,f:fn(int)->int)->int:\n  f(value)\nfn main()->int:\n  "
           "add=makeAdder(10)\n  apply(22,add)+add(0)\n",
           "fn apply(value:int,f:fn(int)->int)->int:\n  f(value)\nfn main()->int:\n  "
@@ -136,9 +139,7 @@ int main() {
           "main()->int:\n  f:fn(int)->int ! Other=fn(value):checked(value)\n  0\n",
           "error E:\n  Bad\nfn checked()->int ! E:\n  fail E.Bad\nfn main()->int:\n  "
           "result=checked()\n  f=fn(value:int):result\n  0\n",
-          "fn worker(value:int)->int:\n  value\nfn run(value:int)->int ! TaskError:\n  try "
-          "parallel:\n    try await spawn worker(value)\nfn main()->int:\n  "
-          "f=fn(value:int):run(value) catch fn(error):0\n  f(42)\n",
+
           "fn worker(value:int)->int:\n  value\nfn main()->int ! TaskError:\n  try parallel:\n    "
           "task=spawn worker(42)\n    f=fn(value:int):task\n    try await task\n",
           "error E:\n  Bad\nfn checked()->int ! E:\n  fail E.Bad\nfn main()->int:\n  "

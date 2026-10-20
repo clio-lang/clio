@@ -42,6 +42,9 @@ struct FunctionSignature {
 struct FunctionInvocationFlow {
   std::vector<std::vector<FunctionId>> targets;
   std::vector<bool> unknown;
+  // Expressions potentially executed from this graph's root main. Uncalled
+  // library helpers retain type checking without inventing incoming values.
+  std::vector<bool> reachable;
 };
 [[nodiscard]] std::optional<FunctionInvocationFlow>
 functionInvocationFlow(const struct TypedModule &, std::size_t budget = 300000);

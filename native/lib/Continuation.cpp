@@ -86,11 +86,12 @@ public:
   std::size_t totalSlots = 0;
   Options options;
   std::vector<bool> resumable, coordinating;
+  std::optional<FunctionInvocationFlow> invocationFlow;
   std::vector<FunctionId> pending;
   std::vector<bool> scheduled;
   explicit Builder(const TypedModule &input, Options options)
       : ModulePlan(input), options(options), resumable(resumableFunctions(input)),
-        coordinating(coordinatingFunctions(input)) {
+        coordinating(coordinatingFunctions(input)), invocationFlow(functionInvocationFlow(input)) {
     if (options.entry && *options.entry >= input.functions.size())
       throw std::runtime_error("continuation entry function is out of range");
     if (hasPlacement(input) && !options.preserveCalls)
@@ -539,6 +540,68 @@ private:
     plan.code[empty].jump = plan.code[failed].jump = plan.code.size();
     plan.code.push_back({Code::Label, 0, {}});
   }
+  void indirectCall(Plan &plan, ValueId id, Slot output, const FunctionInvoke &call,
+                    Environment &env, std::set<FunctionId> &stack) {
+    if (options.preserveCalls || !invocationFlow)
+      throw std::runtime_error("resumable callable dispatch requires proven ordinary CPU targets");
+    if (invocationFlow->unknown.at(id)) {
+      if (invocationFlow->reachable.at(id))
+        throw std::runtime_error(
+            "resumable callable dispatch requires proven ordinary CPU targets");
+      // Uncalled generic library bodies have no incoming callback proof. Keep a
+      // checked rejection entry; never guess a target or issue a native call.
+      plan.code.push_back({Code::InvalidCallable, 0, {}});
+      return;
+    }
+    const auto callee = expression(plan, call.callee, env, stack);
+    std::vector<Slot> arguments;
+    for (auto arg : call.arguments)
+      arguments.push_back(expression(plan, arg, env, stack));
+    std::vector<std::size_t> exits;
+    bool synchronous = false;
+    for (auto target : invocationFlow->targets.at(id)) {
+      if (!coordinating.at(target)) {
+        synchronous = true;
+        continue;
+      }
+      const auto &fn = input.functions[target];
+      ValueType boolean;
+      boolean.builtin = BuiltinValue::Bool;
+      const auto selected = slot(plan, boolean);
+      plan.code.push_back({Code::CallableTarget, selected, {callee}, target});
+      const auto skip = plan.code.size();
+      plan.code.push_back({Code::Branch, 0, {selected}});
+      const auto copied = slot(plan, input.expressions[call.callee].type);
+      std::vector<Slot> captures{callee};
+      auto args = arguments;
+      for (std::size_t n = fn.parameters.size() - fn.captureCount; n < fn.parameters.size(); ++n) {
+        auto capture = slot(plan, input.symbols[fn.parameters[n]].type);
+        captures.push_back(capture);
+        args.push_back(capture);
+      }
+      plan.code.push_back({Code::CallableCaptures, copied, captures, target});
+      auto value = function(plan, target, args, stack, env.group);
+      plan.code.push_back({Code::Copy, output, {value}});
+      exits.push_back(plan.code.size());
+      plan.code.push_back({Code::Jump, 0, {}});
+      plan.code[skip].jump = plan.code.size();
+      plan.code.push_back({Code::Label, 0, {}});
+    }
+    if (synchronous) {
+      const auto checked = slot(plan, input.expressions[call.callee].type);
+      plan.code.push_back({Code::CallableSyncGuard, checked, {callee}});
+      std::vector<Slot> args{checked};
+      args.insert(args.end(), arguments.begin(), arguments.end());
+      if (input.expressions[id].type.fallible)
+        plan.code.push_back({Code::FunctionInvoke, output, args, 0, 0, 0, id});
+      else
+        plan.code.push_back({Code::Kernel, output, args, kernel(id), 0, 0, id});
+    } else
+      plan.code.push_back({Code::InvalidCallable, 0, {}});
+    for (auto exit : exits)
+      plan.code[exit].jump = plan.code.size();
+    plan.code.push_back({Code::Label, 0, {}});
+  }
   std::size_t builtinPlan(ValueId id) {
     auto plan = std::make_unique<Plan>();
     std::vector<Slot> args;
@@ -623,6 +686,11 @@ private:
       const auto callable = slot(plan, mapCallableType(*map));
       plan.code.push_back({Code::FunctionReference, callable, captures, map->function, 0, 0, id});
       plan.code.push_back({Code::Kernel, output, {inputSlot, callable}, kernel(id), 0, 0, id});
+    } else if (const auto *call = std::get_if<kalandra::FunctionInvoke>(&node.operation);
+               call && invocationFlow &&
+               std::ranges::any_of(invocationFlow->targets.at(id),
+                                   [&](auto target) { return coordinating.at(target); })) {
+      indirectCall(plan, id, output, *call, env, stack);
     } else if (const auto *call = std::get_if<kalandra::FunctionInvoke>(&node.operation);
                call && node.type.fallible) {
       std::vector<Slot> args{expression(plan, call->callee, env, stack)};
@@ -983,7 +1051,11 @@ std::string dump(const ModulePlan &module) {
                                           "map.store",
                                           "map.advance",
                                           "map.success",
-                                          "group.release"};
+                                          "group.release",
+                                          "callable.target",
+                                          "callable.captures",
+                                          "callable.sync.guard",
+                                          "callable.invalid"};
   std::ostringstream out;
   for (std::size_t f = 0; f < module.plans.size(); ++f) {
     const auto &plan = *module.plans[f];
