@@ -9,7 +9,7 @@ cmake --build build/native --target kalandra-lsp
 build/native/native/kalandra-lsp
 ```
 
-Configure your editor's language-server client to launch the executable with `.k` documents associated with the `kalandra` language. It communicates over framed stdin/stdout, so running it in an ordinary terminal waits for protocol input. A [native VS Code client](native-vscode.md) now packages the editor connection and `.k` highlighting as a local VSIX. Set its Server Path to this development executable; native installed-binary distribution remains work.
+Configure your editor's language-server client to launch the executable with `.k` documents associated with the `kalandra` language. It communicates over framed stdin/stdout, so running it in an ordinary terminal waits for protocol input. A [native VS Code client](native-vscode.md) now packages the editor connection and `.k` highlighting as a local VSIX. Set its Server Path to this development executable; the [native editor-tools component](native-tools-install.md) can also install it under a prefix, while full compiler/runtime distribution remains work.
 
 Optional arguments:
 
@@ -178,4 +178,4 @@ Malformed JSON with valid framing returns a parse error and leaves the session u
 
 Independent Python-stdlib protocol tests launch normal and ASan/UBSan builds, exercise interactive pipe framing, lifecycle, versions, Unicode ranges/URIs, source isolation, dependency changes/clearing, project packages, budgets and malformed input. The [initial qualification record](../../native/metal-proof/evidence/native-lsp-2026-10-20.json) covers the first full-sync implementation. [Incremental edit qualification](../../native/metal-proof/evidence/native-lsp-edits-2026-10-20.json) adds sequential/mixed edits, Unicode scalar boundaries, CRLF/CR positions, line-end clamping, transactional failure, deprecated lengths and edit limits. Third-party LLVM libraries are not rebuilt with sanitizers. No real editor or additional operating system is qualified by these protocol tests.
 
-The [native VS Code qualification](native-vscode.md#qualification) now tests the packaged client against the real editor host on macOS ARM64. Additional editor/platform acceptance, installed native binaries, completion recovery, members and signature help remain follow-ups. Filesystem watching, persistent workspace indexing and asynchronous scheduling remain separate work.
+The [native VS Code qualification](native-vscode.md#qualification) now tests the packaged client against the real editor host on macOS ARM64. An [initial native tool install/archive](native-tools-install.md) now supports this editor connection outside the build directory. Additional editor/platform acceptance, complete compiler/runtime distribution, completion recovery, members and signature help remain follow-ups. Filesystem watching, persistent workspace indexing and asynchronous scheduling remain separate work.

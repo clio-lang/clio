@@ -981,3 +981,5 @@ include(cmake/Overlays.cmake)
 include(cmake/LanguageServer.cmake)
 
 include(cmake/Formatter.cmake)
+
+include(cmake/EditorToolsInstall.cmake)

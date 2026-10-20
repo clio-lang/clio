@@ -1,0 +1,48 @@
+cmake_minimum_required(VERSION 3.28)
+if(NOT IS_ABSOLUTE "${BUILD_DIR}" OR NOT EXISTS "${BUILD_DIR}/cmake_install.cmake"
+   OR NOT IS_ABSOLUTE "${OUTPUT_DIR}" OR NOT DEFINED CONFIG)
+  message(FATAL_ERROR "Packaging requires an absolute configured BUILD_DIR, OUTPUT_DIR and CONFIG")
+endif()
+if(NOT EXISTS "${BUILD_DIR}/native/tool-install/${CONFIG}/toolchain.json")
+  message(FATAL_ERROR "The requested native tools configuration was not generated")
+endif()
+# Keep GNUInstallDirs overrides for explicit installs. The archive has one
+# predictable relative layout; reject incompatible configured destinations.
+file(STRINGS "${BUILD_DIR}/CMakeCache.txt" _dirs
+  REGEX "^CMAKE_INSTALL_(BINDIR|DATAROOTDIR):PATH=")
+foreach(_entry IN LISTS _dirs)
+  if(NOT _entry MATCHES "^CMAKE_INSTALL_BINDIR:PATH=bin$|^CMAKE_INSTALL_DATAROOTDIR:PATH=share$")
+    message(FATAL_ERROR "The editor-tools archive requires bindir=bin and datarootdir=share")
+  endif()
+endforeach()
+file(MAKE_DIRECTORY "${OUTPUT_DIR}")
+set(_work "${OUTPUT_DIR}/package-stage")
+set(_name "kalandra-native-editor-tools")
+set(_prefix "${_work}/${_name}")
+file(REMOVE_RECURSE "${_work}")
+execute_process(COMMAND "${CMAKE_COMMAND}" -E env --unset=DESTDIR
+  "${CMAKE_COMMAND}" --install "${BUILD_DIR}" --config "${CONFIG}"
+  --prefix "${_prefix}" --component NativeEditorTools --strip
+  RESULT_VARIABLE _status)
+if(NOT _status EQUAL 0)
+  message(FATAL_ERROR "Editor-tools staging failed; no archive published")
+endif()
+file(GLOB_RECURSE _files LIST_DIRECTORIES FALSE RELATIVE "${_prefix}" "${_prefix}/*")
+list(SORT _files)
+set(_checksums "")
+foreach(_file IN LISTS _files)
+  file(SHA256 "${_prefix}/${_file}" _hash)
+  string(APPEND _checksums "${_hash}  ${_file}\n")
+endforeach()
+file(WRITE "${_prefix}/SHA256SUMS" "${_checksums}")
+set(_archive "${OUTPUT_DIR}/${_name}-macos-arm64.tar.gz")
+execute_process(COMMAND "${CMAKE_COMMAND}" -E tar cfz "${_archive}.tmp" --format=gnutar -- "${_name}"
+  WORKING_DIRECTORY "${_work}" RESULT_VARIABLE _status)
+if(NOT _status EQUAL 0)
+  file(REMOVE "${_archive}.tmp")
+  message(FATAL_ERROR "Editor-tools archiving failed; previous archive preserved")
+endif()
+file(RENAME "${_archive}.tmp" "${_archive}")
+file(SHA256 "${_archive}" _digest)
+file(WRITE "${_archive}.sha256" "${_digest}  ${_name}-macos-arm64.tar.gz\n")
+message(STATUS "Native editor tools: ${_archive}")

@@ -15,7 +15,7 @@ bun run package
 
 The VSIX is written to `build/native/editor/kalandra-native.vsix` relative to the repository root. In VS Code, run **Extensions: Install from VSIX**, choose that file, and set **Kalandra Native: Server Path** in User Settings to the absolute path of your built `kalandra-lsp`. An executable name on PATH also works. Open a trusted local workspace and a `.k` file. No server installation/build/download happens inside the extension.
 
-The VSIX contains a bundled client and its runtime dependency licenses; installing it does not require npm or Bun. VS Code runs that client in its own extension host. Bun is used only to build/package/test this adapter, not to compile Kalandra. The native server and its LLVM libraries are not bundled: native binary installation/distribution remains N5 work. The initial qualification uses macOS Apple Silicon. Version `0.1.0` identifies this separate editor package, not a compiler language release, and this package has not been published to the Marketplace.
+The VSIX contains a bundled client and its runtime dependency licenses; installing it does not require npm or Bun. VS Code runs that client in its own extension host. Bun is used only to build/package/test this adapter, not to compile Kalandra. The native server and its LLVM libraries are not bundled: an initial [native editor-tools installation/archive](native-tools-install.md) is now available, while complete compiler/runtime and bundled-LLVM distribution remain N5 work. The initial qualification uses macOS Apple Silicon. Version `0.1.0` identifies this separate editor package, not a compiler language release, and this package has not been published to the Marketplace.
 
 ## Configuration and lifecycle
 
