@@ -218,7 +218,11 @@ is implemented for public HTTPS and numeric-loopback HTTP with exact commits;
 SSH/authentication and wider hosted-server qualification remain. N3-D now has
 [package-aware editor analysis](native-language-server.md#installed-dependencies),
 including a relocated editor archive, project/cache relocation and read-only
-installed sources. Broader installed Metal onboarding remains pending. N3-C now has
+installed sources. [Installed Metal library onboarding](native-metal-install.md#installed-numerical-libraries)
+now covers frozen/offline project/cache relocation, private dependency versions,
+CPU workers, GPU numerical dispatch and independent generated applications.
+These complete the initial N3-D onboarding path on macOS ARM64; broader platform
+and hosted-release qualification remain. N3-C now has
 [public locks and frozen/offline modes](native-package-lock.md), plus
 [branch/tag resolution with stable pins](native-git-refs.md). A deliberate update
 command remains a later convenience.

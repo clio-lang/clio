@@ -8,12 +8,13 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+from MetalPackageTests import qualify_packages
 
 cmake, build, config, packager, fixtures = sys.argv[1:]
 build, fixtures = Path(build), Path(fixtures)
 
-def run(args, cwd, expected=0):
-    result = subprocess.run(list(map(str, args)), cwd=cwd, capture_output=True, text=True, timeout=90)
+def run(args, cwd, expected=0, env=None):
+    result = subprocess.run(list(map(str, args)), cwd=cwd, env=env, capture_output=True, text=True, timeout=90)
     assert result.returncode == expected, (args, result.returncode, result.stdout, result.stderr)
     return result
 
@@ -72,7 +73,7 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
         assert run([app / "program"], cwd).stdout.strip() == "[40a00000,41400000,41a80000]"
         deps = run(["otool", "-L", app / "program"], cwd).stdout
         assert "libLLVM" not in deps and "libMLIR" not in deps
-        applications.append(app)
+        applications.append((app, "[40a00000,41400000,41a80000]"))
     # Local module/project imports go through the same installed Metal compiler.
     (cwd / "helper.k").write_text("export " + source.read_text().split("\n\nfn main", 1)[0] + "\n")
     source.write_text('from "math" import combine\n\nfn main' + source.read_text().split("\n\nfn main", 1)[1])
@@ -81,7 +82,8 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
     app = cwd / "project application"
     run([compiler, "--project", manifest, "--target", "metal", "-o", app], cwd)
     assert run([app / "program"], cwd).stdout.strip() == "[40a00000,41400000,41a80000]"
-    applications.append(app)
+    applications.append((app, "[40a00000,41400000,41a80000]"))
+    applications.extend(qualify_packages(compiler, prefix / "bin/kalandra-check", cwd, run))
     saved = (app / "program").read_bytes()
     helper = resources / "kalandra-metal-strict"
     helper.unlink()
@@ -90,8 +92,8 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
     assert (app / "program").read_bytes() == saved
     # Generated applications retain only their own shaders and system dependencies.
     shutil.rmtree(prefix)
-    for i, app in enumerate(applications):
+    for i, (app, expected) in enumerate(applications):
         moved = cwd / f"moved application {i}"
         app.rename(moved)
-        assert run([moved / "program"], cwd).stdout.strip() == "[40a00000,41400000,41a80000]"
-print("Metal bundle: checksums, relocation/symlink, CPU compile, four GPU modes, project import, missing helper and independent moved applications passed")
+        assert run([moved / "program"], cwd).stdout.strip() == expected
+print("Metal bundle: checksums, relocation/symlink, CPU compile, four GPU modes, scoped managed packages with CPU workers, frozen/offline relocation, source integrity, project import, missing helper and independent moved applications passed")

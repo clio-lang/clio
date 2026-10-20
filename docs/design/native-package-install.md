@@ -113,6 +113,8 @@ cover numerical imports and source emission/protection without new GPU execution
 Qualification records: [initial installation](../../native/metal-proof/evidence/native-package-install-2026-10-20.json),
 [remote transport](../../native/metal-proof/evidence/native-remote-git-2026-10-20.json),
 and [public locks](../../native/metal-proof/evidence/native-package-lock-2026-10-20.json).
+[Installed Metal acceptance](native-metal-install.md#installed-numerical-libraries)
+now adds private-version numerical calls through CPU workers and actual GPU
+execution, with frozen/offline cache restoration and generated-app independence.
 Remaining work includes a deliberate update command, authenticated/SSH transport,
-broader host/installed Metal qualification and crash
-recovery.
+broader host/platform qualification and crash recovery.

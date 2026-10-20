@@ -131,5 +131,8 @@ the public lock; Metal source emission is not new GPU execution qualification.
 See the [qualification record](../../native/metal-proof/evidence/native-package-lock-2026-10-20.json).
 The [native editor](native-language-server.md#installed-dependencies) now reads
 and validates this lock without installing or rewriting packages.
-A deliberate update command, authenticated/SSH transport, broader installed Metal execution
-and crash durability remain separate work.
+[Installed Metal applications](native-metal-install.md#installed-numerical-libraries)
+now qualify private numerical versions, CPU workers and GPU execution after
+frozen cache restoration and project relocation. A deliberate update command,
+authenticated/SSH transport, broader platform qualification and crash durability
+remain separate work.
