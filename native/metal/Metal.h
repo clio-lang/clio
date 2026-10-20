@@ -156,6 +156,11 @@ public:
   TaskHandle matmul(Task &, GroupHandle, Kernel, Buffer, Buffer) noexcept;
   TaskHandle reduceSum(TaskCore &, GroupHandle, Kernel, Buffer) noexcept;
   TaskHandle reduceSum(Task &, GroupHandle, Kernel, Buffer) noexcept;
+  // One scheduled scalar task; a resident elementwise stage precedes the fixed reduction tree.
+  TaskHandle elementwiseReduceSum(TaskCore &, GroupHandle, Kernel elementwise, Kernel reduction,
+                                  std::span<const Buffer>, std::span<const float>) noexcept;
+  TaskHandle elementwiseReduceSum(Task &, GroupHandle, Kernel elementwise, Kernel reduction,
+                                  std::span<const Buffer>, std::span<const float>) noexcept;
   static const ValueLayout &scalarLayout() noexcept;
   TaskHandle elementwise(TaskCore &, GroupHandle, Kernel, std::span<const Buffer>,
                          std::span<const float>) noexcept;

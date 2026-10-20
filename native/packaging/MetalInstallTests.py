@@ -74,6 +74,14 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
         deps = run(["otool", "-L", app / "program"], cwd).stdout
         assert "libLLVM" not in deps and "libMLIR" not in deps
         applications.append((app, "[40a00000,41400000,41a80000]"))
+    # Composed source entries also retain their supplemental reduction shader when moved.
+    composed_source = cwd / "pre-reduction.k"
+    composed_source.write_bytes((fixtures / "pre-reduction.k").read_bytes())
+    composed_app = cwd / "composed application"
+    run([compiler, composed_source, "--target", "metal", "-o", composed_app, "-O2"], cwd)
+    assert (composed_app / "kernel0-reduce.metallib").is_file()
+    assert run([composed_app / "program"], cwd).stdout.strip() == "42960000"
+    applications.append((composed_app, "42960000"))
     # Local module/project imports go through the same installed Metal compiler.
     (cwd / "helper.k").write_text("export " + source.read_text().split("\n\nfn main", 1)[0] + "\n")
     source.write_text('from "math" import combine\n\nfn main' + source.read_text().split("\n\nfn main", 1)[1])

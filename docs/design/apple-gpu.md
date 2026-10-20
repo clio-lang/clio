@@ -684,7 +684,12 @@ Resumable helpers currently expand into their caller's continuation. [Independen
 
 ## Reduction and matrix forwarding helpers
 
-[GPU numerical forwarding](native-gpu-forwarding.md) now follows local aliases, named/imported helper calls and completed result forwarding around one supported reduction or matrix operation. Buffer mapping preserves reordered and repeated operands. It reuses the existing shader/runtime interfaces and preserves fixed/dynamic shape checks; extra computations and recursive forwarding remain diagnostic.
+[GPU numerical forwarding](native-gpu-forwarding.md) now follows local aliases, named/imported helper calls and completed result forwarding around one supported reduction or matrix operation. Buffer mapping preserves reordered and repeated operands. It reuses the existing shader/runtime interfaces and preserves fixed/dynamic shape checks; general extra primitives and recursive forwarding remain diagnostic.
+
+[Elementwise expressions before a reduction](native-gpu-pre-reduction.md) now
+compose strict float32 arithmetic and one reduceSum inside a numerical GPU helper.
+Two GPU stages share one scheduled task and retain the intermediate on device.
+Post-reduction arithmetic and matmul composition remain separate lowering work.
 
 ## Planned GPU interoperability
 

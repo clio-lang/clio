@@ -235,6 +235,7 @@ struct Bridge {
     Buffer right;
     std::shared_ptr<const Arguments> arguments{};
     std::optional<Error> preparation{};
+    Kernel reduction{};
   };
   static std::expected<std::shared_ptr<const Arguments>, Error>
   capture(std::shared_ptr<State> state, const Kernel &kernel, std::span<const Buffer> tensors,
@@ -418,32 +419,52 @@ struct Bridge {
       auto &f = *static_cast<Frame *>(task.frame());
       auto state = f.packet.state;
       if (f.started) {
-        if (f.succeeded) {
-          // Materialize a host result on the scheduler, never in the Metal callback.
-          if (f.packet.kind == Kind::Download) {
-            auto *destination = const_cast<Storage *>(f.result.storage_.get());
-            std::memcpy(destination->host.data(), f.staging->buffer.contents, destination->size);
-          }
-          if (f.packet.kind == Kind::Reduce)
-            std::memcpy(&f.scalar, f.staging->buffer.contents, 4);
-          f.staging.reset();
-          f.resources.reset();
-          f.scratch.reset();
-          f.packet.input = Buffer{};
-          f.packet.right = Buffer{};
-          f.packet.kernel = Kernel{};
-          f.packet.arguments.reset();
+        if (!f.succeeded) {
+          task.fault(static_cast<std::int64_t>(f.error));
+          return;
+        }
+        // Materialize host results on the scheduler, never in the Metal callback.
+        if (f.packet.kind == Kind::Download) {
+          auto *destination = const_cast<Storage *>(f.result.storage_.get());
+          std::memcpy(destination->host.data(), f.staging->buffer.contents, destination->size);
+        }
+        if (f.packet.kind == Kind::Reduce)
+          std::memcpy(&f.scalar, f.staging->buffer.contents, 4);
+        f.staging.reset();
+        f.resources.reset();
+        f.scratch.reset();
+        f.packet.input = Buffer{};
+        f.packet.right = Buffer{};
+        f.packet.kernel = Kernel{};
+        f.packet.arguments.reset();
+        if (!f.packet.reduction) {
           task.complete(f.packet.kind == Kind::Reduce ? static_cast<const void *>(&f.scalar)
                                                       : &f.result);
-        } else {
-          task.fault(static_cast<std::int64_t>(f.error));
+          return;
         }
-        return;
+        // The first stage has acknowledged completion. Retain its immutable device
+        // buffer as reduction input; do not read it back or reapply the map on odd tails.
+        f.packet.input = std::move(f.result);
+        f.packet.kernel = std::move(f.packet.reduction);
+        f.packet.kind = Kind::Reduce;
+        f.started = false;
+        f.succeeded = false;
+        if (task.cancelled())
+          return;
       }
       f.started = true;
       if (f.packet.preparation) {
         task.fault(std::int64_t(*f.packet.preparation));
         return;
+      }
+      if (f.packet.reduction) {
+        const auto &reduction = f.packet.reduction.state_;
+        const auto &mapping = f.packet.kernel.state_;
+        if (!reduction->reduction || reduction->matrix || !mapping ||
+            reduction->registry != state || reduction->index != mapping->index) {
+          task.fault(std::int64_t(Error::Invalid));
+          return;
+        }
       }
       if (f.packet.arguments) {
         const auto &kernel = f.packet.kernel.state_;
@@ -603,7 +624,8 @@ struct Bridge {
         }
         f.result = Buffer(*result);
         if (!f.result.bytes()) {
-          task.complete(&f.result);
+          // Empty composed reductions still validate both stages and all arguments.
+          task.complete(f.packet.reduction ? static_cast<const void *>(&f.scalar) : &f.result);
           return;
         }
 
@@ -1199,6 +1221,48 @@ TaskHandle Runtime::reduceSum(Task &task, GroupHandle group, Kernel kernel, Buff
 }
 const ValueLayout &Runtime::scalarLayout() noexcept {
   return *numericScalarLayout(NumericType::Float32);
+}
+TaskHandle Runtime::elementwiseReduceSum(TaskCore &core, GroupHandle group, Kernel mapping,
+                                         Kernel reduction, std::span<const Buffer> tensors,
+                                         std::span<const float> scalars) noexcept {
+  Bridge::PacketData packet{state_,
+                            tensors.empty() ? Buffer{} : tensors[0],
+                            {},
+                            Bridge::Kind::Elementwise,
+                            std::move(mapping),
+                            BinaryOperation::Add,
+                            {}};
+  auto arguments = Bridge::capture(state_, packet.kernel, tensors, scalars);
+  if (arguments)
+    packet.arguments = *arguments;
+  else
+    packet.preparation = arguments.error();
+  if (!reduction)
+    packet.preparation = Error::Invalid;
+  packet.reduction = std::move(reduction);
+  return core.submit(group, Bridge::reductionEntry,
+                     {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::elementwiseReduceSum(Task &task, GroupHandle group, Kernel mapping,
+                                         Kernel reduction, std::span<const Buffer> tensors,
+                                         std::span<const float> scalars) noexcept {
+  Bridge::PacketData packet{state_,
+                            tensors.empty() ? Buffer{} : tensors[0],
+                            {},
+                            Bridge::Kind::Elementwise,
+                            std::move(mapping),
+                            BinaryOperation::Add,
+                            {}};
+  auto arguments = Bridge::capture(state_, packet.kernel, tensors, scalars);
+  if (arguments)
+    packet.arguments = *arguments;
+  else
+    packet.preparation = arguments.error();
+  if (!reduction)
+    packet.preparation = Error::Invalid;
+  packet.reduction = std::move(reduction);
+  return task.spawn(group, Bridge::reductionEntry,
+                    {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
 }
 TaskHandle Runtime::compute(TaskCore &core, GroupHandle group, Kernel kernel,
                             BinaryOperation operation, Buffer left, Buffer right) noexcept {

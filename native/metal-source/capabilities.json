@@ -242,14 +242,17 @@
     },
     {
       "id": "reduce-expression",
-      "feature": "Arithmetic fused into a reduction entry",
+      "feature": "Elementwise expressions before a reduction",
       "scope": "GPU",
-      "status": "rejected",
+      "status": "supported",
       "fixtures": [
-        "capabilities/reduce-expression.k"
+        "capabilities/reduce-expression.k",
+        "pre-reduction.k"
       ],
-      "notes": "Use separate elementwise and reduction dispatches; no fused arithmetic/reduction entry yet",
-      "diagnostic": "G00[13]"
+      "notes": "One float32 elementwise stage and one balanced reduction under one task; resident intermediate; rank one/two and mixed parameters",
+      "evidence": [
+        "gpu-pre-reduction-2026-10-21.json"
+      ]
     },
     {
       "id": "post-reduction",

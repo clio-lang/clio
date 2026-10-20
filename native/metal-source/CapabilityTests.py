@@ -114,6 +114,10 @@ def main():
                     assert len(shaders) == count, (fixture, manifest, shaders)
                     for shader in shaders:
                         assert 'gpu.func' in (destination / shader).read_text(), (fixture, shader)
+                    for entry, stage in re.findall(r'^(kernel\d+)\.reduction_stage=(kernel\d+-reduce)$', manifest, re.M):
+                        assert (destination / (entry + '.mlir')).is_file()
+                        assert 'gpu.func @kalandra_reduce_sum' in (destination / (stage + '.mlir')).read_text()
+                        assert stage + '.metallib' in (destination / 'host.cpp').read_text()
                     outcomes.append({'fixture': fixture, 'status': 'supported', 'kernels': count})
                 else:
                     assert emitted.returncode == 1, (fixture, emitted.stdout, emitted.stderr)

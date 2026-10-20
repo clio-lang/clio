@@ -27,9 +27,9 @@ Fixed and mixed shape annotations retain the [existing host-side preflight](nati
 
 ## Current boundary
 
-The entry must resolve to exactly one supported `reduceSum` or `matmul`. The reduction entry still takes one rank-one/rank-two float32 tensor. The matrix entry still takes two rank-two float32 tensors. Forwarding helpers can pass those tensors or the completed scalar/matrix result through bindings and calls, including checked shape nodes.
+The entry must resolve to exactly one supported `reduceSum` or `matmul`. A direct reduction forwards a rank-one/rank-two float32 tensor. The matrix entry still takes two rank-two float32 tensors. Forwarding helpers can pass those tensors or the completed scalar/matrix result through bindings and calls, including checked shape nodes.
 
-The compiler inspects every statement, including unused bindings. A second reduction or matrix operation is not discarded to make the entry fit one launch. Arithmetic around the operation, such as `reduceSum(values * 2)` or `reduceSum(values) + 1`, remains outside this subset. Write separate placed stages for now. General numerical graph composition remains work for a later increment.
+The compiler inspects every statement, including unused bindings. A second reduction or matrix operation is not discarded to make the entry fit one launch. [Elementwise reduction inputs](native-gpu-pre-reduction.md), such as `reduceSum(values * 2)`, now use two resident GPU stages under one scheduled task and may mix tensor/scalar parameters. Arithmetic after a reduction, such as `reduceSum(values) + 1`, and matmul composition remain outside this subset. Those still require separate placed stages.
 
 Recursive forwarding, arbitrary control flow and unsupported operations remain diagnostic. Analysis has explicit work and call-depth limits; reaching a limit rejects the program before publishing artifacts. This does not add callable-value dispatch, new element types, implicit transfers, device-side task coordination or a numerical-policy change.
 

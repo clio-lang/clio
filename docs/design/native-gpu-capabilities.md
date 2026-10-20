@@ -32,7 +32,7 @@ GPU program is rejected rather than silently run on the CPU.
 | Other CPU numeric widths on GPU | GPU | **Not admitted.** All nine CPU numeric types other than float32 are rejected; no implicit conversion or CPU fallback | [source](../../native/metal-source/capabilities/numeric-int8.k) (+8 additional probes) |
 | Rank-three device tensors | GPU | **Not admitted.** Current source bridge admits ranks one and two | [source](../../native/metal-source/capabilities/rank-three.k) |
 | Scalar-only GPU functions | GPU | **Not admitted.** Scalar parameters are supported alongside tensors; arbitrary scalar GPU entries are not | [source](../../native/metal-source/capabilities/scalar-only.k) |
-| Arithmetic fused into a reduction entry | GPU | **Not admitted.** Use separate elementwise and reduction dispatches; no fused arithmetic/reduction entry yet | [source](../../native/metal-source/capabilities/reduce-expression.k) |
+| Elementwise expressions before a reduction | GPU | **Supported.** One float32 elementwise stage and one balanced reduction under one task; resident intermediate; rank one/two and mixed parameters | [source](../../native/metal-source/capabilities/reduce-expression.k) (+1 additional probes), [device evidence](../../native/metal-proof/evidence/gpu-pre-reduction-2026-10-21.json) |
 | Arithmetic after a reduction inside one entry | GPU | **Not admitted.** A scalar GPU result currently requires a single forwarded reduceSum | [source](../../native/metal-source/capabilities/post-reduction.k) |
 | Data-dependent kernel branches | GPU | **Not admitted.** Host control flow is distinct from data-dependent shader control flow | [source](../../native/metal-source/capabilities/branch.k) |
 | Arithmetic fused into a matmul entry | GPU | **Not admitted.** Use separate matmul and elementwise dispatches; general one-entry composition is pending | [source](../../native/metal-source/capabilities/post-matmul.k) |
@@ -85,12 +85,12 @@ records current acceptance and retained safety checks.
 
 ## Remaining N2 work
 
-The next substantive lowering gap is composition **inside** a numerical GPU
-function, such as `reduceSum(values + 1)` or `matmul(input, weights) + bias`.
-Separate placed calls already express those computations and retain device
-intermediates. Supporting them inside one helper requires planning multiple
-numerical operations and their storage without changing strict reduction and
-rounding contracts; it does not require putting host closures or TaskError
+[Elementwise expressions before one reduction](native-gpu-pre-reduction.md),
+such as `reduceSum(values + 1)`, now lower to two resident GPU stages under one
+task. Remaining composition gaps include arithmetic after a scalar reduction,
+multiple numerical primitives and `matmul(input, weights) + bias` inside one
+helper. Separate placed calls already express those computations. Extending the
+internal graph must preserve strict reduction and rounding contracts; it does not require putting host closures or TaskError
 handlers into shaders. Scalar-only kernels, broader numeric types, higher tensor
 ranks and device control flow remain distinct unimplemented boundaries.
 
