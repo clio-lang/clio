@@ -308,7 +308,7 @@ if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug sanitized)
     add_executable(kalandra-worker-function-tests-${VARIANT} tests/WorkerNamedFunctionTests.cpp)
     target_compile_options(kalandra-worker-function-tests-${VARIANT} PRIVATE -Wall -Wextra -Werror)
-    target_compile_definitions(kalandra-worker-function-tests-${VARIANT} PRIVATE KALANDRA_INDIRECT_SPAWN_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/indirect-spawn" KALANDRA_WORKER_INDIRECT_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-indirect-provenance" KALANDRA_WORKER_PARAMETER_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-parameters" KALANDRA_WORKER_AGGREGATE_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-callable-aggregates" KALANDRA_WORKER_RESULT_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-function-results" KALANDRA_WORKER_NESTED_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-nested-closures" KALANDRA_WORKER_CLOSURE_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-closures" KALANDRA_WORKER_FUNCTION_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-named-functions")
+    target_compile_definitions(kalandra-worker-function-tests-${VARIANT} PRIVATE KALANDRA_WORKER_MAP_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-callable-maps" KALANDRA_INDIRECT_SPAWN_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/indirect-spawn" KALANDRA_WORKER_INDIRECT_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-indirect-provenance" KALANDRA_WORKER_PARAMETER_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-parameters" KALANDRA_WORKER_AGGREGATE_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-callable-aggregates" KALANDRA_WORKER_RESULT_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-function-results" KALANDRA_WORKER_NESTED_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-nested-closures" KALANDRA_WORKER_CLOSURE_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-closures" KALANDRA_WORKER_FUNCTION_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/worker-named-functions")
     if(VARIANT STREQUAL "sanitized")
       target_link_libraries(kalandra-worker-function-tests-${VARIANT} PRIVATE kalandra-semantics-sanitized)
       target_compile_options(kalandra-worker-function-tests-${VARIANT} PRIVATE -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
@@ -355,6 +355,13 @@ if(BUILD_TESTING)
         "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/worker-function-results-${VARIANT}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyWorkerFunctionResults.cmake")
     set_tests_properties(native-worker-function-results-${VARIANT} PROPERTIES TIMEOUT 300)
+    add_test(NAME native-worker-callable-maps-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DLLVM_ROOT=${KALANDRA_LLVM_ROOT}" "-DRUNTIME=$<TARGET_FILE:${WORKER_FUNCTION_RUNTIME}>"
+        "-DVARIANT=${VARIANT}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/worker-callable-maps-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyWorkerCallableMaps.cmake")
+    set_tests_properties(native-worker-callable-maps-${VARIANT} PROPERTIES TIMEOUT 300)
     add_test(NAME native-indirect-spawn-${VARIANT}
       COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"

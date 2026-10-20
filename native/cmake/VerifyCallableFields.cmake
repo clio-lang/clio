@@ -539,7 +539,7 @@ execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-error-payload
 if(NOT "${STATUS}" STREQUAL "1")
   message(FATAL_ERROR "Invalid callable field accepted/crashed: worker-error-payload: ${STATUS}: ${OUT}${ERR}")
 endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-map-capture.k" [=[type Config:
+COMPILE(supported-worker-map-capture [=[type Config:
   apply:fn(int)->int
 fn main()->int ! TaskError:
   config=Config {apply:fn(value):value*2}
@@ -547,11 +547,8 @@ fn main()->int ! TaskError:
     values=try await spawn map([21],fn(value):config.apply(value))
     values[0]
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-map-capture.k" -o "${OUTPUT_DIR}/reject-worker-map-capture" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid callable field accepted/crashed: worker-map-capture: ${STATUS}: ${OUT}${ERR}")
-endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-map-input.k" [=[type Config:
+EXPECT(supported-worker-map-capture 42)
+COMPILE(supported-worker-map-input [=[type Config:
   apply:fn(int)->int
 fn main()->int ! TaskError:
   configs=[Config {apply:fn(value):value*2}]
@@ -559,10 +556,7 @@ fn main()->int ! TaskError:
     values=try await spawn map(configs,fn(config):config.apply(21))
     values[0]
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-map-input.k" -o "${OUTPUT_DIR}/reject-worker-map-input" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid callable field accepted/crashed: worker-map-input: ${STATUS}: ${OUT}${ERR}")
-endif()
+EXPECT(supported-worker-map-input 42)
 file(WRITE "${OUTPUT_DIR}/reject-worker-query.k" [=[type Config:
   apply:fn(int)->int
 fn main()->int ! TaskError:

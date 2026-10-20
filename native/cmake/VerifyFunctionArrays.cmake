@@ -422,25 +422,19 @@ execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-error-payload
 if(NOT "${STATUS}" STREQUAL "1")
   message(FATAL_ERROR "Invalid function array accepted/crashed: worker-error-payload: ${STATUS}: ${OUT}${ERR}")
 endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-map-input.k" [=[fn main()->int ! TaskError:
+COMPILE(supported-worker-map-input [=[fn main()->int ! TaskError:
   callbacks:[fn(int)->int]=[fn(value):value]
   try parallel:
     values=try await spawn map(callbacks,fn(callback):callback(42))
     values[0]
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-map-input.k" -o "${OUTPUT_DIR}/reject-worker-map-input" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid function array accepted/crashed: worker-map-input: ${STATUS}: ${OUT}${ERR}")
-endif()
-file(WRITE "${OUTPUT_DIR}/reject-worker-map-result.k" [=[fn main()->int ! TaskError:
+EXPECT(supported-worker-map-input 42)
+COMPILE(supported-worker-map-result [=[fn main()->int ! TaskError:
   try parallel:
     values=try await spawn map([20],fn(offset):fn(value:int):offset+value)
     length(values)
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-map-result.k" -o "${OUTPUT_DIR}/reject-worker-map-result" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid function array accepted/crashed: worker-map-result: ${STATUS}: ${OUT}${ERR}")
-endif()
+EXPECT(supported-worker-map-result 1)
 file(WRITE "${OUTPUT_DIR}/reject-worker-query.k" [=[fn main()->int ! TaskError:
   callbacks:[fn(int)->int]=[fn(value):value]
   try parallel:

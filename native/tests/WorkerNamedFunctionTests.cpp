@@ -20,7 +20,8 @@ int main() {
          {KALANDRA_WORKER_FUNCTION_FIXTURES, KALANDRA_WORKER_CLOSURE_FIXTURES,
           KALANDRA_WORKER_NESTED_FIXTURES, KALANDRA_WORKER_RESULT_FIXTURES,
           KALANDRA_WORKER_AGGREGATE_FIXTURES, KALANDRA_WORKER_PARAMETER_FIXTURES,
-          KALANDRA_WORKER_INDIRECT_FIXTURES, KALANDRA_INDIRECT_SPAWN_FIXTURES}) {
+          KALANDRA_WORKER_INDIRECT_FIXTURES, KALANDRA_INDIRECT_SPAWN_FIXTURES,
+          KALANDRA_WORKER_MAP_FIXTURES}) {
       for (const auto &file : std::filesystem::directory_iterator(directory)) {
         if (file.path().extension() != ".k")
           continue;
@@ -34,7 +35,7 @@ int main() {
         ++count;
       }
     }
-    require(count == 110, "worker callable fixture catalog incomplete");
+    require(count == 122, "worker callable fixture catalog incomplete");
     const std::string base = "fn double(value:int)->int:\n  value*2\nfn "
                              "apply(value:int,transform:fn(int)->int)->int:\n  transform(value)\n";
     for (const auto *body :
@@ -48,18 +49,9 @@ int main() {
       auto result = analyze(base + body);
       require(result.ok(), "direct parameter provenance rejected");
     }
-    for (const auto *body :
-         {"fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    values=try await spawn "
-          "map([21],f)\n    values[0]\n"}) {
-      auto result = analyze(base + body);
-      require(!result.ok(), "unsupported function transport admitted");
-      require(
-          std::ranges::any_of(result.diagnostics, [](const auto &d) { return d.code == "S074"; }),
-          "unsupported transport lost its capability diagnostic");
-    }
     for (const auto *directory :
          {KALANDRA_WORKER_PARAMETER_FIXTURES, KALANDRA_WORKER_INDIRECT_FIXTURES,
-          KALANDRA_INDIRECT_SPAWN_FIXTURES})
+          KALANDRA_INDIRECT_SPAWN_FIXTURES, KALANDRA_WORKER_MAP_FIXTURES})
       for (const auto &file :
            std::filesystem::directory_iterator(std::filesystem::path(directory) / "rejected")) {
         if (file.path().extension() != ".k")
@@ -146,7 +138,25 @@ int main() {
       require(changed && rejected && numericCapabilityError(module, NumericTarget::Cpu).has_value(),
               "partial or malformed indirect provenance admitted");
     }
-    std::cout << "Worker named functions: 110 valid programs, 11 rejected boundaries, 8 forged IR "
+    auto mapped = analyze(base + "fn main()->int ! TaskError:\n  f=double\n  try parallel:\n    "
+                                 "values=try await spawn map([21],f)\n    values[0]\n");
+    require(mapped.ok(), "map provenance mutation fixture rejected");
+    auto forgedMap = *mapped.module;
+    bool changedMap = false;
+    for (auto &expression : forgedMap.expressions)
+      if (std::holds_alternative<FunctionReference>(expression.operation)) {
+        expression.operation = BoolLiteral{false};
+        changedMap = true;
+        break;
+      }
+    bool rejectedMap = false;
+    for (const auto &expression : forgedMap.expressions)
+      if (const auto *task = std::get_if<TaskOperation>(&expression.operation);
+          task && task->prefix == TaskPrefix::Spawn)
+        rejectedMap = functionValueTransportError(forgedMap, forgedMap.expressions[task->operand])
+                          .has_value();
+    require(changedMap && rejectedMap, "forged map callback provenance admitted");
+    std::cout << "Worker named functions: 122 valid programs, 12 rejected boundaries, 9 forged IR "
                  "cases passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

@@ -31,7 +31,7 @@ Targets must remain transitively synchronous. Function values whose targets coor
 
 The compiler must prove the callee's transitive captures, every function-containing argument and any function-containing result. Unknown provenance and unsupported capture types still fail compilation. The conservative caller/aggregate joins described in the provenance design remain in effect.
 
-Indirect spawn currently requires ordinary CPU execution. Explicit `on devices.cpu()` and `on devices.gpu()` are rejected for indirect invocations; this does not enable callbacks in placement-aware/Metal modules. Function-containing expected-error payloads and function-containing spawned map/collection boundaries remain staged. Distributed execution and public C/C++ callbacks are separate roadmaps.
+Indirect spawn currently requires ordinary CPU execution. Explicit `on devices.cpu()` and `on devices.gpu()` are rejected for indirect invocations; this does not enable callbacks in placement-aware/Metal modules. [Function-containing spawned maps](native-worker-callable-maps.md) are now supported. Function-containing expected-error payloads and other spawned collection boundaries remain staged. Distributed execution and public C/C++ callbacks are separate roadmaps.
 
 ## Qualification
 

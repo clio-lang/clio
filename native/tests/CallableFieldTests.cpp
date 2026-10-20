@@ -160,12 +160,6 @@ int main() {
           "type Config:\n  apply:fn(int)->int\nerror E:\n  Bad:\n    config:Config\nfn "
           "worker(value:int)->int ! E:\n  value\nfn main()->int ! (E | TaskError):\n  try "
           "parallel:\n    try await spawn worker(42)\n",
-          "type Config:\n  apply:fn(int)->int\nfn main()->int ! TaskError:\n  config=Config "
-          "{apply:fn(value):value*2}\n  try parallel:\n    values=try await spawn "
-          "map([21],fn(value):config.apply(value))\n    values[0]\n",
-          "type Config:\n  apply:fn(int)->int\nfn main()->int ! TaskError:\n  configs=[Config "
-          "{apply:fn(value):value*2}]\n  try parallel:\n    values=try await spawn "
-          "map(configs,fn(config):config.apply(21))\n    values[0]\n",
           "type Config:\n  apply:fn(int)->int\nfn main()->int ! TaskError:\n  configs=[Config "
           "{apply:fn(value):value}]\n  try parallel:\n    try await spawn length(configs)\n",
           "type Config:\n  apply:fn(int)->int\nfn main()->int ! TaskError:\n  configs=[Config "

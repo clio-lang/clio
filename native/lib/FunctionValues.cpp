@@ -447,12 +447,13 @@ std::optional<std::string> functionValueTransportError(const TypedModule &module
       return "function-containing worker error payloads are not implemented yet";
   }
   const bool indirect = std::holds_alternative<FunctionInvoke>(invocation.operation);
+  const bool map = std::holds_alternative<ArrayMap>(invocation.operation);
   if (containsFunctionStorage(module, invocation.type)) {
     bool proven = false;
     if (const auto *call = std::get_if<FunctionCall>(&invocation.operation))
       proven = call->function < module.functions.size() &&
                workerValueProvenance(module, module.functions[call->function].result);
-    else if (indirect) {
+    else if (indirect || map) {
       const auto found = std::find_if(module.expressions.begin(), module.expressions.end(),
                                       [&](const auto &value) { return &value == &invocation; });
       proven = found != module.expressions.end() &&
@@ -492,8 +493,8 @@ std::optional<std::string> functionValueTransportError(const TypedModule &module
     const auto &type = module.expressions[id].type;
     if (!containsFunctionStorage(module, type))
       continue;
-    if ((std::holds_alternative<FunctionCall>(invocation.operation) || indirect) && !type.task &&
-        !type.fallible && workerValueProvenance(module, id))
+    if ((std::holds_alternative<FunctionCall>(invocation.operation) || indirect || map) &&
+        !type.task && !type.fallible && workerValueProvenance(module, id))
       continue;
     return "function-valued worker arguments require proven CPU closure captures; unproven "
            "capture provenance is not implemented yet";
