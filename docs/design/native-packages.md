@@ -1,9 +1,10 @@
-# Native package workflow — proposal
+# Native package workflow
 
-Status: proposed for review. This is the next N3 design step, not implemented
-syntax or an installer. Existing format-1 manifests, explicit local mappings and
-source imports retain their current behavior until the corresponding compiler
-and tool changes are qualified.
+Status: package-local dependency scopes accepted. The first N3-A slice now
+implements an [explicit scoped offline graph API](scoped-package-resolution.md).
+The manifest extensions, installer and lockfile below remain planned. Existing
+format-1 manifests, explicit local mappings and command-line behavior retain their
+current behavior until their corresponding changes are qualified.
 
 The first native package workflow should support Git libraries, transitive
 source dependencies, a reproducible lockfile and offline builds. It should use
@@ -195,8 +196,9 @@ checked and lowered by the selected CPU/Metal compiler with existing restriction
    CPU workers and Metal numerical library calls. Document unsupported transport
    and platform cases explicitly.
 
-The package-owner/type-identity decision above is the important review point
-before N3-A. It adds package-resolution context while keeping source import syntax
-unchanged. Registry discovery, SemVer ranges, add/remove/update conveniences,
+The accepted package-owner/type-identity decision adds package-resolution
+context while keeping source import syntax unchanged. N3-A's graph loader is
+implemented; library metadata and managed CLI integration are still pending.
+Registry discovery, SemVer ranges, add/remove/update conveniences,
 monorepo workspaces and cache pruning remain future work rather than hidden
 requirements of this first Git-based workflow.

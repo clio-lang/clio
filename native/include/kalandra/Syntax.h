@@ -294,6 +294,23 @@ struct ModulePackage {
   std::string name;
   std::string entry;
 };
+// An already-resolved offline graph. Node zero owns the workspace entry; other
+// nodes are confined to their canonical source roots. Reuse one node for aliases
+// of the same resolved identity. Identity is supplied by the resolver, not inferred
+// from a library's metadata name/version. No fetching or manifest discovery occurs.
+// Paths are explicit filesystem paths, relative to the process working directory
+// when not absolute (the same convention as loadModules/local mappings).
+struct PackageDependency {
+  std::string name;
+  std::size_t target;
+};
+struct PackageNode {
+  std::string identity;
+  std::string root;
+  std::string entry;
+  std::vector<PackageDependency> dependencies;
+  std::vector<ModulePackage> localPackages;
+};
 // Immutable per-analysis replacement contents, including files not yet saved.
 // Paths use the same filesystem identity as imports; no contents are written.
 struct SourceOverlay {
@@ -307,4 +324,9 @@ struct SourceOverlay {
 loadModules(std::string path, SyntaxLimits syntaxLimits = {}, ModuleLimits moduleLimits = {},
             std::span<const ModulePackage> packages = {},
             std::span<const SourceOverlay> overlays = {});
+// Each node resolves bare imports through its own edges/local mappings. Relative
+// imports retain their owner. Graph structure is validated before reading sources.
+[[nodiscard]] std::expected<ParseResult, std::string>
+loadPackageModules(std::span<const PackageNode> graph, SyntaxLimits syntaxLimits = {},
+                   ModuleLimits moduleLimits = {}, std::span<const SourceOverlay> overlays = {});
 } // namespace kalandra

@@ -35,10 +35,10 @@ std::expected<ModulePackage, std::string> parseModulePackage(std::string_view va
         "package mappings require name=path.k with an ASCII identifier or hyphenated name");
   return ModulePackage{std::string(value.substr(0, equal)), std::string(value.substr(equal + 1))};
 }
-std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimits syntaxLimits,
-                                                    ModuleLimits moduleLimits,
-                                                    std::span<const ModulePackage> packages,
-                                                    std::span<const SourceOverlay> overlays) {
+static std::expected<ParseResult, std::string>
+loadModuleGraph(std::string path, SyntaxLimits syntaxLimits, ModuleLimits moduleLimits,
+                std::span<const ModulePackage> packages, std::span<const SourceOverlay> overlays,
+                std::span<const PackageNode> graph) {
   namespace fs = std::filesystem;
   struct File {
     std::shared_ptr<const SourceFile> source;
@@ -98,9 +98,103 @@ std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimi
       return std::move(*failure);
     }
   }
-  std::function<std::optional<std::size_t>(fs::path, std::size_t, std::shared_ptr<const SourceFile>,
-                                           SourceSpan)>
-      visit = [&](fs::path requested, std::size_t depth, std::shared_ptr<const SourceFile> parent,
+  struct Scope {
+    fs::path root;
+    std::unordered_map<std::string, std::pair<fs::path, std::size_t>> entries;
+  };
+  if (graph.size() > moduleLimits.maxFiles) {
+    fail(root, {}, "M004", "package graph exceeds configured node limit");
+    return std::move(*failure);
+  }
+  std::vector<Scope> scopes(graph.empty() ? 1 : graph.size());
+  if (graph.empty()) {
+    for (const auto &[name, entry] : entries)
+      scopes[0].entries.emplace(name, std::pair{entry, std::size_t(0)});
+  } else {
+    std::unordered_map<std::string, std::size_t> identities;
+    std::size_t edges = 0;
+    for (std::size_t owner = 0; owner < graph.size(); ++owner) {
+      const auto &node = graph[owner];
+      if (node.identity.empty() || !identities.emplace(node.identity, owner).second ||
+          !packageEntry(node.entry) || node.root.empty() ||
+          node.root.find('\0') != std::string::npos) {
+        fail(root, {}, "M007", "invalid or duplicate package identity/root/entry");
+        return std::move(*failure);
+      }
+      std::error_code error;
+      scopes[owner].root = fs::canonical(node.root, error);
+      if (error || !fs::is_directory(scopes[owner].root, error) || error) {
+        fail(root, {}, "M007", "cannot resolve package root '" + node.root + "'");
+        return std::move(*failure);
+      }
+      for (const auto &dependency : node.dependencies) {
+        if (++edges > moduleLimits.maxFiles) {
+          fail(root, {}, "M004", "package graph exceeds configured edge limit");
+          return std::move(*failure);
+        }
+        if (!packageName(dependency.name) || dependency.target >= graph.size() ||
+            dependency.target == 0 ||
+            !scopes[owner]
+                 .entries
+                 .emplace(dependency.name,
+                          std::pair{fs::path(graph[dependency.target].entry), dependency.target})
+                 .second) {
+          fail(root, {}, "M007",
+               "invalid or duplicate package dependency '" + dependency.name + "'");
+          return std::move(*failure);
+        }
+      }
+      for (const auto &local : node.localPackages) {
+        if (++edges > moduleLimits.maxFiles) {
+          fail(root, {}, "M004", "package graph exceeds configured edge limit");
+          return std::move(*failure);
+        }
+        if (!packageName(local.name) || !packageEntry(local.entry) ||
+            !scopes[owner]
+                 .entries.emplace(local.name, std::pair{fs::path(local.entry), owner})
+                 .second) {
+          fail(root, {}, "M007", "invalid or duplicate package local mapping '" + local.name + "'");
+          return std::move(*failure);
+        }
+      }
+    }
+    // Validate even unused dependency edges. Cache heights so a shared node
+    // cannot conceal a too-deep path through a different caller.
+    std::vector<unsigned char> state(graph.size());
+    std::vector<std::size_t> heights(graph.size());
+    std::function<bool(std::size_t, std::size_t)> validate = [&](std::size_t node,
+                                                                 std::size_t depth) {
+      if (depth > moduleLimits.maxDepth) {
+        fail(root, {}, "M004", "package graph exceeds configured dependency depth");
+        return false;
+      }
+      if (state[node] == 1) {
+        fail(root, {}, "M007", "package dependency cycle reaches '" + graph[node].identity + "'");
+        return false;
+      }
+      if (state[node] == 2) {
+        if (heights[node] <= moduleLimits.maxDepth - depth)
+          return true;
+        fail(root, {}, "M004", "package graph exceeds configured dependency depth");
+        return false;
+      }
+      state[node] = 1;
+      for (const auto &edge : graph[node].dependencies) {
+        if (!validate(edge.target, depth + 1))
+          return false;
+        heights[node] = std::max(heights[node], heights[edge.target] + 1);
+      }
+      state[node] = 2;
+      return true;
+    };
+    for (std::size_t node = 0; node < graph.size(); ++node)
+      if (!validate(node, 0))
+        return std::move(*failure);
+  }
+  std::function<std::optional<std::size_t>(fs::path, std::size_t, std::size_t,
+                                           std::shared_ptr<const SourceFile>, SourceSpan)>
+      visit = [&](fs::path requested, std::size_t owner, std::size_t depth,
+                  std::shared_ptr<const SourceFile> parent,
                   SourceSpan span) -> std::optional<std::size_t> {
     if (requested.extension() != ".k") {
       fail(std::move(parent), span, "M001", "source files must use the .k extension");
@@ -115,10 +209,19 @@ std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimi
       fail(std::move(parent), span, "M002", "cannot open module '" + requested.string() + "'");
       return {};
     }
-    const auto key = canonical.string();
+    if (!graph.empty() && owner != 0) {
+      const auto relative = canonical.lexically_relative(scopes[owner].root);
+      if (relative.empty() || *relative.begin() == ".." || relative.has_root_path()) {
+        fail(std::move(parent), span, "M007",
+             "module escapes package source root '" + scopes[owner].root.string() + "'");
+        return {};
+      }
+    }
+    const auto physical = canonical.string();
+    const auto key = std::to_string(owner) + ":" + physical;
     if (auto found = known.find(key); found != known.end()) {
       if (!files[found->second].complete) {
-        fail(std::move(parent), span, "M003", "module import cycle reaches '" + key + "'");
+        fail(std::move(parent), span, "M003", "module import cycle reaches '" + physical + "'");
         return {};
       }
       if (depth > moduleLimits.maxDepth ||
@@ -135,16 +238,16 @@ std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimi
       return {};
     }
     const auto maximum = syntaxLimits.maxSourceBytes - bytes - 1;
-    auto replacement = replacements.find(key);
+    auto replacement = replacements.find(physical);
     auto source =
         replacement == replacements.end()
-            ? loadSource(key, maximum)
+            ? loadSource(physical, maximum)
             : std::expected<std::shared_ptr<const SourceFile>, std::string>(replacement->second);
     if (source && (*source)->text().size() > maximum)
       source = std::unexpected("source exceeds the configured size limit");
     if (!source) {
       fail(std::move(parent), span, source.error().starts_with("source exceeds") ? "M004" : "M002",
-           "cannot load module '" + key + "': " + source.error());
+           "cannot load module '" + physical + "': " + source.error());
       return {};
     }
     auto parsed = parse(*source, syntaxLimits);
@@ -160,6 +263,7 @@ std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimi
       const auto quoted = (*source)->slice(import.path);
       const std::string specifier(quoted.substr(1, quoted.size() - 2));
       fs::path requested;
+      auto targetOwner = owner;
       if (specifier.find_first_of("\\\r\n") != std::string::npos ||
           specifier.find('\0') != std::string::npos) {
         fail(*source, import.path, "M001", "module specifiers cannot contain escapes");
@@ -177,15 +281,19 @@ std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimi
                "imports require a relative .k path or declared package name");
           return {};
         }
-        auto entry = entries.find(specifier);
-        if (entry == entries.end()) {
+        auto entry = scopes[owner].entries.find(specifier);
+        if (entry == scopes[owner].entries.end()) {
           fail(*source, import.path, "M005",
-               "unknown local package '" + specifier + "'; supply --package name=path.k");
+               graph.empty()
+                   ? "unknown local package '" + specifier + "'; supply --package name=path.k"
+                   : "unknown package '" + specifier + "' in package '" + graph[owner].identity +
+                         "'");
           return {};
         }
-        requested = entry->second;
+        requested = entry->second.first;
+        targetOwner = entry->second.second;
       }
-      auto target = visit(requested, depth + 1, *source, import.path);
+      auto target = visit(requested, targetOwner, depth + 1, *source, import.path);
       if (!target)
         return {};
       files[id].targets.push_back(*target);
@@ -194,7 +302,7 @@ std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimi
     files[id].complete = true;
     return id;
   };
-  if (!visit(fs::path(path), 0, root, {}))
+  if (!visit(fs::path(path), 0, 0, root, {}))
     return std::move(*failure);
   if (files.size() == 1) {
     // Preserve the existing single-file source and byte offsets.
@@ -221,5 +329,18 @@ std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimi
     import.target = files[import.moduleIndex].targets[next[import.moduleIndex]++];
   }
   return result;
+}
+std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimits syntaxLimits,
+                                                    ModuleLimits moduleLimits,
+                                                    std::span<const ModulePackage> packages,
+                                                    std::span<const SourceOverlay> overlays) {
+  return loadModuleGraph(std::move(path), syntaxLimits, moduleLimits, packages, overlays, {});
+}
+std::expected<ParseResult, std::string>
+loadPackageModules(std::span<const PackageNode> graph, SyntaxLimits syntaxLimits,
+                   ModuleLimits moduleLimits, std::span<const SourceOverlay> overlays) {
+  if (graph.empty())
+    return std::unexpected("offline package graph requires a workspace node");
+  return loadModuleGraph(graph[0].entry, syntaxLimits, moduleLimits, {}, overlays, graph);
 }
 } // namespace kalandra

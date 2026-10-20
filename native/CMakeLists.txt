@@ -956,6 +956,7 @@ if(BUILD_TESTING)
 endif()
 
 include(cmake/LocalPackages.cmake)
+include(cmake/ScopedPackages.cmake)
 
 include(cmake/Projects.cmake)
 
