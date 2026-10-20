@@ -55,7 +55,8 @@ memory and in-flight budgets apply; one in-flight slot suffices.
 
 Full argument residence and shape contracts are checked before launch, including
 unused parameter obligations. Unsupported operations in any statement remain
-diagnostic. Matmul composition, multiple independent reductions, data-dependent
+diagnostic. [Elementwise matrix results](native-gpu-post-matmul.md) are also
+supported. Matrix operand transformations, multiple independent reductions, data-dependent
 GPU branches, recursive helpers, other GPU numeric types and higher ranks remain
 separate work. This is not a general GPU closure or foreign-shader interface.
 

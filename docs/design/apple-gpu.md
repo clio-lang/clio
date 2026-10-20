@@ -333,7 +333,7 @@ With `input` shaped `[M, K]` and `weights` shaped `[K, N]`, ordinary `project(in
 
 The mixed-source supervisor now tracks both matrix axes through literals, CPU calls/results, transfers, placed calls, awaits, annotations and main results. Nested rectangular literals construct matrices; an empty outer literal uses its annotated column extent. The CPU bridge exports/imports rank-two descriptors and propagates axis-specific shape requirements. Known mismatches are compilation errors; unknown inner dimensions and fixed-width annotations have runtime guards before calls or host descriptor access. GPU runtime admission independently checks format, rank, inner dimensions, selected-device residency, byte bounds, and uint32 dimension/input/output index capacity. Inputs may alias; each result has fresh immutable storage.
 
-A matrix GPU entry has exactly two rank-two float32 tensor parameters and resolves to one checked `Matmul` with separately rounded products and balanced-adjacent reduction. [Forwarding helpers](native-gpu-forwarding.md) now allow local bindings, aliases and imported calls around that operation, including reordered or repeated operands. Fixed, dynamic and mixed extents preserve their host-side guards. Arithmetic or additional matrix calculations inside the same entry remain unsupported; separate placed tasks can compose broader calculations while their intermediates stay on device. These are source compiler restrictions, not language rules; GPU-ABI-001 remains open. Elementwise GPU calls and GPU `reduceSum` consume device matrices directly, and CPU helpers can process explicitly downloaded matrices.
+A matrix GPU entry resolves to one checked `Matmul` with separately rounded products and balanced-adjacent reduction. [Forwarding helpers](native-gpu-forwarding.md) preserve local bindings, aliases, imported calls and reordered or repeated operands. Signatures can mix tensor/scalar parameters, including one tensor used as both operands. [Elementwise matrix results](native-gpu-post-matmul.md) now apply strict arithmetic to the product with scalar or matching full-shape tensor operands, using resident stages and projected direct/Tier 2 bindings. Fixed, dynamic and mixed extents preserve host-side guards. Transforming matrix operands or adding independent primitives inside one entry remains unsupported; separate placed tasks can compose those calculations while intermediates stay on device. GPU-ABI-001 remains a separate interface scope. Elementwise GPU calls and GPU `reduceSum` retain their existing support.
 
 The [generated kernel](../../native/metal-source/MatmulShader.h) assigns one output cell to a lane in a guarded 64-thread workgroup. It rounds every product to float32 before addition. A private stack stores aligned power-of-two subtree roots as products arrive; occupied roots combine from low to high level, placing each larger subtree on the left. This reproduces the accepted adjacent-pair tree even for odd contraction lengths, without adding an initial zero to a nonempty sum. The stack holds 32 float32 roots per lane under the current uint32 indexing bound, rather than allocating `M*N*K` global products. Strict scalar multiplication/addition use the existing integer GPU lowering; vendor matmul, hardware float32 reassociation and fusion are not substituted.
 
@@ -399,7 +399,7 @@ adjusted = try await spawn adjust(product, 2, c) on gpu
 try await spawn total(adjusted) on gpu
 ```
 
-Both tensor intermediates stay on the selected device. Only the final four-byte scalar is read back. This is composition through separate placed calls; a single GPU helper containing matmul or reduceSum plus arbitrary arithmetic is still unsupported. The complete example produces `336` (`43a80000` through the diagnostic executable).
+Both tensor intermediates stay on the selected device. Only the final four-byte scalar is read back. This example composes separate placed calls. Single helpers now support [elementwise input/result expressions around one reduction](native-gpu-post-reduction.md) or [elementwise expressions after one matmul](native-gpu-post-matmul.md); combining additional independent primitives inside one helper remains unsupported. The complete example produces `336` (`43a80000` through the diagnostic executable).
 
 Every tensor operand must have the same rank and every axis must match. A `[2, 3]` matrix cannot combine with `[3, 2]`, even though both contain six elements. Empty `[2, 0]` and `[3, 0]` matrices also differ. Known mismatches are compilation errors; dynamic row and column requirements become supervisor guards, and runtime admission independently checks full shapes before submission. Scalar lifting is supported; matrix broadcasting, reshaping and implicit transfers are not. Output tasks preserve both dimensions, including zero extents, through awaits, downloads and CPU calls. Inputs may alias; results have fresh immutable storage.
 
@@ -690,8 +690,9 @@ Resumable helpers currently expand into their caller's continuation. [Independen
 compose strict float32 arithmetic and one reduceSum inside a numerical GPU helper.
 Two GPU stages share one scheduled task and retain the intermediate on device.
 [Post-reduction scalar arithmetic](native-gpu-post-reduction.md) now runs once
-on the GPU before final scalar readback. Matmul composition remains separate
-lowering work.
+on the GPU before final scalar readback. [Elementwise matrix results](native-gpu-post-matmul.md)
+now compose tensor/scalar arithmetic after one multiplication using resident
+stages. Matrix operand transformations and additional primitives remain separate work.
 
 ## Planned GPU interoperability
 

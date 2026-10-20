@@ -281,13 +281,27 @@
     },
     {
       "id": "post-matmul",
-      "feature": "Arithmetic fused into a matmul entry",
+      "feature": "Elementwise expressions after matrix multiplication",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "capabilities/post-matmul.k",
+        "post-matmul.k"
+      ],
+      "notes": "One resident matrix stage then strict elementwise arithmetic; matching full-shape tensor and scalar operands; direct/Tier 2 bindings",
+      "evidence": [
+        "gpu-post-matmul-2026-10-21.json"
+      ]
+    },
+    {
+      "id": "pre-matmul",
+      "feature": "Arithmetic transforming matrix operands",
       "scope": "GPU",
       "status": "rejected",
       "fixtures": [
-        "capabilities/post-matmul.k"
+        "capabilities/pre-matmul.k"
       ],
-      "notes": "Use separate matmul and elementwise dispatches; general one-entry composition is pending",
+      "notes": "Use a separate placed input stage for matmul(input + 1, weights); one-entry operand transformation remains pending",
       "diagnostic": "G001"
     }
   ]

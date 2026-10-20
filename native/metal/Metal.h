@@ -152,8 +152,13 @@ public:
                                                      std::span<const std::uint32_t> reads) noexcept;
   std::expected<Kernel, Error> loadReductionKernel(std::string_view metallib, Device) noexcept;
   std::expected<Kernel, Error> loadMatmulKernel(std::string_view metallib, Device) noexcept;
-  TaskHandle matmul(TaskCore &, GroupHandle, Kernel, Buffer, Buffer) noexcept;
-  TaskHandle matmul(Task &, GroupHandle, Kernel, Buffer, Buffer) noexcept;
+  // Post inputs contain a logical slot zero replaced by the completed matrix.
+  TaskHandle matmul(TaskCore &, GroupHandle, Kernel, Buffer, Buffer, Kernel post = {},
+                    std::span<const Buffer> postInputs = {},
+                    std::span<const float> scalars = {}) noexcept;
+  TaskHandle matmul(Task &, GroupHandle, Kernel, Buffer, Buffer, Kernel post = {},
+                    std::span<const Buffer> postInputs = {},
+                    std::span<const float> scalars = {}) noexcept;
   TaskHandle reduceSum(TaskCore &, GroupHandle, Kernel, Buffer, Kernel epilogue = {},
                        std::span<const float> scalars = {}) noexcept;
   TaskHandle reduceSum(Task &, GroupHandle, Kernel, Buffer, Kernel epilogue = {},

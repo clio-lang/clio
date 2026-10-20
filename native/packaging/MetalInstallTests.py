@@ -89,6 +89,14 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
     assert (post_app / "kernel0-post.metallib").is_file()
     assert run([post_app / "program"], cwd).stdout.strip() == "c1d00000"
     applications.append((post_app, "c1d00000"))
+    matrix_source = cwd / "post-matmul.k"
+    matrix_source.write_bytes((fixtures / "post-matmul.k").read_bytes())
+    matrix_app = cwd / "post matrix application"
+    run([compiler, matrix_source, "--target", "metal", "-o", matrix_app, "-O2"], cwd)
+    assert (matrix_app / "kernel0-post.metallib").is_file()
+    matrix_result = "[42380000,42700000,42d00000,43080000]"
+    assert run([matrix_app / "program"], cwd).stdout.strip() == matrix_result
+    applications.append((matrix_app, matrix_result))
     # Local module/project imports go through the same installed Metal compiler.
     (cwd / "helper.k").write_text("export " + source.read_text().split("\n\nfn main", 1)[0] + "\n")
     source.write_text('from "math" import combine\n\nfn main' + source.read_text().split("\n\nfn main", 1)[1])

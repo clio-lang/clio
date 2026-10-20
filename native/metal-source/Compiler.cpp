@@ -210,12 +210,12 @@ class Compiler {
           const auto &type = cpu.symbols[parameter].type;
           return type.tensor && (type.shape.size() == 1 || type.shape.size() == 2);
         });
-    const bool matrixSignature = entry.resultType.tensor && entry.resultType.shape.size() == 2 &&
-                                 entry.parameters.size() == 2 &&
-                                 cpu.symbols[entry.parameters[0]].type.tensor &&
-                                 cpu.symbols[entry.parameters[1]].type.tensor &&
-                                 cpu.symbols[entry.parameters[0]].type.shape.size() == 2 &&
-                                 cpu.symbols[entry.parameters[1]].type.shape.size() == 2;
+    const bool matrixSignature =
+        entry.resultType.tensor && entry.resultType.shape.size() == 2 &&
+        std::any_of(entry.parameters.begin(), entry.parameters.end(), [&](auto parameter) {
+          const auto &type = cpu.symbols[parameter].type;
+          return type.tensor && type.shape.size() == 2;
+        });
     auto &cached = primitiveEntries[root];
     if (!sumSignature && !matrixSignature)
       return cached;
@@ -255,14 +255,16 @@ class Compiler {
         } else if (const auto *matrix = std::get_if<Matmul>(&node.operation)) {
           auto left = emit(matrix->left), right = emit(matrix->right);
           if (left && right && left->kind == PrimitiveEntry::Input &&
-              right->kind == PrimitiveEntry::Input &&
+              right->kind == PrimitiveEntry::Input && !left->mapped && !right->mapped &&
               matrix->order == ReductionOrder::BalancedAdjacent &&
               matrix->separatelyRoundedProducts && ++primitives == 1)
             result = PrimitiveEntry{PrimitiveEntry::Matrix, left->left, right->left};
-        } else if (sumSignature && std::holds_alternative<Float32Literal>(node.operation)) {
+        } else if ((sumSignature || matrixSignature) &&
+                   std::holds_alternative<Float32Literal>(node.operation)) {
           result = PrimitiveEntry{PrimitiveEntry::Scalar};
-        } else if (sumSignature && (std::holds_alternative<TensorBinary>(node.operation) ||
-                                    std::holds_alternative<ScalarBinary>(node.operation))) {
+        } else if ((sumSignature || matrixSignature) &&
+                   (std::holds_alternative<TensorBinary>(node.operation) ||
+                    std::holds_alternative<ScalarBinary>(node.operation))) {
           const auto *tensor = std::get_if<TensorBinary>(&node.operation);
           const auto *scalar = std::get_if<ScalarBinary>(&node.operation);
           auto a = emit(tensor ? tensor->left : scalar->left);
@@ -272,14 +274,23 @@ class Compiler {
             result = a->kind == PrimitiveEntry::Input ? a : b;
             if (result->kind == PrimitiveEntry::Input)
               result->mapped = true;
+          } else if (matrixSignature && tensor && a && b &&
+                     (a->kind == PrimitiveEntry::Matrix || b->kind == PrimitiveEntry::Matrix) &&
+                     (a->kind == PrimitiveEntry::Matrix || a->kind == PrimitiveEntry::Input ||
+                      a->kind == PrimitiveEntry::Scalar) &&
+                     (b->kind == PrimitiveEntry::Matrix || b->kind == PrimitiveEntry::Input ||
+                      b->kind == PrimitiveEntry::Scalar)) {
+            result = a->kind == PrimitiveEntry::Matrix ? a : b;
+            result->post = true;
           } else if (!tensor && a && b &&
                      (a->kind == PrimitiveEntry::Sum || a->kind == PrimitiveEntry::Scalar) &&
                      (b->kind == PrimitiveEntry::Sum || b->kind == PrimitiveEntry::Scalar)) {
             result = a->kind == PrimitiveEntry::Sum ? a : b;
             result->post = true;
           }
-        } else if (sumSignature && (std::holds_alternative<TensorUnary>(node.operation) ||
-                                    std::holds_alternative<ScalarUnary>(node.operation))) {
+        } else if ((sumSignature || matrixSignature) &&
+                   (std::holds_alternative<TensorUnary>(node.operation) ||
+                    std::holds_alternative<ScalarUnary>(node.operation))) {
           const auto *tensor = std::get_if<TensorUnary>(&node.operation);
           const auto *scalar = std::get_if<ScalarUnary>(&node.operation);
           auto input = emit(tensor ? tensor->operand : scalar->operand);
@@ -288,6 +299,9 @@ class Compiler {
             result = input;
             if (result->kind == PrimitiveEntry::Input)
               result->mapped = true;
+          } else if (matrixSignature && tensor && input && input->kind == PrimitiveEntry::Matrix) {
+            result = input;
+            result->post = true;
           } else if (!tensor && input && input->kind == PrimitiveEntry::Sum) {
             result = input;
             result->post = true;
@@ -717,7 +731,7 @@ class Compiler {
     const bool sum = reduction(function);
     const bool matrix = matrixFunction(function);
     const bool mapped = sum && primitiveEntry(function)->mapped;
-    const bool post = sum && primitiveEntry(function)->post;
+    const bool post = (sum || matrix) && primitiveEntry(function)->post;
     if (!entryFunction.resultType.tensor && !sum)
       reject(span, "GPU scalar entries currently require one reduceSum with forwarding helpers");
     std::vector<Value> tensors, scalars;
@@ -834,17 +848,36 @@ class Compiler {
       arguments = "f." + reductionKernel + ", " + pack(tensors, "m::Buffer") + ", " +
                   pack(scalars, "float");
     }
+    if (matrix)
+      arguments = ref(left) + ", " + ref(right);
     if (post) {
-      shader(function, nullptr, true); // Validate before publishing any host/shader artifacts.
+      std::vector<std::uint32_t> postReads;
+      shader(function, &postReads, true); // Validate before publishing any host/shader artifacts.
       const auto epilogue = field("m::Kernel");
+      const auto count = matrix ? tensors.size() + 1 : 1;
+      const bool indirectPost =
+          !kalandra::runtime::metal::directElementwiseLayout(postReads.size(), scalars.size());
+      std::string postSignature = ", m::ElementwiseSignature{" + std::to_string(count) + "," +
+                                  std::to_string(scalars.size()) +
+                                  (indirectPost ? ",m::ElementwiseBinding::ArgumentBuffer}" : "}");
+      if (postReads.size() != count) {
+        postSignature += ", std::array<std::uint32_t," + std::to_string(postReads.size()) + ">{";
+        for (std::size_t i = 0; i < postReads.size(); ++i)
+          postSignature += (i ? "," : "") + std::to_string(postReads[i]);
+        postSignature += "}";
+      }
       mappedSetup += "auto post = r.loadElementwiseKernel(f.directory + \"/kernel" +
-                     std::to_string(entry->second) +
-                     "-post.metallib\", *target, m::ElementwiseSignature{1," +
-                     std::to_string(scalars.size()) + "});\nif(!post){" + error("post.error()") +
-                     "}\nf." + epilogue + "=*post;\n";
-      if (!mapped)
+                     std::to_string(entry->second) + "-post.metallib\", *target" + postSignature +
+                     ");\nif(!post){" + error("post.error()") + "}\nf." + epilogue + "=*post;\n";
+      if (!mapped && !matrix)
         arguments = ref(left);
       arguments += ", f." + epilogue;
+      if (matrix) {
+        auto postInputs = tensors;
+        postInputs.insert(postInputs.begin(),
+                          left); // Replaced by the completed matrix in the task frame.
+        arguments += ", " + pack(postInputs, "m::Buffer");
+      }
       if (!mapped)
         arguments += ", " + pack(scalars, "float");
     }
@@ -1348,7 +1381,8 @@ class Compiler {
   }
   std::string shader(std::size_t function, std::vector<std::uint32_t> *readInputs = nullptr,
                      bool post = false) const {
-    if (matrixFunction(function))
+    const bool matrixPost = post && matrixFunction(function);
+    if (!post && matrixFunction(function))
       return matmulShader;
     if (!post && reduction(function) && !primitiveEntry(function)->mapped)
       return reductionShader();
@@ -1447,6 +1481,8 @@ class Compiler {
             reject(n.span, "unexpected reduction in elementwise shader");
           result = post ? "%lane0" : emit(sum->input);
           reductionInput = result;
+        } else if (std::holds_alternative<Matmul>(n.operation) && matrixPost) {
+          result = "%lane0"; // The completed matrix is the first logical post-stage tensor.
         } else if (auto *check = std::get_if<ShapeCheck>(&n.operation)) {
           // Straight-line helper checks become the entry's transitive shape
           // preconditions, validated on the host before kernel admission.
@@ -1479,9 +1515,10 @@ class Compiler {
     unsigned tensors = 0, scalars = 0;
     for (auto parameter : cpu.functions[function].parameters) {
       if (cpu.symbols[parameter].type.tensor) {
-        auto lane = std::string(post ? "%source" : "%lane") + std::to_string(tensors);
-        if (!post)
-          tensorInputs.emplace(lane, tensors);
+        auto lane = std::string(post && !matrixPost ? "%source" : "%lane") +
+                    std::to_string(tensors + (matrixPost ? 1 : 0));
+        if (!post || matrixPost)
+          tensorInputs.emplace(lane, tensors + (matrixPost ? 1 : 0));
         ++tensors;
         args.push_back(lane);
       } else
@@ -1489,7 +1526,7 @@ class Compiler {
     }
     auto result = invoke(function, args);
     if (post) {
-      tensors = 1;
+      tensors = matrixPost ? tensors + 1 : 1;
       tensorInputs.emplace("%lane0", 0);
     } else if (reduction(function)) {
       if (!reductionInput)
@@ -1847,12 +1884,28 @@ void resume(Task &task) {
     std::string manifest = "kernel_count=" + std::to_string(entries.size()) + "\n";
     for (auto [function, index] : entries) {
       if (auto entry = primitiveEntry(function); entry && entry->post) {
-        std::size_t scalars = 0;
-        for (auto parameter : cpu.functions[function].parameters)
+        std::size_t scalars = 0, tensors = 0;
+        for (auto parameter : cpu.functions[function].parameters) {
           scalars += !cpu.symbols[parameter].type.tensor;
+          tensors += cpu.symbols[parameter].type.tensor;
+        }
         manifest += "kernel" + std::to_string(index) + ".epilogue_stage=kernel" +
                     std::to_string(index) + "-post\n" + "kernel" + std::to_string(index) +
                     ".epilogue_scalars=" + std::to_string(scalars) + "\n";
+        if (matrixFunction(function)) {
+          std::vector<std::uint32_t> reads;
+          shader(function, &reads, true);
+          std::string bindings;
+          for (auto input : reads)
+            bindings += (bindings.empty() ? "" : ",") + std::to_string(input);
+          const auto prefix = "kernel" + std::to_string(index) + ".epilogue_";
+          manifest += prefix + "tensors=" + std::to_string(tensors + 1) + "\n" + prefix +
+                      "tensor_bindings=" + bindings + "\n" + prefix + "binding_layout=" +
+                      (kalandra::runtime::metal::directElementwiseLayout(reads.size(), scalars)
+                           ? "direct"
+                           : "argument_buffer_tier2") +
+                      "\n";
+        }
       }
       if ((reduction(function) && !primitiveEntry(function)->mapped) || matrixFunction(function))
         continue;

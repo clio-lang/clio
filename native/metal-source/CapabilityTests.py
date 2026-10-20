@@ -120,7 +120,7 @@ def main():
                         assert stage + '.metallib' in (destination / 'host.cpp').read_text()
                     for entry, stage in re.findall(r'^(kernel\d+)\.epilogue_stage=(kernel\d+-post)$', manifest, re.M):
                         assert (destination / (entry + '.mlir')).is_file()
-                        assert 'gpu.func @kalandra_elementwise_v2' in (destination / (stage + '.mlir')).read_text()
+                        assert re.search(r'gpu.func @kalandra_elementwise_v[23]', (destination / (stage + '.mlir')).read_text())
                         assert stage + '.metallib' in (destination / 'host.cpp').read_text()
                     outcomes.append({'fixture': fixture, 'status': 'supported', 'kernels': count})
                 else:

@@ -235,7 +235,8 @@ struct Bridge {
     Buffer right;
     std::shared_ptr<const Arguments> arguments{};
     std::optional<Error> preparation{};
-    Kernel reduction{}, epilogue{};
+    Kernel reduction{}, epilogue{}, matrixPost{};
+    Buffer replacement{};
     std::shared_ptr<const Arguments> postArguments{};
   };
   static std::expected<std::shared_ptr<const Arguments>, Error>
@@ -314,6 +315,10 @@ struct Bridge {
     return true;
   }
   static void destroy(void *frame) noexcept { static_cast<Frame *>(frame)->~Frame(); }
+  static const Buffer &tensor(const Frame &frame, std::size_t index) {
+    return index == 0 && frame.packet.replacement ? frame.packet.replacement
+                                                  : frame.packet.arguments->tensors[index];
+  }
   static const ValueLayout layout;
   static const TaskEntry entry, reductionEntry;
   static id<MTLCommandBuffer> reductionCommand(Frame &f) {
@@ -486,18 +491,26 @@ struct Bridge {
         f.packet.right = Buffer{};
         f.packet.kernel = Kernel{};
         f.packet.arguments.reset();
-        if (!f.packet.reduction) {
+        f.packet.replacement = Buffer{};
+        if (!f.packet.reduction && !f.packet.matrixPost) {
           f.packet.epilogue = Kernel{};
           f.packet.postArguments.reset();
           task.complete(f.packet.kind == Kind::Reduce ? static_cast<const void *>(&f.scalar)
                                                       : &f.result);
           return;
         }
-        // The first stage has acknowledged completion. Retain its immutable device
-        // buffer as reduction input; do not read it back or reapply the map on odd tails.
-        f.packet.input = std::move(f.result);
-        f.packet.kernel = std::move(f.packet.reduction);
-        f.packet.kind = Kind::Reduce;
+        // Acknowledgement transfers the resident result into the next stage.
+        // Source argument packs remain immutable; slot zero may select this result.
+        if (f.packet.matrixPost) {
+          f.packet.replacement = std::move(f.result);
+          f.packet.kernel = std::move(f.packet.matrixPost);
+          f.packet.arguments = std::move(f.packet.postArguments);
+          f.packet.kind = Kind::Elementwise;
+        } else {
+          f.packet.input = std::move(f.result);
+          f.packet.kernel = std::move(f.packet.reduction);
+          f.packet.kind = Kind::Reduce;
+        }
         f.started = false;
         f.succeeded = false;
         if (task.cancelled())
@@ -507,6 +520,16 @@ struct Bridge {
       if (f.packet.preparation) {
         task.fault(std::int64_t(*f.packet.preparation));
         return;
+      }
+      if (f.packet.matrixPost) {
+        const auto &kernel = f.packet.matrixPost.state_;
+        const auto &base = f.packet.kernel.state_;
+        if (!base || !base->matrix || kernel->registry != state || kernel->index != base->index ||
+            !f.packet.postArguments || !kernel->elementwise || kernel->matrix ||
+            kernel->reduction || kernel->tensorIndex(0) != 0) {
+          task.fault(std::int64_t(Error::Invalid));
+          return;
+        }
       }
       if (f.packet.epilogue) {
         const auto &kernel = f.packet.epilogue.state_;
@@ -532,7 +555,7 @@ struct Bridge {
       }
       if (f.packet.arguments) {
         const auto &kernel = f.packet.kernel.state_;
-        f.packet.input = f.packet.arguments->tensors[kernel->tensorIndex(0)];
+        f.packet.input = tensor(f, kernel->tensorIndex(0));
       }
       const auto &source = f.packet.input.storage_;
       if (!source) {
@@ -623,7 +646,7 @@ struct Bridge {
         }
         if (f.packet.arguments)
           for (std::size_t i = 0; i < f.packet.arguments->tensors.size(); ++i) {
-            const auto &other = f.packet.arguments->tensors[i].storage_;
+            const auto &other = tensor(f, i).storage_;
             const auto reads =
                 kernel->indirect()
                     ? std::span<const std::uint32_t>(kernel->indirectReads)
@@ -688,10 +711,10 @@ struct Bridge {
         }
         f.result = Buffer(*result);
         if (!f.result.bytes()) {
-          // Empty composed reductions still validate both stages and all arguments.
-          if (f.packet.reduction && f.packet.epilogue) {
-            // Empty maps submit no command; release their admission before the
-            // single bounded handoff to the reduction/epilogue command.
+          // Empty composed results still validate both stages and all arguments.
+          if ((f.packet.reduction && f.packet.epilogue) || f.packet.matrixPost) {
+            // Empty first stages submit no command; release their admission
+            // before the single bounded handoff to the following stage.
             --state->inFlight;
             f.active = false;
             f.succeeded = true;
@@ -759,8 +782,7 @@ struct Bridge {
                   atIndex:0];
             if (f.packet.arguments) {
               for (std::size_t i = 0; i < tensors; ++i)
-                [encoder setBuffer:f.packet.arguments->tensors[kernel->tensorIndex(i)]
-                                       .storage_->metal->buffer
+                [encoder setBuffer:tensor(f, kernel->tensorIndex(i)).storage_->metal->buffer
                             offset:0
                            atIndex:i];
             } else if (tensors == 2)
@@ -786,8 +808,7 @@ struct Bridge {
           if (kernel->indirect()) {
 
             for (std::size_t i = 0; i < tensors; ++i) {
-              auto buffer =
-                  f.packet.arguments->tensors[kernel->tensorIndex(i)].storage_->metal->buffer;
+              auto buffer = tensor(f, kernel->tensorIndex(i)).storage_->metal->buffer;
               [arguments setBuffer:buffer offset:0 atIndex:i];
               [encoder useResource:buffer usage:MTLResourceUsageRead];
             }
@@ -1255,7 +1276,8 @@ std::expected<Kernel, Error> Runtime::loadMatmulKernel(std::string_view path,
   return loadKernel(path, std::move(device), true, {}, false, true);
 }
 TaskHandle Runtime::matmul(TaskCore &core, GroupHandle group, Kernel kernel, Buffer left,
-                           Buffer right) noexcept {
+                           Buffer right, Kernel post, std::span<const Buffer> postInputs,
+                           std::span<const float> scalars) noexcept {
   Bridge::PacketData packet{state_,
                             std::move(left),
                             {},
@@ -1263,10 +1285,20 @@ TaskHandle Runtime::matmul(TaskCore &core, GroupHandle group, Kernel kernel, Buf
                             std::move(kernel),
                             BinaryOperation::Add,
                             std::move(right)};
+  if (post) {
+    auto arguments = Bridge::capture(state_, post, postInputs, scalars);
+    if (arguments)
+      packet.postArguments = *arguments;
+    else
+      packet.preparation = arguments.error();
+    packet.matrixPost = std::move(post);
+  } else if (!postInputs.empty() || !scalars.empty())
+    packet.preparation = Error::Invalid;
   return core.submit(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
 }
-TaskHandle Runtime::matmul(Task &task, GroupHandle group, Kernel kernel, Buffer left,
-                           Buffer right) noexcept {
+TaskHandle Runtime::matmul(Task &task, GroupHandle group, Kernel kernel, Buffer left, Buffer right,
+                           Kernel post, std::span<const Buffer> postInputs,
+                           std::span<const float> scalars) noexcept {
   Bridge::PacketData packet{state_,
                             std::move(left),
                             {},
@@ -1274,6 +1306,15 @@ TaskHandle Runtime::matmul(Task &task, GroupHandle group, Kernel kernel, Buffer 
                             std::move(kernel),
                             BinaryOperation::Add,
                             std::move(right)};
+  if (post) {
+    auto arguments = Bridge::capture(state_, post, postInputs, scalars);
+    if (arguments)
+      packet.postArguments = *arguments;
+    else
+      packet.preparation = arguments.error();
+    packet.matrixPost = std::move(post);
+  } else if (!postInputs.empty() || !scalars.empty())
+    packet.preparation = Error::Invalid;
   return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
 }
 TaskHandle Runtime::reduceSum(TaskCore &core, GroupHandle group, Kernel kernel, Buffer input,
