@@ -192,40 +192,112 @@ class Compiler {
     if (auto guard = lengthGuard(value, wanted, span, axis); !guard.empty())
       steps.push_back(std::move(guard));
   }
-  ValueId numericalResult(const TypedFunction &fn) const {
-    auto value = fn.result;
-    while (const auto *check = std::get_if<ShapeCheck>(&cpu.expressions[value].operation))
-      value = check->input;
-    return value;
+  struct PrimitiveEntry {
+    enum Kind { Input, Sum, Matrix } kind = Input;
+    std::size_t left = 0, right = 0;
+  };
+  mutable std::map<FunctionId, std::optional<PrimitiveEntry>> primitiveEntries;
+  std::optional<PrimitiveEntry> primitiveEntry(FunctionId root) const {
+    if (auto found = primitiveEntries.find(root); found != primitiveEntries.end())
+      return found->second;
+    const auto &entry = cpu.functions.at(root);
+    const bool sumSignature = !entry.resultType.tensor && entry.parameters.size() == 1 &&
+                              cpu.symbols[entry.parameters[0]].type.tensor &&
+                              (cpu.symbols[entry.parameters[0]].type.shape.size() == 1 ||
+                               cpu.symbols[entry.parameters[0]].type.shape.size() == 2);
+    const bool matrixSignature = entry.resultType.tensor && entry.resultType.shape.size() == 2 &&
+                                 entry.parameters.size() == 2 &&
+                                 cpu.symbols[entry.parameters[0]].type.tensor &&
+                                 cpu.symbols[entry.parameters[1]].type.tensor &&
+                                 cpu.symbols[entry.parameters[0]].type.shape.size() == 2 &&
+                                 cpu.symbols[entry.parameters[1]].type.shape.size() == 2;
+    auto &cached = primitiveEntries[root];
+    if (!sumSignature && !matrixSignature)
+      return cached;
+    std::size_t work = 0, primitives = 0;
+    std::set<FunctionId> active;
+    using Result = std::optional<PrimitiveEntry>;
+    std::function<Result(FunctionId, const std::vector<PrimitiveEntry> &)> invoke;
+    invoke = [&](FunctionId id, const std::vector<PrimitiveEntry> &args) -> Result {
+      if (++work > 300000 || active.size() >= 128)
+        reject(entry.declaration, "GPU primitive forwarding analysis limit exceeded");
+      if (!active.insert(id).second)
+        return {};
+      const auto &fn = cpu.functions.at(id);
+      if (args.size() != fn.parameters.size())
+        return {};
+      std::unordered_map<SymbolId, PrimitiveEntry> symbols;
+      std::unordered_map<ValueId, PrimitiveEntry> values;
+      for (std::size_t i = 0; i < args.size(); ++i)
+        symbols.emplace(fn.parameters[i], args[i]);
+      std::function<Result(ValueId)> emit = [&](ValueId value) -> Result {
+        if (++work > 300000)
+          reject(entry.declaration, "GPU primitive forwarding analysis limit exceeded");
+        if (auto found = values.find(value); found != values.end())
+          return found->second;
+        const auto &node = cpu.expressions.at(value);
+        Result result;
+        if (const auto *read = std::get_if<SymbolRead>(&node.operation)) {
+          if (auto found = symbols.find(read->symbol); found != symbols.end())
+            result = found->second;
+        } else if (const auto *check = std::get_if<ShapeCheck>(&node.operation))
+          result = emit(check->input);
+        else if (const auto *sum = std::get_if<ReduceSum>(&node.operation)) {
+          auto input = emit(sum->input);
+          if (input && input->kind == PrimitiveEntry::Input &&
+              sum->order == ReductionOrder::BalancedAdjacent && sum->rowMajor && ++primitives == 1)
+            result = PrimitiveEntry{PrimitiveEntry::Sum, input->left, 0};
+        } else if (const auto *matrix = std::get_if<Matmul>(&node.operation)) {
+          auto left = emit(matrix->left), right = emit(matrix->right);
+          if (left && right && left->kind == PrimitiveEntry::Input &&
+              right->kind == PrimitiveEntry::Input &&
+              matrix->order == ReductionOrder::BalancedAdjacent &&
+              matrix->separatelyRoundedProducts && ++primitives == 1)
+            result = PrimitiveEntry{PrimitiveEntry::Matrix, left->left, right->left};
+        } else if (const auto *call = std::get_if<FunctionCall>(&node.operation)) {
+          std::vector<PrimitiveEntry> arguments;
+          for (auto argument : call->arguments) {
+            auto input = emit(argument);
+            if (!input)
+              return {};
+            arguments.push_back(*input);
+          }
+          result = invoke(call->function, arguments);
+        }
+        if (result)
+          values.emplace(value, *result);
+        return result;
+      };
+      // Inspect every statement, including unused bindings. Do not discard an
+      // extra reduction, allocation or unsupported operation to fit one launch.
+      for (const auto &statement : fn.body) {
+        auto value = emit(statement.value);
+        if (!value)
+          return {};
+        if (statement.binding)
+          symbols[*statement.binding] = *value;
+      }
+      auto result = emit(fn.result);
+      active.erase(id);
+      return result;
+    };
+    std::vector<PrimitiveEntry> arguments;
+    for (std::size_t i = 0; i < entry.parameters.size(); ++i)
+      arguments.push_back({PrimitiveEntry::Input, i, 0});
+    auto result = invoke(root, arguments);
+    if (result && primitives == 1 &&
+        ((sumSignature && result->kind == PrimitiveEntry::Sum) ||
+         (matrixSignature && result->kind == PrimitiveEntry::Matrix)))
+      cached = result;
+    return cached;
   }
   bool reduction(std::size_t function) const {
-    const auto &fn = cpu.functions[function];
-    if (fn.resultType.tensor || fn.parameters.size() != 1 ||
-        (cpu.symbols[fn.parameters[0]].type.shape.size() != 1 &&
-         cpu.symbols[fn.parameters[0]].type.shape.size() != 2) ||
-        fn.body.size() != 1 || fn.body[0].binding)
-      return false;
-    auto *sum = std::get_if<ReduceSum>(&cpu.expressions[numericalResult(fn)].operation);
-    if (!sum || sum->order != ReductionOrder::BalancedAdjacent || !sum->rowMajor)
-      return false;
-    auto *input = std::get_if<SymbolRead>(&cpu.expressions[sum->input].operation);
-    return input && input->symbol == fn.parameters[0];
+    auto entry = primitiveEntry(function);
+    return entry && entry->kind == PrimitiveEntry::Sum;
   }
   bool matrixFunction(std::size_t function) const {
-    const auto &fn = cpu.functions[function];
-    if (!fn.resultType.tensor || fn.resultType.shape.size() != 2 || fn.parameters.size() != 2 ||
-        fn.body.size() != 1 || fn.body[0].binding)
-      return false;
-    if (cpu.symbols[fn.parameters[0]].type.shape.size() != 2 ||
-        cpu.symbols[fn.parameters[1]].type.shape.size() != 2)
-      return false;
-    auto *product = std::get_if<Matmul>(&cpu.expressions[numericalResult(fn)].operation);
-    if (!product || product->order != ReductionOrder::BalancedAdjacent ||
-        !product->separatelyRoundedProducts)
-      return false;
-    auto *left = std::get_if<SymbolRead>(&cpu.expressions[product->left].operation);
-    auto *right = std::get_if<SymbolRead>(&cpu.expressions[product->right].operation);
-    return left && right && left->symbol == fn.parameters[0] && right->symbol == fn.parameters[1];
+    auto entry = primitiveEntry(function);
+    return entry && entry->kind == PrimitiveEntry::Matrix;
   }
   std::map<std::string, FunctionId> hostOperations;
   ExtentId hostExtent = 0;
@@ -604,8 +676,7 @@ class Compiler {
     const bool sum = reduction(function);
     const bool matrix = matrixFunction(function);
     if (!entryFunction.resultType.tensor && !sum)
-      reject(span,
-             "GPU scalar entries currently require a direct reduceSum of one tensor parameter");
+      reject(span, "GPU scalar entries currently require one reduceSum with forwarding helpers");
     std::vector<Value> tensors, scalars;
     for (std::size_t i = 0; i < inputs.size(); ++i) {
       const auto &value = inputs[i];
@@ -636,6 +707,11 @@ class Compiler {
       if (!value.gpu || value.device != target.device)
         reject(span, "GPU arguments must be explicitly transferred to the selected device");
     auto left = tensors[reads.front()], right = tensors.back();
+    if (auto entry = primitiveEntry(function); entry && (sum || matrix)) {
+      left = tensors.at(entry->left);
+      if (matrix)
+        right = tensors.at(entry->right);
+    }
     // Parameter extent identities already include transitive helper obligations.
     auto locate = [&](const Extent &wanted) -> std::pair<std::size_t, unsigned> {
       std::size_t tensor = 0;

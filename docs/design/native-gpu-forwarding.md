@@ -1,0 +1,42 @@
+# GPU reduction and matrix forwarding helpers
+
+Reduction and matrix entry functions can use immutable local bindings and call ordinary forwarding helpers. Those helpers can come from other modules:
+
+```kalandra
+fn product(input: Tensor[float32, ?, ?], weights: Tensor[float32, ?, ?]) -> Tensor[float32, ?, ?]:
+  left = input
+  right = weights
+  result = matmul(left, right)
+  result
+
+fn project(input: Tensor[float32, 2, 3], weights: Tensor[float32, 3, 2]) -> Tensor[float32, 2, 2]:
+  product(input, weights)
+
+fn total(values: Tensor[float32, ?, ?]) -> float32:
+  result = reduceSum(values)
+  result
+```
+
+After explicitly transferring the inputs, `spawn project(input, weights) on devices.gpu()` performs one matrix calculation. `spawn total(result) on devices.gpu()` performs one reduction. Forwarding calls do not introduce extra GPU tasks or download data to run a helper on CPU.
+
+## Operand identity and shapes
+
+The compiler follows each operand through bindings and calls rather than assuming it is the entry's first or second argument. A wrapper may reverse its argument order, pass the same tensor twice, or forward its result through an identity function. For example, a function taking `(weights, input)` can call `project(input, weights)` and still produce `input × weights` with the correct output shape.
+
+Fixed and mixed shape annotations retain the [existing host-side preflight](native-gpu-fixed-shapes.md). Parameter, helper and result constraints are checked before admitting the numerical kernel. Imports preserve private helper lookup and source contracts.
+
+## Current boundary
+
+The entry must resolve to exactly one supported `reduceSum` or `matmul`. The reduction entry still takes one rank-one/rank-two float32 tensor. The matrix entry still takes two rank-two float32 tensors. Forwarding helpers can pass those tensors or the completed scalar/matrix result through bindings and calls, including checked shape nodes.
+
+The compiler inspects every statement, including unused bindings. A second reduction or matrix operation is not discarded to make the entry fit one launch. Arithmetic around the operation, such as `reduceSum(values * 2)` or `reduceSum(values) + 1`, remains outside this subset. Write separate placed stages for now. General numerical graph composition remains work for a later increment.
+
+Recursive forwarding, arbitrary control flow and unsupported operations remain diagnostic. Analysis has explicit work and call-depth limits; reaching a limit rejects the program before publishing artifacts. This does not add callable-value dispatch, new element types, implicit transfers, device-side task coordination or a numerical-policy change.
+
+## Lowering and qualification
+
+A bounded symbolic pass tracks input identities and the single numerical operation through the checked CPU helper graph. It preserves source argument evaluation order in the supervisor and selects the corresponding retained buffers for the existing runtime launch. The shared shape preconditions, strict arithmetic lowering, shader interfaces and runtime ownership are reused.
+
+The [three-file fixture](../../native/metal-source/forwarding/main.k) exercises aliases, imported/private helpers, reordered matrix parameters, repeated operands with a different unused input, scalar result forwarding and cached task observations. Qualification also covers empty and negative-zero singleton reductions, dynamic shape failures, relocated bundles, unsupported extra computations and bounded expansion. Wrapped kernels are compared byte-for-byte with their direct equivalents.
+
+See the [qualification record](../../native/metal-proof/evidence/gpu-forwarding-2026-10-20.json) for modes, counts and source/artifact hashes.

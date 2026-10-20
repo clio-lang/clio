@@ -29,11 +29,11 @@ fn calculate(values: Tensor[float32, ?]) -> Tensor[float32, ?]:
 
 A GPU call to `calculate` must receive three elements. The host validates that requirement before dispatching; the shader does not silently erase the local binding's shape check. Fixed result annotations on supported matrix functions similarly constrain the corresponding input dimensions before execution.
 
-This uses the existing straight-line GPU numerical subset and the shared frontend's shape-precondition analysis. It does not add arbitrary shape-dependent control flow, tensor construction inside shaders, or general reduction/matrix expression composition. Unsupported bodies retain diagnostics. Existing float32, rank-one/rank-two, residency and numerical policies remain unchanged.
+This uses the existing straight-line GPU numerical subset and the shared frontend's shape-precondition analysis. [Reduction/matrix forwarding helpers](native-gpu-forwarding.md) now preserve aliases and calls around one operation. This does not add arbitrary shape-dependent control flow, tensor construction inside shaders, or general reduction/matrix expression composition. Unsupported bodies retain diagnostics. Existing float32, rank-one/rank-two, residency and numerical policies remain unchanged.
 
 ## Lowering and qualification
 
-The Metal backend checks fixed parameter dimensions alongside inferred equality/constant requirements. Its lane lowering consumes checked shape nodes after the host has validated those preconditions. The direct matrix recognizer can see the numerical operation beneath a result shape check. No new numerical kernel or shader ABI is introduced: equivalent fixed/dynamic annotations produce identical raw GPU MLIR, strict-lowered MLIR and Metal shader sources in the qualification fixture.
+The Metal backend checks fixed parameter dimensions alongside inferred equality/constant requirements. Its lane lowering consumes checked shape nodes after the host has validated those preconditions. The matrix entry analysis can see the numerical operation beneath a result shape check and through forwarding helpers. No new numerical kernel or shader ABI is introduced: equivalent fixed/dynamic annotations produce identical raw GPU MLIR, strict-lowered MLIR and Metal shader sources in the qualification fixture.
 
 The [source fixture](../../native/metal-source/fixed-shapes/main.k) combines imported vector helpers, mixed-shape matrix multiplication, reduction, empty tensors, checked local bindings, result annotations and unused inputs. Separate failure programs exercise each contract without letting an earlier failure hide a missing later guard.
 
