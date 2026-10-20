@@ -460,3 +460,14 @@ if(BUILD_TESTING)
       RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
   endforeach()
 endif()
+
+if(BUILD_TESTING)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-capabilities COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/CapabilityTests.py"
+      --compiler "$<TARGET_FILE:${COMPILER_TARGET}>" --checker "$<TARGET_FILE:kalandra-check>"
+      --root "${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-capabilities")
+    set_tests_properties(${COMPILER_TARGET}-capabilities PROPERTIES TIMEOUT 120)
+  endforeach()
+endif()

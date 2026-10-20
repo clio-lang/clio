@@ -67,7 +67,7 @@ checkout needs an explicit install first.
 Each library retains its private dependency versions in CPU workers and GPU
 helpers. Relative imports and re-exports retain that owner too. The same eligible
 numerical function can run in a CPU worker or be dispatched on a GPU; importing it
-does not broaden the supported GPU type/operation subset. Installed sources and
+does not broaden the [supported GPU type/operation subset](native-gpu-capabilities.md). Installed sources and
 the public lock remain protected from build output. An altered snapshot prevents
 compilation before an existing application is replaced.
 

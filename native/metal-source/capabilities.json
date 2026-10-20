@@ -1,0 +1,290 @@
+{
+  "format": 1,
+  "target": "Apple Metal source bridge",
+  "rows": [
+    {
+      "id": "elementwise",
+      "feature": "Vector elementwise expressions",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "composed.k",
+        "differences.k"
+      ],
+      "notes": "float32; strict +, -, * and composed helpers",
+      "evidence": [
+        "source-gpu-2026-10-15.json"
+      ]
+    },
+    {
+      "id": "matrices",
+      "feature": "Matrix elementwise expressions",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "matrix-elementwise.k"
+      ],
+      "notes": "Rank two; equal complete shapes",
+      "evidence": [
+        "gpu-matrix-elementwise-2026-10-16.json"
+      ]
+    },
+    {
+      "id": "division",
+      "feature": "Tensor division and scalar lifting",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "division.k"
+      ],
+      "notes": "IEEE division, including either scalar operand order",
+      "evidence": [
+        "gpu-division-2026-10-16.json"
+      ]
+    },
+    {
+      "id": "negation",
+      "feature": "Tensor unary signs",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "tensor-negation.k"
+      ],
+      "notes": "float32 vectors and matrices",
+      "evidence": [
+        "gpu-tensor-negation-2026-10-16.json"
+      ]
+    },
+    {
+      "id": "scalar-parameters",
+      "feature": "Mixed scalar and tensor parameters",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "scalar-entry.k"
+      ],
+      "notes": "float32 scalars alongside tensor inputs; scalar-only kernels remain unsupported",
+      "evidence": [
+        "gpu-entry-signatures-2026-10-15.json"
+      ]
+    },
+    {
+      "id": "indirect-arguments",
+      "feature": "High-arity CPU/GPU bridge exports",
+      "scope": "GPU",
+      "status": "rejected",
+      "fixtures": [
+        "indirect-arguments.k",
+        "arguments.k"
+      ],
+      "notes": "The current 29/40-tensor examples exceed the conservative CPU-bridge stack budget; device argument buffers are separately qualified, with no fixed language parameter cap",
+      "evidence": [
+        "gpu-indirect-arguments-2026-10-16.json"
+      ],
+      "diagnostic": "G001",
+      "message": "conservative native stack budget"
+    },
+    {
+      "id": "reduction",
+      "feature": "Balanced reduceSum",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "matrix-reduction.k"
+      ],
+      "notes": "Rank one/two inputs; one reduction per entry, including forwarding helpers",
+      "evidence": [
+        "gpu-forwarding-2026-10-20.json"
+      ]
+    },
+    {
+      "id": "matmul",
+      "feature": "Matrix multiplication",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "matmul.k"
+      ],
+      "notes": "Rank two; one matmul per entry, including forwarding helpers",
+      "evidence": [
+        "gpu-forwarding-2026-10-20.json"
+      ]
+    },
+    {
+      "id": "dispatch-graph",
+      "feature": "Composed numerical dispatches",
+      "scope": "Host",
+      "status": "supported",
+      "fixtures": [
+        "matrix-pipeline.k"
+      ],
+      "notes": "Separate GPU calls for matmul, elementwise adjustment and reduction; intermediates remain resident",
+      "evidence": [
+        "gpu-forwarding-2026-10-20.json"
+      ]
+    },
+    {
+      "id": "forwarding",
+      "feature": "Primitive forwarding and re-exports",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "forwarding/main.k"
+      ],
+      "notes": "Aliases and transitive helpers retain shape obligations and one-primitive entry rules",
+      "evidence": [
+        "gpu-forwarding-2026-10-20.json"
+      ]
+    },
+    {
+      "id": "modules",
+      "feature": "Relative modules and re-exports",
+      "scope": "Host",
+      "status": "supported",
+      "fixtures": [
+        "modules/main.k"
+      ],
+      "notes": "Numerical helpers and coordinators retain declaring-file scope",
+      "evidence": [
+        "gpu-local-modules-2026-10-20.json"
+      ]
+    },
+    {
+      "id": "cpu-workers",
+      "feature": "CPU workers inside a Metal program",
+      "scope": "Host",
+      "status": "supported",
+      "fixtures": [
+        "cpu-spawn.k"
+      ],
+      "notes": "Qualified mixed-target float32 scalar/tensor subset; explicit transfers",
+      "evidence": [
+        "cpu-spawn-2026-10-16.json"
+      ]
+    },
+    {
+      "id": "nested-groups",
+      "feature": "Nested parallel groups",
+      "scope": "Host",
+      "status": "supported",
+      "fixtures": [
+        "nested-parallel.k"
+      ],
+      "notes": "Shared scheduler, explicit residence and scope settlement",
+      "evidence": [
+        "nested-parallel-2026-10-16.json"
+      ]
+    },
+    {
+      "id": "recovery",
+      "feature": "TaskError recovery",
+      "scope": "Host",
+      "status": "supported",
+      "fixtures": [
+        "recovery.k"
+      ],
+      "notes": "Host catch/match and group settlement; no shader exception handling",
+      "evidence": [
+        "recovery-2026-10-16.json"
+      ]
+    },
+    {
+      "id": "coordinators",
+      "feature": "Coordinating helper functions",
+      "scope": "Host",
+      "status": "supported",
+      "fixtures": [
+        "resumable-helpers.k"
+      ],
+      "notes": "Statically known helper continuations; no general GPU closure dispatch",
+      "evidence": [
+        "resumable-helpers-2026-10-16.json"
+      ]
+    },
+    {
+      "id": "other-numeric",
+      "feature": "Other CPU numeric widths on GPU",
+      "scope": "GPU",
+      "status": "rejected",
+      "fixtures": [
+        "capabilities/numeric-int8.k",
+        "capabilities/numeric-uint8.k",
+        "capabilities/numeric-int16.k",
+        "capabilities/numeric-uint16.k",
+        "capabilities/numeric-int32.k",
+        "capabilities/numeric-uint32.k",
+        "capabilities/numeric-int64.k",
+        "capabilities/numeric-uint64.k",
+        "capabilities/numeric-float64.k"
+      ],
+      "notes": "All nine CPU numeric types other than float32 are rejected; no implicit conversion or CPU fallback",
+      "diagnostic": "G00[13]"
+    },
+    {
+      "id": "rank-three",
+      "feature": "Rank-three device tensors",
+      "scope": "GPU",
+      "status": "rejected",
+      "fixtures": [
+        "capabilities/rank-three.k"
+      ],
+      "notes": "Current source bridge admits ranks one and two",
+      "diagnostic": "G00[13]"
+    },
+    {
+      "id": "scalar-only",
+      "feature": "Scalar-only GPU functions",
+      "scope": "GPU",
+      "status": "rejected",
+      "fixtures": [
+        "capabilities/scalar-only.k"
+      ],
+      "notes": "Scalar parameters are supported alongside tensors; arbitrary scalar GPU entries are not",
+      "diagnostic": "G00[13]"
+    },
+    {
+      "id": "reduce-expression",
+      "feature": "Arithmetic fused into a reduction entry",
+      "scope": "GPU",
+      "status": "rejected",
+      "fixtures": [
+        "capabilities/reduce-expression.k"
+      ],
+      "notes": "Use separate elementwise and reduction dispatches; no fused arithmetic/reduction entry yet",
+      "diagnostic": "G00[13]"
+    },
+    {
+      "id": "post-reduction",
+      "feature": "Arithmetic after a reduction inside one entry",
+      "scope": "GPU",
+      "status": "rejected",
+      "fixtures": [
+        "capabilities/post-reduction.k"
+      ],
+      "notes": "A scalar GPU result currently requires a single forwarded reduceSum",
+      "diagnostic": "G00[13]"
+    },
+    {
+      "id": "branch",
+      "feature": "Data-dependent kernel branches",
+      "scope": "GPU",
+      "status": "rejected",
+      "fixtures": [
+        "capabilities/branch.k"
+      ],
+      "notes": "Host control flow is distinct from data-dependent shader control flow",
+      "diagnostic": "G00[13]"
+    },
+    {
+      "id": "post-matmul",
+      "feature": "Arithmetic fused into a matmul entry",
+      "scope": "GPU",
+      "status": "rejected",
+      "fixtures": [
+        "capabilities/post-matmul.k"
+      ],
+      "notes": "Use separate matmul and elementwise dispatches; general one-entry composition is pending",
+      "diagnostic": "G001"
+    }
+  ]
+}

@@ -1,5 +1,11 @@
 # Apple GPU backend contract
 
+For the current end-to-end source contract, see the
+[test-backed capability matrix](native-gpu-capabilities.md). Historical numerical
+proofs below remain separate from current source admission. In particular,
+[GPU-HOST-001](native-gpu-capabilities.md#gpu-host-001-high-arity-source-admission-regression)
+tracks the CPU-bridge stack-budget rejection of older high-arity source examples.
+
 Status: executable shader toolchain evidence, managed device/transfer/compute tasks, and a first optional source-to-Metal compiler slice. Apple Silicon/Metal is the first GPU target; NVIDIA/CUDA on Windows follows under a [separate roadmap](../native-cuda-roadmap.md), excluded from Apple/main-roadmap completion. Metal source support is an optional native compiler target; the released JavaScript prototype is unchanged.
 
 This implements the direction in [placement and transfers](placement.md), [tensor semantics](tensors.md), and [numeric semantics](numbers.md). Those language contracts remain authoritative. The [Metal toolchain proof](../../native/metal-proof/README.md) now executes generated shaders on an Apple M2 Max; its direct hardware path exposes a strict float32 compatibility gap. A separate [integer lowering](strict-gpu-float32.md) now passes scalar add/multiply conformance on that device.
