@@ -52,8 +52,13 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
     for name in ("kalandra-metal-strict", "kalandra-metal-extract"):
         assert os.access(resources / name, os.X_OK)
         assert run(["lipo", "-archs", resources / name], cwd).stdout.strip() == "arm64"
+    assert not (prefix / "bin/kalandrac").exists()
     compiler = cwd / "compiler symlink"
-    compiler.symlink_to(prefix / "bin/kalandrac")
+    compiler.symlink_to(prefix / "bin/kalandra")
+    starter = cwd / "installed starter"
+    run([compiler, "new", starter], cwd)
+    run([compiler, "--project", starter / "kalandra.toml", "-o", cwd / "starter program"], cwd)
+    assert run([cwd / "starter program"], cwd).stdout.strip() == "[2, 4, 6]"
     (cwd / "cpu.k").write_text("fn main() -> int:\n  42\n")
     run([compiler, cwd / "cpu.k", "-o", cwd / "cpu"], cwd)
     assert run([cwd / "cpu"], cwd).stdout.strip() == "42"

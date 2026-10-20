@@ -82,7 +82,7 @@ Compute tests also cover incompatible fixed-capacity artifacts, invalid paths/de
 
 The [recorded compute evidence](../metal-proof/evidence/managed-compute-2026-10-15.json) identifies the tested sources, generated artifacts, toolchain, comparison counts, and complete 68-test run.
 
-The [common compiler and CPU tensor ABI](../../docs/design/apple-gpu.md#common-compiler-entry-and-cpu-tensor-abi) documents `kalandrac --target metal`, ranked descriptors, retained CPU allocation leases, full-backing byte charges for imported views, and checked copies of downloaded results into CPU invocation storage. Nonempty imports validate actual allocation membership and bounds before payload access. A retained alias survives its source invocation; a copied CPU export survives the GPU group and buffers. These are trusted immutable compiler/runtime values, not a public mutable native-pointer API.
+The [common compiler and CPU tensor ABI](../../docs/design/apple-gpu.md#common-compiler-entry-and-cpu-tensor-abi) documents `kalandra --target metal`, ranked descriptors, retained CPU allocation leases, full-backing byte charges for imported views, and checked copies of downloaded results into CPU invocation storage. Nonempty imports validate actual allocation membership and bounds before payload access. A retained alias survives its source invocation; a copied CPU export survives the GPU group and buffers. These are trusted immutable compiler/runtime values, not a public mutable native-pointer API.
 
 ## Source kernel signatures
 

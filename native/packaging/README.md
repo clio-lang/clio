@@ -31,7 +31,7 @@ is preserved as such; this development package is not a qualified release.
 `.sha256` checksum. Checksums detect accidental changes, not publisher identity;
 these packages are not signed or notarized.
 
-The package does not include `kalandrac`, generated-program runtimes, GPU tools,
+The package does not include `kalandra`, generated-program runtimes, GPU tools,
 or a VS Code extension. Compiler/runtime distribution remains a separate step.
 No source checkout, Bun, Node or Python is needed to run these native tools.
 They preserve the compiler's documented language, synchronous analysis and

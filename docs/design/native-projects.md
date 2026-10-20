@@ -1,5 +1,7 @@
 # Native project manifests
 
+Use [`kalandra new directory`](native-starter.md) to generate a two-module parallel starter, or write an explicit manifest as below.
+
 Use an explicit native TOML manifest to record the root source file and local library entries. Both the compiler and checker accept `--project path/to/kalandra.toml`.
 
 `geometry.k`:
@@ -39,7 +41,7 @@ Check, compile and run:
 
 ```sh
 build/native/native/kalandra-check --project path/to/kalandra.toml
-build/native/native/kalandrac --project path/to/kalandra.toml -o program
+build/native/native/kalandra --project path/to/kalandra.toml -o program
 ./program
 ```
 

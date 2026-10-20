@@ -60,7 +60,7 @@ The development commands are:
 
 ```sh
 build/native/native/kalandra-check path/to/main.k
-build/native/native/kalandrac path/to/main.k -o path/to/program
+build/native/native/kalandra path/to/main.k -o path/to/program
 ```
 
 `kalandra-parse` remains a single-file syntax tool; parsing import syntax alone does not load dependencies. In-memory users of the frontend must call `loadModules` before checking a graph. `check(parse(source))` rejects unresolved imports.

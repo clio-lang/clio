@@ -29,7 +29,7 @@ fn main() -> float32 ! TaskError:
 
 ```sh
 build/native/native/kalandra-check --placement main.k
-build/native/native/kalandrac main.k --target metal -o build/app
+build/native/native/kalandra main.k --target metal -o build/app
 ./build/app/program
 ```
 
@@ -53,7 +53,7 @@ entry = "main.k"
 math = "math.k"
 ```
 
-With this mapping, the import becomes `from "math" import scale`. Compile using `kalandrac --project kalandra.toml --target metal -o build/app`. Manifest paths resolve from the manifest directory; relative source imports resolve from their declaring file, independently of the compiler's working directory.
+With this mapping, the import becomes `from "math" import scale`. Compile using `kalandra --project kalandra.toml --target metal -o build/app`. Manifest paths resolve from the manifest directory; relative source imports resolve from their declaring file, independently of the compiler's working directory.
 
 ## Target limits and diagnostics
 

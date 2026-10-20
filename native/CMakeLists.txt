@@ -20,7 +20,7 @@ find_package(tomlplusplus 3.4.0 EXACT REQUIRED CONFIG
   HINTS "/opt/homebrew/opt/tomlplusplus/lib/cmake/tomlplusplus")
 get_target_property(KALANDRA_TOML_INCLUDES tomlplusplus::tomlplusplus INTERFACE_INCLUDE_DIRECTORIES)
 # Use the installed headers in header-only mode: compiler distributions need no TOML dylib.
-add_library(kalandra-project STATIC lib/Project.cpp)
+add_library(kalandra-project STATIC lib/Project.cpp lib/Scaffold.cpp)
 target_link_libraries(kalandra-project PUBLIC kalandra-syntax)
 target_include_directories(kalandra-project SYSTEM PRIVATE ${KALANDRA_TOML_INCLUDES})
 target_compile_definitions(kalandra-project PRIVATE TOML_HEADER_ONLY=1 TOML_ENABLE_UNRELEASED_FEATURES=0)
@@ -38,7 +38,7 @@ if(BUILD_TESTING)
   target_include_directories(kalandra-syntax-sanitized PUBLIC include)
   target_compile_options(kalandra-syntax-sanitized PRIVATE -Wall -Wextra -Werror
     -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
-  add_library(kalandra-project-sanitized STATIC lib/Project.cpp)
+  add_library(kalandra-project-sanitized STATIC lib/Project.cpp lib/Scaffold.cpp)
   target_link_libraries(kalandra-project-sanitized PUBLIC kalandra-syntax-sanitized)
   target_include_directories(kalandra-project-sanitized SYSTEM PRIVATE ${KALANDRA_TOML_INCLUDES})
   target_compile_definitions(kalandra-project-sanitized PRIVATE TOML_HEADER_ONLY=1 TOML_ENABLE_UNRELEASED_FEATURES=0)
@@ -142,16 +142,16 @@ add_library(kalandra-native-runtime-thread-sanitized STATIC runtime/Runtime.cpp 
 target_link_libraries(kalandra-native-runtime-thread-sanitized PUBLIC Threads::Threads)
 target_compile_options(kalandra-native-runtime-thread-sanitized PRIVATE -Wall -Wextra -Werror -O1 -g
   -fsanitize=thread -fno-omit-frame-pointer)
-add_executable(kalandrac tools/compile.cpp)
-target_include_directories(kalandrac SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
-target_link_libraries(kalandrac PRIVATE kalandra-backend kalandra-project LLVM MLIR)
-target_compile_options(kalandrac PRIVATE -Wall -Wextra -Werror)
-target_compile_definitions(kalandrac PRIVATE
+add_executable(kalandra tools/compile.cpp)
+target_include_directories(kalandra SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
+target_link_libraries(kalandra PRIVATE kalandra-backend kalandra-project LLVM MLIR)
+target_compile_options(kalandra PRIVATE -Wall -Wextra -Werror)
+target_compile_definitions(kalandra PRIVATE
   KALANDRA_CLANGXX="${CMAKE_CXX_COMPILER}"
   KALANDRA_RUNTIME="$<TARGET_FILE:kalandra-native-runtime>"
   KALANDRA_SANITIZED_RUNTIME="$<TARGET_FILE:kalandra-native-runtime-sanitized>"
   KALANDRA_THREAD_SANITIZED_RUNTIME="$<TARGET_FILE:kalandra-native-runtime-thread-sanitized>")
-add_dependencies(kalandrac kalandra-native-runtime kalandra-native-runtime-sanitized kalandra-native-runtime-thread-sanitized)
+add_dependencies(kalandra kalandra-native-runtime kalandra-native-runtime-sanitized kalandra-native-runtime-thread-sanitized)
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug optimized sanitized)
     if(VARIANT STREQUAL "sanitized")
@@ -160,7 +160,7 @@ if(BUILD_TESTING)
       set(SOURCE_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
     endif()
     add_test(NAME native-source-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>" "-DCLANGXX=${CMAKE_CXX_COMPILER}"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>" "-DCLANGXX=${CMAKE_CXX_COMPILER}"
         "-DFIXTURE=${PROJECT_SOURCE_DIR}/docs/design/fixtures/cpu-projection.k"
         "-DHARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/NativeHarness.cpp"
         "-DRUNTIME=${SOURCE_RUNTIME}" "-DVARIANT=${VARIANT}"
@@ -210,7 +210,7 @@ endif()
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
     add_test(NAME native-source-tasks-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
         "-DFIXTURES=${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures" "-DVARIANT=${VARIANT}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/source-tasks-${VARIANT}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifySourceTasks.cmake")
@@ -221,7 +221,7 @@ endif()
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
     add_test(NAME native-task-recovery-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
         "-DFIXTURES=${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures" "-DVARIANT=${VARIANT}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/task-recovery-${VARIANT}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyTaskRecovery.cmake")
@@ -251,7 +251,7 @@ endif()
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
     add_test(NAME native-compiled-workers-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>" "-DCLANGXX=${CMAKE_CXX_COMPILER}"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>" "-DCLANGXX=${CMAKE_CXX_COMPILER}"
         "-DSOURCE_ROOT=${PROJECT_SOURCE_DIR}" "-DVARIANT=${VARIANT}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/compiled-workers-${VARIANT}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyCompiledWorkers.cmake")
@@ -358,7 +358,7 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-  add_test(NAME native-explicit-shape-cli COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+  add_test(NAME native-explicit-shape-cli COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
     "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/explicit-shape-cli"
     -P "${PROJECT_SOURCE_DIR}/native/cmake/VerifyExplicitShapes.cmake")
   set_tests_properties(native-explicit-shape-cli PROPERTIES TIMEOUT 90)
@@ -430,11 +430,11 @@ foreach(VARIANT IN ITEMS debug sanitized thread-sanitized)
     target_compile_options(kalandra-int32-entry-${VARIANT} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
   endif()
 endforeach()
-target_compile_definitions(kalandrac PRIVATE
+target_compile_definitions(kalandra PRIVATE
   KALANDRA_INT32_ENTRY="$<TARGET_FILE:kalandra-int32-entry-debug>"
   KALANDRA_INT32_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-int32-entry-sanitized>"
   KALANDRA_INT32_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-int32-entry-thread-sanitized>")
-add_dependencies(kalandrac kalandra-int32-entry-debug kalandra-int32-entry-sanitized kalandra-int32-entry-thread-sanitized)
+add_dependencies(kalandra kalandra-int32-entry-debug kalandra-int32-entry-sanitized kalandra-int32-entry-thread-sanitized)
 
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug sanitized)
@@ -460,7 +460,7 @@ if(BUILD_TESTING)
       set(INT32_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
     endif()
     add_test(NAME native-int32-runtime-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INT32_RUNTIME}" "-DVARIANT=${VARIANT}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/int32-${VARIANT}"
         "-DHARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/Int32RuntimeTests.cpp"
@@ -472,7 +472,7 @@ endif()
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
     add_test(NAME native-int32-tasks-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>" "-DVARIANT=${VARIANT}"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>" "-DVARIANT=${VARIANT}"
         "-DFIXTURES=${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/int32-tasks-${VARIANT}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyInt32Tasks.cmake")
@@ -490,7 +490,7 @@ if(BUILD_TESTING)
       set(INT32_TENSOR_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
     endif()
     add_test(NAME native-int32-tensors-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INT32_TENSOR_RUNTIME}" "-DVARIANT=${VARIANT}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/int32-tensors-${VARIANT}"
         "-DHARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/Int32TensorRuntimeTests.cpp"
@@ -509,7 +509,7 @@ if(BUILD_TESTING)
       set(INT32_HANDOFF_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
     endif()
     add_test(NAME native-int32-tensor-tasks-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INT32_HANDOFF_RUNTIME}"
         "-DOPT_RUNTIME=$<TARGET_FILE:kalandra-task-core-optimized>" "-DVARIANT=${VARIANT}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/int32-tensor-tasks-${VARIANT}"
@@ -530,7 +530,7 @@ if(BUILD_TESTING)
       set(INT32_REDUCTION_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
     endif()
     add_test(NAME native-int32-reductions-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INT32_REDUCTION_RUNTIME}"
         "-DVARIANT=${VARIANT}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/int32-reductions-${VARIANT}"
@@ -538,7 +538,7 @@ if(BUILD_TESTING)
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyInt32Reductions.cmake")
     set_tests_properties(native-int32-reductions-${VARIANT} PROPERTIES TIMEOUT 240)
     add_test(NAME native-uint32-reductions-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INT32_REDUCTION_RUNTIME}"
         "-DVARIANT=${VARIANT}" "-DNUMERIC_TYPE=uint32"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/uint32-reductions-${VARIANT}"
@@ -558,7 +558,7 @@ if(BUILD_TESTING)
       set(INT32_MATMUL_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
     endif()
     add_test(NAME native-int32-matmul-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INT32_MATMUL_RUNTIME}"
         "-DVARIANT=${VARIANT}" "-DOPT_RUNTIME=$<TARGET_FILE:kalandra-task-core-optimized>"
         "-DTASK_HARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/Int32TensorTaskTests.cpp"
@@ -567,7 +567,7 @@ if(BUILD_TESTING)
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyInt32Matmul.cmake")
     set_tests_properties(native-int32-matmul-${VARIANT} PROPERTIES TIMEOUT 240)
     add_test(NAME native-uint32-matmul-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INT32_MATMUL_RUNTIME}"
         "-DVARIANT=${VARIANT}" "-DNUMERIC_TYPE=uint32"
         "-DOPT_RUNTIME=$<TARGET_FILE:kalandra-task-core-optimized>"
@@ -589,11 +589,11 @@ foreach(VARIANT IN ITEMS debug sanitized thread-sanitized)
     target_compile_options(kalandra-uint32-entry-${VARIANT} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
   endif()
 endforeach()
-target_compile_definitions(kalandrac PRIVATE
+target_compile_definitions(kalandra PRIVATE
   KALANDRA_UINT32_ENTRY="$<TARGET_FILE:kalandra-uint32-entry-debug>"
   KALANDRA_UINT32_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-uint32-entry-sanitized>"
   KALANDRA_UINT32_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-uint32-entry-thread-sanitized>")
-add_dependencies(kalandrac kalandra-uint32-entry-debug kalandra-uint32-entry-sanitized kalandra-uint32-entry-thread-sanitized)
+add_dependencies(kalandra kalandra-uint32-entry-debug kalandra-uint32-entry-sanitized kalandra-uint32-entry-thread-sanitized)
 
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug sanitized)
@@ -619,7 +619,7 @@ if(BUILD_TESTING)
       set(UINT32_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
     endif()
     add_test(NAME native-uint32-runtime-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${UINT32_RUNTIME}" "-DVARIANT=${VARIANT}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/uint32-${VARIANT}"
         "-DHARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/UInt32RuntimeTests.cpp"
@@ -637,7 +637,7 @@ if(BUILD_TESTING)
       set(UINT32_TENSOR_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
     endif()
     add_test(NAME native-uint32-tensors-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${UINT32_TENSOR_RUNTIME}" "-DVARIANT=${VARIANT}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/uint32-tensors-${VARIANT}"
         "-DHARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/UInt32TensorRuntimeTests.cpp"
@@ -655,7 +655,7 @@ if(BUILD_TESTING)
       set(UINT32_HANDOFF_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
     endif()
     add_test(NAME native-uint32-tensor-tasks-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${UINT32_HANDOFF_RUNTIME}"
         "-DOPT_RUNTIME=$<TARGET_FILE:kalandra-task-core-optimized>" "-DVARIANT=${VARIANT}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/uint32-tensor-tasks-${VARIANT}"
@@ -675,11 +675,11 @@ foreach(VARIANT IN ITEMS debug sanitized thread-sanitized)
     target_compile_options(kalandra-int64-entry-${VARIANT} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
   endif()
 endforeach()
-target_compile_definitions(kalandrac PRIVATE
+target_compile_definitions(kalandra PRIVATE
   KALANDRA_INT64_ENTRY="$<TARGET_FILE:kalandra-int64-entry-debug>"
   KALANDRA_INT64_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-int64-entry-sanitized>"
   KALANDRA_INT64_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-int64-entry-thread-sanitized>")
-add_dependencies(kalandrac kalandra-int64-entry-debug kalandra-int64-entry-sanitized kalandra-int64-entry-thread-sanitized)
+add_dependencies(kalandra kalandra-int64-entry-debug kalandra-int64-entry-sanitized kalandra-int64-entry-thread-sanitized)
 
 
 if(BUILD_TESTING)
@@ -706,7 +706,7 @@ if(BUILD_TESTING)
       set(INT64_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
     endif()
     add_test(NAME native-int64-runtime-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INT64_RUNTIME}" "-DVARIANT=${VARIANT}" "-DNUMERIC_TYPE=int64"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/int64-${VARIANT}"
         "-DHARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/Int32RuntimeTests.cpp"
@@ -719,7 +719,7 @@ endif()
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
     add_test(NAME native-int64-tasks-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>" "-DVARIANT=${VARIANT}" "-DNUMERIC_TYPE=int64"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>" "-DVARIANT=${VARIANT}" "-DNUMERIC_TYPE=int64"
         "-DFIXTURES=${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/int64-tasks-${VARIANT}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyInt32Tasks.cmake")
@@ -737,11 +737,11 @@ foreach(VARIANT IN ITEMS debug sanitized thread-sanitized)
     target_compile_options(kalandra-uint64-entry-${VARIANT} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
   endif()
 endforeach()
-target_compile_definitions(kalandrac PRIVATE
+target_compile_definitions(kalandra PRIVATE
   KALANDRA_UINT64_ENTRY="$<TARGET_FILE:kalandra-uint64-entry-debug>"
   KALANDRA_UINT64_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-uint64-entry-sanitized>"
   KALANDRA_UINT64_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-uint64-entry-thread-sanitized>")
-add_dependencies(kalandrac kalandra-uint64-entry-debug kalandra-uint64-entry-sanitized kalandra-uint64-entry-thread-sanitized)
+add_dependencies(kalandra kalandra-uint64-entry-debug kalandra-uint64-entry-sanitized kalandra-uint64-entry-thread-sanitized)
 
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug sanitized)
@@ -767,7 +767,7 @@ if(BUILD_TESTING)
       set(UINT64_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
     endif()
     add_test(NAME native-uint64-runtime-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${UINT64_RUNTIME}" "-DVARIANT=${VARIANT}" "-DNUMERIC_TYPE=uint64"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/uint64-${VARIANT}"
         "-DHARNESS_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/UInt32RuntimeTests.cpp"
@@ -787,7 +787,7 @@ if(BUILD_TESTING)
         set(INTEGER64_TENSOR_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
       endif()
       add_test(NAME native-${NUMERIC_TYPE}-tensors-${VARIANT}
-        COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
           "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INTEGER64_TENSOR_RUNTIME}"
           "-DVARIANT=${VARIANT}" "-DNUMERIC_TYPE=${NUMERIC_TYPE}"
           "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/${NUMERIC_TYPE}-tensors-${VARIANT}"
@@ -809,7 +809,7 @@ if(BUILD_TESTING)
         set(INTEGER64_HANDOFF_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
       endif()
       add_test(NAME native-${NUMERIC_TYPE}-tensor-tasks-${VARIANT}
-        COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
           "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INTEGER64_HANDOFF_RUNTIME}"
           "-DOPT_RUNTIME=$<TARGET_FILE:kalandra-task-core-optimized>"
           "-DVARIANT=${VARIANT}" "-DNUMERIC_TYPE=${NUMERIC_TYPE}"
@@ -833,7 +833,7 @@ if(BUILD_TESTING)
         set(INTEGER64_REDUCTION_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
       endif()
       add_test(NAME native-${NUMERIC_TYPE}-reductions-${VARIANT}
-        COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
           "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INTEGER64_REDUCTION_RUNTIME}"
           "-DVARIANT=${VARIANT}" "-DNUMERIC_TYPE=${NUMERIC_TYPE}"
           "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/${NUMERIC_TYPE}-reductions-${VARIANT}"
@@ -855,7 +855,7 @@ if(BUILD_TESTING)
         set(INTEGER64_MATMUL_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
       endif()
       add_test(NAME native-${NUMERIC_TYPE}-matmul-${VARIANT}
-        COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+        COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
           "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${INTEGER64_MATMUL_RUNTIME}"
           "-DOPT_RUNTIME=$<TARGET_FILE:kalandra-task-core-optimized>"
           "-DVARIANT=${VARIANT}" "-DNUMERIC_TYPE=${NUMERIC_TYPE}"
@@ -878,11 +878,11 @@ foreach(VARIANT IN ITEMS debug sanitized thread-sanitized)
     target_compile_options(kalandra-float64-entry-${VARIANT} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
   endif()
 endforeach()
-target_compile_definitions(kalandrac PRIVATE
+target_compile_definitions(kalandra PRIVATE
   KALANDRA_FLOAT64_ENTRY="$<TARGET_FILE:kalandra-float64-entry-debug>"
   KALANDRA_FLOAT64_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-float64-entry-sanitized>"
   KALANDRA_FLOAT64_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-float64-entry-thread-sanitized>")
-add_dependencies(kalandrac kalandra-float64-entry-debug kalandra-float64-entry-sanitized kalandra-float64-entry-thread-sanitized)
+add_dependencies(kalandra kalandra-float64-entry-debug kalandra-float64-entry-sanitized kalandra-float64-entry-thread-sanitized)
 
 if(BUILD_TESTING)
   include(cmake/Float64.cmake)
@@ -947,7 +947,7 @@ if(BUILD_TESTING)
       set(EXT_RUNTIME kalandra-native-runtime)
     endif()
     add_test(NAME native-source-extension-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>" "-DCHECKER=$<TARGET_FILE:kalandra-check>"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>" "-DCHECKER=$<TARGET_FILE:kalandra-check>"
         "-DPARSER=$<TARGET_FILE:kalandra-parse>" "-DVARIANT=${VARIANT}" "-DRUNTIME=$<TARGET_FILE:${EXT_RUNTIME}>"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/source-extension-${VARIANT}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifySourceExtension.cmake")
@@ -985,3 +985,5 @@ include(cmake/Formatter.cmake)
 include(cmake/EditorToolsInstall.cmake)
 include(cmake/CPUCompilerInstall.cmake)
 include(cmake/MetalCompilerInstall.cmake)
+
+include(cmake/Scaffold.cmake)

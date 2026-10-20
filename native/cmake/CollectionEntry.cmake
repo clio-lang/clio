@@ -8,11 +8,11 @@ foreach(VARIANT IN ITEMS debug sanitized thread-sanitized)
     target_compile_options(kalandra-collection-entry-${VARIANT} PRIVATE -O1 -g -fsanitize=thread -fno-omit-frame-pointer)
   endif()
 endforeach()
-target_compile_definitions(kalandrac PRIVATE
+target_compile_definitions(kalandra PRIVATE
   KALANDRA_COLLECTION_ENTRY="$<TARGET_FILE:kalandra-collection-entry-debug>"
   KALANDRA_COLLECTION_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-collection-entry-sanitized>"
   KALANDRA_COLLECTION_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-collection-entry-thread-sanitized>")
-add_dependencies(kalandrac kalandra-collection-entry-debug kalandra-collection-entry-sanitized kalandra-collection-entry-thread-sanitized)
+add_dependencies(kalandra kalandra-collection-entry-debug kalandra-collection-entry-sanitized kalandra-collection-entry-thread-sanitized)
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
     add_executable(kalandra-collection-display-${VARIANT} tests/CollectionDisplayTests.cpp)
@@ -35,7 +35,7 @@ if(BUILD_TESTING)
     target_link_libraries(kalandra-collection-display-${VARIANT} PRIVATE ${DISPLAY_RUNTIME})
     add_test(NAME native-collection-display-${VARIANT} COMMAND kalandra-collection-display-${VARIANT})
     add_test(NAME native-collection-entry-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>" "-DCLANGXX=${CMAKE_CXX_COMPILER}"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>" "-DCLANGXX=${CMAKE_CXX_COMPILER}"
         "-DRUNTIME=$<TARGET_FILE:${DISPLAY_RUNTIME}>" "-DVARIANT=${VARIANT}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/collection-entry-${VARIANT}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyCollectionEntry.cmake")

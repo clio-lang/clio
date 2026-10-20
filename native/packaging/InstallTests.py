@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory(dir=root, prefix="install ") as temporary, temp
     run([cmake, "--install", build, "--config", config, "--prefix", "/kalandra-prefix", "--component", "NativeEditorTools"], cwd, env=env)
     assert all((work / "destdir/kalandra-prefix/bin" / tool).is_file() for tool in tools)
     assert {path.name for path in (direct / "bin").iterdir()} == set(tools)
-    assert not (direct / "bin/kalandrac").exists()
+    assert not (direct / "bin/kalandra").exists()
     project = cwd / "project"
     project.mkdir()
     source = "from \"math\" import double\nfn main() -> int:\n  double(21)\n"

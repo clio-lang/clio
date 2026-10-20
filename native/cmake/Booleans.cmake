@@ -7,11 +7,11 @@ foreach(VARIANT IN ITEMS debug sanitized thread-sanitized)
     target_compile_options(kalandra-bool-entry-${VARIANT} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
   endif()
 endforeach()
-target_compile_definitions(kalandrac PRIVATE
+target_compile_definitions(kalandra PRIVATE
   KALANDRA_BOOL_ENTRY="$<TARGET_FILE:kalandra-bool-entry-debug>"
   KALANDRA_BOOL_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-bool-entry-sanitized>"
   KALANDRA_BOOL_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-bool-entry-thread-sanitized>")
-add_dependencies(kalandrac kalandra-bool-entry-debug kalandra-bool-entry-sanitized kalandra-bool-entry-thread-sanitized)
+add_dependencies(kalandra kalandra-bool-entry-debug kalandra-bool-entry-sanitized kalandra-bool-entry-thread-sanitized)
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug sanitized)
     add_executable(kalandra-boolean-tests-${VARIANT} tests/BooleanTests.cpp)
@@ -36,7 +36,7 @@ if(BUILD_TESTING)
       set(BOOLEAN_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
     endif()
     add_test(NAME native-booleans-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>" "-DCLANGXX=${CMAKE_CXX_COMPILER}"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>" "-DCLANGXX=${CMAKE_CXX_COMPILER}"
         "-DLLVM_ROOT=${KALANDRA_LLVM_ROOT}" "-DRUNTIME=${BOOLEAN_RUNTIME}" "-DVARIANT=${VARIANT}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/booleans-${VARIANT}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyBooleans.cmake")

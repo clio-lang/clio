@@ -20,7 +20,7 @@ def run(command):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compiler', type=pathlib.Path,
-                        default=ROOT / 'build/native/native/kalandrac')
+                        default=ROOT / 'build/native/native/kalandra')
     parser.add_argument('--clang', type=pathlib.Path)
     parser.add_argument('--output', type=pathlib.Path,
                         default=ROOT / f'benchmarks/results/native-cpu-{datetime.date.today().isoformat()}.json')

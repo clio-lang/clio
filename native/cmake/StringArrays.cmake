@@ -11,11 +11,11 @@ foreach(VARIANT IN ITEMS debug sanitized thread-sanitized)
     target_compile_options(kalandra-string-array-entry-${VARIANT} PRIVATE -O1 -g -fsanitize=thread -fno-omit-frame-pointer)
   endif()
 endforeach()
-target_compile_definitions(kalandrac PRIVATE
+target_compile_definitions(kalandra PRIVATE
   KALANDRA_STRING_ARRAY_ENTRY="$<TARGET_FILE:kalandra-string-array-entry-debug>"
   KALANDRA_STRING_ARRAY_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-string-array-entry-sanitized>"
   KALANDRA_STRING_ARRAY_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-string-array-entry-thread-sanitized>")
-add_dependencies(kalandrac kalandra-string-array-entry-debug kalandra-string-array-entry-sanitized kalandra-string-array-entry-thread-sanitized)
+add_dependencies(kalandra kalandra-string-array-entry-debug kalandra-string-array-entry-sanitized kalandra-string-array-entry-thread-sanitized)
 if(BUILD_TESTING)
   foreach(VARIANT IN ITEMS debug sanitized)
     add_executable(kalandra-string-array-tests-${VARIANT} tests/StringArrayTests.cpp)
@@ -43,7 +43,7 @@ if(BUILD_TESTING)
       set(SA_ENTRY kalandra-string-array-entry-debug)
     endif()
     add_test(NAME native-string-arrays-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>" "-DVARIANT=${VARIANT}"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>" "-DVARIANT=${VARIANT}"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=$<TARGET_FILE:${SA_RUNTIME}>"
         "-DENTRY=$<TARGET_FILE:${SA_ENTRY}>"
         "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/string-arrays-${VARIANT}"

@@ -6,7 +6,7 @@ resolves its private shader tools, generated-host headers and runtime archives
 relative to its executable, including symlink invocation.
 
 ```sh
-kalandrac main.k --target metal -O2 -o app
+kalandra main.k --target metal -O2 -o app
 ./app/program
 ```
 

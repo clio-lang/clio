@@ -28,7 +28,7 @@ Check and compile using the same mapping:
 
 ```sh
 build/native/native/kalandra-check main.k --package geometry=geometry/public.k
-build/native/native/kalandrac main.k --package geometry=geometry/public.k -o program
+build/native/native/kalandra main.k --package geometry=geometry/public.k -o program
 ./program
 ```
 

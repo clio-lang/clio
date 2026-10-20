@@ -200,7 +200,7 @@ The [scalar program](../../native/tests/fixtures/task-scalars.k) compiles repeat
 
 ```sh
 cmake --build --preset native
-build/native/native/kalandrac native/tests/fixtures/task-nested.k \
+build/native/native/kalandra native/tests/fixtures/task-nested.k \
   -o build/native/task-nested
 build/native/task-nested
 ctest --preset native
@@ -270,7 +270,7 @@ Generated functions poll at entry and checked call boundaries. Every generated L
 `--sanitize` now marks emitted functions with LLVM's AddressSanitizer attribute as well as linking the ASan/UBSan C++ runtime. The separate `--thread-sanitize` build marks every generated function for ThreadSanitizer and links a TSan-instrumented runtime. The options are mutually exclusive. Passing Clang sanitizer flags to unmarked LLVM input alone is insufficient; the compiled-worker tests also inspect the post-Clang IR for actual ASan/TSan load/store checks. UBSan covers C++ runtime operations; LLVM ASan covers the generated memory accesses.
 
 ```sh
-build/native/native/kalandrac native/tests/fixtures/task-nested.k \
+build/native/native/kalandra native/tests/fixtures/task-nested.k \
   --thread-sanitize -o build/native/task-nested-tsan
 KALANDRA_WORKERS=4 build/native/task-nested-tsan
 ctest --preset native -R 'native-(workers|compiled-workers|source-tasks|task-recovery)'

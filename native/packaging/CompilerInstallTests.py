@@ -36,8 +36,13 @@ with tempfile.TemporaryDirectory(prefix="kalandra cpu install ") as temporary:
         assert (prefix / name).resolve().is_relative_to(prefix.resolve())
         assert digest(prefix / name) == expected
     assert len(list((prefix / "lib/kalandra/native").glob("*.a"))) == 30
+    assert not (prefix / "bin/kalandrac").exists()
     compiler = cwd / "compiler symlink"
-    compiler.symlink_to(prefix / "bin/kalandrac")
+    compiler.symlink_to(prefix / "bin/kalandra")
+    starter = cwd / "installed starter"
+    run([compiler, "new", starter], cwd)
+    run([compiler, "--project", starter / "kalandra.toml", "-o", cwd / "starter program"], cwd)
+    assert run([cwd / "starter program"], cwd).stdout.strip() == "[2, 4, 6]"
     cases = [(kind, "42", "42") for kind in ("int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64")]
     cases += [("float32", "1.5", "1.5"), ("float64", "1.5", "1.5"),
               ("Bool", "true", "true"), ("String", '"hello"', "hello")]

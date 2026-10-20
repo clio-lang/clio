@@ -13,7 +13,7 @@ From the repository root:
 ```sh
 cmake --preset native
 cmake --build --preset native
-build/native/native/kalandrac docs/design/fixtures/cpu-projection.k \
+build/native/native/kalandra docs/design/fixtures/cpu-projection.k \
   -o build/native/projection
 build/native/projection
 ctest --preset native

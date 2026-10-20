@@ -15,7 +15,7 @@ from gpu import ROOT, digest, run
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--compiler', type=pathlib.Path, default=ROOT / 'build/native/native/kalandrac')
+    parser.add_argument('--compiler', type=pathlib.Path, default=ROOT / 'build/native/native/kalandra')
     parser.add_argument('--suite', choices=['initial', 'crossover'], default='initial')
     parser.add_argument('--output', type=pathlib.Path, required=True)
     args = parser.parse_args()

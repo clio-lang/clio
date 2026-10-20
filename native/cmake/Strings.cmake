@@ -10,11 +10,11 @@ foreach(VARIANT IN ITEMS debug sanitized thread-sanitized)
     target_compile_options(kalandra-string-entry-${VARIANT} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
   endif()
 endforeach()
-target_compile_definitions(kalandrac PRIVATE
+target_compile_definitions(kalandra PRIVATE
   KALANDRA_STRING_ENTRY="$<TARGET_FILE:kalandra-string-entry-debug>"
   KALANDRA_STRING_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-string-entry-sanitized>"
   KALANDRA_STRING_THREAD_SANITIZED_ENTRY="$<TARGET_FILE:kalandra-string-entry-thread-sanitized>")
-add_dependencies(kalandrac kalandra-string-entry-debug kalandra-string-entry-sanitized kalandra-string-entry-thread-sanitized)
+add_dependencies(kalandra kalandra-string-entry-debug kalandra-string-entry-sanitized kalandra-string-entry-thread-sanitized)
 if(BUILD_TESTING)
   find_program(KALANDRA_PYTHON3 python3 REQUIRED)
   foreach(VARIANT IN ITEMS debug sanitized)
@@ -55,7 +55,7 @@ if(BUILD_TESTING)
     set_tests_properties(native-strings-runtime-${VARIANT} PROPERTIES TIMEOUT 60)
     add_test(NAME native-strings-${VARIANT}
       COMMAND "${KALANDRA_PYTHON3}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyStrings.py"
-        "$<TARGET_FILE:kalandrac>" "${CMAKE_CXX_COMPILER}" "$<TARGET_FILE:${STRING_RUNTIME}>"
+        "$<TARGET_FILE:kalandra>" "${CMAKE_CXX_COMPILER}" "$<TARGET_FILE:${STRING_RUNTIME}>"
         "${VARIANT}" "${CMAKE_CURRENT_BINARY_DIR}/strings-${VARIANT}" "${CMAKE_CURRENT_SOURCE_DIR}")
     set_tests_properties(native-strings-${VARIANT} PROPERTIES TIMEOUT 180)
   endforeach()
@@ -111,7 +111,7 @@ if(BUILD_TESTING)
     set_tests_properties(native-string-length-runtime-${VARIANT} PROPERTIES TIMEOUT 60)
     add_test(NAME native-string-lengths-${VARIANT}
       COMMAND "${KALANDRA_PYTHON3}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyStringLengths.py"
-        "$<TARGET_FILE:kalandrac>" "${VARIANT}" "${CMAKE_CURRENT_BINARY_DIR}/string-lengths-${VARIANT}" "${CMAKE_CURRENT_SOURCE_DIR}")
+        "$<TARGET_FILE:kalandra>" "${VARIANT}" "${CMAKE_CURRENT_BINARY_DIR}/string-lengths-${VARIANT}" "${CMAKE_CURRENT_SOURCE_DIR}")
     set_tests_properties(native-string-lengths-${VARIANT} PROPERTIES TIMEOUT 180)
   endforeach()
 endif()
@@ -141,7 +141,7 @@ if(BUILD_TESTING)
     set_tests_properties(native-string-index-runtime-${VARIANT} PROPERTIES TIMEOUT 60)
     add_test(NAME native-string-indexing-${VARIANT}
       COMMAND "${KALANDRA_PYTHON3}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyStringIndex.py"
-        "$<TARGET_FILE:kalandrac>" "${VARIANT}" "${CMAKE_CURRENT_BINARY_DIR}/string-index-${VARIANT}" "${CMAKE_CURRENT_SOURCE_DIR}")
+        "$<TARGET_FILE:kalandra>" "${VARIANT}" "${CMAKE_CURRENT_BINARY_DIR}/string-index-${VARIANT}" "${CMAKE_CURRENT_SOURCE_DIR}")
     set_tests_properties(native-string-indexing-${VARIANT} PROPERTIES TIMEOUT 180)
   endforeach()
 endif()
@@ -171,7 +171,7 @@ if(BUILD_TESTING)
     set_tests_properties(native-string-slice-runtime-${VARIANT} PROPERTIES TIMEOUT 60)
     add_test(NAME native-string-slicing-${VARIANT}
       COMMAND "${KALANDRA_PYTHON3}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyStringSlice.py"
-        "$<TARGET_FILE:kalandrac>" "${VARIANT}" "${CMAKE_CURRENT_BINARY_DIR}/string-slice-${VARIANT}" "${CMAKE_CURRENT_SOURCE_DIR}")
+        "$<TARGET_FILE:kalandra>" "${VARIANT}" "${CMAKE_CURRENT_BINARY_DIR}/string-slice-${VARIANT}" "${CMAKE_CURRENT_SOURCE_DIR}")
     set_tests_properties(native-string-slicing-${VARIANT} PROPERTIES TIMEOUT 180)
   endforeach()
 endif()
@@ -185,7 +185,7 @@ if(BUILD_TESTING)
       set(STRING_WORKER_RUNTIME "$<TARGET_FILE:kalandra-native-runtime>")
     endif()
     add_test(NAME native-string-workers-${VARIANT}
-      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandrac>"
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=${STRING_WORKER_RUNTIME}" "-DVARIANT=${VARIANT}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/string-workers-${VARIANT}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyStringWorkers.cmake")

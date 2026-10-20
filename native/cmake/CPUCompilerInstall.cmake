@@ -1,20 +1,20 @@
 # A separately linked CPU driver has install-relative resources and no private
 # Metal source-tool paths. The development driver retains its build-tree resources.
-add_executable(kalandrac-installed tools/compile.cpp)
-set_target_properties(kalandrac-installed PROPERTIES OUTPUT_NAME kalandrac
+add_executable(kalandra-installed tools/compile.cpp)
+set_target_properties(kalandra-installed PROPERTIES OUTPUT_NAME kalandra
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/install-bin")
-target_include_directories(kalandrac-installed SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
-target_link_libraries(kalandrac-installed PRIVATE kalandra-backend kalandra-project LLVM MLIR)
-target_compile_options(kalandrac-installed PRIVATE -Wall -Wextra -Werror)
+target_include_directories(kalandra-installed SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
+target_link_libraries(kalandra-installed PRIVATE kalandra-backend kalandra-project LLVM MLIR)
+target_compile_options(kalandra-installed PRIVATE -Wall -Wextra -Werror)
 file(RELATIVE_PATH KALANDRA_CPU_RUNTIME_RELATIVE
   "${CMAKE_INSTALL_FULL_BINDIR}" "${CMAKE_INSTALL_FULL_LIBDIR}/kalandra/native")
-target_compile_definitions(kalandrac-installed PRIVATE KALANDRA_INSTALLED_COMPILER=1
+target_compile_definitions(kalandra-installed PRIVATE KALANDRA_INSTALLED_COMPILER=1
   KALANDRA_CLANGXX="${CMAKE_CXX_COMPILER}"
   KALANDRA_RUNTIME_RELATIVE_DIR="${KALANDRA_CPU_RUNTIME_RELATIVE}")
 set(KALANDRA_CPU_RUNTIME_TARGETS)
 macro(kalandra_install_runtime MACRO TARGET)
-  target_compile_definitions(kalandrac-installed PRIVATE ${MACRO}="$<TARGET_FILE_NAME:${TARGET}>")
-  add_dependencies(kalandrac-installed ${TARGET})
+  target_compile_definitions(kalandra-installed PRIVATE ${MACRO}="$<TARGET_FILE_NAME:${TARGET}>")
+  add_dependencies(kalandra-installed ${TARGET})
   list(APPEND KALANDRA_CPU_RUNTIME_TARGETS ${TARGET})
   install(TARGETS ${TARGET} ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}/kalandra/native"
     COMPONENT NativeCPUCompiler)
@@ -39,17 +39,17 @@ foreach(VARIANT IN ITEMS debug sanitized thread-sanitized)
     kalandra_install_runtime(KALANDRA_${LABEL}${SUFFIX}_ENTRY kalandra-${STEM}-entry-${VARIANT})
   endforeach()
 endforeach()
-install(TARGETS kalandrac-installed RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+install(TARGETS kalandra-installed RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
   COMPONENT NativeCPUCompiler)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/packaging/CPU-README.md"
   DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/doc/kalandra-native-cpu"
   RENAME README.md COMPONENT NativeCPUCompiler)
-add_custom_target(native-cpu-toolchain DEPENDS kalandrac-installed native-editor-tools)
+add_custom_target(native-cpu-toolchain DEPENDS kalandra-installed native-editor-tools)
 add_custom_target(native-cpu-package
   COMMAND "${CMAKE_COMMAND}" "-DBUILD_DIR=${PROJECT_BINARY_DIR}" "-DCONFIG=$<CONFIG>"
     "-DOUTPUT_DIR=${PROJECT_BINARY_DIR}/native-cpu" -DPACKAGE_CPU=ON
     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackageEditorTools.cmake"
-  DEPENDS kalandrac-installed ${KALANDRA_EDITOR_TOOLS} VERBATIM)
+  DEPENDS kalandra-installed ${KALANDRA_EDITOR_TOOLS} VERBATIM)
 if(BUILD_TESTING)
   add_test(NAME native-cpu-install COMMAND "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/packaging/CompilerInstallTests.py" "${CMAKE_COMMAND}"

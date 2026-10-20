@@ -40,7 +40,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--baseline-llvm', type=pathlib.Path, required=True,
                         help='Saved pre-SIMD LLVM; rebuilt with the same current harness/runtime')
-    parser.add_argument('--compiler', type=pathlib.Path, default=ROOT / 'build/native/native/kalandrac')
+    parser.add_argument('--compiler', type=pathlib.Path, default=ROOT / 'build/native/native/kalandra')
     parser.add_argument('--output', type=pathlib.Path,
                         default=ROOT / f'benchmarks/results/native-shapes-{datetime.date.today().isoformat()}.json')
     parser.add_argument('--suite', choices=['shapes', 'blocking'], default='shapes',

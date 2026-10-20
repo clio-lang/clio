@@ -1,14 +1,21 @@
 # Kalandra native CPU compiler
 
-This package adds `bin/kalandrac` and its private CPU runtime archives to the
+This package adds `bin/kalandra` and its private CPU runtime archives to the
 native editor tools. Add `bin` to PATH, then compile a `.k` file or explicit
 native project manifest:
 
 ```sh
-kalandrac path/to/main.k -o program
-kalandrac --project path/to/kalandra.toml -o program
+kalandra new my-app
+kalandra --project my-app/kalandra.toml -o program
 ./program
 ```
+
+For an existing project, compile with `kalandra --project path/to/kalandra.toml -o program`,
+or pass a `.k` source file directly.
+
+`new` creates an offline two-module parallel-map starter. Its parent directory
+must exist, and its destination must not exist; existing files/directories and
+symlinks are never replaced or merged. No packages are fetched or hooks run.
 
 The compiler locates `lib/kalandra/native` relative to its actual executable,
 including when invoked through a symlink or PATH. Keep this directory with the

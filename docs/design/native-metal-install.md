@@ -14,12 +14,12 @@ and add its `bin` directory to PATH. CPU compilation remains available; add
 `--target metal` for GPU programs:
 
 ```sh
-kalandrac main.k --target metal -O2 -o app
+kalandra main.k --target metal -O2 -o app
 ./app/program
-kalandrac --project path/to/kalandra.toml --target metal -o app
+kalandra --project path/to/kalandra.toml --target metal -o app
 ```
 
-Keep the installed prefix together. `kalandrac` resolves its compiler-private
+Keep the installed prefix together. `kalandra` resolves its compiler-private
 shader tools, host headers and CPU/Metal runtime archives relative to its actual
 executable, including a symlink invocation. Missing installed resources never
 fall back to source/build-tree copies. The Metal compiler is separate from the
@@ -30,7 +30,7 @@ optimized task-core archive, strict-lowering and extraction executables, private
 generated-host headers and Metal dependency metadata. These are compiler resources;
 they do not establish the separately planned public C/C++ interoperability ABI.
 For direct installation, install `NativeEditorTools`, `NativeCPUCompiler` and then
-`NativeMetalCompiler` to the same prefix. The final component replaces `kalandrac`
+`NativeMetalCompiler` to the same prefix. The final component replaces `kalandra`
 with the CPU/Metal-capable driver. Archive layout requires `bin`, `lib` and `share`.
 
 LLVM/MLIR/Clang 23.1.3, SPIRV-Cross, SPIRV-Tools, Apple's selected Metal compiler

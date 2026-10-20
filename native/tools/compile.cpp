@@ -25,6 +25,20 @@ bool write(const std::filesystem::path &path, const std::string &contents) {
 }
 } // namespace
 int main(int argc, char **argv) {
+  if (argc >= 2 && std::string_view(argv[1]) == "new") {
+    if (argc != 3 || std::string_view(argv[2]) == "--help") {
+      std::cerr << "usage: kalandra new directory\n";
+      return argc == 3 ? 0 : 2;
+    }
+    auto created = kalandra::createNativeProject(argv[2]);
+    if (!created) {
+      std::cerr << created.error() << '\n';
+      return 1;
+    }
+    std::cout << "Created native project at " << argv[2]
+              << "\nCheck and build its kalandra.toml with --project.\n";
+    return 0;
+  }
   std::vector<char *> filtered{argv[0]};
   std::string target = "cpu";
   bool selectedTarget = false;
@@ -77,9 +91,10 @@ int main(int argc, char **argv) {
   const std::span<char *> arguments(filtered);
   if (arguments.size() < 2) {
     std::cerr
-        << "usage: kalandrac source.k -o executable [--emit-mlir file] [--emit-llvm "
+        << "usage: kalandra source.k -o executable [--emit-mlir file] [--emit-llvm "
            "file] [--test-entry function] [--sanitize|--thread-sanitize] [-O0|-O2] [--target "
-           "cpu|metal] [--package name=path.k ...] [--project manifest.toml instead of source]\n";
+           "cpu|metal] [--package name=path.k ...] [--project manifest.toml instead of source]\n"
+           "       kalandra new directory\n";
     return 2;
   }
   std::filesystem::path output, mlirPath, llvmPath;

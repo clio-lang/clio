@@ -65,7 +65,7 @@ The Metal proof is optional in CMake so CPU-only development does not acquire sh
 
 The optional `kalandra-metal-source` compiler accepts the shared handwritten frontend's AST and generates a checked Metal kernel from the source function body. It checks original tensor/scalar function types once through the shared semantic stage. CPU lowering and GPU lane generation consume those same typed function bodies; GPU helper calls are inlined during target lowering. Generated MLIR is parsed and verified, then passed through the existing strict integer arithmetic lowering and the pinned SPIR-V/SPIRV-Cross/Metal toolchain. GPU constants are emitted as exact integer bits and bitcasts, preserving the float32 rounding chosen by the semantic checker.
 
-The host supervisor currently lowers to generated C++ continuations compiled by native Clang. Transfers and placed calls become child task admissions; `try await` suspends and resumes the supervisor through the existing scheduler. It never calls a nested blocking drain on a worker. This target backend is now linked into `kalandrac` and selected with `--target metal`; the smaller `kalandra-metal-source` tool remains available for IR inspection. A checked descriptor bridge connects the CPU invocation allocator and MLIR memref ABI to retained Metal Buffers. Function bodies now share the common typed IR across CPU and GPU. Supervisor placement/residency checking now uses the shared typed frontend, and its C++ continuation emitter consumes that IR. The target capability subset remains bounded; the CPU task backend and Metal supervisor now share the [continuation planner](continuations.md).
+The host supervisor currently lowers to generated C++ continuations compiled by native Clang. Transfers and placed calls become child task admissions; `try await` suspends and resumes the supervisor through the existing scheduler. It never calls a nested blocking drain on a worker. This target backend is now linked into `kalandra` and selected with `--target metal`; the smaller `kalandra-metal-source` tool remains available for IR inspection. A checked descriptor bridge connects the CPU invocation allocator and MLIR memref ABI to retained Metal Buffers. Function bodies now share the common typed IR across CPU and GPU. Supervisor placement/residency checking now uses the shared typed frontend, and its C++ continuation emitter consumes that IR. The target capability subset remains bounded; the CPU task backend and Metal supervisor now share the [continuation planner](continuations.md).
 
 The [placed example](../../native/metal-source/placed.k) computes `(left * right) + left`:
 
@@ -93,14 +93,14 @@ Build and run it from the repository root:
 ```sh
 cmake --preset native -DKALANDRA_BUILD_METAL_PROOF=ON -DKALANDRA_BUILD_METAL_RUNTIME=ON
 cmake --build --preset native
-build/native/native/kalandrac native/metal-source/placed.k \
+build/native/native/kalandra native/metal-source/placed.k \
   --target metal -o build/placed-gpu -O2
 build/placed-gpu/program
 ```
 
 The diagnostic entry prints exact float32 bits: `[40a00000,41400000,41a80000]`, representing `[5, 12, 21]`. This is executable conformance output, not a new language printing API. The output directory contains the executable and its offline-compiled `kernel*.metallib` files. Keep those files together when moving the bundle; the program does not require LLVM, MLIR, SPIRV-Cross, or the Metal compiler at execution time. The compiler itself uses paths from its configured native build.
 
-`kalandrac` builds the selected target; for Metal, `-o` names the output bundle directory. `--target cpu` selects the ordinary CPU path, which remains the default. A CPU-only configuration reports Metal support as unavailable rather than falling back. The inspection tool emits verified GPU MLIR and host continuation source unless passed `--build`. Both entry points support separate `--sanitize` and `--thread-sanitize` build variants; they cannot be combined. Invalid source is diagnosed before generated output is changed. The executable is replaced only after a successful link; backend build failures may leave intermediate build artifacts.
+`kalandra` builds the selected target; for Metal, `-o` names the output bundle directory. `--target cpu` selects the ordinary CPU path, which remains the default. A CPU-only configuration reports Metal support as unavailable rather than falling back. The inspection tool emits verified GPU MLIR and host continuation source unless passed `--build`. Both entry points support separate `--sanitize` and `--thread-sanitize` build variants; they cannot be combined. Invalid source is diagnosed before generated output is changed. The executable is replaced only after a successful link; backend build failures may leave intermediate build artifacts.
 
 ### Implemented scope
 
@@ -123,7 +123,7 @@ The [source GPU evidence](../../native/metal-proof/evidence/source-gpu-2026-10-1
 
 ## Common compiler entry and CPU tensor ABI
 
-`kalandrac --target metal` invokes the Metal backend as a linked compiler library. It does not launch a second source compiler process or silently infer CPU execution when Metal is unavailable. Source checking, MLIR shader lowering, and offline native linking retain the first slice's limits. This integration unifies the command entry point, not the two backends' entire typed IR or source capability set.
+`kalandra --target metal` invokes the Metal backend as a linked compiler library. It does not launch a second source compiler process or silently infer CPU execution when Metal is unavailable. Source checking, MLIR shader lowering, and offline native linking retain the first slice's limits. This integration unifies the command entry point, not the two backends' entire typed IR or source capability set.
 
 [Tensor.h](../../native/runtime/Tensor.h) declares ranked float32 descriptors matching the MLIR C interface: allocated/aligned pointers, element offset, sizes, and strides. Rank zero has no dimension arrays. The bridge supports ranks zero through eight with checked dense row-major layouts; noncontiguous views are rejected. GPU elementwise execution still requires rank one.
 

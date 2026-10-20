@@ -28,7 +28,7 @@ ctest --preset native
 Compile and run a native program:
 
 ```sh
-build/native/native/kalandrac main.k -o program
+build/native/native/kalandra main.k -o program
 ./program
 ```
 

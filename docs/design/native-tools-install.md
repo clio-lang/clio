@@ -13,7 +13,7 @@ cmake --install build/native --prefix "$HOME/.local" --component NativeEditorToo
 
 Add that prefix's `bin` directory to PATH. The [VS Code extension](native-vscode.md) can then use its default `kalandra-lsp` executable name, or you can set **Server Path** to the installed binary. No source files or project manifests are installed implicitly.
 
-Installation honors CMake's `DESTDIR` staging mechanism and `GNUInstallDirs` destinations. The component name matters: this installs only the four tools and their documentation/license/build metadata. It does not install `kalandrac`, generated-program runtime archives, GPU tooling, development headers or the VSIX. The [CPU compiler component and bundle](native-cpu-install.md) now install the compiler/runtime separately. The [Metal compiler bundle](native-metal-install.md) adds GPU resources separately; the VSIX is packaged independently.
+Installation honors CMake's `DESTDIR` staging mechanism and `GNUInstallDirs` destinations. The component name matters: this installs only the four tools and their documentation/license/build metadata. It does not install `kalandra`, generated-program runtime archives, GPU tooling, development headers or the VSIX. The [CPU compiler component and bundle](native-cpu-install.md) now install the compiler/runtime separately. The [Metal compiler bundle](native-metal-install.md) adds GPU resources separately; the VSIX is packaged independently.
 
 ## Archive
 

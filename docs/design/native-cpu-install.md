@@ -1,7 +1,7 @@
 # Installing the native CPU compiler
 
 The CPU distribution combines the four [native editor tools](native-tools-install.md)
-with `kalandrac` and its compiler-private runtime archives. It targets macOS ARM64;
+with `kalandra` and its compiler-private runtime archives. It targets macOS ARM64;
 [Metal distribution](native-metal-install.md) uses a separate compiler/resource bundle.
 
 ```sh
@@ -14,9 +14,9 @@ resolves resources relative to its actual executable, including symlink invocati
 It never falls back to archives from the development checkout.
 
 ```sh
-kalandrac main.k -o program
+kalandra main.k -o program
 ./program
-kalandrac --project path/to/kalandra.toml -O2 -o program
+kalandra --project path/to/kalandra.toml -O2 -o program
 ```
 
 The package includes normal, ASan/UBSan and TSan runtime variants. `--sanitize`

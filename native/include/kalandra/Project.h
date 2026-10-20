@@ -13,4 +13,7 @@ struct ProjectLimits {
 // Explicit native manifests only; no ancestor discovery, installation or network work.
 [[nodiscard]] std::expected<NativeProject, std::string>
 loadNativeProject(std::string path, ProjectLimits limits = {});
+// Create an offline starter in a new directory. Never merges into or replaces
+// an existing file/directory/symlink; the parent directory must already exist.
+[[nodiscard]] std::expected<void, std::string> createNativeProject(std::string path);
 } // namespace kalandra

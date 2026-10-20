@@ -14,6 +14,20 @@ The [Apple GPU comparison](../benchmarks/results/native-gpu-2026-10-15-normaliza
 
 The [shape-selected GPU matmul report](../benchmarks/results/native-gpu-2026-10-15-selection.md) now qualifies automatic two-row/quad entry selection for a conservative M2 Max profile. Other shapes/devices retain the strict scalar GPU entry. Both resident and transfer-inclusive comparisons retain raw timing/control variability.
 
+## Start a project
+
+With the [installed native compiler](../docs/design/native-cpu-install.md):
+
+```sh
+kalandra new my-app
+kalandra-check --project my-app/kalandra.toml
+kalandra --project my-app/kalandra.toml -o my-app/program
+./my-app/program
+```
+
+The [starter guide](../docs/design/native-starter.md) explains its two modules,
+typed parallel map, build modes and existing-directory protection.
+
 ## Build and test
 
 On the currently validated macOS ARM64 setup, install CMake, Ninja and toml++ 3.4.0 (`brew install cmake ninja tomlplusplus`), plus the pinned LLVM toolchain below. CMake checks the TOML parser version and uses its headers without a runtime TOML library dependency. Override its package location with `-Dtomlplusplus_DIR=/path/to/lib/cmake/tomlplusplus` if needed.
@@ -50,7 +64,7 @@ The checker supports [versioned JSON diagnostics](../docs/design/native-diagnost
 
 | Target                    | Purpose                                                                                   |
 | ------------------------- | ----------------------------------------------------------------------------------------- |
-| `kalandrac`               | Compile the checked CPU subset through MLIR/LLVM into a native executable                 |
+| `kalandra`               | Compile the checked CPU subset through MLIR/LLVM into a native executable                 |
 | `kalandra-backend`        | Native MLIR construction, verified passes, LLVM translation                               |
 | `kalandra-native-runtime` | Invocation storage, checked faults, bounded task scheduler, and development entry wrapper |
 | `kalandra-lsp`            | Native diagnostics, incremental edits, type hover, definition, references, scope completion and validated rename |
@@ -77,7 +91,7 @@ C++ formatting uses the root `.clang-format` with LLVM style. For the current C+
   native/tests/*.cpp native/toolchain-proof/cases.cpp
 ```
 
-Use `kalandrac --sanitize` for generated AddressSanitizer checks plus the ASan/UBSan runtime, or `--thread-sanitize` for a separate fully instrumented ThreadSanitizer build. These options cannot be combined. The emitted LLVM functions carry the required sanitizer attributes; conformance verifies that Clang emits actual memory checks. The C++ task-core configuration defaults to one worker for deterministic tests; compiled programs use the bounded pool described above.
+Use `kalandra --sanitize` for generated AddressSanitizer checks plus the ASan/UBSan runtime, or `--thread-sanitize` for a separate fully instrumented ThreadSanitizer build. These options cannot be combined. The emitted LLVM functions carry the required sanitizer attributes; conformance verifies that Clang emits actual memory checks. The C++ task-core configuration defaults to one worker for deterministic tests; compiled programs use the bounded pool described above.
 
 ## Install native editor tools
 
@@ -86,7 +100,7 @@ cmake --build build/native --target native-editor-tools-package
 cmake --install build/native --prefix "$HOME/.local" --component NativeEditorTools
 ```
 
-The [installation guide](../docs/design/native-tools-install.md) covers the four installed commands, archive/checksums, PATH and the VS Code server setting. These tools can run independently of the checkout but still require the pinned LLVM runtime. The [CPU compiler bundle](../docs/design/native-cpu-install.md) now adds `kalandrac` and its private runtime archives with `native-cpu-package`. [Version-tag release automation](../docs/design/native-releases.md) qualifies and uploads CPU/editor packages, classifying SemVer prereleases automatically. The initial [Apple Metal bundle](../docs/design/native-metal-install.md) adds private shader tools, headers and CPU/Metal runtimes through `native-metal-package`; its external toolchain and release-runner qualification remain explicit.
+The [installation guide](../docs/design/native-tools-install.md) covers the four installed commands, archive/checksums, PATH and the VS Code server setting. These tools can run independently of the checkout but still require the pinned LLVM runtime. The [CPU compiler bundle](../docs/design/native-cpu-install.md) now adds `kalandra` and its private runtime archives with `native-cpu-package`. [Version-tag release automation](../docs/design/native-releases.md) qualifies and uploads CPU/editor packages, classifying SemVer prereleases automatically. The initial [Apple Metal bundle](../docs/design/native-metal-install.md) adds private shader tools, headers and CPU/Metal runtimes through `native-metal-package`; its external toolchain and release-runner qualification remain explicit.
 
 ## Apple GPU toolchain proof
 
@@ -94,7 +108,7 @@ An opt-in [Metal proof](metal-proof/README.md) now runs MLIR GPU kernels through
 
 ## Apple device, transfer, and compute runtime
 
-The optional [Metal runtime](metal/README.md) now provides immutable host/device buffers and upload/download tasks integrated with CPU task groups. External completion leases keep pending GPU resources alive through cancellation and resume tasks without blocking workers. Transfer tests include nested groups, exact bit preservation, resource budgets, allocation failures, and sanitizer coverage. A private checked kernel interface now dispatches strict float32 addition/multiplication over rank-one device buffers, with explicit downloads, shared resource budgets, and cancellation-safe completion. The optional [source-to-Metal slice](../docs/design/apple-gpu.md#first-source-to-metal-compiler-slice), selected through `kalandrac --target metal`, now compiles a bounded rank-one float32 program with explicit transfers and placed calls into a runnable native executable/shader bundle. It uses generated C++ supervisor continuations and source-generated strict GPU MLIR. A checked [CPU tensor bridge](../docs/design/apple-gpu.md#common-compiler-entry-and-cpu-tensor-abi) now retains CPU-owned inputs for GPU transfers and exports downloaded results as invocation-owned descriptors consumed by MLIR-generated CPU code. Ordinary float32 CPU functions now coexist with GPU functions in one source file, including CPU tensor factories/returns, CPU reductions after explicit downloads, and scalar or host-tensor main results. See [mixed source scope and ownership](../docs/design/apple-gpu.md#mixed-cpugpu-source-programs). Runtime guards check dynamic CPU result shapes at execution boundaries. The same helper definition now compiles for CPU and GPU from shared typed tensor/scalar IR, including strict elementwise arithmetic and scalar lifting. See [shared helper scope](../docs/design/apple-gpu.md#shared-cpugpu-helpers). GPU elementwise entries now use signature-sized owned tensor/scalar captures, with direct bindings for small calls, Tier 2 argument buffers above 29 contributing inputs, and a separate capture-memory budget; see [GPU entry parameters](../docs/design/apple-gpu.md#gpu-entry-scalar-parameters). Direct rank-one/rank-two `reduceSum` entries now execute the accepted fixed tree on GPU and return scalar task results, copying only the final four bytes back to the host; see [reduction scope](../docs/design/apple-gpu.md#rank-one-gpu-reductions) and [resident matrix composition](../docs/design/apple-gpu.md#rank-two-gpu-reductions). Direct rank-two `matmul` entries now preserve separately rounded products and the fixed sum tree on GPU; the mixed source bridge also carries matrix literals, CPU calls/returns and axis-specific guards. See [matrix scope](../docs/design/apple-gpu.md#rank-two-gpu-matrix-multiplication). Rank-two elementwise helpers now preserve full shapes across GPU calls and support strict scalar lifting and transitive helpers, completing a resident matmul → adjust → reduceSum path; see [matrix pipeline scope](../docs/design/apple-gpu.md#rank-two-gpu-elementwise-helpers). Shared placement-aware IR and the [common continuation planner](../docs/design/continuations.md) now serve the current CPU/Metal subset. Resumable mixed helper bodies and broader value/element types remain subsequent work.
+The optional [Metal runtime](metal/README.md) now provides immutable host/device buffers and upload/download tasks integrated with CPU task groups. External completion leases keep pending GPU resources alive through cancellation and resume tasks without blocking workers. Transfer tests include nested groups, exact bit preservation, resource budgets, allocation failures, and sanitizer coverage. A private checked kernel interface now dispatches strict float32 addition/multiplication over rank-one device buffers, with explicit downloads, shared resource budgets, and cancellation-safe completion. The optional [source-to-Metal slice](../docs/design/apple-gpu.md#first-source-to-metal-compiler-slice), selected through `kalandra --target metal`, now compiles a bounded rank-one float32 program with explicit transfers and placed calls into a runnable native executable/shader bundle. It uses generated C++ supervisor continuations and source-generated strict GPU MLIR. A checked [CPU tensor bridge](../docs/design/apple-gpu.md#common-compiler-entry-and-cpu-tensor-abi) now retains CPU-owned inputs for GPU transfers and exports downloaded results as invocation-owned descriptors consumed by MLIR-generated CPU code. Ordinary float32 CPU functions now coexist with GPU functions in one source file, including CPU tensor factories/returns, CPU reductions after explicit downloads, and scalar or host-tensor main results. See [mixed source scope and ownership](../docs/design/apple-gpu.md#mixed-cpugpu-source-programs). Runtime guards check dynamic CPU result shapes at execution boundaries. The same helper definition now compiles for CPU and GPU from shared typed tensor/scalar IR, including strict elementwise arithmetic and scalar lifting. See [shared helper scope](../docs/design/apple-gpu.md#shared-cpugpu-helpers). GPU elementwise entries now use signature-sized owned tensor/scalar captures, with direct bindings for small calls, Tier 2 argument buffers above 29 contributing inputs, and a separate capture-memory budget; see [GPU entry parameters](../docs/design/apple-gpu.md#gpu-entry-scalar-parameters). Direct rank-one/rank-two `reduceSum` entries now execute the accepted fixed tree on GPU and return scalar task results, copying only the final four bytes back to the host; see [reduction scope](../docs/design/apple-gpu.md#rank-one-gpu-reductions) and [resident matrix composition](../docs/design/apple-gpu.md#rank-two-gpu-reductions). Direct rank-two `matmul` entries now preserve separately rounded products and the fixed sum tree on GPU; the mixed source bridge also carries matrix literals, CPU calls/returns and axis-specific guards. See [matrix scope](../docs/design/apple-gpu.md#rank-two-gpu-matrix-multiplication). Rank-two elementwise helpers now preserve full shapes across GPU calls and support strict scalar lifting and transitive helpers, completing a resident matmul → adjust → reduceSum path; see [matrix pipeline scope](../docs/design/apple-gpu.md#rank-two-gpu-elementwise-helpers). Shared placement-aware IR and the [common continuation planner](../docs/design/continuations.md) now serve the current CPU/Metal subset. Resumable mixed helper bodies and broader value/element types remain subsequent work.
 
 ## Strict GPU float32 arithmetic
 
@@ -151,7 +165,7 @@ CPU records can also own [numeric arrays and tensors](../docs/design/record-coll
 
 [Explicit module re-exports](../docs/design/reexports.md) let a public entry file expose selected functions and record types from internal modules, including aliases, while preserving their original identity and helper scope.
 
-[Native project manifests](../docs/design/native-projects.md) record a `.k` entry and relative local library mappings in a versioned TOML file. Use `kalandrac --project kalandra.toml -o program` and `kalandra-check --project kalandra.toml`; the manifest is an explicit compiler input, protected from output replacement.
+[Native project manifests](../docs/design/native-projects.md) record a `.k` entry and relative local library mappings in a versioned TOML file. Use `kalandra --project kalandra.toml -o program` and `kalandra-check --project kalandra.toml`; the manifest is an explicit compiler input, protected from output replacement.
 
 [Immutable CPU array slicing](../docs/design/array-slicing.md) supports `slice(values, start, end)` for existing array types, with checked ranges and retained worker ownership.
 
@@ -173,4 +187,4 @@ CPU records can also own [numeric arrays and tensors](../docs/design/record-coll
 
 ## Apple Metal function modules
 
-The [Metal module guide](../docs/design/native-metal-modules.md) covers multi-file numerical helpers and CPU/GPU coordinators, with explicit local packages and project manifests. Use `kalandrac --project path/to/kalandra.toml --target metal -o build/app` to build a native executable/shader bundle. Existing GPU numerical and placement restrictions still apply.
+The [Metal module guide](../docs/design/native-metal-modules.md) covers multi-file numerical helpers and CPU/GPU coordinators, with explicit local packages and project manifests. Use `kalandra --project path/to/kalandra.toml --target metal -o build/app` to build a native executable/shader bundle. Existing GPU numerical and placement restrictions still apply.
