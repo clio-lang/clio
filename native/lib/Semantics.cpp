@@ -673,6 +673,7 @@ private:
           continue;
         }
         TypedVariant typed{label, variant.name, {}};
+        rememberSourceToken({variant.name, variant.name, recordType(id), {}});
         std::unordered_set<std::string> fields;
         for (const auto &field : variant.fields) {
           const auto label = name(field.name);
@@ -1300,6 +1301,16 @@ private:
       error("S071", "unknown enum variant '" + name(variant) + "'", variant);
       return {};
     }
+    rememberTypeUse(family, recordType(owner->second));
+    const auto [original, originalVariant] = errorOrigin(
+        output_, owner->second, static_cast<std::size_t>(found - record.variants.begin()));
+    const auto variantDeclaration = output_.records[original].variants[originalVariant].declaration;
+    rememberSourceToken({variant,
+                         variantDeclaration.end > variantDeclaration.begin
+                             ? std::optional{variantDeclaration}
+                             : std::nullopt,
+                         recordType(original),
+                         {}});
     std::vector<RecordFieldValue> values;
     std::unordered_set<std::size_t> seen;
     for (const auto &field : initializers) {
@@ -1309,6 +1320,8 @@ private:
         error("S071", "unknown or duplicate enum payload field", field.name);
         return {};
       }
+      rememberSourceToken(
+          {field.name, record.fields[*slot].declaration, record.fields[*slot].type, {}});
       auto value = expression(frame, field.value, record.fields[*slot].type);
       if (!value)
         return {};
@@ -2682,6 +2695,21 @@ private:
         }
         fallback = true;
       }
+      if (tag) {
+        if (enumeration) {
+          const auto [original, variant] = errorOrigin(output_, *subjectType.record, *tag - 1);
+          rememberTypeUse(*arm.family, recordType(original));
+          const auto declaration = output_.records[original].variants[variant].declaration;
+          rememberSourceToken(
+              {*arm.variant,
+               declaration.end > declaration.begin ? std::optional{declaration} : std::nullopt,
+               recordType(original),
+               {}});
+        } else {
+          rememberTypeUse(*arm.family, subjectType);
+          rememberSourceToken({*arm.variant, {}, subjectType, {}});
+        }
+      }
       auto branch = frame;
       if (enumeration)
         branch.enumBranchDepth += match.arms.size();
@@ -2769,6 +2797,12 @@ private:
           error("S042", "duplicate pattern field", fieldSpan);
           return {};
         }
+        const bool shorthand =
+            fieldSpan.begin == pattern.binding.begin && fieldSpan.end == pattern.binding.end;
+        const auto declaration =
+            slot ? std::optional{output_.records[*subjectType.record].fields[*slot].declaration}
+                 : std::nullopt;
+        rememberSourceToken({fieldSpan, declaration, fieldType, {}, shorthand});
         auto value =
             slot ? add(branch, fieldType, fieldSpan, RecordFieldRead{*subject, *slot})
                  : add(branch, fieldType, fieldSpan, ErrorFieldRead{*subject, fieldId, taskSlot});

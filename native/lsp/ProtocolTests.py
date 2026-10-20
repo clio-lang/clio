@@ -449,6 +449,66 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert client.definition(main, 3, 3)["result"] is None
     client.finish()
 
+    # Enum cases and shorthand pattern tokens retain both field and local roles.
+    client = Client()
+    client.init()
+    enum = ("enum Signal:\n  Off\n  Sample:\n    value:int\n"
+            "fn read(signal:Signal)->int:\n  match signal:\n"
+            "    Signal.Sample {value}:value\n    Signal.Off:0\n"
+            "fn main():\n  read(Signal.Sample {value:2})\n")
+    client.open(main, enum)
+    pattern = enum.splitlines()[6]
+    case = pattern.index("Sample")
+    label, use = pattern.index("value"), pattern.rindex("value")
+    variant = client.definition(main, 6, case)["result"]
+    assert variant["range"]["start"] == {"line": 2, "character": 2}
+    assert client.hover(main, 6, case)["result"]["contents"]["value"] == "Sample: Signal"
+    assert len(client.references(main, 6, case)["result"]) == 2
+    assert len(client.references(main, 6, case, True)["result"]) == 3
+    binding = client.definition(main, 6, use)["result"]
+    assert binding["range"]["start"] == {"line": 6, "character": label}
+    assert client.definition(main, 6, label)["result"] == binding
+    assert len(client.references(main, 6, label)["result"]) == 1
+    assert len(client.references(main, 3, 5)["result"]) == 2  # Field label includes shorthand.
+    assert client.hover(main, 6, label)["result"]["contents"]["value"] == "value: int64"
+    explicit = enum.replace("{value}:value", "{value:item}:item")
+    client.change(main, explicit, 2)
+    field = client.definition(main, 6, label)["result"]
+    assert field["range"]["start"] == {"line": 3, "character": 4}
+    assert client.definition(main, 6, label+6)["result"]["range"]["start"] == {"line": 6, "character": label+6}
+    client.edits(main, [edit(0, 0, 0, "# 😀\r\n")], 3)
+    assert client.definition(main, 7, case)["result"]["range"]["start"]["line"] == 3
+    client.change(main, enum.replace("Signal.Off:0", "Signal.Unknown:0"), 4)
+    assert client.definition(main, 6, case)["result"] is None
+    client.finish()
+
+    # Imported enum case and payload origins follow an unsaved library's source URI.
+    enum_lib = root / "enum space#é.k"
+    enum_text = "export enum Signal:\n  Off\n  Sample:\n    value:int\n"
+    enum_lib.write_text(enum_text)
+    enum_facade = root / "enum-public.k"
+    enum_facade.write_text('export from "./enum space#é.k" import Signal as PublicSignal\n')
+    enum_caller = ('from "./enum-public.k" import PublicSignal as S\nfn main()->int:\n'
+                   '  match S.Sample {value:2}:\n    S.Sample {value:item}:item\n    _:0\n')
+    client = Client()
+    client.init()
+    client.open(main, enum_caller)
+    target = client.definition(main, 3, 6)["result"]
+    assert target["uri"] == enum_lib.as_uri() and target["range"]["start"] == {"line": 2, "character": 2}
+    assert len(client.references(main, 3, 6, True)["result"]) == 3
+    assert client.definition(main, 4, 4)["result"] is None  # Wildcard.
+    enum_uri = enum_lib.as_uri().replace("file:///", "file://localhost/")
+    client.send("textDocument/didOpen", {"textDocument": {"uri": enum_uri,
+        "languageId": "kalandra", "version": 1, "text": "# 😀\r\n"+enum_text}})
+    target = client.definition(main, 3, 14)["result"]  # Explicit payload label.
+    assert target["uri"] == enum_uri and target["range"]["start"] == {"line": 4, "character": 4}
+    refs = client.references(main, 3, 6, True)["result"]
+    assert any(r["uri"] == enum_uri and r["range"]["start"]["line"] == 3 for r in refs)
+    client.send("textDocument/didClose", {"textDocument": {"uri": enum_uri}})
+    assert client.definition(main, 3, 6)["result"]["range"]["start"]["line"] == 2
+    assert enum_lib.read_text() == enum_text
+    client.finish()
+
     # A same-spelled local function cannot steal a re-exported alias's destination.
     leaf = root / "deep space#é.k"
     original = "export fn scale(value:int):\n  value*2\n"

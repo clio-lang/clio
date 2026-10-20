@@ -85,12 +85,17 @@ std::optional<std::vector<SourceLocation>> references(ParseResult syntax,
     if (token != identifiers.end())
       add(span, span, token->second);
   };
+  std::vector<std::pair<SpanKey, SourceSpan>> secondary;
   for (const auto &token : module.sourceTokens)
     if (token.declaration) {
       addDeclaration(*token.declaration);
       const auto word = identifiers.find({token.span.begin, token.span.end});
-      if (word != identifiers.end())
-        add(token.span, *token.declaration, word->second);
+      if (word != identifiers.end()) {
+        if (token.secondary)
+          secondary.push_back({{token.span.begin, token.span.end}, *token.declaration});
+        else
+          add(token.span, *token.declaration, word->second);
+      }
     }
   for (const auto &import : module.imports) {
     const auto addImport = [&](SourceSpan span) {
@@ -146,15 +151,22 @@ std::optional<std::vector<SourceLocation>> references(ParseResult syntax,
     return a.source->path() == b.source->path() && a.span.begin == b.span.begin &&
            a.span.end == b.span.end;
   };
-  std::vector<SourceLocation> result;
-  for (const auto &[use, target] : occurrences) {
+  std::map<SpanKey, SourceLocation> matches;
+  const auto collect = [&](SpanKey use, SourceSpan target) {
     auto destination = sourceLocation(module.source, target);
     if (!destination || !same(*destination, declaration))
-      continue;
+      return;
     auto location = sourceLocation(module.source, {use.first, use.second});
     if (location && (includeDeclaration || !same(*location, declaration)))
-      result.push_back(std::move(*location));
-  }
+      matches.try_emplace(use, std::move(*location));
+  };
+  for (const auto &[use, target] : occurrences)
+    collect(use, target);
+  for (const auto &[use, target] : secondary)
+    collect(use, target);
+  std::vector<SourceLocation> result;
+  for (auto &[span, location] : matches)
+    result.push_back(std::move(location));
   return result;
 }
 std::optional<SemanticToken> semanticToken(ParseResult syntax, std::string_view path,
@@ -185,7 +197,7 @@ std::optional<SemanticToken> semanticToken(ParseResult syntax, std::string_view 
            mapped->span.end == token->span.end;
   };
   for (const auto &token : module.sourceTokens)
-    if (exact(token.span)) {
+    if (!token.secondary && exact(token.span)) {
       selected.declaration = token.declaration;
       selected.type = token.type;
       selected.record = token.record;

@@ -375,6 +375,9 @@ struct ResolvedSourceToken {
   std::optional<ValueType> type;
   // Nominal type tokens use a declaration header on hover; fields use their value type.
   std::optional<std::size_t> record;
+  // Shorthand pattern labels also declare a local binding at this same token.
+  // Keep the field-reference role without overriding primary binding navigation.
+  bool secondary = false;
 };
 struct TypedModule {
   std::shared_ptr<const SourceFile> source;
