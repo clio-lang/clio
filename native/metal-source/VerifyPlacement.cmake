@@ -55,8 +55,10 @@ if(STATUS EQUAL 0 OR NOT ERROR MATCHES "refusing symlink output" OR NOT SENTINEL
 endif()
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/placement-cli/collision")
 file(READ "${SOURCE}" SOURCE_TEXT)
-file(WRITE "${OUTPUT_DIR}/placement-cli/collision/placement.ir" "${SOURCE_TEXT}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/placement-cli/collision/placement.ir"
+file(WRITE "${OUTPUT_DIR}/placement-cli/collision/input.k" "${SOURCE_TEXT}")
+file(REMOVE "${OUTPUT_DIR}/placement-cli/collision/placement.ir")
+file(CREATE_LINK "${OUTPUT_DIR}/placement-cli/collision/input.k" "${OUTPUT_DIR}/placement-cli/collision/placement.ir")
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/placement-cli/collision/input.k"
   -o "${OUTPUT_DIR}/placement-cli/collision" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERROR)
 file(READ "${OUTPUT_DIR}/placement-cli/collision/placement.ir" AFTER)
 if(STATUS EQUAL 0 OR NOT ERROR MATCHES "source and output paths must be distinct" OR NOT SOURCE_TEXT STREQUAL AFTER
@@ -80,8 +82,10 @@ if(STATUS EQUAL 0 OR NOT ERROR MATCHES "refusing symlink output" OR NOT SENTINEL
 endif()
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/placement-cli/plan-collision")
 file(READ "${SOURCE_DIR}/placed.k" SOURCE_TEXT)
-file(WRITE "${OUTPUT_DIR}/placement-cli/plan-collision/continuation.plan" "${SOURCE_TEXT}")
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/placement-cli/plan-collision/continuation.plan"
+file(WRITE "${OUTPUT_DIR}/placement-cli/plan-collision/input.k" "${SOURCE_TEXT}")
+file(REMOVE "${OUTPUT_DIR}/placement-cli/plan-collision/continuation.plan")
+file(CREATE_LINK "${OUTPUT_DIR}/placement-cli/plan-collision/input.k" "${OUTPUT_DIR}/placement-cli/plan-collision/continuation.plan")
+execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/placement-cli/plan-collision/input.k"
   -o "${OUTPUT_DIR}/placement-cli/plan-collision" RESULT_VARIABLE STATUS ERROR_VARIABLE ERROR)
 file(READ "${OUTPUT_DIR}/placement-cli/plan-collision/continuation.plan" AFTER)
 if(STATUS EQUAL 0 OR NOT ERROR MATCHES "source and output paths must be distinct" OR NOT SOURCE_TEXT STREQUAL AFTER

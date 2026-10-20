@@ -5,6 +5,7 @@
 #include "kalandra/Backend.h"
 #include "kalandra/Continuation.h"
 #include "kalandra/MetalSource.h"
+#include "kalandra/Project.h"
 #include "kalandra/Semantics.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Verifier.h"
@@ -1395,10 +1396,6 @@ class Compiler {
 public:
   explicit Compiler(Module module) : syntax(std::move(module)) {}
   std::map<std::string, std::string> run() {
-    std::set<std::string> names;
-    for (const auto &fn : syntax.functions)
-      if (!names.insert(text(fn.name)).second)
-        reject(fn.name, "duplicate function");
     auto checkedPlacement = kalandra::check({syntax, {}}, {}, {.placement = true});
     if (!checkedPlacement.ok())
       throw Rejected{checkedPlacement.diagnostics.front()};
@@ -1409,8 +1406,8 @@ public:
     std::optional<std::size_t> main;
     for (std::size_t i = 0; i < syntax.functions.size(); ++i) {
       const auto &fn = syntax.functions[i];
-      auto name = text(fn.name);
-      if (name == "main") {
+      auto name = placement.functions.at(i).name;
+      if (fn.moduleIndex == 0 && name == "main") {
         main = i;
         continue;
       }
@@ -1438,6 +1435,40 @@ public:
     }
     if (!main)
       reject({}, "missing main");
+    // The CPU bridge contains only synchronous helpers. Remove imports of
+    // coordinating functions from this projection too; their original resolved
+    // identities remain in the placement module and continuation plan.
+    using Binding = std::pair<std::size_t, std::string>;
+    std::map<Binding, FunctionId> exportedFunctions;
+    std::map<Binding, Binding> reexports;
+    for (FunctionId i = 0; i < syntax.functions.size(); ++i) {
+      const auto &fn = syntax.functions[i];
+      if (fn.exported)
+        exportedFunctions.emplace(Binding{fn.moduleIndex, text(fn.name)}, i);
+    }
+    for (const auto &import : syntax.imports)
+      if (import.exported && import.target)
+        for (const auto &name : import.names)
+          reexports.emplace(Binding{import.moduleIndex, text(name.alias.value_or(name.name))},
+                            Binding{*import.target, text(name.name)});
+    auto projectedAway = [&](Binding binding) {
+      // loadModules already rejects cycles and bounds graph depth. Keep this
+      // traversal explicitly bounded as the compiler also has in-memory callers.
+      for (std::size_t depth = 0; depth <= syntax.imports.size(); ++depth) {
+        if (auto found = exportedFunctions.find(binding); found != exportedFunctions.end())
+          return found->second == *main || resumable[found->second];
+        auto next = reexports.find(binding);
+        if (next == reexports.end())
+          return false;
+        binding = next->second;
+      }
+      reject({}, "cyclic module re-export in CPU projection");
+    };
+    for (auto &import : hostModule.imports)
+      std::erase_if(import.names, [&](const ImportedName &name) {
+        return import.target && projectedAway({*import.target, text(name.name)});
+      });
+    std::erase_if(hostModule.imports, [](const Import &import) { return import.names.empty(); });
     auto checked = kalandra::check({std::move(hostModule), {}});
     if (!checked.ok())
       throw Rejected{checked.diagnostics.front()};
@@ -1678,46 +1709,79 @@ void resume(Task &task) {
 };
 } // namespace
 int kalandra::compileMetalCommand(int argc, char **argv) {
-  if (argc < 4 || std::string_view(argv[2]) != "-o") {
-    std::cerr << "usage: kalandra-metal-source source.k -o directory [--build "
-                 "[-O2|--sanitize|--thread-sanitize]]\n";
+  const auto usage = [] {
+    std::cerr << "usage: kalandra-metal-source <source.k | --project manifest.toml> -o directory "
+                 "[--package name=path.k ...] [--build [-O0|-O2|--sanitize|--thread-sanitize]]\n";
     return 2;
-  }
+  };
   bool build = false;
-  std::string variant = "debug";
+  std::string variant = "debug", sourcePath, projectPath;
+  std::filesystem::path directory;
+  std::optional<NativeProject> project;
+  std::vector<ModulePackage> packages;
   bool selected = false;
-  for (int i = 4; i < argc; ++i) {
+  for (int i = 1; i < argc; ++i) {
     std::string_view option = argv[i];
-    if (option == "--build" && !build)
+    if (option == "-o" || option == "--project" || option == "--package") {
+      if (++i >= argc || std::string_view(argv[i]).empty())
+        return usage();
+      if (option == "-o") {
+        if (!directory.empty())
+          return usage();
+        directory = argv[i];
+      } else if (option == "--project") {
+        if (!projectPath.empty())
+          return usage();
+        projectPath = argv[i];
+      } else {
+        auto package = parseModulePackage(argv[i]);
+        if (!package) {
+          std::cerr << package.error() << '\n';
+          return 2;
+        }
+        packages.push_back(std::move(*package));
+      }
+    } else if (option == "--build" && !build)
       build = true;
-    else if (!selected &&
-             (option == "-O2" || option == "--sanitize" || option == "--thread-sanitize")) {
+    else if (!selected && (option == "-O0" || option == "-O2" || option == "--sanitize" ||
+                           option == "--thread-sanitize")) {
       selected = true;
       variant = option == "-O2"          ? "optimized"
                 : option == "--sanitize" ? "sanitized"
+                : option == "-O0"        ? "debug"
                                          : "thread-sanitized";
-    } else {
-      std::cerr << "unknown or conflicting option\n";
-      return 2;
-    }
+    } else if (!option.starts_with('-') && sourcePath.empty())
+      sourcePath = option;
+    else
+      return usage();
   }
-  if (selected && !build) {
-    std::cerr << "build flags require --build\n";
-    return 2;
-  }
-  auto source = loadSource(argv[1]);
-  if (!source) {
-    std::cerr << source.error() << '\n';
-    return 1;
-  }
-  try {
-    auto parsed = parse(*source);
-    if (!parsed.ok()) {
-      for (auto &d : parsed.diagnostics)
-        std::cerr << renderDiagnostic(**source, d);
+  if (directory.empty() || (selected && !build) || (!sourcePath.empty() && !projectPath.empty()))
+    return usage();
+  if (!projectPath.empty()) {
+    auto loaded = loadNativeProject(projectPath);
+    if (!loaded) {
+      std::cerr << loaded.error() << '\n';
       return 1;
     }
-    auto outputs = Compiler(std::move(parsed.module)).run();
+    project = std::move(*loaded);
+    sourcePath = project->entry;
+    packages.insert(packages.end(), project->packages.begin(), project->packages.end());
+  }
+  if (sourcePath.empty())
+    return usage();
+  auto parsed = loadModules(sourcePath, {}, {}, packages);
+  if (!parsed) {
+    std::cerr << parsed.error() << '\n';
+    return 1;
+  }
+  auto source = parsed->module.source;
+  try {
+    if (!parsed->ok()) {
+      for (auto &d : parsed->diagnostics)
+        std::cerr << renderDiagnostic(*source, d);
+      return 1;
+    }
+    auto outputs = Compiler(std::move(parsed->module)).run();
     if (outputs.contains("cpu.ll") && (variant == "sanitized" || variant == "thread-sanitized")) {
       llvm::LLVMContext context;
       llvm::SMDiagnostic diagnostic;
@@ -1732,7 +1796,6 @@ int kalandra::compileMetalCommand(int argc, char **argv) {
       llvm::raw_string_ostream stream(outputs["cpu.ll"]);
       module->print(stream, nullptr);
     }
-    std::filesystem::path directory = argv[3];
     std::vector<std::string> paths;
     for (const auto &[name, contents] : outputs) {
       (void)contents;
@@ -1747,8 +1810,19 @@ int kalandra::compileMetalCommand(int argc, char **argv) {
     for (const auto &name : paths) {
       auto target = directory / name;
       std::error_code ec;
-      if (std::filesystem::equivalent(target, argv[1], ec))
-        throw std::runtime_error("source and output paths must be distinct");
+      auto protect = [&](const std::filesystem::path &input) {
+        std::error_code first, second;
+        const bool equivalent = std::filesystem::equivalent(target, input, ec);
+        const auto a = std::filesystem::weakly_canonical(target, first);
+        const auto b = std::filesystem::weakly_canonical(input, second);
+        if (equivalent || (!first && !second && a == b))
+          throw std::runtime_error("source and output paths must be distinct");
+      };
+      protect(source->path());
+      for (const auto &part : source->parts())
+        protect(part.source->path());
+      if (project)
+        protect(project->manifest);
       if (std::filesystem::is_symlink(std::filesystem::symlink_status(target)))
         throw std::runtime_error("refusing symlink output");
     }
@@ -1772,7 +1846,7 @@ int kalandra::compileMetalCommand(int argc, char **argv) {
       buildMetalProgram(directory, outputs, variant);
     return 0;
   } catch (const Rejected &e) {
-    std::cerr << renderDiagnostic(**source, e.diagnostic);
+    std::cerr << renderDiagnostic(*source, e.diagnostic);
   } catch (const std::exception &e) {
     std::cerr << "Metal source compilation: " << e.what() << '\n';
   }

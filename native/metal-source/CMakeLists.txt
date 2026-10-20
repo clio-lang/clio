@@ -1,5 +1,5 @@
 add_library(kalandra-metal-source-backend STATIC Compiler.cpp Build.cpp)
-target_link_libraries(kalandra-metal-source-backend PUBLIC kalandra-semantics PRIVATE kalandra-backend MLIR LLVM)
+target_link_libraries(kalandra-metal-source-backend PUBLIC kalandra-semantics PRIVATE kalandra-project kalandra-backend MLIR LLVM)
 target_include_directories(kalandra-metal-source-backend SYSTEM PRIVATE ${MLIR_INCLUDE_DIRS} ${LLVM_INCLUDE_DIRS})
 target_compile_options(kalandra-metal-source-backend PRIVATE -Wall -Wextra -Werror)
 add_executable(kalandra-metal-source main.cpp)
@@ -65,8 +65,17 @@ endfunction()
 add_source_fixture(placed)
 add_source_fixture(composed)
 if(BUILD_TESTING)
+  # Keep libc++ container instrumentation consistent across the compiler's
+  # translation units, including the TOML parser and numerical lowering.
+  add_library(kalandra-metal-source-lowering-sanitized STATIC
+    ../lib/Backend.cpp ../lib/CheckedABI.cpp ../lib/TaskBackend.cpp
+    ../lib/NumericConversion.cpp ../lib/StrictFloat.cpp)
+  target_link_libraries(kalandra-metal-source-lowering-sanitized PUBLIC kalandra-semantics-sanitized PRIVATE MLIR LLVM)
+  target_include_directories(kalandra-metal-source-lowering-sanitized SYSTEM PRIVATE ${MLIR_INCLUDE_DIRS} ${LLVM_INCLUDE_DIRS})
+  target_compile_options(kalandra-metal-source-lowering-sanitized PRIVATE -Wall -Wextra -Werror
+    -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
   add_executable(kalandra-metal-source-compiler-sanitized main.cpp Compiler.cpp Build.cpp)
-  target_link_libraries(kalandra-metal-source-compiler-sanitized PRIVATE kalandra-semantics-sanitized kalandra-backend MLIR LLVM)
+  target_link_libraries(kalandra-metal-source-compiler-sanitized PRIVATE kalandra-semantics-sanitized kalandra-project-sanitized kalandra-metal-source-lowering-sanitized MLIR LLVM)
   target_include_directories(kalandra-metal-source-compiler-sanitized SYSTEM PRIVATE ${MLIR_INCLUDE_DIRS} ${LLVM_INCLUDE_DIRS})
   target_compile_options(kalandra-metal-source-compiler-sanitized PRIVATE -Wall -Wextra -Werror -O1 -g
     -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
@@ -392,4 +401,24 @@ if(BUILD_TESTING)
     "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/spawned-helpers-cli"
     -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifySpawnedHelpers.cmake")
   set_tests_properties(native-spawned-helpers-cli PROPERTIES TIMEOUT 240 RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-modules COMMAND "${CMAKE_COMMAND}"
+      "-DCOMPILER=$<TARGET_FILE:${COMPILER_TARGET}>" "-DCHECKER=$<TARGET_FILE:kalandra-check>"
+      "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-modules"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyModules.cmake")
+    set_tests_properties(${COMPILER_TARGET}-modules PROPERTIES TIMEOUT 120)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-modules-${VARIANT} COMMAND "${CMAKE_COMMAND}"
+      "-DCOMPILER=$<TARGET_FILE:kalandrac>" "-DVARIANT=${VARIANT}"
+      "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/modules-${VARIANT}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyModules.cmake")
+    set_tests_properties(native-metal-modules-${VARIANT} PROPERTIES TIMEOUT 300
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
 endif()

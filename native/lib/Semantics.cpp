@@ -725,8 +725,8 @@ private:
         target.name = "__module_" + std::to_string(function.moduleIndex) + "::" + target.name;
     }
     for (const auto &import : syntax_.imports) {
-      if (!import.target || options_.placement) {
-        error("S067", "local imports require the CPU file-module loader", import.path);
+      if (!import.target) {
+        error("S067", "local imports require the file-module loader", import.path);
         continue;
       }
       for (const auto &imported : import.names) {

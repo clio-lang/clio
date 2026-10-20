@@ -667,3 +667,7 @@ CPU task lowering and the Metal supervisor now consume the same checked slot/gro
 [Direct resumable helpers](continuations.md#resumable-mixed-helper-bodies) can now own parallel scopes, submit CPU/GPU work, suspend for transfers/tasks, recover settled errors and return completed host values. Task coordination can live in transitive helper functions, including a nonfallible wrapper that catches a fallible helper's errors. Main no longer needs a single outer parallel block when its callees own their work. Pure numeric calls retain their checked CPU ABI and GPU kernel eligibility. An actual GPU placement is still required by the Metal target.
 
 Resumable helpers currently expand into their caller's continuation. [Independently spawned helpers](continuations.md#independently-scheduled-mixed-helpers) now use separate child frames and the existing scheduler ownership/cancellation rules. Resident tensors, selectors and task handles retain their existing escape restrictions. The continuation design records examples, limits and lifecycle qualification.
+
+## Local modules and projects
+
+[Apple Metal function modules](native-metal-modules.md) share the native module loader, visibility and nominal source identity with CPU builds. Numerical helpers and mixed CPU/GPU coordinators can be imported, aliased and re-exported, using relative paths, explicit offline package mappings or native project manifests. Module composition preserves existing float32/rank/placement limits and explicit transfers; it does not make managed host values GPU-compatible.

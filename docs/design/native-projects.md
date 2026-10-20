@@ -61,6 +61,6 @@ There is no ancestor search or implicit project discovery. Each invocation reads
 
 The resulting CPU graph uses the same declarations, type checking, source diagnostics, bounded module loading and worker ownership as explicit source builds. The manifest and every source dependency are protected from executable, LLVM and MLIR output replacement, including aliases through symlinks or hard links. Invalid configuration preserves existing output files.
 
-GPU modules, dependency installation, registry access, version solving, lockfiles and native library ABI output remain separate work. The manifest is compiler input, not a runtime dependency of the compiled application.
+[Apple Metal builds](native-metal-modules.md) also accept these manifests with `--target metal`, retaining their numerical and placement restrictions. Dependency installation, registry access, version solving, lockfiles and native library ABI output remain separate work. The manifest is compiler input, not a runtime dependency of the compiled application.
 
 Qualification covers frontend schema/size/count checks, canonical path bases, symlinks and fresh reads, plus debug, optimized, ASan/UBSan and TSan execution of manifest-driven workers and mapped libraries. It includes configuration failures, output preservation, direct/symlink/hard-link manifest protection and this complete example. See the [evidence record](../../native/metal-proof/evidence/cpu-native-projects-2026-10-18.json).

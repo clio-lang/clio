@@ -1,6 +1,6 @@
 # Native local function modules
 
-The native CPU compiler and checker now load explicit local module graphs. Functions are private to their declaring file unless marked `export`.
+The native CPU compiler and checker load explicit local module graphs. The [Apple Metal compiler](native-metal-modules.md) also loads function modules, including shared numerical helpers and mixed CPU/GPU coordinators within its existing value/type subset. Functions are private to their declaring file unless marked `export`.
 
 `math.k`:
 
@@ -38,13 +38,13 @@ Ordinary imports are not automatically re-exported. Use [explicit re-exports](re
 
 ## Types, workers and entry points
 
-The complete source graph shares one checked function IR. Each import refers to the original function identity; aliases do not copy its implementation or erase its types. Concrete numeric types, arrays, tensors, shape requirements, Bool, return inference and the existing TaskError channel keep their current rules. Already typed values do not convert implicitly at a module boundary. Synchronous functions can now accept and return [CPU records](records.md), including nested records. Callers can infer an imported record value's original nominal type, read its fields and derive updates; the type name stays private unless the declaration is explicitly exported and imported. [CPU workers](record-workers.md) can also capture and return those imported record values; GPU module integration remains gated.
+The complete source graph shares one checked function IR. Each import refers to the original function identity; aliases do not copy its implementation or erase its types. Concrete numeric types, arrays, tensors, shape requirements, Bool, return inference and the existing TaskError channel keep their current rules. Already typed values do not convert implicitly at a module boundary. Synchronous functions can now accept and return [CPU records](records.md), including nested records. Callers can infer an imported record value's original nominal type, read its fields and derive updates; the type name stays private unless the declaration is explicitly exported and imported. [CPU workers](record-workers.md) can also capture and return those imported record values; Apple Metal function-module integration is supported within the [documented numerical subset](native-metal-modules.md).
 
 Imported functions can be named map callbacks, called from anonymous callbacks, and dispatched directly or through nested CPU workers. Captures and retained results use the existing ownership and task machinery. Dependencies are compiler inputs; they are not dynamically loaded by a running program.
 
 A compiled program still requires its own root-file `main`. A dependency's `main`, or an import alias named `main`, does not become the program entry point. Internal test interfaces remain private and are not a public library ABI. Source `export` controls cross-file visibility; supported object/static/shared-library packaging still requires its separate ABI and lifecycle work.
 
-This implementation is CPU-only. The placement checker and Metal compiler reject unresolved/local module imports rather than silently treating this as GPU module support. GPU module integration remains a separate gate. Native distributed execution still requires the agreed design discussion.
+The placement checker and Metal compiler accept loader-resolved function imports, aliases and re-exports. Unresolved in-memory imports remain errors. Imported GPU kernels retain the same numeric, placement and transfer restrictions as single-file kernels; this does not enable imported record/error types, strings or arbitrary callbacks on GPU. See [Metal modules](native-metal-modules.md) for supported scope. Native distributed execution still requires the agreed design discussion.
 
 ## Loading, diagnostics and build outputs
 

@@ -152,9 +152,13 @@ int main(int argc, char **argv) {
         "memory.k", "from \"./math.k\" import double\nfn main():\n  0\n")));
     require(!unresolved.ok() && unresolved.diagnostics[0].code == "S067",
             "unresolved imports bypassed module loader");
-    auto placed = loadModules((root / "main.k").string());
-    require(bool(placed) && !check(std::move(*placed), {}, {.placement = true}).ok(),
-            "CPU module support silently enabled for placement compiler");
+    write("placed-lib.k", "export fn double(value:float32)->float32:\n  value*2\n");
+    write("placed-main.k", "from \"./placed-lib.k\" import double\n"
+                           "fn main()->float32 ! TaskError:\n  try parallel:\n"
+                           "    try await spawn double(2) on devices.gpu()\n");
+    auto placed = loadModules((root / "placed-main.k").string());
+    require(bool(placed) && check(std::move(*placed), {}, {.placement = true}).ok(),
+            "resolved function imports rejected by placement checking");
     write("library-main.k", "export fn main():\n  7\n");
     write("no-entry.k", "from \"./library-main.k\" import main as importedMain\n");
     auto noEntry = analyze("no-entry.k");
