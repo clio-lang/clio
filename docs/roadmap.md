@@ -69,10 +69,21 @@ Qualify macOS ARM64 with Metal first. CPU toolchain/runtime qualification for Wi
 
 ## Advanced GPU interoperability — planned follow-up
 
-- **User-supplied compute shaders:** allow applications to load their own GPU compute shaders and invoke their entry points through Kalandra's task/runtime model. Start with Apple Metal; backend-specific CUDA artifacts follow the separate NVIDIA roadmap. This is planned capability, not an implemented API or accepted syntax.
-- Define typed tensor/scalar bindings, output shapes, device requirements and dispatch configuration. Integrate immutable input ownership, fresh result storage, retained resources through command completion, explicit transfers, budgets and existing task error/cancellation settlement. Cancellation must not imply that an already submitted GPU command can be forcibly stopped.
-- Specify the foreign-code safety and numerical boundary: reflection/layout checks alone cannot prove an arbitrary shader's memory accesses, immutability or arithmetic semantics. Do not silently grant user-supplied shaders the guarantees of compiler-generated kernels.
-- Settle source versus precompiled artifact loading, packaging and the explicit foreign-code interface before implementation. This follows the current generated-kernel integration baseline; it does not expand the immediate core queue.
+These are two separate future workstreams, deferred until after the current generated-kernel integration baseline. Neither expands the immediate core queue or adds a prerequisite to the current native release gates. Public APIs and syntax are not accepted yet.
+
+### User-supplied compute shaders and kernels
+
+Let applications supply custom GPU computation for specialized operations not expressed by the supported Kalandra subset. Start with Apple Metal; backend-specific CUDA artifacts follow the separate NVIDIA roadmap.
+
+Define typed tensor/scalar bindings, output shapes, device requirements, dispatch configuration, source versus precompiled artifact loading and packaging. Integrate immutable input ownership, fresh result storage, retained resources through command completion, explicit transfers, budgets and existing task error/cancellation settlement. Cancellation must not imply that an already submitted GPU command can be forcibly stopped.
+
+Specify the foreign-code safety and numerical boundary: reflection/layout checks alone cannot prove an arbitrary shader's memory accesses, immutability or arithmetic semantics. Do not silently grant user-supplied shaders the guarantees of compiler-generated kernels.
+
+### External GPU compute libraries
+
+Let applications reuse existing optimized operations through library adapters, separately from loading custom shaders. Candidate integrations include Metal Performance Shaders on Apple and cuBLAS under the separate NVIDIA roadmap; these are examples, not selected dependencies or implementation commitments.
+
+Define supported operations, tensor formats/layouts, device compatibility, dependency packaging and task completion integration. Preserve Kalandra ownership and explicit transfer rules. Specify numerical compatibility per operation; a library operation must not silently replace a strict language operation when rounding, reduction order or other semantics differ. Evaluate usefulness and implementation scope before selecting the first adapter. Shared resource/dispatch foundations may be reusable, but library adapters and custom-kernel loading have distinct interfaces and qualification work.
 
 ## Optimization
 

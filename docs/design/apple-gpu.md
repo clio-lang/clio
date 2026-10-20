@@ -680,6 +680,6 @@ Resumable helpers currently expand into their caller's continuation. [Independen
 
 [GPU numerical forwarding](native-gpu-forwarding.md) now follows local aliases, named/imported helper calls and completed result forwarding around one supported reduction or matrix operation. Buffer mapping preserves reordered and repeated operands. It reuses the existing shader/runtime interfaces and preserves fixed/dynamic shape checks; extra computations and recursive forwarding remain diagnostic.
 
-## Planned user-supplied compute shaders
+## Planned GPU interoperability
 
-The [advanced GPU interoperability follow-up](../roadmap.md#advanced-gpu-interoperability--planned-follow-up) tracks loading application-supplied compute shaders through the managed GPU task runtime. Apple Metal comes first. Public loading syntax, artifact formats and binding declarations are not designed yet. Existing private kernel loaders are not a public foreign-shader API, and reflection does not validate arbitrary shader behavior.
+The [advanced GPU interoperability follow-up](../roadmap.md#advanced-gpu-interoperability--planned-follow-up) tracks two deferred workstreams: application-supplied compute shaders/kernels and adapters for external GPU compute libraries. Custom kernels provide specialized computation; library adapters reuse existing optimized operations. These are separate interfaces and qualification efforts, outside the current release gates. Custom shader loading would use the managed GPU task runtime. Apple Metal comes first. Public loading syntax, artifact formats and binding declarations are not designed yet. Existing private kernel loaders are not a public foreign-shader API, and reflection does not validate arbitrary shader behavior.
