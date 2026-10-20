@@ -719,4 +719,16 @@ float32 helper return `reduceSum(matmul(input, weights))`, optionally transformi
 either/both matrix inputs first. One scalar task retains the resident matrix
 and reads back only its final scalar. Matrix/reduction shaders, strict trees,
 shape guards, budgets and command acknowledgement rules remain unchanged.
-Arithmetic between/after this pair and broader numerical graphs remain N2 work.
+[Arithmetic between the product and reduction](native-gpu-matmul-adjust-reduction.md)
+now also stays resident. Scalar arithmetic after this pair and broader numerical
+graphs remain N2 work.
+
+## Matrix-result arithmetic before reduction
+
+[Matrix adjustment/reduction composition](native-gpu-matmul-adjust-reduction.md)
+now supports `reduceSum((matmul(input, weights) + bias) * scale)`, including
+optional input maps. One scalar task owns the full resident sequence and keeps
+the strict multiplication and final reduction trees unchanged. Full-shape
+guards, direct/Tier 2 bindings and failure/ownership rules reuse existing paths;
+only the final scalar is read back. Scalar arithmetic after the pair and broader
+graphs remain separate N2 work.

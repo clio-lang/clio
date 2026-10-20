@@ -316,9 +316,23 @@
         "capabilities/matmul-reduction.k",
         "matmul-reduction.k"
       ],
-      "notes": "One strict matmul followed by one row-major reduceSum under a scalar task; optional independent input maps; intermediate/post arithmetic and additional primitives remain separate work",
+      "notes": "One strict matmul followed by one row-major reduceSum under a scalar task; optional independent input maps; matrix-result arithmetic has its own qualification below; scalar epilogues and additional primitives remain separate work",
       "evidence": [
         "gpu-matmul-reduction-2026-10-21.json"
+      ]
+    },
+    {
+      "id": "matmul-adjust-reduction",
+      "feature": "Arithmetic between matrix product and reduction",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "capabilities/matmul-adjust-reduction.k",
+        "matmul-adjust-reduction.k"
+      ],
+      "notes": "Strict tensor/scalar arithmetic on one matrix result before one row-major reduceSum; optional input maps; projected direct/Tier 2 bindings; one scalar task",
+      "evidence": [
+        "gpu-matmul-adjust-reduction-2026-10-21.json"
       ]
     }
   ]

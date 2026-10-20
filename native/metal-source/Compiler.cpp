@@ -253,7 +253,7 @@ class Compiler {
           if (input && sum->order == ReductionOrder::BalancedAdjacent && sum->rowMajor) {
             if (input->kind == PrimitiveEntry::Input && ++primitives == 1)
               result = PrimitiveEntry{PrimitiveEntry::Sum, input->left, 0, input->mapped};
-            else if (input->kind == PrimitiveEntry::Matrix && !input->post && ++primitives == 2) {
+            else if (input->kind == PrimitiveEntry::Matrix && ++primitives == 2) {
               result = input;
               result->kind = PrimitiveEntry::MatrixSum;
             }
@@ -281,7 +281,7 @@ class Compiler {
             result = a->kind == PrimitiveEntry::Input ? a : b;
             if (result->kind == PrimitiveEntry::Input)
               result->mapped = true;
-          } else if (matrixSignature && tensor && a && b &&
+          } else if ((matrixSignature || sumSignature) && tensor && a && b &&
                      (a->kind == PrimitiveEntry::Matrix || b->kind == PrimitiveEntry::Matrix) &&
                      (a->kind == PrimitiveEntry::Matrix || a->kind == PrimitiveEntry::Input ||
                       a->kind == PrimitiveEntry::Scalar) &&
@@ -306,7 +306,8 @@ class Compiler {
             result = input;
             if (result->kind == PrimitiveEntry::Input)
               result->mapped = true;
-          } else if (matrixSignature && tensor && input && input->kind == PrimitiveEntry::Matrix) {
+          } else if ((matrixSignature || sumSignature) && tensor && input &&
+                     input->kind == PrimitiveEntry::Matrix) {
             result = input;
             result->post = true;
           } else if (!tensor && input && input->kind == PrimitiveEntry::Sum) {
@@ -869,6 +870,7 @@ class Compiler {
                      "=*reduction;\n";
       arguments = "f." + reductionKernel + ", " + arguments;
     }
+    std::string matrixAdjustmentArguments;
     if (post) {
       std::vector<std::uint32_t> postReads;
       shader(function, &postReads, true); // Validate before publishing any host/shader artifacts.
@@ -890,15 +892,16 @@ class Compiler {
                      ");\nif(!post){" + error("post.error()") + "}\nf." + epilogue + "=*post;\n";
       if (!mapped && !matrix)
         arguments = ref(left);
-      arguments += ", f." + epilogue;
+      auto &postArguments = matrixSum ? matrixAdjustmentArguments : arguments;
+      postArguments += ", f." + epilogue;
       if (matrix) {
         auto postInputs = tensors;
         postInputs.insert(postInputs.begin(),
                           left); // Replaced by the completed matrix in the task frame.
-        arguments += ", " + pack(postInputs, "m::Buffer");
+        postArguments += ", " + pack(postInputs, "m::Buffer");
       }
       if (!mapped)
-        arguments += ", " + pack(scalars, "float");
+        postArguments += ", " + pack(scalars, "float");
     }
     if (matrix && (primitiveEntry(function)->leftMapped || primitiveEntry(function)->rightMapped)) {
       // Both operand maps read the original immutable argument pack. Their
@@ -933,6 +936,12 @@ class Compiler {
         arguments += ", f." + mapKernel;
       }
       arguments += ", " + pack(tensors, "m::Buffer") + ", " + pack(scalars, "float");
+    }
+    if (matrixSum && post) {
+      if (!primitiveEntry(function)->leftMapped && !primitiveEntry(function)->rightMapped)
+        arguments +=
+            ", m::Kernel{}, m::Kernel{}, std::span<const m::Buffer>{}, std::span<const float>{}";
+      arguments += matrixAdjustmentArguments;
     }
     steps.push_back("auto target = " + device(target) + ";\nif (!target) { " +
                     error("target.error()") + " }\n" + std::string("auto kernel = r.") +
@@ -1535,7 +1544,7 @@ class Compiler {
           // its tensor input; after it, read the already-reduced device scalar.
           if (!reduction(function))
             reject(n.span, "unexpected reduction in elementwise shader");
-          result = post ? "%lane0" : emit(sum->input);
+          result = post && !matrixPost ? "%lane0" : emit(sum->input);
           reductionInput = result;
         } else if (const auto *matrix = std::get_if<Matmul>(&n.operation);
                    matrix && (matrixPost || matrixOperand >= 0)) {
@@ -1589,6 +1598,11 @@ class Compiler {
     if (post) {
       tensors = matrixPost ? tensors + 1 : 1;
       tensorInputs.emplace("%lane0", 0);
+      if (matrixPost && reduction(function)) {
+        if (!reductionInput)
+          reject({}, "missing GPU matrix reduction input");
+        result = *reductionInput;
+      }
     } else if (matrixOperand >= 0) {
       if (!matrixInput)
         reject({}, "missing GPU matrix input");

@@ -84,14 +84,35 @@ int main(int argc, char **argv) {
   CHECK(d);
   auto matrix = r.loadMatmulKernel(directory + "/kernel0.metallib", *d);
   auto reduce = r.loadReductionKernel(directory + "/kernel0-reduce.metallib", *d);
-  auto left = r.loadElementwiseKernel(directory + "/kernel0-left.metallib", *d, {2, 1},
+#ifdef KALANDRA_MATRIX_ADJUSTMENT
+  constexpr unsigned logicalInputs = 3;
+  auto adjust = r.loadElementwiseKernel(directory + "/kernel0-post.metallib", *d, {4, 1},
+                                        std::array<std::uint32_t, 2>{0, 3});
+  CHECK(adjust);
+  m::Buffer defaultBias;
+  constexpr float retainedValue = 384.0f;
+#else
+  constexpr unsigned logicalInputs = 2;
+  constexpr float retainedValue = 180.0f;
+#endif
+  auto left = r.loadElementwiseKernel(directory + "/kernel0-left.metallib", *d, {logicalInputs, 1},
                                       std::array<std::uint32_t, 1>{0});
-  auto right = r.loadElementwiseKernel(directory + "/kernel0-right.metallib", *d, {2, 1},
-                                       std::array<std::uint32_t, 1>{1});
+  auto right = r.loadElementwiseKernel(directory + "/kernel0-right.metallib", *d,
+                                       {logicalInputs, 1}, std::array<std::uint32_t, 1>{1});
   CHECK(matrix && reduce && left && right);
-  auto graph = [&](TaskCore &core, GroupHandle group, m::Buffer a, m::Buffer b, float scale) {
+  auto graph = [&](TaskCore &core, GroupHandle group, m::Buffer a, m::Buffer b, float scale,
+                   m::Buffer bias = {}) {
+#ifdef KALANDRA_MATRIX_ADJUSTMENT
+    if (!bias)
+      bias = defaultBias;
+    return r.matmulReduceSum(core, group, *matrix, *reduce, a, b, *left, *right,
+                             std::array{a, b, bias}, std::array{scale}, *adjust,
+                             std::array{a, a, b, bias}, std::array{scale});
+#else
+    (void)bias;
     return r.matmulReduceSum(core, group, *matrix, *reduce, a, b, *left, *right, std::array{a, b},
                              std::array{scale});
+#endif
   };
   std::uint64_t cases = 0;
   std::uint32_t seed = 0x7a351b43;
@@ -133,18 +154,36 @@ int main(int argc, char **argv) {
         };
         auto a = values(m * k), b = values(k * n);
         auto ga = upload(r, a, {m, k}), gb = upload(r, b, {k, n});
+#ifdef KALANDRA_MATRIX_ADJUSTMENT
+        auto bias = values(m * n);
+        auto gc = upload(r, bias, {m, n});
+#else
+        m::Buffer gc;
+#endif
         const auto baseline = r.stats().bytes;
         for (bool mapped : {false, true}) {
           auto core = TaskCore::create();
           CHECK(core);
           auto group = core->openRoot();
+#ifdef KALANDRA_MATRIX_ADJUSTMENT
+          auto work =
+              mapped ? graph(*core, group, ga, gb, scale, gc)
+                     : r.matmulReduceSum(*core, group, *matrix, *reduce, ga, gb, {}, {}, {}, {},
+                                         *adjust, std::array{ga, ga, gb, gc}, std::array{scale});
+#else
           auto work = mapped ? graph(*core, group, ga, gb, scale)
                              : r.matmulReduceSum(*core, group, *matrix, *reduce, ga, gb);
+#endif
           CHECK(work && core->drain());
           auto al = ga, br = gb;
           if (mapped) {
-            auto l = r.elementwise(*core, group, *left, std::array{ga, gb}, std::array{scale});
-            auto q = r.elementwise(*core, group, *right, std::array{ga, gb}, std::array{scale});
+#ifdef KALANDRA_MATRIX_ADJUSTMENT
+            auto mapInputs = std::array{ga, gb, gc};
+#else
+            auto mapInputs = std::array{ga, gb};
+#endif
+            auto l = r.elementwise(*core, group, *left, mapInputs, std::array{scale});
+            auto q = r.elementwise(*core, group, *right, mapInputs, std::array{scale});
             CHECK(l && q && core->drain());
             al = observe(*core, l);
             br = observe(*core, q);
@@ -152,6 +191,12 @@ int main(int argc, char **argv) {
           auto mul = r.matmul(*core, group, *matrix, al, br);
           CHECK(mul && core->drain());
           auto resident = observe(*core, mul);
+#ifdef KALANDRA_MATRIX_ADJUSTMENT
+          auto adjusted = r.elementwise(*core, group, *adjust, std::array{resident, ga, gb, gc},
+                                        std::array{scale});
+          CHECK(adjusted && core->drain());
+          resident = observe(*core, adjusted);
+#endif
           auto separate = r.reduceSum(*core, group, *reduce, resident);
           CHECK(separate && core->drain());
           Invocation cpuContext;
@@ -163,8 +208,14 @@ int main(int argc, char **argv) {
             return Float32Tensor<2>{data, data, 0, dims, {dims[1], 1}};
           };
           auto ca = descriptor(a, {m, k}), cb = descriptor(b, {k, n});
+#ifdef KALANDRA_MATRIX_ADJUSTMENT
+          auto cc = descriptor(bias, {m, n});
+          auto cpu = mapped ? _mlir_ciface_kalandra_cpu_0(&ca, scale, &cb, &cc, &cpuContext)
+                            : _mlir_ciface_kalandra_cpu_1(&ca, &cb, &cc, scale, &cpuContext);
+#else
           auto cpu = mapped ? _mlir_ciface_kalandra_cpu_0(&ca, scale, &cb, &cpuContext)
                             : _mlir_ciface_kalandra_cpu_1(&ca, &cb, &cpuContext);
+#endif
           CHECK(!cpuContext.status());
           std::vector<std::uint32_t> products;
           for (std::int64_t row = 0; row < m; ++row)
@@ -178,7 +229,12 @@ int main(int argc, char **argv) {
                 }
                 terms[i] = float_proof::oracle({x, y}, 1);
               }
-              products.push_back(sum(std::move(terms)));
+              auto cell = sum(std::move(terms));
+#ifdef KALANDRA_MATRIX_ADJUSTMENT
+              cell = float_proof::oracle({cell, bias[row * n + col]}, 0);
+              cell = float_proof::oracle({cell, std::bit_cast<std::uint32_t>(scale)}, 1);
+#endif
+              products.push_back(cell);
             }
           auto expected = sum(std::move(products));
           CHECK(float_proof::equal(scalar(*core, work), expected));
@@ -197,6 +253,9 @@ int main(int argc, char **argv) {
   empty(r);
   auto a = upload(r, std::vector<std::uint32_t>(15, 0x3f800000u), {3, 5});
   auto b = upload(r, std::vector<std::uint32_t>(20, 0x40000000u), {5, 4});
+#ifdef KALANDRA_MATRIX_ADJUSTMENT
+  defaultBias = upload(r, std::vector<std::uint32_t>(12, 0x3f800000u), {3, 4});
+#endif
   auto baseline = r.stats().bytes;
   auto run = [&](bool success) {
     auto core = TaskCore::create();
@@ -205,7 +264,7 @@ int main(int argc, char **argv) {
     auto work = graph(*core, group, a, b, 2);
     CHECK(work && core->drain());
     if (success)
-      CHECK(scalar(*core, work) == std::bit_cast<std::uint32_t>(180.0f));
+      CHECK(scalar(*core, work) == std::bit_cast<std::uint32_t>(retainedValue));
     else {
       CHECK(core->failure(work).kind == TaskFailure::Fault && core->failure(work).code == 2);
       Invocation context;
@@ -223,7 +282,12 @@ int main(int argc, char **argv) {
     run(false);
   }
   r.failAllocationAt(0);
-  for (unsigned stage = 0; stage < 4; ++stage)
+#ifdef KALANDRA_MATRIX_ADJUSTMENT
+  constexpr unsigned stages = 5;
+#else
+  constexpr unsigned stages = 4;
+#endif
+  for (unsigned stage = 0; stage < stages; ++stage)
     for (unsigned scenario = 0; scenario < 3; ++scenario) {
       auto core = TaskCore::create();
       CHECK(core);
@@ -287,6 +351,25 @@ int main(int argc, char **argv) {
     retire(*core, group);
     empty(r, baseline);
   }
+#ifdef KALANDRA_MATRIX_ADJUSTMENT
+  // The matrix adjustment must consume the completed matrix in logical slot zero.
+  {
+    auto invalid = r.loadElementwiseKernel(directory + "/kernel0-post.metallib", *d, {4, 1},
+                                           std::array<std::uint32_t, 2>{1, 3});
+    CHECK(invalid);
+    auto core = TaskCore::create();
+    CHECK(core);
+    auto group = core->openRoot();
+    auto before = r.stats().submissions;
+    auto work = r.matmulReduceSum(*core, group, *matrix, *reduce, a, b, {}, {}, {}, {}, *invalid,
+                                  std::array{a, a, b, defaultBias}, std::array{2.0f});
+    CHECK(work && core->drain());
+    CHECK(core->failure(work).kind == TaskFailure::Fault && core->failure(work).code == 3);
+    CHECK(r.stats().submissions == before);
+    retire(*core, group);
+    empty(r, baseline);
+  }
+#endif
   // Final scalars remain observable after all original inputs are released.
   {
     auto core = TaskCore::create();
@@ -296,11 +379,14 @@ int main(int argc, char **argv) {
     CHECK(work && core->drain());
     a = {};
     b = {};
+#ifdef KALANDRA_MATRIX_ADJUSTMENT
+    defaultBias = {};
+#endif
     empty(r);
-    CHECK(scalar(*core, work) == std::bit_cast<std::uint32_t>(180.0f));
+    CHECK(scalar(*core, work) == std::bit_cast<std::uint32_t>(retainedValue));
     retire(*core, group);
   }
-  // A single in-flight slot suffices; reject reduction scratch after matrix acknowledgement.
+  // A single in-flight slot suffices; reject a later-stage allocation after matrix acknowledgement.
   for (bool limited : {false, true}) {
     auto owner = m::Runtime::create({.maxBytes = 512, .maxInFlight = 1});
     CHECK(owner);
@@ -313,9 +399,18 @@ int main(int argc, char **argv) {
     auto x = upload(rt, std::vector<std::uint32_t>(15, 0x3f800000u), {3, 5});
     auto y = upload(rt, std::vector<std::uint32_t>(20, 0x40000000u), {5, 4});
     m::Buffer padding;
+#ifdef KALANDRA_MATRIX_ADJUSTMENT
+    auto adjustment = rt.loadElementwiseKernel(directory + "/kernel0-post.metallib", *dev, {4, 1},
+                                               std::array<std::uint32_t, 2>{0, 3});
+    CHECK(adjustment);
+    auto bias = upload(rt, std::vector<std::uint32_t>(12, 0x3f800000u), {3, 4});
+    constexpr unsigned paddingWords = 66;
+#else
+    constexpr unsigned paddingWords = 78;
+#endif
     if (limited) {
-      std::vector<std::uint32_t> data(78);
-      std::array<std::int64_t, 2> dims{1, 78};
+      std::vector<std::uint32_t> data(paddingWords);
+      std::array<std::int64_t, 2> dims{1, paddingWords};
       auto host = rt.hostTensor(std::as_bytes(std::span(data)), dims, m::Format::Float32);
       CHECK(host);
       padding = *host;
@@ -324,17 +419,29 @@ int main(int argc, char **argv) {
     CHECK(core);
     auto group = core->openRoot();
     auto before = rt.stats().submissions;
+#ifdef KALANDRA_MATRIX_ADJUSTMENT
+    auto work = rt.matmulReduceSum(*core, group, *mul, *red, x, y, {}, {}, {}, {}, *adjustment,
+                                   std::array{x, x, y, bias}, std::array{2.0f});
+#else
     auto work = rt.matmulReduceSum(*core, group, *mul, *red, x, y);
+#endif
     CHECK(work && core->drain());
     if (limited) {
       CHECK(core->failure(work).kind == TaskFailure::Fault && core->failure(work).code == 6);
       CHECK(rt.stats().submissions == before + 1);
     } else
+#ifdef KALANDRA_MATRIX_ADJUSTMENT
+      CHECK(scalar(*core, work) == std::bit_cast<std::uint32_t>(264.0f));
+#else
       CHECK(scalar(*core, work) == std::bit_cast<std::uint32_t>(120.0f));
+#endif
     retire(*core, group);
     x = {};
     y = {};
     padding = {};
+#ifdef KALANDRA_MATRIX_ADJUSTMENT
+    bias = {};
+#endif
     empty(rt);
   }
   CHECK(generated_main(argc, argv) == 0);

@@ -1390,7 +1390,9 @@ TaskHandle Runtime::matmul(Task &task, GroupHandle group, Kernel kernel, Buffer 
 TaskHandle Runtime::matmulReduceSum(TaskCore &task, GroupHandle group, Kernel matrix,
                                     Kernel reduction, Buffer left, Buffer right, Kernel leftMap,
                                     Kernel rightMap, std::span<const Buffer> mapInputs,
-                                    std::span<const float> mapScalars) noexcept {
+                                    std::span<const float> mapScalars, Kernel adjustment,
+                                    std::span<const Buffer> adjustmentInputs,
+                                    std::span<const float> adjustmentScalars) noexcept {
   Bridge::PacketData packet{state_,
                             std::move(left),
                             {},
@@ -1401,6 +1403,15 @@ TaskHandle Runtime::matmulReduceSum(TaskCore &task, GroupHandle group, Kernel ma
   if (!reduction)
     packet.preparation = Error::Invalid;
   packet.reduction = std::move(reduction);
+  if (adjustment) {
+    auto args = Bridge::capture(state_, adjustment, adjustmentInputs, adjustmentScalars);
+    if (args)
+      packet.postArguments = *args;
+    else
+      packet.preparation = args.error();
+    packet.matrixPost = std::move(adjustment);
+  } else if (!adjustmentInputs.empty() || !adjustmentScalars.empty())
+    packet.preparation = Error::Invalid;
   Bridge::matrixMaps(packet, std::move(leftMap), std::move(rightMap), mapInputs, mapScalars);
   return task.submit(group, Bridge::reductionEntry,
                      {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
@@ -1408,7 +1419,9 @@ TaskHandle Runtime::matmulReduceSum(TaskCore &task, GroupHandle group, Kernel ma
 TaskHandle Runtime::matmulReduceSum(Task &task, GroupHandle group, Kernel matrix, Kernel reduction,
                                     Buffer left, Buffer right, Kernel leftMap, Kernel rightMap,
                                     std::span<const Buffer> mapInputs,
-                                    std::span<const float> mapScalars) noexcept {
+                                    std::span<const float> mapScalars, Kernel adjustment,
+                                    std::span<const Buffer> adjustmentInputs,
+                                    std::span<const float> adjustmentScalars) noexcept {
   Bridge::PacketData packet{state_,
                             std::move(left),
                             {},
@@ -1419,6 +1432,15 @@ TaskHandle Runtime::matmulReduceSum(Task &task, GroupHandle group, Kernel matrix
   if (!reduction)
     packet.preparation = Error::Invalid;
   packet.reduction = std::move(reduction);
+  if (adjustment) {
+    auto args = Bridge::capture(state_, adjustment, adjustmentInputs, adjustmentScalars);
+    if (args)
+      packet.postArguments = *args;
+    else
+      packet.preparation = args.error();
+    packet.matrixPost = std::move(adjustment);
+  } else if (!adjustmentInputs.empty() || !adjustmentScalars.empty())
+    packet.preparation = Error::Invalid;
   Bridge::matrixMaps(packet, std::move(leftMap), std::move(rightMap), mapInputs, mapScalars);
   return task.spawn(group, Bridge::reductionEntry,
                     {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});

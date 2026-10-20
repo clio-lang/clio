@@ -69,9 +69,9 @@ Cached scalar observations remain valid after original input owners are released
 
 ## Current boundaries
 
-This pair currently requires the unmodified matrix result as the reduction
-input, apart from aliases and forwarding helpers. Arithmetic between the product
-and reduction, scalar arithmetic after this composed reduction, more matrix or
+[Arithmetic between the product and reduction](native-gpu-matmul-adjust-reduction.md)
+now has its own qualified resident stage, including tensor bias and scalar
+operations. Scalar arithmetic after this composed reduction, more matrix or
 reduction primitives, recursive helpers and data-dependent GPU branches remain
 separate lowering work. Programs can express those calculations with separate
 placed tasks today. Broader GPU numeric types/ranks and custom shader interfaces
