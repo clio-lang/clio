@@ -67,6 +67,13 @@ CPU and GPU feature coverage is explicit: shared syntax, types and IR do not imp
 
 Qualify macOS ARM64 with Metal first. CPU toolchain/runtime qualification for Windows x86-64, Linux and then FreeBSD remains planned; other BSD systems need individual qualification. NVIDIA GPU support on Windows and Linux belongs to the [separate CUDA roadmap](native-cuda-roadmap.md) and does not block the main roadmap. LLVM code generation does not by itself establish runtime, linker, packaging or operating-system support. Other GPU backends, including OpenCL, follow concrete hardware/deployment needs and are not prerequisites for the first native release. These are planned targets, not a claim of current support.
 
+## Advanced GPU interoperability — planned follow-up
+
+- **User-supplied compute shaders:** allow applications to load their own GPU compute shaders and invoke their entry points through Kalandra's task/runtime model. Start with Apple Metal; backend-specific CUDA artifacts follow the separate NVIDIA roadmap. This is planned capability, not an implemented API or accepted syntax.
+- Define typed tensor/scalar bindings, output shapes, device requirements and dispatch configuration. Integrate immutable input ownership, fresh result storage, retained resources through command completion, explicit transfers, budgets and existing task error/cancellation settlement. Cancellation must not imply that an already submitted GPU command can be forcibly stopped.
+- Specify the foreign-code safety and numerical boundary: reflection/layout checks alone cannot prove an arbitrary shader's memory accesses, immutability or arithmetic semantics. Do not silently grant user-supplied shaders the guarantees of compiler-generated kernels.
+- Settle source versus precompiled artifact loading, packaging and the explicit foreign-code interface before implementation. This follows the current generated-kernel integration baseline; it does not expand the immediate core queue.
+
 ## Optimization
 
 - **Parallel-map scheduling:** tune task/chunk granularity, bounded window width and capacity-aware admission; reduce repeated capture copying and avoid whole-batch straggler stalls. Preserve ordered results, typed failures, cooperative cancellation and resource accounting. The initial [CPU implementation](design/native-parallel-map.md) uses up to eight element tasks per batch.
