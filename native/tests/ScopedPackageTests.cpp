@@ -1,5 +1,6 @@
 #include "kalandra/Backend.h"
 #include "kalandra/Continuation.h"
+#include "kalandra/Project.h"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -58,19 +59,26 @@ int main(int argc, char **argv) {
         "fn main()->[int64] ! TaskError:\n  old=try parallel:\n    try await spawn compute(10)\n"
         "  [next(Item {value:10}).value,old]\n";
     write("app/main.k", main);
-    auto node = [](std::string identity, const std::string &dir, const std::string &entry,
-                   std::vector<PackageDependency> deps) {
-      return PackageNode{std::move(identity),
-                         (root / dir).string(),
-                         (root / dir / entry).string(),
-                         std::move(deps),
-                         {}};
+    write("app/kalandra.toml", "format=1\n[project]\nentry='main.k'\n");
+    auto project = loadNativeProject((root / "app/kalandra.toml").string());
+    require(bool(project), "workspace manifest failed");
+    auto node = [](const std::string &identity, const std::string &dir, const std::string &name,
+                   const std::string &version, std::vector<PackageDependency> deps) {
+      write(dir + "/kalandra.toml", "format=1\n[package]\nname='" + name + "'\nversion='" +
+                                        version + "'\nentry='public.k'\n");
+      auto library = loadNativePackage((root / dir / "kalandra.toml").string());
+      require(bool(library), library ? "" : library.error());
+      return library->node(identity, std::move(deps));
     };
     std::vector<PackageNode> graph = {
-        node("workspace", "app", "main.k", {{"geometry", 1}, {"telemetry", 2}}),
-        node("geometry@commit2", "geometry2", "public.k", {}),
-        node("telemetry@commit1", "telemetry", "public.k", {{"geometry", 3}}),
-        node("geometry@commit1", "geometry1", "public.k", {})};
+        {"workspace",
+         (root / "app").string(),
+         project->entry,
+         {{"geometry", 1}, {"telemetry", 2}},
+         project->packages},
+        node("geometry@commit2", "geometry2", "geometry", "0.2.0", {}),
+        node("telemetry@commit1", "telemetry", "telemetry", "1.0.0", {{"geometry", 3}}),
+        node("geometry@commit1", "geometry1", "geometry", "0.1.0", {})};
     auto typed = check(load(graph));
     if (!typed.ok())
       for (const auto &d : typed.diagnostics)

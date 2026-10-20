@@ -2,9 +2,10 @@
 
 Status: package-local dependency scopes accepted. The first N3-A slice now
 implements an [explicit scoped offline graph API](scoped-package-resolution.md).
-The manifest extensions, installer and lockfile below remain planned. Existing
-format-1 manifests, explicit local mappings and command-line behavior retain their
-current behavior until their corresponding changes are qualified.
+[Library manifests](native-library-manifests.md) now validate package metadata,
+public entries and optional example applications, and construct scoped nodes.
+The Git dependency declarations, installer and lockfile below remain planned.
+Existing explicit local mappings retain their global behavior.
 
 The first native package workflow should support Git libraries, transitive
 source dependencies, a reproducible lockfile and offline builds. It should use
@@ -37,8 +38,8 @@ version = "0.2.0"
 entry = "src/public.k"
 ```
 
-The proposed `[package]` and `[dependencies]` tables extend the native manifest;
-they are not silently accepted by today's loader. A library can also have a
+The `[package]` table now extends the native manifest. `[dependencies]` remains
+planned and is rejected until installation/resolution is implemented. A library can also have a
 `[project]` entry for an example executable. At least one entry is required;
 `[package].entry` is selected when another package imports the library, while
 `[project].entry` is selected when compiling its application. Public entries use
@@ -198,7 +199,8 @@ checked and lowered by the selected CPU/Metal compiler with existing restriction
 
 The accepted package-owner/type-identity decision adds package-resolution
 context while keeping source import syntax unchanged. N3-A's graph loader is
-implemented; library metadata and managed CLI integration are still pending.
+implemented, including library metadata and manifest-backed graph qualification.
+Managed CLI/editor dependency resolution is still pending.
 Registry discovery, SemVer ranges, add/remove/update conveniences,
 monorepo workspaces and cache pruning remain future work rather than hidden
 requirements of this first Git-based workflow.

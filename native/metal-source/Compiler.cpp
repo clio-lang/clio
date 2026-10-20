@@ -1901,8 +1901,11 @@ int kalandra::compileMetalCommand(int argc, char **argv) {
       protect(source->path());
       for (const auto &part : source->parts())
         protect(part.source->path());
-      if (project)
+      if (project) {
         protect(project->manifest);
+        if (project->libraryEntry)
+          protect(*project->libraryEntry);
+      }
       if (std::filesystem::is_symlink(std::filesystem::symlink_status(target)))
         throw std::runtime_error("refusing symlink output");
     }

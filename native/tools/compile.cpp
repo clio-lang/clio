@@ -172,8 +172,11 @@ int main(int argc, char **argv) {
     return 2;
   }
   std::vector<std::filesystem::path> paths{sourcePath};
-  if (project)
+  if (project) {
     paths.emplace_back(project->manifest);
+    if (project->libraryEntry)
+      paths.emplace_back(*project->libraryEntry);
+  }
   for (const auto &path : {output, mlirPath, llvmPath}) {
     if (path.empty())
       continue;
