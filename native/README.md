@@ -44,6 +44,8 @@ Compiler implementation ownership is separate from Kalandra's automatic memory m
 
 ## Current targets
 
+The [native language server](../docs/design/native-language-server.md) checks open `.k` buffers and publishes diagnostics over stdio. Build the `kalandra-lsp` target to connect an editor client.
+
 The checker supports [versioned JSON diagnostics](../docs/design/native-diagnostics.md) through `--diagnostics=json`, including original module filenames and UTF-16 editor ranges. [Unsaved source checking](../docs/design/native-source-overlays.md) supports a root buffer via `--stdin` and multiple replacement buffers through the native loader API.
 
 | Target                    | Purpose                                                                                   |
@@ -51,6 +53,7 @@ The checker supports [versioned JSON diagnostics](../docs/design/native-diagnost
 | `kalandrac`               | Compile the checked CPU subset through MLIR/LLVM into a native executable                 |
 | `kalandra-backend`        | Native MLIR construction, verified passes, LLVM translation                               |
 | `kalandra-native-runtime` | Invocation storage, checked faults, bounded task scheduler, and development entry wrapper |
+| `kalandra-lsp`            | Native stdio language server with full-sync, versioned compiler diagnostics             |
 | `kalandra-check`          | Symbol/type/shape checking, JSON diagnostics and `--dump-ir` inspection                   |
 | `kalandra-semantics`      | Typed values, resolved calls, shape facts/guards, strict numeric metadata                 |
 | `kalandra-parse`          | Handwritten lexer/parser CLI with source diagnostics (syntax only)                        |

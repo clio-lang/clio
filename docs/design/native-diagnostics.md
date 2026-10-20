@@ -49,4 +49,4 @@ Command-level codes are `CLI001` for usage, `PRJ001` for project-manifest failur
 
 Normal and ASan/UBSan tests cover Unicode and CRLF, original module paths, span bounds, JSON escaping, invalid UTF-8, batched positions, project/package inputs, placement checking, usage errors and default terminal behavior. See the [qualification record](../../native/metal-proof/evidence/diagnostics-2026-10-20.json).
 
-This is a checker protocol foundation. Unsaved source overlays are implemented; native editor protocol integration, completion/navigation, formatting and distribution remain separate work. The JavaScript prototype's language server does not implement this native language.
+This is a checker protocol foundation. Unsaved source overlays and [full-sync native language-server diagnostics](native-language-server.md) are implemented; incremental edits, completion/navigation, formatting and distribution remain separate work. The JavaScript prototype's language server does not implement this native language.

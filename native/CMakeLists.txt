@@ -978,3 +978,4 @@ include(cmake/FunctionValues.cmake)
 
 include(cmake/Diagnostics.cmake)
 include(cmake/Overlays.cmake)
+include(cmake/LanguageServer.cmake)
