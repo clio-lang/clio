@@ -1,6 +1,8 @@
 # Native toolchain proof
 
-Verified on macOS ARM64 on 2026-10-15 with Homebrew LLVM/MLIR/Clang **22.1.8**, CMake **4.4.2**, and Ninja **1.13.2**. Compiler-side tools and the independent numerical reference use C++23. The existing Homebrew installation supplies all required binaries; no upgrade or additional installation was necessary.
+The current toolchain is Homebrew LLVM/MLIR/Clang **23.1.3**, CMake **4.4.2**, and Ninja **1.13.2**, on macOS ARM64. Compiler-side tools and the independent numerical reference use C++23. See the [LLVM 23 migration](../../docs/design/native-llvm23.md) for current qualification and compatibility details.
+
+The original proof was qualified on 2026-10-15 with LLVM/MLIR/Clang **22.1.8**; historical evidence retains that version.
 
 Run from the repository root:
 
@@ -13,12 +15,12 @@ ctest --preset native
 The checked-in [toolchain lock](toolchain.json) requires matching LLVM, MLIR, and Clang versions. Tools are invoked by their full paths, so no shell profile or global PATH change is required. For the same version installed elsewhere:
 
 ```sh
-cmake --preset native -DKALANDRA_LLVM_ROOT=/path/to/llvm-22.1.8
+cmake --preset native -DKALANDRA_LLVM_ROOT=/path/to/llvm-23.1.3
 cmake --build --preset native
 ctest --preset native
 ```
 
-This lock validates the installed version; it does not pin the global Homebrew formula or prevent Homebrew cleanup. A fresh machine must install/provide the exact release before running the proof. A newer unversioned `brew install llvm` is not assumed compatible. Reproducible dependency installation and CI provisioning remain follow-up tooling work.
+This lock validates the installed version; it does not pin the global Homebrew formula or prevent Homebrew cleanup. A fresh machine must install/provide the exact release before running the proof. A newer unversioned `brew install llvm` is not assumed compatible. The [native release workflow](../../docs/design/native-releases.md) provisions the locked major and rejects a mismatched release. Self-contained and fully reproducible dependency installation remain follow-up tooling work.
 
 ## Verified path
 

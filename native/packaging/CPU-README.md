@@ -17,7 +17,7 @@ to development build files. Normal, ASan/UBSan (`--sanitize`) and separate TSan
 (`--thread-sanitize`) runtime archives are included. `-O0` and `-O2` select the
 existing native compilation modes.
 
-LLVM/MLIR libraries, Clang 22.1.8, and the macOS SDK remain external dependencies
+LLVM/MLIR libraries, Clang 23.1.3, and the macOS SDK remain external dependencies
 from the pinned development toolchain at its linked/configured paths. Moving
 this package does not relocate Clang or LLVM. Generated ordinary executables
 link the CPU runtime statically and do not require the package or LLVM to run;

@@ -1,4 +1,5 @@
 """Publish qualified assets; reruns never overwrite an existing release."""
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -8,11 +9,12 @@ version = classify(os.environ["RELEASE_TAG"])
 assert version["prerelease"] == os.environ["RELEASE_PRERELEASE"]
 assets = sorted(Path("release-assets").iterdir())
 assert len(assets) == 6 and all(path.is_file() for path in assets)
-notes = """Native Kalandra development toolchain for macOS Apple Silicon.
+llvm_version = json.loads((Path(__file__).resolve().parents[2] / "native/toolchain-proof/toolchain.json").read_text())["llvmVersion"]
+notes = f"""Native Kalandra development toolchain for macOS Apple Silicon.
 
 Includes the CPU compiler and private runtime archives, checker, formatter, parser,
 language server, and a separately versioned VS Code extension. The compiler bundle
-requires Homebrew LLVM/MLIR/Clang 22.1.8 (`brew install llvm@22`) and the Apple SDK.
+requires Homebrew LLVM/MLIR/Clang {llvm_version} (`brew install llvm@{llvm_version.split(".")[0]}`) and the Apple SDK.
 This is not a self-contained toolchain. Metal/GPU distribution is not included.
 
 Extract the CPU archive and add its `bin` directory to PATH. Read the bundled

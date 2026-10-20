@@ -984,3 +984,4 @@ include(cmake/Formatter.cmake)
 
 include(cmake/EditorToolsInstall.cmake)
 include(cmake/CPUCompilerInstall.cmake)
+include(cmake/MetalCompilerInstall.cmake)

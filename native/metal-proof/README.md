@@ -4,7 +4,7 @@ This isolated proof lowers a handwritten MLIR GPU kernel through SPIR-V and SPIR
 
 ## Build and run
 
-Provide the LLVM/MLIR release in the existing [CPU toolchain lock](../toolchain-proof/toolchain.json), the dependencies in [toolchain.json](toolchain.json), Xcode, and its Metal compiler component. The verified Homebrew packages are `spirv-cross` 1.4.363.0 and `spirv-tools` 1.4.357.0. Installation commands install whatever version the package manager currently provides; check that it matches the lock before building:
+Provide the LLVM/MLIR release in the existing [CPU toolchain lock](../toolchain-proof/toolchain.json), the dependencies in [toolchain.json](toolchain.json), Xcode, and its Metal compiler component. The verified Homebrew packages are `spirv-cross` 1.4.363.0 and `spirv-tools` 1.4.363.0. Installation commands install whatever version the package manager currently provides; check that it matches the lock before building:
 
 ```sh
 brew install spirv-cross spirv-tools

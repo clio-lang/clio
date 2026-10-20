@@ -6,7 +6,7 @@ This is the float32 CPU subset on macOS ARM64. It includes the [source task subs
 
 ## Compile and run
 
-Prerequisites are macOS ARM64 with the Apple command-line SDK, CMake 3.28 or newer, Ninja, and the exact LLVM/MLIR/Clang **22.1.8** release in the [toolchain lock](../../native/toolchain-proof/toolchain.json). The validated installations are CMake 4.4.2 and Ninja 1.13.2. The default LLVM prefix is `/opt/homebrew/Cellar/llvm/22.1.8`; an installation elsewhere must be selected with `-DKALANDRA_LLVM_ROOT=/path/to/llvm-22.1.8` during configuration. LLVM headers, libraries, CMake packages, mlir-opt, and mlir-translate must all come from that release. An unversioned Homebrew upgrade is not a substitute for the pinned release.
+Prerequisites are macOS ARM64 with the Apple command-line SDK, CMake 3.28 or newer, Ninja, and the exact LLVM/MLIR/Clang **23.1.3** release in the [toolchain lock](../../native/toolchain-proof/toolchain.json). The validated installations are CMake 4.4.2 and Ninja 1.13.2. The default LLVM prefix is `/opt/homebrew/Cellar/llvm/23.1.3_2`; an installation elsewhere must be selected with `-DKALANDRA_LLVM_ROOT=/path/to/llvm-23.1.3` during configuration. LLVM headers, libraries, CMake packages, mlir-opt, and mlir-translate must all come from that release. An unversioned Homebrew upgrade is not a substitute for the pinned release.
 
 From the repository root:
 

@@ -12,22 +12,60 @@ void run(std::vector<std::string> command) {
   if (llvm::sys::ExecuteAndWait(command[0], args, {}, {}, 0, 0, &error) != 0)
     throw std::runtime_error("GPU build stage failed: " + command[0] + " " + error);
 }
+// Only compiler-owned resources move with the installed prefix. LLVM, SPIR-V
+// tools, Clang and Apple's Metal toolchain remain explicit external dependencies.
+#ifdef KALANDRA_INSTALLED_COMPILER
+std::filesystem::path resourceRoot() {
+  static int anchor;
+  std::error_code error;
+  auto executable =
+      std::filesystem::canonical(llvm::sys::fs::getMainExecutable(nullptr, &anchor), error);
+  if (error)
+    throw std::runtime_error("cannot locate installed Metal compiler executable");
+  return executable.parent_path() / KALANDRA_RUNTIME_RELATIVE_DIR;
+}
+#endif
+std::string resource(const char *configured, bool include = false) {
+#ifdef KALANDRA_INSTALLED_COMPILER
+  auto path = resourceRoot() / (include ? std::filesystem::path("headers/metal")
+                                        : std::filesystem::path(configured).filename());
+  std::error_code error;
+  bool present = include ? std::filesystem::is_directory(path, error)
+                         : std::filesystem::is_regular_file(path, error);
+  if (!present)
+    throw std::runtime_error("installed Metal resource is missing: " + path.string());
+  return path.string();
+#else
+  (void)include;
+  return configured;
+#endif
+}
 } // namespace
 void buildMetalProgram(const std::filesystem::path &directory,
                        const std::map<std::string, std::string> &outputs,
                        const std::string &variant) {
+  const auto strict = resource(KALANDRA_GPU_STRICT);
+  const auto extract = resource(KALANDRA_GPU_EXTRACT);
+  const auto include = resource(KALANDRA_GPU_INCLUDE, true);
+  const auto metal = resource(variant == "optimized"          ? KALANDRA_GPU_METAL_OPTIMIZED
+                              : variant == "sanitized"        ? KALANDRA_GPU_METAL_SANITIZED
+                              : variant == "thread-sanitized" ? KALANDRA_GPU_METAL_THREAD_SANITIZED
+                                                              : KALANDRA_GPU_METAL_DEBUG);
+  const auto core = resource(variant == "optimized"          ? KALANDRA_GPU_CORE_OPTIMIZED
+                             : variant == "sanitized"        ? KALANDRA_GPU_CORE_SANITIZED
+                             : variant == "thread-sanitized" ? KALANDRA_GPU_CORE_THREAD_SANITIZED
+                                                             : KALANDRA_GPU_CORE_DEBUG);
   for (const auto &[name, contents] : outputs) {
     (void)contents;
     if (!name.starts_with("kernel") || !name.ends_with(".mlir"))
       continue;
     auto base = (directory / std::filesystem::path(name).stem()).string();
-    run({KALANDRA_GPU_STRICT, base + ".mlir", base + ".lowered.mlir"});
+    run({strict, base + ".mlir", base + ".lowered.mlir"});
     run({KALANDRA_GPU_OPT, base + ".lowered.mlir", "--verify-each",
          "--pass-pipeline=builtin.module(canonicalize,cse,convert-gpu-to-spirv,spirv.module(spirv-"
          "lower-abi-attrs,spirv-update-vce))",
          "-o", base + ".converted.mlir"});
-    run({KALANDRA_GPU_EXTRACT, base + ".converted.mlir", base + ".kernel.mlir",
-         "--metal-compiler-rounding"});
+    run({extract, base + ".converted.mlir", base + ".kernel.mlir", "--metal-compiler-rounding"});
     run({KALANDRA_GPU_TRANSLATE, "--no-implicit-module", "--serialize-spirv", base + ".kernel.mlir",
          "-o", base + ".spv"});
     run({KALANDRA_GPU_VALIDATE, "--target-env", "vulkan1.0", base + ".spv"});
@@ -67,23 +105,15 @@ void buildMetalProgram(const std::filesystem::path &directory,
     throw std::runtime_error(error.message());
   llvm::sys::fs::closeFile(descriptor);
   llvm::FileRemover cleanup(temporary);
-  const char *metal = KALANDRA_GPU_METAL_DEBUG, *core = KALANDRA_GPU_CORE_DEBUG;
-  std::vector<std::string> command{
-      KALANDRA_GPU_CLANG, "-std=c++23",        "-Wall", "-Wextra",
-      "-Werror",          "-ffp-contract=off", "-I",    KALANDRA_GPU_INCLUDE};
+  std::vector<std::string> command{KALANDRA_GPU_CLANG, "-std=c++23",        "-Wall", "-Wextra",
+                                   "-Werror",          "-ffp-contract=off", "-I",    include};
   if (variant == "optimized") {
     command.push_back("-O2");
-    metal = KALANDRA_GPU_METAL_OPTIMIZED;
-    core = KALANDRA_GPU_CORE_OPTIMIZED;
   } else if (variant == "sanitized") {
     command.insert(command.end(), {"-O1", "-g", "-fsanitize=address,undefined",
                                    "-fno-sanitize-recover=all", "-fno-omit-frame-pointer"});
-    metal = KALANDRA_GPU_METAL_SANITIZED;
-    core = KALANDRA_GPU_CORE_SANITIZED;
   } else if (variant == "thread-sanitized") {
     command.insert(command.end(), {"-O1", "-g", "-fsanitize=thread", "-fno-omit-frame-pointer"});
-    metal = KALANDRA_GPU_METAL_THREAD_SANITIZED;
-    core = KALANDRA_GPU_CORE_THREAD_SANITIZED;
   } else
     command.push_back("-O0");
   if (outputs.contains("cpu.ll")) {

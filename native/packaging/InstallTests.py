@@ -64,7 +64,7 @@ with tempfile.TemporaryDirectory(dir=root, prefix="install ") as temporary, temp
     shutil.rmtree(output / "package-stage")
     prefix = extracted / "kalandra-native-editor-tools"
     metadata = json.loads((prefix / "share/kalandra-native-tools/toolchain.json").read_text())
-    assert metadata["format"] == 1 and metadata["llvmVersion"] == "22.1.8"
+    assert metadata["format"] == 1 and metadata["llvmVersion"] == json.loads((Path(__file__).parents[1] / "toolchain-proof/toolchain.json").read_text())["llvmVersion"]
     assert metadata["platform"] == "macos-arm64" and metadata["configuration"] == config
     assert set(metadata["tools"]) == set(tools) and metadata["llvmRuntime"] == "external"
     checksums = (prefix / "SHA256SUMS").read_text().splitlines()

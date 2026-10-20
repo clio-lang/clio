@@ -2,7 +2,7 @@
 
 The CPU distribution combines the four [native editor tools](native-tools-install.md)
 with `kalandrac` and its compiler-private runtime archives. It targets macOS ARM64;
-Metal distribution remains separate work.
+[Metal distribution](native-metal-install.md) uses a separate compiler/resource bundle.
 
 ```sh
 cmake --build build/native --target native-cpu-package
@@ -25,9 +25,9 @@ implementation resources, not an installed C/C++ interoperability interface.
 Generated ordinary programs have no LLVM/MLIR dependency; sanitized programs also
 need the platform sanitizer runtime.
 
-LLVM/MLIR and Clang 22.1.8 remain external at the configured/linked paths, along
-with the Apple SDK. CI packages use Homebrew `llvm@22`. Install it with
-`brew install llvm@22` and install Apple command-line tools before compiling.
+LLVM/MLIR and Clang 23.1.3 remain external at the configured/linked paths, along
+with the Apple SDK. CI packages use Homebrew `llvm@23`. Install it with
+`brew install llvm@23` and install Apple command-line tools before compiling.
 Moving the bundle does not relocate LLVM or Clang. This is not a self-contained,
 signed or notarized toolchain, and other platforms are not qualified.
 

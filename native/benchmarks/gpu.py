@@ -76,7 +76,7 @@ def main():
                                     ROOT / 'native/runtime/Runtime.cpp', ROOT / 'native/runtime/Tasks.cpp', bundle / 'cpu.ll']):
         obj = build / f'unit-{index}.o'
         objects.append(obj)
-        extra = ['-fobjc-arc', '-fblocks'] if source.suffix == '.mm' else []
+        extra = ['-fobjc-arc', '-fblocks', '-fno-objc-msgsend-class-selector-stubs'] if source.suffix == '.mm' else []
         if source.suffix == '.ll':
             extra += ['-Wno-override-module']
         commands.append([clang, *flags, *extra, '-c', source, '-o', obj])
@@ -89,7 +89,7 @@ def main():
                                        ROOT / 'native/runtime/Runtime.cpp', ROOT / 'native/runtime/Tasks.cpp', bundle / 'cpu.ll']):
             obj = args.baseline_dir / f'unit-{index}.o'
             baseline_objects.append(obj)
-            extra = ['-fobjc-arc', '-fblocks'] if source.suffix == '.mm' else []
+            extra = ['-fobjc-arc', '-fblocks', '-fno-objc-msgsend-class-selector-stubs'] if source.suffix == '.mm' else []
             if index == 0 and not args.baseline_adaptive_matmul:
                 extra += ['-DKALANDRA_BENCH_SCALAR_MATMUL=1']
             if index == 1:

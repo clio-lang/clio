@@ -24,7 +24,7 @@ cmake --build --preset native
 ctest --preset native
 ```
 
-The [toolchain lock](toolchain-proof/toolchain.json) selects LLVM/MLIR/Clang 22.1.8. CMake uses its installed Homebrew keg without changing global PATH. Override the location on initial configure with `-DKALANDRA_LLVM_ROOT=/path/to/llvm-22.1.8` or the corresponding environment variable. An existing CMake cache takes precedence over an environment change.
+The [toolchain lock](toolchain-proof/toolchain.json) selects LLVM/MLIR/Clang 23.1.3. The [LLVM 23 migration guide](../docs/design/native-llvm23.md) describes fresh builds and Metal compatibility changes. CMake uses its installed Homebrew keg without changing global PATH. Override the location on initial configure with `-DKALANDRA_LLVM_ROOT=/path/to/llvm-23.1.3` or the corresponding environment variable. An existing CMake cache takes precedence over an environment change.
 
 CMake 3.28 or newer and Ninja are required; the development machine has CMake 4.4.2 and Ninja 1.13.2. Matching compiler and LLVM/MLIR library versions are checked during configuration. A compiler that cannot build the required C++23 facilities fails the build rather than selecting an older language mode. Debug and release configurations must preserve the numerical contract.
 
@@ -72,7 +72,7 @@ Read the [toolchain proof](toolchain-proof/README.md) for evidence and limits. T
 C++ formatting uses the root `.clang-format` with LLVM style. For the current C++ sources:
 
 ```sh
-/opt/homebrew/Cellar/llvm/22.1.8/bin/clang-format --dry-run --Werror \
+/opt/homebrew/Cellar/llvm/23.1.3_2/bin/clang-format --dry-run --Werror \
   native/tools/*.cpp native/lib/*.cpp native/include/kalandra/*.h \
   native/tests/*.cpp native/toolchain-proof/cases.cpp
 ```
@@ -86,7 +86,7 @@ cmake --build build/native --target native-editor-tools-package
 cmake --install build/native --prefix "$HOME/.local" --component NativeEditorTools
 ```
 
-The [installation guide](../docs/design/native-tools-install.md) covers the four installed commands, archive/checksums, PATH and the VS Code server setting. These tools can run independently of the checkout but still require the pinned LLVM runtime. The [CPU compiler bundle](../docs/design/native-cpu-install.md) now adds `kalandrac` and its private runtime archives with `native-cpu-package`. [Version-tag release automation](../docs/design/native-releases.md) qualifies and uploads CPU/editor packages, classifying SemVer prereleases automatically. GPU bundles remain separate distribution work.
+The [installation guide](../docs/design/native-tools-install.md) covers the four installed commands, archive/checksums, PATH and the VS Code server setting. These tools can run independently of the checkout but still require the pinned LLVM runtime. The [CPU compiler bundle](../docs/design/native-cpu-install.md) now adds `kalandrac` and its private runtime archives with `native-cpu-package`. [Version-tag release automation](../docs/design/native-releases.md) qualifies and uploads CPU/editor packages, classifying SemVer prereleases automatically. The initial [Apple Metal bundle](../docs/design/native-metal-install.md) adds private shader tools, headers and CPU/Metal runtimes through `native-metal-package`; its external toolchain and release-runner qualification remain explicit.
 
 ## Apple GPU toolchain proof
 

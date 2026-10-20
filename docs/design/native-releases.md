@@ -29,8 +29,9 @@ default branch before manual dispatch is available; then select the native branc
 for a rehearsal before the first native release tag. It creates no tag. Existing historical tags are not replayed.
 
 This first release workflow distributes the [CPU package](native-cpu-install.md)
-with external Homebrew LLVM/MLIR/Clang 22.1.8 and Apple SDK dependencies. The compiler
-is not self-contained or signed/notarized; Metal packaging and additional platforms
-remain tracked work. Qualification here establishes installation and packaging
+with external Homebrew LLVM/MLIR/Clang 23.1.3 and Apple SDK dependencies. The compiler
+is not self-contained or signed/notarized; Metal release-runner qualification and additional platforms
+remain tracked work. The [initial Metal bundle](native-metal-install.md) is built
+and qualified separately on Apple hardware. Qualification here establishes installation and packaging
 behavior, not completion of all language/GPU release gates. No tag or release is
 created simply by committing this workflow.

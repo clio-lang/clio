@@ -47,6 +47,9 @@ class PublishTests(unittest.TestCase):
                         create, edit = [call.args[0] for call in run.call_args_list]
                         self.assertIn("--draft", create)
                         self.assertIn("--verify-tag", create)
+                        import json
+                        llvm_version = json.loads((script.parents[2] / "native/toolchain-proof/toolchain.json").read_text())["llvmVersion"]
+                        self.assertIn(llvm_version, create[create.index("--notes") + 1])
                         self.assertEqual("--prerelease" in create, classify(tag)["prerelease"] == "true")
                         self.assertIn("--latest=" + str(classify(tag)["prerelease"] == "false").lower(), edit)
             finally:

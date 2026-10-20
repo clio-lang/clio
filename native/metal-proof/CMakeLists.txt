@@ -67,7 +67,7 @@ foreach(VARIANT IN ITEMS debug optimized sanitized)
   set(BINARY "${OUT}/metal-proof-${VARIANT}")
   add_custom_command(OUTPUT "${BINARY}"
     COMMAND "${CMAKE_CXX_COMPILER}" -std=c++23 -Wall -Wextra -Werror ${FLAGS}
-      -ffp-contract=off -fobjc-arc -fblocks "${CMAKE_CURRENT_SOURCE_DIR}/Harness.mm"
+      -ffp-contract=off -fobjc-arc -fblocks -fno-objc-msgsend-class-selector-stubs "${CMAKE_CURRENT_SOURCE_DIR}/Harness.mm"
       -framework Foundation -framework Metal -o "${BINARY}"
     DEPENDS Harness.mm VERBATIM)
   list(APPEND OUTPUTS "${BINARY}")
@@ -154,7 +154,7 @@ foreach(VARIANT IN ITEMS debug optimized sanitized)
     DEPENDS StrictCpu.cpp FloatOracle.h "${OUT}/strict-cpu.ll" VERBATIM)
   add_custom_command(OUTPUT "${GPU_BINARY}"
     COMMAND "${CMAKE_CXX_COMPILER}" -std=c++23 -Wall -Wextra -Werror ${FLAGS}
-      -ffp-contract=off -fobjc-arc -fblocks -isystem "${KALANDRA_LLVM_ROOT}/include"
+      -ffp-contract=off -fobjc-arc -fblocks -fno-objc-msgsend-class-selector-stubs -isystem "${KALANDRA_LLVM_ROOT}/include"
       "${CMAKE_CURRENT_SOURCE_DIR}/StrictGpu.mm" -framework Foundation -framework Metal
       "-L${KALANDRA_LLVM_ROOT}/lib" "-Wl,-rpath,${KALANDRA_LLVM_ROOT}/lib" -lLLVM -o "${GPU_BINARY}"
     DEPENDS StrictGpu.mm FloatOracle.h VERBATIM)
@@ -178,3 +178,10 @@ if(BUILD_TESTING)
 endif()
 
 include(Strict64.cmake)
+if(BUILD_TESTING)
+  add_test(NAME metal-integer-minmax COMMAND "${CMAKE_COMMAND}"
+    "-DEXTRACTOR=$<TARGET_FILE:kalandra-metal-extract>" "-DTRANSLATE=${MLIR_TRANSLATE}"
+    "-DVALIDATOR=${VALIDATOR}" "-DOUTPUT_DIR=${OUT}"
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyIntegerMinMax.cmake")
+  set_tests_properties(metal-integer-minmax PROPERTIES TIMEOUT 30)
+endif()

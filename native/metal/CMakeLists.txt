@@ -1,5 +1,7 @@
 set(CMAKE_OBJCXX_COMPILER "${CMAKE_CXX_COMPILER}")
 enable_language(OBJCXX)
+# LLVM 23 can emit class selector stubs unsupported by older Apple linkers.
+# Keep the private runtime compatible with the qualified system linker.
 foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
   if(VARIANT STREQUAL "sanitized")
     set(RUNTIME_TARGET kalandra-native-runtime-sanitized)
@@ -16,7 +18,7 @@ foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
   endif()
   add_library(kalandra-metal-${VARIANT} STATIC Metal.mm)
   set_target_properties(kalandra-metal-${VARIANT} PROPERTIES OBJCXX_STANDARD 23 OBJCXX_STANDARD_REQUIRED ON)
-  target_compile_options(kalandra-metal-${VARIANT} PRIVATE -Wall -Wextra -Werror -fobjc-arc -fblocks ${METAL_FLAGS})
+  target_compile_options(kalandra-metal-${VARIANT} PRIVATE -Wall -Wextra -Werror -fobjc-arc -fblocks -fno-objc-msgsend-class-selector-stubs ${METAL_FLAGS})
   target_link_libraries(kalandra-metal-${VARIANT} PUBLIC ${RUNTIME_TARGET} "-framework Foundation" "-framework Metal")
   if(BUILD_TESTING)
     add_executable(kalandra-metal-cpu-storage-${VARIANT} CpuStorageTests.cpp)

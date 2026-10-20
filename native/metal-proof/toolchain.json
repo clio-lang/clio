@@ -1,8 +1,8 @@
 {
   "spirvCrossVersion": "1.4.363.0",
   "spirvCrossRoot": "/opt/homebrew/Cellar/spirv-cross/1.4.363.0",
-  "spirvToolsVersion": "1.4.357.0",
-  "spirvToolsRoot": "/opt/homebrew/Cellar/spirv-tools/1.4.357.0",
+  "spirvToolsVersion": "1.4.363.0",
+  "spirvToolsRoot": "/opt/homebrew/Cellar/spirv-tools/1.4.363.0",
   "metalToolchain": "com.apple.dt.toolchain.Metal.32023.864",
   "metalCompilerVersion": "32023.864",
   "metalLanguageVersion": "macos-metal2.1",

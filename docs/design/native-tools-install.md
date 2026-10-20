@@ -13,7 +13,7 @@ cmake --install build/native --prefix "$HOME/.local" --component NativeEditorToo
 
 Add that prefix's `bin` directory to PATH. The [VS Code extension](native-vscode.md) can then use its default `kalandra-lsp` executable name, or you can set **Server Path** to the installed binary. No source files or project manifests are installed implicitly.
 
-Installation honors CMake's `DESTDIR` staging mechanism and `GNUInstallDirs` destinations. The component name matters: this installs only the four tools and their documentation/license/build metadata. It does not install `kalandrac`, generated-program runtime archives, GPU tooling, development headers or the VSIX. The [CPU compiler component and bundle](native-cpu-install.md) now install the compiler/runtime separately. GPU tooling remains follow-up work; the VSIX is packaged independently.
+Installation honors CMake's `DESTDIR` staging mechanism and `GNUInstallDirs` destinations. The component name matters: this installs only the four tools and their documentation/license/build metadata. It does not install `kalandrac`, generated-program runtime archives, GPU tooling, development headers or the VSIX. The [CPU compiler component and bundle](native-cpu-install.md) now install the compiler/runtime separately. The [Metal compiler bundle](native-metal-install.md) adds GPU resources separately; the VSIX is packaged independently.
 
 ## Archive
 
@@ -35,7 +35,7 @@ Packaging stages and strips copies of the tools without modifying the build bina
 
 ## Runtime dependency and scope
 
-The checker and language server still link to **LLVM 22.1.8** from the pinned toolchain. The LLVM runtime is external: the archive neither bundles it nor changes its loader paths. The dependency must remain available at the paths used when linking; moving the tools does not relocate LLVM. The installed metadata identifies the required LLVM version and the actual build configuration. A stripped Debug build remains a Debug build.
+The checker and language server still link to **LLVM 23.1.3** from the pinned toolchain. The LLVM runtime is external: the archive neither bundles it nor changes its loader paths. The dependency must remain available at the paths used when linking; moving the tools does not relocate LLVM. The installed metadata identifies the required LLVM version and the actual build configuration. A stripped Debug build remains a Debug build.
 
 No Kalandra checkout, Bun, Node or Python is needed to run these installed commands. The formatter/parser/checker retain their source contracts, and the language server does not run application code. CMake and the compiler toolchain are needed to build/install/package from source; Python and platform inspection tools are used by acceptance tests only.
 

@@ -20,7 +20,7 @@ kalandra-parse path/to/main.k
 ```
 
 These tools require the matching LLVM runtime from the pinned development
-toolchain (currently LLVM 22.1.8). LLVM is an external dependency and is not
+toolchain (currently LLVM 23.1.3). LLVM is an external dependency and is not
 included in this archive. The binaries retain their platform loader dependency
 paths; install the matching toolchain at those paths. Moving this package does
 not relocate LLVM. Read the package's `share/kalandra-native-tools/toolchain.json`

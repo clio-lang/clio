@@ -17,7 +17,7 @@ Native source files use `.k`. The compiler is under development; the [native imp
 
 ## Build from source
 
-Install the matching LLVM/MLIR 22.1.8 toolchain, toml++ 3.4.0, CMake and Ninja described in the [build guide](native/README.md#build-and-test), then run:
+Install the matching LLVM/MLIR 23.1.3 toolchain, toml++ 3.4.0, CMake and Ninja described in the [build guide](native/README.md#build-and-test), then run:
 
 ```sh
 cmake --preset native
