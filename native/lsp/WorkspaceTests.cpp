@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
     touch(base / "project" / "other.txt");
     touch(base / "external" / "hidden.k");
     for (const auto *name : {".git", ".hg", ".svn", "node_modules", "build", "dist", "target",
-                             ".cache", ".svelte-kit", ".vercel"}) {
+                             ".cache", ".kalandra", ".svelte-kit", ".vercel"}) {
       fs::create_directories(base / "project" / name / "deep");
       touch(base / "project" / name / "deep" / "skip.k");
     }

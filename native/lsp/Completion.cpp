@@ -4,7 +4,8 @@
 namespace kalandra::lsp {
 CompletionInfo completeNames(const std::string &path, const std::string &text, std::size_t offset,
                              const std::vector<ModulePackage> &packages,
-                             std::vector<SourceOverlay> overlays, CheckOptions options) {
+                             std::vector<SourceOverlay> overlays, CheckOptions options,
+                             const SourceGraphLoader &loader) {
   CompletionInfo result{{offset, offset}, {}, false};
   if (offset > text.size())
     return result;
@@ -39,7 +40,7 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
     return std::filesystem::weakly_canonical(entry.path, ec).string() == canonical && !ec;
   });
   overlays.push_back({canonical, std::move(replacement)});
-  auto syntax = loadModules(path, {}, {}, packages, overlays);
+  auto syntax = loader ? loader(path, overlays) : loadModules(path, {}, {}, packages, overlays);
   if (!syntax || !syntax->ok())
     return result;
   // Locate the probe through original-file identities so this does not depend

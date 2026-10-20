@@ -6,6 +6,7 @@
 #include "Workspace.h"
 #include "kalandra/Diagnostics.h"
 #include "kalandra/Formatter.h"
+#include "kalandra/PackageInstall.h"
 #include "kalandra/Project.h"
 #include "kalandra/Semantics.h"
 #include "kalandra/Utf8.h"
@@ -224,6 +225,47 @@ public:
   Session(std::optional<NativeProject> p, bool placement) : project(std::move(p)) {
     options.placement = placement;
   }
+  bool writable(std::string_view path) const {
+    return !project ||
+           !lsp::containsPath((fs::path(project->manifest).parent_path() / ".kalandra").string(),
+                             path);
+  }
+  std::expected<ParseResult, std::string>
+  loadGraph(const std::string &root, std::span<const SourceOverlay> overlays) const {
+    if (!project || project->dependencies.empty())
+      return loadModules(root, {}, {}, project ? project->packages : std::vector<ModulePackage>{},
+                         overlays);
+    // The configured manifest is a startup snapshot. A changed file requires a
+    // restart; locks and source integrity are verified afresh, with no installer.
+    auto current = loadNativeProject(project->manifest);
+    if (!current || current->manifestContents != project->manifestContents)
+      return std::unexpected(
+          "Project manifest changed or is unavailable; restart the language server");
+    auto installed = loadInstalledNativeProject(*project);
+    if (!installed)
+      return std::unexpected(installed.error());
+    std::vector<SourceOverlay> editable;
+    for (const auto &overlay : overlays) {
+      if (writable(overlay.path)) {
+        editable.push_back(overlay);
+      } else {
+        auto disk = loadSource(overlay.path);
+        if (!disk || (*disk)->text() != overlay.text)
+          return std::unexpected(
+              "Installed package sources are read-only; edit the original library instead");
+      }
+    }
+    // Reading an installed source uses its owner in the application graph,
+    // never a new workspace node with the application's dependency aliases.
+    if (writable(root))
+      installed->nodes.front().entry = root;
+    return loadPackageModules(installed->nodes, {}, {}, editable);
+  }
+  lsp::SourceGraphLoader graphLoader() const {
+    return [this](const std::string &root, std::span<const SourceOverlay> overlays) {
+      return loadGraph(root, overlays);
+    };
+  }
   std::optional<std::string> configureWorkspaces(const j::Object &params) {
     std::set<std::string> roots;
     const auto add = [&](llvm::StringRef uri) {
@@ -267,7 +309,8 @@ public:
       roots.insert(discovered->begin(), discovered->end());
     }
     for (const auto &[file, document] : documents)
-      if (workspace ? lsp::containsPath(*workspace, file) : workspaces.empty() || file == path)
+      if (writable(file) &&
+          (workspace ? lsp::containsPath(*workspace, file) : workspaces.empty() || file == path))
         roots.insert(file);
     if (project && (workspace ? lsp::containsPath(*workspace, project->entry) : workspaces.empty()))
       roots.insert(project->entry);
@@ -318,7 +361,9 @@ public:
     auto plan =
         lsp::planRename(std::vector<std::string>(roots->begin(), roots->end()), *workspace,
                         project ? project->packages : empty, overlays, *path, *offset,
-                        prepare ? std::nullopt : std::optional{std::string(*name)}, options);
+                        prepare ? std::nullopt : std::optional{std::string(*name)}, options,
+                        graphLoader(),
+                        [this](std::string_view file) { return writable(file); });
     if (!plan) {
       error(id, -32803, plan.error());
       return;
@@ -387,10 +432,8 @@ public:
     std::map<std::string, std::set<std::string>> seen;
     for (const auto &[path, doc] : documents)
       diagnostics.try_emplace(path);
-    const std::vector<ModulePackage> empty;
-    const auto &packages = project ? project->packages : empty;
     for (const auto &root : roots) {
-      auto syntax = loadModules(root, {}, {}, packages, overlays);
+      auto syntax = loadGraph(root, overlays);
       if (!syntax) {
         log("Cannot check " + root + ": " + syntax.error());
         continue;
@@ -462,7 +505,7 @@ public:
     }
     j::Array edits;
     const auto open = documents.find(*path);
-    if (open != documents.end() && open->second.uri == *uri) {
+    if (open != documents.end() && open->second.uri == *uri && writable(*path)) {
       const auto source = std::make_shared<const SourceFile>(*path, open->second.text);
       auto result = formatSource(source);
       if (!result.text && !result.diagnostics.empty() && result.diagnostics[0].code == "F001") {
@@ -512,7 +555,7 @@ public:
     const std::vector<ModulePackage> empty;
     auto info =
         lsp::completeNames(*path, open->second.text, *offset, project ? project->packages : empty,
-                           std::move(overlays), options);
+                           std::move(overlays), options, graphLoader());
     j::Array items;
     if (!info.names.empty()) {
       const SourceFile source(*path, open->second.text);
@@ -574,8 +617,7 @@ public:
     std::vector<SourceOverlay> overlays;
     for (const auto &[file, document] : documents)
       overlays.push_back({file, document.text});
-    const std::vector<ModulePackage> empty;
-    auto syntax = loadModules(*path, {}, {}, project ? project->packages : empty, overlays);
+    auto syntax = loadGraph(*path, overlays);
     if (!syntax) {
       respond(nullptr);
       return;
@@ -594,7 +636,7 @@ public:
       std::map<std::tuple<std::string, std::size_t, std::size_t>, lsp::SourceLocation> found;
       std::size_t scanned = 0;
       for (const auto &root : *roots) {
-        auto graph = loadModules(root, {}, {}, project ? project->packages : empty, overlays);
+        auto graph = loadGraph(root, overlays);
         if (!graph || !graph->module.source) {
           error(id, -32803, "Cannot search references: a source graph could not be loaded");
           return;
@@ -791,11 +833,6 @@ int main(int argc, char **argv) {
         auto loaded = loadNativeProject(argv[++i]);
         if (!loaded) {
           std::cerr << loaded.error() << '\n';
-          return 2;
-        }
-        if (!loaded->dependencies.empty()) {
-          std::cerr << "managed dependencies are not supported by the native language server yet; "
-                       "use kalandra-check --project for package-aware checking\n";
           return 2;
         }
         project = std::move(*loaded);

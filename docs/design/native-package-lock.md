@@ -129,6 +129,7 @@ down both HTTP/TLS servers. Installed CPU compiler and Metal source checks consu
 the public lock; Metal source emission is not new GPU execution qualification.
 
 See the [qualification record](../../native/metal-proof/evidence/native-package-lock-2026-10-20.json).
-A deliberate update command, package-aware
-editor integration, authenticated/SSH transport, broader installed Metal execution
+The [native editor](native-language-server.md#installed-dependencies) now reads
+and validates this lock without installing or rewriting packages.
+A deliberate update command, authenticated/SSH transport, broader installed Metal execution
 and crash durability remain separate work.

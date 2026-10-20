@@ -215,11 +215,13 @@ implemented, including library metadata and manifest-backed graph qualification.
 N3-B now has a qualified local snapshot importer and complete exact-local graph
 activation through the compiler/checker and Metal source tools. Remote transport
 is implemented for public HTTPS and numeric-loopback HTTP with exact commits;
-SSH/authentication and wider hosted-server qualification remain. Managed editor
-support and broader installed Metal onboarding are pending. N3-C now has
+SSH/authentication and wider hosted-server qualification remain. N3-D now has
+[package-aware editor analysis](native-language-server.md#installed-dependencies),
+including a relocated editor archive, project/cache relocation and read-only
+installed sources. Broader installed Metal onboarding remains pending. N3-C now has
 [public locks and frozen/offline modes](native-package-lock.md), plus
 [branch/tag resolution with stable pins](native-git-refs.md). A deliberate update
-command remains a later convenience; managed editor onboarding is next.
+command remains a later convenience.
 Registry discovery, SemVer ranges, add/remove/update conveniences,
 monorepo workspaces and cache pruning remain future work rather than hidden
 requirements of this first Git-based workflow.

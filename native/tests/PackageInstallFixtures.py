@@ -17,7 +17,6 @@ parser.add_argument("--root", required=True)
 parser.add_argument("--variant", default="debug")
 parser.add_argument("--api")
 parser.add_argument("--metal")
-parser.add_argument("--lsp")
 args = parser.parse_args()
 root = Path(args.root).absolute()
 if root.exists():
@@ -249,8 +248,6 @@ if args.api:
         run(args.api, "install", limited / "kalandra.toml", budget, ok=False)
         assert not (limited / "kalandra.lock").exists()
         assert not list((limited / ".kalandra").glob(".activate-*"))
-if args.lsp:
-    assert b"not supported" in run(args.lsp, "--project", manifest, ok=False).stderr
 for bad in [
     "bad='value'", "'a.b'={git=" + quote(geometry) + ",rev=" + quote(first) + "}",
     "bad={git='./relative',rev=" + quote(first) + "}",

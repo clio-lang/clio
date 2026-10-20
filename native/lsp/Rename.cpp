@@ -259,7 +259,7 @@ std::expected<RenameResult, std::string>
 planRename(const std::vector<std::string> &roots, const std::string &workspace,
            std::span<const ModulePackage> packages, std::span<const SourceOverlay> overlays,
            const std::string &path, std::size_t offset, std::optional<std::string> newName,
-           CheckOptions options) {
+           CheckOptions options, const SourceGraphLoader &loader, const WritableSource &writable) {
   if (newName && !validRenameName(*newName))
     return std::unexpected("Invalid or reserved rename identifier");
   if (!containsPath(workspace, path))
@@ -268,7 +268,7 @@ planRename(const std::vector<std::string> &roots, const std::string &workspace,
   std::vector<Graph> graphs;
   std::size_t bytes = 0, edges = 0, identifiers = 0;
   for (const auto &root : roots) {
-    auto syntax = loadModules(root, {}, {}, packages, overlays);
+    auto syntax = loader ? loader(root, overlays) : loadModules(root, {}, {}, packages, overlays);
     if (!syntax || !syntax->module.source)
       return std::unexpected("Cannot load rename source graph");
     bytes += syntax->module.source->text().size();
@@ -295,6 +295,8 @@ planRename(const std::vector<std::string> &roots, const std::string &workspace,
       }
   if (!selected)
     return RenameResult{};
+  if (writable && !writable(selected->target.path))
+    return std::unexpected("Cannot rename a read-only installed package declaration");
   if (!containsPath(workspace, selected->target.path))
     return std::unexpected("Cannot rename a declaration outside the selected workspace");
   const auto selectionFile = files.find(path);
@@ -326,6 +328,8 @@ planRename(const std::vector<std::string> &roots, const std::string &workspace,
   for (const auto &graph : graphs)
     for (const auto &edge : graph.edges)
       if (edge.target == selected->target) {
+        if (writable && !writable(edge.use.path))
+          return std::unexpected("Rename would edit a read-only installed package source");
         if (!containsPath(workspace, edge.use.path))
           return std::unexpected("Rename would edit a source outside the selected workspace");
         const auto old = files.at(edge.use.path)->slice({edge.use.begin, edge.use.end});
@@ -390,7 +394,8 @@ planRename(const std::vector<std::string> &roots, const std::string &workspace,
     for (const auto &file : before.sources)
       if (const auto overlay = proposed.find(file); overlay != proposed.end())
         updated.push_back({file, overlay->second});
-    auto syntax = loadModules(before.root, {}, {}, packages, updated);
+    auto syntax = loader ? loader(before.root, updated)
+                         : loadModules(before.root, {}, {}, packages, updated);
     if (!syntax || !syntax->module.source)
       return std::unexpected("Cannot load proposed rename");
     bytes += syntax->module.source->text().size();

@@ -29,6 +29,7 @@ if(BUILD_TESTING)
     "${CMAKE_CURRENT_SOURCE_DIR}/packaging/InstallTests.py"
     "${CMAKE_COMMAND}" "${PROJECT_BINARY_DIR}" "$<CONFIG>"
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackageEditorTools.cmake"
-    "${CMAKE_CURRENT_SOURCE_DIR}/lsp/ProtocolTests.py" "${KALANDRA_LLVM_ROOT}")
+    "${CMAKE_CURRENT_SOURCE_DIR}/lsp/ProtocolTests.py" "${KALANDRA_LLVM_ROOT}"
+    "$<TARGET_FILE:kalandra>")
   set_tests_properties(native-editor-tools-install PROPERTIES TIMEOUT 90)
 endif()

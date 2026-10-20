@@ -18,7 +18,51 @@ build/native/native/kalandra-lsp --project path/to/kalandra.toml
 build/native/native/kalandra-lsp --placement --project path/to/kalandra.toml
 ```
 
-The explicit project manifest is loaded at startup and supplies its entry and local package mappings. No ancestor discovery, dependency installation, unsaved manifest editing or automatic configuration reload is provided. Without it, each open file is checked as a root with relative imports. With it, open files and the project entry are checked using the same open-buffer replacements. `--placement` enables shared CPU/Metal placement checks; it does not guarantee GPU lowering or hardware capability.
+The explicit project manifest is loaded at startup and supplies its entry, local package mappings and managed dependency declarations. No ancestor discovery, dependency installation, unsaved manifest editing or automatic configuration reload is provided. Without it, each open file is checked as a root with relative imports. With it, open files and the project entry are checked using the same open-buffer replacements. `--placement` enables shared CPU/Metal placement checks; it does not guarantee GPU lowering or hardware capability.
+
+## Installed dependencies
+
+Install the configured project's dependencies before opening it in the editor:
+
+```sh
+kalandra install --project /path/to/project/kalandra.toml
+kalandra-lsp --project /path/to/project/kalandra.toml
+```
+
+Diagnostics, hover, definition, references, scope completion and rename validation
+use the same locked package graph as the compiler. Each library resolves its own
+imports through its own dependency versions; application aliases do not replace
+private library aliases. Unsaved workspace sources, including an invalid saved
+entry replaced by a valid buffer, participate before parsing.
+
+Analysis reads the installed graph without running Git, contacting repositories,
+installing dependencies or rewriting the lock/cache. The lock and snapshot
+integrity are checked again for each graph load. A missing/stale/invalid lock or
+modified snapshot prevents typed results; notification checks log the loader
+error, symbol queries return no result and rename/reference searches fail when
+they cannot load their required graphs. There is no fallback to an old typed
+graph. For projects with managed dependencies, changing the startup manifest
+requires restarting the server; unsaved manifest editing is unsupported.
+
+Installed `.kalandra` sources are read-only. Definition jumps can open reachable
+library sources, and hover/definition/references retain their package owner within
+the application's entry graph. They are not checked as standalone application
+files. Unreachable library files have no independent semantic browsing context.
+Opening unchanged installed text is supported; changing it in a buffer prevents
+analysis until that buffer is restored or closed. Completion probes and formatting
+edits are not offered inside installed sources. Rename can change workspace
+bindings and explicit local aliases, but cannot rename installed declarations or
+produce edits to installed sources. Edit the original library project and install
+a new revision instead. Workspace discovery skips `.kalandra` entirely.
+
+The [package-editor qualification record](../../native/metal-proof/evidence/native-lsp-packages-2026-10-20.json)
+covers framed normal/sanitized requests and a relocated editor-tools archive.
+It includes two versions of one library, private import navigation, unsaved entry
+replacement, workspace completion/references/rename, read-only cache handling,
+manifest/lock/source corruption, and an application/cache moved after installation.
+The fixture removes the original repositories before editor analysis and verifies
+that all project/cache files remain unchanged. These are protocol tests on macOS
+ARM64; they do not add a real-editor or GPU execution qualification.
 
 ## Supported protocol slice
 
@@ -128,7 +172,7 @@ At initialization the server accepts at most 16 local directory roots from `work
 
 The query document selects the most specific containing root. Only that root is discovered, and only open files/project entries inside it are added as roots. Other configured roots and open files outside it cannot contaminate that search. A query outside all configured roots searches only its own dependency graph. When no workspace roots are configured, open graphs and the optional project entry retain the previous search behavior. Diagnostics still recheck open buffers independently of reference discovery.
 
-Discovery recursively lists regular `.k` files, with deterministic sorted results. It skips symlink files/directories (including broken links), and skips directories named `.git`, `.hg`, `.svn`, `node_modules`, `build`, `dist`, `target`, `.cache`, `.svelte-kit` or `.vercel`. These fixed exclusions apply to discovery, not explicitly open files or imports. There is no `.gitignore` interpretation or configurable exclusion glob yet. Explicit imports and package mappings can reach external dependencies; discovery does not crawl their directories or find reverse importers outside the selected workspace. These are search boundaries, not an import sandbox.
+Discovery recursively lists regular `.k` files, with deterministic sorted results. It skips symlink files/directories (including broken links), and skips directories named `.git`, `.hg`, `.svn`, `node_modules`, `build`, `dist`, `target`, `.cache`, `.kalandra`, `.svelte-kit` or `.vercel`. These fixed exclusions apply to discovery, not explicitly open files or imports. There is no `.gitignore` interpretation or configurable exclusion glob yet. Explicit imports and package mappings can reach external dependencies; discovery does not crawl their directories or find reverse importers outside the selected workspace. These are search boundaries, not an import sandbox.
 
 Each request rescans the root and reads current source graphs using open-buffer replacements. New/deleted files and disk edits are visible on the next search; closing a buffer restores its disk contents. No source files are written. There is no filesystem watcher, persistent index, debounce or point-in-time filesystem snapshot. Concurrent filesystem mutation is not a qualified atomic snapshot.
 

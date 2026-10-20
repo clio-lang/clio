@@ -1,4 +1,5 @@
 #pragma once
+#include "SourceGraph.h"
 #include "kalandra/Semantics.h"
 namespace kalandra::lsp {
 struct CompletionInfo {
@@ -12,5 +13,6 @@ struct CompletionInfo {
                                            std::size_t offset,
                                            const std::vector<ModulePackage> &packages = {},
                                            std::vector<SourceOverlay> overlays = {},
-                                           CheckOptions options = {});
+                                           CheckOptions options = {},
+                                           const SourceGraphLoader &loader = {});
 } // namespace kalandra::lsp

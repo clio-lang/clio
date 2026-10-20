@@ -26,7 +26,7 @@ std::expected<std::vector<std::string>, std::string> discoverSources(const std::
     return std::unexpected("Cannot access workspace directory: " + root);
   const auto excluded = [](const fs::path &path) {
     constexpr std::array names{".git", ".hg",    ".svn",   "node_modules", "build",
-                               "dist", "target", ".cache", ".svelte-kit",  ".vercel"};
+                               "dist", "target", ".cache", ".kalandra", ".svelte-kit",  ".vercel"};
     const auto name = path.filename().string();
     return std::ranges::find(names, name) != names.end();
   };

@@ -98,9 +98,10 @@ installer can remove it; paths explicitly inside the cache remain forbidden.
 Default whole-graph budgets are 64 packages, depth 32, 32768 source entries,
 128 MiB of source and 1 MiB of lock data. Snapshot and compiler limits also apply.
 
-The native language server explicitly rejects managed dependency projects until
-its scoped integration is qualified. Use `kalandra-check --project` for checking.
-Formatting a source file remains independent of dependency installation.
+The [native language server](native-language-server.md#installed-dependencies)
+reads the installed scoped graph for diagnostics, completion and navigation.
+It does not install dependencies; cached library sources remain read-only.
+Formatting workspace source remains independent of dependency installation.
 
 Acceptance covers private scopes, transitive versions, workers, JSON/stdin
 checking, rollback, guards, manifest/lock edits, stale/corrupt state, output aliases,
@@ -113,5 +114,5 @@ Qualification records: [initial installation](../../native/metal-proof/evidence/
 [remote transport](../../native/metal-proof/evidence/native-remote-git-2026-10-20.json),
 and [public locks](../../native/metal-proof/evidence/native-package-lock-2026-10-20.json).
 Remaining work includes a deliberate update command, authenticated/SSH transport,
-package-aware editor support, broader host/installed Metal qualification and crash
+broader host/installed Metal qualification and crash
 recovery.

@@ -1,5 +1,6 @@
 #pragma once
 #include "SemanticQuery.h"
+#include "SourceGraph.h"
 #include <expected>
 namespace kalandra::lsp {
 struct SourceEdit {
@@ -18,5 +19,6 @@ struct RenameResult {
 planRename(const std::vector<std::string> &roots, const std::string &workspace,
            std::span<const ModulePackage> packages, std::span<const SourceOverlay> overlays,
            const std::string &path, std::size_t offset, std::optional<std::string> newName,
-           CheckOptions options = {});
+           CheckOptions options = {}, const SourceGraphLoader &loader = {},
+           const WritableSource &writable = {});
 } // namespace kalandra::lsp
