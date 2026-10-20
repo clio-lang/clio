@@ -37,6 +37,14 @@ struct FunctionSignature {
   std::vector<ValueType> parameters;
   ValueType result;
 };
+// Whole-module may-call information, indexed by expression ID. Unknown sources
+// remain explicit even when compatible known targets are also present.
+struct FunctionInvocationFlow {
+  std::vector<std::vector<FunctionId>> targets;
+  std::vector<bool> unknown;
+};
+[[nodiscard]] std::optional<FunctionInvocationFlow>
+functionInvocationFlow(const struct TypedModule &, std::size_t budget = 300000);
 // Structural signatures ignore dynamic shape identities, never nominal record identities.
 [[nodiscard]] bool sameFunctionValueType(const ValueType &, const ValueType &,
                                          std::size_t depth = 0);

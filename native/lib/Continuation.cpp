@@ -844,13 +844,36 @@ private:
     return output;
   }
 };
+// Creation/capture is not execution. Only indirect invocation adds may-call
+// edges; parameter and returned-function flow is shared with worker proofs.
+void indirectEffects(const TypedModule &input, std::vector<std::vector<FunctionId>> &callers,
+                     std::vector<bool> &result) {
+  if (!std::ranges::any_of(input.expressions, [](const auto &value) {
+        return std::holds_alternative<FunctionInvoke>(value.operation);
+      }))
+    return;
+  const auto flow = functionInvocationFlow(input);
+  for (FunctionId id = 0; id < input.functions.size(); ++id)
+    for (auto value : input.functions[id].expressions)
+      if (std::holds_alternative<FunctionInvoke>(input.expressions.at(value).operation)) {
+        if (!flow) {
+          // Exhaustion must never certify an incomplete call graph as synchronous.
+          result[id] = true;
+          continue;
+        }
+        for (auto target : flow->targets.at(value))
+          callers.at(target).push_back(id);
+      }
+}
 } // namespace
 std::vector<bool> resumableFunctions(const TypedModule &input) {
-  std::vector<bool> result(input.functions.size());
+  // Indirect synchronous entries already encapsulate their expected-error
+  // control flow. Only actual coordination crosses that calling boundary.
+  auto result = coordinatingFunctions(input);
   std::vector<std::vector<FunctionId>> callers(input.functions.size());
   std::vector<FunctionId> pending;
   for (FunctionId id = 0; id < input.functions.size(); ++id) {
-    result[id] = input.functions[id].resultType.fallible;
+    result[id] = result[id] || input.functions[id].resultType.fallible;
     for (auto value : input.functions[id].expressions) {
       const auto &op = input.expressions.at(value).operation;
       if (const auto *call = std::get_if<FunctionCall>(&op))
@@ -886,6 +909,7 @@ std::vector<bool> coordinatingFunctions(const TypedModule &input) {
   std::vector<bool> result(input.functions.size());
   std::vector<std::vector<FunctionId>> callers(input.functions.size());
   std::vector<FunctionId> pending;
+  indirectEffects(input, callers, result);
   for (FunctionId id = 0; id < input.functions.size(); ++id) {
     for (auto value : input.functions[id].expressions) {
       const auto &op = input.expressions.at(value).operation;

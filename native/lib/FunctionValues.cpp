@@ -78,10 +78,11 @@ namespace {
 // overapproximate fields/elements, but callable edges require exact signatures.
 class WorkerValueFlow {
 public:
-  WorkerValueFlow(const TypedModule &module, const std::unordered_map<SymbolId, ValueId> &bindings)
+  WorkerValueFlow(const TypedModule &module, const std::unordered_map<SymbolId, ValueId> &bindings,
+                  std::size_t budget = 300000)
       : targets(module.expressions.size()), outcomes(module.functions.size()), module_(module),
         bindings_(bindings), edges_(module.expressions.size()), uses_(module.expressions.size()),
-        references_(module.functions.size()) {}
+        references_(module.functions.size()), remaining_(budget) {}
 
   std::unordered_map<SymbolId, std::unordered_set<ValueId>> parameterSources;
   std::unordered_map<ValueId, std::unordered_set<FunctionId>> invocationTargets;
@@ -317,7 +318,7 @@ private:
   }
 };
 
-bool workerValueProvenance(const TypedModule &module, ValueId root) {
+std::unordered_map<SymbolId, ValueId> valueBindings(const TypedModule &module) {
   std::unordered_map<SymbolId, ValueId> bindings;
   const auto statements = [&](const auto &body) {
     for (const auto &statement : body)
@@ -339,6 +340,11 @@ bool workerValueProvenance(const TypedModule &module, ValueId root) {
               statements(arm.body);
         },
         expression.operation);
+  return bindings;
+}
+
+bool workerValueProvenance(const TypedModule &module, ValueId root) {
+  const auto bindings = valueBindings(module);
   WorkerValueFlow flow(module, bindings);
   if (!flow.build())
     return false;
@@ -490,6 +496,26 @@ bool workerValueProvenance(const TypedModule &module, ValueId root) {
   return found;
 }
 } // namespace
+std::optional<FunctionInvocationFlow> functionInvocationFlow(const TypedModule &module,
+                                                             std::size_t budget) {
+  const auto bindings = valueBindings(module);
+  WorkerValueFlow flow(module, bindings, budget);
+  if (!flow.build())
+    return {};
+  FunctionInvocationFlow result;
+  result.targets.resize(module.expressions.size());
+  result.unknown.resize(module.expressions.size());
+  for (ValueId id = 0; id < module.expressions.size(); ++id)
+    if (const auto *call = std::get_if<FunctionInvoke>(&module.expressions[id].operation)) {
+      result.unknown[id] = flow.unknown(call->callee);
+      if (const auto found = flow.invocationTargets.find(id);
+          found != flow.invocationTargets.end()) {
+        result.targets[id].assign(found->second.begin(), found->second.end());
+        std::ranges::sort(result.targets[id]);
+      }
+    }
+  return result;
+}
 std::optional<std::string> functionValueTransportError(const TypedModule &module,
                                                        const TypedExpr &invocation) {
   const bool indirect = std::holds_alternative<FunctionInvoke>(invocation.operation);
