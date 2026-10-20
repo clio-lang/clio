@@ -9,7 +9,7 @@ cmake --build build/native --target kalandra-lsp
 build/native/native/kalandra-lsp
 ```
 
-Configure your editor's language-server client to launch the executable with `.k` documents associated with the `kalandra` language. It communicates over framed stdin/stdout, so running it in an ordinary terminal waits for protocol input. This is a development build; editor extension packaging and installed-command discovery remain work.
+Configure your editor's language-server client to launch the executable with `.k` documents associated with the `kalandra` language. It communicates over framed stdin/stdout, so running it in an ordinary terminal waits for protocol input. A [native VS Code client](native-vscode.md) now packages the editor connection and `.k` highlighting as a local VSIX. Set its Server Path to this development executable; native installed-binary distribution remains work.
 
 Optional arguments:
 
@@ -108,7 +108,7 @@ A shorthand pattern such as `{value}` has two roles at one source token: a paylo
 
 Builtin `TaskError`/`FaultKind` match cases and builtin payload labels provide checked type hover, but have no invented source declarations. Their pattern-bound locals still have ordinary source identities. Wildcards remain unmapped. Invalid, duplicate, non-exhaustive or otherwise failed graphs expose no partial editor identities. This adds source-tool metadata without changing matching, error handling or GPU capabilities.
 
-The [enum/pattern qualification record](../../native/metal-proof/evidence/native-lsp-enum-tokens-2026-10-20.json) covers normal and ASan/UBSan semantic and protocol tests for case/field separation, explicit and shorthand bindings, closure captures, shadowing, error unions, builtins, imported enum origins, unsaved URI/range changes and failure isolation. Real-editor qualification remains future work; the rename implementation is described below.
+The [enum/pattern qualification record](../../native/metal-proof/evidence/native-lsp-enum-tokens-2026-10-20.json) covers normal and ASan/UBSan semantic and protocol tests for case/field separation, explicit and shorthand bindings, closure captures, shadowing, error unions, builtins, imported enum origins, unsaved URI/range changes and failure isolation. Dedicated editor checks for enum/pattern interactions remain future work; the rename implementation is described below.
 
 ## Find references
 
@@ -138,7 +138,7 @@ The server advertises workspace-folder support with change notifications disable
 
 ## Document formatting
 
-The server advertises `documentFormattingProvider: true`. Format Document uses the [shared native formatter](native-formatter.md) on the current open buffer, independently of dependency resolution or type checking. It returns a whole-document UTF-16 edit for the editor to apply, with fixed two-space indentation and LF line endings. Unchanged/invalid source or unopened documents return no edits. Formatting does not write files, update server buffers or publish diagnostics; the editor's subsequent change notification updates the buffer. See the formatter contract for options, verification failures and resource limits. Range/on-type formatting and real-editor qualification remain work.
+The server advertises `documentFormattingProvider: true`. Format Document uses the [shared native formatter](native-formatter.md) on the current open buffer, independently of dependency resolution or type checking. It returns a whole-document UTF-16 edit for the editor to apply, with fixed two-space indentation and LF line endings. Unchanged/invalid source or unopened documents return no edits. Formatting does not write files, update server buffers or publish diagnostics; the editor's subsequent change notification updates the buffer. See the formatter contract for options, verification failures and resource limits. Range/on-type formatting remains work; [initial VS Code acceptance](native-vscode.md#qualification) now covers the whole-document path.
 
 ## Scope completion
 
@@ -150,7 +150,7 @@ The request replaces only the current identifier (or inserts one at an empty pos
 
 This deliberately bounded first slice needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; member names, annotations, import paths, pattern syntax and declaration names are not completion contexts yet. Strings/comments do not supply lexical-name suggestions. There is no parser recovery, member completion, auto-import, fuzzy ranking, snippet expansion, completion resolve or signature help. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
 
-The [completion qualification record](../../native/metal-proof/evidence/native-lsp-completion-2026-10-20.json) records semantic and stdio tests in normal and ASan/UBSan builds. Real-editor interaction remains unqualified.
+The [completion qualification record](../../native/metal-proof/evidence/native-lsp-completion-2026-10-20.json) records semantic and stdio tests in normal and ASan/UBSan builds. [Initial VS Code acceptance](native-vscode.md#qualification) now covers partly typed names; broader completion interaction remains follow-up work.
 
 ## Safe rename proposals
 
@@ -178,4 +178,4 @@ Malformed JSON with valid framing returns a parse error and leaves the session u
 
 Independent Python-stdlib protocol tests launch normal and ASan/UBSan builds, exercise interactive pipe framing, lifecycle, versions, Unicode ranges/URIs, source isolation, dependency changes/clearing, project packages, budgets and malformed input. The [initial qualification record](../../native/metal-proof/evidence/native-lsp-2026-10-20.json) covers the first full-sync implementation. [Incremental edit qualification](../../native/metal-proof/evidence/native-lsp-edits-2026-10-20.json) adds sequential/mixed edits, Unicode scalar boundaries, CRLF/CR positions, line-end clamping, transactional failure, deprecated lengths and edit limits. Third-party LLVM libraries are not rebuilt with sanitizers. No real editor or additional operating system is qualified by these protocol tests.
 
-Next: real-editor qualification and editor distribution. Completion recovery, members and signature help remain follow-ups. Filesystem watching, persistent workspace indexing, asynchronous scheduling and editor distribution remain separate work.
+The [native VS Code qualification](native-vscode.md#qualification) now tests the packaged client against the real editor host on macOS ARM64. Additional editor/platform acceptance, installed native binaries, completion recovery, members and signature help remain follow-ups. Filesystem watching, persistent workspace indexing and asynchronous scheduling remain separate work.
