@@ -53,7 +53,7 @@ The checker supports [versioned JSON diagnostics](../docs/design/native-diagnost
 | `kalandrac`               | Compile the checked CPU subset through MLIR/LLVM into a native executable                 |
 | `kalandra-backend`        | Native MLIR construction, verified passes, LLVM translation                               |
 | `kalandra-native-runtime` | Invocation storage, checked faults, bounded task scheduler, and development entry wrapper |
-| `kalandra-lsp`            | Native stdio language server with incremental sync and versioned compiler diagnostics             |
+| `kalandra-lsp`            | Native editor diagnostics, incremental synchronization and checked type hover             |
 | `kalandra-check`          | Symbol/type/shape checking, JSON diagnostics and `--dump-ir` inspection                   |
 | `kalandra-semantics`      | Typed values, resolved calls, shape facts/guards, strict numeric metadata                 |
 | `kalandra-parse`          | Handwritten lexer/parser CLI with source diagnostics (syntax only)                        |

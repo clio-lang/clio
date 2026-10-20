@@ -67,11 +67,13 @@ class Client:
         events, self.events = self.events, []
         return events
 
-    def init(self):
-        result = self.rpc("initialize", {"capabilities": {}})["result"]
+    def init(self, formats=None):
+        capabilities = {} if formats is None else {"textDocument": {"hover": {"contentFormat": formats}}}
+        result = self.rpc("initialize", {"capabilities": capabilities})["result"]
         caps = result["capabilities"]
         assert caps["positionEncoding"] == "utf-16"
         assert caps["textDocumentSync"]["change"] == 2  # Incremental UTF-16 changes.
+        assert caps["hoverProvider"] is True
         assert not caps.get("completionProvider")
         self.send("initialized", {})
 
@@ -86,6 +88,10 @@ class Client:
     def edits(self, path, changes, version):
         self.send("textDocument/didChange", {"textDocument": {
             "uri": path.as_uri(), "version": version}, "contentChanges": changes})
+
+    def hover(self, path, line, character):
+        return self.rpc("textDocument/hover", {"textDocument": {"uri": path.as_uri()},
+                                              "position": {"line": line, "character": character}})
 
     def close(self, path):
         self.send("textDocument/didClose", {"textDocument": {"uri": path.as_uri()}})
@@ -307,6 +313,52 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     client.process.stdin.close()
     assert client.process.wait(timeout=10) == 0
     assert not client.process.stderr.read()
+
+    # Hover reflects checked types, open-buffer changes and exact UTF-16 token ranges.
+    source = "fn double(value:int):\n  value*2\nfn main():\n  number=21\n  double(number)\n"
+    client = Client()
+    client.init()
+    client.open(main, source)
+    result = client.hover(main, 0, 4)["result"]
+    assert result["contents"] == {"kind": "plaintext", "value": "fn double(value: int64) -> int64"}
+    assert result["range"] == {"start": {"line": 0, "character": 3}, "end": {"line": 0, "character": 9}}
+    assert client.hover(main, 3, 3)["result"]["contents"]["value"] == "number: int64"
+    assert client.hover(main, 4, 4)["result"]["contents"]["value"] == "fn double(value: int64) -> int64"
+    assert client.hover(main, 1, 0)["result"] is None  # Whitespace.
+    assert client.hover(main, 0, 0)["result"] is None  # Keyword.
+    assert client.hover(main, 999, 0)["result"] is None
+    assert client.hover(main, 0, -1)["error"]["code"] == -32602
+    assert client.rpc("textDocument/hover", {})["error"]["code"] == -32602
+    client.edits(main, [edit(3, 11, 11, ".5"), edit(0, 16, 19, "float")], 2)
+    assert client.hover(main, 3, 3)["result"]["contents"]["value"] == "number: float64"
+    assert client.hover(main, 4, 4)["result"]["contents"]["value"] == "fn double(value: float64) -> float64"
+    client.change(main, "fn main():\n  unknown\n", 3)
+    assert client.hover(main, 0, 4)["result"] is None  # No stale/partial typed IR.
+    client.change(main, 'fn main()->String:\r\n  text="😀é"\r\n  text\r\n', 4)
+    result = client.hover(main, 1, 10)["result"]  # Inside the string after the emoji.
+    assert result["contents"]["value"] == "String"
+    assert result["range"] == {"start": {"line": 1, "character": 7}, "end": {"line": 1, "character": 12}}
+    assert client.hover(main, 1, 9)["result"] is None  # Inside surrogate pair.
+    assert client.hover(main, 2, 3)["result"]["contents"]["value"] == "text: String"
+    client.close(main)
+    assert client.hover(main, 0, 3)["result"] is None
+    client.finish()
+
+    # Imported alias calls resolve to the compiler target, with current unsaved exports.
+    lib.write_text("export fn scale(value:int):\n  value*2\n")
+    caller = 'from "./lib.k" import scale as twice\nfn main():\n  twice(21)\n'
+    client = Client()
+    client.init(["markdown", "plaintext"])
+    client.open(main, caller)
+    hover = client.hover(main, 2, 3)["result"]
+    assert hover["contents"] == {"kind": "markdown", "value": "```kalandra\nfn twice(value: int64) -> int64\n```"}
+    client.open(lib, "export fn scale(value:float):\n  value*2\n")
+    assert "float64" in client.hover(main, 2, 3)["result"]["contents"]["value"]
+    client.edits(main, [edit(2, 10, 10, ".5")], 2)
+    assert "float64" in client.hover(main, 2, 3)["result"]["contents"]["value"]
+    client.close(lib)
+    assert client.hover(main, 2, 3)["result"] is None
+    client.finish()
 
     invalid_stream(b"Content-Length: 0\r\n\r\n")
     invalid_stream(b"Content-Length: 33554433\r\n\r\n")

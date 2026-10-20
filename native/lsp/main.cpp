@@ -1,4 +1,5 @@
 #include "Edits.h"
+#include "Hover.h"
 #include "kalandra/Diagnostics.h"
 #include "kalandra/Project.h"
 #include "kalandra/Semantics.h"
@@ -211,7 +212,7 @@ class Session {
   CheckOptions options;
 
 public:
-  bool initialized = false, shutdown = false;
+  bool initialized = false, shutdown = false, hoverMarkdown = false;
   Session(std::optional<NativeProject> p, bool placement) : project(std::move(p)) {
     options.placement = placement;
   }
@@ -289,6 +290,56 @@ public:
                      {"params", std::move(params)}});
     }
     published = std::move(next);
+  }
+  void hover(const j::Value &id, const j::Object *params) {
+    const auto item = params ? params->getObject("textDocument") : nullptr;
+    const auto uri = item ? item->getString("uri") : std::nullopt;
+    const auto path = uri ? pathFromUri(*uri) : std::nullopt;
+    const auto position = editPosition(params ? params->getObject("position") : nullptr);
+    if (!path || !position) {
+      error(id, -32602, "Expected a local .k URI and UTF-16 position");
+      return;
+    }
+    const auto respond = [&](j::Value result) {
+      send(j::Object{{"jsonrpc", "2.0"}, {"id", id}, {"result", std::move(result)}});
+    };
+    const auto open = documents.find(*path);
+    if (open == documents.end() || open->second.uri != *uri) {
+      respond(nullptr);
+      return;
+    }
+    const auto offset = lsp::textOffset(open->second.text, *position);
+    if (!offset) {
+      respond(nullptr);
+      return;
+    }
+    std::vector<SourceOverlay> overlays;
+    for (const auto &[file, document] : documents)
+      overlays.push_back({file, document.text});
+    const std::vector<ModulePackage> empty;
+    auto syntax = loadModules(*path, {}, {}, project ? project->packages : empty, overlays);
+    if (!syntax) {
+      respond(nullptr);
+      return;
+    }
+    auto info = lsp::hoverInfo(std::move(*syntax), *path, *offset, options);
+    if (!info) {
+      respond(nullptr);
+      return;
+    }
+    // Reuse the diagnostic source-span adapter for identical original-file UTF-16 ranges.
+    const Diagnostic location{"", "", info->span};
+    auto encoded = j::parse(renderDiagnosticsJson(info->source.get(), {&location, 1}));
+    if (!encoded) {
+      llvm::consumeError(encoded.takeError());
+      error(id, -32603, "Cannot encode hover range");
+      return;
+    }
+    const auto &diagnostic = *(*encoded->getAsObject()->getArray("diagnostics"))[0].getAsObject();
+    auto text = hoverMarkdown ? "```kalandra\n" + info->text + "\n```" : info->text;
+    respond(j::Object{{"contents", j::Object{{"kind", hoverMarkdown ? "markdown" : "plaintext"},
+                                             {"value", std::move(text)}}},
+                      {"range", *diagnostic.get("range")}});
   }
   void document(llvm::StringRef method, const j::Object *params) {
     const auto item = params ? params->getObject("textDocument") : nullptr;
@@ -440,6 +491,19 @@ int main(int argc, char **argv) {
           error(*id, -32602, "Expected initialize parameters");
           continue;
         }
+        const auto params = object->getObject("params");
+        const auto capabilities = params->getObject("capabilities");
+        const auto document = capabilities ? capabilities->getObject("textDocument") : nullptr;
+        const auto hover = document ? document->getObject("hover") : nullptr;
+        const auto formats = hover ? hover->getArray("contentFormat") : nullptr;
+        if (formats)
+          for (const auto &format : *formats) {
+            const auto name = format.getAsString();
+            if (name == "markdown" || name == "plaintext") {
+              session.hoverMarkdown = name == "markdown";
+              break;
+            }
+          }
         session.initialized = true;
         send(j::Object{
             {"jsonrpc", "2.0"},
@@ -447,6 +511,7 @@ int main(int argc, char **argv) {
             {"result",
              j::Object{{"capabilities",
                         j::Object{{"positionEncoding", "utf-16"},
+                                  {"hoverProvider", true},
                                   {"textDocumentSync",
                                    j::Object{{"openClose", true},
                                              {"change", 2},
@@ -461,6 +526,8 @@ int main(int argc, char **argv) {
       } else if (*method == "shutdown" && request) {
         session.shutdown = true;
         send(j::Object{{"jsonrpc", "2.0"}, {"id", *id}, {"result", nullptr}});
+      } else if (*method == "textDocument/hover" && request) {
+        session.hover(*id, object->getObject("params"));
       } else if (request)
         error(*id, *method == "initialize" ? -32600 : -32601, "Unsupported request");
       else if (*method == "textDocument/didOpen" || *method == "textDocument/didChange" ||

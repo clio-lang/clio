@@ -42,6 +42,11 @@ bool after(Position a, Position b) {
   return a.line > b.line || (a.line == b.line && a.character > b.character);
 }
 } // namespace
+std::optional<std::size_t> textOffset(std::string_view text, Position position) {
+  if (!validUtf8(text))
+    return {};
+  return offset(text, position);
+}
 std::expected<std::string, std::string>
 applyChanges(std::string_view original, std::span<const TextChange> changes, EditLimits limits) {
   if (original.size() > limits.maxBytes || original.size() > limits.maxWorkBytes ||
