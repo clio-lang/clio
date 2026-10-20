@@ -1,8 +1,8 @@
 # Function values across local CPU workers
 
-Current aggregate extension: [proven function-containing CPU worker values](native-worker-callable-aggregates.md) now support records, ordinary enums, function arrays, record arrays and transitive captures. Unproven parameters, expected-error payloads and indirect spawn remain staged. Earlier subset restrictions below describe the preceding increments.
+Current CPU support includes [function-containing values](native-worker-callable-aggregates.md), [indirect spawn](native-indirect-spawn.md), [spawned maps](native-worker-callable-maps.md), [spawned collections](native-worker-callable-collections.md), and [function-containing error payloads](native-worker-error-functions.md). These use bounded, conservative provenance proofs; unknown origins and unsupported transitive captures remain diagnostics. General task/device-coordinating callable values remain separate work.
 
-Implementation contract — 2026-10-19. This specifies the next stages of the accepted [function-value design](function-values.md), using the existing [native task contract](native-tasks.md). The [capture-free named argument stage](native-worker-functions.md) and [data-capturing closure argument stage](native-worker-closures.md) are implemented. [Direct nested function captures](native-worker-nested-closures.md) are also implemented. Function-containing capture aggregates, unproven function arguments and indirect spawn remain staged. [Proven function-valued worker results](native-worker-function-results.md) are now implemented. The argument example below runs now; the result example also runs now; indirect spawn remains a future acceptance program.
+Implementation contract — 2026-10-19, extended by the linked CPU implementation stages. This follows the accepted [function-value design](function-values.md) and [native task contract](native-tasks.md).
 
 Local workers are threads in one native executable. Transfer a typed function value and its immutable captures within that process. No network serialization, source-code shipment, dynamic library loading, or public callback ABI is involved. Distributed execution still requires the separate design discussion.
 
@@ -41,7 +41,7 @@ fn main() -> int ! TaskError:
 
 The [result fixture](fixtures/worker-function-results.k) returns `42`. Keep the captured values alive, not the worker's invocation, task handle or frame. Invocation of the returned function uses the caller's current execution context.
 
-Indirect spawn eventually uses the same ordinary call spelling:
+Indirect synchronous CPU spawn uses the same ordinary call spelling:
 
 ```kalandra
 transform = double
@@ -91,10 +91,10 @@ Expected errors from executing the callback retain their declared error channels
 ## Reviewable implementation sequence
 
 1. **Capture-free named function arguments (implemented):** private trusted target/layout metadata, copy validation and a function parameter of a statically named CPU worker. Keep all captured environments, worker function results and indirect spawn rejected until their own increments pass. Use conservative compiler provenance: a value whose capture-free eligibility cannot yet be established remains an implementation diagnostic, not a runtime surprise.
-2. **Captured function arguments (CPU data captures implemented):** destination-owned environments, nested eligible captures, shared backing retention, runtime-selected targets and concurrent worker-local invocation. The [implemented CPU data subset](native-worker-closures.md) covers direct arguments; direct nested function captures are [implemented](native-worker-nested-closures.md); function-containing capture aggregates and spawned-map captures remain pending. Retain transitive rejection elsewhere.
+2. **Captured function arguments (CPU data captures implemented):** destination-owned environments, nested eligible captures, shared backing retention, runtime-selected targets and concurrent worker-local invocation. The [implemented CPU data subset](native-worker-closures.md) covers direct arguments; direct nested function captures are [implemented](native-worker-nested-closures.md); [function-containing capture aggregates](native-worker-callable-aggregates.md) and [spawned-map captures](native-worker-callable-maps.md) are also implemented. Retain transitive checks on every transported value.
 3. **Function results (proven synchronous values implemented):** transfer child → outcome → observer, including captured functions used after group release, cached awaits and onward submission. Separate factory errors from invocation errors.
-4. **Containing values:** extend the same descriptor traversal to records, enum variants, function/record arrays and expected-error payloads in both directions. Do not remove blanket aggregate checks before each representation is qualified.
-5. **Indirect synchronous spawn:** generate a scheduler-owned task entry for a runtime callable, preserving callee/argument evaluation, admission, cancellation and settlement. This does not introduce resumable callable bodies.
+4. **Containing values (proven CPU payloads implemented):** extend the same descriptor traversal to records, enum variants, function/record arrays and expected-error payloads in both directions. Do not remove blanket aggregate checks before each representation is qualified.
+5. **Indirect synchronous spawn (implemented):** generate a scheduler-owned task entry for a runtime callable, preserving callee/argument evaluation, admission, cancellation and settlement. This does not introduce resumable callable bodies.
 
 Keep each earlier restriction diagnostic until its replacement path is qualified. General task/device-coordinating callable values, GPU callbacks, network contracts and public C/C++ callbacks remain separate work.
 
@@ -109,4 +109,4 @@ For each increment, exercise debug, optimized, ASan/UBSan and separate ThreadSan
 - Forged or mismatched private target/signature/capture metadata rejected before dereference/invocation; untouched outputs on rejected copying.
 - Transitive task/resource/device escape rejection, coordinating-target rejection, and unchanged ordinary task, closure, map, error and recursion behavior.
 
-The three linked fixtures parse with the existing native parser. The checker still rejects them at the intended unsupported transport/indirect-spawn boundaries; no execution result is claimed for this design milestone.
+The original design fixtures are supplemented by the linked implementation-stage catalogs and qualification records. Those records identify their selected compiler/runtime/sanitizer checks and remaining limitations.

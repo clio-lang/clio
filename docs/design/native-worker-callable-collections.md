@@ -20,41 +20,11 @@ Slice bounds are evaluated in the caller and checked by the existing collection 
 
 Unknown function origins and unsupported transitive captures remain `S074` errors. A zero-length slice does not erase unsafe input provenance, and a safe input on one side of a concatenation cannot hide an unsafe input on the other side. Rejected programs preserve existing executable, LLVM and MLIR output files.
 
-This milestone does not extend `shape` to ordinary arrays: it remains a numeric tensor query. It does not add function-containing error payloads, resumable first-class functions, or placement-aware/GPU callbacks.
+This milestone does not extend `shape` to ordinary arrays: it remains a numeric tensor query. [Function-containing worker error payloads](native-worker-error-functions.md) are now supported. Resumable first-class functions and placement-aware/GPU callbacks remain separate work.
 
-## Sequential maps and parallel mapping
+## Parallel mapping remains a core requirement
 
-`spawn map(values, callback)` still schedules one sequential loop as one CPU task. For a fixed collection of calls, spawning them before awaiting them allows the bounded scheduler to run them concurrently:
-
-```kalandra
-try parallel:
-  first=spawn double(10)
-  second=spawn double(20)
-  third=spawn double(30)
-  [try await first,try await second,try await third]
-```
-
-A typed divide-and-conquer helper can map an array in parallel today:
-
-```kalandra
-fn parallelMap(values:[int],transform:fn(int)->int)->[int] ! TaskError:
-  count=length(values)
-  if count==0:[]
-  else:
-    if count==1:[transform(values[0])]
-    else:
-      middle=count/2
-      try parallel:
-        left=spawn parallelMap(slice(values,0,middle),transform)
-        right=spawn parallelMap(slice(values,middle,count),transform)
-        first=try await left
-        second=try await right
-        concat(first,second)
-```
-
-Both halves are submitted before either is awaited. Leaf tasks apply the callback, and concatenation preserves input order. This example compiles and runs with the current CPU implementation; it is a specific `[int]` helper, not a generic standard-library API. It creates coordinator tasks as well as leaf tasks, copies slices under the current storage implementation, and remains subject to scheduler admission limits. It is not an efficient scheduling strategy for tiny operations or very large arrays.
-
-A built-in parallel map is **missing core functionality**, tracked in the [roadmap](../roadmap.md#immediate-accepted-core-queue). Its surface syntax, bounded scheduling/granularity, ordered results, grouped errors and cancellation need to be specified before implementation. The helper demonstrates that users can express parallel mapping; the built-in should avoid its task-tree and intermediate-collection overhead.
+`spawn map(values, callback)` still schedules one sequential loop as one CPU task. This does not fulfill the [planned parallel-map requirement](../roadmap.md#immediate-accepted-core-queue). Parallel mapping must be a simple language/runtime operation with bounded scheduling, ordered results, grouped errors and cancellation. Users should not have to write recursive split/spawn/join helpers or assemble intermediate slices and concatenations.
 
 ## Qualification
 

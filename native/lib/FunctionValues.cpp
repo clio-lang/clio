@@ -79,19 +79,33 @@ namespace {
 class WorkerValueFlow {
 public:
   WorkerValueFlow(const TypedModule &module, const std::unordered_map<SymbolId, ValueId> &bindings)
-      : targets(module.expressions.size()), module_(module), bindings_(bindings),
-        edges_(module.expressions.size()), uses_(module.expressions.size()),
+      : targets(module.expressions.size()), outcomes(module.functions.size()), module_(module),
+        bindings_(bindings), edges_(module.expressions.size()), uses_(module.expressions.size()),
         references_(module.functions.size()) {}
 
   std::unordered_map<SymbolId, std::unordered_set<ValueId>> parameterSources;
   std::unordered_map<ValueId, std::unordered_set<FunctionId>> invocationTargets;
   std::vector<std::unordered_set<FunctionId>> targets;
+  std::vector<std::vector<ValueId>> outcomes;
 
   bool unknown(ValueId id) const {
     return id >= targets.size() || targets[id].contains(module_.functions.size());
   }
 
   bool build() {
+    // Join possible application-error producers, including early guard failures.
+    // This is deliberately conservative across locally handled channels too.
+    for (FunctionId fn = 0; fn < module_.functions.size(); ++fn)
+      for (auto id : module_.functions[fn].expressions) {
+        if (id >= module_.expressions.size() || !step())
+          return false;
+        const auto &type = module_.expressions[id].type;
+        ValueType error;
+        error.builtin = BuiltinValue::Record;
+        error.record = type.errorRecord;
+        if (type.errorRecord && containsFunctionStorage(module_, error))
+          outcomes[fn].push_back(id);
+      }
     for (ValueId id = 0; id < module_.expressions.size(); ++id) {
       const auto &value = module_.expressions[id];
       if (const auto *read = std::get_if<SymbolRead>(&value.operation)) {
@@ -124,6 +138,8 @@ public:
         for (std::size_t i = 0; i < fn.parameters.size(); ++i)
           source(fn.parameters[i], call->arguments[i]);
         edge(fn.result, id);
+        for (auto outcome : outcomes[call->function])
+          edge(outcome, id);
       } else if (const auto *call = std::get_if<FunctionInvoke>(&value.operation)) {
         if (call->callee >= id)
           return false;
@@ -154,6 +170,8 @@ public:
       } else if (const auto *array = std::get_if<TensorLiteral>(&value.operation)) {
         for (auto element : array->elements)
           edge(element, id);
+      } else if (const auto *narrow = std::get_if<ErrorNarrow>(&value.operation)) {
+        edge(narrow->input, id);
       } else if (const auto *field = std::get_if<RecordFieldRead>(&value.operation)) {
         edge(field->input, id);
       } else if (const auto *index = std::get_if<ArrayIndex>(&value.operation)) {
@@ -170,6 +188,7 @@ public:
       } else if (const auto *group = std::get_if<ParallelOperation>(&value.operation)) {
         edge(group->result, id);
       } else if (const auto *caught = std::get_if<CatchOperation>(&value.operation)) {
+        source(caught->parameter, caught->operand);
         edge(caught->operand, id);
         edge(caught->result, id);
       } else if (const auto *choice = std::get_if<ConditionalOperation>(&value.operation)) {
@@ -178,7 +197,9 @@ public:
       } else if (const auto *match = std::get_if<MatchOperation>(&value.operation)) {
         for (const auto &arm : match->cases)
           edge(arm.result, id);
-      } else if (!std::holds_alternative<FailOperation>(value.operation)) {
+      } else if (const auto *failure = std::get_if<FailOperation>(&value.operation)) {
+        edge(failure->error, id);
+      } else {
         seed(id, module_.functions.size());
       }
     }
@@ -267,6 +288,8 @@ private:
       source(fn.parameters[i], call.arguments[i]);
     }
     edge(fn.result, id);
+    for (auto outcome : outcomes[target])
+      edge(outcome, id);
   }
   void drain() {
     while (next_ < pending_.size() && step()) {
@@ -358,6 +381,8 @@ bool workerValueProvenance(const TypedModule &module, ValueId root) {
       for (auto element : array->elements)
         pending.push_back(element);
       found = true;
+    } else if (const auto *narrow = std::get_if<ErrorNarrow>(&value.operation)) {
+      pending.push_back(narrow->input);
     } else if (const auto *field = std::get_if<RecordFieldRead>(&value.operation)) {
       pending.push_back(field->input);
     } else if (const auto *index = std::get_if<ArrayIndex>(&value.operation)) {
@@ -373,6 +398,12 @@ bool workerValueProvenance(const TypedModule &module, ValueId root) {
       if (call->function >= module.functions.size())
         return false;
       pending.push_back(module.functions[call->function].result);
+      pending.insert(pending.end(), flow.outcomes[call->function].begin(),
+                     flow.outcomes[call->function].end());
+      if (!containsFunctionStorage(
+              module, module.expressions[module.functions[call->function].result].type) &&
+          flow.outcomes[call->function].empty())
+        found = true;
     } else if (const auto *call = std::get_if<FunctionInvoke>(&value.operation)) {
       const auto candidates = flow.invocationTargets.find(id);
       if (call->callee >= id || candidates == flow.invocationTargets.end() ||
@@ -380,8 +411,14 @@ bool workerValueProvenance(const TypedModule &module, ValueId root) {
         return false;
       if (flow.unknown(call->callee))
         return false;
-      for (auto fn : candidates->second)
+      for (auto fn : candidates->second) {
         pending.push_back(module.functions[fn].result);
+        pending.insert(pending.end(), flow.outcomes[fn].begin(), flow.outcomes[fn].end());
+        if (!containsFunctionStorage(module,
+                                     module.expressions[module.functions[fn].result].type) &&
+            flow.outcomes[fn].empty())
+          found = true;
+      }
     } else if (const auto *map = std::get_if<ArrayMap>(&value.operation)) {
       if (map->function >= module.functions.size())
         return false;
@@ -401,8 +438,11 @@ bool workerValueProvenance(const TypedModule &module, ValueId root) {
         return false;
       pending.push_back(caught->operand);
       pending.push_back(caught->result);
-    } else if (std::holds_alternative<FailOperation>(value.operation) && value.type.fallible) {
-      // An expected-error path publishes no function payload.
+    } else if (const auto *failure = std::get_if<FailOperation>(&value.operation);
+               failure && value.type.fallible) {
+      if (failure->error >= id)
+        return false;
+      pending.push_back(failure->error);
       found = true;
     } else if (const auto *read = std::get_if<SymbolRead>(&value.operation)) {
       const auto binding = bindings.find(read->symbol);
@@ -414,9 +454,16 @@ bool workerValueProvenance(const TypedModule &module, ValueId root) {
           return false;
         pending.insert(pending.end(), sources->second.begin(), sources->second.end());
       } else {
-        if (binding == bindings.end() || binding->second >= id)
-          return false;
-        pending.push_back(binding->second);
+        if (binding != bindings.end()) {
+          if (binding->second >= id)
+            return false;
+          pending.push_back(binding->second);
+        } else {
+          const auto sources = flow.parameterSources.find(read->symbol);
+          if (sources == flow.parameterSources.end() || sources->second.empty())
+            return false;
+          pending.insert(pending.end(), sources->second.begin(), sources->second.end());
+        }
       }
     } else if (const auto *choice = std::get_if<ConditionalOperation>(&value.operation)) {
       if (choice->trueResult >= id || choice->falseResult >= id)
@@ -439,32 +486,18 @@ bool workerValueProvenance(const TypedModule &module, ValueId root) {
 } // namespace
 std::optional<std::string> functionValueTransportError(const TypedModule &module,
                                                        const TypedExpr &invocation) {
-  if (invocation.type.errorRecord) {
-    ValueType error;
-    error.builtin = BuiltinValue::Record;
-    error.record = invocation.type.errorRecord;
-    if (containsFunctionStorage(module, error))
-      return "function-containing worker error payloads are not implemented yet";
-  }
   const bool indirect = std::holds_alternative<FunctionInvoke>(invocation.operation);
   const bool map = std::holds_alternative<ArrayMap>(invocation.operation);
   const bool collection = std::holds_alternative<ArraySlice>(invocation.operation) ||
                           std::holds_alternative<ArrayConcat>(invocation.operation) ||
                           std::holds_alternative<CollectionQuery>(invocation.operation);
   if (containsFunctionStorage(module, invocation.type)) {
-    bool proven = false;
-    if (const auto *call = std::get_if<FunctionCall>(&invocation.operation))
-      proven = call->function < module.functions.size() &&
-               workerValueProvenance(module, module.functions[call->function].result);
-    else if (indirect || map || collection) {
-      const auto found = std::find_if(module.expressions.begin(), module.expressions.end(),
-                                      [&](const auto &value) { return &value == &invocation; });
-      proven = found != module.expressions.end() &&
-               workerValueProvenance(module, found - module.expressions.begin());
-    }
-    if (!proven)
-      return "function-valued worker results require proven CPU closure captures; "
-             "unproven result provenance is not implemented yet";
+    const auto found = std::find_if(module.expressions.begin(), module.expressions.end(),
+                                    [&](const auto &value) { return &value == &invocation; });
+    if (found == module.expressions.end() ||
+        !workerValueProvenance(module, found - module.expressions.begin()))
+      return "function-containing worker outcomes require proven CPU closure captures; "
+             "unproven success/error provenance is not implemented yet";
   }
   const auto arguments = std::visit(
       [](const auto &op) -> std::vector<ValueId> {

@@ -524,7 +524,7 @@ fn main()->int ! TaskError:
     config.apply(22)
 ]=])
 EXPECT(supported-worker-result 42)
-file(WRITE "${OUTPUT_DIR}/reject-worker-error-payload.k" [=[type Config:
+COMPILE(supported-worker-error-payload [=[type Config:
   apply:fn(int)->int
 error E:
   Bad:
@@ -535,10 +535,7 @@ fn main()->int ! (E | TaskError):
   try parallel:
     try await spawn worker(42)
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-error-payload.k" -o "${OUTPUT_DIR}/reject-worker-error-payload" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid callable field accepted/crashed: worker-error-payload: ${STATUS}: ${OUT}${ERR}")
-endif()
+EXPECT(supported-worker-error-payload 42)
 COMPILE(supported-worker-map-capture [=[type Config:
   apply:fn(int)->int
 fn main()->int ! TaskError:

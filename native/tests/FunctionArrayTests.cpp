@@ -134,9 +134,6 @@ int main() {
           "error E:\n  Bad\nfn main()->int:\n  callback=fn(value:int)->int ! E:value\n  "
           "callbacks=[callback]\n  evaluate=fn(fnValue:fn(int)->int ! E)->int ! E:try fnValue(0)\n "
           " values=map(callbacks,evaluate)\n  0\n",
-          "error E:\n  Bad:\n    callbacks:[fn(int)->int]\nfn worker(value:int)->int ! E:\n  "
-          "value\nfn main()->int ! (E | TaskError):\n  try parallel:\n    try await spawn "
-          "worker(42)\n",
           "fn worker(value:int)->int:\n  value\nfn coordinate(value:int)->int ! TaskError:\n  try "
           "parallel:\n    try await spawn worker(value)\nfn main()->int:\n  "
           "callbacks=[coordinate]\n  0\n",

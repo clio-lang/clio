@@ -47,18 +47,18 @@ Function arrays also work in records, enum variants and expected-error payloads 
 
 The existing owned-array descriptor points to inline code/environment pairs. Each cell occupies two pointers on the qualified target. The compiler reuses checked array allocation, descriptor validation and same-invocation retention. Captured environments and their managed payloads remain valid until invocation settlement, including after their creator returns and while a coordinator waits for ordinary worker results.
 
-A worker can create and use function arrays locally, then return a result without function storage. Function transport remains unsupported: arrays, nested aggregate fields, worker captures and declared error payloads containing functions are rejected at the worker boundary. This restriction is type-based, including untaken variants and error paths.
+[Proven CPU function arrays](native-worker-callable-aggregates.md) now cross worker arguments, captures and results with owned environments. [Spawned maps](native-worker-callable-maps.md), [collection operations](native-worker-callable-collections.md), and [application-error payloads](native-worker-error-functions.md) use the same checked transport. Unknown origins and unsupported transitive captures remain rejected.
 
-The descriptor retention used internally does not establish callback ownership across invocations or a public native ABI. GPU callbacks, distributed execution and C/C++ integration retain their separate roadmaps.
+Cross-invocation callable ownership uses the qualified worker copy machinery; descriptor retention alone is not a public native ABI. GPU callbacks, distributed execution and C/C++ integration retain their separate roadmaps.
 
 ## Remaining work
 
 - General standalone indented expressions inside delimiters. [Anonymous suites](native-delimited-closures.md) are supported, including function-array elements.
 - Delimiter-aware indented anonymous bodies.
-- Indirect spawn and function transport. [Recursive synchronous callables](native-recursive-callables.md) are supported with checked admission.
+- Resumable function values and placement-aware callbacks. [Indirect CPU spawn](native-indirect-spawn.md) and [recursive synchronous callables](native-recursive-callables.md) are supported with checked admission.
 - Earlier reclamation, shared storage and allocation/copy elimination.
 
-## Qualification
+## Original stage qualification
 
 All 84 selected checks passed on Apple M2 Max. New execution suites compile 152 programs across debug, optimized, ASan/UBSan and separate ThreadSanitizer builds. Relevant existing frontend, callable, closure, collection, module, record, enum, error and worker regressions pass in their selected debug and ASan/UBSan modes.
 

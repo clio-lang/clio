@@ -409,7 +409,7 @@ fn main()->int ! TaskError:
     try await spawn worker(config)
 ]=])
 EXPECT(supported-worker-nested-field 42)
-file(WRITE "${OUTPUT_DIR}/reject-worker-error-payload.k" [=[error E:
+COMPILE(supported-worker-error-payload [=[error E:
   Bad:
     callbacks:[fn(int)->int]
 fn worker(value:int)->int ! E:
@@ -418,10 +418,7 @@ fn main()->int ! (E | TaskError):
   try parallel:
     try await spawn worker(42)
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-worker-error-payload.k" -o "${OUTPUT_DIR}/reject-worker-error-payload" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid function array accepted/crashed: worker-error-payload: ${STATUS}: ${OUT}${ERR}")
-endif()
+EXPECT(supported-worker-error-payload 42)
 COMPILE(supported-worker-map-input [=[fn main()->int ! TaskError:
   callbacks:[fn(int)->int]=[fn(value):value]
   try parallel:

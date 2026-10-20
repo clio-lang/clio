@@ -51,25 +51,23 @@ Each function field stores the existing private code/environment pair inline. Cl
 
 Pure field operations continue through MLIR; expected-error control uses the existing synchronous checked entries. This increment introduces no new runtime layout or allocator mechanism. Inline layout budgets count both pointers in a function field; callable type budgets and signature validation also apply to fields.
 
-This does not establish a public callback ABI or permit use after the owning invocation has settled. Earlier environment reclamation and allocation/copy elimination remain [optimization work](../roadmap.md#optimization).
+This does not establish a public callback ABI. Worker handoff uses independently owned destination environments, so a qualified copied value may outlive its source invocation. Earlier environment reclamation and allocation/copy elimination remain [optimization work](../roadmap.md#optimization).
 
 ## Worker boundary
 
 A worker can create and invoke a record or enum containing functions locally, then return a completed value without function storage. A coordinator can also hold such a record across an ordinary worker await.
 
-Function transport remains unsupported. Worker arguments, results, captures and declared expected-error payloads are checked through nested records, enum variants and record arrays. A containing type is rejected even if one execution would choose a variant or error path without a function. Built-in task entries such as maps, collection queries, slicing and concatenation follow the same boundary check.
-
-Handling an error containing a callback inside the worker, before returning a completed result, is supported. Sending that error across `spawn`/`await` is not yet supported.
+[Proven CPU callable aggregates](native-worker-callable-aggregates.md) now cross arguments, captures and results. [Spawned maps](native-worker-callable-maps.md), [collection operations](native-worker-callable-collections.md), and [function-containing application-error payloads](native-worker-error-functions.md) are supported through the same checked ownership transfer. Unknown origins and unsupported transitive captures remain rejected.
 
 ## Remaining work
 
-- Function transport, indirect spawn and resumable function values.
+- Resumable function values and placement-aware callbacks; [indirect synchronous CPU spawn](native-indirect-spawn.md) is implemented.
 - Recursive record/enum type dependencies, including dependencies through callable signatures.
 - Delimiter-aware indented callbacks and the existing direct static-map control-flow restriction.
 
 GPU callbacks, distributed execution and public C/C++ integration retain their separate roadmaps.
 
-## Qualification
+## Original stage qualification
 
 All 80 selected checks pass on Apple M2 Max. New execution suites compile 156 programs across debug, optimized, ASan/UBSan and separate ThreadSanitizer builds. Relevant existing frontend, function-value, closure, map, module, record, enum, error-union and worker/error regressions pass in their selected debug and ASan/UBSan modes.
 

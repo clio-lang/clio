@@ -38,7 +38,7 @@ Synchronous callbacks may handle expected errors internally. Unhandled fallible 
 
 ## Remaining boundaries
 
-[Function-containing spawned slices, concatenations and length queries](native-worker-callable-collections.md) are now supported. Function-containing expected-error payloads remain staged. A parallel map over an arbitrary-length array is still missing core functionality; this worker-map support does not implement it. Placement-aware/GPU callbacks and resumable function values remain separate work. Distributed execution and public C/C++ integration are separate roadmaps.
+[Function-containing spawned slices, concatenations and length queries](native-worker-callable-collections.md) are now supported. [Function-containing worker error payloads](native-worker-error-functions.md) are now supported with proven origins. A parallel map over an arbitrary-length array is still missing core functionality; this worker-map support does not implement it. Placement-aware/GPU callbacks and resumable function values remain separate work. Distributed execution and public C/C++ integration are separate roadmaps.
 
 ## Qualification
 

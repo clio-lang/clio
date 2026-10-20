@@ -21,7 +21,8 @@ int main() {
           KALANDRA_WORKER_NESTED_FIXTURES, KALANDRA_WORKER_RESULT_FIXTURES,
           KALANDRA_WORKER_AGGREGATE_FIXTURES, KALANDRA_WORKER_PARAMETER_FIXTURES,
           KALANDRA_WORKER_INDIRECT_FIXTURES, KALANDRA_INDIRECT_SPAWN_FIXTURES,
-          KALANDRA_WORKER_MAP_FIXTURES, KALANDRA_WORKER_COLLECTION_FIXTURES}) {
+          KALANDRA_WORKER_MAP_FIXTURES, KALANDRA_WORKER_COLLECTION_FIXTURES,
+          KALANDRA_WORKER_ERROR_FIXTURES}) {
       for (const auto &file : std::filesystem::directory_iterator(directory)) {
         if (file.path().extension() != ".k")
           continue;
@@ -35,7 +36,7 @@ int main() {
         ++count;
       }
     }
-    require(count == 133, "worker callable fixture catalog incomplete");
+    require(count == 147, "worker callable fixture catalog incomplete");
     const std::string base = "fn double(value:int)->int:\n  value*2\nfn "
                              "apply(value:int,transform:fn(int)->int)->int:\n  transform(value)\n";
     for (const auto *body :
@@ -52,7 +53,7 @@ int main() {
     for (const auto *directory :
          {KALANDRA_WORKER_PARAMETER_FIXTURES, KALANDRA_WORKER_INDIRECT_FIXTURES,
           KALANDRA_INDIRECT_SPAWN_FIXTURES, KALANDRA_WORKER_MAP_FIXTURES,
-          KALANDRA_WORKER_COLLECTION_FIXTURES})
+          KALANDRA_WORKER_COLLECTION_FIXTURES, KALANDRA_WORKER_ERROR_FIXTURES})
       for (const auto &file :
            std::filesystem::directory_iterator(std::filesystem::path(directory) / "rejected")) {
         if (file.path().extension() != ".k")
@@ -181,7 +182,35 @@ int main() {
               functionValueTransportError(module, module.expressions[task->operand]).has_value();
       require(changed && rejected, "forged collection element provenance admitted");
     }
-    std::cout << "Worker named functions: 133 valid programs, 17 rejected boundaries, 12 forged IR "
+    auto errorResult =
+        analyze("error E:\n  Bad:\n    callback:fn(int)->int\nfn worker()->int ! E:\n  if "
+                "true:fail E.Bad {callback:fn(value:int):value}\n  42\nfn main()->int ! (E | "
+                "TaskError):\n  try parallel:\n    try await spawn worker()\n");
+    require(errorResult.ok(), "error provenance mutation fixture rejected");
+    for (unsigned mode = 0; mode < 2; ++mode) {
+      auto module = *errorResult.module;
+      bool changed = false, rejected = false;
+      for (auto &value : module.expressions) {
+        if (mode == 0)
+          if (auto *failure = std::get_if<FailOperation>(&value.operation)) {
+            failure->error = module.expressions.size();
+            changed = true;
+            break;
+          }
+        if (mode == 1 && std::holds_alternative<FunctionReference>(value.operation)) {
+          value.operation = BoolLiteral{false};
+          changed = true;
+          break;
+        }
+      }
+      for (const auto &value : module.expressions)
+        if (const auto *task = std::get_if<TaskOperation>(&value.operation);
+            task && task->prefix == TaskPrefix::Spawn)
+          rejected =
+              functionValueTransportError(module, module.expressions[task->operand]).has_value();
+      require(changed && rejected, "forged early error provenance admitted");
+    }
+    std::cout << "Worker named functions: 147 valid programs, 20 rejected boundaries, 14 forged IR "
                  "cases passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';
