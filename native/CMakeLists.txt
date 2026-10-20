@@ -977,3 +977,4 @@ include(cmake/ApplicationErrors.cmake)
 include(cmake/FunctionValues.cmake)
 
 include(cmake/Diagnostics.cmake)
+include(cmake/Overlays.cmake)

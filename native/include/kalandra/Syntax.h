@@ -294,10 +294,17 @@ struct ModulePackage {
   std::string name;
   std::string entry;
 };
+// Immutable per-analysis replacement contents, including files not yet saved.
+// Paths use the same filesystem identity as imports; no contents are written.
+struct SourceOverlay {
+  std::string path;
+  std::string text;
+};
 // Explicit offline package entry mappings; no filesystem or network work while parsing.
 [[nodiscard]] std::expected<ModulePackage, std::string> parseModulePackage(std::string_view value);
 // CPU local-module loading: explicit relative .k files and supplied package entries.
 [[nodiscard]] std::expected<ParseResult, std::string>
 loadModules(std::string path, SyntaxLimits syntaxLimits = {}, ModuleLimits moduleLimits = {},
-            std::span<const ModulePackage> packages = {});
+            std::span<const ModulePackage> packages = {},
+            std::span<const SourceOverlay> overlays = {});
 } // namespace kalandra

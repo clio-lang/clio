@@ -8,7 +8,7 @@
 
 int main(int argc, char **argv) {
   const std::span<char *> arguments(argv, static_cast<std::size_t>(argc));
-  bool dump = false, dumpPlan = false, json = false, selectedJson = false;
+  bool dump = false, dumpPlan = false, json = false, selectedJson = false, fromStdin = false;
   // Select the response protocol before parsing errors, while respecting option values.
   for (std::size_t i = 1; i < arguments.size(); ++i) {
     const std::string_view arg = arguments[i];
@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
   std::vector<kalandra::ModulePackage> packages;
   const auto usage = [&] {
     return failure("CLI001",
-                   "usage: kalandra-check [--diagnostics=json] [--placement] "
+                   "usage: kalandra-check [--diagnostics=json] [--stdin] [--placement] "
                    "[--dump-ir|--dump-plan] [--package name=path.k ...] "
                    "<source.k | --project manifest.toml>",
                    2);
@@ -44,6 +44,10 @@ int main(int argc, char **argv) {
       if (selectedJson)
         return usage();
       selectedJson = true;
+    } else if (arg == "--stdin") {
+      if (fromStdin)
+        return usage();
+      fromStdin = true;
     } else if (arg == "--project") {
       if (i + 1 >= arguments.size() || !projectPath.empty() ||
           std::string_view(arguments[i + 1]).empty())
@@ -84,7 +88,22 @@ int main(int argc, char **argv) {
   }
   if (!path)
     return usage();
-  auto syntax = kalandra::loadModules(path, {}, {}, packages);
+  std::vector<kalandra::SourceOverlay> overlays;
+  if (fromStdin) {
+    std::string text;
+    const auto maximum = kalandra::SyntaxLimits{}.maxSourceBytes - 1;
+    char buffer[8192];
+    while (std::cin.read(buffer, sizeof(buffer)) || std::cin.gcount()) {
+      const auto count = static_cast<std::size_t>(std::cin.gcount());
+      if (count > maximum - text.size())
+        return failure("IO001", "stdin source exceeds the configured size limit", 1, path);
+      text.append(buffer, count);
+    }
+    if (!std::cin.eof())
+      return failure("IO001", "cannot read stdin source", 1, path);
+    overlays.push_back({path, std::move(text)});
+  }
+  auto syntax = kalandra::loadModules(path, {}, {}, packages, overlays);
   if (!syntax) {
     return failure("IO001", std::string(path) + ": " + syntax.error(), 1, path);
   }

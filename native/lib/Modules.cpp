@@ -20,6 +20,12 @@ bool packageEntry(std::string_view entry) {
          entry.find_first_of("\r\n") == std::string_view::npos &&
          std::filesystem::path(entry).extension() == ".k";
 }
+std::filesystem::path overlayPath(const std::filesystem::path &path, std::error_code &error) {
+  auto absolute = std::filesystem::absolute(path, error);
+  if (error)
+    return {};
+  return std::filesystem::weakly_canonical(absolute, error);
+}
 } // namespace
 std::expected<ModulePackage, std::string> parseModulePackage(std::string_view value) {
   const auto equal = value.find('=');
@@ -31,7 +37,8 @@ std::expected<ModulePackage, std::string> parseModulePackage(std::string_view va
 }
 std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimits syntaxLimits,
                                                     ModuleLimits moduleLimits,
-                                                    std::span<const ModulePackage> packages) {
+                                                    std::span<const ModulePackage> packages,
+                                                    std::span<const SourceOverlay> overlays) {
   namespace fs = std::filesystem;
   struct File {
     std::shared_ptr<const SourceFile> source;
@@ -50,6 +57,35 @@ std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimi
     failure->diagnostics.push_back({std::move(code), std::move(message), span});
   };
   auto root = std::make_shared<const SourceFile>(path, "");
+  std::unordered_map<std::string, std::shared_ptr<const SourceFile>> replacements;
+  std::size_t overlayBytes = 0;
+  if (overlays.size() > moduleLimits.maxFiles) {
+    fail(root, {}, "M004", "source overlays exceed configured file limit");
+    return std::move(*failure);
+  }
+  for (const auto &overlay : overlays) {
+    if (!packageEntry(overlay.path)) {
+      fail(root, {}, "M006", "source overlays require nonempty .k paths");
+      return std::move(*failure);
+    }
+    std::error_code error;
+    const auto canonical = overlayPath(overlay.path, error);
+    if (error || canonical.empty()) {
+      fail(root, {}, "M006", "cannot resolve source overlay '" + overlay.path + "'");
+      return std::move(*failure);
+    }
+    if (overlayBytes >= syntaxLimits.maxSourceBytes ||
+        overlay.text.size() >= syntaxLimits.maxSourceBytes - overlayBytes) {
+      fail(root, {}, "M004", "source overlays exceed configured byte limit");
+      return std::move(*failure);
+    }
+    overlayBytes += overlay.text.size() + 1;
+    const auto key = canonical.string();
+    if (!replacements.emplace(key, std::make_shared<const SourceFile>(key, overlay.text)).second) {
+      fail(root, {}, "M006", "duplicate source overlay for '" + key + "'");
+      return std::move(*failure);
+    }
+  }
   std::unordered_map<std::string, fs::path> entries;
   if (packages.size() > moduleLimits.maxFiles) {
     fail(root, {}, "M004", "package mappings exceed configured file limit");
@@ -71,7 +107,10 @@ std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimi
       return {};
     }
     std::error_code error;
-    const auto canonical = fs::canonical(requested, error);
+    // Weak canonicalization preserves identities for buffers not yet on disk.
+    // Ordinary disk loads retain strict canonicalization and missing-file errors.
+    auto canonical =
+        overlays.empty() ? fs::canonical(requested, error) : overlayPath(requested, error);
     if (error) {
       fail(std::move(parent), span, "M002", "cannot open module '" + requested.string() + "'");
       return {};
@@ -95,7 +134,14 @@ std::expected<ParseResult, std::string> loadModules(std::string path, SyntaxLimi
            "module graph exceeds configured depth/file/byte limits");
       return {};
     }
-    auto source = loadSource(key, syntaxLimits.maxSourceBytes - bytes - 1);
+    const auto maximum = syntaxLimits.maxSourceBytes - bytes - 1;
+    auto replacement = replacements.find(key);
+    auto source =
+        replacement == replacements.end()
+            ? loadSource(key, maximum)
+            : std::expected<std::shared_ptr<const SourceFile>, std::string>(replacement->second);
+    if (source && (*source)->text().size() > maximum)
+      source = std::unexpected("source exceeds the configured size limit");
     if (!source) {
       fail(std::move(parent), span, source.error().starts_with("source exceeds") ? "M004" : "M002",
            "cannot load module '" + key + "': " + source.error());

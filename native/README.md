@@ -44,7 +44,7 @@ Compiler implementation ownership is separate from Kalandra's automatic memory m
 
 ## Current targets
 
-The checker supports [versioned JSON diagnostics](../docs/design/native-diagnostics.md) through `--diagnostics=json`, including original module filenames and UTF-16 editor ranges.
+The checker supports [versioned JSON diagnostics](../docs/design/native-diagnostics.md) through `--diagnostics=json`, including original module filenames and UTF-16 editor ranges. [Unsaved source checking](../docs/design/native-source-overlays.md) supports a root buffer via `--stdin` and multiple replacement buffers through the native loader API.
 
 | Target                    | Purpose                                                                                   |
 | ------------------------- | ----------------------------------------------------------------------------------------- |

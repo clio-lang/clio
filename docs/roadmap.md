@@ -4,12 +4,12 @@
 
 The native rewrite is a working CPU/Apple GPU compute subset, not yet the full accepted language. The released JavaScript prototype is separate. The implementation record below includes historical intermediate states; this table summarizes the current position.
 
-As of 2026-10-20, the main native roadmap is estimated at **approximately 75% complete / 25% remaining**. This is a qualitative engineering estimate of remaining effort, not a percentage calculated from test counts or completed micro-milestones. Its scope includes the native language and managed runtime, CPU and Apple Metal GPU capabilities, modules/libraries, developer tooling, documentation and release qualification.
+As of 2026-10-20, the main native roadmap is estimated at **approximately 80% complete / 20% remaining**. This reassesses the earlier 75% estimate after callable worker transport, CPU parallel maps, coordinating function values, GPU module/shape/forwarding integration and the native diagnostics foundation. It is a coarse engineering estimate of remaining effort, not a percentage calculated from test counts or a five-point gain attributed to one change. Its scope includes the native language and managed runtime, CPU and Apple Metal GPU capabilities, modules/libraries, developer tooling, documentation and release qualification.
 
 [NVIDIA/CUDA](native-cuda-roadmap.md), [native distributed execution](native-distributed-roadmap.md) and [C/C++ integration](native-interop-roadmap.md) have separate roadmaps and are excluded from this estimate and the main release gates. Shared foundations may support them later; their backend, public interface and deployment requirements are not main-roadmap prerequisites. The current estimate also reflects progress on variants, application errors and function values; remaining tooling, GPU integration, platform and release work still carries substantial effort.
 
 
-[Machine-readable native checker diagnostics](design/native-diagnostics.md) now provide versioned success/failure responses, original module filenames and UTF-16 editor ranges. This starts native developer tooling; unsaved buffers, editor navigation/completion, formatting and distribution remain open.
+[Machine-readable native checker diagnostics](design/native-diagnostics.md) now provide versioned success/failure responses, original module filenames and UTF-16 editor ranges. [Unsaved source checking](design/native-source-overlays.md) now adds owned replacement buffers across module/package graphs and a bounded `--stdin` root-buffer command. Native editor protocol support, navigation/completion, formatting and distribution remain open.
 
 | Area | Current position | Remaining scope |
 | --- | --- | --- |
@@ -30,6 +30,21 @@ As of 2026-10-20, the main native roadmap is estimated at **approximately 75% co
 [Fixed GPU tensor signatures](design/native-gpu-fixed-shapes.md) now preserve fixed, dynamic and mixed extent contracts through imported numerical helpers, including parameter, binding and result checks before dispatch. They reuse the existing shaders and do not widen GPU element-type or operation coverage.
 
 [GPU numerical forwarding](design/native-gpu-forwarding.md) now allows bindings and imported helpers around one reduction or matrix operation, preserving reordered/repeated operands, shape contracts and existing numerical kernels. General numerical graph composition remains incomplete.
+
+## Remaining main-roadmap milestones
+
+Use these stable milestones when reporting progress. A compiler feature or test batch can advance a milestone without completing it. The percentage above remains an estimate; these exit conditions make the unfinished work visible. Wider ambitions do not silently become new release requirements.
+
+| ID | Milestone | Current gap / completion evidence needed |
+| --- | --- | --- |
+| N1 | Accepted native language/value coverage | Resolve the remaining recursive variant representation and unknown/recursive coordinating-callable cases tracked in the core queue; qualify supported behavior and explicit limitations. |
+| N2 | Apple GPU language integration | Extend the bounded numerical subset toward composed numerical graphs and applicable control/type integration. Publish an explicit tested capability matrix; CPU features such as managed Strings/closures do not automatically become GPU requirements. |
+| N3 | Native package workflow | Move beyond explicit local mappings/TOML to installation and reproducible version resolution, with new-user project acceptance. |
+| N4 | Native developer tooling | JSON diagnostics and unsaved source graphs are implemented. Native editor protocol, navigation/completion and formatting remain. Qualify against the native compiler rather than reusing prototype semantics. |
+| N5 | Platform and distribution qualification | Test the supported CPU platform/architecture combinations, build distributable native tools and verify installation on clean environments. Apple Metal remains the first GPU platform. |
+| N6 | Native documentation and release | Rebuild the website/docs around `.k` and the native language, validate onboarding/examples, then package, publish and announce the native release. |
+
+Optimization work below stays separately identifiable. NVIDIA/CUDA, distributed execution and C/C++ embedding do not enter these milestone gates. Distributed execution still requires the agreed discussion before implementation.
 
 ## Immediate accepted-core queue
 
