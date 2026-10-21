@@ -2096,7 +2096,7 @@ class Compiler {
     // SSA origins track the source budget while nested arms lower lane by lane.
     std::unordered_map<std::string, std::set<std::string>> origins;
     std::size_t laneDepth = 0;
-    std::size_t counter = 0, callDepth = 0;
+    std::size_t counter = 0, callDepth = 0, shapeWork = 0;
     std::optional<std::string> reductionInput, matrixInput;
     std::set<std::size_t> active;
     auto temporary = [&] {
@@ -2116,6 +2116,55 @@ class Compiler {
       if (callDepth >= 128 || !active.insert(fnId).second)
         reject(fn.declaration, "recursive GPU helper calls are not implemented");
       Depth guard(callDepth);
+      // Per-invocation equivalence classes start with unconditional checked contracts.
+      // Choice-result aliases stay local: an aliased call must not prove a later call safe.
+      using ExtentKey = std::pair<bool, std::uint64_t>;
+      std::map<ExtentKey, ExtentKey> parents;
+      std::map<ExtentKey, unsigned> ranks;
+      auto key = [](const Extent &extent) -> ExtentKey {
+        return {extent.constant.has_value(), extent.constant.value_or(extent.identity)};
+      };
+      auto root = [&](ExtentKey value) {
+        auto result = value;
+        while (true) {
+          if (++shapeWork > 300000)
+            reject(fn.declaration, "GPU shape proof analysis limit exceeded");
+          auto [found, inserted] = parents.emplace(result, result);
+          if (inserted || found->second == result)
+            break;
+          result = found->second;
+        }
+        while (value != result) {
+          auto next = parents.at(value);
+          parents[value] = result;
+          value = next;
+        }
+        return result;
+      };
+      auto validExtent = [](const Extent &extent) {
+        return extent.constant.has_value() || extent.identity != 0;
+      };
+      auto unite = [&](const Extent &a, const Extent &b) {
+        if (!validExtent(a) || !validExtent(b))
+          return;
+        auto left = root(key(a)), right = root(key(b));
+        if (left == right)
+          return;
+        if (ranks[left] < ranks[right])
+          std::swap(left, right);
+        parents[right] = left;
+        if (ranks[left] == ranks[right])
+          ++ranks[left];
+      };
+      bool initializedShapes = false;
+      auto sameExtent = [&](const Extent &a, const Extent &b) {
+        if (!initializedShapes) {
+          initializedShapes = true;
+          for (const auto &requirement : fn.preconditions)
+            unite(requirement.left, requirement.right);
+        }
+        return validExtent(a) && validExtent(b) && root(key(a)) == root(key(b));
+      };
       std::unordered_map<SymbolId, std::string> symbols;
       std::unordered_map<ValueId, std::string> values;
       for (std::size_t i = 0; i < args.size(); ++i)
@@ -2205,7 +2254,7 @@ class Compiler {
           const bool tensor = n.type.tensor;
           if (!(tensor ? pureLane(branch->trueResult) && pureLane(branch->falseResult)
                        : pureScalar(branch->trueResult) && pureScalar(branch->falseResult)))
-            reject(n.span, "GPU choices require pure scalar or same-source elementwise arms; "
+            reject(n.span, "GPU choices require pure scalar or shape-proven elementwise arms; "
                            "primitives, shape checks and dispatch are not supported in arms");
           auto condition = emit(branch->condition);
           if (tensor)
@@ -2231,15 +2280,16 @@ class Compiler {
             sources.insert(origins[b].begin(), origins[b].end());
             if (sources.empty() || sources.size() > 2)
               reject(n.span, "GPU fused tensor choices currently support at most two sources");
-            if (sources.size() > 1) {
-              const auto &left = cpu.expressions.at(branch->trueResult).type;
-              const auto &right = cpu.expressions.at(branch->falseResult).type;
-              if (left.shape.size() != right.shape.size())
-                reject(n.span, "GPU tensor choice ranks differ");
-              for (std::size_t axis = 0; axis < left.shape.size(); ++axis)
-                if (!left.shape[axis].constant ||
-                    left.shape[axis].constant != right.shape[axis].constant)
-                  reject(n.span, "different-source GPU choices require equal fixed shapes");
+            const auto &left = cpu.expressions.at(branch->trueResult).type;
+            const auto &right = cpu.expressions.at(branch->falseResult).type;
+            if (left.shape.size() != right.shape.size())
+              reject(n.span, "GPU tensor choice ranks differ");
+            for (std::size_t axis = 0; axis < left.shape.size(); ++axis) {
+              if (sources.size() > 1 && !sameExtent(left.shape[axis], right.shape[axis]))
+                reject(n.span, "different-source GPU choices require proven equal shapes");
+              // The merged type may carry a fresh extent even though both results agree.
+              unite(n.type.shape[axis], left.shape[axis]);
+              unite(left.shape[axis], right.shape[axis]);
             }
           }
           result = temporary();
@@ -2285,6 +2335,17 @@ class Compiler {
               operation != TokenKind::Star && operation != TokenKind::Slash)
             reject(n.span, "GPU strict arithmetic currently supports only +, -, * and /");
           auto a = emit(left), b = emit(right);
+          const auto &leftType = cpu.expressions.at(left).type;
+          const auto &rightType = cpu.expressions.at(right).type;
+          if (laneDepth && leftType.tensor && rightType.tensor) {
+            for (std::size_t axis = 0; axis < leftType.shape.size(); ++axis) {
+              const bool commonSource = origins[a].size() == 1 && origins[a] == origins[b];
+              if (!commonSource && !sameExtent(leftType.shape[axis], rightType.shape[axis]))
+                reject(n.span, "GPU branch arithmetic requires already-proven equal shapes");
+              unite(leftType.shape[axis], rightType.shape[axis]);
+              unite(n.type.shape[axis], leftType.shape[axis]);
+            }
+          }
           result = temporary();
           operands = {a, b};
           instruction << "        " << result << " = arith."

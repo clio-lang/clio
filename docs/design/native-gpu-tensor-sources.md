@@ -34,11 +34,12 @@ rank-two tensors and empty fixed shapes have separate checks.
 
 ## Shape and execution boundary
 
-Each dimension of the two arms must have the same known fixed extent. Equal flat
-element counts are insufficient: `[2, 3]` and `[3, 2]` are different shapes.
-Independent `Tensor[float32, ?]` parameters are not admitted for a two-source
-choice, even if a particular caller supplies equally sized tensors. Their
-signature does not prove that speculative reads from both sources are safe.
+Equal fixed dimensions are one accepted proof. [Checked dynamic-shape contracts](native-gpu-dynamic-choices.md)
+now provide another, including transitive requirements from unconditional tensor
+arithmetic and helpers. Equal flat element counts are insufficient: `[2, 3]` and
+`[3, 2]` are different shapes. Independent `Tensor[float32, ?]` parameters without
+an equality proof remain outside this subset, even if a particular caller supplies
+equally sized tensors.
 Existing fixed parameter contracts are checked before kernel admission, including
 parameters an optimizer later removes. This adds no check to an untaken arm.
 

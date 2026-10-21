@@ -34,8 +34,8 @@ called inside arms cannot impose fixed tensor dimensions or shape preconditions.
 This restriction prevents checks from an untaken arm being executed speculatively.
 
 [Choices between two different sources](native-gpu-tensor-sources.md) now have a
-separate equal-fixed-shape subset. Different-source dynamic-shape choices are not
-admitted, even when their shapes happen to match at a particular call. Compute a common intermediate before the choice, or use separate
+separate equal-fixed-shape subset. [Proven dynamic-shape choices](native-gpu-dynamic-choices.md) now reuse checked
+unconditional extent contracts. Unknown independent shapes still require separate work. Compute a common intermediate before the choice, or use separate
 placed calls where appropriate. Reductions and matrix products can consume an
 accepted choice: the qualified cases include a terminal `reduceSum`, an operand
 map before one `matmul`, and a reduction-driven choice followed by another sum.
@@ -60,6 +60,6 @@ cover numerical edge cases, nested/helper forms, identical arms, empty tensors,
 rank-two tensors, composition, ownership and failure cleanup. This is correctness
 qualification, not a speed claim.
 
-Different-source dynamic-shape choices, conditional primitive stages, wider GPU
+Unproven different-source shapes, conditional primitive stages, wider GPU
 numeric types and broader ranks remain follow-up work. General graph branching
 needs its own shape, scheduling and lifetime rules.

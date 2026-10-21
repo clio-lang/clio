@@ -473,6 +473,19 @@
       "evidence": [
         "gpu-tensor-sources-2026-10-21.json"
       ]
+    },
+    {
+      "id": "dynamic-choices",
+      "feature": "Choices with checked dynamic-shape equality",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "dynamic-choices.k"
+      ],
+      "notes": "Unconditional extent contracts, transitive equalities and per-invocation choice-result aliases prove equal vector/matrix shapes; independent unknown shapes and branch-local obligations remain rejected",
+      "evidence": [
+        "gpu-dynamic-choices-2026-10-21.json"
+      ]
     }
   ]
 }

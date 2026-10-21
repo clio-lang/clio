@@ -202,6 +202,14 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
     assert (sources_app / "kernel1-map0.metallib").is_file()
     assert run([sources_app / "program"], cwd).stdout.strip() == control_result
     applications.append((sources_app, control_result))
+    dynamic_source = cwd / "dynamic-choices.k"
+    dynamic_source.write_bytes((fixtures / "dynamic-choices.k").read_bytes())
+    dynamic_app = cwd / "dynamic choices application"
+    run([compiler, dynamic_source, "--target", "metal", "-o", dynamic_app, "-O2"], cwd)
+    assert (dynamic_app / "kernel1-map1.metallib").is_file()
+    dynamic_result = "[3e7b823f,3eaaaaab,3ed79436]"
+    assert run([dynamic_app / "program"], cwd).stdout.strip() == dynamic_result
+    applications.append((dynamic_app, dynamic_result))
     # Local module/project imports go through the same installed Metal compiler.
     (cwd / "helper.k").write_text("export " + source.read_text().split("\n\nfn main", 1)[0] + "\n")
     source.write_text('from "math" import combine\n\nfn main' + source.read_text().split("\n\nfn main", 1)[1])

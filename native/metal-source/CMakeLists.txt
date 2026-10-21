@@ -162,7 +162,7 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-  foreach(FIXTURE IN ITEMS mixed tensor-results shared-helpers scalar-entry matrix-elementwise differences arguments unused-inputs indirect-arguments tensor-negation division host-expressions cpu-spawn nested-parallel recovery resumable-helpers spawned-helpers reduction pre-reduction post-reduction matmul post-matmul pre-matmul matmul-reduction matmul-adjust-reduction matmul-scalar-reduction matrix-graph matrix-graph-reduction matrix-graph-arithmetic multiple-reductions reduction-feedback tensor-feedback scalar-control tensor-control tensor-sources)
+  foreach(FIXTURE IN ITEMS mixed tensor-results shared-helpers scalar-entry matrix-elementwise differences arguments unused-inputs indirect-arguments tensor-negation division host-expressions cpu-spawn nested-parallel recovery resumable-helpers spawned-helpers reduction pre-reduction post-reduction matmul post-matmul pre-matmul matmul-reduction matmul-adjust-reduction matmul-scalar-reduction matrix-graph matrix-graph-reduction matrix-graph-arithmetic multiple-reductions reduction-feedback tensor-feedback scalar-control tensor-control tensor-sources dynamic-choices)
     if(FIXTURE STREQUAL "mixed")
       set(HARNESS MixedTests.cpp)
     elseif(FIXTURE STREQUAL "spawned-helpers")
@@ -179,6 +179,8 @@ if(BUILD_TESTING)
       set(HARNESS MatmulPostTests.cpp)
     elseif(FIXTURE STREQUAL "matmul-reduction" OR FIXTURE STREQUAL "matmul-adjust-reduction" OR FIXTURE STREQUAL "matmul-scalar-reduction")
       set(HARNESS MatmulReductionTests.cpp)
+    elseif(FIXTURE STREQUAL "dynamic-choices")
+      set(HARNESS DynamicChoiceTests.cpp)
     elseif(FIXTURE STREQUAL "tensor-sources")
       set(HARNESS TensorSourceTests.cpp)
     elseif(FIXTURE STREQUAL "tensor-control")
@@ -270,7 +272,7 @@ if(BUILD_TESTING)
       if(FIXTURE STREQUAL "shared-helpers")
         target_compile_definitions(kalandra-metal-${FIXTURE}-${VARIANT} PRIVATE KALANDRA_SHARED_HELPERS)
       endif()
-      if(FIXTURE STREQUAL "shared-helpers" OR FIXTURE STREQUAL "scalar-entry" OR FIXTURE STREQUAL "matrix-elementwise" OR FIXTURE STREQUAL "differences" OR FIXTURE STREQUAL "arguments" OR FIXTURE STREQUAL "unused-inputs" OR FIXTURE STREQUAL "indirect-arguments" OR FIXTURE STREQUAL "tensor-negation" OR FIXTURE STREQUAL "division" OR FIXTURE STREQUAL "reduction" OR FIXTURE STREQUAL "pre-reduction" OR FIXTURE STREQUAL "post-reduction" OR FIXTURE STREQUAL "matmul" OR FIXTURE STREQUAL "post-matmul" OR FIXTURE STREQUAL "pre-matmul" OR FIXTURE STREQUAL "matmul-reduction" OR FIXTURE STREQUAL "matmul-adjust-reduction" OR FIXTURE STREQUAL "matmul-scalar-reduction" OR FIXTURE STREQUAL "matrix-graph" OR FIXTURE STREQUAL "matrix-graph-reduction" OR FIXTURE STREQUAL "matrix-graph-arithmetic" OR FIXTURE STREQUAL "multiple-reductions" OR FIXTURE STREQUAL "reduction-feedback" OR FIXTURE STREQUAL "tensor-feedback" OR FIXTURE STREQUAL "scalar-control" OR FIXTURE STREQUAL "tensor-control" OR FIXTURE STREQUAL "tensor-sources")
+      if(FIXTURE STREQUAL "shared-helpers" OR FIXTURE STREQUAL "scalar-entry" OR FIXTURE STREQUAL "matrix-elementwise" OR FIXTURE STREQUAL "differences" OR FIXTURE STREQUAL "arguments" OR FIXTURE STREQUAL "unused-inputs" OR FIXTURE STREQUAL "indirect-arguments" OR FIXTURE STREQUAL "tensor-negation" OR FIXTURE STREQUAL "division" OR FIXTURE STREQUAL "reduction" OR FIXTURE STREQUAL "pre-reduction" OR FIXTURE STREQUAL "post-reduction" OR FIXTURE STREQUAL "matmul" OR FIXTURE STREQUAL "post-matmul" OR FIXTURE STREQUAL "pre-matmul" OR FIXTURE STREQUAL "matmul-reduction" OR FIXTURE STREQUAL "matmul-adjust-reduction" OR FIXTURE STREQUAL "matmul-scalar-reduction" OR FIXTURE STREQUAL "matrix-graph" OR FIXTURE STREQUAL "matrix-graph-reduction" OR FIXTURE STREQUAL "matrix-graph-arithmetic" OR FIXTURE STREQUAL "multiple-reductions" OR FIXTURE STREQUAL "reduction-feedback" OR FIXTURE STREQUAL "tensor-feedback" OR FIXTURE STREQUAL "scalar-control" OR FIXTURE STREQUAL "tensor-control" OR FIXTURE STREQUAL "tensor-sources" OR FIXTURE STREQUAL "dynamic-choices")
         target_link_libraries(kalandra-metal-${FIXTURE}-${VARIANT} PRIVATE LLVM)
         target_include_directories(kalandra-metal-${FIXTURE}-${VARIANT} SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
       endif()
@@ -808,6 +810,25 @@ if(BUILD_TESTING)
       "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/tensor-sources-cli-${VARIANT}"
       -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyTensorSources.cmake")
     set_tests_properties(native-metal-tensor-sources-cli-${VARIANT} PROPERTIES TIMEOUT 300
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-dynamic-choices COMMAND "${CMAKE_COMMAND}"
+      "-DCOMPILER=$<TARGET_FILE:${COMPILER_TARGET}>" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-dynamic-choices"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyDynamicChoices.cmake")
+    set_tests_properties(${COMPILER_TARGET}-dynamic-choices PROPERTIES TIMEOUT 120)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-dynamic-choices-cli-${VARIANT} COMMAND "${CMAKE_COMMAND}"
+      "-DCOMPILER=$<TARGET_FILE:kalandra>" "-DVARIANT=${VARIANT}"
+      "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/dynamic-choices-cli-${VARIANT}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyDynamicChoices.cmake")
+    set_tests_properties(native-metal-dynamic-choices-cli-${VARIANT} PROPERTIES TIMEOUT 300
       RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
   endforeach()
 endif()
