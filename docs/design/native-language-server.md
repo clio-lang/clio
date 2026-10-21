@@ -363,14 +363,14 @@ clients receive the standard string labels.
 Complete-call guidance requires a parsed and checked graph. A bounded temporary overlay can
 close trailing parentheses as described below. At an empty argument slot, a
 separate validated-callee snapshot can provide guidance despite the selected
-call's argument-count error. Builtin signatures remain unsupported. Invalid
+call's argument-count error. Checked collection builtin signatures are covered below; other builtins remain unsupported. Invalid
 positions, closed documents and other invalid query contexts return `null`.
 The server does not reuse stale signatures or publish partial typed programs. Requesting help makes no source changes or diagnostic publications.
 
 The [signature-help qualification](../../native/metal-proof/evidence/native-lsp-signature-2026-10-21.json)
 records normal/sanitizer semantic and protocol tests, hover regressions, relocated
 Release tools and installed VS Code provider acceptance. Broader incomplete-call
-recovery, builtin signatures and additional editor/platform acceptance remain open.
+recovery, additional builtin signatures and editor/platform acceptance remain open.
 
 #### Higher-order call signatures
 
@@ -453,7 +453,7 @@ records normal/sanitizer semantic and protocol checks, ordinary callable-checker
 regressions, imported aliases/current overlays, installed Release tools and VS Code
 provider acceptance. The source, disk and actual-program diagnostics remain
 unchanged. Final bare-identifier editing is covered below. More complex unfinished argument
-expressions, broad parser recovery, builtin signatures and wider editor/platform
+expressions, broad parser recovery, additional builtin signatures and wider editor/platform
 acceptance remain follow-ups.
 
 #### Identifier argument editing
@@ -484,7 +484,7 @@ edit, not validation or completion of the argument itself.
 records semantic/protocol and hover regressions, current imported overlays,
 installed Release tools and VS Code provider acceptance. The checks verify that
 the original unknown-name diagnostics and failed hover remain separate from the
-signature hint. Broader expression recovery and builtin signatures remain open.
+signature hint. Broader expression recovery and additional builtin signatures remain open.
 
 #### Record-field argument editing
 
@@ -714,3 +714,38 @@ publications or disk files, and perform no network or device work.
 covers filesystem/unsaved candidates, Unicode UTF-16 edits, child/parent paths,
 exclusions and bounds, relocated Release tools and an installed VS Code path edit
 followed by checked diagnostics and hover.
+
+#### Checked collection builtin signatures
+
+Signature help now specializes `length`, `byteLength`, `shape`, `slice` and
+`concat` from a fully checked call. For example, `slice(values, 0, 2)` can show
+`fn slice(input: [int32], start: int64, end: int64) -> [int32]` when `values` is
+an int32 array. String slicing shows String input/result types; `shape` shows
+the tensor's checked element type and extents. `concat` supports arrays, including
+Bool, String and nominal arrays; scalar String concatenation continues to use `+`.
+
+The compiler's operation at the exact invocation span supplies argument and
+result types. Guidance is not inferred from the callee's spelling: a local or
+module callable named `length` still uses ordinary callable resolution. The
+existing type printer retains callable/nominal context and hides private dynamic
+extent identities. Conflicting lowered signatures at the same source location
+produce no hint.
+
+Parameter labels are `input`, `start`, `end`, `left` and `right` as applicable.
+Active-parameter selection, nested delimiters, pipeline-supplied arguments and
+UTF-16 parameter-label ranges use the existing signature protocol. A final
+identifier that already checks remains an actual supplied value. Existing bounded
+trailing-parenthesis recovery can also provide these hints when all arguments
+are present in its request-local graph.
+
+This initial subset requires a checked complete argument list and a valid graph.
+Missing/unknown/wrongly typed arguments, missing field probes and unrelated graph
+errors do not produce a guessed generic signature. Other builtin families,
+missing-argument builtin guidance and general expression recovery remain separate.
+Queries do not execute functions, publish diagnostics, change buffers or write
+files. Unsaved imported result types are rechecked for each request.
+
+[Collection-signature qualification](../../native/metal-proof/evidence/native-lsp-collection-signature-2026-10-21.json)
+covers normal/sanitizer signature and hover regressions, protocol parameter
+ranges and pipeline positions, live dependency types, relocated Release tools
+and installed VS Code guidance without source changes.

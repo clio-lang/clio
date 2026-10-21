@@ -95,3 +95,5 @@ Installed-editor acceptance now applies an [imported error alias in an expected-
 Installed-editor acceptance also applies a [public function import completion](native-language-server.md#import-name-completion), preserves its explicit local alias, and verifies that the resulting call checks and has hover information without writing disk sources.
 
 Installed-editor acceptance also applies a [relative import-path completion](native-language-server.md#relative-import-path-completion), checks its File item kind and string-only replacement range, and verifies that the aliased call checks and has hover information without changing disk sources.
+
+Installed-editor acceptance now requests a [checked collection builtin signature](native-language-server.md#checked-collection-builtin-signatures) for a piped String slice, verifies all three parameter labels and the active explicit argument, and preserves the buffer and disk sources.

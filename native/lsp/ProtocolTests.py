@@ -1354,6 +1354,62 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
 
 
 
+    # Collection builtin signatures are specializations of checked IR operations.
+    client = Client()
+    client.init(signature_offsets=True)
+    builtin_cases = [
+        ('fn main():\n  length(|[1,2])\n', 'fn length(input: [int64]) -> int64', 0),
+        ('fn main():\n  byteLength(|"😀")\n', 'fn byteLength(input: String) -> int64', 0),
+        ('fn main():\n  shape(|tensor([1,2]))\n', 'fn shape(input: Tensor[int64, 2]) -> [int64]', 0),
+        ('fn main():\n  slice([1,2,3],0,|2)\n',
+         'fn slice(input: [int64], start: int64, end: int64) -> [int64]', 2),
+        ('fn main():\n  "😀abc" -> slice(0,|2)\n',
+         'fn slice(input: String, start: int64, end: int64) -> String', 2),
+        ('fn main():\n  concat([true],|[false])\n',
+         'fn concat(left: [Bool], right: [Bool]) -> [Bool]', 1),
+    ]
+    client.open(signature_document, 'fn main():\n  0\n')
+    client.barrier()
+    version = 1
+    for marked, expected, active in builtin_cases:
+        version += 1
+        cursor = marked.index('|')
+        text = marked.replace('|','')
+        client.change(signature_document, text, version)
+        assert not publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+        line = marked[:cursor].count('\n')
+        character = len(marked[:cursor].rsplit('\n',1)[-1].encode('utf-16-le'))//2
+        result = client.signature(signature_document, line, character)["result"]
+        assert result["signatures"][0]["label"] == expected and result["activeParameter"] == active, result
+        for parameter in result["signatures"][0]["parameters"]:
+            start, end = parameter["label"]
+            assert 0 <= start < end <= len(expected) and ':' in expected[start:end], result
+        assert not client.barrier(), "builtin signature published diagnostics"
+    version += 1
+    client.change(signature_document, 'fn main():\n  length(42)\n', version)
+    before = publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+    assert before and client.signature(signature_document, 1, 9)["result"] is None
+    assert not client.barrier(), "invalid builtin signature changed diagnostics"
+    signature_values = Path(temp) / "signature-values.k"
+    signature_values_text = 'export fn read()->String:\n  "abc"\n'
+    signature_values.write_text(signature_values_text)
+    version += 1
+    imported_builtin = 'from "./signature-values.k" import read\nfn main():\n  length(read())\n'
+    client.change(signature_document, imported_builtin, version)
+    assert not publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+    assert client.signature(signature_document, 2, 9)["result"]["signatures"][0]["label"] == 'fn length(input: String) -> int64'
+    client.open(signature_values, 'export fn read()->[int32]:\n  [1,2]\n')
+    client.barrier()
+    assert client.signature(signature_document, 2, 9)["result"]["signatures"][0]["label"] == 'fn length(input: [int32]) -> int64'
+    client.change(signature_values, 'export fn read()->String:\n  missing\n', 2)
+    client.barrier()
+    assert client.signature(signature_document, 2, 9)["result"] is None
+    client.change(signature_values, signature_values_text, 3)
+    client.barrier()
+    assert client.signature(signature_document, 2, 9)["result"]["signatures"][0]["label"] == 'fn length(input: String) -> int64'
+    assert not signature_document.exists() and signature_values.read_text() == signature_values_text
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"

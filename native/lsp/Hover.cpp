@@ -146,6 +146,54 @@ std::optional<SignatureInfo> callableSignature(const TypedModule &module, const 
     result.activeParameter = std::min(active, result.parameters.size() - 1);
   return result;
 }
+std::optional<SignatureInfo> collectionSignature(const TypedModule &module, SourceSpan call,
+                                                 std::string_view name, std::size_t active) {
+  std::optional<SignatureInfo> result;
+  for (const auto &expression : module.expressions) {
+    if (expression.span.begin != call.begin || expression.span.end != call.end)
+      continue;
+    std::vector<ValueId> arguments;
+    std::vector<std::string> labels;
+    if (const auto *query = std::get_if<CollectionQuery>(&expression.operation);
+        query && name == (query->kind == CollectionQueryKind::Length ? "length" : "shape")) {
+      arguments = {query->input};
+      labels = {"input"};
+    } else if (const auto *query = std::get_if<StringQuery>(&expression.operation);
+               query &&
+               name == (query->kind == StringQueryKind::Length ? "length" : "byteLength")) {
+      arguments = {query->input};
+      labels = {"input"};
+    } else if (const auto *slice = std::get_if<ArraySlice>(&expression.operation);
+               slice && name == "slice") {
+      arguments = {slice->input, slice->start, slice->end};
+      labels = {"input", "start", "end"};
+    } else if (const auto *slice = std::get_if<StringSlice>(&expression.operation);
+               slice && name == "slice") {
+      arguments = {slice->input, slice->start, slice->end};
+      labels = {"input", "start", "end"};
+    } else if (const auto *concat = std::get_if<ArrayConcat>(&expression.operation);
+               concat && name == "concat") {
+      arguments = {concat->left, concat->right};
+      labels = {"left", "right"};
+    } else
+      continue;
+    FunctionSignature signature{{}, expression.type};
+    for (const auto id : arguments) {
+      if (id >= module.expressions.size())
+        return {};
+      signature.parameters.push_back(module.expressions[id].type);
+    }
+    ValueType type;
+    type.builtin = BuiltinValue::Function;
+    type.callable = std::make_shared<const FunctionSignature>(std::move(signature));
+    auto candidate = callableSignature(module, type, name, active, labels);
+    if (!candidate || (result && (result->label != candidate->label ||
+                                  result->parameters != candidate->parameters)))
+      return {};
+    result = std::move(candidate);
+  }
+  return result;
+}
 std::optional<SignatureInfo> snapshotSignature(const CallableSignatureSnapshot &snapshot,
                                                std::string_view name, std::size_t active) {
   if (active >= snapshot.signature.parameters.size() ||
@@ -276,6 +324,19 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
       piped = true;
       break;
     }
+  // Builtin guidance is a specialization of an actual checked operation, not a
+  // signature inferred from spelling. In particular, a lexical/module binding
+  // with the same name must continue through ordinary callable resolution.
+  if (target && !requireFieldProjection) {
+    const auto name = target->source->slice(target->span);
+    if (name == "length" || name == "byteLength" || name == "shape" || name == "slice" ||
+        name == "concat") {
+      auto checked = check(syntax, {}, options);
+      if (checked.ok())
+        if (auto result = collectionSignature(*checked.module, invocationSpan, name, active))
+          return result;
+    }
+  }
   // Project a final identifier/field editing hole only in this request's AST.
   // A field receiver still needs to check before a signature can be captured.
   bool editingName = false;

@@ -67,7 +67,9 @@ int main() {
     require(!query(add + "fn main():\n  add(1,2)|\n"), "outside call has no signature");
     require(!query(add + "fn main():\n  ad|d(1,2)\n"), "callee text has no active argument");
     require(!query(add + "fn main():\n  missing\n  add(|1,2)\n"), "invalid graph fails closed");
-    require(!query("fn main():\n  length(|[1,2])\n"), "no guessed builtin signatures");
+    result = query("fn main():\n  length(|[1,2])\n");
+    require(result && result->label == "fn length(input: [int64]) -> int64" &&
+                result->activeParameter == 0, "checked array length signature");
     result = query("fn make()->fn(int)->int:\n  fn(n:int):n\nfn main():\n  make()(|1)\n");
     require(result && result->label == "fn(int64) -> int64" && result->activeParameter == 0,
             "factory result signature rather than factory signature");
@@ -312,6 +314,52 @@ int main() {
     require(!query("fn main():\n  missing(va|Suffix)\n"), "unknown callee has no guidance");
     require(!query(add + "fn main():\n  add=1\n  add(1, va|Suffix)\n"),
             "noncallable lexical shadow has no guidance");
+    result = query("fn main():\n  text=\"hello\"\n  length(te|xt)\n");
+    require(result && result->label == "fn length(input: String) -> int64",
+            "checked builtin argument is not mistaken for an editing hole");
+    result = query("fn main():\n  byteLength(|\"😀\")\n");
+    require(result && result->label == "fn byteLength(input: String) -> int64",
+            "String byte length signature");
+    result = query("fn main():\n  shape(|tensor([1,2]))\n");
+    require(result && result->label.find("fn shape(input: Tensor[int64, 2])") == 0 &&
+                result->parameters.size() == 1, "tensor shape specialization");
+    result = query("fn main():\n  slice([1,2,3],0,|2)\n");
+    require(result && result->label ==
+                "fn slice(input: [int64], start: int64, end: int64) -> [int64]" &&
+                result->activeParameter == 2, "array slice checked bounds parameters");
+    result = query("fn main():\n  \"hello\" -> slice(0,|2)\n");
+    require(result &&
+                result->label == "fn slice(input: String, start: int64, end: int64) -> String" &&
+                result->activeParameter == 2,
+            "String slice pipeline active parameter");
+    result = query("fn main():\n  concat([true],|[false])\n");
+    require(result && result->label == "fn concat(left: [Bool], right: [Bool]) -> [Bool]" &&
+                result->activeParameter == 1,
+            "Bool array concat signature");
+    result = query("fn main():\n  concat([\"a\"],|[\"b\"])\n");
+    require(result && result->label == "fn concat(left: [String], right: [String]) -> [String]",
+            "String array concat signature");
+    require(!query("fn main():\n  concat(\"a\",|\"b\")\n"),
+            "unsupported scalar String concat has no guidance");
+    result = query("type Box:\n  value:int\nfn main():\n  concat([Box {value:1}],|[Box {value:2}])\n");
+    require(result && result->label == "fn concat(left: [Box], right: [Box]) -> [Box]",
+            "nominal array context remains available to the type printer");
+    result = recover("fn main():\n  values=[1,2]\n  length(values|\n");
+    require(result && result->label == "fn length(input: [int64]) -> int64",
+            "trailing parenthesis recovery checks complete builtin arguments");
+    require(!query("fn main():\n  length(|)\n"), "empty builtin has no guessed specialization");
+    require(!query("fn main():\n  slice([1,2],|0)\n"),
+            "missing builtin argument has no guessed type");
+    require(!query("fn main():\n  length(|42)\n"), "invalid builtin input has no signature");
+    require(!query("fn main():\n  missing\n  length(|[1,2])\n"),
+            "prior errors block builtin guidance");
+    require(!query("fn main():\n  length(|[1,2])\n  missing\n"),
+            "later errors block builtin guidance");
+    require(!query("fn main():\n  map([1,2],|fn(v:int):v*2)\n"),
+            "other builtins remain unsupported");
+    result = query("fn main():\n  length=fn(v:int):v*2\n  length(|3)\n");
+    require(result && result->label == "fn length(int64) -> int64",
+            "lexical callable shadow is not a builtin");
     std::cout << "Native checked signature help passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

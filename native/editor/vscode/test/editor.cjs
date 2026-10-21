@@ -661,6 +661,25 @@ async function run() {
   await replace(main, mainDisk);
   await clearDiagnostics(main);
   checks.push("Relative import-path completion replaces only the string contents, preserves the local alias and checks the resulting call");
+  await replace(main, 'fn main():\n  "😀abc" -> slice(0,2)\n');
+  await clearDiagnostics(main);
+  const builtinSignature = await eventually(async () => {
+    const result = await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider",
+      mainUri,
+      position(main, ",2", 1),
+      ",",
+    );
+    return result?.signatures?.[0]?.label ===
+      "fn slice(input: String, start: int64, end: int64) -> String" ? result : undefined;
+  }, "checked String slice signature");
+  assert.equal(builtinSignature.activeParameter, 2);
+  assert.equal(builtinSignature.signatures[0].parameters.length, 3);
+  assert.equal(main.getText(), 'fn main():\n  "😀abc" -> slice(0,2)\n');
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  await clearDiagnostics(main);
+  checks.push("Collection builtin signature help shows checked String parameters and the piped active argument without changing source");
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,
