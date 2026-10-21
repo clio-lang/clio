@@ -75,3 +75,28 @@ if(BUILD_TESTING)
     set_tests_properties(native-recursive-record-bridge-${VARIANT} PROPERTIES TIMEOUT 120)
   endforeach()
 endif()
+
+if(BUILD_TESTING)
+  foreach(VARIANT IN ITEMS debug sanitized)
+    add_executable(kalandra-recursive-source-tests-${VARIANT} tests/RecursiveSourceTests.cpp)
+    target_compile_options(kalandra-recursive-source-tests-${VARIANT} PRIVATE -Wall -Wextra -Werror)
+    if(VARIANT STREQUAL "sanitized")
+      target_link_libraries(kalandra-recursive-source-tests-${VARIANT} PRIVATE kalandra-semantics-sanitized)
+      target_compile_definitions(kalandra-recursive-source-tests-${VARIANT} PRIVATE KALANDRA_RECURSIVE_SOURCE_FRONTEND_ONLY)
+      target_compile_options(kalandra-recursive-source-tests-${VARIANT} PRIVATE -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+      target_link_options(kalandra-recursive-source-tests-${VARIANT} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all)
+    else()
+      target_link_libraries(kalandra-recursive-source-tests-${VARIANT} PRIVATE kalandra-backend)
+    endif()
+    add_test(NAME native-recursive-source-frontend-${VARIANT} COMMAND kalandra-recursive-source-tests-${VARIANT})
+    set_tests_properties(native-recursive-source-frontend-${VARIANT} PROPERTIES TIMEOUT 120)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-recursive-source-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>" "-DVARIANT=${VARIANT}"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/recursive-source-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyRecursiveSource.cmake")
+    set_tests_properties(native-recursive-source-${VARIANT} PROPERTIES TIMEOUT 600)
+  endforeach()
+endif()

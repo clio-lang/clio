@@ -1,4 +1,5 @@
 #include "kalandra/Continuation.h"
+#include "RecordStorage.h"
 #include <algorithm>
 #include <set>
 #include <sstream>
@@ -1008,6 +1009,12 @@ std::vector<bool> coordinatingFunctions(const TypedModule &input) {
 }
 std::expected<ModulePlan, std::string> plan(const TypedModule &input, Options options) {
   if (!input.records.empty()) {
+    auto storage = planRecordStorage(input);
+    if (!storage)
+      return std::unexpected(storage.error().message);
+    if (std::ranges::find(storage->recursive, true) != storage->recursive.end())
+      return std::unexpected("recursive values currently require synchronous native lowering; "
+                             "continuation/worker planning is not yet supported");
     if (hasPlacement(input))
       return std::unexpected("records are not implemented in placement-aware continuations");
     if (auto error = numericCapabilityError(input, NumericTarget::Cpu))

@@ -56,12 +56,10 @@ int main() {
     require(llvmList && llvmList->isSized() &&
                 llvm::DataLayout("e-p:64:64-i64:64").getTypeAllocSize(llvmList) == 24,
             "recursive physical type is not a sized LLVM aggregate");
-    require(bool(recordLayoutError(module)) &&
-                bool(numericCapabilityError(module, NumericTarget::Cpu)),
-            "physical planning opened recursive execution gate");
+    require(bool(recordLayoutError(module)) && !numericCapabilityError(module, NumericTarget::Cpu),
+            "qualified recursive physical layout rejected");
 #ifndef KALANDRA_PHYSICAL_LAYOUT_FRONTEND_ONLY
-    require(!lowerNative(module),
-            "native backend admitted recursive values before ownership support");
+    require(!lowerNative(module), "declaration-only module admitted without an entry");
 #endif
     module.records = {record({nominal(1)}), record({scalar(), nominal(0)})};
     module.records[1].variants = {{"End", {}, {}}, {"More", {}, {1}}};
@@ -142,7 +140,7 @@ int main() {
     require(bool(lowerNative(*callable.module)), "opaque callback source failed native lowering");
 #endif
     for (const auto &source :
-         {"enum List:\n  Nil\n  Cons:\n    tail:List\nfn main()->int:\n  0\n",
+         {"enum List:\n  Cons:\n    tail:List\nfn main()->int:\n  0\n",
           "type A:\n  child:B\ntype B:\n  child:A\nfn main()->int:\n  0\n",
           "type Tree:\n  children:[Tree]\nfn main()->int:\n  0\n",
           "type Bad:\n  next:Bad\n  unknown:Missing\nfn main()->int:\n  0\n"}) {

@@ -3,6 +3,7 @@
 #include "NativeLayout.h"
 #include "RecordLLVMTypes.h"
 #include "RecordLayout.h"
+#include "RecursiveAdmission.h"
 #include "RecursiveRecordOps.h"
 #include "kalandra/NumericConversion.h"
 #include "kalandra/StrictFloat.h"
@@ -1967,6 +1968,38 @@ private:
               evaluate(operation.whenFalse, operation.falseResult);
             }
             return choice.getResult(0);
+          } else if constexpr (std::is_same_v<T, MatchOperation>) {
+            auto subject = expression(frame, operation.subject);
+            const auto &subjectType = input_.expressions[operation.subject].type;
+            const auto count = input_.records[*subjectType.record].variants.size();
+            auto tag = LLVM::ExtractValueOp::create(builder_, loc, subject, ArrayRef<int64_t>{0});
+            guard(loc, compare(loc, arith::CmpIPredicate::uge, tag, integer(loc, 1)), 3);
+            guard(loc, compare(loc, arith::CmpIPredicate::ule, tag, integer(loc, count)), 3);
+            SmallVector<std::int64_t> tags;
+            // The final checked arm is the default: either the explicit wildcard
+            // or the final alternative of an exhaustive match. No nested chain.
+            for (std::size_t i = 0; i + 1 < operation.cases.size(); ++i)
+              tags.push_back(*operation.cases[i].tag);
+            auto selector = arith::IndexCastOp::create(builder_, loc, builder_.getIndexType(), tag);
+            auto choice =
+                scf::IndexSwitchOp::create(builder_, loc, TypeRange{type(node.type)}, selector,
+                                           ArrayRef<std::int64_t>(tags), tags.size());
+            OpBuilder::InsertionGuard insertion(builder_);
+            const auto evaluate = [&](const MatchCase &arm, Region &region) {
+              builder_.createBlock(&region);
+              auto branch = frame;
+              for (const auto &statement : arm.body) {
+                auto value = expression(branch, statement.value);
+                if (statement.binding)
+                  branch.symbols[*statement.binding] = value;
+              }
+              auto value = castTensor(loc, expression(branch, arm.result), type(node.type));
+              scf::YieldOp::create(builder_, loc, ValueRange{value});
+            };
+            for (std::size_t i = 0; i < tags.size(); ++i)
+              evaluate(operation.cases[i], choice.getCaseRegions()[i]);
+            evaluate(operation.cases.back(), choice.getDefaultRegion());
+            return choice.getResult(0);
           } else if constexpr (std::is_same_v<T, FunctionReference>) {
             auto function = callableEntry(operation.function);
             auto reference = func::ConstantOp::create(
@@ -2044,7 +2077,6 @@ private:
                              std::is_same_v<T, TaskOperation> ||
                              std::is_same_v<T, ParallelOperation> ||
                              std::is_same_v<T, CatchOperation> ||
-                             std::is_same_v<T, MatchOperation> ||
                              std::is_same_v<T, ErrorFieldRead> ||
                              std::is_same_v<T, FailOperation> ||
                              std::is_same_v<T, GuardOperation>) {
@@ -2174,14 +2206,18 @@ std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,
                                                       const std::vector<std::string> &exports) {
   if (auto error = numericCapabilityError(input, NumericTarget::Cpu))
     return std::unexpected(*error);
+  const auto storage = planRecordStorage(input);
+  const bool recursive = storage && hasRecursiveStorage(*storage);
+  if (recursive && !exports.empty())
+    return std::unexpected("recursive programs do not yet support CPU bridge exports");
   if (hasPlacement(input))
     return std::unexpected("placement-aware IR requires a placement-capable execution backend");
   if (std::ranges::any_of(input.functions, [](const auto &f) { return f.resultType.fallible; }) ||
-      std::ranges::any_of(input.expressions, [](const auto &e) {
+      std::ranges::any_of(input.expressions, [recursive](const auto &e) {
         return std::holds_alternative<TaskOperation>(e.operation) ||
                std::holds_alternative<ParallelOperation>(e.operation) ||
                std::holds_alternative<CatchOperation>(e.operation) ||
-               std::holds_alternative<MatchOperation>(e.operation);
+               (!recursive && std::holds_alternative<MatchOperation>(e.operation));
       })) {
     if (!exports.empty())
       return std::unexpected("CPU bridge exports require ordinary synchronous functions");

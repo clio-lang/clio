@@ -164,8 +164,8 @@ int main() {
         std::make_shared<SourceFile>("storage.k", "type Point:\n  x:int\nfn main()->int:\n  0\n")));
     require(checked.ok() && bool(planRecordStorage(*checked.module)), "checked source planning");
     auto rejected = check(parse(std::make_shared<SourceFile>(
-        "recursive.k", "enum List:\n  Nil\n  Cons:\n    tail:List\nfn main()->int:\n  0\n")));
-    require(!rejected.ok(), "recursive backend gate removed prematurely");
+        "recursive.k", "enum List:\n  Cons:\n    tail:List\nfn main()->int:\n  0\n")));
+    require(!rejected.ok(), "unconstructible recursive source admitted");
     require(
         std::ranges::any_of(rejected.diagnostics, [](const auto &d) { return d.code == "S068"; }),
         "recursive diagnostic changed");

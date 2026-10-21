@@ -2,6 +2,7 @@
 #include "ErrorFamilies.h"
 #include "RecordLayout.h"
 #include "RecordStorage.h"
+#include "RecursiveAdmission.h"
 #include "kalandra/Continuation.h"
 #include "kalandra/StringLiteral.h"
 #include "llvm/ADT/APFloat.h"
@@ -106,15 +107,18 @@ public:
         error(storage.error().code, storage.error().message, storage.error().span);
         return {syntax_.source, {}, std::move(diagnostics_)};
       }
-      if (auto invalid = recordLayoutError(output_, limits_)) {
+      recursiveValues_ = hasRecursiveStorage(*storage);
+      if (auto invalid = recursiveRecordLayoutError(output_, limits_)) {
         error(invalid->code, invalid->message, invalid->span);
         return {syntax_.source, {}, std::move(diagnostics_)};
       }
     }
     registerSignatures();
     if (diagnostics_.empty())
-      if (auto invalid = recordLayoutError(output_, limits_))
+      if (auto invalid = recursiveRecordLayoutError(output_, limits_)) {
         error(invalid->code, invalid->message, invalid->span);
+        return {syntax_.source, {}, std::move(diagnostics_)};
+      }
     for (FunctionId i = 0;
          i < syntax_.functions.size() && diagnostics_.size() < limits_.maxDiagnostics; ++i)
       analyzeFunction(i);
@@ -474,6 +478,10 @@ private:
           return {};
         auto result = recordType(id);
         if (syntax.array) {
+          if (recursiveValues_) {
+            error("S068", "record arrays in recursive programs are not yet supported", syntax.span);
+            return {};
+          }
           result.tensor = result.array = true;
           result.shape = {dynamic()};
         }
@@ -686,7 +694,7 @@ private:
     const auto id = output_.records.size();
     output_.records.push_back(std::move(joined));
     if (!registeringRecords_)
-      if (auto invalid = recordLayoutError(output_, limits_)) {
+      if (auto invalid = recursiveRecordLayoutError(output_, limits_)) {
         error(invalid->code, invalid->message, invalid->span);
         return {};
       }
@@ -2412,6 +2420,10 @@ private:
     }
     if (!validSize(output, span))
       return {};
+    if (recursiveValues_ && isRecordArray(output)) {
+      error("S068", "record arrays in recursive programs are not yet supported", span);
+      return {};
+    }
     if (isRecordArray(output) &&
         elements.size() > limits_.maxValues / recordInlineUnits(output_, *output.record)) {
       error("S024", "record array literal exceeds configured expanded storage budget", span);
@@ -2429,6 +2441,10 @@ private:
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const TaskExpr &operation,
                                const std::optional<ValueType> &expected) {
+    if (recursiveValues_) {
+      error("S068", "recursive programs currently require synchronous calls; worker execution is not yet supported", span);
+      return {};
+    }
     if (operation.placement && !options_.placement) {
       error("S045",
             "placed calls require the optional Metal source compiler; CPU lowering does not ignore "
@@ -2533,6 +2549,10 @@ private:
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const ParallelExpr &block,
                                const std::optional<ValueType> &expected) {
+    if (recursiveValues_) {
+      error("S068", "recursive programs currently require synchronous calls; parallel groups are not yet supported", span);
+      return {};
+    }
     Frame nested = frame;
     const auto group = nextGroup_++;
     nested.groups.push_back(group);
@@ -3172,7 +3192,9 @@ private:
             }))
           frame.tasks->observed.insert(node(child).type.identity);
     resultType->identity = 0;
-    if (enumeration) {
+    // Keep recursive matches explicit for bounded flat-switch lowering and
+    // independent executable-IR validation. The established acyclic path stays.
+    if (enumeration && !recursiveValues_) {
       ValueType tagType;
       tagType.element = NumericType::Int64;
       auto selected = add(frame, tagType, span, RecordFieldRead{*subject, 0});
@@ -3522,6 +3544,10 @@ private:
     }
     if (!validSize(output, span))
       return {};
+    if (recursiveValues_ && isRecordArray(output)) {
+      error("S068", "record arrays in recursive programs are not yet supported", span);
+      return {};
+    }
     if (isRecordArray(output) &&
         elements.size() > limits_.maxValues / recordInlineUnits(output_, *output.record)) {
       error("S024", "record array literal exceeds configured expanded storage budget", span);
@@ -4314,7 +4340,7 @@ private:
   std::unordered_map<std::string, std::size_t> aliases_;
   std::vector<std::size_t> recordDeclarations_;
   std::vector<State> recordStates_;
-  bool registeringRecords_ = true;
+  bool registeringRecords_ = true, recursiveValues_ = false;
   std::size_t recordDepth_ = 0;
   std::unordered_map<std::size_t, std::optional<std::size_t>> resolvedAliases_;
   std::unordered_map<std::string, std::optional<ExportBinding>> exports_;

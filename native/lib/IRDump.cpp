@@ -1,5 +1,6 @@
 #include "ErrorFamilies.h"
 #include "RecordLayout.h"
+#include "RecursiveAdmission.h"
 #include "kalandra/Continuation.h"
 #include "kalandra/Semantics.h"
 #include "kalandra/Utf8.h"
@@ -124,6 +125,8 @@ std::string describeType(const ValueType &type) {
   return out.str();
 }
 std::optional<std::string> numericCapabilityError(const TypedModule &module, NumericTarget target) {
+  if (auto error = recursiveProgramError(module))
+    return error;
   if (auto error = functionValueCapabilityError(module, target))
     return error;
   if (hasOrdinaryStrings(module)) {
@@ -171,7 +174,7 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
            (a.builtin != BuiltinValue::Function ||
             sameFunctionValueType(recordArrayElement(a), recordArrayElement(b)));
   };
-  if (auto invalid = recordLayoutError(module))
+  if (auto invalid = recursiveRecordLayoutError(module))
     return invalid->message;
   const auto scalarSame = [](const ValueType &a, const ValueType &b) {
     if (a.builtin != b.builtin || a.record != b.record || a.tensor != b.tensor ||
