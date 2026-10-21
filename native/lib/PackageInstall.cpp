@@ -73,7 +73,7 @@ struct Resolved {
 };
 Resolved resolve(const NativeProject &project, const NativePackageLock &active, bool fetch,
                  bool validateSources, bool strict, bool allowResolution,
-                 PackageInstallLimits limits) {
+                 PackageInstallLimits limits, std::span<const std::string> updateRoots = {}) {
   require(!strict || sameNativeDependencies(project.dependencies, active.roots),
           "dependency declarations differ from kalandra.lock; run kalandra install");
   const auto root = cache(project);
@@ -193,7 +193,8 @@ Resolved resolve(const NativeProject &project, const NativePackageLock &active, 
     return {id, std::move(edge)};
   };
   for (const auto &dependency : project.dependencies) {
-    auto [target, pin] = visit(dependency, active.roots, 1);
+    const bool update = std::ranges::find(updateRoots, dependency.name) != updateRoots.end();
+    auto [target, pin] = visit(dependency, update ? noPrior : active.roots, 1);
     result.graph.nodes[0].dependencies.push_back({dependency.name, target});
     result.selected.roots.push_back(std::move(pin));
   }
@@ -251,6 +252,22 @@ std::expected<void, std::string> installNativeProject(std::string manifest,
       active = lock(*before, limits);
     }
     const bool matching = before && active.manifest == hash(project->manifestContents);
+    if (!options.updateRoots.empty()) {
+      require(!options.frozen && !options.offline, "named updates cannot use frozen/offline modes");
+      require(matching && sameNativeDependencies(project->dependencies, active.roots),
+              "named update requires a matching kalandra.lock; run kalandra install first");
+      require(options.updateRoots.size() <= 128, "too many dependency names to update");
+      for (std::size_t i = 0; i < options.updateRoots.size(); ++i) {
+        const auto &name = options.updateRoots[i];
+        require(std::find(options.updateRoots.begin(), options.updateRoots.begin() + i, name) ==
+                    options.updateRoots.begin() + i,
+                "duplicate dependency update name '" + name + "'");
+        require(
+            std::ranges::any_of(project->dependencies,
+                                [&](const auto &dependency) { return dependency.name == name; }),
+            "unknown managed root dependency '" + name + "'");
+      }
+    }
     require((!options.frozen && !options.offline) || matching,
             "frozen/offline install requires a matching kalandra.lock");
     const auto root = cache(*project);
@@ -265,8 +282,9 @@ std::expected<void, std::string> installNativeProject(std::string manifest,
     require(::flock(guard.fd, LOCK_EX | LOCK_NB) == 0,
             "another package installation is in progress");
     directory(root / "snapshots", !options.offline);
-    auto resolved = resolve(*project, active, !options.offline, true, matching,
-                            !options.frozen && !options.offline, limits);
+    auto resolved =
+        resolve(*project, active, !options.offline, true, matching && options.updateRoots.empty(),
+                !options.frozen && !options.offline, limits, options.updateRoots);
     const auto contents = serializeNativePackageLock(resolved.selected);
     // Validate generated records too; no unchecked graph is ever activated.
     lock(contents, limits);

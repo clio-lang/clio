@@ -15,6 +15,8 @@ struct InstalledNativeProject {
 struct PackageInstallOptions {
   bool frozen = false;
   bool offline = false;
+  // Explicit root aliases to re-resolve. Unchanged package identities keep private pins.
+  std::vector<std::string> updateRoots = {};
 };
 // Explicit installation with owner-local revision pins. Publishes a lock only
 // after the entire declared graph and reachable source imports validate.

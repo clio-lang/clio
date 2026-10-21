@@ -65,7 +65,7 @@ or unavailable origins therefore do not affect a complete cached graph.
 
 A server may refuse a formerly selected commit once it is unreachable or has
 been deleted. A missing-cache reinstall then fails; it never substitutes the
-branch's new tip. Deliberate named dependency updates remain a later command.
+branch's new tip. [Named root updates](native-package-update.md) now deliberately refresh selected requests.
 An explicit new commit in the manifest is already a deliberate request change.
 
 ## Local and remote lookup
@@ -113,5 +113,7 @@ execution claim. A separate public GitHub branch lookup/extraction probe reaches
 the expected missing-native-manifest rejection in `octocat/Hello-World`; it is
 a transport check rather than a hosted native-library end-to-end result. See the [qualification record](../../native/metal-proof/evidence/native-git-refs-2026-10-20.json).
 Authenticated/SSH transports, arbitrary revision expressions, signed tags,
-symbolic local refs, an update command and package-aware editor integration remain
-outside this slice.
+symbolic local refs and broader platform qualification remain outside this slice.
+[Named root updates](native-package-update.md) and
+[package-aware editor integration](native-language-server.md#installed-dependencies)
+now build on these owner-local pins.

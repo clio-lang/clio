@@ -97,6 +97,11 @@ with tempfile.TemporaryDirectory(prefix="kalandra cpu install ") as temporary:
     for mode in ([], ["--sanitize"], ["--thread-sanitize"]):
         run([compiler, "--project", application / "kalandra.toml", "-o", cwd / "program", *mode], cwd)
         assert run([cwd / "program"], cwd).stdout.strip() == "42"
+    # Exercise targeted updates through the relocated public CLI, including
+    # owner-local pins and failed activation preserving the prior lock.
+    run([sys.executable, Path(__file__).resolve().parents[1] / "tests/PackageUpdateFixtures.py",
+         "--compiler", compiler, "--checker", prefix / "bin/kalandra-check",
+         "--root", cwd / "named dependency updates"], cwd)
     saved = (cwd / "program").read_bytes()
     runtime = prefix / "lib/kalandra/native/libkalandra-native-runtime.a"
     runtime.unlink()
@@ -106,4 +111,4 @@ with tempfile.TemporaryDirectory(prefix="kalandra cpu install ") as temporary:
     result = run([compiler, cwd / "main.k", "--target", "metal", "-o", cwd / "program"], cwd, 2)
     assert "supports CPU only" in result.stderr
     assert (cwd / "program").read_bytes() == saved
-print("CPU bundle: relocation, symlink, 45 scalar/collection/worker sanitizer programs, project imports, exact dependency installation/offline workers, resource failures passed")
+print("CPU bundle: relocation, symlink, 45 scalar/collection/worker sanitizer programs, project imports, exact dependency installation/offline workers, named updates, resource failures passed")

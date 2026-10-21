@@ -26,7 +26,9 @@ bool write(const std::filesystem::path &path, const std::string &contents) {
 }
 } // namespace
 int main(int argc, char **argv) {
-  if (argc >= 2 && std::string_view(argv[1]) == "install") {
+  if (argc >= 2 &&
+      (std::string_view(argv[1]) == "install" || std::string_view(argv[1]) == "update")) {
+    const bool update = std::string_view(argv[1]) == "update";
     std::string manifest;
     kalandra::PackageInstallOptions options;
     bool invalid = false;
@@ -35,15 +37,19 @@ int main(int argc, char **argv) {
       if (argument == "--project" && manifest.empty() && i + 1 < argc &&
           !std::string_view(argv[i + 1]).starts_with("--"))
         manifest = argv[++i];
-      else if (argument == "--frozen" && !options.frozen)
+      else if (!update && argument == "--frozen" && !options.frozen)
         options.frozen = true;
-      else if (argument == "--offline" && !options.offline)
+      else if (!update && argument == "--offline" && !options.offline)
         options.offline = true;
+      else if (update && !argument.starts_with('-'))
+        options.updateRoots.emplace_back(argument);
       else
         invalid = true;
     }
-    if (invalid || manifest.empty()) {
-      std::cerr << "usage: kalandra install --project manifest.toml [--frozen] [--offline]\n";
+    if (invalid || manifest.empty() || (update && options.updateRoots.empty())) {
+      std::cerr
+          << (update ? "usage: kalandra update name [name ...] --project manifest.toml\n"
+                     : "usage: kalandra install --project manifest.toml [--frozen] [--offline]\n");
       return 2;
     }
     auto installed = kalandra::installNativeProject(manifest, {}, options);
@@ -51,7 +57,8 @@ int main(int argc, char **argv) {
       std::cerr << installed.error() << '\n';
       return 1;
     }
-    std::cout << "Installed native dependency graph.\n";
+    std::cout << (update ? "Updated native dependency graph.\n"
+                         : "Installed native dependency graph.\n");
     return 0;
   }
   if (argc >= 2 && std::string_view(argv[1]) == "new") {

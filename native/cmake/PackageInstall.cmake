@@ -40,3 +40,23 @@ if(BUILD_TESTING)
     --root "${CMAKE_CURRENT_BINARY_DIR}/package-install-frontend-sanitized")
   set_tests_properties(native-package-install-frontend-sanitized PROPERTIES TIMEOUT 240)
 endif()
+
+if(BUILD_TESTING)
+  foreach(VARIANT IN ITEMS debug sanitized)
+    add_executable(kalandra-package-update-tests-${VARIANT} tests/PackageUpdateTests.cpp)
+    target_compile_options(kalandra-package-update-tests-${VARIANT} PRIVATE -Wall -Wextra -Werror)
+    if(VARIANT STREQUAL "sanitized")
+      target_link_libraries(kalandra-package-update-tests-${VARIANT} PRIVATE kalandra-packages-sanitized)
+      target_compile_options(kalandra-package-update-tests-${VARIANT} PRIVATE -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+      target_link_options(kalandra-package-update-tests-${VARIANT} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all)
+    else()
+      target_link_libraries(kalandra-package-update-tests-${VARIANT} PRIVATE kalandra-packages)
+    endif()
+    add_test(NAME native-package-update-${VARIANT} COMMAND "${KALANDRA_PYTHON3}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/PackageUpdateFixtures.py"
+      --api "$<TARGET_FILE:kalandra-package-update-tests-${VARIANT}>"
+      --compiler "$<TARGET_FILE:kalandra>" --checker "$<TARGET_FILE:kalandra-check>"
+      --root "${CMAKE_CURRENT_BINARY_DIR}/package-update-${VARIANT}")
+    set_tests_properties(native-package-update-${VARIANT} PROPERTIES TIMEOUT 180)
+  endforeach()
+endif()

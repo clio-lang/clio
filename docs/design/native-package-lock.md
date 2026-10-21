@@ -133,6 +133,7 @@ The [native editor](native-language-server.md#installed-dependencies) now reads
 and validates this lock without installing or rewriting packages.
 [Installed Metal applications](native-metal-install.md#installed-numerical-libraries)
 now qualify private numerical versions, CPU workers and GPU execution after
-frozen cache restoration and project relocation. A deliberate update command,
-authenticated/SSH transport, broader platform qualification and crash durability
-remain separate work.
+frozen cache restoration and project relocation. [Named root updates](native-package-update.md)
+now deliberately refresh selected branch/tag requests while preserving unselected
+and unchanged-owner private pins. Authenticated/SSH transport, broader platform
+qualification and crash durability remain separate work.
