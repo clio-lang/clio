@@ -106,6 +106,9 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
         syntax->module.source->slice(candidate) == probe)
       site = candidate;
   };
+  for (const auto &import : syntax->module.imports)
+    for (const auto &imported : import.names)
+      locate(imported.name);
   for (const auto &expression : syntax->module.expressions) {
     if (const auto *name = std::get_if<NameExpr>(&expression.value))
       locate(name->name);

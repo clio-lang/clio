@@ -91,3 +91,5 @@ Installed-editor acceptance now applies [name completion inside an unfinished ca
 Installed-editor acceptance now applies an [imported type alias in an annotation](native-language-server.md#type-annotation-completion), verifies the existing Struct item kind, and checks the resulting program and alias-preserving hover without changing disk sources.
 
 Installed-editor acceptance now applies an [imported error alias in an expected-error channel](native-language-server.md#error-channel-completion), checks the existing Struct item kind, and verifies that the resulting fallible signature clears diagnostics and has checked hover.
+
+Installed-editor acceptance also applies a [public function import completion](native-language-server.md#import-name-completion), preserves its explicit local alias, and verifies that the resulting call checks and has hover information without writing disk sources.

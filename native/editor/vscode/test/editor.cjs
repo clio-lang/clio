@@ -633,6 +633,20 @@ async function run() {
   await replace(main, mainDisk);
   checks.push("Error-channel completion applies an imported alias and checks the resulting fallible signature");
   await clearDiagnostics(main);
+  const importCompletion = await complete(
+    main,
+    'from "./completion-library.k" import ma|Suffix as factory\nfn main():\n  factory()(1,2)\n',
+    "make",
+  );
+  const importItem = importCompletion.items.find((item) => label(item) === "make");
+  assert.equal(importItem.kind, vscode.CompletionItemKind.Function);
+  await applyCompletion(main, importItem, "maSuffix", "make");
+  await clearDiagnostics(main);
+  assert(hoverText(await hover(main, "factory()(1,2)")));
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  await clearDiagnostics(main);
+  checks.push("Import completion applies a public function name while preserving its local alias and checks the resulting program");
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,

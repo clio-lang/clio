@@ -1226,6 +1226,56 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert not signature_document.exists() and channel_library.read_text() == channel_library_text
     client.finish()
 
+    # Import-name completion uses public declarations and resolved re-export names.
+    exports_library = Path(temp) / "exports-completion.k"
+    exports_text = ('export fn double(v:int):\n  v*2\nfn hidden():\n  0\n'
+                    'export type Box:\n  value:int\nexport error Problem:\n  Bad\n'
+                    'export type Failure = Problem | TaskError\n')
+    exports_library.write_text(exports_text)
+    facade = Path(temp) / "facade-completion.k"
+    facade_text = ('export from "./exports-completion.k" import double as twice, Box as Parcel, Failure\n'
+                   'from "./exports-completion.k" import Problem\n')
+    facade.write_text(facade_text)
+    client = Client()
+    client.init()
+    import_text = 'from "./facade-completion.k" import twSuffix as run\nfn main():\n  0\n'
+    client.open(signature_document, import_text)
+    client.barrier()
+    start = import_text.splitlines()[0].index("twSuffix")
+    result = client.completion(signature_document, 0, start+2)["result"]
+    assert [item["label"] for item in result["items"]] == ["twice"], result
+    item = result["items"][0]
+    assert item["kind"] == 3 and item["textEdit"] == {"newText":"twice", "range":{
+        "start":{"line":0,"character":start},"end":{"line":0,"character":start+8}}}, item
+    assert not client.barrier(), "import completion published probe diagnostics"
+    empty_import = 'from "./facade-completion.k" import \nfn main():\n  0\n'
+    client.change(signature_document, empty_import, 2)
+    client.barrier()
+    result = client.completion(signature_document, 0, len(empty_import.splitlines()[0]))["result"]
+    assert [(item["label"],item["kind"]) for item in result["items"]] == [
+        ("Failure",22),("Parcel",22),("twice",3)], result
+    client.open(exports_library, exports_text.replace("export fn double", "fn double"))
+    client.barrier()
+    result = client.completion(signature_document, 0, len(empty_import.splitlines()[0]))["result"]
+    assert [item["label"] for item in result["items"]] == ["Failure","Parcel"], result
+    client.change(exports_library, exports_text, 2)
+    client.barrier()
+    accepted = 'from "./facade-completion.k" import twice as run\nfn main():\n  run(21)\n'
+    client.change(signature_document, accepted, 3)
+    assert not publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+    assert client.hover(signature_document, 2, 3)["result"] is not None
+    # Alias names and import strings are intentionally outside this completion context.
+    alias_cursor = accepted.splitlines()[0].index("run") + 1
+    assert client.completion(signature_document, 0, alias_cursor)["result"]["items"] == []
+    assert client.completion(signature_document, 0, 10)["result"]["items"] == []
+    missing = 'from "./missing-completion.k" import \nfn main():\n  0\n'
+    client.change(signature_document, missing, 4)
+    client.barrier()
+    assert client.completion(signature_document, 0, len(missing.splitlines()[0]))["result"]["items"] == []
+    assert not signature_document.exists() and exports_library.read_text() == exports_text
+    assert facade.read_text() == facade_text
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"

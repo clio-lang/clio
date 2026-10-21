@@ -192,7 +192,7 @@ Suggestions include parameters, preceding immutable bindings, eligible closure c
 
 The request replaces only the current identifier (or inserts one at an empty position) in a temporary source overlay, then parses the graph and snapshots scope immediately before the checker resolves that identifier. Current dependency buffers and configured package mappings participate. Probe diagnostics are discarded: the request does not publish diagnostics, change buffers, write files, run code or contact hardware. Normal checking still never publishes partial typed IR. Completion exposes only scope names, without partial/stale inferred types.
 
-Apart from bounded construction/pattern-label probes and trailing-call repair below, completion needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Unsupported missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; import paths, general pattern bindings and declaration names are not completion contexts yet. Expected-error channels are covered below. Type annotations are covered below. Qualified enum cases in match patterns are covered below. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no general parser recovery, auto-import, fuzzy ranking, snippet expansion or completion resolve. Checked signature help is covered below. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
+Apart from bounded construction/pattern-label probes and trailing-call repair below, completion needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Unsupported missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; import paths, general pattern bindings and declaration names are not completion contexts yet. Public names in explicit imports/re-exports are covered below. Expected-error channels are covered below. Type annotations are covered below. Qualified enum cases in match patterns are covered below. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no general parser recovery, auto-import, fuzzy ranking, snippet expansion or completion resolve. Checked signature help is covered below. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
 
 The [completion qualification record](../../native/metal-proof/evidence/native-lsp-completion-2026-10-20.json) records semantic and stdio tests in normal and ASan/UBSan builds. [Initial VS Code acceptance](native-vscode.md#qualification) now covers partly typed names; broader completion interaction remains follow-up work.
 
@@ -647,3 +647,33 @@ completion, auto-import and snippets remain separate.
 covers empty/partial members, unions and aliases, named/anonymous/nested callable
 channels, active-alias exclusion, list bounds, imported overlays, relocated
 Release tools and installed VS Code edits followed by checked diagnostics/hover.
+
+#### Import-name completion
+
+After `from "./math.k" import`, completion offers the target module's public
+functions, records, enums, error families and transparent error aliases. An empty
+slot or a partial identifier works, including later comma-separated slots and
+`export from` declarations. Explicit re-exports use their published names;
+ordinary imports and private declarations are not exposed. Existing local
+`as` aliases remain untouched by the edit.
+
+The module graph uses current open dependency buffers and configured package
+mappings. Candidates come from registered export headers, with re-exports
+resolved through the compiler's existing export resolver. This provides names
+and Function/Type item kinds, not a guarantee that a declaration's body or
+signature is valid. Later checking still reports missing exports and invalid
+programs normally. Unresolvable re-export names are omitted. Previously imported
+names remain available because another explicit local alias can be valid.
+
+The request replaces the whole current identifier, preserves its surrounding
+import syntax, and applies the existing case-sensitive prefix, alphabetical
+ordering and 256-item bound. It does not change source buffers, diagnostic
+publications or disk files. Import paths and local alias declarations are not
+completion sites; missing modules and syntax that the temporary graph cannot
+parse produce no candidates. There is no automatic import insertion or general
+parser recovery.
+
+[Import-completion qualification](../../native/metal-proof/evidence/native-lsp-import-completion-2026-10-21.json)
+covers public/private names, aliases and re-exports, list bounds, live dependency
+buffers, unchanged diagnostics/files, relocated Release tools and an installed
+VS Code completion followed by checked diagnostics and hover.

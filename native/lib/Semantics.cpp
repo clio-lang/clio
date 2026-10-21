@@ -10,6 +10,7 @@
 #include <charconv>
 #include <limits>
 #include <map>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -524,6 +525,43 @@ private:
     exports_.emplace(key, resolved);
     return resolved;
   }
+  void completeImports() {
+    if (!options_.completion)
+      return;
+    for (const auto &import : syntax_.imports) {
+      if (!import.target)
+        continue;
+      for (const auto &imported : import.names) {
+        if (!completing(imported.name))
+          continue;
+        auto &query = *options_.completion;
+        query.reached = true;
+        const auto prefix = functionKey(*import.target, "");
+        // Copy names before resolving re-exports, which memoizes new export keys.
+        std::set<std::string> labels;
+        const auto collect = [&](const auto &bindings) {
+          for (const auto &[key, binding] : bindings)
+            if (key.starts_with(prefix) && key.substr(prefix.size()).starts_with(query.prefix))
+              labels.insert(key.substr(prefix.size()));
+        };
+        collect(exports_);
+        collect(reexports_);
+        for (const auto &label : labels) {
+          const auto binding = exportedBinding(*import.target, label);
+          if (!binding)
+            continue;
+          if (query.names.size() == 256) {
+            query.truncated = true;
+            break;
+          }
+          query.names.push_back({label, binding->record || binding->alias
+                                            ? ScopeNameKind::Type
+                                            : ScopeNameKind::Function});
+        }
+        return;
+      }
+    }
+  }
   void recordImportOrigins() {
     for (const auto &import : syntax_.imports) {
       if (!import.target)
@@ -714,6 +752,7 @@ private:
       recordDeclarations_.push_back(declaration);
       recordStates_.push_back(State::Unseen);
     }
+    completeImports();
     // Resolve type imports before checking fields or function annotations. Explicit
     // re-exports follow the original declaration; ordinary imports remain private.
     for (const auto &import : syntax_.imports) {

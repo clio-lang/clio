@@ -416,6 +416,41 @@ int main() {
                  "fn inspect(p:LargePayload):\n  match p:\n    LargePayload.Some {|}: 0\n"
                  "fn main():\n  0\n");
     require(info.names.size() == 256 && info.incomplete, "bounded pattern payload labels");
+    const auto importQuery = [&](std::string text, std::string library) {
+      const auto cursor = text.find('|');
+      text.erase(cursor, 1);
+      const auto root = std::filesystem::temp_directory_path();
+      return lsp::completeNames((root / "completion.k").string(), text, cursor, {},
+                                {{(root / "completion-exports.k").string(), library}});
+    };
+    const std::string publicLibrary =
+        "export fn double(v:int):\n  v*2\nfn hidden():\n  0\n"
+        "export type Box:\n  value:int\nexport error Problem:\n  Bad\n"
+        "export type Failure = Problem | TaskError\n";
+    info =
+        importQuery("from \"./completion-exports.k\" import |\nfn main():\n  0\n", publicLibrary);
+    require(info.names.size() == 4 && has(info, "Box") && has(info, "double") &&
+                has(info, "Failure") && !has(info, "hidden"),
+            "public import namespace");
+    require(info.names[0].kind == ScopeNameKind::Type &&
+                info.names.back().kind == ScopeNameKind::Function,
+            "import item kinds");
+    info = importQuery("from \"./completion-exports.k\" import Box, do|Suffix as twice\n"
+                       "fn main():\n  0\n",
+                       publicLibrary);
+    require(info.names.size() == 1 && has(info, "double") &&
+                info.replacement.end - info.replacement.begin == 8,
+            "import suffix and alias");
+    require(importQuery("from \"./completion-exports.k\" import double as do|\n"
+                        "fn main():\n  0\n",
+                        publicLibrary)
+                .names.empty(),
+            "local alias declarations are not import-name sites");
+    std::string manyExports;
+    for (int i = 0; i < 300; ++i)
+      manyExports += "export fn candidate" + std::to_string(i) + "():\n  0\n";
+    info = importQuery("from \"./completion-exports.k\" import |\nfn main():\n  0\n", manyExports);
+    require(info.names.size() == 256 && info.incomplete, "bounded exported names");
     std::cout << "Native scope completion passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';
