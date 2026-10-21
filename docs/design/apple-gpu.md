@@ -766,3 +766,11 @@ lifting, shared intermediates and one optional final reduction. One task owns th
 resident sequence, each arithmetic shader binds only its live tensor operands,
 and full shapes are checked before dispatch. Adjacent-stage fusion remains
 optimization work.
+
+## Multiple reductions
+
+[Multiple resident reductions](native-gpu-multiple-reductions.md) now support
+rank-one/rank-two float32 inputs and shared intermediate matrices under one
+scalar task. A device expression combines the reduced scalars before the only
+readback. Empty inputs seed positive zero; larger expressions use the existing
+Tier 2 binding path. Reduction-to-tensor feedback remains future work.

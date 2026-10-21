@@ -47,7 +47,8 @@ without a GPU command or recursive runtime calls.
 This addition covers rank-two float32 product graphs.
 [A final reduction and scalar arithmetic](native-gpu-graph-reduction.md) can now
 consume the last matrix under one scalar task. [Tensor arithmetic](native-gpu-graph-arithmetic.md) can now appear before, between
-and after products. Multiple reductions, branches and device-side task
+and after products. [Multiple reductions](native-gpu-multiple-reductions.md) can now feed a final
+scalar expression. Branches, reduction-to-tensor feedback and device-side task
 coordination remain future work. Existing arithmetic around a single matrix
 product and its optional reduction continues to use the separately qualified
 paths. Additional numeric types, tensor ranks and custom kernels have their own

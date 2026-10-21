@@ -52,8 +52,9 @@ budget; resident and staging storage count against the device-storage budget.
 ## Current boundary
 
 This extends graphs with at least two matrix products. Every tensor stage must
-contribute to the final tensor or its single final reduction. Extra unused
-products/stages, multiple reductions, branches, broader GPU numeric types and
+contribute to the returned tensor or scalar expression.
+[Multiple reductions](native-gpu-multiple-reductions.md) can now feed that final
+scalar expression. Extra unused stages, branches, broader GPU numeric types and
 higher tensor ranks remain unsupported. Existing single-product arithmetic paths
 remain available.
 

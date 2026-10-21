@@ -229,6 +229,10 @@ struct MatrixGraphArguments {
   std::uint64_t reserved = 0;
   std::size_t inputs = 0;
   std::vector<Buffer> values;
+  std::vector<std::uint32_t> ranks, reductions;
+  std::vector<Buffer> reduced;
+  Kernel join;
+  std::shared_ptr<const Arguments> joinArguments;
   std::vector<MatrixProduct> products;
   std::vector<Kernel> maps;
   std::vector<std::shared_ptr<const Arguments>> mapArguments;
@@ -307,20 +311,24 @@ struct Bridge {
   static std::expected<std::shared_ptr<MatrixGraphArguments>, Error>
   captureGraph(std::shared_ptr<State> state, const Kernel &kernel, std::span<const Buffer> inputs,
                std::span<const MatrixProduct> products, std::span<const Kernel> maps = {},
-               std::span<const float> scalars = {}) noexcept {
+               std::span<const float> scalars = {},
+               std::span<const std::uint32_t> roots = {}) noexcept {
     if ((!maps.empty() && maps.size() != products.size()) || (maps.empty() && !scalars.empty()))
       return std::unexpected(Error::Invalid);
-    if (!kernel.state_ || !kernel.state_->matrix || inputs.empty() || products.empty() ||
-        inputs.size() > UINT32_MAX || products.size() > UINT32_MAX / 2 ||
-        inputs.size() + products.size() > UINT32_MAX)
+    if (!kernel.state_ ||
+        (!kernel.state_->matrix && (roots.empty() || !kernel.state_->reduction)) ||
+        inputs.empty() || (products.empty() && roots.empty()) || inputs.size() > UINT32_MAX ||
+        products.size() > UINT32_MAX / 2 || inputs.size() + products.size() > UINT32_MAX)
       return std::unexpected(Error::Invalid);
     if (kernel.state_->registry != state)
       return std::unexpected(Error::Residency);
     const auto count = inputs.size() + products.size();
     const auto bytes =
+        std::uint64_t(roots.size()) * (sizeof(std::uint32_t) + sizeof(Buffer)) +
         std::uint64_t(maps.size()) * (sizeof(Kernel) + sizeof(std::shared_ptr<const Arguments>)) +
         std::uint64_t(count) *
-            (sizeof(Buffer) + sizeof(std::uint32_t) + sizeof(std::array<std::int64_t, 2>)) +
+            (sizeof(Buffer) + sizeof(std::uint32_t) + sizeof(std::array<std::int64_t, 2>) +
+             (roots.empty() ? 0 : sizeof(std::uint32_t))) +
         std::uint64_t(products.size()) * sizeof(MatrixProduct);
     try {
       if (!state->permit())
@@ -357,11 +365,24 @@ struct Bridge {
           return std::unexpected(Error::Allocation);
         result->mapArguments.resize(maps.size());
       }
+      if (!roots.empty()) {
+        if (roots.size() > UINT32_MAX / 2)
+          return std::unexpected(Error::Invalid);
+        if (!state->permit())
+          return std::unexpected(Error::Allocation);
+        result->ranks.resize(count);
+        if (!state->permit())
+          return std::unexpected(Error::Allocation);
+        result->reductions.assign(roots.begin(), roots.end());
+        if (!state->permit())
+          return std::unexpected(Error::Allocation);
+        result->reduced.resize(roots.size());
+      }
       result->inputs = inputs.size();
       for (std::size_t i = 0; i < inputs.size(); ++i) {
         const auto &input = inputs[i].storage_;
-        if (!input || input->rank != 2 || input->format != Format::Float32 ||
-            input->size / 4 > UINT32_MAX)
+        if (!input || (input->rank != 2 && (roots.empty() || input->rank != 1)) ||
+            input->format != Format::Float32 || input->size / 4 > UINT32_MAX)
           return std::unexpected(Error::Invalid);
         if (!input->device || input->state != state || input->deviceIndex != kernel.state_->index)
           return std::unexpected(Error::Residency);
@@ -369,7 +390,9 @@ struct Bridge {
             std::uint64_t(input->dimensions[1]) > UINT32_MAX)
           return std::unexpected(Error::Invalid);
         result->values[i] = inputs[i];
-        result->shapes[i] = {input->dimensions[0], input->dimensions[1]};
+        result->shapes[i] = {input->dimensions[0], input->rank == 2 ? input->dimensions[1] : 1};
+        if (!roots.empty())
+          result->ranks[i] = input->rank;
       }
       for (std::size_t i = 0; i < products.size(); ++i) {
         const auto edge = products[i];
@@ -385,7 +408,7 @@ struct Bridge {
               mapping->reduction || mapping->projected || mapping->indirect() ||
               mapping->signature.value_or(ElementwiseSignature{2, 0}) !=
                   ElementwiseSignature{tensors, std::uint32_t(scalars.size())} ||
-              a != b)
+              (a != b || (!roots.empty() && result->ranks[edge.left] != result->ranks[edge.right])))
             return std::unexpected(Error::Invalid);
           if (mapping->registry != state || mapping->index != kernel.state_->index)
             return std::unexpected(Error::Residency);
@@ -397,14 +420,24 @@ struct Bridge {
           result->mapArguments[i] = *args;
           result->shapes[output] = a;
         } else {
-          if (a[1] != b[0] || std::uint64_t(a[0]) * std::uint64_t(b[1]) > UINT32_MAX)
+          if (!kernel.state_->matrix ||
+              (!roots.empty() &&
+               (result->ranks[edge.left] != 2 || result->ranks[edge.right] != 2)) ||
+              a[1] != b[0] || std::uint64_t(a[0]) * std::uint64_t(b[1]) > UINT32_MAX)
             return std::unexpected(Error::Invalid);
           result->shapes[output] = {a[0], b[1]};
         }
+        if (!roots.empty())
+          result->ranks[output] = map ? result->ranks[edge.left] : 2;
         ++result->uses[edge.left];
         ++result->uses[edge.right];
       }
-      for (std::size_t i = inputs.size(); i + 1 < count; ++i)
+      for (auto root : roots) {
+        if (root >= count || result->uses[root] == UINT32_MAX)
+          return std::unexpected(Error::Invalid);
+        ++result->uses[root];
+      }
+      for (std::size_t i = inputs.size(); i < (roots.empty() ? count - 1 : count); ++i)
         if (!result->uses[i])
           return std::unexpected(Error::Invalid);
       for (std::size_t i = 0; i < inputs.size(); ++i)
@@ -429,7 +462,9 @@ struct Bridge {
     Buffer result;
     Buffer matrixLeft{}, matrixRight{};
     Kernel matrixKernel{}, graphKernel{};
-    std::size_t graphStage = 0;
+    std::size_t graphStage = 0, reductionStage = 0;
+    unsigned graphPhase = 0;
+    std::shared_ptr<MetalAllocation> joinReadback;
     unsigned matrixStage = 0; // 1: left map, 2: right map, 3: multiply.
     float scalar = 0;
     std::unique_ptr<ReductionScratch> scratch;
@@ -454,6 +489,8 @@ struct Bridge {
   static void destroy(void *frame) noexcept { static_cast<Frame *>(frame)->~Frame(); }
   static const Buffer &tensor(const Frame &frame, std::size_t index) {
     if (frame.packet.graph && frame.packet.kind == Kind::Elementwise) {
+      if (frame.graphPhase == 2)
+        return frame.packet.graph->reduced[index];
       const auto edge = frame.packet.graph->products[frame.graphStage];
       return frame.packet.graph->values[index == 0 ? edge.left : edge.right];
     }
@@ -495,12 +532,23 @@ struct Bridge {
     f.scratch.reset(new (std::nothrow) ReductionScratch{});
     if (!f.scratch)
       return nil;
-    auto readback = allocateMetal(state, index, 4, true);
-    if (!readback) {
-      f.error = readback.error();
-      return nil;
+    const bool resident = f.packet.graph && f.graphPhase == 1;
+    if (resident) {
+      auto output =
+          allocateStorage(state, std::array<std::int64_t, 1>{1}, Format::Float32, true, index);
+      if (!output) {
+        f.error = output.error();
+        return nil;
+      }
+      f.result = Buffer(*output);
+    } else {
+      auto readback = allocateMetal(state, index, 4, true);
+      if (!readback) {
+        f.error = readback.error();
+        return nil;
+      }
+      f.staging = *readback;
     }
-    f.staging = *readback;
     id<MTLCommandBuffer> command = state->permit() ? [state->queues[index] commandBuffer] : nil;
     if (!command)
       return nil;
@@ -538,6 +586,18 @@ struct Bridge {
         input = f.scratch->seed->buffer;
         length = 1;
       }
+    }
+    if (resident && !length) {
+      auto seed = allocateMetal(state, index, 4, true);
+      if (!seed) {
+        f.error = seed.error();
+        return nil;
+      }
+      f.scratch->seed = *seed;
+      std::uint32_t zero = 0;
+      std::memcpy(f.scratch->seed->buffer.contents, &zero, 4);
+      input = f.scratch->seed->buffer;
+      length = 1;
     }
     const bool packedCounts = [state->devices[index] supportsFamily:MTLGPUFamilyApple1];
     unsigned levels = 0;
@@ -626,7 +686,7 @@ struct Bridge {
       return nil;
     [blit copyFromBuffer:input
              sourceOffset:0
-                 toBuffer:f.staging->buffer
+                 toBuffer:resident ? f.result.storage_->metal->buffer : f.staging->buffer
         destinationOffset:0
                      size:4];
     [blit endEncoding];
@@ -653,10 +713,56 @@ struct Bridge {
       f.packet.kind = Kind::Matmul;
     }
   }
+  static void captureJoin(PacketData &packet, Kernel join,
+                          std::span<const float> scalars) noexcept {
+    if (!packet.graph)
+      return;
+    const auto &base = packet.kernel.state_, &reduction = packet.reduction.state_;
+    const auto &kernel = join.state_;
+    if (!kernel || !base || !reduction || !reduction->reduction || reduction->matrix ||
+        !kernel->elementwise || kernel->reduction || kernel->matrix || kernel->projected ||
+        kernel->signature.value_or(ElementwiseSignature{2, 0}).tensors !=
+            packet.graph->reduced.size()) {
+      packet.preparation = Error::Invalid;
+      return;
+    }
+    if (reduction->registry != packet.state || kernel->registry != packet.state ||
+        reduction->index != base->index || kernel->index != base->index) {
+      packet.preparation = Error::Residency;
+      return;
+    }
+    auto args = capture(packet.state, join, packet.graph->reduced, scalars);
+    if (!args) {
+      packet.preparation = args.error();
+      return;
+    }
+    packet.graph->join = std::move(join);
+    packet.graph->joinArguments = *args;
+  }
   static void nextGraphStage(Frame &f) {
     const auto &graph = *f.packet.graph;
     if (!f.graphKernel)
       f.graphKernel = f.packet.kernel;
+    if (!graph.reductions.empty()) {
+      if (f.graphPhase == 0 && f.graphStage == graph.products.size())
+        f.graphPhase = 1;
+      if (f.graphPhase == 1) {
+        f.packet.kind = Kind::Reduce;
+        f.packet.kernel = f.packet.reduction;
+        f.packet.input = graph.values[graph.reductions[f.reductionStage]];
+        f.packet.right = {};
+        f.packet.arguments.reset();
+        return;
+      }
+      if (f.graphPhase == 2) {
+        f.packet.kind = Kind::Elementwise;
+        f.packet.kernel = graph.join;
+        f.packet.arguments = graph.joinArguments;
+        f.packet.input = graph.reduced.front();
+        f.packet.right = {};
+        return;
+      }
+    }
     const auto edge = graph.products[f.graphStage];
     const bool map = !graph.maps.empty() && bool(graph.maps[f.graphStage]);
     f.packet.kernel = map ? graph.maps[f.graphStage] : f.graphKernel;
@@ -688,6 +794,36 @@ struct Bridge {
           }
           if (f.packet.graph) {
             auto &graph = *f.packet.graph;
+            if (!graph.reductions.empty() && f.graphPhase > 0) {
+              if (f.graphPhase == 2) {
+                std::memcpy(&f.scalar, f.joinReadback->buffer.contents, 4);
+                f.packet.arguments.reset();
+                f.packet.input = {};
+                f.packet.right = {};
+                f.packet.graph.reset();
+                f.result = {};
+                f.scratch.reset();
+                f.staging.reset();
+                f.resources.reset();
+                f.joinReadback.reset();
+                task.complete(&f.scalar);
+                return;
+              }
+              f.staging.reset();
+              f.scratch.reset();
+              f.packet.input = {};
+              f.packet.right = {};
+              graph.reduced[f.reductionStage] = std::move(f.result);
+              const auto root = graph.reductions[f.reductionStage];
+              if (!--graph.uses[root])
+                graph.values[root] = {};
+              if (++f.reductionStage == graph.reductions.size())
+                f.graphPhase = 2;
+              f.started = f.succeeded = false;
+              if (task.cancelled())
+                return;
+              continue;
+            }
             const auto edge = graph.products[f.graphStage];
             f.staging.reset();
             f.resources.reset();
@@ -698,7 +834,14 @@ struct Bridge {
             for (auto operand : {edge.left, edge.right})
               if (!--graph.uses[operand])
                 graph.values[operand] = {};
-            if (++f.graphStage == graph.products.size()) {
+            ++f.graphStage;
+            if (!graph.reductions.empty()) {
+              f.started = f.succeeded = false;
+              if (task.cancelled())
+                return;
+              continue;
+            }
+            if (f.graphStage == graph.products.size()) {
               f.result = std::move(graph.values.back());
               f.packet.graph.reset();
               f.graphKernel = {};
@@ -861,7 +1004,7 @@ struct Bridge {
             task.fault(std::int64_t(Error::Residency));
             return;
           }
-          if (!source->size && !f.packet.epilogue) {
+          if (!source->size && !f.packet.epilogue && !(f.packet.graph && f.graphPhase == 1)) {
             task.complete(&f.scalar);
             return;
           }
@@ -991,6 +1134,14 @@ struct Bridge {
               return;
             }
             f.staging = *parametersBuffer;
+            if (f.packet.graph && f.graphPhase == 2) {
+              auto readback = allocateMetal(state, index, 4, true);
+              if (!readback) {
+                task.fault(std::int64_t(readback.error()));
+                return;
+              }
+              f.joinReadback = *readback;
+            }
             id<MTLArgumentEncoder> arguments = nil;
             if (kernel->indirect()) {
               auto resources = allocateMetal(state, index, kernel->encodedBytes, true);
@@ -1078,6 +1229,19 @@ struct Bridge {
             [encoder dispatchThreadgroups:MTLSizeMake((lanes + 63) / 64, 1, 1)
                     threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
             [encoder endEncoding];
+            if (f.packet.graph && f.graphPhase == 2) {
+              id<MTLBlitCommandEncoder> blit = state->permit() ? [command blitCommandEncoder] : nil;
+              if (!blit) {
+                task.fault(std::int64_t(Error::Allocation));
+                return;
+              }
+              [blit copyFromBuffer:f.result.storage_->metal->buffer
+                       sourceOffset:0
+                           toBuffer:f.joinReadback->buffer
+                  destinationOffset:0
+                               size:4];
+              [blit endEncoding];
+            }
             if (!state->permit()) {
               task.fault(std::int64_t(Error::Allocation));
               return;
@@ -1660,6 +1824,52 @@ TaskHandle Runtime::matmulGraphReduceSum(Task &task, GroupHandle group, Kernel k
     packet.epilogue = std::move(epilogue);
   } else if (!scalars.empty())
     packet.preparation = Error::Invalid;
+  return task.spawn(group, Bridge::reductionEntry,
+                    {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::graphReductions(TaskCore &task, GroupHandle group, Kernel base,
+                                    std::span<const Buffer> inputs,
+                                    std::span<const MatrixProduct> products, Kernel reduction,
+                                    Kernel join, std::span<const std::uint32_t> roots,
+                                    std::span<const float> scalars, std::span<const Kernel> maps,
+                                    std::span<const float> mapScalars) noexcept {
+  Bridge::PacketData packet{
+      state_, {}, {}, Bridge::Kind::Matmul, std::move(base), BinaryOperation::Add, {}};
+  if (roots.size() < 2)
+    packet.preparation = Error::Invalid;
+  else {
+    auto graph =
+        Bridge::captureGraph(state_, packet.kernel, inputs, products, maps, mapScalars, roots);
+    if (graph)
+      packet.graph = *graph;
+    else
+      packet.preparation = graph.error();
+  }
+  packet.reduction = std::move(reduction);
+  Bridge::captureJoin(packet, std::move(join), scalars);
+  return task.submit(group, Bridge::reductionEntry,
+                     {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::graphReductions(Task &task, GroupHandle group, Kernel base,
+                                    std::span<const Buffer> inputs,
+                                    std::span<const MatrixProduct> products, Kernel reduction,
+                                    Kernel join, std::span<const std::uint32_t> roots,
+                                    std::span<const float> scalars, std::span<const Kernel> maps,
+                                    std::span<const float> mapScalars) noexcept {
+  Bridge::PacketData packet{
+      state_, {}, {}, Bridge::Kind::Matmul, std::move(base), BinaryOperation::Add, {}};
+  if (roots.size() < 2)
+    packet.preparation = Error::Invalid;
+  else {
+    auto graph =
+        Bridge::captureGraph(state_, packet.kernel, inputs, products, maps, mapScalars, roots);
+    if (graph)
+      packet.graph = *graph;
+    else
+      packet.preparation = graph.error();
+  }
+  packet.reduction = std::move(reduction);
+  Bridge::captureJoin(packet, std::move(join), scalars);
   return task.spawn(group, Bridge::reductionEntry,
                     {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
 }

@@ -390,6 +390,20 @@
       "evidence": [
         "gpu-graph-arithmetic-2026-10-21.json"
       ]
+    },
+    {
+      "id": "multiple-reductions",
+      "feature": "Multiple resident reductions and scalar joins",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "multiple-reductions.k",
+        "capabilities/multiple-reductions.k"
+      ],
+      "notes": "Rank-one/rank-two float32 reductions over inputs and shared intermediates; final strict scalar expression and one readback; larger joins use Tier 2",
+      "evidence": [
+        "gpu-multiple-reductions-2026-10-21.json"
+      ]
     }
   ]
 }
