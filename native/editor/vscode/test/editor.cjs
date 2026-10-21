@@ -848,6 +848,22 @@ async function run() {
   await clearDiagnostics(main);
   await hover(main, "double(21)");
   checks.push("Placement-mode device-selector completion edits only the member, preserves the explicit index and checks without probing hardware");
+  const openCalleeSource = "fn double(value:int):\n  value*2\nfn main():\n  dou|Suffix(21\n";
+  const openCalleeCompletion = await complete(main, openCalleeSource, "double");
+  const openCalleeItem = openCalleeCompletion.items.find((item) => label(item) === "double");
+  assert.equal(openCalleeItem.kind, vscode.CompletionItemKind.Function);
+  await applyCompletion(main, openCalleeItem, "douSuffix", "double");
+  const appliedOpenCallee = openCalleeSource.replace("dou|Suffix", "double");
+  assert.equal(main.getText(), appliedOpenCallee);
+  await eventually(() => vscode.languages.getDiagnostics(mainUri).some((item) => item.code === "L005"),
+    "real unclosed call diagnostic after callee completion");
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, appliedOpenCallee.trimEnd()+")\n");
+  await clearDiagnostics(main);
+  assert(hoverText(await hover(main, "double(21)")).includes("int64"));
+  checks.push("Callee completion inside an unclosed argument list preserves arguments and the actual delimiter diagnostic, then checks after the user closes the call");
+  await replace(main, mainDisk);
+  await clearDiagnostics(main);
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,

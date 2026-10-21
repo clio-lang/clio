@@ -1941,6 +1941,49 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert not signature_document.exists() and selector_hint_library.read_text() == selector_hint_library_text
     client.finish()
 
+    # Callee-name completion can append bounded missing parentheses at EOF.
+    callee_library = Path(temp) / 'open-callee.k'
+    callee_library_text = 'export fn combine(left:int,right:int):\n  left+right\n'
+    callee_library.write_text(callee_library_text)
+    callee_text = ('# 👩\nfrom "./open-callee.k" import combine as calculate\n'
+                   'fn main():\n  calSuffix(1,2\n')
+    client = Client()
+    client.init()
+    client.open(signature_document,callee_text)
+    before = publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert before and any(d['code']=='L005' for d in before), before
+    result = client.completion(signature_document,3,5)['result']
+    assert [(item['label'],item['kind']) for item in result['items']] == [('calculate',3)], result
+    item = result['items'][0]
+    assert item['textEdit'] == {'newText':'calculate','range':{
+        'start':{'line':3,'character':2},'end':{'line':3,'character':11}}}, item
+    assert not client.barrier(), 'callee recovery published probe diagnostics'
+    applied = apply_workspace_edit({'documentChanges':[{'textDocument':{'uri':signature_document.as_uri()},
+        'edits':[item['textEdit']]}]}, {signature_document.as_uri():callee_text})[signature_document.as_uri()]
+    assert applied == callee_text.replace('calSuffix','calculate')
+    client.change(signature_document,applied,2)
+    after = publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert after and any(d['code']=='L005' for d in after), after
+    assert client.hover(signature_document,3,4)['result'] is None
+    completed = applied.rstrip()+')\n'
+    client.change(signature_document,completed,3)
+    assert not publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert client.hover(signature_document,3,4)['result'] is not None
+    client.open(callee_library,'export fn combine(left:String,right:String):\n  left+right\n')
+    client.barrier()
+    client.change(signature_document,callee_text,4)
+    client.barrier()
+    assert client.completion(signature_document,3,5)['result']['items'][0]['label'] == 'calculate'
+    client.change(signature_document,completed,5)
+    assert publications(client.barrier())[signature_document.as_uri()]['diagnostics'], 'arguments must still check after real closure'
+    rejected = ('from "./open-callee.k" import combine as calculate\nfn main():\n'
+                '  value=1\n  calculate(vaSuffix\n')
+    client.change(signature_document,rejected,6)
+    client.barrier()
+    assert client.completion(signature_document,3,14)['result']['items'] == [], 'argument suffix must retain old recovery boundary'
+    assert not signature_document.exists() and callee_library.read_text()==callee_library_text
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"

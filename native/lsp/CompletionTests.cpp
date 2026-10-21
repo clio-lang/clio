@@ -587,9 +587,41 @@ int main() {
     require(info.names.size() == 1 && info.names[0].kind == ScopeNameKind::Function,
             "CPU-mode source functions retain normal transfer completion");
     info = query(transferStart + "    try await tra|(values,devices.gpu()\n", placement);
-    require(info.names.empty(), "call recovery does not repair syntax after the caret");
+    require(has(info, "transfer"), "callee recovery preserves trailing selector arguments");
     info = query(transferStart + "    try await (values -> tra|\n", placement);
     require(has(info, "transfer"), "end-of-buffer pipeline recovery retains placement scope");
+    info = query(combine + "fn main():\n  com|Suffix(1,2\n");
+    require(info.names.size() == 1 && has(info, "combine") &&
+                info.replacement.end - info.replacement.begin == 9,
+            "callee completion preserves complete arguments before appending trailing parentheses");
+    info = query(combine + "fn main():\n  com|(1,combine(2,3\n");
+    require(has(info, "combine"), "nested missing call parentheses at EOF");
+    info = query("fn main():\n  [1,2] -> ma|Suffix(fn(v:int):v*2\n");
+    require(has(info, "map") && has(info, "matmul"), "builtin pipeline callee recovery");
+    info = query("fn main():\n  target=devices.g|Suffix(1\n  0\n", placement);
+    require(info.names.empty(), "later statements do not become hidden selector arguments");
+    info = query("fn main():\n  (devices.g|Suffix(1\n", placement);
+    require(has(info, "gpu"), "qualified selector callee retains member-only replacement");
+    info = query("type Box:\n  callback:fn(int)->int\nfn main():\n"
+                 "  box=Box {callback:fn(v:int):v+1}\n  box.ca|Suffix(2\n");
+    require(has(info, "callback") && info.names[0].kind == ScopeNameKind::Field,
+            "checked record callee member completion in open call");
+    require(query(combine + "fn main():\n  unknown.ca|Suffix(1,2\n").names.empty(),
+            "invalid member receiver suppresses callee repair");
+    require(query(combine + "fn main():\n  broken=missing\n  com|(1,2\n").names.empty(),
+            "prior semantic errors suppress recovered callees");
+    require(query(combine + "fn main():\n  com|(1 +,2\n").names.empty(),
+            "malformed arguments are not repaired");
+    require(query(combine + "fn main():\n  com|([1,2\n").names.empty(),
+            "callee recovery does not close arrays");
+    require(query(combine + "fn main():\n  com|({value:1\n").names.empty(),
+            "callee recovery does not close records");
+    require(query(combine + "fn main():\n  com|(1,2]\n").names.empty(),
+            "callee recovery rejects mismatched delimiters");
+    require(query(combine + "fn main():\n  com|(\"unterminated\n").names.empty(),
+            "callee recovery rejects other lexical errors");
+    require(query(combine + "fn main():\n  ((((((((com|(1,2\n").names.empty(),
+            "callee recovery retains eight-parenthesis bound");
     std::cout << "Native scope completion passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

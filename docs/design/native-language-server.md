@@ -553,13 +553,14 @@ same completion names and whole-identifier replacement rules as balanced source.
 A balanced call that is still missing later parameters can also provide names in
 its current final argument.
 
-Completion and signature help share the same trailing-call delimiter policy:
+Argument completion and signature help share the same trailing-call delimiter policy:
 the original cursor must be at the end of the buffer with only whitespace after
 it, the only lexical errors may be unclosed delimiters, and at most eight
 parentheses can be closed. Arrays/records, mismatches, strings, remaining suffixes
 and later source are not repaired. The existing completion probe and any temporary
 parentheses count against source budgets. The graph still has to parse after the
-repair; this is not general parser recovery.
+repair; this is not general parser recovery. Call-target names additionally use
+the bounded EOF repair described [below](#call-target-completion-before-missing-parentheses).
 
 For a known function whose current final argument contains the query but later
 parameters are missing, the checker validates the callee and supplied prefix,
@@ -1029,8 +1030,8 @@ With placement checking enabled, a partly typed call such as
 arguments, delimiters and the explicit device index. Direct and piped calls,
 including bare pipeline targets, use the same checker scope. Bounded existing
 end-of-buffer parenthesis recovery can also retain a final pipeline target such
-as `try await (values -> tra`. A caret inside a name followed by an unfinished
-argument list remains outside that recovery contract.
+as `try await (values -> tra`. A name before an unfinished argument list also
+uses the [call-target EOF repair](#call-target-completion-before-missing-parentheses) below.
 
 The added builtin candidate requires the current checker frame to own a parallel
 group and the call to be an ordinary invocation. It is excluded in `spawn` entry
@@ -1090,3 +1091,38 @@ covers CPU/default-GPU/explicit-index forms, the maximum uint32 index, pipelines
 invalid calls, placement gating and checked imported source identity. Debug and
 sanitizer tests, relocated Release tools and installed VS Code verify the hover
 and argument hints without GPU execution.
+
+#### Call-target completion before missing parentheses
+
+Completion can now replace a partly typed call name before its argument list has
+all closing parentheses. For example, with an imported function named `calculate`,
+`calSuffix(1,2` with the cursor after `cal` offers `calculate`. The edit replaces
+only `calSuffix`; both arguments and the actual missing-delimiter diagnostic
+remain. The user still closes the call. Named functions, builtin call forms,
+pipeline calls, checked record members and placement selectors/transfer calls
+retain their existing scope, receiver and placement rules.
+
+For this call-target-only case, the temporary source appends at most eight closing
+parentheses at EOF. It preserves all original text after the selected name instead
+of closing the call at the cursor or removing arguments. The repaired graph must
+parse, and the probe must be exactly a parsed call's name or member. An ordinary
+argument name with an identifier suffix after the cursor does not gain recovery
+from this path. Existing end-of-buffer argument completion and signature-help
+recovery keep their original stricter boundary.
+
+Unclosed arrays/records, mismatched delimiters, other lexical errors, malformed
+arguments, remaining syntax errors and repairs beyond the eight-parenthesis or
+source-size budget are rejected. Invalid record receivers and prior semantic
+errors still suppress candidates. Name suggestions do not establish that the
+existing arguments satisfy a candidate's parameter types: ordinary checking
+validates them when the actual call parses. Current unsaved imported declarations
+participate without changing disk sources.
+
+Requests publish neither probe diagnostics nor partial typed modules. They do not
+change buffers/files, add real closing parentheses, or provide hover for unfinished
+source. Original-file replacement ranges and prefix filtering remain unchanged.
+
+[Open-callee qualification](../../native/metal-proof/evidence/native-lsp-open-callee-completion-2026-10-21.json)
+covers direct/nested/piped/qualified/member call names, preserved arguments,
+recovery exclusions and bounds, imported overlays, ordinary delimiter diagnostics,
+relocated Release tools and an applied completion in installed VS Code.

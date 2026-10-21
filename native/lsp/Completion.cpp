@@ -104,15 +104,20 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
   auto source = std::make_shared<const SourceFile>(canonical, text);
   const auto tokens = lex(source);
   std::size_t closures = 0;
+  bool calleeRepair = false;
   if (!tokens.diagnostics.empty()) {
-    const auto repaired = trailingCallClosures(tokens, text, offset);
+    auto repaired = trailingCallClosures(tokens, text, offset);
+    if (!repaired) {
+      repaired = trailingCallClosures(tokens, text, text.size());
+      calleeRepair = repaired.has_value();
+    }
     if (!repaired)
       return result;
     closures = *repaired;
   }
   for (const auto &token : tokens.tokens) {
     if (token.kind == TokenKind::String && token.span.begin < offset && offset < token.span.end)
-      return completeImportPaths(source, token, offset, overlays);
+      return calleeRepair ? result : completeImportPaths(source, token, offset, overlays);
     if (token.kind == TokenKind::Identifier && token.span.begin <= offset &&
         offset <= token.span.end) {
       result.replacement = token.span;
@@ -174,8 +179,12 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
         result.replacement.begin + probe.size() + following[0]->span.end - result.replacement.end;
     replacement.insert(at, " " + std::string(filler));
   }
-  if (closures)
-    replacement.insert(result.replacement.begin + probe.size(), closures, ')');
+  if (closures) {
+    if (calleeRepair)
+      replacement.append(closures, ')');
+    else
+      replacement.insert(result.replacement.begin + probe.size(), closures, ')');
+  }
   std::erase_if(overlays, [&](const auto &entry) {
     std::error_code ec;
     return std::filesystem::weakly_canonical(entry.path, ec).string() == canonical && !ec;
@@ -299,6 +308,23 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
   }
   if (!site)
     return result;
+  if (calleeRepair) {
+    // Repair after the cursor is allowed only for a parsed call target. Appending
+    // at EOF preserves every original argument/suffix; it does not project a hole.
+    const auto isCallee = [&](const Expr &expression) {
+      const auto *call = std::get_if<CallExpr>(&expression.value);
+      if (!call)
+        return false;
+      const auto &callee = syntax->module.expressions[call->callee];
+      if (const auto *name = std::get_if<NameExpr>(&callee.value))
+        return name->name.begin <= site->begin && name->name.end == site->end;
+      if (const auto *field = std::get_if<FieldExpr>(&callee.value))
+        return field->field.begin == site->begin && field->field.end == site->end;
+      return false;
+    };
+    if (!std::ranges::any_of(syntax->module.expressions, isCallee))
+      return result;
+  }
   ScopeCompletion query{*site, prefix, {}, false, false};
   options.completion = &query;
   (void)check(std::move(*syntax), {}, options);
