@@ -112,3 +112,27 @@ Controlled servers and that probe do not establish compatibility with every host
 proxy, certificate setup, authentication method or Git version. Broader public-host qualification,
 authenticated/SSH transport, broader ref-host qualification, crash recovery
 and broader installed Metal execution remain separate qualification work.
+
+## Named updates over HTTP(S)
+
+The [named update command](native-package-update.md) uses the same isolated
+transport policy as installation and ref lookup. A selected branch or tag is
+resolved again; an unselected root and an unchanged library's private branch pin
+remain fixed, even when they use the same repository and requested ref. A cached
+selected snapshot does not let a mutable update skip current remote resolution.
+
+TLS failures, authentication challenges, redirects, malformed advertisements,
+unavailable servers and invalid newly downloaded source graphs leave the prior
+active lock unchanged. Ordinary checking/building and frozen/offline installation
+still consume that prior selected graph without contacting the server. Update
+does not add authentication, inherited credential helpers, SSH, redirects or a
+CLI TLS bypass. An explicitly supplied CA remains an installer API facility.
+
+[Remote-update qualification](../../native/metal-proof/evidence/native-remote-update-2026-10-21.json)
+uses controlled loopback HTTP and HTTPS servers, a generated fixture certificate
+and no external service or user credentials. It checks selected branch/tag moves,
+unselected aliases/private branch pins, actual trusted/untrusted TLS behavior,
+failed activation and relocated installed CPU compiler updates. After both
+servers stop, old frozen and newly updated graphs compile and run their CPU
+workers with the expected distinct versions. These checks do not qualify public
+hosting, authenticated transport or another platform.

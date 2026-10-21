@@ -69,5 +69,7 @@ Compiled worker programs verify the resulting root/private version choices.
 updates across CPU workers and GPU helpers, preserving private branch pins and
 pre-update applications through offline relocation. Existing lock and Git-ref
 qualification remains regression coverage. This does not
-add authenticated/SSH transport, remote update acceptance, version-range solving,
-cache pruning or a recursive update command.
+add authenticated/SSH transport, version-range solving, cache pruning or a
+recursive update command. [Controlled HTTP/TLS update acceptance](native-remote-git.md#named-updates-over-https)
+now checks selected refs, private pins, transport failures and offline worker
+results through the existing remote transport policy.

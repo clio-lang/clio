@@ -44,6 +44,7 @@ def git(path, *command):
     return run('/usr/bin/git', '-C', path, *command).stdout.decode().strip()
 
 requests = []
+transport_failures = {}
 request_lock = threading.Lock()
 stopped = threading.Event()
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -60,12 +61,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         path = urlsplit(self.path)
         with request_lock:
             requests.append(path.path)
-        if path.path.startswith('/redirect/'):
+            failure = next((mode for prefix, mode in transport_failures.items()
+                            if path.path.startswith(prefix + '/')), None)
+        if failure == 'redirect' or path.path.startswith('/redirect/'):
             self.send_response(302)
             self.send_header('Location', f'http://127.0.0.1:{self.server.server_port}/forbidden/geometry.git/info/refs?service=git-upload-pack')
             self.end_headers()
             return
-        if path.path.startswith('/auth/'):
+        if failure == 'auth' or path.path.startswith('/auth/'):
             self.send_response(401)
             self.send_header('WWW-Authenticate', 'Basic realm="fixture"')
             self.end_headers()
@@ -75,7 +78,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(503)
             self.end_headers()
             return
-        if path.path.startswith('/malformed/'):
+        if failure == 'malformed' or path.path.startswith('/malformed/'):
             self.send_response(200)
             self.send_header('Content-Type', 'application/x-git-upload-pack-advertisement')
             self.end_headers()
@@ -168,6 +171,8 @@ git(geometry_work, 'push', remote_geometry, 'HEAD:refs/heads/future')
 
 parent = repository('parent', 'from "geometry" import next\nexport fn compute(n:int64)->int64:\n  next(n)\n',
                     request('geometry', base + '/geometry.git', first))
+branch_parent = repository('branch-parent', 'from \"geometry\" import next\nexport fn compute(n:int64)->int64:\n  next(n)\n',
+                           request('geometry', base + '/geometry.git', 'main'))
 large = repository('large', simple, extra=lambda path: (path / 'large.bin').write_bytes(os.urandom(1024 * 1024)))
 unsafe = repository('unsafe', simple, extra=lambda path: (path / 'link.k').symlink_to('public.k'))
 local = repository('local-dependency', simple, request('private', str(root / 'private'), first))
@@ -214,7 +219,7 @@ try:
     tls_app = root / 'tls-application'
     tls_app.mkdir()
     tls_manifest = tls_app / 'kalandra.toml'
-    tls_manifest.write_text("format=1\n[project]\nentry='main.k'\n[dependencies]\n" + request('geometry', tls + '/geometry.git', first))
+    tls_manifest.write_text("format=1\n[project]\nentry='main.k'\n[dependencies]\n" + request('geometry', tls + '/geometry.git', 'main'))
     (tls_app / 'main.k').write_text('from "geometry" import next\nfn main()->int64 ! TaskError:\n  try parallel:\n    try await spawn next(41)\n')
     run(args.compiler, 'install', '--project', tls_manifest, ok=False)
     assert not (tls_app / 'kalandra.lock').exists()
@@ -306,8 +311,14 @@ try:
     ref_app = root / 'ref application'
     ref_app.mkdir()
     ref_manifest = ref_app / 'kalandra.toml'
-    ref_manifest.write_text("format=1\n[project]\nentry='main.k'\n[dependencies]\n" + request('geometry', base + '/geometry.git', 'main'))
-    (ref_app / 'main.k').write_bytes((tls_app / 'main.k').read_bytes())
+    ref_manifest.write_text("format=1\n[project]\nentry='main.k'\n[dependencies]\n" +
+        request('geometry', base + '/geometry.git', 'main') +
+        request('other', base + '/geometry.git', 'main') +
+        request('tagged', base + '/geometry.git', 'release') +
+        request('parent', base + '/branch-parent.git', branch_parent))
+    (ref_app / 'main.k').write_text('from "geometry" import next\nfrom "parent" import compute\n'
+        'fn main()->[int64] ! TaskError:\n  try parallel:\n'
+        '    direct=try await spawn next(41)\n    private=try await spawn compute(41)\n    [direct,private]\n')
     run(args.compiler, 'install', '--project', ref_manifest)
     ref_lock = (ref_app / 'kalandra.lock').read_bytes()
     assert tomllib.loads(ref_lock.decode())['roots'][0]['commit'] == first
@@ -328,6 +339,62 @@ try:
         (ref_fresh / filename).write_bytes((ref_app / filename).read_bytes())
     run(args.compiler, 'install', '--project', ref_fresh / 'kalandra.toml', '--frozen')
     assert (ref_fresh / 'kalandra.lock').read_bytes() == ref_lock
+    # Update the same HTTP branch deliberately; unrelated aliases and private
+    # branch pins must stay fixed even though they use the identical repository.
+    manifest_bytes = ref_manifest.read_bytes()
+    source_bytes = (ref_app / 'main.k').read_bytes()
+    run(args.compiler, 'update', 'geometry', '--project', ref_manifest)
+    updated = (ref_app / 'kalandra.lock').read_bytes()
+    selected = tomllib.loads(updated.decode())
+    assert {edge['name']:edge['commit'] for edge in selected['roots']} == {
+        'geometry':second,'other':first,'tagged':first,'parent':branch_parent}
+    owner = next(package for package in selected['packages'] if package['commit'] == branch_parent)
+    assert owner['dependencies'][0]['commit'] == first
+    assert len(selected['packages']) == 3
+    # Explicitly update a moved tag too, retaining the still-unselected branch alias.
+    run(args.compiler, 'update', 'geometry', 'tagged', '--project', ref_manifest)
+    updated = (ref_app / 'kalandra.lock').read_bytes()
+    assert {edge['name']:edge['commit'] for edge in tomllib.loads(updated.decode())['roots']} == {
+        'geometry':second,'other':first,'tagged':second,'parent':branch_parent}
+    assert ref_manifest.read_bytes() == manifest_bytes and (ref_app / 'main.k').read_bytes() == source_bytes
+    # Re-resolution still verifies TLS despite a cached old snapshot and ambient
+    # bypass settings. The private test API can supply its explicit trusted CA.
+    tls_before = (tls_app / 'kalandra.lock').read_bytes()
+    run(args.compiler, 'update', 'geometry', '--project', tls_manifest, ok=False)
+    assert (tls_app / 'kalandra.lock').read_bytes() == tls_before
+    api('update', tls_manifest, tls + '/geometry.git', 'geometry', certificate=ca)
+    assert tomllib.loads((tls_app / 'kalandra.lock').read_text())['roots'][0]['commit'] == second
+    # Ref lookup failures must not fall back to the cached selected commit.
+    for failure in ['auth', 'redirect', 'malformed']:
+        with request_lock:
+            transport_failures['/geometry.git'] = failure
+            before = len(requests)
+        run(args.compiler, 'update', 'geometry', '--project', ref_manifest, ok=False)
+        with request_lock:
+            assert len(requests) > before
+            del transport_failures['/geometry.git']
+        assert (ref_app / 'kalandra.lock').read_bytes() == updated
+        assert ref_manifest.read_bytes() == manifest_bytes
+        assert not any(path.startswith('/forbidden/') for path in requests)
+    if args.build:
+        installed_update_app = root / 'installed update application'
+        shutil.copytree(ref_fresh, installed_update_app)
+        installed_update_manifest = installed_update_app / 'kalandra.toml'
+        run(installed, 'update', 'geometry', '--project', installed_update_manifest)
+        installed_selected = tomllib.loads((installed_update_app / 'kalandra.lock').read_text())
+        assert {edge['name']:edge['commit'] for edge in installed_selected['roots']} == {
+            'geometry':second,'other':first,'tagged':first,'parent':branch_parent}
+    # A newer commit downloads successfully but has an invalid import graph.
+    # Mutate only fixture-owned Git data with injected configuration disabled.
+    (geometry_work / 'public.k').write_text('from "missing" import absent\nexport fn next(n:int64)->int64:\n  absent(n)\n')
+    for command in [('add','--all'),('commit','-m','broken update'),('push',str(remote_geometry),'HEAD:refs/heads/main')]:
+        changed = subprocess.run(['/usr/bin/git','-C',str(geometry_work),*command],
+            env={**env,'GIT_CONFIG_COUNT':'0'},capture_output=True,timeout=30)
+        assert changed.returncode == 0, changed.stderr
+    run(args.compiler, 'update', 'geometry', '--project', ref_manifest, ok=False)
+    assert (ref_app / 'kalandra.lock').read_bytes() == updated
+    assert not list((ref_app / '.kalandra').rglob('.activate-*'))
+    assert not list((ref_app / '.kalandra').rglob('.kalandra-snapshot-*'))
     assert not marker.exists()
 finally:
     stopped.set()
@@ -348,10 +415,20 @@ assert run(fresh_app / 'program').stdout == b'42\n'
 run(args.checker, '--project', manifest)
 run(args.checker, '--project', ref_fresh / 'kalandra.toml')
 run(args.compiler, '--project', ref_fresh / 'kalandra.toml', '-o', ref_fresh / 'program')
-assert run(ref_fresh / 'program').stdout == b'42\n'
+assert run(ref_fresh / 'program').stdout == b'[42, 42]\n'
 run(args.checker, '--project', tls_manifest)
 run(args.compiler, '--project', tls_manifest, '-o', tls_app / 'program')
-assert run(tls_app / 'program').stdout == b'42\n'
+assert run(tls_app / 'program').stdout == b'43\n'
+# A mutable update cannot succeed offline by silently reusing its selected pin.
+run(args.compiler, 'update', 'geometry', '--project', ref_manifest, ok=False)
+assert (ref_app / 'kalandra.lock').read_bytes() == updated
+run(args.compiler, 'install', '--project', ref_manifest, '--frozen', '--offline')
+run(args.checker, '--project', ref_manifest)
+run(args.compiler, '--project', ref_manifest, '-o', ref_app / 'program')
+assert run(ref_app / 'program').stdout == b'[43, 42]\n'
+if args.build:
+    run(installed, '--project', installed_update_manifest, '-o', installed_update_app / 'program')
+    assert run(installed_update_app / 'program').stdout == b'[43, 42]\n'
 if args.metal:
     run(args.checker, '--placement', '--project', gpu_manifest)
     run(args.metal, '--project', gpu_manifest, '-o', gpu_app / 'emitted')
@@ -370,4 +447,4 @@ assert len(requests) == observed
 source = next(trusted.glob('*/source/public.k'))
 source.write_text('corrupt')
 api('install', trusted, tls + '/geometry.git', ok=False)
-print('Remote Git: strict TLS and URL policy, bounded HTTP(S) fetch, transitive activation, rollback, rejection, timeout and offline workers passed')
+print('Remote Git: strict TLS and URL policy, bounded HTTP(S) fetch, transitive activation, rollback, rejection, timeout, named updates/private pins/TLS rollback and offline workers passed')

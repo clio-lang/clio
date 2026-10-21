@@ -21,10 +21,13 @@ int main(int argc, char **argv) {
     limits.maxListingBytes = 32;
   else if (budget != "normal")
     return 2;
-  if (mode == "project") {
+  if (mode == "project" || mode == "update") {
     kalandra::PackageInstallLimits projectLimits;
     projectLimits.snapshot = limits;
-    auto result = kalandra::installNativeProject(argv[2], projectLimits);
+    kalandra::PackageInstallOptions options;
+    if (mode == "update")
+      options.updateRoots.emplace_back(argv[4]);
+    auto result = kalandra::installNativeProject(argv[2], projectLimits, options);
     if (!result) {
       std::cerr << result.error() << '\n';
       return 1;
