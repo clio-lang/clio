@@ -282,9 +282,10 @@ int main() {
     require(!recover(add + records +
                      "fn main():\n  reading=Reading {value:2}\n  add(missing, reading.|)\n"),
             "empty field preserves earlier argument errors");
-    require(
-        !recover(add + records + "fn main():\n  reading=Reading {value:2}\n  add(reading.|, 1)\n"),
-        "nonfinal empty field not recovered");
+    result =
+        recover(add + records + "fn main():\n  reading=Reading {value:2}\n  add(reading.|, 1)\n");
+    require(result && result->activeParameter == 0,
+            "earlier empty field receives checked guidance");
     require(!recover(add + records +
                      "fn main():\n  reading=Reading {value:2}\n  add(1, reading.|unknown)\n"),
             "existing suffix not replaced with a field probe");
@@ -676,6 +677,31 @@ int main() {
     require(!originalChecked.ok() && !originalChecked.module &&
                 originalChecked.diagnostics[0].code == "S016",
             "ordinary compilation keeps actual unknown argument diagnostics");
+    const std::string emptyPrefix =
+        "type Reading:\n  value:int\n" + triple + "fn main():\n  reading=Reading {value:1}\n";
+    result = recover(emptyPrefix + "  triple(reading.|,2\n");
+    require(result && result->activeParameter == 0 && result->parameters.size() == 3,
+            "empty earlier field combines with EOF repair and missing later parameter");
+    result = recover(emptyPrefix + "  1 -> triple(reading.|,3)\n");
+    require(result && result->activeParameter == 1, "empty middle field counts pipeline argument");
+    result = recover(emptyPrefix + "  callbacks=[triple]\n  callbacks[0](reading.|,2,3)\n");
+    require(result && result->activeParameter == 0 && result->label.starts_with("fn("),
+            "empty earlier field with indexed callable");
+    result = recover("type Reading:\n  __kalandra_signature_field:String\n" + add +
+                     "fn main():\n  reading=Reading {__kalandra_signature_field:\"text\"}\n  "
+                     "add(reading.|,2)\n");
+    require(result && result->label == "fn add(left: int64, right: int64) -> int64",
+            "colliding field probe never supplies an actual argument value");
+    require(!recover(emptyPrefix + "  triple(\"bad\",reading.|,3)\n"),
+            "invalid prefix suppresses empty middle slot");
+    require(!recover(emptyPrefix + "  triple(missing.|,2,3)\n"),
+            "unknown receiver suppresses empty first slot");
+    require(!recover(emptyPrefix + "  triple(1.|,2,3)\n"),
+            "numeric receiver cannot supply empty field guidance");
+    require(!recover(emptyPrefix + "  triple(reading.|,,3)\n"),
+            "empty-field probe does not repair a second malformed argument");
+    require(!recover(emptyPrefix + "  triple(reading.|,[2,3\n"),
+            "empty-field repair does not close an unclosed later array");
     std::cout << "Native checked signature help passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

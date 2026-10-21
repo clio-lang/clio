@@ -504,11 +504,11 @@ is checked in the same lexical frame; this creates no executable or partial type
 program. Existing compiler diagnostics and ordinary hover still analyze the real
 field expression, and query-only checking never changes buffers or files.
 
-For a nonempty field, the edited field must be the final argument and the cursor
-must be within its final identifier or at its end. Empty field slots use the
-bounded recovery below; arbitrary unfinished expressions remain unsupported.
-Closing-delimiter repair still requires the cursor at the end of the buffer with
-only whitespace after it.
+For a nonempty field, the cursor must be within its final identifier or at its
+end. The initial final-argument path is complemented by
+[earlier-argument snapshots](#earlier-argument-signature-snapshots). Empty field
+slots use the bounded recovery below; arbitrary unfinished expressions remain
+unsupported. End-cursor and bounded EOF-only repairs are described below.
 
 [Record-field argument qualification](../../native/metal-proof/evidence/native-lsp-field-arguments-2026-10-21.json)
 covers semantic and protocol checks, live imported record overlays, normal hover
@@ -516,16 +516,19 @@ isolation, relocated Release tools and installed VS Code provider commands.
 
 #### Empty record-field arguments
 
-Signature help also works immediately after a dot in the final argument, such as
-`combine(1, reading.)`. The cursor must be directly after the dot. The next
-non-layout token must be a closing parenthesis, or there must be no following
-token. An existing identifier suffix, comma or compound expression is never
-replaced. Ordinary hints for already-valid code remain unchanged.
+Signature help also works immediately after a dot in an argument, such as
+`combine(1, reading.)` or `combine(reading., 2)`. The cursor must be directly
+after the dot. The next non-layout token must be a closing parenthesis or comma,
+or there must be no following token. Existing identifier suffixes, commas and
+compound expressions are never overwritten. Ordinary hints for already-valid
+code remain unchanged.
 
 Only when the actual source does not parse, the query inserts one private field
-identifier into its temporary root overlay. That identifier is projected away by
-the existing [record-field guidance](#record-field-argument-editing) path before
-argument validation. The callee, earlier arguments and completed record receiver
+identifier into its temporary root overlay. The identifier only locates the
+existing [checked field projection](#record-field-argument-editing); it is never
+read as an argument value. Final-argument projection removes that argument from
+the request AST; earlier-slot snapshots retain its syntax without constructing
+a value. The callee, earlier arguments and completed record receiver
 must still check; unknown receivers and other graph errors suppress the hint.
 No field existence, value type or partially typed program is inferred from the
 probe. A recovered probe is required to take the field-projection path; it cannot
@@ -1268,8 +1271,8 @@ check. Later argument errors do not prevent a prefix-only signature snapshot.
 Invalid callees, bad earlier types, invalid record receivers, extra arguments,
 compound editing holes and unrelated reported graph errors suppress the new hint.
 Builtin families keep their individual checked/missing-argument admission; this
-does not invent an element or device contract. Empty non-final field slots and
-general parser recovery remain separate work.
+does not invent an element or device contract. Empty earlier field slots are
+covered below; general parser recovery remains separate work.
 
 Current imported buffers update parameter/result types and error channels. Source
 text, later argument spans, buffers/files and real diagnostics remain unchanged.
@@ -1282,3 +1285,37 @@ Direct checker tests verify snapshot-only failure and unchanged ordinary unknown
 argument diagnostics. Protocol, relocated Release and installed VS Code checks
 verify live imported parameters, label offsets, active slots and source/diagnostic
 preservation in balanced and open calls.
+
+#### Empty earlier-field signature slots
+
+An empty field before a comma now uses the same checked signature projection as
+a nonempty earlier field. In `combine(reading., 2)`, placing the cursor immediately
+after the dot shows the checked `combine` parameters and selects the first. It
+also works in middle slots, indexed callable invocations and pipelines, with the
+implicit first argument counted normally. A call with later required parameters
+not yet written can still show its complete expected signature.
+
+The request inserts one private field identifier into its temporary overlay only
+when the actual source does not parse. A following comma is preserved along with
+all later source. The parsed field must take the mandatory checked-receiver
+projection; it cannot be evaluated as an actual argument, including when the
+record happens to contain a field with the private probe's name. The callee,
+earlier supplied arguments and completed record receiver must still check.
+
+For missing closing parentheses, EOF-only repair preserves the comma and later
+arguments. Existing source-size, lexical-error, delimiter and eight-parenthesis
+bounds apply. Unknown/non-record receivers, invalid argument prefixes, existing
+identifier suffixes, compound holes, malformed later syntax and unclosed arrays
+are not bypassed. No probe name appears in returned signatures, source buffers,
+files, ordinary diagnostics or hover.
+
+Actual parser diagnostics remain until the user supplies a real field. The
+request does not choose a field, claim a field's type, or return an executable
+partial module. Current imported parameter types still update the expected
+signature without changing disk files.
+
+[Empty-earlier-field qualification](../../native/metal-proof/evidence/native-lsp-empty-earlier-field-2026-10-21.json)
+covers first/middle slots, pipelines, indexed callables, EOF repair, missing later
+parameters, probe-name collision, invalid prefixes/receivers and malformed suffixes
+in debug/sanitizer tests. Protocol, relocated Release and installed VS Code
+checks preserve actual diagnostics/source and verify current imported signatures.

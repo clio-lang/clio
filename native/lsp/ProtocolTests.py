@@ -2146,6 +2146,43 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert not signature_document.exists() and earlier_signature_library.read_text()==earlier_signature_library_text
     client.finish()
 
+    # Empty earlier field slots require checked receiver projection before a comma.
+    empty_earlier_library=Path(temp)/'empty-earlier-fields.k'
+    empty_earlier_library_text=('export type Reading:\n  value:int\nexport fn read():\n  Reading {value:2}\n'
+                                'export fn combine(left:int,right:int):\n  left+right\n')
+    empty_earlier_library.write_text(empty_earlier_library_text)
+    empty_earlier_text=('from "./empty-earlier-fields.k" import read, combine as calculate\nfn main():\n'
+                        '  reading=read()\n  calculate(reading.,2)\n')
+    client=Client()
+    client.init(signature_offsets=True)
+    client.open(signature_document,empty_earlier_text)
+    before=publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert before, 'actual empty field must retain parser diagnostic'
+    position=empty_earlier_text.splitlines()[3].index('reading.')+len('reading.')
+    result=client.signature(signature_document,3,position)['result']
+    expected='fn calculate(left: int64, right: int64) -> int64'
+    assert result['signatures'][0]['label']==expected and result['activeParameter']==0,result
+    begin,end=result['signatures'][0]['parameters'][0]['label']
+    assert expected[begin:end]=='left: int64',result
+    assert '__kalandra' not in str(result),result
+    assert client.hover(signature_document,3,position)['result'] is None
+    assert not client.barrier(),'empty earlier field query published probe diagnostics'
+    client.change(signature_document,empty_earlier_text.replace('reading.,','reading.value,'),2)
+    assert not publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    client.open(empty_earlier_library,empty_earlier_library_text.replace('left:int,right:int','left:uint32,right:uint32'))
+    client.barrier()
+    opened=empty_earlier_text.replace('reading.,2)','reading.,2')
+    client.change(signature_document,opened,3)
+    assert publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    result=client.signature(signature_document,3,position)['result']
+    assert result['signatures'][0]['label']=='fn calculate(left: uint32, right: uint32) -> uint32',result
+    unknown=opened.replace('reading.,','missing.,')
+    client.change(signature_document,unknown,4)
+    client.barrier()
+    assert client.signature(signature_document,3,unknown.splitlines()[3].index('missing.')+len('missing.'))['result'] is None
+    assert not signature_document.exists() and empty_earlier_library.read_text()==empty_earlier_library_text
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"

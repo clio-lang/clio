@@ -45,10 +45,11 @@ std::optional<SignatureInfo> signatureAt(const std::string &path, const std::str
     else if (token.span.begin >= offset && !following)
       following = &token;
   }
-  // Fill only an empty terminal field slot. The signature query still projects
+  // Fill an empty field slot before a call delimiter. The signature query still projects
   // that argument and checks its record receiver; this is never a source edit.
   if (previous && previous->kind == TokenKind::Dot && previous->span.end == offset &&
-      (!following || following->kind == TokenKind::RightParen)) {
+      (!following || following->kind == TokenKind::RightParen ||
+       following->kind == TokenKind::Comma)) {
     constexpr std::string_view probe = "__kalandra_signature_field";
     if (replacement.size() > SyntaxLimits{}.maxSourceBytes - probe.size())
       return {};

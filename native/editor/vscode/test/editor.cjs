@@ -932,6 +932,25 @@ async function run() {
   checks.push("Earlier argument signature help preserves later supplied arguments, missing parameters, real diagnostics and source while showing the checked active slot");
   await replace(main,mainDisk);
   await clearDiagnostics(main);
+  const emptyEarlierSource="type Reading:\n  value:int\nfn combine(left:int,right:int):\n  left+right\nfn main():\n  reading=Reading {value:2}\n  combine(reading.,2)\n";
+  await replace(main,emptyEarlierSource);
+  await eventually(() => vscode.languages.getDiagnostics(mainUri).length>0,
+    "actual missing field parser diagnostic before comma");
+  const emptyEarlierSignature=await eventually(async () => {
+    const result=await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider",mainUri,position(main,"reading.,",8),"(",
+    );
+    return result?.signatures?.[0]?.label === "fn combine(left: int64, right: int64) -> int64" ? result : undefined;
+  },"checked signature for an empty earlier field before comma");
+  assert.equal(emptyEarlierSignature.activeParameter,0);
+  assert(!emptyEarlierSignature.signatures[0].label.includes("__kalandra"));
+  assert.equal(main.getText(),emptyEarlierSource);
+  assert.equal(await fs.readFile(mainUri.fsPath,"utf8"),mainDisk);
+  await replace(main,emptyEarlierSource.replace("reading.,","reading.value,"));
+  await clearDiagnostics(main);
+  checks.push("Empty earlier field signature help validates the receiver and preserves real parser diagnostics and source until an actual field is supplied");
+  await replace(main,mainDisk);
+  await clearDiagnostics(main);
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,
