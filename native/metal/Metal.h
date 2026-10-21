@@ -113,6 +113,10 @@ struct ElementwiseSignature {
 struct MatrixProduct {
   std::uint32_t left, right;
 };
+// Broadcast one resident reduction into a later tensor map. Sorted by stage, then reduction.
+struct MatrixScalar {
+  std::uint32_t stage, reduction;
+};
 class Runtime final {
 public:
   static std::expected<std::unique_ptr<Runtime>, Error> create(Options = {}) noexcept;
@@ -186,17 +190,19 @@ public:
                                   Kernel epilogue = {}, std::span<const float> scalars = {},
                                   std::span<const Kernel> maps = {},
                                   std::span<const float> mapScalars = {}) noexcept;
-  // Multiple resident reductions joined by one scalar expression; only its result is read back.
+  // Resident reductions may feed later maps; only the final scalar expression is read back.
   TaskHandle graphReductions(TaskCore &, GroupHandle, Kernel base, std::span<const Buffer>,
                              std::span<const MatrixProduct>, Kernel reduction, Kernel join,
                              std::span<const std::uint32_t> roots, std::span<const float> scalars,
                              std::span<const Kernel> maps = {},
-                             std::span<const float> mapScalars = {}) noexcept;
+                             std::span<const float> mapScalars = {},
+                             std::span<const MatrixScalar> broadcasts = {}) noexcept;
   TaskHandle graphReductions(Task &, GroupHandle, Kernel base, std::span<const Buffer>,
                              std::span<const MatrixProduct>, Kernel reduction, Kernel join,
                              std::span<const std::uint32_t> roots, std::span<const float> scalars,
                              std::span<const Kernel> maps = {},
-                             std::span<const float> mapScalars = {}) noexcept;
+                             std::span<const float> mapScalars = {},
+                             std::span<const MatrixScalar> broadcasts = {}) noexcept;
   // One scalar task: optional input maps, matrix, optional adjustment, fixed reduction tree.
   TaskHandle matmulReduceSum(TaskCore &, GroupHandle, Kernel matrix, Kernel reduction, Buffer left,
                              Buffer right, Kernel leftMap = {}, Kernel rightMap = {},

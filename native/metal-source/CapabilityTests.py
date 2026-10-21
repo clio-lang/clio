@@ -145,7 +145,18 @@ def main():
                     for entry, index, stage in re.findall(r'^(kernel\d+)\.map(\d+)_stage=(kernel\d+-map\d+)$', manifest, re.M):
                         assert re.search(r'gpu.func @kalandra_elementwise(?:_v[23])?', (destination / (stage + '.mlir')).read_text())
                         assert stage + '.metallib' in (destination / 'host.cpp').read_text()
-                        assert int(re.search(r'^' + entry + r'\.map' + index + r'_tensors=(\d+)$', manifest, re.M)[1]) in (1, 2)
+                        assert int(re.search(r'^' + entry + r'\.map' + index + r'_tensors=(\d+)$', manifest, re.M)[1]) >= 1
+                    for entry, broadcasts in re.findall(r'^(kernel\d+)\.reduction_broadcasts=([^\n]+)$', manifest, re.M):
+                        pairs = [tuple(map(int, item.split(':'))) for item in broadcasts.split(',')]
+                        assert pairs == sorted(set(pairs))
+                        roots = list(map(int, re.search(r'^' + entry + r'\.reduction_inputs=([^\n]+)$', manifest, re.M)[1].split(',')))
+                        inputs = int(re.search(r'^' + entry + r'\.matrix_graph_inputs=(\d+)$', manifest, re.M)[1])
+                        stages = int(re.search(r'^' + entry + r'\.matrix_graph_stages=(\d+)$', manifest, re.M)[1])
+                        for stage, reduction in pairs:
+                            assert 0 <= stage < stages and 0 <= reduction < len(roots)
+                            assert all(root < inputs + stage for root in roots[:reduction+1])
+                            ir = (destination / f'{entry}-map{stage}.mlir').read_text()
+                            assert f'memref.load %a{inputs+stages+reduction}[%zero]' in ir
                     for entry, stage in re.findall(r'^(kernel\d+)\.join_stage=(kernel\d+-join)$', manifest, re.M):
                         assert re.search(r'gpu.func @kalandra_elementwise(?:_v[23])?', (destination / (stage + '.mlir')).read_text())
                         assert stage + '.metallib' in (destination / 'host.cpp').read_text()

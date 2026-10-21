@@ -773,4 +773,4 @@ optimization work.
 rank-one/rank-two float32 inputs and shared intermediate matrices under one
 scalar task. A device expression combines the reduced scalars before the only
 readback. Empty inputs seed positive zero; larger expressions use the existing
-Tier 2 binding path. Reduction-to-tensor feedback remains future work.
+Tier 2 binding path. [Resident reduction feedback](native-gpu-reduction-feedback.md) now feeds later tensor arithmetic and matrix products inside scalar-returning graphs. Tensor-returning feedback remains future work.

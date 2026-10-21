@@ -404,6 +404,20 @@
       "evidence": [
         "gpu-multiple-reductions-2026-10-21.json"
       ]
+    },
+    {
+      "id": "reduction-feedback",
+      "feature": "Reduced scalars feeding tensor arithmetic",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "reduction-feedback.k",
+        "capabilities/reduction-feedback.k"
+      ],
+      "notes": "Straight-line rank-one/rank-two float32 graphs returning a scalar; device scalar broadcasts, repeated feedback and matrix composition; tensor-returning feedback remains ahead",
+      "evidence": [
+        "gpu-reduction-feedback-2026-10-21.json"
+      ]
     }
   ]
 }

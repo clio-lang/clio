@@ -162,6 +162,14 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
         assert (multi_app / f"kernel0-{stage}.metallib").is_file()
     assert run([multi_app / "program"], cwd).stdout.strip() == "c3ad8000"
     applications.append((multi_app, "c3ad8000"))
+    feedback_source = cwd / "reduction-feedback.k"
+    feedback_source.write_bytes((fixtures / "reduction-feedback.k").read_bytes())
+    feedback_app = cwd / "reduction feedback application"
+    run([compiler, feedback_source, "--target", "metal", "-o", feedback_app, "-O2"], cwd)
+    for stage in ("reduce", "join", "map0", "map1"):
+        assert (feedback_app / f"kernel0-{stage}.metallib").is_file()
+    assert run([feedback_app / "program"], cwd).stdout.strip() == "402aaaab"
+    applications.append((feedback_app, "402aaaab"))
     # Local module/project imports go through the same installed Metal compiler.
     (cwd / "helper.k").write_text("export " + source.read_text().split("\n\nfn main", 1)[0] + "\n")
     source.write_text('from "math" import combine\n\nfn main' + source.read_text().split("\n\nfn main", 1)[1])

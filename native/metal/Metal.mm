@@ -9,6 +9,7 @@
 #include <bit>
 #include <condition_variable>
 #include <cstring>
+#include <exception>
 #include <limits>
 #include <mutex>
 #include <new>
@@ -234,6 +235,7 @@ struct MatrixGraphArguments {
   Kernel join;
   std::shared_ptr<const Arguments> joinArguments;
   std::vector<MatrixProduct> products;
+  std::vector<MatrixScalar> broadcasts;
   std::vector<Kernel> maps;
   std::vector<std::shared_ptr<const Arguments>> mapArguments;
   std::vector<std::uint32_t> uses;
@@ -311,8 +313,8 @@ struct Bridge {
   static std::expected<std::shared_ptr<MatrixGraphArguments>, Error>
   captureGraph(std::shared_ptr<State> state, const Kernel &kernel, std::span<const Buffer> inputs,
                std::span<const MatrixProduct> products, std::span<const Kernel> maps = {},
-               std::span<const float> scalars = {},
-               std::span<const std::uint32_t> roots = {}) noexcept {
+               std::span<const float> scalars = {}, std::span<const std::uint32_t> roots = {},
+               std::span<const MatrixScalar> broadcasts = {}) noexcept {
     if ((!maps.empty() && maps.size() != products.size()) || (maps.empty() && !scalars.empty()))
       return std::unexpected(Error::Invalid);
     if (!kernel.state_ ||
@@ -322,6 +324,19 @@ struct Bridge {
       return std::unexpected(Error::Invalid);
     if (kernel.state_->registry != state)
       return std::unexpected(Error::Residency);
+    for (std::size_t i = 0; i < broadcasts.size(); ++i) {
+      const auto item = broadcasts[i];
+      if (item.stage >= products.size() || item.reduction >= roots.size() || maps.empty() ||
+          !maps[item.stage] ||
+          (i && (broadcasts[i - 1].stage > item.stage ||
+                 (broadcasts[i - 1].stage == item.stage &&
+                  broadcasts[i - 1].reduction >= item.reduction))))
+        return std::unexpected(Error::Invalid);
+      // Source-ordered reductions must all be available before this map runs.
+      for (std::size_t r = 0; r <= item.reduction; ++r)
+        if (roots[r] >= inputs.size() + item.stage)
+          return std::unexpected(Error::Invalid);
+    }
     const auto count = inputs.size() + products.size();
     const auto bytes =
         std::uint64_t(roots.size()) * (sizeof(std::uint32_t) + sizeof(Buffer)) +
@@ -329,7 +344,8 @@ struct Bridge {
         std::uint64_t(count) *
             (sizeof(Buffer) + sizeof(std::uint32_t) + sizeof(std::array<std::int64_t, 2>) +
              (roots.empty() ? 0 : sizeof(std::uint32_t))) +
-        std::uint64_t(products.size()) * sizeof(MatrixProduct);
+        std::uint64_t(products.size()) * sizeof(MatrixProduct) +
+        std::uint64_t(broadcasts.size()) * sizeof(MatrixScalar);
     try {
       if (!state->permit())
         return std::unexpected(Error::Allocation);
@@ -351,6 +367,11 @@ struct Bridge {
       if (!state->permit())
         return std::unexpected(Error::Allocation);
       result->products.assign(products.begin(), products.end());
+      if (!broadcasts.empty()) {
+        if (!state->permit())
+          return std::unexpected(Error::Allocation);
+        result->broadcasts.assign(broadcasts.begin(), broadcasts.end());
+      }
       if (!state->permit())
         return std::unexpected(Error::Allocation);
       result->uses.resize(count);
@@ -403,18 +424,25 @@ struct Bridge {
         const bool map = !maps.empty() && bool(maps[i]);
         if (map) {
           const auto &mapping = maps[i].state_;
-          const auto tensors = edge.left == edge.right ? 1u : 2u;
+          const auto tensors = (edge.left == edge.right ? 1u : 2u) +
+                               std::count_if(broadcasts.begin(), broadcasts.end(),
+                                             [i](auto item) { return item.stage == i; });
+          const auto binding = directElementwiseLayout(tensors, scalars.size())
+                                   ? ElementwiseBinding::Direct
+                                   : ElementwiseBinding::ArgumentBuffer;
           if (edge.left > edge.right || !mapping->elementwise || mapping->matrix ||
-              mapping->reduction || mapping->projected || mapping->indirect() ||
+              mapping->reduction || mapping->projected ||
               mapping->signature.value_or(ElementwiseSignature{2, 0}) !=
-                  ElementwiseSignature{tensors, std::uint32_t(scalars.size())} ||
+                  ElementwiseSignature{std::uint32_t(tensors), std::uint32_t(scalars.size()),
+                                       binding} ||
               (a != b || (!roots.empty() && result->ranks[edge.left] != result->ranks[edge.right])))
             return std::unexpected(Error::Invalid);
           if (mapping->registry != state || mapping->index != kernel.state_->index)
             return std::unexpected(Error::Residency);
-          std::array<Buffer, 2> placeholders{};
-          auto args = capture(state, maps[i], std::span<const Buffer>(placeholders).first(tensors),
-                              scalars);
+          if (!state->permit())
+            return std::unexpected(Error::Allocation);
+          std::vector<Buffer> placeholders(tensors);
+          auto args = capture(state, maps[i], placeholders, scalars);
           if (!args)
             return std::unexpected(args.error());
           result->mapArguments[i] = *args;
@@ -492,7 +520,14 @@ struct Bridge {
       if (frame.graphPhase == 2)
         return frame.packet.graph->reduced[index];
       const auto edge = frame.packet.graph->products[frame.graphStage];
-      return frame.packet.graph->values[index == 0 ? edge.left : edge.right];
+      const auto tensors = edge.left == edge.right ? 1u : 2u;
+      if (index < tensors)
+        return frame.packet.graph->values[index == 0 ? edge.left : edge.right];
+      index -= tensors;
+      for (auto item : frame.packet.graph->broadcasts)
+        if (item.stage == frame.graphStage && index-- == 0)
+          return frame.packet.graph->reduced[item.reduction];
+      std::terminate(); // Preflight validated the compact binding table.
     }
     return index == 0 && frame.packet.replacement ? frame.packet.replacement
                                                   : frame.packet.arguments->tensors[index];
@@ -720,7 +755,7 @@ struct Bridge {
     const auto &base = packet.kernel.state_, &reduction = packet.reduction.state_;
     const auto &kernel = join.state_;
     if (!kernel || !base || !reduction || !reduction->reduction || reduction->matrix ||
-        !kernel->elementwise || kernel->reduction || kernel->matrix || kernel->projected ||
+        !kernel->elementwise || kernel->reduction || kernel->matrix ||
         kernel->signature.value_or(ElementwiseSignature{2, 0}).tensors !=
             packet.graph->reduced.size()) {
       packet.preparation = Error::Invalid;
@@ -744,8 +779,11 @@ struct Bridge {
     if (!f.graphKernel)
       f.graphKernel = f.packet.kernel;
     if (!graph.reductions.empty()) {
-      if (f.graphPhase == 0 && f.graphStage == graph.products.size())
+      if (f.reductionStage < graph.reductions.size() &&
+          graph.reductions[f.reductionStage] < graph.inputs + f.graphStage)
         f.graphPhase = 1;
+      else if (f.graphStage == graph.products.size())
+        f.graphPhase = 2;
       if (f.graphPhase == 1) {
         f.packet.kind = Kind::Reduce;
         f.packet.kernel = f.packet.reduction;
@@ -817,8 +855,8 @@ struct Bridge {
               const auto root = graph.reductions[f.reductionStage];
               if (!--graph.uses[root])
                 graph.values[root] = {};
-              if (++f.reductionStage == graph.reductions.size())
-                f.graphPhase = 2;
+              ++f.reductionStage;
+              f.graphPhase = 0;
               f.started = f.succeeded = false;
               if (task.cancelled())
                 return;
@@ -1048,12 +1086,19 @@ struct Bridge {
                       ? std::span<const std::uint32_t>(kernel->indirectReads)
                       : std::span<const std::uint32_t>(kernel->reads.data(), kernel->readCount);
               const bool read = std::binary_search(reads.begin(), reads.end(), i);
+              const bool broadcast = f.packet.graph && f.graphPhase == 0 &&
+                                     i >= (f.packet.graph->products[f.graphStage].left ==
+                                                   f.packet.graph->products[f.graphStage].right
+                                               ? 1u
+                                               : 2u);
               if (!other || other->format != Format::Float32 ||
+                  (broadcast && (other->rank != 1 || other->size != 4)) ||
                   (other->rank != 1 && other->rank != 2) ||
-                  (read && (other->rank != source->rank || other->size != source->size ||
-                            !std::equal(source->dimensions.begin(),
-                                        source->dimensions.begin() + source->rank,
-                                        other->dimensions.begin())))) {
+                  (read && !broadcast &&
+                   (other->rank != source->rank || other->size != source->size ||
+                    !std::equal(source->dimensions.begin(),
+                                source->dimensions.begin() + source->rank,
+                                other->dimensions.begin())))) {
                 task.fault(std::int64_t(Error::Invalid));
                 return;
               }
@@ -1832,14 +1877,15 @@ TaskHandle Runtime::graphReductions(TaskCore &task, GroupHandle group, Kernel ba
                                     std::span<const MatrixProduct> products, Kernel reduction,
                                     Kernel join, std::span<const std::uint32_t> roots,
                                     std::span<const float> scalars, std::span<const Kernel> maps,
-                                    std::span<const float> mapScalars) noexcept {
+                                    std::span<const float> mapScalars,
+                                    std::span<const MatrixScalar> broadcasts) noexcept {
   Bridge::PacketData packet{
       state_, {}, {}, Bridge::Kind::Matmul, std::move(base), BinaryOperation::Add, {}};
   if (roots.size() < 2)
     packet.preparation = Error::Invalid;
   else {
-    auto graph =
-        Bridge::captureGraph(state_, packet.kernel, inputs, products, maps, mapScalars, roots);
+    auto graph = Bridge::captureGraph(state_, packet.kernel, inputs, products, maps, mapScalars,
+                                      roots, broadcasts);
     if (graph)
       packet.graph = *graph;
     else
@@ -1855,14 +1901,15 @@ TaskHandle Runtime::graphReductions(Task &task, GroupHandle group, Kernel base,
                                     std::span<const MatrixProduct> products, Kernel reduction,
                                     Kernel join, std::span<const std::uint32_t> roots,
                                     std::span<const float> scalars, std::span<const Kernel> maps,
-                                    std::span<const float> mapScalars) noexcept {
+                                    std::span<const float> mapScalars,
+                                    std::span<const MatrixScalar> broadcasts) noexcept {
   Bridge::PacketData packet{
       state_, {}, {}, Bridge::Kind::Matmul, std::move(base), BinaryOperation::Add, {}};
   if (roots.size() < 2)
     packet.preparation = Error::Invalid;
   else {
-    auto graph =
-        Bridge::captureGraph(state_, packet.kernel, inputs, products, maps, mapScalars, roots);
+    auto graph = Bridge::captureGraph(state_, packet.kernel, inputs, products, maps, mapScalars,
+                                      roots, broadcasts);
     if (graph)
       packet.graph = *graph;
     else

@@ -380,6 +380,7 @@ class Compiler {
     std::size_t inputs = 0, matrixCount = 0;
     std::vector<bool> maps;
     std::vector<std::uint32_t> reductions;
+    std::vector<std::pair<std::uint32_t, std::uint32_t>> broadcasts;
     bool reduce = false, scalarPost = false;
     std::vector<std::pair<std::uint32_t, std::uint32_t>> products;
   };
@@ -445,12 +446,19 @@ class Compiler {
           }
         } else if (const auto *binary = std::get_if<TensorBinary>(&node.operation)) {
           auto a = emit(binary->left), b = emit(binary->right);
-          if (a && b && *a >= -1 && *b >= -1 &&
+          if (a && b &&
               (binary->operation == TokenKind::Plus || binary->operation == TokenKind::Minus ||
                binary->operation == TokenKind::Star || binary->operation == TokenKind::Slash)) {
             auto left = *a >= 0 ? *a : *b, right = *b >= 0 ? *b : *a;
             if (left < 0 || right < 0)
               return {};
+            auto reduced = dependency(*a), other = dependency(*b);
+            reduced.insert(other.begin(), other.end());
+            work += reduced.size();
+            if (work > 300000)
+              reject(entry.declaration, "GPU reduction dependency analysis limit exceeded");
+            for (auto reduction : reduced)
+              graph.broadcasts.emplace_back(graph.products.size(), reduction);
             result = graph.inputs + graph.products.size();
             graph.products.emplace_back(std::min(left, right), std::max(left, right));
             graph.maps.push_back(true);
@@ -525,11 +533,14 @@ class Compiler {
     auto result = invoke(root, args);
     const auto last = std::int64_t(graph.inputs + graph.products.size() - 1);
     const bool multi = graph.reductions.size() >= 2;
+    auto consumed = result ? dependency(*result) : std::set<std::size_t>{};
+    for (auto [stage, reduction] : graph.broadcasts)
+      consumed.insert(reduction);
     if (!result || (graph.matrixCount < 2 && !multi) ||
-        (entry.resultType.tensor ? (graph.reduce || *result != last)
-                                 : (!graph.reduce || *result > -2 ||
-                                    dependency(*result).size() != graph.reductions.size() ||
-                                    (!multi && graph.reductions.front() != last))))
+        (entry.resultType.tensor
+             ? (graph.reduce || *result != last)
+             : (!graph.reduce || *result > -2 || consumed.size() != graph.reductions.size() ||
+                (!multi && graph.reductions.front() != last))))
       return cached;
     // Every product must contribute to the returned matrix. Extra unused
     // numerical primitives retain the existing diagnostic instead of disappearing.
@@ -1057,14 +1068,23 @@ class Compiler {
       }
       if (graph->reductions.size() >= 2) {
         auto joinKernel = field("m::Kernel");
-        const bool indirect = !kalandra::runtime::metal::directElementwiseLayout(
-            graph->reductions.size(), scalars.size());
+        std::vector<std::uint32_t> joinReads;
+        shader(function, &joinReads, true);
+        const bool indirect =
+            !kalandra::runtime::metal::directElementwiseLayout(joinReads.size(), scalars.size());
+        std::string projection;
+        if (joinReads.size() != graph->reductions.size()) {
+          projection = ",std::array<std::uint32_t," + std::to_string(joinReads.size()) + ">{";
+          for (auto read : joinReads)
+            projection += std::to_string(read) + ",";
+          projection += "}";
+        }
         stages += "auto join=r.loadElementwiseKernel(f.directory+\"/kernel" +
                   std::to_string(entry->second) +
                   "-join.metallib\",*target,m::ElementwiseSignature{" +
                   std::to_string(graph->reductions.size()) + "," + std::to_string(scalars.size()) +
-                  (indirect ? ",m::ElementwiseBinding::ArgumentBuffer}" : "}") + ");\nif(!join){" +
-                  error("join.error()") + "}\nf." + joinKernel + "=*join;\n";
+                  (indirect ? ",m::ElementwiseBinding::ArgumentBuffer}" : "}") + projection +
+                  ");\nif(!join){" + error("join.error()") + "}\nf." + joinKernel + "=*join;\n";
         extra += ",f." + joinKernel + ",std::array<std::uint32_t," +
                  std::to_string(graph->reductions.size()) + ">{";
         for (std::size_t i = 0; i < graph->reductions.size(); ++i)
@@ -1091,9 +1111,12 @@ class Compiler {
                     "=r.loadElementwiseKernel(f.directory+\"/kernel" +
                     std::to_string(entry->second) + "-map" + std::to_string(i) +
                     ".metallib\",*target,m::ElementwiseSignature{" + std::to_string(reads.size()) +
-                    "," + std::to_string(scalars.size()) + "});\nif(!map" + std::to_string(i) +
-                    "){" + error("map" + std::to_string(i) + ".error()") + "}\nf." + mapKernel +
-                    "=*map" + std::to_string(i) + ";\n";
+                    "," + std::to_string(scalars.size()) +
+                    (kalandra::runtime::metal::directElementwiseLayout(reads.size(), scalars.size())
+                         ? "});\nif(!map"
+                         : ",m::ElementwiseBinding::ArgumentBuffer});\nif(!map") +
+                    std::to_string(i) + "){" + error("map" + std::to_string(i) + ".error()") +
+                    "}\nf." + mapKernel + "=*map" + std::to_string(i) + ";\n";
           graphMaps += "f." + mapKernel;
         }
         graphMaps += "},std::array<float," + std::to_string(scalars.size()) + ">{";
@@ -1103,6 +1126,12 @@ class Compiler {
         if (graph->reduce && !graph->scalarPost && graph->reductions.size() < 2)
           extra += ",m::Kernel{},std::span<const float>{}";
         extra += "," + graphMaps;
+      }
+      if (!graph->broadcasts.empty()) {
+        extra += ",std::array<m::MatrixScalar," + std::to_string(graph->broadcasts.size()) + ">{{";
+        for (auto [stage, reduction] : graph->broadcasts)
+          extra += "{" + std::to_string(stage) + "," + std::to_string(reduction) + "},";
+        extra += "}}";
       }
       steps.push_back("auto target=" + device(target) + ";\nif(!target){" +
                       error("target.error()") + "}\nauto kernel=r." +
@@ -1865,7 +1894,9 @@ class Compiler {
             reject(n.span, "unexpected reduction in elementwise shader");
           if (multi) {
             emit(sum->input);
-            result = std::string(post ? "%lane" : "%reduced") + std::to_string(reductionIndex++);
+            result = "%lane" + std::to_string(post ? reductionIndex++
+                                                   : graph->inputs + graph->products.size() +
+                                                         reductionIndex++);
           } else
             result = post && !matrixPost ? "%lane0" : emit(sum->input);
           reductionInput = result;
@@ -1958,6 +1989,10 @@ class Compiler {
       result = *graphResult;
       for (std::size_t i = 0; i < graph->products.size(); ++i)
         tensorInputs.emplace("%lane" + std::to_string(graph->inputs + i), graph->inputs + i);
+      for (std::size_t i = 0; i < graph->reductions.size(); ++i) {
+        const auto id = graph->inputs + graph->products.size() + i;
+        tensorInputs.emplace("%lane" + std::to_string(id), id);
+      }
     }
     std::set<std::uint32_t> used;
     std::set<std::string> live;
@@ -1993,7 +2028,9 @@ class Compiler {
     for (auto input : used) {
       auto buffer = "%a" + std::to_string(input), lane = "%lane" + std::to_string(input);
       bindings += buffer + ": memref<?xf32>, ";
-      loads += "        " + lane + " = memref.load " + buffer + "[%i] : memref<?xf32>\n";
+      const bool broadcast = graphStage >= 0 && input >= graph->inputs + graph->products.size();
+      loads += "        " + lane + " = memref.load " + buffer + (broadcast ? "[%zero]" : "[%i]") +
+               " : memref<?xf32>\n";
     }
     for (unsigned i = 0; i < scalars; ++i) {
       auto suffix = std::to_string(i);
@@ -2341,6 +2378,13 @@ void resume(Task &task) {
                     prefix + "matrix_graph_products=" + std::to_string(graph->matrixCount) + "\n" +
                     prefix + "matrix_graph_stages=" + std::to_string(graph->products.size()) +
                     "\n" + prefix + "matrix_graph_edges=" + edges + "\n";
+        if (!graph->broadcasts.empty()) {
+          std::string bindings;
+          for (auto [stage, reduction] : graph->broadcasts)
+            bindings += (bindings.empty() ? "" : ",") + std::to_string(stage) + ":" +
+                        std::to_string(reduction);
+          manifest += prefix + "reduction_broadcasts=" + bindings + "\n";
+        }
         for (std::size_t stage = 0; stage < graph->maps.size(); ++stage)
           if (graph->maps[stage]) {
             std::vector<std::uint32_t> reads;

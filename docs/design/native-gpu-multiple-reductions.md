@@ -63,9 +63,9 @@ CPU stack admission remains in force for source helpers too.
 This supports rank-one/rank-two float32 inputs and straight-line tensor graphs
 whose reductions feed a final scalar expression. Every reduction and tensor
 stage must contribute to the returned result. Unused extra reductions, unsupported
-branches and reduced scalars feeding later tensor work remain diagnostics.
+branches remain diagnostics. [Reduced scalars feeding later tensor work](native-gpu-reduction-feedback.md) are now supported within scalar-returning graphs.
 
-Reduction-to-tensor feedback, broader GPU numeric types/ranks and device control
+Tensor-returning feedback, broader GPU numeric types/ranks and device control
 flow remain separate work. Scheduling and temporary-storage reuse are later
 optimization opportunities.
 
