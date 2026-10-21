@@ -1,4 +1,6 @@
 #include "Hover.h"
+#include "Signature.h"
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
 using namespace kalandra;
@@ -12,6 +14,13 @@ static std::optional<lsp::SignatureInfo> query(std::string text) {
   text.erase(cursor, 1);
   return lsp::signatureInfo(parse(std::make_shared<const SourceFile>("signature.k", text)),
                             "signature.k", cursor);
+}
+static std::optional<lsp::SignatureInfo> recover(std::string text) {
+  const auto cursor = text.rfind('|');
+  require(cursor != text.npos, "missing recovery cursor");
+  text.erase(cursor, 1);
+  return lsp::signatureAt(
+      (std::filesystem::temp_directory_path() / "signature-recovery.k").string(), text, cursor);
 }
 int main() {
   try {
@@ -96,6 +105,33 @@ int main() {
             "indexed numeric value is not callable");
     require(!query("fn make()->int:\n  1\nfn main():\n  make()(|2)\n"),
             "numeric factory result does not suggest factory signature");
+    result = recover(add + "fn main():\n  add(1,2|\n");
+    require(result && result->activeParameter == 1, "recover missing closing parenthesis");
+    result = recover(add + "fn main():\n  add(1,add(2,3|\n");
+    require(result && result->activeParameter == 1, "recover nested trailing parentheses");
+    result = recover("fn constant()->int:\n  1\nfn main():\n  constant(|\n");
+    require(result && result->parameters.empty(), "empty zero-parameter call recovery");
+    result = recover("fn make()->fn(int,int)->int:\n  fn(a:int,b:int):a+b\n"
+                     "fn main():\n  make()(1,2|\n");
+    require(result && result->label == "fn(int64, int64) -> int64", "factory-result recovery");
+    result = recover(add + "fn main():\n  callbacks=[add]\n  1 -> callbacks[0](2|\n");
+    require(result && result->activeParameter == 1, "indexed pipeline recovery");
+    result = recover(add + "fn main():\n  add(1,2|)\n");
+    require(result && result->activeParameter == 1, "ordinary valid calls retain signature");
+    require(!recover(add + "fn main():\n  add(|\n"), "do not invent arguments");
+    require(!recover(add + "fn main():\n  add(1,|\n"), "missing argument is not recovered");
+    require(!recover(add + "fn main():\n  add(1,2|\n  missing\n"), "later code is not hidden");
+    require(!recover(add + "fn main():\n  missing\n  add(1,2|\n"), "earlier errors fail closed");
+    require(!recover(add + "fn main():\n  add(1,\"text\"|\n"), "argument types must check");
+    require(!recover(add + "fn main():\n  add([1,2|\n"), "unclosed array is not recovered");
+    require(!recover(add + "fn main():\n  add(1,{|\n"), "unclosed record is not recovered");
+    require(!recover(add + "fn main():\n  add(1,2]|\n"), "mismatched delimiters fail closed");
+    require(!recover(add + "fn main():\n  add(1,\"unfinished|"),
+            "unclosed string is not recovered");
+    require(!recover(add + "fn main():\n  add(1,2 # comment|"),
+            "comment does not receive delimiters");
+    require(!recover(add + "fn main():\n  ((((((((add(1,2|\n"),
+            "recovery has an eight-delimiter bound");
     std::cout << "Native checked signature help passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

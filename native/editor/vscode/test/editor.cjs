@@ -431,6 +431,36 @@ async function run() {
   checks.push(
     "Signature help exposes the checked imported function and active argument in VS Code",
   );
+  await replace(
+    main,
+    'from "./library.k" import double\nfn main()->int:\n  double(21\n',
+  );
+  const recoveredSignature = await eventually(async () => {
+    const result = await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider",
+      mainUri,
+      position(main, "double(21", 9),
+      "(",
+    );
+    return result?.signatures.length ? result : undefined;
+  }, "unfinished call signature");
+  assert.equal(
+    recoveredSignature.signatures[0].label,
+    "fn double(value: int64) -> int64",
+  );
+  assert.equal(recoveredSignature.activeParameter, 0);
+  await eventually(
+    () =>
+      vscode.languages.getDiagnostics(mainUri).some((d) => d.code === "L005"),
+    "original unclosed-delimiter diagnostic stays visible",
+  );
+  assert(main.getText().includes("double(21\n"));
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  assert.match(hoverText(await hover(main, "double(21)")), /int64/);
+  checks.push(
+    "Trailing-parenthesis signature recovery preserves the unsaved buffer and its diagnostic in VS Code",
+  );
   await clearDiagnostics(main);
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(

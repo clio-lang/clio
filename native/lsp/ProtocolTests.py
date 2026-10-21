@@ -904,6 +904,13 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     client.change(signature_document, text.replace(',2)', ',2'), 2)
     client.barrier()
     assert client.signature(signature_document, 2, cursor)["result"] is None
+    # Recovery applies only at the trailing cursor, never by hiding later source.
+    recovered = client.signature(signature_document, 2, cursor + 1)["result"]
+    assert recovered["activeParameter"] == 2 and "right: int64" in recovered["signatures"][0]["label"], recovered
+    assert not client.barrier(), "recovery query published synthetic diagnostics"
+    client.change(signature_document, text.replace(',2)', ','), 3)
+    client.barrier()
+    assert client.signature(signature_document, 2, cursor)["result"] is None
     assert client.signature(signature_document, 200, 0)["result"] is None
     assert client.rpc("textDocument/signatureHelp", {"textDocument": {"uri": signature_document.as_uri()},
         "position": {"line": -1, "character": 0}})["error"]["code"] == -32602
@@ -960,6 +967,28 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     client.change(signature_document, text.replace("callbacks[0]", "callbacks[2]"), 3)
     client.barrier()
     assert client.signature(signature_document, 3, cursor)["result"] is None
+    assert not signature_document.exists() and higher_library.read_text() == higher_text
+    client.finish()
+
+    client = Client()
+    client.init(signature_offsets=True)
+    recovered_text = ('from "./higher-order.k" import make as factory\n'
+                      'fn main():\n  factory()(1,2\n')
+    client.open(signature_document, recovered_text)
+    client.barrier()
+    cursor = len(recovered_text.splitlines()[2])
+    result = client.signature(signature_document, 2, cursor)["result"]
+    assert result["signatures"][0]["label"] == "fn(int64, int64) -> int64", result
+    client.open(higher_library, higher_text.replace("int", "uint"))
+    client.barrier()
+    assert client.signature(signature_document, 2, cursor)["result"]["signatures"][0]["label"] == "fn(uint64, uint64) -> uint64"
+    client.change(higher_library, higher_text.replace("a+b", "missing"), 2)
+    client.barrier()
+    assert client.signature(signature_document, 2, cursor)["result"] is None
+    client.close(higher_library)
+    client.barrier()
+    assert client.signature(signature_document, 2, cursor)["result"] is not None
+    assert not client.barrier(), "temporary closing delimiters changed diagnostics"
     assert not signature_document.exists() and higher_library.read_text() == higher_text
     client.finish()
 

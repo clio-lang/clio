@@ -58,10 +58,15 @@ suggestion-widget, keyboard-selection or accessibility acceptance.
 [Checked signature help](native-language-server.md#checked-signature-help) now
 connects the native function signature and active argument to the VS Code provider.
 Its initial acceptance uses an imported function in the installed extension host.
-The graph must still parse and type-check; unfinished calls require future recovery.
+The analyzed graph must parse and type-check. [Trailing-parenthesis recovery](native-language-server.md#trailing-parenthesis-recovery) now helps at the end of a buffer when arguments are complete; missing arguments require future work.
 
 [Higher-order signature help](native-language-server.md#higher-order-call-signatures)
 now follows imported factory results and indexed callbacks in the installed
 extension host. The provider checks structural labels, the second active argument
 and exact parameter-label ranges for repeated types. It extends existing calls;
 no syntax or runtime behavior changes.
+
+Trailing-parenthesis acceptance also requests help for an unsaved imported call
+before its closing `)` is typed. It verifies the signature and active argument,
+the unchanged buffer/disk source, and the original `L005` diagnostic remaining
+visible until the user fixes the source.

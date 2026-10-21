@@ -3,6 +3,7 @@
 #include "Hover.h"
 #include "Rename.h"
 #include "SemanticQuery.h"
+#include "Signature.h"
 #include "Workspace.h"
 #include "kalandra/Diagnostics.h"
 #include "kalandra/Formatter.h"
@@ -552,9 +553,10 @@ public:
     std::vector<SourceOverlay> overlays;
     for (const auto &[file, document] : documents)
       overlays.push_back({file, document.text});
-    auto syntax = loadGraph(*path, overlays);
+    const std::vector<ModulePackage> empty;
     auto info =
-        syntax ? lsp::signatureInfo(std::move(*syntax), *path, *offset, options) : std::nullopt;
+        lsp::signatureAt(*path, open->second.text, *offset, project ? project->packages : empty,
+                         std::move(overlays), options, graphLoader());
     if (!info) {
       respond(nullptr);
       return;

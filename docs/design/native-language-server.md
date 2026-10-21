@@ -360,10 +360,10 @@ active parameter. A client advertising `labelOffsetSupport` receives UTF-16
 parameter-label ranges, which distinguish repeated structural types; other
 clients receive the standard string labels.
 
-The entire graph must parse and type-check. This initial implementation does not
-repair a missing argument or closing parenthesis or supply builtin signatures.
-Such requests return `null`, as do invalid positions, closed documents and unresolved/invalid
-graphs. It does not reuse a stale successful graph or publish partial inferred
+The analyzed graph must parse and type-check. A bounded temporary overlay can
+close trailing parentheses as described below; missing arguments and builtin
+signatures remain unsupported. Invalid positions, closed documents and
+unresolved/invalid graphs return `null`. It does not reuse a stale successful graph or publish partial inferred
 types. Requesting help makes no source changes or diagnostic publications.
 
 The [signature-help qualification](../../native/metal-proof/evidence/native-lsp-signature-2026-10-21.json)
@@ -391,4 +391,33 @@ the factory, allocate a runtime closure or change language behavior.
 [Higher-order qualification](../../native/metal-proof/evidence/native-lsp-higher-signature-2026-10-21.json)
 records semantic/protocol regression tests, imported unsaved overlays, relocated
 Release tools and installed VS Code provider checks for factory/indexed calls.
-Incomplete calls and builtin signature help remain separate work.
+Trailing-parenthesis recovery is covered below; missing arguments and builtin
+signature help remain separate work.
+
+#### Trailing-parenthesis recovery
+
+At the end of an open buffer, `combine(1, 2` can now show the checked signature
+before its closing `)` is typed. Zero-parameter calls such as `constant(` also
+work. Nested trailing calls, factory results and indexed/piped callees follow
+the same signature and active-argument rules.
+
+The request first tries the actual graph. If it does not parse, recovery requires
+that the root lexer report only unclosed delimiters, every unmatched delimiter be
+`(`, no more than eight be open, and only whitespace remain after the cursor.
+The server inserts those closing parentheses at the cursor in a temporary root
+overlay, reloads current imports/dependencies, and requires a fully successful
+parse and check. Existing source/token/checker budgets still apply. At most one
+repaired graph is tried; ordinary semantic errors do not trigger repair.
+
+No arguments, values, array/record delimiters or names are invented. For a
+function needing two arguments, `combine(` and `combine(1,` still return no
+signature. Invalid argument types, failed imports, earlier errors, later code,
+mismatched delimiters and unclosed Strings remain unrecovered. Read-only package
+and project graph constraints are unchanged.
+
+The source buffer, disk files and published diagnostics remain those of the
+actual program. In particular, a displayed signature does not clear its original
+unclosed-delimiter diagnostic. The [recovery qualification](../../native/metal-proof/evidence/native-lsp-signature-recovery-2026-10-21.json)
+records normal/sanitizer semantic/protocol checks, current imported overlays,
+relocated Release tools and installed VS Code acceptance of this boundary.
+Broader parser recovery and missing-argument signature help remain future work.
