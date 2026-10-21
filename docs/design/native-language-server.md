@@ -363,7 +363,7 @@ clients receive the standard string labels.
 Complete-call guidance requires a parsed and checked graph. A bounded temporary overlay can
 close trailing parentheses as described below. At an empty argument slot, a
 separate validated-callee snapshot can provide guidance despite the selected
-call's argument-count error. Checked collection and numeric conversion signatures are covered below; other builtin families remain unsupported. Invalid
+call's argument-count error. Checked collection, numeric conversion and tensor operation signatures are covered below; other builtin families remain unsupported. Invalid
 positions, closed documents and other invalid query contexts return `null`.
 The server does not reuse stale signatures or publish partial typed programs. Requesting help makes no source changes or diagnostic publications.
 
@@ -854,3 +854,39 @@ aliases, fixed/dynamic tensor shapes, invalid casts and lexical shadows, live
 imported types, relocated Release tools and installed VS Code tensor guidance.
 It qualifies editor behavior, rather than repeating the numerical/runtime backend
 qualification for each conversion pair.
+
+#### Checked tensor operation signatures
+
+Signature help now covers `reduceSum`, `matmul` and tensor-to-array `array` calls.
+The checked tensor operand supplies its numeric element type, rank and extents.
+A reduction displays a scalar result of the same element type; `array` displays
+the corresponding flat numeric array type. Rank-zero and empty tensors use the
+same printing rules as other checked tensor values.
+
+Matrix signatures show both operands and the derived output shape. For example,
+a `Tensor[int64, 1, 2]` multiplied by a `Tensor[int64, 2, 1]` displays
+`fn matmul(left: Tensor[int64, 1, 2], right: Tensor[int64, 2, 1]) -> Tensor[int64, 1, 1]`.
+Dynamic extents print as `?`, retaining known axes without exposing inference
+identities. The ordinary matrix element-type, inner-dimension and runtime shape
+checks still apply; a displayed `?` does not waive them.
+
+The shared builtin-signature path recognizes the actual checked `ReduceSum`,
+`Matmul` or `TensorToArray` operation at the selected call span. It uses `input`
+or `left`/`right` parameter labels. Direct and piped calls retain the existing
+active-parameter and UTF-16 label-range rules. A same-spelled local callable uses
+ordinary callable guidance. Unsaved imported tensor shapes update both operand
+and output labels, while incompatible shapes suppress the hint.
+
+Complete arguments and a valid checked graph are required. Invalid ranks/types,
+known incompatible matrix dimensions, missing operands and other graph errors
+provide no guessed signature. Existing bounded closing-parenthesis recovery can
+supply guidance when all arguments are present. Tensor construction, reshape and
+map-family signature help remain separate; this does not expand GPU admission,
+change numerical semantics or execute tensor operations during editor requests.
+Buffers, disk sources and diagnostic publications remain unchanged.
+
+[Tensor-signature qualification](../../native/metal-proof/evidence/native-lsp-tensor-signature-2026-10-21.json)
+covers all ten CPU element types for the three signature families, fixed/dynamic
+matrix shapes, rank-zero/empty tensors, invalid inputs, live imported shape changes,
+relocated Release tools and installed VS Code guidance for a piped matrix call.
+These are editor checks; they do not repeat numerical/runtime backend qualification.

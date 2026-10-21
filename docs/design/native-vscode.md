@@ -103,3 +103,5 @@ Installed-editor acceptance also checks [a missing concat operand](native-langua
 Installed-editor acceptance also applies [builtin call-target completion](native-language-server.md#builtin-call-target-completion) for `concat` and `float32`, verifies Function item kinds and complete identifier replacement, and checks both resulting calls without writing the source file.
 
 Installed-editor acceptance also requests a [checked tensor numeric conversion signature](native-language-server.md#checked-numeric-conversion-signatures), verifies source/destination widths, fixed rank-two shape and the active input parameter, and preserves the buffer and disk source.
+
+Installed-editor acceptance also requests a [checked matrix multiplication signature](native-language-server.md#checked-tensor-operation-signatures), verifies both operand shapes and the derived output shape, and selects the explicit right operand in a piped call without changing buffer or disk sources.

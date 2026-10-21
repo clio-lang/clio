@@ -735,6 +735,24 @@ async function run() {
   await replace(main, mainDisk);
   await clearDiagnostics(main);
   checks.push("Numeric conversion signature help shows checked source/destination tensor widths and fixed shape without changing source");
+  const matrixSource = "fn main():\n  left=tensor([1,2],[1,2])\n  right=tensor([3,4],[2,1])\n  left -> matmul(right)\n";
+  await replace(main, matrixSource);
+  await clearDiagnostics(main);
+  const matrixSignature = await eventually(async () => {
+    const result = await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider", mainUri,
+      position(main, "matmul(right)", 7), "(",
+    );
+    return result?.signatures?.[0]?.label ===
+      "fn matmul(left: Tensor[int64, 1, 2], right: Tensor[int64, 2, 1]) -> Tensor[int64, 1, 1]" ? result : undefined;
+  }, "checked matrix shape signature");
+  assert.equal(matrixSignature.activeParameter, 1);
+  assert.equal(matrixSignature.signatures[0].parameters.length, 2);
+  assert.equal(main.getText(), matrixSource);
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  await clearDiagnostics(main);
+  checks.push("Tensor builtin signature help shows checked matrix operands/result shapes and the piped right parameter without changing source");
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,

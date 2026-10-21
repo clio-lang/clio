@@ -158,6 +158,18 @@ std::optional<SignatureInfo> builtinSignature(const TypedModule &module, SourceS
         conversion && resolveNumeric(name) == expression.type.element) {
       arguments = {conversion->input};
       labels = {"input"};
+    } else if (const auto *sum = std::get_if<ReduceSum>(&expression.operation);
+               sum && name == "reduceSum") {
+      arguments = {sum->input};
+      labels = {"input"};
+    } else if (const auto *product = std::get_if<Matmul>(&expression.operation);
+               product && name == "matmul") {
+      arguments = {product->left, product->right};
+      labels = {"left", "right"};
+    } else if (const auto *array = std::get_if<TensorToArray>(&expression.operation);
+               array && name == "array") {
+      arguments = {array->input};
+      labels = {"input"};
     } else if (const auto *query = std::get_if<CollectionQuery>(&expression.operation);
                query && name == (query->kind == CollectionQueryKind::Length ? "length" : "shape")) {
       arguments = {query->input};
@@ -334,7 +346,8 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
   if (target && !requireFieldProjection) {
     const auto name = target->source->slice(target->span);
     if (name == "length" || name == "byteLength" || name == "shape" || name == "slice" ||
-        name == "concat" || resolveNumeric(name)) {
+        name == "concat" || name == "reduceSum" || name == "matmul" || name == "array" ||
+        resolveNumeric(name)) {
       auto checked = check(syntax, {}, options);
       if (checked.ok())
         if (auto result = builtinSignature(*checked.module, invocationSpan, name, active))

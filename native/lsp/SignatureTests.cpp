@@ -429,6 +429,53 @@ int main() {
     require(!query("fn main():\n  float32(|)\n"), "missing conversion source has no guessed type");
     require(!query("fn main():\n  float32(|1,2)\n"), "extra conversion arguments have no hint");
     require(!query("fn main():\n  float32(|1)\n  missing\n"), "failed graphs suppress numeric hints");
+    for (const auto &numeric : numericTypes) {
+      const auto name = std::string(numeric.name);
+      const auto matrix = "tensor([" + name + "(1)],[1,1])";
+      result = query("fn main():\n  reduceSum(|" + matrix + ")\n");
+      require(result && result->label ==
+                  "fn reduceSum(input: Tensor[" + name + ", 1, 1]) -> " + name,
+              "reduction signature for " + name);
+      result = query("fn main():\n  matmul(" + matrix + ",|" + matrix + ")\n");
+      require(result && result->label == "fn matmul(left: Tensor[" + name +
+                  ", 1, 1], right: Tensor[" + name + ", 1, 1]) -> Tensor[" + name + ", 1, 1]" &&
+                  result->activeParameter == 1, "matrix signature for " + name);
+      result = query("fn main():\n  array(|" + matrix + ")\n");
+      require(result && result->label ==
+                  "fn array(input: Tensor[" + name + ", 1, 1]) -> [" + name + "]",
+              "tensor flattening signature for " + name);
+    }
+    result = query("fn multiply(a:Tensor[float32,?,3],b:Tensor[float32,3,?]):\n"
+                   "  matmul(a,|b)\nfn main():\n  0\n");
+    require(result && result->label ==
+                "fn matmul(left: Tensor[float32, ?, 3], right: Tensor[float32, 3, ?]) -> Tensor[float32, ?, ?]",
+            "dynamic matrix result derives outer axes");
+    result = query("fn main():\n  tensor([1,2],[1,2]) -> matmul(|tensor([3,4],[2,1]))\n");
+    require(result && result->activeParameter == 1 && result->label ==
+                "fn matmul(left: Tensor[int64, 1, 2], right: Tensor[int64, 2, 1]) -> Tensor[int64, 1, 1]",
+            "piped matrix call tracks explicit right operand");
+    result = query("fn main():\n  reduceSum(|tensor([7],[]))\n");
+    require(result && result->label == "fn reduceSum(input: Tensor[int64]) -> int64",
+            "rank-zero reduction signature");
+    result = query("fn main():\n  values:Tensor[float32,0]=tensor([])\n  array(|values)\n");
+    require(result && result->label == "fn array(input: Tensor[float32, 0]) -> [float32]",
+            "empty tensor array result");
+    result = recover("fn main():\n  value=tensor([1,2])\n  reduceSum(value|\n");
+    require(result && result->label == "fn reduceSum(input: Tensor[int64, 2]) -> int64",
+            "reduction guidance after bounded delimiter recovery");
+    result = query("fn main():\n  matmul=fn(v:int):v+1\n  matmul(|1)\n");
+    require(result && result->label == "fn matmul(int64) -> int64",
+            "lexical matrix-name shadow remains an ordinary callable");
+    require(!query("fn main():\n  matmul(tensor([1],[1,1]),|tensor([1,2],[2,1]))\n"),
+            "incompatible matrix inner extents have no signature");
+    require(!query("fn main():\n  matmul(tensor([1],[1,1]),|tensor([float32(1)],[1,1]))\n"),
+            "mixed matrix element types have no signature");
+    require(!query("fn main():\n  reduceSum(|[1,2])\n"), "arrays are not reduction tensors");
+    require(!query("fn main():\n  array(|[1,2])\n"), "array conversion requires a tensor");
+    require(!query("fn main():\n  matmul(tensor([1],[1,1]),|)\n"),
+            "missing matrix operand has no guessed shape");
+    require(!query("fn main():\n  reduceSum(|tensor([1]))\n  missing\n"),
+            "failed graphs suppress tensor signatures");
     std::cout << "Native checked signature help passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

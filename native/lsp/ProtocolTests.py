@@ -1560,6 +1560,66 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert not signature_document.exists() and numeric_library.read_text() == numeric_library_text
     client.finish()
 
+    # Tensor builtin hints use checked operation operands and derived result shapes.
+    client = Client()
+    client.init(signature_offsets=True)
+    tensor_cases = [
+        ('fn main():\n  reduceSum(|tensor([1,2]))\n',
+         'fn reduceSum(input: Tensor[int64, 2]) -> int64', 0),
+        ('fn main():\n  array(|tensor([7],[]))\n',
+         'fn array(input: Tensor[int64]) -> [int64]', 0),
+        ('fn main():\n  matmul(tensor([1,2],[1,2]),|tensor([3,4],[2,1]))\n',
+         'fn matmul(left: Tensor[int64, 1, 2], right: Tensor[int64, 2, 1]) -> Tensor[int64, 1, 1]', 1),
+        ('fn main():\n  tensor([1,2],[1,2]) -> matmul(|tensor([3,4],[2,1]))\n',
+         'fn matmul(left: Tensor[int64, 1, 2], right: Tensor[int64, 2, 1]) -> Tensor[int64, 1, 1]', 1),
+        ('fn multiply(a:Tensor[float32,?,3],b:Tensor[float32,3,?]):\n  matmul(a,|b)\nfn main():\n  0\n',
+         'fn matmul(left: Tensor[float32, ?, 3], right: Tensor[float32, 3, ?]) -> Tensor[float32, ?, ?]', 1),
+    ]
+    client.open(signature_document, 'fn main():\n  0\n')
+    client.barrier()
+    version = 1
+    for marked, expected, active in tensor_cases:
+        version += 1
+        cursor = marked.index('|')
+        text = marked.replace('|','')
+        client.change(signature_document, text, version)
+        assert not publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+        line = marked[:cursor].count('\n')
+        character = len(marked[:cursor].rsplit('\n',1)[-1].encode('utf-16-le'))//2
+        result = client.signature(signature_document, line, character)["result"]
+        assert result["signatures"][0]["label"] == expected and result["activeParameter"] == active, result
+        parameters = result["signatures"][0]["parameters"]
+        assert len(parameters) == (2 if expected.startswith('fn matmul') else 1), result
+        for parameter in parameters:
+            start, end = parameter["label"]
+            assert 0 <= start < end <= len(expected) and ':' in expected[start:end], result
+        assert not client.barrier(), "tensor signature published probe diagnostics"
+    matrix_library = Path(temp) / 'matrix-signatures.k'
+    matrix_library_text = 'export fn read()->Tensor[int64,1,2]:\n  tensor([1,2],[1,2])\n'
+    matrix_library.write_text(matrix_library_text)
+    version += 1
+    imported_matrix = ('from "./matrix-signatures.k" import read\nfn main():\n'
+                       '  matmul(read(),tensor([3,4],[2,1]))\n')
+    client.change(signature_document, imported_matrix, version)
+    client.barrier()
+    cursor = imported_matrix.splitlines()[2].index(',')+1
+    result = client.signature(signature_document, 2, cursor)["result"]
+    assert result["signatures"][0]["label"].endswith('-> Tensor[int64, 1, 1]'), result
+    client.open(matrix_library, 'export fn read()->Tensor[int64,2,2]:\n  tensor([1,2,3,4],[2,2])\n')
+    client.barrier()
+    result = client.signature(signature_document, 2, cursor)["result"]
+    assert result["signatures"][0]["label"] == 'fn matmul(left: Tensor[int64, 2, 2], right: Tensor[int64, 2, 1]) -> Tensor[int64, 2, 1]', result
+    client.change(matrix_library, 'export fn read()->Tensor[int64,1,3]:\n  tensor([1,2,3],[1,3])\n', 2)
+    diagnostics = publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+    assert any(d["code"] == 'S029' for d in diagnostics), diagnostics
+    assert client.signature(signature_document, 2, cursor)["result"] is None
+    assert not client.barrier(), "invalid matrix signature changed diagnostics"
+    client.change(matrix_library, matrix_library_text, 3)
+    client.barrier()
+    assert client.signature(signature_document, 2, cursor)["result"] is not None
+    assert not signature_document.exists() and matrix_library.read_text() == matrix_library_text
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"
