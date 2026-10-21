@@ -504,6 +504,47 @@ async function run() {
   checks.push(
     "Missing-argument help shows first and next parameters without inventing source values in VS Code",
   );
+  await replace(
+    main,
+    'from "./completion-library.k" import make as factory\nfn main():\n  factory()(1, vaSuffix)\n',
+  );
+  const editingSignature = await eventually(async () => {
+    const result = await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider",
+      mainUri,
+      position(main, "vaSuffix", 2),
+    );
+    return result?.signatures.length ? result : undefined;
+  }, "partly typed final identifier argument");
+  assert.equal(
+    editingSignature.signatures[0].label,
+    "fn(int64, int64) -> int64",
+  );
+  assert.equal(editingSignature.activeParameter, 1);
+  assert.deepEqual(
+    editingSignature.signatures[0].parameters[1].label,
+    [10, 15],
+  );
+  await eventually(
+    () =>
+      vscode.languages
+        .getDiagnostics(mainUri)
+        .some((d) => d.code === "S016" && d.message.includes("vaSuffix")),
+    "real unknown-identifier diagnostic remains visible",
+  );
+  assert(main.getText().includes("vaSuffix"));
+  const editingHover = await vscode.commands.executeCommand(
+    "vscode.executeHoverProvider",
+    mainUri,
+    position(main, "vaSuffix", 2),
+  );
+  assert.equal(editingHover?.length || 0, 0);
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  assert.match(hoverText(await hover(main, "double(21)")), /int64/);
+  checks.push(
+    "Signature help stays visible while editing a final identifier without changing ordinary diagnostics or hover",
+  );
   await clearDiagnostics(main);
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(

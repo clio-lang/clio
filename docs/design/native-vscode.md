@@ -75,3 +75,9 @@ Missing-argument provider acceptance now opens an empty imported call and a
 factory-result call after a comma. It checks the named/structural signature and
 active parameter while ensuring no argument value is inserted into the buffer.
 The compiler still diagnoses the unfinished program.
+
+[Identifier argument editing](native-language-server.md#identifier-argument-editing)
+keeps the expected parameter signature available while the final argument name is
+being typed. Installed-provider acceptance checks the active parameter and exact
+label ranges while the original unknown-name diagnostic and failed hover remain
+visible; the buffer and disk source are unchanged.

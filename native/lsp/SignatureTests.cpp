@@ -184,6 +184,38 @@ int main() {
             "comment does not receive delimiters");
     require(!recover(add + "fn main():\n  ((((((((add(1,2|\n"),
             "recovery has an eight-delimiter bound");
+    result = query(add + "fn main():\n  add(1, va|Suffix)\n");
+    require(result && result->activeParameter == 1 &&
+                result->parameters == std::vector<std::string>{"left: int64", "right: int64"},
+            "final partial identifier retains named parameter guidance");
+    result = recover(add + "fn main():\n  add(1, val|\n");
+    require(result && result->activeParameter == 1, "partial name with trailing open call");
+    result = query("fn single(value:int)->int:\n  value\nfn main():\n  single(va|Suffix)\n");
+    require(result && result->activeParameter == 0, "first and final bare identifier");
+    result = recover("fn make()->fn(int,int)->int:\n  fn(a:int,b:int):a+b\n"
+                     "fn main():\n  make()(1, val|\n");
+    require(result && result->label == "fn(int64, int64) -> int64",
+            "factory argument editing hole");
+    result = recover(add + "fn main():\n  callbacks=[add]\n  1 -> callbacks[0](val|\n");
+    require(result && result->activeParameter == 1, "indexed pipeline argument editing hole");
+    result = query(add + "fn main():\n  value=2\n  add(1, val|ue)\n");
+    require(result && result->activeParameter == 1, "resolved name still has parameter guidance");
+    result = query(add + "fn main():\n  value=\"bad\"\n  add(1, val|ue)\n");
+    require(result && result->activeParameter == 1,
+            "active editing hole is not claimed to have a valid type");
+    require(!query(add + "fn main():\n  add(missing, va|Suffix)\n"),
+            "earlier invalid argument still blocks guidance");
+    require(!query(add + "fn main():\n  add(va|Suffix, 2)\n"),
+            "nonfinal partial arguments are not projected");
+    require(!query(add + "fn main():\n  add(1, 2 + va|Suffix)\n"),
+            "partial expression is not a bare-name editing hole");
+    require(!query(add + "fn main():\n  add(1, box.va|Suffix)\n"),
+            "partial member expression remains outside this recovery");
+    require(!query(add + "fn main():\n  add(1, 2, va|Suffix)\n"),
+            "extra partial argument does not invent another parameter");
+    require(!query("fn main():\n  missing(va|Suffix)\n"), "unknown callee has no guidance");
+    require(!query(add + "fn main():\n  add=1\n  add(1, va|Suffix)\n"),
+            "noncallable lexical shadow has no guidance");
     std::cout << "Native checked signature help passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

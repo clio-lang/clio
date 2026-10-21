@@ -452,5 +452,35 @@ no guidance. Showing parameters is not validation of the unfinished program.
 records normal/sanitizer semantic and protocol checks, ordinary callable-checker
 regressions, imported aliases/current overlays, installed Release tools and VS Code
 provider acceptance. The source, disk and actual-program diagnostics remain
-unchanged. Partially written argument expressions, broad parser recovery, builtin
-signatures and wider editor/platform acceptance remain follow-ups.
+unchanged. Final bare-identifier editing is covered below. More complex unfinished argument
+expressions, broad parser recovery, builtin signatures and wider editor/platform
+acceptance remain follow-ups.
+
+#### Identifier argument editing
+
+Parameter guidance now stays available while the final argument is a bare name,
+such as `combine(1, val)` with the cursor in or at the end of `val`. It also works
+with an identifier suffix after the cursor and with a trailing unclosed call.
+Named, bound, factory-result and indexed/piped callees retain their existing
+signature and active-parameter rules.
+
+For this query only, the parsed argument list is projected to the arguments before
+the name being edited. The checker then uses its validated-callee snapshot path:
+the callee and earlier arguments must check, while the active identifier is not
+claimed to resolve or have the right type. Only that snapshot can supply the hint;
+a successfully checked projected graph is never substituted for the actual
+program's analysis. No placeholder value, inferred value type or source edit is
+created. Ordinary hover, compilation and diagnostics still inspect the actual
+argument, including unknown-name and type errors.
+
+The projection requires the final argument to be exactly a bare identifier and
+the cursor to be inside that identifier or at its end. Names in earlier arguments,
+member accesses, grouped names and compound expressions are not projected. Extra
+arguments do not invent extra parameters. This is signature guidance during an
+edit, not validation or completion of the argument itself.
+
+[Identifier-edit qualification](../../native/metal-proof/evidence/native-lsp-identifier-arguments-2026-10-21.json)
+records semantic/protocol and hover regressions, current imported overlays,
+installed Release tools and VS Code provider acceptance. The checks verify that
+the original unknown-name diagnostics and failed hover remain separate from the
+signature hint. Broader expression recovery and builtin signatures remain open.

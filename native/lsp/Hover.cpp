@@ -266,20 +266,40 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
   if (!opened)
     return {};
   auto invocationSpan = syntax.module.expressions[*selected].span;
+  bool piped = false;
   for (const auto &expression : syntax.module.expressions)
     if (const auto *binary = std::get_if<BinaryExpr>(&expression.value);
         binary && binary->operation == TokenKind::Arrow && binary->right == *selected) {
       ++active; // The pipeline supplies the first parameter implicitly.
       invocationSpan = expression.span;
+      piped = true;
       break;
     }
+  // A final bare name under the cursor is an editing hole, not a supplied
+  // argument. Project only the request-local AST; preserve source and diagnostics.
+  bool editingName = false;
+  const auto implicit = piped ? 1u : 0u;
+  if (!call.arguments.empty() && active >= implicit &&
+      active - implicit == call.arguments.size() - 1) {
+    const auto argumentId = call.arguments.back();
+    const auto &argument = syntax.module.expressions[argumentId];
+    if (const auto *name = std::get_if<NameExpr>(&argument.value);
+        name && name->name.begin == argument.span.begin && name->name.end == argument.span.end) {
+      const auto location = sourceLocation(syntax.module.source, name->name);
+      if (location && location->source->path() == path && location->span.begin < offset &&
+          offset <= location->span.end) {
+        std::get<CallExpr>(syntax.module.expressions[*selected].value).arguments.pop_back();
+        editingName = true;
+      }
+    }
+  }
   CallableSignatureQuery query{invocationSpan, {}};
   const auto following = std::ranges::find_if(lexed.tokens, [&](const auto &token) {
     return token.span.begin >= offset && token.kind != TokenKind::Newline &&
            token.kind != TokenKind::Indent && token.kind != TokenKind::Dedent;
   });
-  if (!depth && (last == TokenKind::LeftParen || last == TokenKind::Comma) &&
-      following != lexed.tokens.end() && following->kind == TokenKind::RightParen)
+  if (editingName || (!depth && (last == TokenKind::LeftParen || last == TokenKind::Comma) &&
+                      following != lexed.tokens.end() && following->kind == TokenKind::RightParen))
     options.signature = &query;
   const auto projected = [&]() -> std::optional<SignatureInfo> {
     const auto name = target ? target->source->slice(target->span) : std::string_view{};
@@ -287,7 +307,7 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
   };
   if (!target) {
     auto checked = check(std::move(syntax), {}, options);
-    if (!checked.ok())
+    if (editingName || !checked.ok())
       return projected();
     const ValueType *type = nullptr;
     for (const auto &expression : checked.module->expressions)
@@ -302,7 +322,7 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
     return type ? callableSignature(*checked.module, *type, {}, active) : std::nullopt;
   }
   auto semantic = semanticToken(std::move(syntax), path, target->span.begin, options);
-  if (!semantic)
+  if (editingName || !semantic)
     return projected();
   TypePrinter printer{semantic->module};
   SignatureInfo result;

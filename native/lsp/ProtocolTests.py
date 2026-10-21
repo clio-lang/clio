@@ -1013,6 +1013,32 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert not signature_document.exists() and higher_library.read_text() == higher_text
     client.finish()
 
+    client = Client()
+    client.init(signature_offsets=True)
+    editing_text = ('from "./higher-order.k" import make as factory\n'
+                    'fn main():\n  factory()(1, vaSuffix)\n')
+    client.open(signature_document, editing_text)
+    client.barrier()
+    cursor = editing_text.splitlines()[2].index("vaSuffix") + 2
+    result = client.signature(signature_document, 2, cursor)["result"]
+    assert result["activeParameter"] == 1 and result["signatures"][0]["label"] == "fn(int64, int64) -> int64", result
+    assert client.hover(signature_document, 2, cursor)["result"] is None, "signature projection escaped into ordinary analysis"
+    assert not client.barrier(), "editing-name projection published diagnostics"
+    client.open(higher_library, higher_text.replace("int", "uint"))
+    client.barrier()
+    assert "uint64" in client.signature(signature_document, 2, cursor)["result"]["signatures"][0]["label"]
+    broken_prefix = editing_text.replace("(1,", "(missing,")
+    client.change(signature_document, broken_prefix, 2)
+    client.barrier()
+    bad_cursor = broken_prefix.splitlines()[2].index("vaSuffix") + 2
+    assert client.signature(signature_document, 2, bad_cursor)["result"] is None
+    client.change(signature_document, editing_text.replace(", vaSuffix)", ", vaSuffix"), 3)
+    client.barrier()
+    end_cursor = len(editing_text.splitlines()[2]) - 1
+    assert "uint64" in client.signature(signature_document, 2, end_cursor)["result"]["signatures"][0]["label"]
+    assert not signature_document.exists() and higher_library.read_text() == higher_text
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"
