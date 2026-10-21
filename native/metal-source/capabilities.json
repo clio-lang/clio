@@ -276,7 +276,7 @@
       "fixtures": [
         "capabilities/branch-primitive.k"
       ],
-      "notes": "Pure same-source elementwise tensor choices are supported; reductions, matrix products, dispatch and conditional shape checks inside arms are not admitted",
+      "notes": "Pure shape-proven elementwise choices are supported; reductions, matrix products, dispatch and conditional shape checks inside arms are not admitted",
       "diagnostic": "G00[13]"
     },
     {
@@ -511,6 +511,19 @@
       "notes": "Independent projected left/right pure tensor choices, fixed or checked dynamic equal shapes; optional result arithmetic and terminal sum",
       "evidence": [
         "gpu-operand-choices-2026-10-21.json"
+      ]
+    },
+    {
+      "id": "result-choices",
+      "feature": "Choices over computed matrix results",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "result-choices.k"
+      ],
+      "notes": "One already-computed matrix product feeds pure shape-proven result choices, projected resident epilogues and an optional terminal reduction",
+      "evidence": [
+        "gpu-result-choices-2026-10-21.json"
       ]
     }
   ]

@@ -301,6 +301,14 @@ class Compiler {
                      b->kind == PrimitiveEntry::Input) {
               result = a;
               result->mapped = true;
+            } else if (tensor &&
+                       (a->kind == PrimitiveEntry::Matrix || b->kind == PrimitiveEntry::Matrix) &&
+                       (a->kind == PrimitiveEntry::Matrix || a->kind == PrimitiveEntry::Input) &&
+                       (b->kind == PrimitiveEntry::Matrix || b->kind == PrimitiveEntry::Input)) {
+              // The one matrix primitive was computed before this pure choice.
+              // Its result is a lane input to the existing resident epilogue.
+              result = a->kind == PrimitiveEntry::Matrix ? a : b;
+              result->post = true;
             }
           }
         } else if ((sumSignature || matrixSignature) &&

@@ -18,6 +18,8 @@ shapes need not match each other: rectangular multiplication still requires
 only the normal inner-dimension agreement. The map results stay resident until
 multiplication completes. Optional result arithmetic, a terminal `reduceSum`,
 and final scalar arithmetic retain their existing execution paths.
+[Choices over the computed matrix result](native-gpu-result-choices.md) now also
+use the resident result-map path.
 
 Every source within a choice must have the same complete shape. Fixed dimensions
 or existing unconditional checked equality contracts establish that proof.
