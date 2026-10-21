@@ -2,6 +2,7 @@
 #include "CallRecovery.h"
 #include <algorithm>
 #include <filesystem>
+#include <type_traits>
 namespace kalandra::lsp {
 CompletionInfo completeNames(const std::string &path, const std::string &text, std::size_t offset,
                              const std::vector<ModulePackage> &packages,
@@ -131,6 +132,66 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
       }
     if (site)
       break;
+  }
+  if (!site) {
+    // Type annotations are not expressions. Walk their owned syntax explicitly,
+    // including nested callable types and annotations in nested suites.
+    std::vector<const TypeSyntax *> types;
+    const auto statements = [&](const std::vector<Statement> &body) {
+      for (const auto &statement : body)
+        if (statement.annotation)
+          types.push_back(&*statement.annotation);
+    };
+    for (const auto &function : syntax->module.functions) {
+      for (const auto &parameter : function.parameters)
+        types.push_back(&parameter.type);
+      if (function.result)
+        types.push_back(&*function.result);
+      statements(function.body);
+    }
+    for (const auto &record : syntax->module.records) {
+      for (const auto &field : record.fields)
+        types.push_back(&field.type);
+      for (const auto &variant : record.variants)
+        for (const auto &field : variant.fields)
+          types.push_back(&field.type);
+    }
+    for (const auto &expression : syntax->module.expressions) {
+      std::visit(
+          [&](const auto &value) {
+            using T = std::decay_t<decltype(value)>;
+            if constexpr (std::is_same_v<T, LambdaExpr>) {
+              for (const auto &parameter : value.parameters)
+                if (parameter.annotation)
+                  types.push_back(&*parameter.annotation);
+              if (value.result)
+                types.push_back(&*value.result);
+            }
+            if constexpr (requires { value.body; })
+              statements(value.body);
+            if constexpr (std::is_same_v<T, ConditionalExpr>) {
+              statements(value.whenTrue);
+              statements(value.whenFalse);
+            }
+            if constexpr (std::is_same_v<T, MatchExpr>)
+              for (const auto &arm : value.arms)
+                statements(arm.body);
+          },
+          expression.value);
+    }
+    while (!site && !types.empty()) {
+      const auto *type = types.back();
+      types.pop_back();
+      if (type->function) {
+        for (const auto &parameter : type->function->parameters)
+          types.push_back(&parameter);
+        types.push_back(&type->function->result);
+      } else {
+        locate(type->name);
+        if (type->element)
+          locate(*type->element);
+      }
+    }
   }
   if (!site)
     return result;

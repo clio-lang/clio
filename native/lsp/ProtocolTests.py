@@ -1142,6 +1142,48 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert higher_library.read_text() == higher_text
     client.finish()
 
+    # Annotation completion follows only the current module's type namespace.
+    type_library = Path(temp) / "type-completion.k"
+    type_library_text = "export type Reading:\n  value:int\ntype Hidden:\n  value:int\n"
+    type_library.write_text(type_library_text)
+    client = Client()
+    client.init()
+    type_text = ('from "./type-completion.k" import Reading as Sample\n'
+                 'fn inspect(value:SaSuffix):\n  0\nfn main():\n  0\n')
+    client.open(signature_document, type_text)
+    client.barrier()
+    start = type_text.splitlines()[1].index("SaSuffix")
+    result = client.completion(signature_document, 1, start + 2)["result"]
+    assert [item["label"] for item in result["items"]] == ["Sample"], result
+    item = result["items"][0]
+    assert item["kind"] == 22 and item["textEdit"] == {"newText":"Sample", "range":{
+        "start":{"line":1,"character":start},"end":{"line":1,"character":start+8}}}, item
+    assert client.hover(signature_document, 1, start+2)["result"] is None
+    assert not client.barrier(), "type completion published probe diagnostics"
+    client.open(type_library, type_library_text.replace("type Reading", "type Changed"))
+    client.barrier()
+    assert client.completion(signature_document, 1, start+2)["result"]["items"] == []
+    client.change(type_library, type_library_text, 2)
+    client.barrier()
+    assert client.completion(signature_document, 1, start+2)["result"]["items"][0]["label"] == "Sample"
+    client.change(signature_document, type_text.replace("SaSuffix", "Sample"), 2)
+    assert not publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+    assert client.hover(signature_document, 1, start+2)["result"] is not None
+    tensor_type = 'fn inspect(values:Tensor[floSuffix,?]):\n  0\nfn main():\n  0\n'
+    client.change(signature_document, tensor_type, 3)
+    client.barrier()
+    result = client.completion(signature_document, 0, tensor_type.splitlines()[0].index("floSuffix")+3)["result"]
+    assert [item["label"] for item in result["items"]] == ["float","float32","float64"], result
+    array_type = 'fn inspect(values:[]):\n  0\nfn main():\n  0\n'
+    client.change(signature_document, array_type, 4)
+    client.barrier()
+    result = client.completion(signature_document, 0, array_type.splitlines()[0].index("]"))["result"]
+    labels = [item["label"] for item in result["items"]]
+    assert "Bool" in labels and "String" in labels and "int8" in labels
+    assert not any(name in labels for name in ["TaskError","Tensor","Hidden","Reading","Sample"]), labels
+    assert not signature_document.exists() and type_library.read_text() == type_library_text
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"

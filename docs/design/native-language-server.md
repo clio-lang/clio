@@ -192,7 +192,7 @@ Suggestions include parameters, preceding immutable bindings, eligible closure c
 
 The request replaces only the current identifier (or inserts one at an empty position) in a temporary source overlay, then parses the graph and snapshots scope immediately before the checker resolves that identifier. Current dependency buffers and configured package mappings participate. Probe diagnostics are discarded: the request does not publish diagnostics, change buffers, write files, run code or contact hardware. Normal checking still never publishes partial typed IR. Completion exposes only scope names, without partial/stale inferred types.
 
-Apart from bounded construction/pattern-label probes and trailing-call repair below, completion needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Unsupported missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; annotations, import paths, general pattern bindings and declaration names are not completion contexts yet. Qualified enum cases in match patterns are covered below. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no general parser recovery, auto-import, fuzzy ranking, snippet expansion or completion resolve. Checked signature help is covered below. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
+Apart from bounded construction/pattern-label probes and trailing-call repair below, completion needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Unsupported missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; import paths, error channels, general pattern bindings and declaration names are not completion contexts yet. Type annotations are covered below. Qualified enum cases in match patterns are covered below. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no general parser recovery, auto-import, fuzzy ranking, snippet expansion or completion resolve. Checked signature help is covered below. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
 
 The [completion qualification record](../../native/metal-proof/evidence/native-lsp-completion-2026-10-20.json) records semantic and stdio tests in normal and ASan/UBSan builds. [Initial VS Code acceptance](native-vscode.md#qualification) now covers partly typed names; broader completion interaction remains follow-up work.
 
@@ -578,3 +578,40 @@ UTF-16 ranges, prefix filtering and the 256-item bound retain their existing rul
 [Unfinished-call completion qualification](../../native/metal-proof/evidence/native-lsp-open-call-completion-2026-10-21.json)
 records normal/sanitizer semantic and protocol checks, signature-help regressions,
 relocated Release tools and applied installed VS Code completion edits.
+
+#### Type-annotation completion
+
+Annotations now offer type names in function parameters/results, local bindings,
+record fields, enum payload fields, anonymous functions and nested function types.
+Empty and partly typed names use the same whole-identifier edits as expression
+completion. An imported `Reading as Sample` offers `Sample` in the importing
+module; private names and the original unimported spelling do not leak from the
+library. Ordinary local variables and functions are not type suggestions, and a
+same-spelled value binding does not hide an annotation's type name.
+
+Builtins include the ten concrete numeric types, `int`/`uint`/`float`, `Bool`,
+`String`, `TaskError` and the `Tensor` type family. Tensor element positions offer
+only numeric names. Array element positions exclude `TaskError` and nested
+`Tensor` families under the current array-type rules. `Tensor` remains a plain
+name item: users still supply its element and shape arguments. No snippets,
+auto-imports or new type syntax are introduced.
+
+A request-local probe must occupy a parsed annotation node. The checker collects
+only names from that node's module/type namespace; normal type checking still
+runs against the temporary probe. Only names escape; no partial type/module is published, and
+normal diagnostics, hover and files remain unchanged. Prior semantic/import errors
+can suppress suggestions. As with scope completion, later errors do not invalidate
+an already captured list, and a suggested declaration is not a promise that every
+use satisfies layout or contextual restrictions.
+
+Type discovery walks owned annotation syntax, including callable parameter/result
+types and annotations in nested suites; it does not infer context from punctuation
+alone. Ordinary expression requests skip this additional walk. Prefix filtering,
+sorted/deduplicated names, the 256-item bound, source/graph budgets and UTF-16 edit
+ranges remain shared with existing completion. Other declaration syntax must
+parse; general declaration recovery and error-channel completion remain separate.
+
+[Type-completion qualification](../../native/metal-proof/evidence/native-lsp-type-completion-2026-10-21.json)
+covers normal/sanitizer semantic and protocol checks, live imported aliases,
+context-specific builtin lists, bounded results, relocated Release tools and
+installed VS Code edits followed by checked hover and cleared diagnostics.

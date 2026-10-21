@@ -606,6 +606,19 @@ async function run() {
   assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
   await replace(main, mainDisk);
   checks.push("Completion applies a name inside an unfinished call without adding delimiters or hiding its actual diagnostic");
+  const typeCompletion = await complete(
+    main,
+    'from "./completion-library.k" import Box as Sample\nfn inspect(value:Sa|Suffix):\n  0\nfn main():\n  0\n',
+    "Sample",
+  );
+  const typeItem = typeCompletion.items.find((item) => label(item) === "Sample");
+  assert.equal(typeItem.kind, vscode.CompletionItemKind.Struct);
+  await applyCompletion(main, typeItem, "SaSuffix", "Sample");
+  await clearDiagnostics(main);
+  assert.match(hoverText(await hover(main, "Sample):")), /type Sample/);
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  checks.push("Type completion applies an imported alias in an annotation and checks the resulting program");
   await clearDiagnostics(main);
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(

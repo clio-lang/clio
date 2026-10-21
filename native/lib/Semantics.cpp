@@ -322,7 +322,30 @@ private:
     }
     rememberSourceToken(std::move(token));
   }
+  void completeTypes(const TypeSyntax &syntax) {
+    const auto site = syntax.tensor ? syntax.element : std::optional<SourceSpan>{syntax.name};
+    if (syntax.function || !site || !completing(*site))
+      return;
+    std::vector<std::string> names;
+    for (const auto &numeric : numericTypes)
+      names.emplace_back(numeric.name);
+    names.insert(names.end(), {"int", "uint", "float"});
+    if (!syntax.tensor) {
+      names.insert(names.end(), {"Bool", "String"});
+      if (!syntax.array)
+        names.insert(names.end(), {"TaskError", "Tensor"});
+      const auto prefix = functionKey(syntax_.source->partIndex(site->begin), "");
+      for (const auto &[key, id] : records_)
+        if (key.starts_with(prefix))
+          names.push_back(key.substr(prefix.size()));
+      for (const auto &[key, declaration] : aliases_)
+        if (key.starts_with(prefix))
+          names.push_back(key.substr(prefix.size()));
+    }
+    completeMembers(*site, std::move(names), ScopeNameKind::Type);
+  }
   std::optional<ValueType> type(const TypeSyntax &syntax) {
+    completeTypes(syntax);
     auto result = resolveType(syntax);
     if (result && !syntax.function) {
       auto named = *result;

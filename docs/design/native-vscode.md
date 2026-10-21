@@ -87,3 +87,5 @@ Installed-editor acceptance also checks [record-field argument guidance](native-
 The same installed-editor checks now cover [an empty final record field](native-language-server.md#empty-record-field-arguments): parameter guidance remains visible immediately after the dot while the unsaved source and real syntax diagnostic remain unchanged.
 
 Installed-editor acceptance now applies [name completion inside an unfinished call](native-language-server.md#completion-inside-unfinished-calls), checks that the edit changes only the typed name, and verifies that the actual missing-delimiter diagnostic and disk file remain unchanged.
+
+Installed-editor acceptance now applies an [imported type alias in an annotation](native-language-server.md#type-annotation-completion), verifies the existing Struct item kind, and checks the resulting program and alias-preserving hover without changing disk sources.

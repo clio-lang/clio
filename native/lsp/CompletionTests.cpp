@@ -158,6 +158,63 @@ int main() {
             "mismatched delimiters rejected");
     require(query(combine + "fn main():\n  value=2\n  ((((((((combine(va|\n").names.empty(),
             "eight-parenthesis recovery bound retained");
+    info = query("fn inspect(value: int|Suffix):\n  0\nfn main():\n  0\n");
+    require(info.names.size() == 5 && has(info, "int") && has(info, "int8") && has(info, "int64") &&
+                info.names[0].kind == ScopeNameKind::Type,
+            "parameter numeric types and aliases");
+    require(info.replacement.end - info.replacement.begin == 9,
+            "type completion replaces identifier suffix");
+    info = query("type Reading:\n  value:int\nenum Choice:\n  None\nfn make()->Rea|Suffix:\n  "
+                 "0\nfn main():\n  0\n");
+    require(info.names.size() == 1 && has(info, "Reading"), "nominal return type");
+    info = query("type Reading:\n  value:int\nfn main():\n  Reading=2\n  value:Rea|=0\n  0\n");
+    require(info.names.size() == 1 && has(info, "Reading") &&
+                info.names[0].kind == ScopeNameKind::Type,
+            "annotation uses type namespace despite value shadow");
+    info = query("type Reading:\n  value: flo|Suffix\nfn main():\n  0\n");
+    require(info.names.size() == 3 && has(info, "float32") && has(info, "float64") &&
+                has(info, "float"),
+            "record field types");
+    info = query("enum Choice:\n  Some:\n    value: uint|\n  None\nfn main():\n  0\n");
+    require(info.names.size() == 5 && has(info, "uint64"), "enum payload field types");
+    info = query("fn inspect(values:[Bo|]):\n  0\nfn main():\n  0\n");
+    require(info.names.size() == 1 && has(info, "Bool"), "array element type");
+    info = query("fn inspect(values:[|]):\n  0\nfn main():\n  0\n");
+    require(has(info, "String") && has(info, "int32") && !has(info, "TaskError") &&
+                !has(info, "Tensor"),
+            "array suggestions exclude unsupported nested containers and TaskError");
+    info = query(
+        "type Reading:\n  value:int\nfn inspect(values:Tensor[|,?]):\n  0\nfn main():\n  0\n");
+    require(info.names.size() == 13 && has(info, "float32") && !has(info, "Bool") &&
+                !has(info, "Reading"),
+            "tensor element slot offers only numeric types");
+    info = query("fn inspect(callback:fn(in|)->int):\n  0\nfn main():\n  0\n");
+    require(has(info, "int32") && info.names.size() == 5, "nested callable parameter type");
+    info = query("fn inspect(callback:fn(int)->flo|):\n  0\nfn main():\n  0\n");
+    require(has(info, "float32") && info.names.size() == 3, "nested callable return type");
+    info = query("fn main():\n  callback=fn(value: ui|):value\n  0\n");
+    require(has(info, "uint32") && info.names.size() == 5, "anonymous parameter annotation");
+    info = query("fn main():\n  if true:\n    value: in|=1\n    0\n  else:\n    0\n");
+    require(has(info, "int8"), "nested suite binding annotation");
+    info = query("fn helper(value:int):\n  value\nfn main(value: |):\n  0\n");
+    require(has(info, "Bool") && has(info, "Tensor") && has(info, "TaskError") &&
+                !has(info, "helper") && !has(info, "value"),
+            "empty annotation offers only type names");
+    require(query("fn main():\n  broken=missing\n  value:in|=1\n  0\n").names.empty(),
+            "earlier semantic errors block type completion");
+    require(query("fn main(value:int) ! Ba|:\n  value\n").names.empty(),
+            "error channel completion remains separate");
+    std::string manyTypes;
+    for (int i = 0; i < 300; ++i) {
+      const auto suffix = std::to_string(1000 + i).substr(1);
+      manyTypes += "type Type" + suffix + ":\n  value:int\n";
+    }
+    info = query(manyTypes + "fn main(value:Type|):\n  0\n");
+    require(info.names.size() == 256 && info.incomplete && has(info, "Type000") &&
+                !has(info, "Type299"),
+            "type suggestions use sorted bounded lists");
+    info = query(manyTypes + "fn main(value:Type29|):\n  0\n");
+    require(info.names.size() == 10 && !info.incomplete, "type prefix narrows list before limit");
     std::string many = "fn main():\n";
     for (int i = 0; i < 300; ++i)
       many += "  candidate" + std::to_string(i) + " = 1\n";
