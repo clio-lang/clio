@@ -220,7 +220,7 @@ class Session {
   std::vector<std::string> workspaces;
 
 public:
-  bool initialized = false, shutdown = false, hoverMarkdown = false;
+  bool initialized = false, shutdown = false, hoverMarkdown = false, signatureOffsets = false;
   bool renameDocuments = false, renamePrepare = false;
   Session(std::optional<NativeProject> p, bool placement) : project(std::move(p)) {
     options.placement = placement;
@@ -526,6 +526,68 @@ public:
       }
     }
     send(j::Object{{"jsonrpc", "2.0"}, {"id", id}, {"result", std::move(edits)}});
+  }
+  void signatureRequest(const j::Value &id, const j::Object *params) {
+    const auto item = params ? params->getObject("textDocument") : nullptr;
+    const auto uri = item ? item->getString("uri") : std::nullopt;
+    const auto path = uri ? pathFromUri(*uri) : std::nullopt;
+    const auto position = editPosition(params ? params->getObject("position") : nullptr);
+    if (!path || !position) {
+      error(id, -32602, "Expected a local .k URI and UTF-16 position");
+      return;
+    }
+    const auto respond = [&](j::Value result) {
+      send(j::Object{{"jsonrpc", "2.0"}, {"id", id}, {"result", std::move(result)}});
+    };
+    const auto open = documents.find(*path);
+    if (open == documents.end() || open->second.uri != *uri) {
+      respond(nullptr);
+      return;
+    }
+    const auto offset = lsp::textOffset(open->second.text, *position);
+    if (!offset) {
+      respond(nullptr);
+      return;
+    }
+    std::vector<SourceOverlay> overlays;
+    for (const auto &[file, document] : documents)
+      overlays.push_back({file, document.text});
+    auto syntax = loadGraph(*path, overlays);
+    auto info =
+        syntax ? lsp::signatureInfo(std::move(*syntax), *path, *offset, options) : std::nullopt;
+    if (!info) {
+      respond(nullptr);
+      return;
+    }
+    j::Array parameters;
+    std::size_t next = info->label.find('(') + 1;
+    const auto units = [](std::string_view text) {
+      std::int64_t result = 0;
+      for (const unsigned char byte : text)
+        if ((byte & 0xc0) != 0x80)
+          result += byte >= 0xf0 ? 2 : 1;
+      return result;
+    };
+    for (const auto &label : info->parameters) {
+      const auto begin = info->label.find(label, next);
+      if (begin == std::string::npos) {
+        respond(nullptr);
+        return;
+      }
+      next = begin + label.size();
+      if (signatureOffsets)
+        parameters.push_back(
+            j::Object{{"label", j::Array{units(std::string_view(info->label).substr(0, begin)),
+                                         units(std::string_view(info->label).substr(0, next))}}});
+      else
+        parameters.push_back(j::Object{{"label", label}});
+    }
+    j::Object result{{"signatures", j::Array{j::Object{{"label", info->label},
+                                                       {"parameters", std::move(parameters)}}}},
+                     {"activeSignature", 0}};
+    if (info->activeParameter)
+      result["activeParameter"] = static_cast<std::int64_t>(*info->activeParameter);
+    respond(std::move(result));
   }
   void completionRequest(const j::Value &id, const j::Object *params) {
     const auto item = params ? params->getObject("textDocument") : nullptr;
@@ -889,6 +951,15 @@ int main(int argc, char **argv) {
             workspaceEdit && workspaceEdit->getBoolean("documentChanges").value_or(false);
         const auto rename = document ? document->getObject("rename") : nullptr;
         session.renamePrepare = rename && rename->getBoolean("prepareSupport").value_or(false);
+        const auto signature = document ? document->getObject("signatureHelp") : nullptr;
+        const auto signatureInformation =
+            signature ? signature->getObject("signatureInformation") : nullptr;
+        const auto parameterInformation =
+            signatureInformation ? signatureInformation->getObject("parameterInformation")
+                                 : nullptr;
+        session.signatureOffsets =
+            parameterInformation &&
+            parameterInformation->getBoolean("labelOffsetSupport").value_or(false);
         const auto hover = document ? document->getObject("hover") : nullptr;
         const auto formats = hover ? hover->getArray("contentFormat") : nullptr;
         if (formats)
@@ -908,6 +979,8 @@ int main(int argc, char **argv) {
                  {"capabilities",
                   j::Object{{"positionEncoding", "utf-16"},
                             {"hoverProvider", true},
+                            {"signatureHelpProvider",
+                             j::Object{{"triggerCharacters", j::Array{"(", ","}}}},
                             {"completionProvider",
                              j::Object{{"resolveProvider", false},
                                        {"triggerCharacters", j::Array{".", "{", ","}}}},
@@ -941,6 +1014,8 @@ int main(int argc, char **argv) {
                               *method == "textDocument/prepareRename");
       } else if (*method == "textDocument/formatting" && request) {
         session.formattingRequest(*id, object->getObject("params"));
+      } else if (*method == "textDocument/signatureHelp" && request) {
+        session.signatureRequest(*id, object->getObject("params"));
       } else if (*method == "textDocument/completion" && request) {
         session.completionRequest(*id, object->getObject("params"));
       } else if ((*method == "textDocument/hover" || *method == "textDocument/definition" ||

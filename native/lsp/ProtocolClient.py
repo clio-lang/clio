@@ -60,8 +60,11 @@ class Client:
         events, self.events = self.events, []
         return events
 
-    def init(self, formats=None, rename=False, **workspace):
+    def init(self, formats=None, rename=False, signature_offsets=False, **workspace):
         capabilities = {} if formats is None else {"textDocument": {"hover": {"contentFormat": formats}}}
+        if signature_offsets:
+            capabilities.setdefault("textDocument", {})["signatureHelp"] = {
+                "signatureInformation": {"parameterInformation": {"labelOffsetSupport": True}}}
         if rename:
             capabilities["workspace"] = {"workspaceEdit": {"documentChanges": True}}
             capabilities.setdefault("textDocument", {})["rename"] = {"prepareSupport": True}
@@ -70,6 +73,7 @@ class Client:
         assert caps["positionEncoding"] == "utf-16"
         assert caps["textDocumentSync"]["change"] == 2  # Incremental UTF-16 changes.
         assert caps["hoverProvider"] is True
+        assert caps["signatureHelpProvider"] == {"triggerCharacters": ["(", ","]}
         assert caps["definitionProvider"] is True
         assert caps["referencesProvider"] is True
         assert caps["renameProvider"] == ({"prepareProvider": True} if rename else False)
@@ -93,6 +97,10 @@ class Client:
     def hover(self, path, line, character):
         return self.rpc("textDocument/hover", {"textDocument": {"uri": path.as_uri()},
                                               "position": {"line": line, "character": character}})
+
+    def signature(self, path, line, character):
+        return self.rpc("textDocument/signatureHelp", {"textDocument": {"uri": path.as_uri()},
+            "position": {"line": line, "character": character}})
 
     def formatting(self, path, options=None):
         return self.rpc("textDocument/formatting", {"textDocument": {"uri": path.as_uri()},

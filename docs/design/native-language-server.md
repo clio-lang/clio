@@ -192,7 +192,7 @@ Suggestions include parameters, preceding immutable bindings, eligible closure c
 
 The request replaces only the current identifier (or inserts one at an empty position) in a temporary source overlay, then parses the graph and snapshots scope immediately before the checker resolves that identifier. Current dependency buffers and configured package mappings participate. Probe diagnostics are discarded: the request does not publish diagnostics, change buffers, write files, run code or contact hardware. Normal checking still never publishes partial typed IR. Completion exposes only scope names, without partial/stale inferred types.
 
-Apart from the bounded construction/pattern-label probe below, completion needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; annotations, import paths, general pattern bindings and declaration names are not completion contexts yet. Qualified enum cases in match patterns are covered below. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no general parser recovery, auto-import, fuzzy ranking, snippet expansion, completion resolve or signature help. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
+Apart from the bounded construction/pattern-label probe below, completion needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; annotations, import paths, general pattern bindings and declaration names are not completion contexts yet. Qualified enum cases in match patterns are covered below. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no general parser recovery, auto-import, fuzzy ranking, snippet expansion or completion resolve. Checked signature help is covered below. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
 
 The [completion qualification record](../../native/metal-proof/evidence/native-lsp-completion-2026-10-20.json) records semantic and stdio tests in normal and ASan/UBSan builds. [Initial VS Code acceptance](native-vscode.md#qualification) now covers partly typed names; broader completion interaction remains follow-up work.
 
@@ -222,7 +222,7 @@ Malformed JSON with valid framing returns a parse error and leaves the session u
 
 Independent Python-stdlib protocol tests launch normal and ASan/UBSan builds, exercise interactive pipe framing, lifecycle, versions, Unicode ranges/URIs, source isolation, dependency changes/clearing, project packages, budgets and malformed input. The [initial qualification record](../../native/metal-proof/evidence/native-lsp-2026-10-20.json) covers the first full-sync implementation. [Incremental edit qualification](../../native/metal-proof/evidence/native-lsp-edits-2026-10-20.json) adds sequential/mixed edits, Unicode scalar boundaries, CRLF/CR positions, line-end clamping, transactional failure, deprecated lengths and edit limits. Third-party LLVM libraries are not rebuilt with sanitizers. No real editor or additional operating system is qualified by these protocol tests.
 
-The [native VS Code qualification](native-vscode.md#qualification) now tests the packaged client against the real editor host on macOS ARM64. An [initial native tool install/archive](native-tools-install.md) now supports this editor connection outside the build directory. Additional editor/platform acceptance, complete compiler/runtime distribution, completion recovery, additional member contexts and signature help remain follow-ups. Filesystem watching, persistent workspace indexing and asynchronous scheduling remain separate work.
+The [native VS Code qualification](native-vscode.md#qualification) now tests the packaged client against the real editor host on macOS ARM64. An [initial native tool install/archive](native-tools-install.md) now supports this editor connection outside the build directory. Additional editor/platform acceptance, complete compiler/runtime distribution, completion recovery, additional member contexts and broader signature-help recovery remain follow-ups. Filesystem watching, persistent workspace indexing and asynchronous scheduling remain separate work.
 
 ### Record-field completion
 
@@ -342,3 +342,32 @@ covers semantic queries, normal/sanitizer protocol runs and relocated Release
 tools. [Installed VS Code acceptance](native-vscode.md#qualification) now applies
 shorthand and explicit-binding label edits and checks the resulting local reads.
 General binding-name suggestions and broad parser recovery remain follow-ups.
+
+### Checked signature help
+
+`textDocument/signatureHelp` returns a single checked signature for the innermost
+parenthesized call at the cursor. The server advertises `(` and `,` triggers.
+Named functions retain source parameter names; function bindings, parameters and
+callable record fields use their structural parameter types. Imports, aliases and
+unsaved dependency overlays follow the same graph as hover. Expected-error return
+channels are included, while compiler capture parameters are omitted.
+
+The active parameter counts only commas at the current call's delimiter depth.
+Nested calls, arrays, records and String contents do not advance the outer
+argument. For `value -> combine(other)`, the implicit pipeline value occupies
+parameter zero, so `other` selects parameter one. Zero-argument functions have no
+active parameter. A client advertising `labelOffsetSupport` receives UTF-16
+parameter-label ranges, which distinguish repeated structural types; other
+clients receive the standard string labels.
+
+The entire graph must parse and type-check. This initial implementation does not
+repair a missing argument or closing parenthesis, supply builtin signatures, or
+infer a signature for factory/indexed/anonymous callee expressions. Such requests
+return `null`, as do invalid positions, closed documents and unresolved/invalid
+graphs. It does not reuse a stale successful graph or publish partial inferred
+types. Requesting help makes no source changes or diagnostic publications.
+
+The [signature-help qualification](../../native/metal-proof/evidence/native-lsp-signature-2026-10-21.json)
+records normal/sanitizer semantic and protocol tests, hover regressions, relocated
+Release tools and installed VS Code provider acceptance. Broader incomplete-call
+recovery, builtin signatures and additional editor/platform acceptance remain open.

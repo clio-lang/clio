@@ -874,6 +874,57 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert client.completion(document, 4, 16)["result"] is None
     client.finish()
 
+    # Signature help uses checked imported signatures and current unsaved graphs.
+    signature_document = Path(temp) / "signature.k"
+    signature_library = Path(temp) / "signatures.k"
+    library_text = "export fn combine(text:String,left:int,right:int)->int:\n  left+right\n"
+    signature_library.write_text(library_text)
+    client = Client()
+    client.init()
+    text = ('from "./signatures.k" import combine as join\n'
+            'fn main():\n  join("😀",1,2)\n')
+    client.open(signature_document, text)
+    client.barrier()
+    line = text.splitlines()[2]
+    cursor = len(line[:line.index(",2") + 1].encode("utf-16-le")) // 2
+    result = client.signature(signature_document, 2, cursor)["result"]
+    assert result == {"signatures": [{"label": "fn join(text: String, left: int64, right: int64) -> int64",
+        "parameters": [{"label": "text: String"}, {"label": "left: int64"}, {"label": "right: int64"}]}],
+        "activeSignature": 0, "activeParameter": 2}, result
+    assert not client.barrier(), "signature query leaked diagnostics"
+    client.open(signature_library, library_text.replace("right", "amount"))
+    client.barrier()
+    assert "amount: int64" in client.signature(signature_document, 2, cursor)["result"]["signatures"][0]["label"]
+    client.change(signature_library, library_text.replace("left+right", "missing"), 2)
+    client.barrier()
+    assert client.signature(signature_document, 2, cursor)["result"] is None
+    client.close(signature_library)
+    client.barrier()
+    assert client.signature(signature_document, 2, cursor)["result"] is not None
+    client.change(signature_document, text.replace(',2)', ',2'), 2)
+    client.barrier()
+    assert client.signature(signature_document, 2, cursor)["result"] is None
+    assert client.signature(signature_document, 200, 0)["result"] is None
+    assert client.rpc("textDocument/signatureHelp", {"textDocument": {"uri": signature_document.as_uri()},
+        "position": {"line": -1, "character": 0}})["error"]["code"] == -32602
+    client.close(signature_document)
+    client.barrier()
+    assert client.signature(signature_document, 2, cursor)["result"] is None
+    assert not signature_document.exists(), "signature query wrote source"
+    assert signature_library.read_text() == library_text
+    client.finish()
+
+    client = Client()
+    client.init(signature_offsets=True)
+    text = 'fn add(a:int,b:int)->int:\n  a+b\nfn main():\n  f=add\n  f(1,2)\n'
+    client.open(signature_document, text)
+    client.barrier()
+    result = client.signature(signature_document, 4, 6)["result"]
+    assert result["activeParameter"] == 1
+    assert result["signatures"][0] == {"label": "fn f(int64, int64) -> int64",
+        "parameters": [{"label": [5, 10]}, {"label": [12, 17]}]}, result
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"

@@ -1,5 +1,6 @@
 #include "Hover.h"
 #include "SemanticQuery.h"
+#include <algorithm>
 namespace kalandra::lsp {
 namespace {
 struct TypePrinter {
@@ -95,14 +96,18 @@ struct TypePrinter {
       result += " ! " + errorName(family);
     return result;
   }
-  std::string function(const TypedFunction &function, std::string_view name) {
+  std::string function(const TypedFunction &function, std::string_view name,
+                       std::vector<std::string> *parameters = nullptr) {
     std::string result = "fn " + std::string(name) + "(";
     const auto count = function.parameters.size() - function.captureCount;
     for (std::size_t i = 0; i < count; ++i) {
       if (i)
         result += ", ";
       const auto &parameter = module.symbols[function.parameters[i]];
-      result += parameter.name + ": " + type(parameter.type);
+      const auto label = parameter.name + ": " + type(parameter.type);
+      result += label;
+      if (parameters)
+        parameters->push_back(label);
       if (!valid || result.size() > 16384) {
         valid = false;
         return {};
@@ -139,5 +144,112 @@ std::optional<HoverInfo> hoverInfo(ParseResult syntax, std::string_view path, st
   if (!printer.valid || text.empty() || text.size() > 16384)
     return {};
   return HoverInfo{std::move(text), selected->token.source, selected->token.span};
+}
+std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view path,
+                                           std::size_t offset, CheckOptions options) {
+  if (!syntax.ok() || !syntax.module.source)
+    return {};
+  std::optional<ExprId> selected;
+  std::optional<SourceLocation> callLocation, calleeLocation;
+  for (ExprId i = 0; i < syntax.module.expressions.size(); ++i) {
+    const auto &expression = syntax.module.expressions[i];
+    const auto *call = std::get_if<CallExpr>(&expression.value);
+    if (!call)
+      continue;
+    auto location = sourceLocation(syntax.module.source, expression.span);
+    auto callee =
+        sourceLocation(syntax.module.source, syntax.module.expressions[call->callee].span);
+    if (!location || !callee || location->source->path() != path ||
+        callee->source->path() != path || offset <= callee->span.end ||
+        offset >= location->span.end)
+      continue;
+    if (!callLocation || location->span.end - location->span.begin <
+                             callLocation->span.end - callLocation->span.begin) {
+      selected = i;
+      callLocation = std::move(location);
+      calleeLocation = std::move(callee);
+    }
+  }
+  if (!selected)
+    return {};
+  const auto &call = std::get<CallExpr>(syntax.module.expressions[*selected].value);
+  const auto &callee = syntax.module.expressions[call.callee];
+  SourceSpan token;
+  if (const auto *name = std::get_if<NameExpr>(&callee.value))
+    token = name->name;
+  else if (const auto *field = std::get_if<FieldExpr>(&callee.value))
+    token = field->field;
+  else
+    return {}; // Do not mistake a factory/indexed/anonymous callee for an outer call.
+  auto target = sourceLocation(syntax.module.source, token);
+  if (!target)
+    return {};
+  const auto lexed = lex(callLocation->source);
+  if (!lexed.diagnostics.empty())
+    return {};
+  bool opened = false;
+  std::size_t depth = 0, active = 0;
+  for (const auto &token : lexed.tokens) {
+    if (token.span.begin < calleeLocation->span.end)
+      continue;
+    if (token.span.begin >= offset)
+      break;
+    if (!opened) {
+      if (token.kind == TokenKind::Newline || token.kind == TokenKind::Indent ||
+          token.kind == TokenKind::Dedent)
+        continue;
+      if (token.kind != TokenKind::LeftParen)
+        return {};
+      opened = true;
+      continue;
+    }
+    if (token.kind == TokenKind::LeftParen || token.kind == TokenKind::LeftBrace ||
+        token.kind == TokenKind::LeftBracket)
+      ++depth;
+    else if (token.kind == TokenKind::RightParen || token.kind == TokenKind::RightBrace ||
+             token.kind == TokenKind::RightBracket) {
+      if (!depth)
+        return {};
+      --depth;
+    } else if (token.kind == TokenKind::Comma && !depth)
+      ++active;
+  }
+  if (!opened)
+    return {};
+  for (const auto &expression : syntax.module.expressions)
+    if (const auto *binary = std::get_if<BinaryExpr>(&expression.value);
+        binary && binary->operation == TokenKind::Arrow && binary->right == *selected) {
+      ++active; // The pipeline supplies the first parameter implicitly.
+      break;
+    }
+  auto semantic = semanticToken(std::move(syntax), path, target->span.begin, options);
+  if (!semantic)
+    return {};
+  TypePrinter printer{semantic->module};
+  SignatureInfo result;
+  const auto name = semantic->token.source->slice(semantic->token.span);
+  if (semantic->function)
+    result.label =
+        printer.function(semantic->module.functions[*semantic->function], name, &result.parameters);
+  else if (semantic->type && semantic->type->builtin == BuiltinValue::Function &&
+           semantic->type->callable && !semantic->type->array && !semantic->type->task &&
+           !semantic->type->fallible) {
+    result.label = "fn " + std::string(name) + "(";
+    for (const auto &parameter : semantic->type->callable->parameters) {
+      if (!result.parameters.empty())
+        result.label += ", ";
+      result.parameters.push_back(printer.type(parameter));
+      result.label += result.parameters.back();
+      if (!printer.valid || result.label.size() > 16384)
+        return {};
+    }
+    result.label += ") -> " + printer.returnedType(semantic->type->callable->result, 0);
+  } else
+    return {};
+  if (!printer.valid || result.label.empty() || result.label.size() > 16384)
+    return {};
+  if (!result.parameters.empty())
+    result.activeParameter = std::min(active, result.parameters.size() - 1);
+  return result;
 }
 } // namespace kalandra::lsp

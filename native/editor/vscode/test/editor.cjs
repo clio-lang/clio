@@ -364,6 +364,30 @@ async function run() {
   );
 
   await replace(main, mainDisk);
+  const signature = await eventually(async () => {
+    const result = await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider",
+      mainUri,
+      position(main, "double(21)", 8),
+      "(",
+    );
+    return result?.signatures.length ? result : undefined;
+  }, "checked signature help");
+  assert.equal(
+    signature.signatures[0].label,
+    "fn double(value: int64) -> int64",
+  );
+  const parameterLabel = signature.signatures[0].parameters[0].label;
+  assert.equal(
+    Array.isArray(parameterLabel)
+      ? signature.signatures[0].label.slice(...parameterLabel)
+      : parameterLabel,
+    "value: int64",
+  );
+  assert.equal(signature.activeParameter, 0);
+  checks.push(
+    "Signature help exposes the checked imported function and active argument in VS Code",
+  );
   await clearDiagnostics(main);
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(

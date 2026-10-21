@@ -1,6 +1,6 @@
 # Native VS Code integration
 
-The native editor client in [`native/editor/vscode`](../../native/editor/vscode) packages the C++ language server for VS Code. It associates `.k` files with Kalandra, provides TextMate syntax highlighting and bracket/comment rules, and connects diagnostics, hover, definition, references, rename, completion and formatting to `kalandra-lsp`.
+The native editor client in [`native/editor/vscode`](../../native/editor/vscode) packages the C++ language server for VS Code. It associates `.k` files with Kalandra, provides TextMate syntax highlighting and bracket/comment rules, and connects diagnostics, hover, definition, references, rename, completion, signature help and formatting to `kalandra-lsp`.
 
 ## Build and install
 
@@ -33,7 +33,7 @@ All semantic features use native compiler information. The adapter does not expa
 
 Format Document uses the [shared native formatter](native-formatter.md). VS Code can minimize the server's full-document replacement and normalize a no-change result to an absent edit list. User source stays unsaved until the editor saves it. The extension does not autoformat on save or edit disk files itself.
 
-TextMate highlighting covers native keywords, numeric and builtin types, operators, numbers, Strings/escapes, comments and call spellings. It is lexical coloring rather than compiler semantic tokens; a function-colored token is not proof of a valid call. Theme colors and ligatures follow the editor's preferences. Debugging, semantic tokens, inlay hints, signature help, completion recovery and other editors remain follow-ups.
+TextMate highlighting covers native keywords, numeric and builtin types, operators, numbers, Strings/escapes, comments and call spellings. It is lexical coloring rather than compiler semantic tokens; a function-colored token is not proof of a valid call. Theme colors and ligatures follow the editor's preferences. Debugging, semantic tokens, inlay hints, incomplete-call recovery and other editors remain follow-ups.
 
 ## Qualification
 
@@ -54,3 +54,8 @@ records 14 installed-extension-host checks and seven client/grammar/lifecycle te
 on VS Code 1.142.0, macOS ARM64, with the LLVM 23.1.3 native server. These are
 provider-command and applied-edit integration checks, not a claim of manual
 suggestion-widget, keyboard-selection or accessibility acceptance.
+
+[Checked signature help](native-language-server.md#checked-signature-help) now
+connects the native function signature and active argument to the VS Code provider.
+Its initial acceptance uses an imported function in the installed extension host.
+The graph must still parse and type-check; unfinished calls require future recovery.
