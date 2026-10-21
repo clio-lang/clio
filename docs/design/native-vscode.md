@@ -125,3 +125,5 @@ Installed-editor acceptance also applies [final-argument suffix completion](nati
 Installed-editor acceptance also requests [signature help inside a final argument suffix](native-language-server.md#signature-help-with-final-argument-suffixes) before missing closing parentheses, verifies the checked parameters and active second argument, and preserves the buffer, actual delimiter diagnostic and disk source.
 
 Installed-editor acceptance also applies [earlier-argument completion](native-language-server.md#earlier-argument-completion) to a field before another supplied argument, preserves the later argument, verifies ordinary delimiter and missing-third-argument diagnostics, then checks the program after supplying that third argument. Disk sources remain unchanged.
+
+Installed-editor acceptance also requests [earlier-argument signature snapshots](native-language-server.md#earlier-argument-signature-snapshots) before later supplied and missing arguments, verifies all checked parameter labels and the first active slot, and preserves the actual delimiter diagnostic, buffer and disk source.

@@ -16,7 +16,7 @@ struct SignatureInfo {
                                                          std::size_t offset,
                                                          CheckOptions options = {},
                                                          bool requireFieldProjection = false,
-                                                         bool requireFinalProjection = false);
+                                                         bool requireNameProjection = false);
 // Checked semantic information only. Failed graphs never supply partial/stale types.
 [[nodiscard]] std::optional<HoverInfo> hoverInfo(ParseResult syntax, std::string_view path,
                                                  std::size_t offset, CheckOptions options = {});

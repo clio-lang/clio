@@ -1188,7 +1188,8 @@ the repaired source. No missing argument value or executable partial module is
 constructed. The original end-of-buffer recovery path remains available.
 
 Unknown/noncallable callees, invalid earlier arguments, invalid record receivers,
-compound expressions and non-final argument suffixes provide no new hint. Existing
+compound expressions provide no new hint. Earlier simple slots now use the
+[checked prefix snapshot](#earlier-argument-signature-snapshots) below. Existing
 lexical-error, delimiter, source-size and eight-parenthesis limits remain. The
 entire temporary graph must parse. Builtins without a validated missing-argument
 snapshot do not acquire a guessed parameter contract through this extension.
@@ -1219,7 +1220,8 @@ EOF-only parenthesis repair now accepts a parsed simple name/member at any
 supplied argument position, not just the final one. The complete temporary graph
 must parse, and the existing lexical-error, delimiter, source-size and
 eight-parenthesis bounds remain. Compound argument holes stay excluded from
-this repair. Signature help retains its separate final-argument projection rule.
+this repair. Signature help now also has [earlier-argument snapshots](#earlier-argument-signature-snapshots),
+with its own checked prefix policy.
 
 For named and function-value calls with missing later required parameters, a
 completion request can visit an earlier argument with its expected parameter
@@ -1241,3 +1243,42 @@ covers direct/bound/indexed/piped calls, balanced/open calls with missing later
 parameters, member receivers, prior/later errors and live imported field changes.
 Debug/sanitizer, relocated Release tools and installed VS Code preserve both real
 delimiter and missing-argument diagnostics while applying identifier-only edits.
+
+#### Earlier-argument signature snapshots
+
+Parameter hints now support simple name/member edits before later supplied
+arguments, both in balanced calls and in calls needing bounded EOF parenthesis
+repair. For example, `triple(vaSuffix, 2` with the cursor after `va` shows all
+three checked parameters and selects the first, even before the third argument
+is written. `triple(reading.vaSuffix, 2` additionally checks the completed record
+receiver. Named, bound, factory-returned and indexed callables retain their public
+signatures; pipelines count the implicit first argument when selecting the slot.
+
+For an earlier slot, the request keeps the edited and later arguments in its AST.
+The checker validates the callee and arguments preceding the selected slot, then
+checks any projected field receiver and captures the expected signature. It ends
+that query path with an internal failure at the call site, so no argument value or
+executable partial typed module is constructed. That internal diagnostic is never
+published to the editor. Ordinary checking runs separately on the actual source
+and retains its real unknown-field/name, type, delimiter and arity diagnostics.
+The existing final-argument projection path remains available.
+
+Hints describe the expected parameters, not proof that the edited or later values
+check. Later argument errors do not prevent a prefix-only signature snapshot.
+Invalid callees, bad earlier types, invalid record receivers, extra arguments,
+compound editing holes and unrelated reported graph errors suppress the new hint.
+Builtin families keep their individual checked/missing-argument admission; this
+does not invent an element or device contract. Empty non-final field slots and
+general parser recovery remain separate work.
+
+Current imported buffers update parameter/result types and error channels. Source
+text, later argument spans, buffers/files and real diagnostics remain unchanged.
+The existing lexical, source-size and eight-parenthesis repair bounds still apply.
+
+[Earlier-signature qualification](../../native/metal-proof/evidence/native-lsp-earlier-signature-2026-10-21.json)
+covers first/middle slots, missing later parameters, named/structural/indexed/piped
+callees, checked field receivers, expected-error channels and invalid prefixes.
+Direct checker tests verify snapshot-only failure and unchanged ordinary unknown
+argument diagnostics. Protocol, relocated Release and installed VS Code checks
+verify live imported parameters, label offsets, active slots and source/diagnostic
+preservation in balanced and open calls.

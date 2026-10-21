@@ -207,8 +207,8 @@ int main() {
             "active editing hole is not claimed to have a valid type");
     require(!query(add + "fn main():\n  add(missing, va|Suffix)\n"),
             "earlier invalid argument still blocks guidance");
-    require(!query(add + "fn main():\n  add(va|Suffix, 2)\n"),
-            "nonfinal partial arguments are not projected");
+    result = query(add + "fn main():\n  add(va|Suffix, 2)\n");
+    require(result && result->activeParameter == 0, "earlier partial argument retains parameter guidance");
     require(!query(add + "fn main():\n  add(1, 2 + va|Suffix)\n"),
             "partial expression is not a bare-name editing hole");
     const std::string records = "type Reading:\n  value:int\n"
@@ -239,9 +239,9 @@ int main() {
     require(!query(add + records +
                    "fn main():\n  reading=Reading {value:2}\n  add(missing, reading.va|Suffix)\n"),
             "invalid earlier argument blocks field guidance");
-    require(!query(add + records +
-                   "fn main():\n  reading=Reading {value:2}\n  add(reading.va|Suffix, 1)\n"),
-            "nonfinal field argument not projected");
+    result = query(add + records +
+                   "fn main():\n  reading=Reading {value:2}\n  add(reading.va|Suffix, 1)\n");
+    require(result && result->activeParameter == 0, "earlier field argument receives checked guidance");
     require(
         !query(add + records +
                "fn main():\n  reading=Reading {value:2}\n  add(1, reading.missing.va|Suffix)\n"),
@@ -619,14 +619,63 @@ int main() {
             "unknown callee suppresses EOF suffix snapshot");
     require(!recover(add + "fn main():\n  callback=1\n  callback(1,va|Suffix\n"),
             "noncallable callee suppresses EOF suffix snapshot");
-    require(!recover(add + "fn main():\n  add(va|Suffix,2\n"),
-            "nonfinal argument suffix does not gain signature repair");
+    result = recover(add + "fn main():\n  add(va|Suffix,2\n");
+    require(result && result->activeParameter == 0,
+            "earlier argument suffix receives EOF signature repair");
     require(!recover(add + "fn main():\n  value=2\n  add(1,value+va|Suffix\n"),
             "compound final argument does not gain signature repair");
     require(!recover(add + "fn main():\n  add(1,[va|Suffix\n"),
             "open arrays are not repaired for signature suffix queries");
     require(!recover(add + "fn main():\n  ((((((((add(1,va|Suffix\n"),
             "signature suffix repair retains eight-parenthesis bound");
+    const std::string triple = "fn triple(first:int,second:int,third:int):\n  first+second+third\n";
+    result = recover(triple + "fn main():\n  triple(va|Suffix,2\n");
+    require(result &&
+                result->label == "fn triple(first: int64, second: int64, third: int64) -> int64" &&
+                result->activeParameter == 0,
+            "earlier slot with missing later required parameter");
+    result = query(triple + "fn main():\n  triple(1,va|Suffix,missing)\n");
+    require(result && result->activeParameter == 1,
+            "later invalid arguments do not change prefix-only contract");
+    result =
+        recover(triple + "fn main():\n  callbacks=[triple]\n  1 -> callbacks[0](va|Suffix,3\n");
+    require(result && result->activeParameter == 1 && result->parameters.size() == 3,
+            "indexed callable counts the implicit pipeline argument in earlier slot");
+    result = recover(triple + "type Reading:\n  value:int\nfn main():\n"
+                              "  reading=Reading {value:1}\n  triple(reading.va|Suffix,2\n");
+    require(result && result->activeParameter == 0,
+            "earlier field slot checks receiver before snapshot");
+    result = query("error Bad:\n  Failed\nfn risky(first:int,second:int)->int ! Bad:\n"
+                   "  first+second\nfn main()->int ! Bad:\n  try risky(va|Suffix,2)\n");
+    require(result && result->label == "fn risky(first: int64, second: int64) -> int64 ! Bad",
+            "earlier snapshots retain expected error channels");
+    require(!recover(triple + "fn main():\n  triple(\"bad\",va|Suffix,3\n"),
+            "invalid earlier type suppresses a nonfinal slot snapshot");
+    require(!query(add + "fn main():\n  add(va|Suffix,2,3)\n"),
+            "extra arguments suppress earlier snapshots");
+    require(!query(add + "fn main():\n  add(1+va|Suffix,2)\n"),
+            "compound earlier holes remain excluded");
+    require(!query(add + "fn main():\n  add(missing.va|Suffix,2)\n"),
+            "unknown earlier field receiver");
+    const std::string earlierSource = add + "fn main():\n  add(vaSuffix,2)\n";
+    auto earlierSyntax =
+        parse(std::make_shared<const SourceFile>("earlier-signature.k", earlierSource));
+    SourceSpan earlierSite{};
+    for (const auto &expression : earlierSyntax.module.expressions)
+      if (std::holds_alternative<CallExpr>(expression.value))
+        earlierSite = expression.span;
+    CallableSignatureQuery earlierQuery{earlierSite, {}, {}, 0};
+    CheckOptions earlierOptions;
+    earlierOptions.signature = &earlierQuery;
+    auto earlierChecked = check(earlierSyntax, {}, earlierOptions);
+    require(!earlierChecked.ok() && !earlierChecked.module && earlierQuery.snapshot &&
+                earlierChecked.diagnostics.size() == 1 &&
+                earlierChecked.diagnostics[0].code == "S027",
+            "earlier signature query publishes only a snapshot, never executable partial IR");
+    auto originalChecked = check(std::move(earlierSyntax));
+    require(!originalChecked.ok() && !originalChecked.module &&
+                originalChecked.diagnostics[0].code == "S016",
+            "ordinary compilation keeps actual unknown argument diagnostics");
     std::cout << "Native checked signature help passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

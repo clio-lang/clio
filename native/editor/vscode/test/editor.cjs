@@ -915,6 +915,23 @@ async function run() {
   checks.push("Earlier argument field completion preserves later supplied arguments and missing-parameter diagnostics, then checks after the final argument is supplied");
   await replace(main,mainDisk);
   await clearDiagnostics(main);
+  const earlierSignatureSource="fn triple(first:int,second:int,third:int):\n  first+second+third\nfn main():\n  triple(vaSuffix,2\n";
+  await replace(main,earlierSignatureSource);
+  await eventually(() => vscode.languages.getDiagnostics(mainUri).some((item) => item.code === "L005"),
+    "earlier signature source retains actual delimiter diagnostic");
+  const earlierSignature=await eventually(async () => {
+    const result=await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider",mainUri,position(main,"vaSuffix",2),"(",
+    );
+    return result?.signatures?.[0]?.label === "fn triple(first: int64, second: int64, third: int64) -> int64" ? result : undefined;
+  },"checked earlier signature slot before later supplied and missing arguments");
+  assert.equal(earlierSignature.activeParameter,0);
+  assert.equal(earlierSignature.signatures[0].parameters.length,3);
+  assert.equal(main.getText(),earlierSignatureSource);
+  assert.equal(await fs.readFile(mainUri.fsPath,"utf8"),mainDisk);
+  checks.push("Earlier argument signature help preserves later supplied arguments, missing parameters, real diagnostics and source while showing the checked active slot");
+  await replace(main,mainDisk);
+  await clearDiagnostics(main);
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,

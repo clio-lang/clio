@@ -350,7 +350,7 @@ std::optional<HoverInfo> hoverInfo(ParseResult syntax, std::string_view path, st
 std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view path,
                                            std::size_t offset, CheckOptions options,
                                            bool requireFieldProjection,
-                                           bool requireFinalProjection) {
+                                           bool requireNameProjection) {
   if (!syntax.ok() || !syntax.module.source)
     return {};
   std::optional<ExprId> selected;
@@ -436,7 +436,7 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
   // Builtin guidance is a specialization of an actual checked operation, not a
   // signature inferred from spelling. In particular, a lexical/module binding
   // with the same name must continue through ordinary callable resolution.
-  if (target && !requireFieldProjection && !requireFinalProjection) {
+  if (target && !requireFieldProjection && !requireNameProjection) {
     const auto name = target->source->slice(target->span);
     if (hasBuiltinSignature(name)) {
       auto checked = check(syntax, {}, options);
@@ -446,14 +446,14 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
           return result;
     }
   }
-  // Project a final identifier/field editing hole only in this request's AST.
+  // Describe a simple identifier/field editing slot only in this request.
   // A field receiver still needs to check before a signature can be captured.
   bool editingName = false;
   std::optional<ExprId> argumentReceiver;
+  std::optional<std::size_t> argumentIndex;
   const auto implicit = piped ? 1u : 0u;
-  if (!call.arguments.empty() && active >= implicit &&
-      active - implicit == call.arguments.size() - 1) {
-    const auto argumentId = call.arguments.back();
+  if (!call.arguments.empty() && active >= implicit && active - implicit < call.arguments.size()) {
+    const auto argumentId = call.arguments[active - implicit];
     const auto &argument = syntax.module.expressions[argumentId];
     std::optional<SourceSpan> editingToken;
     if (const auto *name = std::get_if<NameExpr>(&argument.value);
@@ -468,7 +468,10 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
       const auto location = sourceLocation(syntax.module.source, *editingToken);
       if (location && location->source->path() == path && location->span.begin < offset &&
           offset <= location->span.end) {
-        std::get<CallExpr>(syntax.module.expressions[*selected].value).arguments.pop_back();
+        if (active - implicit == call.arguments.size() - 1)
+          std::get<CallExpr>(syntax.module.expressions[*selected].value).arguments.pop_back();
+        else
+          argumentIndex = active; // Keep the edited and later arguments in the request AST.
         editingName = true;
       }
     }
@@ -476,9 +479,10 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
   // A synthetic field probe may supply guidance only through the checked
   // receiver projection, never by checking an invented argument as a real value.
   if ((requireFieldProjection && (!editingName || !argumentReceiver)) ||
-      (requireFinalProjection && !editingName))
+      (requireNameProjection && !editingName))
     return {};
-  CallableSignatureQuery query{invocationSpan, {}, editingName ? argumentReceiver : std::nullopt};
+  CallableSignatureQuery query{
+      invocationSpan, {}, editingName ? argumentReceiver : std::nullopt, argumentIndex};
   const auto following = std::ranges::find_if(lexed.tokens, [&](const auto &token) {
     return token.span.begin >= offset && token.kind != TokenKind::Newline &&
            token.kind != TokenKind::Indent && token.kind != TokenKind::Dedent;

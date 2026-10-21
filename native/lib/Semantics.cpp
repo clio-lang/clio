@@ -2036,13 +2036,21 @@ private:
       return {};
     }
     const bool signatureQuery = queryingSignature(span);
-    if ((signatureQuery || completingArgument(arguments)) &&
-        arguments.size() < type.callable->parameters.size()) {
-      for (std::size_t i = 0; i < arguments.size(); ++i)
+    const auto slot = signatureQuery ? options_.signature->argumentIndex : std::nullopt;
+    const bool projected = slot && *slot < arguments.size() &&
+                           *slot < type.callable->parameters.size() &&
+                           arguments.size() <= type.callable->parameters.size();
+    if (projected || ((signatureQuery || completingArgument(arguments)) &&
+                      arguments.size() < type.callable->parameters.size())) {
+      for (std::size_t i = 0; i < (projected ? *slot : arguments.size()); ++i)
         if (!expression(frame, arguments[i], type.callable->parameters[i]))
           return {};
       if (signatureQuery)
         captureSignature(frame, *type.callable);
+      if (projected) {
+        error("S027", "editing argument requires a signature snapshot", span);
+        return {}; // Query-only failure: no invented argument or executable partial IR.
+      }
     }
     if (arguments.size() != type.callable->parameters.size()) {
       error("S027", "wrong argument count for function value", span);
@@ -4166,8 +4174,12 @@ private:
     if (!signatures_[id])
       return {};
     const bool signatureQuery = queryingSignature(span);
-    if ((signatureQuery || completingArgument(arguments)) &&
-        arguments.size() < output_.functions[id].parameters.size()) {
+    const auto slot = signatureQuery ? options_.signature->argumentIndex : std::nullopt;
+    const bool projected = slot && *slot < arguments.size() &&
+                           *slot < output_.functions[id].parameters.size() &&
+                           arguments.size() <= output_.functions[id].parameters.size();
+    if (projected || ((signatureQuery || completingArgument(arguments)) &&
+                      arguments.size() < output_.functions[id].parameters.size())) {
       if (!analyzeFunction(id))
         return {};
       if (states_[id] == State::Complete && diagnostics_.empty()) {
@@ -4178,11 +4190,15 @@ private:
           names.push_back(output_.symbols[symbol].name);
         }
         signature.result = output_.functions[id].resultType;
-        for (std::size_t i = 0; i < arguments.size(); ++i)
+        for (std::size_t i = 0; i < (projected ? *slot : arguments.size()); ++i)
           if (!expression(frame, arguments[i], signature.parameters[i]))
             return {};
         if (signatureQuery)
           captureSignature(frame, signature, std::move(names));
+        if (projected) {
+          error("S027", "editing argument requires a signature snapshot", span);
+          return {}; // Preserve the original later arguments without constructing a value.
+        }
       }
     }
     if (arguments.size() != output_.functions[id].parameters.size()) {

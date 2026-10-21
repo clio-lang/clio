@@ -60,7 +60,7 @@ std::optional<SignatureInfo> signatureAt(const std::string &path, const std::str
     if (syntax && syntax->ok())
       return signatureInfo(std::move(*syntax), canonical, queryOffset, options, fieldProbe);
   }
-  // A final name/member may have a suffix after the cursor. Close only at EOF
+  // An argument name/member may have a suffix after the cursor. Close only at EOF
   // in that case, and require a validated argument projection in signatureInfo.
   auto closures = trailingCallClosures(tokens, text, offset);
   bool eofRepair = false;

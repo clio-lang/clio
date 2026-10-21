@@ -2085,7 +2085,7 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     item=result['items'][0]
     assert item['textEdit']=={'newText':'value','range':{
         'start':{'line':3,'character':start},'end':{'line':3,'character':start+8}}},item
-    assert client.signature(signature_document,3,start+2)['result'] is None, 'nonfinal signature projections stay excluded'
+    assert client.signature(signature_document,3,start+2)['result']['activeParameter']==0, 'earlier signature slot retains checked parameter guidance'
     assert not client.barrier(),'earlier argument recovery published diagnostics'
     applied=apply_workspace_edit({'documentChanges':[{'textDocument':{'uri':signature_document.as_uri()},
         'edits':[item['textEdit']]}]},{signature_document.as_uri():earlier_text})[signature_document.as_uri()]
@@ -2107,6 +2107,43 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     client.barrier()
     assert client.completion(signature_document,3,invalid_prefix.splitlines()[3].index('vaSuffix')+2)['result']['items']==[]
     assert not signature_document.exists() and earlier_library.read_text()==earlier_library_text
+    client.finish()
+
+    # Earlier signature slots preserve later arguments in the syntax and snapshot only the prefix.
+    earlier_signature_library=Path(temp)/'earlier-signatures.k'
+    earlier_signature_library_text=('export type Reading:\n  value:int\nexport fn read():\n  Reading {value:1}\n'
+                                    'export fn triple(first:int,second:int,third:int):\n  first\n')
+    earlier_signature_library.write_text(earlier_signature_library_text)
+    earlier_signature_text=('from "./earlier-signatures.k" import read, triple as calculate\nfn main():\n'
+                           '  reading=read()\n  calculate(reading.vaSuffix,2\n')
+    client=Client()
+    client.init(signature_offsets=True)
+    client.open(signature_document,earlier_signature_text)
+    before=publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert before and any(d['code']=='L005' for d in before),before
+    position=earlier_signature_text.splitlines()[3].index('vaSuffix')+2
+    result=client.signature(signature_document,3,position)['result']
+    label='fn calculate(first: int64, second: int64, third: int64) -> int64'
+    assert result['signatures'][0]['label']==label and result['activeParameter']==0,result
+    begin,end=result['signatures'][0]['parameters'][0]['label']
+    assert label[begin:end]=='first: int64',result
+    assert client.hover(signature_document,3,position)['result'] is None
+    assert not client.barrier(),'earlier signature query published internal diagnostics'
+    balanced=earlier_signature_text.rstrip()+',3)\n'
+    client.change(signature_document,balanced,2)
+    real=publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert real and not any('signature snapshot' in d['message'] for d in real),real
+    assert client.signature(signature_document,3,position)['result']['activeParameter']==0
+    assert not client.barrier(),'balanced signature query changed actual diagnostics'
+    client.open(earlier_signature_library,earlier_signature_library_text.replace('first:int','first:float32'))
+    client.barrier()
+    result=client.signature(signature_document,3,position)['result']
+    assert result['signatures'][0]['label']=='fn calculate(first: float32, second: int64, third: int64) -> float32',result
+    invalid_receiver=balanced.replace('reading.vaSuffix','missing.vaSuffix')
+    client.change(signature_document,invalid_receiver,3)
+    client.barrier()
+    assert client.signature(signature_document,3,invalid_receiver.splitlines()[3].index('vaSuffix')+2)['result'] is None
+    assert not signature_document.exists() and earlier_signature_library.read_text()==earlier_signature_library_text
     client.finish()
 
     # Format the current buffer only; the client independently applies the edit.
