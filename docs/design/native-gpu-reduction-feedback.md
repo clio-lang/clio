@@ -1,7 +1,7 @@
 # Resident reduction feedback
 
 A GPU function can now use a reduction result in later tensor arithmetic, then
-return a final scalar. The intermediate scalar stays on the device:
+return a final scalar. [Tensor results](native-gpu-tensor-feedback.md) are also supported now. The intermediate scalar stays on the device:
 
 ```kalandra
 fn variance(values: Tensor[float32, ?], count: float32) -> float32:
@@ -49,11 +49,10 @@ without recursive stage traversal.
 
 This increment supports rank-one/rank-two float32 tensor inputs, scalar
 arithmetic, checked transitive helpers, repeated reduction feedback and matrix
-products before or after feedback. The graph must return a scalar, have at least
-two contributing reductions and use every numerical stage. A function returning
-only a normalized tensor, such as `values / reduceSum(values)`, remains a tracked
-next step. Device branches, wider numeric types and broader ranks remain outside
-this subset.
+products before or after feedback. The scalar-result mode requires at least two
+contributing reductions and every numerical stage must contribute. [Tensor-result mode](native-gpu-tensor-feedback.md)
+also admits a single reduction, such as `values / reduceSum(values)`. Device
+branches, wider numeric types and broader ranks remain outside this subset.
 
 The [fixture](../../native/metal-source/reduction-feedback.k),
 [device tests](../../native/metal-source/ReductionFeedbackTests.cpp),

@@ -381,7 +381,7 @@ class Compiler {
     std::vector<bool> maps;
     std::vector<std::uint32_t> reductions;
     std::vector<std::pair<std::uint32_t, std::uint32_t>> broadcasts;
-    bool reduce = false, scalarPost = false;
+    bool reduce = false, scalarPost = false, tensorResult = false;
     std::vector<std::pair<std::uint32_t, std::uint32_t>> products;
   };
   mutable std::map<FunctionId, std::optional<MatrixGraph>> matrixGraphs;
@@ -390,7 +390,8 @@ class Compiler {
       return found->second;
     auto &cached = matrixGraphs[root];
     const auto &entry = cpu.functions.at(root);
-    if (entry.resultType.tensor && entry.resultType.shape.size() != 2)
+    if (entry.resultType.tensor &&
+        (entry.resultType.shape.empty() || entry.resultType.shape.size() > 2))
       return cached;
     MatrixGraph graph;
     using Result = std::optional<std::int64_t>; // -1: scalar input; -2: reduced value.
@@ -531,23 +532,26 @@ class Compiler {
       args.push_back(type.tensor ? std::int64_t(graph.inputs++) : -1);
     }
     auto result = invoke(root, args);
+    graph.tensorResult = entry.resultType.tensor && graph.reduce;
     const auto last = std::int64_t(graph.inputs + graph.products.size() - 1);
     const bool multi = graph.reductions.size() >= 2;
     auto consumed = result ? dependency(*result) : std::set<std::size_t>{};
     for (auto [stage, reduction] : graph.broadcasts)
       consumed.insert(reduction);
-    if (!result || (graph.matrixCount < 2 && !multi) ||
+    if (!result || (graph.matrixCount < 2 && !multi && !graph.tensorResult) ||
         (entry.resultType.tensor
-             ? (graph.reduce || *result != last)
+             ? (*result != last ||
+                (graph.tensorResult &&
+                 (graph.broadcasts.empty() || consumed.size() != graph.reductions.size())))
              : (!graph.reduce || *result > -2 || consumed.size() != graph.reductions.size() ||
                 (!multi && graph.reductions.front() != last))))
       return cached;
     // Every product must contribute to the returned matrix. Extra unused
     // numerical primitives retain the existing diagnostic instead of disappearing.
     std::set<std::uint32_t> live;
-    if (multi)
+    if (multi || graph.tensorResult)
       live.insert(graph.reductions.begin(), graph.reductions.end());
-    else
+    if (!multi || graph.tensorResult)
       live.insert(std::uint32_t(last));
     for (std::size_t i = graph.products.size(); i-- > 0;) {
       if (!live.contains(graph.inputs + i))
@@ -1024,8 +1028,8 @@ class Compiler {
       (void)inserted;
       auto kernel = field("m::Kernel"), out = field("TaskHandle");
       Value result{Value::Task, next - 1, true, target.device};
-      result.rank = 2;
-      result.scalarTask = graph->reduce;
+      result.rank = entryFunction.resultType.tensor ? entryFunction.resultType.shape.size() : 2;
+      result.scalarTask = graph->reduce && !graph->tensorResult;
       std::vector<Value> shapes = tensors;
       for (std::size_t i = 0; i < graph->products.size(); ++i) {
         auto [a, b] = graph->products[i];
@@ -1052,7 +1056,7 @@ class Compiler {
                  std::to_string(entry->second) + "-reduce.metallib\",*target);\nif(!reduction){" +
                  error("reduction.error()") + "}\nf." + reductionKernel + "=*reduction;\n";
         extra = ",f." + reductionKernel;
-        if (graph->scalarPost && graph->reductions.size() < 2) {
+        if (!graph->tensorResult && graph->scalarPost && graph->reductions.size() < 2) {
           const auto scalarKernel = field("m::Kernel");
           stages += "auto scalar=r.loadElementwiseKernel(f.directory+\"/kernel" +
                     std::to_string(entry->second) +
@@ -1066,7 +1070,12 @@ class Compiler {
           extra += "}";
         }
       }
-      if (graph->reductions.size() >= 2) {
+      if (graph->tensorResult) {
+        extra += ",std::array<std::uint32_t," + std::to_string(graph->reductions.size()) + ">{";
+        for (auto root : graph->reductions)
+          extra += std::to_string(root) + ",";
+        extra += "}";
+      } else if (graph->reductions.size() >= 2) {
         auto joinKernel = field("m::Kernel");
         std::vector<std::uint32_t> joinReads;
         shader(function, &joinReads, true);
@@ -1123,7 +1132,8 @@ class Compiler {
         for (std::size_t i = 0; i < scalars.size(); ++i)
           graphMaps += (i ? "," : "") + ref(scalars[i]);
         graphMaps += "}";
-        if (graph->reduce && !graph->scalarPost && graph->reductions.size() < 2)
+        if (!graph->tensorResult && graph->reduce && !graph->scalarPost &&
+            graph->reductions.size() < 2)
           extra += ",m::Kernel{},std::span<const float>{}";
         extra += "," + graphMaps;
       }
@@ -1140,9 +1150,10 @@ class Compiler {
                       ".metallib\",*target);\nif(!kernel){" + error("kernel.error()") + "}\nf." +
                       kernel + "=*kernel;\n" + stages +
                       "static constexpr auto products=" + products + ";\nf." + out + "=r." +
-                      (graph->reductions.size() >= 2 ? "graphReductions"
-                       : graph->reduce               ? "matmulGraphReduceSum"
-                                                     : "matmulGraph") +
+                      (graph->tensorResult             ? "graphTensor"
+                       : graph->reductions.size() >= 2 ? "graphReductions"
+                       : graph->reduce                 ? "matmulGraphReduceSum"
+                                                       : "matmulGraph") +
                       "(task," + activeGroup + ",f." + kernel + "," + inputs + ",products" + extra +
                       ");\n" + admitted("f." + out));
       return result;
@@ -1789,7 +1800,7 @@ class Compiler {
     const auto &graph = matrixGraph(function);
     std::size_t graphIndex = 0;
     std::size_t reductionIndex = 0;
-    const bool multi = graph && graph->reductions.size() >= 2;
+    const bool multi = graph && (graph->reductions.size() >= 2 || graph->tensorResult);
     std::optional<std::string> graphResult;
     if (graph && !post && graphStage < 0)
       return graph->matrixCount ? matmulShader : reductionShader();
@@ -2229,9 +2240,9 @@ public:
       }
       if (const auto &graph = matrixGraph(function); graph && graph->reduce) {
         outputs[base + "-reduce.mlir"] = reductionShader();
-        if (graph->reductions.size() >= 2)
+        if (!graph->tensorResult && graph->reductions.size() >= 2)
           outputs[base + "-join.mlir"] = shader(function, nullptr, true, -1, true);
-        else if (graph->scalarPost)
+        else if (!graph->tensorResult && graph->scalarPost)
           outputs[base + "-scalar.mlir"] = shader(function, nullptr, true, -1, true);
       }
       if (const auto &graph = matrixGraph(function); graph)
@@ -2396,14 +2407,17 @@ void resume(Task &task) {
           }
         if (graph->reduce)
           manifest += prefix + "reduction_stage=kernel" + std::to_string(index) + "-reduce\n";
-        if (graph->reductions.size() >= 2) {
+        if (graph->reductions.size() >= 2 || graph->tensorResult) {
           std::string roots;
           for (auto root : graph->reductions)
             roots += (roots.empty() ? "" : ",") + std::to_string(root);
-          manifest += prefix + "reduction_inputs=" + roots + "\n" + prefix + "join_stage=kernel" +
-                      std::to_string(index) + "-join\n";
+          manifest += prefix + "reduction_inputs=" + roots + "\n";
+          if (graph->tensorResult)
+            manifest += prefix + "graph_result=tensor\n";
+          else
+            manifest += prefix + "join_stage=kernel" + std::to_string(index) + "-join\n";
         }
-        if (graph->scalarPost && graph->reductions.size() < 2) {
+        if (!graph->tensorResult && graph->scalarPost && graph->reductions.size() < 2) {
           std::size_t scalars = 0;
           for (auto parameter : cpu.functions[function].parameters)
             scalars += !cpu.symbols[parameter].type.tensor;

@@ -414,9 +414,23 @@
         "reduction-feedback.k",
         "capabilities/reduction-feedback.k"
       ],
-      "notes": "Straight-line rank-one/rank-two float32 graphs returning a scalar; device scalar broadcasts, repeated feedback and matrix composition; tensor-returning feedback remains ahead",
+      "notes": "Straight-line rank-one/rank-two float32 graphs returning a scalar; device scalar broadcasts, repeated feedback and matrix composition",
       "evidence": [
         "gpu-reduction-feedback-2026-10-21.json"
+      ]
+    },
+    {
+      "id": "tensor-feedback",
+      "feature": "Resident tensor results after reduction feedback",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "tensor-feedback.k",
+        "capabilities/tensor-feedback.k"
+      ],
+      "notes": "Rank-one/rank-two float32 tensor results with one or more contributing reductions; no final scalar shader/readback; explicit transfer or resident GPU forwarding",
+      "evidence": [
+        "gpu-tensor-feedback-2026-10-21.json"
       ]
     }
   ]

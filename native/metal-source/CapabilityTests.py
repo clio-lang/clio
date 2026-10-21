@@ -132,9 +132,9 @@ def main():
                         assert 'gpu.func @kalandra_elementwise_v2' in (destination / (stage + '.mlir')).read_text()
                         assert stage + '.metallib' in (destination / 'host.cpp').read_text()
                     for entry, products in re.findall(r'^(kernel\d+)\.matrix_graph_products=(\d+)$', manifest, re.M):
-                        assert int(products) >= 2 or '.join_stage=' in manifest
+                        assert int(products) >= 2 or '.join_stage=' in manifest or '.graph_result=tensor' in manifest
                         assert ('gpu.func @kalandra_matmul' if int(products) else 'gpu.func @kalandra_reduce_sum') in (destination / (entry + '.mlir')).read_text()
-                        assert re.search(r'(?:matmulGraph(?:ReduceSum)?|graphReductions)\(', (destination / 'host.cpp').read_text())
+                        assert re.search(r'(?:matmulGraph(?:ReduceSum)?|graphReductions|graphTensor)\(', (destination / 'host.cpp').read_text())
                         edges = re.search(r'^' + entry + r'\.matrix_graph_edges=([^\n]*)$', manifest, re.M)[1]
                         edges = edges.split(',') if edges else []
                         inputs = int(re.search(r'^' + entry + r'\.matrix_graph_inputs=(\d+)$', manifest, re.M)[1])
@@ -157,6 +157,14 @@ def main():
                             assert all(root < inputs + stage for root in roots[:reduction+1])
                             ir = (destination / f'{entry}-map{stage}.mlir').read_text()
                             assert f'memref.load %a{inputs+stages+reduction}[%zero]' in ir
+                    for entry in re.findall(r'^(kernel\d+)\.graph_result=tensor$', manifest, re.M):
+                        roots = list(map(int, re.search(r'^' + entry + r'\.reduction_inputs=([^\n]+)$', manifest, re.M)[1].split(',')))
+                        inputs = int(re.search(r'^' + entry + r'\.matrix_graph_inputs=(\d+)$', manifest, re.M)[1])
+                        stages = int(re.search(r'^' + entry + r'\.matrix_graph_stages=(\d+)$', manifest, re.M)[1])
+                        assert roots and stages > 0 and all(0 <= root < inputs + stages - 1 for root in roots)
+                        assert not (destination / (entry + '-join.mlir')).exists()
+                        assert not (destination / (entry + '-scalar.mlir')).exists()
+                        assert 'graphTensor(' in (destination / 'host.cpp').read_text()
                     for entry, stage in re.findall(r'^(kernel\d+)\.join_stage=(kernel\d+-join)$', manifest, re.M):
                         assert re.search(r'gpu.func @kalandra_elementwise(?:_v[23])?', (destination / (stage + '.mlir')).read_text())
                         assert stage + '.metallib' in (destination / 'host.cpp').read_text()

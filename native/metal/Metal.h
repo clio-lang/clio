@@ -190,6 +190,17 @@ public:
                                   Kernel epilogue = {}, std::span<const float> scalars = {},
                                   std::span<const Kernel> maps = {},
                                   std::span<const float> mapScalars = {}) noexcept;
+  // Tensor-result graph with resident reduction broadcasts and no result readback.
+  TaskHandle graphTensor(TaskCore &, GroupHandle, Kernel base, std::span<const Buffer>,
+                         std::span<const MatrixProduct>, Kernel reduction,
+                         std::span<const std::uint32_t> roots, std::span<const Kernel> maps,
+                         std::span<const float> mapScalars,
+                         std::span<const MatrixScalar> broadcasts) noexcept;
+  TaskHandle graphTensor(Task &, GroupHandle, Kernel base, std::span<const Buffer>,
+                         std::span<const MatrixProduct>, Kernel reduction,
+                         std::span<const std::uint32_t> roots, std::span<const Kernel> maps,
+                         std::span<const float> mapScalars,
+                         std::span<const MatrixScalar> broadcasts) noexcept;
   // Resident reductions may feed later maps; only the final scalar expression is read back.
   TaskHandle graphReductions(TaskCore &, GroupHandle, Kernel base, std::span<const Buffer>,
                              std::span<const MatrixProduct>, Kernel reduction, Kernel join,

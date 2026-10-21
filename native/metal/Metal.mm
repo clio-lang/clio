@@ -229,6 +229,7 @@ struct MatrixGraphArguments {
   std::shared_ptr<State> state;
   std::uint64_t reserved = 0;
   std::size_t inputs = 0;
+  bool tensorResult = false;
   std::vector<Buffer> values;
   std::vector<std::uint32_t> ranks, reductions;
   std::vector<Buffer> reduced;
@@ -314,7 +315,9 @@ struct Bridge {
   captureGraph(std::shared_ptr<State> state, const Kernel &kernel, std::span<const Buffer> inputs,
                std::span<const MatrixProduct> products, std::span<const Kernel> maps = {},
                std::span<const float> scalars = {}, std::span<const std::uint32_t> roots = {},
-               std::span<const MatrixScalar> broadcasts = {}) noexcept {
+               std::span<const MatrixScalar> broadcasts = {}, bool tensorResult = false) noexcept {
+    if (tensorResult && (roots.empty() || products.empty() || broadcasts.empty()))
+      return std::unexpected(Error::Invalid);
     if ((!maps.empty() && maps.size() != products.size()) || (maps.empty() && !scalars.empty()))
       return std::unexpected(Error::Invalid);
     if (!kernel.state_ ||
@@ -400,6 +403,7 @@ struct Bridge {
         result->reduced.resize(roots.size());
       }
       result->inputs = inputs.size();
+      result->tensorResult = tensorResult;
       for (std::size_t i = 0; i < inputs.size(); ++i) {
         const auto &input = inputs[i].storage_;
         if (!input || (input->rank != 2 && (roots.empty() || input->rank != 1)) ||
@@ -460,11 +464,17 @@ struct Bridge {
         ++result->uses[edge.left];
         ++result->uses[edge.right];
       }
-      for (auto root : roots) {
-        if (root >= count || result->uses[root] == UINT32_MAX)
+      for (std::size_t r = 0; r < roots.size(); ++r) {
+        const auto root = roots[r];
+        if (tensorResult && !std::any_of(broadcasts.begin(), broadcasts.end(),
+                                         [r](auto item) { return item.reduction == r; }))
+          return std::unexpected(Error::Invalid);
+        if (root >= count - (tensorResult ? 1 : 0) || result->uses[root] == UINT32_MAX)
           return std::unexpected(Error::Invalid);
         ++result->uses[root];
       }
+      if (tensorResult)
+        ++result->uses.back(); // The returned tensor remains live through task completion.
       for (std::size_t i = inputs.size(); i < (roots.empty() ? count - 1 : count); ++i)
         if (!result->uses[i])
           return std::unexpected(Error::Invalid);
@@ -774,6 +784,27 @@ struct Bridge {
     packet.graph->join = std::move(join);
     packet.graph->joinArguments = *args;
   }
+  static void captureTensorGraph(PacketData &packet, std::span<const Buffer> inputs,
+                                 std::span<const MatrixProduct> products,
+                                 std::span<const std::uint32_t> roots, std::span<const Kernel> maps,
+                                 std::span<const float> scalars,
+                                 std::span<const MatrixScalar> broadcasts) noexcept {
+    const auto &base = packet.kernel.state_, &reduction = packet.reduction.state_;
+    if (!base || !reduction || !reduction->reduction || reduction->matrix) {
+      packet.preparation = Error::Invalid;
+      return;
+    }
+    if (reduction->registry != packet.state || reduction->index != base->index) {
+      packet.preparation = Error::Residency;
+      return;
+    }
+    auto graph = captureGraph(packet.state, packet.kernel, inputs, products, maps, scalars, roots,
+                              broadcasts, true);
+    if (graph)
+      packet.graph = *graph;
+    else
+      packet.preparation = graph.error();
+  }
   static void nextGraphStage(Frame &f) {
     const auto &graph = *f.packet.graph;
     if (!f.graphKernel)
@@ -873,6 +904,14 @@ struct Bridge {
               if (!--graph.uses[operand])
                 graph.values[operand] = {};
             ++f.graphStage;
+            if (graph.tensorResult && f.graphStage == graph.products.size()) {
+              f.result = std::move(graph.values.back());
+              f.packet.graph.reset();
+              f.packet.reduction = {};
+              f.graphKernel = {};
+              task.complete(&f.result);
+              return;
+            }
             if (!graph.reductions.empty()) {
               f.started = f.succeeded = false;
               if (task.cancelled())
@@ -1871,6 +1910,30 @@ TaskHandle Runtime::matmulGraphReduceSum(Task &task, GroupHandle group, Kernel k
     packet.preparation = Error::Invalid;
   return task.spawn(group, Bridge::reductionEntry,
                     {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::graphTensor(TaskCore &task, GroupHandle group, Kernel base,
+                                std::span<const Buffer> inputs,
+                                std::span<const MatrixProduct> products, Kernel reduction,
+                                std::span<const std::uint32_t> roots, std::span<const Kernel> maps,
+                                std::span<const float> scalars,
+                                std::span<const MatrixScalar> broadcasts) noexcept {
+  Bridge::PacketData packet{
+      state_, {}, {}, Bridge::Kind::Matmul, std::move(base), BinaryOperation::Add, {}};
+  packet.reduction = std::move(reduction);
+  Bridge::captureTensorGraph(packet, inputs, products, roots, maps, scalars, broadcasts);
+  return task.submit(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::graphTensor(Task &task, GroupHandle group, Kernel base,
+                                std::span<const Buffer> inputs,
+                                std::span<const MatrixProduct> products, Kernel reduction,
+                                std::span<const std::uint32_t> roots, std::span<const Kernel> maps,
+                                std::span<const float> scalars,
+                                std::span<const MatrixScalar> broadcasts) noexcept {
+  Bridge::PacketData packet{
+      state_, {}, {}, Bridge::Kind::Matmul, std::move(base), BinaryOperation::Add, {}};
+  packet.reduction = std::move(reduction);
+  Bridge::captureTensorGraph(packet, inputs, products, roots, maps, scalars, broadcasts);
+  return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
 }
 TaskHandle Runtime::graphReductions(TaskCore &task, GroupHandle group, Kernel base,
                                     std::span<const Buffer> inputs,

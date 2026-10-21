@@ -65,8 +65,8 @@ whose reductions feed a final scalar expression. Every reduction and tensor
 stage must contribute to the returned result. Unused extra reductions, unsupported
 branches remain diagnostics. [Reduced scalars feeding later tensor work](native-gpu-reduction-feedback.md) are now supported within scalar-returning graphs.
 
-Tensor-returning feedback, broader GPU numeric types/ranks and device control
-flow remain separate work. Scheduling and temporary-storage reuse are later
+[Tensor results after feedback](native-gpu-tensor-feedback.md) now remain resident
+too. Broader GPU numeric types/ranks and device control flow remain separate work. Scheduling and temporary-storage reuse are later
 optimization opportunities.
 
 See the [matrix example](../../native/metal-source/multiple-reductions.k),

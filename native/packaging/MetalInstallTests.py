@@ -170,6 +170,15 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
         assert (feedback_app / f"kernel0-{stage}.metallib").is_file()
     assert run([feedback_app / "program"], cwd).stdout.strip() == "402aaaab"
     applications.append((feedback_app, "402aaaab"))
+    tensor_source = cwd / "tensor-feedback.k"
+    tensor_source.write_bytes((fixtures / "tensor-feedback.k").read_bytes())
+    tensor_app = cwd / "tensor feedback application"
+    run([compiler, tensor_source, "--target", "metal", "-o", tensor_app, "-O2"], cwd)
+    assert (tensor_app / "kernel0-map0.metallib").is_file()
+    assert not (tensor_app / "kernel0-join.metallib").exists()
+    tensor_result = "[3f000000,3f800000,3fc00000]"
+    assert run([tensor_app / "program"], cwd).stdout.strip() == tensor_result
+    applications.append((tensor_app, tensor_result))
     # Local module/project imports go through the same installed Metal compiler.
     (cwd / "helper.k").write_text("export " + source.read_text().split("\n\nfn main", 1)[0] + "\n")
     source.write_text('from "math" import combine\n\nfn main' + source.read_text().split("\n\nfn main", 1)[1])
