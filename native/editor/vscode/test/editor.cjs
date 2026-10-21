@@ -897,6 +897,24 @@ async function run() {
   checks.push("Signature help inside a final argument suffix preserves the open source and real delimiter diagnostic while showing validated callee parameters");
   await replace(main, mainDisk);
   await clearDiagnostics(main);
+  const earlierArgumentSource = "type Reading:\n  value:int\nfn triple(first:int,second:int,third:int):\n  first+second+third\nfn main():\n  reading=Reading {value:1}\n  triple(reading.va|Suffix,2\n";
+  const earlierArgumentCompletion = await complete(main, earlierArgumentSource, "value");
+  const earlierArgumentItem = earlierArgumentCompletion.items.find((item) => label(item) === "value");
+  assert.equal(earlierArgumentItem.kind, vscode.CompletionItemKind.Field);
+  await applyCompletion(main, earlierArgumentItem, "vaSuffix", "value");
+  const appliedEarlierArgument=earlierArgumentSource.replace("va|Suffix","value");
+  assert.equal(main.getText(),appliedEarlierArgument);
+  await eventually(() => vscode.languages.getDiagnostics(mainUri).some((item) => item.code === "L005"),
+    "earlier argument edit preserves real delimiter diagnostic");
+  await replace(main,appliedEarlierArgument.trimEnd()+")\n");
+  await eventually(() => vscode.languages.getDiagnostics(mainUri).some((item) => item.code === "S027"),
+    "ordinary missing third argument diagnostic");
+  await replace(main,appliedEarlierArgument.trimEnd()+",3)\n");
+  await clearDiagnostics(main);
+  assert.equal(await fs.readFile(mainUri.fsPath,"utf8"),mainDisk);
+  checks.push("Earlier argument field completion preserves later supplied arguments and missing-parameter diagnostics, then checks after the final argument is supplied");
+  await replace(main,mainDisk);
+  await clearDiagnostics(main);
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,

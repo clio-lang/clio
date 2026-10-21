@@ -2000,12 +2000,14 @@ private:
     return query && !query->snapshot && diagnostics_.empty() && query->site.begin == span.begin &&
            query->site.end == span.end;
   }
-  bool completingLastArgument(const std::vector<ExprId> &arguments) const {
+  bool completingArgument(const std::vector<ExprId> &arguments) const {
     const auto *query = options_.completion;
     if (!query || query->reached || !diagnostics_.empty() || arguments.empty())
       return false;
-    const auto span = syntax_.expressions[arguments.back()].span;
-    return span.begin <= query->site.begin && query->site.end <= span.end;
+    return std::ranges::any_of(arguments, [&](ExprId argument) {
+      const auto span = syntax_.expressions[argument].span;
+      return span.begin <= query->site.begin && query->site.end <= span.end;
+    });
   }
   void captureSignature(Frame &frame, const FunctionSignature &signature,
                         std::vector<std::string> names = {}) {
@@ -2034,7 +2036,7 @@ private:
       return {};
     }
     const bool signatureQuery = queryingSignature(span);
-    if ((signatureQuery || completingLastArgument(arguments)) &&
+    if ((signatureQuery || completingArgument(arguments)) &&
         arguments.size() < type.callable->parameters.size()) {
       for (std::size_t i = 0; i < arguments.size(); ++i)
         if (!expression(frame, arguments[i], type.callable->parameters[i]))
@@ -4164,7 +4166,7 @@ private:
     if (!signatures_[id])
       return {};
     const bool signatureQuery = queryingSignature(span);
-    if ((signatureQuery || completingLastArgument(arguments)) &&
+    if ((signatureQuery || completingArgument(arguments)) &&
         arguments.size() < output_.functions[id].parameters.size()) {
       if (!analyzeFunction(id))
         return {};

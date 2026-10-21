@@ -309,8 +309,8 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
   if (!site)
     return result;
   if (eofRepair) {
-    // Preserve every original suffix while closing only at EOF. A final argument
-    // still goes through ordinary callee/prefix checking before completion is reached.
+    // Preserve every original suffix while closing only at EOF. Argument queries
+    // still go through ordinary callee/prefix checking before completion is reached.
     const auto selectedName = [&](const Expr &expression) {
       if (const auto *name = std::get_if<NameExpr>(&expression.value))
         return name->name.begin <= site->begin && name->name.end == site->end;
@@ -321,8 +321,9 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
     const auto eligibleCall = [&](const Expr &expression) {
       const auto *call = std::get_if<CallExpr>(&expression.value);
       return call && (selectedName(syntax->module.expressions[call->callee]) ||
-                      (!call->arguments.empty() &&
-                       selectedName(syntax->module.expressions[call->arguments.back()])));
+                      std::ranges::any_of(call->arguments, [&](ExprId argument) {
+                        return selectedName(syntax->module.expressions[argument]);
+                      }));
     };
     if (!std::ranges::any_of(syntax->module.expressions, eligibleCall))
       return result;

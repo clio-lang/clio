@@ -647,10 +647,42 @@ int main() {
             "noncallable value suppresses suffix recovery");
     require(query(combine + "fn main():\n  combine(1,missing.va|Suffix\n").names.empty(),
             "unknown field receiver suppresses suffix recovery");
-    require(query(combine + "fn main():\n  value=2\n  combine(va|Suffix,1\n").names.empty(),
-            "nonfinal arguments remain outside EOF suffix recovery");
+    info = query(combine + "fn main():\n  value=2\n  combine(va|Suffix,1\n");
+    require(has(info, "value"), "earlier argument suffix before later supplied arguments");
     require(query(combine + "fn main():\n  value=2\n  combine(1,2+va|Suffix\n").names.empty(),
             "compound argument holes remain outside EOF suffix recovery");
+    const std::string triple = "fn triple(first:int,second:int,third:int):\n  first+second+third\n";
+    info = query(triple + "fn main():\n  value=1\n  triple(va|Suffix,2\n");
+    require(info.names.size() == 1 && has(info, "value") &&
+                info.replacement.end - info.replacement.begin == 8,
+            "earlier argument completion retains missing later parameter context");
+    info = query(triple + "fn main():\n  value=1\n  triple(va|Suffix,2)\n");
+    require(has(info, "value"), "balanced call with missing later parameters");
+    info = query(triple + "fn main():\n  value=1\n  callback=triple\n  callback(va|Suffix,2\n");
+    require(has(info, "value"), "bound callable checks earlier argument before missing parameters");
+    info =
+        query(triple + "fn main():\n  value=1\n  callbacks=[triple]\n  callbacks[0](va|Suffix,2\n");
+    require(has(info, "value"), "indexed callable retains earlier argument completion");
+    info = query(triple + "fn main():\n  value=1\n  1 -> triple(va|Suffix,2\n");
+    require(has(info, "value"), "pipeline retains implicit argument before edited argument");
+    info = query("type Reading:\n  value:int\n" + triple +
+                 "fn main():\n  reading=Reading {value:1}\n  triple(reading.va|Suffix,2\n");
+    require(info.names.size() == 1 && info.names[0].kind == ScopeNameKind::Field &&
+                has(info, "value"),
+            "earlier field argument requires checked receiver");
+    info = query(triple + "fn main():\n  value=1\n  triple(va|Suffix,\"bad\"\n");
+    require(has(info, "value"), "later argument errors do not erase captured completion");
+    require(query(triple + "fn main():\n  value=1\n  triple(\"bad\",va|Suffix,2\n").names.empty(),
+            "wrong argument prefix still suppresses earlier-slot completion");
+    require(query(triple + "fn main():\n  value=1\n  missing(va|Suffix,2\n").names.empty(),
+            "unknown callee cannot expose earlier-slot names");
+    require(query(triple + "fn main():\n  callback=1\n  value=1\n  callback(va|Suffix,2\n")
+                .names.empty(),
+            "noncallable binding cannot expose earlier-slot names");
+    require(query(triple + "fn main():\n  triple(missing.va|Suffix,2\n").names.empty(),
+            "unknown earlier field receiver suppresses suggestions");
+    require(query(triple + "fn main():\n  value=1\n  triple(1+va|Suffix,2\n").names.empty(),
+            "compound earlier argument holes remain outside EOF repair");
     std::cout << "Native scope completion passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

@@ -2067,6 +2067,48 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert not signature_document.exists() and signature_suffix_library.read_text()==signature_suffix_library_text
     client.finish()
 
+    # Earlier argument completion validates callee/prefix even with missing later parameters.
+    earlier_library=Path(temp)/'earlier-arguments.k'
+    earlier_library_text=('export type Reading:\n  value:int\nexport fn read():\n  Reading {value:1}\n'
+                          'export fn triple(first:int,second:int,third:int):\n  first+second+third\n')
+    earlier_library.write_text(earlier_library_text)
+    earlier_text=('from "./earlier-arguments.k" import read, triple\nfn main():\n'
+                  '  reading=read()\n  triple(reading.vaSuffix,2\n')
+    client=Client()
+    client.init()
+    client.open(signature_document,earlier_text)
+    before=publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert before and any(d['code']=='L005' for d in before),before
+    start=earlier_text.splitlines()[3].index('vaSuffix')
+    result=client.completion(signature_document,3,start+2)['result']
+    assert [(item['label'],item['kind']) for item in result['items']]==[('value',5)],result
+    item=result['items'][0]
+    assert item['textEdit']=={'newText':'value','range':{
+        'start':{'line':3,'character':start},'end':{'line':3,'character':start+8}}},item
+    assert client.signature(signature_document,3,start+2)['result'] is None, 'nonfinal signature projections stay excluded'
+    assert not client.barrier(),'earlier argument recovery published diagnostics'
+    applied=apply_workspace_edit({'documentChanges':[{'textDocument':{'uri':signature_document.as_uri()},
+        'edits':[item['textEdit']]}]},{signature_document.as_uri():earlier_text})[signature_document.as_uri()]
+    assert applied==earlier_text.replace('vaSuffix','value')
+    client.change(signature_document,applied,2)
+    assert any(d['code']=='L005' for d in publications(client.barrier())[signature_document.as_uri()]['diagnostics'])
+    client.change(signature_document,applied.rstrip()+')\n',3)
+    diagnostics=publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert any(d['code']=='S027' for d in diagnostics), 'ordinary missing-argument check was changed'
+    client.change(signature_document,applied.rstrip()+',3)\n',4)
+    assert not publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    client.open(earlier_library,earlier_library_text.replace('value','variance'))
+    client.barrier()
+    client.change(signature_document,earlier_text,5)
+    client.barrier()
+    assert client.completion(signature_document,3,start+2)['result']['items'][0]['label']=='variance'
+    invalid_prefix=earlier_text.replace('triple(reading.','triple("bad",reading.')
+    client.change(signature_document,invalid_prefix,6)
+    client.barrier()
+    assert client.completion(signature_document,3,invalid_prefix.splitlines()[3].index('vaSuffix')+2)['result']['items']==[]
+    assert not signature_document.exists() and earlier_library.read_text()==earlier_library_text
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"

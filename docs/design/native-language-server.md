@@ -551,7 +551,7 @@ including `combine(rea` and `combine(1, reading.va`. Empty final argument slots,
 bound functions, factory-returned functions, nested calls and pipelines use the
 same completion names and whole-identifier replacement rules as balanced source.
 A balanced call that is still missing later parameters can also provide names in
-its current final argument.
+its current argument.
 
 The initial argument-completion and signature-help paths share a trailing-call
 delimiter policy: the original cursor must be at the end of the buffer with only whitespace after
@@ -564,7 +564,7 @@ argument names/members additionally use the bounded EOF repair described
 [below](#call-target-completion-before-missing-parentheses) and its
 [final-argument extension](#final-argument-suffix-completion).
 
-For a known function whose current final argument contains the query but later
+For a known function whose supplied argument contains the query but later
 parameters are missing, the checker validates the callee and supplied prefix,
 then visits the current argument with its expected parameter type. Only completion
 names escape that query; no partial typed module or guessed later arguments are
@@ -1108,8 +1108,8 @@ For this call-target-only case, the temporary source appends at most eight closi
 parentheses at EOF. It preserves all original text after the selected name instead
 of closing the call at the cursor or removing arguments. The repaired graph must
 parse. Call targets require the probe to be exactly the call's name or member;
-the [final-argument extension](#final-argument-suffix-completion) below now also
-permits a simple final argument name/member. Signature help uses the corresponding
+the [argument extensions](#earlier-argument-completion) below now also permit a
+simple supplied argument name/member. Signature help uses the corresponding
 [final-argument snapshot policy](#signature-help-with-final-argument-suffixes) below.
 
 Unclosed arrays/records, mismatched delimiters, other lexical errors, malformed
@@ -1142,7 +1142,8 @@ when later parameters have not yet been written.
 
 After temporary parentheses are appended at EOF, the probe must be exactly a
 parsed call target or a simple name/member serving as the call's final argument.
-Compound expressions and non-final arguments do not use this extension. No
+Compound expressions do not use this extension. Earlier simple argument slots
+are now covered by the [extension below](#earlier-argument-completion). No
 source suffix is discarded or replaced with closing parentheses at the cursor.
 The existing eight-parenthesis, lexical-error, delimiter and source-size bounds
 still apply; the entire temporary graph must parse.
@@ -1204,3 +1205,39 @@ pipelines, concat snapshots and rejection boundaries in debug/sanitizer builds.
 Protocol tests follow live imported parameter changes and label offsets. Relocated
 Release tools and installed VS Code retain the real missing-delimiter diagnostic
 while showing the checked active parameter without editing source.
+
+#### Earlier-argument completion
+
+Simple argument name/member completion now works before later supplied arguments
+in an unfinished call. For example, with a lexical `value` binding,
+`triple(vaSuffix, 2` with the cursor after `va` can offer `value`, even if `triple`
+requires a third argument. `triple(reading.vaSuffix, 2` can similarly offer a
+checked receiver's field. The edit changes only the whole selected identifier;
+later supplied arguments stay in place.
+
+EOF-only parenthesis repair now accepts a parsed simple name/member at any
+supplied argument position, not just the final one. The complete temporary graph
+must parse, and the existing lexical-error, delimiter, source-size and
+eight-parenthesis bounds remain. Compound argument holes stay excluded from
+this repair. Signature help retains its separate final-argument projection rule.
+
+For named and function-value calls with missing later required parameters, a
+completion request can visit an earlier argument with its expected parameter
+type. The ordinary checker validates the callee and supplied arguments preceding
+the edit, including implicit pipeline arguments. Unknown/noncallable callees, bad
+earlier types and unknown member receivers suppress candidates. Bound/indexed
+callables and current imported declarations use the same checks. Builtin forms
+retain their own argument admission; this does not invent missing builtin inputs.
+
+Later argument errors do not erase already captured names. Suggestions describe
+available names, not proof that all arguments check. No argument or real closing
+parenthesis is inserted. A closed call missing a required parameter still reports
+its ordinary `S027`; supplying the actual final argument is necessary to check.
+Requests preserve buffers/files and actual diagnostic publications, and never
+return executable partial typed modules.
+
+[Earlier-argument qualification](../../native/metal-proof/evidence/native-lsp-earlier-argument-completion-2026-10-21.json)
+covers direct/bound/indexed/piped calls, balanced/open calls with missing later
+parameters, member receivers, prior/later errors and live imported field changes.
+Debug/sanitizer, relocated Release tools and installed VS Code preserve both real
+delimiter and missing-argument diagnostics while applying identifier-only edits.
