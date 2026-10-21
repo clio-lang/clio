@@ -349,7 +349,8 @@ std::optional<HoverInfo> hoverInfo(ParseResult syntax, std::string_view path, st
 }
 std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view path,
                                            std::size_t offset, CheckOptions options,
-                                           bool requireFieldProjection) {
+                                           bool requireFieldProjection,
+                                           bool requireFinalProjection) {
   if (!syntax.ok() || !syntax.module.source)
     return {};
   std::optional<ExprId> selected;
@@ -435,7 +436,7 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
   // Builtin guidance is a specialization of an actual checked operation, not a
   // signature inferred from spelling. In particular, a lexical/module binding
   // with the same name must continue through ordinary callable resolution.
-  if (target && !requireFieldProjection) {
+  if (target && !requireFieldProjection && !requireFinalProjection) {
     const auto name = target->source->slice(target->span);
     if (hasBuiltinSignature(name)) {
       auto checked = check(syntax, {}, options);
@@ -474,7 +475,8 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
   }
   // A synthetic field probe may supply guidance only through the checked
   // receiver projection, never by checking an invented argument as a real value.
-  if (requireFieldProjection && (!editingName || !argumentReceiver))
+  if ((requireFieldProjection && (!editingName || !argumentReceiver)) ||
+      (requireFinalProjection && !editingName))
     return {};
   CallableSignatureQuery query{invocationSpan, {}, editingName ? argumentReceiver : std::nullopt};
   const auto following = std::ranges::find_if(lexed.tokens, [&](const auto &token) {

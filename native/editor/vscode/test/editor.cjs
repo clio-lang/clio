@@ -880,6 +880,23 @@ async function run() {
   checks.push("Final argument field completion replaces the full suffix in an open call while preserving source, receiver and real delimiter diagnostics until explicit closure");
   await replace(main, mainDisk);
   await clearDiagnostics(main);
+  const suffixSignatureSource = "fn combine(left:int,right:int):\n  left+right\nfn main():\n  value=2\n  combine(1,vaSuffix\n";
+  await replace(main, suffixSignatureSource);
+  await eventually(() => vscode.languages.getDiagnostics(mainUri).some((item) => item.code === "L005"),
+    "unclosed suffix signature source diagnostic");
+  const suffixSignature = await eventually(async () => {
+    const result = await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider", mainUri, position(main, "vaSuffix", 2), ",",
+    );
+    return result?.signatures?.[0]?.label === "fn combine(left: int64, right: int64) -> int64" ? result : undefined;
+  }, "signature help inside final name suffix before missing closing parenthesis");
+  assert.equal(suffixSignature.activeParameter, 1);
+  assert.equal(suffixSignature.signatures[0].parameters.length, 2);
+  assert.equal(main.getText(), suffixSignatureSource);
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  checks.push("Signature help inside a final argument suffix preserves the open source and real delimiter diagnostic while showing validated callee parameters");
+  await replace(main, mainDisk);
+  await clearDiagnostics(main);
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,

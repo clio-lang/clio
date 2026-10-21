@@ -60,16 +60,24 @@ std::optional<SignatureInfo> signatureAt(const std::string &path, const std::str
     if (syntax && syntax->ok())
       return signatureInfo(std::move(*syntax), canonical, queryOffset, options, fieldProbe);
   }
-  // Closing-delimiter repair is restricted to the end of the original buffer.
-  // No later source, including a suffix after a partly typed name, is hidden.
-  const auto closures = trailingCallClosures(tokens, text, offset);
+  // A final name/member may have a suffix after the cursor. Close only at EOF
+  // in that case, and require a validated argument projection in signatureInfo.
+  auto closures = trailingCallClosures(tokens, text, offset);
+  bool eofRepair = false;
+  if (!closures) {
+    closures = trailingCallClosures(tokens, text, text.size());
+    eofRepair = closures.has_value();
+  }
   if (!closures || replacement.size() > SyntaxLimits{}.maxSourceBytes - *closures)
     return {};
-  replacement.insert(queryOffset, *closures, ')');
+  if (eofRepair)
+    replacement.append(*closures, ')');
+  else
+    replacement.insert(queryOffset, *closures, ')');
   overlays.back().text = std::move(replacement);
   syntax = load();
   if (!syntax || !syntax->ok())
     return {};
-  return signatureInfo(std::move(*syntax), canonical, queryOffset, options, fieldProbe);
+  return signatureInfo(std::move(*syntax), canonical, queryOffset, options, fieldProbe, eofRepair);
 }
 } // namespace kalandra::lsp

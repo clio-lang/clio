@@ -1111,7 +1111,7 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     opened = member_text.replace("reading.vaSuffix)", "reading.vaSuffix")
     client.change(signature_document, opened, 3)
     client.barrier()
-    assert client.signature(signature_document, 5, cursor)["result"] is None, "trailing source is not hidden during delimiter recovery"
+    assert client.signature(signature_document, 5, cursor)["result"]["signatures"][0]["label"] == "fn(int64, int64) -> int64", "EOF repair preserves the field suffix and validated factory callee"
     end_cursor = len(opened.splitlines()[5])
     assert client.signature(signature_document, 5, end_cursor)["result"] is not None
     empty = member_text.replace("reading.vaSuffix", "reading.")
@@ -2003,7 +2003,7 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     item=result['items'][0]
     assert item['textEdit']=={'newText':'value','range':{
         'start':{'line':3,'character':start},'end':{'line':3,'character':start+8}}}, item
-    assert client.signature(signature_document,3,start+2)['result'] is None, 'signature recovery boundary unchanged'
+    assert client.signature(signature_document,3,start+2)['result']['signatures'][0]['label'] == 'fn combine(left: int64, right: int64) -> int64'
     assert client.hover(signature_document,3,start+1)['result'] is None
     assert not client.barrier(), 'argument suffix recovery published probe diagnostics'
     applied = apply_workspace_edit({'documentChanges':[{'textDocument':{'uri':signature_document.as_uri()},
@@ -2029,6 +2029,42 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     client.barrier()
     assert client.completion(signature_document,3,compound.splitlines()[3].index('vaSuffix')+2)['result']['items']==[]
     assert not signature_document.exists() and argument_library.read_text()==argument_library_text
+    client.finish()
+
+    # Signature help preserves final name/member suffixes with EOF-only repair.
+    signature_suffix_library = Path(temp) / 'signature-suffix.k'
+    signature_suffix_library_text = ('export type Reading:\n  value:int\n'
+                                     'export fn read():\n  Reading {value:2}\n'
+                                     'export fn combine(left:int,right:int):\n  right\n')
+    signature_suffix_library.write_text(signature_suffix_library_text)
+    suffix_text = ('# 👩\nfrom "./signature-suffix.k" import read, combine as calculate\n'
+                   'fn main():\n  reading=read()\n  calculate(1,reading.vaSuffix\n')
+    client = Client()
+    client.init(signature_offsets=True)
+    client.open(signature_document,suffix_text)
+    diagnostics=publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert diagnostics and any(d['code']=='L005' for d in diagnostics), diagnostics
+    character=suffix_text.splitlines()[4].index('vaSuffix')+2
+    result=client.signature(signature_document,4,character)['result']
+    expected='fn calculate(left: int64, right: int64) -> int64'
+    assert result['signatures'][0]['label']==expected and result['activeParameter']==1, result
+    begin,end=result['signatures'][0]['parameters'][1]['label']
+    assert expected[begin:end]=='right: int64', result
+    assert client.hover(signature_document,4,4)['result'] is None
+    assert not client.barrier(), 'signature EOF suffix repair published diagnostics'
+    client.open(signature_suffix_library,signature_suffix_library_text.replace('right:int','right:float32'))
+    client.barrier()
+    result=client.signature(signature_document,4,character)['result']
+    assert result['signatures'][0]['label']=='fn calculate(left: int64, right: float32) -> float32', result
+    for version,text in enumerate([
+            suffix_text.replace('calculate(1,','calculate("bad",'),
+            suffix_text.replace('reading.vaSuffix','missing.vaSuffix'),
+            suffix_text.replace('reading.vaSuffix','1+reading.vaSuffix'),
+        ],2):
+        client.change(signature_document,text,version)
+        client.barrier()
+        assert client.signature(signature_document,4,text.splitlines()[4].index('vaSuffix')+2)['result'] is None
+    assert not signature_document.exists() and signature_suffix_library.read_text()==signature_suffix_library_text
     client.finish()
 
     # Format the current buffer only; the client independently applies the edit.

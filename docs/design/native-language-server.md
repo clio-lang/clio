@@ -1109,8 +1109,8 @@ parentheses at EOF. It preserves all original text after the selected name inste
 of closing the call at the cursor or removing arguments. The repaired graph must
 parse. Call targets require the probe to be exactly the call's name or member;
 the [final-argument extension](#final-argument-suffix-completion) below now also
-permits a simple final argument name/member. Existing signature-help recovery
-keeps its original stricter boundary.
+permits a simple final argument name/member. Signature help uses the corresponding
+[final-argument snapshot policy](#signature-help-with-final-argument-suffixes) below.
 
 Unclosed arrays/records, mismatched delimiters, other lexical errors, malformed
 arguments, remaining syntax errors and repairs beyond the eight-parenthesis or
@@ -1156,8 +1156,9 @@ that its value satisfies the expected parameter type.
 
 Accepting a suggestion changes only the selected name. Actual unclosed-delimiter
 diagnostics remain until the user closes the call; hover still requires valid
-source. Signature help retains its existing end-cursor recovery boundary. These
-requests publish no probe diagnostics, partial typed modules or file writes.
+source. [Signature help](#signature-help-with-final-argument-suffixes) now has a matching
+EOF-only final-name/member path. These requests publish no probe diagnostics,
+partial typed modules or file writes.
 
 [Argument-suffix qualification](../../native/metal-proof/evidence/native-lsp-argument-suffix-completion-2026-10-21.json)
 covers lexical/member suffixes, grouped and function-value calls, prefix/receiver
@@ -1165,3 +1166,41 @@ checks, imported overlays, compound/non-final exclusions, source preservation an
 actual diagnostics in debug/sanitizer and relocated Release tools. Installed VS
 Code applies a field-only edit, retains the delimiter diagnostic, and checks the
 call after explicit closure.
+
+#### Signature help with final-argument suffixes
+
+Parameter hints now remain available when the cursor is inside a simple final
+argument name/member and its call is missing closing parentheses. For example,
+`combine(1, vaSuffix` with the cursor after `va` shows the checked `combine`
+parameters and selects the second parameter. `combine(1, reading.vaSuffix` does
+the same after checking the record receiver. Bound, factory-returned and indexed
+callables, pipelines and the existing missing-operand `concat` snapshot retain
+their checked public signatures.
+
+The request appends at most eight closing parentheses at EOF in its temporary
+root overlay, preserving all original suffix text. This fallback requires the
+existing final-name/member projection: it removes only that final argument from
+the request-local AST and checks the callee and earlier arguments before capturing
+a signature. A field projection also checks its completed record receiver. It
+cannot bypass this projection by returning a full checked builtin signature from
+the repaired source. No missing argument value or executable partial module is
+constructed. The original end-of-buffer recovery path remains available.
+
+Unknown/noncallable callees, invalid earlier arguments, invalid record receivers,
+compound expressions and non-final argument suffixes provide no new hint. Existing
+lexical-error, delimiter, source-size and eight-parenthesis limits remain. The
+entire temporary graph must parse. Builtins without a validated missing-argument
+snapshot do not acquire a guessed parameter contract through this extension.
+
+The active argument and parameter labels follow the actual callee, including
+current unsaved imported declarations and implicit pipeline arguments. Returned
+labels describe expected parameters rather than the type of the unfinished value.
+Actual source diagnostics, hover, buffers and files remain unchanged; requests
+publish no probe diagnostics.
+
+[Suffix-signature qualification](../../native/metal-proof/evidence/native-lsp-suffix-signature-2026-10-21.json)
+covers checked named/structural/factory/indexed callable signatures, fields,
+pipelines, concat snapshots and rejection boundaries in debug/sanitizer builds.
+Protocol tests follow live imported parameter changes and label offsets. Relocated
+Release tools and installed VS Code retain the real missing-delimiter diagnostic
+while showing the checked active parameter without editing source.

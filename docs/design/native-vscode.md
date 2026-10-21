@@ -121,3 +121,5 @@ Installed-editor acceptance also requests [checked device-selector guidance](nat
 Installed-editor acceptance also applies [a call-name completion before missing closing parentheses](native-language-server.md#call-target-completion-before-missing-parentheses), verifies that arguments and the actual delimiter diagnostic remain, then checks the call after explicitly closing it. Disk sources remain unchanged.
 
 Installed-editor acceptance also applies [final-argument suffix completion](native-language-server.md#final-argument-suffix-completion) to a checked record field in an open call, preserves the receiver and actual delimiter diagnostic, then verifies checked hover after explicitly closing the call. Disk sources remain unchanged.
+
+Installed-editor acceptance also requests [signature help inside a final argument suffix](native-language-server.md#signature-help-with-final-argument-suffixes) before missing closing parentheses, verifies the checked parameters and active second argument, and preserves the buffer, actual delimiter diagnostic and disk source.

@@ -15,7 +15,8 @@ struct SignatureInfo {
 [[nodiscard]] std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view path,
                                                          std::size_t offset,
                                                          CheckOptions options = {},
-                                                         bool requireFieldProjection = false);
+                                                         bool requireFieldProjection = false,
+                                                         bool requireFinalProjection = false);
 // Checked semantic information only. Failed graphs never supply partial/stale types.
 [[nodiscard]] std::optional<HoverInfo> hoverInfo(ParseResult syntax, std::string_view path,
                                                  std::size_t offset, CheckOptions options = {});

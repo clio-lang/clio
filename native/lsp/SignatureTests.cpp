@@ -593,6 +593,40 @@ int main() {
             "shadowed devices namespace has no selector signature");
     require(!query("fn main():\n  target=devices.gpu(|1)\n  0\n"),
             "selector signature requires placement checking");
+    result = recover(add + "fn main():\n  value=2\n  add(1,va|Suffix\n");
+    require(result && result->label == "fn add(left: int64, right: int64) -> int64" &&
+                result->activeParameter == 1,
+            "final name suffix receives validated callee snapshot before EOF closure");
+    result = recover(add + "fn main():\n  value=2\n  callback=add\n  callback(1,va|Suffix\n");
+    require(result && result->label == "fn callback(int64, int64) -> int64" && result->activeParameter == 1,
+            "function-value callee snapshot survives final argument suffix");
+    result = recover(add + "fn main():\n  callbacks=[add]\n  1 -> callbacks[0](va|Suffix\n");
+    require(result && result->activeParameter == 1 && result->parameters.size() == 2,
+            "indexed pipeline callable preserves implicit first argument");
+    const std::string fieldPrefix =
+        "type Reading:\n  value:int\n" + add + "fn main():\n  reading=Reading {value:2}\n";
+    result = recover(fieldPrefix + "  add(1,reading.va|Suffix\n");
+    require(result && result->activeParameter == 1 && result->label.starts_with("fn add("),
+            "record field suffix requires checked receiver projection");
+    result = recover(fieldPrefix + "  concat([int32(1)],reading.va|Suffix\n");
+    require(result && result->label == "fn concat(left: [int32], right: [int32]) -> [int32]",
+            "existing concat snapshot supports a projected final field suffix");
+    require(!recover(add + "fn main():\n  add(\"bad\",va|Suffix\n"),
+            "bad prefix argument suppresses EOF suffix snapshot");
+    require(!recover(add + "fn main():\n  add(1,unknown.va|Suffix\n"),
+            "unknown receiver suppresses EOF suffix snapshot");
+    require(!recover(add + "fn main():\n  missing(1,va|Suffix\n"),
+            "unknown callee suppresses EOF suffix snapshot");
+    require(!recover(add + "fn main():\n  callback=1\n  callback(1,va|Suffix\n"),
+            "noncallable callee suppresses EOF suffix snapshot");
+    require(!recover(add + "fn main():\n  add(va|Suffix,2\n"),
+            "nonfinal argument suffix does not gain signature repair");
+    require(!recover(add + "fn main():\n  value=2\n  add(1,value+va|Suffix\n"),
+            "compound final argument does not gain signature repair");
+    require(!recover(add + "fn main():\n  add(1,[va|Suffix\n"),
+            "open arrays are not repaired for signature suffix queries");
+    require(!recover(add + "fn main():\n  ((((((((add(1,va|Suffix\n"),
+            "signature suffix repair retains eight-parenthesis bound");
     std::cout << "Native checked signature help passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';
