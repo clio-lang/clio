@@ -154,6 +154,13 @@ private:
     for (std::size_t i = 0; i < std::min<std::size_t>(names.size(), 256); ++i)
       query.names.push_back({names[i], kind});
   }
+  void completeDeviceSelector(const Frame &frame, SourceSpan site) {
+    if (!options_.completion || !options_.placement || frame.locals.contains("devices") ||
+        !name(site).starts_with("devices."))
+      return;
+    const SourceSpan member{site.begin + std::string_view("devices.").size(), site.end};
+    completeMembers(member, {"cpu", "gpu"}, ScopeNameKind::Function);
+  }
   void completeLabels(SourceSpan site, const std::vector<FieldInitializer> &initializers,
                       std::vector<std::string> candidates) {
     std::unordered_set<std::string> supplied;
@@ -1750,6 +1757,7 @@ private:
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const NameExpr &read,
                                const std::optional<ValueType> &) {
+    completeDeviceSelector(frame, read.name);
     completeScope(frame, read.name);
     const auto identifier = name(read.name);
     if (identifier == "true" || identifier == "false") {
@@ -4049,6 +4057,7 @@ private:
   invoke(Frame &frame, SourceSpan span, SourceSpan calleeSpan, const std::vector<ExprId> &arguments,
          const std::optional<ValueType> &expected, std::optional<ExprId> selection = {},
          std::optional<ValueId> *checkedSelection = nullptr, bool spawned = false) {
+    completeDeviceSelector(frame, calleeSpan);
     completeScope(frame, calleeSpan, true);
     const auto callee = name(calleeSpan);
     if (auto symbol = lookupSymbol(frame, calleeSpan)) {

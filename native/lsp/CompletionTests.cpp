@@ -7,12 +7,12 @@ static void require(bool value, const std::string &message) {
   if (!value)
     throw std::runtime_error(message);
 }
-static lsp::CompletionInfo query(std::string text) {
+static lsp::CompletionInfo query(std::string text, CheckOptions options = {}) {
   const auto cursor = text.rfind('|');
   require(cursor != text.npos, "missing cursor");
   text.erase(cursor, 1);
   return lsp::completeNames((std::filesystem::temp_directory_path() / "completion.k").string(),
-                            text, cursor);
+                            text, cursor, {}, {}, options);
 }
 static bool has(const lsp::CompletionInfo &info, const std::string &name) {
   for (const auto &item : info.names)
@@ -513,6 +513,34 @@ int main() {
             "prior errors still suppress builtin suggestions");
     info = query("fn entry():\n  co|([1], [2])\n  missing\n");
     require(info.names.size() == 1 && has(info, "concat"), "later errors do not erase names");
+    CheckOptions placement;
+    placement.placement = true;
+    info = query("fn main():\n  target=devices.g|Suffix(1)\n  0\n", placement);
+    require(info.names.size() == 1 && has(info, "gpu") &&
+                info.names[0].kind == ScopeNameKind::Function &&
+                info.replacement.end - info.replacement.begin == 7,
+            "device selector suffix edits only the member");
+    info = query("fn main():\n  target=devices.|()\n  0\n", placement);
+    require(info.names.size() == 2 && has(info, "cpu") && has(info, "gpu"),
+            "empty device selector member");
+    info = query("fn main():\n  devices.|\n", placement);
+    require(info.names.size() == 2 && has(info, "gpu"),
+            "explicit selector prefix before adding parentheses");
+    info = query("fn main():\n  target=devices.c|()\n  0\n", placement);
+    require(info.names.size() == 1 && has(info, "cpu"), "CPU selector prefix");
+    require(query("fn main():\n  target=devices.g|()\n  0\n").names.empty(),
+            "device selector completion requires placement mode");
+    require(query("fn main():\n  devices=1\n  target=devices.g|()\n  0\n", placement).names.empty(),
+            "local devices shadow suppresses selectors");
+    require(query("fn inspect(devices:int):\n  devices.g|()\nfn main():\n  0\n", placement)
+                .names.empty(),
+            "parameter devices shadow suppresses selectors");
+    require(query("fn main():\n  missing\n  target=devices.g|()\n  0\n", placement).names.empty(),
+            "prior errors prevent selector completion");
+    require(query("fn main():\n  target=other.g|()\n  0\n", placement).names.empty(),
+            "arbitrary receivers do not become device namespaces");
+    info = query("fn main():\n  target=devices.g|()\n  missing\n", placement);
+    require(info.names.size() == 1 && has(info, "gpu"), "later errors do not erase selector names");
     std::cout << "Native scope completion passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

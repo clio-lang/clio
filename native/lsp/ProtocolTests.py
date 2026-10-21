@@ -1737,6 +1737,56 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert result["contents"] == {"kind":"markdown","value":'```kalandra\nfn float32(input: int64) -> float32\n```'}, result
     client.finish()
 
+    # Device-selector completion is placement-gated and performs no hardware query.
+    selector_text = 'fn main():\n  target=devices.gSuffix(1)\n  0\n'
+    client = Client('--placement')
+    client.init()
+    client.open(signature_document, selector_text)
+    client.barrier()
+    start = selector_text.splitlines()[1].index('gSuffix')
+    result = client.completion(signature_document, 1, start+1)["result"]
+    assert [item["label"] for item in result["items"]] == ["gpu"], result
+    item = result["items"][0]
+    assert item["kind"] == 3 and item["textEdit"] == {"newText":"gpu", "range":{
+        "start":{"line":1,"character":start},"end":{"line":1,"character":start+7}}}, item
+    assert not client.barrier(), "selector completion published diagnostics"
+    client.change(signature_document, selector_text.replace('gSuffix','gpu'), 2)
+    assert not publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+    # Even an index which is not present on the machine is only source-checked.
+    client.change(signature_document, selector_text.replace('gSuffix','gpu').replace('(1)','(4294967295)'), 3)
+    assert not publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+    empty_selector = 'fn main():\n  target=devices.()\n  0\n'
+    client.change(signature_document, empty_selector, 4)
+    client.barrier()
+    cursor = empty_selector.splitlines()[1].index('devices.')+len('devices.')
+    result = client.completion(signature_document, 1, cursor)["result"]
+    assert [(item["label"],item["kind"]) for item in result["items"]] == [("cpu",3),("gpu",3)], result
+    bare_selector = 'fn main():\n  devices.\n'
+    client.change(signature_document, bare_selector, 5)
+    client.barrier()
+    result = client.completion(signature_document, 1, len(bare_selector.splitlines()[1]))["result"]
+    assert [item["label"] for item in result["items"]] == ["cpu","gpu"], result
+    shadow_selector = 'fn main():\n  devices=1\n  target=devices.gSuffix()\n  0\n'
+    client.change(signature_document, shadow_selector, 6)
+    client.barrier()
+    assert client.completion(signature_document, 2, shadow_selector.splitlines()[2].index('gSuffix')+1)["result"]["items"] == []
+    selector_library = Path(temp) / 'selector-completion.k'
+    selector_library_text = 'export fn choose():\n  target=devices.gpu()\n  0\n'
+    selector_library.write_text(selector_library_text)
+    imported_selector = ('from "./selector-completion.k" import choose\nfn main():\n'
+                         '  target=devices.gSuffix()\n  choose()\n')
+    client.change(signature_document, imported_selector, 7)
+    client.barrier()
+    assert client.completion(signature_document, 2, imported_selector.splitlines()[2].index('gSuffix')+1)["result"]["items"][0]["label"] == 'gpu'
+    assert not signature_document.exists() and selector_library.read_text() == selector_library_text
+    client.finish()
+    client = Client()
+    client.init()
+    client.open(signature_document, selector_text)
+    client.barrier()
+    assert client.completion(signature_document, 1, start+1)["result"]["items"] == []
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"

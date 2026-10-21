@@ -810,8 +810,8 @@ call or append parentheses and arguments.
 
 These are name suggestions rather than overload, expected-type or device-capability
 filtering. An offered builtin still needs its ordinary valid arguments, types and
-execution context. Placement selectors and transfer forms are not added by this
-subset. The existing alphabetical prefix filtering, 256-name limit, current
+execution context. Device-selector member completion is covered below; transfer-call name
+completion remains separate. The existing alphabetical prefix filtering, 256-name limit, current
 source overlays and diagnostic/source preservation rules apply. Prior diagnostics
 can suppress names; later errors do not erase an already captured scope.
 
@@ -959,3 +959,33 @@ covers normal/sanitizer hover and signature regressions, plaintext/Markdown
 protocol results, Unicode token ranges, direct/piped calls, shadows, current
 imported buffers and failed graphs, relocated Release tools and installed VS Code
 hovers for a captured parallel map and numeric conversion.
+
+#### Device-selector member completion
+
+With placement checking enabled, completing the member in `devices.gSuffix(1)`
+with the cursor after `g` offers `gpu` as a Function item. The edit replaces only
+`gSuffix`, preserving `devices.`, parentheses and the explicit index. An empty
+member after `devices.` offers `cpu` and `gpu`; that explicit namespace prefix can
+also be completed before parentheses have been written. Accepting an item inserts
+only its name, so a selector still requires an ordinary call such as
+`devices.cpu()` or `devices.gpu(1)`.
+
+The parser represents selectors as qualified names. Completion locates the member
+within that name, and the checker captures the namespace candidates in placement
+mode. A `devices` binding/parameter in the current checker frame suppresses the
+list, following the selector's existing shadow check. Placement-disabled queries,
+arbitrary receivers, and prior errors provide no device-selector names. The
+existing prefix filtering, whole-member suffix edit, source budgets and diagnostic
+preservation rules apply. Later errors do not erase an already captured list.
+
+These suggestions name selector forms, not available hardware. No device enumeration,
+Metal initialization, dispatch or index-availability check occurs. Actual selector
+argument validation and runtime device selection retain their existing behavior.
+Current imported graphs use original-file identities; requests leave buffers,
+disk sources and diagnostic publications unchanged.
+
+[Device-completion qualification](../../native/metal-proof/evidence/native-lsp-device-completion-2026-10-21.json)
+covers placement-mode gating, empty/partial members, explicit indices, local and
+parameter shadows, imported source spans and ordinary diagnostics in debug and
+sanitizer builds. Relocated Release tools and installed VS Code also exercise the
+placement-setting restart and a member-only edit with its index preserved.

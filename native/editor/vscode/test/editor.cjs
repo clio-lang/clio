@@ -783,6 +783,25 @@ async function run() {
   await replace(main, mainDisk);
   await clearDiagnostics(main);
   checks.push("Builtin hovers show checked parallel callback/error and numeric conversion signatures while hiding captures and preserving disk source");
+  await vscode.workspace.getConfiguration("kalandra.native").update(
+    "placement", true, vscode.ConfigurationTarget.Workspace,
+  );
+  const selectorCompletion = await complete(
+    main, "fn main():\n  target=devices.g|Suffix(1)\n  0\n", "gpu", ".",
+  );
+  const selectorItem = selectorCompletion.items.find((item) => label(item) === "gpu");
+  assert.equal(selectorItem.kind, vscode.CompletionItemKind.Function);
+  await applyCompletion(main, selectorItem, "gSuffix", "gpu");
+  await clearDiagnostics(main);
+  assert(main.getText().includes("devices.gpu(1)"));
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  await vscode.workspace.getConfiguration("kalandra.native").update(
+    "placement", false, vscode.ConfigurationTarget.Workspace,
+  );
+  await clearDiagnostics(main);
+  await hover(main, "double(21)");
+  checks.push("Placement-mode device-selector completion edits only the member, preserves the explicit index and checks without probing hardware");
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,

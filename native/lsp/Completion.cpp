@@ -198,9 +198,12 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
     for (const auto &imported : import.names)
       locate(imported.name);
   for (const auto &expression : syntax->module.expressions) {
-    if (const auto *name = std::get_if<NameExpr>(&expression.value))
+    if (const auto *name = std::get_if<NameExpr>(&expression.value)) {
       locate(name->name);
-    else if (const auto *field = std::get_if<FieldExpr>(&expression.value))
+      // Device selectors have one qualified NameExpr rather than a field node.
+      if (syntax->module.source->slice(name->name) == "devices." + std::string(probe))
+        locate({name->name.end - probe.size(), name->name.end});
+    } else if (const auto *field = std::get_if<FieldExpr>(&expression.value))
       locate(field->field);
     else if (const auto *record = std::get_if<RecordExpr>(&expression.value)) {
       if (record->family)

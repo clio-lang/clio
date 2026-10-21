@@ -109,3 +109,5 @@ Installed-editor acceptance also requests a [checked matrix multiplication signa
 Installed-editor acceptance also requests a [parallel-map callback signature](native-language-server.md#checked-map-callback-signatures), checks the public one-element callback and outer TaskError channel, and selects the callback in a piped call while hiding captures and preserving source.
 
 Installed-editor acceptance also requests [checked builtin hovers](native-language-server.md#checked-builtin-hovers) for a captured parallel map and numeric conversion, verifies their public signatures and error channel, and preserves disk source.
+
+Installed-editor acceptance also enables Placement in the isolated test workspace, applies [device-selector member completion](native-language-server.md#device-selector-member-completion), checks `devices.gpu(1)` without probing hardware, and restores the setting and source before continuing.
