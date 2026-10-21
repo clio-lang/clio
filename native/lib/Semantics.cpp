@@ -1902,6 +1902,13 @@ private:
     return query && !query->snapshot && diagnostics_.empty() && query->site.begin == span.begin &&
            query->site.end == span.end;
   }
+  bool completingLastArgument(const std::vector<ExprId> &arguments) const {
+    const auto *query = options_.completion;
+    if (!query || query->reached || !diagnostics_.empty() || arguments.empty())
+      return false;
+    const auto span = syntax_.expressions[arguments.back()].span;
+    return span.begin <= query->site.begin && query->site.end <= span.end;
+  }
   void captureSignature(Frame &frame, const FunctionSignature &signature,
                         std::vector<std::string> names = {}) {
     if (const auto receiver = options_.signature->argumentReceiver) {
@@ -1928,11 +1935,14 @@ private:
       error("S030", "call requires a completed function value", span);
       return {};
     }
-    if (queryingSignature(span) && arguments.size() < type.callable->parameters.size()) {
+    const bool signatureQuery = queryingSignature(span);
+    if ((signatureQuery || completingLastArgument(arguments)) &&
+        arguments.size() < type.callable->parameters.size()) {
       for (std::size_t i = 0; i < arguments.size(); ++i)
         if (!expression(frame, arguments[i], type.callable->parameters[i]))
           return {};
-      captureSignature(frame, *type.callable);
+      if (signatureQuery)
+        captureSignature(frame, *type.callable);
     }
     if (arguments.size() != type.callable->parameters.size()) {
       error("S027", "wrong argument count for function value", span);
@@ -4044,7 +4054,9 @@ private:
     const auto id = found->second;
     if (!signatures_[id])
       return {};
-    if (queryingSignature(span) && arguments.size() < output_.functions[id].parameters.size()) {
+    const bool signatureQuery = queryingSignature(span);
+    if ((signatureQuery || completingLastArgument(arguments)) &&
+        arguments.size() < output_.functions[id].parameters.size()) {
       if (!analyzeFunction(id))
         return {};
       if (states_[id] == State::Complete && diagnostics_.empty()) {
@@ -4058,7 +4070,8 @@ private:
         for (std::size_t i = 0; i < arguments.size(); ++i)
           if (!expression(frame, arguments[i], signature.parameters[i]))
             return {};
-        captureSignature(frame, signature, std::move(names));
+        if (signatureQuery)
+          captureSignature(frame, signature, std::move(names));
       }
     }
     if (arguments.size() != output_.functions[id].parameters.size()) {

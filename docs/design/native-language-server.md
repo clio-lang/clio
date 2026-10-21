@@ -192,7 +192,7 @@ Suggestions include parameters, preceding immutable bindings, eligible closure c
 
 The request replaces only the current identifier (or inserts one at an empty position) in a temporary source overlay, then parses the graph and snapshots scope immediately before the checker resolves that identifier. Current dependency buffers and configured package mappings participate. Probe diagnostics are discarded: the request does not publish diagnostics, change buffers, write files, run code or contact hardware. Normal checking still never publishes partial typed IR. Completion exposes only scope names, without partial/stale inferred types.
 
-Apart from the bounded construction/pattern-label probe below, completion needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; annotations, import paths, general pattern bindings and declaration names are not completion contexts yet. Qualified enum cases in match patterns are covered below. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no general parser recovery, auto-import, fuzzy ranking, snippet expansion or completion resolve. Checked signature help is covered below. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
+Apart from bounded construction/pattern-label probes and trailing-call repair below, completion needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Unsupported missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; annotations, import paths, general pattern bindings and declaration names are not completion contexts yet. Qualified enum cases in match patterns are covered below. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no general parser recovery, auto-import, fuzzy ranking, snippet expansion or completion resolve. Checked signature help is covered below. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
 
 The [completion qualification record](../../native/metal-proof/evidence/native-lsp-completion-2026-10-20.json) records semantic and stdio tests in normal and ASan/UBSan builds. [Initial VS Code acceptance](native-vscode.md#qualification) now covers partly typed names; broader completion interaction remains follow-up work.
 
@@ -543,3 +543,38 @@ the source graph is loaded at most three times for this request.
 [Empty-field qualification](../../native/metal-proof/evidence/native-lsp-empty-field-2026-10-21.json)
 covers semantic and protocol checks, imported overlays, relocated Release tools
 and installed VS Code commands while retaining the actual syntax diagnostic.
+
+#### Completion inside unfinished calls
+
+Name and record-field suggestions now work at the end of an unfinished call,
+including `combine(rea` and `combine(1, reading.va`. Empty final argument slots,
+bound functions, factory-returned functions, nested calls and pipelines use the
+same completion names and whole-identifier replacement rules as balanced source.
+A balanced call that is still missing later parameters can also provide names in
+its current final argument.
+
+Completion and signature help share the same trailing-call delimiter policy:
+the original cursor must be at the end of the buffer with only whitespace after
+it, the only lexical errors may be unclosed delimiters, and at most eight
+parentheses can be closed. Arrays/records, mismatches, strings, remaining suffixes
+and later source are not repaired. The existing completion probe and any temporary
+parentheses count against source budgets. The graph still has to parse after the
+repair; this is not general parser recovery.
+
+For a known function whose current final argument contains the query but later
+parameters are missing, the checker validates the callee and supplied prefix,
+then visits the current argument with its expected parameter type. Only completion
+names escape that query; no partial typed module or guessed later arguments are
+created. Unknown/noncallable callees, invalid named bodies and earlier argument
+errors block suggestions. Builtins retain their existing individual admission
+rules. Completion still offers lexical names rather than promising each suggestion
+has the expected type. Normal compilation keeps its original arity diagnostic.
+
+Returned edits replace only the requested name. They never insert the recovery
+parentheses into the user's buffer, and ordinary diagnostics/hover continue to
+analyze the actual unfinished source. Imported aliases, live dependency overlays,
+UTF-16 ranges, prefix filtering and the 256-item bound retain their existing rules.
+
+[Unfinished-call completion qualification](../../native/metal-proof/evidence/native-lsp-open-call-completion-2026-10-21.json)
+records normal/sanitizer semantic and protocol checks, signature-help regressions,
+relocated Release tools and applied installed VS Code completion edits.

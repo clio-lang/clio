@@ -1039,6 +1039,46 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert not signature_document.exists() and higher_library.read_text() == higher_text
     client.finish()
 
+    # Name completion shares bounded trailing-call recovery with signature help.
+    call_library = Path(temp) / "completion-call.k"
+    call_library_text = "export fn combine(left:int,right:int)->int:\n  left+right\n"
+    call_library.write_text(call_library_text)
+    client = Client()
+    client.init()
+    call_text = ('from "./completion-call.k" import combine\n'
+                 'fn main():\n  earlier=2\n  combine(ear\n')
+    client.open(signature_document, call_text)
+    assert publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+    result = client.completion(signature_document, 3, len(call_text.splitlines()[3]))["result"]
+    assert [item["label"] for item in result["items"]] == ["earlier"], result
+    item = result["items"][0]
+    assert item["textEdit"] == {"newText":"earlier", "range":{
+        "start":{"line":3,"character":10}, "end":{"line":3,"character":13}}}, item
+    assert not client.barrier(), "completion recovery published probe diagnostics"
+    assert client.hover(signature_document, 3, 11)["result"] is None
+    client.open(call_library, call_library_text.replace("left+right", "unknown"))
+    client.barrier()
+    assert client.completion(signature_document, 3, 13)["result"]["items"] == []
+    client.change(call_library, call_library_text, 2)
+    client.barrier()
+    assert client.completion(signature_document, 3, 13)["result"]["items"][0]["label"] == "earlier"
+    unicode_call = ('fn join(text:String,left:int,right:int)->int:\n  left+right\n'
+                    'fn main():\n  earlier=2\n  join("😀", ear\n')
+    client.change(signature_document, unicode_call, 2)
+    client.barrier()
+    line = unicode_call.splitlines()[4]
+    end = len(line.encode("utf-16-le")) // 2
+    result = client.completion(signature_document, 4, end)["result"]
+    assert [item["label"] for item in result["items"]] == ["earlier"], result
+    assert result["items"][0]["textEdit"]["range"] == {
+        "start":{"line":4,"character":end-3},"end":{"line":4,"character":end}}
+    broken = unicode_call.replace('join("😀", ear', 'join(1, ear')
+    client.change(signature_document, broken, 3)
+    client.barrier()
+    assert client.completion(signature_document, 4, len(broken.splitlines()[4]))["result"]["items"] == []
+    assert not signature_document.exists() and call_library.read_text() == call_library_text
+    client.finish()
+
     # A final member name may be incomplete, but its receiver must still check.
     receiver_library = Path(temp) / "signature-record.k"
     receiver_text = "export type Reading:\n  value:int\n"

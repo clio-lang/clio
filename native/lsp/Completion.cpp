@@ -1,4 +1,5 @@
 #include "Completion.h"
+#include "CallRecovery.h"
 #include <algorithm>
 #include <filesystem>
 namespace kalandra::lsp {
@@ -15,8 +16,13 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
     return result;
   auto source = std::make_shared<const SourceFile>(canonical, text);
   const auto tokens = lex(source);
-  if (!tokens.diagnostics.empty())
-    return result;
+  std::size_t closures = 0;
+  if (!tokens.diagnostics.empty()) {
+    const auto repaired = trailingCallClosures(tokens, text, offset);
+    if (!repaired)
+      return result;
+    closures = *repaired;
+  }
   for (const auto &token : tokens.tokens) {
     if (token.kind == TokenKind::Identifier && token.span.begin <= offset &&
         offset <= token.span.end) {
@@ -67,7 +73,8 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
   if (text.size() - (result.replacement.end - result.replacement.begin) + probe.size() +
           (bareLabel      ? filler.size() + 2
            : missingValue ? filler.size() + 1
-                          : 0) >
+                          : 0) +
+          closures >
       SyntaxLimits{}.maxSourceBytes)
     return result;
   auto replacement = text;
@@ -78,6 +85,8 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
         result.replacement.begin + probe.size() + following[0]->span.end - result.replacement.end;
     replacement.insert(at, " " + std::string(filler));
   }
+  if (closures)
+    replacement.insert(result.replacement.begin + probe.size(), closures, ')');
   std::erase_if(overlays, [&](const auto &entry) {
     std::error_code ec;
     return std::filesystem::weakly_canonical(entry.path, ec).string() == canonical && !ec;

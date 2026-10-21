@@ -1,4 +1,5 @@
 #include "Signature.h"
+#include "CallRecovery.h"
 #include <algorithm>
 #include <filesystem>
 namespace kalandra::lsp {
@@ -61,27 +62,10 @@ std::optional<SignatureInfo> signatureAt(const std::string &path, const std::str
   }
   // Closing-delimiter repair is restricted to the end of the original buffer.
   // No later source, including a suffix after a partly typed name, is hidden.
-  const auto whitespace = [](char c) { return c == ' ' || c == '\n' || c == '\r'; };
-  if (tokens.diagnostics.empty() ||
-      !std::ranges::all_of(std::string_view(text).substr(offset), whitespace))
+  const auto closures = trailingCallClosures(tokens, text, offset);
+  if (!closures || replacement.size() > SyntaxLimits{}.maxSourceBytes - *closures)
     return {};
-  std::vector<TokenKind> delimiters;
-  for (const auto &token : tokens.tokens) {
-    if (token.kind == TokenKind::LeftParen || token.kind == TokenKind::LeftBracket ||
-        token.kind == TokenKind::LeftBrace)
-      delimiters.push_back(token.kind);
-    else if (token.kind == TokenKind::RightParen || token.kind == TokenKind::RightBracket ||
-             token.kind == TokenKind::RightBrace) {
-      if (delimiters.empty())
-        return {};
-      delimiters.pop_back(); // Mismatches already fail the lexer gate above.
-    }
-  }
-  if (delimiters.empty() || delimiters.size() > 8 ||
-      !std::ranges::all_of(delimiters, [](auto kind) { return kind == TokenKind::LeftParen; }) ||
-      replacement.size() > SyntaxLimits{}.maxSourceBytes - delimiters.size())
-    return {};
-  replacement.insert(queryOffset, delimiters.size(), ')');
+  replacement.insert(queryOffset, *closures, ')');
   overlays.back().text = std::move(replacement);
   syntax = load();
   if (!syntax || !syntax->ok())

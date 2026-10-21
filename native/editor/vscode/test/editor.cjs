@@ -591,6 +591,21 @@ async function run() {
   assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
   await replace(main, mainDisk);
   checks.push("Signature help survives an empty final record field without editing the source or hiding its syntax diagnostic");
+  const openCallCompletion = await complete(
+    main,
+    'from "./completion-library.k" import make as factory\nfn main():\n  value=2\n  factory()(va|',
+    "value",
+  );
+  const valueItem = openCallCompletion.items.find((item) => label(item) === "value");
+  await applyCompletion(main, valueItem, "va", "value");
+  assert(main.getText().endsWith("factory()(value"));
+  await eventually(
+    () => vscode.languages.getDiagnostics(mainUri).some((d) => String(d.code).startsWith("L")),
+    "unclosed call diagnostic stays visible after applying completion",
+  );
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  checks.push("Completion applies a name inside an unfinished call without adding delimiters or hiding its actual diagnostic");
   await clearDiagnostics(main);
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(

@@ -85,3 +85,5 @@ visible; the buffer and disk source are unchanged.
 Installed-editor acceptance also checks [record-field argument guidance](native-language-server.md#record-field-argument-editing): the signature remains available while the final field name is being typed, with the actual unknown-field diagnostic, failed hover and unsaved buffer preserved.
 
 The same installed-editor checks now cover [an empty final record field](native-language-server.md#empty-record-field-arguments): parameter guidance remains visible immediately after the dot while the unsaved source and real syntax diagnostic remain unchanged.
+
+Installed-editor acceptance now applies [name completion inside an unfinished call](native-language-server.md#completion-inside-unfinished-calls), checks that the edit changes only the typed name, and verifies that the actual missing-delimiter diagnostic and disk file remain unchanged.

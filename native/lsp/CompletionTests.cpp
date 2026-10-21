@@ -109,7 +109,55 @@ int main() {
     require(!failed.module && members.reached && members.names.size() == 1 &&
                 members.names[0].kind == ScopeNameKind::Field,
             "member names do not expose partial IR");
-    require(query("fn main():\n  missing(|\n").names.empty(), "no parser recovery");
+    require(query("fn main():\n  missing(|\n").names.empty(), "unknown callee provides no completion after recovery");
+    const std::string combine = "fn combine(left:int,right:int)->int:\n  left+right\n";
+    info = query(combine + "fn main():\n  value=2\n  combine(va|\n");
+    require(info.names.size() == 1 && has(info, "value"), "first argument in trailing open call");
+    require(info.replacement.end - info.replacement.begin == 2,
+            "repair does not extend replacement over parentheses");
+    info = query(combine + "fn main():\n  value=2\n  combine(va|)\n");
+    require(has(info, "value"), "balanced first argument with remaining missing parameter");
+    info = query(combine + "fn main():\n  value=2\n  combine(1, va|\n");
+    require(has(info, "value"), "later argument in open call");
+    info = query(combine + "fn main():\n  value=2\n  combine(|\n");
+    require(has(info, "value") && has(info, "combine"), "empty first argument in open call");
+    info = query(combine + "fn main():\n  value=2\n  combine(1, combine(va|\n");
+    require(has(info, "value"), "nested trailing open calls");
+    info = query(combine + "fn main():\n  value=2\n  callback=combine\n  callback(va|\n");
+    require(has(info, "value"), "bound callback with missing later parameters");
+    info = query(combine +
+                 "fn make()->fn(int,int)->int:\n  combine\nfn main():\n  value=2\n  make()(va|\n");
+    require(has(info, "value"), "factory result with missing later parameters");
+    info = query(combine + "fn main():\n  value=2\n  1 -> combine(va|\n");
+    require(has(info, "value"), "piped open call");
+    info = query(combine + "type Reading:\n  value:int\nfn main():\n  reading=Reading {value:2}\n  "
+                           "combine(reading.va|\n");
+    require(info.names.size() == 1 && has(info, "value") &&
+                info.names[0].kind == ScopeNameKind::Field,
+            "member completion in first argument with remaining parameters");
+    require(query(combine + "fn main():\n  value=2\n  combine(missing, va|\n").names.empty(),
+            "invalid supplied argument blocks open-call completion");
+    require(query(combine + "fn main():\n  value=2\n  combine(\"bad\", va|\n").names.empty(),
+            "wrong earlier argument type blocks completion");
+    require(query(combine + "fn main():\n  value=2\n  missing(va|\n").names.empty(),
+            "unknown callee blocks open-call completion");
+    require(query(combine + "fn main():\n  value=2\n  callback=1\n  callback(va|\n").names.empty(),
+            "noncallable value blocks open-call completion");
+    require(query("fn broken(a:int,b:int)->int:\n  missing\nfn main():\n  value=2\n  broken(va|\n")
+                .names.empty(),
+            "invalid named callee body blocks completion");
+    require(query(combine + "fn main():\n  value=2\n  combine(va|Suffix\n").names.empty(),
+            "delimiter repair does not hide a suffix");
+    require(query(combine + "fn main():\n  value=2\n  combine(va|\n  missing\n").names.empty(),
+            "later source is not hidden");
+    require(query(combine + "fn main():\n  value=2\n  combine([va|\n").names.empty(),
+            "unclosed array is not repaired");
+    require(query(combine + "fn main():\n  value=2\n  combine({va|\n").names.empty(),
+            "unclosed record is not repaired");
+    require(query(combine + "fn main():\n  value=2\n  combine(va]|\n").names.empty(),
+            "mismatched delimiters rejected");
+    require(query(combine + "fn main():\n  value=2\n  ((((((((combine(va|\n").names.empty(),
+            "eight-parenthesis recovery bound retained");
     std::string many = "fn main():\n";
     for (int i = 0; i < 300; ++i)
       many += "  candidate" + std::to_string(i) + " = 1\n";
