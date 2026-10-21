@@ -59,3 +59,9 @@ suggestion-widget, keyboard-selection or accessibility acceptance.
 connects the native function signature and active argument to the VS Code provider.
 Its initial acceptance uses an imported function in the installed extension host.
 The graph must still parse and type-check; unfinished calls require future recovery.
+
+[Higher-order signature help](native-language-server.md#higher-order-call-signatures)
+now follows imported factory results and indexed callbacks in the installed
+extension host. The provider checks structural labels, the second active argument
+and exact parameter-label ranges for repeated types. It extends existing calls;
+no syntax or runtime behavior changes.

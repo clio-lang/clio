@@ -59,8 +59,43 @@ int main() {
     require(!query(add + "fn main():\n  ad|d(1,2)\n"), "callee text has no active argument");
     require(!query(add + "fn main():\n  missing\n  add(|1,2)\n"), "invalid graph fails closed");
     require(!query("fn main():\n  length(|[1,2])\n"), "no guessed builtin signatures");
-    require(!query("fn make()->fn(int)->int:\n  fn(n:int):n\nfn main():\n  make()(|1)\n"),
-            "factory callee does not show factory signature");
+    result = query("fn make()->fn(int)->int:\n  fn(n:int):n\nfn main():\n  make()(|1)\n");
+    require(result && result->label == "fn(int64) -> int64" && result->activeParameter == 0,
+            "factory result signature rather than factory signature");
+    result = query("fn make(offset:int)->fn(int,int)->int:\n  fn(a:int,b:int):a+b+offset\n"
+                   "fn main():\n  make(3)(1,|2)\n");
+    require(result && result->parameters == std::vector<std::string>{"int64", "int64"} &&
+                result->activeParameter == 1,
+            "captured factory result parameters");
+    result = query("fn make(offset:int)->fn(int,int)->int:\n  fn(a:int,b:int):a+b+offset\n"
+                   "fn main():\n  make(|3)(1,2)\n");
+    require(result && result->label == "fn make(offset: int64) -> (fn(int64, int64) -> int64)",
+            "factory arguments still show factory signature");
+    result = query(add + "fn main():\n  callbacks=[add]\n  callbacks[0](1,|2)\n");
+    require(result && result->label == "fn(int64, int64) -> int64" && result->activeParameter == 1,
+            "indexed callable signature");
+    result = query(add + "fn main():\n  callbacks=[add]\n  1 -> callbacks[0](|2)\n");
+    require(result && result->activeParameter == 1, "indexed pipeline implicit parameter");
+    result = query("fn make()->fn(int,int)->int:\n  fn(a:int,b:int):a+b\n"
+                   "fn main():\n  1 -> make()(|2)\n");
+    require(result && result->activeParameter == 1, "factory pipeline checked invocation span");
+    result = query("fn main():\n  (fn(n:int):n*2)(|3)\n");
+    require(result && result->label == "fn(int64) -> int64", "direct anonymous call signature");
+    result = query("fn make()->[fn(int)->int]:\n  [fn(n:int):n]\n"
+                   "fn main():\n  make()[0](|3)\n");
+    require(result && result->label == "fn(int64) -> int64", "indexed factory result signature");
+    result = query("error Bad:\n  Failed\nfn make()->fn(int)->int ! Bad:\n  fn(n:int):n\n"
+                   "fn main():\n  make()(|3) catch fn(e):0\n");
+    require(result && result->label == "fn(int64) -> int64 ! Bad",
+            "returned callable error channel is retained");
+    require(!query(add + "fn main():\n  callbacks=[add]\n  callbacks[0](|1)\n"),
+            "invalid indexed arguments do not leak signature");
+    require(!query(add + "fn main():\n  callbacks=[add]\n  callbacks[2](|1,2)\n"),
+            "invalid index fails whole graph");
+    require(!query("fn main():\n  numbers=[1]\n  numbers[0](|2)\n"),
+            "indexed numeric value is not callable");
+    require(!query("fn make()->int:\n  1\nfn main():\n  make()(|2)\n"),
+            "numeric factory result does not suggest factory signature");
     std::cout << "Native checked signature help passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

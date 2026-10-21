@@ -925,6 +925,44 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
         "parameters": [{"label": [5, 10]}, {"label": [12, 17]}]}, result
     client.finish()
 
+    # Higher-order calls use the checked invocation's callee type, not the factory's signature.
+    higher_library = Path(temp) / "higher-order.k"
+    higher_text = "export fn make()->fn(int,int)->int:\n  fn(a:int,b:int):a+b\n"
+    higher_library.write_text(higher_text)
+    client = Client()
+    client.init(signature_offsets=True)
+    text = ('from "./higher-order.k" import make as factory\n'
+            'fn main():\n  factory()(1,2)\n')
+    client.open(signature_document, text)
+    client.barrier()
+    cursor = text.splitlines()[2].index(",2") + 1
+    result = client.signature(signature_document, 2, cursor)["result"]
+    assert result == {"signatures": [{"label": "fn(int64, int64) -> int64",
+        "parameters": [{"label": [3, 8]}, {"label": [10, 15]}]}],
+        "activeSignature": 0, "activeParameter": 1}, result
+    assert not client.barrier(), "higher-order query published diagnostics"
+    client.open(higher_library, higher_text.replace("int", "uint"))
+    client.barrier()
+    result = client.signature(signature_document, 2, cursor)["result"]
+    assert result["signatures"][0]["label"] == "fn(uint64, uint64) -> uint64", result
+    client.change(higher_library, higher_text.replace("a+b", "missing"), 2)
+    client.barrier()
+    assert client.signature(signature_document, 2, cursor)["result"] is None
+    client.close(higher_library)
+    client.barrier()
+    text = ('from "./higher-order.k" import make as factory\n'
+            'fn main():\n  callbacks=[factory()]\n  callbacks[0](1,2)\n')
+    client.change(signature_document, text, 2)
+    client.barrier()
+    cursor = text.splitlines()[3].index(",2") + 1
+    result = client.signature(signature_document, 3, cursor)["result"]
+    assert result["activeParameter"] == 1 and result["signatures"][0]["label"] == "fn(int64, int64) -> int64", result
+    client.change(signature_document, text.replace("callbacks[0]", "callbacks[2]"), 3)
+    client.barrier()
+    assert client.signature(signature_document, 3, cursor)["result"] is None
+    assert not signature_document.exists() and higher_library.read_text() == higher_text
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"

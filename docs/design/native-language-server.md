@@ -361,9 +361,8 @@ parameter-label ranges, which distinguish repeated structural types; other
 clients receive the standard string labels.
 
 The entire graph must parse and type-check. This initial implementation does not
-repair a missing argument or closing parenthesis, supply builtin signatures, or
-infer a signature for factory/indexed/anonymous callee expressions. Such requests
-return `null`, as do invalid positions, closed documents and unresolved/invalid
+repair a missing argument or closing parenthesis or supply builtin signatures.
+Such requests return `null`, as do invalid positions, closed documents and unresolved/invalid
 graphs. It does not reuse a stale successful graph or publish partial inferred
 types. Requesting help makes no source changes or diagnostic publications.
 
@@ -371,3 +370,25 @@ The [signature-help qualification](../../native/metal-proof/evidence/native-lsp-
 records normal/sanitizer semantic and protocol tests, hover regressions, relocated
 Release tools and installed VS Code provider acceptance. Broader incomplete-call
 recovery, builtin signatures and additional editor/platform acceptance remain open.
+
+#### Higher-order call signatures
+
+Signature help also accepts factory results (`make()(value)`), function-array
+indexing (`callbacks[0](value)`), indexing a returned array, and direct anonymous
+calls. It resolves the callee value from the checked `FunctionInvoke` at the
+selected call's exact source span. It does not substitute the factory's own
+signature or infer targets from source spelling. Pipeline calls use the checked
+outer pipeline span and account for the supplied first argument.
+
+These calls display a structural label such as `fn(int64, int64) -> int64`;
+parameter names are not invented for the returned/indexed value. Captures remain
+hidden, and expected-error channels belong to the actual invoked callable.
+Inconsistent lowered callable signatures fail closed. Invalid indices, noncallable
+results, wrong arguments and failed graphs provide no partial or stale signature.
+The operation adds editor support to existing language forms; it does not execute
+the factory, allocate a runtime closure or change language behavior.
+
+[Higher-order qualification](../../native/metal-proof/evidence/native-lsp-higher-signature-2026-10-21.json)
+records semantic/protocol regression tests, imported unsaved overlays, relocated
+Release tools and installed VS Code provider checks for factory/indexed calls.
+Incomplete calls and builtin signature help remain separate work.

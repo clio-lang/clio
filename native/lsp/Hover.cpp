@@ -119,6 +119,29 @@ struct TypePrinter {
     return result;
   }
 };
+std::optional<SignatureInfo> callableSignature(const TypedModule &module, const ValueType &type,
+                                               std::string_view name, std::size_t active) {
+  if (type.builtin != BuiltinValue::Function || !type.callable || type.array || type.task ||
+      type.fallible)
+    return {};
+  TypePrinter printer{module};
+  SignatureInfo result;
+  result.label = "fn" + (name.empty() ? std::string{} : " " + std::string(name)) + "(";
+  for (const auto &parameter : type.callable->parameters) {
+    if (!result.parameters.empty())
+      result.label += ", ";
+    result.parameters.push_back(printer.type(parameter));
+    result.label += result.parameters.back();
+    if (!printer.valid || result.label.size() > 16384)
+      return {};
+  }
+  result.label += ") -> " + printer.returnedType(type.callable->result, 0);
+  if (!printer.valid || result.label.size() > 16384)
+    return {};
+  if (!result.parameters.empty())
+    result.activeParameter = std::min(active, result.parameters.size() - 1);
+  return result;
+}
 } // namespace
 std::optional<HoverInfo> hoverInfo(ParseResult syntax, std::string_view path, std::size_t offset,
                                    CheckOptions options) {
@@ -174,15 +197,13 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
     return {};
   const auto &call = std::get<CallExpr>(syntax.module.expressions[*selected].value);
   const auto &callee = syntax.module.expressions[call.callee];
-  SourceSpan token;
+  std::optional<SourceSpan> token;
   if (const auto *name = std::get_if<NameExpr>(&callee.value))
     token = name->name;
   else if (const auto *field = std::get_if<FieldExpr>(&callee.value))
     token = field->field;
-  else
-    return {}; // Do not mistake a factory/indexed/anonymous callee for an outer call.
-  auto target = sourceLocation(syntax.module.source, token);
-  if (!target)
+  auto target = token ? sourceLocation(syntax.module.source, *token) : std::nullopt;
+  if (token && !target)
     return {};
   const auto lexed = lex(callLocation->source);
   if (!lexed.diagnostics.empty())
@@ -216,12 +237,30 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
   }
   if (!opened)
     return {};
+  auto invocationSpan = syntax.module.expressions[*selected].span;
   for (const auto &expression : syntax.module.expressions)
     if (const auto *binary = std::get_if<BinaryExpr>(&expression.value);
         binary && binary->operation == TokenKind::Arrow && binary->right == *selected) {
       ++active; // The pipeline supplies the first parameter implicitly.
+      invocationSpan = expression.span;
       break;
     }
+  if (!target) {
+    auto checked = check(std::move(syntax), {}, options);
+    if (!checked.ok())
+      return {};
+    const ValueType *type = nullptr;
+    for (const auto &expression : checked.module->expressions)
+      if (expression.span.begin == invocationSpan.begin &&
+          expression.span.end == invocationSpan.end)
+        if (const auto *invoke = std::get_if<FunctionInvoke>(&expression.operation)) {
+          const auto &candidate = checked.module->expressions[invoke->callee].type;
+          if (type && !sameFunctionValueType(*type, candidate))
+            return {}; // Ambiguous lowered identities do not provide a guessed signature.
+          type = &candidate;
+        }
+    return type ? callableSignature(*checked.module, *type, {}, active) : std::nullopt;
+  }
   auto semantic = semanticToken(std::move(syntax), path, target->span.begin, options);
   if (!semantic)
     return {};
@@ -231,20 +270,9 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
   if (semantic->function)
     result.label =
         printer.function(semantic->module.functions[*semantic->function], name, &result.parameters);
-  else if (semantic->type && semantic->type->builtin == BuiltinValue::Function &&
-           semantic->type->callable && !semantic->type->array && !semantic->type->task &&
-           !semantic->type->fallible) {
-    result.label = "fn " + std::string(name) + "(";
-    for (const auto &parameter : semantic->type->callable->parameters) {
-      if (!result.parameters.empty())
-        result.label += ", ";
-      result.parameters.push_back(printer.type(parameter));
-      result.label += result.parameters.back();
-      if (!printer.valid || result.label.size() > 16384)
-        return {};
-    }
-    result.label += ") -> " + printer.returnedType(semantic->type->callable->result, 0);
-  } else
+  else if (semantic->type)
+    return callableSignature(semantic->module, *semantic->type, name, active);
+  else
     return {};
   if (!printer.valid || result.label.empty() || result.label.size() > 16384)
     return {};

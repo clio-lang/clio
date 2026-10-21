@@ -329,6 +329,49 @@ async function run() {
     "Match payload completion preserves shorthand and explicit local bindings in VS Code",
   );
 
+  await replace(
+    completionDocument,
+    'from "./completion-library.k" import make as factory\n' +
+      "fn main():\n  factory()(1,2)\n",
+  );
+  let higherSignature = await eventually(async () => {
+    const result = await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider",
+      completionUri,
+      position(completionDocument, "(1,2)", 3),
+      ",",
+    );
+    return result?.signatures.length ? result : undefined;
+  }, "factory-result signature");
+  assert.equal(
+    higherSignature.signatures[0].label,
+    "fn(int64, int64) -> int64",
+  );
+  assert.equal(higherSignature.activeParameter, 1);
+  assert.deepEqual(higherSignature.signatures[0].parameters[1].label, [10, 15]);
+  await replace(
+    completionDocument,
+    'from "./completion-library.k" import make as factory\n' +
+      "fn main():\n  callbacks=[factory()]\n  callbacks[0](1,2)\n",
+  );
+  higherSignature = await eventually(async () => {
+    const result = await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider",
+      completionUri,
+      position(completionDocument, "callbacks[0](1,2)", 15),
+      ",",
+    );
+    return result?.signatures.length ? result : undefined;
+  }, "indexed-callable signature");
+  assert.equal(
+    higherSignature.signatures[0].label,
+    "fn(int64, int64) -> int64",
+  );
+  assert.equal(higherSignature.activeParameter, 1);
+  checks.push(
+    "Higher-order signature help follows imported factories and indexed callables in VS Code",
+  );
+
   const completionLibrary =
     await vscode.workspace.openTextDocument(completionLibraryUri);
   await replace(
