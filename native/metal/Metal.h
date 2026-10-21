@@ -109,6 +109,10 @@ struct ElementwiseSignature {
   ElementwiseBinding binding = ElementwiseBinding::Direct;
   bool operator==(const ElementwiseSignature &) const = default;
 };
+// Operand indices address original inputs followed by earlier product results.
+struct MatrixProduct {
+  std::uint32_t left, right;
+};
 class Runtime final {
 public:
   static std::expected<std::unique_ptr<Runtime>, Error> create(Options = {}) noexcept;
@@ -164,6 +168,11 @@ public:
                     Kernel leftMap = {}, Kernel rightMap = {},
                     std::span<const Buffer> mapInputs = {},
                     std::span<const float> mapScalars = {}) noexcept;
+  // Copies the product graph and inputs; one task owns all resident intermediates.
+  TaskHandle matmulGraph(TaskCore &, GroupHandle, Kernel, std::span<const Buffer>,
+                         std::span<const MatrixProduct>) noexcept;
+  TaskHandle matmulGraph(Task &, GroupHandle, Kernel, std::span<const Buffer>,
+                         std::span<const MatrixProduct>) noexcept;
   // One scalar task: optional input maps, matrix, optional adjustment, fixed reduction tree.
   TaskHandle matmulReduceSum(TaskCore &, GroupHandle, Kernel matrix, Kernel reduction, Buffer left,
                              Buffer right, Kernel leftMap = {}, Kernel rightMap = {},

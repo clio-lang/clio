@@ -131,6 +131,15 @@ def main():
                         assert (destination / (entry + '.mlir')).is_file()
                         assert 'gpu.func @kalandra_elementwise_v2' in (destination / (stage + '.mlir')).read_text()
                         assert stage + '.metallib' in (destination / 'host.cpp').read_text()
+                    for entry, products in re.findall(r'^(kernel\d+)\.matrix_graph_products=(\d+)$', manifest, re.M):
+                        assert int(products) >= 2
+                        assert 'gpu.func @kalandra_matmul' in (destination / (entry + '.mlir')).read_text()
+                        assert 'matmulGraph(' in (destination / 'host.cpp').read_text()
+                        edges = re.search(r'^' + entry + r'\.matrix_graph_edges=(.+)$', manifest, re.M)[1].split(',')
+                        inputs = int(re.search(r'^' + entry + r'\.matrix_graph_inputs=(\d+)$', manifest, re.M)[1])
+                        assert len(edges) == int(products)
+                        for i, edge in enumerate(edges):
+                            assert all(0 <= int(v) < inputs + i for v in edge.split(':'))
                     outcomes.append({'fixture': fixture, 'status': 'supported', 'kernels': count})
                 else:
                     assert emitted.returncode == 1, (fixture, emitted.stdout, emitted.stderr)

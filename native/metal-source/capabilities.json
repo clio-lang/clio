@@ -348,6 +348,20 @@
       "evidence": [
         "gpu-matmul-scalar-reduction-2026-10-21.json"
       ]
+    },
+    {
+      "id": "matrix-graphs",
+      "feature": "Multiple matrix products in one task",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "matrix-graph.k",
+        "capabilities/matrix-graph.k"
+      ],
+      "notes": "Rank-two float32 product chains and shared intermediates; no arithmetic/reduction around multiple products yet",
+      "evidence": [
+        "gpu-matrix-graphs-2026-10-21.json"
+      ]
     }
   ]
 }

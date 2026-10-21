@@ -376,6 +376,116 @@ class Compiler {
     return entry &&
            (entry->kind == PrimitiveEntry::Matrix || entry->kind == PrimitiveEntry::MatrixSum);
   }
+  struct MatrixGraph {
+    std::size_t inputs = 0;
+    std::vector<std::pair<std::uint32_t, std::uint32_t>> products;
+  };
+  mutable std::map<FunctionId, std::optional<MatrixGraph>> matrixGraphs;
+  const std::optional<MatrixGraph> &matrixGraph(FunctionId root) const {
+    if (auto found = matrixGraphs.find(root); found != matrixGraphs.end())
+      return found->second;
+    auto &cached = matrixGraphs[root];
+    const auto &entry = cpu.functions.at(root);
+    if (!entry.resultType.tensor || entry.resultType.shape.size() != 2)
+      return cached;
+    MatrixGraph graph;
+    using Result = std::optional<std::int64_t>; // -1: an unused scalar; otherwise a graph value.
+    std::size_t work = 0;
+    std::set<FunctionId> active;
+    std::function<Result(FunctionId, const std::vector<std::int64_t> &)> invoke;
+    invoke = [&](FunctionId id, const std::vector<std::int64_t> &args) -> Result {
+      if (++work > 300000 || active.size() >= 128)
+        reject(entry.declaration, "GPU matrix graph analysis limit exceeded");
+      if (!active.insert(id).second)
+        return {};
+      const auto &fn = cpu.functions.at(id);
+      std::unordered_map<SymbolId, std::int64_t> symbols;
+      std::unordered_map<ValueId, std::int64_t> values;
+      for (std::size_t i = 0; i < args.size(); ++i)
+        symbols.emplace(fn.parameters.at(i), args[i]);
+      std::function<Result(ValueId)> emit = [&](ValueId value) -> Result {
+        if (++work > 300000)
+          reject(entry.declaration, "GPU matrix graph analysis limit exceeded");
+        if (auto found = values.find(value); found != values.end())
+          return found->second;
+        const auto &node = cpu.expressions.at(value);
+        Result result;
+        if (const auto *read = std::get_if<SymbolRead>(&node.operation)) {
+          if (auto found = symbols.find(read->symbol); found != symbols.end())
+            result = found->second;
+        } else if (const auto *check = std::get_if<ShapeCheck>(&node.operation))
+          result = emit(check->input);
+        else if (const auto *matrix = std::get_if<Matmul>(&node.operation)) {
+          auto left = emit(matrix->left), right = emit(matrix->right);
+          if (left && right && *left >= 0 && *right >= 0 &&
+              matrix->order == ReductionOrder::BalancedAdjacent &&
+              matrix->separatelyRoundedProducts) {
+            if (graph.inputs + graph.products.size() >= UINT32_MAX)
+              reject(node.span, "GPU matrix graph representation limit exceeded");
+            result = graph.inputs + graph.products.size();
+            graph.products.emplace_back(*left, *right);
+          }
+        } else if (std::holds_alternative<Float32Literal>(node.operation))
+          result = -1;
+        else if (const auto *binary = std::get_if<ScalarBinary>(&node.operation)) {
+          auto a = emit(binary->left), b = emit(binary->right);
+          if (a && b && *a == -1 && *b == -1 &&
+              (binary->operation == TokenKind::Plus || binary->operation == TokenKind::Minus ||
+               binary->operation == TokenKind::Star || binary->operation == TokenKind::Slash))
+            result = -1;
+        } else if (const auto *unary = std::get_if<ScalarUnary>(&node.operation)) {
+          auto a = emit(unary->operand);
+          if (a && *a == -1 &&
+              (unary->operation == TokenKind::Plus || unary->operation == TokenKind::Minus))
+            result = -1;
+        } else if (const auto *call = std::get_if<FunctionCall>(&node.operation)) {
+          std::vector<std::int64_t> arguments;
+          for (auto argument : call->arguments) {
+            auto a = emit(argument);
+            if (!a)
+              return {};
+            arguments.push_back(*a);
+          }
+          result = invoke(call->function, arguments);
+        }
+        if (result)
+          values.emplace(value, *result);
+        return result;
+      };
+      for (const auto &statement : fn.body) {
+        auto value = emit(statement.value);
+        if (!value)
+          return {};
+        if (statement.binding)
+          symbols[*statement.binding] = *value;
+      }
+      auto result = emit(fn.result);
+      active.erase(id);
+      return result;
+    };
+    std::vector<std::int64_t> args;
+    for (auto parameter : entry.parameters) {
+      const auto &type = cpu.symbols[parameter].type;
+      if (type.tensor && type.shape.size() != 2)
+        return cached;
+      args.push_back(type.tensor ? std::int64_t(graph.inputs++) : -1);
+    }
+    auto result = invoke(root, args);
+    if (!result || graph.products.size() < 2 ||
+        *result != std::int64_t(graph.inputs + graph.products.size() - 1))
+      return cached;
+    // Every product must contribute to the returned matrix. Extra unused
+    // numerical primitives retain the existing diagnostic instead of disappearing.
+    std::set<std::uint32_t> live{std::uint32_t(*result)};
+    for (std::size_t i = graph.products.size(); i-- > 0;) {
+      if (!live.contains(graph.inputs + i))
+        return cached;
+      live.insert(graph.products[i].first);
+      live.insert(graph.products[i].second);
+    }
+    cached = std::move(graph);
+    return cached;
+  }
   std::map<std::string, FunctionId> hostOperations;
   ExtentId hostExtent = 0;
   void observeExtents(const ValueType &type) {
@@ -750,6 +860,7 @@ class Compiler {
       return cpuCall(function, inputs, span, false, true);
     admitGpuTypes(function);
     const auto &entryFunction = cpu.functions[function];
+    const auto &graph = matrixGraph(function);
     const bool sum = reduction(function);
     const bool matrix = matrixFunction(function);
     const bool matrixSum = sum && matrix;
@@ -778,7 +889,7 @@ class Compiler {
     if (tensors.size() > UINT32_MAX || scalars.size() >= UINT32_MAX)
       reject(span, "GPU argument representation limit exceeded");
     std::vector<std::uint32_t> reads;
-    if ((!sum || mapped) && !matrix)
+    if (!graph && (!sum || mapped) && !matrix)
       shader(function, &reads);
     else
       for (std::size_t i = 0; i < tensors.size(); ++i)
@@ -823,8 +934,8 @@ class Compiler {
       auto [b, axisB] = locate(requirement.right);
       auto aExtent = extent(tensors[a], axisA), bExtent = extent(tensors[b], axisB);
       if (aExtent && bExtent && aExtent != bExtent)
-        reject(span,
-               matrix ? "matmul inner dimensions differ" : "elementwise argument shapes differ");
+        reject(span, (matrix || graph) ? "matmul inner dimensions differ"
+                                       : "elementwise argument shapes differ");
       if (!aExtent || !bExtent) {
         auto [line, column] = syntax.source->location(span.begin);
         steps.push_back("if(" + ref(tensors[a]) + ".shape()[" + std::to_string(axisA) +
@@ -832,6 +943,39 @@ class Compiler {
                         "]) {task.fault(1," + std::to_string(line) + "," + std::to_string(column) +
                         ");return;}\n");
       }
+    }
+    if (graph) {
+      auto [entry, inserted] = entries.emplace(function, entries.size());
+      (void)inserted;
+      auto kernel = field("m::Kernel"), out = field("TaskHandle");
+      Value result{Value::Task, next - 1, true, target.device};
+      result.rank = 2;
+      std::vector<Value> shapes = tensors;
+      for (auto [a, b] : graph->products) {
+        Value product = shapes.at(a);
+        product.width = shapes.at(b).width;
+        shapes.push_back(product);
+      }
+      result.length = shapes.back().length;
+      result.width = shapes.back().width;
+      std::string inputs = "std::array<m::Buffer," + std::to_string(tensors.size()) + ">{";
+      for (std::size_t i = 0; i < tensors.size(); ++i)
+        inputs += (i ? "," : "") + ref(tensors[i]);
+      inputs += "}";
+      std::string products =
+          "std::array<m::MatrixProduct," + std::to_string(graph->products.size()) + ">{{";
+      for (auto [a, b] : graph->products)
+        products += "{" + std::to_string(a) + "," + std::to_string(b) + "},";
+      products += "}}";
+      steps.push_back("auto target=" + device(target) + ";\nif(!target){" +
+                      error("target.error()") +
+                      "}\nauto kernel=r.loadMatmulKernel(f.directory+\"/kernel" +
+                      std::to_string(entry->second) + ".metallib\",*target);\nif(!kernel){" +
+                      error("kernel.error()") + "}\nf." + kernel +
+                      "=*kernel;\nstatic constexpr auto products=" + products + ";\nf." + out +
+                      "=r.matmulGraph(task," + activeGroup + ",f." + kernel + "," + inputs +
+                      ",products);\n" + admitted("f." + out));
+      return result;
     }
     const bool projected = reads.size() != tensors.size();
     const bool indirect =
@@ -1471,6 +1615,8 @@ class Compiler {
   }
   std::string shader(std::size_t function, std::vector<std::uint32_t> *readInputs = nullptr,
                      bool post = false, int matrixOperand = -1, bool finalScalar = false) const {
+    if (matrixGraph(function))
+      return matmulShader;
     const bool matrixPost = post && matrixFunction(function) && !finalScalar;
     if (!post && matrixOperand < 0 && matrixFunction(function))
       return matmulShader;
@@ -1866,7 +2012,7 @@ public:
         if (entry->scalarPost)
           outputs[base + "-scalar.mlir"] = shader(function, nullptr, true, -1, true);
       }
-      if (matrixFunction(function)) {
+      if (matrixFunction(function) || matrixGraph(function)) {
         outputs[base + "-rows2.mlir"] = matmulRows2Shader;
         outputs[base + "-quad.mlir"] = matmulQuadShader;
       }
@@ -1995,6 +2141,16 @@ void resume(Task &task) {
     outputs["host.cpp"] = host.str();
     std::string manifest = "kernel_count=" + std::to_string(entries.size()) + "\n";
     for (auto [function, index] : entries) {
+      if (const auto &graph = matrixGraph(function); graph) {
+        const auto prefix = "kernel" + std::to_string(index) + ".";
+        std::string edges;
+        for (auto [a, b] : graph->products)
+          edges += (edges.empty() ? "" : ",") + std::to_string(a) + ":" + std::to_string(b);
+        manifest += prefix + "matrix_graph_inputs=" + std::to_string(graph->inputs) + "\n" +
+                    prefix + "matrix_graph_products=" + std::to_string(graph->products.size()) +
+                    "\n" + prefix + "matrix_graph_edges=" + edges + "\n";
+        continue;
+      }
       if (auto entry = primitiveEntry(function); entry && matrixFunction(function)) {
         unsigned tensors = 0, scalars = 0;
         for (auto parameter : cpu.functions[function].parameters) {

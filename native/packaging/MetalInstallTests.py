@@ -130,6 +130,13 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
         assert (scalar_app / f"kernel0-{stage}.metallib").is_file()
     assert run([scalar_app / "program"], cwd).stdout.strip() == "c3400000"
     applications.append((scalar_app, "c3400000"))
+    graph_source = cwd / "matrix-graph.k"
+    graph_source.write_bytes((fixtures / "matrix-graph.k").read_bytes())
+    graph_app = cwd / "matrix graph application"
+    run([compiler, graph_source, "--target", "metal", "-o", graph_app, "-O2"], cwd)
+    graph_result = "[42d40000,431c0000,43710000,43b10000]"
+    assert run([graph_app / "program"], cwd).stdout.strip() == graph_result
+    applications.append((graph_app, graph_result))
     # Local module/project imports go through the same installed Metal compiler.
     (cwd / "helper.k").write_text("export " + source.read_text().split("\n\nfn main", 1)[0] + "\n")
     source.write_text('from "math" import combine\n\nfn main' + source.read_text().split("\n\nfn main", 1)[1])

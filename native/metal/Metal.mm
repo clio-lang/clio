@@ -223,6 +223,23 @@ struct Arguments {
     --state->argumentPacks;
   }
 };
+// Submission-owned workspace, mutated only by its single scheduled task.
+struct MatrixGraphArguments {
+  std::shared_ptr<State> state;
+  std::uint64_t reserved = 0;
+  std::size_t inputs = 0;
+  std::vector<Buffer> values;
+  std::vector<MatrixProduct> products;
+  std::vector<std::uint32_t> uses;
+  std::vector<std::array<std::int64_t, 2>> shapes;
+  explicit MatrixGraphArguments(std::shared_ptr<State> s) : state(std::move(s)) {
+    ++state->argumentPacks;
+  }
+  ~MatrixGraphArguments() {
+    state->argumentBytes -= reserved;
+    --state->argumentPacks;
+  }
+};
 struct Bridge {
   enum class Kind { Upload, Download, Compute, Elementwise, Reduce, Matmul };
   struct PacketData {
@@ -240,6 +257,7 @@ struct Bridge {
     std::shared_ptr<const Arguments> postArguments{}, scalarArguments{};
     Kernel matrixLeftMap{}, matrixRightMap{};
     std::shared_ptr<const Arguments> leftArguments{}, rightArguments{};
+    std::shared_ptr<MatrixGraphArguments> graph{};
   };
   static std::expected<std::shared_ptr<const Arguments>, Error>
   capture(std::shared_ptr<State> state, const Kernel &kernel, std::span<const Buffer> tensors,
@@ -284,6 +302,83 @@ struct Bridge {
       return std::unexpected(Error::Allocation);
     }
   }
+  static std::expected<std::shared_ptr<MatrixGraphArguments>, Error>
+  captureGraph(std::shared_ptr<State> state, const Kernel &kernel, std::span<const Buffer> inputs,
+               std::span<const MatrixProduct> products) noexcept {
+    if (!kernel.state_ || !kernel.state_->matrix || inputs.empty() || products.empty() ||
+        inputs.size() > UINT32_MAX || products.size() > UINT32_MAX / 2 ||
+        inputs.size() + products.size() > UINT32_MAX)
+      return std::unexpected(Error::Invalid);
+    if (kernel.state_->registry != state)
+      return std::unexpected(Error::Residency);
+    const auto count = inputs.size() + products.size();
+    const auto bytes = std::uint64_t(count) * (sizeof(Buffer) + sizeof(std::uint32_t) +
+                                               sizeof(std::array<std::int64_t, 2>)) +
+                       std::uint64_t(products.size()) * sizeof(MatrixProduct);
+    try {
+      if (!state->permit())
+        return std::unexpected(Error::Allocation);
+      auto result = std::make_shared<MatrixGraphArguments>(state);
+      auto used = state->argumentBytes.load();
+      do {
+        if (used > state->options.maxArgumentBytes ||
+            bytes > state->options.maxArgumentBytes - used)
+          return std::unexpected(Error::Budget);
+      } while (!state->argumentBytes.compare_exchange_weak(used, used + bytes));
+      result->reserved = bytes;
+      auto peak = state->peakArgumentBytes.load();
+      while (peak < used + bytes &&
+             !state->peakArgumentBytes.compare_exchange_weak(peak, used + bytes)) {
+      }
+      if (!state->permit())
+        return std::unexpected(Error::Allocation);
+      result->values.resize(count);
+      if (!state->permit())
+        return std::unexpected(Error::Allocation);
+      result->products.assign(products.begin(), products.end());
+      if (!state->permit())
+        return std::unexpected(Error::Allocation);
+      result->uses.resize(count);
+      if (!state->permit())
+        return std::unexpected(Error::Allocation);
+      result->shapes.resize(count);
+      result->inputs = inputs.size();
+      for (std::size_t i = 0; i < inputs.size(); ++i) {
+        const auto &input = inputs[i].storage_;
+        if (!input || input->rank != 2 || input->format != Format::Float32 ||
+            input->size / 4 > UINT32_MAX)
+          return std::unexpected(Error::Invalid);
+        if (!input->device || input->state != state || input->deviceIndex != kernel.state_->index)
+          return std::unexpected(Error::Residency);
+        if (std::uint64_t(input->dimensions[0]) > UINT32_MAX ||
+            std::uint64_t(input->dimensions[1]) > UINT32_MAX)
+          return std::unexpected(Error::Invalid);
+        result->values[i] = inputs[i];
+        result->shapes[i] = {input->dimensions[0], input->dimensions[1]};
+      }
+      for (std::size_t i = 0; i < products.size(); ++i) {
+        const auto edge = products[i];
+        const auto output = inputs.size() + i;
+        if (edge.left >= output || edge.right >= output)
+          return std::unexpected(Error::Invalid);
+        const auto a = result->shapes[edge.left], b = result->shapes[edge.right];
+        if (a[1] != b[0] || std::uint64_t(a[0]) * std::uint64_t(b[1]) > UINT32_MAX)
+          return std::unexpected(Error::Invalid);
+        result->shapes[output] = {a[0], b[1]};
+        ++result->uses[edge.left];
+        ++result->uses[edge.right];
+      }
+      for (std::size_t i = inputs.size(); i + 1 < count; ++i)
+        if (!result->uses[i])
+          return std::unexpected(Error::Invalid);
+      for (std::size_t i = 0; i < inputs.size(); ++i)
+        if (!result->uses[i])
+          result->values[i] = {};
+      return result;
+    } catch (...) {
+      return std::unexpected(Error::Allocation);
+    }
+  }
   // Each invocation owns two alternating outputs and up to 32 immutable count words.
   // A serial encoder orders dispatches and tracked buffer accesses during reuse.
   struct ReductionScratch {
@@ -298,6 +393,7 @@ struct Bridge {
     Buffer result;
     Buffer matrixLeft{}, matrixRight{};
     Kernel matrixKernel{};
+    std::size_t graphStage = 0;
     unsigned matrixStage = 0; // 1: left map, 2: right map, 3: multiply.
     float scalar = 0;
     std::unique_ptr<ReductionScratch> scratch;
@@ -518,448 +614,484 @@ struct Bridge {
     }
   }
   static void resume(Task &task) {
-    @autoreleasepool {
-      auto &f = *static_cast<Frame *>(task.frame());
-      auto state = f.packet.state;
-      if (!f.started && !f.matrixStage && (f.packet.matrixLeftMap || f.packet.matrixRightMap) &&
-          !f.packet.preparation) {
-        // Keep both original operands until their independent maps acknowledge.
-        f.matrixLeft = std::move(f.packet.input);
-        f.matrixRight = std::move(f.packet.right);
-        f.matrixKernel = std::move(f.packet.kernel);
-        nextMatrixStage(f);
-      }
-      if (f.started) {
-        if (!f.succeeded) {
-          task.fault(static_cast<std::int64_t>(f.error));
-          return;
-        }
-        // Materialize host results on the scheduler, never in the Metal callback.
-        if (f.packet.kind == Kind::Download) {
-          auto *destination = const_cast<Storage *>(f.result.storage_.get());
-          std::memcpy(destination->host.data(), f.staging->buffer.contents, destination->size);
-        }
-        if (f.packet.kind == Kind::Reduce)
-          std::memcpy(&f.scalar, f.staging->buffer.contents, 4);
-        f.staging.reset();
-        f.resources.reset();
-        f.scratch.reset();
-        f.packet.input = Buffer{};
-        f.packet.right = Buffer{};
-        f.packet.kernel = Kernel{};
-        f.packet.arguments.reset();
-        f.packet.replacement = Buffer{};
-        const bool beforeMatrix = f.matrixStage == 1 || f.matrixStage == 2;
-        if (beforeMatrix) {
-          (f.matrixStage == 1 ? f.matrixLeft : f.matrixRight) = std::move(f.result);
+    for (;;) {
+      @autoreleasepool {
+        auto &f = *static_cast<Frame *>(task.frame());
+        auto state = f.packet.state;
+        if (!f.started && !f.matrixStage && (f.packet.matrixLeftMap || f.packet.matrixRightMap) &&
+            !f.packet.preparation) {
+          // Keep both original operands until their independent maps acknowledge.
+          f.matrixLeft = std::move(f.packet.input);
+          f.matrixRight = std::move(f.packet.right);
+          f.matrixKernel = std::move(f.packet.kernel);
           nextMatrixStage(f);
-        } else if (!f.packet.reduction && !f.packet.matrixPost) {
-          f.packet.epilogue = Kernel{};
-          f.packet.postArguments.reset();
-          f.packet.scalarArguments.reset();
-          task.complete(f.packet.kind == Kind::Reduce ? static_cast<const void *>(&f.scalar)
-                                                      : &f.result);
+        }
+        if (f.packet.graph && !f.started && !f.packet.preparation) {
+          const auto edge = f.packet.graph->products[f.graphStage];
+          f.packet.input = f.packet.graph->values[edge.left];
+          f.packet.right = f.packet.graph->values[edge.right];
+        }
+        if (f.started) {
+          if (!f.succeeded) {
+            task.fault(static_cast<std::int64_t>(f.error));
+            return;
+          }
+          if (f.packet.graph) {
+            auto &graph = *f.packet.graph;
+            const auto edge = graph.products[f.graphStage];
+            f.staging.reset();
+            f.resources.reset();
+            f.packet.input = {};
+            f.packet.right = {};
+            graph.values[graph.inputs + f.graphStage] = std::move(f.result);
+            for (auto operand : {edge.left, edge.right})
+              if (!--graph.uses[operand])
+                graph.values[operand] = {};
+            if (++f.graphStage == graph.products.size()) {
+              f.result = std::move(graph.values.back());
+              f.packet.graph.reset();
+              task.complete(&f.result);
+              return;
+            }
+            if (task.cancelled())
+              return;
+            f.started = f.succeeded = false;
+            const auto next = graph.products[f.graphStage];
+            f.packet.input = graph.values[next.left];
+            f.packet.right = graph.values[next.right];
+          } else {
+            // Materialize host results on the scheduler, never in the Metal callback.
+            if (f.packet.kind == Kind::Download) {
+              auto *destination = const_cast<Storage *>(f.result.storage_.get());
+              std::memcpy(destination->host.data(), f.staging->buffer.contents, destination->size);
+            }
+            if (f.packet.kind == Kind::Reduce)
+              std::memcpy(&f.scalar, f.staging->buffer.contents, 4);
+            f.staging.reset();
+            f.resources.reset();
+            f.scratch.reset();
+            f.packet.input = Buffer{};
+            f.packet.right = Buffer{};
+            f.packet.kernel = Kernel{};
+            f.packet.arguments.reset();
+            f.packet.replacement = Buffer{};
+            const bool beforeMatrix = f.matrixStage == 1 || f.matrixStage == 2;
+            if (beforeMatrix) {
+              (f.matrixStage == 1 ? f.matrixLeft : f.matrixRight) = std::move(f.result);
+              nextMatrixStage(f);
+            } else if (!f.packet.reduction && !f.packet.matrixPost) {
+              f.packet.epilogue = Kernel{};
+              f.packet.postArguments.reset();
+              f.packet.scalarArguments.reset();
+              task.complete(f.packet.kind == Kind::Reduce ? static_cast<const void *>(&f.scalar)
+                                                          : &f.result);
+              return;
+            }
+            // Acknowledgement transfers the resident result into the next stage.
+            // Source argument packs remain immutable; slot zero may select this result.
+            if (beforeMatrix) {
+              // nextMatrixStage has selected the next resident operand or primitive.
+            } else if (f.packet.matrixPost) {
+              f.packet.replacement = std::move(f.result);
+              f.packet.kernel = std::move(f.packet.matrixPost);
+              f.packet.arguments = std::move(f.packet.postArguments);
+              f.packet.kind = Kind::Elementwise;
+            } else {
+              f.packet.input = std::move(f.result);
+              f.packet.kernel = std::move(f.packet.reduction);
+              f.packet.kind = Kind::Reduce;
+            }
+            f.started = false;
+            f.succeeded = false;
+            if (task.cancelled())
+              return;
+          }
+        }
+        f.started = true;
+        if (f.packet.preparation) {
+          task.fault(std::int64_t(*f.packet.preparation));
           return;
         }
-        // Acknowledgement transfers the resident result into the next stage.
-        // Source argument packs remain immutable; slot zero may select this result.
-        if (beforeMatrix) {
-          // nextMatrixStage has selected the next resident operand or primitive.
-        } else if (f.packet.matrixPost) {
-          f.packet.replacement = std::move(f.result);
-          f.packet.kernel = std::move(f.packet.matrixPost);
-          f.packet.arguments = std::move(f.packet.postArguments);
-          f.packet.kind = Kind::Elementwise;
-        } else {
-          f.packet.input = std::move(f.result);
-          f.packet.kernel = std::move(f.packet.reduction);
-          f.packet.kind = Kind::Reduce;
-        }
-        f.started = false;
-        f.succeeded = false;
-        if (task.cancelled())
-          return;
-      }
-      f.started = true;
-      if (f.packet.preparation) {
-        task.fault(std::int64_t(*f.packet.preparation));
-        return;
-      }
-      if (f.packet.matrixPost && f.packet.kind == Kind::Matmul) {
-        const auto &kernel = f.packet.matrixPost.state_;
-        const auto &base = f.packet.kernel.state_;
-        if (!base || !base->matrix || kernel->registry != state || kernel->index != base->index ||
-            !f.packet.postArguments || !kernel->elementwise || kernel->matrix ||
-            kernel->reduction || kernel->tensorIndex(0) != 0) {
-          task.fault(std::int64_t(Error::Invalid));
-          return;
-        }
-      }
-      if (f.packet.epilogue) {
-        const auto &kernel = f.packet.epilogue.state_;
-        const auto &base = f.packet.kernel.state_;
-        const auto signature = kernel->signature.value_or(ElementwiseSignature{2, 0});
-        if (!base || !kernel->elementwise || kernel->reduction || kernel->matrix ||
-            kernel->projected || kernel->indirect() || signature.tensors != 1 ||
-            !f.packet.scalarArguments ||
-            signature.scalars != f.packet.scalarArguments->scalarBits.size() ||
-            kernel->registry != state || kernel->index != base->index) {
-          task.fault(std::int64_t(Error::Invalid));
-          return;
-        }
-      }
-      if (f.packet.reduction) {
-        const auto &reduction = f.packet.reduction.state_;
-        const auto &mapping = f.packet.kernel.state_;
-        if (!reduction->reduction || reduction->matrix || !mapping ||
-            reduction->registry != state || reduction->index != mapping->index) {
-          task.fault(std::int64_t(Error::Invalid));
-          return;
-        }
-      }
-      if (f.packet.arguments) {
-        const auto &kernel = f.packet.kernel.state_;
-        f.packet.input = tensor(f, kernel->tensorIndex(0));
-      }
-      const auto &source = f.packet.input.storage_;
-      if (!source) {
-        task.fault(std::int64_t(Error::Invalid));
-        return;
-      }
-      std::uint32_t index = source->deviceIndex;
-      const bool compute = f.packet.kind == Kind::Compute || f.packet.kind == Kind::Elementwise;
-      const bool upload = f.packet.kind == Kind::Upload;
-      const bool reduce = f.packet.kind == Kind::Reduce;
-      const bool matrix = f.packet.kind == Kind::Matmul;
-      std::array<std::int64_t, 2> matrixShape{};
-      if (matrix) {
-        const auto &kernel = f.packet.kernel.state_;
-        const auto &right = f.packet.right.storage_;
-        if (!kernel || !kernel->matrix || !right || source->format != Format::Float32 ||
-            right->format != Format::Float32 || source->rank != 2 || right->rank != 2 ||
-            source->dimensions[1] != right->dimensions[0] || source->size / 4 > UINT32_MAX ||
-            right->size / 4 > UINT32_MAX) {
-          task.fault(std::int64_t(Error::Invalid));
-          return;
-        }
-        for (auto dimension : {source->dimensions[0], source->dimensions[1], right->dimensions[1]})
-          if (std::uint64_t(dimension) > UINT32_MAX) {
+        if (f.packet.matrixPost && f.packet.kind == Kind::Matmul) {
+          const auto &kernel = f.packet.matrixPost.state_;
+          const auto &base = f.packet.kernel.state_;
+          if (!base || !base->matrix || kernel->registry != state || kernel->index != base->index ||
+              !f.packet.postArguments || !kernel->elementwise || kernel->matrix ||
+              kernel->reduction || kernel->tensorIndex(0) != 0) {
             task.fault(std::int64_t(Error::Invalid));
             return;
           }
-        matrixShape = {source->dimensions[0], right->dimensions[1]};
-        if (std::uint64_t(matrixShape[0]) * std::uint64_t(matrixShape[1]) > UINT32_MAX) {
+        }
+        if (f.packet.epilogue) {
+          const auto &kernel = f.packet.epilogue.state_;
+          const auto &base = f.packet.kernel.state_;
+          const auto signature = kernel->signature.value_or(ElementwiseSignature{2, 0});
+          if (!base || !kernel->elementwise || kernel->reduction || kernel->matrix ||
+              kernel->projected || kernel->indirect() || signature.tensors != 1 ||
+              !f.packet.scalarArguments ||
+              signature.scalars != f.packet.scalarArguments->scalarBits.size() ||
+              kernel->registry != state || kernel->index != base->index) {
+            task.fault(std::int64_t(Error::Invalid));
+            return;
+          }
+        }
+        if (f.packet.reduction) {
+          const auto &reduction = f.packet.reduction.state_;
+          const auto &mapping = f.packet.kernel.state_;
+          if (!reduction->reduction || reduction->matrix || !mapping ||
+              reduction->registry != state || reduction->index != mapping->index) {
+            task.fault(std::int64_t(Error::Invalid));
+            return;
+          }
+        }
+        if (f.packet.arguments) {
+          const auto &kernel = f.packet.kernel.state_;
+          f.packet.input = tensor(f, kernel->tensorIndex(0));
+        }
+        const auto &source = f.packet.input.storage_;
+        if (!source) {
           task.fault(std::int64_t(Error::Invalid));
           return;
         }
-        index = kernel->index;
-        if (kernel->registry != state || !source->device || !right->device ||
-            source->state != state || right->state != state || source->deviceIndex != index ||
-            right->deviceIndex != index) {
-          task.fault(std::int64_t(Error::Residency));
-          return;
-        }
-      }
-      if (reduce) {
-        const auto &kernel = f.packet.kernel.state_;
-        if (!kernel || !kernel->reduction || kernel->matrix || source->format != Format::Float32 ||
-            (source->rank != 1 && source->rank != 2) || source->size / 4 > UINT32_MAX) {
-          task.fault(std::int64_t(Error::Invalid));
-          return;
-        }
-        index = kernel->index;
-        if (kernel->registry != state || !source->device || source->state != state ||
-            source->deviceIndex != index) {
-          task.fault(std::int64_t(Error::Residency));
-          return;
-        }
-        if (!source->size && !f.packet.epilogue) {
-          task.complete(&f.scalar);
-          return;
-        }
-      }
-      if (compute) {
-        const auto &kernel = f.packet.kernel.state_;
-        const auto &right = f.packet.right.storage_;
-        const auto signature =
-            kernel && kernel->signature ? *kernel->signature : ElementwiseSignature{2, 0};
-        if (!kernel || kernel->reduction || kernel->matrix ||
-            kernel->elementwise != (f.packet.kind == Kind::Elementwise) ||
-            (!f.packet.arguments && (kernel->projected || kernel->indirect() ||
-                                     signature.tensors != 2 || signature.scalars != 0)) ||
-            (f.packet.arguments && (f.packet.arguments->tensors.size() != signature.tensors ||
-                                    f.packet.arguments->scalarBits.size() != signature.scalars)) ||
-            std::uint32_t(f.packet.operation) > 2 || source->format != Format::Float32 ||
-            (source->rank != 1 && (!kernel->elementwise || source->rank != 2)) ||
-            source->size / 4 > UINT32_MAX ||
-            (signature.tensors == 2 && !f.packet.arguments &&
-             (!right || right->format != Format::Float32 || right->rank != source->rank ||
-              source->size != right->size ||
-              !std::equal(source->dimensions.begin(), source->dimensions.begin() + source->rank,
-                          right->dimensions.begin())))) {
-          task.fault(std::int64_t(Error::Invalid));
-          return;
-        }
-        index = kernel->index;
-        if (kernel->registry != state || !source->device || source->state != state ||
-            source->deviceIndex != index ||
-            (signature.tensors == 2 && !f.packet.arguments &&
-             (!right->device || right->state != state || right->deviceIndex != index))) {
-          task.fault(std::int64_t(Error::Residency));
-          return;
-        }
-        if (f.packet.arguments)
-          for (std::size_t i = 0; i < f.packet.arguments->tensors.size(); ++i) {
-            const auto &other = tensor(f, i).storage_;
-            const auto reads =
-                kernel->indirect()
-                    ? std::span<const std::uint32_t>(kernel->indirectReads)
-                    : std::span<const std::uint32_t>(kernel->reads.data(), kernel->readCount);
-            const bool read = std::binary_search(reads.begin(), reads.end(), i);
-            if (!other || other->format != Format::Float32 ||
-                (other->rank != 1 && other->rank != 2) ||
-                (read &&
-                 (other->rank != source->rank || other->size != source->size ||
-                  !std::equal(source->dimensions.begin(), source->dimensions.begin() + source->rank,
-                              other->dimensions.begin())))) {
+        std::uint32_t index = source->deviceIndex;
+        const bool compute = f.packet.kind == Kind::Compute || f.packet.kind == Kind::Elementwise;
+        const bool upload = f.packet.kind == Kind::Upload;
+        const bool reduce = f.packet.kind == Kind::Reduce;
+        const bool matrix = f.packet.kind == Kind::Matmul;
+        std::array<std::int64_t, 2> matrixShape{};
+        if (matrix) {
+          const auto &kernel = f.packet.kernel.state_;
+          const auto &right = f.packet.right.storage_;
+          if (!kernel || !kernel->matrix || !right || source->format != Format::Float32 ||
+              right->format != Format::Float32 || source->rank != 2 || right->rank != 2 ||
+              source->dimensions[1] != right->dimensions[0] || source->size / 4 > UINT32_MAX ||
+              right->size / 4 > UINT32_MAX) {
+            task.fault(std::int64_t(Error::Invalid));
+            return;
+          }
+          for (auto dimension :
+               {source->dimensions[0], source->dimensions[1], right->dimensions[1]})
+            if (std::uint64_t(dimension) > UINT32_MAX) {
               task.fault(std::int64_t(Error::Invalid));
               return;
             }
-            if (!other->device || other->state != state || other->deviceIndex != index) {
-              task.fault(std::int64_t(Error::Residency));
-              return;
-            }
-          }
-      } else if (upload) {
-        if (f.packet.target.state_ != state) {
-          task.fault(std::int64_t(Error::Residency));
-          return;
-        }
-        index = f.packet.target.index_;
-        if (source->device && (source->state != state || source->deviceIndex != index)) {
-          task.fault(std::int64_t(Error::Residency));
-          return;
-        }
-      } else if (!reduce && source->device && source->state != state) {
-        task.fault(std::int64_t(Error::Residency));
-        return;
-      }
-      if (!compute && !reduce && !matrix && source->device == upload) {
-        task.complete(&f.packet.input);
-        return;
-      }
-      auto count = state->inFlight.load();
-      do {
-        if (count >= state->options.maxInFlight) {
-          task.fault(std::int64_t(Error::Budget));
-          return;
-        }
-      } while (!state->inFlight.compare_exchange_weak(count, count + 1));
-      f.active = true;
-      id<MTLCommandBuffer> command = nil;
-      if (reduce) {
-        f.error = Error::Allocation;
-        command = reductionCommand(f);
-        if (!command) {
-          task.fault(std::int64_t(f.error));
-          return;
-        }
-        f.error = Error::Device;
-      } else {
-        auto result = allocateStorage(
-            state, matrix ? std::span<const std::int64_t>(matrixShape) : f.packet.input.shape(),
-            source->format, upload || compute || matrix, index);
-        if (!result) {
-          task.fault(std::int64_t(result.error()));
-          return;
-        }
-        f.result = Buffer(*result);
-        if (!f.result.bytes()) {
-          // Empty composed results still validate both stages and all arguments.
-          if ((f.packet.reduction && f.packet.epilogue) || f.packet.matrixPost ||
-              f.matrixStage == 1 || f.matrixStage == 2) {
-            // Empty first stages submit no command; release their admission
-            // before the bounded handoff (at most two operand maps and one post stage).
-            --state->inFlight;
-            f.active = false;
-            f.succeeded = true;
-            resume(task);
-          } else
-            task.complete(f.packet.reduction ? static_cast<const void *>(&f.scalar) : &f.result);
-          return;
-        }
-
-        if (compute || matrix) {
-          const auto &kernel = f.packet.kernel.state_;
-          const auto tensors = kernel->readCount;
-          const auto parameterBytes = matrix ? 12
-                                      : kernel->signature
-                                          ? 4ull * (1ull + kernel->signature->scalars)
-                                          : 8;
-          auto parametersBuffer = allocateMetal(state, index, parameterBytes, true);
-          if (!parametersBuffer) {
-            task.fault(std::int64_t(parametersBuffer.error()));
+          matrixShape = {source->dimensions[0], right->dimensions[1]};
+          if (std::uint64_t(matrixShape[0]) * std::uint64_t(matrixShape[1]) > UINT32_MAX) {
+            task.fault(std::int64_t(Error::Invalid));
             return;
           }
-          f.staging = *parametersBuffer;
-          id<MTLArgumentEncoder> arguments = nil;
-          if (kernel->indirect()) {
-            auto resources = allocateMetal(state, index, kernel->encodedBytes, true);
-            if (!resources) {
-              task.fault(std::int64_t(resources.error()));
+          index = kernel->index;
+          if (kernel->registry != state || !source->device || !right->device ||
+              source->state != state || right->state != state || source->deviceIndex != index ||
+              right->deviceIndex != index) {
+            task.fault(std::int64_t(Error::Residency));
+            return;
+          }
+        }
+        if (reduce) {
+          const auto &kernel = f.packet.kernel.state_;
+          if (!kernel || !kernel->reduction || kernel->matrix ||
+              source->format != Format::Float32 || (source->rank != 1 && source->rank != 2) ||
+              source->size / 4 > UINT32_MAX) {
+            task.fault(std::int64_t(Error::Invalid));
+            return;
+          }
+          index = kernel->index;
+          if (kernel->registry != state || !source->device || source->state != state ||
+              source->deviceIndex != index) {
+            task.fault(std::int64_t(Error::Residency));
+            return;
+          }
+          if (!source->size && !f.packet.epilogue) {
+            task.complete(&f.scalar);
+            return;
+          }
+        }
+        if (compute) {
+          const auto &kernel = f.packet.kernel.state_;
+          const auto &right = f.packet.right.storage_;
+          const auto signature =
+              kernel && kernel->signature ? *kernel->signature : ElementwiseSignature{2, 0};
+          if (!kernel || kernel->reduction || kernel->matrix ||
+              kernel->elementwise != (f.packet.kind == Kind::Elementwise) ||
+              (!f.packet.arguments && (kernel->projected || kernel->indirect() ||
+                                       signature.tensors != 2 || signature.scalars != 0)) ||
+              (f.packet.arguments &&
+               (f.packet.arguments->tensors.size() != signature.tensors ||
+                f.packet.arguments->scalarBits.size() != signature.scalars)) ||
+              std::uint32_t(f.packet.operation) > 2 || source->format != Format::Float32 ||
+              (source->rank != 1 && (!kernel->elementwise || source->rank != 2)) ||
+              source->size / 4 > UINT32_MAX ||
+              (signature.tensors == 2 && !f.packet.arguments &&
+               (!right || right->format != Format::Float32 || right->rank != source->rank ||
+                source->size != right->size ||
+                !std::equal(source->dimensions.begin(), source->dimensions.begin() + source->rank,
+                            right->dimensions.begin())))) {
+            task.fault(std::int64_t(Error::Invalid));
+            return;
+          }
+          index = kernel->index;
+          if (kernel->registry != state || !source->device || source->state != state ||
+              source->deviceIndex != index ||
+              (signature.tensors == 2 && !f.packet.arguments &&
+               (!right->device || right->state != state || right->deviceIndex != index))) {
+            task.fault(std::int64_t(Error::Residency));
+            return;
+          }
+          if (f.packet.arguments)
+            for (std::size_t i = 0; i < f.packet.arguments->tensors.size(); ++i) {
+              const auto &other = tensor(f, i).storage_;
+              const auto reads =
+                  kernel->indirect()
+                      ? std::span<const std::uint32_t>(kernel->indirectReads)
+                      : std::span<const std::uint32_t>(kernel->reads.data(), kernel->readCount);
+              const bool read = std::binary_search(reads.begin(), reads.end(), i);
+              if (!other || other->format != Format::Float32 ||
+                  (other->rank != 1 && other->rank != 2) ||
+                  (read && (other->rank != source->rank || other->size != source->size ||
+                            !std::equal(source->dimensions.begin(),
+                                        source->dimensions.begin() + source->rank,
+                                        other->dimensions.begin())))) {
+                task.fault(std::int64_t(Error::Invalid));
+                return;
+              }
+              if (!other->device || other->state != state || other->deviceIndex != index) {
+                task.fault(std::int64_t(Error::Residency));
+                return;
+              }
+            }
+        } else if (upload) {
+          if (f.packet.target.state_ != state) {
+            task.fault(std::int64_t(Error::Residency));
+            return;
+          }
+          index = f.packet.target.index_;
+          if (source->device && (source->state != state || source->deviceIndex != index)) {
+            task.fault(std::int64_t(Error::Residency));
+            return;
+          }
+        } else if (!reduce && source->device && source->state != state) {
+          task.fault(std::int64_t(Error::Residency));
+          return;
+        }
+        if (!compute && !reduce && !matrix && source->device == upload) {
+          task.complete(&f.packet.input);
+          return;
+        }
+        auto count = state->inFlight.load();
+        do {
+          if (count >= state->options.maxInFlight) {
+            task.fault(std::int64_t(Error::Budget));
+            return;
+          }
+        } while (!state->inFlight.compare_exchange_weak(count, count + 1));
+        f.active = true;
+        id<MTLCommandBuffer> command = nil;
+        if (reduce) {
+          f.error = Error::Allocation;
+          command = reductionCommand(f);
+          if (!command) {
+            task.fault(std::int64_t(f.error));
+            return;
+          }
+          f.error = Error::Device;
+        } else {
+          auto result = allocateStorage(
+              state, matrix ? std::span<const std::int64_t>(matrixShape) : f.packet.input.shape(),
+              source->format, upload || compute || matrix, index);
+          if (!result) {
+            task.fault(std::int64_t(result.error()));
+            return;
+          }
+          f.result = Buffer(*result);
+          if (!f.result.bytes()) {
+            // Empty composed results still validate both stages and all arguments.
+            if (f.packet.graph || (f.packet.reduction && f.packet.epilogue) ||
+                f.packet.matrixPost || f.matrixStage == 1 || f.matrixStage == 2) {
+              // Empty first stages submit no command; release their admission
+              // before continuing iteratively, including arbitrarily long empty graphs.
+              --state->inFlight;
+              f.active = false;
+              f.succeeded = true;
+              continue;
+            } else
+              task.complete(f.packet.reduction ? static_cast<const void *>(&f.scalar) : &f.result);
+            return;
+          }
+
+          if (compute || matrix) {
+            const auto &kernel = f.packet.kernel.state_;
+            const auto tensors = kernel->readCount;
+            const auto parameterBytes = matrix ? 12
+                                        : kernel->signature
+                                            ? 4ull * (1ull + kernel->signature->scalars)
+                                            : 8;
+            auto parametersBuffer = allocateMetal(state, index, parameterBytes, true);
+            if (!parametersBuffer) {
+              task.fault(std::int64_t(parametersBuffer.error()));
               return;
             }
-            f.resources = *resources;
-            // Argument encoders are invocation-local: their mutable destination cannot
-            // be shared by concurrent calls using the same immutable Kernel.
-            arguments = state->permit()
-                            ? [kernel->argumentFunction newArgumentEncoderWithBufferIndex:0]
-                            : nil;
-            if (!arguments) {
+            f.staging = *parametersBuffer;
+            id<MTLArgumentEncoder> arguments = nil;
+            if (kernel->indirect()) {
+              auto resources = allocateMetal(state, index, kernel->encodedBytes, true);
+              if (!resources) {
+                task.fault(std::int64_t(resources.error()));
+                return;
+              }
+              f.resources = *resources;
+              // Argument encoders are invocation-local: their mutable destination cannot
+              // be shared by concurrent calls using the same immutable Kernel.
+              arguments = state->permit()
+                              ? [kernel->argumentFunction newArgumentEncoderWithBufferIndex:0]
+                              : nil;
+              if (!arguments) {
+                task.fault(std::int64_t(Error::Allocation));
+                return;
+              }
+              [arguments setArgumentBuffer:f.resources->buffer offset:0];
+            }
+            if (!state->permit() || !(command = [state->queues[index] commandBuffer])) {
               task.fault(std::int64_t(Error::Allocation));
               return;
             }
-            [arguments setArgumentBuffer:f.resources->buffer offset:0];
-          }
-          if (!state->permit() || !(command = [state->queues[index] commandBuffer])) {
-            task.fault(std::int64_t(Error::Allocation));
-            return;
-          }
-          id<MTLComputeCommandEncoder> encoder =
-              state->permit() ? [command computeCommandEncoder] : nil;
-          if (!encoder) {
-            task.fault(std::int64_t(Error::Allocation));
-            return;
-          }
-          auto layout = MatmulLayout::Scalar;
-          if (matrix && kernel->matrixTiles[0] && kernel->matrixTiles[1])
-            layout = selectMatmulLayout(std::uint32_t(matrixShape[0]),
-                                        std::uint32_t(source->dimensions[1]),
-                                        std::uint32_t(matrixShape[1]));
-          auto pipeline = layout == MatmulLayout::Rows2  ? kernel->matrixTiles[0]
-                          : layout == MatmulLayout::Quad ? kernel->matrixTiles[1]
-                                                         : kernel->pipeline;
-          [encoder setComputePipelineState:pipeline];
-          if (!kernel->indirect()) {
-            [encoder
-                setBuffer:matrix && !source->size ? (*result)->metal->buffer : source->metal->buffer
-                   offset:0
-                  atIndex:0];
-            if (f.packet.arguments) {
-              for (std::size_t i = 0; i < tensors; ++i)
-                [encoder setBuffer:tensor(f, kernel->tensorIndex(i)).storage_->metal->buffer
-                            offset:0
-                           atIndex:i];
-            } else if (tensors == 2)
-              [encoder setBuffer:matrix && !f.packet.right.bytes()
-                                     ? (*result)->metal->buffer
-                                     : f.packet.right.storage_->metal->buffer
-                          offset:0
-                         atIndex:1];
-            [encoder setBuffer:(*result)->metal->buffer offset:0 atIndex:tensors];
-          }
-          auto *parameters = static_cast<std::uint32_t *>(f.staging->buffer.contents);
-          std::fill_n(parameters, parameterBytes / 4, 0u);
-          parameters[0] = std::uint32_t(source->size / 4);
-          if (matrix) {
-            parameters[0] = std::uint32_t(matrixShape[0]);
-            parameters[1] = std::uint32_t(source->dimensions[1]);
-            parameters[2] = std::uint32_t(matrixShape[1]);
-          } else if (f.packet.arguments)
-            std::copy(f.packet.arguments->scalarBits.begin(), f.packet.arguments->scalarBits.end(),
-                      parameters + 1);
-          else
-            parameters[1] = std::uint32_t(f.packet.operation);
-          if (kernel->indirect()) {
-
-            for (std::size_t i = 0; i < tensors; ++i) {
-              auto buffer = tensor(f, kernel->tensorIndex(i)).storage_->metal->buffer;
-              [arguments setBuffer:buffer offset:0 atIndex:i];
-              [encoder useResource:buffer usage:MTLResourceUsageRead];
+            id<MTLComputeCommandEncoder> encoder =
+                state->permit() ? [command computeCommandEncoder] : nil;
+            if (!encoder) {
+              task.fault(std::int64_t(Error::Allocation));
+              return;
             }
-            [arguments setBuffer:(*result)->metal->buffer offset:0 atIndex:tensors];
-            [arguments setBuffer:f.staging->buffer offset:0 atIndex:tensors + 1];
-            [encoder useResource:(*result)->metal->buffer usage:MTLResourceUsageWrite];
-            [encoder useResource:f.staging->buffer usage:MTLResourceUsageRead];
-            [encoder setBuffer:f.resources->buffer offset:0 atIndex:0];
-          } else
-            [encoder setBuffer:f.staging->buffer offset:0 atIndex:tensors + 1];
-          const auto lanes = matrix ? matmulWorkItems(layout, parameters[0], parameters[2])
-                                    : std::uint64_t(parameters[0]);
-          [encoder dispatchThreadgroups:MTLSizeMake((lanes + 63) / 64, 1, 1)
-                  threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
-          [encoder endEncoding];
-          if (!state->permit()) {
-            task.fault(std::int64_t(Error::Allocation));
-            return;
-          }
-        } else {
-          auto staging = allocateMetal(state, index, source->size, true);
-          if (!staging) {
-            task.fault(std::int64_t(staging.error()));
-            return;
-          }
-          f.staging = *staging;
-          if (upload)
-            std::memcpy(f.staging->buffer.contents, source->hostView().data(), source->size);
-          if (!state->permit()) {
-            task.fault(std::int64_t(Error::Allocation));
-            return;
-          }
-          command = [state->queues[index] commandBuffer];
-          if (!command) {
-            task.fault(std::int64_t(Error::Allocation));
-            return;
-          }
-          if (!state->permit()) {
-            task.fault(std::int64_t(Error::Allocation));
-            return;
-          }
-          id<MTLBlitCommandEncoder> blit = [command blitCommandEncoder];
-          if (!blit) {
-            task.fault(std::int64_t(Error::Allocation));
-            return;
-          }
-          if (upload)
-            [blit copyFromBuffer:f.staging->buffer
-                     sourceOffset:0
-                         toBuffer:(*result)->metal->buffer
-                destinationOffset:0
-                             size:source->size];
-          else
-            [blit copyFromBuffer:source->metal->buffer
-                     sourceOffset:0
-                         toBuffer:f.staging->buffer
-                destinationOffset:0
-                             size:source->size];
-          [blit endEncoding];
-          if (!state->permit()) {
-            task.fault(std::int64_t(Error::Allocation));
-            return;
+            auto layout = MatmulLayout::Scalar;
+            if (matrix && kernel->matrixTiles[0] && kernel->matrixTiles[1])
+              layout = selectMatmulLayout(std::uint32_t(matrixShape[0]),
+                                          std::uint32_t(source->dimensions[1]),
+                                          std::uint32_t(matrixShape[1]));
+            auto pipeline = layout == MatmulLayout::Rows2  ? kernel->matrixTiles[0]
+                            : layout == MatmulLayout::Quad ? kernel->matrixTiles[1]
+                                                           : kernel->pipeline;
+            [encoder setComputePipelineState:pipeline];
+            if (!kernel->indirect()) {
+              [encoder setBuffer:matrix && !source->size ? (*result)->metal->buffer
+                                                         : source->metal->buffer
+                          offset:0
+                         atIndex:0];
+              if (f.packet.arguments) {
+                for (std::size_t i = 0; i < tensors; ++i)
+                  [encoder setBuffer:tensor(f, kernel->tensorIndex(i)).storage_->metal->buffer
+                              offset:0
+                             atIndex:i];
+              } else if (tensors == 2)
+                [encoder setBuffer:matrix && !f.packet.right.bytes()
+                                       ? (*result)->metal->buffer
+                                       : f.packet.right.storage_->metal->buffer
+                            offset:0
+                           atIndex:1];
+              [encoder setBuffer:(*result)->metal->buffer offset:0 atIndex:tensors];
+            }
+            auto *parameters = static_cast<std::uint32_t *>(f.staging->buffer.contents);
+            std::fill_n(parameters, parameterBytes / 4, 0u);
+            parameters[0] = std::uint32_t(source->size / 4);
+            if (matrix) {
+              parameters[0] = std::uint32_t(matrixShape[0]);
+              parameters[1] = std::uint32_t(source->dimensions[1]);
+              parameters[2] = std::uint32_t(matrixShape[1]);
+            } else if (f.packet.arguments)
+              std::copy(f.packet.arguments->scalarBits.begin(),
+                        f.packet.arguments->scalarBits.end(), parameters + 1);
+            else
+              parameters[1] = std::uint32_t(f.packet.operation);
+            if (kernel->indirect()) {
+
+              for (std::size_t i = 0; i < tensors; ++i) {
+                auto buffer = tensor(f, kernel->tensorIndex(i)).storage_->metal->buffer;
+                [arguments setBuffer:buffer offset:0 atIndex:i];
+                [encoder useResource:buffer usage:MTLResourceUsageRead];
+              }
+              [arguments setBuffer:(*result)->metal->buffer offset:0 atIndex:tensors];
+              [arguments setBuffer:f.staging->buffer offset:0 atIndex:tensors + 1];
+              [encoder useResource:(*result)->metal->buffer usage:MTLResourceUsageWrite];
+              [encoder useResource:f.staging->buffer usage:MTLResourceUsageRead];
+              [encoder setBuffer:f.resources->buffer offset:0 atIndex:0];
+            } else
+              [encoder setBuffer:f.staging->buffer offset:0 atIndex:tensors + 1];
+            const auto lanes = matrix ? matmulWorkItems(layout, parameters[0], parameters[2])
+                                      : std::uint64_t(parameters[0]);
+            [encoder dispatchThreadgroups:MTLSizeMake((lanes + 63) / 64, 1, 1)
+                    threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
+            [encoder endEncoding];
+            if (!state->permit()) {
+              task.fault(std::int64_t(Error::Allocation));
+              return;
+            }
+          } else {
+            auto staging = allocateMetal(state, index, source->size, true);
+            if (!staging) {
+              task.fault(std::int64_t(staging.error()));
+              return;
+            }
+            f.staging = *staging;
+            if (upload)
+              std::memcpy(f.staging->buffer.contents, source->hostView().data(), source->size);
+            if (!state->permit()) {
+              task.fault(std::int64_t(Error::Allocation));
+              return;
+            }
+            command = [state->queues[index] commandBuffer];
+            if (!command) {
+              task.fault(std::int64_t(Error::Allocation));
+              return;
+            }
+            if (!state->permit()) {
+              task.fault(std::int64_t(Error::Allocation));
+              return;
+            }
+            id<MTLBlitCommandEncoder> blit = [command blitCommandEncoder];
+            if (!blit) {
+              task.fault(std::int64_t(Error::Allocation));
+              return;
+            }
+            if (upload)
+              [blit copyFromBuffer:f.staging->buffer
+                       sourceOffset:0
+                           toBuffer:(*result)->metal->buffer
+                  destinationOffset:0
+                               size:source->size];
+            else
+              [blit copyFromBuffer:source->metal->buffer
+                       sourceOffset:0
+                           toBuffer:f.staging->buffer
+                  destinationOffset:0
+                               size:source->size];
+            [blit endEncoding];
+            if (!state->permit()) {
+              task.fault(std::int64_t(Error::Allocation));
+              return;
+            }
           }
         }
-      }
-      auto completion = task.suspendExternal();
-      if (!completion)
+        auto completion = task.suspendExternal();
+        if (!completion)
+          return;
+        auto *frame = &f;
+        [command addCompletedHandler:^(id<MTLCommandBuffer> finished) {
+          @autoreleasepool {
+            // The external lease pins frame. Never access it after signal().
+            {
+              std::unique_lock lock(frame->packet.state->gateMutex);
+              frame->packet.state->gate.wait(lock, [&] { return !frame->packet.state->hold; });
+            }
+            frame->succeeded = finished.status == MTLCommandBufferStatusCompleted &&
+                               !frame->packet.state->failCompletion.exchange(false);
+            ++frame->packet.state->completions;
+            --frame->packet.state->inFlight;
+            frame->active = false;
+            completion.signal();
+          }
+        }];
+        ++state->submissions;
+        [command commit];
         return;
-      auto *frame = &f;
-      [command addCompletedHandler:^(id<MTLCommandBuffer> finished) {
-        @autoreleasepool {
-          // The external lease pins frame. Never access it after signal().
-          {
-            std::unique_lock lock(frame->packet.state->gateMutex);
-            frame->packet.state->gate.wait(lock, [&] { return !frame->packet.state->hold; });
-          }
-          frame->succeeded = finished.status == MTLCommandBufferStatusCompleted &&
-                             !frame->packet.state->failCompletion.exchange(false);
-          ++frame->packet.state->completions;
-          --frame->packet.state->inFlight;
-          frame->active = false;
-          completion.signal();
-        }
-      }];
-      ++state->submissions;
-      [command commit];
+      }
     }
   }
 };
@@ -1386,6 +1518,30 @@ TaskHandle Runtime::matmul(Task &task, GroupHandle group, Kernel kernel, Buffer 
   } else if (!postInputs.empty() || !scalars.empty())
     packet.preparation = Error::Invalid;
   Bridge::matrixMaps(packet, std::move(leftMap), std::move(rightMap), mapInputs, mapScalars);
+  return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::matmulGraph(TaskCore &task, GroupHandle group, Kernel kernel,
+                                std::span<const Buffer> inputs,
+                                std::span<const MatrixProduct> products) noexcept {
+  Bridge::PacketData packet{
+      state_, {}, {}, Bridge::Kind::Matmul, std::move(kernel), BinaryOperation::Add, {}};
+  auto graph = Bridge::captureGraph(state_, packet.kernel, inputs, products);
+  if (graph)
+    packet.graph = *graph;
+  else
+    packet.preparation = graph.error();
+  return task.submit(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::matmulGraph(Task &task, GroupHandle group, Kernel kernel,
+                                std::span<const Buffer> inputs,
+                                std::span<const MatrixProduct> products) noexcept {
+  Bridge::PacketData packet{
+      state_, {}, {}, Bridge::Kind::Matmul, std::move(kernel), BinaryOperation::Add, {}};
+  auto graph = Bridge::captureGraph(state_, packet.kernel, inputs, products);
+  if (graph)
+    packet.graph = *graph;
+  else
+    packet.preparation = graph.error();
   return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
 }
 TaskHandle Runtime::matmulReduceSum(TaskCore &task, GroupHandle group, Kernel matrix,

@@ -741,3 +741,11 @@ GPU task. Matrix and scalar captures remain independent. The scalar dispatch
 runs in the final reduction command before the only readback, including empty
 sums and IEEE division by zero. Existing shape, budget and acknowledgement rules
 remain unchanged; broader numerical graphs and GPU types remain N2 work.
+
+## Matrix product graphs
+
+[Product-only graphs](native-gpu-matrix-graphs.md) now keep several matrix
+products under one tensor task, including helper calls and shared intermediates.
+The runtime releases retained operands after their last use and reuses the strict
+matrix kernel without reassociation or implicit host transfers. Combining several
+products with arithmetic or reductions remains N2 work.
