@@ -107,3 +107,5 @@ Installed-editor acceptance also requests a [checked tensor numeric conversion s
 Installed-editor acceptance also requests a [checked matrix multiplication signature](native-language-server.md#checked-tensor-operation-signatures), verifies both operand shapes and the derived output shape, and selects the explicit right operand in a piped call without changing buffer or disk sources.
 
 Installed-editor acceptance also requests a [parallel-map callback signature](native-language-server.md#checked-map-callback-signatures), checks the public one-element callback and outer TaskError channel, and selects the callback in a piped call while hiding captures and preserving source.
+
+Installed-editor acceptance also requests [checked builtin hovers](native-language-server.md#checked-builtin-hovers) for a captured parallel map and numeric conversion, verifies their public signatures and error channel, and preserves disk source.

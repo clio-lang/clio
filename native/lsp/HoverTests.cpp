@@ -90,6 +90,41 @@ int main() {
     require(check(parse(std::make_shared<SourceFile>("hover.k", large))).ok(),
             "large fixture is invalid");
     require(!query(large, "large("), "hover presentation size limit was bypassed");
+    expect("fn main():\n  length([1,2])\n", "length",
+           "fn length(input: [int64]) -> int64", 2);
+    expect("fn main():\n  [1,2] -> length\n", "length",
+           "fn length(input: [int64]) -> int64");
+    expect("fn main():\n  [1,2] -> concat([3])\n", "concat",
+           "fn concat(left: [int64], right: [int64]) -> [int64]");
+    expect("fn main():\n  float32(1)\n", "float32",
+           "fn float32(input: int64) -> float32");
+    expect("fn main():\n  array(tensor([1,2],[1,2]))\n", "array",
+           "fn array(input: Tensor[int64, 1, 2]) -> [int64]");
+    expect("fn main():\n  reduceSum(tensor([1,2]))\n", "reduceSum",
+           "fn reduceSum(input: Tensor[int64, 2]) -> int64");
+    expect(
+        "fn main():\n  tensor([1,2],[1,2]) -> matmul(tensor([3,4],[2,1]))\n", "matmul",
+        "fn matmul(left: Tensor[int64, 1, 2], right: Tensor[int64, 2, 1]) -> Tensor[int64, 1, 1]");
+    expect("fn main():\n  offset=3\n  map([1,2],fn(v):v+offset)\n", "map",
+           "fn map(input: [int64], callback: fn(int64) -> int64) -> [int64]");
+    expect("fn main()->[int] ! TaskError:\n  try parallelMap([1,2],fn(v):v*2)\n", "parallelMap",
+           "fn parallelMap(input: [int64], callback: fn(int64) -> int64) -> [int64] ! TaskError");
+    expect("fn length(v:int):\n  v+1\nfn main():\n  length(2)\n", "length(2)",
+           "fn length(v: int64) -> int64");
+    expect("fn main():\n  length=fn(v:int):v+1\n  length(2)\n", "length(2)",
+           "length: fn(int64) -> int64");
+    expect(
+        "type Box:\n  map:fn(int)->int\nfn main():\n  box=Box {map:fn(v:int):v+1}\n  box.map(2)\n",
+        "box.map", "map: fn(int64) -> int64", 4);
+    require(!query("fn main():\n  length(42)\n", "length"), "invalid builtin leaked hover");
+    require(!query("fn main():\n  length([1],)\n  missing\n", "length"),
+            "later graph errors invalidate builtin hovers");
+    require(!query("fn main():\n  concat([1],)\n", "concat"),
+            "signature snapshots are not valid builtin hovers");
+    require(!query("fn main():\n  # length([1])\n  0\n", "length"),
+            "comments cannot create builtin hover targets");
+    require(!query("fn main():\n  length([1])\n", "length", 6),
+            "builtin hover excludes the following parenthesis");
     std::cout << "Native hover: checked values, signatures, fields, closures, shapes, errors, "
                  "literal safety, source ranges and failure isolation passed\n";
   } catch (const std::exception &e) {

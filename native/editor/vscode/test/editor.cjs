@@ -771,6 +771,18 @@ async function run() {
   await replace(main, mainDisk);
   await clearDiagnostics(main);
   checks.push("Map signature help exposes the public callback and parallel TaskError channel while hiding captured values and preserving source");
+  await replace(main, parallelSource);
+  await clearDiagnostics(main);
+  const builtinHover = hoverText(await hover(main, "parallelMap(callback)"));
+  assert.match(builtinHover, /fn parallelMap\(input: \[int64\], callback: fn\(int64\) -> int64\) -> \[int64\] ! TaskError/);
+  assert(!builtinHover.includes("offset"));
+  await replace(main, "fn main():\n  float32(1)\n");
+  await clearDiagnostics(main);
+  assert.match(hoverText(await hover(main, "float32(1)")), /fn float32\(input: int64\) -> float32/);
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  await clearDiagnostics(main);
+  checks.push("Builtin hovers show checked parallel callback/error and numeric conversion signatures while hiding captures and preserving disk source");
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,

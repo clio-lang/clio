@@ -1678,6 +1678,65 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert not signature_document.exists() and callback_library.read_text() == callback_library_text
     client.finish()
 
+    # Builtin hover shares checked call signatures and original source-token ranges.
+    client = Client()
+    client.init(formats=["plaintext"])
+    builtin_hover_cases = [
+        ('fn main():\n  length([1,2])\n', 'length', 'fn length(input: [int64]) -> int64'),
+        ('fn main():\n  [1,2] -> length\n', 'length', 'fn length(input: [int64]) -> int64'),
+        ('fn main():\n  "😀abc" -> slice(0,1)\n', 'slice',
+         'fn slice(input: String, start: int64, end: int64) -> String'),
+        ('fn main():\n  float32(1)\n', 'float32', 'fn float32(input: int64) -> float32'),
+        ('fn main()->[int] ! TaskError:\n  offset=3\n  try parallelMap([1,2],fn(v):v+offset)\n', 'parallelMap',
+         'fn parallelMap(input: [int64], callback: fn(int64) -> int64) -> [int64] ! TaskError'),
+    ]
+    client.open(signature_document, 'fn main():\n  0\n')
+    client.barrier()
+    version = 1
+    for text, name, expected in builtin_hover_cases:
+        version += 1
+        client.change(signature_document, text, version)
+        assert not publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+        at = text.index(name)
+        line = text[:at].count('\n')
+        start = len(text[:at].rsplit('\n',1)[-1].encode('utf-16-le'))//2
+        result = client.hover(signature_document, line, start+1)["result"]
+        assert result == {"contents":{"kind":"plaintext","value":expected}, "range":{
+            "start":{"line":line,"character":start},"end":{"line":line,"character":start+len(name)}}}, result
+        assert not client.barrier(), "builtin hover published probe diagnostics"
+    hover_library = Path(temp) / 'builtin-hover.k'
+    hover_library_text = 'export fn read()->String:\n  "abc"\n'
+    hover_library.write_text(hover_library_text)
+    version += 1
+    imported_hover = 'from "./builtin-hover.k" import read\nfn main():\n  length(read())\n'
+    client.change(signature_document, imported_hover, version)
+    client.barrier()
+    assert client.hover(signature_document, 2, 3)["result"]["contents"]["value"] == 'fn length(input: String) -> int64'
+    client.open(hover_library, 'export fn read()->[int32]:\n  [1,2]\n')
+    client.barrier()
+    assert client.hover(signature_document, 2, 3)["result"]["contents"]["value"] == 'fn length(input: [int32]) -> int64'
+    client.change(hover_library, 'export fn read()->String:\n  missing\n', 2)
+    client.barrier()
+    assert client.hover(signature_document, 2, 3)["result"] is None
+    client.change(hover_library, hover_library_text, 3)
+    client.barrier()
+    assert client.hover(signature_document, 2, 3)["result"] is not None
+    version += 1
+    client.change(signature_document, 'fn main():\n  concat([1],)\n', version)
+    diagnostics = publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+    assert diagnostics and any(d["code"] == 'S027' for d in diagnostics), diagnostics
+    assert client.hover(signature_document, 1, 3)["result"] is None
+    assert not client.barrier(), "failed builtin hover changed diagnostics"
+    assert not signature_document.exists() and hover_library.read_text() == hover_library_text
+    client.finish()
+    client = Client()
+    client.init(formats=["markdown"])
+    client.open(signature_document, 'fn main():\n  float32(1)\n')
+    client.barrier()
+    result = client.hover(signature_document, 1, 3)["result"]
+    assert result["contents"] == {"kind":"markdown","value":'```kalandra\nfn float32(input: int64) -> float32\n```'}, result
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"

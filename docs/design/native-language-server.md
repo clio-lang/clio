@@ -106,7 +106,7 @@ Types come from a newly checked source graph using all current open buffers and 
 
 The server returns `MarkupContent`, respecting the client's first supported plain-text/Markdown preference and using plain text by default. Markdown signatures are fenced as Kalandra code. The returned range covers the hovered token in its original file using UTF-16 positions. Whitespace, comments, punctuation, unopened documents and unmapped positions return `null`. Malformed request parameters return an invalid-params response. Invalid lines or positions inside surrogate pairs return `null`.
 
-A graph with any parse/type error returns no hover information because the checker does not publish partial typed IR. Previous successful types are not reused. Imported error-alias hover presentations, general operator/expression selections and builtin call signatures are not yet mapped. This is a conservative semantic hover implementation, not name-based guessing.
+A graph with any parse/type error returns no hover information because the checker does not publish partial typed IR. Previous successful types are not reused. Imported error-alias hover presentations and general operator/expression selections are not yet mapped. Checked builtin call hovers are covered below. This is a conservative semantic hover implementation, not name-based guessing.
 
 Hover rechecks synchronously per request; it does not cache a typed workspace or provide a latency guarantee. Presentation is bounded to 4,096 visited type/error nodes, 32 formatting levels and 16 KiB of text. A presentation that exceeds these limits returns `null`. The [hover qualification record](../../native/metal-proof/evidence/native-lsp-hover-2026-10-20.json) records semantic and framed-protocol tests for normal and sanitized builds.
 
@@ -929,3 +929,33 @@ named/inline/captured/indexed callbacks, public error channels and invalid calls
 current imported callback changes, relocated Release tools and installed VS Code
 parallel-map guidance with captures hidden. It adds editor coverage without
 changing map scheduling, error propagation or GPU/worker admission.
+
+#### Checked builtin hovers
+
+Hovering a supported builtin's name at a valid call now shows its checked,
+call-specific signature. This reuses the signature-help types for collection
+queries/slicing/concat, numeric conversions, reduction/matrix/array operations,
+and `map`/`parallelMap`. For example, hovering `float32` in `float32(1)` shows
+`fn float32(input: int64) -> float32`. Parallel-map hovers retain the public
+callback and outer error channel while keeping captures and wrapper arguments
+private.
+
+Direct calls, piped calls and bare pipeline targets such as `values -> length`
+use their actual checked operation spans. The returned range covers only the
+builtin identifier in its original source file, including UTF-16 positions after
+non-ASCII text. Plain-text and Markdown presentation follow the existing client
+preference and formatting limits. Current unsaved dependency types participate.
+
+A local or module callable with the same spelling retains ordinary semantic
+hover; function-valued record fields and annotations retain their existing paths.
+The builtin path requires a fully checked graph. Invalid/incomplete calls,
+comments, punctuation and unsupported builtin families produce no builtin hover.
+Missing-argument signature snapshots are not reused as hover types. Builtin hovers
+describe the call; declaration navigation remains based on actual source definitions.
+Requests do not execute operations, change buffers or files, or publish diagnostics.
+
+[Builtin-hover qualification](../../native/metal-proof/evidence/native-lsp-builtin-hover-2026-10-21.json)
+covers normal/sanitizer hover and signature regressions, plaintext/Markdown
+protocol results, Unicode token ranges, direct/piped calls, shadows, current
+imported buffers and failed graphs, relocated Release tools and installed VS Code
+hovers for a captured parallel map and numeric conversion.

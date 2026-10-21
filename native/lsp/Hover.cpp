@@ -146,6 +146,11 @@ std::optional<SignatureInfo> callableSignature(const TypedModule &module, const 
     result.activeParameter = std::min(active, result.parameters.size() - 1);
   return result;
 }
+bool hasBuiltinSignature(std::string_view name) {
+  return name == "length" || name == "byteLength" || name == "shape" || name == "slice" ||
+         name == "concat" || name == "reduceSum" || name == "matmul" || name == "array" ||
+         name == "map" || name == "parallelMap" || resolveNumeric(name).has_value();
+}
 std::optional<SignatureInfo> builtinSignature(const TypedModule &module, SourceSpan call,
                                               std::string_view name, std::size_t active) {
   std::optional<SignatureInfo> result;
@@ -252,6 +257,48 @@ std::optional<SignatureInfo> snapshotSignature(const CallableSignatureSnapshot &
 } // namespace
 std::optional<HoverInfo> hoverInfo(ParseResult syntax, std::string_view path, std::size_t offset,
                                    CheckOptions options) {
+  if (syntax.ok() && syntax.module.source) {
+    std::optional<SourceLocation> target;
+    std::optional<ExprId> selectedCall;
+    SourceSpan invocation{};
+    for (ExprId id = 0; id < syntax.module.expressions.size(); ++id) {
+      const auto &expression = syntax.module.expressions[id];
+      const NameExpr *name = nullptr;
+      bool callSite = false;
+      if (const auto *call = std::get_if<CallExpr>(&expression.value)) {
+        name = std::get_if<NameExpr>(&syntax.module.expressions[call->callee].value);
+        callSite = true;
+      } else if (const auto *pipe = std::get_if<BinaryExpr>(&expression.value);
+                 pipe && pipe->operation == TokenKind::Arrow)
+        name = std::get_if<NameExpr>(&syntax.module.expressions[pipe->right].value);
+      if (!name || !hasBuiltinSignature(syntax.module.source->slice(name->name)))
+        continue;
+      auto location = sourceLocation(syntax.module.source, name->name);
+      if (!location || location->source->path() != path || offset < location->span.begin ||
+          offset >= location->span.end)
+        continue;
+      target = std::move(location);
+      invocation = expression.span;
+      if (callSite)
+        selectedCall = id;
+      break;
+    }
+    if (target) {
+      if (selectedCall)
+        for (const auto &expression : syntax.module.expressions)
+          if (const auto *pipe = std::get_if<BinaryExpr>(&expression.value);
+              pipe && pipe->operation == TokenKind::Arrow && pipe->right == *selectedCall) {
+            invocation = expression.span;
+            break;
+          }
+      auto checked = check(syntax, {}, options);
+      if (!checked.ok())
+        return {};
+      if (auto signature =
+              builtinSignature(*checked.module, invocation, target->source->slice(target->span), 0))
+        return HoverInfo{std::move(signature->label), target->source, target->span};
+    }
+  }
   auto selected = semanticToken(std::move(syntax), path, offset, options);
   if (!selected)
     return {};
@@ -365,9 +412,7 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
   // with the same name must continue through ordinary callable resolution.
   if (target && !requireFieldProjection) {
     const auto name = target->source->slice(target->span);
-    if (name == "length" || name == "byteLength" || name == "shape" || name == "slice" ||
-        name == "concat" || name == "reduceSum" || name == "matmul" || name == "array" ||
-        name == "map" || name == "parallelMap" || resolveNumeric(name)) {
+    if (hasBuiltinSignature(name)) {
       auto checked = check(syntax, {}, options);
       if (checked.ok())
         if (auto result = builtinSignature(*checked.module, invocationSpan, name, active))
