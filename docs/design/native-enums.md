@@ -57,4 +57,4 @@ The [initial qualification record](../../native/metal-proof/evidence/cpu-enums-2
 
 ## Recursive storage foundation
 
-The [recursive storage plan](native-recursive-storage.md) defines automatic indirection for directly recursive payloads and preserves collection descriptors for recursive arrays. The internal graph planner, cycle-aware nominal field resolution and physical MLIR/LLVM type builder are implemented and tested. Source recursive storage declarations remain rejected until managed constructors and lifetimes support the plan.
+The [recursive storage plan](native-recursive-storage.md) defines automatic indirection for directly recursive payloads and preserves collection descriptors for recursive arrays. The internal graph planner, cycle-aware nominal field resolution and physical MLIR/LLVM type builder are implemented and tested. Private runtime backing now supports immutable payload publication, retained children and iterative cleanup. Source recursive storage declarations remain rejected until generated constructors, access/matching and lifetime handling are connected and qualified.

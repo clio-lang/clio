@@ -20,6 +20,13 @@ public:
   AllocationLease &operator=(const AllocationLease &) = delete;
   explicit operator bool() const noexcept { return backing_ != nullptr; }
   std::span<const std::byte> bytes() const noexcept;
+  // Private diagnostic snapshot, not a synchronization/uniqueness predicate.
+  std::uint64_t referenceCount() const noexcept;
+  std::optional<AllocationLease> dependency(std::size_t index) const noexcept;
+  // Private typed projection of an immutable recursive payload. The retained
+  // lease, rather than the originating invocation, owns the returned view.
+  std::optional<std::span<const std::byte>> recursiveBytes(const void *key, std::uint64_t bytes,
+                                                           std::uint64_t alignment) const noexcept;
 
 private:
   Backing *backing_ = nullptr;
@@ -52,6 +59,12 @@ public:
   // Field backing remains invocation-owned across inline aggregate copies.
   // Release only at a scalar CLI boundary; ordinary helpers may return records.
   void *allocateRecord(std::uint64_t bytes) noexcept;
+  // Private compiler bridge: copy a complete payload and retain all backing
+  // dependencies before publication. The compiler must enumerate every owned
+  // field; this is not a raw-pointer or worker-transport language surface.
+  static constexpr std::size_t maxRecursiveDependencies = 300000;
+  const void *makeRecursiveValue(std::span<const std::byte> payload, const void *key,
+                                 std::span<const AllocationLease> dependencies = {}) noexcept;
   using EnvironmentReserve = bool (*)(void *, std::uint64_t) noexcept;
   using EnvironmentRelease = void (*)(void *, std::uint64_t) noexcept;
   void bindEnvironmentBudget(void *state, EnvironmentReserve reserve,

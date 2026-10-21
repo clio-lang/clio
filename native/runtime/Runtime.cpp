@@ -27,12 +27,40 @@ struct alignas(std::max_align_t) Backing {
   std::uint64_t bytes = 0;
   bool record = false;
   const void *environmentKey = nullptr;
+  const void *recursiveKey = nullptr;
+  Backing **dependencies = nullptr;
+  std::size_t dependencyCount = 0;
+  Backing *releaseNext = nullptr; // Used exclusively after the final reference retires.
 };
 namespace {
+bool retainBacking(Backing *backing) noexcept {
+  auto references = backing->references.load(std::memory_order_relaxed);
+  do {
+    if (references == std::numeric_limits<std::uint64_t>::max())
+      return false;
+  } while (!backing->references.compare_exchange_weak(references, references + 1,
+                                                      std::memory_order_relaxed));
+  return true;
+}
 void releaseBacking(Backing *backing) noexcept {
-  if (backing && backing->references.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-    backing->~Backing();
-    std::free(backing);
+  if (!backing || backing->references.fetch_sub(1, std::memory_order_acq_rel) != 1)
+    return;
+  // Only the thread observing the final reference may write releaseNext. Each
+  // edge owns a reference, including duplicates, so a shared child is enqueued
+  // exactly once. The intrusive worklist needs no allocation or native recursion.
+  auto *pending = backing;
+  while (pending) {
+    auto *current = pending;
+    pending = current->releaseNext;
+    for (std::size_t edge = 0; edge < current->dependencyCount; ++edge) {
+      auto *child = current->dependencies[edge];
+      if (child->references.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+        child->releaseNext = pending;
+        pending = child;
+      }
+    }
+    current->~Backing();
+    std::free(current);
   }
 }
 } // namespace
@@ -51,6 +79,26 @@ std::span<const std::byte> AllocationLease::bytes() const noexcept {
                                                backing_->bytes)
                   : std::span<const std::byte>{};
 }
+std::uint64_t AllocationLease::referenceCount() const noexcept {
+  return backing_ ? backing_->references.load(std::memory_order_relaxed) : 0;
+}
+std::optional<AllocationLease> AllocationLease::dependency(std::size_t index) const noexcept {
+  if (!backing_ || index >= backing_->dependencyCount)
+    return {};
+  auto *child = backing_->dependencies[index];
+  if (!retainBacking(child))
+    return {};
+  return AllocationLease(child);
+}
+std::optional<std::span<const std::byte>>
+AllocationLease::recursiveBytes(const void *key, std::uint64_t size,
+                                std::uint64_t alignment) const noexcept {
+  if (!backing_ || !key || backing_->recursiveKey != key || backing_->bytes != size || !alignment ||
+      alignment > alignof(std::max_align_t) || (alignment & (alignment - 1)) ||
+      reinterpret_cast<std::uintptr_t>(backing_ + 1) % alignment)
+    return {};
+  return bytes();
+}
 std::optional<AllocationLease> Invocation::lease(const void *allocated) const noexcept {
   if (!usable() || !allocated)
     return {};
@@ -60,12 +108,8 @@ std::optional<AllocationLease> Invocation::lease(const void *allocated) const no
   if (!owner)
     return {};
   auto *backing = owner->backing;
-  auto references = backing->references.load(std::memory_order_relaxed);
-  do {
-    if (references == std::numeric_limits<std::uint64_t>::max())
-      return {};
-  } while (!backing->references.compare_exchange_weak(references, references + 1,
-                                                      std::memory_order_relaxed));
+  if (!retainBacking(backing))
+    return {};
   return AllocationLease(backing);
 }
 Invocation::Invocation() noexcept {
@@ -144,6 +188,69 @@ void *Invocation::allocateRecord(std::uint64_t bytes) noexcept {
   if (buffer)
     head_->backing->record = true;
   return buffer;
+}
+const void *Invocation::makeRecursiveValue(std::span<const std::byte> payload, const void *key,
+                                           std::span<const AllocationLease> dependencies) noexcept {
+  if (poll() || !usable())
+    return nullptr;
+  if (!key || payload.empty() || !payload.data() ||
+      dependencies.size() > maxRecursiveDependencies) {
+    fault(3);
+    return nullptr;
+  }
+  for (const auto &dependency : dependencies)
+    if (!dependency) {
+      fault(3);
+      return nullptr;
+    }
+  constexpr auto alignment = alignof(Backing *);
+  constexpr auto maximum = std::numeric_limits<std::size_t>::max();
+  if (payload.size() > maximum - sizeof(Backing) - (alignment - 1)) {
+    fault(2);
+    return nullptr;
+  }
+  const auto padded = (payload.size() + alignment - 1) & ~(alignment - 1);
+  if (dependencies.size() > (maximum - sizeof(Backing) - padded) / sizeof(Backing *)) {
+    fault(2);
+    return nullptr;
+  }
+  if (!reserve())
+    return nullptr;
+  auto *storage = std::malloc(sizeof(Backing) + padded + dependencies.size() * sizeof(Backing *));
+  if (!storage) {
+    fault(2);
+    return nullptr;
+  }
+  auto *backing = new (storage) Backing;
+  // The temporary lease rolls back partially retained edges on cancellation or
+  // failure. No invocation owner sees the node until the copy is complete.
+  AllocationLease pending(backing);
+  backing->bytes = payload.size();
+  backing->record = true;
+  backing->recursiveKey = key;
+  auto *output = reinterpret_cast<std::byte *>(backing + 1);
+  backing->dependencies = reinterpret_cast<Backing **>(output + padded);
+  for (const auto &dependency : dependencies) {
+    if (poll())
+      return nullptr;
+    if (!retainBacking(dependency.backing_)) {
+      fault(3);
+      return nullptr;
+    }
+    backing->dependencies[backing->dependencyCount++] = dependency.backing_;
+  }
+  for (std::size_t offset = 0; offset < payload.size();) {
+    if (poll())
+      return nullptr;
+    const auto count = std::min<std::size_t>(4096, payload.size() - offset);
+    std::memcpy(output + offset, payload.data() + offset, count);
+    offset += count;
+  }
+  if (poll())
+    return nullptr;
+  attach(&backing->initial);
+  pending.backing_ = nullptr; // Transfer its initial reference to the invocation.
+  return output;
 }
 void Invocation::bindEnvironmentBudget(void *state, EnvironmentReserve reserve,
                                        EnvironmentRelease release) noexcept {
@@ -235,15 +342,11 @@ bool Invocation::retainFrom(const Invocation &source, void *buffer) noexcept {
   auto *backing = existing->backing;
   // Source context access is exclusive during packet construction. Its owner
   // keeps this backing alive until the new reference has been established.
-  auto references = backing->references.load(std::memory_order_relaxed);
-  do {
-    if (references == std::numeric_limits<std::uint64_t>::max()) {
-      std::free(storage);
-      fault(3);
-      return false;
-    }
-  } while (!backing->references.compare_exchange_weak(references, references + 1,
-                                                      std::memory_order_relaxed));
+  if (!retainBacking(backing)) {
+    std::free(storage);
+    fault(3);
+    return false;
+  }
   attach(new (storage) Owner{nullptr, nullptr, backing, false});
   return true;
 }
