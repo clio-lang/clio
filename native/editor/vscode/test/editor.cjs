@@ -461,6 +461,49 @@ async function run() {
   checks.push(
     "Trailing-parenthesis signature recovery preserves the unsaved buffer and its diagnostic in VS Code",
   );
+  await replace(
+    main,
+    'from "./library.k" import double\nfn main()->int:\n  double(',
+  );
+  let partialSignature = await eventually(async () => {
+    const result = await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider",
+      mainUri,
+      position(main, "double(", 7),
+      "(",
+    );
+    return result?.signatures.length ? result : undefined;
+  }, "first missing argument signature");
+  assert.equal(
+    partialSignature.signatures[0].label,
+    "fn double(value: int64) -> int64",
+  );
+  assert.equal(partialSignature.activeParameter, 0);
+  await replace(
+    main,
+    'from "./completion-library.k" import make as factory\nfn main():\n  factory()(1,',
+  );
+  partialSignature = await eventually(async () => {
+    const result = await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider",
+      mainUri,
+      position(main, "factory()(1,", 12),
+      ",",
+    );
+    return result?.signatures.length ? result : undefined;
+  }, "next missing argument signature");
+  assert.equal(
+    partialSignature.signatures[0].label,
+    "fn(int64, int64) -> int64",
+  );
+  assert.equal(partialSignature.activeParameter, 1);
+  assert(main.getText().endsWith("factory()(1,"));
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  assert.match(hoverText(await hover(main, "double(21)")), /int64/);
+  checks.push(
+    "Missing-argument help shows first and next parameters without inventing source values in VS Code",
+  );
   await clearDiagnostics(main);
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(

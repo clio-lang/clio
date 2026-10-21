@@ -120,7 +120,8 @@ struct TypePrinter {
   }
 };
 std::optional<SignatureInfo> callableSignature(const TypedModule &module, const ValueType &type,
-                                               std::string_view name, std::size_t active) {
+                                               std::string_view name, std::size_t active,
+                                               std::span<const std::string> parameterNames = {}) {
   if (type.builtin != BuiltinValue::Function || !type.callable || type.array || type.task ||
       type.fallible)
     return {};
@@ -130,7 +131,10 @@ std::optional<SignatureInfo> callableSignature(const TypedModule &module, const 
   for (const auto &parameter : type.callable->parameters) {
     if (!result.parameters.empty())
       result.label += ", ";
-    result.parameters.push_back(printer.type(parameter));
+    auto label = printer.type(parameter);
+    if (!parameterNames.empty())
+      label = parameterNames[result.parameters.size()] + ": " + label;
+    result.parameters.push_back(std::move(label));
     result.label += result.parameters.back();
     if (!printer.valid || result.label.size() > 16384)
       return {};
@@ -141,6 +145,25 @@ std::optional<SignatureInfo> callableSignature(const TypedModule &module, const 
   if (!result.parameters.empty())
     result.activeParameter = std::min(active, result.parameters.size() - 1);
   return result;
+}
+std::optional<SignatureInfo> snapshotSignature(const CallableSignatureSnapshot &snapshot,
+                                               std::string_view name, std::size_t active) {
+  if (active >= snapshot.signature.parameters.size() ||
+      (!snapshot.parameterNames.empty() &&
+       snapshot.parameterNames.size() != snapshot.signature.parameters.size()))
+    return {};
+  TypedModule context;
+  for (const auto &family : snapshot.errorFamilies) {
+    TypedRecord record{};
+    record.name = family.name;
+    record.errorMembers = family.members;
+    record.taskErrorFamily = family.taskError;
+    context.records.push_back(std::move(record));
+  }
+  ValueType type;
+  type.builtin = BuiltinValue::Function;
+  type.callable = std::make_shared<const FunctionSignature>(snapshot.signature);
+  return callableSignature(context, type, name, active, snapshot.parameterNames);
 }
 } // namespace
 std::optional<HoverInfo> hoverInfo(ParseResult syntax, std::string_view path, std::size_t offset,
@@ -210,6 +233,7 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
     return {};
   bool opened = false;
   std::size_t depth = 0, active = 0;
+  std::optional<TokenKind> last;
   for (const auto &token : lexed.tokens) {
     if (token.span.begin < calleeLocation->span.end)
       continue;
@@ -222,8 +246,12 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
       if (token.kind != TokenKind::LeftParen)
         return {};
       opened = true;
+      last = token.kind;
       continue;
     }
+    if (token.kind != TokenKind::Newline && token.kind != TokenKind::Indent &&
+        token.kind != TokenKind::Dedent)
+      last = token.kind;
     if (token.kind == TokenKind::LeftParen || token.kind == TokenKind::LeftBrace ||
         token.kind == TokenKind::LeftBracket)
       ++depth;
@@ -245,10 +273,22 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
       invocationSpan = expression.span;
       break;
     }
+  CallableSignatureQuery query{invocationSpan, {}};
+  const auto following = std::ranges::find_if(lexed.tokens, [&](const auto &token) {
+    return token.span.begin >= offset && token.kind != TokenKind::Newline &&
+           token.kind != TokenKind::Indent && token.kind != TokenKind::Dedent;
+  });
+  if (!depth && (last == TokenKind::LeftParen || last == TokenKind::Comma) &&
+      following != lexed.tokens.end() && following->kind == TokenKind::RightParen)
+    options.signature = &query;
+  const auto projected = [&]() -> std::optional<SignatureInfo> {
+    const auto name = target ? target->source->slice(target->span) : std::string_view{};
+    return query.snapshot ? snapshotSignature(*query.snapshot, name, active) : std::nullopt;
+  };
   if (!target) {
     auto checked = check(std::move(syntax), {}, options);
     if (!checked.ok())
-      return {};
+      return projected();
     const ValueType *type = nullptr;
     for (const auto &expression : checked.module->expressions)
       if (expression.span.begin == invocationSpan.begin &&
@@ -263,7 +303,7 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
   }
   auto semantic = semanticToken(std::move(syntax), path, target->span.begin, options);
   if (!semantic)
-    return {};
+    return projected();
   TypePrinter printer{semantic->module};
   SignatureInfo result;
   const auto name = semantic->token.source->slice(semantic->token.span);

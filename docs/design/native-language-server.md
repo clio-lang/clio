@@ -360,11 +360,12 @@ active parameter. A client advertising `labelOffsetSupport` receives UTF-16
 parameter-label ranges, which distinguish repeated structural types; other
 clients receive the standard string labels.
 
-The analyzed graph must parse and type-check. A bounded temporary overlay can
-close trailing parentheses as described below; missing arguments and builtin
-signatures remain unsupported. Invalid positions, closed documents and
-unresolved/invalid graphs return `null`. It does not reuse a stale successful graph or publish partial inferred
-types. Requesting help makes no source changes or diagnostic publications.
+Complete-call guidance requires a parsed and checked graph. A bounded temporary overlay can
+close trailing parentheses as described below. At an empty argument slot, a
+separate validated-callee snapshot can provide guidance despite the selected
+call's argument-count error. Builtin signatures remain unsupported. Invalid
+positions, closed documents and other invalid query contexts return `null`.
+The server does not reuse stale signatures or publish partial typed programs. Requesting help makes no source changes or diagnostic publications.
 
 The [signature-help qualification](../../native/metal-proof/evidence/native-lsp-signature-2026-10-21.json)
 records normal/sanitizer semantic and protocol tests, hover regressions, relocated
@@ -384,15 +385,15 @@ These calls display a structural label such as `fn(int64, int64) -> int64`;
 parameter names are not invented for the returned/indexed value. Captures remain
 hidden, and expected-error channels belong to the actual invoked callable.
 Inconsistent lowered callable signatures fail closed. Invalid indices, noncallable
-results, wrong arguments and failed graphs provide no partial or stale signature.
+results, wrong supplied argument types and failed graphs provide no partial or stale signature. Empty slots use the separate signature snapshot described below.
 The operation adds editor support to existing language forms; it does not execute
 the factory, allocate a runtime closure or change language behavior.
 
 [Higher-order qualification](../../native/metal-proof/evidence/native-lsp-higher-signature-2026-10-21.json)
 records semantic/protocol regression tests, imported unsaved overlays, relocated
 Release tools and installed VS Code provider checks for factory/indexed calls.
-Trailing-parenthesis recovery is covered below; missing arguments and builtin
-signature help remain separate work.
+Trailing-parenthesis recovery and missing-argument guidance are covered below;
+builtin signature help remains separate work.
 
 #### Trailing-parenthesis recovery
 
@@ -409,9 +410,9 @@ overlay, reloads current imports/dependencies, and requires a fully successful
 parse and check. Existing source/token/checker budgets still apply. At most one
 repaired graph is tried; ordinary semantic errors do not trigger repair.
 
-No arguments, values, array/record delimiters or names are invented. For a
-function needing two arguments, `combine(` and `combine(1,` still return no
-signature. Invalid argument types, failed imports, earlier errors, later code,
+No arguments, values, array/record delimiters or names are invented. Missing
+argument slots use the separate validated-callee path below. Invalid argument
+types, failed imports, earlier errors, later code,
 mismatched delimiters and unclosed Strings remain unrecovered. Read-only package
 and project graph constraints are unchanged.
 
@@ -420,4 +421,36 @@ actual program. In particular, a displayed signature does not clear its original
 unclosed-delimiter diagnostic. The [recovery qualification](../../native/metal-proof/evidence/native-lsp-signature-recovery-2026-10-21.json)
 records normal/sanitizer semantic/protocol checks, current imported overlays,
 relocated Release tools and installed VS Code acceptance of this boundary.
-Broader parser recovery and missing-argument signature help remain future work.
+Broader parser recovery remains future work. Missing-argument guidance follows below.
+
+#### Missing-argument guidance
+
+The editor can now show parameters at `combine(`, `combine(1,` and the equivalent
+empty slots before an existing `)`. Guidance is requested only immediately after
+the call's opening parenthesis or an argument-separating comma, with no argument
+expression between the cursor and its closing parenthesis. The bounded trailing
+parenthesis overlay supplies syntax when the closing delimiter is not typed yet;
+it never supplies an argument value.
+
+The checker resolves the selected callee in its actual lexical/import scope and
+checks every supplied argument against its parameter type. Named functions must
+have a fully checked definition before their named signature is captured.
+Completed function values use their validated structural signature, including
+factory/indexed results, fields and pipeline targets. Captures remain hidden;
+nominal parameter spellings and expected-error unions retain display metadata.
+An unfinished recursive named definition is not a signature source for this path.
+
+This is a separate editor query. It returns only a function signature, optional
+parameter names and error-family display names, with no expression graph,
+executable IR or partial typed module. The normal check still fails with `S027`.
+The snapshot is reset for each check and discarded if any reported diagnostic
+is not that selected call's argument-count error. Invalid supplied arguments,
+unknown or shadowed noncallable targets and invalid target definitions produce
+no guidance. Showing parameters is not validation of the unfinished program.
+
+[Missing-argument qualification](../../native/metal-proof/evidence/native-lsp-missing-arguments-2026-10-21.json)
+records normal/sanitizer semantic and protocol checks, ordinary callable-checker
+regressions, imported aliases/current overlays, installed Release tools and VS Code
+provider acceptance. The source, disk and actual-program diagnostics remain
+unchanged. Partially written argument expressions, broad parser recovery, builtin
+signatures and wider editor/platform acceptance remain follow-ups.

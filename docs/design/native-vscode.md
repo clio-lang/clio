@@ -58,7 +58,7 @@ suggestion-widget, keyboard-selection or accessibility acceptance.
 [Checked signature help](native-language-server.md#checked-signature-help) now
 connects the native function signature and active argument to the VS Code provider.
 Its initial acceptance uses an imported function in the installed extension host.
-The analyzed graph must parse and type-check. [Trailing-parenthesis recovery](native-language-server.md#trailing-parenthesis-recovery) now helps at the end of a buffer when arguments are complete; missing arguments require future work.
+Complete-call guidance requires a parsed and checked graph. [Trailing-parenthesis recovery](native-language-server.md#trailing-parenthesis-recovery) now helps at the end of a buffer when arguments are complete; [Missing-argument guidance](native-language-server.md#missing-argument-guidance) also covers empty first/next slots using validated callee signatures.
 
 [Higher-order signature help](native-language-server.md#higher-order-call-signatures)
 now follows imported factory results and indexed callbacks in the installed
@@ -70,3 +70,8 @@ Trailing-parenthesis acceptance also requests help for an unsaved imported call
 before its closing `)` is typed. It verifies the signature and active argument,
 the unchanged buffer/disk source, and the original `L005` diagnostic remaining
 visible until the user fixes the source.
+
+Missing-argument provider acceptance now opens an empty imported call and a
+factory-result call after a comma. It checks the named/structural signature and
+active parameter while ensuring no argument value is inserted into the buffer.
+The compiler still diagnoses the unfinished program.

@@ -419,11 +419,27 @@ struct ScopeCompletion {
   std::vector<ScopeName> names;
   bool reached = false, truncated = false;
 };
+// Editor-only snapshot of a validated callee, not a partial module or executable IR.
+struct SignatureErrorFamily {
+  std::string name;
+  std::vector<std::size_t> members;
+  bool taskError = false;
+};
+struct CallableSignatureSnapshot {
+  FunctionSignature signature;
+  std::vector<std::string> parameterNames;
+  std::vector<SignatureErrorFamily> errorFamilies;
+};
+struct CallableSignatureQuery {
+  SourceSpan site;
+  std::optional<CallableSignatureSnapshot> snapshot;
+};
 struct CheckOptions {
   // Build placement-aware IR without probing hardware or selecting a backend.
   // The ordinary CPU entry keeps rejecting placement syntax by default.
   bool placement = false;
   ScopeCompletion *completion = nullptr; // Caller-owned, optional editor query.
+  CallableSignatureQuery *signature = nullptr; // Missing-argument guidance only.
 };
 [[nodiscard]] CheckResult check(ParseResult syntax, SemanticLimits limits = {},
                                 CheckOptions options = {});

@@ -118,8 +118,60 @@ int main() {
     require(result && result->activeParameter == 1, "indexed pipeline recovery");
     result = recover(add + "fn main():\n  add(1,2|)\n");
     require(result && result->activeParameter == 1, "ordinary valid calls retain signature");
-    require(!recover(add + "fn main():\n  add(|\n"), "do not invent arguments");
-    require(!recover(add + "fn main():\n  add(1,|\n"), "missing argument is not recovered");
+    result = recover(add + "fn main():\n  add(|\n");
+    require(result && result->activeParameter == 0, "first missing argument signature");
+    result = recover(add + "fn main():\n  add(1,|\n");
+    require(result && result->activeParameter == 1, "next missing argument signature");
+    result = query(add + "fn main():\n  add(1,|)\n");
+    require(result && result->activeParameter == 1, "balanced incomplete call signature");
+    result = recover(add + "fn main():\n  callback=add\n  callback(1,|\n");
+    require(result && result->label == "fn callback(int64, int64) -> int64",
+            "bound callable missing arguments");
+    result = recover("fn make()->fn(int,int)->int:\n  fn(a:int,b:int):a+b\n"
+                     "fn main():\n  make()(1,|\n");
+    require(result && result->label == "fn(int64, int64) -> int64", "factory missing argument");
+    result = recover(add + "fn main():\n  callbacks=[add]\n  1 -> callbacks[0](|\n");
+    require(result && result->activeParameter == 1, "indexed pipeline missing argument");
+    require(!recover(add + "fn main():\n  add(\"bad\",|\n"),
+            "invalid prefix argument type blocks snapshot");
+    require(!recover(add + "fn main():\n  add(missing,|\n"), "invalid prefix name blocks snapshot");
+    require(!recover(add + "fn broken()->int:\n  missing\nfn main():\n  add(1,|\n"),
+            "unrelated graph errors block snapshots");
+    require(!recover("fn broken(n:int)->int:\n  missing\nfn main():\n  broken(|\n"),
+            "invalid target body blocks named signature snapshot");
+    result = recover("type Point:\n  x:int\nfn inspect(point:Point,n:int)->int:\n  point.x+n\n"
+                     "fn main():\n  inspect(Point {x:1},|\n");
+    require(result && result->parameters == std::vector<std::string>{"point: Point", "n: int64"},
+            "nominal parameter snapshot");
+    result = recover("error First:\n  Bad\nerror Second:\n  Bad\n"
+                     "fn risky(a:int,b:int)->int ! (First | Second):\n  a+b\n"
+                     "fn main():\n  risky(1,|\n");
+    require(result && result->label == "fn risky(a: int64, b: int64) -> int64 ! First | Second",
+            "error union snapshot display metadata");
+    require(!query("fn main(n:int)->int:\n  main(|)\n"),
+            "incomplete recursive callee does not snapshot an unfinished definition");
+    require(!query(add + "fn main():\n  add(1,|)\nfn later()->int:\n  missing\n"),
+            "later reported graph error invalidates an already captured snapshot");
+    const std::string missingCall = add + "fn main():\n  add(1,)\n";
+    auto syntax = parse(std::make_shared<const SourceFile>("snapshot.k", missingCall));
+    SourceSpan callSite{};
+    for (const auto &expression : syntax.module.expressions)
+      if (std::holds_alternative<CallExpr>(expression.value))
+        callSite = expression.span;
+    CallableSignatureQuery snapshot{callSite, {}};
+    CheckOptions options;
+    options.signature = &snapshot;
+    auto checked = check(std::move(syntax), {}, options);
+    require(!checked.ok() && !checked.module && snapshot.snapshot &&
+                snapshot.snapshot->parameterNames == std::vector<std::string>{"left", "right"},
+            "snapshot never returns a partial typed module");
+    (void)check(parse(std::make_shared<const SourceFile>("snapshot.k", "fn main():\n  0\n")), {},
+                options);
+    require(!snapshot.snapshot, "query snapshot resets between checks");
+    auto ordinary = check(parse(std::make_shared<const SourceFile>("snapshot.k", missingCall)));
+    require(!ordinary.ok() && !ordinary.module && ordinary.diagnostics.size() == 1 &&
+                ordinary.diagnostics.front().code == "S027",
+            "ordinary compiler keeps its missing-argument diagnostic");
     require(!recover(add + "fn main():\n  add(1,2|\n  missing\n"), "later code is not hidden");
     require(!recover(add + "fn main():\n  missing\n  add(1,2|\n"), "earlier errors fail closed");
     require(!recover(add + "fn main():\n  add(1,\"text\"|\n"), "argument types must check");

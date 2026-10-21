@@ -1897,6 +1897,17 @@ private:
       return {};
     return callValue(frame, span, *target, arguments);
   }
+  bool queryingSignature(SourceSpan span) const {
+    const auto *query = options_.signature;
+    return query && !query->snapshot && diagnostics_.empty() && query->site.begin == span.begin &&
+           query->site.end == span.end;
+  }
+  void captureSignature(const FunctionSignature &signature, std::vector<std::string> names = {}) {
+    CallableSignatureSnapshot snapshot{signature, std::move(names), {}};
+    for (const auto &record : output_.records)
+      snapshot.errorFamilies.push_back({record.name, record.errorMembers, record.taskErrorFamily});
+    options_.signature->snapshot = std::move(snapshot);
+  }
   std::optional<ValueId> callValue(Frame &frame, SourceSpan span, ValueId target,
                                    const std::vector<ExprId> &arguments) {
     const auto type = node(target).type;
@@ -1904,6 +1915,12 @@ private:
         type.task || type.fallible) {
       error("S030", "call requires a completed function value", span);
       return {};
+    }
+    if (queryingSignature(span) && arguments.size() < type.callable->parameters.size()) {
+      for (std::size_t i = 0; i < arguments.size(); ++i)
+        if (!expression(frame, arguments[i], type.callable->parameters[i]))
+          return {};
+      captureSignature(*type.callable);
     }
     if (arguments.size() != type.callable->parameters.size()) {
       error("S027", "wrong argument count for function value", span);
@@ -4015,6 +4032,23 @@ private:
     const auto id = found->second;
     if (!signatures_[id])
       return {};
+    if (queryingSignature(span) && arguments.size() < output_.functions[id].parameters.size()) {
+      if (!analyzeFunction(id))
+        return {};
+      if (states_[id] == State::Complete && diagnostics_.empty()) {
+        FunctionSignature signature;
+        std::vector<std::string> names;
+        for (const auto symbol : output_.functions[id].parameters) {
+          signature.parameters.push_back(output_.symbols[symbol].type);
+          names.push_back(output_.symbols[symbol].name);
+        }
+        signature.result = output_.functions[id].resultType;
+        for (std::size_t i = 0; i < arguments.size(); ++i)
+          if (!expression(frame, arguments[i], signature.parameters[i]))
+            return {};
+        captureSignature(signature, std::move(names));
+      }
+    }
     if (arguments.size() != output_.functions[id].parameters.size()) {
       error("S027", "wrong argument count for '" + callee + "'", span);
       return {};
@@ -4138,9 +4172,21 @@ CheckResult check(ParseResult syntax, SemanticLimits limits, CheckOptions option
     options.completion->names.clear();
     options.completion->reached = options.completion->truncated = false;
   }
+  if (options.signature)
+    options.signature->snapshot.reset();
   if (!syntax.ok())
     return {syntax.module.source, {}, std::move(syntax.diagnostics)};
   limits.maxDiagnostics = std::max<std::size_t>(1, limits.maxDiagnostics);
-  return Checker(std::move(syntax.module), limits, options).run();
+  auto result = Checker(std::move(syntax.module), limits, options).run();
+  if (options.signature && options.signature->snapshot) {
+    const auto site = options.signature->site;
+    if (result.ok() || result.diagnostics.empty() ||
+        std::ranges::any_of(result.diagnostics, [&](const auto &diagnostic) {
+          return diagnostic.code != "S027" || diagnostic.span.begin != site.begin ||
+                 diagnostic.span.end != site.end;
+        }))
+      options.signature->snapshot.reset();
+  }
+  return result;
 }
 } // namespace kalandra

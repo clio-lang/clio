@@ -11,7 +11,7 @@ struct SignatureInfo {
   std::vector<std::string> parameters;
   std::optional<std::size_t> activeParameter;
 };
-// Innermost checked parenthesized call; unfinished/invalid graphs return no signature.
+// Checked calls or bounded validated-callee snapshots for a missing argument.
 [[nodiscard]] std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view path,
                                                          std::size_t offset,
                                                          CheckOptions options = {});
