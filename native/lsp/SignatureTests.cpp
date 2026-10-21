@@ -252,9 +252,59 @@ int main() {
     require(!query(add + "enum Choice:\n  Some {value:int}\nfn main():\n  choice=Choice.Some "
                          "{value:2}\n  add(1, choice.va|Suffix)\n"),
             "enum payload requires narrowing rather than arbitrary field access");
+    result =
+        recover(add + records + "fn main():\n  reading=Reading {value:2}\n  add(1, reading.|\n");
+    require(result && result->activeParameter == 1, "empty field and trailing call recovery");
+    result =
+        recover(add + records + "fn main():\n  reading=Reading {value:2}\n  add(1, reading.|)\n");
+    require(result && result->activeParameter == 1, "balanced empty field slot");
+    result =
+        recover(add + records +
+                "fn main():\n  box=Box {reading:Reading {value:2}}\n  1 -> add(box.reading.|)\n");
+    require(result && result->activeParameter == 1, "nested empty field in pipeline");
+    result = recover(add + records +
+                     "fn make()->Reading:\n  Reading {value:2}\nfn main():\n  add(1, make().|)\n");
+    require(result && result->activeParameter == 1, "empty field on factory result");
+    result = recover(add + records +
+                     "fn main():\n  values=[Reading {value:2}]\n  add(1, values[0].|)\n");
+    require(result && result->activeParameter == 1, "empty field on indexed record");
+    result = recover(add + records +
+                     "fn main():\n  reading=Reading {value:2}\n  callbacks=[add]\n  "
+                     "callbacks[0](1, reading.|)\n");
+    require(result && result->label == "fn(int64, int64) -> int64",
+            "empty field with structural callee");
+    require(!recover(add + "fn main():\n  add(1, unknown.|)\n"),
+            "unknown empty-field receiver rejected");
+    require(!recover(add + "fn main():\n  n=1\n  add(1, n.|)\n"),
+            "non-record empty-field receiver rejected");
+    require(!recover(add + records +
+                     "fn main():\n  reading=Reading {value:2}\n  add(missing, reading.|)\n"),
+            "empty field preserves earlier argument errors");
     require(
-        !recover(add + records + "fn main():\n  reading=Reading {value:2}\n  add(1, reading.|\n"),
-        "empty field still requires parser recovery");
+        !recover(add + records + "fn main():\n  reading=Reading {value:2}\n  add(reading.|, 1)\n"),
+        "nonfinal empty field not recovered");
+    require(!recover(add + records +
+                     "fn main():\n  reading=Reading {value:2}\n  add(1, reading.|unknown)\n"),
+            "existing suffix not replaced with a field probe");
+    require(!recover(add + records +
+                     "fn main():\n  reading=Reading {value:2}\n  add(1, reading.| + 2)\n"),
+            "compound empty field not repaired");
+    require(!recover(add + records +
+                     "fn main():\n  reading=Reading {value:2}\n  add(1, reading.|)\nfn later():\n  "
+                     "missing\n"),
+            "later graph errors still suppress empty-field guidance");
+    require(!recover(add + "fn main():\n  add(1, \"reading.|\"\n"),
+            "string content is not a field slot");
+    const std::string collision = "type Probe:\n  __kalandra_signature_field:int\n"
+                                  "fn main():\n  reading=Probe {__kalandra_signature_field:2}\n";
+    result = recover(add + collision + "  add(1, reading.|)\n");
+    require(result && result->activeParameter == 1,
+            "probe-name collision still uses receiver projection");
+    require(!recover(add + collision + "  add(1, (reading.|))\n"),
+            "grouped probe cannot become a supplied field value");
+    require(!recover(add + records +
+                     "fn main():\n  reading=Reading {value:2}\n  ((((((((add(1, reading.|\n"),
+            "empty-field delimiter recovery keeps eight-parenthesis limit");
     require(!query(add + "fn main():\n  add(1, box.va|Suffix)\n"),
             "unknown field receiver blocks signature guidance");
     require(!query(add + "fn main():\n  add(1, 2, va|Suffix)\n"),

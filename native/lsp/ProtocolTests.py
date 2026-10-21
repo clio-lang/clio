@@ -1074,6 +1074,30 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert client.signature(signature_document, 5, cursor)["result"] is None, "trailing source is not hidden during delimiter recovery"
     end_cursor = len(opened.splitlines()[5])
     assert client.signature(signature_document, 5, end_cursor)["result"] is not None
+    empty = member_text.replace("reading.vaSuffix", "reading.")
+    client.change(signature_document, empty, 4)
+    assert publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+    empty_cursor = empty.splitlines()[5].index("reading.") + len("reading.")
+    result = client.signature(signature_document, 5, empty_cursor)["result"]
+    assert result["activeParameter"] == 1 and result["signatures"][0]["label"] == "fn(int64, int64) -> int64", result
+    assert client.hover(signature_document, 5, empty_cursor)["result"] is None
+    assert not client.barrier(), "empty-field recovery published replacement diagnostics"
+    client.open(higher_library, higher_text.replace("int", "uint"))
+    client.barrier()
+    assert "uint64" in client.signature(signature_document, 5, empty_cursor)["result"]["signatures"][0]["label"]
+    client.change(receiver_library, receiver_text.replace("value:int", "other:int"), 3)
+    client.barrier()
+    assert client.signature(signature_document, 5, empty_cursor)["result"] is None
+    client.change(receiver_library, receiver_text, 4)
+    client.barrier()
+    assert client.signature(signature_document, 5, empty_cursor)["result"] is not None
+    client.change(signature_document, empty.replace("reading.)", "reading."), 5)
+    client.barrier()
+    assert client.signature(signature_document, 5, empty_cursor)["result"] is not None
+    unknown = empty.replace("reading.)", "unknown.)")
+    client.change(signature_document, unknown, 6)
+    client.barrier()
+    assert client.signature(signature_document, 5, unknown.splitlines()[5].index("unknown.") + 8)["result"] is None
     assert not signature_document.exists() and receiver_library.read_text() == receiver_text
     assert higher_library.read_text() == higher_text
     client.finish()

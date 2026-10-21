@@ -14,7 +14,8 @@ struct SignatureInfo {
 // Checked calls or bounded validated-callee snapshots for a missing argument.
 [[nodiscard]] std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view path,
                                                          std::size_t offset,
-                                                         CheckOptions options = {});
+                                                         CheckOptions options = {},
+                                                         bool requireFieldProjection = false);
 // Checked semantic information only. Failed graphs never supply partial/stale types.
 [[nodiscard]] std::optional<HoverInfo> hoverInfo(ParseResult syntax, std::string_view path,
                                                  std::size_t offset, CheckOptions options = {});

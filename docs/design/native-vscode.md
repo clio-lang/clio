@@ -83,3 +83,5 @@ label ranges while the original unknown-name diagnostic and failed hover remain
 visible; the buffer and disk source are unchanged.
 
 Installed-editor acceptance also checks [record-field argument guidance](native-language-server.md#record-field-argument-editing): the signature remains available while the final field name is being typed, with the actual unknown-field diagnostic, failed hover and unsaved buffer preserved.
+
+The same installed-editor checks now cover [an empty final record field](native-language-server.md#empty-record-field-arguments): parameter guidance remains visible immediately after the dot while the unsaved source and real syntax diagnostic remain unchanged.

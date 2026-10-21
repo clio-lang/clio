@@ -192,7 +192,8 @@ std::optional<HoverInfo> hoverInfo(ParseResult syntax, std::string_view path, st
   return HoverInfo{std::move(text), selected->token.source, selected->token.span};
 }
 std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view path,
-                                           std::size_t offset, CheckOptions options) {
+                                           std::size_t offset, CheckOptions options,
+                                           bool requireFieldProjection) {
   if (!syntax.ok() || !syntax.module.source)
     return {};
   std::optional<ExprId> selected;
@@ -302,6 +303,10 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
       }
     }
   }
+  // A synthetic field probe may supply guidance only through the checked
+  // receiver projection, never by checking an invented argument as a real value.
+  if (requireFieldProjection && (!editingName || !argumentReceiver))
+    return {};
   CallableSignatureQuery query{invocationSpan, {}, editingName ? argumentReceiver : std::nullopt};
   const auto following = std::ranges::find_if(lexed.tokens, [&](const auto &token) {
     return token.span.begin >= offset && token.kind != TokenKind::Newline &&

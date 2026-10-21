@@ -571,6 +571,26 @@ async function run() {
   assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
   await replace(main, mainDisk);
   checks.push("Signature help preserves parameter guidance while editing a checked record receiver's field");
+  await replace(
+    main,
+    'from "./completion-library.k" import make as factory, Box\nfn main():\n  box=Box {value:1,other:2}\n  factory()(1, box.)\n',
+  );
+  const emptyMemberSignature = await eventually(async () => {
+    const result = await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider", mainUri, position(main, "box.)", 4),
+    );
+    return result?.signatures.length ? result : undefined;
+  }, "empty final record field argument");
+  assert.equal(emptyMemberSignature.signatures[0].label, "fn(int64, int64) -> int64");
+  assert.equal(emptyMemberSignature.activeParameter, 1);
+  await eventually(
+    () => vscode.languages.getDiagnostics(mainUri).some((d) => String(d.code).startsWith("P")),
+    "real syntax diagnostic remains visible for empty field",
+  );
+  assert(main.getText().includes("box.)"));
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  checks.push("Signature help survives an empty final record field without editing the source or hiding its syntax diagnostic");
   await clearDiagnostics(main);
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(

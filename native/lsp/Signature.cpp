@@ -24,14 +24,46 @@ std::optional<SignatureInfo> signatureAt(const std::string &path, const std::str
   auto syntax = load();
   if (syntax && syntax->ok())
     return signatureInfo(std::move(*syntax), canonical, offset, options);
-  // Recovery is restricted to the end of the buffer. No later source is hidden.
-  const auto whitespace = [](char c) { return c == ' ' || c == '\n' || c == '\r'; };
-  if (!std::ranges::all_of(std::string_view(text).substr(offset), whitespace))
-    return {};
   auto source = std::make_shared<const SourceFile>(canonical, text);
   const auto tokens = lex(source);
+  if (!std::ranges::all_of(tokens.diagnostics, [](const auto &d) { return d.code == "L005"; }))
+    return {};
+  auto replacement = text;
+  auto queryOffset = offset;
+  bool fieldProbe = false;
+  const auto trivia = [](TokenKind kind) {
+    return kind == TokenKind::Newline || kind == TokenKind::Indent || kind == TokenKind::Dedent ||
+           kind == TokenKind::End;
+  };
+  const Token *previous = nullptr, *following = nullptr;
+  for (const auto &token : tokens.tokens) {
+    if (trivia(token.kind))
+      continue;
+    if (token.span.end <= offset)
+      previous = &token;
+    else if (token.span.begin >= offset && !following)
+      following = &token;
+  }
+  // Fill only an empty terminal field slot. The signature query still projects
+  // that argument and checks its record receiver; this is never a source edit.
+  if (previous && previous->kind == TokenKind::Dot && previous->span.end == offset &&
+      (!following || following->kind == TokenKind::RightParen)) {
+    constexpr std::string_view probe = "__kalandra_signature_field";
+    if (replacement.size() > SyntaxLimits{}.maxSourceBytes - probe.size())
+      return {};
+    replacement.insert(offset, probe);
+    queryOffset += probe.size();
+    fieldProbe = true;
+    overlays.back().text = replacement;
+    syntax = load();
+    if (syntax && syntax->ok())
+      return signatureInfo(std::move(*syntax), canonical, queryOffset, options, fieldProbe);
+  }
+  // Closing-delimiter repair is restricted to the end of the original buffer.
+  // No later source, including a suffix after a partly typed name, is hidden.
+  const auto whitespace = [](char c) { return c == ' ' || c == '\n' || c == '\r'; };
   if (tokens.diagnostics.empty() ||
-      !std::ranges::all_of(tokens.diagnostics, [](const auto &d) { return d.code == "L005"; }))
+      !std::ranges::all_of(std::string_view(text).substr(offset), whitespace))
     return {};
   std::vector<TokenKind> delimiters;
   for (const auto &token : tokens.tokens) {
@@ -47,14 +79,13 @@ std::optional<SignatureInfo> signatureAt(const std::string &path, const std::str
   }
   if (delimiters.empty() || delimiters.size() > 8 ||
       !std::ranges::all_of(delimiters, [](auto kind) { return kind == TokenKind::LeftParen; }) ||
-      text.size() > SyntaxLimits{}.maxSourceBytes - delimiters.size())
+      replacement.size() > SyntaxLimits{}.maxSourceBytes - delimiters.size())
     return {};
-  auto replacement = text;
-  replacement.insert(offset, delimiters.size(), ')');
+  replacement.insert(queryOffset, delimiters.size(), ')');
   overlays.back().text = std::move(replacement);
   syntax = load();
   if (!syntax || !syntax->ok())
     return {};
-  return signatureInfo(std::move(*syntax), canonical, offset, options);
+  return signatureInfo(std::move(*syntax), canonical, queryOffset, options, fieldProbe);
 }
 } // namespace kalandra::lsp

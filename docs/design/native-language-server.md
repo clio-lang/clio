@@ -504,11 +504,42 @@ is checked in the same lexical frame; this creates no executable or partial type
 program. Existing compiler diagnostics and ordinary hover still analyze the real
 field expression, and query-only checking never changes buffers or files.
 
-This does not recover an empty `reading.` token or an arbitrary unfinished
-expression. The edited field must be the final argument, and the cursor must be
-within its final identifier or at its end. Delimiter repair still requires the
-cursor at the end of the buffer with only whitespace after it.
+For a nonempty field, the edited field must be the final argument and the cursor
+must be within its final identifier or at its end. Empty field slots use the
+bounded recovery below; arbitrary unfinished expressions remain unsupported.
+Closing-delimiter repair still requires the cursor at the end of the buffer with
+only whitespace after it.
 
 [Record-field argument qualification](../../native/metal-proof/evidence/native-lsp-field-arguments-2026-10-21.json)
 covers semantic and protocol checks, live imported record overlays, normal hover
 isolation, relocated Release tools and installed VS Code provider commands.
+
+#### Empty record-field arguments
+
+Signature help also works immediately after a dot in the final argument, such as
+`combine(1, reading.)`. The cursor must be directly after the dot. The next
+non-layout token must be a closing parenthesis, or there must be no following
+token. An existing identifier suffix, comma or compound expression is never
+replaced. Ordinary hints for already-valid code remain unchanged.
+
+Only when the actual source does not parse, the query inserts one private field
+identifier into its temporary root overlay. That identifier is projected away by
+the existing [record-field guidance](#record-field-argument-editing) path before
+argument validation. The callee, earlier arguments and completed record receiver
+must still check; unknown receivers and other graph errors suppress the hint.
+No field existence, value type or partially typed program is inferred from the
+probe. A recovered probe is required to take the field-projection path; it cannot
+fall back to a successful check of an invented value, even if a user has a field
+with the same name. It cannot appear in returned signatures, buffers, files, hover
+or normal diagnostic publications.
+
+An empty field at the end of an open call can combine with the existing repair of
+at most eight trailing parentheses. Only whitespace may follow the original
+cursor for that delimiter repair. Lexical errors other than unclosed delimiters,
+unclosed arrays/records and remaining syntax errors still reject the query.
+Source budgets apply to both the identifier and any inserted parentheses, and
+the source graph is loaded at most three times for this request.
+
+[Empty-field qualification](../../native/metal-proof/evidence/native-lsp-empty-field-2026-10-21.json)
+covers semantic and protocol checks, imported overlays, relocated Release tools
+and installed VS Code commands while retaining the actual syntax diagnostic.
