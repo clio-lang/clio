@@ -1980,8 +1980,55 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
                 '  value=1\n  calculate(vaSuffix\n')
     client.change(signature_document,rejected,6)
     client.barrier()
-    assert client.completion(signature_document,3,14)['result']['items'] == [], 'argument suffix must retain old recovery boundary'
+    assert client.completion(signature_document,3,14)['result']['items'][0]['label'] == 'value', 'final argument suffix uses checked callee context'
     assert not signature_document.exists() and callee_library.read_text()==callee_library_text
+    client.finish()
+
+    # Final argument suffixes use EOF-only repair and checked prefix/receiver context.
+    argument_library = Path(temp) / 'argument-suffix.k'
+    argument_library_text = ('export type Reading:\n  value:int\n'
+                             'export fn read():\n  Reading {value:2}\n'
+                             'export fn combine(left:int,right:int):\n  left+right\n')
+    argument_library.write_text(argument_library_text)
+    argument_text = ('from "./argument-suffix.k" import read, combine\nfn main():\n'
+                     '  reading=read()\n  combine(1,reading.vaSuffix\n')
+    client = Client()
+    client.init()
+    client.open(signature_document,argument_text)
+    before = publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert before and any(d['code']=='L005' for d in before), before
+    start = argument_text.splitlines()[3].index('vaSuffix')
+    result = client.completion(signature_document,3,start+2)['result']
+    assert [(item['label'],item['kind']) for item in result['items']] == [('value',5)], result
+    item=result['items'][0]
+    assert item['textEdit']=={'newText':'value','range':{
+        'start':{'line':3,'character':start},'end':{'line':3,'character':start+8}}}, item
+    assert client.signature(signature_document,3,start+2)['result'] is None, 'signature recovery boundary unchanged'
+    assert client.hover(signature_document,3,start+1)['result'] is None
+    assert not client.barrier(), 'argument suffix recovery published probe diagnostics'
+    applied = apply_workspace_edit({'documentChanges':[{'textDocument':{'uri':signature_document.as_uri()},
+        'edits':[item['textEdit']]}]}, {signature_document.as_uri():argument_text})[signature_document.as_uri()]
+    assert applied==argument_text.replace('vaSuffix','value')
+    client.change(signature_document,applied,2)
+    after=publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert after and any(d['code']=='L005' for d in after), after
+    closed=applied.rstrip()+')\n'
+    client.change(signature_document,closed,3)
+    assert not publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    client.open(argument_library,argument_library_text.replace('value','variance'))
+    assert publications(client.barrier())[signature_document.as_uri()]['diagnostics'], 'closed old field follows live imports'
+    client.change(signature_document,argument_text,4)
+    client.barrier()
+    assert client.completion(signature_document,3,start+2)['result']['items'][0]['label']=='variance'
+    bad_prefix=argument_text.replace('combine(1,','combine("bad",')
+    client.change(signature_document,bad_prefix,5)
+    client.barrier()
+    assert client.completion(signature_document,3,bad_prefix.splitlines()[3].index('vaSuffix')+2)['result']['items']==[]
+    compound=argument_text.replace('reading.vaSuffix','2+reading.vaSuffix')
+    client.change(signature_document,compound,6)
+    client.barrier()
+    assert client.completion(signature_document,3,compound.splitlines()[3].index('vaSuffix')+2)['result']['items']==[]
+    assert not signature_document.exists() and argument_library.read_text()==argument_library_text
     client.finish()
 
     # Format the current buffer only; the client independently applies the edit.

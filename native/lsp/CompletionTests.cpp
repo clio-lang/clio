@@ -146,8 +146,9 @@ int main() {
     require(query("fn broken(a:int,b:int)->int:\n  missing\nfn main():\n  value=2\n  broken(va|\n")
                 .names.empty(),
             "invalid named callee body blocks completion");
-    require(query(combine + "fn main():\n  value=2\n  combine(va|Suffix\n").names.empty(),
-            "delimiter repair does not hide a suffix");
+    info = query(combine + "fn main():\n  value=2\n  combine(va|Suffix\n");
+    require(has(info, "value") && info.replacement.end - info.replacement.begin == 8,
+            "final argument suffix is preserved by EOF repair");
     require(query(combine + "fn main():\n  value=2\n  combine(va|\n  missing\n").names.empty(),
             "later source is not hidden");
     require(query(combine + "fn main():\n  value=2\n  combine([va|\n").names.empty(),
@@ -622,6 +623,34 @@ int main() {
             "callee recovery rejects other lexical errors");
     require(query(combine + "fn main():\n  ((((((((com|(1,2\n").names.empty(),
             "callee recovery retains eight-parenthesis bound");
+    info = query(combine + "fn main():\n  value=2\n  combine(1,va|Suffix\n");
+    require(info.names.size() == 1 && has(info, "value"),
+            "last argument before absent closing parenthesis");
+    info = query(combine + "fn main():\n  value=2\n  combine(1,((((va|Suffix\n");
+    require(has(info, "value"), "grouped final argument retains EOF repair");
+    info = query(combine + "fn main():\n  value=2\n  callback=combine\n  callback(1,va|Suffix\n");
+    require(has(info, "value"), "checked function-value callee supplies final argument context");
+    const std::string openField =
+        "type Reading:\n  value:int\n" + combine +
+        "fn main():\n  reading=Reading {value:2}\n  combine(1,reading.va|Suffix\n";
+    info = query(openField);
+    require(info.names.size() == 1 && has(info, "value") &&
+                info.names[0].kind == ScopeNameKind::Field &&
+                info.replacement.end - info.replacement.begin == 8,
+            "final record field suffix uses checked receiver and field-only edit");
+    require(query(combine + "fn main():\n  value=2\n  combine(\"bad\",va|Suffix\n").names.empty(),
+            "wrong earlier argument type suppresses suffix recovery");
+    require(query(combine + "fn main():\n  value=2\n  missing(1,va|Suffix\n").names.empty(),
+            "unknown callee suppresses suffix recovery");
+    require(query(combine + "fn main():\n  value=2\n  callback=1\n  callback(1,va|Suffix\n")
+                .names.empty(),
+            "noncallable value suppresses suffix recovery");
+    require(query(combine + "fn main():\n  combine(1,missing.va|Suffix\n").names.empty(),
+            "unknown field receiver suppresses suffix recovery");
+    require(query(combine + "fn main():\n  value=2\n  combine(va|Suffix,1\n").names.empty(),
+            "nonfinal arguments remain outside EOF suffix recovery");
+    require(query(combine + "fn main():\n  value=2\n  combine(1,2+va|Suffix\n").names.empty(),
+            "compound argument holes remain outside EOF suffix recovery");
     std::cout << "Native scope completion passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

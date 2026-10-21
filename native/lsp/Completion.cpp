@@ -104,12 +104,12 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
   auto source = std::make_shared<const SourceFile>(canonical, text);
   const auto tokens = lex(source);
   std::size_t closures = 0;
-  bool calleeRepair = false;
+  bool eofRepair = false;
   if (!tokens.diagnostics.empty()) {
     auto repaired = trailingCallClosures(tokens, text, offset);
     if (!repaired) {
       repaired = trailingCallClosures(tokens, text, text.size());
-      calleeRepair = repaired.has_value();
+      eofRepair = repaired.has_value();
     }
     if (!repaired)
       return result;
@@ -117,7 +117,7 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
   }
   for (const auto &token : tokens.tokens) {
     if (token.kind == TokenKind::String && token.span.begin < offset && offset < token.span.end)
-      return calleeRepair ? result : completeImportPaths(source, token, offset, overlays);
+      return eofRepair ? result : completeImportPaths(source, token, offset, overlays);
     if (token.kind == TokenKind::Identifier && token.span.begin <= offset &&
         offset <= token.span.end) {
       result.replacement = token.span;
@@ -180,7 +180,7 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
     replacement.insert(at, " " + std::string(filler));
   }
   if (closures) {
-    if (calleeRepair)
+    if (eofRepair)
       replacement.append(closures, ')');
     else
       replacement.insert(result.replacement.begin + probe.size(), closures, ')');
@@ -308,21 +308,23 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
   }
   if (!site)
     return result;
-  if (calleeRepair) {
-    // Repair after the cursor is allowed only for a parsed call target. Appending
-    // at EOF preserves every original argument/suffix; it does not project a hole.
-    const auto isCallee = [&](const Expr &expression) {
-      const auto *call = std::get_if<CallExpr>(&expression.value);
-      if (!call)
-        return false;
-      const auto &callee = syntax->module.expressions[call->callee];
-      if (const auto *name = std::get_if<NameExpr>(&callee.value))
+  if (eofRepair) {
+    // Preserve every original suffix while closing only at EOF. A final argument
+    // still goes through ordinary callee/prefix checking before completion is reached.
+    const auto selectedName = [&](const Expr &expression) {
+      if (const auto *name = std::get_if<NameExpr>(&expression.value))
         return name->name.begin <= site->begin && name->name.end == site->end;
-      if (const auto *field = std::get_if<FieldExpr>(&callee.value))
+      if (const auto *field = std::get_if<FieldExpr>(&expression.value))
         return field->field.begin == site->begin && field->field.end == site->end;
       return false;
     };
-    if (!std::ranges::any_of(syntax->module.expressions, isCallee))
+    const auto eligibleCall = [&](const Expr &expression) {
+      const auto *call = std::get_if<CallExpr>(&expression.value);
+      return call && (selectedName(syntax->module.expressions[call->callee]) ||
+                      (!call->arguments.empty() &&
+                       selectedName(syntax->module.expressions[call->arguments.back()])));
+    };
+    if (!std::ranges::any_of(syntax->module.expressions, eligibleCall))
       return result;
   }
   ScopeCompletion query{*site, prefix, {}, false, false};

@@ -119,3 +119,5 @@ Installed-editor acceptance also applies [transfer call-target completion](nativ
 Installed-editor acceptance also requests [checked device-selector guidance](native-language-server.md#checked-device-selector-guidance), verifies CPU/default-GPU hovers and the explicit uint32 index signature, and preserves source and disk files without probing hardware.
 
 Installed-editor acceptance also applies [a call-name completion before missing closing parentheses](native-language-server.md#call-target-completion-before-missing-parentheses), verifies that arguments and the actual delimiter diagnostic remain, then checks the call after explicitly closing it. Disk sources remain unchanged.
+
+Installed-editor acceptance also applies [final-argument suffix completion](native-language-server.md#final-argument-suffix-completion) to a checked record field in an open call, preserves the receiver and actual delimiter diagnostic, then verifies checked hover after explicitly closing the call. Disk sources remain unchanged.

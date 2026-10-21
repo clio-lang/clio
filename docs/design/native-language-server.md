@@ -553,14 +553,16 @@ same completion names and whole-identifier replacement rules as balanced source.
 A balanced call that is still missing later parameters can also provide names in
 its current final argument.
 
-Argument completion and signature help share the same trailing-call delimiter policy:
-the original cursor must be at the end of the buffer with only whitespace after
+The initial argument-completion and signature-help paths share a trailing-call
+delimiter policy: the original cursor must be at the end of the buffer with only whitespace after
 it, the only lexical errors may be unclosed delimiters, and at most eight
 parentheses can be closed. Arrays/records, mismatches, strings, remaining suffixes
 and later source are not repaired. The existing completion probe and any temporary
 parentheses count against source budgets. The graph still has to parse after the
-repair; this is not general parser recovery. Call-target names additionally use
-the bounded EOF repair described [below](#call-target-completion-before-missing-parentheses).
+repair; this is not general parser recovery. Call-target names and simple final
+argument names/members additionally use the bounded EOF repair described
+[below](#call-target-completion-before-missing-parentheses) and its
+[final-argument extension](#final-argument-suffix-completion).
 
 For a known function whose current final argument contains the query but later
 parameters are missing, the checker validates the callee and supplied prefix,
@@ -1105,10 +1107,10 @@ retain their existing scope, receiver and placement rules.
 For this call-target-only case, the temporary source appends at most eight closing
 parentheses at EOF. It preserves all original text after the selected name instead
 of closing the call at the cursor or removing arguments. The repaired graph must
-parse, and the probe must be exactly a parsed call's name or member. An ordinary
-argument name with an identifier suffix after the cursor does not gain recovery
-from this path. Existing end-of-buffer argument completion and signature-help
-recovery keep their original stricter boundary.
+parse. Call targets require the probe to be exactly the call's name or member;
+the [final-argument extension](#final-argument-suffix-completion) below now also
+permits a simple final argument name/member. Existing signature-help recovery
+keeps its original stricter boundary.
 
 Unclosed arrays/records, mismatched delimiters, other lexical errors, malformed
 arguments, remaining syntax errors and repairs beyond the eight-parenthesis or
@@ -1126,3 +1128,40 @@ source. Original-file replacement ranges and prefix filtering remain unchanged.
 covers direct/nested/piped/qualified/member call names, preserved arguments,
 recovery exclusions and bounds, imported overlays, ordinary delimiter diagnostics,
 relocated Release tools and an applied completion in installed VS Code.
+
+#### Final-argument suffix completion
+
+EOF-only parenthesis repair now also permits a partly typed simple final argument
+when its identifier suffix follows the cursor. For example, `combine(1, vaSuffix`
+with the cursor after `va` can offer a lexical `value` binding. A checked record
+argument such as `combine(1, reading.vaSuffix` can offer the receiver's `value`
+field. The edit covers the complete identifier and leaves receiver text, supplied
+arguments and the unfinished call intact. Grouped names and checked function-value
+callees use the same path. A supplied first argument can receive completion even
+when later parameters have not yet been written.
+
+After temporary parentheses are appended at EOF, the probe must be exactly a
+parsed call target or a simple name/member serving as the call's final argument.
+Compound expressions and non-final arguments do not use this extension. No
+source suffix is discarded or replaced with closing parentheses at the cursor.
+The existing eight-parenthesis, lexical-error, delimiter and source-size bounds
+still apply; the entire temporary graph must parse.
+
+Ordinary semantic analysis checks the callee and earlier supplied arguments
+before reaching the final argument's completion query. Unknown/noncallable
+callees, invalid earlier types and unknown record receivers suppress suggestions.
+Record member candidates follow current imported types, including unsaved edits.
+Lexical names retain the existing policy: an offered name is not a guarantee
+that its value satisfies the expected parameter type.
+
+Accepting a suggestion changes only the selected name. Actual unclosed-delimiter
+diagnostics remain until the user closes the call; hover still requires valid
+source. Signature help retains its existing end-cursor recovery boundary. These
+requests publish no probe diagnostics, partial typed modules or file writes.
+
+[Argument-suffix qualification](../../native/metal-proof/evidence/native-lsp-argument-suffix-completion-2026-10-21.json)
+covers lexical/member suffixes, grouped and function-value calls, prefix/receiver
+checks, imported overlays, compound/non-final exclusions, source preservation and
+actual diagnostics in debug/sanitizer and relocated Release tools. Installed VS
+Code applies a field-only edit, retains the delimiter diagnostic, and checks the
+call after explicit closure.

@@ -864,6 +864,22 @@ async function run() {
   checks.push("Callee completion inside an unclosed argument list preserves arguments and the actual delimiter diagnostic, then checks after the user closes the call");
   await replace(main, mainDisk);
   await clearDiagnostics(main);
+  const openArgumentSource = "type Reading:\n  value:int\nfn combine(left:int,right:int):\n  left+right\nfn main():\n  reading=Reading {value:2}\n  combine(1,reading.va|Suffix\n";
+  const openArgumentCompletion = await complete(main, openArgumentSource, "value");
+  const openArgumentItem = openArgumentCompletion.items.find((item) => label(item) === "value");
+  assert.equal(openArgumentItem.kind, vscode.CompletionItemKind.Field);
+  await applyCompletion(main, openArgumentItem, "vaSuffix", "value");
+  const appliedOpenArgument = openArgumentSource.replace("va|Suffix", "value");
+  assert.equal(main.getText(), appliedOpenArgument);
+  await eventually(() => vscode.languages.getDiagnostics(mainUri).some((item) => item.code === "L005"),
+    "real delimiter diagnostic after final argument completion");
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, appliedOpenArgument.trimEnd()+")\n");
+  await clearDiagnostics(main);
+  assert(hoverText(await hover(main, "value)")).includes("int64"));
+  checks.push("Final argument field completion replaces the full suffix in an open call while preserving source, receiver and real delimiter diagnostics until explicit closure");
+  await replace(main, mainDisk);
+  await clearDiagnostics(main);
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,
