@@ -795,6 +795,26 @@ async function run() {
   await clearDiagnostics(main);
   assert(main.getText().includes("devices.gpu(1)"));
   assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  const transferSource = "fn main()->int ! TaskError:\n  try parallel:\n    values=tensor([1,2])\n    resident=try await transfer(values,devices.gpu(1))\n    host=try await transfer(resident,devices.cpu())\n    reduceSum(host)\n";
+  await replace(main, transferSource);
+  await clearDiagnostics(main);
+  const transferLabel = "fn transfer(input: Tensor[int64, 2], target: Device[gpu:1]) -> task<Tensor[int64, 2] on gpu:1>";
+  assert(hoverText(await hover(main, "transfer(values")).includes(transferLabel));
+  const transferSignature = await eventually(async () => {
+    const result = await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider", mainUri,
+      position(main, "transfer(values,devices.gpu(1))", 16), ",",
+    );
+    return result?.signatures?.[0]?.label === transferLabel ? result : undefined;
+  }, "checked transfer signature");
+  assert.equal(transferSignature.activeParameter, 1);
+  assert.equal(transferSignature.signatures[0].parameters.length, 2);
+  assert(hoverText(await hover(main, "transfer(resident")).includes(
+    "fn transfer(input: Tensor[int64, 2] on gpu:1, target: Device[cpu]) -> task<Tensor[int64, 2]>"
+  ));
+  assert.equal(main.getText(), transferSource);
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  checks.push("Transfer hover and signature help expose checked tensor shapes, exact GPU/CPU residency and task results without hardware probes or source changes");
   await replace(main, mainDisk);
   await vscode.workspace.getConfiguration("kalandra.native").update(
     "placement", false, vscode.ConfigurationTarget.Workspace,

@@ -989,3 +989,34 @@ covers placement-mode gating, empty/partial members, explicit indices, local and
 parameter shadows, imported source spans and ordinary diagnostics in debug and
 sanitizer builds. Relocated Release tools and installed VS Code also exercise the
 placement-setting restart and a member-only edit with its index preserved.
+
+#### Checked transfer guidance
+
+With placement checking enabled, hover and signature help on a valid `transfer`
+call show the checked input tensor, exact target device, and returned task. For
+example, transferring an `int64` tensor of length two to `devices.gpu(1)` shows:
+
+```text
+fn transfer(input: Tensor[int64, 2], target: Device[gpu:1]) -> task<Tensor[int64, 2] on gpu:1>
+```
+
+The return transfer to CPU memory shows the GPU residency on its input and a
+CPU tensor in its task result. Dynamic axes remain `?`, without private extent
+identities. Direct and piped calls share the checked operation; in a piped call,
+the explicit device argument selects the second parameter. Hover covers only
+the builtin name. These are call-specific descriptions, not first-class function
+declarations or new annotation syntax.
+
+Guidance requires a fully checked graph and the existing owning parallel group.
+Invalid targets, unhandled tasks and unrelated graph errors provide no checked
+builtin hint. Placement-disabled programs retain ordinary source-function
+resolution for a function named `transfer`. Missing operands do not receive an
+invented transfer contract. No hardware enumeration, Metal initialization, source
+changes or diagnostic publications occur during these requests. Frontend types
+and selector indices describe the source contract; they do not expand GPU backend
+element-type admission or establish that a device exists.
+
+[Transfer-guidance qualification](../../native/metal-proof/evidence/native-lsp-transfer-guidance-2026-10-21.json)
+covers checked GPU-bound and CPU-bound transfers, exact indices, fixed/dynamic
+shapes, direct/piped calls, invalid graphs and placement gating, with debug and
+sanitizer suites, relocated Release tools and installed VS Code.

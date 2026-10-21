@@ -8,12 +8,12 @@ static void require(bool ok, const std::string &message) {
   if (!ok)
     throw std::runtime_error(message);
 }
-static std::optional<lsp::SignatureInfo> query(std::string text) {
+static std::optional<lsp::SignatureInfo> query(std::string text, CheckOptions options = {}) {
   const auto cursor = text.rfind('|');
   require(cursor != text.npos, "missing cursor");
   text.erase(cursor, 1);
   return lsp::signatureInfo(parse(std::make_shared<const SourceFile>("signature.k", text)),
-                            "signature.k", cursor);
+                            "signature.k", cursor, options);
 }
 static std::optional<lsp::SignatureInfo> recover(std::string text) {
   const auto cursor = text.rfind('|');
@@ -520,6 +520,49 @@ int main() {
     require(!query("fn main():\n  map([1],|fn(v:int,w:int):v+w)\n"), "invalid callback arity");
     require(!query("fn main():\n  parallelMap([1],|fn(v:int):v*2)\n"), "unhandled task errors block hints");
     require(!query("fn main():\n  map([1],|fn(v:String):v)\n"), "incompatible map callback input");
+    CheckOptions placement;
+    placement.placement = true;
+    const std::string transferStart =
+        "fn main()->int ! TaskError:\n  try parallel:\n"
+        "    values=tensor([1,2])\n";
+    const std::string transferEnd =
+        "\n    host=try await transfer(resident,devices.cpu())\n    reduceSum(host)\n";
+    result = query(transferStart +
+                       "    resident=try await transfer(values,|devices.gpu(1))" + transferEnd,
+                   placement);
+    require(result && result->label ==
+                "fn transfer(input: Tensor[int64, 2], target: Device[gpu:1]) -> task<Tensor[int64, 2] on gpu:1>" &&
+                result->activeParameter == 1 && result->parameters.size() == 2,
+            "transfer exposes checked shape, exact device and task result");
+    result = query(transferStart +
+                       "    resident=try await (values -> transfer(|devices.gpu(1)))" + transferEnd,
+                   placement);
+    require(result && result->activeParameter == 1 &&
+                result->parameters[0] == "input: Tensor[int64, 2]",
+            "piped transfer selects device argument");
+    result = query(transferStart +
+                       "    resident=try await transfer(values,devices.gpu(1))\n"
+                       "    host=try await transfer(resident,|devices.cpu())\n    reduceSum(host)\n",
+                   placement);
+    require(result && result->label ==
+                "fn transfer(input: Tensor[int64, 2] on gpu:1, target: Device[cpu]) -> task<Tensor[int64, 2]>",
+            "return transfer preserves input residency and CPU result");
+    result = query("fn move(values:Tensor[float32,?,2])->int ! TaskError:\n  try parallel:\n"
+                   "    resident=try await transfer(values,|devices.gpu())\n"
+                   "    host=try await transfer(resident,devices.cpu())\n    0\nfn main():\n  0\n",
+                   placement);
+    require(result && result->label ==
+                "fn transfer(input: Tensor[float32, ?, 2], target: Device[gpu:0]) -> task<Tensor[float32, ?, 2] on gpu:0>",
+            "dynamic transfer shapes hide private extent identities");
+    require(!query("fn main():\n  transfer(tensor([1]),|devices.gpu())\n", placement),
+            "transfer outside an owning group cannot offer a signature");
+    require(!query(transferStart + "    resident=try await transfer(values,|1)" + transferEnd, placement),
+            "invalid transfer target has no guessed signature");
+    require(!query(transferStart + "    resident=try await transfer(values,|devices.gpu(1))" + transferEnd),
+            "placement-disabled transfer has no builtin signature");
+    result = query("fn transfer(value:int):\n  value+1\nfn main():\n  transfer(|2)\n");
+    require(result && result->label == "fn transfer(value: int64) -> int64",
+            "CPU-mode source function retains ordinary transfer signature");
     std::cout << "Native checked signature help passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

@@ -149,7 +149,8 @@ std::optional<SignatureInfo> callableSignature(const TypedModule &module, const 
 bool hasBuiltinSignature(std::string_view name) {
   return name == "length" || name == "byteLength" || name == "shape" || name == "slice" ||
          name == "concat" || name == "reduceSum" || name == "matmul" || name == "array" ||
-         name == "map" || name == "parallelMap" || resolveNumeric(name).has_value();
+         name == "map" || name == "parallelMap" || name == "transfer" ||
+         resolveNumeric(name).has_value();
 }
 std::optional<SignatureInfo> builtinSignature(const TypedModule &module, SourceSpan call,
                                               std::string_view name, std::size_t active) {
@@ -177,6 +178,10 @@ std::optional<SignatureInfo> builtinSignature(const TypedModule &module, SourceS
                             function.declaredResult.value_or(function.resultType)});
       arguments = {map->input};
       labels = {"input", "callback"};
+    } else if (const auto *transfer = std::get_if<Transfer>(&expression.operation);
+               transfer && name == "transfer") {
+      arguments = {transfer->input, transfer->target};
+      labels = {"input", "target"};
     } else if (const auto *conversion = std::get_if<NumericConvert>(&expression.operation);
                conversion && resolveNumeric(name) == expression.type.element) {
       arguments = {conversion->input};

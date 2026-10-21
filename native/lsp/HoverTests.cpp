@@ -7,15 +7,15 @@ static void require(bool ok, const std::string &message) {
     throw std::runtime_error(message);
 }
 static std::optional<lsp::HoverInfo> query(const std::string &text, const std::string &needle,
-                                           std::size_t within = 0) {
+                                           std::size_t within = 0, CheckOptions options = {}) {
   const auto at = text.find(needle);
   require(at != std::string::npos, "missing test token");
   auto source = std::make_shared<const SourceFile>("hover.k", text);
-  return lsp::hoverInfo(parse(source), "hover.k", at + within);
+  return lsp::hoverInfo(parse(source), "hover.k", at + within, options);
 }
 static void expect(const std::string &text, const std::string &needle, const std::string &expected,
-                   std::size_t within = 0) {
-  auto result = query(text, needle, within);
+                   std::size_t within = 0, CheckOptions options = {}) {
+  auto result = query(text, needle, within, options);
   require(result && result->text == expected, "hover mismatch for " + needle + ": " +
                                                   (result ? result->text : "null") +
                                                   " != " + expected + "\nsource:\n" + text);
@@ -125,6 +125,25 @@ int main() {
             "comments cannot create builtin hover targets");
     require(!query("fn main():\n  length([1])\n", "length", 6),
             "builtin hover excludes the following parenthesis");
+    CheckOptions placement;
+    placement.placement = true;
+    const std::string transfers =
+        "fn main()->int ! TaskError:\n  try parallel:\n    values=tensor([1,2])\n"
+        "    resident=try await transfer(values,devices.gpu(1))\n"
+        "    host=try await transfer(resident,devices.cpu())\n    reduceSum(host)\n";
+    expect(transfers, "transfer(values",
+           "fn transfer(input: Tensor[int64, 2], target: Device[gpu:1]) -> task<Tensor[int64, 2] "
+           "on gpu:1>",
+           0, placement);
+    expect(transfers, "transfer(resident",
+           "fn transfer(input: Tensor[int64, 2] on gpu:1, target: Device[cpu]) -> "
+           "task<Tensor[int64, 2]>",
+           0, placement);
+    require(!query(transfers, "transfer(values"), "CPU mode rejects placement builtin hover");
+    require(!query(transfers + "fn broken():\n  missing\n", "transfer(values", 0, placement),
+            "failed graphs suppress transfer hover");
+    expect("fn transfer(v:int):\n  v+1\nfn main():\n  transfer(2)\n", "transfer(2)",
+           "fn transfer(v: int64) -> int64");
     std::cout << "Native hover: checked values, signatures, fields, closures, shapes, errors, "
                  "literal safety, source ranges and failure isolation passed\n";
   } catch (const std::exception &e) {

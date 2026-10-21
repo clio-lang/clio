@@ -1787,6 +1787,54 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert client.completion(signature_document, 1, start+1)["result"]["items"] == []
     client.finish()
 
+    # Transfer guidance uses checked placement IR, without enumerating hardware.
+    client = Client('--placement')
+    client.init(formats=['markdown'], signature_offsets=True)
+    transfer_text = ('# 👩\nfn main()->int ! TaskError:\n  try parallel:\n'
+                     '    values=tensor([1,2])\n'
+                     '    resident=try await transfer(values,devices.gpu(1))\n'
+                     '    host=try await transfer(resident,devices.cpu())\n    reduceSum(host)\n')
+    client.open(signature_document, transfer_text)
+    assert not publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    transfer_labels = [
+        'fn transfer(input: Tensor[int64, 2], target: Device[gpu:1]) -> task<Tensor[int64, 2] on gpu:1>',
+        'fn transfer(input: Tensor[int64, 2] on gpu:1, target: Device[cpu]) -> task<Tensor[int64, 2]>',
+    ]
+    for line, expected in zip([4,5], transfer_labels):
+        text_line = transfer_text.splitlines()[line]
+        start = text_line.index('transfer')
+        hover = client.hover(signature_document, line, start+1)['result']
+        assert hover['contents'] == {'kind':'markdown', 'value':'```kalandra\n'+expected+'\n```'}, hover
+        assert hover['range'] == {'start':{'line':line,'character':start},
+                                  'end':{'line':line,'character':start+8}}, hover
+        result = client.signature(signature_document, line, text_line.index(',')+1)['result']
+        assert result['signatures'][0]['label'] == expected and result['activeParameter'] == 1, result
+        params = result['signatures'][0]['parameters']
+        assert len(params) == 2
+        for param in params:
+            begin,end = param['label']
+            assert expected[begin:end].startswith(('input:', 'target:')), result
+    assert not client.barrier(), 'transfer queries published diagnostics'
+    changed = transfer_text.replace('gpu(1)', 'gpu(4294967295)')
+    client.change(signature_document, changed, 2)
+    assert not publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    result = client.signature(signature_document, 4, changed.splitlines()[4].index(',')+1)['result']
+    assert 'Device[gpu:4294967295]' in result['signatures'][0]['label'], result
+    invalid = transfer_text.replace('devices.gpu(1)', '1')
+    client.change(signature_document, invalid, 3)
+    assert publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert client.hover(signature_document, 4, invalid.splitlines()[4].index('transfer')+1)['result'] is None
+    assert client.signature(signature_document, 4, invalid.splitlines()[4].index(',')+1)['result'] is None
+    assert not signature_document.exists()
+    client.finish()
+    client = Client()
+    client.init()
+    client.open(signature_document, transfer_text)
+    assert publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert client.hover(signature_document, 4, transfer_text.splitlines()[4].index('transfer')+1)['result'] is None
+    assert client.signature(signature_document, 4, transfer_text.splitlines()[4].index(',')+1)['result'] is None
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"
