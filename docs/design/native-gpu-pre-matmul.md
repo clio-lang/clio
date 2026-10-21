@@ -63,8 +63,8 @@ large source bodies may need ordinary helper boundaries.
 ## Boundaries and qualification
 
 [One matrix product followed by one reduction](native-gpu-matmul-reduction.md)
-now reuses these input stages and returns a scalar task. Further primitives and
-scalar arithmetic after that pair, data-dependent GPU branches,
+now reuses these input stages and returns a scalar task. Further primitives,
+data-dependent GPU branches,
 recursive helpers, broader numeric types and higher-rank operations remain
 separate lowering work. This change does not introduce custom shaders or a
 public kernel ABI. Supported unused arithmetic may be removed, but additional

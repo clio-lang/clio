@@ -237,7 +237,7 @@ struct Bridge {
     std::optional<Error> preparation{};
     Kernel reduction{}, epilogue{}, matrixPost{};
     Buffer replacement{};
-    std::shared_ptr<const Arguments> postArguments{};
+    std::shared_ptr<const Arguments> postArguments{}, scalarArguments{};
     Kernel matrixLeftMap{}, matrixRightMap{};
     std::shared_ptr<const Arguments> leftArguments{}, rightArguments{};
   };
@@ -380,7 +380,7 @@ struct Bridge {
         return nil;
       }
       f.scratch->postOutput = *output;
-      const auto &bits = f.packet.postArguments->scalarBits;
+      const auto &bits = f.packet.scalarArguments->scalarBits;
       auto parameters = allocateMetal(state, index, (std::uint64_t(bits.size()) + 1) * 4, true);
       if (!parameters) {
         f.error = parameters.error();
@@ -556,6 +556,7 @@ struct Bridge {
         } else if (!f.packet.reduction && !f.packet.matrixPost) {
           f.packet.epilogue = Kernel{};
           f.packet.postArguments.reset();
+          f.packet.scalarArguments.reset();
           task.complete(f.packet.kind == Kind::Reduce ? static_cast<const void *>(&f.scalar)
                                                       : &f.result);
           return;
@@ -600,8 +601,8 @@ struct Bridge {
         const auto signature = kernel->signature.value_or(ElementwiseSignature{2, 0});
         if (!base || !kernel->elementwise || kernel->reduction || kernel->matrix ||
             kernel->projected || kernel->indirect() || signature.tensors != 1 ||
-            !f.packet.postArguments ||
-            signature.scalars != f.packet.postArguments->scalarBits.size() ||
+            !f.packet.scalarArguments ||
+            signature.scalars != f.packet.scalarArguments->scalarBits.size() ||
             kernel->registry != state || kernel->index != base->index) {
           task.fault(std::int64_t(Error::Invalid));
           return;
@@ -1392,7 +1393,8 @@ TaskHandle Runtime::matmulReduceSum(TaskCore &task, GroupHandle group, Kernel ma
                                     Kernel rightMap, std::span<const Buffer> mapInputs,
                                     std::span<const float> mapScalars, Kernel adjustment,
                                     std::span<const Buffer> adjustmentInputs,
-                                    std::span<const float> adjustmentScalars) noexcept {
+                                    std::span<const float> adjustmentScalars, Kernel epilogue,
+                                    std::span<const float> epilogueScalars) noexcept {
   Bridge::PacketData packet{state_,
                             std::move(left),
                             {},
@@ -1411,6 +1413,15 @@ TaskHandle Runtime::matmulReduceSum(TaskCore &task, GroupHandle group, Kernel ma
       packet.preparation = args.error();
     packet.matrixPost = std::move(adjustment);
   } else if (!adjustmentInputs.empty() || !adjustmentScalars.empty())
+    packet.preparation = Error::Invalid;
+  if (epilogue) {
+    auto args = Bridge::capture(state_, epilogue, std::array{packet.input}, epilogueScalars);
+    if (args)
+      packet.scalarArguments = *args;
+    else
+      packet.preparation = args.error();
+    packet.epilogue = std::move(epilogue);
+  } else if (!epilogueScalars.empty())
     packet.preparation = Error::Invalid;
   Bridge::matrixMaps(packet, std::move(leftMap), std::move(rightMap), mapInputs, mapScalars);
   return task.submit(group, Bridge::reductionEntry,
@@ -1421,7 +1432,8 @@ TaskHandle Runtime::matmulReduceSum(Task &task, GroupHandle group, Kernel matrix
                                     std::span<const Buffer> mapInputs,
                                     std::span<const float> mapScalars, Kernel adjustment,
                                     std::span<const Buffer> adjustmentInputs,
-                                    std::span<const float> adjustmentScalars) noexcept {
+                                    std::span<const float> adjustmentScalars, Kernel epilogue,
+                                    std::span<const float> epilogueScalars) noexcept {
   Bridge::PacketData packet{state_,
                             std::move(left),
                             {},
@@ -1440,6 +1452,15 @@ TaskHandle Runtime::matmulReduceSum(Task &task, GroupHandle group, Kernel matrix
       packet.preparation = args.error();
     packet.matrixPost = std::move(adjustment);
   } else if (!adjustmentInputs.empty() || !adjustmentScalars.empty())
+    packet.preparation = Error::Invalid;
+  if (epilogue) {
+    auto args = Bridge::capture(state_, epilogue, std::array{packet.input}, epilogueScalars);
+    if (args)
+      packet.scalarArguments = *args;
+    else
+      packet.preparation = args.error();
+    packet.epilogue = std::move(epilogue);
+  } else if (!epilogueScalars.empty())
     packet.preparation = Error::Invalid;
   Bridge::matrixMaps(packet, std::move(leftMap), std::move(rightMap), mapInputs, mapScalars);
   return task.spawn(group, Bridge::reductionEntry,
@@ -1453,7 +1474,7 @@ TaskHandle Runtime::reduceSum(TaskCore &core, GroupHandle group, Kernel kernel, 
   if (epilogue) {
     auto arguments = Bridge::capture(state_, epilogue, std::array{packet.input}, scalars);
     if (arguments)
-      packet.postArguments = *arguments;
+      packet.scalarArguments = *arguments;
     else
       packet.preparation = arguments.error();
     packet.epilogue = std::move(epilogue);
@@ -1470,7 +1491,7 @@ TaskHandle Runtime::reduceSum(Task &task, GroupHandle group, Kernel kernel, Buff
   if (epilogue) {
     auto arguments = Bridge::capture(state_, epilogue, std::array{packet.input}, scalars);
     if (arguments)
-      packet.postArguments = *arguments;
+      packet.scalarArguments = *arguments;
     else
       packet.preparation = arguments.error();
     packet.epilogue = std::move(epilogue);
@@ -1502,7 +1523,7 @@ TaskHandle Runtime::elementwiseReduceSum(TaskCore &core, GroupHandle group, Kern
   packet.reduction = std::move(reduction);
   if (epilogue) {
     packet.epilogue = std::move(epilogue);
-    packet.postArguments = packet.arguments;
+    packet.scalarArguments = packet.arguments;
   }
   return core.submit(group, Bridge::reductionEntry,
                      {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
@@ -1527,7 +1548,7 @@ TaskHandle Runtime::elementwiseReduceSum(Task &task, GroupHandle group, Kernel m
   packet.reduction = std::move(reduction);
   if (epilogue) {
     packet.epilogue = std::move(epilogue);
-    packet.postArguments = packet.arguments;
+    packet.scalarArguments = packet.arguments;
   }
   return task.spawn(group, Bridge::reductionEntry,
                     {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});

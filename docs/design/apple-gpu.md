@@ -720,8 +720,8 @@ either/both matrix inputs first. One scalar task retains the resident matrix
 and reads back only its final scalar. Matrix/reduction shaders, strict trees,
 shape guards, budgets and command acknowledgement rules remain unchanged.
 [Arithmetic between the product and reduction](native-gpu-matmul-adjust-reduction.md)
-now also stays resident. Scalar arithmetic after this pair and broader numerical
-graphs remain N2 work.
+now also stays resident. [Scalar arithmetic after this pair](native-gpu-matmul-scalar-reduction.md) now
+also stays on GPU. Broader numerical graphs remain N2 work.
 
 ## Matrix-result arithmetic before reduction
 
@@ -730,5 +730,14 @@ now supports `reduceSum((matmul(input, weights) + bias) * scale)`, including
 optional input maps. One scalar task owns the full resident sequence and keeps
 the strict multiplication and final reduction trees unchanged. Full-shape
 guards, direct/Tier 2 bindings and failure/ownership rules reuse existing paths;
-only the final scalar is read back. Scalar arithmetic after the pair and broader
-graphs remain separate N2 work.
+only the final scalar is read back. [Final scalar arithmetic](native-gpu-matmul-scalar-reduction.md)
+now also stays on GPU; broader graphs remain separate N2 work.
+
+## Final scalar arithmetic after matrix reduction
+
+[The final scalar epilogue](native-gpu-matmul-scalar-reduction.md) now supports
+expressions such as `reduceSum(matmul(input, weights) + bias) / count` within one
+GPU task. Matrix and scalar captures remain independent. The scalar dispatch
+runs in the final reduction command before the only readback, including empty
+sums and IEEE division by zero. Existing shape, budget and acknowledgement rules
+remain unchanged; broader numerical graphs and GPU types remain N2 work.

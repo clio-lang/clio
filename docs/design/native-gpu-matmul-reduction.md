@@ -71,8 +71,9 @@ Cached scalar observations remain valid after original input owners are released
 
 [Arithmetic between the product and reduction](native-gpu-matmul-adjust-reduction.md)
 now has its own qualified resident stage, including tensor bias and scalar
-operations. Scalar arithmetic after this composed reduction, more matrix or
-reduction primitives, recursive helpers and data-dependent GPU branches remain
+operations. [Scalar arithmetic after the pair](native-gpu-matmul-scalar-reduction.md)
+now also stays on GPU. More matrix or reduction primitives, recursive helpers
+and data-dependent GPU branches remain
 separate lowering work. Programs can express those calculations with separate
 placed tasks today. Broader GPU numeric types/ranks and custom shader interfaces
 remain separate roadmap items. Existing conservative CPU stack admission is

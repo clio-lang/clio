@@ -70,8 +70,9 @@ A failure never publishes the product or adjusted tensor as the scalar result.
 
 ## Boundaries and qualification
 
-Scalar arithmetic after this composed reduction, additional matrix/reduction
-primitives, recursive helpers and data-dependent GPU branches remain separate
+[Scalar arithmetic after this composed reduction](native-gpu-matmul-scalar-reduction.md)
+now has its own qualified GPU epilogue. Additional matrix/reduction primitives,
+recursive helpers and data-dependent GPU branches remain separate
 lowering work. Existing CPU stack admission remains unchanged. Broader GPU types,
 ranks, custom shaders and NVIDIA/CUDA retain their separate roadmap scope.
 

@@ -316,7 +316,7 @@
         "capabilities/matmul-reduction.k",
         "matmul-reduction.k"
       ],
-      "notes": "One strict matmul followed by one row-major reduceSum under a scalar task; optional independent input maps; matrix-result arithmetic has its own qualification below; scalar epilogues and additional primitives remain separate work",
+      "notes": "One strict matmul followed by one row-major reduceSum under a scalar task; optional input maps, matrix adjustments and final scalar arithmetic have separate qualification; additional primitives remain separate work",
       "evidence": [
         "gpu-matmul-reduction-2026-10-21.json"
       ]
@@ -333,6 +333,20 @@
       "notes": "Strict tensor/scalar arithmetic on one matrix result before one row-major reduceSum; optional input maps; projected direct/Tier 2 bindings; one scalar task",
       "evidence": [
         "gpu-matmul-adjust-reduction-2026-10-21.json"
+      ]
+    },
+    {
+      "id": "matmul-scalar-reduction",
+      "feature": "Scalar arithmetic after a composed matrix reduction",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "capabilities/matmul-scalar-reduction.k",
+        "matmul-scalar-reduction.k"
+      ],
+      "notes": "Strict float32 scalar helpers/arithmetic after the matrix/reduction pair, including empty sums; independent owned captures; optional input maps and matrix adjustment; only final scalar readback",
+      "evidence": [
+        "gpu-matmul-scalar-reduction-2026-10-21.json"
       ]
     }
   ]

@@ -199,6 +199,7 @@ class Compiler {
     std::size_t left = 0, right = 0;
     bool mapped = false, post = false;
     bool leftMapped = false, rightMapped = false;
+    bool scalarPost = false;
   };
   mutable std::map<FunctionId, std::optional<PrimitiveEntry>> primitiveEntries;
   std::optional<PrimitiveEntry> primitiveEntry(FunctionId root) const {
@@ -290,10 +291,15 @@ class Compiler {
             result = a->kind == PrimitiveEntry::Matrix ? a : b;
             result->post = true;
           } else if (!tensor && a && b &&
-                     (a->kind == PrimitiveEntry::Sum || a->kind == PrimitiveEntry::Scalar) &&
-                     (b->kind == PrimitiveEntry::Sum || b->kind == PrimitiveEntry::Scalar)) {
-            result = a->kind == PrimitiveEntry::Sum ? a : b;
-            result->post = true;
+                     (a->kind == PrimitiveEntry::Sum || a->kind == PrimitiveEntry::MatrixSum ||
+                      a->kind == PrimitiveEntry::Scalar) &&
+                     (b->kind == PrimitiveEntry::Sum || b->kind == PrimitiveEntry::MatrixSum ||
+                      b->kind == PrimitiveEntry::Scalar)) {
+            result = a->kind != PrimitiveEntry::Scalar ? a : b;
+            if (result->kind == PrimitiveEntry::MatrixSum)
+              result->scalarPost = true;
+            else
+              result->post = true;
           }
         } else if ((sumSignature || matrixSignature) &&
                    (std::holds_alternative<TensorUnary>(node.operation) ||
@@ -310,9 +316,14 @@ class Compiler {
                      input->kind == PrimitiveEntry::Matrix) {
             result = input;
             result->post = true;
-          } else if (!tensor && input && input->kind == PrimitiveEntry::Sum) {
+          } else if (!tensor && input &&
+                     (input->kind == PrimitiveEntry::Sum ||
+                      input->kind == PrimitiveEntry::MatrixSum)) {
             result = input;
-            result->post = true;
+            if (result->kind == PrimitiveEntry::MatrixSum)
+              result->scalarPost = true;
+            else
+              result->post = true;
           }
         } else if (const auto *call = std::get_if<FunctionCall>(&node.operation)) {
           std::vector<PrimitiveEntry> arguments;
@@ -943,6 +954,21 @@ class Compiler {
             ", m::Kernel{}, m::Kernel{}, std::span<const m::Buffer>{}, std::span<const float>{}";
       arguments += matrixAdjustmentArguments;
     }
+    if (matrixSum && primitiveEntry(function)->scalarPost) {
+      if (!primitiveEntry(function)->leftMapped && !primitiveEntry(function)->rightMapped && !post)
+        arguments +=
+            ", m::Kernel{}, m::Kernel{}, std::span<const m::Buffer>{}, std::span<const float>{}";
+      if (!post)
+        arguments += ", m::Kernel{}, std::span<const m::Buffer>{}, std::span<const float>{}";
+      shader(function, nullptr, true, -1, true);
+      const auto scalarKernel = field("m::Kernel");
+      mappedSetup += "auto scalarPost = r.loadElementwiseKernel(f.directory + \"/kernel" +
+                     std::to_string(entry->second) +
+                     "-scalar.metallib\", *target, m::ElementwiseSignature{1," +
+                     std::to_string(scalars.size()) + "});\nif(!scalarPost){" +
+                     error("scalarPost.error()") + "}\nf." + scalarKernel + "=*scalarPost;\n";
+      arguments += ", f." + scalarKernel + ", " + pack(scalars, "float");
+    }
     steps.push_back("auto target = " + device(target) + ";\nif (!target) { " +
                     error("target.error()") + " }\n" + std::string("auto kernel = r.") +
                     (matrix           ? "loadMatmulKernel"
@@ -1444,8 +1470,8 @@ class Compiler {
 )";
   }
   std::string shader(std::size_t function, std::vector<std::uint32_t> *readInputs = nullptr,
-                     bool post = false, int matrixOperand = -1) const {
-    const bool matrixPost = post && matrixFunction(function);
+                     bool post = false, int matrixOperand = -1, bool finalScalar = false) const {
+    const bool matrixPost = post && matrixFunction(function) && !finalScalar;
     if (!post && matrixOperand < 0 && matrixFunction(function))
       return matmulShader;
     if (!post && !matrixFunction(function) && reduction(function) &&
@@ -1547,7 +1573,7 @@ class Compiler {
           result = post && !matrixPost ? "%lane0" : emit(sum->input);
           reductionInput = result;
         } else if (const auto *matrix = std::get_if<Matmul>(&n.operation);
-                   matrix && (matrixPost || matrixOperand >= 0)) {
+                   matrix && (matrixPost || matrixOperand >= 0 || finalScalar)) {
           if (matrixOperand >= 0)
             matrixInput = emit(matrixOperand == 0 ? matrix->left : matrix->right);
           result = matrixPost ? "%lane0" : "%matrix";
@@ -1837,6 +1863,8 @@ public:
           outputs[base + "-right.mlir"] = shader(function, nullptr, false, 1);
         if (entry->post)
           outputs[base + "-post.mlir"] = shader(function, nullptr, true);
+        if (entry->scalarPost)
+          outputs[base + "-scalar.mlir"] = shader(function, nullptr, true, -1, true);
       }
       if (matrixFunction(function)) {
         outputs[base + "-rows2.mlir"] = matmulRows2Shader;
@@ -2016,6 +2044,14 @@ void resume(Task &task) {
                            : "argument_buffer_tier2") +
                       "\n";
         }
+      }
+      if (auto entry = primitiveEntry(function); entry && entry->scalarPost) {
+        std::size_t scalars = 0;
+        for (auto parameter : cpu.functions[function].parameters)
+          scalars += !cpu.symbols[parameter].type.tensor;
+        manifest += "kernel" + std::to_string(index) + ".scalar_stage=kernel" +
+                    std::to_string(index) + "-scalar\n" + "kernel" + std::to_string(index) +
+                    ".scalar_parameters=" + std::to_string(scalars) + "\n";
       }
       if (auto entry = primitiveEntry(function); entry && entry->kind == PrimitiveEntry::MatrixSum)
         manifest += "kernel" + std::to_string(index) + ".reduction_stage=kernel" +

@@ -100,6 +100,19 @@ int main(int argc, char **argv) {
   auto right = r.loadElementwiseKernel(directory + "/kernel0-right.metallib", *d,
                                        {logicalInputs, 1}, std::array<std::uint32_t, 1>{1});
   CHECK(matrix && reduce && left && right);
+#ifdef KALANDRA_MATRIX_SCALAR
+  auto finalScalar = r.loadElementwiseKernel(directory + "/kernel0-scalar.metallib", *d, {1, 1});
+  CHECK(finalScalar);
+#endif
+  auto finishScalar = [](std::uint32_t bits, float scale) {
+#ifdef KALANDRA_MATRIX_SCALAR
+    auto sum = float_proof::oracle({bits, std::bit_cast<std::uint32_t>(scale)}, 0);
+    return float_proof::oracle({sum ^ 0x80000000u, std::bit_cast<std::uint32_t>(scale)}, 5);
+#else
+    (void)scale;
+    return bits;
+#endif
+  };
   auto graph = [&](TaskCore &core, GroupHandle group, m::Buffer a, m::Buffer b, float scale,
                    m::Buffer bias = {}) {
 #ifdef KALANDRA_MATRIX_ADJUSTMENT
@@ -107,7 +120,12 @@ int main(int argc, char **argv) {
       bias = defaultBias;
     return r.matmulReduceSum(core, group, *matrix, *reduce, a, b, *left, *right,
                              std::array{a, b, bias}, std::array{scale}, *adjust,
-                             std::array{a, a, b, bias}, std::array{scale});
+                             std::array{a, a, b, bias}, std::array{scale}
+#ifdef KALANDRA_MATRIX_SCALAR
+                             ,
+                             *finalScalar, std::array{scale}
+#endif
+    );
 #else
     (void)bias;
     return r.matmulReduceSum(core, group, *matrix, *reduce, a, b, *left, *right, std::array{a, b},
@@ -169,7 +187,12 @@ int main(int argc, char **argv) {
           auto work =
               mapped ? graph(*core, group, ga, gb, scale, gc)
                      : r.matmulReduceSum(*core, group, *matrix, *reduce, ga, gb, {}, {}, {}, {},
-                                         *adjust, std::array{ga, ga, gb, gc}, std::array{scale});
+                                         *adjust, std::array{ga, ga, gb, gc}, std::array{scale}
+#ifdef KALANDRA_MATRIX_SCALAR
+                                         ,
+                                         *finalScalar, std::array{scale}
+#endif
+                       );
 #else
           auto work = mapped ? graph(*core, group, ga, gb, scale)
                              : r.matmulReduceSum(*core, group, *matrix, *reduce, ga, gb);
@@ -197,7 +220,12 @@ int main(int argc, char **argv) {
           CHECK(adjusted && core->drain());
           resident = observe(*core, adjusted);
 #endif
-          auto separate = r.reduceSum(*core, group, *reduce, resident);
+          auto separate = r.reduceSum(*core, group, *reduce, resident
+#ifdef KALANDRA_MATRIX_SCALAR
+                                      ,
+                                      *finalScalar, std::array{scale}
+#endif
+          );
           CHECK(separate && core->drain());
           Invocation cpuContext;
           auto descriptor = [&](const auto &bits, std::array<std::int64_t, 2> dims) {
@@ -237,6 +265,7 @@ int main(int argc, char **argv) {
               products.push_back(cell);
             }
           auto expected = sum(std::move(products));
+          expected = finishScalar(expected, scale);
           CHECK(float_proof::equal(scalar(*core, work), expected));
           CHECK(float_proof::equal(scalar(*core, separate), expected));
           CHECK(float_proof::equal(std::bit_cast<std::uint32_t>(cpu), expected));
@@ -264,7 +293,7 @@ int main(int argc, char **argv) {
     auto work = graph(*core, group, a, b, 2);
     CHECK(work && core->drain());
     if (success)
-      CHECK(scalar(*core, work) == std::bit_cast<std::uint32_t>(retainedValue));
+      CHECK(scalar(*core, work) == finishScalar(std::bit_cast<std::uint32_t>(retainedValue), 2.0f));
     else {
       CHECK(core->failure(work).kind == TaskFailure::Fault && core->failure(work).code == 2);
       Invocation context;
@@ -370,6 +399,24 @@ int main(int argc, char **argv) {
     empty(r, baseline);
   }
 #endif
+#ifdef KALANDRA_MATRIX_SCALAR
+  // Final scalar captures cannot be confused with the matrix adjustment pack.
+  for (bool wrongKernel : {false, true}) {
+    auto core = TaskCore::create();
+    CHECK(core);
+    auto group = core->openRoot();
+    auto before = r.stats().submissions;
+    const auto parameters = std::array{2.0f, 3.0f};
+    auto work = r.matmulReduceSum(*core, group, *matrix, *reduce, a, b, {}, {}, {}, {}, {}, {}, {},
+                                  wrongKernel ? *adjust : *finalScalar,
+                                  std::span<const float>(parameters).first(wrongKernel ? 1 : 2));
+    CHECK(work && core->drain());
+    CHECK(core->failure(work).kind == TaskFailure::Fault && core->failure(work).code == 3);
+    CHECK(r.stats().submissions == before);
+    retire(*core, group);
+    empty(r, baseline);
+  }
+#endif
   // Final scalars remain observable after all original inputs are released.
   {
     auto core = TaskCore::create();
@@ -383,7 +430,7 @@ int main(int argc, char **argv) {
     defaultBias = {};
 #endif
     empty(r);
-    CHECK(scalar(*core, work) == std::bit_cast<std::uint32_t>(retainedValue));
+    CHECK(scalar(*core, work) == finishScalar(std::bit_cast<std::uint32_t>(retainedValue), 2.0f));
     retire(*core, group);
   }
   // A single in-flight slot suffices; reject a later-stage allocation after matrix acknowledgement.
@@ -404,6 +451,11 @@ int main(int argc, char **argv) {
                                                std::array<std::uint32_t, 2>{0, 3});
     CHECK(adjustment);
     auto bias = upload(rt, std::vector<std::uint32_t>(12, 0x3f800000u), {3, 4});
+#ifdef KALANDRA_MATRIX_SCALAR
+    auto scalarFinal =
+        rt.loadElementwiseKernel(directory + "/kernel0-scalar.metallib", *dev, {1, 1});
+    CHECK(scalarFinal);
+#endif
     constexpr unsigned paddingWords = 66;
 #else
     constexpr unsigned paddingWords = 78;
@@ -421,7 +473,12 @@ int main(int argc, char **argv) {
     auto before = rt.stats().submissions;
 #ifdef KALANDRA_MATRIX_ADJUSTMENT
     auto work = rt.matmulReduceSum(*core, group, *mul, *red, x, y, {}, {}, {}, {}, *adjustment,
-                                   std::array{x, x, y, bias}, std::array{2.0f});
+                                   std::array{x, x, y, bias}, std::array{2.0f}
+#ifdef KALANDRA_MATRIX_SCALAR
+                                   ,
+                                   *scalarFinal, std::array{2.0f}
+#endif
+    );
 #else
     auto work = rt.matmulReduceSum(*core, group, *mul, *red, x, y);
 #endif
@@ -431,7 +488,7 @@ int main(int argc, char **argv) {
       CHECK(rt.stats().submissions == before + 1);
     } else
 #ifdef KALANDRA_MATRIX_ADJUSTMENT
-      CHECK(scalar(*core, work) == std::bit_cast<std::uint32_t>(264.0f));
+      CHECK(scalar(*core, work) == finishScalar(std::bit_cast<std::uint32_t>(264.0f), 2.0f));
 #else
       CHECK(scalar(*core, work) == std::bit_cast<std::uint32_t>(120.0f));
 #endif

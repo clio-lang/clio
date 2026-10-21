@@ -170,13 +170,15 @@ public:
                              std::span<const Buffer> mapInputs = {},
                              std::span<const float> mapScalars = {}, Kernel adjustment = {},
                              std::span<const Buffer> adjustmentInputs = {},
-                             std::span<const float> adjustmentScalars = {}) noexcept;
+                             std::span<const float> adjustmentScalars = {}, Kernel epilogue = {},
+                             std::span<const float> epilogueScalars = {}) noexcept;
   TaskHandle matmulReduceSum(Task &, GroupHandle, Kernel matrix, Kernel reduction, Buffer left,
                              Buffer right, Kernel leftMap = {}, Kernel rightMap = {},
                              std::span<const Buffer> mapInputs = {},
                              std::span<const float> mapScalars = {}, Kernel adjustment = {},
                              std::span<const Buffer> adjustmentInputs = {},
-                             std::span<const float> adjustmentScalars = {}) noexcept;
+                             std::span<const float> adjustmentScalars = {}, Kernel epilogue = {},
+                             std::span<const float> epilogueScalars = {}) noexcept;
   TaskHandle reduceSum(TaskCore &, GroupHandle, Kernel, Buffer, Kernel epilogue = {},
                        std::span<const float> scalars = {}) noexcept;
   TaskHandle reduceSum(Task &, GroupHandle, Kernel, Buffer, Kernel epilogue = {},
