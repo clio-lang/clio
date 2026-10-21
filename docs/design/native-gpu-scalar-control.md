@@ -52,8 +52,8 @@ branch-dependent allocation or dispatch. Strict arithmetic retains its existing
 rounding and reduction order. Conditional graphs use the existing Tier 2
 argument-buffer interface, including for small signatures. It retains declared
 resources when optimization removes a predicate or an identical arm, avoiding
-shader/runtime binding mismatches. Ordinary tensor helpers keep their existing
-binding layouts. The purity walk is cached and bounded; recursive helpers retain
+shader/runtime binding mismatches. Single-source ordinary tensor helpers keep their existing
+binding layouts; [two-source choices](native-gpu-tensor-sources.md) use the retained-resource interface. The purity walk is cached and bounded; recursive helpers retain
 their existing rejection.
 
 See the [source fixture](../../native/metal-source/scalar-control.k),

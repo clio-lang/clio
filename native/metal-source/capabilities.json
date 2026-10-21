@@ -460,6 +460,19 @@
       "evidence": [
         "gpu-tensor-control-2026-10-21.json"
       ]
+    },
+    {
+      "id": "tensor-sources",
+      "feature": "Choices between equal fixed-shape tensor sources",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "tensor-sources.k"
+      ],
+      "notes": "Pure float32 rank-one/rank-two choices over at most two sources; equal complete fixed shapes, fused arms and resident reduction predicates; unproven/different shapes remain rejected",
+      "evidence": [
+        "gpu-tensor-sources-2026-10-21.json"
+      ]
     }
   ]
 }

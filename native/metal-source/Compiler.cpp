@@ -222,6 +222,7 @@ class Compiler {
     if (!sumSignature && !matrixSignature)
       return cached;
     std::size_t work = 0, primitives = 0;
+    bool differentInputChoice = false;
     std::set<FunctionId> active;
     using Result = std::optional<PrimitiveEntry>;
     std::function<Result(FunctionId, const std::vector<PrimitiveEntry> &)> invoke;
@@ -298,7 +299,8 @@ class Compiler {
             if (!tensor && a->kind == PrimitiveEntry::Scalar && b->kind == PrimitiveEntry::Scalar)
               result = PrimitiveEntry{PrimitiveEntry::Scalar};
             else if (tensor && a->kind == PrimitiveEntry::Input &&
-                     b->kind == PrimitiveEntry::Input && a->left == b->left) {
+                     b->kind == PrimitiveEntry::Input && (a->left == b->left || sumSignature)) {
+              differentInputChoice |= a->left != b->left;
               result = a;
               result->mapped = true;
             }
@@ -396,6 +398,10 @@ class Compiler {
                               ? PrimitiveEntry{PrimitiveEntry::Input, tensorIndex++, 0}
                               : PrimitiveEntry{PrimitiveEntry::Scalar});
     auto result = invoke(root, arguments);
+    // Different-source primitive maps are qualified for terminal sums here.
+    // Matrix operand maps retain their separate projected-binding boundary.
+    if (differentInputChoice && result && result->kind != PrimitiveEntry::Sum)
+      return cached;
     if (result &&
         ((primitives == 1 && ((sumSignature && result->kind == PrimitiveEntry::Sum) ||
                               (matrixSignature && result->kind == PrimitiveEntry::Matrix))) ||
@@ -519,6 +525,9 @@ class Compiler {
   }
   bool pureScalar(ValueId root) const { return pureBranch(root, false); }
   bool pureLane(ValueId root) const { return pureBranch(root, true); }
+  bool retainedChoiceBindings(FunctionId function, std::size_t reads) const {
+    return reads > 1 && !matrixFunction(function) && scalarControl(function);
+  }
   struct MatrixGraph {
     std::size_t inputs = 0, matrixCount = 0;
     std::vector<bool> maps;
@@ -542,16 +551,23 @@ class Compiler {
     auto dependency = [&](std::int64_t value) {
       return value <= -2 ? dependencies.at(-value - 2) : std::set<std::size_t>{};
     };
-    // Speculated arm arithmetic carries a common tensor source and scalar dependencies,
+    // Speculated arm arithmetic carries tensor sources and scalar dependencies,
     // not graph stages. Keep its IDs outside the uint32 graph-value namespace.
     struct Lane {
-      std::int64_t source;
+      std::set<std::int64_t> sources;
       std::set<std::size_t> reduced;
     };
     constexpr std::int64_t laneBase = std::int64_t(UINT32_MAX) + 1;
     std::vector<Lane> lanes;
     std::size_t laneDepth = 0;
-    auto source = [&](std::int64_t v) { return v >= laneBase ? lanes.at(v - laneBase).source : v; };
+    auto sources = [&](std::int64_t v) {
+      return v >= laneBase ? lanes.at(v - laneBase).sources : std::set<std::int64_t>{v};
+    };
+    auto mergedSources = [&](std::int64_t a, std::int64_t b) {
+      auto result = sources(a), other = sources(b);
+      result.insert(other.begin(), other.end());
+      return result;
+    };
     auto laneDependency = [&](std::int64_t v) {
       return v >= laneBase ? lanes.at(v - laneBase).reduced
              : v < 0       ? dependency(v)
@@ -617,10 +633,11 @@ class Compiler {
             if (work > 300000)
               reject(entry.declaration, "GPU reduction dependency analysis limit exceeded");
             if (laneDepth) {
-              if (source(left) != source(right))
+              auto inputs = mergedSources(left, right);
+              if (inputs.size() > 2)
                 return {};
               result = laneBase + lanes.size();
-              lanes.push_back({source(left), std::move(reduced)});
+              lanes.push_back({std::move(inputs), std::move(reduced)});
               values.emplace(value, *result);
               return result;
             }
@@ -687,8 +704,10 @@ class Compiler {
           symbols = std::move(saved);
           if (tensor) {
             --laneDepth;
-            if (!condition || *condition >= 0 || !a || !b || *a < 0 || *b < 0 ||
-                source(*a) != source(*b))
+            if (!condition || *condition >= 0 || !a || !b || *a < 0 || *b < 0)
+              return {};
+            auto inputs = mergedSources(*a, *b);
+            if (inputs.size() > 2)
               return {};
             auto reduced = dependency(*condition), left = laneDependency(*a),
                  right = laneDependency(*b);
@@ -699,12 +718,12 @@ class Compiler {
               reject(entry.declaration, "GPU tensor choice analysis limit exceeded");
             if (laneDepth) {
               result = laneBase + lanes.size();
-              lanes.push_back({source(*a), std::move(reduced)});
+              lanes.push_back({std::move(inputs), std::move(reduced)});
             } else {
               for (auto reduction : reduced)
                 graph.broadcasts.emplace_back(graph.products.size(), reduction);
               result = graph.inputs + graph.products.size();
-              graph.products.emplace_back(source(*a), source(*a));
+              graph.products.emplace_back(*inputs.begin(), *inputs.rbegin());
               graph.maps.push_back(true);
             }
           } else if (condition && a && b && *condition < 0 && *a < 0 && *b < 0) {
@@ -1416,7 +1435,8 @@ class Compiler {
     const bool projected = reads.size() != tensors.size();
     const bool indirect =
         (!sum || mapped) && !matrix &&
-        !kalandra::runtime::metal::directElementwiseLayout(reads.size(), scalars.size());
+        (retainedChoiceBindings(function, reads.size()) ||
+         !kalandra::runtime::metal::directElementwiseLayout(reads.size(), scalars.size()));
     const bool legacy = !projected && !indirect && tensors.size() == 2 && scalars.empty();
     auto signature = ", m::ElementwiseSignature{" + std::to_string(tensors.size()) + "," +
                      std::to_string(scalars.size()) +
@@ -2073,7 +2093,7 @@ class Compiler {
     std::vector<Instruction> instructions;
     std::unordered_map<std::string, std::size_t> definitions;
     std::unordered_map<std::string, std::uint32_t> tensorInputs;
-    // SSA origins enforce the same-source rule while nested arms lower lane by lane.
+    // SSA origins track the source budget while nested arms lower lane by lane.
     std::unordered_map<std::string, std::set<std::string>> origins;
     std::size_t laneDepth = 0;
     std::size_t counter = 0, callDepth = 0;
@@ -2207,12 +2227,26 @@ class Compiler {
           symbols = std::move(saved);
           if (tensor) {
             --laneDepth;
-            if (origins[a].size() != 1 || origins[a] != origins[b])
-              reject(n.span, "GPU tensor choices require one common tensor source in both arms");
+            auto sources = origins[a];
+            sources.insert(origins[b].begin(), origins[b].end());
+            if (sources.empty() || sources.size() > 2)
+              reject(n.span, "GPU fused tensor choices currently support at most two sources");
+            if (sources.size() > 1) {
+              const auto &left = cpu.expressions.at(branch->trueResult).type;
+              const auto &right = cpu.expressions.at(branch->falseResult).type;
+              if (left.shape.size() != right.shape.size())
+                reject(n.span, "GPU tensor choice ranks differ");
+              for (std::size_t axis = 0; axis < left.shape.size(); ++axis)
+                if (!left.shape[axis].constant ||
+                    left.shape[axis].constant != right.shape[axis].constant)
+                  reject(n.span, "different-source GPU choices require equal fixed shapes");
+            }
           }
           result = temporary();
-          if (tensor)
+          if (tensor) {
             origins[result] = origins[a];
+            origins[result].insert(origins[b].begin(), origins[b].end());
+          }
           operands = {condition, a, b};
           if (n.type.builtin == BuiltinValue::Bool)
             instruction << "        " << result << " = arith.select " << condition << ", " << a
@@ -2318,8 +2352,8 @@ class Compiler {
             for (const auto &operand : operands)
               if (auto found = origins.find(operand); found != origins.end())
                 sources.insert(found->second.begin(), found->second.end());
-            if (sources.size() != 1)
-              reject(n.span, "GPU tensor choice arithmetic requires one common tensor source");
+            if (sources.empty() || sources.size() > 2)
+              reject(n.span, "GPU fused tensor choice arithmetic supports at most two sources");
           } else if (!origins.contains(result) || !laneDepth)
             origins[result] = {result};
         }
@@ -2424,8 +2458,10 @@ class Compiler {
         code << instruction.code;
     if (graphStage >= 0)
       tensors = used.size();
-    const bool indirect = (graph && scalarControl(function)) ||
-                          !kalandra::runtime::metal::directElementwiseLayout(used.size(), scalars);
+    const bool indirect =
+        (graph && scalarControl(function)) ||
+        (!post && matrixOperand < 0 && retainedChoiceBindings(function, used.size())) ||
+        !kalandra::runtime::metal::directElementwiseLayout(used.size(), scalars);
     const bool legacy =
         !graph && !indirect && tensors == 2 && scalars == 0 && used.size() == tensors;
     auto parameters = "memref<" + std::to_string(legacy ? 2 : scalars + 1) + "xi32>";
@@ -2906,7 +2942,8 @@ void resume(Task &task) {
       if (auto entry = primitiveEntry(function); entry && entry->mapped)
         manifest += prefix + "reduction_stage=kernel" + std::to_string(index) + "-reduce\n";
       manifest += prefix + "binding_layout=" +
-                  (kalandra::runtime::metal::directElementwiseLayout(reads.size(), scalars)
+                  (!retainedChoiceBindings(function, reads.size()) &&
+                           kalandra::runtime::metal::directElementwiseLayout(reads.size(), scalars)
                        ? "direct"
                        : "argument_buffer_tier2") +
                   "\n";
