@@ -680,6 +680,25 @@ async function run() {
   await replace(main, mainDisk);
   await clearDiagnostics(main);
   checks.push("Collection builtin signature help shows checked String parameters and the piped active argument without changing source");
+  const unfinishedConcat = "fn main():\n  values:[int32]=[1,2]\n  concat(values,";
+  await replace(main, unfinishedConcat);
+  await eventually(() => vscode.languages.getDiagnostics(mainUri).some(d => String(d.code) === "L005"),
+    "actual unfinished concat diagnostic");
+  const concatSignature = await eventually(async () => {
+    const result = await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider", mainUri,
+      main.positionAt(unfinishedConcat.length), ",",
+    );
+    return result?.signatures?.[0]?.label ===
+      "fn concat(left: [int32], right: [int32]) -> [int32]" ? result : undefined;
+  }, "missing concat operand signature");
+  assert.equal(concatSignature.activeParameter, 1);
+  assert.equal(main.getText(), unfinishedConcat);
+  assert(vscode.languages.getDiagnostics(mainUri).some(d => String(d.code) === "L005"));
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  await clearDiagnostics(main);
+  checks.push("Missing concat operand guidance derives int32 arrays from the checked left operand and preserves the unfinished source and its syntax diagnostic");
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,

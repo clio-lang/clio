@@ -97,3 +97,5 @@ Installed-editor acceptance also applies a [public function import completion](n
 Installed-editor acceptance also applies a [relative import-path completion](native-language-server.md#relative-import-path-completion), checks its File item kind and string-only replacement range, and verifies that the aliased call checks and has hover information without changing disk sources.
 
 Installed-editor acceptance now requests a [checked collection builtin signature](native-language-server.md#checked-collection-builtin-signatures) for a piped String slice, verifies all three parameter labels and the active explicit argument, and preserves the buffer and disk sources.
+
+Installed-editor acceptance also checks [a missing concat operand](native-language-server.md#missing-concat-operand-guidance): an unfinished call shows the checked int32 array contract and active right operand while its source, disk file and actual unclosed-delimiter diagnostic remain unchanged.

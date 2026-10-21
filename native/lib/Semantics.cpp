@@ -2042,6 +2042,26 @@ private:
   std::optional<ValueId> arrayConcat(Frame &frame, SourceSpan span,
                                      const std::vector<ExprId> &arguments,
                                      const std::optional<ValueType> &expected) {
+    const auto array = [](const ValueType &type) {
+      return type.array && type.tensor && type.shape.size() == 1 && !type.task && !type.fallible &&
+             !type.device && (type.builtin == BuiltinValue::Numeric || isOwnedArray(type));
+    };
+    const auto elementContext = [](ValueType type) {
+      type.shape = {{{}, 0}};
+      return type;
+    };
+    std::optional<ValueType> context =
+        expected && expected->array ? std::optional(elementContext(*expected)) : std::nullopt;
+    // The first checked array fixes concat's element contract. Capture that
+    // contract only for this editor query, before the ordinary arity error.
+    if (queryingSignature(span) && arguments.size() == 1 && !options_.placement) {
+      if (const auto left = expression(frame, arguments[0], context);
+          left && diagnostics_.empty() && array(node(*left).type)) {
+        const auto first = node(*left).type;
+        const auto other = elementContext(first);
+        captureSignature(frame, FunctionSignature{{first, other}, other}, {"left", "right"});
+      }
+    }
     if (arguments.size() != 2) {
       error("S027", "concat expects exactly two arrays", span);
       return {};
@@ -2054,16 +2074,6 @@ private:
       auto *literal = std::get_if<ArrayExpr>(&syntax_.expressions[id].value);
       return literal && literal->elements.empty();
     };
-    const auto array = [](const ValueType &type) {
-      return type.array && type.tensor && type.shape.size() == 1 && !type.task && !type.fallible &&
-             !type.device && (type.builtin == BuiltinValue::Numeric || isOwnedArray(type));
-    };
-    const auto elementContext = [](ValueType type) {
-      type.shape = {{{}, 0}};
-      return type;
-    };
-    std::optional<ValueType> context =
-        expected && expected->array ? std::optional(elementContext(*expected)) : std::nullopt;
     std::optional<ValueId> left, right;
     // An empty literal has no effects; infer its element context from the other
     // operand without changing the left-to-right runtime evaluation order.

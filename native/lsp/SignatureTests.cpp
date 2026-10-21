@@ -360,6 +360,37 @@ int main() {
     result = query("fn main():\n  length=fn(v:int):v*2\n  length(|3)\n");
     require(result && result->label == "fn length(int64) -> int64",
             "lexical callable shadow is not a builtin");
+    result = recover("fn main():\n  concat([1,2],|\n");
+    require(result && result->label == "fn concat(left: [int64], right: [int64]) -> [int64]" &&
+                result->activeParameter == 1, "missing concat operand from first array");
+    result = query("fn main():\n  [true] -> concat(|)\n");
+    require(result && result->label == "fn concat(left: [Bool], right: [Bool]) -> [Bool]" &&
+                result->activeParameter == 1, "piped missing concat operand");
+    result = recover("fn main():\n  concat([\"a\"], ri|Suffix)\n");
+    require(result && result->label == "fn concat(left: [String], right: [String]) -> [String]",
+            "partly typed right operand uses first array");
+    result = query("fn main()->[int32]:\n  concat([],|)\n");
+    require(result && result->label == "fn concat(left: [int32], right: [int32]) -> [int32]",
+            "expected array context can type an empty first operand");
+    result = query("type Box:\n  value:int\nfn main():\n  concat([Box {value:1}],|)\n");
+    require(result && result->label == "fn concat(left: [Box], right: [Box]) -> [Box]",
+            "nominal array snapshot context");
+    result = query("fn main():\n  callbacks=[fn(v:int):v*2]\n  concat(callbacks,|)\n");
+    require(result && result->label ==
+                "fn concat(left: [fn(int64) -> int64], right: [fn(int64) -> int64]) -> ([fn(int64) -> int64])",
+            "callable array contract survives the snapshot");
+    result = recover("type Box:\n  value:int\nfn main():\n  box=Box {value:1}\n  concat([1], box.|)\n");
+    require(result && result->activeParameter == 1, "missing field still checks its receiver");
+    require(!recover("fn main():\n  concat([1], missing.|)\n"),
+            "unknown projected field receiver prevents a snapshot");
+    require(!query("fn main():\n  concat(|)\n"), "no first array means no element contract");
+    require(!query("fn main():\n  concat([],|)\n"), "uncontextual empty array has no element contract");
+    require(!query("fn main():\n  concat(42,|)\n"), "scalar does not establish array contract");
+    require(!query("fn main():\n  missing\n  concat([1],|)\n"),
+            "prior errors prevent concat snapshots");
+    require(!query("fn main():\n  concat([1],2,|)\n"), "extra arguments do not receive a snapshot");
+    require(!recover("fn main():\n  concat([1], unknown + 1|)\n"),
+            "compound right operand does not receive expression recovery");
     std::cout << "Native checked signature help passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

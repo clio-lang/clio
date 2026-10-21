@@ -738,10 +738,11 @@ identifier that already checks remains an actual supplied value. Existing bounde
 trailing-parenthesis recovery can also provide these hints when all arguments
 are present in its request-local graph.
 
-This initial subset requires a checked complete argument list and a valid graph.
+Complete-call specialization requires a checked argument list and a valid graph.
 Missing/unknown/wrongly typed arguments, missing field probes and unrelated graph
-errors do not produce a guessed generic signature. Other builtin families,
-missing-argument builtin guidance and general expression recovery remain separate.
+errors do not produce a guessed generic signature through that path. The bounded
+missing-right-operand path for `concat` is covered below. Other builtin families,
+remaining missing-argument builtin guidance and general expression recovery remain separate.
 Queries do not execute functions, publish diagnostics, change buffers or write
 files. Unsaved imported result types are rechecked for each request.
 
@@ -749,3 +750,38 @@ files. Unsaved imported result types are rechecked for each request.
 covers normal/sanitizer signature and hover regressions, protocol parameter
 ranges and pipeline positions, live dependency types, relocated Release tools
 and installed VS Code guidance without source changes.
+
+#### Missing concat operand guidance
+
+When writing `concat(values, …)`, signature help can derive the expected second
+array from the checked first operand. For `values: [int32]`, it displays
+`fn concat(left: [int32], right: [int32]) -> [int32]` with parameter one active.
+The same rule covers `values -> concat(…)`. An expected array result type can
+supply the element context for an empty first literal; without that context,
+`concat([], …)` cannot establish an element type and provides no hint.
+
+This uses the checker's existing request-local signature snapshot. It checks the
+first operand and captures the array element contract before the normal arity
+error. Numeric, Bool, String, nominal and callable arrays retain their ordinary
+type representations. The second operand and result have unknown lengths:
+knowing the left array does not establish the right or concatenated lengths.
+No missing operand value, conversion or executable typed module is invented.
+
+Empty second slots, final partly typed identifiers, and final partly typed fields
+use the existing editing-hole policy. A field receiver must check as an ordinary
+record before guidance is captured. Bounded trailing-parenthesis recovery can
+supply this help at the end of an unfinished buffer. Prior errors, invalid first
+operands, missing element context, extra arguments and unsupported compound holes
+suppress the snapshot. Same-spelled user callables retain ordinary signature
+resolution. As with other snapshots, later errors can follow captured guidance;
+a hint is not evidence that the whole program checks.
+
+The request preserves ordinary checking and its actual missing-delimiter,
+wrong-arity or unknown-name diagnostic. It does not publish probe diagnostics,
+write sources, change buffers or execute code. Current unsaved imported types
+participate; a changed field contract invalidates an incompatible first array.
+
+[Missing-concat qualification](../../native/metal-proof/evidence/native-lsp-concat-signature-2026-10-21.json)
+covers normal/sanitizer signature, hover and ordinary concat frontend checks,
+protocol diagnostics and imported buffers, relocated Release tools and installed
+VS Code guidance while retaining the unfinished source and its syntax diagnostic.

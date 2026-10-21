@@ -1410,6 +1410,51 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert not signature_document.exists() and signature_values.read_text() == signature_values_text
     client.finish()
 
+    # A missing concat operand derives its contract from the checked first array.
+    client = Client()
+    client.init(signature_offsets=True)
+    incomplete_concat = 'fn main():\n  values:[int32]=[1,2]\n  concat(values,\n'
+    client.open(signature_document, incomplete_concat)
+    before = publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+    assert before and any(d["code"] == "L005" for d in before), before
+    result = client.signature(signature_document, 2, len(incomplete_concat.splitlines()[2]))["result"]
+    expected = 'fn concat(left: [int32], right: [int32]) -> [int32]'
+    assert result["activeParameter"] == 1 and result["signatures"][0]["label"] == expected, result
+    labels = result["signatures"][0]["parameters"]
+    assert [expected[p["label"][0]:p["label"][1]] for p in labels] == ["left: [int32]", "right: [int32]"]
+    assert not client.barrier(), "missing concat guidance replaced the actual syntax diagnostic"
+    partial_concat = 'fn main():\n  concat([true], riSuffix)\n'
+    client.change(signature_document, partial_concat, 2)
+    before = publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+    assert before and any(d["code"] == "S016" for d in before), before
+    cursor = partial_concat.splitlines()[1].index('riSuffix') + 2
+    result = client.signature(signature_document, 1, cursor)["result"]
+    assert result["signatures"][0]["label"] == 'fn concat(left: [Bool], right: [Bool]) -> [Bool]', result
+    assert client.hover(signature_document, 1, cursor)["result"] is None
+    assert not client.barrier(), "editing-hole concat guidance published diagnostics"
+    client.change(signature_document, 'fn main():\n  [true] -> concat()\n', 3)
+    client.barrier()
+    result = client.signature(signature_document, 1, len('  [true] -> concat('))["result"]
+    assert result["activeParameter"] == 1 and result["signatures"][0]["label"] == 'fn concat(left: [Bool], right: [Bool]) -> [Bool]', result
+    hint_library = Path(temp) / 'concat-hints.k'
+    hint_library_text = 'export type Box:\n  value:int\n'
+    hint_library.write_text(hint_library_text)
+    imported_concat = ('from "./concat-hints.k" import Box as Parcel\n'
+                       'fn main():\n  concat([Parcel {value:1}],)\n')
+    client.change(signature_document, imported_concat, 4)
+    client.barrier()
+    cursor = imported_concat.splitlines()[2].index(',') + 1
+    result = client.signature(signature_document, 2, cursor)["result"]
+    assert result["signatures"][0]["label"] == 'fn concat(left: [Box], right: [Box]) -> [Box]', result
+    client.open(hint_library, hint_library_text.replace('value:int','value:String'))
+    client.barrier()
+    assert client.signature(signature_document, 2, cursor)["result"] is None
+    client.change(hint_library, hint_library_text, 2)
+    client.barrier()
+    assert client.signature(signature_document, 2, cursor)["result"] is not None
+    assert not signature_document.exists() and hint_library.read_text() == hint_library_text
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"
