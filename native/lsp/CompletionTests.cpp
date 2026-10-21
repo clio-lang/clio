@@ -486,6 +486,33 @@ int main() {
                                             {(pathRoot / "math.k").string(), ""});
     require(pathQuery("from \"./|\" import double\nfn main():\n  0\n", tooManyPaths).names.empty(),
             "path overlays retain the module file budget");
+    info = query("fn entry():\n  ma|Suffix([1,2], fn(v:int):v*2)\n");
+    require(info.names.size() == 2 && has(info, "map") && has(info, "matmul") &&
+                info.names[0].kind == ScopeNameKind::Function &&
+                info.replacement.end - info.replacement.begin == 8,
+            "builtin callee names and full suffix replacement");
+    info = query("fn entry():\n  [1,2] -> par|Suffix(fn(v:int):v*2)\n");
+    require(info.names.size() == 1 && has(info, "parallelMap"), "piped builtin call target");
+    info = query("fn entry():\n  [1,2] -> le|\n");
+    require(info.names.size() == 1 && has(info, "length"), "bare piped builtin target");
+    info = query("fn entry():\n  in|Suffix(1)\n");
+    require(info.names.size() == 5 && has(info, "int") && has(info, "int8") && has(info, "int64"),
+            "numeric conversion call targets reuse concrete widths and aliases");
+    require(query("fn entry():\n  ma|\n").names.empty(), "builtins are not suggested as values");
+    require(query("fn entry():\n  map([1,2], ma|)\n").names.empty(),
+            "builtin call forms are not first-class map callbacks");
+    info = query("fn entry():\n  map=fn(v:int):v*2\n  ma|(1)\n");
+    require(info.names.size() == 2 && info.names[0].name == "map" &&
+                info.names[0].kind == ScopeNameKind::Variable,
+            "lexical function binding hides builtin item");
+    info = query("fn examine(int32:int):\n  in|Suffix(1)\nfn entry():\n  0\n");
+    require(info.names.size() == 5 && info.names[2].name == "int32" &&
+                info.names[2].kind == ScopeNameKind::Parameter,
+            "lexical numeric-name shadow retains its own kind");
+    require(query("fn entry():\n  missing\n  ma|([1,2])\n").names.empty(),
+            "prior errors still suppress builtin suggestions");
+    info = query("fn entry():\n  co|([1], [2])\n  missing\n");
+    require(info.names.size() == 1 && has(info, "concat"), "later errors do not erase names");
     std::cout << "Native scope completion passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

@@ -188,7 +188,7 @@ The server advertises `documentFormattingProvider: true`. Format Document uses t
 
 The server advertises `completionProvider: {resolveProvider: false, triggerCharacters: [".", "{", ",", "/"]}`. Completion returns plain-text items and UTF-16 `textEdit` ranges covering the entire current identifier, including any suffix after the cursor. An empty expression position can also request names. The document must be open under its registered URI; unopened documents and invalid positions return `null`, and malformed parameters return InvalidParams (-32602).
 
-Suggestions include parameters, preceding immutable bindings, eligible closure captures, named functions, nominal constructor names, and imported aliases visible in the current module. The checker supplies the actual lexical frame, so later bindings, other branches, unimported dependency names and shadowed declarations do not leak into the list. Matches use a case-sensitive prefix and deterministic alphabetical order. Results are limited to 256 names; `isIncomplete` asks the client to request again after the prefix narrows. Item details distinguish bindings, parameters, functions and types; these are name suggestions rather than expected-type filtering or inferred signature presentation.
+Suggestions include parameters, preceding immutable bindings, eligible closure captures, named functions, nominal constructor names, and imported aliases visible in the current module. Compiler builtin names are additionally offered at call targets, as covered below. The checker supplies the actual lexical frame, so later bindings, other branches, unimported dependency names and shadowed declarations do not leak into the list. Matches use a case-sensitive prefix and deterministic alphabetical order. Results are limited to 256 names; `isIncomplete` asks the client to request again after the prefix narrows. Item details distinguish bindings, parameters, functions and types; these are name suggestions rather than expected-type filtering or inferred signature presentation.
 
 The request replaces only the current identifier (or inserts one at an empty position) in a temporary source overlay, then parses the graph and snapshots scope immediately before the checker resolves that identifier. Current dependency buffers and configured package mappings participate. Probe diagnostics are discarded: the request does not publish diagnostics, change buffers, write files, run code or contact hardware. Normal checking still never publishes partial typed IR. Completion exposes only scope names, without partial/stale inferred types.
 
@@ -785,3 +785,37 @@ participate; a changed field contract invalidates an incompatible first array.
 covers normal/sanitizer signature, hover and ordinary concat frontend checks,
 protocol diagnostics and imported buffers, relocated Release tools and installed
 VS Code guidance while retaining the unfinished source and its syntax diagnostic.
+
+#### Builtin call-target completion
+
+Partly typed call targets now include the compiler's collection and numeric call
+forms. For example, `coSuffix([1], [2])` with the cursor after `co` offers `concat`,
+and `floSuffix(1)` with the cursor after `flo` offers `float`, `float32` and
+`float64`. The replacement covers the entire current identifier. Direct calls,
+piped calls and bare pipeline targets such as `values -> length` share this rule.
+
+The initial names are `array`, `tensor`, `reshape`, `map`, `parallelMap`, `matmul`,
+`reduceSum`, `length`, `byteLength`, `shape`, `slice` and `concat`, plus all ten
+concrete numeric conversion names and the `int`, `uint`, `float` aliases. Numeric
+conversion names come from the same numeric description table used by type
+resolution. They use Function completion items at call targets; numeric annotation
+completion keeps its existing Type items.
+
+Builtin call forms are not first-class function values, so ordinary expression
+positions and callback-value arguments do not receive these additional names.
+Lexical/module bindings are collected first and retain their own item kind and
+priority when they share a builtin name. The checker decides whether the query is
+a call target; completion does not guess that a bare expression will become a
+call or append parentheses and arguments.
+
+These are name suggestions rather than overload, expected-type or device-capability
+filtering. An offered builtin still needs its ordinary valid arguments, types and
+execution context. Placement selectors and transfer forms are not added by this
+subset. The existing alphabetical prefix filtering, 256-name limit, current
+source overlays and diagnostic/source preservation rules apply. Prior diagnostics
+can suppress names; later errors do not erase an already captured scope.
+
+[Builtin-completion qualification](../../native/metal-proof/evidence/native-lsp-builtin-completion-2026-10-21.json)
+covers direct/piped names, numeric conversions, shadowing and excluded value
+contexts in normal/sanitizer builds, relocated Release tools and installed
+VS Code edits followed by checked collection and conversion calls.

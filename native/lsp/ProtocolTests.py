@@ -1455,6 +1455,53 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert not signature_document.exists() and hint_library.read_text() == hint_library_text
     client.finish()
 
+    # Compiler builtin names appear at call targets, not first-class value positions.
+    client = Client()
+    client.init()
+    builtin_completion = 'fn main():\n  coSuffix([1],[2])\n'
+    client.open(signature_document, builtin_completion)
+    client.barrier()
+    start = builtin_completion.splitlines()[1].index('coSuffix')
+    result = client.completion(signature_document, 1, start+2)["result"]
+    assert [item["label"] for item in result["items"]] == ["concat"], result
+    item = result["items"][0]
+    assert item["kind"] == 3 and item["textEdit"] == {"newText":"concat", "range":{
+        "start":{"line":1,"character":start},"end":{"line":1,"character":start+8}}}, item
+    assert not client.barrier(), "builtin completion published probe diagnostics"
+    accepted = builtin_completion.replace('coSuffix','concat')
+    client.change(signature_document, accepted, 2)
+    assert not publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+    conversion = 'fn main():\n  floSuffix(1)\n'
+    client.change(signature_document, conversion, 3)
+    client.barrier()
+    start = conversion.splitlines()[1].index('floSuffix')
+    result = client.completion(signature_document, 1, start+3)["result"]
+    assert [item["label"] for item in result["items"]] == ["float","float32","float64"], result
+    assert all(item["kind"] == 3 for item in result["items"]), result
+    client.change(signature_document, conversion.replace('floSuffix','float32'), 4)
+    assert not publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+    piped = 'fn main():\n  [1,2] -> parSuffix(fn(v:int):v*2)\n'
+    client.change(signature_document, piped, 5)
+    client.barrier()
+    result = client.completion(signature_document, 1, piped.splitlines()[1].index('parSuffix')+3)["result"]
+    assert [item["label"] for item in result["items"]] == ["parallelMap"], result
+    ordinary = 'fn main():\n  coSuffix\n'
+    client.change(signature_document, ordinary, 6)
+    client.barrier()
+    assert client.completion(signature_document, 1, 4)["result"]["items"] == []
+    callback = 'fn main():\n  map([1,2],coSuffix)\n'
+    client.change(signature_document, callback, 7)
+    client.barrier()
+    assert client.completion(signature_document, 1, callback.splitlines()[1].index('coSuffix')+2)["result"]["items"] == []
+    shadowed = 'fn main():\n  concat=fn(v:int):v*2\n  coSuffix(1)\n'
+    client.change(signature_document, shadowed, 8)
+    client.barrier()
+    result = client.completion(signature_document, 2, 4)["result"]
+    assert [(item["label"],item["kind"],item["detail"]) for item in result["items"]] == [
+        ("concat",6,"binding")], result
+    assert not signature_document.exists()
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"

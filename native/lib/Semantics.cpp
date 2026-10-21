@@ -163,7 +163,7 @@ private:
     std::erase_if(candidates, [&](const auto &label) { return supplied.contains(label); });
     completeMembers(site, std::move(candidates), ScopeNameKind::Field);
   }
-  void completeScope(const Frame &frame, SourceSpan site) {
+  void completeScope(const Frame &frame, SourceSpan site, bool callTarget = false) {
     auto *query = options_.completion;
     if (!query || query->reached || !diagnostics_.empty() || query->site.begin != site.begin ||
         query->site.end != site.end)
@@ -204,6 +204,17 @@ private:
     for (const auto &[key, id] : records_)
       if (key.starts_with(prefix))
         insert(key.substr(prefix.size()), ScopeNameKind::Type);
+    if (callTarget) {
+      // These names are compiler call forms, not first-class function values.
+      // Insert last so lexical and module bindings retain their normal priority.
+      for (const auto *label : {"array", "tensor", "reshape", "map", "parallelMap", "matmul",
+                                "reduceSum", "length", "byteLength", "shape", "slice", "concat"})
+        insert(label, ScopeNameKind::Function);
+      for (const auto &numeric : numericTypes)
+        insert(std::string(numeric.name), ScopeNameKind::Function);
+      for (const auto *alias : {"int", "uint", "float"})
+        insert(alias, ScopeNameKind::Function);
+    }
     for (const auto &[label, kind] : names) {
       if (query->names.size() == 256) {
         query->truncated = true;
@@ -4038,7 +4049,7 @@ private:
   invoke(Frame &frame, SourceSpan span, SourceSpan calleeSpan, const std::vector<ExprId> &arguments,
          const std::optional<ValueType> &expected, std::optional<ExprId> selection = {},
          std::optional<ValueId> *checkedSelection = nullptr, bool spawned = false) {
-    completeScope(frame, calleeSpan);
+    completeScope(frame, calleeSpan, true);
     const auto callee = name(calleeSpan);
     if (auto symbol = lookupSymbol(frame, calleeSpan)) {
       if (output_.symbols[*symbol].type.builtin == BuiltinValue::Function) {

@@ -699,6 +699,24 @@ async function run() {
   await replace(main, mainDisk);
   await clearDiagnostics(main);
   checks.push("Missing concat operand guidance derives int32 arrays from the checked left operand and preserves the unfinished source and its syntax diagnostic");
+  const builtinCompletion = await complete(
+    main, "fn main():\n  co|Suffix([1],[2])\n", "concat",
+  );
+  const builtinItem = builtinCompletion.items.find((item) => label(item) === "concat");
+  assert.equal(builtinItem.kind, vscode.CompletionItemKind.Function);
+  await applyCompletion(main, builtinItem, "coSuffix", "concat");
+  await clearDiagnostics(main);
+  const conversionCompletion = await complete(
+    main, "fn main():\n  flo|Suffix(1)\n", "float32",
+  );
+  const conversionItem = conversionCompletion.items.find((item) => label(item) === "float32");
+  assert.equal(conversionItem.kind, vscode.CompletionItemKind.Function);
+  await applyCompletion(main, conversionItem, "floSuffix", "float32");
+  await clearDiagnostics(main);
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  await clearDiagnostics(main);
+  checks.push("Builtin call-target completion applies collection and numeric conversion names as Function items and checks both resulting calls");
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,
