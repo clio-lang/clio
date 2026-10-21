@@ -52,8 +52,8 @@ shaped tensors or scheduling only one arm's numerical primitives.
 [Multi-source maps](native-gpu-nary-choices.md) now carry explicit owned operand
 lists, removing the fixed two-source ceiling. Shape proofs and compiler/device
 resource budgets remain in force.
-The single-matmul operand-map path still rejects different-source choices; its
-projected interface needs separate qualification. Do not infer support for every
+[Single-matmul operand maps](native-gpu-operand-choices.md) now also support
+different-source choices with independently projected bindings. Do not infer support for every
 matrix/primitive composition from these examples.
 
 ## Bindings, ownership and evidence

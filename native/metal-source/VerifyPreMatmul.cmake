@@ -100,11 +100,11 @@ if(NOT DEFINED VARIANT)
   string(REPLACE "  product = matmul" "  ignored = matmul(input, weights)\n  product = matmul" BAD "${OPS}")
   file(WRITE "${ROOT}/operations.k" "${BAD}")
   reject(two-matrices "${MAIN}")
-  # A well-formed unsupported data-dependent helper, without parser errors.
+  # Pure same-source choices also compose through operand helpers.
   set(BRANCH "fn choose(v:Tensor[float32,?,?],s:float32)->Tensor[float32,?,?]:\n  if s > 0: v+1\n  else: v\n")
   string(REPLACE "input + scale" "choose(input,scale)" BAD "${OPS}")
   file(WRITE "${ROOT}/operations.k" "${BRANCH}${BAD}")
-  reject(branch "${MAIN}")
+  compile(branch "${MAIN}")
   message(STATUS "Matrix operands: independent maps, imports, Tier 2 and transactional rejection passed")
   return()
 endif()

@@ -222,7 +222,6 @@ class Compiler {
     if (!sumSignature && !matrixSignature)
       return cached;
     std::size_t work = 0, primitives = 0;
-    bool differentInputChoice = false;
     std::set<FunctionId> active;
     using Result = std::optional<PrimitiveEntry>;
     std::function<Result(FunctionId, const std::vector<PrimitiveEntry> &)> invoke;
@@ -299,8 +298,7 @@ class Compiler {
             if (!tensor && a->kind == PrimitiveEntry::Scalar && b->kind == PrimitiveEntry::Scalar)
               result = PrimitiveEntry{PrimitiveEntry::Scalar};
             else if (tensor && a->kind == PrimitiveEntry::Input &&
-                     b->kind == PrimitiveEntry::Input && (a->left == b->left || sumSignature)) {
-              differentInputChoice |= a->left != b->left;
+                     b->kind == PrimitiveEntry::Input) {
               result = a;
               result->mapped = true;
             }
@@ -398,10 +396,6 @@ class Compiler {
                               ? PrimitiveEntry{PrimitiveEntry::Input, tensorIndex++, 0}
                               : PrimitiveEntry{PrimitiveEntry::Scalar});
     auto result = invoke(root, arguments);
-    // Different-source primitive maps are qualified for terminal sums here.
-    // Matrix operand maps retain their separate projected-binding boundary.
-    if (differentInputChoice && result && result->kind != PrimitiveEntry::Sum)
-      return cached;
     if (result &&
         ((primitives == 1 && ((sumSignature && result->kind == PrimitiveEntry::Sum) ||
                               (matrixSignature && result->kind == PrimitiveEntry::Matrix))) ||
@@ -526,7 +520,9 @@ class Compiler {
   bool pureScalar(ValueId root) const { return pureBranch(root, false); }
   bool pureLane(ValueId root) const { return pureBranch(root, true); }
   bool retainedChoiceBindings(FunctionId function, std::size_t reads) const {
-    return reads > 1 && !matrixFunction(function) && scalarControl(function);
+    // Constant predicates can erase an arm's reads. Keep projected resource
+    // indices stable in operand/result maps as well as ordinary lane entries.
+    return reads > 1 && scalarControl(function);
   }
   struct MatrixGraph {
     std::size_t inputs = 0, matrixCount = 0;
@@ -1506,6 +1502,7 @@ class Compiler {
       const auto epilogue = field("m::Kernel");
       const auto count = matrix ? tensors.size() + 1 : 1;
       const bool indirectPost =
+          retainedChoiceBindings(function, postReads.size()) ||
           !kalandra::runtime::metal::directElementwiseLayout(postReads.size(), scalars.size());
       std::string postSignature = ", m::ElementwiseSignature{" + std::to_string(count) + "," +
                                   std::to_string(scalars.size()) +
@@ -1549,6 +1546,7 @@ class Compiler {
         const auto mapKernel = field("m::Kernel");
         const auto label = operand == 0 ? "left" : "right";
         const bool indirectMap =
+            retainedChoiceBindings(function, mapReads.size()) ||
             !kalandra::runtime::metal::directElementwiseLayout(mapReads.size(), scalars.size());
         std::string mapSignature = ", m::ElementwiseSignature{" + std::to_string(tensors.size()) +
                                    "," + std::to_string(scalars.size()) +
@@ -2539,10 +2537,9 @@ class Compiler {
         code << instruction.code;
     if (graphStage >= 0)
       tensors = used.size();
-    const bool indirect =
-        (graph && scalarControl(function)) ||
-        (!post && matrixOperand < 0 && retainedChoiceBindings(function, used.size())) ||
-        !kalandra::runtime::metal::directElementwiseLayout(used.size(), scalars);
+    const bool indirect = (graph && scalarControl(function)) ||
+                          retainedChoiceBindings(function, used.size()) ||
+                          !kalandra::runtime::metal::directElementwiseLayout(used.size(), scalars);
     const bool legacy =
         !graph && !indirect && tensors == 2 && scalars == 0 && used.size() == tensors;
     auto parameters = "memref<" + std::to_string(legacy ? 2 : scalars + 1) + "xi32>";
@@ -2959,14 +2956,16 @@ void resume(Task &task) {
           std::string bindings;
           for (auto input : reads)
             bindings += (bindings.empty() ? "" : ",") + std::to_string(input);
-          manifest += prefix + "stage=kernel" + std::to_string(index) + "-" + label + "\n" +
-                      prefix + "tensors=" + std::to_string(tensors) + "\n" + prefix +
-                      "scalars=" + std::to_string(scalars) + "\n" + prefix +
-                      "tensor_bindings=" + bindings + "\n" + prefix + "binding_layout=" +
-                      (kalandra::runtime::metal::directElementwiseLayout(reads.size(), scalars)
-                           ? "direct"
-                           : "argument_buffer_tier2") +
-                      "\n";
+          manifest +=
+              prefix + "stage=kernel" + std::to_string(index) + "-" + label + "\n" + prefix +
+              "tensors=" + std::to_string(tensors) + "\n" + prefix +
+              "scalars=" + std::to_string(scalars) + "\n" + prefix + "tensor_bindings=" + bindings +
+              "\n" + prefix + "binding_layout=" +
+              (!retainedChoiceBindings(function, reads.size()) &&
+                       kalandra::runtime::metal::directElementwiseLayout(reads.size(), scalars)
+                   ? "direct"
+                   : "argument_buffer_tier2") +
+              "\n";
         }
       }
       if (auto entry = primitiveEntry(function); entry && entry->post) {
@@ -2985,12 +2984,14 @@ void resume(Task &task) {
           for (auto input : reads)
             bindings += (bindings.empty() ? "" : ",") + std::to_string(input);
           const auto prefix = "kernel" + std::to_string(index) + ".epilogue_";
-          manifest += prefix + "tensors=" + std::to_string(tensors + 1) + "\n" + prefix +
-                      "tensor_bindings=" + bindings + "\n" + prefix + "binding_layout=" +
-                      (kalandra::runtime::metal::directElementwiseLayout(reads.size(), scalars)
-                           ? "direct"
-                           : "argument_buffer_tier2") +
-                      "\n";
+          manifest +=
+              prefix + "tensors=" + std::to_string(tensors + 1) + "\n" + prefix +
+              "tensor_bindings=" + bindings + "\n" + prefix + "binding_layout=" +
+              (!retainedChoiceBindings(function, reads.size()) &&
+                       kalandra::runtime::metal::directElementwiseLayout(reads.size(), scalars)
+                   ? "direct"
+                   : "argument_buffer_tier2") +
+              "\n";
         }
       }
       if (auto entry = primitiveEntry(function); entry && entry->scalarPost) {

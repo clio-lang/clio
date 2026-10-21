@@ -54,8 +54,8 @@ full list length, so reduced scalars follow all tensor inputs in the resource ta
 
 The checked cases include resident maps driven by reductions, retained
 intermediates used as middle operands, and a map feeding multiple matrix products.
-The separate single-matmul operand-map path still needs different-source-choice
-qualification. Broader ranks and GPU numeric widths remain separate work.
+[Single-matmul operand maps](native-gpu-operand-choices.md) now also accept
+different-source choices. Broader ranks and GPU numeric widths remain separate work.
 Straight-line graph arithmetic retains its existing stage decomposition; this
 step expands the source set within a fused map.
 

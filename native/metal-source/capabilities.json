@@ -499,6 +499,19 @@
       "evidence": [
         "gpu-nary-choices-2026-10-21.json"
       ]
+    },
+    {
+      "id": "operand-choices",
+      "feature": "Choices in matrix operands",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "operand-choices.k"
+      ],
+      "notes": "Independent projected left/right pure tensor choices, fixed or checked dynamic equal shapes; optional result arithmetic and terminal sum",
+      "evidence": [
+        "gpu-operand-choices-2026-10-21.json"
+      ]
     }
   ]
 }

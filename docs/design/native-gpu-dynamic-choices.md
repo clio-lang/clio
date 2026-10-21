@@ -68,8 +68,8 @@ Independent `?` dimensions without an equality proof remain rejected. This step
 does not select between differently shaped outputs, execute conditional numerical
 primitives or admit branch-local shape checks. [Multi-source fused maps](native-gpu-nary-choices.md)
 now use explicit operand lists beyond the earlier two-source representation. GPU numeric widths, ranks, strict arithmetic, binding layouts and ownership
-rules retain their existing boundaries. Different-source choices in the separate
-single-matmul operand-map path still need qualification.
+rules retain their existing boundaries. [Different-source matrix operand choices](native-gpu-operand-choices.md) now
+reuse these shape proofs in the separate single-matmul path.
 
 See the [fixture](../../native/metal-source/dynamic-choices.k),
 [device checks](../../native/metal-source/DynamicChoiceTests.cpp),

@@ -16,6 +16,16 @@ ctest --preset native -R '^metal-proof-'
 
 The proof is opt-in. The default native build has no shader-tool dependency and now has 43 tests, including external-completion coverage. Override `KALANDRA_SPIRV_CROSS_ROOT` and `KALANDRA_SPIRV_TOOLS_ROOT` for the same tool releases installed elsewhere. `KALANDRA_METAL_TOOLCHAIN` selects the Apple toolchain identifier; its compiler version is checked at configuration. The verified compiler is Apple Metal 32023.864, component 17C7003j, with macOS SDK 26.2 on macOS 26.5. The explicit toolchain selector avoids relying on the default `xcrun metal` shim finding an installed component.
 
+After a macOS upgrade, restore a missing component with
+`xcodebuild -downloadComponent MetalToolchain`, then refresh Xcode's launcher cache
+with `xcrun -k`. Check the pinned compiler using
+`xcrun --toolchain com.apple.dt.toolchain.Metal.32023.864 metal --version`.
+If newer Command Line Tools provide the SDK used by Homebrew Clang while the
+selected Xcode has an older linker, a link may fail parsing an SDK `.tbd` file.
+Use a matching linker for the build and compiler-invoking tests, for example
+`export PATH=/Library/Developer/CommandLineTools/usr/bin:$PATH` when that installation
+matches the SDK. This does not change the pinned LLVM or Metal compiler versions.
+
 Execution requires access to a real Metal device. A sandbox that hides GPU services reports “no Metal device available”; this is a failure, not a skipped test or CPU fallback. Build products, intermediate IR, shader sources, reflection, version information, and per-run JSON reports live under ignored `build/native/native/metal-proof/`.
 
 ## Pipeline
