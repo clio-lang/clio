@@ -391,6 +391,44 @@ int main() {
     require(!query("fn main():\n  concat([1],2,|)\n"), "extra arguments do not receive a snapshot");
     require(!recover("fn main():\n  concat([1], unknown + 1|)\n"),
             "compound right operand does not receive expression recovery");
+    for (const auto &source : numericTypes)
+      for (const auto &destination : numericTypes) {
+        const auto from = std::string(source.name), to = std::string(destination.name);
+        result = query("fn main():\n  " + to + "(|" + from + "(1))\n");
+        require(result && result->label == "fn " + to + "(input: " + from + ") -> " + to &&
+                    result->activeParameter == 0,
+                "conversion signature pair " + from + " to " + to);
+      }
+    result = query("fn main():\n  float(|1)\n");
+    require(result && result->label == "fn float(input: int64) -> float64",
+            "conversion alias keeps its surface name and concrete result");
+    result = query("fn main():\n  uint(|1)\n");
+    require(result && result->label == "fn uint(input: int64) -> uint64", "uint conversion alias");
+    result = query("fn main():\n  int(|float32(1))\n");
+    require(result && result->label == "fn int(input: float32) -> int64", "int conversion alias");
+    result = query("fn main():\n  int16(|tensor([1,2],[1,2]))\n");
+    require(result && result->label ==
+                "fn int16(input: Tensor[int64, 1, 2]) -> Tensor[int16, 1, 2]",
+            "tensor conversion retains rank and fixed extents");
+    result = query("fn convert(values:Tensor[float32,?,2]):\n  float64(va|lues)\nfn main():\n  0\n");
+    require(result && result->label ==
+                "fn float64(input: Tensor[float32, ?, 2]) -> Tensor[float64, ?, 2]",
+            "dynamic conversion shapes hide inference identities");
+    result = query("fn main():\n  1 -> float32(|)\n");
+    require(result && result->label == "fn float32(input: int64) -> float32" &&
+                result->activeParameter == 0, "piped scalar conversion signature");
+    result = recover("fn main():\n  value=1\n  uint8(value|\n");
+    require(result && result->label == "fn uint8(input: int64) -> uint8",
+            "conversion guidance after bounded delimiter repair");
+    result = query("fn main():\n  float32=fn(v:int):v+1\n  float32(|2)\n");
+    require(result && result->label == "fn float32(int64) -> int64",
+            "same-spelled lexical function is not numeric conversion");
+    require(!query("fn main():\n  int8(|300)\n"), "out-of-range conversion has no checked hint");
+    require(!query("fn main():\n  float32(|[1,2])\n"), "numeric arrays remain unsupported casts");
+    require(!query("fn main():\n  int64(|true)\n"), "Bool is not a numeric source");
+    require(!query("fn main():\n  float32(|)\n"), "missing conversion source has no guessed type");
+    require(!query("fn main():\n  float32(|1,2)\n"), "extra conversion arguments have no hint");
+    require(!query("fn main():\n  float32(|1)\n  missing\n"), "failed graphs suppress numeric hints");
     std::cout << "Native checked signature help passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

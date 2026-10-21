@@ -363,7 +363,7 @@ clients receive the standard string labels.
 Complete-call guidance requires a parsed and checked graph. A bounded temporary overlay can
 close trailing parentheses as described below. At an empty argument slot, a
 separate validated-callee snapshot can provide guidance despite the selected
-call's argument-count error. Checked collection builtin signatures are covered below; other builtins remain unsupported. Invalid
+call's argument-count error. Checked collection and numeric conversion signatures are covered below; other builtin families remain unsupported. Invalid
 positions, closed documents and other invalid query contexts return `null`.
 The server does not reuse stale signatures or publish partial typed programs. Requesting help makes no source changes or diagnostic publications.
 
@@ -819,3 +819,38 @@ can suppress names; later errors do not erase an already captured scope.
 covers direct/piped names, numeric conversions, shadowing and excluded value
 contexts in normal/sanitizer builds, relocated Release tools and installed
 VS Code edits followed by checked collection and conversion calls.
+
+#### Checked numeric conversion signatures
+
+Signature help now shows the checked source and destination of each numeric
+conversion. For example, `float32(1)` displays
+`fn float32(input: int64) -> float32`. All ten concrete numeric type-name calls
+participate, including identity conversions. The `int`, `uint` and `float` aliases
+keep their source spelling in the function name and show their concrete result
+widths. This extends editor guidance; it does not change numeric conversion rules.
+
+CPU tensor conversions retain their rank and fixed/dynamic extents in both
+parameter and result labels. For example, converting a `Tensor[int64, 1, 2]` to
+float32 displays `fn float32(input: Tensor[int64, 1, 2]) -> Tensor[float32, 1, 2]`.
+Dynamic extent identities remain hidden as `?`. Numeric arrays remain distinct
+from tensors and do not acquire direct conversion support.
+
+The checked `NumericConvert` operation at the exact call span provides the input
+and result types; the named destination must agree with the operation. A local
+function value named `float32` still uses ordinary callable guidance. Existing
+pipeline positions, UTF-16 parameter ranges and bounded trailing-parenthesis
+recovery apply. Current unsaved dependency result types are checked afresh.
+
+A complete valid argument list and checked graph are required. Known-invalid
+constant conversions, invalid source types, missing/extra arguments, editing
+holes and unrelated errors do not supply a guessed signature. A displayed type
+signature does not promise that every runtime value fits the destination: the
+existing checked numeric conversion rules still determine success or faults.
+Requests execute no conversions and change no buffers, diagnostics or disk files.
+
+[Numeric-signature qualification](../../native/metal-proof/evidence/native-lsp-numeric-signature-2026-10-21.json)
+covers signature labels for all 100 scalar type pairs using representable inputs,
+aliases, fixed/dynamic tensor shapes, invalid casts and lexical shadows, live
+imported types, relocated Release tools and installed VS Code tensor guidance.
+It qualifies editor behavior, rather than repeating the numerical/runtime backend
+qualification for each conversion pair.

@@ -717,6 +717,24 @@ async function run() {
   await replace(main, mainDisk);
   await clearDiagnostics(main);
   checks.push("Builtin call-target completion applies collection and numeric conversion names as Function items and checks both resulting calls");
+  const numericSource = "fn main():\n  values=tensor([1,2],[1,2])\n  float32(values)\n";
+  await replace(main, numericSource);
+  await clearDiagnostics(main);
+  const numericSignature = await eventually(async () => {
+    const result = await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider", mainUri,
+      position(main, "float32(values)", 8), "(",
+    );
+    return result?.signatures?.[0]?.label ===
+      "fn float32(input: Tensor[int64, 1, 2]) -> Tensor[float32, 1, 2]" ? result : undefined;
+  }, "checked tensor numeric conversion signature");
+  assert.equal(numericSignature.activeParameter, 0);
+  assert.equal(numericSignature.signatures[0].parameters.length, 1);
+  assert.equal(main.getText(), numericSource);
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  await clearDiagnostics(main);
+  checks.push("Numeric conversion signature help shows checked source/destination tensor widths and fixed shape without changing source");
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,

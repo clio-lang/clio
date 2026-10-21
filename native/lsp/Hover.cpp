@@ -146,16 +146,20 @@ std::optional<SignatureInfo> callableSignature(const TypedModule &module, const 
     result.activeParameter = std::min(active, result.parameters.size() - 1);
   return result;
 }
-std::optional<SignatureInfo> collectionSignature(const TypedModule &module, SourceSpan call,
-                                                 std::string_view name, std::size_t active) {
+std::optional<SignatureInfo> builtinSignature(const TypedModule &module, SourceSpan call,
+                                              std::string_view name, std::size_t active) {
   std::optional<SignatureInfo> result;
   for (const auto &expression : module.expressions) {
     if (expression.span.begin != call.begin || expression.span.end != call.end)
       continue;
     std::vector<ValueId> arguments;
     std::vector<std::string> labels;
-    if (const auto *query = std::get_if<CollectionQuery>(&expression.operation);
-        query && name == (query->kind == CollectionQueryKind::Length ? "length" : "shape")) {
+    if (const auto *conversion = std::get_if<NumericConvert>(&expression.operation);
+        conversion && resolveNumeric(name) == expression.type.element) {
+      arguments = {conversion->input};
+      labels = {"input"};
+    } else if (const auto *query = std::get_if<CollectionQuery>(&expression.operation);
+               query && name == (query->kind == CollectionQueryKind::Length ? "length" : "shape")) {
       arguments = {query->input};
       labels = {"input"};
     } else if (const auto *query = std::get_if<StringQuery>(&expression.operation);
@@ -330,10 +334,10 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
   if (target && !requireFieldProjection) {
     const auto name = target->source->slice(target->span);
     if (name == "length" || name == "byteLength" || name == "shape" || name == "slice" ||
-        name == "concat") {
+        name == "concat" || resolveNumeric(name)) {
       auto checked = check(syntax, {}, options);
       if (checked.ok())
-        if (auto result = collectionSignature(*checked.module, invocationSpan, name, active))
+        if (auto result = builtinSignature(*checked.module, invocationSpan, name, active))
           return result;
     }
   }

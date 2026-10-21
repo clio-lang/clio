@@ -1502,6 +1502,64 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert not signature_document.exists()
     client.finish()
 
+    # Numeric conversion hints use checked source/destination types and tensor shapes.
+    client = Client()
+    client.init(signature_offsets=True)
+    numeric_cases = [
+        ('fn main():\n  float32(|1)\n', 'fn float32(input: int64) -> float32'),
+        ('fn main():\n  uint(|int16(1))\n', 'fn uint(input: int16) -> uint64'),
+        ('fn main():\n  float(|int8(1))\n', 'fn float(input: int8) -> float64'),
+        ('fn main():\n  int16(|tensor([1,2],[1,2]))\n',
+         'fn int16(input: Tensor[int64, 1, 2]) -> Tensor[int16, 1, 2]'),
+        ('fn convert(v:Tensor[float32,?,2]):\n  float64(v|)\nfn main():\n  0\n',
+         'fn float64(input: Tensor[float32, ?, 2]) -> Tensor[float64, ?, 2]'),
+        ('fn main():\n  1 -> float32(|)\n', 'fn float32(input: int64) -> float32'),
+        ('fn main():\n  float32=fn(v:int):v+1\n  float32(|2)\n', 'fn float32(int64) -> int64'),
+    ]
+    client.open(signature_document, 'fn main():\n  0\n')
+    client.barrier()
+    version = 1
+    for marked, expected in numeric_cases:
+        version += 1
+        cursor = marked.index('|')
+        text = marked.replace('|','')
+        client.change(signature_document, text, version)
+        assert not publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+        line = marked[:cursor].count('\n')
+        character = len(marked[:cursor].rsplit('\n',1)[-1].encode('utf-16-le'))//2
+        result = client.signature(signature_document, line, character)["result"]
+        assert result["signatures"][0]["label"] == expected and result["activeParameter"] == 0, result
+        start, end = result["signatures"][0]["parameters"][0]["label"]
+        assert expected[start:end] == ("int64" if 'float32(int64)' in expected else expected[expected.index('input:'):expected.rfind(') ->')]), result
+        assert not client.barrier(), "numeric signature leaked diagnostics"
+    for invalid in ['int8(300)', 'float32([1,2])', 'float32(true)']:
+        version += 1
+        text = 'fn main():\n  '+invalid+'\n'
+        client.change(signature_document, text, version)
+        diagnostics = publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+        assert diagnostics and any(d["code"] == 'S055' for d in diagnostics), diagnostics
+        assert client.signature(signature_document, 1, text.splitlines()[1].index('(')+1)["result"] is None
+        assert not client.barrier(), "invalid numeric hint changed diagnostics"
+    numeric_library = Path(temp) / 'numeric-signatures.k'
+    numeric_library_text = 'export fn read()->float32:\n  float32(1)\n'
+    numeric_library.write_text(numeric_library_text)
+    version += 1
+    imported_numeric = 'from "./numeric-signatures.k" import read\nfn main():\n  float64(read())\n'
+    client.change(signature_document, imported_numeric, version)
+    client.barrier()
+    assert client.signature(signature_document, 2, 10)["result"]["signatures"][0]["label"] == 'fn float64(input: float32) -> float64'
+    client.open(numeric_library, 'export fn read()->int16:\n  int16(1)\n')
+    client.barrier()
+    assert client.signature(signature_document, 2, 10)["result"]["signatures"][0]["label"] == 'fn float64(input: int16) -> float64'
+    client.change(numeric_library, 'export fn read()->String:\n  "bad"\n', 2)
+    client.barrier()
+    assert client.signature(signature_document, 2, 10)["result"] is None
+    client.change(numeric_library, numeric_library_text, 3)
+    client.barrier()
+    assert client.signature(signature_document, 2, 10)["result"] is not None
+    assert not signature_document.exists() and numeric_library.read_text() == numeric_library_text
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"

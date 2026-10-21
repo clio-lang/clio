@@ -101,3 +101,5 @@ Installed-editor acceptance now requests a [checked collection builtin signature
 Installed-editor acceptance also checks [a missing concat operand](native-language-server.md#missing-concat-operand-guidance): an unfinished call shows the checked int32 array contract and active right operand while its source, disk file and actual unclosed-delimiter diagnostic remain unchanged.
 
 Installed-editor acceptance also applies [builtin call-target completion](native-language-server.md#builtin-call-target-completion) for `concat` and `float32`, verifies Function item kinds and complete identifier replacement, and checks both resulting calls without writing the source file.
+
+Installed-editor acceptance also requests a [checked tensor numeric conversion signature](native-language-server.md#checked-numeric-conversion-signatures), verifies source/destination widths, fixed rank-two shape and the active input parameter, and preserves the buffer and disk source.
