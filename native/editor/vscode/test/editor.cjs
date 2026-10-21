@@ -951,6 +951,21 @@ async function run() {
   checks.push("Empty earlier field signature help validates the receiver and preserves real parser diagnostics and source until an actual field is supplied");
   await replace(main,mainDisk);
   await clearDiagnostics(main);
+  const expressionCompletionSource="fn combine(left:int,right:int):\n  left+right\nfn main():\n  value=2\n  combine(1,2*va|Suffix\n";
+  const expressionCompletions=await complete(main,expressionCompletionSource,"value");
+  const expressionItem=expressionCompletions.items.find((item)=>label(item)==="value");
+  assert.equal(expressionItem.kind,vscode.CompletionItemKind.Variable);
+  await applyCompletion(main,expressionItem,"vaSuffix","value");
+  const appliedExpression=expressionCompletionSource.replace("va|Suffix","value");
+  assert.equal(main.getText(),appliedExpression);
+  await eventually(()=>vscode.languages.getDiagnostics(mainUri).some((item)=>item.code==="L005"),
+    "arithmetic completion retains real unclosed call diagnostic");
+  assert.equal(await fs.readFile(mainUri.fsPath,"utf8"),mainDisk);
+  await replace(main,appliedExpression.trimEnd()+")\n");
+  await clearDiagnostics(main);
+  checks.push("Arithmetic operand completion preserves expression text and real delimiter diagnostics, then checks after the user closes the call");
+  await replace(main,mainDisk);
+  await clearDiagnostics(main);
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,

@@ -318,12 +318,40 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
         return field->field.begin == site->begin && field->field.end == site->end;
       return false;
     };
+    const auto containsSite = [&](ExprId id) {
+      const auto span = syntax->module.expressions[id].span;
+      return span.begin <= site->begin && site->end <= span.end;
+    };
+    const auto selectedArgument = [&](ExprId id) {
+      if (!containsSite(id))
+        return false;
+      // Follow only the operand containing the query, with a fixed work bound.
+      for (std::size_t depth = 0; depth < 64; ++depth) {
+        const auto &expression = syntax->module.expressions[id];
+        if (selectedName(expression))
+          return true;
+        std::optional<ExprId> next;
+        if (const auto *unary = std::get_if<UnaryExpr>(&expression.value);
+            unary && (unary->operation == TokenKind::Plus || unary->operation == TokenKind::Minus))
+          next = unary->operand;
+        else if (const auto *binary = std::get_if<BinaryExpr>(&expression.value);
+                 binary &&
+                 (binary->operation == TokenKind::Plus || binary->operation == TokenKind::Minus ||
+                  binary->operation == TokenKind::Star || binary->operation == TokenKind::Slash ||
+                  binary->operation == TokenKind::Percent))
+          next = containsSite(binary->left) ? binary->left : binary->right;
+        else if (const auto *comparison = std::get_if<ComparisonExpr>(&expression.value))
+          next = containsSite(comparison->left) ? comparison->left : comparison->right;
+        if (!next || !containsSite(*next))
+          return false;
+        id = *next;
+      }
+      return false;
+    };
     const auto eligibleCall = [&](const Expr &expression) {
       const auto *call = std::get_if<CallExpr>(&expression.value);
       return call && (selectedName(syntax->module.expressions[call->callee]) ||
-                      std::ranges::any_of(call->arguments, [&](ExprId argument) {
-                        return selectedName(syntax->module.expressions[argument]);
-                      }));
+                      std::ranges::any_of(call->arguments, selectedArgument));
     };
     if (!std::ranges::any_of(syntax->module.expressions, eligibleCall))
       return result;

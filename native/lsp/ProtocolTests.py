@@ -2027,7 +2027,7 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     compound=argument_text.replace('reading.vaSuffix','2+reading.vaSuffix')
     client.change(signature_document,compound,6)
     client.barrier()
-    assert client.completion(signature_document,3,compound.splitlines()[3].index('vaSuffix')+2)['result']['items']==[]
+    assert client.completion(signature_document,3,compound.splitlines()[3].index('vaSuffix')+2)['result']['items'][0]['label']=='variance'
     assert not signature_document.exists() and argument_library.read_text()==argument_library_text
     client.finish()
 
@@ -2181,6 +2181,46 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     client.barrier()
     assert client.signature(signature_document,3,unknown.splitlines()[3].index('missing.')+len('missing.'))['result'] is None
     assert not signature_document.exists() and empty_earlier_library.read_text()==empty_earlier_library_text
+    client.finish()
+
+    # Arithmetic argument completion preserves the whole expression during EOF repair.
+    expression_library=Path(temp)/'expression-completion.k'
+    expression_library_text=('export type Reading:\n  value:int\nexport fn read():\n  Reading {value:2}\n'
+                             'export fn combine(left:int,right:int):\n  left+right\n')
+    expression_library.write_text(expression_library_text)
+    expression_text=('from "./expression-completion.k" import read, combine\nfn main():\n'
+                     '  reading=read()\n  combine(1,2*reading.vaSuffix\n')
+    client=Client()
+    client.init()
+    client.open(signature_document,expression_text)
+    before=publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert before and any(d['code']=='L005' for d in before),before
+    start=expression_text.splitlines()[3].index('vaSuffix')
+    result=client.completion(signature_document,3,start+2)['result']
+    assert [(item['label'],item['kind']) for item in result['items']]==[('value',5)],result
+    item=result['items'][0]
+    assert item['textEdit']=={'newText':'value','range':{
+        'start':{'line':3,'character':start},'end':{'line':3,'character':start+8}}},item
+    assert client.signature(signature_document,3,start+2)['result'] is None, 'compound signature holes stay excluded'
+    assert client.hover(signature_document,3,start+1)['result'] is None
+    assert not client.barrier(),'arithmetic completion published probe diagnostics'
+    applied=apply_workspace_edit({'documentChanges':[{'textDocument':{'uri':signature_document.as_uri()},
+        'edits':[item['textEdit']]}]},{signature_document.as_uri():expression_text})[signature_document.as_uri()]
+    assert applied==expression_text.replace('vaSuffix','value')
+    client.change(signature_document,applied,2)
+    assert any(d['code']=='L005' for d in publications(client.barrier())[signature_document.as_uri()]['diagnostics'])
+    client.change(signature_document,applied.rstrip()+')\n',3)
+    assert not publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    client.open(expression_library,expression_library_text.replace('value','variance'))
+    client.barrier()
+    client.change(signature_document,expression_text,4)
+    client.barrier()
+    assert client.completion(signature_document,3,start+2)['result']['items'][0]['label']=='variance'
+    bad_prefix=expression_text.replace('combine(1,','combine("bad",')
+    client.change(signature_document,bad_prefix,5)
+    client.barrier()
+    assert client.completion(signature_document,3,bad_prefix.splitlines()[3].index('vaSuffix')+2)['result']['items']==[]
+    assert not signature_document.exists() and expression_library.read_text()==expression_library_text
     client.finish()
 
     # Format the current buffer only; the client independently applies the edit.

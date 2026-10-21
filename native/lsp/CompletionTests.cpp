@@ -649,8 +649,8 @@ int main() {
             "unknown field receiver suppresses suffix recovery");
     info = query(combine + "fn main():\n  value=2\n  combine(va|Suffix,1\n");
     require(has(info, "value"), "earlier argument suffix before later supplied arguments");
-    require(query(combine + "fn main():\n  value=2\n  combine(1,2+va|Suffix\n").names.empty(),
-            "compound argument holes remain outside EOF suffix recovery");
+    info = query(combine + "fn main():\n  value=2\n  combine(1,2+va|Suffix\n");
+    require(has(info, "value"), "arithmetic argument suffix receives EOF completion");
     const std::string triple = "fn triple(first:int,second:int,third:int):\n  first+second+third\n";
     info = query(triple + "fn main():\n  value=1\n  triple(va|Suffix,2\n");
     require(info.names.size() == 1 && has(info, "value") &&
@@ -681,8 +681,37 @@ int main() {
             "noncallable binding cannot expose earlier-slot names");
     require(query(triple + "fn main():\n  triple(missing.va|Suffix,2\n").names.empty(),
             "unknown earlier field receiver suppresses suggestions");
-    require(query(triple + "fn main():\n  value=1\n  triple(1+va|Suffix,2\n").names.empty(),
-            "compound earlier argument holes remain outside EOF repair");
+    info = query(triple + "fn main():\n  value=1\n  triple(1+va|Suffix,2\n");
+    require(has(info, "value"), "arithmetic earlier argument before missing later parameter");
+    for (const auto *operation : {"+", "-", "*", "/", "%"}) {
+      info = query(combine + "fn main():\n  value=2\n  combine(1,4" + std::string(operation) +
+                   "va|Suffix\n");
+      require(info.names.size() == 1 && has(info, "value"),
+              "arithmetic operator suffix completion");
+    }
+    info = query(combine + "fn main():\n  value=2\n  combine(1,-va|Suffix\n");
+    require(has(info, "value"), "numeric unary operand completion");
+    info = query(combine + "fn main():\n  value=2\n  combine(1,(2+3)*-va|Suffix\n");
+    require(has(info, "value"), "nested arithmetic operand completion");
+    info = query(combine + "fn main():\n  value=2\n  combine(va|Suffix+3,1\n");
+    require(has(info, "value"), "left arithmetic operand preserves later text");
+    info = query("type Reading:\n  value:int\n" + combine +
+                 "fn main():\n  reading=Reading {value:2}\n  combine(1,2+reading.va|Suffix\n");
+    require(info.names.size() == 1 && has(info, "value") &&
+                info.names[0].kind == ScopeNameKind::Field,
+            "arithmetic field suffix requires checked record receiver");
+    const std::string boolConsumer = "fn choose(value:Bool):\n  value\n";
+    for (const auto *operation : {"==", "!=", "<", ">", "<=", ">="}) {
+      info = query(boolConsumer + "fn main():\n  value=2\n  choose(1" + std::string(operation) +
+                   "va|Suffix\n");
+      require(has(info, "value"), "comparison argument operand completion");
+    }
+    require(query(combine + "fn main():\n  value=2\n  combine(\"bad\",2+va|Suffix\n").names.empty(),
+            "invalid earlier call argument blocks arithmetic suffix completion");
+    require(query(combine + "fn main():\n  combine(1,2+missing.va|Suffix\n").names.empty(),
+            "arithmetic member still requires a valid receiver");
+    require(query(combine + "fn main():\n  value=2\n  combine(1,2+*va|Suffix\n").names.empty(),
+            "malformed arithmetic is not repaired");
     std::cout << "Native scope completion passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

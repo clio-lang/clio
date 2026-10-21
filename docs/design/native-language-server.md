@@ -1111,8 +1111,8 @@ For this call-target-only case, the temporary source appends at most eight closi
 parentheses at EOF. It preserves all original text after the selected name instead
 of closing the call at the cursor or removing arguments. The repaired graph must
 parse. Call targets require the probe to be exactly the call's name or member;
-the [argument extensions](#earlier-argument-completion) below now also permit a
-simple supplied argument name/member. Signature help uses the corresponding
+the [argument extensions](#earlier-argument-completion) below now also permit
+supplied argument names/members and [supported arithmetic operands](#arithmetic-and-comparison-argument-completion). Signature help uses the corresponding
 [final-argument snapshot policy](#signature-help-with-final-argument-suffixes) below.
 
 Unclosed arrays/records, mismatched delimiters, other lexical errors, malformed
@@ -1145,8 +1145,9 @@ when later parameters have not yet been written.
 
 After temporary parentheses are appended at EOF, the probe must be exactly a
 parsed call target or a simple name/member serving as the call's final argument.
-Compound expressions do not use this extension. Earlier simple argument slots
-are now covered by the [extension below](#earlier-argument-completion). No
+Earlier simple argument slots are covered by the
+[extension below](#earlier-argument-completion), and supported arithmetic/comparison
+operands by the [expression extension](#arithmetic-and-comparison-argument-completion). No
 source suffix is discarded or replaced with closing parentheses at the cursor.
 The existing eight-parenthesis, lexical-error, delimiter and source-size bounds
 still apply; the entire temporary graph must parse.
@@ -1222,8 +1223,8 @@ later supplied arguments stay in place.
 EOF-only parenthesis repair now accepts a parsed simple name/member at any
 supplied argument position, not just the final one. The complete temporary graph
 must parse, and the existing lexical-error, delimiter, source-size and
-eight-parenthesis bounds remain. Compound argument holes stay excluded from
-this repair. Signature help now also has [earlier-argument snapshots](#earlier-argument-signature-snapshots),
+eight-parenthesis bounds remain. Supported [arithmetic/comparison operands](#arithmetic-and-comparison-argument-completion)
+now also use this repair; other compound forms remain separate. Signature help now also has [earlier-argument snapshots](#earlier-argument-signature-snapshots),
 with its own checked prefix policy.
 
 For named and function-value calls with missing later required parameters, a
@@ -1319,3 +1320,40 @@ covers first/middle slots, pipelines, indexed callables, EOF repair, missing lat
 parameters, probe-name collision, invalid prefixes/receivers and malformed suffixes
 in debug/sanitizer tests. Protocol, relocated Release and installed VS Code
 checks preserve actual diagnostics/source and verify current imported signatures.
+
+#### Arithmetic and comparison argument completion
+
+Name/member completion now works inside supported arithmetic or comparison
+arguments when the call needs EOF parenthesis repair. Examples include
+`combine(1, 2 + vaSuffix`, `combine(1, -vaSuffix` and
+`choose(1 < vaSuffix`, with the cursor after `va`. Checked record fields work
+inside those operands too, as in `combine(1, 2 * reading.vaSuffix`. The edit
+replaces only the selected identifier and preserves operators, receiver text,
+later operands and supplied arguments. Earlier argument slots and missing later
+parameters retain their existing callable checks.
+
+The request follows only the expression path containing the selected name/member,
+through numeric unary `+`/`-`, arithmetic `+`, `-`, `*`, `/`, `%`, and comparison
+nodes. That recognition path is limited to 64 expression nodes. It does not add
+logical/conditional/match bodies, indexing holes or arbitrary parser recovery.
+The temporary graph still has to parse after at most eight parentheses are
+appended at EOF; existing lexical, delimiter and source-size limits apply.
+
+Ordinary semantic analysis still determines when the query can be reached,
+including callee/preceding-call-argument checks and record receiver validation.
+Operand checking follows its existing type-inference order. Suggestions identify
+scoped names/members rather than proving that all operators, operand types or
+later expressions are valid. Current unsaved imported receiver types participate.
+No guessed operand value, changed operator or executable partial module is used.
+
+Actual unclosed-delimiter diagnostics and absent hover remain until the source
+is completed. Signature help still excludes compound editing holes; this
+extension concerns completion only. No source buffers/files are written or probe
+diagnostics published.
+
+[Expression-completion qualification](../../native/metal-proof/evidence/native-lsp-expression-completion-2026-10-21.json)
+covers all five arithmetic operators, unary/nested/left operands, all six
+comparisons, checked record members, earlier slots, invalid call prefixes and
+malformed expressions. Protocol, relocated Release and installed VS Code checks
+preserve expression text and actual diagnostics while applying identifier-only
+edits and following live imported field names.

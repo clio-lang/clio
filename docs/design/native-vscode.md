@@ -129,3 +129,5 @@ Installed-editor acceptance also applies [earlier-argument completion](native-la
 Installed-editor acceptance also requests [earlier-argument signature snapshots](native-language-server.md#earlier-argument-signature-snapshots) before later supplied and missing arguments, verifies all checked parameter labels and the first active slot, and preserves the actual delimiter diagnostic, buffer and disk source.
 
 Installed-editor acceptance also requests [signature help for an empty earlier field](native-language-server.md#empty-earlier-field-signature-slots) before a comma, verifies the first active parameter without exposing the private probe, preserves the actual parser diagnostic and source, then checks after supplying a real field.
+
+Installed-editor acceptance also applies [arithmetic argument completion](native-language-server.md#arithmetic-and-comparison-argument-completion), verifies that the full operand-name suffix changes while operators and the actual delimiter diagnostic remain, then checks the call after explicit closure. Disk sources remain unchanged.
