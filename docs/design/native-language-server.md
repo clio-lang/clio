@@ -192,7 +192,7 @@ Suggestions include parameters, preceding immutable bindings, eligible closure c
 
 The request replaces only the current identifier (or inserts one at an empty position) in a temporary source overlay, then parses the graph and snapshots scope immediately before the checker resolves that identifier. Current dependency buffers and configured package mappings participate. Probe diagnostics are discarded: the request does not publish diagnostics, change buffers, write files, run code or contact hardware. Normal checking still never publishes partial typed IR. Completion exposes only scope names, without partial/stale inferred types.
 
-Apart from bounded construction/pattern-label probes and trailing-call repair below, completion needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Unsupported missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; import paths, error channels, general pattern bindings and declaration names are not completion contexts yet. Type annotations are covered below. Qualified enum cases in match patterns are covered below. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no general parser recovery, auto-import, fuzzy ranking, snippet expansion or completion resolve. Checked signature help is covered below. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
+Apart from bounded construction/pattern-label probes and trailing-call repair below, completion needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Unsupported missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; import paths, general pattern bindings and declaration names are not completion contexts yet. Expected-error channels are covered below. Type annotations are covered below. Qualified enum cases in match patterns are covered below. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no general parser recovery, auto-import, fuzzy ranking, snippet expansion or completion resolve. Checked signature help is covered below. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
 
 The [completion qualification record](../../native/metal-proof/evidence/native-lsp-completion-2026-10-20.json) records semantic and stdio tests in normal and ASan/UBSan builds. [Initial VS Code acceptance](native-vscode.md#qualification) now covers partly typed names; broader completion interaction remains follow-up work.
 
@@ -609,9 +609,41 @@ types and annotations in nested suites; it does not infer context from punctuati
 alone. Ordinary expression requests skip this additional walk. Prefix filtering,
 sorted/deduplicated names, the 256-item bound, source/graph budgets and UTF-16 edit
 ranges remain shared with existing completion. Other declaration syntax must
-parse; general declaration recovery and error-channel completion remain separate.
+parse; general declaration recovery remains separate. Expected-error channels are
+covered below.
 
 [Type-completion qualification](../../native/metal-proof/evidence/native-lsp-type-completion-2026-10-21.json)
 covers normal/sanitizer semantic and protocol checks, live imported aliases,
 context-specific builtin lists, bounded results, relocated Release tools and
 installed VS Code edits followed by checked hover and cleared diagnostics.
+
+#### Error-channel completion
+
+An expected-error slot now offers only declared `error` families, transparent
+error aliases and `TaskError`. This works after `!` in named and anonymous
+functions, inside parenthesized channel unions, in nested callable signatures,
+and on the right-hand side of an error-alias declaration such as
+`type Failure = ParseError | ReadError`.
+
+Imported families and aliases use their local names. For example, importing
+`Problem as Failure` offers `Failure` in the client without exposing a library's
+private names. Ordinary records/enums, numeric types, functions and local value
+bindings are not error-channel candidates. Same-spelled values do not hide a
+family in the type namespace. Aliases on the resolver's current active path are
+omitted, including an alias in its own definition. The checker still validates
+cycles and all union semantics after the user edits; this is not a cycle solver.
+Already listed members can remain candidates because canonical duplicate members
+are legal under the existing error-union rules.
+
+The existing parsed annotation walk now also locates explicit error-member spans.
+The error resolver captures a bounded, prefix-filtered Type-kind list before
+normal resolution of the request-local probe. Only names escape. No error
+channel, partial typed module, union expansion or source edit is invented for
+the user. Ordinary diagnostics and hover remain based on the actual source.
+Other declaration syntax must parse; incomplete declarations, import-path
+completion, auto-import and snippets remain separate.
+
+[Error-channel qualification](../../native/metal-proof/evidence/native-lsp-error-completion-2026-10-21.json)
+covers empty/partial members, unions and aliases, named/anonymous/nested callable
+channels, active-alias exclusion, list bounds, imported overlays, relocated
+Release tools and installed VS Code edits followed by checked diagnostics/hover.

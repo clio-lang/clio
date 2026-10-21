@@ -143,6 +143,10 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
           types.push_back(&*statement.annotation);
     };
     for (const auto &function : syntax->module.functions) {
+      for (const auto channel : function.errorTypes)
+        locate(channel);
+      if (function.errorType)
+        locate(*function.errorType);
       for (const auto &parameter : function.parameters)
         types.push_back(&parameter.type);
       if (function.result)
@@ -150,6 +154,8 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
       statements(function.body);
     }
     for (const auto &record : syntax->module.records) {
+      for (const auto member : record.errorAlias)
+        locate(member);
       for (const auto &field : record.fields)
         types.push_back(&field.type);
       for (const auto &variant : record.variants)
@@ -161,6 +167,8 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
           [&](const auto &value) {
             using T = std::decay_t<decltype(value)>;
             if constexpr (std::is_same_v<T, LambdaExpr>) {
+              for (const auto channel : value.errorTypes)
+                locate(channel);
               for (const auto &parameter : value.parameters)
                 if (parameter.annotation)
                   types.push_back(&*parameter.annotation);
@@ -183,6 +191,8 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
       const auto *type = types.back();
       types.pop_back();
       if (type->function) {
+        for (const auto channel : type->function->errorTypes)
+          locate(channel);
         for (const auto &parameter : type->function->parameters)
           types.push_back(&parameter);
         types.push_back(&type->function->result);

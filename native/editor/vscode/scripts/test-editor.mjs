@@ -92,7 +92,9 @@ await writeFile(
   path.join(workspace, "completion-library.k"),
   "export type Box:\n  value:int\n  other:int\n" +
     "export enum Choice:\n  Some:\n    value:int\n    count:int\n  Other\n" +
-    "export fn make()->fn(int,int)->int:\n  fn(a:int,b:int):a+b\n",
+    "export fn make()->fn(int,int)->int:\n  fn(a:int,b:int):a+b\n" +
+    "export error ParseError:\n  Invalid\n" +
+    "export type Problem = ParseError | TaskError\n",
 );
 await writeFile(
   path.join(workspace, "caller.k"),

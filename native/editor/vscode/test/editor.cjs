@@ -619,6 +619,19 @@ async function run() {
   assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
   await replace(main, mainDisk);
   checks.push("Type completion applies an imported alias in an annotation and checks the resulting program");
+  const channelCompletion = await complete(
+    main,
+    'from "./completion-library.k" import Problem as Failure\nfn inspect()->int ! Fa|Suffix:\n  0\nfn main():\n  0\n',
+    "Failure",
+  );
+  const channelItem = channelCompletion.items.find((item) => label(item) === "Failure");
+  assert.equal(channelItem.kind, vscode.CompletionItemKind.Struct);
+  await applyCompletion(main, channelItem, "FaSuffix", "Failure");
+  await clearDiagnostics(main);
+  assert(hoverText(await hover(main, "Failure:")));
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  checks.push("Error-channel completion applies an imported alias and checks the resulting fallible signature");
   await clearDiagnostics(main);
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(

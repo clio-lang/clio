@@ -641,8 +641,22 @@ private:
       rememberTypeUse(alias.name, recordType(*result));
     return result;
   }
+  void completeErrorTypes(SourceSpan site, const std::unordered_set<std::size_t> &active) {
+    if (!completing(site))
+      return;
+    std::vector<std::string> names{"TaskError"};
+    const auto prefix = functionKey(syntax_.source->partIndex(site.begin), "");
+    for (const auto &[key, id] : records_)
+      if (key.starts_with(prefix) && output_.records[id].error)
+        names.push_back(key.substr(prefix.size()));
+    for (const auto &[key, declaration] : aliases_)
+      if (key.starts_with(prefix) && !active.contains(declaration))
+        names.push_back(key.substr(prefix.size()));
+    completeMembers(site, std::move(names), ScopeNameKind::Type);
+  }
   std::optional<std::size_t> resolveError(SourceSpan member,
                                           std::unordered_set<std::size_t> &active) {
+    completeErrorTypes(member, active);
     if (name(member) == "TaskError") {
       const auto id = taskFamily();
       ValueType value;

@@ -203,7 +203,49 @@ int main() {
     require(query("fn main():\n  broken=missing\n  value:in|=1\n  0\n").names.empty(),
             "earlier semantic errors block type completion");
     require(query("fn main(value:int) ! Ba|:\n  value\n").names.empty(),
-            "error channel completion remains separate");
+            "unknown error prefix has no candidates");
+    const std::string errors = "error ParseError:\n  Bad\nerror ReadError:\n  Missing\n"
+                               "type Problem = ParseError | ReadError\n"
+                               "type Plain:\n  value:int\nenum Ordinary:\n  Case\n";
+    info = query(errors + "fn inspect()->int ! Pa|Suffix:\n  0\nfn main():\n  0\n");
+    require(info.names.size() == 1 && has(info, "ParseError") &&
+                info.names[0].kind == ScopeNameKind::Type,
+            "declared function error channel");
+    info = query(errors + "fn inspect()->int ! |:\n  0\nfn main():\n  0\n");
+    require(info.names.size() == 4 && has(info, "ParseError") && has(info, "ReadError") &&
+                has(info, "Problem") && has(info, "TaskError") && !has(info, "Plain") &&
+                !has(info, "int"),
+            "error channel offers only error families and aliases");
+    info = query(errors + "fn inspect()->int ! (ParseError | Re|):\n  0\nfn main():\n  0\n");
+    require(info.names.size() == 1 && has(info, "ReadError"), "union channel member");
+    info = query(errors + "type Combined = P|\nfn main():\n  0\n");
+    require(info.names.size() == 2 && has(info, "ParseError") && has(info, "Problem"),
+            "error alias member");
+    info = query(errors + "type Combined = |\nfn main():\n  0\n");
+    require(has(info, "Problem") && has(info, "TaskError") && !has(info, "Combined"),
+            "currently resolving alias is excluded from its own completion");
+    info = query(errors + "fn inspect(callback:fn(int)->int ! P|):\n  0\nfn main():\n  0\n");
+    require(has(info, "Problem") && has(info, "ParseError"), "nested callable channel");
+    info = query(errors +
+                 "fn make()->(fn(int)->int ! Re|):\n  fn(value:int):value\nfn main():\n  0\n");
+    require(info.names.size() == 1 && has(info, "ReadError"), "returned callable channel");
+    info = query(errors + "fn main():\n  callback=fn(value:int)->int ! Pa|:value\n  0\n");
+    require(info.names.size() == 1 && has(info, "ParseError"), "anonymous error channel");
+    info = query(errors +
+                 "fn main():\n  ParseError=2\n  callback=fn(value:int)->int ! Pa|:value\n  0\n");
+    require(info.names.size() == 1 && has(info, "ParseError"),
+            "error type namespace independent from values");
+    require(query(errors +
+                  "fn main():\n  broken=missing\n  callback=fn(value:int)->int ! Pa|:value\n  0\n")
+                .names.empty(),
+            "earlier binding error blocks anonymous channel suggestions");
+    require(query(errors + "fn inspect()->int ! Pa|\n").names.empty(),
+            "unfinished declaration is not recovered");
+    std::string manyErrors;
+    for (int i = 0; i < 300; ++i)
+      manyErrors += "error Error" + std::to_string(1000 + i).substr(1) + ":\n  Bad\n";
+    info = query(manyErrors + "fn inspect()->int ! Error|:\n  0\nfn main():\n  0\n");
+    require(info.names.size() == 256 && info.incomplete, "bounded error-channel list");
     std::string manyTypes;
     for (int i = 0; i < 300; ++i) {
       const auto suffix = std::to_string(1000 + i).substr(1);

@@ -89,3 +89,5 @@ The same installed-editor checks now cover [an empty final record field](native-
 Installed-editor acceptance now applies [name completion inside an unfinished call](native-language-server.md#completion-inside-unfinished-calls), checks that the edit changes only the typed name, and verifies that the actual missing-delimiter diagnostic and disk file remain unchanged.
 
 Installed-editor acceptance now applies an [imported type alias in an annotation](native-language-server.md#type-annotation-completion), verifies the existing Struct item kind, and checks the resulting program and alias-preserving hover without changing disk sources.
+
+Installed-editor acceptance now applies an [imported error alias in an expected-error channel](native-language-server.md#error-channel-completion), checks the existing Struct item kind, and verifies that the resulting fallible signature clears diagnostics and has checked hover.

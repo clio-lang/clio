@@ -1184,6 +1184,48 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert not signature_document.exists() and type_library.read_text() == type_library_text
     client.finish()
 
+    # Expected-error slots expose only scoped error families/aliases.
+    channel_library = Path(temp) / "channel-completion.k"
+    channel_library_text = ('export error ParseError:\n  Invalid\nerror Hidden:\n  Bad\n'
+                            'export type Problem = ParseError | TaskError\n'
+                            'export type Plain:\n  value:int\n')
+    channel_library.write_text(channel_library_text)
+    client = Client()
+    client.init()
+    channel_imports = 'from "./channel-completion.k" import ParseError as Parse, Problem as Failure, Plain\n'
+    channel_text = channel_imports + 'fn inspect()->int ! FaSuffix:\n  0\nfn main():\n  0\n'
+    client.open(signature_document, channel_text)
+    client.barrier()
+    start = channel_text.splitlines()[1].index("FaSuffix")
+    result = client.completion(signature_document, 1, start+2)["result"]
+    assert [item["label"] for item in result["items"]] == ["Failure"], result
+    assert result["items"][0]["kind"] == 22
+    assert result["items"][0]["textEdit"] == {"newText":"Failure","range":{
+        "start":{"line":1,"character":start},"end":{"line":1,"character":start+8}}}
+    assert not client.barrier(), "error-channel query published probe diagnostics"
+    assert client.hover(signature_document, 1, start+2)["result"] is None
+    client.open(channel_library, channel_library_text.replace("type Problem", "type Changed"))
+    client.barrier()
+    assert client.completion(signature_document, 1, start+2)["result"]["items"] == []
+    client.change(channel_library, channel_library_text, 2)
+    client.barrier()
+    assert client.completion(signature_document, 1, start+2)["result"]["items"][0]["label"] == "Failure"
+    client.change(signature_document, channel_text.replace("FaSuffix","Failure"), 2)
+    assert not publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+    union_text = channel_imports + 'fn inspect()->int ! (Parse | ):\n  0\nfn main():\n  0\n'
+    client.change(signature_document, union_text, 3)
+    client.barrier()
+    cursor = union_text.splitlines()[1].index("):")
+    result = client.completion(signature_document, 1, cursor)["result"]
+    assert [item["label"] for item in result["items"]] == ["Failure","Parse","TaskError"], result
+    alias_text = channel_imports + 'type Composite = \nfn main():\n  0\n'
+    client.change(signature_document, alias_text, 4)
+    client.barrier()
+    result = client.completion(signature_document, 1, len(alias_text.splitlines()[1]))["result"]
+    assert [item["label"] for item in result["items"]] == ["Failure","Parse","TaskError"], result
+    assert not signature_document.exists() and channel_library.read_text() == channel_library_text
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"
