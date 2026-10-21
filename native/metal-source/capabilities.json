@@ -270,13 +270,13 @@
     },
     {
       "id": "branch",
-      "feature": "Branches containing tensor computations",
+      "feature": "Branch-local numerical primitives",
       "scope": "GPU",
       "status": "rejected",
       "fixtures": [
-        "capabilities/branch.k"
+        "capabilities/branch-primitive.k"
       ],
-      "notes": "Pure scalar choices are supported separately; tensor-producing or dispatching arms are not admitted",
+      "notes": "Pure same-source elementwise tensor choices are supported; reductions, matrix products, dispatch and conditional shape checks inside arms are not admitted",
       "diagnostic": "G00[13]"
     },
     {
@@ -445,6 +445,20 @@
       "notes": "All six IEEE comparisons, internal Boolean logic and pure scalar if arms; bitwise selection preserves float32 values and composes with resident reductions",
       "evidence": [
         "gpu-scalar-control-2026-10-21.json"
+      ]
+    },
+    {
+      "id": "tensor-control",
+      "feature": "Same-source elementwise tensor choices",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "tensor-control.k",
+        "capabilities/branch.k"
+      ],
+      "notes": "Pure float32 rank-one/rank-two arms over one logical tensor source fuse into one map; predicates may use resident reductions",
+      "evidence": [
+        "gpu-tensor-control-2026-10-21.json"
       ]
     }
   ]

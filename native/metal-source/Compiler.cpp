@@ -267,8 +267,45 @@ class Compiler {
               matrix->separatelyRoundedProducts && ++primitives == 1)
             result = PrimitiveEntry{PrimitiveEntry::Matrix, left->left,   right->left, false, false,
                                     left->mapped,           right->mapped};
+        } else if (const auto *compare = std::get_if<ScalarCompare>(&node.operation)) {
+          auto a = emit(compare->left), b = emit(compare->right);
+          if (a && b && a->kind == PrimitiveEntry::Scalar && b->kind == PrimitiveEntry::Scalar)
+            result = PrimitiveEntry{PrimitiveEntry::Scalar};
+        } else if (const auto *branch = std::get_if<ConditionalOperation>(&node.operation)) {
+          const bool tensor = node.type.tensor;
+          if (!(tensor ? pureLane(branch->trueResult) && pureLane(branch->falseResult)
+                       : pureScalar(branch->trueResult) && pureScalar(branch->falseResult)))
+            return {};
+          auto condition = emit(branch->condition);
+          auto saved = symbols;
+          auto arm = [&](const std::vector<TypedStatement> &body, ValueId id) -> Result {
+            for (const auto &statement : body) {
+              if (!(tensor ? pureLane(statement.value) : pureScalar(statement.value)))
+                return {};
+              auto value = emit(statement.value);
+              if (!value)
+                return {};
+              if (statement.binding)
+                symbols[*statement.binding] = *value;
+            }
+            return emit(id);
+          };
+          auto a = arm(branch->whenTrue, branch->trueResult);
+          symbols = saved;
+          auto b = arm(branch->whenFalse, branch->falseResult);
+          symbols = std::move(saved);
+          if (condition && condition->kind == PrimitiveEntry::Scalar && a && b) {
+            if (!tensor && a->kind == PrimitiveEntry::Scalar && b->kind == PrimitiveEntry::Scalar)
+              result = PrimitiveEntry{PrimitiveEntry::Scalar};
+            else if (tensor && a->kind == PrimitiveEntry::Input &&
+                     b->kind == PrimitiveEntry::Input && a->left == b->left) {
+              result = a;
+              result->mapped = true;
+            }
+          }
         } else if ((sumSignature || matrixSignature) &&
-                   std::holds_alternative<Float32Literal>(node.operation)) {
+                   (std::holds_alternative<Float32Literal>(node.operation) ||
+                    std::holds_alternative<BoolLiteral>(node.operation))) {
           result = PrimitiveEntry{PrimitiveEntry::Scalar};
         } else if ((sumSignature || matrixSignature) &&
                    (std::holds_alternative<TensorBinary>(node.operation) ||
@@ -396,13 +433,14 @@ class Compiler {
     return false;
   }
   // Branch arms may be evaluated speculatively only when every operation is pure,
-  // scalar and non-failing. Tensor allocation, shape checks and dispatch stay outside.
-  mutable std::map<ValueId, bool> scalarPurity;
-  bool pureScalar(ValueId root) const {
-    if (auto found = scalarPurity.find(root); found != scalarPurity.end())
+  // scalar or a lane calculation on one source. Shape checks and dispatch stay outside.
+  mutable std::map<ValueId, bool> scalarPurity, lanePurity;
+  bool pureBranch(ValueId root, bool lane) const {
+    auto &cache = lane ? lanePurity : scalarPurity;
+    if (auto found = cache.find(root); found != cache.end())
       return found->second;
     const auto invalid = [&] {
-      scalarPurity[root] = false;
+      cache[root] = false;
       return false;
     };
     std::set<ValueId> visited;
@@ -411,7 +449,7 @@ class Compiler {
     while (!pending.empty()) {
       const auto id = pending.back();
       pending.pop_back();
-      if (auto found = scalarPurity.find(id); found != scalarPurity.end()) {
+      if (auto found = cache.find(id); found != cache.end()) {
         if (!found->second)
           return invalid();
         continue;
@@ -422,7 +460,9 @@ class Compiler {
         reject(cpu.expressions.at(root).span, "GPU scalar branch analysis limit exceeded");
       const auto &node = cpu.expressions.at(id);
       const auto &type = node.type;
-      if (type.tensor || type.task || type.fallible ||
+      if ((!lane && type.tensor) ||
+          (type.tensor && (type.shape.empty() || type.shape.size() > 2)) || type.task ||
+          type.fallible ||
           (type.builtin != BuiltinValue::Bool &&
            (type.builtin != BuiltinValue::Numeric || type.element != NumericType::Float32)))
         return invalid();
@@ -433,7 +473,12 @@ class Compiler {
       if (const auto *binary = std::get_if<ScalarBinary>(&node.operation)) {
         pending.push_back(binary->left);
         pending.push_back(binary->right);
-      } else if (const auto *compare = std::get_if<ScalarCompare>(&node.operation)) {
+      } else if (const auto *binary = std::get_if<TensorBinary>(&node.operation); binary && lane) {
+        pending.push_back(binary->left);
+        pending.push_back(binary->right);
+      } else if (const auto *unary = std::get_if<TensorUnary>(&node.operation); unary && lane)
+        pending.push_back(unary->operand);
+      else if (const auto *compare = std::get_if<ScalarCompare>(&node.operation)) {
         pending.push_back(compare->left);
         pending.push_back(compare->right);
       } else if (const auto *unary = std::get_if<ScalarUnary>(&node.operation))
@@ -448,6 +493,19 @@ class Compiler {
         pending.insert(pending.end(), call->arguments.begin(), call->arguments.end());
         if (functions.insert(call->function).second) {
           const auto &fn = cpu.functions.at(call->function);
+          if (lane) {
+            if (!fn.preconditions.empty())
+              return invalid();
+            auto fixed = [](const ValueType &t) {
+              return t.tensor && std::any_of(t.shape.begin(), t.shape.end(),
+                                             [](const auto &e) { return e.constant.has_value(); });
+            };
+            if (fixed(fn.resultType))
+              return invalid();
+            for (auto parameter : fn.parameters)
+              if (fixed(cpu.symbols[parameter].type))
+                return invalid();
+          }
           pending.push_back(fn.result);
           for (const auto &statement : fn.body)
             pending.push_back(statement.value);
@@ -456,9 +514,11 @@ class Compiler {
         return invalid();
     }
     for (auto id : visited)
-      scalarPurity[id] = true;
+      cache[id] = true;
     return true;
   }
+  bool pureScalar(ValueId root) const { return pureBranch(root, false); }
+  bool pureLane(ValueId root) const { return pureBranch(root, true); }
   struct MatrixGraph {
     std::size_t inputs = 0, matrixCount = 0;
     std::vector<bool> maps;
@@ -481,6 +541,21 @@ class Compiler {
     std::vector<std::set<std::size_t>> dependencies;
     auto dependency = [&](std::int64_t value) {
       return value <= -2 ? dependencies.at(-value - 2) : std::set<std::size_t>{};
+    };
+    // Speculated arm arithmetic carries a common tensor source and scalar dependencies,
+    // not graph stages. Keep its IDs outside the uint32 graph-value namespace.
+    struct Lane {
+      std::int64_t source;
+      std::set<std::size_t> reduced;
+    };
+    constexpr std::int64_t laneBase = std::int64_t(UINT32_MAX) + 1;
+    std::vector<Lane> lanes;
+    std::size_t laneDepth = 0;
+    auto source = [&](std::int64_t v) { return v >= laneBase ? lanes.at(v - laneBase).source : v; };
+    auto laneDependency = [&](std::int64_t v) {
+      return v >= laneBase ? lanes.at(v - laneBase).reduced
+             : v < 0       ? dependency(v)
+                           : std::set<std::size_t>{};
     };
     std::size_t work = 0;
     std::set<FunctionId> active;
@@ -536,11 +611,19 @@ class Compiler {
             auto left = *a >= 0 ? *a : *b, right = *b >= 0 ? *b : *a;
             if (left < 0 || right < 0)
               return {};
-            auto reduced = dependency(*a), other = dependency(*b);
+            auto reduced = laneDependency(*a), other = laneDependency(*b);
             reduced.insert(other.begin(), other.end());
             work += reduced.size();
             if (work > 300000)
               reject(entry.declaration, "GPU reduction dependency analysis limit exceeded");
+            if (laneDepth) {
+              if (source(left) != source(right))
+                return {};
+              result = laneBase + lanes.size();
+              lanes.push_back({source(left), std::move(reduced)});
+              values.emplace(value, *result);
+              return result;
+            }
             for (auto reduction : reduced)
               graph.broadcasts.emplace_back(graph.products.size(), reduction);
             result = graph.inputs + graph.products.size();
@@ -551,9 +634,13 @@ class Compiler {
           auto input = emit(unary->operand);
           if (input && *input >= 0 &&
               (unary->operation == TokenKind::Plus || unary->operation == TokenKind::Minus)) {
-            result = graph.inputs + graph.products.size();
-            graph.products.emplace_back(*input, *input);
-            graph.maps.push_back(true);
+            if (laneDepth)
+              result = *input;
+            else {
+              result = graph.inputs + graph.products.size();
+              graph.products.emplace_back(*input, *input);
+              graph.maps.push_back(true);
+            }
           }
         } else if (std::holds_alternative<Float32Literal>(node.operation) ||
                    std::holds_alternative<BoolLiteral>(node.operation))
@@ -574,14 +661,17 @@ class Compiler {
             }
           }
         } else if (const auto *branch = std::get_if<ConditionalOperation>(&node.operation)) {
-          if (node.type.tensor || !pureScalar(branch->trueResult) ||
-              !pureScalar(branch->falseResult))
+          const bool tensor = node.type.tensor;
+          if (!(tensor ? pureLane(branch->trueResult) && pureLane(branch->falseResult)
+                       : pureScalar(branch->trueResult) && pureScalar(branch->falseResult)))
             return {};
           auto condition = emit(branch->condition);
+          if (tensor)
+            ++laneDepth;
           auto saved = symbols;
           auto arm = [&](const std::vector<TypedStatement> &body, ValueId value) -> Result {
             for (const auto &statement : body) {
-              if (!pureScalar(statement.value))
+              if (!(tensor ? pureLane(statement.value) : pureScalar(statement.value)))
                 return {};
               auto value = emit(statement.value);
               if (!value)
@@ -595,7 +685,29 @@ class Compiler {
           symbols = saved;
           auto b = arm(branch->whenFalse, branch->falseResult);
           symbols = std::move(saved);
-          if (condition && a && b && *condition < 0 && *a < 0 && *b < 0) {
+          if (tensor) {
+            --laneDepth;
+            if (!condition || *condition >= 0 || !a || !b || *a < 0 || *b < 0 ||
+                source(*a) != source(*b))
+              return {};
+            auto reduced = dependency(*condition), left = laneDependency(*a),
+                 right = laneDependency(*b);
+            reduced.insert(left.begin(), left.end());
+            reduced.insert(right.begin(), right.end());
+            work += reduced.size();
+            if (work > 300000)
+              reject(entry.declaration, "GPU tensor choice analysis limit exceeded");
+            if (laneDepth) {
+              result = laneBase + lanes.size();
+              lanes.push_back({source(*a), std::move(reduced)});
+            } else {
+              for (auto reduction : reduced)
+                graph.broadcasts.emplace_back(graph.products.size(), reduction);
+              result = graph.inputs + graph.products.size();
+              graph.products.emplace_back(source(*a), source(*a));
+              graph.maps.push_back(true);
+            }
+          } else if (condition && a && b && *condition < 0 && *a < 0 && *b < 0) {
             auto joined = dependency(*condition);
             for (auto v : {*a, *b}) {
               auto next = dependency(v);
@@ -1961,6 +2073,9 @@ class Compiler {
     std::vector<Instruction> instructions;
     std::unordered_map<std::string, std::size_t> definitions;
     std::unordered_map<std::string, std::uint32_t> tensorInputs;
+    // SSA origins enforce the same-source rule while nested arms lower lane by lane.
+    std::unordered_map<std::string, std::set<std::string>> origins;
+    std::size_t laneDepth = 0;
     std::size_t counter = 0, callDepth = 0;
     std::optional<std::string> reductionInput, matrixInput;
     std::set<std::size_t> active;
@@ -2067,15 +2182,19 @@ class Compiler {
             }
           }
         } else if (const auto *branch = std::get_if<ConditionalOperation>(&n.operation)) {
-          if (n.type.tensor || !pureScalar(branch->trueResult) || !pureScalar(branch->falseResult))
-            reject(n.span, "GPU branches currently require pure scalar arms; tensor computations "
-                           "and dispatch are not supported in arms");
+          const bool tensor = n.type.tensor;
+          if (!(tensor ? pureLane(branch->trueResult) && pureLane(branch->falseResult)
+                       : pureScalar(branch->trueResult) && pureScalar(branch->falseResult)))
+            reject(n.span, "GPU choices require pure scalar or same-source elementwise arms; "
+                           "primitives, shape checks and dispatch are not supported in arms");
           auto condition = emit(branch->condition);
+          if (tensor)
+            ++laneDepth;
           auto saved = symbols;
           auto arm = [&](const std::vector<TypedStatement> &body, ValueId id) {
             for (const auto &statement : body) {
-              if (!pureScalar(statement.value))
-                reject(n.span, "GPU branch bodies require pure scalar calculations");
+              if (!(tensor ? pureLane(statement.value) : pureScalar(statement.value)))
+                reject(n.span, "GPU branch bodies require pure lane calculations");
               auto value = emit(statement.value);
               if (statement.binding)
                 symbols[*statement.binding] = value;
@@ -2086,7 +2205,14 @@ class Compiler {
           symbols = saved;
           auto b = arm(branch->whenFalse, branch->falseResult);
           symbols = std::move(saved);
+          if (tensor) {
+            --laneDepth;
+            if (origins[a].size() != 1 || origins[a] != origins[b])
+              reject(n.span, "GPU tensor choices require one common tensor source in both arms");
+          }
           result = temporary();
+          if (tensor)
+            origins[result] = origins[a];
           operands = {condition, a, b};
           if (n.type.builtin == BuiltinValue::Bool)
             instruction << "        " << result << " = arith.select " << condition << ", " << a
@@ -2185,14 +2311,29 @@ class Compiler {
           result = invoke(call->function, inputs);
         } else
           reject(n.span, "unsupported GPU operation in a transitive helper");
-        if (graph && (std::holds_alternative<TensorBinary>(n.operation) ||
-                      std::holds_alternative<TensorUnary>(n.operation))) {
+        if (n.type.tensor) {
+          if (laneDepth && (std::holds_alternative<TensorBinary>(n.operation) ||
+                            std::holds_alternative<TensorUnary>(n.operation))) {
+            auto &sources = origins[result];
+            for (const auto &operand : operands)
+              if (auto found = origins.find(operand); found != origins.end())
+                sources.insert(found->second.begin(), found->second.end());
+            if (sources.size() != 1)
+              reject(n.span, "GPU tensor choice arithmetic requires one common tensor source");
+          } else if (!origins.contains(result) || !laneDepth)
+            origins[result] = {result};
+        }
+        if (graph && !laneDepth &&
+            (std::holds_alternative<TensorBinary>(n.operation) ||
+             std::holds_alternative<TensorUnary>(n.operation) ||
+             (std::holds_alternative<ConditionalOperation>(n.operation) && n.type.tensor))) {
           auto stage = graphIndex++;
           if (std::int64_t(stage) == graphStage)
             graphResult = result;
           else {
             result = std::string(post && multi ? "%graph" : "%lane") +
                      std::to_string(graph->inputs + stage);
+            origins[result] = {result};
             instruction.str("");
           }
         }
@@ -2222,6 +2363,7 @@ class Compiler {
         if (!post || matrixPost)
           tensorInputs.emplace(lane, tensors + (matrixPost ? 1 : 0));
         ++tensors;
+        origins[lane] = {lane};
         args.push_back(lane);
       } else
         args.push_back("%scalar" + std::to_string(scalars++));

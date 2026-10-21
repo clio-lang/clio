@@ -31,7 +31,7 @@ and local bindings. Every operation in either arm must be a pure, non-failing
 scalar calculation. Tensor operations, shape checks, reductions, matrix products,
 allocation, task operations and other effects are not allowed inside arms. Such
 work can run before the choice and supply scalar values to it. Tensor-valued
-branches remain unsupported.
+branches have a separately qualified [same-source elementwise subset](native-gpu-tensor-control.md).
 
 Pure scalar choices work in ordinary tensor helpers, tensor-result feedback
 graphs and scalar joins over several reductions. A reduction used only by a
