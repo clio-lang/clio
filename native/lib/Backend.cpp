@@ -3,6 +3,7 @@
 #include "NativeLayout.h"
 #include "RecordLLVMTypes.h"
 #include "RecordLayout.h"
+#include "RecursiveRecordOps.h"
 #include "kalandra/NumericConversion.h"
 #include "kalandra/StrictFloat.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -48,6 +49,10 @@ public:
     auto records = lowerRecordTypes(input_, *builder_.getContext());
     if (!records)
       throw LoweringFailure{records.error().message};
+    recordStorage_ = *planRecordStorage(input_);
+    recursiveTypes_ = *records;
+    recursive_ = std::make_unique<RecursiveRecordOps>(input_, recordStorage_, recursiveTypes_,
+                                                      builder_, *module_);
     for (std::size_t id = 0; id < records->size(); ++id)
       recordTypes_.emplace(id, (*records)[id]);
     builder_.setInsertionPointToEnd(module_->getBody());
@@ -419,7 +424,14 @@ private:
             field.builtin == BuiltinValue::TaskError) {
           auto member = LLVM::ExtractValueOp::create(builder_, loc, value,
                                                      ArrayRef<int64_t>{static_cast<int64_t>(i)});
-          validateStrings(loc, member, field);
+          if (recordStorage_.fields[*source.record][i] == RecordFieldStorage::ManagedReference) {
+            // Validate the immediate reference without recursively generating a
+            // walk of the cyclic nominal graph. Payload reads remain checked.
+            auto loaded = recursive_->read(loc, member, *field.record);
+            if (!loaded)
+              throw LoweringFailure{loaded.error()};
+          } else
+            validateStrings(loc, member, field);
           if (field.builtin == BuiltinValue::TaskError && taskKind) {
             auto kind = LLVM::ExtractValueOp::create(builder_, loc, member, ArrayRef<int64_t>{0});
             auto expected = arith::ConstantIntOp::create(builder_, loc, *taskKind, 32);
@@ -1429,7 +1441,13 @@ private:
             for (const auto &field : operation.fields) {
               auto member = expression(frame, field.value);
               const auto &fieldType = input_.records[*node.type.record].fields[field.field].type;
-              if (fieldType.tensor && !isOwnedArray(fieldType))
+              if (recordStorage_.fields[*node.type.record][field.field] ==
+                  RecordFieldStorage::ManagedReference) {
+                auto boxed = recursive_->box(loc, member, *fieldType.record);
+                if (!boxed)
+                  throw LoweringFailure{boxed.error()};
+                member = *boxed;
+              } else if (fieldType.tensor && !isOwnedArray(fieldType))
                 member = recordPack(loc, member, fieldType);
               value =
                   LLVM::InsertValueOp::create(builder_, loc, value, member,
@@ -1443,6 +1461,14 @@ private:
             Value member = LLVM::ExtractValueOp::create(
                 builder_, loc, expression(frame, operation.input),
                 ArrayRef<int64_t>{static_cast<int64_t>(operation.field)});
+            const auto &container = input_.expressions[operation.input].type;
+            if (recordStorage_.fields[*container.record][operation.field] ==
+                RecordFieldStorage::ManagedReference) {
+              auto loaded = recursive_->read(loc, member, *node.type.record);
+              if (!loaded)
+                throw LoweringFailure{loaded.error()};
+              return *loaded;
+            }
             if (isOwnedArray(node.type)) {
               recordArrayLength(loc, member, node.type);
               return member;
@@ -2135,6 +2161,9 @@ private:
   OwningOpRef<ModuleOp> module_;
   std::vector<func::FuncOp> functions_;
   std::unordered_map<FunctionId, func::FuncOp> callableEntries_;
+  std::unique_ptr<RecursiveRecordOps> recursive_;
+  RecordStoragePlan recordStorage_;
+  std::vector<LLVM::LLVMStructType> recursiveTypes_;
   std::unordered_map<std::size_t, Type> recordTypes_;
   std::unordered_map<std::size_t, std::pair<std::uint64_t, std::uint64_t>> recordLayouts_;
   unsigned nextMatmulHelper_ = 0, nextStringLiteral_ = 0, nextElementwiseHelper_ = 0;

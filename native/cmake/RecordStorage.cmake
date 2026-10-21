@@ -50,3 +50,28 @@ if(BUILD_TESTING)
     set_tests_properties(native-recursive-value-runtime-${VARIANT} PROPERTIES TIMEOUT 120)
   endforeach()
 endif()
+
+if(BUILD_TESTING)
+  add_executable(kalandra-recursive-record-emitter-tests tests/RecursiveRecordEmitterTests.cpp)
+  target_include_directories(kalandra-recursive-record-emitter-tests SYSTEM PRIVATE ${MLIR_INCLUDE_DIRS} ${LLVM_INCLUDE_DIRS})
+  target_link_libraries(kalandra-recursive-record-emitter-tests PRIVATE kalandra-backend MLIR LLVM)
+  target_compile_options(kalandra-recursive-record-emitter-tests PRIVATE -Wall -Wextra -Werror)
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    if(VARIANT STREQUAL "sanitized")
+      set(BRIDGE_RUNTIME kalandra-native-runtime-sanitized)
+    elseif(VARIANT STREQUAL "thread-sanitized")
+      set(BRIDGE_RUNTIME kalandra-native-runtime-thread-sanitized)
+    elseif(VARIANT STREQUAL "optimized")
+      set(BRIDGE_RUNTIME kalandra-task-core-optimized)
+    else()
+      set(BRIDGE_RUNTIME kalandra-native-runtime)
+    endif()
+    add_test(NAME native-recursive-record-bridge-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DEMITTER=$<TARGET_FILE:kalandra-recursive-record-emitter-tests>"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=$<TARGET_FILE:${BRIDGE_RUNTIME}>"
+        "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}" "-DVARIANT=${VARIANT}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/recursive-record-bridge-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyRecursiveRecordBridge.cmake")
+    set_tests_properties(native-recursive-record-bridge-${VARIANT} PROPERTIES TIMEOUT 120)
+  endforeach()
+endif()

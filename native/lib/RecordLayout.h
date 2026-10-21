@@ -1,5 +1,6 @@
 #pragma once
 #include "ErrorFamilies.h"
+#include "RecordStorage.h"
 #include "kalandra/Semantics.h"
 #include <algorithm>
 #include <functional>
@@ -22,6 +23,10 @@ inline bool hasRecordBacking(const TypedModule &module) {
   for (const auto &record : module.records)
     for (const auto &field : record.fields)
       if (field.type.tensor || field.type.builtin == BuiltinValue::String)
+        return true;
+  if (auto storage = planRecordStorage(module))
+    for (const auto &fields : storage->fields)
+      if (std::ranges::find(fields, RecordFieldStorage::ManagedReference) != fields.end())
         return true;
   return false;
 }

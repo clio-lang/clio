@@ -191,14 +191,25 @@ void *Invocation::allocateRecord(std::uint64_t bytes) noexcept {
 }
 const void *Invocation::makeRecursiveValue(std::span<const std::byte> payload, const void *key,
                                            std::span<const AllocationLease> dependencies) noexcept {
+  return makeRecursiveValueImpl(payload, key, dependencies, {}, false);
+}
+const void *
+Invocation::makeRecursiveValueFromPointers(std::span<const std::byte> payload, const void *key,
+                                           std::span<const void *const> dependencies) noexcept {
+  return makeRecursiveValueImpl(payload, key, {}, dependencies, true);
+}
+const void *Invocation::makeRecursiveValueImpl(std::span<const std::byte> payload, const void *key,
+                                               std::span<const AllocationLease> leases,
+                                               std::span<const void *const> pointers,
+                                               bool rawPointers) noexcept {
+  const auto dependencyCount = rawPointers ? pointers.size() : leases.size();
   if (poll() || !usable())
     return nullptr;
-  if (!key || payload.empty() || !payload.data() ||
-      dependencies.size() > maxRecursiveDependencies) {
+  if (!key || payload.empty() || !payload.data() || dependencyCount > maxRecursiveDependencies) {
     fault(3);
     return nullptr;
   }
-  for (const auto &dependency : dependencies)
+  for (const auto &dependency : leases)
     if (!dependency) {
       fault(3);
       return nullptr;
@@ -210,13 +221,13 @@ const void *Invocation::makeRecursiveValue(std::span<const std::byte> payload, c
     return nullptr;
   }
   const auto padded = (payload.size() + alignment - 1) & ~(alignment - 1);
-  if (dependencies.size() > (maximum - sizeof(Backing) - padded) / sizeof(Backing *)) {
+  if (dependencyCount > (maximum - sizeof(Backing) - padded) / sizeof(Backing *)) {
     fault(2);
     return nullptr;
   }
   if (!reserve())
     return nullptr;
-  auto *storage = std::malloc(sizeof(Backing) + padded + dependencies.size() * sizeof(Backing *));
+  auto *storage = std::malloc(sizeof(Backing) + padded + dependencyCount * sizeof(Backing *));
   if (!storage) {
     fault(2);
     return nullptr;
@@ -230,14 +241,25 @@ const void *Invocation::makeRecursiveValue(std::span<const std::byte> payload, c
   backing->recursiveKey = key;
   auto *output = reinterpret_cast<std::byte *>(backing + 1);
   backing->dependencies = reinterpret_cast<Backing **>(output + padded);
-  for (const auto &dependency : dependencies) {
+  for (std::size_t index = 0; index < dependencyCount; ++index) {
     if (poll())
       return nullptr;
-    if (!retainBacking(dependency.backing_)) {
+    Backing *child = nullptr;
+    if (rawPointers) {
+      if (!pointers[index])
+        continue;
+      auto *owner = head_;
+      while (owner && owner->backing + 1 != pointers[index])
+        owner = owner->next;
+      if (owner)
+        child = owner->backing;
+    } else
+      child = leases[index].backing_;
+    if (!child || !retainBacking(child)) {
       fault(3);
       return nullptr;
     }
-    backing->dependencies[backing->dependencyCount++] = dependency.backing_;
+    backing->dependencies[backing->dependencyCount++] = child;
   }
   for (std::size_t offset = 0; offset < payload.size();) {
     if (poll())
@@ -767,4 +789,47 @@ extern "C" void kalandra_expected_application_error_v1(kalandra::runtime::Invoca
                                                        const char *family,
                                                        const char *variant) noexcept {
   context->expectedApplicationError(family, variant);
+}
+
+namespace {
+bool recursiveRequest(kalandra::runtime::Invocation *context, const void *payload,
+                      std::uint64_t bytes, std::uint64_t alignment, const void *key) noexcept {
+  if (context->poll() || !context->usable())
+    return false;
+  if (!payload || !key || !bytes || bytes > std::numeric_limits<std::size_t>::max() || !alignment ||
+      alignment > alignof(std::max_align_t) || (alignment & (alignment - 1)) ||
+      reinterpret_cast<std::uintptr_t>(payload) % alignment) {
+    context->fault(3);
+    return false;
+  }
+  return true;
+}
+} // namespace
+extern "C" const void *kalandra_recursive_make_v1(kalandra::runtime::Invocation *context,
+                                                  const void *payload, std::uint64_t bytes,
+                                                  std::uint64_t alignment, const void *key,
+                                                  const void *const *dependencies,
+                                                  std::uint64_t count) noexcept {
+  if (!recursiveRequest(context, payload, bytes, alignment, key))
+    return nullptr;
+  if (count > kalandra::runtime::Invocation::maxRecursiveDependencies || (count && !dependencies)) {
+    context->fault(3);
+    return nullptr;
+  }
+  return context->makeRecursiveValueFromPointers(
+      {static_cast<const std::byte *>(payload), static_cast<std::size_t>(bytes)}, key,
+      {dependencies, static_cast<std::size_t>(count)});
+}
+extern "C" const void *kalandra_recursive_read_v1(kalandra::runtime::Invocation *context,
+                                                  const void *node, std::uint64_t bytes,
+                                                  std::uint64_t alignment,
+                                                  const void *key) noexcept {
+  if (!recursiveRequest(context, node, bytes, alignment, key))
+    return nullptr;
+  auto lease = context->lease(node);
+  if (!lease || !lease->recursiveBytes(key, bytes, alignment)) {
+    context->fault(3);
+    return nullptr;
+  }
+  return node;
 }

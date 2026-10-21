@@ -65,6 +65,9 @@ public:
   static constexpr std::size_t maxRecursiveDependencies = 300000;
   const void *makeRecursiveValue(std::span<const std::byte> payload, const void *key,
                                  std::span<const AllocationLease> dependencies = {}) noexcept;
+  // Compiler stack tables may contain null slots for inactive enum payloads.
+  const void *makeRecursiveValueFromPointers(std::span<const std::byte> payload, const void *key,
+                                             std::span<const void *const> dependencies) noexcept;
   using EnvironmentReserve = bool (*)(void *, std::uint64_t) noexcept;
   using EnvironmentRelease = void (*)(void *, std::uint64_t) noexcept;
   void bindEnvironmentBudget(void *state, EnvironmentReserve reserve,
@@ -117,6 +120,9 @@ private:
   bool settled_ = false;
   std::int64_t taskError_ = 0, expectedCode_ = 0, expectedLine_ = 0, expectedColumn_ = 0;
   const char *applicationFamily_ = nullptr, *applicationVariant_ = nullptr;
+  const void *makeRecursiveValueImpl(std::span<const std::byte>, const void *,
+                                     std::span<const AllocationLease>, std::span<const void *const>,
+                                     bool) noexcept;
   bool reserve() noexcept;
   void attach(Owner *owner) noexcept;
   void remove(Owner *owner) noexcept;
@@ -126,6 +132,11 @@ private:
 // Revision is encoded in the symbols: mismatched compiler/runtime builds fail
 // at link time. No process-global or thread-local current invocation exists.
 extern "C" {
+const void *kalandra_recursive_make_v1(kalandra::runtime::Invocation *, const void *, std::uint64_t,
+                                       std::uint64_t, const void *, const void *const *,
+                                       std::uint64_t) noexcept;
+const void *kalandra_recursive_read_v1(kalandra::runtime::Invocation *, const void *, std::uint64_t,
+                                       std::uint64_t, const void *) noexcept;
 void kalandra_expected_application_error_v1(kalandra::runtime::Invocation *, const char *,
                                             const char *) noexcept;
 void kalandra_bool_array_validate_v1(kalandra::runtime::Invocation *, const void *) noexcept;
