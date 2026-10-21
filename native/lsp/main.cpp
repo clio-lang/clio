@@ -568,10 +568,11 @@ public:
       }
       const auto &diagnostic = *(*encoded->getAsObject()->getArray("diagnostics"))[0].getAsObject();
       for (const auto &name : info.names) {
-        const auto kind = name.kind == ScopeNameKind::Function ? 3
-                          : name.kind == ScopeNameKind::Type   ? 22
-                          : name.kind == ScopeNameKind::Field  ? 5
-                                                               : 6;
+        const auto kind = name.kind == ScopeNameKind::Function   ? 3
+                          : name.kind == ScopeNameKind::Type     ? 22
+                          : name.kind == ScopeNameKind::Field    ? 5
+                          : name.kind == ScopeNameKind::EnumCase ? 20
+                                                                 : 6;
         items.push_back(j::Object{
             {"label", name.name},
             {"kind", kind},
@@ -580,6 +581,7 @@ public:
                        : name.kind == ScopeNameKind::Variable ? "binding"
                        : name.kind == ScopeNameKind::Function ? "function"
                        : name.kind == ScopeNameKind::Field    ? "record field"
+                       : name.kind == ScopeNameKind::EnumCase ? "enum case"
                                                               : "type"},
             {"textEdit", j::Object{{"range", *diagnostic.get("range")}, {"newText", name.name}}}});
       }

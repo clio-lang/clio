@@ -192,7 +192,7 @@ Suggestions include parameters, preceding immutable bindings, eligible closure c
 
 The request replaces only the current identifier (or inserts one at an empty position) in a temporary source overlay, then parses the graph and snapshots scope immediately before the checker resolves that identifier. Current dependency buffers and configured package mappings participate. Probe diagnostics are discarded: the request does not publish diagnostics, change buffers, write files, run code or contact hardware. Normal checking still never publishes partial typed IR. Completion exposes only scope names, without partial/stale inferred types.
 
-This deliberately bounded first slice needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; annotations, import paths, pattern syntax and declaration names are not completion contexts yet. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no parser recovery, enum-case completion, auto-import, fuzzy ranking, snippet expansion, completion resolve or signature help. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
+This deliberately bounded first slice needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; annotations, import paths, general pattern bindings and declaration names are not completion contexts yet. Qualified enum cases in match patterns are covered below. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no parser recovery, auto-import, fuzzy ranking, snippet expansion, completion resolve or signature help. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
 
 The [completion qualification record](../../native/metal-proof/evidence/native-lsp-completion-2026-10-20.json) records semantic and stdio tests in normal and ASan/UBSan builds. [Initial VS Code acceptance](native-vscode.md#qualification) now covers partly typed names; broader completion interaction remains follow-up work.
 
@@ -222,7 +222,7 @@ Malformed JSON with valid framing returns a parse error and leaves the session u
 
 Independent Python-stdlib protocol tests launch normal and ASan/UBSan builds, exercise interactive pipe framing, lifecycle, versions, Unicode ranges/URIs, source isolation, dependency changes/clearing, project packages, budgets and malformed input. The [initial qualification record](../../native/metal-proof/evidence/native-lsp-2026-10-20.json) covers the first full-sync implementation. [Incremental edit qualification](../../native/metal-proof/evidence/native-lsp-edits-2026-10-20.json) adds sequential/mixed edits, Unicode scalar boundaries, CRLF/CR positions, line-end clamping, transactional failure, deprecated lengths and edit limits. Third-party LLVM libraries are not rebuilt with sanitizers. No real editor or additional operating system is qualified by these protocol tests.
 
-The [native VS Code qualification](native-vscode.md#qualification) now tests the packaged client against the real editor host on macOS ARM64. An [initial native tool install/archive](native-tools-install.md) now supports this editor connection outside the build directory. Additional editor/platform acceptance, complete compiler/runtime distribution, completion recovery, members and signature help remain follow-ups. Filesystem watching, persistent workspace indexing and asynchronous scheduling remain separate work.
+The [native VS Code qualification](native-vscode.md#qualification) now tests the packaged client against the real editor host on macOS ARM64. An [initial native tool install/archive](native-tools-install.md) now supports this editor connection outside the build directory. Additional editor/platform acceptance, complete compiler/runtime distribution, completion recovery, additional member contexts and signature help remain follow-ups. Filesystem watching, persistent workspace indexing and asynchronous scheduling remain separate work.
 
 ### Record-field completion
 
@@ -238,7 +238,7 @@ the same ordinary field-access rules. Unsaved dependency overlays participate,
 including package sources through the existing graph loader. A primitive, array,
 unsettled task, fallible receiver, invalid field chain or unmatched enum does not
 supply record-field suggestions. There are no synthetic properties or guessed
-fields. Enum cases and record-construction labels remain separate work.
+fields. Qualified enum cases are covered below; record-construction labels remain separate work.
 
 Only names escape the optional checker query. The temporary probe may fail normal
 field lookup, but checking still publishes no partial typed IR. Prior errors block
@@ -249,3 +249,31 @@ runtime state are changed. Parser recovery remains outside this slice.
 covers semantic and framed protocol tests, imported overlays, UTF-16 replacement
 ranges and relocated Release editor tools. Real editor-host interaction remains
 a separate acceptance gate.
+
+### Enum-case completion
+
+Typing `Choice.` in an expression now offers that unshadowed enum's declared
+cases, including cases that require named payloads. Partial identifiers and
+existing payload-construction syntax use whole-identifier edits; completion does
+not insert payload fields or snippets. Imported and re-exported type aliases use
+their original nominal declaration, and unsaved dependency changes participate.
+A local value named `Choice` follows ordinary value/record-field lookup instead.
+
+Qualified `match` patterns also offer cases valid for the checked subject and
+family. Cases handled by earlier arms are omitted, and a preceding fallback
+leaves no later candidates. A wrong family produces no suggestions. Declared
+error families, their aliases/unions, and built-in task/fault patterns follow the
+checker's existing match rules. Error unions keep original family identities;
+private synthetic union case names are never offered as constructors.
+
+Case items use LSP EnumMember (20), plain insertion text and the existing dot
+trigger. Alphabetical ordering, prefix filtering, the 256-item bound, UTF-16 edits,
+prior-error gating and no partial typed IR remain shared with record fields.
+Pattern bodies/delimiters must still parse: this does not add parser recovery or
+complete pattern binding names. Enum values do not acquire direct payload fields.
+
+The [enum-completion qualification record](../../native/metal-proof/evidence/native-lsp-enum-completion-2026-10-21.json)
+covers constructors, payload syntax, remaining match cases, shadowing, wrong
+families, unions, built-in task errors, a 300-case bound, imported overlays and
+relocated Release editor tools, with normal and sanitizer protocol/semantic runs.
+Real editor-host case completion is a separate acceptance gate.

@@ -136,6 +136,23 @@ private:
       owner = owner->closure->parent;
     return functionKey(syntax_.functions[owner->function].moduleIndex, name);
   }
+  bool completing(SourceSpan site) const {
+    const auto *query = options_.completion;
+    return query && !query->reached && diagnostics_.empty() && query->site.begin == site.begin &&
+           query->site.end == site.end;
+  }
+  void completeMembers(SourceSpan site, std::vector<std::string> names, ScopeNameKind kind) {
+    if (!completing(site))
+      return;
+    auto &query = *options_.completion;
+    query.reached = true;
+    std::erase_if(names, [&](const auto &name) { return !name.starts_with(query.prefix); });
+    std::ranges::sort(names);
+    names.erase(std::unique(names.begin(), names.end()), names.end());
+    query.truncated = names.size() > 256;
+    for (std::size_t i = 0; i < std::min<std::size_t>(names.size(), 256); ++i)
+      query.names.push_back({names[i], kind});
+  }
   void completeScope(const Frame &frame, SourceSpan site) {
     auto *query = options_.completion;
     if (!query || query->reached || !diagnostics_.empty() || query->site.begin != site.begin ||
@@ -1344,6 +1361,12 @@ private:
       return {};
     }
     const auto &record = output_.records[owner->second];
+    if (record.errorMembers.empty() && completing(variant)) {
+      std::vector<std::string> names;
+      for (const auto &item : record.variants)
+        names.push_back(item.name);
+      completeMembers(variant, std::move(names), ScopeNameKind::EnumCase);
+    }
     const auto found = std::ranges::find_if(record.variants,
                                             [&](const auto &v) { return v.name == name(variant); });
     if (found == record.variants.end()) {
@@ -1470,18 +1493,11 @@ private:
     const auto &fields = output_.records[*type.record].fields;
     // Capture names only after the receiver has a checked, completed record type.
     // The synthetic field still diagnoses normally; no partial typed IR is published.
-    if (auto *query = options_.completion; query && !query->reached && diagnostics_.empty() &&
-                                           query->site.begin == read.field.begin &&
-                                           query->site.end == read.field.end) {
-      query->reached = true;
+    if (completing(read.field)) {
       std::vector<std::string> names;
       for (const auto &field : fields)
-        if (field.name.starts_with(query->prefix))
-          names.push_back(field.name);
-      std::ranges::sort(names);
-      query->truncated = names.size() > 256;
-      for (std::size_t i = 0; i < std::min<std::size_t>(names.size(), 256); ++i)
-        query->names.push_back({names[i], ScopeNameKind::Field});
+        names.push_back(field.name);
+      completeMembers(read.field, std::move(names), ScopeNameKind::Field);
     }
     const auto found =
         std::ranges::find_if(fields, [&](const auto &f) { return f.name == name(read.field); });
@@ -2729,19 +2745,36 @@ private:
           const auto selectedFamily = name(*arm.family) == "TaskError" ? taskErrorFamily(output_)
                                       : owner != records_.end() ? std::optional{owner->second}
                                                                 : std::nullopt;
-          if (selectedFamily && !lookupSymbol(frame, *arm.family))
+          if (selectedFamily && !lookupSymbol(frame, *arm.family)) {
+            if (!fallback && completing(*arm.variant)) {
+              std::vector<std::string> candidates;
+              for (std::size_t i = 0; i < joined.errorOrigins.size(); ++i) {
+                const auto [original, variant] = joined.errorOrigins[i];
+                if (original == *selectedFamily && !seen.contains(static_cast<unsigned>(i + 1)))
+                  candidates.push_back(output_.records[original].variants[variant].name);
+              }
+              completeMembers(*arm.variant, std::move(candidates), ScopeNameKind::EnumCase);
+            }
             for (std::size_t i = 0; i < joined.errorOrigins.size(); ++i) {
               const auto [original, variant] = joined.errorOrigins[i];
               if (original == *selectedFamily &&
                   output_.records[original].variants[variant].name == name(*arm.variant))
                 tag = static_cast<unsigned>(i + 1);
             }
+          }
         } else {
           auto found = std::ranges::find(names, name(*arm.variant));
           const bool sameFamily =
               enumeration ? (owner != records_.end() && owner->second == *subjectType.record &&
                              !lookupSymbol(frame, *arm.family))
                           : name(*arm.family) == family;
+          if (sameFamily && !fallback && completing(*arm.variant)) {
+            std::vector<std::string> candidates;
+            for (std::size_t i = 0; i < names.size(); ++i)
+              if (!seen.contains(static_cast<unsigned>(i + 1)))
+                candidates.push_back(names[i]);
+            completeMembers(*arm.variant, std::move(candidates), ScopeNameKind::EnumCase);
+          }
           if (sameFamily && found != names.end())
             tag = static_cast<unsigned>(found - names.begin()) + 1;
         }

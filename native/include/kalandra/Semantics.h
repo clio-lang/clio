@@ -408,7 +408,7 @@ struct CheckResult {
 [[nodiscard]] bool hasPlacement(const TypedModule &module);
 // Editor-only scope/member snapshot. Names are captured at the queried name;
 // no partial typed IR or inferred type information escapes a failed check.
-enum class ScopeNameKind { Variable, Parameter, Function, Type, Field };
+enum class ScopeNameKind { Variable, Parameter, Function, Type, Field, EnumCase };
 struct ScopeName {
   std::string name;
   ScopeNameKind kind;

@@ -46,20 +46,26 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
   // Locate the probe through original-file identities so this does not depend
   // on how the module loader arranges the composed source.
   std::optional<SourceSpan> site;
+  const auto locate = [&](SourceSpan candidate) {
+    const auto [original, local] = syntax->module.source->origin(candidate.begin);
+    if (original->path() == canonical && local == result.replacement.begin &&
+        syntax->module.source->slice(candidate) == probe)
+      site = candidate;
+  };
   for (const auto &expression : syntax->module.expressions) {
-    std::optional<SourceSpan> candidate;
     if (const auto *name = std::get_if<NameExpr>(&expression.value))
-      candidate = name->name;
+      locate(name->name);
     else if (const auto *field = std::get_if<FieldExpr>(&expression.value))
-      candidate = field->field;
-    if (candidate) {
-      const auto [original, local] = syntax->module.source->origin(candidate->begin);
-      if (original->path() == canonical && local == result.replacement.begin &&
-          syntax->module.source->slice(*candidate) == probe) {
-        site = *candidate;
-        break;
-      }
-    }
+      locate(field->field);
+    else if (const auto *record = std::get_if<RecordExpr>(&expression.value);
+             record && record->family)
+      locate(record->name);
+    else if (const auto *match = std::get_if<MatchExpr>(&expression.value))
+      for (const auto &arm : match->arms)
+        if (arm.variant)
+          locate(*arm.variant);
+    if (site)
+      break;
   }
   if (!site)
     return result;

@@ -795,6 +795,30 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert [item["label"] for item in client.completion(document, 5, start + 2)["result"]["items"]] == ["changed"]
     client.close(library)
     client.barrier()
+    # Enum constructors and match patterns use the same current nominal declaration.
+    library.write_text("export enum Choice:\n  Some:\n    value:int\n  Other\n")
+    text = ('from "./library.k" import Choice as Pick\n'
+            'fn main():\n  Pick.SoSuffix {value:1}\n')
+    client.change(document, text, 5)
+    client.barrier()
+    result = client.completion(document, 2, 9)["result"]
+    assert [item["label"] for item in result["items"]] == ["Some"], result
+    case = result["items"][0]
+    assert case["kind"] == 20 and case["detail"] == "enum case", case
+    assert case["textEdit"] == {"newText": "Some", "range": {
+        "start": {"line": 2, "character": 7}, "end": {"line": 2, "character": 15}}}, case
+    assert not client.barrier(), "enum probe leaked diagnostics"
+    text = ('from "./library.k" import Choice as Pick\n'
+            'fn inspect(c:Pick):\n  match c:\n    Pick.Other: 0\n    Pick.: 1\n'
+            'fn main():\n  0\n')
+    client.change(document, text, 6)
+    client.barrier()
+    assert [item["label"] for item in client.completion(document, 4, 9)["result"]["items"]] == ["Some"]
+    client.open(library, "export enum Choice:\n  Changed\n  Other\n")
+    client.barrier()
+    assert [item["label"] for item in client.completion(document, 4, 9)["result"]["items"]] == ["Changed"]
+    client.close(library)
+    client.barrier()
     client.close(document)
     client.barrier()
     assert client.completion(document, 4, 16)["result"] is None

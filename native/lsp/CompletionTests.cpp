@@ -8,7 +8,7 @@ static void require(bool value, const std::string &message) {
     throw std::runtime_error(message);
 }
 static lsp::CompletionInfo query(std::string text) {
-  const auto cursor = text.find('|');
+  const auto cursor = text.rfind('|');
   require(cursor != text.npos, "missing cursor");
   text.erase(cursor, 1);
   return lsp::completeNames((std::filesystem::temp_directory_path() / "completion.k").string(),
@@ -124,6 +124,58 @@ int main() {
     require(info.names.size() == 256 && info.incomplete, "bounded record fields");
     info = query(record + "fn inspect(value:Many):\n  value.candidate29|\nfn main():\n  0\n");
     require(info.names.size() == 11 && !info.incomplete, "narrowed record fields");
+    const std::string choices = "enum Choice:\n  Some:\n    value:int\n  Other\n";
+    info = query(choices + "fn main():\n  Choice.|\n");
+    require(info.names.size() == 2 && info.names[0].name == "Other" &&
+                info.names[1].name == "Some" && info.names[0].kind == ScopeNameKind::EnumCase,
+            "enum constructor cases");
+    info = query(choices + "fn main():\n  Choice.So|me {value:1}\n");
+    require(info.names.size() == 1 && has(info, "Some") &&
+                info.replacement.end - info.replacement.begin == 4,
+            "payload constructor prefix and suffix");
+    info = query(choices + "fn inspect(c:Choice):\n  match c:\n    Choice.Other: 0\n    Choice.|: "
+                           "1\nfn main():\n  0\n");
+    require(info.names.size() == 1 && has(info, "Some"), "remaining match cases");
+    info = query(choices + "fn inspect(c:Choice):\n  match c:\n    Choice.So|me {value:item}: "
+                           "item\n    Choice.Other: 0\nfn main():\n  0\n");
+    require(info.names.size() == 1 && has(info, "Some"), "payload match site");
+    require(query(choices + "enum Wrong:\n  Nope\nfn inspect(c:Choice):\n  match c:\n    Wrong.|: "
+                            "0\nfn main():\n  0\n")
+                .names.empty(),
+            "wrong match family is not suggested");
+    require(query(choices + "fn main():\n  Choice=1\n  Choice.|\n").names.empty(),
+            "local shadows enum family");
+    info =
+        query(choices + "type Box:\n  value:int\nfn main():\n  Choice=Box {value:1}\n  Choice.|\n");
+    require(info.names.size() == 1 && has(info, "value") &&
+                info.names[0].kind == ScopeNameKind::Field,
+            "record binding shadows enum type");
+    require(query(choices + "fn main():\n  broken=missing\n  Choice.|\n").names.empty(),
+            "prior errors block enum candidates");
+    require(query(choices +
+                  "fn inspect(c:Choice):\n  match c:\n    _: 0\n    Choice.|: 1\nfn main():\n  0\n")
+                .names.empty(),
+            "fallback blocks later candidates");
+    info = query("error Problem:\n  Bad\n  Worse\nfn main():\n  Problem.|\n");
+    require(info.names.size() == 2 && has(info, "Bad") && has(info, "Worse"), "error constructors");
+    info = query("error First:\n  Bad\nerror Second:\n  Worse\ntype Both = First | Second\nfn "
+                 "inspect(e:Both):\n  "
+                 "match e:\n    First.|: 1\n    Second.Worse: 2\nfn main():\n  0\n");
+    require(info.names.size() == 1 && has(info, "Bad"), "error union family identity");
+    require(query("error First:\n  Bad\nerror Second:\n  Worse\ntype Both = First | Second\nfn "
+                  "main():\n  Both.|\n")
+                .names.empty(),
+            "union constructors do not expose synthetic cases");
+    info = query("fn inspect(e:TaskError):\n  match e:\n    TaskError.|: 0\nfn main():\n  0\n");
+    require(info.names.size() == 4 && has(info, "Cancelled") && has(info, "Fault"),
+            "built-in task error patterns");
+    std::string enumeration = "enum Large:\n";
+    for (int i = 0; i < 300; ++i)
+      enumeration += "  Candidate" + std::to_string(i) + "\n";
+    info = query(enumeration + "fn main():\n  Large.|\n");
+    require(info.names.size() == 256 && info.incomplete, "bounded enum candidates");
+    info = query(enumeration + "fn main():\n  Large.Candidate29|\n");
+    require(info.names.size() == 11 && !info.incomplete, "narrowed enum candidates");
     std::cout << "Native scope completion passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';
