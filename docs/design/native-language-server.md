@@ -810,8 +810,8 @@ call or append parentheses and arguments.
 
 These are name suggestions rather than overload, expected-type or device-capability
 filtering. An offered builtin still needs its ordinary valid arguments, types and
-execution context. Device-selector member completion is covered below; transfer-call name
-completion remains separate. The existing alphabetical prefix filtering, 256-name limit, current
+execution context. Placement-specific transfer-call names and device-selector member
+completion are covered below. The existing alphabetical prefix filtering, 256-name limit, current
 source overlays and diagnostic/source preservation rules apply. Prior diagnostics
 can suppress names; later errors do not erase an already captured scope.
 
@@ -1020,3 +1020,34 @@ element-type admission or establish that a device exists.
 covers checked GPU-bound and CPU-bound transfers, exact indices, fixed/dynamic
 shapes, direct/piped calls, invalid graphs and placement gating, with debug and
 sanitizer suites, relocated Release tools and installed VS Code.
+
+#### Transfer call-target completion
+
+With placement checking enabled, a partly typed call such as
+`try await traSuffix(values, devices.gpu(1))` offers `transfer` inside an owning
+`parallel` group. The Function item replaces the whole identifier, preserving
+arguments, delimiters and the explicit device index. Direct and piped calls,
+including bare pipeline targets, use the same checker scope. Bounded existing
+end-of-buffer parenthesis recovery can also retain a final pipeline target such
+as `try await (values -> tra`. A caret inside a name followed by an unfinished
+argument list remains outside that recovery contract.
+
+The added builtin candidate requires the current checker frame to own a parallel
+group and the call to be an ordinary invocation. It is excluded in `spawn` entry
+positions, with or without explicit placement, and in first-class value/callback
+positions. Placement-disabled code receives no added transfer builtin. Ordinary
+lexical/module names retain their existing kinds and priority; a CPU-mode user
+function named `transfer` remains an ordinary candidate.
+
+This is name completion, not a claim that the operands are valid or that a device
+exists. Accepting the item still requires ordinary tensor, device, task and error
+checks. Prefix filtering, whole-name suffix edits, source budgets, current imported
+overlays and diagnostic preservation follow the existing completion contract.
+Prior errors suppress candidates; later errors do not erase a captured scope.
+Requests neither enumerate hardware nor execute transfers or change source files.
+
+[Transfer-completion qualification](../../native/metal-proof/evidence/native-lsp-transfer-completion-2026-10-21.json)
+covers call/value/spawn contexts, placement/group gating, local name priority,
+pipeline and unfinished-call targets, source edits and live imported buffers in
+debug and sanitizer builds. Relocated Release tools and installed VS Code also
+apply the identifier-only edit and check the resulting program.

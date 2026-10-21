@@ -541,6 +541,55 @@ int main() {
             "arbitrary receivers do not become device namespaces");
     info = query("fn main():\n  target=devices.g|()\n  missing\n", placement);
     require(info.names.size() == 1 && has(info, "gpu"), "later errors do not erase selector names");
+    const std::string transferStart =
+        "fn main()->int ! TaskError:\n  try parallel:\n    values=tensor([1,2])\n";
+    const std::string transferCall =
+        "    resident=try await tra|Suffix(values,devices.gpu(1))\n"
+        "    host=try await transfer(resident,devices.cpu())\n    reduceSum(host)\n";
+    info = query(transferStart + transferCall, placement);
+    require(info.names.size() == 1 && has(info, "transfer") &&
+                info.names[0].kind == ScopeNameKind::Function &&
+                info.replacement.end - info.replacement.begin == 9,
+            "transfer completion replaces the whole call name in an owning placement group");
+    require(!has(query(transferStart + transferCall), "transfer"),
+            "CPU mode does not suggest the transfer builtin");
+    require(
+        !has(query("fn main():\n  tra|Suffix(tensor([1]),devices.gpu())\n", placement), "transfer"),
+        "transfer completion requires an owning group");
+    require(!has(query(transferStart + "    tra|\n", placement), "transfer"),
+            "transfer is not a first-class value");
+    require(!has(query(transferStart + "    map([1],tra|)\n", placement), "transfer"),
+            "transfer is not a callback value");
+    require(!has(query(transferStart + "    spawn tra|(values,devices.gpu())\n", placement),
+                 "transfer"),
+            "transfer is not a spawn entry");
+    require(!has(query(transferStart + "    spawn tra|(values,devices.gpu()) on devices.gpu()\n",
+                       placement),
+                 "transfer"),
+            "transfer is not a placed spawn entry");
+    require(!has(query(transferStart + "    callback=fn(v:int):tra|(v,devices.gpu())\n    0\n",
+                       placement),
+                 "transfer"),
+            "a closure does not inherit the enclosing owning group");
+    info = query(transferStart + "    resident=try await (values -> tra|(devices.gpu()))\n    0\n",
+                 placement);
+    require(has(info, "transfer"), "piped transfer call target");
+    info = query(transferStart + "    values -> tra|\n", placement);
+    require(has(info, "transfer"), "bare pipeline transfer target");
+    require(query(transferStart + "    missing\n" + transferCall, placement).names.empty(),
+            "prior errors suppress transfer candidates");
+    info = query(transferStart + transferCall + "    missing\n", placement);
+    require(has(info, "transfer"), "later errors preserve captured transfer completion");
+    info = query(transferStart + "    transfer=1\n    tra|(1)\n", placement);
+    require(info.names.size() == 1 && info.names[0].kind == ScopeNameKind::Variable,
+            "local transfer binding keeps its own item kind");
+    info = query("fn transfer(value:int):\n  value\nfn main():\n  tra|(1)\n");
+    require(info.names.size() == 1 && info.names[0].kind == ScopeNameKind::Function,
+            "CPU-mode source functions retain normal transfer completion");
+    info = query(transferStart + "    try await tra|(values,devices.gpu()\n", placement);
+    require(info.names.empty(), "call recovery does not repair syntax after the caret");
+    info = query(transferStart + "    try await (values -> tra|\n", placement);
+    require(has(info, "transfer"), "end-of-buffer pipeline recovery retains placement scope");
     std::cout << "Native scope completion passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

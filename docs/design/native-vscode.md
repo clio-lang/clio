@@ -113,3 +113,5 @@ Installed-editor acceptance also requests [checked builtin hovers](native-langua
 Installed-editor acceptance also enables Placement in the isolated test workspace, applies [device-selector member completion](native-language-server.md#device-selector-member-completion), checks `devices.gpu(1)` without probing hardware, and restores the setting and source before continuing.
 
 Installed-editor acceptance also requests [checked transfer guidance](native-language-server.md#checked-transfer-guidance) with Placement enabled, verifies GPU-bound and CPU-bound hovers plus the active target argument, and preserves the buffer and disk source without probing hardware.
+
+Installed-editor acceptance also applies [transfer call-target completion](native-language-server.md#transfer-call-target-completion) inside an owning parallel group with Placement enabled, preserves the arguments and explicit GPU index, and checks the resulting call and its existing type hints without changing disk sources.

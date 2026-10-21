@@ -1835,6 +1835,61 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert client.signature(signature_document, 4, transfer_text.splitlines()[4].index(',')+1)['result'] is None
     client.finish()
 
+    # Complete a transfer call name only in an owning placement group.
+    transfer_library = Path(temp) / 'transfer-completion.k'
+    transfer_library_text = 'export fn read():\n  tensor([1,2])\n'
+    transfer_library.write_text(transfer_library_text)
+    transfer_completion_text = ('# 👩\nfrom "./transfer-completion.k" import read\n'
+                                'fn main()->int ! TaskError:\n  try parallel:\n'
+                                '    values=read()\n'
+                                '    resident=try await traSuffix(values,devices.gpu(1))\n'
+                                '    host=try await transfer(resident,devices.cpu())\n    reduceSum(host)\n')
+    client = Client('--placement')
+    client.init()
+    client.open(signature_document, transfer_completion_text)
+    original_diagnostics = publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert original_diagnostics
+    start = transfer_completion_text.splitlines()[5].index('traSuffix')
+    result = client.completion(signature_document, 5, start+3)['result']
+    assert [(item['label'],item['kind']) for item in result['items']] == [('transfer',3)], result
+    item = result['items'][0]
+    assert item['textEdit'] == {'newText':'transfer','range':{
+        'start':{'line':5,'character':start}, 'end':{'line':5,'character':start+9}}}, item
+    assert not client.barrier(), 'transfer completion published probe diagnostics'
+    applied = apply_workspace_edit({'documentChanges':[{'textDocument':{'uri':signature_document.as_uri()},
+        'edits':[item['textEdit']]}]}, {signature_document.as_uri():transfer_completion_text})[signature_document.as_uri()]
+    assert applied == transfer_completion_text.replace('traSuffix','transfer')
+    client.change(signature_document, applied, 2)
+    assert not publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert 'Device[gpu:1]' in client.hover(signature_document, 5, start+1)['result']['contents']['value']
+    client.open(transfer_library, 'export fn read():\n  tensor([3,4,5])\n')
+    assert not publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert 'Tensor[int64, 3]' in client.hover(signature_document, 5, start+1)['result']['contents']['value']
+    client.change(signature_document, transfer_completion_text, 3)
+    client.barrier()
+    assert client.completion(signature_document, 5, start+3)['result']['items'][0]['label'] == 'transfer'
+    for version, text in enumerate([
+            'fn main():\n  traSuffix(tensor([1]),devices.gpu())\n',
+            'fn main()->int ! TaskError:\n  try parallel:\n    spawn traSuffix(tensor([1]),devices.gpu())\n',
+            'fn main()->int ! TaskError:\n  try parallel:\n    traSuffix\n',
+        ], 4):
+        client.change(signature_document, text, version)
+        client.barrier()
+        offset = text.index('traSuffix')+3
+        line = text[:offset].count('\n')
+        character = len(text[:offset].rsplit('\n',1)[-1])
+        assert not any(item['label']=='transfer' for item in
+                       client.completion(signature_document,line,character)['result']['items'])
+    assert not signature_document.exists() and transfer_library.read_text() == transfer_library_text
+    client.finish()
+    client = Client()
+    client.init()
+    client.open(signature_document, transfer_completion_text)
+    client.barrier()
+    assert not any(item['label']=='transfer' for item in
+                   client.completion(signature_document,5,start+3)['result']['items'])
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"

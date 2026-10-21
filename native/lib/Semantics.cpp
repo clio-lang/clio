@@ -170,7 +170,8 @@ private:
     std::erase_if(candidates, [&](const auto &label) { return supplied.contains(label); });
     completeMembers(site, std::move(candidates), ScopeNameKind::Field);
   }
-  void completeScope(const Frame &frame, SourceSpan site, bool callTarget = false) {
+  void completeScope(const Frame &frame, SourceSpan site, bool callTarget = false,
+                     bool allowTransfer = false) {
     auto *query = options_.completion;
     if (!query || query->reached || !diagnostics_.empty() || query->site.begin != site.begin ||
         query->site.end != site.end)
@@ -217,6 +218,8 @@ private:
       for (const auto *label : {"array", "tensor", "reshape", "map", "parallelMap", "matmul",
                                 "reduceSum", "length", "byteLength", "shape", "slice", "concat"})
         insert(label, ScopeNameKind::Function);
+      if (allowTransfer && options_.placement && !frame.groups.empty())
+        insert("transfer", ScopeNameKind::Function);
       for (const auto &numeric : numericTypes)
         insert(std::string(numeric.name), ScopeNameKind::Function);
       for (const auto *alias : {"int", "uint", "float"})
@@ -4058,7 +4061,7 @@ private:
          const std::optional<ValueType> &expected, std::optional<ExprId> selection = {},
          std::optional<ValueId> *checkedSelection = nullptr, bool spawned = false) {
     completeDeviceSelector(frame, calleeSpan);
-    completeScope(frame, calleeSpan, true);
+    completeScope(frame, calleeSpan, true, !spawned && !selection);
     const auto callee = name(calleeSpan);
     if (auto symbol = lookupSymbol(frame, calleeSpan)) {
       if (output_.symbols[*symbol].type.builtin == BuiltinValue::Function) {

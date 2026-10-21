@@ -796,8 +796,16 @@ async function run() {
   assert(main.getText().includes("devices.gpu(1)"));
   assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
   const transferSource = "fn main()->int ! TaskError:\n  try parallel:\n    values=tensor([1,2])\n    resident=try await transfer(values,devices.gpu(1))\n    host=try await transfer(resident,devices.cpu())\n    reduceSum(host)\n";
-  await replace(main, transferSource);
+  const transferCompletions = await complete(
+    main, transferSource.replace("transfer(values", "tra|Suffix(values"), "transfer",
+  );
+  const transferItem = transferCompletions.items.find((item) => label(item) === "transfer");
+  assert.equal(transferItem.kind, vscode.CompletionItemKind.Function);
+  await applyCompletion(main, transferItem, "traSuffix", "transfer");
   await clearDiagnostics(main);
+  assert.equal(main.getText(), transferSource);
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  checks.push("Placement-mode transfer completion applies only the call name inside an owning parallel group and checks the resulting program without probing hardware");
   const transferLabel = "fn transfer(input: Tensor[int64, 2], target: Device[gpu:1]) -> task<Tensor[int64, 2] on gpu:1>";
   assert(hoverText(await hover(main, "transfer(values")).includes(transferLabel));
   const transferSignature = await eventually(async () => {
