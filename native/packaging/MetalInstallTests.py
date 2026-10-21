@@ -264,4 +264,4 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
         moved = cwd / f"moved application {i}"
         app.rename(moved)
         assert run([moved / "program"], cwd).stdout.strip() == expected
-print("Metal bundle: checksums, relocation/symlink, CPU compile, four GPU modes, scoped managed packages with CPU workers, frozen/offline relocation, source integrity, project import, missing helper and independent moved applications passed")
+print("Metal bundle: checksums, relocation/symlink, CPU compile, four GPU modes, scoped managed packages with CPU workers, named updates/private pins/rollback, frozen/offline relocation, source integrity, project import, missing helper and independent moved applications passed")

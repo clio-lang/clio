@@ -116,5 +116,6 @@ and [public locks](../../native/metal-proof/evidence/native-package-lock-2026-10
 [Installed Metal acceptance](native-metal-install.md#installed-numerical-libraries)
 now adds private-version numerical calls through CPU workers and actual GPU
 execution, with frozen/offline cache restoration and generated-app independence.
-Remaining work includes a deliberate update command, authenticated/SSH transport,
+[Named root updates](native-package-update.md) now refresh selected aliases from a matching lock.
+Remaining work includes authenticated/SSH transport,
 broader host/platform qualification and crash recovery.

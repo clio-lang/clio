@@ -65,6 +65,9 @@ Release CPU compiler. Local Git fixtures cover branch/tag moves, multiple aliase
 exact revisions, new graph nodes, unchanged-owner private pins, newly selected
 owner commits, invalid requests/modes/locks, held guards and failed graph rollback.
 Compiled worker programs verify the resulting root/private version choices.
-Existing lock and Git-ref qualification remains regression coverage. This does not
+[Installed Metal acceptance](native-metal-install.md#acceptance) also checks named
+updates across CPU workers and GPU helpers, preserving private branch pins and
+pre-update applications through offline relocation. Existing lock and Git-ref
+qualification remains regression coverage. This does not
 add authenticated/SSH transport, remote update acceptance, version-range solving,
 cache pruning or a recursive update command.

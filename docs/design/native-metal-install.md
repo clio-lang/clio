@@ -64,6 +64,16 @@ without running Git. Compilation never installs dependencies. Move the complete
 project and its `.kalandra` cache together for offline compilation; a fresh
 checkout needs an explicit install first.
 
+To refresh one managed root, use the [named update command](native-package-update.md):
+
+```sh
+kalandra update numerical --project path/to/kalandra.toml
+```
+
+The lock must match the manifest. Recheck and rebuild after an update. Already
+compiled applications keep their compiled code; changing the lock does not
+change their behavior.
+
 Each library retains its private dependency versions in CPU workers and GPU
 helpers. Relative imports and re-exports retain that owner too. The same eligible
 numerical function can run in a CPU worker or be dispatched on a GPU; importing it
@@ -94,18 +104,29 @@ test removes the installed compiler bundle, moves all generated applications and
 executes them again. The independent CPU/editor installation gates remain in place.
 
 
-The installed-package acceptance also creates a numerical library with two
-versions and a second library that privately depends on the older version.
-An application uses the newer version directly. It restores a fresh cache with
-`--frozen`, removes both original repositories, relocates the project/cache and
-verifies `--frozen --offline` and placement diagnostics. The numerical program
-runs an imported helper in a CPU worker, dispatches private/direct helpers on the
-GPU, combines their results and checks exact float32 bits for `[105, 107, 109]`.
-It runs in all four host modes, checks unchanged source/lock/cache bytes, rejects
-snapshot corruption without replacing an existing application, and rejects
-outputs inside the cache or at the public lock. Generated applications run again
-after deleting their project/cache and after deleting the compiler and moving
-the applications.
+The installed-package acceptance creates a numerical library and a wrapper that
+privately depends on its `main` branch. Both the application and wrapper initially
+resolve that branch to the same commit. Across all four host modes, a CPU worker
+calls the wrapper and GPU calls combine the direct and private versions, producing
+exact float32 bits for `[6, 8, 10]`.
+
+After the numerical branch moves, normal installation preserves the old lock.
+`update numerical` changes only the application's root selection; the unchanged
+wrapper retains its private older commit. A later broken revision fails to
+activate and leaves the lock and previously generated applications unchanged.
+The test restores the updated lock into a fresh cache with `--frozen`, removes
+both original repositories, relocates the project/cache, then verifies
+`--frozen --offline` and placement diagnostics. Rebuilt applications return
+`[105, 107, 109]` in all four host modes, demonstrating the distinct direct/private
+versions on CPU and GPU.
+
+Builds preserve source/lock/cache bytes, reject snapshot corruption without
+replacing an existing application and reject outputs inside the cache or at the
+public lock. Both pre-update and post-update applications run again after deleting
+their project/cache, and after deleting the compiler and moving the applications.
+
+The [named-update Metal qualification record](../../native/metal-proof/evidence/native-metal-package-update-2026-10-21.json)
+records the installed Debug/Release compiler runs and their exact checked results.
 
 The [installed-package qualification record](../../native/metal-proof/evidence/native-metal-packages-2026-10-20.json)
 records the tested compiler configurations and hardware. These checks qualify
