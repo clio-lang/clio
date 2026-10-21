@@ -74,7 +74,7 @@ class Client:
         assert caps["referencesProvider"] is True
         assert caps["renameProvider"] == ({"prepareProvider": True} if rename else False)
         assert caps["workspace"]["workspaceFolders"] == {"supported": True, "changeNotifications": False}
-        assert caps["completionProvider"] == {"resolveProvider": False, "triggerCharacters": ["."]}
+        assert caps["completionProvider"] == {"resolveProvider": False, "triggerCharacters": [".", "{", ","]}
         assert caps["documentFormattingProvider"] is True
         self.send("initialized", {})
 

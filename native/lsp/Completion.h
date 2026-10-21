@@ -6,9 +6,10 @@ struct CompletionInfo {
   SourceSpan replacement; // Original open-buffer UTF-8 range, including any identifier suffix.
   std::vector<ScopeName> names;
   bool incomplete = false;
+  bool appendFieldColon = false; // Insert a separator only for a bare construction label.
 };
-// A temporary identifier probes the checker's lexical frame or checked record receiver. No source
-// writes, stale module, parser recovery, auto-imports, or partial type information.
+// Temporary identifier/field probes query checked scopes and nominal members. No source writes,
+// stale module, general parser recovery, auto-imports, or partial type information.
 [[nodiscard]] CompletionInfo completeNames(const std::string &path, const std::string &text,
                                            std::size_t offset,
                                            const std::vector<ModulePackage> &packages = {},

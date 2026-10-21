@@ -819,6 +819,32 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert [item["label"] for item in client.completion(document, 4, 9)["result"]["items"]] == ["Changed"]
     client.close(library)
     client.barrier()
+    # Named construction labels add a colon only when absent, without dummy values.
+    library.write_text("export type Box:\n  value:int\n  other:int\n")
+    text = ('from "./library.k" import Box\n'
+            'fn join(text:String,value:Box):\n  value\n'
+            'fn main():\n  join("😀", Box { vaSuffix, other:2 })\n')
+    client.change(document, text, 7)
+    client.barrier()
+    line = text.splitlines()[4]
+    start = len(line[:line.index("vaSuffix")].encode("utf-16-le")) // 2
+    result = client.completion(document, 4, start + 2)["result"]
+    assert [item["label"] for item in result["items"]] == ["value"], result
+    field = result["items"][0]
+    assert field["kind"] == 5 and field["insertTextFormat"] == 1
+    assert field["textEdit"] == {"newText": "value: ", "range": {
+        "start": {"line": 4, "character": start},
+        "end": {"line": 4, "character": start + 8}}}, field
+    assert not document.exists(), "label completion wrote source"
+    assert not client.barrier(), "label probe published diagnostics"
+    client.change(document, text.replace("vaSuffix", "vaSuffix:1"), 8)
+    client.barrier()
+    assert client.completion(document, 4, start + 2)["result"]["items"][0]["textEdit"]["newText"] == "value"
+    client.open(library, "export type Box:\n  variable:int\n  other:int\n")
+    client.barrier()
+    assert [item["label"] for item in client.completion(document, 4, start + 2)["result"]["items"]] == ["variable"]
+    client.close(library)
+    client.barrier()
     client.close(document)
     client.barrier()
     assert client.completion(document, 4, 16)["result"] is None

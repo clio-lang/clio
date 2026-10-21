@@ -153,6 +153,15 @@ private:
     for (std::size_t i = 0; i < std::min<std::size_t>(names.size(), 256); ++i)
       query.names.push_back({names[i], kind});
   }
+  void completeLabels(SourceSpan site, const std::vector<FieldInitializer> &initializers,
+                      std::vector<std::string> candidates) {
+    std::unordered_set<std::string> supplied;
+    for (const auto &field : initializers)
+      if (field.name.begin != site.begin || field.name.end != site.end)
+        supplied.insert(name(field.name));
+    std::erase_if(candidates, [&](const auto &label) { return supplied.contains(label); });
+    completeMembers(site, std::move(candidates), ScopeNameKind::Field);
+  }
   void completeScope(const Frame &frame, SourceSpan site) {
     auto *query = options_.completion;
     if (!query || query->reached || !diagnostics_.empty() || query->site.begin != site.begin ||
@@ -1386,6 +1395,12 @@ private:
     std::vector<RecordFieldValue> values;
     std::unordered_set<std::size_t> seen;
     for (const auto &field : initializers) {
+      if (completing(field.name)) {
+        std::vector<std::string> candidates;
+        for (auto slot : found->fields)
+          candidates.push_back(record.fields[slot].name);
+        completeLabels(field.name, initializers, std::move(candidates));
+      }
       const auto slot = std::ranges::find_if(
           found->fields, [&](auto i) { return record.fields[i].name == name(field.name); });
       if (slot == found->fields.end() || !seen.insert(*slot).second) {
@@ -1448,6 +1463,12 @@ private:
     std::unordered_set<std::string> seen;
     std::vector<RecordFieldValue> values;
     for (const auto &field : record.fields) {
+      if (completing(field.name)) {
+        std::vector<std::string> candidates;
+        for (const auto &item : declaration.fields)
+          candidates.push_back(item.name);
+        completeLabels(field.name, record.fields, std::move(candidates));
+      }
       const auto label = name(field.name);
       const auto found =
           std::ranges::find_if(declaration.fields, [&](const auto &f) { return f.name == label; });

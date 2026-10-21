@@ -583,7 +583,8 @@ public:
                        : name.kind == ScopeNameKind::Field    ? "record field"
                        : name.kind == ScopeNameKind::EnumCase ? "enum case"
                                                               : "type"},
-            {"textEdit", j::Object{{"range", *diagnostic.get("range")}, {"newText", name.name}}}});
+            {"textEdit", j::Object{{"range", *diagnostic.get("range")},
+                                   {"newText", name.name + (info.appendFieldColon ? ": " : "")}}}});
       }
     }
     respond(j::Object{{"isIncomplete", info.incomplete}, {"items", std::move(items)}});
@@ -907,8 +908,9 @@ int main(int argc, char **argv) {
                  {"capabilities",
                   j::Object{{"positionEncoding", "utf-16"},
                             {"hoverProvider", true},
-                            {"completionProvider", j::Object{{"resolveProvider", false},
-                                                             {"triggerCharacters", j::Array{"."}}}},
+                            {"completionProvider",
+                             j::Object{{"resolveProvider", false},
+                                       {"triggerCharacters", j::Array{".", "{", ","}}}},
                             {"documentFormattingProvider", true},
                             {"definitionProvider", true},
                             {"referencesProvider", true},

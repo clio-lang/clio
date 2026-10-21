@@ -176,6 +176,48 @@ int main() {
     require(info.names.size() == 256 && info.incomplete, "bounded enum candidates");
     info = query(enumeration + "fn main():\n  Large.Candidate29|\n");
     require(info.names.size() == 11 && !info.incomplete, "narrowed enum candidates");
+    const std::string point = "type Point:\n  x:int\n  y:int\n";
+    info = query(point + "fn main():\n  Point { | }\n");
+    require(info.names.size() == 2 && has(info, "x") && has(info, "y") && info.appendFieldColon,
+            "empty constructor label");
+    info = query(point + "fn main():\n  Point { x:1, | }\n");
+    require(info.names.size() == 1 && has(info, "y") && info.appendFieldColon,
+            "exclude supplied constructor label");
+    info = query(point + "fn main():\n  Point { |:0, y:2 }\n");
+    require(info.names.size() == 1 && has(info, "x") && !info.appendFieldColon,
+            "exclude later supplied label and preserve colon");
+    info = query("type Box:\n  value:int\nfn main():\n  Box { va|lue:1 }\n");
+    require(info.names.size() == 1 && has(info, "value") && !info.appendFieldColon &&
+                info.replacement.end - info.replacement.begin == 5,
+            "constructor suffix edit");
+    info = query("type Box:\n  value:int\nfn main():\n  Box { va|: }\n");
+    require(info.names.size() == 1 && has(info, "value") && !info.appendFieldColon,
+            "missing value probe preserves existing colon");
+    info = query(point + "fn main():\n  p=Point {x:1,y:2}\n  p with { | }\n");
+    require(info.names.size() == 2 && info.appendFieldColon, "immutable update labels");
+    info = query(point + "type Outer:\n  inner:Point\nfn main():\n  Outer {inner:Point { | }}\n");
+    require(info.names.size() == 2 && has(info, "x") && !has(info, "inner"), "nested labels");
+    info = query("enum Pick:\n  Some:\n    value:int\n  Other:\n    hidden:int\nfn main():\n  "
+                 "Pick.Some { | }\n");
+    require(info.names.size() == 1 && has(info, "value") && !has(info, "hidden"),
+            "selected payload labels");
+    require(query(point + "fn main():\n  Point { x:missing, | }\n").names.empty(),
+            "prior field errors fail closed");
+    require(query(point + "fn main():\n  Point=1\n  Point { | }\n").names.empty(),
+            "shadowed constructor labels");
+    require(query("enum Pick:\n  Some:\n    value:int\nfn main():\n  Pick.Missing { | }\n")
+                .names.empty(),
+            "unknown case labels fail closed");
+    info = query("type Box:\n  value:int\nfn main():\n  earlier=1\n  Box {value:ear|}\n");
+    require(has(info, "earlier") && !info.appendFieldColon, "initializer value remains lexical");
+    require(query("fn main():\n  1 with { | }\n").names.empty(), "invalid update receiver");
+    require(query(point + "fn main():\n  Point { |\n").names.empty(),
+            "unclosed constructor is not recovered");
+    info = query(record + "fn inspect(value:Many):\n  value with { | }\nfn main():\n  0\n");
+    require(info.names.size() == 256 && info.incomplete, "bounded label list");
+    info =
+        query(record + "fn inspect(value:Many):\n  value with { candidate29| }\nfn main():\n  0\n");
+    require(info.names.size() == 11 && !info.incomplete, "narrowed label list");
     std::cout << "Native scope completion passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

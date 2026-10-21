@@ -27,14 +27,55 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
         (token.kind == TokenKind::String || token.kind == TokenKind::Number))
       return result;
   }
+  // Repair only one label/value slot inside balanced construction delimiters.
+  // The parsed RecordExpr and checker must still identify a valid nominal owner.
+  const auto trivia = [](TokenKind kind) {
+    return kind == TokenKind::Newline || kind == TokenKind::Indent || kind == TokenKind::Dedent ||
+           kind == TokenKind::End;
+  };
+  std::vector<TokenKind> delimiters;
+  std::optional<TokenKind> previous;
+  std::vector<const Token *> following;
+  for (const auto &token : tokens.tokens) {
+    if (trivia(token.kind))
+      continue;
+    if (token.span.end <= result.replacement.begin) {
+      previous = token.kind;
+      if (token.kind == TokenKind::LeftBrace || token.kind == TokenKind::LeftParen ||
+          token.kind == TokenKind::LeftBracket)
+        delimiters.push_back(token.kind);
+      else if (token.kind == TokenKind::RightBrace || token.kind == TokenKind::RightParen ||
+               token.kind == TokenKind::RightBracket) {
+        if (!delimiters.empty())
+          delimiters.pop_back();
+      }
+    } else if (token.span.begin >= result.replacement.end && following.size() < 2)
+      following.push_back(&token);
+  }
+  const bool labelSlot = !delimiters.empty() && delimiters.back() == TokenKind::LeftBrace &&
+                         (previous == TokenKind::LeftBrace || previous == TokenKind::Comma);
+  const auto boundary = [](TokenKind kind) {
+    return kind == TokenKind::RightBrace || kind == TokenKind::Comma;
+  };
+  const bool bareLabel = labelSlot && !following.empty() && boundary(following[0]->kind);
+  const bool missingValue = labelSlot && following.size() == 2 &&
+                            following[0]->kind == TokenKind::Colon && boundary(following[1]->kind);
   const auto prefix = text.substr(result.replacement.begin, offset - result.replacement.begin);
   constexpr std::string_view probe = "__kalandra_completion_probe";
-  if (text.size() - (result.replacement.end - result.replacement.begin) + probe.size() >
+  if (text.size() - (result.replacement.end - result.replacement.begin) + probe.size() +
+          (bareLabel      ? 3
+           : missingValue ? 2
+                          : 0) >
       SyntaxLimits{}.maxSourceBytes)
     return result;
   auto replacement = text;
   replacement.replace(result.replacement.begin, result.replacement.end - result.replacement.begin,
-                      probe);
+                      std::string(probe) + (bareLabel ? ": 0" : ""));
+  if (missingValue) {
+    const auto at =
+        result.replacement.begin + probe.size() + following[0]->span.end - result.replacement.end;
+    replacement.insert(at, " 0");
+  }
   std::erase_if(overlays, [&](const auto &entry) {
     std::error_code ec;
     return std::filesystem::weakly_canonical(entry.path, ec).string() == canonical && !ec;
@@ -46,6 +87,7 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
   // Locate the probe through original-file identities so this does not depend
   // on how the module loader arranges the composed source.
   std::optional<SourceSpan> site;
+  bool labelSite = false;
   const auto locate = [&](SourceSpan candidate) {
     const auto [original, local] = syntax->module.source->origin(candidate.begin);
     if (original->path() == canonical && local == result.replacement.begin &&
@@ -57,10 +99,19 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
       locate(name->name);
     else if (const auto *field = std::get_if<FieldExpr>(&expression.value))
       locate(field->field);
-    else if (const auto *record = std::get_if<RecordExpr>(&expression.value);
-             record && record->family)
-      locate(record->name);
-    else if (const auto *match = std::get_if<MatchExpr>(&expression.value))
+    else if (const auto *record = std::get_if<RecordExpr>(&expression.value)) {
+      if (record->family)
+        locate(record->name);
+      for (const auto &field : record->fields) {
+        if (site)
+          break;
+        locate(field.name);
+        if (site) {
+          labelSite = true;
+          break;
+        }
+      }
+    } else if (const auto *match = std::get_if<MatchExpr>(&expression.value))
       for (const auto &arm : match->arms)
         if (arm.variant)
           locate(*arm.variant);
@@ -72,6 +123,7 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
   ScopeCompletion query{*site, prefix, {}, false, false};
   options.completion = &query;
   (void)check(std::move(*syntax), {}, options);
+  result.appendFieldColon = labelSite && bareLabel;
   result.names = std::move(query.names);
   result.incomplete = query.truncated;
   return result;

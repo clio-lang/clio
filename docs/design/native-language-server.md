@@ -186,13 +186,13 @@ The server advertises `documentFormattingProvider: true`. Format Document uses t
 
 ## Scope completion
 
-The server advertises `completionProvider: {resolveProvider: false, triggerCharacters: ["."]}`. Completion returns plain-text items and UTF-16 `textEdit` ranges covering the entire current identifier, including any suffix after the cursor. An empty expression position can also request names. The document must be open under its registered URI; unopened documents and invalid positions return `null`, and malformed parameters return InvalidParams (-32602).
+The server advertises `completionProvider: {resolveProvider: false, triggerCharacters: [".", "{", ","]}`. Completion returns plain-text items and UTF-16 `textEdit` ranges covering the entire current identifier, including any suffix after the cursor. An empty expression position can also request names. The document must be open under its registered URI; unopened documents and invalid positions return `null`, and malformed parameters return InvalidParams (-32602).
 
 Suggestions include parameters, preceding immutable bindings, eligible closure captures, named functions, nominal constructor names, and imported aliases visible in the current module. The checker supplies the actual lexical frame, so later bindings, other branches, unimported dependency names and shadowed declarations do not leak into the list. Matches use a case-sensitive prefix and deterministic alphabetical order. Results are limited to 256 names; `isIncomplete` asks the client to request again after the prefix narrows. Item details distinguish bindings, parameters, functions and types; these are name suggestions rather than expected-type filtering or inferred signature presentation.
 
 The request replaces only the current identifier (or inserts one at an empty position) in a temporary source overlay, then parses the graph and snapshots scope immediately before the checker resolves that identifier. Current dependency buffers and configured package mappings participate. Probe diagnostics are discarded: the request does not publish diagnostics, change buffers, write files, run code or contact hardware. Normal checking still never publishes partial typed IR. Completion exposes only scope names, without partial/stale inferred types.
 
-This deliberately bounded first slice needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; annotations, import paths, general pattern bindings and declaration names are not completion contexts yet. Qualified enum cases in match patterns are covered below. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no parser recovery, auto-import, fuzzy ranking, snippet expansion, completion resolve or signature help. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
+Apart from the bounded construction-label probe below, completion needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; annotations, import paths, general pattern bindings and declaration names are not completion contexts yet. Qualified enum cases in match patterns are covered below. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no general parser recovery, auto-import, fuzzy ranking, snippet expansion, completion resolve or signature help. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
 
 The [completion qualification record](../../native/metal-proof/evidence/native-lsp-completion-2026-10-20.json) records semantic and stdio tests in normal and ASan/UBSan builds. [Initial VS Code acceptance](native-vscode.md#qualification) now covers partly typed names; broader completion interaction remains follow-up work.
 
@@ -238,7 +238,7 @@ the same ordinary field-access rules. Unsaved dependency overlays participate,
 including package sources through the existing graph loader. A primitive, array,
 unsettled task, fallible receiver, invalid field chain or unmatched enum does not
 supply record-field suggestions. There are no synthetic properties or guessed
-fields. Qualified enum cases are covered below; record-construction labels remain separate work.
+fields. Qualified enum cases are covered below; construction labels are covered below.
 
 Only names escape the optional checker query. The temporary probe may fail normal
 field lookup, but checking still publishes no partial typed IR. Prior errors block
@@ -277,3 +277,37 @@ covers constructors, payload syntax, remaining match cases, shadowing, wrong
 families, unions, built-in task errors, a 300-case bound, imported overlays and
 relocated Release editor tools, with normal and sanitizer protocol/semantic runs.
 Real editor-host case completion is a separate acceptance gate.
+
+### Construction-label completion
+
+Named fields are now suggested inside record construction, immutable `with`
+updates and a selected enum payload. For example, requesting completion in
+`Point { | }` offers Point's fields; `Point { x:1, | }` omits `x`. Fields supplied
+elsewhere in the same initializer list, including after the cursor, are excluded.
+Enum payload suggestions contain only the selected case's fields, without tag
+storage or fields belonging to other cases. Constructor shadowing and update
+receiver validation follow the ordinary checker.
+
+Partial labels replace the entire identifier. If a separator is absent, the plain
+edit inserts `name: `; an existing colon is preserved. No payload values or snippets
+are guessed. In addition to `.`, the server advertises `{` and `,` as completion
+triggers. The actual client controls when suggestions appear.
+
+A narrowly scoped temporary probe fills one missing field-label/value slot before
+a closing brace or comma so the ordinary parser and checker can inspect its owner.
+This also handles an existing colon whose value is still empty. The temporary
+placeholder never appears in returned edits, buffers, files or diagnostics. Other
+syntax must still parse: missing closing delimiters and unrelated malformed source
+are not recovered. Initializer value positions continue to offer lexical names.
+
+Imported declarations and live dependency overlays use the existing source graph.
+Earlier semantic errors stop suggestions; no partial typed IR escapes a failed
+check. Prefix filtering, deterministic order, the 256-name bound, UTF-16 ranges
+and plain LSP Field items remain shared with record-field completion.
+
+The [construction-label qualification record](../../native/metal-proof/evidence/native-lsp-labels-2026-10-21.json)
+covers empty/partial slots, missing values, existing colons, fields already supplied
+before/after the cursor, nested records, immutable updates, selected payloads,
+invalid owners, lexical value completion, list bounds, Unicode edits, imported
+overlays and relocated Release tools. General parser recovery, pattern payload
+labels, type-directed value snippets and real editor-host interaction remain separate.
