@@ -469,7 +469,7 @@
       "fixtures": [
         "tensor-sources.k"
       ],
-      "notes": "Pure float32 rank-one/rank-two choices over at most two sources; equal complete fixed shapes, fused arms and resident reduction predicates; unproven/different shapes remain rejected",
+      "notes": "Pure float32 rank-one/rank-two choices; equal complete fixed shapes, fused arms and resident reduction predicates; unproven/different shapes remain rejected",
       "evidence": [
         "gpu-tensor-sources-2026-10-21.json"
       ]
@@ -485,6 +485,19 @@
       "notes": "Unconditional extent contracts, transitive equalities and per-invocation choice-result aliases prove equal vector/matrix shapes; independent unknown shapes and branch-local obligations remain rejected",
       "evidence": [
         "gpu-dynamic-choices-2026-10-21.json"
+      ]
+    },
+    {
+      "id": "nary-choices",
+      "feature": "Fused choices with explicit multi-source operand lists",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "nary-choices.k"
+      ],
+      "notes": "No fixed two-source cap; owned sorted map operands preserve shape proofs, projected bindings, resident reductions and last-use reclamation; compiler/device budgets still apply",
+      "evidence": [
+        "gpu-nary-choices-2026-10-21.json"
       ]
     }
   ]

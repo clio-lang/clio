@@ -66,8 +66,8 @@ new checks merely because a choice was added.
 
 Independent `?` dimensions without an equality proof remain rejected. This step
 does not select between differently shaped outputs, execute conditional numerical
-primitives, admit branch-local shape checks or remove the two-source fused-map
-limit. GPU numeric widths, ranks, strict arithmetic, binding layouts and ownership
+primitives or admit branch-local shape checks. [Multi-source fused maps](native-gpu-nary-choices.md)
+now use explicit operand lists beyond the earlier two-source representation. GPU numeric widths, ranks, strict arithmetic, binding layouts and ownership
 rules retain their existing boundaries. Different-source choices in the separate
 single-matmul operand-map path still need qualification.
 

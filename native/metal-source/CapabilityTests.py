@@ -146,6 +146,18 @@ def main():
                         assert re.search(r'gpu.func @kalandra_elementwise(?:_v[23])?', (destination / (stage + '.mlir')).read_text())
                         assert stage + '.metallib' in (destination / 'host.cpp').read_text()
                         assert int(re.search(r'^' + entry + r'\.map' + index + r'_tensors=(\d+)$', manifest, re.M)[1]) >= 1
+                    for entry, stage, operands in re.findall(r'^(kernel\d+)\.map(\d+)_inputs=([^\n]+)$', manifest, re.M):
+                        stage = int(stage)
+                        operands = list(map(int, operands.split(',')))
+                        inputs = int(re.search(r'^' + entry + r'\.matrix_graph_inputs=(\d+)$', manifest, re.M)[1])
+                        edges = re.search(r'^' + entry + r'\.matrix_graph_edges=([^\n]+)$', manifest, re.M)[1].split(',')
+                        assert len(operands) >= 3 and operands == sorted(set(operands))
+                        assert all(0 <= value < inputs + stage for value in operands)
+                        assert list(map(int, edges[stage].split(':'))) == [operands[0], operands[-1]]
+                        physical = int(re.search(r'^' + entry + r'\.map' + str(stage) + r'_tensors=(\d+)$', manifest, re.M)[1])
+                        broadcasts = re.search(r'^' + entry + r'\.reduction_broadcasts=([^\n]+)$', manifest, re.M)
+                        scalar_reads = sum(int(pair.split(':')[0]) == stage for pair in broadcasts[1].split(',')) if broadcasts else 0
+                        assert physical == len(operands) + scalar_reads
                     for entry, broadcasts in re.findall(r'^(kernel\d+)\.reduction_broadcasts=([^\n]+)$', manifest, re.M):
                         pairs = [tuple(map(int, item.split(':'))) for item in broadcasts.split(',')]
                         assert pairs == sorted(set(pairs))

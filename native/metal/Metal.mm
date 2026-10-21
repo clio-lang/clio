@@ -236,6 +236,7 @@ struct MatrixGraphArguments {
   Kernel join;
   std::shared_ptr<const Arguments> joinArguments;
   std::vector<MatrixProduct> products;
+  std::vector<std::uint32_t> mapInputs;
   std::vector<MatrixScalar> broadcasts;
   std::vector<Kernel> maps;
   std::vector<std::shared_ptr<const Arguments>> mapArguments;
@@ -244,6 +245,9 @@ struct MatrixGraphArguments {
   explicit MatrixGraphArguments(std::shared_ptr<State> s) : state(std::move(s)) {
     ++state->argumentPacks;
   }
+  // Product spans point into this object's owned mapInputs storage.
+  MatrixGraphArguments(const MatrixGraphArguments &) = delete;
+  MatrixGraphArguments &operator=(const MatrixGraphArguments &) = delete;
   ~MatrixGraphArguments() {
     state->argumentBytes -= reserved;
     --state->argumentPacks;
@@ -340,6 +344,20 @@ struct Bridge {
         if (roots[r] >= inputs.size() + item.stage)
           return std::unexpected(Error::Invalid);
     }
+    std::uint64_t operandCount = 0;
+    for (std::size_t i = 0; i < products.size(); ++i) {
+      const auto edge = products[i];
+      if (edge.operands.empty())
+        continue;
+      if (maps.empty() || !maps[i] || edge.operands.front() != edge.left ||
+          edge.operands.back() != edge.right || edge.operands.size() > UINT32_MAX - operandCount)
+        return std::unexpected(Error::Invalid);
+      operandCount += edge.operands.size();
+      for (std::size_t j = 0; j < edge.operands.size(); ++j)
+        if (edge.operands[j] >= inputs.size() + i ||
+            (j && edge.operands[j - 1] >= edge.operands[j]))
+          return std::unexpected(Error::Invalid);
+    }
     const auto count = inputs.size() + products.size();
     const auto bytes =
         std::uint64_t(roots.size()) * (sizeof(std::uint32_t) + sizeof(Buffer)) +
@@ -348,6 +366,7 @@ struct Bridge {
             (sizeof(Buffer) + sizeof(std::uint32_t) + sizeof(std::array<std::int64_t, 2>) +
              (roots.empty() ? 0 : sizeof(std::uint32_t))) +
         std::uint64_t(products.size()) * sizeof(MatrixProduct) +
+        operandCount * sizeof(std::uint32_t) +
         std::uint64_t(broadcasts.size()) * sizeof(MatrixScalar);
     try {
       if (!state->permit())
@@ -370,6 +389,19 @@ struct Bridge {
       if (!state->permit())
         return std::unexpected(Error::Allocation);
       result->products.assign(products.begin(), products.end());
+      if (operandCount) {
+        if (!state->permit())
+          return std::unexpected(Error::Allocation);
+        result->mapInputs.reserve(operandCount);
+        for (auto &edge : result->products) {
+          if (edge.operands.empty())
+            continue;
+          const auto offset = result->mapInputs.size(), size = edge.operands.size();
+          result->mapInputs.insert(result->mapInputs.end(), edge.operands.begin(),
+                                   edge.operands.end());
+          edge.operands = {result->mapInputs.data() + offset, size};
+        }
+      }
       if (!broadcasts.empty()) {
         if (!state->permit())
           return std::unexpected(Error::Allocation);
@@ -428,19 +460,23 @@ struct Bridge {
         const bool map = !maps.empty() && bool(maps[i]);
         if (map) {
           const auto &mapping = maps[i].state_;
-          const auto tensors = (edge.left == edge.right ? 1u : 2u) +
-                               std::count_if(broadcasts.begin(), broadcasts.end(),
-                                             [i](auto item) { return item.stage == i; });
+          const auto tensors =
+              edge.tensorCount() + std::count_if(broadcasts.begin(), broadcasts.end(),
+                                                 [i](auto item) { return item.stage == i; });
           // Small conditional graphs may deliberately use argument buffers to
           // keep the declared interface stable when optimization removes a read.
           const auto binding = mapping->signature.value_or(ElementwiseSignature{2, 0}).binding;
-          if (edge.left > edge.right || !mapping->elementwise || mapping->matrix ||
-              mapping->reduction || mapping->projected ||
+          if (tensors > UINT32_MAX || edge.left > edge.right || !mapping->elementwise ||
+              mapping->matrix || mapping->reduction || mapping->projected ||
               mapping->signature.value_or(ElementwiseSignature{2, 0}) !=
                   ElementwiseSignature{std::uint32_t(tensors), std::uint32_t(scalars.size()),
                                        binding} ||
               (a != b || (!roots.empty() && result->ranks[edge.left] != result->ranks[edge.right])))
             return std::unexpected(Error::Invalid);
+          for (auto operand : edge.operands)
+            if (result->shapes[operand] != a ||
+                (!roots.empty() && result->ranks[operand] != result->ranks[edge.left]))
+              return std::unexpected(Error::Invalid);
           if (mapping->registry != state || mapping->index != kernel.state_->index)
             return std::unexpected(Error::Residency);
           if (!state->permit())
@@ -461,8 +497,19 @@ struct Bridge {
         }
         if (!roots.empty())
           result->ranks[output] = map ? result->ranks[edge.left] : 2;
-        ++result->uses[edge.left];
-        ++result->uses[edge.right];
+        const auto retain = [&](std::uint32_t operand) {
+          if (result->uses[operand] == UINT32_MAX)
+            return false;
+          ++result->uses[operand];
+          return true;
+        };
+        if (edge.operands.empty()) {
+          if (!retain(edge.left) || !retain(edge.right))
+            return std::unexpected(Error::Invalid);
+        } else
+          for (auto operand : edge.operands)
+            if (!retain(operand))
+              return std::unexpected(Error::Invalid);
       }
       for (std::size_t r = 0; r < roots.size(); ++r) {
         const auto root = roots[r];
@@ -530,9 +577,11 @@ struct Bridge {
       if (frame.graphPhase == 2)
         return frame.packet.graph->reduced[index];
       const auto edge = frame.packet.graph->products[frame.graphStage];
-      const auto tensors = edge.left == edge.right ? 1u : 2u;
+      const auto tensors = edge.tensorCount();
       if (index < tensors)
-        return frame.packet.graph->values[index == 0 ? edge.left : edge.right];
+        return frame.packet.graph
+            ->values[edge.operands.empty() ? (index == 0 ? edge.left : edge.right)
+                                           : edge.operands[index]];
       index -= tensors;
       for (auto item : frame.packet.graph->broadcasts)
         if (item.stage == frame.graphStage && index-- == 0)
@@ -900,9 +949,16 @@ struct Bridge {
             f.packet.right = {};
             f.packet.arguments.reset();
             graph.values[graph.inputs + f.graphStage] = std::move(f.result);
-            for (auto operand : {edge.left, edge.right})
+            const auto release = [&](std::uint32_t operand) {
               if (!--graph.uses[operand])
                 graph.values[operand] = {};
+            };
+            if (edge.operands.empty()) {
+              release(edge.left);
+              release(edge.right);
+            } else
+              for (auto operand : edge.operands)
+                release(operand);
             ++f.graphStage;
             if (graph.tensorResult && f.graphStage == graph.products.size()) {
               f.result = std::move(graph.values.back());
@@ -1126,10 +1182,7 @@ struct Bridge {
                       : std::span<const std::uint32_t>(kernel->reads.data(), kernel->readCount);
               const bool read = std::binary_search(reads.begin(), reads.end(), i);
               const bool broadcast = f.packet.graph && f.graphPhase == 0 &&
-                                     i >= (f.packet.graph->products[f.graphStage].left ==
-                                                   f.packet.graph->products[f.graphStage].right
-                                               ? 1u
-                                               : 2u);
+                                     i >= f.packet.graph->products[f.graphStage].tensorCount();
               if (!other || other->format != Format::Float32 ||
                   (broadcast && (other->rank != 1 || other->size != 4)) ||
                   (other->rank != 1 && other->rank != 2) ||

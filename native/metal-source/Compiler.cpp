@@ -535,6 +535,7 @@ class Compiler {
     std::vector<std::pair<std::uint32_t, std::uint32_t>> broadcasts;
     bool reduce = false, scalarPost = false, tensorResult = false;
     std::vector<std::pair<std::uint32_t, std::uint32_t>> products;
+    std::map<std::size_t, std::vector<std::uint32_t>> mapInputs;
   };
   mutable std::map<FunctionId, std::optional<MatrixGraph>> matrixGraphs;
   const std::optional<MatrixGraph> &matrixGraph(FunctionId root) const {
@@ -563,9 +564,13 @@ class Compiler {
     auto sources = [&](std::int64_t v) {
       return v >= laneBase ? lanes.at(v - laneBase).sources : std::set<std::int64_t>{v};
     };
+    std::size_t work = 0;
     auto mergedSources = [&](std::int64_t a, std::int64_t b) {
       auto result = sources(a), other = sources(b);
       result.insert(other.begin(), other.end());
+      work += result.size();
+      if (work > 300000)
+        reject(entry.declaration, "GPU map operand analysis limit exceeded");
       return result;
     };
     auto laneDependency = [&](std::int64_t v) {
@@ -573,7 +578,6 @@ class Compiler {
              : v < 0       ? dependency(v)
                            : std::set<std::size_t>{};
     };
-    std::size_t work = 0;
     std::set<FunctionId> active;
     std::function<Result(FunctionId, const std::vector<std::int64_t> &)> invoke;
     invoke = [&](FunctionId id, const std::vector<std::int64_t> &args) -> Result {
@@ -634,8 +638,6 @@ class Compiler {
               reject(entry.declaration, "GPU reduction dependency analysis limit exceeded");
             if (laneDepth) {
               auto inputs = mergedSources(left, right);
-              if (inputs.size() > 2)
-                return {};
               result = laneBase + lanes.size();
               lanes.push_back({std::move(inputs), std::move(reduced)});
               values.emplace(value, *result);
@@ -707,8 +709,6 @@ class Compiler {
             if (!condition || *condition >= 0 || !a || !b || *a < 0 || *b < 0)
               return {};
             auto inputs = mergedSources(*a, *b);
-            if (inputs.size() > 2)
-              return {};
             auto reduced = dependency(*condition), left = laneDependency(*a),
                  right = laneDependency(*b);
             reduced.insert(left.begin(), left.end());
@@ -723,6 +723,9 @@ class Compiler {
               for (auto reduction : reduced)
                 graph.broadcasts.emplace_back(graph.products.size(), reduction);
               result = graph.inputs + graph.products.size();
+              if (inputs.size() > 2)
+                graph.mapInputs.emplace(graph.products.size(),
+                                        std::vector<std::uint32_t>(inputs.begin(), inputs.end()));
               graph.products.emplace_back(*inputs.begin(), *inputs.rbegin());
               graph.maps.push_back(true);
             }
@@ -827,6 +830,8 @@ class Compiler {
         return cached;
       live.insert(graph.products[i].first);
       live.insert(graph.products[i].second);
+      if (auto operands = graph.mapInputs.find(i); operands != graph.mapInputs.end())
+        live.insert(operands->second.begin(), operands->second.end());
     }
     const auto mapCount = std::count(graph.maps.begin(), graph.maps.end(), true);
     if (mapCount && work > 300000 / std::size_t(mapCount))
@@ -1318,8 +1323,21 @@ class Compiler {
       inputs += "}";
       std::string products =
           "std::array<m::MatrixProduct," + std::to_string(graph->products.size()) + ">{{";
-      for (auto [a, b] : graph->products)
-        products += "{" + std::to_string(a) + "," + std::to_string(b) + "},";
+      std::string operandTables;
+      for (std::size_t i = 0; i < graph->products.size(); ++i) {
+        auto [a, b] = graph->products[i];
+        products += "{" + std::to_string(a) + "," + std::to_string(b);
+        if (auto operands = graph->mapInputs.find(i); operands != graph->mapInputs.end()) {
+          const auto name = "mapInputs" + std::to_string(i);
+          operandTables += "static constexpr auto " + name + "=std::array<std::uint32_t," +
+                           std::to_string(operands->second.size()) + ">{";
+          for (auto input : operands->second)
+            operandTables += std::to_string(input) + ",";
+          operandTables += "};\n";
+          products += "," + name;
+        }
+        products += "},";
+      }
       products += "}}";
       std::string stages, extra;
       if (graph->reduce) {
@@ -1422,7 +1440,7 @@ class Compiler {
                       (graph->matrixCount ? "loadMatmulKernel" : "loadReductionKernel") +
                       "(f.directory+\"/kernel" + std::to_string(entry->second) +
                       ".metallib\",*target);\nif(!kernel){" + error("kernel.error()") + "}\nf." +
-                      kernel + "=*kernel;\n" + stages +
+                      kernel + "=*kernel;\n" + stages + operandTables +
                       "static constexpr auto products=" + products + ";\nf." + out + "=r." +
                       (graph->tensorResult             ? "graphTensor"
                        : graph->reductions.size() >= 2 ? "graphReductions"
@@ -2096,7 +2114,7 @@ class Compiler {
     // SSA origins track the source budget while nested arms lower lane by lane.
     std::unordered_map<std::string, std::set<std::string>> origins;
     std::size_t laneDepth = 0;
-    std::size_t counter = 0, callDepth = 0, shapeWork = 0;
+    std::size_t counter = 0, callDepth = 0, shapeWork = 0, sourceWork = 0;
     std::optional<std::string> reductionInput, matrixInput;
     std::set<std::size_t> active;
     auto temporary = [&] {
@@ -2278,8 +2296,9 @@ class Compiler {
             --laneDepth;
             auto sources = origins[a];
             sources.insert(origins[b].begin(), origins[b].end());
-            if (sources.empty() || sources.size() > 2)
-              reject(n.span, "GPU fused tensor choices currently support at most two sources");
+            sourceWork += sources.size();
+            if (sources.empty() || sourceWork > 300000)
+              reject(n.span, "GPU fused tensor choice operand analysis limit exceeded");
             const auto &left = cpu.expressions.at(branch->trueResult).type;
             const auto &right = cpu.expressions.at(branch->falseResult).type;
             if (left.shape.size() != right.shape.size())
@@ -2413,8 +2432,9 @@ class Compiler {
             for (const auto &operand : operands)
               if (auto found = origins.find(operand); found != origins.end())
                 sources.insert(found->second.begin(), found->second.end());
-            if (sources.empty() || sources.size() > 2)
-              reject(n.span, "GPU fused tensor choice arithmetic supports at most two sources");
+            sourceWork += sources.size();
+            if (sources.empty() || sourceWork > 300000)
+              reject(n.span, "GPU fused tensor arithmetic operand analysis limit exceeded");
           } else if (!origins.contains(result) || !laneDepth)
             origins[result] = {result};
         }
@@ -2880,6 +2900,12 @@ void resume(Task &task) {
                     prefix + "matrix_graph_products=" + std::to_string(graph->matrixCount) + "\n" +
                     prefix + "matrix_graph_stages=" + std::to_string(graph->products.size()) +
                     "\n" + prefix + "matrix_graph_edges=" + edges + "\n";
+        for (const auto &[stage, operands] : graph->mapInputs) {
+          std::string bindings;
+          for (auto input : operands)
+            bindings += (bindings.empty() ? "" : ",") + std::to_string(input);
+          manifest += prefix + "map" + std::to_string(stage) + "_inputs=" + bindings + "\n";
+        }
         if (!graph->broadcasts.empty()) {
           std::string bindings;
           for (auto [stage, reduction] : graph->broadcasts)

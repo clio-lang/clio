@@ -45,7 +45,7 @@ Use these stable milestones when reporting progress. A compiler feature or test 
 | N5 | Platform and distribution qualification | macOS ARM64 editor-tool and CPU compiler/runtime bundles now pass Release-build installation and relocation acceptance with external pinned LLVM/Clang. Initial Apple Metal compiler/resource packaging now adds relocation and generated-application independence checks. Metal release-runner qualification, self-contained dependencies, signing/notarization and clean-machine/platform qualification remain. Apple Metal remains the first GPU platform. |
 | N6 | Native documentation and release | Rebuild the website/docs around `.k` and the native language, validate onboarding/examples, then publish and announce the native release. Version-tag automation now qualifies CPU/editor packages and classifies SemVer prereleases before GitHub release publication. |
 
-N2 follow-up: **N-ary fused GPU maps** need an explicit operand list in place of the current two-tensor edges, preserving shape proofs, bindings, capture budgets, last-use reclamation and failure cleanup. This removes the two-source limit for nested [tensor choices](design/native-gpu-tensor-sources.md).
+N2 now includes [multi-source fused GPU maps](design/native-gpu-nary-choices.md): explicit owned operand lists remove the two-source ceiling while preserving shape proofs, bindings, capture budgets and last-use reclamation. Different-source choices in the separate single-matmul operand-map path remain an integration follow-up.
 
 Optimization work below stays separately identifiable. NVIDIA/CUDA, distributed execution and C/C++ embedding do not enter these milestone gates. Distributed execution still requires the agreed discussion before implementation.
 
@@ -90,6 +90,7 @@ Define supported operations, tensor formats/layouts, device compatibility, depen
 
 ## Optimization
 
+- **Deep tensor-choice compile time:** profile and bound MLIR One-Shot Bufferize alias analysis for long tensor-valued `if`/`else` chains in the CPU shadow functions used for GPU admission. A linear 40-leaf choice after summing 40 dynamic tensor parameters exposes pathological scaling; the 40-source qualification uses a single choice over two tensor expressions. GPU source arity and this compile-time issue are separate concerns.
 - **Conditional GPU graph bindings:** investigate projected direct bindings for small scalar-control graphs. The current [argument-buffer path](design/native-gpu-scalar-control.md#strict-lowering) preserves declared resources when optimization removes a predicate or identical arm. Derive any replacement from the lowered shader interface and preserve exact binding indices, capture budgets and failure/lifetime behavior.
 
 - **Parallel-map scheduling:** tune task/chunk granularity, bounded window width and capacity-aware admission; reduce repeated capture copying and avoid whole-batch straggler stalls. Preserve ordered results, typed failures, cooperative cancellation and resource accounting. The initial [CPU implementation](design/native-parallel-map.md) uses up to eight element tasks per batch.

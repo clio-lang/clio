@@ -112,6 +112,12 @@ struct ElementwiseSignature {
 // Operand indices address original inputs followed by earlier product results.
 struct MatrixProduct {
   std::uint32_t left, right;
+  // Optional sorted unique map operands. Capture copies them before submission;
+  // left/right must be their first/last entries. Matrix stages leave this empty.
+  std::span<const std::uint32_t> operands{};
+  std::size_t tensorCount() const noexcept {
+    return operands.empty() ? (left == right ? 1u : 2u) : operands.size();
+  }
 };
 // Broadcast one resident reduction into a later tensor map. Sorted by stage, then reduction.
 struct MatrixScalar {

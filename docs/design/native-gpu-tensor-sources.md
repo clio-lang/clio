@@ -49,9 +49,9 @@ matrix products, dispatch, allocation and shape checks are still rejected.
 This is not general graph branching, and does not support selecting differently
 shaped tensors or scheduling only one arm's numerical primitives.
 
-A fused map currently carries at most two tensor sources, plus its contributing
-reduced scalars. Nesting within those two sources works; adding a third source
-requires the separate n-ary map representation work tracked in the roadmap.
+[Multi-source maps](native-gpu-nary-choices.md) now carry explicit owned operand
+lists, removing the fixed two-source ceiling. Shape proofs and compiler/device
+resource budgets remain in force.
 The single-matmul operand-map path still rejects different-source choices; its
 projected interface needs separate qualification. Do not infer support for every
 matrix/primitive composition from these examples.
@@ -59,7 +59,7 @@ matrix/primitive composition from these examples.
 ## Bindings, ownership and evidence
 
 Graph analysis carries a set of tensor sources and reduced scalar dependencies
-for each lane expression, then creates one map edge over its two sources. Shape
+for each lane expression, then creates one map with its source operands. Shape
 proof is checked before publishing artifacts. Conditional entries with several
 live tensor reads use the existing Tier 2 argument-buffer interface, preserving
 declared binding indices when constant predicates remove an arm during shader
