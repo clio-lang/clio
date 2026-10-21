@@ -93,3 +93,5 @@ Installed-editor acceptance now applies an [imported type alias in an annotation
 Installed-editor acceptance now applies an [imported error alias in an expected-error channel](native-language-server.md#error-channel-completion), checks the existing Struct item kind, and verifies that the resulting fallible signature clears diagnostics and has checked hover.
 
 Installed-editor acceptance also applies a [public function import completion](native-language-server.md#import-name-completion), preserves its explicit local alias, and verifies that the resulting call checks and has hover information without writing disk sources.
+
+Installed-editor acceptance also applies a [relative import-path completion](native-language-server.md#relative-import-path-completion), checks its File item kind and string-only replacement range, and verifies that the aliased call checks and has hover information without changing disk sources.

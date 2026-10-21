@@ -451,6 +451,41 @@ int main() {
       manyExports += "export fn candidate" + std::to_string(i) + "():\n  0\n";
     info = importQuery("from \"./completion-exports.k\" import |\nfn main():\n  0\n", manyExports);
     require(info.names.size() == 256 && info.incomplete, "bounded exported names");
+    const auto pathRoot = std::filesystem::temp_directory_path() / "kalandra-path-overlays";
+    const auto pathQuery = [&](std::string text, std::vector<SourceOverlay> overlays) {
+      const auto cursor = text.find('|');
+      text.erase(cursor, 1);
+      return lsp::completeNames((pathRoot / "main.k").string(), text, cursor, {},
+                                std::move(overlays));
+    };
+    std::vector<SourceOverlay> pathOverlays{
+        {(pathRoot / "math.k").string(), "export fn double(v:int):\n  v*2\n"},
+        {(pathRoot / "other.k").string(), ""},
+        {(pathRoot / ".hidden.k").string(), ""},
+        {(pathRoot / "main.k").string(), ""},
+        {(pathRoot / "foreign" / "hidden.k").string(), ""}};
+    info = pathQuery("from \"./ma|Suffix.k\" import double\nfn main():\n  0\n", pathOverlays);
+    require(info.names.size() == 1 && has(info, "./math.k") &&
+                info.names[0].kind == ScopeNameKind::File &&
+                info.replacement.end - info.replacement.begin == 12,
+            "unsaved path completion replaces the full inner string: " +
+                std::to_string(info.names.size()) + " candidates, span " +
+                std::to_string(info.replacement.end - info.replacement.begin));
+    info = pathQuery("export from \"./|\" import double\nfn main():\n  0\n", pathOverlays);
+    require(info.names.size() == 2 && has(info, "./math.k") && has(info, "./other.k"),
+            "unsaved public import path candidates and exclusions");
+    require(pathQuery("fn main():\n  \"./ma|\"\n", pathOverlays).names.empty(),
+            "ordinary strings are not import paths");
+    require(pathQuery("from \"ma|\" import double\nfn main():\n  0\n", pathOverlays).names.empty(),
+            "bare package names are not relative path candidates");
+    require(pathQuery("from \"./ma|", pathOverlays).names.empty(),
+            "unterminated import strings are not repaired");
+    require(pathQuery("from \"./ma|\" import double\nfn main(\n", pathOverlays).names.empty(),
+            "path completion requires parsed import syntax");
+    std::vector<SourceOverlay> tooManyPaths(ModuleLimits{}.maxFiles + 1,
+                                            {(pathRoot / "math.k").string(), ""});
+    require(pathQuery("from \"./|\" import double\nfn main():\n  0\n", tooManyPaths).names.empty(),
+            "path overlays retain the module file budget");
     std::cout << "Native scope completion passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

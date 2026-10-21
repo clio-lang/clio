@@ -1,9 +1,95 @@
 #include "Completion.h"
 #include "CallRecovery.h"
+#include "kalandra/Utf8.h"
 #include <algorithm>
 #include <filesystem>
+#include <map>
 #include <type_traits>
 namespace kalandra::lsp {
+namespace {
+CompletionInfo completeImportPaths(const std::shared_ptr<const SourceFile> &source,
+                                   const Token &token, std::size_t offset,
+                                   const std::vector<SourceOverlay> &overlays) {
+  namespace fs = std::filesystem;
+  CompletionInfo result{{offset, offset}, {}, false};
+  const auto &text = source->text();
+  if (token.span.end < token.span.begin + 2 || text[token.span.end - 1] != '"' ||
+      offset <= token.span.begin || offset >= token.span.end)
+    return result;
+  const auto syntax = parse(source);
+  if (!syntax.ok() || !std::ranges::any_of(syntax.module.imports, [&](const auto &import) {
+        return import.path.begin == token.span.begin && import.path.end == token.span.end;
+      }))
+    return result;
+  const auto content =
+      std::string_view(text).substr(token.span.begin + 1, token.span.end - token.span.begin - 2);
+  if (content.find_first_of(std::string("\0\\\"", 3)) != content.npos)
+    return result;
+  const auto prefix = content.substr(0, offset - token.span.begin - 1);
+  if (!prefix.starts_with("./") && !prefix.starts_with("../"))
+    return result;
+  const auto directory = prefix.substr(0, prefix.rfind('/') + 1);
+  std::error_code error;
+  auto parent = fs::weakly_canonical(fs::path(source->path()).parent_path() / directory, error);
+  if (error)
+    return result;
+  if (parent.filename().empty())
+    parent = parent.parent_path();
+  std::map<std::string, ScopeNameKind> candidates;
+  const auto add = [&](const fs::path &path, bool folder) {
+    const auto filename = path.filename().string();
+    if (filename.empty() || filename.front() == '.' || !validUtf8(filename) ||
+        filename.find_first_of(std::string("\0\r\n\\\"", 5)) != filename.npos ||
+        (!folder && path.extension() != ".k") || path == fs::path(source->path()))
+      return;
+    const auto label = std::string(directory) + filename + (folder ? "/" : "");
+    if (label.starts_with(prefix))
+      candidates.try_emplace(label, folder ? ScopeNameKind::Folder : ScopeNameKind::File);
+  };
+  fs::directory_iterator iterator(parent, error), end;
+  // An unsaved dependency may live in a directory that does not exist yet.
+  if (error && error != std::errc::no_such_file_or_directory)
+    return result;
+  error.clear();
+  std::size_t entries = 0;
+  for (; iterator != end; iterator.increment(error)) {
+    if (error)
+      return result;
+    if (++entries > 20000) {
+      result.incomplete = true;
+      return result;
+    }
+    const auto status = iterator->symlink_status(error);
+    if (error)
+      return result;
+    if (fs::is_directory(status))
+      add(iterator->path(), true);
+    else if (fs::is_regular_file(status))
+      add(iterator->path(), false);
+  }
+  if (error || overlays.size() > ModuleLimits{}.maxFiles)
+    return result;
+  for (const auto &overlay : overlays) {
+    const auto path = fs::weakly_canonical(overlay.path, error);
+    if (error || path.parent_path() != parent)
+      continue;
+    const auto status = fs::symlink_status(overlay.path, error);
+    if (error && error != std::errc::no_such_file_or_directory)
+      continue;
+    if (!error && status.type() != fs::file_type::not_found && !fs::is_regular_file(status))
+      continue;
+    add(path, false);
+  }
+  result.replacement = {token.span.begin + 1, token.span.end - 1};
+  result.incomplete = candidates.size() > 256;
+  for (const auto &[name, kind] : candidates) {
+    if (result.names.size() == 256)
+      break;
+    result.names.push_back({name, kind});
+  }
+  return result;
+}
+} // namespace
 CompletionInfo completeNames(const std::string &path, const std::string &text, std::size_t offset,
                              const std::vector<ModulePackage> &packages,
                              std::vector<SourceOverlay> overlays, CheckOptions options,
@@ -25,6 +111,8 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
     closures = *repaired;
   }
   for (const auto &token : tokens.tokens) {
+    if (token.kind == TokenKind::String && token.span.begin < offset && offset < token.span.end)
+      return completeImportPaths(source, token, offset, overlays);
     if (token.kind == TokenKind::Identifier && token.span.begin <= offset &&
         offset <= token.span.end) {
       result.replacement = token.span;

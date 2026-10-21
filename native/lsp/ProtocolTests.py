@@ -1264,10 +1264,10 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     client.change(signature_document, accepted, 3)
     assert not publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
     assert client.hover(signature_document, 2, 3)["result"] is not None
-    # Alias names and import strings are intentionally outside this completion context.
+    # Alias declarations and empty import prefixes do not supply public-name suggestions.
     alias_cursor = accepted.splitlines()[0].index("run") + 1
     assert client.completion(signature_document, 0, alias_cursor)["result"]["items"] == []
-    assert client.completion(signature_document, 0, 10)["result"]["items"] == []
+    assert client.completion(signature_document, 0, 6)["result"]["items"] == []
     missing = 'from "./missing-completion.k" import \nfn main():\n  0\n'
     client.change(signature_document, missing, 4)
     client.barrier()
@@ -1275,6 +1275,84 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert not signature_document.exists() and exports_library.read_text() == exports_text
     assert facade.read_text() == facade_text
     client.finish()
+
+    # Relative import paths enumerate one directory without reading candidate source contents.
+    path_root = root / "path-candidates"
+    path_root.mkdir()
+    path_document = path_root / "main.k"
+    path_disk = 'fn main():\n  0\n'
+    path_document.write_text(path_disk)
+    math_text = 'export fn double(v:int):\n  v*2\n'
+    (path_root / "math.k").write_text(math_text)
+    (path_root / "math😀.k").write_text(math_text)
+    (path_root / "notes.txt").write_text("not Kalandra")
+    (path_root / ".hidden.k").write_text(math_text)
+    (path_root / 'bad"name.k').write_text(math_text)
+    (path_root / ("bad" + chr(92) + "name.k")).write_text(math_text)
+    (path_root / "nested").mkdir()
+    (path_root / "nested" / "helper.k").write_text(math_text)
+    (path_root / "linked.k").symlink_to(path_root / "math.k")
+    (path_root / "linked-folder").symlink_to(path_root / "nested", target_is_directory=True)
+    client = Client()
+    client.init()
+    path_text = 'from "./ma😀Suffix.k" import double as twice\nfn main():\n  twice(21)\n'
+    client.open(path_document, path_text)
+    client.barrier()
+    result = client.completion(path_document, 0, len('from "./ma'))["result"]
+    assert [item["label"] for item in result["items"]] == ["./math.k", "./math😀.k"], result
+    item = result["items"][0]
+    assert item["kind"] == 17 and item["textEdit"] == {"newText":"./math.k", "range":{
+        "start":{"line":0,"character":6},
+        "end":{"line":0,"character":6+len('./ma😀Suffix.k'.encode('utf-16-le'))//2}}}, item
+    assert not client.barrier(), "path completion published diagnostics"
+    # Applying just the path edit preserves the imported alias and checks the call.
+    client.change(path_document, path_text.replace('./ma😀Suffix.k','./math.k'), 2)
+    assert not publications(client.barrier())[path_document.as_uri()]["diagnostics"]
+    assert client.hover(path_document, 2, 4)["result"] is not None
+    empty_path = 'export from "./" import double\nfn main():\n  0\n'
+    client.change(path_document, empty_path, 3)
+    client.barrier()
+    result = client.completion(path_document, 0, len('export from "./'))["result"]
+    assert [(item["label"],item["kind"]) for item in result["items"]] == [
+        ("./math.k",17),("./math😀.k",17),("./nested/",19)], result
+    nested_path = 'from "./nested/heSuffix.k" import double\nfn main():\n  0\n'
+    client.change(path_document, nested_path, 4)
+    client.barrier()
+    result = client.completion(path_document, 0, len('from "./nested/he'))["result"]
+    assert [item["label"] for item in result["items"]] == ["./nested/helper.k"], result
+    parent_path = 'from "../maSuffix.k" import double\nfn main():\n  0\n'
+    nested_document = path_root / "nested" / "main.k"
+    client.open(nested_document, parent_path)
+    client.barrier()
+    result = client.completion(nested_document, 0, len('from "../ma'))["result"]
+    assert [item["label"] for item in result["items"]] == ["../main.k", "../math.k", "../math😀.k"], result
+    virtual = path_root / "virtual.k"
+    client.open(virtual, math_text)
+    client.barrier()
+    client.change(path_document, 'from "./vi" import double\nfn main():\n  0\n', 5)
+    client.barrier()
+    result = client.completion(path_document, 0, len('from "./vi'))["result"]
+    assert [item["label"] for item in result["items"]] == ["./virtual.k"], result
+    assert not virtual.exists() and not nested_document.exists()
+    assert path_document.read_text() == path_disk and (path_root / "math.k").read_text() == math_text
+    # The sorted result limit is independent of filesystem iteration order.
+    for i in range(300):
+        (path_root / f"candidate{i:03}.k").write_text("invalid source is not read")
+    bounded_path = 'from "./candidate" import double\nfn main():\n  0\n'
+    client.change(path_document, bounded_path, 6)
+    client.barrier()
+    result = client.completion(path_document, 0, len('from "./candidate'))["result"]
+    assert result["isIncomplete"] and len(result["items"]) == 256, result
+    assert result["items"][0]["label"] == "./candidate000.k"
+    assert result["items"][-1]["label"] == "./candidate255.k"
+    narrowed = bounded_path.replace("candidate", "candidate29")
+    client.change(path_document, narrowed, 7)
+    client.barrier()
+    result = client.completion(path_document, 0, len('from "./candidate29'))["result"]
+    assert not result["isIncomplete"] and len(result["items"]) == 10, result
+    client.finish()
+
+
 
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"

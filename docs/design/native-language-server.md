@@ -186,13 +186,13 @@ The server advertises `documentFormattingProvider: true`. Format Document uses t
 
 ## Scope completion
 
-The server advertises `completionProvider: {resolveProvider: false, triggerCharacters: [".", "{", ","]}`. Completion returns plain-text items and UTF-16 `textEdit` ranges covering the entire current identifier, including any suffix after the cursor. An empty expression position can also request names. The document must be open under its registered URI; unopened documents and invalid positions return `null`, and malformed parameters return InvalidParams (-32602).
+The server advertises `completionProvider: {resolveProvider: false, triggerCharacters: [".", "{", ",", "/"]}`. Completion returns plain-text items and UTF-16 `textEdit` ranges covering the entire current identifier, including any suffix after the cursor. An empty expression position can also request names. The document must be open under its registered URI; unopened documents and invalid positions return `null`, and malformed parameters return InvalidParams (-32602).
 
 Suggestions include parameters, preceding immutable bindings, eligible closure captures, named functions, nominal constructor names, and imported aliases visible in the current module. The checker supplies the actual lexical frame, so later bindings, other branches, unimported dependency names and shadowed declarations do not leak into the list. Matches use a case-sensitive prefix and deterministic alphabetical order. Results are limited to 256 names; `isIncomplete` asks the client to request again after the prefix narrows. Item details distinguish bindings, parameters, functions and types; these are name suggestions rather than expected-type filtering or inferred signature presentation.
 
 The request replaces only the current identifier (or inserts one at an empty position) in a temporary source overlay, then parses the graph and snapshots scope immediately before the checker resolves that identifier. Current dependency buffers and configured package mappings participate. Probe diagnostics are discarded: the request does not publish diagnostics, change buffers, write files, run code or contact hardware. Normal checking still never publishes partial typed IR. Completion exposes only scope names, without partial/stale inferred types.
 
-Apart from bounded construction/pattern-label probes and trailing-call repair below, completion needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Unsupported missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; import paths, general pattern bindings and declaration names are not completion contexts yet. Public names in explicit imports/re-exports are covered below. Expected-error channels are covered below. Type annotations are covered below. Qualified enum cases in match patterns are covered below. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no general parser recovery, auto-import, fuzzy ranking, snippet expansion or completion resolve. Checked signature help is covered below. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
+Apart from bounded construction/pattern-label probes and trailing-call repair below, completion needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Unsupported missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; bare package paths, general pattern bindings and declaration names are not completion contexts yet. Relative import paths are covered below. Public names in explicit imports/re-exports are covered below. Expected-error channels are covered below. Type annotations are covered below. Qualified enum cases in match patterns are covered below. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no general parser recovery, auto-import, fuzzy ranking, snippet expansion or completion resolve. Checked signature help is covered below. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
 
 The [completion qualification record](../../native/metal-proof/evidence/native-lsp-completion-2026-10-20.json) records semantic and stdio tests in normal and ASan/UBSan builds. [Initial VS Code acceptance](native-vscode.md#qualification) now covers partly typed names; broader completion interaction remains follow-up work.
 
@@ -641,7 +641,7 @@ normal resolution of the request-local probe. Only names escape. No error
 channel, partial typed module, union expansion or source edit is invented for
 the user. Ordinary diagnostics and hover remain based on the actual source.
 Other declaration syntax must parse; incomplete declarations, import-path
-completion, auto-import and snippets remain separate.
+completion for bare package names, auto-import and snippets remain separate.
 
 [Error-channel qualification](../../native/metal-proof/evidence/native-lsp-error-completion-2026-10-21.json)
 covers empty/partial members, unions and aliases, named/anonymous/nested callable
@@ -668,12 +668,49 @@ names remain available because another explicit local alias can be valid.
 The request replaces the whole current identifier, preserves its surrounding
 import syntax, and applies the existing case-sensitive prefix, alphabetical
 ordering and 256-item bound. It does not change source buffers, diagnostic
-publications or disk files. Import paths and local alias declarations are not
-completion sites; missing modules and syntax that the temporary graph cannot
-parse produce no candidates. There is no automatic import insertion or general
+publications or disk files. Bare package paths and local alias declarations are not
+completion sites; relative path completion is covered below. Missing modules and
+syntax that the temporary graph cannot parse produce no candidates. There is no automatic import insertion or general
 parser recovery.
 
 [Import-completion qualification](../../native/metal-proof/evidence/native-lsp-import-completion-2026-10-21.json)
 covers public/private names, aliases and re-exports, list bounds, live dependency
 buffers, unchanged diagnostics/files, relocated Release tools and an installed
 VS Code completion followed by checked diagnostics and hover.
+
+#### Relative import-path completion
+
+Inside a closed import string, typing a relative prefix such as `./ma` or
+`../math/` offers matching `.k` files and child folders. This works in ordinary
+imports and `export from` declarations. The edit replaces the string contents,
+including any suffix after the cursor, while preserving the quotes, imported
+names and local aliases. Files use File completion items; folders use Folder
+items and end with `/`. The server advertises `/` as a completion trigger.
+
+Discovery inspects only the directory named by the prefix, resolved from the
+importing file's canonical location. It does not recursively search, read candidate
+source contents or load their modules. Existing relative-path semantics still
+apply, including explicit parent-directory paths; this does not introduce a new
+workspace confinement rule. Symlink entries, hidden names, the current source
+file, non-`.k` files and names requiring string escapes are omitted. An explicitly
+typed parent directory follows the same filesystem canonicalization as imports.
+Current open `.k` buffers in that directory participate even when they have not
+been saved, including directories that do not exist yet. File and overlay
+candidates are deduplicated.
+
+Results use a case-sensitive prefix, alphabetical order and the existing 256-item
+limit. A directory traversal examines at most 20,000 entries; exceeding that
+budget returns an empty incomplete list rather than an arbitrary partial result.
+Filesystem errors produce no candidates. Overlay counts retain the module file
+budget. Filename suggestions do not establish that a module exports the requested
+names or even parses: ordinary checking validates the user's actual edit.
+
+Only parsed import declarations with closed, unescaped strings participate.
+Ordinary strings, comments, bare package names, unterminated strings and unrelated
+incomplete syntax do not gain recovery. Queries do not change buffers, diagnostic
+publications or disk files, and perform no network or device work.
+
+[Relative-path qualification](../../native/metal-proof/evidence/native-lsp-import-path-completion-2026-10-21.json)
+covers filesystem/unsaved candidates, Unicode UTF-16 edits, child/parent paths,
+exclusions and bounds, relocated Release tools and an installed VS Code path edit
+followed by checked diagnostics and hover.

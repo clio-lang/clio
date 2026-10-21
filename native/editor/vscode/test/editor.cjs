@@ -647,6 +647,20 @@ async function run() {
   await replace(main, mainDisk);
   await clearDiagnostics(main);
   checks.push("Import completion applies a public function name while preserving its local alias and checks the resulting program");
+  const pathCompletion = await complete(
+    main,
+    'from "./lib|Suffix.k" import double as twice\nfn main():\n  twice(21)\n',
+    "./library.k",
+  );
+  const pathItem = pathCompletion.items.find((item) => label(item) === "./library.k");
+  assert.equal(pathItem.kind, vscode.CompletionItemKind.File);
+  await applyCompletion(main, pathItem, "./libSuffix.k", "./library.k");
+  await clearDiagnostics(main);
+  assert(hoverText(await hover(main, "twice(21)")));
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  await clearDiagnostics(main);
+  checks.push("Relative import-path completion replaces only the string contents, preserves the local alias and checks the resulting call");
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,

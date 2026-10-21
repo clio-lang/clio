@@ -3,12 +3,13 @@
 #include "kalandra/Semantics.h"
 namespace kalandra::lsp {
 struct CompletionInfo {
-  SourceSpan replacement; // Original open-buffer UTF-8 range, including any identifier suffix.
+  SourceSpan replacement; // Original UTF-8 range: whole identifier or import-string contents.
   std::vector<ScopeName> names;
   bool incomplete = false;
   bool appendFieldColon = false; // Insert a separator only for a bare construction label.
 };
-// Temporary identifier/field probes query checked scopes and nominal members. No source writes,
+// Temporary identifier/field probes query checked scopes and nominal members; parsed relative
+// import strings also offer bounded filesystem/open-buffer paths. No source writes,
 // stale module, general parser recovery, auto-imports, or partial type information.
 [[nodiscard]] CompletionInfo completeNames(const std::string &path, const std::string &text,
                                            std::size_t offset,

@@ -636,6 +636,8 @@ public:
                           : name.kind == ScopeNameKind::Type     ? 22
                           : name.kind == ScopeNameKind::Field    ? 5
                           : name.kind == ScopeNameKind::EnumCase ? 20
+                          : name.kind == ScopeNameKind::File     ? 17
+                          : name.kind == ScopeNameKind::Folder   ? 19
                                                                  : 6;
         items.push_back(j::Object{
             {"label", name.name},
@@ -646,6 +648,8 @@ public:
                        : name.kind == ScopeNameKind::Function ? "function"
                        : name.kind == ScopeNameKind::Field    ? "record field"
                        : name.kind == ScopeNameKind::EnumCase ? "enum case"
+                       : name.kind == ScopeNameKind::File     ? "source file"
+                       : name.kind == ScopeNameKind::Folder   ? "directory"
                                                               : "type"},
             {"textEdit", j::Object{{"range", *diagnostic.get("range")},
                                    {"newText", name.name + (info.appendFieldColon ? ": " : "")}}}});
@@ -985,7 +989,7 @@ int main(int argc, char **argv) {
                              j::Object{{"triggerCharacters", j::Array{"(", ","}}}},
                             {"completionProvider",
                              j::Object{{"resolveProvider", false},
-                                       {"triggerCharacters", j::Array{".", "{", ","}}}},
+                                       {"triggerCharacters", j::Array{".", "{", ",", "/"}}}},
                             {"documentFormattingProvider", true},
                             {"definitionProvider", true},
                             {"referencesProvider", true},
