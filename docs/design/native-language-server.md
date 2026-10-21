@@ -192,7 +192,7 @@ Suggestions include parameters, preceding immutable bindings, eligible closure c
 
 The request replaces only the current identifier (or inserts one at an empty position) in a temporary source overlay, then parses the graph and snapshots scope immediately before the checker resolves that identifier. Current dependency buffers and configured package mappings participate. Probe diagnostics are discarded: the request does not publish diagnostics, change buffers, write files, run code or contact hardware. Normal checking still never publishes partial typed IR. Completion exposes only scope names, without partial/stale inferred types.
 
-Apart from the bounded construction-label probe below, completion needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; annotations, import paths, general pattern bindings and declaration names are not completion contexts yet. Qualified enum cases in match patterns are covered below. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no general parser recovery, auto-import, fuzzy ranking, snippet expansion, completion resolve or signature help. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
+Apart from the bounded construction/pattern-label probe below, completion needs the temporary graph to parse and the checker to reach the query without prior diagnostics. Missing delimiters, unfinished declarations, failed imports or earlier semantic errors can produce an empty list. Later errors do not invalidate an already captured scope. Ordinary expression names, direct/piped callees and named map callbacks are covered; annotations, import paths, general pattern bindings and declaration names are not completion contexts yet. Qualified enum cases in match patterns are covered below. Checked record fields are covered below. Strings/comments do not supply lexical-name suggestions. There is no general parser recovery, auto-import, fuzzy ranking, snippet expansion, completion resolve or signature help. Existing source/token/graph/checker budgets still apply, and requests remain synchronous.
 
 The [completion qualification record](../../native/metal-proof/evidence/native-lsp-completion-2026-10-20.json) records semantic and stdio tests in normal and ASan/UBSan builds. [Initial VS Code acceptance](native-vscode.md#qualification) now covers partly typed names; broader completion interaction remains follow-up work.
 
@@ -309,5 +309,33 @@ The [construction-label qualification record](../../native/metal-proof/evidence/
 covers empty/partial slots, missing values, existing colons, fields already supplied
 before/after the cursor, nested records, immutable updates, selected payloads,
 invalid owners, lexical value completion, list bounds, Unicode edits, imported
-overlays and relocated Release tools. General parser recovery, pattern payload
-labels, type-directed value snippets and real editor-host interaction remain separate.
+overlays and relocated Release tools. Pattern payload labels are covered below;
+general parser recovery, type-directed value snippets and real editor-host interaction
+remain separate.
+
+### Pattern payload-label completion
+
+Inside a selected `match` case, completion offers its checked payload fields.
+For example, `Choice.Some {va|}` offers `value` as a shorthand binding;
+`Choice.Some {va|:item}` changes only the field label and preserves `item`.
+Empty payload slots are supported too. The edit replaces the whole identifier
+and inserts only the field name, without a colon or a guessed binding name.
+Completion in `value:it|em` does not offer payload labels.
+
+Fields already listed before or after the cursor are excluded by their labels,
+not their local binding names. Only the selected case's fields are available.
+Imported aliases, current dependency overlays, error-union family identity and
+built-in `TaskError` payloads follow ordinary match checking. Unknown cases,
+wrong families, unreachable cases and earlier semantic errors stop suggestions.
+
+The existing bounded temporary probe now uses an identifier placeholder so it
+can represent either a constructor value or a pattern binding. A missing explicit
+binding can be probed before a closing brace/comma; no placeholder is returned or
+persisted. Other syntax must parse, including the arm body and closing delimiters.
+Sorted prefix filtering, the 256-item bound, plain Field items and UTF-16 edits
+remain shared with other field completion.
+
+The [pattern-label qualification record](../../native/metal-proof/evidence/native-lsp-pattern-labels-2026-10-21.json)
+covers semantic queries, normal/sanitizer protocol runs and relocated Release
+tools. General binding-name suggestions, broad parser recovery and real editor-host
+pattern completion remain follow-ups.

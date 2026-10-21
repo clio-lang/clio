@@ -218,6 +218,57 @@ int main() {
     info =
         query(record + "fn inspect(value:Many):\n  value with { candidate29| }\nfn main():\n  0\n");
     require(info.names.size() == 11 && !info.incomplete, "narrowed label list");
+    const std::string patterns =
+        "enum Parcel:\n  Packed:\n    value:int\n    count:int\n    note:int\n  Empty\n";
+    const auto patternQuery = [&](const std::string &fields) {
+      return query(patterns + "fn inspect(p:Parcel):\n  match p:\n    Parcel.Packed {" + fields +
+                   "}: 0\n    Parcel.Empty: 0\nfn main():\n  0\n");
+    };
+    info = patternQuery(" | ");
+    require(info.names.size() == 3 && has(info, "value") && !info.appendFieldColon &&
+                info.names[0].kind == ScopeNameKind::Field,
+            "empty shorthand pattern labels");
+    info = patternQuery("va|Suffix");
+    require(info.names.size() == 1 && has(info, "value") && !info.appendFieldColon &&
+                info.replacement.end - info.replacement.begin == 8,
+            "shorthand pattern suffix");
+    info = patternQuery("va|:item");
+    require(info.names.size() == 1 && has(info, "value") && !info.appendFieldColon,
+            "explicit pattern binder preserved");
+    info = patternQuery("va|:");
+    require(info.names.size() == 1 && has(info, "value"), "bounded missing pattern binder");
+    info = patternQuery("count:value, |, note:other");
+    require(info.names.size() == 1 && has(info, "value"), "exclude labels rather than binders");
+    require(patternQuery("value:it|em").names.empty(), "binder is not a field completion site");
+    require(patternQuery("missing:x, |").names.empty(),
+            "prior invalid pattern field blocks labels");
+    require(query(patterns + "fn inspect(p:Parcel):\n  match p:\n    Parcel.Empty {|}: 0\n    "
+                             "Parcel.Packed: 0\nfn main():\n  0\n")
+                .names.empty(),
+            "payloadless variant has no labels");
+    require(query(patterns + "fn inspect(p:Parcel):\n  match p:\n    Parcel.Missing {|}: 0\nfn "
+                             "main():\n  0\n")
+                .names.empty(),
+            "invalid pattern case has no labels");
+    info = query(
+        "error Problem:\n  Bad:\n    code:int\nerror Other:\n  Worse\ntype Both = Problem | Other\n"
+        "fn inspect(e:Both):\n  match e:\n    Problem.Bad {co|}: 0\n    Other.Worse: 1\n"
+        "fn main():\n  0\n");
+    require(info.names.size() == 1 && has(info, "code"), "error union pattern payload labels");
+    info = query("fn inspect(e:TaskError):\n  match e:\n    TaskError.Fault {|}: 0\n    _: 1\n"
+                 "fn main():\n  0\n");
+    require(info.names.size() == 2 && has(info, "kind") && has(info, "message"),
+            "task fault labels");
+    info = query("fn inspect(e:TaskError):\n  match e:\n    TaskError.AdmissionRejected {re|}: 0\n"
+                 "    _: 1\nfn main():\n  0\n");
+    require(info.names.size() == 1 && has(info, "reason"), "task rejection labels");
+    std::string manyPayloads = "enum LargePayload:\n  Some:\n";
+    for (int i = 0; i < 300; ++i)
+      manyPayloads += "    candidate" + std::to_string(i) + ":int\n";
+    info = query(manyPayloads +
+                 "fn inspect(p:LargePayload):\n  match p:\n    LargePayload.Some {|}: 0\n"
+                 "fn main():\n  0\n");
+    require(info.names.size() == 256 && info.incomplete, "bounded pattern payload labels");
     std::cout << "Native scope completion passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

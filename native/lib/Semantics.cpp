@@ -2884,6 +2884,24 @@ private:
             taskSlot = output_.records[*subjectType.record].variants[*tag - 1].fields.front();
           }
         }
+        if (completing(fieldSpan)) {
+          std::vector<std::string> candidates;
+          if (enumeration && tag && !taskVariant) {
+            const auto &record = output_.records[*subjectType.record];
+            for (const auto index : record.variants[*tag - 1].fields)
+              candidates.push_back(record.fields[index].name);
+          } else if (taskVariant == 1)
+            candidates = {"kind", "message"};
+          else if (taskVariant == 4)
+            candidates = {"reason"};
+          std::unordered_set<std::string> supplied;
+          for (const auto &other : arm.fields)
+            if (other.name.begin != fieldSpan.begin || other.name.end != fieldSpan.end)
+              supplied.insert(name(other.name));
+          std::erase_if(candidates,
+                        [&](const auto &candidate) { return supplied.contains(candidate); });
+          completeMembers(fieldSpan, std::move(candidates), ScopeNameKind::Field);
+        }
         ValueType fieldType;
         if (enumeration && tag && !taskVariant) {
           const auto &record = output_.records[*subjectType.record];

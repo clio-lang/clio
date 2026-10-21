@@ -845,6 +845,30 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert [item["label"] for item in client.completion(document, 4, start + 2)["result"]["items"]] == ["variable"]
     client.close(library)
     client.barrier()
+    # Pattern labels preserve shorthand and explicit local binder names.
+    library.write_text("export enum Choice:\n  Some:\n    value:int\n    count:int\n  Other\n")
+    text = ('from "./library.k" import Choice as Pick\n'
+            'fn inspect(p:Pick):\n  match p:\n    Pick.Some {vaSuffix, count:total}: 0\n'
+            '    Pick.Other: 0\nfn main():\n  0\n')
+    client.change(document, text, 9)
+    client.barrier()
+    start = text.splitlines()[3].index("vaSuffix")
+    result = client.completion(document, 3, start + 2)["result"]
+    assert [item["label"] for item in result["items"]] == ["value"], result
+    assert result["items"][0]["textEdit"] == {"newText": "value", "range": {
+        "start": {"line": 3, "character": start},
+        "end": {"line": 3, "character": start + 8}}}, result
+    client.change(document, text.replace("vaSuffix", "vaSuffix:item"), 10)
+    client.barrier()
+    assert client.completion(document, 3, start + 2)["result"]["items"][0]["textEdit"]["newText"] == "value"
+    assert client.completion(document, 3, start + 11)["result"]["items"] == []
+    assert not client.barrier(), "pattern probe leaked diagnostics"
+    client.open(library, "export enum Choice:\n  Some:\n    variable:int\n    count:int\n  Other\n")
+    client.barrier()
+    assert [item["label"] for item in client.completion(document, 3, start + 2)["result"]["items"]] == ["variable"]
+    client.close(library)
+    client.barrier()
+    assert not document.exists(), "pattern completion wrote source"
     client.close(document)
     client.barrier()
     assert client.completion(document, 4, 16)["result"] is None

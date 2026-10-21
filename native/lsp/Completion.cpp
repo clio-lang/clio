@@ -27,8 +27,8 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
         (token.kind == TokenKind::String || token.kind == TokenKind::Number))
       return result;
   }
-  // Repair only one label/value slot inside balanced construction delimiters.
-  // The parsed RecordExpr and checker must still identify a valid nominal owner.
+  // Repair only one label/value slot inside balanced construction/pattern delimiters.
+  // The parsed node and checker must still identify a valid nominal owner.
   const auto trivia = [](TokenKind kind) {
     return kind == TokenKind::Newline || kind == TokenKind::Indent || kind == TokenKind::Dedent ||
            kind == TokenKind::End;
@@ -62,19 +62,21 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
                             following[0]->kind == TokenKind::Colon && boundary(following[1]->kind);
   const auto prefix = text.substr(result.replacement.begin, offset - result.replacement.begin);
   constexpr std::string_view probe = "__kalandra_completion_probe";
+  // An identifier can stand in for either a constructor value or a pattern binder.
+  constexpr std::string_view filler = "__kalandra_completion_binding";
   if (text.size() - (result.replacement.end - result.replacement.begin) + probe.size() +
-          (bareLabel      ? 3
-           : missingValue ? 2
+          (bareLabel      ? filler.size() + 2
+           : missingValue ? filler.size() + 1
                           : 0) >
       SyntaxLimits{}.maxSourceBytes)
     return result;
   auto replacement = text;
   replacement.replace(result.replacement.begin, result.replacement.end - result.replacement.begin,
-                      std::string(probe) + (bareLabel ? ": 0" : ""));
+                      std::string(probe) + (bareLabel ? ": " + std::string(filler) : ""));
   if (missingValue) {
     const auto at =
         result.replacement.begin + probe.size() + following[0]->span.end - result.replacement.end;
-    replacement.insert(at, " 0");
+    replacement.insert(at, " " + std::string(filler));
   }
   std::erase_if(overlays, [&](const auto &entry) {
     std::error_code ec;
@@ -112,9 +114,12 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
         }
       }
     } else if (const auto *match = std::get_if<MatchExpr>(&expression.value))
-      for (const auto &arm : match->arms)
+      for (const auto &arm : match->arms) {
         if (arm.variant)
           locate(*arm.variant);
+        for (const auto &field : arm.fields)
+          locate(field.name);
+      }
     if (site)
       break;
   }
