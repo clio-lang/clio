@@ -525,6 +525,19 @@
       "evidence": [
         "gpu-result-choices-2026-10-21.json"
       ]
+    },
+    {
+      "id": "reduction-choices",
+      "feature": "Scalar choices after resident reductions",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "reduction-choices.k"
+      ],
+      "notes": "Predicates and pure scalar arms retain one resident sum or matrix-product sum; optional mapped inputs, nested choices and constant arms; scalar results remain float32",
+      "evidence": [
+        "gpu-reduction-choices-2026-10-21.json"
+      ]
     }
   ]
 }

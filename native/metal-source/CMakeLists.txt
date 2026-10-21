@@ -891,3 +891,22 @@ if(BUILD_TESTING)
       RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
   endforeach()
 endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-reduction-choices COMMAND "${CMAKE_COMMAND}"
+      "-DCOMPILER=$<TARGET_FILE:${COMPILER_TARGET}>" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-reduction-choices"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyReductionChoices.cmake")
+    set_tests_properties(${COMPILER_TARGET}-reduction-choices PROPERTIES TIMEOUT 120)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-reduction-choices-cli-${VARIANT} COMMAND "${CMAKE_COMMAND}"
+      "-DCOMPILER=$<TARGET_FILE:kalandra>" "-DVARIANT=${VARIANT}"
+      "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/reduction-choices-cli-${VARIANT}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyReductionChoices.cmake")
+    set_tests_properties(native-metal-reduction-choices-cli-${VARIANT} PROPERTIES TIMEOUT 300
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
+endif()

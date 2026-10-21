@@ -235,6 +235,13 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
     result_bits = "[42300000,42600000,42c40000,43000000]"
     assert run([result_app / "program"], cwd).stdout.strip() == result_bits
     applications.append((result_app, result_bits))
+    choice_source = cwd / "reduction-choices.k"
+    choice_source.write_bytes((fixtures / "reduction-choices.k").read_bytes())
+    choice_app = cwd / "reduction choices application"
+    run([compiler, choice_source, "--target", "metal", "-o", choice_app, "-O2"], cwd)
+    assert (choice_app / "kernel0-post.metallib").is_file()
+    assert run([choice_app / "program"], cwd).stdout.strip() == "41400000"
+    applications.append((choice_app, "41400000"))
     # Local module/project imports go through the same installed Metal compiler.
     (cwd / "helper.k").write_text("export " + source.read_text().split("\n\nfn main", 1)[0] + "\n")
     source.write_text('from "math" import combine\n\nfn main' + source.read_text().split("\n\nfn main", 1)[1])

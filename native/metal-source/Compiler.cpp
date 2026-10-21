@@ -24,6 +24,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <initializer_list>
 #include <iostream>
 #include <map>
 #include <set>
@@ -207,7 +208,8 @@ class Compiler {
       return found->second;
     const auto &entry = cpu.functions.at(root);
     const bool sumSignature =
-        !entry.resultType.tensor &&
+        !entry.resultType.tensor && entry.resultType.builtin == BuiltinValue::Numeric &&
+        entry.resultType.element == NumericType::Float32 &&
         std::any_of(entry.parameters.begin(), entry.parameters.end(), [&](auto parameter) {
           const auto &type = cpu.symbols[parameter].type;
           return type.tensor && (type.shape.size() == 1 || type.shape.size() == 2);
@@ -224,6 +226,24 @@ class Compiler {
     std::size_t work = 0, primitives = 0;
     std::set<FunctionId> active;
     using Result = std::optional<PrimitiveEntry>;
+    // Track the reduced value through Boolean predicates as well as arithmetic.
+    // A choice between constants can still depend on the resident reduction.
+    auto scalarResult = [](std::initializer_list<Result> inputs) -> Result {
+      Result result = PrimitiveEntry{PrimitiveEntry::Scalar};
+      for (const auto &input : inputs) {
+        if (!input ||
+            (input->kind != PrimitiveEntry::Scalar && input->kind != PrimitiveEntry::Sum &&
+             input->kind != PrimitiveEntry::MatrixSum))
+          return {};
+        if (input->kind != PrimitiveEntry::Scalar)
+          result = input;
+      }
+      if (result->kind == PrimitiveEntry::Sum)
+        result->post = true;
+      else if (result->kind == PrimitiveEntry::MatrixSum)
+        result->scalarPost = true;
+      return result;
+    };
     std::function<Result(FunctionId, const std::vector<PrimitiveEntry> &)> invoke;
     invoke = [&](FunctionId id, const std::vector<PrimitiveEntry> &args) -> Result {
       if (++work > 300000 || active.size() >= 128)
@@ -269,8 +289,7 @@ class Compiler {
                                     left->mapped,           right->mapped};
         } else if (const auto *compare = std::get_if<ScalarCompare>(&node.operation)) {
           auto a = emit(compare->left), b = emit(compare->right);
-          if (a && b && a->kind == PrimitiveEntry::Scalar && b->kind == PrimitiveEntry::Scalar)
-            result = PrimitiveEntry{PrimitiveEntry::Scalar};
+          result = scalarResult({a, b});
         } else if (const auto *branch = std::get_if<ConditionalOperation>(&node.operation)) {
           const bool tensor = node.type.tensor;
           if (!(tensor ? pureLane(branch->trueResult) && pureLane(branch->falseResult)
@@ -294,11 +313,10 @@ class Compiler {
           symbols = saved;
           auto b = arm(branch->whenFalse, branch->falseResult);
           symbols = std::move(saved);
-          if (condition && condition->kind == PrimitiveEntry::Scalar && a && b) {
-            if (!tensor && a->kind == PrimitiveEntry::Scalar && b->kind == PrimitiveEntry::Scalar)
-              result = PrimitiveEntry{PrimitiveEntry::Scalar};
-            else if (tensor && a->kind == PrimitiveEntry::Input &&
-                     b->kind == PrimitiveEntry::Input) {
+          if (!tensor)
+            result = scalarResult({condition, a, b});
+          else if (condition && condition->kind == PrimitiveEntry::Scalar && a && b) {
+            if (a->kind == PrimitiveEntry::Input && b->kind == PrimitiveEntry::Input) {
               result = a;
               result->mapped = true;
             } else if (tensor &&
