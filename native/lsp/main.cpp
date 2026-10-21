@@ -570,6 +570,7 @@ public:
       for (const auto &name : info.names) {
         const auto kind = name.kind == ScopeNameKind::Function ? 3
                           : name.kind == ScopeNameKind::Type   ? 22
+                          : name.kind == ScopeNameKind::Field  ? 5
                                                                : 6;
         items.push_back(j::Object{
             {"label", name.name},
@@ -578,6 +579,7 @@ public:
             {"detail", name.kind == ScopeNameKind::Parameter  ? "parameter"
                        : name.kind == ScopeNameKind::Variable ? "binding"
                        : name.kind == ScopeNameKind::Function ? "function"
+                       : name.kind == ScopeNameKind::Field    ? "record field"
                                                               : "type"},
             {"textEdit", j::Object{{"range", *diagnostic.get("range")}, {"newText", name.name}}}});
       }
@@ -903,7 +905,8 @@ int main(int argc, char **argv) {
                  {"capabilities",
                   j::Object{{"positionEncoding", "utf-16"},
                             {"hoverProvider", true},
-                            {"completionProvider", j::Object{{"resolveProvider", false}}},
+                            {"completionProvider", j::Object{{"resolveProvider", false},
+                                                             {"triggerCharacters", j::Array{"."}}}},
                             {"documentFormattingProvider", true},
                             {"definitionProvider", true},
                             {"referencesProvider", true},

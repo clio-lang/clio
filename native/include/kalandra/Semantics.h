@@ -406,9 +406,9 @@ struct CheckResult {
 [[nodiscard]] bool hasOrdinaryStrings(const TypedModule &module);
 // True for device/transfer/placed-call IR or resident/selector types.
 [[nodiscard]] bool hasPlacement(const TypedModule &module);
-// Editor-only scope snapshot. Names are captured before checking the queried name;
+// Editor-only scope/member snapshot. Names are captured at the queried name;
 // no partial typed IR or inferred type information escapes a failed check.
-enum class ScopeNameKind { Variable, Parameter, Function, Type };
+enum class ScopeNameKind { Variable, Parameter, Function, Type, Field };
 struct ScopeName {
   std::string name;
   ScopeNameKind kind;

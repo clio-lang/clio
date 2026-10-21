@@ -770,6 +770,31 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert client.completion(document, 300, 0)["result"] is None
     assert client.rpc("textDocument/completion", {"textDocument": {"uri": document.as_uri()},
         "position": {"line": -1, "character": 0}})["error"]["code"] == -32602
+    # Record fields use current imported declarations and UTF-16 member edits.
+    library.write_text("export type Box:\n  value:int\n")
+    text = ('from "./library.k" import Box\n'
+            'fn join(text:String, value:int):\n  value\n'
+            'fn main():\n  box=Box {value:1}\n  join("😀", box.vaSuffix)\n')
+    client.change(document, text, 3)
+    client.barrier()
+    member_line = text.splitlines()[5]
+    start = len(member_line[:member_line.index("vaSuffix")].encode("utf-16-le")) // 2
+    result = client.completion(document, 5, start + 2)["result"]
+    assert [item["label"] for item in result["items"]] == ["value"], result
+    field = result["items"][0]
+    assert field["kind"] == 5 and field["detail"] == "record field", field
+    assert field["textEdit"] == {"newText": "value", "range": {
+        "start": {"line": 5, "character": start},
+        "end": {"line": 5, "character": start + len("vaSuffix")}}}, field
+    assert not client.barrier(), "member probe leaked diagnostics"
+    client.open(library, "export type Box:\n  changed:int\n")
+    client.barrier()
+    assert client.completion(document, 5, start + 2)["result"]["items"] == [], "stale member declaration"
+    client.change(document, text.replace("{value:1}", "{changed:1}").replace("vaSuffix", "chSuffix"), 4)
+    client.barrier()
+    assert [item["label"] for item in client.completion(document, 5, start + 2)["result"]["items"]] == ["changed"]
+    client.close(library)
+    client.barrier()
     client.close(document)
     client.barrier()
     assert client.completion(document, 4, 16)["result"] is None

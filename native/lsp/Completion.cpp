@@ -46,15 +46,21 @@ CompletionInfo completeNames(const std::string &path, const std::string &text, s
   // Locate the probe through original-file identities so this does not depend
   // on how the module loader arranges the composed source.
   std::optional<SourceSpan> site;
-  for (const auto &expression : syntax->module.expressions)
-    if (const auto *name = std::get_if<NameExpr>(&expression.value)) {
-      const auto [original, local] = syntax->module.source->origin(name->name.begin);
+  for (const auto &expression : syntax->module.expressions) {
+    std::optional<SourceSpan> candidate;
+    if (const auto *name = std::get_if<NameExpr>(&expression.value))
+      candidate = name->name;
+    else if (const auto *field = std::get_if<FieldExpr>(&expression.value))
+      candidate = field->field;
+    if (candidate) {
+      const auto [original, local] = syntax->module.source->origin(candidate->begin);
       if (original->path() == canonical && local == result.replacement.begin &&
-          syntax->module.source->slice(name->name) == probe) {
-        site = name->name;
+          syntax->module.source->slice(*candidate) == probe) {
+        site = *candidate;
         break;
       }
     }
+  }
   if (!site)
     return result;
   ScopeCompletion query{*site, prefix, {}, false, false};

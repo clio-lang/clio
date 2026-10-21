@@ -1468,6 +1468,21 @@ private:
       return {};
     }
     const auto &fields = output_.records[*type.record].fields;
+    // Capture names only after the receiver has a checked, completed record type.
+    // The synthetic field still diagnoses normally; no partial typed IR is published.
+    if (auto *query = options_.completion; query && !query->reached && diagnostics_.empty() &&
+                                           query->site.begin == read.field.begin &&
+                                           query->site.end == read.field.end) {
+      query->reached = true;
+      std::vector<std::string> names;
+      for (const auto &field : fields)
+        if (field.name.starts_with(query->prefix))
+          names.push_back(field.name);
+      std::ranges::sort(names);
+      query->truncated = names.size() > 256;
+      for (std::size_t i = 0; i < std::min<std::size_t>(names.size(), 256); ++i)
+        query->names.push_back({names[i], ScopeNameKind::Field});
+    }
     const auto found =
         std::ranges::find_if(fields, [&](const auto &f) { return f.name == name(read.field); });
     if (found == fields.end()) {
