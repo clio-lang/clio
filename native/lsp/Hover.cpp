@@ -275,17 +275,26 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
       piped = true;
       break;
     }
-  // A final bare name under the cursor is an editing hole, not a supplied
-  // argument. Project only the request-local AST; preserve source and diagnostics.
+  // Project a final identifier/field editing hole only in this request's AST.
+  // A field receiver still needs to check before a signature can be captured.
   bool editingName = false;
+  std::optional<ExprId> argumentReceiver;
   const auto implicit = piped ? 1u : 0u;
   if (!call.arguments.empty() && active >= implicit &&
       active - implicit == call.arguments.size() - 1) {
     const auto argumentId = call.arguments.back();
     const auto &argument = syntax.module.expressions[argumentId];
+    std::optional<SourceSpan> editingToken;
     if (const auto *name = std::get_if<NameExpr>(&argument.value);
-        name && name->name.begin == argument.span.begin && name->name.end == argument.span.end) {
-      const auto location = sourceLocation(syntax.module.source, name->name);
+        name && name->name.begin == argument.span.begin && name->name.end == argument.span.end)
+      editingToken = name->name;
+    else if (const auto *field = std::get_if<FieldExpr>(&argument.value);
+             field && field->field.end == argument.span.end) {
+      editingToken = field->field;
+      argumentReceiver = field->input;
+    }
+    if (editingToken) {
+      const auto location = sourceLocation(syntax.module.source, *editingToken);
       if (location && location->source->path() == path && location->span.begin < offset &&
           offset <= location->span.end) {
         std::get<CallExpr>(syntax.module.expressions[*selected].value).arguments.pop_back();
@@ -293,7 +302,7 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
       }
     }
   }
-  CallableSignatureQuery query{invocationSpan, {}};
+  CallableSignatureQuery query{invocationSpan, {}, editingName ? argumentReceiver : std::nullopt};
   const auto following = std::ranges::find_if(lexed.tokens, [&](const auto &token) {
     return token.span.begin >= offset && token.kind != TokenKind::Newline &&
            token.kind != TokenKind::Indent && token.kind != TokenKind::Dedent;

@@ -1039,6 +1039,45 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert not signature_document.exists() and higher_library.read_text() == higher_text
     client.finish()
 
+    # A final member name may be incomplete, but its receiver must still check.
+    receiver_library = Path(temp) / "signature-record.k"
+    receiver_text = "export type Reading:\n  value:int\n"
+    receiver_library.write_text(receiver_text)
+    client = Client()
+    client.init(signature_offsets=True)
+    member_text = ('from "./higher-order.k" import make as factory\n'
+                   'from "./signature-record.k" import Reading\n'
+                   'fn main():\n  reading=Reading {value:2}\n'
+                   '  unused="😀"\n  factory()(1, reading.vaSuffix)\n')
+    client.open(signature_document, member_text)
+    client.barrier()
+    line = member_text.splitlines()[5]
+    cursor = len(line[:line.index("vaSuffix") + 2].encode("utf-16-le")) // 2
+    result = client.signature(signature_document, 5, cursor)["result"]
+    assert result["activeParameter"] == 1 and result["signatures"][0]["label"] == "fn(int64, int64) -> int64", result
+    assert client.hover(signature_document, 5, cursor)["result"] is None
+    assert not client.barrier(), "member signature query published diagnostic replacements"
+    client.open(receiver_library, receiver_text.replace("value:int", "other:int"))
+    client.barrier()
+    assert client.signature(signature_document, 5, cursor)["result"] is None, "invalid receiver constructor was hidden"
+    client.change(receiver_library, receiver_text, 2)
+    client.barrier()
+    assert client.signature(signature_document, 5, cursor)["result"] is not None
+    broken = member_text.replace("reading.vaSuffix", "unknown.vaSuffix")
+    client.change(signature_document, broken, 2)
+    client.barrier()
+    bad_cursor = broken.splitlines()[5].index("vaSuffix") + 2
+    assert client.signature(signature_document, 5, bad_cursor)["result"] is None
+    opened = member_text.replace("reading.vaSuffix)", "reading.vaSuffix")
+    client.change(signature_document, opened, 3)
+    client.barrier()
+    assert client.signature(signature_document, 5, cursor)["result"] is None, "trailing source is not hidden during delimiter recovery"
+    end_cursor = len(opened.splitlines()[5])
+    assert client.signature(signature_document, 5, end_cursor)["result"] is not None
+    assert not signature_document.exists() and receiver_library.read_text() == receiver_text
+    assert higher_library.read_text() == higher_text
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"

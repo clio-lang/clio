@@ -1902,7 +1902,19 @@ private:
     return query && !query->snapshot && diagnostics_.empty() && query->site.begin == span.begin &&
            query->site.end == span.end;
   }
-  void captureSignature(const FunctionSignature &signature, std::vector<std::string> names = {}) {
+  void captureSignature(Frame &frame, const FunctionSignature &signature,
+                        std::vector<std::string> names = {}) {
+    if (const auto receiver = options_.signature->argumentReceiver) {
+      if (*receiver >= syntax_.expressions.size())
+        return;
+      const auto value = expression(frame, *receiver);
+      if (!value)
+        return;
+      const auto &type = node(*value).type;
+      if (type.builtin != BuiltinValue::Record || type.tensor || type.array || type.task ||
+          type.fallible || !type.record || !output_.records[*type.record].variants.empty())
+        return;
+    }
     CallableSignatureSnapshot snapshot{signature, std::move(names), {}};
     for (const auto &record : output_.records)
       snapshot.errorFamilies.push_back({record.name, record.errorMembers, record.taskErrorFamily});
@@ -1920,7 +1932,7 @@ private:
       for (std::size_t i = 0; i < arguments.size(); ++i)
         if (!expression(frame, arguments[i], type.callable->parameters[i]))
           return {};
-      captureSignature(*type.callable);
+      captureSignature(frame, *type.callable);
     }
     if (arguments.size() != type.callable->parameters.size()) {
       error("S027", "wrong argument count for function value", span);
@@ -4046,7 +4058,7 @@ private:
         for (std::size_t i = 0; i < arguments.size(); ++i)
           if (!expression(frame, arguments[i], signature.parameters[i]))
             return {};
-        captureSignature(signature, std::move(names));
+        captureSignature(frame, signature, std::move(names));
       }
     }
     if (arguments.size() != output_.functions[id].parameters.size()) {

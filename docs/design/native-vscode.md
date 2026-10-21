@@ -81,3 +81,5 @@ keeps the expected parameter signature available while the final argument name i
 being typed. Installed-provider acceptance checks the active parameter and exact
 label ranges while the original unknown-name diagnostic and failed hover remain
 visible; the buffer and disk source are unchanged.
+
+Installed-editor acceptance also checks [record-field argument guidance](native-language-server.md#record-field-argument-editing): the signature remains available while the final field name is being typed, with the actual unknown-field diagnostic, failed hover and unsaved buffer preserved.

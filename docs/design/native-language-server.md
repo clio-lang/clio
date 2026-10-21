@@ -475,8 +475,9 @@ argument, including unknown-name and type errors.
 
 The projection requires the final argument to be exactly a bare identifier and
 the cursor to be inside that identifier or at its end. Names in earlier arguments,
-member accesses, grouped names and compound expressions are not projected. Extra
-arguments do not invent extra parameters. This is signature guidance during an
+grouped names and compound expressions are not projected. Record-field argument
+editing uses the additional receiver check described below. Extra arguments do
+not invent extra parameters. This is signature guidance during an
 edit, not validation or completion of the argument itself.
 
 [Identifier-edit qualification](../../native/metal-proof/evidence/native-lsp-identifier-arguments-2026-10-21.json)
@@ -484,3 +485,30 @@ records semantic/protocol and hover regressions, current imported overlays,
 installed Release tools and VS Code provider acceptance. The checks verify that
 the original unknown-name diagnostics and failed hover remain separate from the
 signature hint. Broader expression recovery and builtin signatures remain open.
+
+#### Record-field argument editing
+
+Parameter guidance also stays visible in a final field argument such as
+`combine(1, reading.va)` with the cursor inside or at the end of `va`. The final
+field identifier may be incomplete or unknown. Nested record receivers, indexed
+records and record-returning calls work when the receiver checks as a completed
+ordinary record. Named and structural callees, pipelines and trailing-parenthesis
+recovery retain their existing rules.
+
+The query projects only the final argument, then checks the callee, earlier
+arguments **and the receiver** before capturing the missing-argument signature.
+It does not claim that the final field exists or has the required parameter type.
+An unknown receiver, invalid intermediate field, invalid index, non-record value,
+unmatched enum payload or any other graph error suppresses the hint. The receiver
+is checked in the same lexical frame; this creates no executable or partial typed
+program. Existing compiler diagnostics and ordinary hover still analyze the real
+field expression, and query-only checking never changes buffers or files.
+
+This does not recover an empty `reading.` token or an arbitrary unfinished
+expression. The edited field must be the final argument, and the cursor must be
+within its final identifier or at its end. Delimiter repair still requires the
+cursor at the end of the buffer with only whitespace after it.
+
+[Record-field argument qualification](../../native/metal-proof/evidence/native-lsp-field-arguments-2026-10-21.json)
+covers semantic and protocol checks, live imported record overlays, normal hover
+isolation, relocated Release tools and installed VS Code provider commands.

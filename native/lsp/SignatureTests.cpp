@@ -209,8 +209,54 @@ int main() {
             "nonfinal partial arguments are not projected");
     require(!query(add + "fn main():\n  add(1, 2 + va|Suffix)\n"),
             "partial expression is not a bare-name editing hole");
+    const std::string records = "type Reading:\n  value:int\n"
+                                "type Box:\n  reading:Reading\n";
+    result = query(add + records +
+                   "fn main():\n  reading=Reading {value:2}\n  add(1, reading.va|Suffix)\n");
+    require(result && result->activeParameter == 1, "final field identifier retains guidance");
+    result =
+        recover(add + records +
+                "fn main():\n  box=Box {reading:Reading {value:2}}\n  add(1, box.reading.va|\n");
+    require(result && result->activeParameter == 1, "nested receiver with open trailing call");
+    result = query(add + records +
+                   "fn make()->Reading:\n  Reading {value:2}\n"
+                   "fn main():\n  add(1, make().va|Suffix)\n");
+    require(result && result->activeParameter == 1, "checked factory-result receiver");
+    result = query(add + records +
+                   "fn main():\n  values=[Reading {value:2}]\n  1 -> add(values[0].va|Suffix)\n");
+    require(result && result->activeParameter == 1, "indexed receiver in pipeline");
+    result = query(add + records +
+                   "fn make()->fn(int,int)->int:\n  add\n"
+                   "fn main():\n  reading=Reading {value:2}\n  make()(1, reading.va|Suffix)\n");
+    require(result && result->label == "fn(int64, int64) -> int64",
+            "structural callee field editing");
+    result = query(add + "type Wrong:\n  value:String\nfn main():\n  reading=Wrong "
+                         "{value:\"text\"}\n  add(1, reading.val|ue)\n");
+    require(result && result->activeParameter == 1,
+            "active field is not claimed to have expected type");
+    require(!query(add + records +
+                   "fn main():\n  reading=Reading {value:2}\n  add(missing, reading.va|Suffix)\n"),
+            "invalid earlier argument blocks field guidance");
+    require(!query(add + records +
+                   "fn main():\n  reading=Reading {value:2}\n  add(reading.va|Suffix, 1)\n"),
+            "nonfinal field argument not projected");
+    require(
+        !query(add + records +
+               "fn main():\n  reading=Reading {value:2}\n  add(1, reading.missing.va|Suffix)\n"),
+        "invalid intermediate field receiver blocks guidance");
+    require(!query(add + "fn main():\n  n=1\n  add(1, n.va|Suffix)\n"),
+            "numeric receiver rejected");
+    require(!query(add + records +
+                   "fn main():\n  values=[Reading {value:2}]\n  add(1, values[2].va|Suffix)\n"),
+            "invalid indexed receiver rejected");
+    require(!query(add + "enum Choice:\n  Some {value:int}\nfn main():\n  choice=Choice.Some "
+                         "{value:2}\n  add(1, choice.va|Suffix)\n"),
+            "enum payload requires narrowing rather than arbitrary field access");
+    require(
+        !recover(add + records + "fn main():\n  reading=Reading {value:2}\n  add(1, reading.|\n"),
+        "empty field still requires parser recovery");
     require(!query(add + "fn main():\n  add(1, box.va|Suffix)\n"),
-            "partial member expression remains outside this recovery");
+            "unknown field receiver blocks signature guidance");
     require(!query(add + "fn main():\n  add(1, 2, va|Suffix)\n"),
             "extra partial argument does not invent another parameter");
     require(!query("fn main():\n  missing(va|Suffix)\n"), "unknown callee has no guidance");

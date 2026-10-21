@@ -545,6 +545,32 @@ async function run() {
   checks.push(
     "Signature help stays visible while editing a final identifier without changing ordinary diagnostics or hover",
   );
+  await replace(
+    main,
+    'from "./completion-library.k" import make as factory, Box\nfn main():\n  box=Box {value:1,other:2}\n  factory()(1, box.vaSuffix)\n',
+  );
+  const memberSignature = await eventually(async () => {
+    const result = await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider", mainUri, position(main, "vaSuffix", 2),
+    );
+    return result?.signatures.length ? result : undefined;
+  }, "partly typed final record field argument");
+  assert.equal(memberSignature.signatures[0].label, "fn(int64, int64) -> int64");
+  assert.equal(memberSignature.activeParameter, 1);
+  await eventually(
+    () => vscode.languages.getDiagnostics(mainUri).some(
+      (d) => d.code === "S068" && d.message.includes("vaSuffix"),
+    ),
+    "real unknown-field diagnostic remains visible",
+  );
+  const memberHover = await vscode.commands.executeCommand(
+    "vscode.executeHoverProvider", mainUri, position(main, "vaSuffix", 2),
+  );
+  assert.equal(memberHover?.length || 0, 0);
+  assert(main.getText().includes("box.vaSuffix"));
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  checks.push("Signature help preserves parameter guidance while editing a checked record receiver's field");
   await clearDiagnostics(main);
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(

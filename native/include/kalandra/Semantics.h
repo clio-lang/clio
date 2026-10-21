@@ -433,6 +433,8 @@ struct CallableSignatureSnapshot {
 struct CallableSignatureQuery {
   SourceSpan site;
   std::optional<CallableSignatureSnapshot> snapshot;
+  // Optional receiver of a projected final field argument, in this syntax module.
+  std::optional<ExprId> argumentReceiver = {};
 };
 struct CheckOptions {
   // Build placement-aware IR without probing hardware or selecting a backend.
