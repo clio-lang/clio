@@ -54,3 +54,7 @@ The [accepted variant design](variants.md) remains the language contract. Collec
 The [initial qualification record](../../native/metal-proof/evidence/cpu-enums-2026-10-19.json) covers scalar payloads. The [collection and nested-payload qualification](../../native/metal-proof/evidence/cpu-enum-payloads-2026-10-19.json) records the extended source hashes, generated programs and regression scope.
 
 [Function-valued fields](native-callable-fields.md) now support managed callbacks in records and variant payloads within one invocation. Types containing function storage remain rejected as worker arguments, results, captures or expected-error payloads until function transport is implemented.
+
+## Recursive storage foundation
+
+The [recursive storage plan](native-recursive-storage.md) defines automatic indirection for directly recursive payloads and preserves collection descriptors for recursive arrays. The internal graph planner is implemented and tested. Source recursive declarations remain rejected until physical lowering, constructors and lifetimes support the plan.
