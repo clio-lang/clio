@@ -563,6 +563,36 @@ int main() {
     result = query("fn transfer(value:int):\n  value+1\nfn main():\n  transfer(|2)\n");
     require(result && result->label == "fn transfer(value: int64) -> int64",
             "CPU-mode source function retains ordinary transfer signature");
+    result = query("fn main():\n  target=devices.cpu(|)\n  0\n", placement);
+    require(result && result->label == "fn devices.cpu() -> Device[cpu]" &&
+                result->parameters.empty() && !result->activeParameter,
+            "CPU selector has no parameters");
+    result = query("fn main():\n  target=devices.gpu(|)\n  0\n", placement);
+    require(result && result->label == "fn devices.gpu() -> Device[gpu:0]" &&
+                result->parameters.empty() && !result->activeParameter,
+            "omitted GPU index describes checked default selection");
+    result = query("fn main():\n  target=devices.gpu(|1)\n  0\n", placement);
+    require(result && result->label == "fn devices.gpu(index: uint32) -> Device[gpu:1]" &&
+                result->parameters == std::vector<std::string>{"index: uint32"} &&
+                result->activeParameter == 0,
+            "explicit selector index uses its checked literal contract");
+    result = query("fn main():\n  target=devices.gpu(|4294967295)\n  0\n", placement);
+    require(result && result->label.ends_with("Device[gpu:4294967295]"),
+            "maximum selector index does not require available hardware");
+    result = query("fn main():\n  target=1 -> devices.gpu(|)\n  0\n", placement);
+    require(result && result->label == "fn devices.gpu(index: uint32) -> Device[gpu:1]",
+            "pipeline supplies the checked selector literal");
+    for (const auto *argument : {"1,2", "-1", "1.5", "4294967296", "uint32(1)", "index"})
+      require(!query("fn main():\n  index=1\n  target=devices.gpu(|" + std::string(argument) +
+                         ")\n  0\n",
+                     placement),
+              "invalid selector has no guessed signature");
+    require(!query("fn main():\n  target=devices.cpu(|1)\n  0\n", placement),
+            "CPU selector rejects extra arguments");
+    require(!query("fn main():\n  devices=1\n  target=devices.gpu(|1)\n  0\n", placement),
+            "shadowed devices namespace has no selector signature");
+    require(!query("fn main():\n  target=devices.gpu(|1)\n  0\n"),
+            "selector signature requires placement checking");
     std::cout << "Native checked signature help passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

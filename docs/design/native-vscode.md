@@ -115,3 +115,5 @@ Installed-editor acceptance also enables Placement in the isolated test workspac
 Installed-editor acceptance also requests [checked transfer guidance](native-language-server.md#checked-transfer-guidance) with Placement enabled, verifies GPU-bound and CPU-bound hovers plus the active target argument, and preserves the buffer and disk source without probing hardware.
 
 Installed-editor acceptance also applies [transfer call-target completion](native-language-server.md#transfer-call-target-completion) inside an owning parallel group with Placement enabled, preserves the arguments and explicit GPU index, and checks the resulting call and its existing type hints without changing disk sources.
+
+Installed-editor acceptance also requests [checked device-selector guidance](native-language-server.md#checked-device-selector-guidance), verifies CPU/default-GPU hovers and the explicit uint32 index signature, and preserves source and disk files without probing hardware.

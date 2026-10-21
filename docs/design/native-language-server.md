@@ -1051,3 +1051,42 @@ covers call/value/spawn contexts, placement/group gating, local name priority,
 pipeline and unfinished-call targets, source edits and live imported buffers in
 debug and sanitizer builds. Relocated Release tools and installed VS Code also
 apply the identifier-only edit and check the resulting program.
+
+#### Checked device-selector guidance
+
+With placement checking enabled, hover and signature help describe the checked
+selector call and its exact device result:
+
+```text
+fn devices.cpu() -> Device[cpu]
+fn devices.gpu() -> Device[gpu:0]
+fn devices.gpu(index: uint32) -> Device[gpu:1]
+```
+
+The third example describes `devices.gpu(1)`. The no-argument GPU form selects
+index zero; an explicit argument must still be a constant unsigned integer
+literal within the uint32 range. Variables, conversions and computed indices
+remain invalid. The displayed parameter is the selector's checked literal
+contract, rather than the ordinary numeric type inferred for a standalone
+literal. These call-specific descriptions do not introduce optional/default
+parameter syntax or first-class selector functions. A zero-argument call has no
+active parameter; the explicit-index call has one `index` parameter.
+
+Guidance comes from an actual checked `DeviceSelection` operation and the source
+call arity. Piped calls account for their implicit first argument, including a
+bare pipeline target in hover. Hover covers the full qualified selector name in
+its original source file. Current imports participate in checking, and protocol
+responses preserve their original-file ranges and parameter label offsets.
+
+The complete graph must check. Placement-disabled code, a shadowed `devices`
+namespace, invalid indices/argument counts and unrelated errors provide no
+checked selector guidance. Missing or incomplete selectors do not receive a
+guessed signature. Requests do not change source buffers, write files, publish
+diagnostics, initialize Metal or enumerate devices. An exact index describes the
+source selection, not proof that such a GPU exists.
+
+[Selector-guidance qualification](../../native/metal-proof/evidence/native-lsp-selector-guidance-2026-10-21.json)
+covers CPU/default-GPU/explicit-index forms, the maximum uint32 index, pipelines,
+invalid calls, placement gating and checked imported source identity. Debug and
+sanitizer tests, relocated Release tools and installed VS Code verify the hover
+and argument hints without GPU execution.

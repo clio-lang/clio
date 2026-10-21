@@ -144,6 +144,22 @@ int main() {
             "failed graphs suppress transfer hover");
     expect("fn transfer(v:int):\n  v+1\nfn main():\n  transfer(2)\n", "transfer(2)",
            "fn transfer(v: int64) -> int64");
+    expect("fn main():\n  target=devices.cpu()\n  0\n", "devices.cpu",
+           "fn devices.cpu() -> Device[cpu]", 8, placement);
+    expect("fn main():\n  target=devices.gpu()\n  0\n", "devices.gpu",
+           "fn devices.gpu() -> Device[gpu:0]", 0, placement);
+    expect("fn main():\n  target=devices.gpu(1)\n  0\n", "devices.gpu",
+           "fn devices.gpu(index: uint32) -> Device[gpu:1]", 8, placement);
+    expect("fn main():\n  target=1 -> devices.gpu()\n  0\n", "devices.gpu",
+           "fn devices.gpu(index: uint32) -> Device[gpu:1]", 8, placement);
+    expect("fn main():\n  target=1 -> devices.gpu\n  0\n", "devices.gpu",
+           "fn devices.gpu(index: uint32) -> Device[gpu:1]", 0, placement);
+    require(!query("fn main():\n  target=devices.gpu(index)\n  0\n", "devices.gpu", 0, placement),
+            "invalid literal selector suppresses hover");
+    require(!query("fn main():\n  target=devices.gpu()\n  missing\n", "devices.gpu", 0, placement),
+            "later errors suppress selector hover");
+    require(!query("fn main():\n  target=devices.gpu()\n  0\n", "devices.gpu"),
+            "placement-disabled selector has no builtin hover");
     std::cout << "Native hover: checked values, signatures, fields, closures, shapes, errors, "
                  "literal safety, source ranges and failure isolation passed\n";
   } catch (const std::exception &e) {

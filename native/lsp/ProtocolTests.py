@@ -1890,6 +1890,57 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
                    client.completion(signature_document,5,start+3)['result']['items'])
     client.finish()
 
+    # Device-selector guidance follows checked call arity and exact selection.
+    selector_hint_library = Path(temp) / 'selector-guidance.k'
+    selector_hint_library_text = 'export fn choose():\n  other=devices.gpu(4)\n  0\n'
+    selector_hint_library.write_text(selector_hint_library_text)
+    client = Client('--placement')
+    client.init(formats=['plaintext'], signature_offsets=True)
+    client.open(signature_document, 'fn main():\n  0\n')
+    client.barrier()
+    for version, (form, expected, parameters) in enumerate([
+            ('devices.cpu()', 'fn devices.cpu() -> Device[cpu]', []),
+            ('devices.gpu()', 'fn devices.gpu() -> Device[gpu:0]', []),
+            ('devices.gpu(1)', 'fn devices.gpu(index: uint32) -> Device[gpu:1]', ['index: uint32']),
+            ('devices.gpu(4294967295)', 'fn devices.gpu(index: uint32) -> Device[gpu:4294967295]', ['index: uint32']),
+        ], 2):
+        text = ('# 👩\nfrom "./selector-guidance.k" import choose\nfn main():\n  target='+form+'\n  choose()\n')
+        client.change(signature_document, text, version)
+        assert not publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+        start = text.splitlines()[3].index('devices.')
+        hover = client.hover(signature_document, 3, start+9)['result']
+        assert hover['contents'] == {'kind':'plaintext','value':expected}, hover
+        assert hover['range'] == {'start':{'line':3,'character':start},
+                                  'end':{'line':3,'character':start+len('devices.cpu')}}, hover
+        result = client.signature(signature_document,3,text.splitlines()[3].index('(')+1)['result']
+        assert result['signatures'][0]['label'] == expected, result
+        labels = result['signatures'][0]['parameters']
+        assert [expected[p['label'][0]:p['label'][1]] for p in labels] == parameters, result
+        assert result.get('activeParameter') == (0 if parameters else None), result
+        assert not client.barrier(), 'selector guidance published diagnostics'
+    invalid_selector = 'fn main():\n  index=1\n  target=devices.gpu(index)\n  0\n'
+    client.change(signature_document, invalid_selector, 6)
+    assert publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert client.hover(signature_document,2,18)['result'] is None
+    assert client.signature(signature_document,2,21)['result'] is None
+    client.finish()
+    client = Client('--placement')
+    client.init(formats=['markdown'])
+    text = 'fn main():\n  target=devices.gpu(1)\n  0\n'
+    client.open(signature_document,text)
+    assert not publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert client.hover(signature_document,1,18)['result']['contents'] == {
+        'kind':'markdown','value':'```kalandra\nfn devices.gpu(index: uint32) -> Device[gpu:1]\n```'}
+    client.finish()
+    client = Client()
+    client.init()
+    client.open(signature_document,text)
+    assert publications(client.barrier())[signature_document.as_uri()]['diagnostics']
+    assert client.hover(signature_document,1,18)['result'] is None
+    assert client.signature(signature_document,1,21)['result'] is None
+    assert not signature_document.exists() and selector_hint_library.read_text() == selector_hint_library_text
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"

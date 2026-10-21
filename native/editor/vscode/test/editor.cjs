@@ -823,6 +823,24 @@ async function run() {
   assert.equal(main.getText(), transferSource);
   assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
   checks.push("Transfer hover and signature help expose checked tensor shapes, exact GPU/CPU residency and task results without hardware probes or source changes");
+  const gpuSelectorLabel = "fn devices.gpu(index: uint32) -> Device[gpu:1]";
+  assert(hoverText(await hover(main, "devices.gpu(1)")).includes(gpuSelectorLabel));
+  assert(hoverText(await hover(main, "devices.cpu()")).includes("fn devices.cpu() -> Device[cpu]"));
+  const gpuSelectorSignature = await eventually(async () => {
+    const result = await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider", mainUri, position(main, "devices.gpu(1)", 12), "(",
+    );
+    return result?.signatures?.[0]?.label === gpuSelectorLabel ? result : undefined;
+  }, "checked explicit GPU selector signature");
+  assert.equal(gpuSelectorSignature.activeParameter, 0);
+  assert.equal(gpuSelectorSignature.signatures[0].parameters.length, 1);
+  const defaultSelectorSource = "fn main():\n  target=devices.gpu()\n  0\n";
+  await replace(main, defaultSelectorSource);
+  await clearDiagnostics(main);
+  assert(hoverText(await hover(main, "devices.gpu()")).includes("fn devices.gpu() -> Device[gpu:0]"));
+  assert.equal(main.getText(), defaultSelectorSource);
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  checks.push("Checked device-selector hover and signature help show CPU, default GPU and explicit uint32 index forms without hardware probes or source writes");
   await replace(main, mainDisk);
   await vscode.workspace.getConfiguration("kalandra.native").update(
     "placement", false, vscode.ConfigurationTarget.Workspace,

@@ -149,11 +149,12 @@ std::optional<SignatureInfo> callableSignature(const TypedModule &module, const 
 bool hasBuiltinSignature(std::string_view name) {
   return name == "length" || name == "byteLength" || name == "shape" || name == "slice" ||
          name == "concat" || name == "reduceSum" || name == "matmul" || name == "array" ||
-         name == "map" || name == "parallelMap" || name == "transfer" ||
-         resolveNumeric(name).has_value();
+         name == "map" || name == "parallelMap" || name == "transfer" || name == "devices.cpu" ||
+         name == "devices.gpu" || resolveNumeric(name).has_value();
 }
 std::optional<SignatureInfo> builtinSignature(const TypedModule &module, SourceSpan call,
-                                              std::string_view name, std::size_t active) {
+                                              std::string_view name, std::size_t active,
+                                              std::size_t argumentCount) {
   std::optional<SignatureInfo> result;
   for (const auto &expression : module.expressions) {
     if (expression.span.begin != call.begin || expression.span.end != call.end)
@@ -161,6 +162,7 @@ std::optional<SignatureInfo> builtinSignature(const TypedModule &module, SourceS
     std::vector<ValueId> arguments;
     std::vector<std::string> labels;
     std::optional<ValueType> callback;
+    std::optional<ValueType> selectorIndex;
     if (const auto *map = std::get_if<ArrayMap>(&expression.operation);
         map && name == (map->parallel ? "parallelMap" : "map")) {
       if (map->function >= module.functions.size())
@@ -178,6 +180,17 @@ std::optional<SignatureInfo> builtinSignature(const TypedModule &module, SourceS
                             function.declaredResult.value_or(function.resultType)});
       arguments = {map->input};
       labels = {"input", "callback"};
+    } else if (const auto *selector = std::get_if<DeviceSelection>(&expression.operation);
+               selector && name == (selector->device ? "devices.gpu" : "devices.cpu")) {
+      if (argumentCount > (selector->device ? 1u : 0u))
+        return {};
+      if (argumentCount) {
+        // Selection indices are checked uint32 literals, not lowered scalar operands.
+        // Describe the checked call arity rather than invent an optional-argument type.
+        selectorIndex = ValueType{};
+        selectorIndex->element = *resolveNumeric("uint32");
+        labels = {"index"};
+      }
     } else if (const auto *transfer = std::get_if<Transfer>(&expression.operation);
                transfer && name == "transfer") {
       arguments = {transfer->input, transfer->target};
@@ -229,6 +242,8 @@ std::optional<SignatureInfo> builtinSignature(const TypedModule &module, SourceS
     }
     if (callback)
       signature.parameters.push_back(std::move(*callback));
+    if (selectorIndex)
+      signature.parameters.push_back(std::move(*selectorIndex));
     ValueType type;
     type.builtin = BuiltinValue::Function;
     type.callable = std::make_shared<const FunctionSignature>(std::move(signature));
@@ -265,14 +280,17 @@ std::optional<HoverInfo> hoverInfo(ParseResult syntax, std::string_view path, st
   if (syntax.ok() && syntax.module.source) {
     std::optional<SourceLocation> target;
     std::optional<ExprId> selectedCall;
+    std::size_t argumentCount = 0;
     SourceSpan invocation{};
     for (ExprId id = 0; id < syntax.module.expressions.size(); ++id) {
       const auto &expression = syntax.module.expressions[id];
       const NameExpr *name = nullptr;
       bool callSite = false;
+      std::size_t arity = 1;
       if (const auto *call = std::get_if<CallExpr>(&expression.value)) {
         name = std::get_if<NameExpr>(&syntax.module.expressions[call->callee].value);
         callSite = true;
+        arity = call->arguments.size();
       } else if (const auto *pipe = std::get_if<BinaryExpr>(&expression.value);
                  pipe && pipe->operation == TokenKind::Arrow)
         name = std::get_if<NameExpr>(&syntax.module.expressions[pipe->right].value);
@@ -284,6 +302,7 @@ std::optional<HoverInfo> hoverInfo(ParseResult syntax, std::string_view path, st
         continue;
       target = std::move(location);
       invocation = expression.span;
+      argumentCount = arity;
       if (callSite)
         selectedCall = id;
       break;
@@ -294,13 +313,14 @@ std::optional<HoverInfo> hoverInfo(ParseResult syntax, std::string_view path, st
           if (const auto *pipe = std::get_if<BinaryExpr>(&expression.value);
               pipe && pipe->operation == TokenKind::Arrow && pipe->right == *selectedCall) {
             invocation = expression.span;
+            ++argumentCount;
             break;
           }
       auto checked = check(syntax, {}, options);
       if (!checked.ok())
         return {};
-      if (auto signature =
-              builtinSignature(*checked.module, invocation, target->source->slice(target->span), 0))
+      if (auto signature = builtinSignature(*checked.module, invocation,
+                                            target->source->slice(target->span), 0, argumentCount))
         return HoverInfo{std::move(signature->label), target->source, target->span};
     }
   }
@@ -420,7 +440,8 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
     if (hasBuiltinSignature(name)) {
       auto checked = check(syntax, {}, options);
       if (checked.ok())
-        if (auto result = builtinSignature(*checked.module, invocationSpan, name, active))
+        if (auto result = builtinSignature(*checked.module, invocationSpan, name, active,
+                                           call.arguments.size() + (piped ? 1u : 0u)))
           return result;
     }
   }
