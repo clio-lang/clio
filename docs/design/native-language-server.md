@@ -247,8 +247,8 @@ runtime state are changed. Parser recovery remains outside this slice.
 
 [Member-completion qualification](../../native/metal-proof/evidence/native-lsp-members-2026-10-21.json)
 covers semantic and framed protocol tests, imported overlays, UTF-16 replacement
-ranges and relocated Release editor tools. Real editor-host interaction remains
-a separate acceptance gate.
+ranges and relocated Release editor tools. [Installed VS Code acceptance](native-vscode.md#qualification)
+now covers record-field provider results and applied whole-identifier edits.
 
 ### Enum-case completion
 
@@ -276,7 +276,8 @@ The [enum-completion qualification record](../../native/metal-proof/evidence/nat
 covers constructors, payload syntax, remaining match cases, shadowing, wrong
 families, unions, built-in task errors, a 300-case bound, imported overlays and
 relocated Release editor tools, with normal and sanitizer protocol/semantic runs.
-Real editor-host case completion is a separate acceptance gate.
+[Installed VS Code acceptance](native-vscode.md#qualification) now covers enum
+constructor items and exclusion of already matched cases, with applied edits.
 
 ### Construction-label completion
 
@@ -310,8 +311,9 @@ covers empty/partial slots, missing values, existing colons, fields already supp
 before/after the cursor, nested records, immutable updates, selected payloads,
 invalid owners, lexical value completion, list bounds, Unicode edits, imported
 overlays and relocated Release tools. Pattern payload labels are covered below;
-general parser recovery, type-directed value snippets and real editor-host interaction
-remain separate.
+general parser recovery and type-directed value snippets remain separate.
+[Installed VS Code acceptance](native-vscode.md#qualification) now covers constructor,
+update and enum payload labels, separator behavior and imported overlays.
 
 ### Pattern payload-label completion
 
@@ -337,5 +339,6 @@ remain shared with other field completion.
 
 The [pattern-label qualification record](../../native/metal-proof/evidence/native-lsp-pattern-labels-2026-10-21.json)
 covers semantic queries, normal/sanitizer protocol runs and relocated Release
-tools. General binding-name suggestions, broad parser recovery and real editor-host
-pattern completion remain follow-ups.
+tools. [Installed VS Code acceptance](native-vscode.md#qualification) now applies
+shorthand and explicit-binding label edits and checks the resulting local reads.
+General binding-name suggestions and broad parser recovery remain follow-ups.

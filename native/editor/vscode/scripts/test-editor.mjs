@@ -87,6 +87,12 @@ await writeFile(
   path.join(workspace, "main.k"),
   'from "./library.k" import double\nfn main()->int:\n  answer=double(21)\n  answer\n',
 );
+await writeFile(path.join(workspace, "completion.k"), "fn main():\n  0\n");
+await writeFile(
+  path.join(workspace, "completion-library.k"),
+  "export type Box:\n  value:int\n  other:int\n" +
+    "export enum Choice:\n  Some:\n    value:int\n    count:int\n  Other\n",
+);
 await writeFile(
   path.join(workspace, "caller.k"),
   'from "./library.k" import double\nfn caller()->int:\n  double(7)\n',

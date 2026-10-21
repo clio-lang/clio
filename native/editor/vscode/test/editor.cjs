@@ -58,6 +58,36 @@ function hoverText(values) {
     )
     .join("\n");
 }
+function label(item) {
+  return typeof item.label === "string" ? item.label : item.label.label;
+}
+async function complete(document, marked, expected, trigger) {
+  const cursor = marked.indexOf("|");
+  assert(cursor >= 0);
+  await replace(document, marked.replace("|", ""));
+  const result = await eventually(async () => {
+    const values = await vscode.commands.executeCommand(
+      "vscode.executeCompletionItemProvider",
+      document.uri,
+      document.positionAt(cursor),
+      trigger,
+    );
+    return values?.items.some((item) => label(item) === expected)
+      ? values
+      : undefined;
+  }, `completion for ${expected}`);
+  return result;
+}
+async function applyCompletion(document, item, oldText, newText) {
+  const range = item.textEdit?.range || item.range?.replacing || item.range;
+  const text = item.textEdit?.newText || item.insertText;
+  assert(range instanceof vscode.Range, "completion replacement range");
+  assert.equal(document.getText(range), oldText);
+  assert.equal(text, newText);
+  const edit = new vscode.WorkspaceEdit();
+  edit.replace(document.uri, range, text);
+  assert(await vscode.workspace.applyEdit(edit));
+}
 async function run() {
   const workspace = process.env.KALANDRA_EDITOR_WORKSPACE;
   const mainUri = vscode.Uri.file(path.join(workspace, "main.k"));
@@ -143,6 +173,195 @@ async function run() {
   }, "scope completion");
   assert.equal(completion.textEdit?.newText || completion.insertText, "double");
   checks.push("Partly typed expression names receive native completion");
+
+  const completionUri = vscode.Uri.file(path.join(workspace, "completion.k"));
+  const completionLibraryUri = vscode.Uri.file(
+    path.join(workspace, "completion-library.k"),
+  );
+  const completionDocument =
+    await vscode.workspace.openTextDocument(completionUri);
+  const completionDisk = await fs.readFile(completionUri.fsPath, "utf8");
+  const completionLibraryDisk = await fs.readFile(
+    completionLibraryUri.fsPath,
+    "utf8",
+  );
+  const imports =
+    'from "./completion-library.k" import Box as Crate, Choice as Pick\n';
+  let values = await complete(
+    completionDocument,
+    imports + "fn main():\n  box=Crate {value:1,other:2}\n  box.va|Suffix\n",
+    "value",
+  );
+  let item = values.items.find((item) => label(item) === "value");
+  assert.equal(item.kind, vscode.CompletionItemKind.Field);
+  await applyCompletion(completionDocument, item, "vaSuffix", "value");
+  assert.match(hoverText(await hover(completionDocument, "value\n")), /int64/);
+  await clearDiagnostics(completionDocument);
+  checks.push(
+    "Imported record-field completion applies the full replacement range in VS Code",
+  );
+
+  values = await complete(
+    completionDocument,
+    imports + "fn main():\n  Pick.|\n",
+    "Some",
+    ".",
+  );
+  assert.deepEqual(values.items.map(label).sort(), ["Other", "Some"]);
+  assert.equal(
+    values.items.find((item) => label(item) === "Some").kind,
+    vscode.CompletionItemKind.EnumMember,
+  );
+  values = await complete(
+    completionDocument,
+    imports + "fn main():\n  Pick.So|Suffix {value:1,count:2}\n",
+    "Some",
+  );
+  await applyCompletion(
+    completionDocument,
+    values.items.find((item) => label(item) === "Some"),
+    "SoSuffix",
+    "Some",
+  );
+  assert.match(hoverText(await hover(completionDocument, "value:1")), /int64/);
+  await clearDiagnostics(completionDocument);
+  values = await complete(
+    completionDocument,
+    imports +
+      "fn inspect(p:Pick):\n  match p:\n    Pick.Other: 0\n    Pick.| {value:item}: item\n" +
+      "fn main():\n  0\n",
+    "Some",
+    ".",
+  );
+  assert.deepEqual(values.items.map(label), ["Some"]);
+  await applyCompletion(completionDocument, values.items[0], "", "Some");
+  assert.match(hoverText(await hover(completionDocument, "item}:")), /int64/);
+  await clearDiagnostics(completionDocument);
+  checks.push(
+    "Enum completion uses EnumMember items and excludes already matched cases in VS Code",
+  );
+
+  values = await complete(
+    completionDocument,
+    imports + "fn main():\n  Crate {|,other:2}\n",
+    "value",
+    "{",
+  );
+  assert.deepEqual(values.items.map(label), ["value"]);
+  await applyCompletion(completionDocument, values.items[0], "", "value: ");
+  assert(completionDocument.getText().includes("Crate {value: ,other:2}"));
+  await replace(
+    completionDocument,
+    completionDocument.getText().replace("value: ,", "value:1,"),
+  );
+  assert.match(hoverText(await hover(completionDocument, "value:1")), /int64/);
+  await clearDiagnostics(completionDocument);
+  values = await complete(
+    completionDocument,
+    imports +
+      "fn main():\n  box=Crate {value:1,other:2}\n  box with {va|Suffix:3}\n",
+    "value",
+  );
+  await applyCompletion(
+    completionDocument,
+    values.items[0],
+    "vaSuffix",
+    "value",
+  );
+  assert.match(hoverText(await hover(completionDocument, "value:3")), /int64/);
+  await clearDiagnostics(completionDocument);
+  values = await complete(
+    completionDocument,
+    imports + "fn main():\n  Pick.Some {va|Suffix:1,count:2}\n",
+    "value",
+  );
+  assert.deepEqual(values.items.map(label), ["value"]);
+  await applyCompletion(
+    completionDocument,
+    values.items[0],
+    "vaSuffix",
+    "value",
+  );
+  assert.match(hoverText(await hover(completionDocument, "value:1")), /int64/);
+  await clearDiagnostics(completionDocument);
+  checks.push(
+    "Record/update/enum payload labels preserve separators and exclude supplied fields in VS Code",
+  );
+
+  const pattern =
+    imports +
+    "fn inspect(p:Pick):\n  match p:\n" +
+    "    Pick.Some {count:total,va|Suffix}: value+total\n" +
+    "    Pick.Other: 0\nfn main():\n  0\n";
+  values = await complete(completionDocument, pattern, "value", ",");
+  assert.deepEqual(values.items.map(label), ["value"]);
+  await applyCompletion(
+    completionDocument,
+    values.items[0],
+    "vaSuffix",
+    "value",
+  );
+  assert.match(
+    hoverText(await hover(completionDocument, "value+total")),
+    /int64/,
+  );
+  await clearDiagnostics(completionDocument);
+  values = await complete(
+    completionDocument,
+    pattern
+      .replace("va|Suffix", "va|Suffix:item")
+      .replace("value+total", "item+total"),
+    "value",
+  );
+  await applyCompletion(
+    completionDocument,
+    values.items[0],
+    "vaSuffix",
+    "value",
+  );
+  assert(completionDocument.getText().includes("value:item"));
+  assert.match(
+    hoverText(await hover(completionDocument, "item+total")),
+    /int64/,
+  );
+  await clearDiagnostics(completionDocument);
+  checks.push(
+    "Match payload completion preserves shorthand and explicit local bindings in VS Code",
+  );
+
+  const completionLibrary =
+    await vscode.workspace.openTextDocument(completionLibraryUri);
+  await replace(
+    completionLibrary,
+    completionLibraryDisk.replace("value:int", "variable:int"),
+  );
+  values = await complete(
+    completionDocument,
+    imports + "fn main():\n  Crate {va|Suffix:1,other:2}\n",
+    "variable",
+  );
+  assert.deepEqual(values.items.map(label), ["variable"]);
+  await applyCompletion(
+    completionDocument,
+    values.items[0],
+    "vaSuffix",
+    "variable",
+  );
+  assert.match(
+    hoverText(await hover(completionDocument, "variable:1")),
+    /int64/,
+  );
+  await clearDiagnostics(completionDocument);
+  assert.equal(await fs.readFile(completionUri.fsPath, "utf8"), completionDisk);
+  assert.equal(
+    await fs.readFile(completionLibraryUri.fsPath, "utf8"),
+    completionLibraryDisk,
+  );
+  await replace(completionLibrary, completionLibraryDisk);
+  await replace(completionDocument, completionDisk);
+  checks.push(
+    "Member completions follow unsaved imported types without changing disk sources",
+  );
 
   await replace(main, mainDisk);
   await clearDiagnostics(main);
