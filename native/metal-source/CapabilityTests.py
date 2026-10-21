@@ -134,7 +134,7 @@ def main():
                     for entry, products in re.findall(r'^(kernel\d+)\.matrix_graph_products=(\d+)$', manifest, re.M):
                         assert int(products) >= 2
                         assert 'gpu.func @kalandra_matmul' in (destination / (entry + '.mlir')).read_text()
-                        assert 'matmulGraph(' in (destination / 'host.cpp').read_text()
+                        assert re.search(r'matmulGraph(?:ReduceSum)?\(', (destination / 'host.cpp').read_text())
                         edges = re.search(r'^' + entry + r'\.matrix_graph_edges=(.+)$', manifest, re.M)[1].split(',')
                         inputs = int(re.search(r'^' + entry + r'\.matrix_graph_inputs=(\d+)$', manifest, re.M)[1])
                         assert len(edges) == int(products)

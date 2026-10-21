@@ -378,6 +378,7 @@ class Compiler {
   }
   struct MatrixGraph {
     std::size_t inputs = 0;
+    bool reduce = false, scalarPost = false;
     std::vector<std::pair<std::uint32_t, std::uint32_t>> products;
   };
   mutable std::map<FunctionId, std::optional<MatrixGraph>> matrixGraphs;
@@ -386,10 +387,11 @@ class Compiler {
       return found->second;
     auto &cached = matrixGraphs[root];
     const auto &entry = cpu.functions.at(root);
-    if (!entry.resultType.tensor || entry.resultType.shape.size() != 2)
+    if (entry.resultType.tensor && entry.resultType.shape.size() != 2)
       return cached;
     MatrixGraph graph;
-    using Result = std::optional<std::int64_t>; // -1: an unused scalar; otherwise a graph value.
+    using Result = std::optional<std::int64_t>; // -1: scalar input; -2: reduced value.
+    std::size_t reductions = 0, reducedProduct = 0;
     std::size_t work = 0;
     std::set<FunctionId> active;
     std::function<Result(FunctionId, const std::vector<std::int64_t> &)> invoke;
@@ -425,19 +427,32 @@ class Compiler {
             result = graph.inputs + graph.products.size();
             graph.products.emplace_back(*left, *right);
           }
+        } else if (const auto *sum = std::get_if<ReduceSum>(&node.operation)) {
+          auto input = emit(sum->input);
+          if (input && *input >= 0 && ++reductions == 1 &&
+              *input == std::int64_t(graph.inputs + graph.products.size() - 1) &&
+              sum->order == ReductionOrder::BalancedAdjacent && sum->rowMajor) {
+            graph.reduce = true;
+            reducedProduct = graph.products.size();
+            result = -2;
+          }
         } else if (std::holds_alternative<Float32Literal>(node.operation))
           result = -1;
         else if (const auto *binary = std::get_if<ScalarBinary>(&node.operation)) {
           auto a = emit(binary->left), b = emit(binary->right);
-          if (a && b && *a == -1 && *b == -1 &&
+          if (a && b && *a < 0 && *b < 0 &&
               (binary->operation == TokenKind::Plus || binary->operation == TokenKind::Minus ||
-               binary->operation == TokenKind::Star || binary->operation == TokenKind::Slash))
-            result = -1;
+               binary->operation == TokenKind::Star || binary->operation == TokenKind::Slash)) {
+            result = (*a == -2 || *b == -2) ? -2 : -1;
+            graph.scalarPost |= *result == -2;
+          }
         } else if (const auto *unary = std::get_if<ScalarUnary>(&node.operation)) {
           auto a = emit(unary->operand);
-          if (a && *a == -1 &&
-              (unary->operation == TokenKind::Plus || unary->operation == TokenKind::Minus))
-            result = -1;
+          if (a && *a < 0 &&
+              (unary->operation == TokenKind::Plus || unary->operation == TokenKind::Minus)) {
+            result = *a;
+            graph.scalarPost |= *result == -2;
+          }
         } else if (const auto *call = std::get_if<FunctionCall>(&node.operation)) {
           std::vector<std::int64_t> arguments;
           for (auto argument : call->arguments) {
@@ -471,12 +486,15 @@ class Compiler {
       args.push_back(type.tensor ? std::int64_t(graph.inputs++) : -1);
     }
     auto result = invoke(root, args);
+    const auto last = std::int64_t(graph.inputs + graph.products.size() - 1);
     if (!result || graph.products.size() < 2 ||
-        *result != std::int64_t(graph.inputs + graph.products.size() - 1))
+        (entry.resultType.tensor
+             ? (graph.reduce || *result != last)
+             : (!graph.reduce || *result != -2 || reducedProduct != graph.products.size())))
       return cached;
     // Every product must contribute to the returned matrix. Extra unused
     // numerical primitives retain the existing diagnostic instead of disappearing.
-    std::set<std::uint32_t> live{std::uint32_t(*result)};
+    std::set<std::uint32_t> live{std::uint32_t(last)};
     for (std::size_t i = graph.products.size(); i-- > 0;) {
       if (!live.contains(graph.inputs + i))
         return cached;
@@ -866,7 +884,7 @@ class Compiler {
     const bool matrixSum = sum && matrix;
     const bool mapped = sum && primitiveEntry(function)->mapped;
     const bool post = (sum || matrix) && primitiveEntry(function)->post;
-    if (!entryFunction.resultType.tensor && !sum)
+    if (!entryFunction.resultType.tensor && !sum && !(graph && graph->reduce))
       reject(span, "GPU scalar entries currently require one reduceSum with forwarding helpers");
     std::vector<Value> tensors, scalars;
     for (std::size_t i = 0; i < inputs.size(); ++i) {
@@ -950,6 +968,7 @@ class Compiler {
       auto kernel = field("m::Kernel"), out = field("TaskHandle");
       Value result{Value::Task, next - 1, true, target.device};
       result.rank = 2;
+      result.scalarTask = graph->reduce;
       std::vector<Value> shapes = tensors;
       for (auto [a, b] : graph->products) {
         Value product = shapes.at(a);
@@ -967,14 +986,35 @@ class Compiler {
       for (auto [a, b] : graph->products)
         products += "{" + std::to_string(a) + "," + std::to_string(b) + "},";
       products += "}}";
-      steps.push_back("auto target=" + device(target) + ";\nif(!target){" +
-                      error("target.error()") +
-                      "}\nauto kernel=r.loadMatmulKernel(f.directory+\"/kernel" +
-                      std::to_string(entry->second) + ".metallib\",*target);\nif(!kernel){" +
-                      error("kernel.error()") + "}\nf." + kernel +
-                      "=*kernel;\nstatic constexpr auto products=" + products + ";\nf." + out +
-                      "=r.matmulGraph(task," + activeGroup + ",f." + kernel + "," + inputs +
-                      ",products);\n" + admitted("f." + out));
+      std::string stages, extra;
+      if (graph->reduce) {
+        const auto reductionKernel = field("m::Kernel");
+        stages = "auto reduction=r.loadReductionKernel(f.directory+\"/kernel" +
+                 std::to_string(entry->second) + "-reduce.metallib\",*target);\nif(!reduction){" +
+                 error("reduction.error()") + "}\nf." + reductionKernel + "=*reduction;\n";
+        extra = ",f." + reductionKernel;
+        if (graph->scalarPost) {
+          const auto scalarKernel = field("m::Kernel");
+          stages += "auto scalar=r.loadElementwiseKernel(f.directory+\"/kernel" +
+                    std::to_string(entry->second) +
+                    "-scalar.metallib\",*target,m::ElementwiseSignature{1," +
+                    std::to_string(scalars.size()) + "});\nif(!scalar){" + error("scalar.error()") +
+                    "}\nf." + scalarKernel + "=*scalar;\n";
+          extra +=
+              ",f." + scalarKernel + ",std::array<float," + std::to_string(scalars.size()) + ">{";
+          for (std::size_t i = 0; i < scalars.size(); ++i)
+            extra += (i ? "," : "") + ref(scalars[i]);
+          extra += "}";
+        }
+      }
+      steps.push_back(
+          "auto target=" + device(target) + ";\nif(!target){" + error("target.error()") +
+          "}\nauto kernel=r.loadMatmulKernel(f.directory+\"/kernel" +
+          std::to_string(entry->second) + ".metallib\",*target);\nif(!kernel){" +
+          error("kernel.error()") + "}\nf." + kernel + "=*kernel;\n" + stages +
+          "static constexpr auto products=" + products + ";\nf." + out + "=r." +
+          (graph->reduce ? "matmulGraphReduceSum" : "matmulGraph") + "(task," + activeGroup +
+          ",f." + kernel + "," + inputs + ",products" + extra + ");\n" + admitted("f." + out));
       return result;
     }
     const bool projected = reads.size() != tensors.size();
@@ -1615,7 +1655,7 @@ class Compiler {
   }
   std::string shader(std::size_t function, std::vector<std::uint32_t> *readInputs = nullptr,
                      bool post = false, int matrixOperand = -1, bool finalScalar = false) const {
-    if (matrixGraph(function))
+    if (matrixGraph(function) && !post)
       return matmulShader;
     const bool matrixPost = post && matrixFunction(function) && !finalScalar;
     if (!post && matrixOperand < 0 && matrixFunction(function))
@@ -1714,7 +1754,7 @@ class Compiler {
         } else if (auto *sum = std::get_if<ReduceSum>(&n.operation)) {
           // The bounded proof permits exactly one reduction. Before it, emit
           // its tensor input; after it, read the already-reduced device scalar.
-          if (!reduction(function))
+          if (!reduction(function) && !(matrixGraph(function) && matrixGraph(function)->reduce))
             reject(n.span, "unexpected reduction in elementwise shader");
           result = post && !matrixPost ? "%lane0" : emit(sum->input);
           reductionInput = result;
@@ -2012,6 +2052,11 @@ public:
         if (entry->scalarPost)
           outputs[base + "-scalar.mlir"] = shader(function, nullptr, true, -1, true);
       }
+      if (const auto &graph = matrixGraph(function); graph && graph->reduce) {
+        outputs[base + "-reduce.mlir"] = reductionShader();
+        if (graph->scalarPost)
+          outputs[base + "-scalar.mlir"] = shader(function, nullptr, true, -1, true);
+      }
       if (matrixFunction(function) || matrixGraph(function)) {
         outputs[base + "-rows2.mlir"] = matmulRows2Shader;
         outputs[base + "-quad.mlir"] = matmulQuadShader;
@@ -2149,6 +2194,15 @@ void resume(Task &task) {
         manifest += prefix + "matrix_graph_inputs=" + std::to_string(graph->inputs) + "\n" +
                     prefix + "matrix_graph_products=" + std::to_string(graph->products.size()) +
                     "\n" + prefix + "matrix_graph_edges=" + edges + "\n";
+        if (graph->reduce)
+          manifest += prefix + "reduction_stage=kernel" + std::to_string(index) + "-reduce\n";
+        if (graph->scalarPost) {
+          std::size_t scalars = 0;
+          for (auto parameter : cpu.functions[function].parameters)
+            scalars += !cpu.symbols[parameter].type.tensor;
+          manifest += prefix + "scalar_stage=kernel" + std::to_string(index) + "-scalar\n" +
+                      prefix + "scalar_parameters=" + std::to_string(scalars) + "\n";
+        }
         continue;
       }
       if (auto entry = primitiveEntry(function); entry && matrixFunction(function)) {

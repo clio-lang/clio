@@ -173,6 +173,15 @@ public:
                          std::span<const MatrixProduct>) noexcept;
   TaskHandle matmulGraph(Task &, GroupHandle, Kernel, std::span<const Buffer>,
                          std::span<const MatrixProduct>) noexcept;
+  // Resident product graph followed by one strict reduction and optional scalar epilogue.
+  TaskHandle matmulGraphReduceSum(TaskCore &, GroupHandle, Kernel, std::span<const Buffer>,
+                                  std::span<const MatrixProduct>, Kernel reduction,
+                                  Kernel epilogue = {},
+                                  std::span<const float> scalars = {}) noexcept;
+  TaskHandle matmulGraphReduceSum(Task &, GroupHandle, Kernel, std::span<const Buffer>,
+                                  std::span<const MatrixProduct>, Kernel reduction,
+                                  Kernel epilogue = {},
+                                  std::span<const float> scalars = {}) noexcept;
   // One scalar task: optional input maps, matrix, optional adjustment, fixed reduction tree.
   TaskHandle matmulReduceSum(TaskCore &, GroupHandle, Kernel matrix, Kernel reduction, Buffer left,
                              Buffer right, Kernel leftMap = {}, Kernel rightMap = {},

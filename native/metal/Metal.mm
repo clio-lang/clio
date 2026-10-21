@@ -650,6 +650,15 @@ struct Bridge {
             if (++f.graphStage == graph.products.size()) {
               f.result = std::move(graph.values.back());
               f.packet.graph.reset();
+              if (f.packet.reduction) {
+                if (task.cancelled())
+                  return;
+                f.packet.input = std::move(f.result);
+                f.packet.kernel = std::move(f.packet.reduction);
+                f.packet.kind = Kind::Reduce;
+                f.started = f.succeeded = false;
+                continue;
+              }
               task.complete(&f.result);
               return;
             }
@@ -1543,6 +1552,58 @@ TaskHandle Runtime::matmulGraph(Task &task, GroupHandle group, Kernel kernel,
   else
     packet.preparation = graph.error();
   return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::matmulGraphReduceSum(TaskCore &task, GroupHandle group, Kernel kernel,
+                                         std::span<const Buffer> inputs,
+                                         std::span<const MatrixProduct> products, Kernel reduction,
+                                         Kernel epilogue, std::span<const float> scalars) noexcept {
+  Bridge::PacketData packet{
+      state_, {}, {}, Bridge::Kind::Matmul, std::move(kernel), BinaryOperation::Add, {}};
+  auto graph = Bridge::captureGraph(state_, packet.kernel, inputs, products);
+  if (graph)
+    packet.graph = *graph;
+  else
+    packet.preparation = graph.error();
+  if (!reduction)
+    packet.preparation = Error::Invalid;
+  packet.reduction = std::move(reduction);
+  if (epilogue) {
+    auto args = Bridge::capture(state_, epilogue, std::array{Buffer{}}, scalars);
+    if (args)
+      packet.scalarArguments = *args;
+    else
+      packet.preparation = args.error();
+    packet.epilogue = std::move(epilogue);
+  } else if (!scalars.empty())
+    packet.preparation = Error::Invalid;
+  return task.submit(group, Bridge::reductionEntry,
+                     {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::matmulGraphReduceSum(Task &task, GroupHandle group, Kernel kernel,
+                                         std::span<const Buffer> inputs,
+                                         std::span<const MatrixProduct> products, Kernel reduction,
+                                         Kernel epilogue, std::span<const float> scalars) noexcept {
+  Bridge::PacketData packet{
+      state_, {}, {}, Bridge::Kind::Matmul, std::move(kernel), BinaryOperation::Add, {}};
+  auto graph = Bridge::captureGraph(state_, packet.kernel, inputs, products);
+  if (graph)
+    packet.graph = *graph;
+  else
+    packet.preparation = graph.error();
+  if (!reduction)
+    packet.preparation = Error::Invalid;
+  packet.reduction = std::move(reduction);
+  if (epilogue) {
+    auto args = Bridge::capture(state_, epilogue, std::array{Buffer{}}, scalars);
+    if (args)
+      packet.scalarArguments = *args;
+    else
+      packet.preparation = args.error();
+    packet.epilogue = std::move(epilogue);
+  } else if (!scalars.empty())
+    packet.preparation = Error::Invalid;
+  return task.spawn(group, Bridge::reductionEntry,
+                    {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
 }
 TaskHandle Runtime::matmulReduceSum(TaskCore &task, GroupHandle group, Kernel matrix,
                                     Kernel reduction, Buffer left, Buffer right, Kernel leftMap,

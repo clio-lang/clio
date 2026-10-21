@@ -358,9 +358,23 @@
         "matrix-graph.k",
         "capabilities/matrix-graph.k"
       ],
-      "notes": "Rank-two float32 product chains and shared intermediates; no arithmetic/reduction around multiple products yet",
+      "notes": "Rank-two float32 product chains and shared intermediates; tensor arithmetic between products remains separate work",
       "evidence": [
         "gpu-matrix-graphs-2026-10-21.json"
+      ]
+    },
+    {
+      "id": "matrix-graph-reduction",
+      "feature": "Reduction and scalar arithmetic after a matrix graph",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "matrix-graph-reduction.k",
+        "capabilities/matrix-graph-reduction.k"
+      ],
+      "notes": "One final strict row-major reduceSum after multiple products; optional float32 scalar helpers/arithmetic before the only scalar readback",
+      "evidence": [
+        "gpu-graph-reduction-2026-10-21.json"
       ]
     }
   ]

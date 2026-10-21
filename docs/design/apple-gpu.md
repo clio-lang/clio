@@ -749,3 +749,11 @@ products under one tensor task, including helper calls and shared intermediates.
 The runtime releases retained operands after their last use and reuses the strict
 matrix kernel without reassociation or implicit host transfers. Combining several
 products with arithmetic or reductions remains N2 work.
+
+## Reduction after a product graph
+
+[Matrix graph reduction](native-gpu-graph-reduction.md) now consumes a chain or
+shared-intermediate graph with one final `reduceSum`, followed by optional scalar
+arithmetic under the same task. All matrices stay resident, and only the final
+scalar is read back. Empty results still execute scalar arithmetic on the
+positive-zero sum. Tensor arithmetic between products remains future work.

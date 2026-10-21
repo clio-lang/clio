@@ -137,6 +137,14 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
     graph_result = "[42d40000,431c0000,43710000,43b10000]"
     assert run([graph_app / "program"], cwd).stdout.strip() == graph_result
     applications.append((graph_app, graph_result))
+    graph_sum_source = cwd / "matrix-graph-reduction.k"
+    graph_sum_source.write_bytes((fixtures / "matrix-graph-reduction.k").read_bytes())
+    graph_sum_app = cwd / "matrix graph reduction application"
+    run([compiler, graph_sum_source, "--target", "metal", "-o", graph_sum_app, "-O2"], cwd)
+    for stage in ("reduce", "scalar"):
+        assert (graph_sum_app / f"kernel0-{stage}.metallib").is_file()
+    assert run([graph_sum_app / "program"], cwd).stdout.strip() == "c3d6c000"
+    applications.append((graph_sum_app, "c3d6c000"))
     # Local module/project imports go through the same installed Metal compiler.
     (cwd / "helper.k").write_text("export " + source.read_text().split("\n\nfn main", 1)[0] + "\n")
     source.write_text('from "math" import combine\n\nfn main' + source.read_text().split("\n\nfn main", 1)[1])

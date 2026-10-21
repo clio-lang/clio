@@ -44,9 +44,11 @@ without a GPU command or recursive runtime calls.
 
 ## Current boundary
 
-This addition covers rank-two float32 product-only graphs. Combining multiple
-products with tensor arithmetic, reductions, branches or device-side task
-coordination remains future work. Existing arithmetic around a single matrix
+This addition covers rank-two float32 product graphs.
+[A final reduction and scalar arithmetic](native-gpu-graph-reduction.md) can now
+consume the last matrix under one scalar task. Tensor arithmetic between
+products, multiple reductions, branches and device-side task coordination remain
+future work. Existing arithmetic around a single matrix
 product and its optional reduction continues to use the separately qualified
 paths. Additional numeric types, tensor ranks and custom kernels have their own
 scope.
