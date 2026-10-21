@@ -376,6 +376,89 @@ class Compiler {
     return entry &&
            (entry->kind == PrimitiveEntry::Matrix || entry->kind == PrimitiveEntry::MatrixSum);
   }
+  bool scalarControl(FunctionId root) const {
+    std::set<FunctionId> visited;
+    std::vector<FunctionId> pending{root};
+    while (!pending.empty()) {
+      const auto id = pending.back();
+      pending.pop_back();
+      if (!visited.insert(id).second)
+        continue;
+      const auto &fn = cpu.functions.at(id);
+      for (auto value : fn.expressions) {
+        const auto &node = cpu.expressions.at(value);
+        if (std::holds_alternative<ConditionalOperation>(node.operation))
+          return true;
+        if (const auto *call = std::get_if<FunctionCall>(&node.operation))
+          pending.push_back(call->function);
+      }
+    }
+    return false;
+  }
+  // Branch arms may be evaluated speculatively only when every operation is pure,
+  // scalar and non-failing. Tensor allocation, shape checks and dispatch stay outside.
+  mutable std::map<ValueId, bool> scalarPurity;
+  bool pureScalar(ValueId root) const {
+    if (auto found = scalarPurity.find(root); found != scalarPurity.end())
+      return found->second;
+    const auto invalid = [&] {
+      scalarPurity[root] = false;
+      return false;
+    };
+    std::set<ValueId> visited;
+    std::set<FunctionId> functions;
+    std::vector<ValueId> pending{root};
+    while (!pending.empty()) {
+      const auto id = pending.back();
+      pending.pop_back();
+      if (auto found = scalarPurity.find(id); found != scalarPurity.end()) {
+        if (!found->second)
+          return invalid();
+        continue;
+      }
+      if (!visited.insert(id).second)
+        continue;
+      if (visited.size() > 300000)
+        reject(cpu.expressions.at(root).span, "GPU scalar branch analysis limit exceeded");
+      const auto &node = cpu.expressions.at(id);
+      const auto &type = node.type;
+      if (type.tensor || type.task || type.fallible ||
+          (type.builtin != BuiltinValue::Bool &&
+           (type.builtin != BuiltinValue::Numeric || type.element != NumericType::Float32)))
+        return invalid();
+      if (std::holds_alternative<SymbolRead>(node.operation) ||
+          std::holds_alternative<Float32Literal>(node.operation) ||
+          std::holds_alternative<BoolLiteral>(node.operation))
+        continue;
+      if (const auto *binary = std::get_if<ScalarBinary>(&node.operation)) {
+        pending.push_back(binary->left);
+        pending.push_back(binary->right);
+      } else if (const auto *compare = std::get_if<ScalarCompare>(&node.operation)) {
+        pending.push_back(compare->left);
+        pending.push_back(compare->right);
+      } else if (const auto *unary = std::get_if<ScalarUnary>(&node.operation))
+        pending.push_back(unary->operand);
+      else if (const auto *branch = std::get_if<ConditionalOperation>(&node.operation)) {
+        pending.insert(pending.end(), {branch->condition, branch->trueResult, branch->falseResult});
+        for (const auto &statement : branch->whenTrue)
+          pending.push_back(statement.value);
+        for (const auto &statement : branch->whenFalse)
+          pending.push_back(statement.value);
+      } else if (const auto *call = std::get_if<FunctionCall>(&node.operation)) {
+        pending.insert(pending.end(), call->arguments.begin(), call->arguments.end());
+        if (functions.insert(call->function).second) {
+          const auto &fn = cpu.functions.at(call->function);
+          pending.push_back(fn.result);
+          for (const auto &statement : fn.body)
+            pending.push_back(statement.value);
+        }
+      } else
+        return invalid();
+    }
+    for (auto id : visited)
+      scalarPurity[id] = true;
+    return true;
+  }
   struct MatrixGraph {
     std::size_t inputs = 0, matrixCount = 0;
     std::vector<bool> maps;
@@ -472,9 +555,64 @@ class Compiler {
             graph.products.emplace_back(*input, *input);
             graph.maps.push_back(true);
           }
-        } else if (std::holds_alternative<Float32Literal>(node.operation))
+        } else if (std::holds_alternative<Float32Literal>(node.operation) ||
+                   std::holds_alternative<BoolLiteral>(node.operation))
           result = -1;
-        else if (const auto *binary = std::get_if<ScalarBinary>(&node.operation)) {
+        else if (const auto *compare = std::get_if<ScalarCompare>(&node.operation)) {
+          auto a = emit(compare->left), b = emit(compare->right);
+          if (a && b && *a < 0 && *b < 0) {
+            auto joined = dependency(*a), right = dependency(*b);
+            joined.insert(right.begin(), right.end());
+            work += joined.size();
+            if (work > 300000)
+              reject(entry.declaration, "GPU comparison dependency analysis limit exceeded");
+            if (joined.empty())
+              result = -1;
+            else {
+              dependencies.push_back(std::move(joined));
+              result = -1 - std::int64_t(dependencies.size());
+            }
+          }
+        } else if (const auto *branch = std::get_if<ConditionalOperation>(&node.operation)) {
+          if (node.type.tensor || !pureScalar(branch->trueResult) ||
+              !pureScalar(branch->falseResult))
+            return {};
+          auto condition = emit(branch->condition);
+          auto saved = symbols;
+          auto arm = [&](const std::vector<TypedStatement> &body, ValueId value) -> Result {
+            for (const auto &statement : body) {
+              if (!pureScalar(statement.value))
+                return {};
+              auto value = emit(statement.value);
+              if (!value)
+                return {};
+              if (statement.binding)
+                symbols[*statement.binding] = *value;
+            }
+            return emit(value);
+          };
+          auto a = arm(branch->whenTrue, branch->trueResult);
+          symbols = saved;
+          auto b = arm(branch->whenFalse, branch->falseResult);
+          symbols = std::move(saved);
+          if (condition && a && b && *condition < 0 && *a < 0 && *b < 0) {
+            auto joined = dependency(*condition);
+            for (auto v : {*a, *b}) {
+              auto next = dependency(v);
+              joined.insert(next.begin(), next.end());
+            }
+            work += joined.size();
+            if (work > 300000)
+              reject(entry.declaration, "GPU branch dependency analysis limit exceeded");
+            if (joined.empty())
+              result = -1;
+            else {
+              dependencies.push_back(std::move(joined));
+              result = -1 - std::int64_t(dependencies.size());
+              graph.scalarPost = true;
+            }
+          }
+        } else if (const auto *binary = std::get_if<ScalarBinary>(&node.operation)) {
           auto a = emit(binary->left), b = emit(binary->right);
           if (a && b && *a < 0 && *b < 0 &&
               (binary->operation == TokenKind::Plus || binary->operation == TokenKind::Minus ||
@@ -951,6 +1089,9 @@ class Compiler {
     for (std::size_t i = 0; i < inputs.size(); ++i) {
       const auto &value = inputs[i];
       const auto &type = cpu.symbols[entryFunction.parameters[i]].type;
+      if (!type.tensor && type.builtin != BuiltinValue::Numeric)
+        reject(span, "GPU scalar captures currently require float32; Boolean conditions stay "
+                     "internal to helpers");
       const bool tensor = type.tensor;
       completed(value, span);
       if (value.kind != (tensor ? Value::Tensor : Value::Scalar))
@@ -1080,6 +1221,7 @@ class Compiler {
         std::vector<std::uint32_t> joinReads;
         shader(function, &joinReads, true);
         const bool indirect =
+            scalarControl(function) ||
             !kalandra::runtime::metal::directElementwiseLayout(joinReads.size(), scalars.size());
         std::string projection;
         if (joinReads.size() != graph->reductions.size()) {
@@ -1121,7 +1263,8 @@ class Compiler {
                     std::to_string(entry->second) + "-map" + std::to_string(i) +
                     ".metallib\",*target,m::ElementwiseSignature{" + std::to_string(reads.size()) +
                     "," + std::to_string(scalars.size()) +
-                    (kalandra::runtime::metal::directElementwiseLayout(reads.size(), scalars.size())
+                    (!scalarControl(function) && kalandra::runtime::metal::directElementwiseLayout(
+                                                     reads.size(), scalars.size())
                          ? "});\nif(!map"
                          : ",m::ElementwiseBinding::ArgumentBuffer});\nif(!map") +
                     std::to_string(i) + "){" + error("map" + std::to_string(i) + ".error()") +
@@ -1851,7 +1994,115 @@ class Compiler {
         std::vector<std::string> operands;
         if (auto *read = std::get_if<SymbolRead>(&n.operation))
           result = symbols.at(read->symbol);
-        else if (auto *literal = std::get_if<Float32Literal>(&n.operation)) {
+        else if (auto *literal = std::get_if<BoolLiteral>(&n.operation)) {
+          result = temporary();
+          instruction << "        " << result << " = arith.constant "
+                      << (literal->value ? "true" : "false") << "\n";
+        } else if (const auto *compare = std::get_if<ScalarCompare>(&n.operation)) {
+          auto a = emit(compare->left), b = emit(compare->right);
+          operands = {a, b};
+          const auto &type = cpu.expressions.at(compare->left).type;
+          if (type.builtin == BuiltinValue::Bool) {
+            if (compare->operation != ComparisonKind::Equal &&
+                compare->operation != ComparisonKind::NotEqual)
+              reject(n.span, "GPU Boolean comparisons support only == and !=");
+            result = temporary();
+            instruction << "        " << result << " = arith.cmpi "
+                        << (compare->operation == ComparisonKind::Equal ? "eq" : "ne") << ", " << a
+                        << ", " << b << " : i1\n";
+          } else {
+            if (type.tensor || type.builtin != BuiltinValue::Numeric ||
+                type.element != NumericType::Float32)
+              reject(n.span, "GPU comparisons require float32 scalar operands");
+            auto op = [&](const std::string &code) {
+              auto v = temporary();
+              instruction << "        " << v << " = arith." << code << "\n";
+              return v;
+            };
+            auto ai = op("bitcast " + a + " : f32 to i32"),
+                 bi = op("bitcast " + b + " : f32 to i32");
+            auto mask = op("constant 2147483647 : i32"), inf = op("constant 2139095040 : i32"),
+                 zero = op("constant 0 : i32"), sign = op("constant -2147483648 : i32"),
+                 yes = op("constant true");
+            auto both = [&](std::string x, std::string y) {
+              return op("andi " + x + ", " + y + " : i1");
+            };
+            auto either = [&](std::string x, std::string y) {
+              return op("ori " + x + ", " + y + " : i1");
+            };
+            auto negate = [&](std::string x) { return op("xori " + x + ", " + yes + " : i1"); };
+            auto cmp = [&](std::string pred, std::string x, std::string y) {
+              return op("cmpi " + pred + ", " + x + ", " + y + " : i32");
+            };
+            auto ma = op("andi " + ai + ", " + mask + " : i32"),
+                 mb = op("andi " + bi + ", " + mask + " : i32");
+            auto ordered = both(cmp("ule", ma, inf), cmp("ule", mb, inf));
+            auto equal = either(cmp("eq", ai, bi), both(cmp("eq", ma, zero), cmp("eq", mb, zero)));
+            auto sa = op("andi " + ai + ", " + sign + " : i32"),
+                 sb = op("andi " + bi + ", " + sign + " : i32");
+            auto negative = cmp("ne", sa, zero);
+            auto same = op("select " + negative + ", " + cmp("ugt", ai, bi) + ", " +
+                           cmp("ult", ai, bi) + " : i1");
+            auto less = op("select " + cmp("ne", sa, sb) + ", " + negative + ", " + same + " : i1");
+            less = both(negate(equal), less);
+            switch (compare->operation) {
+            case ComparisonKind::Equal:
+              result = both(ordered, equal);
+              break;
+            case ComparisonKind::NotEqual:
+              result = negate(both(ordered, equal));
+              break;
+            case ComparisonKind::Less:
+              result = both(ordered, less);
+              break;
+            case ComparisonKind::LessEqual:
+              result = both(ordered, either(less, equal));
+              break;
+            case ComparisonKind::Greater:
+              result = both(ordered, negate(either(less, equal)));
+              break;
+            case ComparisonKind::GreaterEqual:
+              result = both(ordered, negate(less));
+              break;
+            }
+          }
+        } else if (const auto *branch = std::get_if<ConditionalOperation>(&n.operation)) {
+          if (n.type.tensor || !pureScalar(branch->trueResult) || !pureScalar(branch->falseResult))
+            reject(n.span, "GPU branches currently require pure scalar arms; tensor computations "
+                           "and dispatch are not supported in arms");
+          auto condition = emit(branch->condition);
+          auto saved = symbols;
+          auto arm = [&](const std::vector<TypedStatement> &body, ValueId id) {
+            for (const auto &statement : body) {
+              if (!pureScalar(statement.value))
+                reject(n.span, "GPU branch bodies require pure scalar calculations");
+              auto value = emit(statement.value);
+              if (statement.binding)
+                symbols[*statement.binding] = value;
+            }
+            return emit(id);
+          };
+          auto a = arm(branch->whenTrue, branch->trueResult);
+          symbols = saved;
+          auto b = arm(branch->whenFalse, branch->falseResult);
+          symbols = std::move(saved);
+          result = temporary();
+          operands = {condition, a, b};
+          if (n.type.builtin == BuiltinValue::Bool)
+            instruction << "        " << result << " = arith.select " << condition << ", " << a
+                        << ", " << b << " : i1\n";
+          else {
+            // Select bits, preserving signed zeros/subnormals/NaN payloads without
+            // introducing an unqualified native floating-point operation.
+            auto ai = temporary(), bi = temporary(), selected = temporary();
+            instruction << "        " << ai << " = arith.bitcast " << a << " : f32 to i32\n"
+                        << "        " << bi << " = arith.bitcast " << b << " : f32 to i32\n"
+                        << "        " << selected << " = arith.select " << condition << ", " << ai
+                        << ", " << bi << " : i32\n"
+                        << "        " << result << " = arith.bitcast " << selected
+                        << " : i32 to f32\n";
+          }
+        } else if (auto *literal = std::get_if<Float32Literal>(&n.operation)) {
           auto integer = temporary();
           result = temporary();
           instruction << "        " << integer << " = arith.constant "
@@ -2031,7 +2282,8 @@ class Compiler {
         code << instruction.code;
     if (graphStage >= 0)
       tensors = used.size();
-    const bool indirect = !kalandra::runtime::metal::directElementwiseLayout(used.size(), scalars);
+    const bool indirect = (graph && scalarControl(function)) ||
+                          !kalandra::runtime::metal::directElementwiseLayout(used.size(), scalars);
     const bool legacy =
         !graph && !indirect && tensors == 2 && scalars == 0 && used.size() == tensors;
     auto parameters = "memref<" + std::to_string(legacy ? 2 : scalars + 1) + "xi32>";

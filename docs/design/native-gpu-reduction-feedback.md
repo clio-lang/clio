@@ -51,8 +51,9 @@ This increment supports rank-one/rank-two float32 tensor inputs, scalar
 arithmetic, checked transitive helpers, repeated reduction feedback and matrix
 products before or after feedback. The scalar-result mode requires at least two
 contributing reductions and every numerical stage must contribute. [Tensor-result mode](native-gpu-tensor-feedback.md)
-also admits a single reduction, such as `values / reduceSum(values)`. Device
-branches, wider numeric types and broader ranks remain outside this subset.
+also admits a single reduction, such as `values / reduceSum(values)`. [Pure scalar choices and comparisons](native-gpu-scalar-control.md) can now use
+those reduced values too. Tensor-producing branches, wider numeric types and
+broader ranks remain outside this subset.
 
 The [fixture](../../native/metal-source/reduction-feedback.k),
 [device tests](../../native/metal-source/ReductionFeedbackTests.cpp),

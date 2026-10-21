@@ -179,6 +179,14 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
     tensor_result = "[3f000000,3f800000,3fc00000]"
     assert run([tensor_app / "program"], cwd).stdout.strip() == tensor_result
     applications.append((tensor_app, tensor_result))
+    control_source = cwd / "scalar-control.k"
+    control_source.write_bytes((fixtures / "scalar-control.k").read_bytes())
+    control_app = cwd / "scalar control application"
+    run([compiler, control_source, "--target", "metal", "-o", control_app, "-O2"], cwd)
+    assert (control_app / "kernel1-map0.metallib").is_file()
+    control_result = "[3e2aaaab,3eaaaaab,3f000000]"
+    assert run([control_app / "program"], cwd).stdout.strip() == control_result
+    applications.append((control_app, control_result))
     # Local module/project imports go through the same installed Metal compiler.
     (cwd / "helper.k").write_text("export " + source.read_text().split("\n\nfn main", 1)[0] + "\n")
     source.write_text('from "math" import combine\n\nfn main' + source.read_text().split("\n\nfn main", 1)[1])

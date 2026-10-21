@@ -270,13 +270,13 @@
     },
     {
       "id": "branch",
-      "feature": "Data-dependent kernel branches",
+      "feature": "Branches containing tensor computations",
       "scope": "GPU",
       "status": "rejected",
       "fixtures": [
         "capabilities/branch.k"
       ],
-      "notes": "Host control flow is distinct from data-dependent shader control flow",
+      "notes": "Pure scalar choices are supported separately; tensor-producing or dispatching arms are not admitted",
       "diagnostic": "G00[13]"
     },
     {
@@ -431,6 +431,20 @@
       "notes": "Rank-one/rank-two float32 tensor results with one or more contributing reductions; no final scalar shader/readback; explicit transfer or resident GPU forwarding",
       "evidence": [
         "gpu-tensor-feedback-2026-10-21.json"
+      ]
+    },
+    {
+      "id": "scalar-control",
+      "feature": "Scalar conditionals and strict float32 comparisons",
+      "scope": "GPU",
+      "status": "supported",
+      "fixtures": [
+        "scalar-control.k",
+        "capabilities/scalar-control.k"
+      ],
+      "notes": "All six IEEE comparisons, internal Boolean logic and pure scalar if arms; bitwise selection preserves float32 values and composes with resident reductions",
+      "evidence": [
+        "gpu-scalar-control-2026-10-21.json"
       ]
     }
   ]

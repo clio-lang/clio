@@ -774,3 +774,10 @@ rank-one/rank-two float32 inputs and shared intermediate matrices under one
 scalar task. A device expression combines the reduced scalars before the only
 readback. Empty inputs seed positive zero; larger expressions use the existing
 Tier 2 binding path. [Resident reduction feedback](native-gpu-reduction-feedback.md) now feeds later tensor arithmetic and matrix products inside scalar-returning graphs. [Tensor results after feedback](native-gpu-tensor-feedback.md) now remain resident too, including single-reduction normalization.
+
+## Scalar choices and comparisons
+
+[Pure scalar `if` expressions and float32 comparisons](native-gpu-scalar-control.md)
+now compose with tensor helpers and resident reduction graphs. Comparisons and
+selection use bit encodings to preserve IEEE behavior. Tensor-producing and
+dispatching branches remain outside this bounded subset.

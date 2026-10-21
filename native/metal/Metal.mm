@@ -431,9 +431,9 @@ struct Bridge {
           const auto tensors = (edge.left == edge.right ? 1u : 2u) +
                                std::count_if(broadcasts.begin(), broadcasts.end(),
                                              [i](auto item) { return item.stage == i; });
-          const auto binding = directElementwiseLayout(tensors, scalars.size())
-                                   ? ElementwiseBinding::Direct
-                                   : ElementwiseBinding::ArgumentBuffer;
+          // Small conditional graphs may deliberately use argument buffers to
+          // keep the declared interface stable when optimization removes a read.
+          const auto binding = mapping->signature.value_or(ElementwiseSignature{2, 0}).binding;
           if (edge.left > edge.right || !mapping->elementwise || mapping->matrix ||
               mapping->reduction || mapping->projected ||
               mapping->signature.value_or(ElementwiseSignature{2, 0}) !=

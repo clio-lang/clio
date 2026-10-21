@@ -56,6 +56,7 @@ cover vectors, matrices, repeated feedback, matrix products, large broadcasts,
 GPU forwarding, cached observations, failures and relocated installed programs.
 
 The supported GPU numerical subset remains straight-line rank-one/rank-two
-float32 computation. Wider numeric types, broader ranks and device control flow
-remain N2 work. Scalar last-use reclamation, buffer reuse, scheduling and fusion
+float32 computation. [Pure scalar choices and comparisons](native-gpu-scalar-control.md)
+are now supported within those computations. Wider numeric types, broader ranks
+and tensor-stage control flow remain N2 work. Scalar last-use reclamation, buffer reuse, scheduling and fusion
 remain optimization work.
