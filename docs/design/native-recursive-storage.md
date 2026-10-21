@@ -12,7 +12,7 @@ enum List:
     tail: List
 ```
 
-This is a representation decision and an implemented internal planner, **not yet an executable language feature**. The current frontend still rejects recursive declarations with `S068` until construction, lowering and ownership support are ready.
+Storage planning, cycle-aware nominal field resolution and physical MLIR/LLVM type construction are implemented, **not yet recursive value execution**. The current frontend still rejects recursive storage declarations with `S068` before function analysis; the backend independently retains its execution gate until managed constructors and ownership support are ready.
 
 ## Storage decisions
 
@@ -34,13 +34,13 @@ Values remain immutable. Construction can refer to existing values, rather than 
 
 Managed payloads must retain immutable backing across construction, projection, matching, updates and returned values. Failure and cancellation must release partially constructed values. Releasing a deep graph must use an iterative, allocation-free worklist rather than recursive native destructors. Shared values must be released exactly once after their last owner disappears.
 
-Type lowering and per-type ownership helpers must predeclare and memoize recursive identities. Existing finite-layout walkers cannot simply be reused on cyclic type graphs. Worker packets, cached outcomes, repeated awaits and application-error payloads need independent lifetime and failure qualification before recursive values cross those boundaries.
+Physical type lowering now follows a bounded dependency order with references and descriptors as leaves, so it does not recursively expand nominal fields. Per-type ownership helpers still need cycle-aware identity memoization. Existing finite-layout walkers cannot simply be reused on cyclic type graphs. Worker packets, cached outcomes, repeated awaits and application-error payloads need independent lifetime and failure qualification before recursive values cross those boundaries.
 
 ## Implementation stages
 
 1. **Implemented:** private storage planner with canonical recursive groups, per-field storage choices and finite-construction facts. Its graph traversal is iterative and bounded by a charged input budget. It validates nominal references and enum payload-slot partitions; it does not replace full typed-IR validation.
-2. **Next:** cycle-aware nominal type resolution and physical layout, retaining explicit rejection wherever runtime support is absent.
-3. Managed constructors, projection, matching, immutable updates and iterative retain/release integration; then admit the qualified CPU source subset.
+2. **Implemented:** ordinary field annotations resolve predeclared nominal identities without recursively expanding fields. Error aliases still copy completed families. The physical planner orders inline dependencies iteratively, bounds expanded scalar/pointer units and inline depth, and builds finite MLIR LLVM-dialect structures. The CPU backend uses this path for existing nonrecursive programs. Recursive source storage and forged recursive executable IR remain rejected.
+3. **Next:** managed constructors, projection, matching, immutable updates and iterative retain/release integration; then admit the qualified CPU source subset.
 4. Qualify recursive worker transport and application-error payloads, allocation failures, cancellation and deep/shared graph cleanup.
 
 GPU recursive values, distributed transport and public C/C++ representation are outside this step. The main roadmap estimate does not change for this foundation alone.
@@ -48,3 +48,7 @@ GPU recursive values, distributed transport and public C/C++ representation are 
 ## Verification
 
 [Storage planner tests](../../native/tests/RecordStorageTests.cpp) cover self/mutual recursion, finite enum bases, impossible cycles, recursive arrays, mixed descriptor/inline paths, repeated dependencies, acyclic sharing, opaque callable signatures, invalid nominal metadata and payload partitions, work limits and 10,000-type chains/cycles. Checked acyclic source is accepted by the planner; recursive source still receives `S068`. Both ordinary Debug and ASan/UBSan test targets are registered with CTest.
+
+[Physical layout tests](../../native/tests/RecordPhysicalLayoutTests.cpp) verify sized LLVM translation for a recursive list, mutual references, recursive collection descriptors, acyclic layout order/sharing, all numeric widths, existing leaf representations, expansion/depth bounds, malformed fields and a 2,000-type cycle. An opaque function contract may name its containing record without creating a storage cycle; checked source and compiled local/worker examples cover this distinction. Existing enum, nested-record, record-array-field and error-family regression suites preserve current behavior.
+
+The unit budget is an expansion bound, not an ABI byte count. Graph-input work is bounded separately. Neither unused variants nor unconstructible recursive declarations are made executable merely because their physical type is finite.

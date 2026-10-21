@@ -1,6 +1,7 @@
 #include "kalandra/Semantics.h"
 #include "ErrorFamilies.h"
 #include "RecordLayout.h"
+#include "RecordStorage.h"
 #include "kalandra/Continuation.h"
 #include "kalandra/StringLiteral.h"
 #include "llvm/ADT/APFloat.h"
@@ -95,9 +96,21 @@ public:
       if (auto resolved = resolveAlias(id, active))
         records_[key] = *resolved;
     }
-    if (diagnostics_.empty())
-      if (auto invalid = recordLayoutError(output_, limits_))
+    if (!diagnostics_.empty())
+      return {syntax_.source, {}, std::move(diagnostics_)};
+    {
+      // Nominal identities and fields are now complete. Resolve cycles before
+      // function analysis; existing value/ownership walkers are not cycle-safe.
+      auto storage = planRecordStorage(output_);
+      if (!storage) {
+        error(storage.error().code, storage.error().message, storage.error().span);
+        return {syntax_.source, {}, std::move(diagnostics_)};
+      }
+      if (auto invalid = recordLayoutError(output_, limits_)) {
         error(invalid->code, invalid->message, invalid->span);
+        return {syntax_.source, {}, std::move(diagnostics_)};
+      }
+    }
     registerSignatures();
     if (diagnostics_.empty())
       if (auto invalid = recordLayoutError(output_, limits_))
@@ -454,7 +467,10 @@ private:
         }
       if (auto found = records_.find(key); found != records_.end()) {
         const auto id = found->second;
-        if (!populateRecord(id, syntax.span))
+        // Field annotations refer to predeclared nominal identities. Deferring
+        // ordinary field expansion permits a complete cyclic storage graph.
+        // Error aliases still require complete member families before copying.
+        if (!registeringRecords_ && !populateRecord(id, syntax.span))
           return {};
         auto result = recordType(id);
         if (syntax.array) {
@@ -800,9 +816,9 @@ private:
           records_.emplace(key, found->id);
       }
     }
-    // Resolve fields lazily so aliases only copy fully populated families,
-    // independent of declaration order. No references into records survive a
-    // recursive type lookup, which can append canonical union records.
+    // Ordinary fields resolve predeclared identities without expanding children.
+    // Alias members still populate lazily before copying complete families.
+    // No references into records survive lookup, which can append union records.
     for (std::size_t id = 0; id < recordDeclarations_.size(); ++id)
       populateRecord(id);
     registeringRecords_ = false;

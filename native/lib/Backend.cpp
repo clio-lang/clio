@@ -1,6 +1,7 @@
 #include "kalandra/Backend.h"
 #include "CollectionMetadata.h"
 #include "NativeLayout.h"
+#include "RecordLLVMTypes.h"
 #include "RecordLayout.h"
 #include "kalandra/NumericConversion.h"
 #include "kalandra/StrictFloat.h"
@@ -44,6 +45,11 @@ public:
       : input_(input), builder_(&context), module_(ModuleOp::create(builder_.getUnknownLoc())) {}
   OwningOpRef<ModuleOp> run(const std::optional<std::string> &testEntry,
                             const std::vector<std::string> &exports) {
+    auto records = lowerRecordTypes(input_, *builder_.getContext());
+    if (!records)
+      throw LoweringFailure{records.error().message};
+    for (std::size_t id = 0; id < records->size(); ++id)
+      recordTypes_.emplace(id, (*records)[id]);
     builder_.setInsertionPointToEnd(module_->getBody());
     auto fault = func::FuncOp::create(
         builder_, builder_.getUnknownLoc(), "kalandra_fault",
@@ -176,15 +182,8 @@ private:
     }
     if (isOwnedArray(value))
       return recordDescriptor(value);
-    if (value.builtin == BuiltinValue::Record) {
-      if (auto found = recordTypes_.find(*value.record); found != recordTypes_.end())
-        return found->second;
-      SmallVector<Type> fields;
-      for (const auto &field : input_.records.at(*value.record).fields)
-        fields.push_back(field.type.tensor ? recordDescriptor(field.type) : type(field.type));
-      return recordTypes_[*value.record] =
-                 LLVM::LLVMStructType::getLiteral(builder_.getContext(), fields);
-    }
+    if (value.builtin == BuiltinValue::Record)
+      return recordTypes_.at(*value.record);
     if (value.builtin == BuiltinValue::TaskError)
       return LLVM::LLVMStructType::getLiteral(builder_.getContext(),
                                               {builder_.getI32Type(), builder_.getI64Type(),

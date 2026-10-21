@@ -25,11 +25,8 @@ inline bool hasRecordBacking(const TypedModule &module) {
         return true;
   return false;
 }
-// Bound inline storage and type-dependency depth before recursive lowering.
-// Array-element cycles remain unsupported: generated retention traverses element
-// types as well as inline fields, even though an array itself is a descriptor.
-inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
-                                                   const SemanticLimits &limits = {}) {
+// Validate completed field metadata independently of nominal dependency cycles.
+inline std::optional<Diagnostic> recordFieldError(const TypedModule &module) {
   const auto fail = [](std::string message, SourceSpan span) {
     return std::optional<Diagnostic>{{"S068", std::move(message), span}};
   };
@@ -146,6 +143,17 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
                     field.declaration);
     }
   }
+  return {};
+}
+// Execution gate: ownership and transport walkers still require acyclic types,
+// including array-element dependencies. Storage planning does not open this gate.
+inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
+                                                   const SemanticLimits &limits = {}) {
+  if (auto invalid = recordFieldError(module))
+    return invalid;
+  const auto fail = [](std::string message, SourceSpan span) {
+    return std::optional<Diagnostic>{{"S068", std::move(message), span}};
+  };
   struct Frame {
     std::size_t record, next = 0;
   };

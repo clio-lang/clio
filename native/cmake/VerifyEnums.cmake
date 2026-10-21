@@ -93,3 +93,27 @@ if(NOT "${STATUS}" STREQUAL "1" OR EXISTS "${OUTPUT_DIR}/unsupported-metal")
   message(FATAL_ERROR "GPU enum unexpectedly enabled")
 endif()
 message(STATUS "CPU enums: 21 generated programs, ten numeric widths/Bool/String, exhaustive branches, module aliases, records/arrays, nested/cached workers, Unicode ownership and 72 allocation sweeps passed")
+
+# A callback signature names a nominal type without embedding its storage.
+COMPILE(callback-contract [=[type Node:
+  visit:fn(Node)->int
+fn visit(node:Node)->int:
+  42
+fn main()->int:
+  node=Node {visit:visit}
+  node.visit(node)
+]=])
+EXPECT(callback-contract 42)
+COMPILE(worker-callback-contract [=[type Node:
+  visit:fn(Node)->int
+fn visit(node:Node)->int:
+  42
+fn run(node:Node)->int:
+  node.visit(node)
+fn main()->int ! TaskError:
+  node=Node {visit:visit}
+  try parallel:
+    work=spawn run(node)
+    try await work
+]=])
+EXPECT(worker-callback-contract 42)
