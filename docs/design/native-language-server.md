@@ -363,7 +363,7 @@ clients receive the standard string labels.
 Complete-call guidance requires a parsed and checked graph. A bounded temporary overlay can
 close trailing parentheses as described below. At an empty argument slot, a
 separate validated-callee snapshot can provide guidance despite the selected
-call's argument-count error. Checked collection, numeric conversion and tensor operation signatures are covered below; other builtin families remain unsupported. Invalid
+call's argument-count error. Checked collection, numeric conversion, tensor operation and map-family signatures are covered below; other builtin families remain unsupported. Invalid
 positions, closed documents and other invalid query contexts return `null`.
 The server does not reuse stale signatures or publish partial typed programs. Requesting help makes no source changes or diagnostic publications.
 
@@ -880,8 +880,8 @@ and output labels, while incompatible shapes suppress the hint.
 Complete arguments and a valid checked graph are required. Invalid ranks/types,
 known incompatible matrix dimensions, missing operands and other graph errors
 provide no guessed signature. Existing bounded closing-parenthesis recovery can
-supply guidance when all arguments are present. Tensor construction, reshape and
-map-family signature help remain separate; this does not expand GPU admission,
+supply guidance when all arguments are present. Tensor construction and reshape
+signature help remain separate; map-family guidance is covered below, and this does not expand GPU admission,
 change numerical semantics or execute tensor operations during editor requests.
 Buffers, disk sources and diagnostic publications remain unchanged.
 
@@ -890,3 +890,42 @@ covers all ten CPU element types for the three signature families, fixed/dynamic
 matrix shapes, rank-zero/empty tensors, invalid inputs, live imported shape changes,
 relocated Release tools and installed VS Code guidance for a piped matrix call.
 These are editor checks; they do not repeat numerical/runtime backend qualification.
+
+#### Checked map callback signatures
+
+Signature help now covers `map` and `parallelMap` with checked input-array,
+callback and output types. For example, `map([1, 2], fn(value): value > 0)` shows
+`fn map(input: [int64], callback: fn(int64) -> Bool) -> [Bool]`.
+Named functions, inline anonymous functions, captured function values and indexed
+callbacks use their public one-element callback contract. Captured data and the
+internal retained callable used by a function-value wrapper are not parameters
+in the displayed callback.
+
+The checked `ArrayMap` operation identifies the input and callback entry. The
+entry's first parameter supplies the element type; its checked declared/inferred
+result supplies the callback result type. Remaining entry parameters must match
+the operation's retained captures and are omitted. This reuses the existing
+bounded type printer and module context for numeric, Bool, String, nominal and
+callable values. Unsaved imported callback types update the result-array label.
+
+A `parallelMap` hint includes the outer error channel. An infallible callback
+can show `fn parallelMap(input: [int64], callback: fn(int64) -> int64) -> [int64] ! TaskError`.
+When a callback declares an application error, its own callable type retains that
+channel, while the outer array result includes the application channel and
+`TaskError`. Scheduling errors are not added to an otherwise infallible callback
+signature. Ordinary `map` keeps its existing completed-element callback rules.
+
+Direct and piped calls use the same parameter labels and UTF-16 range protocol;
+a piped array selects the explicit callback parameter. Complete valid arguments
+and a checked graph are required. Missing/incompatible callbacks, invalid callback
+arity, unhandled error channels and unsupported worker captures yield no hint.
+Existing bounded closing-parenthesis recovery can apply when the callback is
+complete. Same-spelled local callables retain ordinary guidance. Requests execute
+no callbacks, schedule no tasks and change no source or diagnostic publications.
+
+[Map-signature qualification](../../native/metal-proof/evidence/native-lsp-map-signature-2026-10-21.json)
+covers all ten numeric widths, changed result elements, nominal inputs,
+named/inline/captured/indexed callbacks, public error channels and invalid calls,
+current imported callback changes, relocated Release tools and installed VS Code
+parallel-map guidance with captures hidden. It adds editor coverage without
+changing map scheduling, error propagation or GPU/worker admission.

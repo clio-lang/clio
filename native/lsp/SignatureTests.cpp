@@ -355,7 +355,7 @@ int main() {
             "prior errors block builtin guidance");
     require(!query("fn main():\n  length(|[1,2])\n  missing\n"),
             "later errors block builtin guidance");
-    require(!query("fn main():\n  map([1,2],|fn(v:int):v*2)\n"),
+    require(!query("fn main():\n  reshape(tensor([1,2]),|[2])\n"),
             "other builtins remain unsupported");
     result = query("fn main():\n  length=fn(v:int):v*2\n  length(|3)\n");
     require(result && result->label == "fn length(int64) -> int64",
@@ -476,6 +476,50 @@ int main() {
             "missing matrix operand has no guessed shape");
     require(!query("fn main():\n  reduceSum(|tensor([1]))\n  missing\n"),
             "failed graphs suppress tensor signatures");
+    const auto mapLabel = "fn map(input: [int64], callback: fn(int64) -> int64) -> [int64]";
+    result = query("fn double(v:int):\n  v*2\nfn main():\n  map([1,2],|double)\n");
+    require(result && result->label == mapLabel && result->activeParameter == 1,
+            "named map callback signature");
+    result = query("fn main():\n  map([1,2],|fn(v):v*2)\n");
+    require(result && result->label == mapLabel, "inferred anonymous map signature");
+    result = query("fn main():\n  offset=3\n  map([1,2],|fn(v):v+offset)\n");
+    require(result && result->label == mapLabel, "inline captures stay out of public callback");
+    result = query("fn main():\n  offset=3\n  callback=fn(v:int):v+offset\n  map([1,2],|callback)\n");
+    require(result && result->label == mapLabel, "retained function wrapper target stays hidden");
+    result = query("fn main():\n  callbacks=[fn(v:int):v*2]\n  map([1,2],|callbacks[0])\n");
+    require(result && result->label == mapLabel, "indexed callback retains public signature");
+    result = query("fn main():\n  [1,2] -> map(|fn(v):v*2)\n");
+    require(result && result->label == mapLabel && result->activeParameter == 1,
+            "piped map selects explicit callback");
+    result = query("fn main():\n  map([1,2],|fn(v):v>0)\n");
+    require(result && result->label == "fn map(input: [int64], callback: fn(int64) -> Bool) -> [Bool]",
+            "map result element differs from input");
+    result = query("type Box:\n  value:int\nfn main():\n  map([Box {value:2}],|fn(v):v.value)\n");
+    require(result && result->label == "fn map(input: [Box], callback: fn(Box) -> int64) -> [int64]",
+            "nominal callback input context");
+    for (const auto &numeric : numericTypes) {
+      const auto name = std::string(numeric.name);
+      result = query("fn main():\n  map([" + name + "(1)],|fn(v):v)\n");
+      require(result && result->label == "fn map(input: [" + name + "], callback: fn(" + name +
+                  ") -> " + name + ") -> [" + name + "]", "map element width " + name);
+    }
+    result = query("fn main()->[int] ! TaskError:\n  try parallelMap([1,2],|fn(v):v*2)\n");
+    require(result && result->label ==
+                "fn parallelMap(input: [int64], callback: fn(int64) -> int64) -> [int64] ! TaskError",
+            "parallel map exposes scheduling error channel only on outer result");
+    result = query("error Bad:\n  Failed\nfn checked(v:int)->int ! Bad:\n  v\n"
+                   "fn main()->[int] ! (Bad | TaskError):\n  try parallelMap([1,2],|checked)\n");
+    require(result && result->label ==
+                "fn parallelMap(input: [int64], callback: fn(int64) -> int64 ! Bad) -> [int64] ! Bad | TaskError",
+            "callback application errors remain separate from task errors");
+    result = recover("fn main():\n  map([1,2],fn(v:int):v*2|\n");
+    require(result && result->label == mapLabel, "complete callback after bounded recovery");
+    result = query("fn main():\n  map=fn(v:int):v*2\n  map(|2)\n");
+    require(result && result->label == "fn map(int64) -> int64", "same-spelled map binding");
+    require(!query("fn main():\n  map([1],|)\n"), "missing callback has no guessed signature");
+    require(!query("fn main():\n  map([1],|fn(v:int,w:int):v+w)\n"), "invalid callback arity");
+    require(!query("fn main():\n  parallelMap([1],|fn(v:int):v*2)\n"), "unhandled task errors block hints");
+    require(!query("fn main():\n  map([1],|fn(v:String):v)\n"), "incompatible map callback input");
     std::cout << "Native checked signature help passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

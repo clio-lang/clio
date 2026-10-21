@@ -753,6 +753,24 @@ async function run() {
   await replace(main, mainDisk);
   await clearDiagnostics(main);
   checks.push("Tensor builtin signature help shows checked matrix operands/result shapes and the piped right parameter without changing source");
+  const parallelSource = "fn main()->[int] ! TaskError:\n  offset=3\n  callback=fn(v:int):v+offset\n  try ([1,2] -> parallelMap(callback))\n";
+  await replace(main, parallelSource);
+  await clearDiagnostics(main);
+  const parallelSignature = await eventually(async () => {
+    const result = await vscode.commands.executeCommand(
+      "vscode.executeSignatureHelpProvider", mainUri,
+      position(main, "parallelMap(callback)", 12), "(",
+    );
+    return result?.signatures?.[0]?.label ===
+      "fn parallelMap(input: [int64], callback: fn(int64) -> int64) -> [int64] ! TaskError" ? result : undefined;
+  }, "checked parallel callback signature");
+  assert.equal(parallelSignature.activeParameter, 1);
+  assert.equal(parallelSignature.signatures[0].parameters.length, 2);
+  assert.equal(main.getText(), parallelSource);
+  assert.equal(await fs.readFile(mainUri.fsPath, "utf8"), mainDisk);
+  await replace(main, mainDisk);
+  await clearDiagnostics(main);
+  checks.push("Map signature help exposes the public callback and parallel TaskError channel while hiding captured values and preserving source");
   const library = await vscode.workspace.openTextDocument(libraryUri);
   await replace(
     library,

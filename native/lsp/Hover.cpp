@@ -154,8 +154,26 @@ std::optional<SignatureInfo> builtinSignature(const TypedModule &module, SourceS
       continue;
     std::vector<ValueId> arguments;
     std::vector<std::string> labels;
-    if (const auto *conversion = std::get_if<NumericConvert>(&expression.operation);
-        conversion && resolveNumeric(name) == expression.type.element) {
+    std::optional<ValueType> callback;
+    if (const auto *map = std::get_if<ArrayMap>(&expression.operation);
+        map && name == (map->parallel ? "parallelMap" : "map")) {
+      if (map->function >= module.functions.size())
+        return {};
+      const auto &function = module.functions[map->function];
+      // An ArrayMap entry takes one element followed by its retained captures.
+      // Function-value wrappers also retain the target callable in that tail.
+      if (function.parameters.empty() || function.parameters.size() - 1 != map->captures.size() ||
+          function.parameters.front() >= module.symbols.size())
+        return {};
+      callback = ValueType{};
+      callback->builtin = BuiltinValue::Function;
+      callback->callable = std::make_shared<const FunctionSignature>(
+          FunctionSignature{{module.symbols[function.parameters.front()].type},
+                            function.declaredResult.value_or(function.resultType)});
+      arguments = {map->input};
+      labels = {"input", "callback"};
+    } else if (const auto *conversion = std::get_if<NumericConvert>(&expression.operation);
+               conversion && resolveNumeric(name) == expression.type.element) {
       arguments = {conversion->input};
       labels = {"input"};
     } else if (const auto *sum = std::get_if<ReduceSum>(&expression.operation);
@@ -199,6 +217,8 @@ std::optional<SignatureInfo> builtinSignature(const TypedModule &module, SourceS
         return {};
       signature.parameters.push_back(module.expressions[id].type);
     }
+    if (callback)
+      signature.parameters.push_back(std::move(*callback));
     ValueType type;
     type.builtin = BuiltinValue::Function;
     type.callable = std::make_shared<const FunctionSignature>(std::move(signature));
@@ -347,7 +367,7 @@ std::optional<SignatureInfo> signatureInfo(ParseResult syntax, std::string_view 
     const auto name = target->source->slice(target->span);
     if (name == "length" || name == "byteLength" || name == "shape" || name == "slice" ||
         name == "concat" || name == "reduceSum" || name == "matmul" || name == "array" ||
-        resolveNumeric(name)) {
+        name == "map" || name == "parallelMap" || resolveNumeric(name)) {
       auto checked = check(syntax, {}, options);
       if (checked.ok())
         if (auto result = builtinSignature(*checked.module, invocationSpan, name, active))

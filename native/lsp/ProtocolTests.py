@@ -1620,6 +1620,64 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     assert not signature_document.exists() and matrix_library.read_text() == matrix_library_text
     client.finish()
 
+    # Map callback hints expose the element contract, not closure/wrapper captures.
+    client = Client()
+    client.init(signature_offsets=True)
+    map_cases = [
+        ('fn main():\n  map([1,2],|fn(v):v>0)\n',
+         'fn map(input: [int64], callback: fn(int64) -> Bool) -> [Bool]'),
+        ('fn main():\n  offset=3\n  callback=fn(v:int):v+offset\n  map([1,2],|callback)\n',
+         'fn map(input: [int64], callback: fn(int64) -> int64) -> [int64]'),
+        ('fn main():\n  [1,2] -> map(|fn(v):v*2)\n',
+         'fn map(input: [int64], callback: fn(int64) -> int64) -> [int64]'),
+        ('fn main()->[int] ! TaskError:\n  try parallelMap([1,2],|fn(v):v*2)\n',
+         'fn parallelMap(input: [int64], callback: fn(int64) -> int64) -> [int64] ! TaskError'),
+        ('error Bad:\n  Failed\nfn checked(v:int)->int ! Bad:\n  v\n'
+         'fn main()->[int] ! (Bad | TaskError):\n  try parallelMap([1,2],|checked)\n',
+         'fn parallelMap(input: [int64], callback: fn(int64) -> int64 ! Bad) -> [int64] ! Bad | TaskError'),
+    ]
+    client.open(signature_document, 'fn main():\n  0\n')
+    client.barrier()
+    version = 1
+    for marked, expected in map_cases:
+        version += 1
+        # Error unions use a pipe too; the editing marker is the final one.
+        cursor = marked.rfind('|')
+        text = marked[:cursor]+marked[cursor+1:]
+        client.change(signature_document, text, version)
+        assert not publications(client.barrier())[signature_document.as_uri()]["diagnostics"]
+        line = marked[:cursor].count('\n')
+        character = len(marked[:cursor].rsplit('\n',1)[-1].encode('utf-16-le'))//2
+        result = client.signature(signature_document, line, character)["result"]
+        assert result["signatures"][0]["label"] == expected and result["activeParameter"] == 1, result
+        parameters = result["signatures"][0]["parameters"]
+        assert len(parameters) == 2, result
+        start,end = parameters[1]["label"]
+        assert expected[start:end].startswith('callback: fn('), result
+        assert not client.barrier(), "map hint published diagnostics"
+    callback_library = Path(temp) / 'map-signatures.k'
+    callback_library_text = 'export fn convert(v:int)->float32:\n  float32(v)\n'
+    callback_library.write_text(callback_library_text)
+    version += 1
+    imported_map = 'from "./map-signatures.k" import convert\nfn main():\n  map([1,2],convert)\n'
+    client.change(signature_document, imported_map, version)
+    client.barrier()
+    cursor = imported_map.splitlines()[2].index(',')+1
+    result = client.signature(signature_document, 2, cursor)["result"]
+    assert result["signatures"][0]["label"] == 'fn map(input: [int64], callback: fn(int64) -> float32) -> [float32]', result
+    client.open(callback_library, 'export fn convert(v:int)->Bool:\n  v>0\n')
+    client.barrier()
+    result = client.signature(signature_document, 2, cursor)["result"]
+    assert result["signatures"][0]["label"] == 'fn map(input: [int64], callback: fn(int64) -> Bool) -> [Bool]', result
+    client.change(callback_library, 'export fn convert(v:int)->Bool:\n  missing\n', 2)
+    client.barrier()
+    assert client.signature(signature_document, 2, cursor)["result"] is None
+    client.change(callback_library, callback_library_text, 3)
+    client.barrier()
+    assert client.signature(signature_document, 2, cursor)["result"] is not None
+    assert not signature_document.exists() and callback_library.read_text() == callback_library_text
+    client.finish()
+
     # Format the current buffer only; the client independently applies the edit.
     formatter = Path(temp) / "format.k"
     disk = b"fn main():\n  99\n"
