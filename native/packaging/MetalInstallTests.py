@@ -145,6 +145,15 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
         assert (graph_sum_app / f"kernel0-{stage}.metallib").is_file()
     assert run([graph_sum_app / "program"], cwd).stdout.strip() == "c3d6c000"
     applications.append((graph_sum_app, "c3d6c000"))
+    mixed_source = cwd / "matrix-graph-arithmetic.k"
+    mixed_source.write_bytes((fixtures / "matrix-graph-arithmetic.k").read_bytes())
+    mixed_app = cwd / "mixed matrix graph application"
+    run([compiler, mixed_source, "--target", "metal", "-o", mixed_app, "-O2"], cwd)
+    for stage in (1, 2, 3):
+        assert (mixed_app / f"kernel0-map{stage}.metallib").is_file()
+    mixed_result = "[c2620000,c2a60000,c3000000,c33c0000]"
+    assert run([mixed_app / "program"], cwd).stdout.strip() == mixed_result
+    applications.append((mixed_app, mixed_result))
     # Local module/project imports go through the same installed Metal compiler.
     (cwd / "helper.k").write_text("export " + source.read_text().split("\n\nfn main", 1)[0] + "\n")
     source.write_text('from "math" import combine\n\nfn main' + source.read_text().split("\n\nfn main", 1)[1])

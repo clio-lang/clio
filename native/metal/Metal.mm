@@ -230,6 +230,8 @@ struct MatrixGraphArguments {
   std::size_t inputs = 0;
   std::vector<Buffer> values;
   std::vector<MatrixProduct> products;
+  std::vector<Kernel> maps;
+  std::vector<std::shared_ptr<const Arguments>> mapArguments;
   std::vector<std::uint32_t> uses;
   std::vector<std::array<std::int64_t, 2>> shapes;
   explicit MatrixGraphArguments(std::shared_ptr<State> s) : state(std::move(s)) {
@@ -304,7 +306,10 @@ struct Bridge {
   }
   static std::expected<std::shared_ptr<MatrixGraphArguments>, Error>
   captureGraph(std::shared_ptr<State> state, const Kernel &kernel, std::span<const Buffer> inputs,
-               std::span<const MatrixProduct> products) noexcept {
+               std::span<const MatrixProduct> products, std::span<const Kernel> maps = {},
+               std::span<const float> scalars = {}) noexcept {
+    if ((!maps.empty() && maps.size() != products.size()) || (maps.empty() && !scalars.empty()))
+      return std::unexpected(Error::Invalid);
     if (!kernel.state_ || !kernel.state_->matrix || inputs.empty() || products.empty() ||
         inputs.size() > UINT32_MAX || products.size() > UINT32_MAX / 2 ||
         inputs.size() + products.size() > UINT32_MAX)
@@ -312,9 +317,11 @@ struct Bridge {
     if (kernel.state_->registry != state)
       return std::unexpected(Error::Residency);
     const auto count = inputs.size() + products.size();
-    const auto bytes = std::uint64_t(count) * (sizeof(Buffer) + sizeof(std::uint32_t) +
-                                               sizeof(std::array<std::int64_t, 2>)) +
-                       std::uint64_t(products.size()) * sizeof(MatrixProduct);
+    const auto bytes =
+        std::uint64_t(maps.size()) * (sizeof(Kernel) + sizeof(std::shared_ptr<const Arguments>)) +
+        std::uint64_t(count) *
+            (sizeof(Buffer) + sizeof(std::uint32_t) + sizeof(std::array<std::int64_t, 2>)) +
+        std::uint64_t(products.size()) * sizeof(MatrixProduct);
     try {
       if (!state->permit())
         return std::unexpected(Error::Allocation);
@@ -342,6 +349,14 @@ struct Bridge {
       if (!state->permit())
         return std::unexpected(Error::Allocation);
       result->shapes.resize(count);
+      if (!maps.empty()) {
+        if (!state->permit())
+          return std::unexpected(Error::Allocation);
+        result->maps.assign(maps.begin(), maps.end());
+        if (!state->permit())
+          return std::unexpected(Error::Allocation);
+        result->mapArguments.resize(maps.size());
+      }
       result->inputs = inputs.size();
       for (std::size_t i = 0; i < inputs.size(); ++i) {
         const auto &input = inputs[i].storage_;
@@ -362,9 +377,30 @@ struct Bridge {
         if (edge.left >= output || edge.right >= output)
           return std::unexpected(Error::Invalid);
         const auto a = result->shapes[edge.left], b = result->shapes[edge.right];
-        if (a[1] != b[0] || std::uint64_t(a[0]) * std::uint64_t(b[1]) > UINT32_MAX)
-          return std::unexpected(Error::Invalid);
-        result->shapes[output] = {a[0], b[1]};
+        const bool map = !maps.empty() && bool(maps[i]);
+        if (map) {
+          const auto &mapping = maps[i].state_;
+          const auto tensors = edge.left == edge.right ? 1u : 2u;
+          if (edge.left > edge.right || !mapping->elementwise || mapping->matrix ||
+              mapping->reduction || mapping->projected || mapping->indirect() ||
+              mapping->signature.value_or(ElementwiseSignature{2, 0}) !=
+                  ElementwiseSignature{tensors, std::uint32_t(scalars.size())} ||
+              a != b)
+            return std::unexpected(Error::Invalid);
+          if (mapping->registry != state || mapping->index != kernel.state_->index)
+            return std::unexpected(Error::Residency);
+          std::array<Buffer, 2> placeholders{};
+          auto args = capture(state, maps[i], std::span<const Buffer>(placeholders).first(tensors),
+                              scalars);
+          if (!args)
+            return std::unexpected(args.error());
+          result->mapArguments[i] = *args;
+          result->shapes[output] = a;
+        } else {
+          if (a[1] != b[0] || std::uint64_t(a[0]) * std::uint64_t(b[1]) > UINT32_MAX)
+            return std::unexpected(Error::Invalid);
+          result->shapes[output] = {a[0], b[1]};
+        }
         ++result->uses[edge.left];
         ++result->uses[edge.right];
       }
@@ -392,7 +428,7 @@ struct Bridge {
     PacketData packet;
     Buffer result;
     Buffer matrixLeft{}, matrixRight{};
-    Kernel matrixKernel{};
+    Kernel matrixKernel{}, graphKernel{};
     std::size_t graphStage = 0;
     unsigned matrixStage = 0; // 1: left map, 2: right map, 3: multiply.
     float scalar = 0;
@@ -417,6 +453,10 @@ struct Bridge {
   }
   static void destroy(void *frame) noexcept { static_cast<Frame *>(frame)->~Frame(); }
   static const Buffer &tensor(const Frame &frame, std::size_t index) {
+    if (frame.packet.graph && frame.packet.kind == Kind::Elementwise) {
+      const auto edge = frame.packet.graph->products[frame.graphStage];
+      return frame.packet.graph->values[index == 0 ? edge.left : edge.right];
+    }
     return index == 0 && frame.packet.replacement ? frame.packet.replacement
                                                   : frame.packet.arguments->tensors[index];
   }
@@ -613,6 +653,18 @@ struct Bridge {
       f.packet.kind = Kind::Matmul;
     }
   }
+  static void nextGraphStage(Frame &f) {
+    const auto &graph = *f.packet.graph;
+    if (!f.graphKernel)
+      f.graphKernel = f.packet.kernel;
+    const auto edge = graph.products[f.graphStage];
+    const bool map = !graph.maps.empty() && bool(graph.maps[f.graphStage]);
+    f.packet.kernel = map ? graph.maps[f.graphStage] : f.graphKernel;
+    f.packet.kind = map ? Kind::Elementwise : Kind::Matmul;
+    f.packet.arguments = map ? graph.mapArguments[f.graphStage] : nullptr;
+    f.packet.input = graph.values[edge.left];
+    f.packet.right = graph.values[edge.right];
+  }
   static void resume(Task &task) {
     for (;;) {
       @autoreleasepool {
@@ -627,9 +679,7 @@ struct Bridge {
           nextMatrixStage(f);
         }
         if (f.packet.graph && !f.started && !f.packet.preparation) {
-          const auto edge = f.packet.graph->products[f.graphStage];
-          f.packet.input = f.packet.graph->values[edge.left];
-          f.packet.right = f.packet.graph->values[edge.right];
+          nextGraphStage(f);
         }
         if (f.started) {
           if (!f.succeeded) {
@@ -643,6 +693,7 @@ struct Bridge {
             f.resources.reset();
             f.packet.input = {};
             f.packet.right = {};
+            f.packet.arguments.reset();
             graph.values[graph.inputs + f.graphStage] = std::move(f.result);
             for (auto operand : {edge.left, edge.right})
               if (!--graph.uses[operand])
@@ -650,6 +701,7 @@ struct Bridge {
             if (++f.graphStage == graph.products.size()) {
               f.result = std::move(graph.values.back());
               f.packet.graph.reset();
+              f.graphKernel = {};
               if (f.packet.reduction) {
                 if (task.cancelled())
                   return;
@@ -665,9 +717,7 @@ struct Bridge {
             if (task.cancelled())
               return;
             f.started = f.succeeded = false;
-            const auto next = graph.products[f.graphStage];
-            f.packet.input = graph.values[next.left];
-            f.packet.right = graph.values[next.right];
+            nextGraphStage(f);
           } else {
             // Materialize host results on the scheduler, never in the Metal callback.
             if (f.packet.kind == Kind::Download) {
@@ -1531,10 +1581,12 @@ TaskHandle Runtime::matmul(Task &task, GroupHandle group, Kernel kernel, Buffer 
 }
 TaskHandle Runtime::matmulGraph(TaskCore &task, GroupHandle group, Kernel kernel,
                                 std::span<const Buffer> inputs,
-                                std::span<const MatrixProduct> products) noexcept {
+                                std::span<const MatrixProduct> products,
+                                std::span<const Kernel> maps,
+                                std::span<const float> mapScalars) noexcept {
   Bridge::PacketData packet{
       state_, {}, {}, Bridge::Kind::Matmul, std::move(kernel), BinaryOperation::Add, {}};
-  auto graph = Bridge::captureGraph(state_, packet.kernel, inputs, products);
+  auto graph = Bridge::captureGraph(state_, packet.kernel, inputs, products, maps, mapScalars);
   if (graph)
     packet.graph = *graph;
   else
@@ -1543,10 +1595,12 @@ TaskHandle Runtime::matmulGraph(TaskCore &task, GroupHandle group, Kernel kernel
 }
 TaskHandle Runtime::matmulGraph(Task &task, GroupHandle group, Kernel kernel,
                                 std::span<const Buffer> inputs,
-                                std::span<const MatrixProduct> products) noexcept {
+                                std::span<const MatrixProduct> products,
+                                std::span<const Kernel> maps,
+                                std::span<const float> mapScalars) noexcept {
   Bridge::PacketData packet{
       state_, {}, {}, Bridge::Kind::Matmul, std::move(kernel), BinaryOperation::Add, {}};
-  auto graph = Bridge::captureGraph(state_, packet.kernel, inputs, products);
+  auto graph = Bridge::captureGraph(state_, packet.kernel, inputs, products, maps, mapScalars);
   if (graph)
     packet.graph = *graph;
   else
@@ -1556,10 +1610,12 @@ TaskHandle Runtime::matmulGraph(Task &task, GroupHandle group, Kernel kernel,
 TaskHandle Runtime::matmulGraphReduceSum(TaskCore &task, GroupHandle group, Kernel kernel,
                                          std::span<const Buffer> inputs,
                                          std::span<const MatrixProduct> products, Kernel reduction,
-                                         Kernel epilogue, std::span<const float> scalars) noexcept {
+                                         Kernel epilogue, std::span<const float> scalars,
+                                         std::span<const Kernel> maps,
+                                         std::span<const float> mapScalars) noexcept {
   Bridge::PacketData packet{
       state_, {}, {}, Bridge::Kind::Matmul, std::move(kernel), BinaryOperation::Add, {}};
-  auto graph = Bridge::captureGraph(state_, packet.kernel, inputs, products);
+  auto graph = Bridge::captureGraph(state_, packet.kernel, inputs, products, maps, mapScalars);
   if (graph)
     packet.graph = *graph;
   else
@@ -1582,10 +1638,12 @@ TaskHandle Runtime::matmulGraphReduceSum(TaskCore &task, GroupHandle group, Kern
 TaskHandle Runtime::matmulGraphReduceSum(Task &task, GroupHandle group, Kernel kernel,
                                          std::span<const Buffer> inputs,
                                          std::span<const MatrixProduct> products, Kernel reduction,
-                                         Kernel epilogue, std::span<const float> scalars) noexcept {
+                                         Kernel epilogue, std::span<const float> scalars,
+                                         std::span<const Kernel> maps,
+                                         std::span<const float> mapScalars) noexcept {
   Bridge::PacketData packet{
       state_, {}, {}, Bridge::Kind::Matmul, std::move(kernel), BinaryOperation::Add, {}};
-  auto graph = Bridge::captureGraph(state_, packet.kernel, inputs, products);
+  auto graph = Bridge::captureGraph(state_, packet.kernel, inputs, products, maps, mapScalars);
   if (graph)
     packet.graph = *graph;
   else

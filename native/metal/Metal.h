@@ -170,18 +170,22 @@ public:
                     std::span<const float> mapScalars = {}) noexcept;
   // Copies the product graph and inputs; one task owns all resident intermediates.
   TaskHandle matmulGraph(TaskCore &, GroupHandle, Kernel, std::span<const Buffer>,
-                         std::span<const MatrixProduct>) noexcept;
+                         std::span<const MatrixProduct>, std::span<const Kernel> maps = {},
+                         std::span<const float> mapScalars = {}) noexcept;
   TaskHandle matmulGraph(Task &, GroupHandle, Kernel, std::span<const Buffer>,
-                         std::span<const MatrixProduct>) noexcept;
+                         std::span<const MatrixProduct>, std::span<const Kernel> maps = {},
+                         std::span<const float> mapScalars = {}) noexcept;
   // Resident product graph followed by one strict reduction and optional scalar epilogue.
   TaskHandle matmulGraphReduceSum(TaskCore &, GroupHandle, Kernel, std::span<const Buffer>,
                                   std::span<const MatrixProduct>, Kernel reduction,
-                                  Kernel epilogue = {},
-                                  std::span<const float> scalars = {}) noexcept;
+                                  Kernel epilogue = {}, std::span<const float> scalars = {},
+                                  std::span<const Kernel> maps = {},
+                                  std::span<const float> mapScalars = {}) noexcept;
   TaskHandle matmulGraphReduceSum(Task &, GroupHandle, Kernel, std::span<const Buffer>,
                                   std::span<const MatrixProduct>, Kernel reduction,
-                                  Kernel epilogue = {},
-                                  std::span<const float> scalars = {}) noexcept;
+                                  Kernel epilogue = {}, std::span<const float> scalars = {},
+                                  std::span<const Kernel> maps = {},
+                                  std::span<const float> mapScalars = {}) noexcept;
   // One scalar task: optional input maps, matrix, optional adjustment, fixed reduction tree.
   TaskHandle matmulReduceSum(TaskCore &, GroupHandle, Kernel matrix, Kernel reduction, Buffer left,
                              Buffer right, Kernel leftMap = {}, Kernel rightMap = {},

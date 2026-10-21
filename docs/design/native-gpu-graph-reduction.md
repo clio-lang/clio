@@ -48,12 +48,12 @@ behavior. Partial results are not published.
 
 The admitted graph has at least two rank-two float32 products contributing to
 one final matrix and one final reduction. Extra unused products, additional
-reductions, a reduction of an earlier matrix, branches and tensor arithmetic
-between products remain diagnostics. Arithmetic around one product and its
+reductions, a reduction of an earlier matrix and branches remain diagnostics.
+[Tensor arithmetic between products](native-gpu-graph-arithmetic.md) is now supported. Arithmetic around one product and its
 reduction retains its existing separate implementation.
 
-Combining multi-product graphs with tensor arithmetic is the next composition
-step. Wider GPU types, tensor ranks and device control flow remain separate work.
+Wider GPU types, tensor ranks, multiple reductions and device control flow remain
+separate work.
 
 See the [source example](../../native/metal-source/matrix-graph-reduction.k),
 [qualification tests](../../native/metal-source/MatrixGraphReductionTests.cpp) and

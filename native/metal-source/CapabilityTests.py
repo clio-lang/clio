@@ -137,9 +137,14 @@ def main():
                         assert re.search(r'matmulGraph(?:ReduceSum)?\(', (destination / 'host.cpp').read_text())
                         edges = re.search(r'^' + entry + r'\.matrix_graph_edges=(.+)$', manifest, re.M)[1].split(',')
                         inputs = int(re.search(r'^' + entry + r'\.matrix_graph_inputs=(\d+)$', manifest, re.M)[1])
-                        assert len(edges) == int(products)
+                        stages = int(re.search(r'^' + entry + r'\.matrix_graph_stages=(\d+)$', manifest, re.M)[1])
+                        assert len(edges) == stages and stages >= int(products)
                         for i, edge in enumerate(edges):
                             assert all(0 <= int(v) < inputs + i for v in edge.split(':'))
+                    for entry, index, stage in re.findall(r'^(kernel\d+)\.map(\d+)_stage=(kernel\d+-map\d+)$', manifest, re.M):
+                        assert re.search(r'gpu.func @kalandra_elementwise(?:_v[23])?', (destination / (stage + '.mlir')).read_text())
+                        assert stage + '.metallib' in (destination / 'host.cpp').read_text()
+                        assert int(re.search(r'^' + entry + r'\.map' + index + r'_tensors=(\d+)$', manifest, re.M)[1]) in (1, 2)
                     outcomes.append({'fixture': fixture, 'status': 'supported', 'kernels': count})
                 else:
                     assert emitted.returncode == 1, (fixture, emitted.stdout, emitted.stderr)

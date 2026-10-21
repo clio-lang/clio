@@ -162,7 +162,7 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-  foreach(FIXTURE IN ITEMS mixed tensor-results shared-helpers scalar-entry matrix-elementwise differences arguments unused-inputs indirect-arguments tensor-negation division host-expressions cpu-spawn nested-parallel recovery resumable-helpers spawned-helpers reduction pre-reduction post-reduction matmul post-matmul pre-matmul matmul-reduction matmul-adjust-reduction matmul-scalar-reduction matrix-graph matrix-graph-reduction)
+  foreach(FIXTURE IN ITEMS mixed tensor-results shared-helpers scalar-entry matrix-elementwise differences arguments unused-inputs indirect-arguments tensor-negation division host-expressions cpu-spawn nested-parallel recovery resumable-helpers spawned-helpers reduction pre-reduction post-reduction matmul post-matmul pre-matmul matmul-reduction matmul-adjust-reduction matmul-scalar-reduction matrix-graph matrix-graph-reduction matrix-graph-arithmetic)
     if(FIXTURE STREQUAL "mixed")
       set(HARNESS MixedTests.cpp)
     elseif(FIXTURE STREQUAL "spawned-helpers")
@@ -179,6 +179,8 @@ if(BUILD_TESTING)
       set(HARNESS MatmulPostTests.cpp)
     elseif(FIXTURE STREQUAL "matmul-reduction" OR FIXTURE STREQUAL "matmul-adjust-reduction" OR FIXTURE STREQUAL "matmul-scalar-reduction")
       set(HARNESS MatmulReductionTests.cpp)
+    elseif(FIXTURE STREQUAL "matrix-graph-arithmetic")
+      set(HARNESS MatrixGraphArithmeticTests.cpp)
     elseif(FIXTURE STREQUAL "matrix-graph-reduction")
       set(HARNESS MatrixGraphReductionTests.cpp)
     elseif(FIXTURE STREQUAL "matrix-graph")
@@ -256,7 +258,7 @@ if(BUILD_TESTING)
       if(FIXTURE STREQUAL "shared-helpers")
         target_compile_definitions(kalandra-metal-${FIXTURE}-${VARIANT} PRIVATE KALANDRA_SHARED_HELPERS)
       endif()
-      if(FIXTURE STREQUAL "shared-helpers" OR FIXTURE STREQUAL "scalar-entry" OR FIXTURE STREQUAL "matrix-elementwise" OR FIXTURE STREQUAL "differences" OR FIXTURE STREQUAL "arguments" OR FIXTURE STREQUAL "unused-inputs" OR FIXTURE STREQUAL "indirect-arguments" OR FIXTURE STREQUAL "tensor-negation" OR FIXTURE STREQUAL "division" OR FIXTURE STREQUAL "reduction" OR FIXTURE STREQUAL "pre-reduction" OR FIXTURE STREQUAL "post-reduction" OR FIXTURE STREQUAL "matmul" OR FIXTURE STREQUAL "post-matmul" OR FIXTURE STREQUAL "pre-matmul" OR FIXTURE STREQUAL "matmul-reduction" OR FIXTURE STREQUAL "matmul-adjust-reduction" OR FIXTURE STREQUAL "matmul-scalar-reduction" OR FIXTURE STREQUAL "matrix-graph" OR FIXTURE STREQUAL "matrix-graph-reduction")
+      if(FIXTURE STREQUAL "shared-helpers" OR FIXTURE STREQUAL "scalar-entry" OR FIXTURE STREQUAL "matrix-elementwise" OR FIXTURE STREQUAL "differences" OR FIXTURE STREQUAL "arguments" OR FIXTURE STREQUAL "unused-inputs" OR FIXTURE STREQUAL "indirect-arguments" OR FIXTURE STREQUAL "tensor-negation" OR FIXTURE STREQUAL "division" OR FIXTURE STREQUAL "reduction" OR FIXTURE STREQUAL "pre-reduction" OR FIXTURE STREQUAL "post-reduction" OR FIXTURE STREQUAL "matmul" OR FIXTURE STREQUAL "post-matmul" OR FIXTURE STREQUAL "pre-matmul" OR FIXTURE STREQUAL "matmul-reduction" OR FIXTURE STREQUAL "matmul-adjust-reduction" OR FIXTURE STREQUAL "matmul-scalar-reduction" OR FIXTURE STREQUAL "matrix-graph" OR FIXTURE STREQUAL "matrix-graph-reduction" OR FIXTURE STREQUAL "matrix-graph-arithmetic")
         target_link_libraries(kalandra-metal-${FIXTURE}-${VARIANT} PRIVATE LLVM)
         target_include_directories(kalandra-metal-${FIXTURE}-${VARIANT} SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
       endif()
@@ -661,6 +663,25 @@ if(BUILD_TESTING)
       "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/matrix-graph-reduction-cli-${VARIANT}"
       -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyMatrixGraphReduction.cmake")
     set_tests_properties(native-metal-matrix-graph-reduction-cli-${VARIANT} PROPERTIES TIMEOUT 300
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-matrix-graph-arithmetic COMMAND "${CMAKE_COMMAND}"
+      "-DCOMPILER=$<TARGET_FILE:${COMPILER_TARGET}>" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-matrix-graph-arithmetic"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyMatrixGraphArithmetic.cmake")
+    set_tests_properties(${COMPILER_TARGET}-matrix-graph-arithmetic PROPERTIES TIMEOUT 120)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-matrix-graph-arithmetic-cli-${VARIANT} COMMAND "${CMAKE_COMMAND}"
+      "-DCOMPILER=$<TARGET_FILE:kalandra>" "-DVARIANT=${VARIANT}"
+      "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/matrix-graph-arithmetic-cli-${VARIANT}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyMatrixGraphArithmetic.cmake")
+    set_tests_properties(native-metal-matrix-graph-arithmetic-cli-${VARIANT} PROPERTIES TIMEOUT 300
       RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
   endforeach()
 endif()

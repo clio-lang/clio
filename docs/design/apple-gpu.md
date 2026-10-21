@@ -757,3 +757,12 @@ shared-intermediate graph with one final `reduceSum`, followed by optional scala
 arithmetic under the same task. All matrices stay resident, and only the final
 scalar is read back. Empty results still execute scalar arithmetic on the
 positive-zero sum. Tensor arithmetic between products remains future work.
+
+## Arithmetic within matrix graphs
+
+[Mixed matrix/arithmetic graphs](native-gpu-graph-arithmetic.md) now support
+float32 tensor operations before, between and after products, including scalar
+lifting, shared intermediates and one optional final reduction. One task owns the
+resident sequence, each arithmetic shader binds only its live tensor operands,
+and full shapes are checked before dispatch. Adjacent-stage fusion remains
+optimization work.
