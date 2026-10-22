@@ -4,6 +4,7 @@
 #include "NativeStack.h"
 #include "RecordLayout.h"
 #include "TaskRecordOps.h"
+#include "TaskValueCopy.h"
 #include "TaskValueTypes.h"
 #include "kalandra/Backend.h"
 #include "kalandra/Continuation.h"
@@ -36,6 +37,8 @@ class Emitter {
   std::map<std::string, llvm::StructType *> values;
   std::optional<TaskValueTypes> taskTypes;
   std::map<std::string, llvm::GlobalVariable *> layouts;
+  std::map<std::size_t, Function *> recordRetainers;
+  std::vector<std::size_t> pendingRecordRetainers;
   std::vector<llvm::StructType *> frames, packets;
   std::vector<std::map<std::size_t, std::size_t>> observationFields, recursiveResultFields;
   std::vector<llvm::GlobalVariable *> entries;
@@ -145,6 +148,7 @@ public:
         if (auto error = nativeStackBudgetError(*synchronousEntries[id], module.getDataLayout()))
           throw std::runtime_error(*error);
       }
+    finishRecordRetainers();
     if (testEntry) {
       const auto found = std::ranges::find_if(planner.input.functions,
                                            [&](const auto &f) { return f.name == *testEntry; });
@@ -332,7 +336,57 @@ public:
     }
   }
 
+  llvm::GlobalVariable *emitValueLayout(const ValueType &type) {
+    auto *result = layout(type);
+    finishRecordRetainers();
+    return result;
+  }
+
 private:
+  Function *recordRetainer(std::size_t id) {
+    if (const auto found = recordRetainers.find(id); found != recordRetainers.end())
+      return found->second;
+    auto *result = function("task.record.retain." + std::to_string(id), boolean,
+                            {pointer, pointer, pointer, pointer});
+    recordRetainers.emplace(id, result);
+    pendingRecordRetainers.push_back(id);
+    return result;
+  }
+  void finishRecordRetainers() {
+    llvm::IRBuilderBase::InsertPointGuard guard(builder);
+    // Declare on first use, then emit through a growing worklist. Array-mediated
+    // cycles become runtime calls rather than recursive compiler expansion.
+    for (std::size_t next = 0; next < pendingRecordRetainers.size(); ++next) {
+      const auto id = pendingRecordRetainers[next];
+      auto *fn = recordRetainers.at(id);
+      if (!fn->empty())
+        continue;
+      builder.SetInsertPoint(Block::Create(context, "entry", fn));
+      auto *start = Block::Create(context, "retain.start", fn);
+      auto *denied = Block::Create(context, "retain.denied", fn);
+      auto *failed = Block::Create(context, "retain.failed", fn);
+      auto *entered = call("kalandra_call_enter_v1", boolean, {fn->getArg(0), c64(0), c64(0)});
+      builder.CreateCondBr(entered, start, denied);
+      builder.SetInsertPoint(denied);
+      builder.CreateRet(builder.getFalse());
+      builder.SetInsertPoint(start);
+      auto *ready = call("kalandra_invocation_ready_v1", boolean, {fn->getArg(0)});
+      auto *active = Block::Create(context, "retain.active", fn);
+      builder.CreateCondBr(ready, active, failed);
+      builder.SetInsertPoint(active);
+      ValueType type;
+      type.builtin = BuiltinValue::Record;
+      type.record = id;
+      retainRecord(type, fn->getArg(3), fn, failed);
+      call("kalandra_call_leave_v1", voidType, {fn->getArg(0)});
+      builder.CreateRet(builder.getTrue());
+      builder.SetInsertPoint(failed);
+      call("kalandra_call_leave_v1", voidType, {fn->getArg(0)});
+      builder.CreateRet(builder.getFalse());
+      if (auto error = nativeStackBudgetError(*fn, module.getDataLayout()))
+        throw std::runtime_error(*error);
+    }
+  }
   llvm::ConstantInt *c64(std::uint64_t n) { return builder.getInt64(n); }
   llvm::ConstantInt *c32(std::uint32_t n) { return builder.getInt32(n); }
   Function *function(const std::string &name, Type *result, const std::vector<Type *> &args) {
@@ -548,6 +602,10 @@ private:
   void retainRecordArray(const ValueType &type, Value *input, Function *fn, Block *failed) {
     const auto cellType = recordArrayElement(type);
     auto *cell = scalarType(cellType);
+    auto *ready = call("kalandra_invocation_ready_v1", boolean, {fn->getArg(0)});
+    auto *validate = Block::Create(context, "array.validate", fn);
+    builder.CreateCondBr(ready, validate, failed);
+    builder.SetInsertPoint(validate);
     auto *valid =
         call("kalandra_record_array_retain_v1", boolean,
              {fn->getArg(0), fn->getArg(2), input, c64(size(cell)), c64(alignment(cell))});
@@ -575,7 +633,11 @@ private:
     builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), body, failed);
     builder.SetInsertPoint(body);
     auto *address = builder.CreateInBoundsGEP(cell, storage, index);
-    retainRecord(cellType, address, fn, failed);
+    auto *retained = builder.CreateCall(recordRetainer(*cellType.record),
+                                        {fn->getArg(0), fn->getArg(1), fn->getArg(2), address});
+    auto *retainedBlock = Block::Create(context, "array.element.retained", fn);
+    builder.CreateCondBr(retained, retainedBlock, failed);
+    builder.SetInsertPoint(retainedBlock);
     auto *next = builder.CreateAdd(index, c64(1));
     index->addIncoming(next, builder.GetInsertBlock());
     builder.CreateBr(head);
@@ -1881,6 +1943,13 @@ private:
   }
 };
 } // namespace
+llvm::GlobalVariable *emitTaskValueLayout(const TypedModule &input, llvm::Module &module,
+                                          const ValueType &type) {
+  if (containsFunctionStorage(input, type))
+    throw std::invalid_argument("standalone task layout emission requires non-callable storage");
+  continuation::ModulePlan planner(input);
+  return Emitter(planner, module).emitValueLayout(type);
+}
 std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &input,
                                                           std::optional<std::string> testEntry) {
   if (auto error = numericCapabilityError(input, NumericTarget::Cpu))

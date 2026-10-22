@@ -1,5 +1,6 @@
 #include "../lib/RecursiveRecordOps.h"
 #include "../lib/TaskRecordOps.h"
+#include "../lib/TaskValueCopy.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
@@ -414,6 +415,32 @@ int main(int argc, char **argv) {
     taskBuilder.CreateRet(taskBuilder.getTrue());
     taskBuilder.SetInsertPoint(failed);
     taskBuilder.CreateRet(taskBuilder.getFalse());
+    const auto mutual = input.records.size();
+    ValueType leftArray;
+    leftArray.builtin = BuiltinValue::Record;
+    leftArray.array = leftArray.tensor = true;
+    leftArray.shape = {{std::nullopt, 1}};
+    leftArray.record = mutual;
+    auto rightArray = leftArray;
+    rightArray.record = mutual + 1;
+    input.records.push_back({"LeftArrays", {}, {{"right", rightArray, {}}}});
+    input.records.push_back({"RightArrays", {}, {{"left", leftArray, {}}}});
+    auto *mutualLayout = emitTaskValueLayout(input, *native, leftArray);
+    require(mutualLayout && native->getFunction("task.record.retain." + std::to_string(mutual)) &&
+                native->getFunction("task.record.retain." + std::to_string(mutual + 1)),
+            "mutual record array helpers were not generated finitely");
+    for (auto [id, name] : {std::pair<std::size_t, const char *>{10, "task_copy_tree_array"},
+                            {0, "task_copy_list_array"}}) {
+      ValueType array;
+      array.builtin = BuiltinValue::Record;
+      array.record = id;
+      array.array = array.tensor = true;
+      array.shape = {{std::nullopt, 1}};
+      auto *layout = emitTaskValueLayout(input, *native, array);
+      auto *copy = llvm::cast<llvm::Function>(layout->getInitializer()->getOperand(3));
+      copy->setName(name);
+      copy->setLinkage(llvm::GlobalValue::ExternalLinkage);
+    }
     require(!llvm::verifyModule(*native, &llvm::errs()),
             "checked recursive LLVM verification failed");
     for (auto &global : native->globals())

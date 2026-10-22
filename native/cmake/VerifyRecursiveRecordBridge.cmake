@@ -46,3 +46,7 @@ RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAG
   "${SOURCE_DIR}/tests/RecursiveTaskFieldTests.cpp" "${OUTPUT_DIR}/bridge.ll"
   "${RUNTIME}" -o "${OUTPUT_DIR}/task-fields")
 RUN_OK("${OUTPUT_DIR}/task-fields")
+RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
+  "${SOURCE_DIR}/tests/RecursiveTaskArrayTests.cpp" "${OUTPUT_DIR}/bridge.ll"
+  "${RUNTIME}" -o "${OUTPUT_DIR}/task-arrays")
+RUN_OK("${OUTPUT_DIR}/task-arrays")
