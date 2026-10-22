@@ -52,6 +52,10 @@ extern const TaskEntry *recursive_generated_entry_3;
 extern const TaskEntry *recursive_generated_entry_4;
 extern const TaskEntry *recursive_generated_entry_5;
 extern const TaskEntry *recursive_generated_entry_6;
+extern const TaskEntry *recursive_generated_entry_7;
+extern const TaskEntry *recursive_generated_entry_9;
+extern const TaskEntry *recursive_generated_entry_10;
+const void *task_box_created_environment(const CallableTree *, Invocation *);
 }
 static void require(bool value, const char *message) {
   if (!value)
@@ -102,8 +106,11 @@ static void fixture(unsigned id, Invocation &source, Buffer &packet) {
     require(functions, "generated callable array allocation");
     functions[0] = functions[1] = captured;
     functions[2] = {kalandra_callable_1, nullptr};
+    auto *child = static_cast<CallableTree *>(source.allocateRecord(sizeof(CallableTree)));
+    require(child, "generated callable child allocation");
+    *child = {2, captured, {functions, functions, 0, 3, 1}, {}, list(source)};
     packet.get<Result<CallableTree>>() = {
-        {}, {2, captured, {functions, functions, 0, 3, 1}, {}, list(source)}};
+        {}, {2, captured, {functions, functions, 0, 3, 1}, {child, child, 0, 1, 1}, list(source)}};
   } else
     packet.get<Result<List>>() = {{}, list(source)};
 }
@@ -148,8 +155,162 @@ static void verify(unsigned id, Invocation &context, Buffer &output) {
     verifyList(context, output.get<Result<List>>().value, id == 1 ? 42 : 10);
   require(!context.status(), "generated result inspection faulted");
 }
+static void createdClosures() {
+  for (unsigned workers : {1u, 2u, 4u})
+    for (bool stateless : {false, true}) {
+      TaskLimits limits;
+      limits.workers = workers;
+      auto core = TaskCore::create(limits);
+      require(bool(core), "closure factory core missing");
+      Invocation source, first, survivor;
+      Buffer packet, output, repeated;
+      if (!stateless)
+        fixture(4, source, packet);
+      const auto &entry = *(stateless ? recursive_generated_entry_10 : recursive_generated_entry_7);
+      const auto group = core->openRoot();
+      const auto task = core->submit(
+          group, entry, {entry.packetLayout, packet.data(), entry.packetBytes, &source});
+      source.settle();
+      require(task && core->drain() && core->failure(task).kind == TaskFailure::None &&
+                  core->observe(task, *entry.result, first, output.data()) &&
+                  core->observe(task, *entry.result, first, repeated.data()) &&
+                  core->observe(task, *entry.result, survivor, repeated.data()),
+              "generated closure construction or observation failed");
+      require(core->close(group) && core->drain() && core->release(group),
+              "closure factory cleanup failed");
+      clean(*core);
+      core.reset();
+      const auto inspect = [&](Invocation &context, Buffer &buffer) {
+        const auto closure = buffer.get<Result<Closure>>().value;
+        require(closure.code &&
+                    closure.code(closure.environment, 23, &context) == (stateless ? 23 : 10) &&
+                    !context.status(),
+                "task-created closure lost its captures");
+        if (!stateless) {
+          const auto *captures = static_cast<const CallableTree *>(
+              context.readRecursiveEnvironment(closure.environment, sizeof(CallableTree),
+                                               reinterpret_cast<const void *>(closure.code)));
+          require(captures && captures->children.size == 1,
+                  "task-created environment graph missing");
+          Buffer view;
+          view.get<Result<CallableTree>>() = {{}, *captures};
+          verify(4, context, view);
+          view.get<Result<CallableTree>>().value =
+              *static_cast<const CallableTree *>(captures->children.data);
+          verify(4, context, view);
+        } else
+          require(!closure.environment, "capture-free task closure allocated an environment");
+      };
+      inspect(first, output);
+      inspect(survivor, repeated);
+      first.settle();
+      // Transfer the newly created closure through another generated task.
+      auto onward = TaskCore::create(limits);
+      require(bool(onward), "closure onward core missing");
+      const auto &echo = *recursive_generated_entry_9;
+      const auto nextGroup = onward->openRoot();
+      const auto nextTask = onward->submit(
+          nextGroup, echo, {echo.packetLayout, repeated.data(), echo.packetBytes, &survivor});
+      survivor.settle();
+      Invocation final;
+      Buffer result;
+      require(nextTask && onward->drain() && onward->failure(nextTask).kind == TaskFailure::None &&
+                  onward->observe(nextTask, *echo.result, final, result.data()),
+              "task-created closure onward transfer failed");
+      require(onward->close(nextGroup) && onward->drain() && onward->release(nextGroup),
+              "closure onward cleanup failed");
+      clean(*onward);
+      onward.reset();
+      inspect(final, result);
+      if (!stateless) {
+        const auto closure = result.get<Result<Closure>>().value;
+        for (unsigned mode = 0; mode < 5; ++mode) {
+          Invocation invalid;
+          const void *environment = mode == 0 ? nullptr : closure.environment;
+          if (mode == 2)
+            invalid.expectedTaskError(1, 77, 2, 3);
+          if (mode == 3)
+            invalid.fault(91);
+          if (mode == 4)
+            invalid.expectedApplicationError("CaptureError", "Stopped");
+          require(closure.code(environment, 1, &invalid) == 0,
+                  "invalid capture environment executed");
+          require(mode == 2   ? invalid.hasTaskError() && !invalid.status()
+                  : mode == 4 ? invalid.hasApplicationError() && !invalid.status()
+                              : invalid.status() == (mode == 3 ? 91 : 3),
+                  "capture read replaced an existing error");
+          invalid.settle();
+          balanced(invalid);
+        }
+      }
+      if (stateless) {
+        Invocation invalid;
+        const auto closure = result.get<Result<Closure>>().value;
+        require(closure.code(reinterpret_cast<const void *>(0x1234), 23, &invalid) == 0 &&
+                    invalid.status() == 3,
+                "capture-free generated entry accepted an environment");
+        invalid.settle();
+        balanced(invalid);
+      }
+      final.settle();
+      balanced(source);
+      balanced(first);
+      balanced(survivor);
+      balanced(final);
+    }
+  bool succeeded = false;
+  unsigned failures = 0;
+  for (unsigned attempt = 1; attempt < 64 && !succeeded; ++attempt) {
+    Invocation context;
+    Buffer input;
+    fixture(4, context, input);
+    context.failAllocationAt(context.allocations() + attempt);
+    const auto *environment =
+        task_box_created_environment(&input.get<Result<CallableTree>>().value, &context);
+    if (environment)
+      succeeded = true;
+    else {
+      ++failures;
+      require(context.status() == 2, "environment publication lost allocation failure");
+    }
+    context.settle();
+    balanced(context);
+  }
+  require(succeeded && failures >= 2, "environment allocation sweep missed publication stages");
+  for (unsigned mode = 0; mode < 4; ++mode) {
+    Invocation context;
+    Buffer input;
+    fixture(4, context, input);
+    auto captures = input.get<Result<CallableTree>>().value;
+    if (mode == 0)
+      captures.tag = (std::int64_t{1} << 32) | 2;
+    else if (mode == 1)
+      captures.apply.environment = reinterpret_cast<const void *>(0x1234);
+    else if (mode == 2)
+      captures.list.tail = reinterpret_cast<const void *>(0x1234);
+    else
+      captures.children.data = reinterpret_cast<void *>(0x1234);
+    require(!task_box_created_environment(&captures, &context) && context.status() == 3,
+            "invalid capture graph was published");
+    context.settle();
+    balanced(context);
+  }
+  {
+    Invocation context;
+    CallableTree inactive{};
+    inactive.tag = 1;
+    inactive.apply.environment = reinterpret_cast<const void *>(0x1234);
+    inactive.children.data = reinterpret_cast<void *>(0x1234);
+    inactive.list.tail = reinterpret_cast<const void *>(0x1234);
+    require(task_box_created_environment(&inactive, &context) && !context.status(),
+            "inactive capture payload became a dependency");
+    context.settle();
+    balanced(context);
+  }
+}
 int main() {
   try {
+    createdClosures();
     const std::array entries{recursive_generated_entry_0, recursive_generated_entry_1,
                              recursive_generated_entry_2, recursive_generated_entry_3,
                              recursive_generated_entry_4, recursive_generated_entry_5,

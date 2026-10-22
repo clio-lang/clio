@@ -6,6 +6,7 @@
 #include "RecursiveAdmission.h"
 #include "TaskCallableOps.h"
 #include "TaskEntries.h"
+#include "TaskEnvironment.h"
 #include "TaskRecordOps.h"
 #include "TaskValueCopy.h"
 #include "TaskValueTypes.h"
@@ -51,6 +52,7 @@ class Emitter {
   std::vector<ValueType> functionSignatures;
   std::vector<bool> coordinating;
   bool recursiveClosures = false;
+  std::map<std::size_t, Function *> environmentBoxes;
 
 public:
   Emitter(ModulePlan &planner, llvm::Module &module)
@@ -74,12 +76,6 @@ public:
       throw std::runtime_error(types.error().message);
     taskTypes = std::move(*types);
     recursiveClosures = hasRecursiveStorage(*planRecordStorage(planner.input));
-    if (recursiveClosures && std::ranges::any_of(planner.plans, [](const auto &plan) {
-          return std::ranges::any_of(
-              plan->code, [](const auto &op) { return op.code == Code::FunctionReference; });
-        }))
-      throw std::runtime_error(
-          "recursive task-created callable environments are not yet implemented");
     destroy = function("kalandra_frame_destroy", voidType, {pointer});
     builder.SetInsertPoint(Block::Create(context, "entry", destroy));
     builder.CreateRetVoid();
@@ -150,6 +146,27 @@ public:
               function("kalandra_callable_plan_" + std::to_string(id),
                        result.fallible ? voidType : scalarType(result), parameters);
         }
+    if (recursiveClosures) {
+      std::set<std::size_t> targets;
+      for (const auto &plan : planner.plans)
+        for (const auto &op : plan->code)
+          if (op.code == Code::FunctionReference) {
+            const auto &target = planner.input.functions.at(op.target);
+            if (op.args.size() != target.captureCount)
+              throw std::runtime_error("task closure capture count mismatch");
+            for (std::size_t i = 0; i < op.args.size(); ++i)
+              if (!sameFunctionValueType(plan->slots.at(op.args[i]),
+                                         planner.input.symbols
+                                             .at(target.parameters.at(target.parameters.size() -
+                                                                      target.captureCount + i))
+                                             .type))
+                throw std::runtime_error("task closure capture type mismatch");
+            if (!op.args.empty())
+              targets.insert(op.target);
+          }
+      const std::vector<std::size_t> ids(targets.begin(), targets.end());
+      environmentBoxes = emitTaskEnvironmentBoxes(planner.input, ids, module);
+    }
     // All synchronous entry declarations exist before emitting bodies, so
     // self/mutual references and recursive direct calls need no expansion.
     for (std::size_t id = 0; id < planner.plans.size(); ++id)
@@ -1240,6 +1257,15 @@ private:
       builder.SetInsertPoint(stopped);
       returnZero(false);
       builder.SetInsertPoint(ready);
+      if (recursiveClosures) {
+        auto *active = Block::Create(context, "call.active", resume);
+        auto *inactive = Block::Create(context, "call.inactive", resume);
+        builder.CreateCondBr(call("kalandra_invocation_ready_v1", boolean, {ctx}), active,
+                             inactive);
+        builder.SetInsertPoint(inactive);
+        returnZero();
+        builder.SetInsertPoint(active);
+      }
       frame = call("kalandra_alloc_v1", pointer, {ctx, c64(size(frameType))});
     } else
       frame = call("kalandra_task_frame_v1", pointer, {task});
@@ -1279,6 +1305,19 @@ private:
       for (std::size_t n = explicitCount; n < plan.parameters.size(); ++n)
         captureTypes.push_back(scalarType(plan.slots[plan.parameters[n]]));
       auto *environment = llvm::StructType::get(context, captureTypes);
+      Value *captureAddress = resume->getArg(0);
+      if (recursiveClosures && captures) {
+        captureAddress = call("kalandra_recursive_environment_read_v1", pointer,
+                              {ctx, captureAddress, c64(size(environment)), resume});
+        auto *ready = Block::Create(context, "captures.ready", resume);
+        builder.CreateCondBr(builder.CreateIsNotNull(captureAddress), ready, abort);
+        builder.SetInsertPoint(ready);
+      }
+      if (recursiveClosures && !captures) {
+        auto *ready = Block::Create(context, "captures.empty", resume);
+        builder.CreateCondBr(builder.CreateIsNull(captureAddress), ready, abort);
+        builder.SetInsertPoint(ready);
+      }
       for (std::size_t n = 0; n < plan.parameters.size(); ++n) {
         const auto parameter = plan.parameters[n];
         auto *slot = builder.CreateStructGEP(frameType, frame, parameter + 1);
@@ -1287,7 +1326,7 @@ private:
                 ? static_cast<Value *>(resume->getArg(1 + n + (resultType.fallible ? 1 : 0)))
                 : builder.CreateLoad(
                       captureTypes[n - explicitCount],
-                      builder.CreateStructGEP(environment, resume->getArg(0), n - explicitCount));
+                      builder.CreateStructGEP(environment, captureAddress, n - explicitCount));
         builder.CreateStore(value,
                             builder.CreateStructGEP(valueType(plan.slots[parameter]), slot, 1));
       }
@@ -1482,15 +1521,33 @@ private:
           for (auto capture : instruction.args)
             fields.push_back(scalarType(plan.slots[capture]));
           auto *layout = llvm::StructType::get(context, fields);
-          environment =
-              call("kalandra_environment_alloc_v1", pointer, {ctx, c64(size(layout)), code});
-          auto *ready = Block::Create(context, "closure.ready", resume);
-          auto *status = call("kalandra_poll_v1", i64, {ctx});
-          builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), ready, abort);
-          builder.SetInsertPoint(ready);
-          for (std::size_t i = 0; i < fields.size(); ++i)
-            builder.CreateStore(builder.CreateLoad(fields[i], payload(instruction.args[i])),
-                                builder.CreateStructGEP(layout, environment, i));
+          if (recursiveClosures) {
+            llvm::IRBuilder<> scratch(&resume->getEntryBlock(), resume->getEntryBlock().begin());
+            auto *contents = scratch.CreateAlloca(layout);
+            for (std::size_t i = 0; i < fields.size(); ++i)
+              builder.CreateStore(builder.CreateLoad(fields[i], payload(instruction.args[i])),
+                                  builder.CreateStructGEP(layout, contents, i));
+            environment =
+                builder.CreateCall(environmentBoxes.at(instruction.target), {contents, ctx});
+            auto *boxed = Block::Create(context, "closure.boxed", resume);
+            builder.CreateCondBr(builder.CreateIsNotNull(environment), boxed, abort);
+            builder.SetInsertPoint(boxed);
+            environment =
+                call("kalandra_recursive_environment_bind_v1", pointer, {ctx, environment, code});
+            auto *bound = Block::Create(context, "closure.bound", resume);
+            builder.CreateCondBr(builder.CreateIsNotNull(environment), bound, abort);
+            builder.SetInsertPoint(bound);
+          } else {
+            environment =
+                call("kalandra_environment_alloc_v1", pointer, {ctx, c64(size(layout)), code});
+            auto *ready = Block::Create(context, "closure.ready", resume);
+            auto *status = call("kalandra_poll_v1", i64, {ctx});
+            builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), ready, abort);
+            builder.SetInsertPoint(ready);
+            for (std::size_t i = 0; i < fields.size(); ++i)
+              builder.CreateStore(builder.CreateLoad(fields[i], payload(instruction.args[i])),
+                                  builder.CreateStructGEP(layout, environment, i));
+          }
         }
         auto *layout = scalarType(type);
         Value *closure = llvm::Constant::getNullValue(layout);

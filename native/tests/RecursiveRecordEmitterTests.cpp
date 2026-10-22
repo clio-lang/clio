@@ -619,21 +619,75 @@ int main(int argc, char **argv) {
       plan->code.push_back({Code::Return, plan->result, {plan->result}});
       taskPlan.plans.push_back(std::move(plan));
     }
-    continuation::ModulePlan unqualified(taskInput);
-    for (const auto &plan : taskPlan.plans)
-      unqualified.plans.push_back(std::make_unique<continuation::Plan>(*plan));
-    unqualified.plans[0]->code.insert(unqualified.plans[0]->code.begin(),
-                                      {Code::FunctionReference, 0, {}});
-    bool rejected = false;
-    try {
-      emitTaskEntries(unqualified, *native);
-    } catch (const std::runtime_error &error) {
-      rejected =
-          std::string_view(error.what()).find("task-created callable") != std::string_view::npos;
+    // Create a closure capturing an aggregate with a recursive List, nested
+    // managed closures, function arrays and recursively owned child arrays.
+    taskInput.expressions.push_back({{}, list, RecordFieldRead{0, 4}});
+    taskInput.expressions.push_back({{}, callable, FunctionReference{8}});
+    taskInput.expressions.push_back({{}, callable, FunctionReference{11}});
+    taskInput.symbols.push_back({"value", integer, {}, 0, true});
+    taskInput.symbols.push_back({"captured", callableTree, {}, 0, true});
+    for (auto type : {callable, integer, callable, callable, integer}) {
+      TypedFunction worker;
+      worker.name = "closure_component";
+      worker.resultType = type;
+      taskInput.functions.push_back(worker);
     }
-    require(rejected, "recursive task-created closure path was accidentally enabled");
+    taskInput.functions[8].parameters = {1, 2};
+    taskInput.functions[8].captureCount = 1;
+    taskInput.functions[11].parameters = {1};
+    auto factory = std::make_unique<continuation::Plan>();
+    factory->slots = {callableTree, callable};
+    factory->parameters = {0};
+    factory->result = 1;
+    factory->code = {{Code::FunctionReference, 1, {0}, 8}, {Code::Return, 1, {1}}};
+    taskPlan.plans.push_back(std::move(factory));
+    auto body = std::make_unique<continuation::Plan>();
+    body->slots = {integer, callableTree, list, integer};
+    body->parameters = {0, 1};
+    body->result = 3;
+    body->code = {{Code::Field, 2, {1}, 0, 0, 0, 3},
+                  {Code::Field, 3, {2}, 0, 0, 0, 2},
+                  {Code::Return, 3, {3}}};
+    taskPlan.plans.push_back(std::move(body));
+    auto echoClosure = std::make_unique<continuation::Plan>();
+    echoClosure->slots = {callable};
+    echoClosure->parameters = {0};
+    echoClosure->code = {{Code::Return, 0, {0}}};
+    taskPlan.plans.push_back(std::move(echoClosure));
+    auto statelessFactory = std::make_unique<continuation::Plan>();
+    statelessFactory->slots = {callable};
+    statelessFactory->code = {{Code::FunctionReference, 0, {}, 11}, {Code::Return, 0, {0}}};
+    taskPlan.plans.push_back(std::move(statelessFactory));
+    auto statelessBody = std::make_unique<continuation::Plan>();
+    statelessBody->slots = {integer};
+    statelessBody->parameters = {0};
+    statelessBody->code = {{Code::Return, 0, {0}}};
+    taskPlan.plans.push_back(std::move(statelessBody));
+    for (bool wrongType : {false, true}) {
+      continuation::ModulePlan malformed(taskInput);
+      for (const auto &plan : taskPlan.plans)
+        malformed.plans.push_back(std::make_unique<continuation::Plan>(*plan));
+      if (wrongType)
+        malformed.plans[7]->slots[0] = integer;
+      else
+        malformed.plans[7]->code[0].args.clear();
+      llvm::Module rejectedModule("malformed-captures", llvmContext);
+      bool rejected = false;
+      try {
+        emitTaskEntries(malformed, rejectedModule);
+      } catch (const std::runtime_error &error) {
+        rejected = std::string_view(error.what())
+                       .find(wrongType ? "capture type mismatch" : "capture count mismatch") !=
+                   std::string_view::npos;
+      }
+      require(rejected, "task-created capture metadata was not checked");
+    }
     auto generatedEntries = emitTaskEntries(taskPlan, *native);
-    require(generatedEntries.size() == 7, "recursive task entries were not generated");
+    auto *environmentBox = native->getFunction("kalandra_task_environment_8");
+    require(environmentBox, "task environment helper missing");
+    environmentBox->setName("task_box_created_environment");
+    environmentBox->setLinkage(llvm::GlobalValue::ExternalLinkage);
+    require(generatedEntries.size() == 12, "recursive task entries were not generated");
     for (unsigned id = 0; id < generatedEntries.size(); ++id)
       new llvm::GlobalVariable(*native, pointer, true, llvm::GlobalValue::ExternalLinkage,
                                generatedEntries[id],

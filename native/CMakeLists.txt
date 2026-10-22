@@ -137,7 +137,7 @@ target_include_directories(kalandra-strict-float SYSTEM PUBLIC ${MLIR_INCLUDE_DI
 target_compile_options(kalandra-strict-float PRIVATE -Wall -Wextra -Werror)
 target_link_libraries(kalandra-strict-float PUBLIC MLIR LLVM)
 
-add_library(kalandra-backend STATIC lib/Backend.cpp lib/CheckedABI.cpp lib/TaskBackend.cpp lib/NumericConversion.cpp)
+add_library(kalandra-backend STATIC lib/Backend.cpp lib/CheckedABI.cpp lib/TaskBackend.cpp lib/TaskEnvironment.cpp lib/NumericConversion.cpp)
 target_include_directories(kalandra-backend SYSTEM PRIVATE ${MLIR_INCLUDE_DIRS} ${LLVM_INCLUDE_DIRS})
 target_link_libraries(kalandra-backend PUBLIC kalandra-semantics PRIVATE kalandra-strict-float MLIR LLVM)
 target_compile_options(kalandra-backend PRIVATE -Wall -Wextra -Werror)
