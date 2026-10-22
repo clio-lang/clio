@@ -1178,3 +1178,7 @@ extern "C" const void *kalandra_recursive_function_array_dependency_v1(
   return context->makeRecursiveValueFromPointers(std::as_bytes(std::span{&size, 1}), &key,
                                                  {dependencies, count});
 }
+
+extern "C" bool kalandra_invocation_ready_v1(kalandra::runtime::Invocation *context) noexcept {
+  return !context->poll() && context->usable();
+}

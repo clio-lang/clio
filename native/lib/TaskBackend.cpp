@@ -3,6 +3,7 @@
 #include "NativeLayout.h"
 #include "NativeStack.h"
 #include "RecordLayout.h"
+#include "TaskRecordOps.h"
 #include "TaskValueTypes.h"
 #include "kalandra/Backend.h"
 #include "kalandra/Continuation.h"
@@ -639,8 +640,14 @@ private:
     const auto &record = planner.input.records[*type.record];
     const auto &fields = record.fields;
     const auto retainField = [&](std::size_t i, std::optional<std::size_t> taskKind = {}) {
-      retainValue(fields[i].type, builder.CreateStructGEP(scalarType(type), input, i), fn, failed,
-                  taskKind);
+      if (taskTypes->fieldStorage(*type.record, i) == RecordFieldStorage::ManagedReference) {
+        TaskRecordOps(planner.input, *taskTypes, module)
+            .copyManagedField(builder, fn->getArg(0), fn->getArg(2), input, *type.record, i,
+                              failed);
+      } else {
+        retainValue(fields[i].type, builder.CreateStructGEP(scalarType(type), input, i), fn, failed,
+                    taskKind);
+      }
     };
     if (record.variants.empty()) {
       for (std::size_t i = 0; i < fields.size(); ++i)
@@ -1756,6 +1763,19 @@ private:
         builder.CreateBr(blocks[instruction.jump]);
         break;
       case Code::Field: {
+        if (const auto *read = std::get_if<RecordFieldRead>(
+                &planner.input.expressions[instruction.source].operation)) {
+          const auto &subject = plan.slots[instruction.args[0]];
+          if (subject.builtin != BuiltinValue::Record || !subject.record || subject.tensor ||
+              subject.task || subject.fallible)
+            throw std::runtime_error("task record projection requires a completed scalar record");
+          auto *value = TaskRecordOps(planner.input, *taskTypes, module)
+                            .project(builder, payload(instruction.args[0]), *subject.record,
+                                     read->field, ctx, abort);
+          builder.CreateStore(value, payload(instruction.output));
+          check();
+          break;
+        }
         const auto &read =
             std::get<ErrorFieldRead>(planner.input.expressions[instruction.source].operation);
         auto *error = payload(instruction.args[0]);

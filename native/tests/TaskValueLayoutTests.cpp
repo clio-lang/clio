@@ -73,6 +73,10 @@ int main() {
     require(list.records()[0]->getElementType(2)->isPointerTy() &&
                 layout.getTypeAllocSize(list.records()[0]) == 24,
             "recursive task list expanded its tail");
+    require(list.fieldStorage(0, 2) == RecordFieldStorage::ManagedReference &&
+                list.fieldStorage(0, 1) == RecordFieldStorage::Inline && list.fieldTag(0, 0) == 0 &&
+                list.fieldTag(0, 1) == 2 && list.fieldTag(0, 2) == 2,
+            "task field storage/active-case metadata lost");
     auto *completed = list.value(nominal(0), "completed.list");
     auto pending = nominal(0);
     pending.task = true;

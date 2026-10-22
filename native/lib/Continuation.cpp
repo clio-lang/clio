@@ -859,6 +859,10 @@ private:
       plan.code.push_back({Code::Label, 0, {}});
       for (auto jump : exits)
         plan.code[jump].jump = exit;
+    } else if (const auto *field = std::get_if<RecordFieldRead>(&node.operation);
+               field && !options.preserveCalls) {
+      auto subject = expression(plan, field->input, env, stack);
+      plan.code.push_back({Code::Field, output, {subject}, field->field, 0, 0, id});
     } else if (const auto *field = std::get_if<ErrorFieldRead>(&node.operation)) {
       auto subject = expression(plan, field->subject, env, stack);
       plan.code.push_back(

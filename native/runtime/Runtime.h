@@ -234,3 +234,6 @@ extern "C" const void *kalandra_recursive_transfer_v1(kalandra::runtime::Invocat
                                                       const void *root, std::uint64_t bytes,
                                                       std::uint64_t alignment,
                                                       const void *key) noexcept;
+
+// Private checked task-field guard, including invocation-held expected errors.
+extern "C" bool kalandra_invocation_ready_v1(kalandra::runtime::Invocation *) noexcept;

@@ -1,4 +1,5 @@
 #include "../lib/RecursiveRecordOps.h"
+#include "../lib/TaskRecordOps.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
@@ -316,6 +317,23 @@ int main(int argc, char **argv) {
       require(bool(listRoot), "list packet root emission failed");
       mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{*listRoot});
     }
+    {
+      builder.setInsertionPointToEnd(module.getBody());
+      auto maker = mlir::LLVM::LLVMFuncOp::create(builder, loc, "make_nested_list",
+                                                  mlir::LLVM::LLVMFunctionType::get(ptr, {}));
+      builder.setInsertionPointToStart(maker.addEntryBlock(builder));
+      mlir::Value nil = mlir::LLVM::ZeroOp::create(builder, loc, (*types)[0]);
+      nil = insert(nil, constant(1), 0);
+      auto tail = emitter.box(loc, nil, 0);
+      require(bool(tail), "nested packet end failed");
+      auto child = insert(insert(insert(nil, constant(2), 0), constant(42), 1), *tail, 2);
+      auto boxedChild = emitter.box(loc, child, 0);
+      require(bool(boxedChild), "nested packet child failed");
+      auto parent = insert(insert(child, constant(10), 1), *boxedChild, 2);
+      auto root = emitter.box(loc, parent, 0);
+      require(bool(root), "nested packet root failed");
+      mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{*root});
+    }
     for (auto [id, name] : {std::pair<std::size_t, const char *>{0, "read_list_head"},
                             {12, "read_callable_environment"},
                             {13, "read_function_array_data"},
@@ -364,6 +382,38 @@ int main(int argc, char **argv) {
     auto error = addCheckedInvocationABI(*native, false);
     if (error)
       throw std::runtime_error(*error);
+    auto taskTypes = TaskValueTypes::create(input, llvmContext);
+    require(bool(taskTypes), "task field physical types failed");
+    TaskRecordOps taskOps(input, *taskTypes, *native);
+    llvm::IRBuilder<> taskBuilder(llvmContext);
+    auto *pointer = taskBuilder.getPtrTy();
+    for (auto [field, name] : {std::pair<std::size_t, const char *>{0, "task_project_tag"},
+                               {1, "task_project_head"},
+                               {2, "task_project_tail"}}) {
+      auto *function = llvm::Function::Create(
+          llvm::FunctionType::get(taskBuilder.getInt1Ty(), {pointer, pointer, pointer}, false),
+          llvm::GlobalValue::ExternalLinkage, name, *native);
+      taskBuilder.SetInsertPoint(llvm::BasicBlock::Create(llvmContext, "entry", function));
+      auto *failed = llvm::BasicBlock::Create(llvmContext, "failed", function);
+      auto *value =
+          taskOps.project(taskBuilder, function->getArg(1), 0, field, function->getArg(0), failed);
+      taskBuilder.CreateStore(value, function->getArg(2));
+      taskBuilder.CreateRet(taskBuilder.getTrue());
+      taskBuilder.SetInsertPoint(failed);
+      taskBuilder.CreateRet(taskBuilder.getFalse());
+    }
+    auto *copyField =
+        llvm::Function::Create(llvm::FunctionType::get(taskBuilder.getInt1Ty(),
+                                                       {pointer, pointer, pointer, pointer}, false),
+                               llvm::GlobalValue::ExternalLinkage, "task_copy_tail", *native);
+    taskBuilder.SetInsertPoint(llvm::BasicBlock::Create(llvmContext, "entry", copyField));
+    auto *failed = llvm::BasicBlock::Create(llvmContext, "failed", copyField);
+    auto *copied = taskOps.copyManagedField(taskBuilder, copyField->getArg(0), copyField->getArg(2),
+                                            copyField->getArg(3), 0, 2, failed);
+    taskBuilder.CreateStore(copied, copyField->getArg(1));
+    taskBuilder.CreateRet(taskBuilder.getTrue());
+    taskBuilder.SetInsertPoint(failed);
+    taskBuilder.CreateRet(taskBuilder.getFalse());
     require(!llvm::verifyModule(*native, &llvm::errs()),
             "checked recursive LLVM verification failed");
     for (auto &global : native->globals())

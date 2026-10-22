@@ -23,6 +23,14 @@ public:
                              : result.scalar(module.records[id].fields[field].type));
       result.records_[id] = llvm::StructType::get(context, fields);
     }
+    result.storage_ = std::move(plan->storage);
+    result.fieldTags_.resize(module.records.size());
+    for (std::size_t id = 0; id < module.records.size(); ++id) {
+      result.fieldTags_[id].resize(module.records[id].fields.size());
+      for (std::size_t variant = 0; variant < module.records[id].variants.size(); ++variant)
+        for (auto field : module.records[id].variants[variant].fields)
+          result.fieldTags_[id][field] = variant + 1;
+    }
     return result;
   }
   llvm::Type *scalar(const ValueType &type) const {
@@ -60,6 +68,12 @@ public:
     return llvm::StructType::create(*context_, fields, name);
   }
   std::span<llvm::StructType *const> records() const { return records_; }
+  std::size_t fieldTag(std::size_t id, std::size_t field) const {
+    return fieldTags_.at(id).at(field);
+  }
+  RecordFieldStorage fieldStorage(std::size_t id, std::size_t field) const {
+    return storage_.fields.at(id).at(field);
+  }
 
 private:
   TaskValueTypes(llvm::LLVMContext &context, std::size_t count)
@@ -78,5 +92,7 @@ private:
   }
   llvm::LLVMContext *context_;
   std::vector<llvm::StructType *> records_;
+  RecordStoragePlan storage_;
+  std::vector<std::vector<std::size_t>> fieldTags_;
 };
 } // namespace kalandra

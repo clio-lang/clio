@@ -89,8 +89,7 @@ void verify(const ModulePlan &module) {
   }
 }
 CheckResult analyze(const std::string &source, bool placement = false) {
-  return check(parse(std::make_shared<SourceFile>("plan.k", source)), {},
-               {.placement = placement});
+  return check(parse(std::make_shared<SourceFile>("plan.k", source)), {}, {.placement = placement});
 }
 } // namespace
 int main(int argc, char **argv) {
@@ -120,8 +119,7 @@ int main(int argc, char **argv) {
                              "ir-supervisor",
                              "resumable-helpers",
                              "spawned-helpers"}) {
-      auto file =
-          loadSource((root / "native/metal-source" / (std::string(name) + ".k")).string());
+      auto file = loadSource((root / "native/metal-source" / (std::string(name) + ".k")).string());
       require(bool(file), "cannot read mixed fixture");
       auto checked = check(parse(*file), {}, {.placement = true});
       require(checked.ok(), "fixture failed shared checking");
@@ -217,6 +215,25 @@ int main(int argc, char **argv) {
     auto result = plan(*builtin.module);
     require(bool(result) && result->plans.size() == 2, "builtin child plan missing");
     verify(*result);
+    auto projected =
+        analyze("type Row:\n  value:int\nfn main()->int:\n  row=Row {value:42}\n  row.value\n");
+    require(projected.ok(), "record projection plan source rejected");
+    for (bool preserved : {false, true}) {
+      auto planned = plan(*projected.module, {.preserveCalls = preserved});
+      require(bool(planned), "record projection planning failed");
+      bool found = false;
+      for (const auto &entry : planned->plans)
+        for (const auto &op : entry->code)
+          if (op.source < projected.module->expressions.size() &&
+              std::holds_alternative<RecordFieldRead>(
+                  projected.module->expressions[op.source].operation)) {
+            require(op.code == (preserved ? Code::Kernel : Code::Field),
+                    "record field plan used the wrong backend path");
+            found = true;
+          }
+      require(found, "record field projection missing from plan");
+      verify(*planned);
+    }
     std::string large = "fn main() -> float32 ! TaskError:\n  try parallel:\n    "
                         "data:Tensor[float32,21000]=tensor([";
     for (unsigned i = 0; i < 21000; ++i)
