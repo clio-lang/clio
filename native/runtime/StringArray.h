@@ -14,3 +14,9 @@ bool kalandra_string_array_retain_v1(kalandra::runtime::Invocation *,
                                      const kalandra::runtime::Invocation *,
                                      const kalandra::runtime::StringArrayDescriptor *) noexcept;
 }
+
+// Private recursive-box bridge. Returns a managed owner for the array and its String buffers.
+extern "C" const void *
+kalandra_recursive_string_array_dependency_v1(kalandra::runtime::Invocation *,
+                                              const kalandra::runtime::StringArrayDescriptor *,
+                                              std::uint64_t active) noexcept;

@@ -53,6 +53,16 @@ int main(int argc, char **argv) {
          {{"$tag", integer, {}}, {"values", array, {}}, {"flags", flags, {}}, {"next", chain, {}}},
          {{"End", {}, {}}, {"Link", {}, {1, 2, 3}}}});
     input.records.push_back({"CollectionWrapper", {}, {{"value", chain, {}}}});
+    ValueType textArray = array;
+    textArray.builtin = BuiltinValue::String;
+    ValueType textChain = list;
+    textChain.record = 6;
+    input.records.push_back(
+        {"StringArrays",
+         {},
+         {{"$tag", integer, {}}, {"items", textArray, {}}, {"next", textChain, {}}},
+         {{"End", {}, {}}, {"Link", {}, {1, 2}}}});
+    input.records.push_back({"StringArrayWrapper", {}, {{"value", textChain, {}}}});
     mlir::MLIRContext context;
     context.loadDialect<mlir::LLVM::LLVMDialect>();
     mlir::registerLLVMDialectTranslation(context);
@@ -168,13 +178,34 @@ int main(int argc, char **argv) {
     auto boxedCollection = emitter.box(loc, collectionHolder, 5);
     require(bool(boxedCollection), "inline collection dependency box failed");
     mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{*boxedCollection});
+    builder.setInsertionPointToEnd(module.getBody());
+    auto arrayFunction = mlir::LLVM::LLVMFuncOp::create(
+        builder, loc, "string_array_box",
+        mlir::LLVM::LLVMFunctionType::get(ptr, {ptr, builder.getI64Type()}));
+    auto *arrayEntry = arrayFunction.addEntryBlock(builder);
+    builder.setInsertionPointToStart(arrayEntry);
+    mlir::Value arrayEnd = mlir::LLVM::ZeroOp::create(builder, loc, (*types)[6]);
+    arrayEnd = insert(arrayEnd, constant(1), 0);
+    auto boxedArrayEnd = emitter.box(loc, arrayEnd, 6);
+    require(bool(boxedArrayEnd), "String array end box failed");
+    auto arrayDescriptor = mlir::LLVM::LoadOp::create(builder, loc, (*types)[6].getBody()[1],
+                                                      arrayEntry->getArgument(0));
+    auto arrayLink =
+        insert(insert(insert(arrayEnd, arrayEntry->getArgument(1), 0), arrayDescriptor, 1),
+               *boxedArrayEnd, 2);
+    mlir::Value arrayHolder = mlir::LLVM::ZeroOp::create(builder, loc, (*types)[7]);
+    arrayHolder = insert(arrayHolder, arrayLink, 0);
+    auto boxedArray = emitter.box(loc, arrayHolder, 7);
+    require(bool(boxedArray), "inline String array dependency box failed");
+    mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{*boxedArray});
     function("unsupported");
     TypedModule unsupported;
     ValueType collection;
     collection.tensor = true;
     collection.array = true;
     collection.shape = {{std::nullopt, 1}};
-    collection.builtin = BuiltinValue::String;
+    collection.builtin = BuiltinValue::Record;
+    collection.record = 0;
     unsupported.records.push_back({"Text", {}, {{"value", collection, {}}}});
     auto unsupportedTypes = lowerRecordTypes(unsupported, context);
     auto unsupportedStorage = planRecordStorage(unsupported);

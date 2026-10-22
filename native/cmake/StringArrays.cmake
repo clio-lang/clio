@@ -1,4 +1,4 @@
-foreach(TARGET IN ITEMS kalandra-native-runtime kalandra-native-runtime-sanitized kalandra-native-runtime-thread-sanitized)
+foreach(TARGET IN ITEMS kalandra-native-runtime kalandra-native-runtime-sanitized kalandra-native-runtime-thread-sanitized kalandra-task-core-optimized)
   target_sources(${TARGET} PRIVATE runtime/StringArray.cpp)
 endforeach()
 foreach(VARIANT IN ITEMS debug sanitized thread-sanitized)

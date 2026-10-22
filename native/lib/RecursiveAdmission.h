@@ -34,13 +34,13 @@ inline std::optional<Diagnostic> recursiveRecordLayoutError(const TypedModule &m
           record.declaration};
     for (const auto &field : record.fields)
       if ((field.type.tensor && field.type.builtin != BuiltinValue::Numeric &&
-           !isBoolArray(field.type)) ||
+           !isBoolArray(field.type) && !isStringArray(field.type)) ||
           (field.type.builtin != BuiltinValue::Numeric &&
            field.type.builtin != BuiltinValue::Bool && field.type.builtin != BuiltinValue::String &&
            field.type.builtin != BuiltinValue::Record))
         return Diagnostic{"S068",
                           "recursive programs require numeric/Bool/String scalars, numeric "
-                          "collections, Bool arrays "
+                          "collections, Bool/String arrays "
                           "or direct nominal links; other owned payloads remain unsupported",
                           field.declaration};
   }

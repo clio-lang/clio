@@ -56,11 +56,13 @@ public:
               mlir::LLVM::SelectOp::create(builder_, loc, active, member, absent));
         } else if (type.record && !type.tensor) {
           pending.push_back({member, active, *type.record});
-        } else if (!type.tensor && type.builtin == BuiltinValue::String) {
+        } else if (type.builtin == BuiltinValue::String && (!type.tensor || isStringArray(type))) {
           auto descriptor = slot(loc, member.getType(), 1, alignof(void *));
           mlir::LLVM::StoreOp::create(builder_, loc, member, descriptor);
-          auto function = declaration("kalandra_recursive_string_dependency",
-                                      {pointer(), builder_.getI64Type()});
+          auto function =
+              declaration(isStringArray(type) ? "kalandra_recursive_string_array_dependency"
+                                              : "kalandra_recursive_string_dependency",
+                          {pointer(), builder_.getI64Type()});
           auto selected = mlir::LLVM::ZExtOp::create(builder_, loc, builder_.getI64Type(), active);
           dependencies.push_back(mlir::LLVM::CallOp::create(builder_, loc, function,
                                                             mlir::ValueRange{descriptor, selected})
@@ -90,7 +92,7 @@ public:
         } else if (type.tensor ||
                    (type.builtin != BuiltinValue::Numeric && type.builtin != BuiltinValue::Bool)) {
           return std::unexpected("recursive boxes currently require numeric/Bool/String scalars, "
-                                 "numeric collections, Bool arrays, inline "
+                                 "numeric collections, Bool/String arrays, inline "
                                  "supported records and managed recursive references");
         }
       }

@@ -35,16 +35,18 @@ int main() {
     auto text = analyze(
         "enum Text:\n  Empty\n  More:\n    text:String\n    next:Text\nfn main()->int:\n  0\n");
     require(text.ok(), "recursive String schema rejected");
-    auto collections = analyze("enum Chain:\n  End\n  Link:\n    values:[int]\n"
-                               "    flags:[Bool]\n    tensor:Tensor[float64,?,2]\n"
-                               "    next:Chain\nfn main()->int:\n  0\n");
+    auto collections =
+        analyze("enum Chain:\n  End\n  Link:\n    values:[int]\n"
+                "    flags:[Bool]\n    tensor:Tensor[float64,?,2]\n    names:[String]\n"
+                "    next:Chain\nfn main()->int:\n  0\n");
     require(collections.ok() && !numericCapabilityError(*collections.module, NumericTarget::Cpu),
             "recursive numeric/Bool collection schema rejected");
     for (const auto &source :
          {"enum Loop:\n  More:\n    next:Loop\nfn main()->int:\n  0\n",
           "type A:\n  child:B\ntype B:\n  child:A\nfn main()->int:\n  0\n",
           "enum Tree:\n  Leaf\n  Branch:\n    children:[Tree]\nfn main()->int:\n  0\n",
-          "enum Text:\n  Empty\n  More:\n    text:[String]\n    next:Text\nfn main()->int:\n  0\n",
+          "enum Text:\n  Empty\n  More:\n    text:[fn(int)->int]\n    next:Text\nfn main()->int:\n "
+          " 0\n",
           "enum Callback:\n  Empty\n  More:\n    call:fn(int)->int\n    next:Callback\nfn "
           "main()->int:\n  0\n"}) {
       auto failed = analyze(source);
