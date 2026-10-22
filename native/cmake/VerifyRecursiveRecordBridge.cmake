@@ -62,3 +62,7 @@ RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAG
   "${SOURCE_DIR}/tests/RecursiveTaskEntryTests.cpp" "${OUTPUT_DIR}/bridge.ll"
   ${TASK_ABI_OBJECTS} "${RUNTIME}" -o "${OUTPUT_DIR}/task-entries")
 RUN_OK("${OUTPUT_DIR}/task-entries")
+RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
+  "${SOURCE_DIR}/tests/RecursiveTaskErrorTests.cpp" "${OUTPUT_DIR}/bridge.ll"
+  ${TASK_ABI_OBJECTS} "${RUNTIME}" -o "${OUTPUT_DIR}/task-errors")
+RUN_OK("${OUTPUT_DIR}/task-errors")

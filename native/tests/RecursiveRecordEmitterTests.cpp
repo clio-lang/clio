@@ -663,6 +663,81 @@ int main(int argc, char **argv) {
     statelessBody->parameters = {0};
     statelessBody->code = {{Code::Return, 0, {0}}};
     taskPlan.plans.push_back(std::move(statelessBody));
+    // Application error payloads own recursive values through the same checked
+    // packet/result layouts; source recursive-error admission stays separate.
+    const auto errorId = taskInput.records.size();
+    taskInput.records.push_back({"RecursiveError",
+                                 {},
+                                 {{"$tag", integer, {}},
+                                  {"message", text, {}},
+                                  {"node", list, {}},
+                                  {"work", callableTree, {}}},
+                                 {{"Retry", {}, {1, 2, 3}}, {"Empty", {}, {}}},
+                                 true});
+    auto errorType = list;
+    errorType.record = errorId;
+    auto outcome = list;
+    outcome.fallible = true;
+    outcome.errorRecord = errorId;
+    auto handle = outcome;
+    handle.task = true;
+    const auto errorField = taskInput.expressions.size();
+    taskInput.expressions.push_back({{}, list, RecordFieldRead{0, 2}});
+    for (auto result : {outcome, outcome, list, outcome, errorType, list}) {
+      TypedFunction worker;
+      worker.name = "error_component";
+      worker.resultType = result;
+      taskInput.functions.push_back(worker);
+    }
+    const auto append = [&](std::vector<ValueType> slots, std::vector<std::size_t> parameters,
+                            std::size_t result, std::size_t groups,
+                            std::vector<continuation::Instruction> code) {
+      auto plan = std::make_unique<continuation::Plan>();
+      plan->slots = std::move(slots);
+      plan->parameters = std::move(parameters);
+      plan->result = result;
+      plan->groups = groups;
+      plan->code = std::move(code);
+      taskPlan.plans.push_back(std::move(plan));
+    };
+    append({errorType, outcome}, {0}, 1, 0,
+           {{Code::Fail, 1, {0}, 1, SIZE_MAX, 1}, {Code::Return, 1, {1}}});
+    append({errorType, handle, outcome, outcome}, {0}, 3, 1,
+           {{Code::Open, 0, {}, SIZE_MAX},
+            {Code::Spawn, 1, {0}, 12},
+            {Code::Await, 2, {1}, 12},
+            {Code::Try, 3, {2}, 3, 0, 4},
+            {Code::Join, 3, {2}},
+            {Code::Return, 3, {3}}});
+    append({errorType, handle, outcome, errorType, list, list}, {0}, 5, 1,
+           {{Code::Open, 0, {}, SIZE_MAX},
+            {Code::Spawn, 1, {0}, 13},
+            {Code::Await, 2, {1}, 13},
+            {Code::Catch, 4, {2, 3}, 6, 0, 4},
+            {Code::Field, 4, {3}, 0, 0, 0, errorField},
+            {Code::Jump, 0, {}, 0, 0, 6},
+            {Code::Join, 5, {4}},
+            {Code::Return, 5, {5}}});
+    append({outcome}, {0}, 0, 0, {{Code::Return, 0, {0}}});
+    append({errorType}, {0}, 0, 0, {{Code::Return, 0, {0}}});
+    append({outcome, errorType, list}, {0}, 2, 0,
+           {{Code::Catch, 2, {0, 1}, 3, 0, 1},
+            {Code::Field, 2, {1}, 0, 0, 0, errorField},
+            {Code::Jump, 0, {}, 0, 0, 3},
+            {Code::Return, 2, {2}}});
+    const auto plainErrorId = taskInput.records.size();
+    taskInput.records.push_back({"PlainRecursiveError",
+                                 {},
+                                 {{"$tag", integer, {}}, {"message", text, {}}, {"node", list, {}}},
+                                 {{"Retry", {}, {1, 2}}, {"Empty", {}, {}}},
+                                 true});
+    auto plainOutcome = outcome;
+    plainOutcome.errorRecord = plainErrorId;
+    TypedFunction plainWorker;
+    plainWorker.name = "plain_error_component";
+    plainWorker.resultType = plainOutcome;
+    taskInput.functions.push_back(plainWorker);
+    append({plainOutcome}, {0}, 0, 0, {{Code::Return, 0, {0}}});
     for (bool wrongType : {false, true}) {
       continuation::ModulePlan malformed(taskInput);
       for (const auto &plan : taskPlan.plans)
@@ -687,7 +762,7 @@ int main(int argc, char **argv) {
     require(environmentBox, "task environment helper missing");
     environmentBox->setName("task_box_created_environment");
     environmentBox->setLinkage(llvm::GlobalValue::ExternalLinkage);
-    require(generatedEntries.size() == 12, "recursive task entries were not generated");
+    require(generatedEntries.size() == 19, "recursive task entries were not generated");
     for (unsigned id = 0; id < generatedEntries.size(); ++id)
       new llvm::GlobalVariable(*native, pointer, true, llvm::GlobalValue::ExternalLinkage,
                                generatedEntries[id],

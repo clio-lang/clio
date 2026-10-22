@@ -1049,6 +1049,13 @@ private:
       emitAggregateCopy(type, fn);
     else {
       builder.SetInsertPoint(Block::Create(context, "entry", fn));
+      auto *activeContext = Block::Create(context, "copy.active.context", fn);
+      auto *stoppedContext = Block::Create(context, "copy.stopped.context", fn);
+      builder.CreateCondBr(call("kalandra_invocation_ready_v1", boolean, {fn->getArg(0)}),
+                           activeContext, stoppedContext);
+      builder.SetInsertPoint(stoppedContext);
+      builder.CreateRet(builder.getFalse());
+      builder.SetInsertPoint(activeContext);
       auto *ready = Block::Create(context, "copy", fn);
       if (type.errorRecord) {
         auto *dispatch = Block::Create(context, "application.dispatch", fn);
