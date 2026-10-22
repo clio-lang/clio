@@ -1,7 +1,9 @@
 #include "../lib/RecursiveRecordOps.h"
 #include "../lib/TaskCallableOps.h"
+#include "../lib/TaskEntries.h"
 #include "../lib/TaskRecordOps.h"
 #include "../lib/TaskValueCopy.h"
+#include "kalandra/Continuation.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
@@ -566,6 +568,76 @@ int main(int argc, char **argv) {
     auto *restrictedCopy = llvm::cast<llvm::Function>(restricted->getInitializer()->getOperand(3));
     restrictedCopy->setName("task_copy_restricted_functions");
     restrictedCopy->setLinkage(llvm::GlobalValue::ExternalLinkage);
+    // Checked-plan component input: source admission remains unchanged. These
+    // entries use the production constructor, frame, resume and result emitter.
+    TypedModule taskInput;
+    taskInput.records = input.records;
+    taskInput.source = std::make_shared<SourceFile>("task-entry-component.k", "component\n");
+    taskInput.expressions = {{{}, list, SymbolRead{0}},
+                             {{}, list, RecordFieldRead{0, 2}},
+                             {{}, integer, RecordFieldRead{0, 1}}};
+    taskInput.symbols = {{"input", list, {}, 0, true}};
+    for (auto type : {list, list, integer, treeArray, callableTree, list, list}) {
+      TypedFunction worker;
+      worker.name = "component";
+      worker.resultType = type;
+      taskInput.functions.push_back(worker);
+    }
+    // Entry 3 echoes a scalar Tree, rather than its children descriptor.
+    auto tree = treeArray;
+    tree.array = tree.tensor = false;
+    tree.shape.clear();
+    taskInput.functions[3].resultType = tree;
+    continuation::ModulePlan taskPlan(taskInput);
+    taskPlan.kernels = kernels;
+    // Restore both known kernel references after the restricted-selector probe.
+    taskPlan.kernels.expressions.insert(taskPlan.kernels.expressions.begin(),
+                                        {{}, callable, FunctionReference{0}});
+    using continuation::Code;
+    for (unsigned id = 0; id < 7; ++id) {
+      auto plan = std::make_unique<continuation::Plan>();
+      const auto type = id == 3 ? tree : id == 4 ? callableTree : list;
+      plan->slots = {type};
+      plan->parameters = {0};
+      if (id == 1 || id == 2) {
+        plan->slots.push_back(id == 1 ? list : integer);
+        plan->result = 1;
+        plan->code.push_back({Code::Field, 1, {0}, 0, 0, 0, id});
+      } else if (id >= 5) {
+        auto handle = list;
+        handle.task = true;
+        plan->slots = {list, handle, list, list, list};
+        plan->groups = 1;
+        plan->result = 3;
+        const std::size_t child = id == 5 ? 0 : 5;
+        plan->code = {{Code::Open, 0, {}, SIZE_MAX},
+                      {Code::Spawn, 1, {0}, child},
+                      {Code::Await, 2, {1}, child},
+                      {Code::Await, 4, {1}, child},
+                      {Code::Join, 3, {4}}};
+      }
+      plan->code.push_back({Code::Return, plan->result, {plan->result}});
+      taskPlan.plans.push_back(std::move(plan));
+    }
+    continuation::ModulePlan unqualified(taskInput);
+    for (const auto &plan : taskPlan.plans)
+      unqualified.plans.push_back(std::make_unique<continuation::Plan>(*plan));
+    unqualified.plans[0]->code.insert(unqualified.plans[0]->code.begin(),
+                                      {Code::FunctionReference, 0, {}});
+    bool rejected = false;
+    try {
+      emitTaskEntries(unqualified, *native);
+    } catch (const std::runtime_error &error) {
+      rejected =
+          std::string_view(error.what()).find("task-created callable") != std::string_view::npos;
+    }
+    require(rejected, "recursive task-created closure path was accidentally enabled");
+    auto generatedEntries = emitTaskEntries(taskPlan, *native);
+    require(generatedEntries.size() == 7, "recursive task entries were not generated");
+    for (unsigned id = 0; id < generatedEntries.size(); ++id)
+      new llvm::GlobalVariable(*native, pointer, true, llvm::GlobalValue::ExternalLinkage,
+                               generatedEntries[id],
+                               "recursive_generated_entry_" + std::to_string(id));
     require(!llvm::verifyModule(*native, &llvm::errs()),
             "checked recursive LLVM verification failed");
     for (auto &global : native->globals())

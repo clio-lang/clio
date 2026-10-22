@@ -16,45 +16,49 @@ endif()
 RUN_OK("${EMITTER}" "${OUTPUT_DIR}/bridge.ll")
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
   "${SOURCE_DIR}/tests/RecursiveRecordBridgeTests.cpp" "${OUTPUT_DIR}/bridge.ll"
-  "${RUNTIME}" -o "${OUTPUT_DIR}/bridge")
+  ${TASK_ABI_OBJECTS} "${RUNTIME}" -o "${OUTPUT_DIR}/bridge")
 RUN_OK("${OUTPUT_DIR}/bridge")
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
   "-I${SOURCE_DIR}/include" "${SOURCE_DIR}/tests/RecursiveCollectionBridgeTests.cpp"
-  "${OUTPUT_DIR}/bridge.ll" "${RUNTIME}" -o "${OUTPUT_DIR}/collections")
+  "${OUTPUT_DIR}/bridge.ll" ${TASK_ABI_OBJECTS} "${RUNTIME}" -o "${OUTPUT_DIR}/collections")
 RUN_OK("${OUTPUT_DIR}/collections")
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
   "${SOURCE_DIR}/tests/RecursiveStringArrayBridgeTests.cpp" "${OUTPUT_DIR}/bridge.ll"
-  "${RUNTIME}" -o "${OUTPUT_DIR}/string-arrays")
+  ${TASK_ABI_OBJECTS} "${RUNTIME}" -o "${OUTPUT_DIR}/string-arrays")
 RUN_OK("${OUTPUT_DIR}/string-arrays")
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
   "${SOURCE_DIR}/tests/RecursiveRecordArrayBridgeTests.cpp" "${OUTPUT_DIR}/bridge.ll"
-  "${RUNTIME}" -o "${OUTPUT_DIR}/record-arrays")
+  ${TASK_ABI_OBJECTS} "${RUNTIME}" -o "${OUTPUT_DIR}/record-arrays")
 RUN_OK("${OUTPUT_DIR}/record-arrays")
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
   "${SOURCE_DIR}/tests/RecursiveCallableBridgeTests.cpp" "${OUTPUT_DIR}/bridge.ll"
-  "${RUNTIME}" -o "${OUTPUT_DIR}/callables")
+  ${TASK_ABI_OBJECTS} "${RUNTIME}" -o "${OUTPUT_DIR}/callables")
 RUN_OK("${OUTPUT_DIR}/callables")
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
   "${SOURCE_DIR}/tests/RecursiveFunctionArrayBridgeTests.cpp" "${OUTPUT_DIR}/bridge.ll"
-  "${RUNTIME}" -o "${OUTPUT_DIR}/function-arrays")
+  ${TASK_ABI_OBJECTS} "${RUNTIME}" -o "${OUTPUT_DIR}/function-arrays")
 RUN_OK("${OUTPUT_DIR}/function-arrays")
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
   "${SOURCE_DIR}/tests/RecursivePacketBridgeTests.cpp" "${OUTPUT_DIR}/bridge.ll"
-  "${RUNTIME}" -o "${OUTPUT_DIR}/packets")
+  ${TASK_ABI_OBJECTS} "${RUNTIME}" -o "${OUTPUT_DIR}/packets")
 RUN_OK("${OUTPUT_DIR}/packets")
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
   "${SOURCE_DIR}/tests/RecursiveTaskFieldTests.cpp" "${OUTPUT_DIR}/bridge.ll"
-  "${RUNTIME}" -o "${OUTPUT_DIR}/task-fields")
+  ${TASK_ABI_OBJECTS} "${RUNTIME}" -o "${OUTPUT_DIR}/task-fields")
 RUN_OK("${OUTPUT_DIR}/task-fields")
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
   "${SOURCE_DIR}/tests/RecursiveTaskArrayTests.cpp" "${OUTPUT_DIR}/bridge.ll"
-  "${RUNTIME}" -o "${OUTPUT_DIR}/task-arrays")
+  ${TASK_ABI_OBJECTS} "${RUNTIME}" -o "${OUTPUT_DIR}/task-arrays")
 RUN_OK("${OUTPUT_DIR}/task-arrays")
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
   "${SOURCE_DIR}/tests/RecursiveTaskCallableTests.cpp" "${OUTPUT_DIR}/bridge.ll"
-  "${RUNTIME}" -o "${OUTPUT_DIR}/task-callables")
+  ${TASK_ABI_OBJECTS} "${RUNTIME}" -o "${OUTPUT_DIR}/task-callables")
 RUN_OK("${OUTPUT_DIR}/task-callables")
 RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
   "${SOURCE_DIR}/tests/RecursiveTaskCallableAggregateTests.cpp" "${OUTPUT_DIR}/bridge.ll"
-  "${RUNTIME}" -o "${OUTPUT_DIR}/task-callable-aggregates")
+  ${TASK_ABI_OBJECTS} "${RUNTIME}" -o "${OUTPUT_DIR}/task-callable-aggregates")
 RUN_OK("${OUTPUT_DIR}/task-callable-aggregates")
+RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
+  "${SOURCE_DIR}/tests/RecursiveTaskEntryTests.cpp" "${OUTPUT_DIR}/bridge.ll"
+  ${TASK_ABI_OBJECTS} "${RUNTIME}" -o "${OUTPUT_DIR}/task-entries")
+RUN_OK("${OUTPUT_DIR}/task-entries")

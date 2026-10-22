@@ -5,6 +5,7 @@
 #include "RecordLayout.h"
 #include "RecursiveAdmission.h"
 #include "TaskCallableOps.h"
+#include "TaskEntries.h"
 #include "TaskRecordOps.h"
 #include "TaskValueCopy.h"
 #include "TaskValueTypes.h"
@@ -73,6 +74,12 @@ public:
       throw std::runtime_error(types.error().message);
     taskTypes = std::move(*types);
     recursiveClosures = hasRecursiveStorage(*planRecordStorage(planner.input));
+    if (recursiveClosures && std::ranges::any_of(planner.plans, [](const auto &plan) {
+          return std::ranges::any_of(
+              plan->code, [](const auto &op) { return op.code == Code::FunctionReference; });
+        }))
+      throw std::runtime_error(
+          "recursive task-created callable environments are not yet implemented");
     destroy = function("kalandra_frame_destroy", voidType, {pointer});
     builder.SetInsertPoint(Block::Create(context, "entry", destroy));
     builder.CreateRetVoid();
@@ -114,7 +121,7 @@ public:
                                                  "task.entry." + std::to_string(id)));
     }
   }
-  void run(const std::optional<std::string> &testEntry) {
+  void emitEntries() {
     synchronousEntries.resize(planner.plans.size());
     for (const auto &plan : planner.plans)
       for (const auto &instruction : plan->code)
@@ -154,6 +161,10 @@ public:
           throw std::runtime_error(*error);
       }
     finishRecordRetainers();
+  }
+  std::vector<llvm::GlobalVariable *> taskEntries() const { return entries; }
+  void run(const std::optional<std::string> &testEntry) {
+    emitEntries();
     if (testEntry) {
       const auto found = std::ranges::find_if(planner.input.functions,
                                            [&](const auto &f) { return f.name == *testEntry; });
@@ -1975,6 +1986,16 @@ llvm::GlobalVariable *emitTaskKernelValueLayout(const TypedModule &input,
   continuation::ModulePlan planner(input);
   planner.kernels = kernels;
   return Emitter(planner, module).emitValueLayout(type);
+}
+std::vector<llvm::GlobalVariable *> emitTaskEntries(continuation::ModulePlan &planner,
+                                                    llvm::Module &module) {
+  if (planner.plans.empty() || planner.plans.size() != planner.input.functions.size() ||
+      std::ranges::any_of(planner.plans,
+                          [](const auto &plan) { return !plan || plan->code.empty(); }))
+    throw std::invalid_argument("task entry emission requires complete checked function plans");
+  Emitter emitter(planner, module);
+  emitter.emitEntries();
+  return emitter.taskEntries();
 }
 std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &input,
                                                           std::optional<std::string> testEntry) {

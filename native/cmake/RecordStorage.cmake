@@ -71,23 +71,29 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
+  add_library(kalandra-recursive-task-abi-optimized OBJECT runtime/TaskABI.cpp)
+  target_compile_options(kalandra-recursive-task-abi-optimized PRIVATE -Wall -Wextra -Werror -O2)
   add_executable(kalandra-recursive-record-emitter-tests tests/RecursiveRecordEmitterTests.cpp)
+  add_dependencies(kalandra-recursive-record-emitter-tests kalandra-recursive-task-abi-optimized)
   target_include_directories(kalandra-recursive-record-emitter-tests SYSTEM PRIVATE ${MLIR_INCLUDE_DIRS} ${LLVM_INCLUDE_DIRS})
   target_link_libraries(kalandra-recursive-record-emitter-tests PRIVATE kalandra-backend MLIR LLVM)
   target_compile_options(kalandra-recursive-record-emitter-tests PRIVATE -Wall -Wextra -Werror)
   foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    set(BRIDGE_ABI)
     if(VARIANT STREQUAL "sanitized")
       set(BRIDGE_RUNTIME kalandra-native-runtime-sanitized)
     elseif(VARIANT STREQUAL "thread-sanitized")
       set(BRIDGE_RUNTIME kalandra-native-runtime-thread-sanitized)
     elseif(VARIANT STREQUAL "optimized")
       set(BRIDGE_RUNTIME kalandra-task-core-optimized)
+      set(BRIDGE_ABI "$<TARGET_OBJECTS:kalandra-recursive-task-abi-optimized>")
     else()
       set(BRIDGE_RUNTIME kalandra-native-runtime)
     endif()
     add_test(NAME native-recursive-record-bridge-${VARIANT}
       COMMAND "${CMAKE_COMMAND}" "-DEMITTER=$<TARGET_FILE:kalandra-recursive-record-emitter-tests>"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DRUNTIME=$<TARGET_FILE:${BRIDGE_RUNTIME}>"
+        "-DTASK_ABI_OBJECTS=${BRIDGE_ABI}"
         "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}" "-DVARIANT=${VARIANT}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/recursive-record-bridge-${VARIANT}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyRecursiveRecordBridge.cmake")
