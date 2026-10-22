@@ -55,6 +55,15 @@ extern const TaskEntry *recursive_generated_entry_15;
 extern const TaskEntry *recursive_generated_entry_16;
 extern const TaskEntry *recursive_generated_entry_17;
 extern const TaskEntry *recursive_generated_entry_18;
+extern const TaskEntry *recursive_generated_entry_19;
+extern const TaskEntry *recursive_generated_entry_20;
+extern const TaskEntry *recursive_generated_entry_21;
+extern const TaskEntry *recursive_generated_entry_22;
+extern const TaskEntry *recursive_generated_entry_23;
+extern const TaskEntry *recursive_generated_entry_24;
+extern const TaskEntry *recursive_generated_entry_25;
+extern const TaskEntry *recursive_generated_entry_26;
+extern const TaskEntry *recursive_generated_entry_27;
 }
 static void require(bool value, const char *message) {
   if (!value)
@@ -276,9 +285,238 @@ static void copyChecks() {
       balanced(destination);
     }
 }
+struct SmallError {
+  Error application;
+  std::array<Failure, 4> tasks;
+};
+struct WideError {
+  Error application;
+  StringDescriptor plainMessage;
+  List plainNode;
+  std::array<Failure, 4> tasks;
+};
+struct SmallOutcome {
+  Failure failure;
+  List value;
+  SmallError error;
+};
+struct WideOutcome {
+  Failure failure;
+  List value;
+  WideError error;
+};
+static_assert(sizeof(SmallError) == 312 && sizeof(WideError) == 360 &&
+              sizeof(SmallOutcome) == 368 && sizeof(WideOutcome) == 416);
+static void runMixed(const TaskEntry &entry, Invocation &source, const void *input,
+                     std::size_t bytes, Invocation &destination, void *output, unsigned workers,
+                     bool valid = true) {
+  require(bytes == entry.packetBytes, "mixed error packet ABI changed");
+  TaskLimits limits;
+  limits.workers = workers;
+  auto core = TaskCore::create(limits);
+  require(bool(core), "mixed error core creation failed");
+  const auto group = core->openRoot();
+  const auto task = core->submit(group, entry, {entry.packetLayout, input, bytes, &source});
+  source.settle();
+  require(task && core->drain(), "mixed error task submission or drain failed");
+  if (valid) {
+    Invocation independent;
+    Buffer repeated;
+    require(core->failure(task).kind == TaskFailure::None &&
+                core->observe(task, *entry.result, destination, output) &&
+                core->observe(task, *entry.result, destination, repeated.data()) &&
+                core->observe(task, *entry.result, independent, repeated.data()),
+            "mixed error observation failed");
+    independent.settle();
+    balanced(independent);
+  } else
+    require(core->failure(task).kind == TaskFailure::Fault && core->failure(task).code == 3 &&
+                !core->observe(task, *entry.result, destination, output),
+            "invalid mixed error narrowing was admitted");
+  require(core->close(group) && core->drain() && core->release(group),
+          "mixed error group cleanup failed");
+  clean(*core);
+  core.reset();
+  balanced(source);
+}
+static void sameFailure(const Failure &a, const Failure &b) {
+  require(a.kind == b.kind && a.code == b.code && a.line == b.line && a.column == b.column,
+          "mixed error lost TaskError details");
+}
+static void mixedChecks() {
+  for (unsigned workers : {1u, 2u, 4u}) {
+    for (unsigned target = 0; target < 3; ++target) {
+      Invocation source, smallOwner, wideOwner, final;
+      Outcome input{{}, {}, fixture(source)};
+      SmallOutcome small{};
+      WideOutcome wide{};
+      runMixed(*recursive_generated_entry_19, source, &input, sizeof(input), smallOwner, &small,
+               workers);
+      verify(smallOwner, small.error.application);
+      runMixed(*recursive_generated_entry_20, smallOwner, &small, sizeof(small), wideOwner, &wide,
+               workers);
+      verify(wideOwner, wide.error.application);
+      if (target == 0) {
+        Result<WideError> packet{{}, wide.error};
+        Result<Error> result{};
+        runMixed(*recursive_generated_entry_21, wideOwner, &packet, sizeof(packet), final, &result,
+                 workers);
+        verify(final, result.value);
+      } else if (target == 1) {
+        Result<WideError> packet{{}, wide.error};
+        Result<SmallError> result{};
+        runMixed(*recursive_generated_entry_22, wideOwner, &packet, sizeof(packet), final, &result,
+                 workers);
+        verify(final, result.value.application);
+      } else {
+        Result<List> result{};
+        runMixed(*recursive_generated_entry_25, wideOwner, &wide, sizeof(wide), final, &result,
+                 workers);
+        verifyList(final, result.value);
+      }
+      final.settle();
+      balanced(final);
+    }
+    for (unsigned kind = 1; kind <= 4; ++kind)
+      for (unsigned route = 0; route < 3; ++route) {
+        Invocation source, smallOwner, wideOwner, final;
+        const Failure expected{static_cast<TaskFailure>(kind), 70 + kind, 100 + kind, 200 + kind};
+        WideOutcome wide{};
+        if (route == 0) {
+          Outcome input{};
+          input.failure = expected;
+          input.error.tag = -1;
+          input.error.node.tail = reinterpret_cast<const void *>(0x1234);
+          SmallOutcome small{};
+          runMixed(*recursive_generated_entry_19, source, &input, sizeof(input), smallOwner, &small,
+                   workers);
+          require(small.failure.kind == TaskFailure::None &&
+                      small.error.application.tag == kind + 2,
+                  "TaskError did not normalize into smaller union");
+          sameFailure(small.error.tasks[kind - 1], expected);
+          runMixed(*recursive_generated_entry_20, smallOwner, &small, sizeof(small), wideOwner,
+                   &wide, workers);
+        } else if (route == 1) {
+          Result<Failure> packet{{}, expected};
+          runMixed(*recursive_generated_entry_27, source, &packet, sizeof(packet), wideOwner, &wide,
+                   workers);
+        } else {
+          Outcome input{};
+          input.failure = expected;
+          input.error.tag = -1;
+          runMixed(*recursive_generated_entry_26, source, &input, sizeof(input), wideOwner, &wide,
+                   workers);
+        }
+        require(wide.failure.kind == TaskFailure::None && wide.error.application.tag == kind + 4,
+                "mixed group normalization left a failure header or wrong variant");
+        sameFailure(wide.error.tasks[kind - 1], expected);
+        Result<WideError> packet{{}, wide.error};
+        if (route == 0) {
+          Result<SmallError> result{};
+          runMixed(*recursive_generated_entry_22, wideOwner, &packet, sizeof(packet), final,
+                   &result, workers);
+          require(result.value.application.tag == kind + 2,
+                  "residual union narrowing did not remap TaskError variant");
+          sameFailure(result.value.tasks[kind - 1], expected);
+        } else {
+          Result<Failure> result{};
+          runMixed(*recursive_generated_entry_23, wideOwner, &packet, sizeof(packet), final,
+                   &result, workers);
+          sameFailure(result.value, expected);
+        }
+        final.settle();
+        smallOwner.settle();
+        balanced(final);
+        balanced(smallOwner);
+      }
+    {
+      Invocation source, intermediate, final;
+      const auto data = fixture(source);
+      WideOutcome input{};
+      input.error.application.tag = 3;
+      input.error.application.node.tail = reinterpret_cast<const void *>(0x1234);
+      input.error.application.work.apply.environment = reinterpret_cast<const void *>(0x1234);
+      input.error.plainMessage = data.message;
+      input.error.plainNode = data.node;
+      WideOutcome echoed{};
+      runMixed(*recursive_generated_entry_24, source, &input, sizeof(input), intermediate, &echoed,
+               workers);
+      require(echoed.error.application.tag == 3 && echoed.error.plainMessage.byteLength == 2 &&
+                  !std::memcmp(echoed.error.plainMessage.data, "é", 2),
+              "second application family lost its owned payload");
+      Result<List> result{};
+      runMixed(*recursive_generated_entry_25, intermediate, &echoed, sizeof(echoed), final, &result,
+               workers);
+      verifyList(final, result.value);
+      final.settle();
+      balanced(final);
+    }
+    {
+      Invocation source, smallOwner, wideOwner, final;
+      Outcome input{};
+      input.value = list(source);
+      input.error.node.tail = reinterpret_cast<const void *>(0x1234);
+      SmallOutcome small{};
+      WideOutcome wide{};
+      runMixed(*recursive_generated_entry_19, source, &input, sizeof(input), smallOwner, &small,
+               workers);
+      runMixed(*recursive_generated_entry_20, smallOwner, &small, sizeof(small), wideOwner, &wide,
+               workers);
+      require(!wide.error.application.tag, "successful widening fabricated an application error");
+      Result<List> result{};
+      runMixed(*recursive_generated_entry_25, wideOwner, &wide, sizeof(wide), final, &result,
+               workers);
+      verifyList(final, result.value);
+      final.settle();
+      balanced(final);
+    }
+  }
+  for (unsigned mode = 0; mode < 3; ++mode) {
+    Invocation source, destination;
+    Result<WideError> input{};
+    const auto data = fixture(source);
+    input.value.application = data;
+    if (mode != 2) {
+      input.value.application.tag = 3;
+      input.value.plainMessage = data.message;
+      input.value.plainNode = data.node;
+    }
+    Buffer output;
+    output.bytes.fill(std::byte{0x5a});
+    const auto original = output.bytes;
+    const auto &entry = *(mode == 0   ? recursive_generated_entry_21
+                          : mode == 1 ? recursive_generated_entry_22
+                                      : recursive_generated_entry_23);
+    runMixed(entry, source, &input, sizeof(input), destination, output.data(), 2, false);
+    require(output.bytes == original, "invalid narrowed result was published");
+    destination.settle();
+    balanced(destination);
+  }
+  const auto &layout = *recursive_generated_entry_24->result;
+  for (unsigned mode = 0; mode < 4; ++mode) {
+    Invocation source, destination;
+    WideOutcome input{};
+    input.error.application.tag = mode == 0 ? (std::int64_t{1} << 32) | 5 : 5;
+    input.error.tasks[0] = {mode == 1 ? TaskFailure::Cancelled : TaskFailure::Fault, 4, 9, 11};
+    if (mode == 2)
+      input.error.application.tag = 9;
+    if (mode == 3)
+      input.error.tasks[0].kind = static_cast<TaskFailure>(5);
+    Buffer output;
+    output.bytes.fill(std::byte{0x5a});
+    const auto original = output.bytes;
+    require(!layout.copy(destination, output.data(), source, &input) && output.bytes == original,
+            "malformed mixed error variant was published");
+    source.settle();
+    destination.settle();
+    balanced(source);
+    balanced(destination);
+  }
+}
 int main() {
   try {
     copyChecks();
+    mixedChecks();
     const std::array entries{recursive_generated_entry_12, recursive_generated_entry_13,
                              recursive_generated_entry_14};
     for (unsigned workers : {1u, 2u, 4u})

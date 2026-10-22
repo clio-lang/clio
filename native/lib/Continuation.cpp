@@ -863,6 +863,10 @@ private:
                field && !options.preserveCalls) {
       auto subject = expression(plan, field->input, env, stack);
       plan.code.push_back({Code::Field, output, {subject}, field->field, 0, 0, id});
+    } else if (const auto *narrow = std::get_if<ErrorNarrow>(&node.operation);
+               narrow && !options.preserveCalls) {
+      auto subject = expression(plan, narrow->input, env, stack);
+      plan.code.push_back({Code::Field, output, {subject}, 0, 0, 0, id});
     } else if (const auto *field = std::get_if<ErrorFieldRead>(&node.operation)) {
       auto subject = expression(plan, field->subject, env, stack);
       plan.code.push_back(

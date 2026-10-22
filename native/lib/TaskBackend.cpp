@@ -563,6 +563,64 @@ private:
     builder.CreateBr(done);
     builder.SetInsertPoint(done);
   }
+  void narrowErrorValue(const ValueType &target, Value *output, const ValueType &source,
+                        Value *input, Block *failed) {
+    if (source.builtin != BuiltinValue::Record || !source.record || source.tensor || source.task ||
+        source.fallible || source.errorRecord || source.device ||
+        !planner.input.records.at(*source.record).error || target.tensor || target.task ||
+        target.fallible || target.errorRecord || target.device ||
+        (target.builtin != BuiltinValue::TaskError &&
+         (target.builtin != BuiltinValue::Record || !target.record ||
+          !planner.input.records.at(*target.record).error)) ||
+        !errorSubset(planner.input, target.record, source.record))
+      throw std::runtime_error("task error narrowing requires a checked completed family subset");
+    std::map<std::pair<std::size_t, std::size_t>, std::size_t> targetVariants;
+    if (target.record)
+      for (std::size_t j = 0; j < planner.input.records[*target.record].variants.size(); ++j)
+        targetVariants.emplace(errorOrigin(planner.input, *target.record, j), j);
+    const auto &from = planner.input.records[*source.record];
+    auto *fromType = scalarType(source);
+    auto *fn = builder.GetInsertBlock()->getParent();
+    auto *done = Block::Create(context, "error.narrowed", fn);
+    auto *tag = builder.CreateLoad(i64, builder.CreateStructGEP(fromType, input, 0));
+    auto *dispatch = builder.CreateSwitch(tag, failed, from.variants.size());
+    for (std::size_t i = 0; i < from.variants.size(); ++i) {
+      const auto origin = errorOrigin(planner.input, *source.record, i);
+      std::optional<std::size_t> selected;
+      if (target.builtin == BuiltinValue::TaskError) {
+        if (planner.input.records[origin.first].taskErrorFamily)
+          selected = origin.second;
+      } else if (auto found = targetVariants.find(origin); found != targetVariants.end())
+        selected = found->second;
+      if (!selected)
+        continue;
+      auto *active = Block::Create(context, "error.narrow.active", fn);
+      dispatch->addCase(c64(i + 1), active);
+      builder.SetInsertPoint(active);
+      if (target.builtin == BuiltinValue::TaskError) {
+        auto *payload = builder.CreateStructGEP(fromType, input, from.variants[i].fields.front());
+        auto *valid = Block::Create(context, "error.narrow.task", fn);
+        auto *kind = builder.CreateLoad(i32, builder.CreateStructGEP(failureType, payload, 0));
+        builder.CreateCondBr(builder.CreateICmpEQ(kind, c32(*selected + 1)), valid, failed);
+        builder.SetInsertPoint(valid);
+        copy(output, payload, failureType);
+      } else {
+        auto *toType = scalarType(target);
+        const auto &to = planner.input.records[*target.record];
+        builder.CreateStore(llvm::Constant::getNullValue(toType), output);
+        builder.CreateStore(c64(*selected + 1), builder.CreateStructGEP(toType, output, 0));
+        const auto &fields = to.variants[*selected].fields;
+        if (fields.size() != from.variants[i].fields.size())
+          throw std::runtime_error("task error narrowing payload metadata mismatch");
+        for (std::size_t n = 0; n < fields.size(); ++n)
+          copy(builder.CreateStructGEP(toType, output, fields[n]),
+               builder.CreateStructGEP(fromType, input, from.variants[i].fields[n]),
+               scalarType(to.fields[fields[n]].type));
+      }
+      builder.CreateBr(done);
+    }
+    builder.SetInsertPoint(done);
+  }
   void injectTaskError(std::size_t target, Value *output, Value *failure) {
     if (!errorSubset(planner.input, {}, target))
       throw std::runtime_error("destination does not cover TaskError");
@@ -1917,6 +1975,13 @@ private:
         builder.CreateBr(blocks[instruction.jump]);
         break;
       case Code::Field: {
+        if (std::holds_alternative<ErrorNarrow>(
+                planner.input.expressions[instruction.source].operation)) {
+          narrowErrorValue(type, payload(instruction.output), plan.slots[instruction.args[0]],
+                           payload(instruction.args[0]), abort);
+          check();
+          break;
+        }
         if (const auto *read = std::get_if<RecordFieldRead>(
                 &planner.input.expressions[instruction.source].operation)) {
           const auto &subject = plan.slots[instruction.args[0]];

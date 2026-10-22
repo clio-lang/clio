@@ -234,6 +234,27 @@ int main(int argc, char **argv) {
       require(found, "record field projection missing from plan");
       verify(*planned);
     }
+    auto narrowed = analyze("error A:\n  Retry:\n    code:int\nerror B:\n  Other:\n    code:int\n"
+                            "fn source()->int ! (A | B):\n  fail A.Retry {code:1}\n"
+                            "fn main()->int ! B:\n  source() catch fn(error):\n    match error:\n"
+                            "      A.Retry {code}:code\n      _:fail error\n");
+    require(narrowed.ok(), "error narrowing plan source rejected");
+    for (bool preserved : {false, true}) {
+      auto planned = plan(*narrowed.module, {.preserveCalls = preserved});
+      require(bool(planned), "error narrowing planning failed");
+      bool found = false;
+      for (const auto &entry : planned->plans)
+        for (const auto &op : entry->code)
+          if (op.source < narrowed.module->expressions.size() &&
+              std::holds_alternative<ErrorNarrow>(
+                  narrowed.module->expressions[op.source].operation)) {
+            require(op.code == (preserved ? Code::Kernel : Code::Field),
+                    "error narrowing plan used the wrong backend path");
+            found = true;
+          }
+      require(found, "error narrowing missing from plan");
+      verify(*planned);
+    }
     std::string large = "fn main() -> float32 ! TaskError:\n  try parallel:\n    "
                         "data:Tensor[float32,21000]=tensor([";
     for (unsigned i = 0; i < 21000; ++i)

@@ -68,7 +68,7 @@ Ordinary data fields and helper parameters retain their exact canonical error-va
 
 A typed projection remaps the selected variant into the narrower family's representation. It copies the selected payload and preserves managed backing; it does not stringify errors, copy their underlying arrays or alter their identity. The compiler indexes original family/variant identities when constructing the projection.
 
-Both synchronous lowering and continuation kernels use this checked operation. A tag outside the destination families causes a checked native fault. TaskError carrier tags must also agree with their selected failure metadata; checking only that the embedded kind is within the four-kind range is insufficient. Inactive payloads remain ignored.
+Synchronous lowering uses this checked operation. CPU continuation planning now lowers it directly in the task frame, including recursive task components; preserved-call planning retains its kernel path. A tag outside the destination families causes a checked native fault. TaskError carrier tags must also agree with their selected failure metadata; checking only that the embedded kind is within the four-kind range is insufficient. Inactive payloads remain ignored.
 
 Typed-IR validation rejects invalid subjects, non-subset destinations, self references and malformed result types. Projections are introduced only inside proven source match branches. They do not provide a source-level unchecked cast or define a network/public C/C++ representation.
 
@@ -79,3 +79,5 @@ This milestone is CPU-only. GPU error transport and distributed execution remain
 [Frontend checks](../../native/tests/ErrorNarrowingTests.cpp) cover selected and residual families, nested matches, helper calls, binding scope, shadowing, snapshots, expected-result obligations and malformed projection metadata. [Compiled programs](../../native/cmake/VerifyErrorNarrowing.cmake) cover all ten numeric widths, managed payloads, worker rethrows, synchronous callbacks/captures, records, aliases/re-exports and CLI error identity.
 
 The [private runtime harness](../../native/tests/ErrorNarrowingRuntimeTests.cpp) verifies all four TaskError kinds with original metadata, active-tag consistency, rejected corrupt tags, unchanged output on failed checked calls and inactive-payload isolation. Debug, optimized, ASan/UBSan, TSan and allocation-cleanup results are recorded in the [qualification evidence](../../native/metal-proof/evidence/cpu-error-narrowing-2026-10-19.json).
+
+[Recursive mixed-channel component tests](native-recursive-storage.md#mixed-recursive-error-channels) also qualify direct continuation narrowing, residual union tag remapping, retained recursive/callable payloads and exact TaskError details across scheduler lifetimes. Recursive source admission remains separate.

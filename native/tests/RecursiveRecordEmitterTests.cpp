@@ -738,6 +738,89 @@ int main(int argc, char **argv) {
     plainWorker.resultType = plainOutcome;
     taskInput.functions.push_back(plainWorker);
     append({plainOutcome}, {0}, 0, 0, {{Code::Return, 0, {0}}});
+    ValueType taskFailure;
+    taskFailure.builtin = BuiltinValue::TaskError;
+    const auto taskFamilyId = taskInput.records.size();
+    TypedRecord taskFamily{"TaskError", {}, {{"$tag", integer, {}}}};
+    taskFamily.error = taskFamily.taskErrorFamily = true;
+    for (auto name : {"Fault", "Cancelled", "DeadlineExceeded", "AdmissionRejected"}) {
+      const auto field = taskFamily.fields.size();
+      taskFamily.fields.push_back({"$failure" + std::to_string(field), taskFailure, {}});
+      taskFamily.variants.push_back({name, {}, {field}});
+    }
+    taskInput.records.push_back(taskFamily);
+    const auto unite = [&](std::vector<std::size_t> members) {
+      TypedRecord joined{"MixedRecursiveError", {}, {{"$tag", integer, {}}}};
+      joined.error = true;
+      joined.errorMembers = members;
+      for (auto member : members) {
+        const auto &original = taskInput.records[member];
+        for (std::size_t v = 0; v < original.variants.size(); ++v) {
+          TypedVariant variant{std::to_string(member) + "." + original.variants[v].name, {}, {}};
+          for (auto slot : original.variants[v].fields) {
+            variant.fields.push_back(joined.fields.size());
+            joined.fields.push_back(original.fields[slot]);
+          }
+          joined.variants.push_back(std::move(variant));
+          joined.errorOrigins.push_back({member, v});
+        }
+      }
+      const auto id = taskInput.records.size();
+      taskInput.records.push_back(std::move(joined));
+      return id;
+    };
+    const auto smallId = unite({errorId, taskFamilyId});
+    const auto wideId = unite({errorId, plainErrorId, taskFamilyId});
+    auto small = errorType;
+    small.record = smallId;
+    auto wide = errorType;
+    wide.record = wideId;
+    auto smallOutcome = outcome;
+    smallOutcome.errorRecord = smallId;
+    auto wideOutcome = outcome;
+    wideOutcome.errorRecord = wideId;
+    for (auto result : {smallOutcome, wideOutcome, errorType, small, taskFailure, wideOutcome, list,
+                        wideOutcome, wideOutcome}) {
+      TypedFunction worker;
+      worker.name = "mixed_error_component";
+      worker.resultType = result;
+      taskInput.functions.push_back(worker);
+    }
+    append({outcome, smallOutcome}, {0}, 1, 0, {{Code::Copy, 1, {0}}, {Code::Return, 1, {1}}});
+    append({smallOutcome, wideOutcome}, {0}, 1, 0, {{Code::Copy, 1, {0}}, {Code::Return, 1, {1}}});
+    const auto narrowExpr = taskInput.expressions.size();
+    taskInput.expressions.push_back({{}, errorType, ErrorNarrow{0}});
+    taskInput.expressions.push_back({{}, small, ErrorNarrow{0}});
+    taskInput.expressions.push_back({{}, taskFailure, ErrorNarrow{0}});
+    for (unsigned n = 0; n < 3; ++n) {
+      const auto target = n == 0 ? errorType : n == 1 ? small : taskFailure;
+      append({wide, target}, {0}, 1, 0,
+             {{Code::Field, 1, {0}, 0, 0, 0, narrowExpr + n}, {Code::Return, 1, {1}}});
+    }
+    append({wideOutcome}, {0}, 0, 0, {{Code::Return, 0, {0}}});
+    const auto wideField = taskInput.expressions.size();
+    taskInput.expressions.push_back({{}, list, RecordFieldRead{0, 2}});
+    taskInput.expressions.push_back({{}, list, RecordFieldRead{0, 5}});
+    append({wideOutcome, wide, list}, {0}, 2, 0,
+           {{Code::Catch, 2, {0, 1}, 7, 0, 1},
+            {Code::Case, 2, {1}, 1, 0, 4},
+            {Code::Field, 2, {1}, 0, 0, 0, wideField},
+            {Code::Jump, 0, {}, 0, 0, 7},
+            {Code::Case, 2, {1}, 3, 0, SIZE_MAX},
+            {Code::Field, 2, {1}, 0, 0, 0, wideField + 1},
+            {Code::Jump, 0, {}, 0, 0, 7},
+            {Code::Return, 2, {2}}});
+    auto smallHandle = smallOutcome;
+    smallHandle.task = true;
+    append({outcome, smallHandle, wideOutcome, wideOutcome}, {0}, 3, 1,
+           {{Code::Open, 0, {}, SIZE_MAX},
+            {Code::Spawn, 1, {0}, 19},
+            {Code::Await, 2, {1}, 19},
+            {Code::Try, 3, {2}, 3, 0, 4},
+            {Code::Join, 3, {2}},
+            {Code::Return, 3, {3}}});
+    append({taskFailure, wideOutcome}, {0}, 1, 0,
+           {{Code::Fail, 1, {0}, 1, SIZE_MAX, 1}, {Code::Return, 1, {1}}});
     for (bool wrongType : {false, true}) {
       continuation::ModulePlan malformed(taskInput);
       for (const auto &plan : taskPlan.plans)
@@ -754,6 +837,9 @@ int main(int argc, char **argv) {
         rejected = std::string_view(error.what())
                        .find(wrongType ? "capture type mismatch" : "capture count mismatch") !=
                    std::string_view::npos;
+        if (!rejected)
+          throw std::runtime_error(std::string("unexpected capture fixture rejection: ") +
+                                   error.what());
       }
       require(rejected, "task-created capture metadata was not checked");
     }
@@ -762,7 +848,7 @@ int main(int argc, char **argv) {
     require(environmentBox, "task environment helper missing");
     environmentBox->setName("task_box_created_environment");
     environmentBox->setLinkage(llvm::GlobalValue::ExternalLinkage);
-    require(generatedEntries.size() == 19, "recursive task entries were not generated");
+    require(generatedEntries.size() == 28, "recursive task entries were not generated");
     for (unsigned id = 0; id < generatedEntries.size(); ++id)
       new llvm::GlobalVariable(*native, pointer, true, llvm::GlobalValue::ExternalLinkage,
                                generatedEntries[id],
