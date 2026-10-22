@@ -12,7 +12,9 @@
 #include <cstring>
 #include <limits>
 #include <new>
+#include <unordered_set>
 #include <utility>
+#include <vector>
 
 namespace kalandra::runtime {
 struct Backing;
@@ -412,6 +414,95 @@ bool Invocation::retainFrom(const Invocation &source, void *buffer) noexcept {
     return false;
   }
   attach(new (storage) Owner{nullptr, nullptr, backing, false});
+  return true;
+}
+bool Invocation::retainRecursiveGraph(const AllocationLease &root, const void *key,
+                                      std::uint64_t bytes, std::uint64_t alignment) noexcept {
+  if (poll() || !usable())
+    return false;
+  if (!root.recursiveBytes(key, bytes, alignment)) {
+    fault(3);
+    return false;
+  }
+  struct Pending {
+    Owner *head = nullptr;
+    ~Pending() {
+      while (head) {
+        auto *owner = head;
+        head = owner->next;
+        releaseBacking(owner->backing);
+        owner->~Owner();
+        std::free(owner);
+      }
+    }
+  } staged;
+  // Workspace allocation is charged as one admission attempt. Container growth
+  // remains bounded and allocation exceptions roll back staged references.
+  if (!reserve())
+    return false;
+  try {
+    std::unordered_set<Backing *> owned, visited;
+    std::vector<Backing *> pending{root.backing_};
+    std::size_t owners = 0, edges = 0;
+    for (auto *owner = head_; owner; owner = owner->next) {
+      if (poll())
+        return false;
+      if (++owners > maxRecursiveDependencies) {
+        fault(2);
+        return false;
+      }
+      owned.insert(owner->backing);
+    }
+    while (!pending.empty()) {
+      if (poll())
+        return false;
+      auto *backing = pending.back();
+      pending.pop_back();
+      if (!visited.insert(backing).second)
+        continue;
+      if (visited.size() > maxRecursiveDependencies ||
+          backing->dependencyCount > maxRecursiveDependencies - edges) {
+        fault(2);
+        return false;
+      }
+      edges += backing->dependencyCount;
+      if (!owned.contains(backing)) {
+        if (++owners > maxRecursiveDependencies) {
+          fault(2);
+          return false;
+        }
+        if (!reserve())
+          return false;
+        auto *storage = std::malloc(sizeof(Owner));
+        if (!storage) {
+          fault(2);
+          return false;
+        }
+        if (!retainBacking(backing)) {
+          std::free(storage);
+          fault(3);
+          return false;
+        }
+        staged.head = new (storage) Owner{staged.head, nullptr, backing, false};
+      }
+      for (std::size_t edge = 0; edge < backing->dependencyCount; ++edge) {
+        if (poll())
+          return false;
+        pending.push_back(backing->dependencies[edge]);
+      }
+    }
+  } catch (const std::bad_alloc &) {
+    fault(2);
+    return false;
+  }
+  if (poll())
+    return false;
+  // No allocation or fallible operation remains: publish the complete ledger.
+  while (staged.head) {
+    auto *owner = staged.head;
+    staged.head = owner->next;
+    attach(owner);
+  }
   return true;
 }
 void Invocation::release(void *buffer) noexcept {

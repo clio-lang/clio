@@ -83,6 +83,12 @@ public:
   void *cloneEnvironment(const Invocation &source, const void *environment, std::uint64_t bytes,
                          std::uint64_t alignment, const void *key) noexcept;
   void releaseRecords() noexcept;
+  // Private local handoff: a retained, fully published immutable root may outlive
+  // its producer. Register its complete dependency graph transactionally so
+  // checked reads in this invocation can resolve every nested backing address.
+  // Caller owns the lease throughout; destination invocation access is exclusive.
+  bool retainRecursiveGraph(const AllocationLease &root, const void *key, std::uint64_t bytes,
+                            std::uint64_t alignment) noexcept;
   bool retainFrom(const Invocation &source, void *buffer) noexcept;
   void release(void *buffer) noexcept;
   // Requires exclusive source-context access, like retainFrom. Reject unknown,
