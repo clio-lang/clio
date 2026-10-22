@@ -113,6 +113,86 @@ struct Budget {
   }
   void bind(Invocation &context) { context.bindRecursiveBudget(this, reserve, release); }
 };
+static void genericBudgetTests() {
+  constexpr std::uint64_t size = 64;
+  Budget probeBudget{1000000};
+  Invocation probe;
+  probeBudget.bind(probe);
+  require(probe.allocate(size), "generic budget probe failed");
+  const auto footprint = probe.recursiveBytes();
+  require(footprint > size, "generic allocation omitted backing metadata");
+  probe.settle();
+  Invocation source;
+  auto *original = source.allocateRecord(size);
+  auto lease = source.lease(original);
+  require(bool(lease), "generic retain source missing");
+  for (unsigned operation = 0; operation < 3; ++operation)
+    for (unsigned mode = 0; mode < 5; ++mode) {
+      Budget budget{mode == 0 ? footprint - 1 : footprint};
+      std::atomic<bool> cancelled{false};
+      if (mode == 2)
+        budget.cancel = &cancelled;
+      Invocation context;
+      budget.bind(context);
+      context.bindCancellation(&cancelled);
+      if (mode == 3)
+        context.failAllocationAt(1);
+      const auto references = lease->referenceCount();
+      const bool ok = operation == 0   ? bool(context.allocate(size))
+                      : operation == 1 ? bool(context.allocateRecord(size))
+                                       : context.retainFrom(source, original);
+      const bool expected = mode == 1 || mode == 4;
+      require(ok == expected, "generic allocation/retain byte admission changed");
+      if (expected) {
+        require(budget.used == footprint && context.recursiveBytes() == footprint &&
+                    context.live() == 1,
+                "generic owner published without full reservation");
+        if (mode == 4)
+          require(!context.retainFrom(source, original) && context.status() == 2 &&
+                      context.live() == 1 && budget.used == footprint,
+                  "duplicate ordinary retain escaped exhausted byte budget");
+        if (operation == 1) {
+          context.releaseRecords();
+          require(!context.live() && budget.used == footprint,
+                  "record cleanup returned conservative budget before settlement");
+        }
+      } else {
+        require(!context.live() && !context.allocations() && !budget.used &&
+                    !context.recursiveBytes() && lease->referenceCount() == references &&
+                    (mode == 2 ? context.poll() == -1 : context.status() == 2),
+                "failed generic reservation published ownership or leaked bytes");
+        require(budget.refunds == (mode == 2 ? 1u : 0u),
+                "cancelled generic reservation was not refunded exactly once");
+      }
+      context.settle();
+      context.settle();
+      require(!budget.used && budget.valid && lease->referenceCount() == references,
+              "generic settlement leaked charge or source reference");
+      balanced(context);
+    }
+  // A newly allocated ordinary buffer becomes a recursive dependency without
+  // charging that buffer again during the subsequent graph registration.
+  {
+    Budget budget{1000000};
+    Invocation context;
+    budget.bind(context);
+    auto *buffer = context.allocateRecord(size);
+    const void *dependency = buffer;
+    auto *node =
+        context.makeRecursiveValueFromPointers(bytes(dependency), &nodeKey, {&dependency, 1});
+    auto root = context.lease(node);
+    const auto used = budget.used;
+    require(root &&
+                context.retainRecursiveGraph(*root, &nodeKey, sizeof(dependency),
+                                             alignof(decltype(dependency))) &&
+                budget.used == used && budget.reservations == 2,
+            "graph handoff recharged its task-created ordinary buffer");
+    context.settle();
+    require(!budget.used && budget.valid, "generic dependency reservation leaked");
+    balanced(context);
+  }
+  source.settle();
+}
 static void constructionBudgetTests() {
   Node value{42, nullptr};
   Invocation source, probe;
@@ -192,12 +272,12 @@ static void budgetTests() {
   for (unsigned mode = 0; mode < 4; ++mode) {
     Budget budget{mode % 2 ? footprint : footprint - 1};
     Invocation receiver;
-    budget.bind(receiver);
     if (mode >= 2) {
       for (unsigned duplicate = 0; duplicate < 2; ++duplicate)
         require(receiver.retainFrom(producer, const_cast<std::byte *>(root.bytes().data())),
                 "pre-existing budget owner fixture failed");
     }
+    budget.bind(receiver); // Qualify graph charging of owners predating budget binding.
     const auto live = receiver.live(), allocations = receiver.allocations();
     const auto references = root.referenceCount();
     const bool success = import(receiver, root);
@@ -258,6 +338,7 @@ static void budgetTests() {
 }
 int main() {
   try {
+    genericBudgetTests();
     constructionBudgetTests();
     budgetTests();
     {

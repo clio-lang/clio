@@ -81,6 +81,9 @@ int main(int argc, char **argv) {
     require(argc == 4, "expected workers, mode and failure position");
     const auto mode = std::atoi(argv[2]);
     TaskLimits limits;
+    // Large successful payload cases include repeated conservative backing
+    // reservations across nested tasks and cached observations.
+    limits.bytes = 64 * 1024 * 1024;
     limits.workers = unsigned(std::strtoul(argv[1], nullptr, 10));
     if (mode == 4)
       limits.bytes = 1;

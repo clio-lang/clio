@@ -149,6 +149,40 @@ int main() {
         }
       }
     }
+    // Error-family forwarding must agree on physical references even when
+    // boxing is required only by the original family or only by a union user.
+    for (const auto &source : {"error E:\n  End\n  More:\n    next:E\nfn marker()->int ! (E | "
+                               "TaskError):\n  fail E.End\nfn main()->int:\n  0\n",
+                               "type Box:\n  cause:Errors\ntype Errors=A | B\nerror A:\n  Bad:\n   "
+                               " box:Box\nerror B:\n  End\nfn main()->int:\n  0\n"}) {
+      auto checked = check(parse(std::make_shared<SourceFile>("error-storage.k", source)));
+      require(checked.ok(), "recursive error forwarding fixture rejected");
+      auto storage = planRecordStorage(*checked.module);
+      require(bool(storage), "recursive error forwarding plan failed");
+      bool forwarded = false;
+      for (std::size_t id = 0; id < checked.module->records.size(); ++id) {
+        const auto &record = checked.module->records[id];
+        for (std::size_t variant = 0; variant < record.errorOrigins.size(); ++variant) {
+          const auto [member, original] = record.errorOrigins[variant];
+          const auto &from = checked.module->records[member].variants[original].fields;
+          const auto &to = record.variants[variant].fields;
+          for (std::size_t n = 0; n < from.size(); ++n)
+            if (record.fields[to[n]].type.record) {
+              forwarded = true;
+              require(storage->fields[id][to[n]] == RecordFieldStorage::ManagedReference &&
+                          storage->fields[member][from[n]] == RecordFieldStorage::ManagedReference,
+                      "recursive error forwarding changed managed-reference representation");
+            }
+        }
+      }
+      require(forwarded, "recursive error fixture omitted nominal forwarding");
+      for (auto &record : checked.module->records)
+        if (!record.errorOrigins.empty()) {
+          record.errorOrigins[0].first = SIZE_MAX;
+          require(!planRecordStorage(*checked.module), "invalid error storage origin admitted");
+          break;
+        }
+    }
     // Deep chains and cycles must not use the native call stack.
     constexpr std::size_t count = 10000;
     module.records.clear();

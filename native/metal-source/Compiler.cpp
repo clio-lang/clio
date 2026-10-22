@@ -2002,6 +2002,7 @@ class Compiler {
       case Code::InvalidCallable:
       case Code::FunctionReference:
       case Code::FunctionInvoke:
+      case Code::PropagateGroup:
       case Code::SynchronousCall:
         reject(span, "function values require the CPU backend");
       case Code::Label:

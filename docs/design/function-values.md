@@ -116,4 +116,4 @@ Current result extension: [proven function-valued CPU worker results](native-wor
 
 [Inferred execution through function values](native-callable-execution.md) now supplies bounded indirect target sets and transitive continuation/coordination analysis. It preserves unknown sources separately and does not yet enable resumable first-class execution.
 
-[CPU coordinating function values](native-resumable-callables.md) now implement finite proven resumable targets, including captured/returned closures, indirect spawn and bound parallel-map callbacks. This supersedes the initial synchronous-only execution gate described above; unknown sources, recursive coordinating graphs and GPU callables remain gated.
+[CPU coordinating function values](native-resumable-callables.md) now implement finite proven resumable targets, including captured/returned closures, indirect spawn and bound parallel-map callbacks. This supersedes the initial synchronous-only execution gate described above; recursive coordinating calls now use bounded CPU continuations; unknown sources and GPU callables remain gated.

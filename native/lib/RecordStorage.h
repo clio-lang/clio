@@ -149,6 +149,65 @@ inline std::expected<RecordStoragePlan, Diagnostic> planRecordStorage(const Type
           inlineOnly.identity[id] == inlineOnly.identity[*type.record])
         plan.fields[id][field] = RecordFieldStorage::ManagedReference;
     }
+  if (std::ranges::any_of(module.records,
+                          [](const auto &record) { return !record.errorOrigins.empty(); })) {
+    // Error unions forward nominal fields from their original variants. Keep
+    // each forwarded slot's representation identical in every carrier: boxing
+    // can be required by either the original family or a recursive union user.
+    std::vector<std::size_t> offsets;
+    std::vector<std::pair<std::size_t, std::size_t>> slots;
+    for (std::size_t id = 0; id < module.records.size(); ++id) {
+      offsets.push_back(slots.size());
+      for (std::size_t field = 0; field < module.records[id].fields.size(); ++field)
+        slots.push_back({id, field});
+    }
+    std::vector<std::vector<std::size_t>> equivalents(slots.size());
+    for (std::size_t id = 0; id < module.records.size(); ++id) {
+      const auto &record = module.records[id];
+      if (record.errorOrigins.empty())
+        continue;
+      if (record.errorOrigins.size() != record.variants.size())
+        return fail("invalid error storage variant origins", record.declaration);
+      for (std::size_t variant = 0; variant < record.variants.size(); ++variant) {
+        const auto [member, original] = record.errorOrigins[variant];
+        if (member >= module.records.size() || original >= module.records[member].variants.size())
+          return fail("invalid error storage variant identity", record.declaration);
+        const auto &from = module.records[member].variants[original].fields;
+        const auto &to = record.variants[variant].fields;
+        if (from.size() != to.size() || !charge(to.size()))
+          return fail("invalid or over-budget error storage forwarding", record.declaration);
+        for (std::size_t n = 0; n < to.size(); ++n) {
+          const auto &a = module.records[member].fields[from[n]].type;
+          const auto &b = record.fields[to[n]].type;
+          if (!a.record || a.tensor)
+            continue;
+          if (a.record != b.record || b.tensor)
+            return fail("inconsistent nominal error storage forwarding", record.declaration);
+          const auto x = offsets[member] + from[n], y = offsets[id] + to[n];
+          equivalents[x].push_back(y);
+          equivalents[y].push_back(x);
+        }
+      }
+    }
+    std::vector<std::size_t> pending;
+    std::vector<bool> visited(slots.size());
+    for (std::size_t i = 0; i < slots.size(); ++i) {
+      const auto [id, field] = slots[i];
+      if (plan.fields[id][field] == RecordFieldStorage::ManagedReference)
+        pending.push_back(i);
+    }
+    while (!pending.empty()) {
+      const auto next = pending.back();
+      pending.pop_back();
+      if (visited[next])
+        continue;
+      visited[next] = true;
+      const auto [id, field] = slots[next];
+      plan.fields[id][field] = RecordFieldStorage::ManagedReference;
+      for (auto other : equivalents[next])
+        pending.push_back(other);
+    }
+  }
   // A record needs every field; an enum needs one finite variant. Empty arrays
   // terminate construction, so their element types are not prerequisites.
   struct Clause {

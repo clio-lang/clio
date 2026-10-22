@@ -140,6 +140,32 @@ public:
                   builder_, loc, function,
                   mlir::ValueRange{extract(loc, member, 0), extract(loc, member, 1), active64})
                   .getResult());
+        } else if (!type.tensor && type.builtin == BuiltinValue::TaskError) {
+          auto kind = extract(loc, member, 0);
+          auto lower = mlir::LLVM::ICmpOp::create(builder_, loc, mlir::LLVM::ICmpPredicate::uge,
+                                                  kind, constant(loc, 1, 32));
+          auto upper = mlir::LLVM::ICmpOp::create(builder_, loc, mlir::LLVM::ICmpPredicate::ule,
+                                                  kind, constant(loc, 4, 32));
+          mlir::Value valid = mlir::LLVM::AndOp::create(builder_, loc, lower, upper);
+          const auto variant = variants_[current.id][field];
+          std::size_t expected = record.taskErrorFamily ? variant : 0;
+          if (variant && !record.errorOrigins.empty()) {
+            const auto [family, original] = record.errorOrigins[variant - 1];
+            if (input_.records[family].taskErrorFamily)
+              expected = original + 1;
+          }
+          if (expected) {
+            auto matches = mlir::LLVM::ICmpOp::create(builder_, loc, mlir::LLVM::ICmpPredicate::eq,
+                                                      kind, constant(loc, expected, 32));
+            valid = mlir::LLVM::AndOp::create(builder_, loc, valid, matches);
+          }
+          auto checked = mlir::LLVM::ZExtOp::create(builder_, loc, builder_.getI64Type(), valid);
+          auto selected = mlir::LLVM::ZExtOp::create(builder_, loc, builder_.getI64Type(), active);
+          auto check =
+              declaration("kalandra_recursive_tag_check",
+                          {builder_.getI64Type(), builder_.getI64Type(), builder_.getI64Type()});
+          mlir::LLVM::CallOp::create(builder_, loc, check,
+                                     mlir::ValueRange{checked, constant(loc, 1), selected});
         } else if (type.tensor ||
                    (type.builtin != BuiltinValue::Numeric && type.builtin != BuiltinValue::Bool)) {
           return std::unexpected("recursive boxes currently require numeric/Bool/String scalars, "

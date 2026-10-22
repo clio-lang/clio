@@ -53,7 +53,7 @@ Cross-invocation callable ownership uses the qualified worker copy machinery; de
 
 ## Recursive values
 
-[Synchronous recursive CPU values](native-recursive-storage.md) support function array fields and captures, retaining descriptor storage and every managed environment transitively. See [recursive-function-arrays.k](fixtures/recursive-function-arrays.k). Fallible/task/device signatures and worker/error control remain rejected in recursive compilation units; acyclic behavior is unchanged.
+[Recursive CPU values](native-recursive-storage.md) support function array fields and captures, retaining descriptor storage and every managed environment transitively. See [recursive-function-arrays.k](fixtures/recursive-function-arrays.k). Fallible CPU signatures, source workers and error control are now supported through the same graph ownership. Device-valued signatures remain excluded; acyclic behavior is unchanged.
 
 ## Remaining work
 

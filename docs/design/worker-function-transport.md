@@ -1,6 +1,6 @@
 # Function values across local CPU workers
 
-Current CPU extension: [proven coordinating function values](native-resumable-callables.md) now use checked continuation dispatch, managed environments and the shared worker scheduler. This supersedes the synchronous-only coordination restriction in this earlier implementation record; unknown targets, recursive coordinating graphs and GPU callables remain gated.
+Current CPU extension: [proven coordinating function values](native-resumable-callables.md) now use checked continuation dispatch, managed environments and the shared worker scheduler. This supersedes the synchronous-only coordination restriction in this earlier implementation record; recursive coordinating calls now use bounded CPU continuations; unknown targets and GPU callables remain gated.
 
 Current CPU support includes [function-containing values](native-worker-callable-aggregates.md), [indirect spawn](native-indirect-spawn.md), [spawned maps](native-worker-callable-maps.md), [spawned collections](native-worker-callable-collections.md), and [function-containing error payloads](native-worker-error-functions.md). These use bounded, conservative provenance proofs; unknown origins and unsupported transitive captures remain diagnostics. General task/device-coordinating callable values remain separate work.
 

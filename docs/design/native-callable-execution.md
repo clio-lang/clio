@@ -2,7 +2,7 @@
 
 Kalandra's callable type describes its parameters, completed result and expected-error channel. It does not require an author-written effect list. Before enabling function values whose bodies coordinate tasks, the compiler must discover which functions an indirect call can execute and propagate their execution requirements to callers.
 
-This milestone introduced the analysis foundation. [CPU resumable callable dispatch](native-resumable-callables.md) now uses that information to execute finite proven coordinating targets. Unknown target sets, recursive coordinating graphs and GPU function values remain gated.
+This milestone introduced the analysis foundation. [CPU resumable callable dispatch](native-resumable-callables.md) now uses that information to execute finite proven coordinating targets. Recursive coordinating graphs now use bounded CPU continuations. Unknown target sets and GPU function values remain gated.
 
 ## May-call graph
 
@@ -28,6 +28,6 @@ The analysis has a configurable work budget, with the existing default of 300,00
 
 ## Qualification
 
-Focused tests cover aliases, higher-order parameters, returned functions, conditional selection, record fields, indexed and sliced function arrays, returned function arrays, captured callbacks and recursive forwarding. They substitute a same-signature coordinating target into otherwise checked IR to verify transitive effects while preserving the execution rejection. Tests also check signature filtering, deterministic target sets, function creation versus execution, unknown parameters, budget exhaustion and sequential maps whose callbacks handle expected errors. Debug and ASan/UBSan variants exercise the analysis; existing execution and worker suites qualify supported behavior separately.
+Focused tests cover aliases, higher-order parameters, returned functions, conditional selection, record fields, indexed and sliced function arrays, returned function arrays, captured callbacks and recursive forwarding. They substitute a same-signature coordinating target into otherwise checked IR to verify transitive effects and verify that proven recursive coordinating graphs now plan through bounded child entries. Tests also check signature filtering, deterministic target sets, function creation versus execution, unknown parameters, budget exhaustion and sequential maps whose callbacks handle expected errors. Debug and ASan/UBSan variants exercise the analysis; existing execution and worker suites qualify supported behavior separately.
 
 **75/75 selected checks passed**, including the new debug/ASan/UBSan analysis checks and existing debug, optimized, ASan/UBSan and TSan execution regressions. The [qualification record](../../native/metal-proof/evidence/cpu-callable-execution-analysis-2026-10-20.json) lists the exact selection and source hashes. This is focused qualification, not the full project suite.

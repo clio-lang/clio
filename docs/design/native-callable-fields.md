@@ -53,7 +53,7 @@ Pure field operations continue through MLIR; expected-error control uses the exi
 
 This does not establish a public callback ABI. Worker handoff uses independently owned destination environments, so a qualified copied value may outlive its source invocation. Earlier environment reclamation and allocation/copy elimination remain [optimization work](../roadmap.md#optimization).
 
-In compilation units containing recursive values, [managed recursive environments](native-recursive-storage.md) retain captured backing transitively. Checked entry wrappers validate environment ownership, payload size and code identity before loading captures. Function arrays now share that ownership path; fallible/worker/device paths in these recursive units remain rejected; the acyclic behavior described above is unchanged.
+In compilation units containing recursive values, [managed recursive environments](native-recursive-storage.md) retain captured backing transitively. Checked entry wrappers validate environment ownership, payload size and code identity before loading captures. Function arrays, fallible CPU signatures, workers and error channels now share that ownership path. Device-valued paths remain excluded; the acyclic behavior described above is unchanged.
 
 ## Worker boundary
 

@@ -10,6 +10,7 @@ extern "C" std::int64_t probe(Invocation *);
 extern "C" std::int64_t wrong_key(Invocation *);
 extern "C" std::int64_t forged(Invocation *);
 extern "C" std::int64_t bad_reference(Invocation *);
+extern "C" const void *task_error_box(std::uint64_t, std::uint64_t, Invocation *);
 extern "C" const void *text_box(const StringDescriptor *, std::int64_t, Invocation *);
 static void require(bool value, const char *message) {
   if (!value)
@@ -17,6 +18,20 @@ static void require(bool value, const char *message) {
 }
 int main() {
   try {
+    for (std::uint64_t tag : {1u, 2u})
+      for (std::uint64_t kind : {0u, 1u, 2u, 3u, 4u, 5u, UINT32_MAX}) {
+        Invocation context;
+        auto *root = task_error_box(kind, tag, &context);
+        const bool valid = tag == 1 || (kind >= 1 && kind <= 4);
+        require(bool(root) == valid && context.status() == (valid ? 0 : 3),
+                "TaskError field validation ignored active kind or rejected inactive data");
+        if (!valid)
+          require(!context.live() && !context.allocations(),
+                  "invalid TaskError field published backing");
+        context.settle();
+        require(!context.live() && context.allocations() == context.releases(),
+                "TaskError field cleanup leaked");
+      }
     for (unsigned fail = 0; fail <= 5; ++fail) {
       Invocation context;
       if (fail)

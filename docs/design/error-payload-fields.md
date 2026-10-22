@@ -60,7 +60,7 @@ Its four variants, original fault code and source location remain intact. Storin
 
 The existing immutable storage model applies. Nested Strings, arrays, tensors and records retain their backing across helper calls, worker captures/results, repeated awaits and parallel settlement. Retention examines only the selected variant; absent fields are not interpreted.
 
-Field resolution follows type dependencies before constructing canonical error unions. This prevents declaration order from producing incomplete union payload layouts. Cyclic aliases and recursive record/enum dependencies, including cycles through aliases or arrays, remain rejected. General recursive storage needs a separate representation decision.
+Field resolution reserves canonical error-union identities before copying completed member payloads. This preserves declaration-order independence and permits finite recursive record/enum dependencies through aliases or arrays. Pure alias cycles and types without a finite construction remain rejected. [Recursive storage](native-recursive-storage.md#completed-local-cpu-source-integration) gives forwarded nominal error fields a consistent managed representation.
 
 Both synchronous native calls and worker copies validate TaskError field tags. Record validation also runs for records without heap-backed fields. Malformed TaskError data cannot become a valid observation merely because its wrapper has no owned storage. Failed private result copies leave their destination untouched.
 

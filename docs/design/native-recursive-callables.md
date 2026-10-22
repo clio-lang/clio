@@ -27,7 +27,7 @@ Direct self/mutual calls and calls through aliases use the existing declared sig
 
 Recursive callbacks can run in sequential maps or be created and invoked inside a CPU worker. Named CPU workers can also call recursive synchronous helpers. Existing worker ownership, cached-await behavior and function-transport restrictions are unchanged.
 
-This does not introduce recursive local bindings: `callback = fn(...): callback(...)` cannot read its own binding during initialization. Use a named definition for recursion. Missing return annotations still produce `S006`. Synchronous function values still reject targets that coordinate tasks or devices. Existing task scheduling behavior is not changed by this increment; ordinary synchronous recursion through a coordinating helper is not added.
+This does not introduce recursive local bindings: `callback = fn(...): callback(...)` cannot read its own binding during initialization. Use a named definition for recursion. Missing return annotations still produce `S006`. Coordinating CPU targets now use [bounded scheduler continuations](native-recursive-storage.md#completed-local-cpu-source-integration), including direct/indirect/mutual recursive calls and recursive values. Device coordination through function values remains outside CPU callable admission.
 
 ## Checked call admission
 
@@ -54,6 +54,6 @@ Synchronous continuation frames remain checked invocation allocations. Recursive
 
 The [CPU qualification record](../../native/metal-proof/evidence/cpu-recursive-callables-2026-10-19.json) records 110 selected CTest suites passing on Apple M2 Max with LLVM/MLIR 22.1.8. This is a focused regression selection, not the full project suite.
 
-The new execution suites compile and run 35 programs in each of debug, optimized, ASan/UBSan and separate ThreadSanitizer modes (140 compiled programs). They cover all ten numeric scalar result types, Bool/String/record/array/tensor results, returned captured functions, self/mutual references, canonical error unions, recursive matrix operations and local CPU workers. Frontend suites check and plan 22 fixtures in normal and sanitizer builds, including static backedge checks and four unsupported boundaries.
+The new execution suites compile and run 35 programs in each of debug, optimized, ASan/UBSan and separate ThreadSanitizer modes (140 compiled programs). They cover all ten numeric scalar result types, Bool/String/record/array/tensor results, returned captured functions, self/mutual references, canonical error unions, recursive matrix operations and local CPU workers. Frontend suites check and plan 22 fixtures in normal and sanitizer builds, including static backedge checks, a positive coordinating-recursion plan, selected-entry reachability and two unsupported inference/initialization boundaries.
 
 Runtime harnesses cover 120 allocation-failure probes, 1,024 repeated recursive calls, balanced admission and unwind, arithmetic faults and already faulted/cancelled contexts. Additional worker runs use pools of one, two and four threads. Deep recursion exits with `CallLimitFault` and a settled allocation ledger; oversized-stack compilation rejects the source without replacing existing output artifacts. Relevant existing syntax, control flow, collection, closure, aggregate, expected-error, worker and matrix suites also pass.

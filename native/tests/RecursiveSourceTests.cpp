@@ -1,8 +1,15 @@
 #include "kalandra/Backend.h"
 #include "kalandra/Continuation.h"
 #include <algorithm>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <stdexcept>
+namespace kalandra {
+// Private component path: source worker admission stays gated.
+std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &,
+                                                          std::optional<std::string>);
+} // namespace kalandra
 using namespace kalandra;
 static const std::string prefix = "enum List:\n  Nil\n  Cons:\n    head:int\n    tail:List\n";
 static CheckResult analyze(std::string source) {
@@ -12,8 +19,29 @@ static void require(bool value, const char *message) {
   if (!value)
     throw std::runtime_error(message);
 }
-int main() {
+int main(int argc, char **argv) {
   try {
+#ifndef KALANDRA_RECURSIVE_SOURCE_FRONTEND_ONLY
+    if (argc == 3) {
+      std::ifstream input(argv[1]);
+      require(bool(input), "cannot read continuation fixture");
+      auto checked = analyze(std::string(std::istreambuf_iterator<char>(input), {}));
+      if (!checked.ok()) {
+        for (const auto &d : checked.diagnostics)
+          std::cerr << renderDiagnostic(*checked.source, d);
+        return 1;
+      }
+      auto lowered = lowerTaskNative(*checked.module, "main");
+      if (!lowered)
+        throw std::runtime_error(lowered.error());
+      std::ofstream output(argv[2]);
+      output << lowered->llvm;
+      require(bool(output), "cannot write continuation LLVM fixture");
+      return 0;
+    }
+#endif
+    require(argc == 1, "expected no arguments or source/output LLVM paths");
+    (void)argv;
     auto valid = analyze(prefix + "fn sum(items:List)->int:\n  match items:\n    List.Nil:0\n"
                                   "    List.Cons {head,tail}:head+sum(tail)\nfn main()->int:\n"
                                   "  sum(List.Cons {head:42,tail:List.Nil})\n");
@@ -22,7 +50,18 @@ int main() {
         std::cerr << renderDiagnostic(*valid.source, d);
     require(valid.ok() && !numericCapabilityError(*valid.module, NumericTarget::Cpu),
             "valid recursive source rejected");
-    require(!continuation::plan(*valid.module), "recursive continuation/worker plan admitted");
+    auto planned = continuation::plan(*valid.module);
+    require(bool(planned), "checked recursive continuation plan rejected");
+    require(!continuation::plan(*valid.module, {true}),
+            "unqualified recursive preserved-call plan admitted");
+    require(
+        std::ranges::any_of(planned->plans,
+                            [](const auto &plan) {
+                              return std::ranges::any_of(plan->code, [](const auto &instruction) {
+                                return instruction.code == continuation::Code::SynchronousCall;
+                              });
+                            }),
+        "recursive call lost its checked synchronous boundary");
     require(bool(numericCapabilityError(*valid.module, NumericTarget::AppleGpu)),
             "recursive GPU admitted");
 #ifndef KALANDRA_RECURSIVE_SOURCE_FRONTEND_ONLY
@@ -73,25 +112,43 @@ int main() {
                            std::string::npos,
             "recursive function arrays did not use checked ownership bridge");
 #endif
-    for (const auto &source :
-         {"enum Loop:\n  More:\n    next:Loop\nfn main()->int:\n  0\n",
-          "type A:\n  child:B\ntype B:\n  child:A\nfn main()->int:\n  0\n",
-          "enum Text:\n  Empty\n  More:\n    text:[fn(int)->int ! TaskError]\n    next:Text\nfn "
-          "main()->int:\n "
-          " 0\n",
-          "enum Callback:\n  Empty\n  More:\n    call:fn(int)->int ! TaskError\n    "
-          "next:Callback\nfn "
-          "main()->int:\n  0\n"}) {
+    for (const auto &source : {"enum Loop:\n  More:\n    next:Loop\nfn main()->int:\n  0\n",
+                               "type A:\n  child:B\ntype B:\n  child:A\nfn main()->int:\n  0\n"}) {
       auto failed = analyze(source);
-      require(!failed.ok() && !failed.diagnostics.empty(),
-              "unsupported or infinite recursive schema admitted");
+      require(!failed.ok() && !failed.diagnostics.empty(), "infinite recursive schema admitted");
     }
+    for (const auto &source : {"enum Text:\n  Empty\n  More:\n    text:[fn(int)->int ! "
+                               "TaskError]\n    next:Text\nfn main()->int:\n  0\n",
+                               "enum Callback:\n  Empty\n  More:\n    call:fn(int)->int ! "
+                               "TaskError\n    next:Callback\nfn main()->int:\n  0\n"}) {
+      auto checked = analyze(source);
+      require(checked.ok() && bool(continuation::plan(*checked.module)),
+              "recursive fallible callable schema rejected");
+    }
+    auto worker =
+        analyze(prefix + "fn echo(items:List)->List:\n  items\nfn main()->int ! TaskError:\n  "
+                         "item=try parallel:\n    try await spawn echo(List.Nil)\n  match item:\n  "
+                         "  List.Nil:42\n    List.Cons {head}:head\n");
+    require(worker.ok() && bool(continuation::plan(*worker.module)),
+            "recursive source worker rejected");
     for (const auto &tail :
-         {"fn main()->int ! TaskError:\n  try parallel:\n    0\n",
-          "fn main()->int:\n  match List.Nil:\n    List.Cons {head}:head\n",
+         {"fn main()->int:\n  match List.Nil:\n    List.Cons {head}:head\n",
           "fn main()->int:\n  match List.Nil:\n    List.Nil:0\n    List.Nil:1\n    List.Cons:2\n"})
-      require(!analyze(prefix + tail).ok(),
-              "unsupported recursive execution or invalid match admitted");
+      require(!analyze(prefix + tail).ok(), "invalid recursive match admitted");
+    for (unsigned mutation = 0; mutation < 4; ++mutation) {
+      auto forged = *valid.module;
+      auto &expression = forged.expressions.at(forged.functions.back().result);
+      if (mutation == 0)
+        forged.records[0].fields[1].type.task = true;
+      else if (mutation == 1)
+        forged.records[0].fields[1].type.fallible = true;
+      else if (mutation == 2)
+        forged.records[0].errorMembers = {SIZE_MAX, SIZE_MAX};
+      else
+        expression.type.device = true;
+      require(!continuation::plan(forged),
+              "invalid recursive field/error/device IR reached planner");
+    }
     for (unsigned mutation = 0; mutation < 8; ++mutation) {
       auto forged = *valid.module;
       auto found = std::ranges::find_if(forged.expressions, [](const auto &expression) {
@@ -125,6 +182,7 @@ int main() {
         match.cases[0].body.push_back({{}, {}, SIZE_MAX});
         break;
       }
+      require(!continuation::plan(forged), "forged recursive match reached planner");
       require(bool(numericCapabilityError(forged, NumericTarget::Cpu)),
               "forged recursive match admitted");
 #ifndef KALANDRA_RECURSIVE_SOURCE_FRONTEND_ONLY

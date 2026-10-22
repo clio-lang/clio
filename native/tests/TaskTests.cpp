@@ -1,3 +1,4 @@
+#include "../runtime/String.h"
 #include "../runtime/Tasks.h"
 #include <cstdio>
 #include <cstdlib>
@@ -391,7 +392,77 @@ static const TaskEntry propagation{1,
                                    nothing,
                                    resumePropagation,
                                    &scalar};
+static void resumeAllocatedBuffers(Task &task) {
+  StringDescriptor text{};
+  kalandra_string_literal_v1(&task.context(), &text, "é", 2);
+  if (task.context().poll())
+    return;
+  auto *values = static_cast<float *>(task.context().allocate(2 * sizeof(float)));
+  if (!values)
+    return;
+  values[0] = static_cast<float>(kalandra_string_length_v1(&task.context(), &text));
+  values[1] = 34;
+  Tensor result{values, values};
+  task.complete(&result);
+}
+static void allocatedBufferBudgets() {
+  const TaskEntry entry{1,
+                        10,
+                        sizeof(Input),
+                        alignof(Input),
+                        sizeof(Leaf),
+                        alignof(Leaf),
+                        constructLeaf,
+                        nothing,
+                        resumeAllocatedBuffers,
+                        &tensorLayout};
+  for (unsigned workers : {1u, 2u, 4u}) {
+    std::size_t admitted = 0, peak = 0;
+    for (unsigned boundary = 0; boundary < 4; ++boundary) {
+      TaskLimits limits;
+      limits.workers = workers;
+      if (boundary)
+        limits.bytes = boundary == 1 ? admitted : peak - (boundary == 2 ? 1 : 0);
+      auto core = TaskCore::create(limits);
+      CHECK(core);
+      unsigned runs = 0;
+      Input input{0, 0, 0, &runs};
+      auto group = core->openRoot();
+      auto task = core->submit(group, entry, packet(input));
+      CHECK(task);
+      if (!boundary)
+        admitted = core->stats().retainedBytes;
+      else
+        CHECK(core->stats().retainedBytes == admitted);
+      CHECK(core->drain());
+      if (!boundary)
+        peak = core->stats().peakBytes;
+      CHECK(peak > admitted && core->stats().peakBytes <= limits.bytes);
+      Invocation receiver;
+      Tensor result{nullptr, reinterpret_cast<float *>(0x1230)}, cached{};
+      if (boundary == 1 || boundary == 2) {
+        const auto failure = core->failure(task);
+        CHECK(failure.kind == TaskFailure::Fault && failure.code == 2);
+        CHECK(!core->observe(task, tensorLayout, receiver, &result) &&
+              result.values == reinterpret_cast<float *>(0x1230));
+      } else {
+        CHECK(core->failure(task).kind == TaskFailure::None);
+        CHECK(core->observe(task, tensorLayout, receiver, &result) &&
+              core->observe(task, tensorLayout, receiver, &cached));
+      }
+      CHECK(core->close(group) && core->drain() && core->release(group));
+      empty(*core);
+      CHECK(!core->stats().recursiveBytes && !core->stats().environmentBytes);
+      core.reset();
+      if (!boundary || boundary == 3)
+        CHECK(result.values[0] == 1 && cached.values[1] == 34);
+      receiver.settle();
+      CHECK(!receiver.live() && receiver.allocations() == receiver.releases());
+    }
+  }
+}
 int main() {
+  allocatedBufferBudgets();
   // Propagated errors preserve their variant and location. Recovery must never
   // erase a fault already raised in the receiving invocation.
   for (unsigned kind : {0u, 1u, 2u, 3u, 4u, 99u}) {

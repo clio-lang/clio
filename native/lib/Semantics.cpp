@@ -473,7 +473,7 @@ private:
         const auto id = found->second;
         // Field annotations refer to predeclared nominal identities. Deferring
         // ordinary field expansion permits a complete cyclic storage graph.
-        // Error aliases still require complete member families before copying.
+        // Error aliases reserve their identity here and copy completed payloads later.
         if (!registeringRecords_ && !populateRecord(id, syntax.span))
           return {};
         auto result = recordType(id);
@@ -676,25 +676,44 @@ private:
       if (!joined.name.empty())
         joined.name += " | ";
       joined.name += source.name;
+    }
+    const auto id = output_.records.size();
+    output_.records.push_back(std::move(joined));
+    if (!registeringRecords_) {
+      finishErrorUnion(id);
+      if (auto invalid = recursiveRecordLayoutError(output_, limits_)) {
+        error(invalid->code, invalid->message, invalid->span);
+        return {};
+      }
+    }
+    return id;
+  }
+  void finishErrorUnion(std::size_t id) {
+    // Members are flattened nominal families; their fields may themselves point
+    // back to this stable union identity. Copy metadata without expanding them.
+    const auto members = output_.records[id].errorMembers;
+    const auto site = output_.records[id].declaration;
+    TypedRecord joined{output_.records[id].name, site, {}};
+    joined.error = true;
+    joined.errorMembers = members;
+    ValueType tag;
+    tag.element = NumericType::Int64;
+    joined.fields.push_back({"$tag", tag, site});
+    for (auto member : members) {
+      const auto &source = output_.records[member];
       for (std::size_t v = 0; v < source.variants.size(); ++v) {
         const auto &original = source.variants[v];
-        TypedVariant variant{std::to_string(id) + "." + original.name, original.declaration, {}};
+        TypedVariant variant{
+            std::to_string(member) + "." + original.name, original.declaration, {}};
         for (auto field : original.fields) {
           variant.fields.push_back(joined.fields.size());
           joined.fields.push_back(source.fields[field]);
         }
         joined.variants.push_back(std::move(variant));
-        joined.errorOrigins.push_back({id, v});
+        joined.errorOrigins.push_back({member, v});
       }
     }
-    const auto id = output_.records.size();
-    output_.records.push_back(std::move(joined));
-    if (!registeringRecords_)
-      if (auto invalid = recursiveRecordLayoutError(output_, limits_)) {
-        error(invalid->code, invalid->message, invalid->span);
-        return {};
-      }
-    return id;
+    output_.records[id] = std::move(joined);
   }
   std::optional<std::size_t> resolveAlias(std::size_t id, std::unordered_set<std::size_t> &active) {
     if (auto cached = resolvedAliases_.find(id); cached != resolvedAliases_.end())
@@ -753,7 +772,7 @@ private:
     if (auto found = records_.find(key);
         found != records_.end() && output_.records[found->second].error) {
       const auto id = found->second;
-      if (!populateRecord(id, member))
+      if (!registeringRecords_ && !populateRecord(id, member))
         return {};
       rememberTypeUse(member, recordType(id));
       return id;
@@ -821,10 +840,13 @@ private:
       }
     }
     // Ordinary fields resolve predeclared identities without expanding children.
-    // Alias members still populate lazily before copying complete families.
+    // Error aliases reserve identities before copying their completed families.
     // No references into records survive lookup, which can append union records.
     for (std::size_t id = 0; id < recordDeclarations_.size(); ++id)
       populateRecord(id);
+    for (std::size_t id = 0; id < output_.records.size(); ++id)
+      if (!output_.records[id].errorMembers.empty())
+        finishErrorUnion(id);
     registeringRecords_ = false;
   }
   bool populateRecord(std::size_t id, std::optional<SourceSpan> reference = {}) {
@@ -2433,10 +2455,6 @@ private:
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const TaskExpr &operation,
                                const std::optional<ValueType> &expected) {
-    if (recursiveValues_) {
-      error("S068", "recursive programs currently require synchronous calls; worker execution is not yet supported", span);
-      return {};
-    }
     if (operation.placement && !options_.placement) {
       error("S045",
             "placed calls require the optional Metal source compiler; CPU lowering does not ignore "
@@ -2541,10 +2559,6 @@ private:
   }
   std::optional<ValueId> infer(Frame &frame, SourceSpan span, const ParallelExpr &block,
                                const std::optional<ValueType> &expected) {
-    if (recursiveValues_) {
-      error("S068", "recursive programs currently require synchronous calls; parallel groups are not yet supported", span);
-      return {};
-    }
     Frame nested = frame;
     const auto group = nextGroup_++;
     nested.groups.push_back(group);

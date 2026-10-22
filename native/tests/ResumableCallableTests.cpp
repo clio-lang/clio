@@ -38,12 +38,12 @@ int main() {
     }
     for (const auto &file : std::filesystem::directory_iterator(
              std::filesystem::path(KALANDRA_RESUMABLE_FIXTURES) / "rejected")) {
-      require(!analyze(file.path()).ok(), "unproven or recursive coordinating callable admitted");
+      require(!analyze(file.path()).ok(), "unproven coordinating callable admitted");
       ++rejected;
     }
-    require(accepted == 21 && rejected == 3, "resumable fixture catalog changed");
+    require(accepted == 23 && rejected == 1, "resumable fixture catalog changed");
     std::cout
-        << "Resumable callables: 21 checked/planned programs, CPU gates and 3 rejections passed\n";
+        << "Resumable callables: 23 checked/planned programs, CPU gates and 1 rejection passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';
     return 1;

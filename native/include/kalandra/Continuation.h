@@ -41,7 +41,8 @@ enum class Code {
   CallableTarget,
   CallableCaptures,
   CallableSyncGuard,
-  InvalidCallable
+  InvalidCallable,
+  PropagateGroup
 };
 struct Instruction {
   Code code;

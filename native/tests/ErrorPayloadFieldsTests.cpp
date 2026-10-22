@@ -41,8 +41,16 @@ int main() {
          {"type Box:\n  cause:E\ntype E=A | B\nerror A:\n  Bad:\n    box:Box\nerror B:\n  "
           "Missing\n",
           "type Box:\n  causes:[E]\ntype E=A | B\nerror A:\n  Bad:\n    boxes:[Box]\nerror B:\n  "
-          "Missing\n",
-          "type Box:\n  cause:E\ntype E=Other\ntype Other=E\n",
+          "Missing\n"}) {
+      auto checked = analyze(std::string(program) + "fn main()->int:\n  0\n");
+      require(checked.ok() && bool(continuation::plan(*checked.module)),
+              "finite recursive error-alias payload rejected");
+#ifndef KALANDRA_ERROR_PAYLOAD_FRONTEND_ONLY
+      require(bool(lowerNative(*checked.module)), "recursive error-alias lowering failed");
+#endif
+    }
+    for (const auto *program :
+         {"type Box:\n  cause:E\ntype E=Other\ntype Other=E\n",
           "type Box:\n  cause:E\ntype E=Missing\n",
           "type Box:\n  cause:E\ntype E=A | Ordinary\nerror A:\n  Missing\nenum Ordinary:\n  "
           "Value\n",
@@ -83,7 +91,7 @@ int main() {
               "malformed TaskError payload metadata admitted");
     }
     std::cout << "Error alias fields: forward references, nested fields, TaskError data, "
-                 "strict typing and recursive dependency rejection passed\n";
+                 "strict typing and finite recursive dependencies passed\n";
     return 0;
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';

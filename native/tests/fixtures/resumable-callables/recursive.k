@@ -1,5 +1,5 @@
 fn leaf(value:int)->int:
-  value
+  value+42
 fn run(value:int)->int ! TaskError:
   if value==0:
     try parallel:
@@ -9,4 +9,4 @@ fn run(value:int)->int ! TaskError:
     try f(value-1)
 fn main()->int ! TaskError:
   f=run
-  try f(1)
+  try f(8)

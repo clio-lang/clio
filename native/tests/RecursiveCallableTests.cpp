@@ -44,16 +44,25 @@ int main() {
          {"fn descend(n:int):\n  if n==0:\n    0\n  else:\n    descend(n-1)\nfn main()->int:\n  "
           "0\n",
           "fn main()->int:\n  f=fn(n:int):\n    if n==0:\n      0\n    else:\n      f(n-1)\n  "
-          "f(20)\n",
-          "fn leaf(n:int)->int:\n  n\nfn recur(n:int)->int ! TaskError:\n  if n==0:\n"
-          "    try parallel:\n      try await spawn leaf(n)\n  else:\n    f=recur\n    try f(n-1)\n"
-          "fn main()->int ! TaskError:\n  f=recur\n  try f(1)\n"})
-      require(!analyze(text).ok(), "unsupported recursion/inference/coordination admitted");
+          "f(20)\n"})
+      require(!analyze(text).ok(), "unsupported recursive inference admitted");
     auto co = analyze("fn leaf(n:int)->int:\n  n\nfn recur(n:int)->int ! TaskError:\n  if n==0:\n  "
                       "  try parallel:\n      try await spawn leaf(n)\n  else:\n    try "
                       "recur(n-1)\nfn main()->int ! TaskError:\n  try recur(20)\n");
-    require(co.ok() && !continuation::plan(*co.module), "coordinating recursion admitted");
-    std::cout << "Recursive callables: 22 checked/planned programs, static backedges and 4 "
+    require(co.ok() && bool(continuation::plan(*co.module)), "coordinating recursion rejected");
+    auto main = std::ranges::find_if(co.module->functions,
+                                     [](const auto &function) { return function.name == "main"; });
+    require(main != co.module->functions.end(), "coordinating fixture main missing");
+    auto selected =
+        continuation::plan(*co.module, {false, std::size_t(main - co.module->functions.begin())});
+    require(bool(selected), "selected coordinating entry rejected");
+    for (const auto &entry : selected->plans)
+      for (const auto &instruction : entry->code)
+        if (instruction.code == continuation::Code::Spawn)
+          require(!selected->plans.at(instruction.target)->code.empty(),
+                  "selected recursion omitted a reachable child plan");
+    std::cout << "Recursive callables: 22 checked/planned programs, static backedges, coordinating "
+                 "recursion and 2 "
                  "unsupported boundaries passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

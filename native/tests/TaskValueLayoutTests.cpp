@@ -197,8 +197,8 @@ int main() {
       require(rejected, "unavailable task nominal value layout accepted");
     }
     auto source = analyze("enum Chain:\n  End\n  More:\n    next:Chain\nfn main()->int:\n  42\n");
-    require(source.ok() && !continuation::plan(*source.module),
-            "physical task layout accidentally enabled recursive execution");
+    require(source.ok() && bool(continuation::plan(*source.module)),
+            "checked recursive task planning rejected");
     auto taskSource = analyze("type Item:\n  text:String\n  value:int\n"
                               "fn worker(item:Item)->Item:\n  item\nfn main()->int ! TaskError:\n"
                               "  try parallel:\n    value=try await spawn worker(Item "

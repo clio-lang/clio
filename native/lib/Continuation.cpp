@@ -1,4 +1,5 @@
 #include "kalandra/Continuation.h"
+#include "ErrorFamilies.h"
 #include "RecordStorage.h"
 #include <algorithm>
 #include <set>
@@ -581,7 +582,8 @@ private:
         args.push_back(capture);
       }
       plan.code.push_back({Code::CallableCaptures, copied, captures, target});
-      auto value = function(plan, target, args, stack, env.group);
+      auto value = stack.contains(target) ? recursiveCall(plan, id, target, args, env)
+                                          : function(plan, target, args, stack, env.group);
       plan.code.push_back({Code::Copy, output, {value}});
       exits.push_back(plan.code.size());
       plan.code.push_back({Code::Jump, 0, {}});
@@ -639,6 +641,34 @@ private:
     const auto *unary = std::get_if<ScalarUnary>(&op);
     return unary && constant(unary->operand);
   }
+  Slot recursiveCall(Plan &plan, ValueId id, FunctionId target, const std::vector<Slot> &args,
+                     Environment &env) {
+    // A coordinating backedge suspends in a bounded child record, rather than
+    // expanding its body or recursing on the native worker stack.
+    if (!scheduled.at(target)) {
+      scheduled[target] = true;
+      pending.push_back(target);
+    }
+    const auto result = input.expressions.at(id).type;
+    auto handleType = input.functions.at(target).resultType;
+    handleType.task = true;
+    auto observedType = result;
+    observedType.fallible = true;
+    const auto output = slot(plan, result), handle = slot(plan, handleType);
+    const auto observed = slot(plan, observedType), joined = slot(plan, observedType);
+    const auto group = plan.groups++;
+    plan.code.push_back({Code::Open, 0, {}, env.group.value_or(SIZE_MAX), group, 0, id});
+    plan.code.push_back({Code::Spawn, handle, args, target, group, 0, id});
+    plan.code.push_back({Code::Await, observed, {handle}, target, 0, 0, id});
+    plan.code.push_back({Code::Join, joined, {observed}, 0, group, 0, id});
+    // Scheduler failure is an execution failure of this call, not an invented
+    // member of the callee's declared application-error family.
+    if (!result.fallible || !errorSubset(input, {}, result.errorRecord))
+      plan.code.push_back({Code::PropagateGroup, 0, {}, 0, group, 0, id});
+    plan.code.push_back({Code::Copy, output, {joined}});
+    plan.code.push_back({Code::ReleaseGroup, 0, {}, 0, group});
+    return output;
+  }
   Slot expression(Plan &plan, ValueId id, Environment &env, std::set<FunctionId> &stack) {
     if (auto found = env.values.find(id); found != env.values.end())
       return found->second;
@@ -649,6 +679,12 @@ private:
       std::vector<Slot> args;
       for (auto arg : call->arguments)
         args.push_back(expression(plan, arg, env, stack));
+      if (!options.preserveCalls && stack.contains(call->function) &&
+          coordinating.at(call->function)) {
+        auto value = recursiveCall(plan, id, call->function, args, env);
+        env.values[id] = value;
+        return value;
+      }
       if (!options.preserveCalls && stack.contains(call->function) &&
           !coordinating.at(call->function)) {
         if (input.functions.at(call->function).captureCount)
@@ -733,14 +769,14 @@ private:
         if (const auto *call = std::get_if<FunctionCall>(&invocation.operation)) {
           operands = call->arguments;
           target = call->function;
+          if ((!options.preserveCalls || resumable.at(target)) && !scheduled.at(target)) {
+            scheduled[target] = true;
+            pending.push_back(target);
+          }
           if (options.preserveCalls && resumable.at(target)) {
             if (task->placement && input.expressions.at(*task->placement).type.device)
               throw std::runtime_error("resumable helpers require CPU placement; GPU placements "
                                        "require numeric kernels");
-            if (!scheduled.at(target)) {
-              scheduled[target] = true;
-              pending.push_back(target);
-            }
           }
         } else {
           if (options.preserveCalls)
@@ -1020,9 +1056,6 @@ std::expected<ModulePlan, std::string> plan(const TypedModule &input, Options op
     auto storage = planRecordStorage(input);
     if (!storage)
       return std::unexpected(storage.error().message);
-    if (std::ranges::find(storage->recursive, true) != storage->recursive.end())
-      return std::unexpected("recursive values currently require synchronous native lowering; "
-                             "continuation/worker planning is not yet supported");
     if (hasPlacement(input))
       return std::unexpected("records are not implemented in placement-aware continuations");
     if (auto error = numericCapabilityError(input, NumericTarget::Cpu))
@@ -1070,7 +1103,8 @@ std::string dump(const ModulePlan &module) {
                                           "callable.target",
                                           "callable.captures",
                                           "callable.sync.guard",
-                                          "callable.invalid"};
+                                          "callable.invalid",
+                                          "group.propagate"};
   std::ostringstream out;
   for (std::size_t f = 0; f < module.plans.size(); ++f) {
     const auto &plan = *module.plans[f];

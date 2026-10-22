@@ -12,9 +12,7 @@ inline bool recursiveValueTypeSupported(const ValueType &root) {
   while (!pending.empty()) {
     const auto &type = *pending.back();
     pending.pop_back();
-    if (++work > 300000 || type.task || type.fallible || type.errorRecord || type.device ||
-        type.builtin == BuiltinValue::TaskError || type.builtin == BuiltinValue::FaultKind ||
-        type.builtin == BuiltinValue::Device)
+    if (++work > 300000 || type.device || type.builtin == BuiltinValue::Device)
       return false;
     if (type.builtin == BuiltinValue::Function) {
       if (((type.tensor || type.array) && !isFunctionArray(type)) || !type.callable)
@@ -26,7 +24,7 @@ inline bool recursiveValueTypeSupported(const ValueType &root) {
   }
   return true;
 }
-// Recursive execution remains synchronous; owned payloads need qualified dependency enumeration.
+// Recursive CPU values use cycle-safe storage and ownership; placement stays separate.
 inline std::optional<Diagnostic> recursiveRecordLayoutError(const TypedModule &module,
                                                             const SemanticLimits &limits = {}) {
   auto storage = planRecordStorage(module);
@@ -48,10 +46,6 @@ inline std::optional<Diagnostic> recursiveRecordLayoutError(const TypedModule &m
       return Diagnostic{
           "S068", "recursive type cycle has no finite construction: '" + record.name + "'", site};
     }
-    if (record.error)
-      return Diagnostic{
-          "S068", "recursive programs do not yet support application-error payloads or channels",
-          record.declaration};
     for (const auto &field : record.fields)
       if ((field.type.tensor && field.type.builtin != BuiltinValue::Numeric &&
            !isBoolArray(field.type) && !isStringArray(field.type) && !isRecordArray(field.type) &&
@@ -59,14 +53,16 @@ inline std::optional<Diagnostic> recursiveRecordLayoutError(const TypedModule &m
           (field.type.builtin != BuiltinValue::Numeric &&
            field.type.builtin != BuiltinValue::Bool && field.type.builtin != BuiltinValue::String &&
            field.type.builtin != BuiltinValue::Record &&
-           field.type.builtin != BuiltinValue::Function) ||
+           field.type.builtin != BuiltinValue::Function &&
+           field.type.builtin != BuiltinValue::TaskError) ||
           !recursiveValueTypeSupported(field.type))
-        return Diagnostic{"S068",
-                          "recursive programs require numeric/Bool/String scalars, numeric "
-                          "collections, Bool/String/record arrays "
-                          "or synchronous callables and function arrays and nominal links; other "
-                          "payloads remain unsupported",
-                          field.declaration};
+        return Diagnostic{
+            "S068",
+            "recursive programs require numeric/Bool/String scalars, numeric "
+            "collections, Bool/String/record arrays "
+            "or callables, function arrays, TaskError values and nominal links; other "
+            "payloads remain unsupported",
+            field.declaration};
   }
   auto physical = planRecordPhysicalLayout(module, limits);
   return physical ? std::optional<Diagnostic>{} : std::optional<Diagnostic>{physical.error()};
@@ -82,34 +78,32 @@ inline std::optional<std::string> recursiveProgramError(const TypedModule &modul
   const auto supported = recursiveValueTypeSupported;
   for (const auto &symbol : module.symbols)
     if (!supported(symbol.type))
-      return "recursive programs currently require synchronous values without worker or error "
-             "channels";
+      return "recursive programs require CPU values without device residency";
   for (const auto &function : module.functions)
     if (!supported(function.resultType) ||
         (function.declaredResult && !supported(*function.declaredResult)))
-      return "recursive programs currently require ordinary synchronous function signatures";
+      return "recursive programs require CPU function signatures without device residency";
   for (const auto &expression : module.expressions) {
     if (!supported(expression.type))
-      return "recursive programs currently require synchronous values without worker or error "
-             "channels";
-    if (std::holds_alternative<TaskOperation>(expression.operation) ||
-        std::holds_alternative<ParallelOperation>(expression.operation) ||
-        std::holds_alternative<CatchOperation>(expression.operation) ||
-        std::holds_alternative<FailOperation>(expression.operation) ||
-        std::holds_alternative<GuardOperation>(expression.operation) ||
-        std::holds_alternative<ErrorNarrow>(expression.operation) ||
-        std::holds_alternative<ErrorFieldRead>(expression.operation))
-      return "recursive programs currently require synchronous calls; workers and error control "
-             "remain unsupported";
+      return "recursive programs require CPU values without device residency";
+    if (std::holds_alternative<DeviceSelection>(expression.operation) ||
+        std::holds_alternative<Transfer>(expression.operation))
+      return "recursive values require CPU execution";
     if (const auto *match = std::get_if<MatchOperation>(&expression.operation)) {
       if (match->subject >= module.expressions.size() || match->cases.empty())
         return "invalid recursive match subject/cases";
       const auto &subject = module.expressions[match->subject].type;
-      if (subject.builtin != BuiltinValue::Record || !subject.record ||
-          *subject.record >= module.records.size() || subject.tensor || subject.task ||
-          subject.fallible)
-        return "recursive matches require completed ordinary enum subjects";
-      const auto count = module.records[*subject.record].variants.size();
+      if (subject.tensor || subject.task || subject.fallible ||
+          (subject.builtin != BuiltinValue::Record && subject.builtin != BuiltinValue::TaskError &&
+           subject.builtin != BuiltinValue::FaultKind))
+        return "recursive matches require completed enum or error subjects";
+      if (subject.builtin == BuiltinValue::Record &&
+          (!subject.record || *subject.record >= module.records.size()))
+        return "invalid recursive match nominal identity";
+      const auto count = subject.builtin == BuiltinValue::Record
+                             ? module.records[*subject.record].variants.size()
+                         : subject.builtin == BuiltinValue::TaskError ? 4u
+                                                                      : 5u;
       if (!count || match->cases.size() > count)
         return "invalid recursive match case count";
       std::unordered_set<unsigned> seen;

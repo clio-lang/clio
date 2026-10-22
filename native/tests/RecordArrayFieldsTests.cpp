@@ -17,7 +17,10 @@ int main() {
     const std::string decl = "type Row:\n  name:String\n  values:[int]\nenum Item:\n  Empty\n"
                              "  Value:\n    rows:[Row]\ntype Box:\n  items:[Item]\n  rows:[Row]\n";
     for (const auto *body :
-         {"fn main()->int:\n  p=Box {items:[],rows:[]}\n  length(p.rows)+length(p.items)\n",
+         {"type Recursive:\n  rows:[Recursive]\nfn main()->int:\n  0\n",
+          "enum Recursive:\n  Empty\n  Value:\n    rows:[Recursive]\nfn main()->int:\n  0\n",
+          "type First:\n  rows:[Second]\ntype Second:\n  parent:First\nfn main()->int:\n  0\n",
+          "fn main()->int:\n  p=Box {items:[],rows:[]}\n  length(p.rows)+length(p.items)\n",
           "fn main()->int:\n  p=Item.Value {rows:[Row {name:\"é\",values:[1,2]}]}\n"
           "  match p:\n    Item.Empty:0\n    Item.Value {rows}:rows[0].values[1]\n",
           "fn echo(p:Box)->Box:\n  p\nfn main()->int ! TaskError:\n"
@@ -44,9 +47,6 @@ int main() {
     for (const auto *body :
          {"fn main():\n  Item.Value {rows:[Item.Empty]}\n",
           "fn main():\n  Box {items:[Row {name:\"\",values:[]}],rows:[]}\n",
-          "type Recursive:\n  rows:[Recursive]\nfn main()->int:\n  0\n",
-          "enum Recursive:\n  Empty\n  Value:\n    rows:[Recursive]\nfn main()->int:\n  0\n",
-          "type First:\n  rows:[Second]\ntype Second:\n  parent:First\nfn main()->int:\n  0\n",
           "type Bad:\n  rows:Tensor[Row,2]\nfn main()->int:\n  0\n",
           "type Bad:\n  rows:[[Row]]\nfn main()->int:\n  0\n"})
       require(!analyze(decl + body).ok(), "invalid array-field program admitted");

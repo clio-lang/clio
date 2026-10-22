@@ -51,6 +51,9 @@ void kalandra_task_fail_group_v1(Task *task, const GroupHandle *group,
                                  const Failure *failure) noexcept {
   (void)task->failGroup(*group, *failure);
 }
+void kalandra_task_propagate_v1(Task *task, const Failure *failure) noexcept {
+  task->fail(*failure);
+}
 void kalandra_task_complete_v1(Task *task, const void *value) noexcept { task->complete(value); }
 void kalandra_task_fault_v1(Task *task, std::int64_t code, std::int64_t line,
                             std::int64_t column) noexcept {

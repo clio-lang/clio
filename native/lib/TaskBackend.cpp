@@ -524,8 +524,8 @@ private:
     return builder.CreateOr(failure, builder.CreateICmpNE(tag, c64(0)));
   }
   void copyErrorValue(std::size_t target, Value *output, std::size_t source, Value *input) {
-    auto *outType = scalarType(errorRecordType(target));
-    auto *inType = scalarType(errorRecordType(source));
+    auto *outType = llvm::cast<llvm::StructType>(scalarType(errorRecordType(target)));
+    auto *inType = llvm::cast<llvm::StructType>(scalarType(errorRecordType(source)));
     if (source == target) {
       copy(output, input, outType);
       return;
@@ -553,8 +553,10 @@ private:
       builder.CreateStore(c64(j + 1), builder.CreateStructGEP(outType, output, 0));
       for (std::size_t field = 0; field < from.variants[i].fields.size(); ++field) {
         const auto a = from.variants[i].fields[field], b = to.variants[j].fields[field];
+        if (outType->getElementType(b) != inType->getElementType(a))
+          throw std::runtime_error("error forwarding changed physical field storage");
         copy(builder.CreateStructGEP(outType, output, b), builder.CreateStructGEP(inType, input, a),
-             scalarType(from.fields[a].type));
+             outType->getElementType(b));
       }
       builder.CreateBr(done);
     }
@@ -579,7 +581,7 @@ private:
       for (std::size_t j = 0; j < planner.input.records[*target.record].variants.size(); ++j)
         targetVariants.emplace(errorOrigin(planner.input, *target.record, j), j);
     const auto &from = planner.input.records[*source.record];
-    auto *fromType = scalarType(source);
+    auto *fromType = llvm::cast<llvm::StructType>(scalarType(source));
     auto *fn = builder.GetInsertBlock()->getParent();
     auto *done = Block::Create(context, "error.narrowed", fn);
     auto *tag = builder.CreateLoad(i64, builder.CreateStructGEP(fromType, input, 0));
@@ -605,17 +607,20 @@ private:
         builder.SetInsertPoint(valid);
         copy(output, payload, failureType);
       } else {
-        auto *toType = scalarType(target);
+        auto *toType = llvm::cast<llvm::StructType>(scalarType(target));
         const auto &to = planner.input.records[*target.record];
         builder.CreateStore(llvm::Constant::getNullValue(toType), output);
         builder.CreateStore(c64(*selected + 1), builder.CreateStructGEP(toType, output, 0));
         const auto &fields = to.variants[*selected].fields;
         if (fields.size() != from.variants[i].fields.size())
           throw std::runtime_error("task error narrowing payload metadata mismatch");
-        for (std::size_t n = 0; n < fields.size(); ++n)
-          copy(builder.CreateStructGEP(toType, output, fields[n]),
-               builder.CreateStructGEP(fromType, input, from.variants[i].fields[n]),
-               scalarType(to.fields[fields[n]].type));
+        for (std::size_t n = 0; n < fields.size(); ++n) {
+          const auto a = from.variants[i].fields[n], b = fields[n];
+          if (toType->getElementType(b) != fromType->getElementType(a))
+            throw std::runtime_error("error narrowing changed physical field storage");
+          copy(builder.CreateStructGEP(toType, output, b),
+               builder.CreateStructGEP(fromType, input, a), toType->getElementType(b));
+        }
       }
       builder.CreateBr(done);
     }
@@ -1209,10 +1214,9 @@ private:
                              retain);
         builder.SetInsertPoint(retain);
         auto *tensor = builder.CreateStructGEP(wrapper, fn->getArg(3), 1);
-        auto *allocated =
-            builder.CreateLoad(pointer, builder.CreateStructGEP(descriptor(type), tensor, 0));
-        auto *success =
-            call("kalandra_retain_v1", boolean, {fn->getArg(0), fn->getArg(2), allocated});
+        auto *success = call("kalandra_environment_tensor_retain_v1", boolean,
+                             {fn->getArg(0), fn->getArg(2), tensor, c64(type.shape.size()),
+                              c64(static_cast<unsigned>(type.element))});
         auto *failed = Block::Create(context, "failed", fn);
         builder.CreateCondBr(success, ready, failed);
         builder.SetInsertPoint(failed);
@@ -1814,6 +1818,17 @@ private:
                             payload(instruction.output));
         builder.CreateBr(next);
         break;
+      case Code::PropagateGroup: {
+        if (!spawnFailure || instruction.group >= plan.groups)
+          throw std::runtime_error("recursive call failure requires a scheduled group");
+        call("kalandra_group_failure_v1", voidType, {task, group(instruction.group), spawnFailure});
+        auto *failed = Block::Create(context, "call.failed", resume);
+        builder.CreateCondBr(hasFailure(spawnFailure), failed, next);
+        builder.SetInsertPoint(failed);
+        call("kalandra_task_propagate_v1", voidType, {task, spawnFailure});
+        builder.CreateBr(leave);
+        break;
+      }
       case Code::ReleaseGroup:
         builder.CreateCondBr(
             call("kalandra_task_release_group_v1", boolean, {task, group(instruction.group)}), next,

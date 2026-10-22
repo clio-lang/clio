@@ -117,6 +117,33 @@ if(BUILD_TESTING)
     set_tests_properties(native-recursive-source-frontend-${VARIANT} PROPERTIES TIMEOUT 120)
   endforeach()
   foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    set(CONTINUATION_ABI)
+    if(VARIANT STREQUAL "sanitized")
+      set(CONTINUATION_RUNTIME kalandra-native-runtime-sanitized)
+    elseif(VARIANT STREQUAL "thread-sanitized")
+      set(CONTINUATION_RUNTIME kalandra-native-runtime-thread-sanitized)
+    elseif(VARIANT STREQUAL "optimized")
+      set(CONTINUATION_RUNTIME kalandra-task-core-optimized)
+      set(CONTINUATION_ABI "$<TARGET_OBJECTS:kalandra-recursive-task-abi-optimized>")
+    else()
+      set(CONTINUATION_RUNTIME kalandra-native-runtime)
+    endif()
+    add_test(NAME native-recursive-workers-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>"
+        "-DRUNTIME=$<TARGET_FILE:${CONTINUATION_RUNTIME}>" "-DVARIANT=${VARIANT}"
+        "-DTASK_ABI_OBJECTS=${CONTINUATION_ABI}"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/recursive-workers-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyRecursiveWorkers.cmake")
+    set_tests_properties(native-recursive-workers-${VARIANT} PROPERTIES TIMEOUT 600)
+    add_test(NAME native-recursive-continuations-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DEMITTER=$<TARGET_FILE:kalandra-recursive-source-tests-debug>"
+        "-DRUNTIME=$<TARGET_FILE:${CONTINUATION_RUNTIME}>" "-DVARIANT=${VARIANT}"
+        "-DTASK_ABI_OBJECTS=${CONTINUATION_ABI}"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/recursive-continuations-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyRecursiveContinuations.cmake")
+    set_tests_properties(native-recursive-continuations-${VARIANT} PROPERTIES TIMEOUT 180)
     add_test(NAME native-recursive-source-${VARIANT}
       COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>" "-DVARIANT=${VARIANT}"
         "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"

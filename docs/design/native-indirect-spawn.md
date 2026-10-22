@@ -1,6 +1,6 @@
 # Spawning synchronous function values on CPU workers
 
-Current CPU extension: [proven coordinating function values](native-resumable-callables.md) now use checked continuation dispatch, managed environments and the shared worker scheduler. This supersedes the synchronous-only coordination restriction in this earlier implementation record; unknown targets, recursive coordinating graphs and GPU callables remain gated.
+Current CPU extension: [proven coordinating function values](native-resumable-callables.md) now use checked continuation dispatch, managed environments and the shared worker scheduler. This supersedes the synchronous-only coordination restriction in this earlier implementation record; recursive coordinating calls now use bounded CPU continuations; unknown targets and GPU callables remain gated.
 
 Implemented native subset — 2026-10-20. A completed function value can now be dispatched to a local CPU worker with `spawn`. This extends [indirect-call provenance](native-worker-indirect-provenance.md) and uses the existing checked worker handoff.
 

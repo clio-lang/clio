@@ -100,13 +100,9 @@ int main() {
         for (FunctionId id = 0; id < module.functions.size(); ++id)
           if (module.functions[id].name == name)
             require(!effects[id], "creating or returning a callable executed its body");
-      if (cases == 7)
-        require(functionValueCapabilityError(module, NumericTarget::Cpu).has_value(),
-                "recursive coordinating call graph admitted");
-      else
-        require(!functionValueCapabilityError(module, NumericTarget::Cpu) &&
-                    continuation::plan(module).has_value(),
-                "proven resumable callable graph did not lower");
+      require(!functionValueCapabilityError(module, NumericTarget::Cpu) &&
+                  continuation::plan(module).has_value(),
+              "proven resumable callable graph did not lower");
       ++cases;
     }
     auto handled = checked(R"k(error E:

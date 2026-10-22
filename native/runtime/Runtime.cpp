@@ -38,6 +38,30 @@ struct alignas(std::max_align_t) Backing {
   Backing *releaseNext = nullptr; // Used exclusively after the final reference retires.
 };
 namespace {
+// Reservations are transferred only when the corresponding owner is published.
+struct BackingReservation {
+  void *state;
+  Invocation::EnvironmentRelease release;
+  std::uint64_t bytes = 0;
+  ~BackingReservation() {
+    if (bytes)
+      release(state, bytes);
+  }
+  bool acquire(Invocation &context, std::uint64_t storageBytes, std::uint64_t current,
+               Invocation::EnvironmentReserve reserve) noexcept {
+    if (!reserve)
+      return true;
+    constexpr auto maximum = std::numeric_limits<std::uint64_t>::max();
+    if (storageBytes > maximum - sizeof(Owner) ||
+        storageBytes + sizeof(Owner) > maximum - current ||
+        !reserve(state, storageBytes + sizeof(Owner))) {
+      context.fault(2);
+      return false;
+    }
+    bytes = storageBytes + sizeof(Owner);
+    return !context.poll();
+  }
+};
 bool retainBacking(Backing *backing) noexcept {
   auto references = backing->references.load(std::memory_order_relaxed);
   do {
@@ -170,20 +194,27 @@ void Invocation::remove(Owner *owner) noexcept {
   ++releases_;
 }
 void *Invocation::allocate(std::uint64_t bytes) noexcept {
-  if (!reserve())
+  if (poll() || !usable() || !reserve())
     return nullptr;
   if (bytes > std::numeric_limits<std::size_t>::max() - sizeof(Backing)) {
     fault(2);
     return nullptr;
   }
-  auto *storage = std::malloc(static_cast<std::size_t>(bytes) + sizeof(Backing));
+  const auto storageBytes = static_cast<std::size_t>(bytes) + sizeof(Backing);
+  BackingReservation reservation{recursiveBudget_, recursiveRelease_};
+  if (!reservation.acquire(*this, storageBytes, recursiveBytes_, recursiveReserve_))
+    return nullptr;
+  auto *storage = std::malloc(storageBytes);
   if (!storage) {
     fault(2);
     return nullptr;
   }
   auto *backing = new (storage) Backing;
   backing->bytes = bytes;
-  backing->storageBytes = sizeof(Backing) + bytes;
+  backing->storageBytes = storageBytes;
+  recursiveBytes_ += reservation.bytes;
+  backing->initial.recursiveCharged = reservation.bytes != 0;
+  reservation.bytes = 0;
   attach(&backing->initial);
   return backing + 1;
 }
@@ -234,29 +265,9 @@ const void *Invocation::makeRecursiveValueImpl(std::span<const std::byte> payloa
   if (!reserve())
     return nullptr;
   const auto storageBytes = sizeof(Backing) + padded + dependencyCount * sizeof(Backing *);
-  // Source-only invocations have no scheduler budget. Bound task contexts reserve
-  // the same conservative backing/owner charge as graph handoff before allocation.
-  struct Reservation {
-    void *state;
-    EnvironmentRelease release;
-    std::uint64_t bytes = 0;
-    ~Reservation() {
-      if (bytes)
-        release(state, bytes);
-    }
-  } reservation{recursiveBudget_, recursiveRelease_};
-  if (recursiveReserve_) {
-    constexpr auto maximumBytes = std::numeric_limits<std::uint64_t>::max();
-    if (storageBytes > maximumBytes - sizeof(Owner) ||
-        storageBytes + sizeof(Owner) > maximumBytes - recursiveBytes_ ||
-        !recursiveReserve_(recursiveBudget_, storageBytes + sizeof(Owner))) {
-      fault(2);
-      return nullptr;
-    }
-    reservation.bytes = storageBytes + sizeof(Owner);
-    if (poll())
-      return nullptr;
-  }
+  BackingReservation reservation{recursiveBudget_, recursiveRelease_};
+  if (!reservation.acquire(*this, storageBytes, recursiveBytes_, recursiveReserve_))
+    return nullptr;
   auto *storage = std::malloc(storageBytes);
   if (!storage) {
     fault(2);
@@ -448,8 +459,12 @@ void Invocation::releaseRecords() noexcept {
   }
 }
 bool Invocation::retainFrom(const Invocation &source, void *buffer) noexcept {
-  if (!reserve())
+  if (poll() || !usable() || !reserve())
     return false;
+  if (!source.usable()) {
+    fault(3);
+    return false;
+  }
   auto *existing = source.head_;
   while (existing && existing->backing + 1 != buffer)
     existing = existing->next;
@@ -457,12 +472,17 @@ bool Invocation::retainFrom(const Invocation &source, void *buffer) noexcept {
     fault(3);
     return false;
   }
+  auto *backing = existing->backing;
+  // Every ordinary retain creates an owner. Conservatively reserve its backing
+  // again, even if this invocation already has another owner for the same bytes.
+  BackingReservation reservation{recursiveBudget_, recursiveRelease_};
+  if (!reservation.acquire(*this, backing->storageBytes, recursiveBytes_, recursiveReserve_))
+    return false;
   auto *storage = std::malloc(sizeof(Owner));
   if (!storage) {
     fault(2);
     return false;
   }
-  auto *backing = existing->backing;
   // Source context access is exclusive during packet construction. Its owner
   // keeps this backing alive until the new reference has been established.
   if (!retainBacking(backing)) {
@@ -470,7 +490,10 @@ bool Invocation::retainFrom(const Invocation &source, void *buffer) noexcept {
     fault(3);
     return false;
   }
-  attach(new (storage) Owner{nullptr, nullptr, backing, false});
+  auto *owner = new (storage) Owner{nullptr, nullptr, backing, false, reservation.bytes != 0};
+  recursiveBytes_ += reservation.bytes;
+  reservation.bytes = 0;
+  attach(owner);
   return true;
 }
 bool Invocation::retainRecursiveGraph(const AllocationLease &root, const void *key,

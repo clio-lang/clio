@@ -94,6 +94,13 @@ int main(int argc, char **argv) {
                              {},
                              {{"$tag", integer, {}}, {"items", functionArray, {}}},
                              {{"Empty", {}, {}}, {"More", {}, {1}}}});
+    ValueType taskError;
+    taskError.builtin = BuiltinValue::TaskError;
+    const auto taskCarrier = input.records.size();
+    input.records.push_back({"TaskCarrier",
+                             {},
+                             {{"$tag", integer, {}}, {"failure", taskError, {}}},
+                             {{"Empty", {}, {}}, {"Value", {}, {1}}}});
     mlir::MLIRContext context;
     context.loadDialect<mlir::LLVM::LLVMDialect>();
     mlir::registerLLVMDialectTranslation(context);
@@ -357,6 +364,22 @@ int main(int argc, char **argv) {
                                       : extract(extract(*value, 0), 1);
       mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{result});
     }
+    builder.setInsertionPointToEnd(module.getBody());
+    auto taskBox = mlir::LLVM::LLVMFuncOp::create(
+        builder, loc, "task_error_box",
+        mlir::LLVM::LLVMFunctionType::get(ptr, {builder.getI64Type(), builder.getI64Type()}));
+    auto *taskBoxEntry = taskBox.addEntryBlock(builder);
+    builder.setInsertionPointToStart(taskBoxEntry);
+    mlir::Value carrier = mlir::LLVM::ZeroOp::create(builder, loc, (*types)[taskCarrier]);
+    auto failureType = (*types)[taskCarrier].getBody()[1];
+    mlir::Value failure = mlir::LLVM::ZeroOp::create(builder, loc, failureType);
+    auto kind = mlir::LLVM::TruncOp::create(builder, loc, builder.getI32Type(),
+                                            taskBoxEntry->getArgument(0));
+    failure = insert(failure, kind, 0);
+    carrier = insert(insert(carrier, taskBoxEntry->getArgument(1), 0), failure, 1);
+    auto boxedFailure = emitter.box(loc, carrier, taskCarrier);
+    require(bool(boxedFailure), "completed TaskError field boxing failed");
+    mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{*boxedFailure});
     function("unsupported");
     TypedModule unsupported;
     ValueType collection;
@@ -365,11 +388,12 @@ int main(int argc, char **argv) {
     auto unsupportedTypes = lowerRecordTypes(unsupported, context);
     auto unsupportedStorage = planRecordStorage(unsupported);
     require(unsupportedTypes && unsupportedStorage, "unsupported fixture planning failed");
+    unsupported.records[0].fields[0].type.builtin = BuiltinValue::Device;
     RecursiveRecordOps unsupportedEmitter(unsupported, *unsupportedStorage, *unsupportedTypes,
                                           builder, module);
     auto textValue = mlir::LLVM::ZeroOp::create(builder, loc, (*unsupportedTypes)[0]);
     require(!unsupportedEmitter.box(loc, textValue, 0),
-            "owned collection field silently omitted from dependency plan");
+            "unsupported owned field silently omitted from dependency plan");
     require(!emitter.box(loc, constant(1), 0) && !emitter.read(loc, constant(1), 0),
             "physical operand validation missing");
     auto nullPointer = mlir::LLVM::ZeroOp::create(builder, loc, ptr);

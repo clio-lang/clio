@@ -43,7 +43,7 @@ bool workerClosureCaptureTypeSupported(const TypedModule &module, const ValueTyp
     if (value.task || value.fallible || value.device || value.errorRecord ||
         (value.builtin != BuiltinValue::Numeric && value.builtin != BuiltinValue::Bool &&
          value.builtin != BuiltinValue::String && value.builtin != BuiltinValue::Record &&
-         value.builtin != BuiltinValue::Function))
+         value.builtin != BuiltinValue::Function && value.builtin != BuiltinValue::TaskError))
       return false;
     if (value.builtin == BuiltinValue::Function &&
         (!value.callable || (value.tensor && !isFunctionArray(value))))
@@ -928,9 +928,9 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
     std::vector<unsigned> state(module.functions.size());
     std::size_t remaining = 300000;
     const auto visit = [&](auto &&self, FunctionId id, unsigned depth) -> bool {
-      if (!remaining || depth > 128 || state[id] == 1)
+      if (!remaining || depth > 128)
         return false;
-      if (state[id] == 2)
+      if (state[id] == 1 || state[id] == 2)
         return true;
       state[id] = 1;
       for (auto value : module.functions[id].expressions) {
@@ -956,7 +956,7 @@ std::optional<std::string> functionValueCapabilityError(const TypedModule &modul
           std::ranges::any_of(module.functions[id].expressions,
                               [&](auto value) { return flow->reachable[value]; }) &&
           !visit(visit, id, 0))
-        return "recursive or over-budget coordinating function-value graphs are not implemented";
+        return "coordinating function-value graph exceeds its proof budget";
   }
   return {};
 }
