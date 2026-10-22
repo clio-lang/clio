@@ -184,6 +184,40 @@ public:
     return mlir::LLVM::LoadOp::create(builder_, loc, types_[id], data).getResult();
   }
 
+  // Packet/result copy for one boxed nominal root. The checked ABI inserts the
+  // receiving invocation and exits on failure/cancellation before publishing output.
+  std::expected<mlir::Value, std::string> copyReference(mlir::Location loc, mlir::Value source,
+                                                        mlir::Value node, mlir::Value output,
+                                                        std::size_t id) {
+    if (id >= types_.size() || source.getType() != pointer() || node.getType() != pointer() ||
+        output.getType() != pointer())
+      return std::unexpected(
+          "recursive transfer requires a checked nominal root and pointer slots");
+    const auto [bytes, alignment] = layout(id);
+    auto function =
+        declaration("kalandra_recursive_transfer", {pointer(), pointer(), builder_.getI64Type(),
+                                                    builder_.getI64Type(), pointer()});
+    auto transferred =
+        mlir::LLVM::CallOp::create(builder_, loc, function,
+                                   mlir::ValueRange{source, node, constant(loc, bytes),
+                                                    constant(loc, alignment), typeKey(loc, id)});
+    auto *current = builder_.getInsertionBlock();
+    auto *publish = builder_.createBlock(current->getParent());
+    auto *done = builder_.createBlock(current->getParent());
+    done->addArgument(builder_.getI1Type(), loc);
+    builder_.setInsertionPointToEnd(current);
+    auto nonnull = mlir::LLVM::ICmpOp::create(builder_, loc, mlir::LLVM::ICmpPredicate::ne,
+                                              transferred.getResult(),
+                                              mlir::LLVM::ZeroOp::create(builder_, loc, pointer()));
+    mlir::LLVM::CondBrOp::create(builder_, loc, nonnull, publish, mlir::ValueRange{}, done,
+                                 mlir::ValueRange{constant(loc, 0, 1)});
+    builder_.setInsertionPointToStart(publish);
+    mlir::LLVM::StoreOp::create(builder_, loc, transferred.getResult(), output);
+    mlir::LLVM::BrOp::create(builder_, loc, mlir::ValueRange{constant(loc, 1, 1)}, done);
+    builder_.setInsertionPointToStart(done);
+    return done->getArgument(0);
+  }
+
   // Declare helpers before generating bodies so array-mediated cycles do not
   // recursively expand the compiler's own call stack.
   std::optional<std::string> finish() {

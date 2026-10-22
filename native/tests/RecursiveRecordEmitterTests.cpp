@@ -287,6 +287,54 @@ int main(int argc, char **argv) {
     auto boxedFunctionArray = emitter.box(loc, arrayValue, 13);
     require(bool(boxedFunctionArray), "function array field box failed");
     mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{*boxedFunctionArray});
+    for (auto [id, name] : {std::pair<std::size_t, const char *>{0, "copy_list"},
+                            {12, "copy_callable"},
+                            {13, "copy_function_array"},
+                            {11, "copy_tree"}}) {
+      builder.setInsertionPointToEnd(module.getBody());
+      auto copyFunction = mlir::LLVM::LLVMFuncOp::create(
+          builder, loc, name,
+          mlir::LLVM::LLVMFunctionType::get(builder.getI1Type(), {ptr, ptr, ptr}));
+      auto *copyEntry = copyFunction.addEntryBlock(builder);
+      builder.setInsertionPointToStart(copyEntry);
+      auto copied = emitter.copyReference(loc, copyEntry->getArgument(0), copyEntry->getArgument(1),
+                                          copyEntry->getArgument(2), id);
+      require(bool(copied), "recursive packet callback emission failed");
+      mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{*copied});
+    }
+    {
+      builder.setInsertionPointToEnd(module.getBody());
+      auto listMaker = mlir::LLVM::LLVMFuncOp::create(builder, loc, "make_list",
+                                                      mlir::LLVM::LLVMFunctionType::get(ptr, {}));
+      builder.setInsertionPointToStart(listMaker.addEntryBlock(builder));
+      mlir::Value nil = mlir::LLVM::ZeroOp::create(builder, loc, (*types)[0]);
+      nil = insert(nil, constant(1), 0);
+      auto tail = emitter.box(loc, nil, 0);
+      require(bool(tail), "list packet tail emission failed");
+      auto cons = insert(insert(insert(nil, constant(2), 0), constant(42), 1), *tail, 2);
+      auto listRoot = emitter.box(loc, cons, 0);
+      require(bool(listRoot), "list packet root emission failed");
+      mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{*listRoot});
+    }
+    for (auto [id, name] : {std::pair<std::size_t, const char *>{0, "read_list_head"},
+                            {12, "read_callable_environment"},
+                            {13, "read_function_array_data"},
+                            {11, "read_tree_data"}}) {
+      builder.setInsertionPointToEnd(module.getBody());
+      auto reader = mlir::LLVM::LLVMFuncOp::create(
+          builder, loc, name,
+          mlir::LLVM::LLVMFunctionType::get(id == 0 ? mlir::Type(builder.getI64Type()) : ptr,
+                                            {ptr}));
+      auto *readerEntry = reader.addEntryBlock(builder);
+      builder.setInsertionPointToStart(readerEntry);
+      auto value = emitter.read(loc, readerEntry->getArgument(0), id);
+      require(bool(value), "packet reader emission failed");
+      mlir::Value result = id == 0    ? extract(*value, 1)
+                           : id == 12 ? extract(extract(*value, 1), 1)
+                           : id == 13 ? extract(extract(*value, 1), 1)
+                                      : extract(extract(*value, 0), 1);
+      mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{result});
+    }
     function("unsupported");
     TypedModule unsupported;
     ValueType collection;
@@ -302,6 +350,11 @@ int main(int argc, char **argv) {
             "owned collection field silently omitted from dependency plan");
     require(!emitter.box(loc, constant(1), 0) && !emitter.read(loc, constant(1), 0),
             "physical operand validation missing");
+    auto nullPointer = mlir::LLVM::ZeroOp::create(builder, loc, ptr);
+    require(!emitter.copyReference(loc, constant(1), nullPointer, nullPointer, 0) &&
+                !emitter.copyReference(loc, nullPointer, nullPointer, nullPointer,
+                                       input.records.size()),
+            "recursive packet copy accepted malformed operands or nominal identity");
     mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{constant(0)});
     require(!emitter.finish(), "recursive array helper generation failed");
     require(mlir::succeeded(mlir::verify(module)), "recursive emitter MLIR verification failed");

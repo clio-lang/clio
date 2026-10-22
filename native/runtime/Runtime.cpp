@@ -967,6 +967,25 @@ extern "C" const void *kalandra_recursive_read_v1(kalandra::runtime::Invocation 
   return node;
 }
 
+extern "C" const void *kalandra_recursive_transfer_v1(kalandra::runtime::Invocation *destination,
+                                                      const kalandra::runtime::Invocation *source,
+                                                      const void *root, std::uint64_t bytes,
+                                                      std::uint64_t alignment,
+                                                      const void *key) noexcept {
+  if (destination->poll() || !destination->usable())
+    return nullptr;
+  if (!source || !source->usable()) {
+    destination->fault(3);
+    return nullptr;
+  }
+  auto retained = source->lease(root);
+  if (!retained) {
+    destination->fault(3);
+    return nullptr;
+  }
+  return destination->retainRecursiveGraph(*retained, key, bytes, alignment) ? root : nullptr;
+}
+
 extern "C" const void *
 kalandra_recursive_tensor_dependency_v1(kalandra::runtime::Invocation *context,
                                         const void *descriptor, std::uint64_t rank,

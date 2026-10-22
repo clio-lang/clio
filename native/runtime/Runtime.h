@@ -227,3 +227,10 @@ extern "C" const void *kalandra_recursive_function_dependency_v1(kalandra::runti
 
 extern "C" const void *kalandra_recursive_function_array_dependency_v1(
     kalandra::runtime::Invocation *, const void *descriptor, std::uint64_t active) noexcept;
+
+// Private local packet bridge; source access is exclusive while its lease is acquired.
+extern "C" const void *kalandra_recursive_transfer_v1(kalandra::runtime::Invocation *destination,
+                                                      const kalandra::runtime::Invocation *source,
+                                                      const void *root, std::uint64_t bytes,
+                                                      std::uint64_t alignment,
+                                                      const void *key) noexcept;
