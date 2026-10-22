@@ -492,6 +492,80 @@ int main(int argc, char **argv) {
       copy->setName(name);
       copy->setLinkage(llvm::GlobalValue::ExternalLinkage);
     }
+    const auto callableTreeId = input.records.size();
+    auto callableChildren = treeArray;
+    callableChildren.record = callableTreeId;
+    input.records.push_back({"CallableTree",
+                             {},
+                             {{"$tag", integer, {}},
+                              {"apply", callable, {}},
+                              {"items", functionArray, {}},
+                              {"children", callableChildren, {}},
+                              {"list", list, {}}},
+                             {{"Empty", {}, {}}, {"More", {}, {1, 2, 3, 4}}}});
+    TypedModule kernels;
+    kernels.records = input.records;
+    kernels.symbols = {
+        {"value", integer, {}, 0, true}, {"text", text, {}, 0, true}, {"list", list, {}, 0, true}};
+    TypedFunction captured;
+    captured.name = "captured";
+    captured.parameters = {0, 1, 2};
+    captured.captureCount = 2;
+    captured.resultType = integer;
+    auto free = captured;
+    free.name = "free";
+    free.parameters = {0};
+    free.captureCount = 0;
+    kernels.functions = {captured, free};
+    kernels.expressions = {{{}, callable, FunctionReference{0}},
+                           {{}, callable, FunctionReference{1}}};
+    for (unsigned id = 0; id < 2; ++id) {
+      auto *entry = llvm::Function::Create(
+          llvm::FunctionType::get(taskBuilder.getInt64Ty(),
+                                  {pointer, taskBuilder.getInt64Ty(), pointer}, false),
+          llvm::GlobalValue::ExternalLinkage, "kalandra_callable_" + std::to_string(id), *native);
+      taskBuilder.SetInsertPoint(llvm::BasicBlock::Create(llvmContext, "entry", entry));
+      if (id) {
+        taskBuilder.CreateRet(taskBuilder.CreateMul(entry->getArg(1), taskBuilder.getInt64(2)));
+        continue;
+      }
+      auto *environment = taskBuilder.CreateCall(
+          readEnvironment, {entry->getArg(2), entry->getArg(0), taskBuilder.getInt64(48), entry});
+      auto *failed = llvm::BasicBlock::Create(llvmContext, "failed", entry);
+      auto *ready = llvm::BasicBlock::Create(llvmContext, "ready", entry);
+      taskBuilder.CreateCondBr(taskBuilder.CreateIsNotNull(environment), ready, failed);
+      taskBuilder.SetInsertPoint(ready);
+      auto *child =
+          taskOps.project(taskBuilder, taskBuilder.CreateStructGEP(captures, environment, 1), 0, 2,
+                          entry->getArg(2), failed);
+      auto *length = taskBuilder.CreateExtractValue(
+          taskBuilder.CreateLoad(taskTypes->scalar(text),
+                                 taskBuilder.CreateStructGEP(captures, environment, 0)),
+          {2});
+      taskBuilder.CreateRet(taskBuilder.CreateAdd(
+          entry->getArg(1),
+          taskBuilder.CreateAdd(taskBuilder.CreateExtractValue(child, {1}), length)));
+      taskBuilder.SetInsertPoint(failed);
+      taskBuilder.CreateRet(taskBuilder.getInt64(-1));
+    }
+    auto callableRecord = list;
+    callableRecord.record = 13;
+    auto callableTree = list;
+    callableTree.record = callableTreeId;
+    for (auto [type, name] : {std::pair{functionArray, "task_copy_functions"},
+                              {callableRecord, "task_copy_function_record"},
+                              {callableTree, "task_copy_callable_tree"},
+                              {callableChildren, "task_copy_callable_tree_array"}}) {
+      auto *layout = emitTaskKernelValueLayout(input, kernels, *native, type);
+      auto *copy = llvm::cast<llvm::Function>(layout->getInitializer()->getOperand(3));
+      copy->setName(name);
+      copy->setLinkage(llvm::GlobalValue::ExternalLinkage);
+    }
+    kernels.expressions.erase(kernels.expressions.begin());
+    auto *restricted = emitTaskKernelValueLayout(input, kernels, *native, functionArray);
+    auto *restrictedCopy = llvm::cast<llvm::Function>(restricted->getInitializer()->getOperand(3));
+    restrictedCopy->setName("task_copy_restricted_functions");
+    restrictedCopy->setLinkage(llvm::GlobalValue::ExternalLinkage);
     require(!llvm::verifyModule(*native, &llvm::errs()),
             "checked recursive LLVM verification failed");
     for (auto &global : native->globals())

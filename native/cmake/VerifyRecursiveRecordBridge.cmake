@@ -54,3 +54,7 @@ RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAG
   "${SOURCE_DIR}/tests/RecursiveTaskCallableTests.cpp" "${OUTPUT_DIR}/bridge.ll"
   "${RUNTIME}" -o "${OUTPUT_DIR}/task-callables")
 RUN_OK("${OUTPUT_DIR}/task-callables")
+RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
+  "${SOURCE_DIR}/tests/RecursiveTaskCallableAggregateTests.cpp" "${OUTPUT_DIR}/bridge.ll"
+  "${RUNTIME}" -o "${OUTPUT_DIR}/task-callable-aggregates")
+RUN_OK("${OUTPUT_DIR}/task-callable-aggregates")

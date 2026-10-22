@@ -39,6 +39,7 @@ class Emitter {
   std::map<std::string, llvm::StructType *> values;
   std::optional<TaskValueTypes> taskTypes;
   std::map<std::string, llvm::GlobalVariable *> layouts;
+  std::map<std::string, Function *> copyCallbacks;
   std::map<std::size_t, Function *> recordRetainers;
   std::vector<std::size_t> pendingRecordRetainers;
   std::vector<llvm::StructType *> frames, packets;
@@ -745,7 +746,7 @@ private:
     auto *value = builder.CreateLoad(scalarType(type), address);
     builder.CreateStore(
         builder.CreateInsertValue(llvm::Constant::getNullValue(wrapper), value, {1}), input);
-    auto *ok = builder.CreateCall(module.getFunction("value.copy." + key(type)),
+    auto *ok = builder.CreateCall(copyCallbacks.at(key(type)),
                                   {fn->getArg(0), output, fn->getArg(2), input});
     auto *ready = Block::Create(context, "function.payload.copied", fn);
     builder.CreateCondBr(ok, ready, failed);
@@ -767,6 +768,10 @@ private:
     builder.SetInsertPoint(denied);
     builder.CreateRet(builder.getFalse());
     builder.SetInsertPoint(start);
+    auto *active = Block::Create(context, "copy.active", fn);
+    builder.CreateCondBr(call("kalandra_invocation_ready_v1", boolean, {fn->getArg(0)}), active,
+                         failed);
+    builder.SetInsertPoint(active);
     copy(scratch, fn->getArg(3), wrapper);
     builder.CreateCondBr(hasFailure(builder.CreateStructGEP(wrapper, scratch, 0)),
                          type.fallible ? done : failed, success);
@@ -853,6 +858,10 @@ private:
     call("kalandra_call_leave_v1", voidType, {fn->getArg(0)});
     builder.CreateRet(builder.getFalse());
     builder.SetInsertPoint(header);
+    auto *active = Block::Create(context, "function.active", fn);
+    builder.CreateCondBr(call("kalandra_invocation_ready_v1", boolean, {fn->getArg(0)}), active,
+                         stopped);
+    builder.SetInsertPoint(active);
     Value *errorInput = fn->getArg(3);
     if (type.errorRecord) {
       errorInput = builder.CreateAlloca(wrapper);
@@ -929,7 +938,7 @@ private:
             // Register layouts before their bodies so equal-signature nested
             // captures reuse this copy entry instead of expanding code forever.
             layout(captures[i]);
-            auto *nested = module.getFunction("value.copy." + key(captures[i]));
+            auto *nested = copyCallbacks.at(key(captures[i]));
             auto *nestedType = valueType(captures[i]);
             auto *source = builder.CreateAlloca(nestedType);
             auto *destination = builder.CreateAlloca(nestedType);
@@ -999,6 +1008,7 @@ private:
     llvm::IRBuilderBase::InsertPointGuard guard(builder);
     auto *wrapper = valueType(type);
     auto *fn = function("value.copy." + name, boolean, {pointer, pointer, pointer, pointer});
+    copyCallbacks.emplace(name, fn);
     const auto layoutIndex = layouts.size();
     auto *result =
         new llvm::GlobalVariable(module, layoutType, true, llvm::GlobalValue::InternalLinkage,
@@ -1491,7 +1501,7 @@ private:
       case Code::CallableCaptures:
       case Code::CallableSyncGuard: {
         layout(type);
-        auto *copy = module.getFunction("value.copy." + key(type));
+        auto *copy = copyCallbacks.at(key(type));
         auto *ready = Block::Create(context, "callable.checked", resume);
         auto *ok = builder.CreateCall(
             copy, {ctx, slot(instruction.output), ctx, slot(instruction.args[0])});
@@ -1955,6 +1965,15 @@ llvm::GlobalVariable *emitTaskValueLayout(const TypedModule &input, llvm::Module
   if (containsFunctionStorage(input, type))
     throw std::invalid_argument("standalone task layout emission requires non-callable storage");
   continuation::ModulePlan planner(input);
+  return Emitter(planner, module).emitValueLayout(type);
+}
+llvm::GlobalVariable *emitTaskKernelValueLayout(const TypedModule &input,
+                                                const TypedModule &kernels, llvm::Module &module,
+                                                const ValueType &type) {
+  if (!input.functions.empty() || !input.expressions.empty())
+    throw std::invalid_argument("component task layout requires a schema-only source module");
+  continuation::ModulePlan planner(input);
+  planner.kernels = kernels;
   return Emitter(planner, module).emitValueLayout(type);
 }
 std::expected<BackendOutput, std::string> lowerTaskNative(const TypedModule &input,
