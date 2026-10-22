@@ -3,6 +3,7 @@
 #include "NativeLayout.h"
 #include "NativeStack.h"
 #include "RecordLayout.h"
+#include "TaskValueTypes.h"
 #include "kalandra/Backend.h"
 #include "kalandra/Continuation.h"
 #include "llvm/AsmParser/Parser.h"
@@ -32,7 +33,7 @@ class Emitter {
   Type *pointer, *i32, *i64, *f32, *boolean, *voidType;
   llvm::StructType *failureType, *handleType, *packetType, *layoutType, *entryType;
   std::map<std::string, llvm::StructType *> values;
-  std::map<std::size_t, Type *> recordTypes;
+  std::optional<TaskValueTypes> taskTypes;
   std::map<std::string, llvm::GlobalVariable *> layouts;
   std::vector<llvm::StructType *> frames, packets;
   std::vector<std::map<std::size_t, std::size_t>> observationFields, recursiveResultFields;
@@ -59,6 +60,10 @@ public:
     layoutType = llvm::StructType::get(context, {i64, i64, i64, pointer, pointer});
     entryType = llvm::StructType::get(
         context, {i32, i64, i64, i64, i64, i64, pointer, pointer, pointer, pointer});
+    auto types = TaskValueTypes::create(planner.input, context);
+    if (!types)
+      throw std::runtime_error(types.error().message);
+    taskTypes = std::move(*types);
     destroy = function("kalandra_frame_destroy", voidType, {pointer});
     builder.SetInsertPoint(Block::Create(context, "entry", destroy));
     builder.CreateRetVoid();
@@ -348,31 +353,7 @@ private:
     auto *dims = llvm::ArrayType::get(i64, type.shape.size());
     return llvm::StructType::get(context, {pointer, pointer, i64, dims, dims});
   }
-  Type *scalarType(const ValueType &type) {
-    if (type.builtin == BuiltinValue::Function && !type.tensor)
-      return llvm::StructType::get(context, {pointer, pointer});
-    if (type.tensor)
-      return descriptor(type);
-    if (type.builtin == BuiltinValue::Record) {
-      if (auto found = recordTypes.find(*type.record); found != recordTypes.end())
-        return found->second;
-      std::vector<Type *> fields;
-      for (const auto &field : planner.input.records.at(*type.record).fields)
-        fields.push_back(scalarType(field.type));
-      return recordTypes[*type.record] = llvm::StructType::get(context, fields);
-    }
-    if (type.builtin == BuiltinValue::TaskError)
-      return failureType;
-    if (type.builtin == BuiltinValue::FaultKind)
-      return i32;
-    if (type.builtin == BuiltinValue::Bool)
-      return boolean;
-    if (type.builtin == BuiltinValue::String)
-      return llvm::StructType::get(context, {pointer, pointer, i64});
-    return isInteger(type.element) ? builder.getIntNTy(describeNumeric(type.element)->bits)
-           : type.element == NumericType::Float64 ? Type::getDoubleTy(context)
-                                                  : f32;
-  }
+  Type *scalarType(const ValueType &type) { return taskTypes->scalar(type); }
   std::size_t functionSignature(ValueType type) {
     type.fallible = false;
     type.errorRecord.reset();
@@ -435,16 +416,9 @@ private:
     const auto name = key(type);
     if (auto found = values.find(name); found != values.end())
       return found->second;
-    Type *payload = type.task                                 ? static_cast<Type *>(handleType)
-                    : type.builtin == BuiltinValue::TaskError ? static_cast<Type *>(failureType)
-                    : type.builtin == BuiltinValue::FaultKind ? i32
-                    : type.tensor ? static_cast<Type *>(descriptor(type))
-                                  : scalarType(type);
-    std::vector<Type *> fields{failureType, payload};
-    if (type.errorRecord)
-      fields.push_back(scalarType(errorRecordType(*type.errorRecord)));
-    return values[name] = llvm::StructType::create(context, fields, "result." + name);
+    return values[name] = taskTypes->value(type, "result." + name);
   }
+
   void copy(Value *output, Value *input, Type *type) {
     builder.CreateMemCpy(output, llvm::MaybeAlign(alignment(type)), input,
                          llvm::MaybeAlign(alignment(type)), size(type));
