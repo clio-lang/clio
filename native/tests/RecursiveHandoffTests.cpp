@@ -113,6 +113,74 @@ struct Budget {
   }
   void bind(Invocation &context) { context.bindRecursiveBudget(this, reserve, release); }
 };
+static void constructionBudgetTests() {
+  Node value{42, nullptr};
+  Invocation source, probe;
+  auto *pointer = source.makeRecursiveValue(bytes(value), &nodeKey);
+  auto root = source.lease(pointer);
+  require(root && probe.retainRecursiveGraph(*root, &nodeKey, sizeof(Node), alignof(Node)),
+          "construction budget probe failed");
+  const auto footprint = probe.recursiveBytes();
+  probe.settle();
+  for (unsigned mode = 0; mode < 5; ++mode) {
+    Budget budget{mode == 0 ? footprint - 1 : footprint};
+    std::atomic<bool> cancelled{false};
+    if (mode == 2)
+      budget.cancel = &cancelled;
+    Invocation context;
+    budget.bind(context);
+    context.bindCancellation(&cancelled);
+    const void *invalid = reinterpret_cast<void *>(0x1230);
+    const auto references = root->referenceCount();
+    const void *node =
+        mode == 3 ? context.makeRecursiveValueFromPointers(bytes(value), &nodeKey, {&invalid, 1})
+                  : context.makeRecursiveValue(bytes(value), &nodeKey);
+    // The invalid-edge fixture needs table capacity in addition to a leaf.
+    if (mode == 3) {
+      require(!node && context.status() == 2 && !budget.used && !context.live(),
+              "table-capacity budget rejection published a node");
+    } else if (mode == 0 || mode == 2) {
+      require(!node && !context.live() && !context.allocations() && !context.recursiveBytes() &&
+                  !budget.used && (mode == 2 ? context.poll() : context.status() == 2),
+              "construction budget failure published storage");
+    } else {
+      auto retained = context.lease(node);
+      require(retained && context.recursiveBytes() == footprint && budget.used == footprint &&
+                  context.retainRecursiveGraph(*retained, &nodeKey, sizeof(Node), alignof(Node)) &&
+                  context.recursiveBytes() == footprint && budget.reservations == 1,
+              "new node handoff double-charged construction");
+      if (mode == 4) {
+        require(!context.makeRecursiveValue(bytes(value), &nodeKey) && context.status() == 2 &&
+                    context.live() == 1 && context.recursiveBytes() == footprint,
+                "second node bypassed exhausted construction budget");
+      }
+    }
+    context.settle();
+    require(!budget.used && budget.valid && root->referenceCount() == references,
+            "construction reservation leaked");
+    balanced(context);
+  }
+  // A partial dependency retain must refund the full unpublished reservation.
+  {
+    Budget budget{footprint * 4};
+    Invocation context;
+    budget.bind(context);
+    auto *child = context.makeRecursiveValue(bytes(value), &nodeKey);
+    auto retained = context.lease(child);
+    const auto used = budget.used, refs = retained->referenceCount();
+    const void *dependencies[]{child, reinterpret_cast<void *>(0x1230)};
+    require(!context.makeRecursiveValueFromPointers(bytes(value), &nodeKey, dependencies) &&
+                context.status() == 3 && context.live() == 1 && budget.used == used &&
+                context.recursiveBytes() == used && retained->referenceCount() == refs &&
+                budget.refunds == 1,
+            "failed child retention leaked reservation or dependency");
+    context.settle();
+    require(!budget.used && budget.valid && budget.refunds == 2,
+            "partial construction refund changed");
+    balanced(context);
+  }
+  source.settle();
+}
 static void budgetTests() {
   Invocation producer, probe;
   auto root = fixture(producer);
@@ -190,6 +258,7 @@ static void budgetTests() {
 }
 int main() {
   try {
+    constructionBudgetTests();
     budgetTests();
     {
       Invocation producer, receiver, onward;

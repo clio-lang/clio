@@ -83,8 +83,8 @@ public:
   void bindEnvironmentBudget(void *state, EnvironmentReserve reserve,
                              EnvironmentRelease release) noexcept;
   std::uint64_t environmentBytes() const noexcept { return environmentBytes_; }
-  // Conservative per-invocation reservations for backing reached by graph
-  // handoff. Charges include backing storage and one receiving owner allowance;
+  // Conservative per-invocation reservations for graph handoff and managed
+  // recursive construction in bound task contexts. Include backing and one owner;
   // duplicate graph visits reuse a surviving charged ownership registration.
   void bindRecursiveBudget(void *state, EnvironmentReserve reserve,
                            EnvironmentRelease release) noexcept;

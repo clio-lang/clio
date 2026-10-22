@@ -233,7 +233,31 @@ const void *Invocation::makeRecursiveValueImpl(std::span<const std::byte> payloa
   }
   if (!reserve())
     return nullptr;
-  auto *storage = std::malloc(sizeof(Backing) + padded + dependencyCount * sizeof(Backing *));
+  const auto storageBytes = sizeof(Backing) + padded + dependencyCount * sizeof(Backing *);
+  // Source-only invocations have no scheduler budget. Bound task contexts reserve
+  // the same conservative backing/owner charge as graph handoff before allocation.
+  struct Reservation {
+    void *state;
+    EnvironmentRelease release;
+    std::uint64_t bytes = 0;
+    ~Reservation() {
+      if (bytes)
+        release(state, bytes);
+    }
+  } reservation{recursiveBudget_, recursiveRelease_};
+  if (recursiveReserve_) {
+    constexpr auto maximumBytes = std::numeric_limits<std::uint64_t>::max();
+    if (storageBytes > maximumBytes - sizeof(Owner) ||
+        storageBytes + sizeof(Owner) > maximumBytes - recursiveBytes_ ||
+        !recursiveReserve_(recursiveBudget_, storageBytes + sizeof(Owner))) {
+      fault(2);
+      return nullptr;
+    }
+    reservation.bytes = storageBytes + sizeof(Owner);
+    if (poll())
+      return nullptr;
+  }
+  auto *storage = std::malloc(storageBytes);
   if (!storage) {
     fault(2);
     return nullptr;
@@ -243,7 +267,7 @@ const void *Invocation::makeRecursiveValueImpl(std::span<const std::byte> payloa
   // failure. No invocation owner sees the node until the copy is complete.
   AllocationLease pending(backing);
   backing->bytes = payload.size();
-  backing->storageBytes = sizeof(Backing) + padded + dependencyCount * sizeof(Backing *);
+  backing->storageBytes = storageBytes;
   backing->record = true;
   backing->recursiveKey = key;
   auto *output = reinterpret_cast<std::byte *>(backing + 1);
@@ -277,6 +301,9 @@ const void *Invocation::makeRecursiveValueImpl(std::span<const std::byte> payloa
   }
   if (poll())
     return nullptr;
+  recursiveBytes_ += reservation.bytes;
+  backing->initial.recursiveCharged = reservation.bytes != 0;
+  reservation.bytes = 0; // Transfer the reservation only with complete ownership.
   attach(&backing->initial);
   pending.backing_ = nullptr; // Transfer its initial reference to the invocation.
   return output;

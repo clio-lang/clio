@@ -68,8 +68,8 @@ static void balanced(const Invocation &context) {
 static void clean(const TaskCore &core) {
   const auto stats = core.stats();
   require(!stats.retainedOwners && !stats.retainedBytes && !stats.environmentBytes &&
-              !stats.records && !stats.groups && !stats.unfinished && !stats.pending &&
-              !stats.externalPending,
+              !stats.recursiveBytes && !stats.records && !stats.groups && !stats.unfinished &&
+              !stats.pending && !stats.externalPending,
           "generated entry scheduler leaked");
 }
 static List list(Invocation &context) {
@@ -154,6 +154,63 @@ static void verify(unsigned id, Invocation &context, Buffer &output) {
   } else
     verifyList(context, output.get<Result<List>>().value, id == 1 ? 42 : 10);
   require(!context.status(), "generated result inspection faulted");
+}
+static void closureConstructionBudgets() {
+  for (unsigned workers : {1u, 2u, 4u}) {
+    std::size_t admittedBytes = 0, peakBytes = 0;
+    for (unsigned boundary = 0; boundary < 4; ++boundary) {
+      TaskLimits limits;
+      limits.workers = workers;
+      if (boundary)
+        limits.bytes = boundary == 1 ? admittedBytes : peakBytes - (boundary == 2 ? 1 : 0);
+      auto core = TaskCore::create(limits);
+      require(bool(core), "closure budget core missing");
+      Invocation source, observer;
+      Buffer packet, output;
+      fixture(4, source, packet);
+      const auto &entry = *recursive_generated_entry_7;
+      const auto group = core->openRoot();
+      const auto task = core->submit(
+          group, entry, {entry.packetLayout, packet.data(), entry.packetBytes, &source});
+      if (!boundary)
+        admittedBytes = core->stats().retainedBytes;
+      else
+        require(core->stats().retainedBytes == admittedBytes,
+                "closure budget failed before task-created allocation");
+      source.settle();
+      require(task && core->drain(), "closure budget drain failed");
+      if (!boundary)
+        peakBytes = core->stats().peakBytes;
+      require(peakBytes > admittedBytes && core->stats().peakBytes <= limits.bytes,
+              "task-created environment escaped scheduler accounting");
+      if (boundary == 1 || boundary == 2) {
+        const auto failure = core->failure(task);
+        output.get<Result<Closure>>().value.environment = reinterpret_cast<void *>(0x1230);
+        require(failure.kind == TaskFailure::Fault && failure.code == 2 &&
+                    !core->observe(task, *entry.result, observer, output.data()) &&
+                    output.get<Result<Closure>>().value.environment ==
+                        reinterpret_cast<void *>(0x1230),
+                "over-budget task-created environment published a closure");
+      } else {
+        require(core->failure(task).kind == TaskFailure::None &&
+                    core->observe(task, *entry.result, observer, output.data()),
+                "exact closure construction/result budget rejected");
+      }
+      require(core->close(group) && core->drain() && core->release(group),
+              "closure budget cleanup failed");
+      clean(*core);
+      core.reset();
+      if (!boundary || boundary == 3) {
+        const auto value = output.get<Result<Closure>>().value;
+        require(value.code && value.code(value.environment, 23, &observer) == 10 &&
+                    !observer.status(),
+                "budgeted closure lost captures after scheduler destruction");
+      }
+      observer.settle();
+      balanced(source);
+      balanced(observer);
+    }
+  }
 }
 static void createdClosures() {
   for (unsigned workers : {1u, 2u, 4u})
@@ -310,6 +367,7 @@ static void createdClosures() {
 }
 int main() {
   try {
+    closureConstructionBudgets();
     createdClosures();
     const std::array entries{recursive_generated_entry_0, recursive_generated_entry_1,
                              recursive_generated_entry_2, recursive_generated_entry_3,
