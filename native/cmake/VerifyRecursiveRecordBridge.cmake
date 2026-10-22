@@ -34,3 +34,7 @@ RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAG
   "${SOURCE_DIR}/tests/RecursiveCallableBridgeTests.cpp" "${OUTPUT_DIR}/bridge.ll"
   "${RUNTIME}" -o "${OUTPUT_DIR}/callables")
 RUN_OK("${OUTPUT_DIR}/callables")
+RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
+  "${SOURCE_DIR}/tests/RecursiveFunctionArrayBridgeTests.cpp" "${OUTPUT_DIR}/bridge.ll"
+  "${RUNTIME}" -o "${OUTPUT_DIR}/function-arrays")
+RUN_OK("${OUTPUT_DIR}/function-arrays")

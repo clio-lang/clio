@@ -218,3 +218,6 @@ extern "C" const void *kalandra_recursive_function_dependency_v1(kalandra::runti
                                                                  const void *code,
                                                                  const void *environment,
                                                                  std::uint64_t active) noexcept;
+
+extern "C" const void *kalandra_recursive_function_array_dependency_v1(
+    kalandra::runtime::Invocation *, const void *descriptor, std::uint64_t active) noexcept;

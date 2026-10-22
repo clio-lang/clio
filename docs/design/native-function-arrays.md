@@ -51,6 +51,10 @@ The existing owned-array descriptor points to inline code/environment pairs. Eac
 
 Cross-invocation callable ownership uses the qualified worker copy machinery; descriptor retention alone is not a public native ABI. GPU callbacks, distributed execution and C/C++ integration retain their separate roadmaps.
 
+## Recursive values
+
+[Synchronous recursive CPU values](native-recursive-storage.md) support function array fields and captures, retaining descriptor storage and every managed environment transitively. See [recursive-function-arrays.k](fixtures/recursive-function-arrays.k). Fallible/task/device signatures and worker/error control remain rejected in recursive compilation units; acyclic behavior is unchanged.
+
 ## Remaining work
 
 - General standalone indented expressions inside delimiters. [Anonymous suites](native-delimited-closures.md) are supported, including function-array elements.

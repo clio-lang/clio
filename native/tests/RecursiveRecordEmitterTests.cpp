@@ -82,6 +82,13 @@ int main(int argc, char **argv) {
                              {},
                              {{"$tag", integer, {}}, {"apply", callable, {}}},
                              {{"Empty", {}, {}}, {"More", {}, {1}}}});
+    auto functionArray = callable;
+    functionArray.tensor = functionArray.array = true;
+    functionArray.shape = {{std::nullopt, 1}};
+    input.records.push_back({"FunctionArrays",
+                             {},
+                             {{"$tag", integer, {}}, {"items", functionArray, {}}},
+                             {{"Empty", {}, {}}, {"More", {}, {1}}}});
     mlir::MLIRContext context;
     context.loadDialect<mlir::LLVM::LLVMDialect>();
     mlir::registerLLVMDialectTranslation(context);
@@ -266,17 +273,24 @@ int main(int argc, char **argv) {
     auto boxedCallable = emitter.box(loc, callableValue, 12);
     require(bool(boxedCallable), "callable field box failed");
     mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{*boxedCallable});
+    builder.setInsertionPointToEnd(module.getBody());
+    auto functionArrayFunction = mlir::LLVM::LLVMFuncOp::create(
+        builder, loc, "function_array_box",
+        mlir::LLVM::LLVMFunctionType::get(ptr, {ptr, builder.getI64Type()}));
+    auto *functionArrayEntry = functionArrayFunction.addEntryBlock(builder);
+    builder.setInsertionPointToStart(functionArrayEntry);
+    auto functionDescriptor = mlir::LLVM::LoadOp::create(builder, loc, (*types)[13].getBody()[1],
+                                                         functionArrayEntry->getArgument(0));
+    mlir::Value arrayValue = mlir::LLVM::ZeroOp::create(builder, loc, (*types)[13]);
+    arrayValue =
+        insert(insert(arrayValue, functionArrayEntry->getArgument(1), 0), functionDescriptor, 1);
+    auto boxedFunctionArray = emitter.box(loc, arrayValue, 13);
+    require(bool(boxedFunctionArray), "function array field box failed");
+    mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{*boxedFunctionArray});
     function("unsupported");
     TypedModule unsupported;
     ValueType collection;
-    collection.tensor = true;
-    collection.array = true;
-    collection.shape = {{std::nullopt, 1}};
-    collection.builtin = BuiltinValue::Function;
-    auto signature = std::make_shared<FunctionSignature>();
-    signature->parameters = {integer};
-    signature->result = integer;
-    collection.callable = signature;
+    collection.builtin = BuiltinValue::TaskError;
     unsupported.records.push_back({"Text", {}, {{"value", collection, {}}}});
     auto unsupportedTypes = lowerRecordTypes(unsupported, context);
     auto unsupportedStorage = planRecordStorage(unsupported);

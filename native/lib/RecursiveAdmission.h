@@ -17,7 +17,7 @@ inline bool recursiveValueTypeSupported(const ValueType &root) {
         type.builtin == BuiltinValue::Device)
       return false;
     if (type.builtin == BuiltinValue::Function) {
-      if (type.tensor || type.array || !type.callable)
+      if (((type.tensor || type.array) && !isFunctionArray(type)) || !type.callable)
         return false;
       pending.push_back(&type.callable->result);
       for (const auto &parameter : type.callable->parameters)
@@ -54,18 +54,19 @@ inline std::optional<Diagnostic> recursiveRecordLayoutError(const TypedModule &m
           record.declaration};
     for (const auto &field : record.fields)
       if ((field.type.tensor && field.type.builtin != BuiltinValue::Numeric &&
-           !isBoolArray(field.type) && !isStringArray(field.type) && !isRecordArray(field.type)) ||
+           !isBoolArray(field.type) && !isStringArray(field.type) && !isRecordArray(field.type) &&
+           !isFunctionArray(field.type)) ||
           (field.type.builtin != BuiltinValue::Numeric &&
            field.type.builtin != BuiltinValue::Bool && field.type.builtin != BuiltinValue::String &&
            field.type.builtin != BuiltinValue::Record &&
            field.type.builtin != BuiltinValue::Function) ||
           !recursiveValueTypeSupported(field.type))
-        return Diagnostic{
-            "S068",
-            "recursive programs require numeric/Bool/String scalars, numeric "
-            "collections, Bool/String/record arrays "
-            "or synchronous scalar callables and nominal links; other payloads remain unsupported",
-            field.declaration};
+        return Diagnostic{"S068",
+                          "recursive programs require numeric/Bool/String scalars, numeric "
+                          "collections, Bool/String/record arrays "
+                          "or synchronous callables and function arrays and nominal links; other "
+                          "payloads remain unsupported",
+                          field.declaration};
   }
   auto physical = planRecordPhysicalLayout(module, limits);
   return physical ? std::optional<Diagnostic>{} : std::optional<Diagnostic>{physical.error()};
@@ -81,16 +82,16 @@ inline std::optional<std::string> recursiveProgramError(const TypedModule &modul
   const auto supported = recursiveValueTypeSupported;
   for (const auto &symbol : module.symbols)
     if (!supported(symbol.type))
-      return "recursive programs currently require synchronous values without function arrays or "
-             "error channels";
+      return "recursive programs currently require synchronous values without worker or error "
+             "channels";
   for (const auto &function : module.functions)
     if (!supported(function.resultType) ||
         (function.declaredResult && !supported(*function.declaredResult)))
       return "recursive programs currently require ordinary synchronous function signatures";
   for (const auto &expression : module.expressions) {
     if (!supported(expression.type))
-      return "recursive programs currently require synchronous values without function arrays or "
-             "error channels";
+      return "recursive programs currently require synchronous values without worker or error "
+             "channels";
     if (std::holds_alternative<TaskOperation>(expression.operation) ||
         std::holds_alternative<ParallelOperation>(expression.operation) ||
         std::holds_alternative<CatchOperation>(expression.operation) ||

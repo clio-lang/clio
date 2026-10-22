@@ -122,6 +122,15 @@ public:
                                      mlir::ValueRange{descriptor, constant(loc, bytes),
                                                       constant(loc, alignment), address, active64})
                                      .getResult());
+        } else if (isFunctionArray(type)) {
+          auto descriptor = slot(loc, member.getType(), 1, alignof(void *));
+          mlir::LLVM::StoreOp::create(builder_, loc, member, descriptor);
+          auto active64 = mlir::LLVM::ZExtOp::create(builder_, loc, builder_.getI64Type(), active);
+          auto function = declaration("kalandra_recursive_function_array_dependency",
+                                      {pointer(), builder_.getI64Type()});
+          dependencies.push_back(mlir::LLVM::CallOp::create(builder_, loc, function,
+                                                            mlir::ValueRange{descriptor, active64})
+                                     .getResult());
         } else if (!type.tensor && type.builtin == BuiltinValue::Function) {
           auto function = declaration("kalandra_recursive_function_dependency",
                                       {pointer(), pointer(), builder_.getI64Type()});
@@ -133,10 +142,10 @@ public:
                   .getResult());
         } else if (type.tensor ||
                    (type.builtin != BuiltinValue::Numeric && type.builtin != BuiltinValue::Bool)) {
-          return std::unexpected(
-              "recursive boxes currently require numeric/Bool/String scalars, "
-              "numeric collections, Bool/String/record arrays, scalar callables, inline "
-              "supported records and managed recursive references");
+          return std::unexpected("recursive boxes currently require numeric/Bool/String scalars, "
+                                 "numeric collections, Bool/String/record arrays, callables and "
+                                 "function arrays, inline "
+                                 "supported records and managed recursive references");
         }
       }
     }

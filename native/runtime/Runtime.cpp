@@ -1007,3 +1007,64 @@ kalandra_recursive_function_dependency_v1(kalandra::runtime::Invocation *context
   }
   return active ? context->recursiveFunctionDependency(code, environment) : nullptr;
 }
+
+extern "C" const void *kalandra_recursive_function_array_dependency_v1(
+    kalandra::runtime::Invocation *context, const void *descriptor, std::uint64_t active) noexcept {
+  using kalandra::runtime::Invocation;
+  if (context->poll() || !context->usable())
+    return nullptr;
+  if (active > 1) {
+    context->fault(3);
+    return nullptr;
+  }
+  if (!active)
+    return nullptr;
+  struct Cell {
+    const void *code, *environment;
+  };
+  void *allocated = nullptr;
+  std::uint64_t size = 0;
+  if (!validRecordArray(*context, descriptor, sizeof(Cell), alignof(Cell), allocated, size)) {
+    context->fault(3);
+    return nullptr;
+  }
+  if (!size)
+    return nullptr;
+  // The descriptor and immutable cells belong to this invocation throughout both passes.
+  auto backing = context->lease(allocated);
+  std::size_t count = 1;
+  for (std::uint64_t i = 0; i < size; ++i) {
+    if (context->poll())
+      return nullptr;
+    Cell cell;
+    std::memcpy(&cell, backing->bytes().data() + i * sizeof(Cell), sizeof(Cell));
+    context->recursiveFunctionDependency(cell.code, cell.environment);
+    if (!context->usable())
+      return nullptr;
+    if (cell.environment && ++count > Invocation::maxRecursiveDependencies) {
+      context->fault(2);
+      return nullptr;
+    }
+  }
+  auto **dependencies = static_cast<const void **>(context->allocateRecord(count * sizeof(void *)));
+  if (!dependencies)
+    return nullptr;
+  struct Temporary {
+    Invocation *context;
+    void *storage;
+    ~Temporary() { context->release(storage); }
+  } temporary{context, dependencies};
+  dependencies[0] = allocated;
+  std::size_t index = 1;
+  for (std::uint64_t i = 0; i < size; ++i) {
+    if (context->poll())
+      return nullptr;
+    Cell cell;
+    std::memcpy(&cell, backing->bytes().data() + i * sizeof(Cell), sizeof(Cell));
+    if (cell.environment)
+      dependencies[index++] = cell.environment;
+  }
+  static const char key = 0;
+  return context->makeRecursiveValueFromPointers(std::as_bytes(std::span{&size, 1}), &key,
+                                                 {dependencies, count});
+}
