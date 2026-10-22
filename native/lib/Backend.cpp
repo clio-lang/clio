@@ -47,12 +47,32 @@ public:
       : input_(input), builder_(&context), module_(ModuleOp::create(builder_.getUnknownLoc())) {}
   OwningOpRef<ModuleOp> run(const std::optional<std::string> &testEntry,
                             const std::vector<std::string> &exports) {
-    auto records = lowerRecordTypes(input_, *builder_.getContext());
+    recursiveClosures_ = hasRecursiveStorage(*planRecordStorage(input_));
+    const TypedModule *ownership = &input_;
+    if (recursiveClosures_) {
+      ownershipInput_ = input_;
+      environmentRecords_.resize(input_.functions.size());
+      for (std::size_t id = 0; id < input_.functions.size(); ++id) {
+        const auto &function = input_.functions[id];
+        if (!function.captureCount)
+          continue;
+        TypedRecord environment;
+        environment.name = "$closure_" + std::to_string(id);
+        for (std::size_t i = function.parameters.size() - function.captureCount;
+             i < function.parameters.size(); ++i)
+          environment.fields.push_back(
+              {"capture_" + std::to_string(i), input_.symbols[function.parameters[i]].type, {}});
+        environmentRecords_[id] = ownershipInput_->records.size();
+        ownershipInput_->records.push_back(std::move(environment));
+      }
+      ownership = &*ownershipInput_;
+    }
+    auto records = lowerRecordTypes(*ownership, *builder_.getContext());
     if (!records)
       throw LoweringFailure{records.error().message};
-    recordStorage_ = *planRecordStorage(input_);
+    recordStorage_ = *planRecordStorage(*ownership);
     recursiveTypes_ = *records;
-    recursive_ = std::make_unique<RecursiveRecordOps>(input_, recordStorage_, recursiveTypes_,
+    recursive_ = std::make_unique<RecursiveRecordOps>(*ownership, recordStorage_, recursiveTypes_,
                                                       builder_, *module_);
     for (std::size_t id = 0; id < records->size(); ++id)
       recordTypes_.emplace(id, (*records)[id]);
@@ -66,6 +86,9 @@ public:
       const auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
       for (const auto &[name, signature] : std::vector<std::pair<std::string, FunctionType>>{
                {"kalandra_record_alloc", builder_.getFunctionType({builder_.getI64Type()}, {ptr})},
+               {"kalandra_recursive_environment_bind", builder_.getFunctionType({ptr, ptr}, {ptr})},
+               {"kalandra_recursive_environment_read",
+                builder_.getFunctionType({ptr, builder_.getI64Type(), ptr}, {ptr})},
                {"kalandra_environment_alloc",
                 builder_.getFunctionType({builder_.getI64Type(), ptr}, {ptr})},
                {"kalandra_record_cleanup", builder_.getFunctionType({}, {})},
@@ -244,6 +267,15 @@ private:
       fields.push_back(callableABIType(input_.symbols[source.parameters[i]].type));
     return LLVM::LLVMStructType::getLiteral(builder_.getContext(), fields);
   }
+  Value callableCode(Location loc, func::FuncOp function) {
+    auto reference = func::ConstantOp::create(
+        builder_, loc, function.getFunctionType(),
+        FlatSymbolRefAttr::get(builder_.getContext(), function.getSymName()));
+    return UnrealizedConversionCastOp::create(
+               builder_, loc, TypeRange{LLVM::LLVMPointerType::get(builder_.getContext())},
+               ValueRange{reference})
+        .getResult(0);
+  }
   func::FuncOp callableEntry(FunctionId id) {
     const auto &source = input_.functions[id];
     const auto result = source.declaredResult.value_or(source.resultType);
@@ -268,8 +300,19 @@ private:
       arguments.push_back(
           callableUnpack(loc, entry.getArgument(i + 1), input_.symbols[source.parameters[i]].type));
     if (source.captureCount) {
-      Value environment =
-          LLVM::LoadOp::create(builder_, loc, closureEnvironment(id), entry.getArgument(0));
+      Value address = entry.getArgument(0);
+      if (recursiveClosures_) {
+        llvm::LLVMContext llvmContext;
+        LLVM::TypeToLLVMIRTranslator translator(llvmContext);
+        llvm::DataLayout layout(nativeCpuDataLayout);
+        auto bytes = layout.getTypeAllocSize(translator.translateType(closureEnvironment(id)))
+                         .getFixedValue();
+        address = func::CallOp::create(
+                      builder_, loc, "kalandra_recursive_environment_read", TypeRange{ptr},
+                      ValueRange{address, integer(loc, bytes), callableCode(loc, entry)})
+                      .getResult(0);
+      }
+      Value environment = LLVM::LoadOp::create(builder_, loc, closureEnvironment(id), address);
       for (std::size_t i = 0; i < source.captureCount; ++i) {
         Value capture = LLVM::ExtractValueOp::create(builder_, loc, environment,
                                                      ArrayRef<int64_t>{static_cast<int64_t>(i)});
@@ -2004,13 +2047,8 @@ private:
             return choice.getResult(0);
           } else if constexpr (std::is_same_v<T, FunctionReference>) {
             auto function = callableEntry(operation.function);
-            auto reference = func::ConstantOp::create(
-                builder_, loc, function.getFunctionType(),
-                FlatSymbolRefAttr::get(builder_.getContext(), function.getSymName()));
             auto ptr = LLVM::LLVMPointerType::get(builder_.getContext());
-            Value code = UnrealizedConversionCastOp::create(builder_, loc, TypeRange{ptr},
-                                                            ValueRange{reference})
-                             .getResult(0);
+            Value code = callableCode(loc, function);
             Value environment = LLVM::ZeroOp::create(builder_, loc, ptr);
             if (!operation.captures.empty()) {
               auto layout = closureEnvironment(operation.function);
@@ -2028,10 +2066,21 @@ private:
               Value bytes = integer(
                   loc,
                   dataLayout.getTypeAllocSize(translator.translateType(layout)).getFixedValue());
-              environment = func::CallOp::create(builder_, loc, "kalandra_environment_alloc",
-                                                 TypeRange{ptr}, ValueRange{bytes, code})
-                                .getResult(0);
-              LLVM::StoreOp::create(builder_, loc, contents, environment);
+              if (recursiveClosures_) {
+                auto boxed =
+                    recursive_->box(loc, contents, *environmentRecords_[operation.function]);
+                if (!boxed)
+                  throw LoweringFailure{boxed.error()};
+                environment =
+                    func::CallOp::create(builder_, loc, "kalandra_recursive_environment_bind",
+                                         TypeRange{ptr}, ValueRange{*boxed, code})
+                        .getResult(0);
+              } else {
+                environment = func::CallOp::create(builder_, loc, "kalandra_environment_alloc",
+                                                   TypeRange{ptr}, ValueRange{bytes, code})
+                                  .getResult(0);
+                LLVM::StoreOp::create(builder_, loc, contents, environment);
+              }
             }
             Value result = LLVM::ZeroOp::create(builder_, loc, type(node.type));
             result = LLVM::InsertValueOp::create(builder_, loc, result, code, ArrayRef<int64_t>{0});
@@ -2195,6 +2244,9 @@ private:
   OwningOpRef<ModuleOp> module_;
   std::vector<func::FuncOp> functions_;
   std::unordered_map<FunctionId, func::FuncOp> callableEntries_;
+  bool recursiveClosures_ = false;
+  std::optional<TypedModule> ownershipInput_;
+  std::vector<std::optional<std::size_t>> environmentRecords_;
   std::unique_ptr<RecursiveRecordOps> recursive_;
   RecordStoragePlan recordStorage_;
   std::vector<LLVM::LLVMStructType> recursiveTypes_;

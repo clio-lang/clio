@@ -124,6 +124,9 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool fu
       } else if (target->getName() == "kalandra_record_alloc" ||
                  target->getName() == "kalandra_recursive_make" ||
                  target->getName() == "kalandra_recursive_read" ||
+                 target->getName() == "kalandra_recursive_environment_bind" ||
+                 target->getName() == "kalandra_recursive_environment_read" ||
+                 target->getName() == "kalandra_recursive_function_dependency" ||
                  target->getName() == "kalandra_recursive_record_array_dependency" ||
                  target->getName() == "kalandra_recursive_reference_dependency" ||
                  target->getName() == "kalandra_recursive_tag_check" ||
@@ -258,6 +261,9 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool fu
                            "kalandra_record_alloc",
                            "kalandra_recursive_make",
                            "kalandra_recursive_read",
+                           "kalandra_recursive_environment_bind",
+                           "kalandra_recursive_environment_read",
+                           "kalandra_recursive_function_dependency",
                            "kalandra_recursive_record_array_dependency",
                            "kalandra_recursive_reference_dependency",
                            "kalandra_recursive_tag_check",

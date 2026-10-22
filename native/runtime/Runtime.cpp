@@ -275,6 +275,47 @@ const void *Invocation::makeRecursiveValueImpl(std::span<const std::byte> payloa
   pending.backing_ = nullptr; // Transfer its initial reference to the invocation.
   return output;
 }
+const void *Invocation::bindRecursiveEnvironment(const void *environment,
+                                                 const void *code) noexcept {
+  if (poll() || !usable())
+    return nullptr;
+  auto lease = this->lease(environment);
+  if (!code || !lease || !lease->backing_->recursiveKey || lease->backing_->environmentKey) {
+    fault(3);
+    return nullptr;
+  }
+  lease->backing_->environmentKey = code;
+  return environment;
+}
+const void *Invocation::readRecursiveEnvironment(const void *environment, std::uint64_t bytes,
+                                                 const void *code) noexcept {
+  if (poll() || !usable())
+    return nullptr;
+  auto lease = this->lease(environment);
+  if (!code || !lease || lease->bytes().size() != bytes || !lease->backing_->recursiveKey ||
+      lease->backing_->environmentKey != code) {
+    fault(3);
+    return nullptr;
+  }
+  return environment;
+}
+const void *Invocation::recursiveFunctionDependency(const void *code,
+                                                    const void *environment) noexcept {
+  if (poll() || !usable())
+    return nullptr;
+  if (!code) {
+    fault(3);
+    return nullptr;
+  }
+  if (!environment)
+    return nullptr; // Compiler-owned capture-free entry.
+  auto lease = this->lease(environment);
+  if (!lease || !lease->backing_->recursiveKey || lease->backing_->environmentKey != code) {
+    fault(3);
+    return nullptr;
+  }
+  return environment;
+}
 void Invocation::bindEnvironmentBudget(void *state, EnvironmentReserve reserve,
                                        EnvironmentRelease release) noexcept {
   if (environmentBytes_ || environmentReserve_ || !state || !reserve || !release) {
@@ -942,4 +983,27 @@ extern "C" const void *kalandra_recursive_record_array_dependency_v1(
   std::array<std::uint64_t, 2> payload{count, cellBytes};
   return context->makeRecursiveValueFromPointers(
       std::as_bytes(std::span{payload}), &key, {dependencies, static_cast<std::size_t>(count + 1)});
+}
+
+extern "C" const void *
+kalandra_recursive_environment_bind_v1(kalandra::runtime::Invocation *context,
+                                       const void *environment, const void *code) noexcept {
+  return context->bindRecursiveEnvironment(environment, code);
+}
+extern "C" const void *
+kalandra_recursive_environment_read_v1(kalandra::runtime::Invocation *context,
+                                       const void *environment, std::uint64_t bytes,
+                                       const void *code) noexcept {
+  return context->readRecursiveEnvironment(environment, bytes, code);
+}
+extern "C" const void *
+kalandra_recursive_function_dependency_v1(kalandra::runtime::Invocation *context, const void *code,
+                                          const void *environment, std::uint64_t active) noexcept {
+  if (context->poll() || !context->usable())
+    return nullptr;
+  if (active > 1) {
+    context->fault(3);
+    return nullptr;
+  }
+  return active ? context->recursiveFunctionDependency(code, environment) : nullptr;
 }

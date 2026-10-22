@@ -472,15 +472,16 @@ fn main()->int:
   0
 ]=])
 EXPECT(supported-coordination 0)
-file(WRITE "${OUTPUT_DIR}/reject-recursive-signature.k" [=[type Config:
+COMPILE(supported-recursive-signature [=[type Config:
+  value:int
   apply:fn(Config)->int
+fn read(config:Config)->int:
+  config.value
 fn main()->int:
-  0
+  config=Config {value:42,apply:read}
+  config.apply(config)
 ]=])
-execute_process(COMMAND "${COMPILER}" "${OUTPUT_DIR}/reject-recursive-signature.k" -o "${OUTPUT_DIR}/reject-recursive-signature" RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR)
-if(NOT "${STATUS}" STREQUAL "1")
-  message(FATAL_ERROR "Invalid callable field accepted/crashed: recursive-signature: ${STATUS}: ${OUT}${ERR}")
-endif()
+EXPECT(supported-recursive-signature 42)
 file(WRITE "${OUTPUT_DIR}/reject-direct-functions-array.k" [=[fn main()->int:
   values=[fn(value:int):value,fn(value:float):value]
   0

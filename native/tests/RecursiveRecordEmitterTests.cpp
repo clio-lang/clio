@@ -75,6 +75,13 @@ int main(int argc, char **argv) {
     treeArray.record = 10;
     input.records.push_back({"Tree", {}, {{"name", text, {}}, {"children", treeArray, {}}}});
     input.records.push_back({"Trees", {}, {{"values", treeArray, {}}}});
+    ValueType callable;
+    callable.builtin = BuiltinValue::Function;
+    callable.callable = std::make_shared<FunctionSignature>(FunctionSignature{{integer}, integer});
+    input.records.push_back({"Callable",
+                             {},
+                             {{"$tag", integer, {}}, {"apply", callable, {}}},
+                             {{"Empty", {}, {}}, {"More", {}, {1}}}});
     mlir::MLIRContext context;
     context.loadDialect<mlir::LLVM::LLVMDialect>();
     mlir::registerLLVMDialectTranslation(context);
@@ -245,6 +252,20 @@ int main(int argc, char **argv) {
     require(bool(badBox), "bad-reference fixture failed");
     auto badRead = emitter.read(loc, *badBox, 0);
     mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{extract(*badRead, 0)});
+    builder.setInsertionPointToEnd(module.getBody());
+    auto callableFunction = mlir::LLVM::LLVMFuncOp::create(
+        builder, loc, "callable_box",
+        mlir::LLVM::LLVMFunctionType::get(ptr, {ptr, ptr, builder.getI64Type()}));
+    auto *callableEntry = callableFunction.addEntryBlock(builder);
+    builder.setInsertionPointToStart(callableEntry);
+    mlir::Value closure = mlir::LLVM::ZeroOp::create(builder, loc, (*types)[12].getBody()[1]);
+    closure =
+        insert(insert(closure, callableEntry->getArgument(0), 0), callableEntry->getArgument(1), 1);
+    mlir::Value callableValue = mlir::LLVM::ZeroOp::create(builder, loc, (*types)[12]);
+    callableValue = insert(insert(callableValue, callableEntry->getArgument(2), 0), closure, 1);
+    auto boxedCallable = emitter.box(loc, callableValue, 12);
+    require(bool(boxedCallable), "callable field box failed");
+    mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{*boxedCallable});
     function("unsupported");
     TypedModule unsupported;
     ValueType collection;

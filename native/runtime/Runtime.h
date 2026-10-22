@@ -68,6 +68,11 @@ public:
   // Compiler stack tables may contain null slots for inactive enum payloads.
   const void *makeRecursiveValueFromPointers(std::span<const std::byte> payload, const void *key,
                                              std::span<const void *const> dependencies) noexcept;
+  // Bind compiler-created recursive environments once, before publishing the function pair.
+  const void *bindRecursiveEnvironment(const void *environment, const void *code) noexcept;
+  const void *readRecursiveEnvironment(const void *environment, std::uint64_t bytes,
+                                       const void *code) noexcept;
+  const void *recursiveFunctionDependency(const void *code, const void *environment) noexcept;
   using EnvironmentReserve = bool (*)(void *, std::uint64_t) noexcept;
   using EnvironmentRelease = void (*)(void *, std::uint64_t) noexcept;
   void bindEnvironmentBudget(void *state, EnvironmentReserve reserve,
@@ -201,3 +206,15 @@ kalandra_recursive_reference_dependency_v1(kalandra::runtime::Invocation *, cons
 extern "C" const void *kalandra_recursive_tag_check_v1(kalandra::runtime::Invocation *,
                                                        std::uint64_t tag, std::uint64_t cases,
                                                        std::uint64_t active) noexcept;
+
+extern "C" const void *kalandra_recursive_environment_bind_v1(kalandra::runtime::Invocation *,
+                                                              const void *environment,
+                                                              const void *code) noexcept;
+extern "C" const void *kalandra_recursive_environment_read_v1(kalandra::runtime::Invocation *,
+                                                              const void *environment,
+                                                              std::uint64_t bytes,
+                                                              const void *code) noexcept;
+extern "C" const void *kalandra_recursive_function_dependency_v1(kalandra::runtime::Invocation *,
+                                                                 const void *code,
+                                                                 const void *environment,
+                                                                 std::uint64_t active) noexcept;

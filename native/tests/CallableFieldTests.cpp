@@ -156,10 +156,15 @@ int main() {
           "accept(value:B)->int:\n  value.value\nfn main()->int:\n  config=Config {apply:accept}\n "
           " 0\n",
 
-          "type Config:\n  apply:fn(Config)->int\nfn main()->int:\n  0\n",
+          "type Config:\n  apply:fn(Config)->int\n  next:Config\nfn main()->int:\n  0\n",
           "fn main()->int:\n  values=[fn(value:int):value,fn(value:float):value]\n  0\n"})
       require(!analyze(text).ok(), "invalid callable field use accepted");
 
+    auto nominal =
+        analyze("type Config:\n  value:int\n  apply:fn(Config)->int\n"
+                "fn read(config:Config)->int:\n  config.value\n"
+                "fn main()->int:\n  config=Config {value:42,apply:read}\n  config.apply(config)\n");
+    require(nominal.ok(), "nominal self-signature rejected as stored recursion");
     auto base = analyze("type Config:\n  apply:fn(int)->int\nfn main()->int:\n  config=Config "
                         "{apply:fn(value):value*2}\n  config.apply(21)\n");
     require(base.ok(), "forged metadata fixture rejected");

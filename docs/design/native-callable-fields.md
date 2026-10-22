@@ -53,6 +53,8 @@ Pure field operations continue through MLIR; expected-error control uses the exi
 
 This does not establish a public callback ABI. Worker handoff uses independently owned destination environments, so a qualified copied value may outlive its source invocation. Earlier environment reclamation and allocation/copy elimination remain [optimization work](../roadmap.md#optimization).
 
+In compilation units containing recursive values, [managed recursive environments](native-recursive-storage.md) retain captured backing transitively. Checked entry wrappers validate environment ownership, payload size and code identity before loading captures. Function arrays and fallible/worker/device paths in these recursive units remain rejected; the acyclic behavior described above is unchanged.
+
 ## Worker boundary
 
 A worker can create and invoke a record or enum containing functions locally, then return a completed value without function storage. A coordinator can also hold such a record across an ordinary worker await.
@@ -62,7 +64,7 @@ A worker can create and invoke a record or enum containing functions locally, th
 ## Remaining work
 
 - Resumable function values and placement-aware callbacks; [indirect synchronous CPU spawn](native-indirect-spawn.md) is implemented.
-- Recursive record/enum type dependencies, including dependencies through callable signatures.
+- [Recursive records/enums](native-recursive-storage.md) now support synchronous scalar callable fields, including captured environments and nominal recursive signatures. Function arrays and recursive worker/error/placement paths still need separate qualification.
 - Delimiter-aware indented callbacks and the existing direct static-map control-flow restriction.
 
 GPU callbacks, distributed execution and public C/C++ integration retain their separate roadmaps.

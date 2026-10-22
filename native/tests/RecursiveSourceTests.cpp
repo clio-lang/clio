@@ -48,12 +48,25 @@ int main() {
 #ifndef KALANDRA_RECURSIVE_SOURCE_FRONTEND_ONLY
     require(bool(lowerNative(*tree.module)), "array-mediated source failed native lowering");
 #endif
+    auto callable = analyze(
+        "enum Chain:\n  End\n  More:\n    apply:fn(int)->int\n    next:Chain\n"
+        "fn make(offset:int)->Chain:\n  Chain.More {apply:fn(value):value+offset,next:Chain.End}\n"
+        "fn main()->int:\n  chain=make(20)\n  match chain:\n    Chain.End:0\n    Chain.More "
+        "{apply}:apply(22)\n");
+    require(callable.ok(), "recursive captured callable source rejected");
+#ifndef KALANDRA_RECURSIVE_SOURCE_FRONTEND_ONLY
+    auto callableIr = lowerNative(*callable.module);
+    require(callableIr && callableIr->llvm.find("kalandra_recursive_environment_read_v1") !=
+                              std::string::npos,
+            "recursive callable did not use checked managed environment reads");
+#endif
     for (const auto &source :
          {"enum Loop:\n  More:\n    next:Loop\nfn main()->int:\n  0\n",
           "type A:\n  child:B\ntype B:\n  child:A\nfn main()->int:\n  0\n",
           "enum Text:\n  Empty\n  More:\n    text:[fn(int)->int]\n    next:Text\nfn main()->int:\n "
           " 0\n",
-          "enum Callback:\n  Empty\n  More:\n    call:fn(int)->int\n    next:Callback\nfn "
+          "enum Callback:\n  Empty\n  More:\n    call:fn(int)->int ! TaskError\n    "
+          "next:Callback\nfn "
           "main()->int:\n  0\n"}) {
       auto failed = analyze(source);
       require(!failed.ok() && !failed.diagnostics.empty(),
@@ -61,7 +74,6 @@ int main() {
     }
     for (const auto &tail :
          {"fn main()->int ! TaskError:\n  try parallel:\n    0\n",
-          "fn main()->int:\n  f=fn(x:int):x+1\n  f(1)\n",
           "fn main()->int:\n  match List.Nil:\n    List.Cons {head}:head\n",
           "fn main()->int:\n  match List.Nil:\n    List.Nil:0\n    List.Nil:1\n    List.Cons:2\n"})
       require(!analyze(prefix + tail).ok(),
