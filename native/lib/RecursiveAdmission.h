@@ -6,7 +6,7 @@ namespace kalandra {
 inline bool hasRecursiveStorage(const RecordStoragePlan &storage) {
   return std::ranges::find(storage.recursive, true) != storage.recursive.end();
 }
-// The initial executable subset is deliberately synchronous and numeric/Bool.
+// The initial executable subset is deliberately synchronous with scalar owned Strings.
 inline std::optional<Diagnostic> recursiveRecordLayoutError(const TypedModule &module,
                                                             const SemanticLimits &limits = {}) {
   auto storage = planRecordStorage(module);
@@ -35,11 +35,12 @@ inline std::optional<Diagnostic> recursiveRecordLayoutError(const TypedModule &m
     for (const auto &field : record.fields)
       if (field.type.tensor ||
           (field.type.builtin != BuiltinValue::Numeric &&
-           field.type.builtin != BuiltinValue::Bool && field.type.builtin != BuiltinValue::Record))
+           field.type.builtin != BuiltinValue::Bool && field.type.builtin != BuiltinValue::String &&
+           field.type.builtin != BuiltinValue::Record))
         return Diagnostic{
             "S068",
-            "recursive programs currently require scalar numeric/Bool record fields and direct "
-            "nominal links; collection cycles and other owned payloads remain unsupported",
+            "recursive programs currently require scalar numeric/Bool/String record fields and "
+            "direct nominal links; collection cycles and other owned payloads remain unsupported",
             field.declaration};
   }
   auto physical = planRecordPhysicalLayout(module, limits);

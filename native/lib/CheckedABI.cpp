@@ -124,6 +124,7 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool fu
       } else if (target->getName() == "kalandra_record_alloc" ||
                  target->getName() == "kalandra_recursive_make" ||
                  target->getName() == "kalandra_recursive_read" ||
+                 target->getName() == "kalandra_recursive_string_dependency" ||
                  target->getName() == "kalandra_environment_alloc" ||
                  target->getName() == "kalandra_record_cleanup" ||
                  target->getName() == "kalandra_record_validate" ||
@@ -245,14 +246,26 @@ std::optional<std::string> addCheckedInvocationABI(llvm::Module &module, bool fu
         builder.CreateCall(enter, {invocation, ConstantInt::get(i64, 0), ConstantInt::get(i64, 0)});
     builder.CreateCondBr(admitted, start, denied);
   }
-  for (const auto *name :
-       {"kalandra_fault", "_mlir_memref_to_llvm_alloc", "_mlir_memref_to_llvm_free",
-        "kalandra_record_alloc", "kalandra_recursive_make", "kalandra_recursive_read",
-        "kalandra_environment_alloc", "kalandra_record_cleanup", "kalandra_record_validate",
-        "kalandra_record_array_validate", "kalandra_string_literal", "kalandra_string_validate",
-        "kalandra_string_array_validate", "kalandra_string_concat", "kalandra_string_equal",
-        "kalandra_string_length", "kalandra_string_byte_length", "kalandra_string_index",
-        "kalandra_string_slice"})
+  for (const auto *name : {"kalandra_fault",
+                           "_mlir_memref_to_llvm_alloc",
+                           "_mlir_memref_to_llvm_free",
+                           "kalandra_record_alloc",
+                           "kalandra_recursive_make",
+                           "kalandra_recursive_read",
+                           "kalandra_recursive_string_dependency",
+                           "kalandra_environment_alloc",
+                           "kalandra_record_cleanup",
+                           "kalandra_record_validate",
+                           "kalandra_record_array_validate",
+                           "kalandra_string_literal",
+                           "kalandra_string_validate",
+                           "kalandra_string_array_validate",
+                           "kalandra_string_concat",
+                           "kalandra_string_equal",
+                           "kalandra_string_length",
+                           "kalandra_string_byte_length",
+                           "kalandra_string_index",
+                           "kalandra_string_slice"})
     if (auto *old = module.getFunction(name); old && old->use_empty())
       old->eraseFromParent();
   return std::nullopt;

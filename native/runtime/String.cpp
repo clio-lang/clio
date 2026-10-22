@@ -237,3 +237,19 @@ kalandra_string_retain_v1(kalandra::runtime::Invocation *destination,
     return status == kalandra::Utf8Status::Invalid ? invalid() : false;
   return destination->poll() == 0 && destination->retainFrom(*source, value->allocated);
 }
+
+extern "C" const void *
+kalandra_recursive_string_dependency_v1(kalandra::runtime::Invocation *context,
+                                        const kalandra::runtime::StringDescriptor *value,
+                                        std::uint64_t active) noexcept {
+  if (context->poll() != 0 || !context->usable())
+    return nullptr;
+  if (active > 1 || (active && !value)) {
+    context->fault(3);
+    return nullptr;
+  }
+  if (!active || !kalandra::runtime::validateString(*context, *value))
+    return nullptr;
+  // Borrowed until publication: makeRecursiveValueFromPointers retains this backing.
+  return value->allocated;
+}

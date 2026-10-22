@@ -55,3 +55,9 @@ extern "C" void kalandra_string_slice_v1(kalandra::runtime::Invocation *,
 extern "C" bool kalandra_string_retain_v1(kalandra::runtime::Invocation *,
                                           const kalandra::runtime::Invocation *,
                                           const kalandra::runtime::StringDescriptor *) noexcept;
+
+// Private recursive-box bridge. Inactive enum storage is never inspected.
+extern "C" const void *
+kalandra_recursive_string_dependency_v1(kalandra::runtime::Invocation *,
+                                        const kalandra::runtime::StringDescriptor *,
+                                        std::uint64_t active) noexcept;

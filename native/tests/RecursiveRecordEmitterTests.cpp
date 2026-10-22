@@ -31,6 +31,15 @@ int main(int argc, char **argv) {
                              {{"$tag", integer, {}}, {"head", integer, {}}, {"tail", list, {}}},
                              {{"Nil", {}, {}}, {"Cons", {}, {1, 2}}}});
     input.records.push_back({"Wrapper", {}, {{"value", list, {}}}});
+    ValueType text;
+    text.builtin = BuiltinValue::String;
+    ValueType textList = list;
+    textList.record = 2;
+    input.records.push_back({"Texts",
+                             {},
+                             {{"$tag", integer, {}}, {"text", text, {}}, {"tail", textList, {}}},
+                             {{"Empty", {}, {}}, {"More", {}, {1, 2}}}});
+    input.records.push_back({"TextWrapper", {}, {{"value", textList, {}}}});
     mlir::MLIRContext context;
     context.loadDialect<mlir::LLVM::LLVMDialect>();
     mlir::registerLLVMDialectTranslation(context);
@@ -102,11 +111,33 @@ int main(int argc, char **argv) {
     auto forged = emitter.read(loc, unknown, 0);
     require(bool(forged), "forged reference emitter failed");
     mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{extract(*forged, 0)});
+    // Accept a deliberately untrusted descriptor to qualify active/inactive validation,
+    // and return a boxed inline wrapper so the harness can outlive its invocation.
+    builder.setInsertionPointToEnd(module.getBody());
+    auto textFunction = mlir::LLVM::LLVMFuncOp::create(
+        builder, loc, "text_box",
+        mlir::LLVM::LLVMFunctionType::get(ptr, {ptr, builder.getI64Type()}));
+    auto *entry = textFunction.addEntryBlock(builder);
+    builder.setInsertionPointToStart(entry);
+    mlir::Value emptyText = mlir::LLVM::ZeroOp::create(builder, loc, (*types)[2]);
+    emptyText = insert(emptyText, constant(1), 0);
+    auto terminal = emitter.box(loc, emptyText, 2);
+    require(bool(terminal), "empty text box failed");
+    auto descriptorType = (*types)[2].getBody()[1];
+    auto descriptor =
+        mlir::LLVM::LoadOp::create(builder, loc, descriptorType, entry->getArgument(0));
+    auto node =
+        insert(insert(insert(emptyText, entry->getArgument(1), 0), descriptor, 1), *terminal, 2);
+    mlir::Value holder = mlir::LLVM::ZeroOp::create(builder, loc, (*types)[3]);
+    holder = insert(holder, node, 0);
+    auto boxedText = emitter.box(loc, holder, 3);
+    require(bool(boxedText), "inline String dependency box failed");
+    mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{*boxedText});
     function("unsupported");
     TypedModule unsupported;
-    ValueType text;
-    text.builtin = BuiltinValue::String;
-    unsupported.records.push_back({"Text", {}, {{"value", text, {}}}});
+    ValueType collection;
+    collection.tensor = true;
+    unsupported.records.push_back({"Text", {}, {{"value", collection, {}}}});
     auto unsupportedTypes = lowerRecordTypes(unsupported, context);
     auto unsupportedStorage = planRecordStorage(unsupported);
     require(unsupportedTypes && unsupportedStorage, "unsupported fixture planning failed");
@@ -114,7 +145,7 @@ int main(int argc, char **argv) {
                                           builder, module);
     auto textValue = mlir::LLVM::ZeroOp::create(builder, loc, (*unsupportedTypes)[0]);
     require(!unsupportedEmitter.box(loc, textValue, 0),
-            "owned String field silently omitted from dependency plan");
+            "owned collection field silently omitted from dependency plan");
     require(!emitter.box(loc, constant(1), 0) && !emitter.read(loc, constant(1), 0),
             "physical operand validation missing");
     mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{constant(0)});

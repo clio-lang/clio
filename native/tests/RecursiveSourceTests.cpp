@@ -32,11 +32,14 @@ int main() {
             "recursive source did not use ordinary checked switch/boxing lowering");
     require(!lowerNative(*valid.module, {}, {"sum"}), "recursive bridge exports admitted");
 #endif
+    auto text = analyze(
+        "enum Text:\n  Empty\n  More:\n    text:String\n    next:Text\nfn main()->int:\n  0\n");
+    require(text.ok(), "recursive String schema rejected");
     for (const auto &source :
          {"enum Loop:\n  More:\n    next:Loop\nfn main()->int:\n  0\n",
           "type A:\n  child:B\ntype B:\n  child:A\nfn main()->int:\n  0\n",
           "enum Tree:\n  Leaf\n  Branch:\n    children:[Tree]\nfn main()->int:\n  0\n",
-          "enum Text:\n  Empty\n  More:\n    text:String\n    next:Text\nfn main()->int:\n  0\n",
+          "enum Text:\n  Empty\n  More:\n    text:[int]\n    next:Text\nfn main()->int:\n  0\n",
           "enum Callback:\n  Empty\n  More:\n    call:fn(int)->int\n    next:Callback\nfn "
           "main()->int:\n  0\n"}) {
       auto failed = analyze(source);

@@ -1,4 +1,4 @@
-#include "../runtime/Runtime.h"
+#include "../runtime/String.h"
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -9,6 +9,7 @@ using namespace kalandra::runtime;
 extern "C" std::int64_t probe(Invocation *);
 extern "C" std::int64_t wrong_key(Invocation *);
 extern "C" std::int64_t forged(Invocation *);
+extern "C" const void *text_box(const StringDescriptor *, std::int64_t, Invocation *);
 static void require(bool value, const char *message) {
   if (!value)
     throw std::runtime_error(message);
@@ -41,6 +42,71 @@ int main() {
       context.bindCancellation(&cancelled);
       require(probe(&context) == 0 && !context.live() && context.callDepth() == 0,
               "cancelled compiled constructor executed");
+    }
+    for (unsigned mode = 0; mode < 12; ++mode) {
+      Invocation context, foreign;
+      StringDescriptor value;
+      const std::string bytes("é\0👩", 7);
+      kalandra_string_literal_v1(&context, &value, bytes.data(), bytes.size());
+      require(!context.status(), "String fixture allocation failed");
+      auto buffer = context.lease(value.allocated);
+      auto invalid = value;
+      if (mode == 1 || mode == 2)
+        invalid = {reinterpret_cast<void *>(0x1234), reinterpret_cast<char *>(0x1234), -1};
+      if (mode == 3)
+        invalid.byteLength = 1000;
+      if (mode == 4)
+        invalid.data++;
+      if (mode == 5) {
+        kalandra_string_literal_v1(&foreign, &invalid, bytes.data(), bytes.size());
+      }
+      if (mode == 6)
+        invalid = {};
+      if (mode >= 7 && mode <= 9)
+        context.failAllocationAt(context.allocations() + mode - 6);
+      if (mode == 10) {
+        auto *bad = static_cast<char *>(context.allocateRecord(1));
+        require(bad, "invalid UTF-8 fixture allocation failed");
+        *bad = char(0xff);
+        invalid = {bad, bad, 1};
+      }
+      if (mode == 11)
+        invalid.byteLength = 0;
+      auto *root = text_box(&invalid, mode == 1 ? 1 : 2, &context);
+      if (mode == 2 || mode == 3 || mode == 4 || mode == 5 || mode == 7 || mode == 8 ||
+          mode >= 10) {
+        require(!root && context.status() == (mode == 7 || mode == 8 ? 2 : 3),
+                "invalid String or failed box was published");
+        context.settle();
+        require(buffer->referenceCount() == 1, "failed box retained String backing");
+      } else {
+        require(root && !context.status(), "String bridge box failed");
+        auto retained = context.lease(root);
+        require(bool(retained), "String root lease missing");
+        context.settle();
+        const bool owned = mode == 0 || mode == 9;
+        require(buffer->referenceCount() == (owned ? 2 : 1),
+                "active String dependency was lost or inactive String retained");
+        if (owned) {
+          auto child = retained->dependency(0);
+          require(child && child->bytes().size() == bytes.size() &&
+                      std::memcmp(child->bytes().data(), bytes.data(), bytes.size()) == 0,
+                  "String bytes did not survive invocation settlement");
+        }
+        retained.reset();
+        require(buffer->referenceCount() == 1, "String dependency survived final root release");
+      }
+      require(!context.live() && context.allocations() == context.releases() &&
+                  context.callDepth() == 0,
+              "String bridge cleanup leaked");
+    }
+    {
+      Invocation context;
+      require(!kalandra_recursive_string_dependency_v1(&context, nullptr, 0) && !context.status(),
+              "inactive String descriptor was inspected");
+      require(!kalandra_recursive_string_dependency_v1(&context, nullptr, 2) &&
+                  context.status() == 3,
+              "invalid active flag accepted");
     }
     static const char key = 0;
     for (unsigned mode = 0; mode < 6; ++mode) {
