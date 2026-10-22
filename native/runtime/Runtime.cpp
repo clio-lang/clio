@@ -12,6 +12,7 @@
 #include <cstring>
 #include <limits>
 #include <new>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -23,11 +24,12 @@ struct Owner {
   Owner *previous = nullptr;
   Backing *backing;
   bool embedded;
+  bool recursiveCharged = false;
 };
 struct alignas(std::max_align_t) Backing {
   std::atomic<std::uint64_t> references{1};
   Owner initial{nullptr, nullptr, this, true};
-  std::uint64_t bytes = 0;
+  std::uint64_t bytes = 0, storageBytes = 0;
   bool record = false;
   const void *environmentKey = nullptr;
   const void *recursiveKey = nullptr;
@@ -181,6 +183,7 @@ void *Invocation::allocate(std::uint64_t bytes) noexcept {
   }
   auto *backing = new (storage) Backing;
   backing->bytes = bytes;
+  backing->storageBytes = sizeof(Backing) + bytes;
   attach(&backing->initial);
   return backing + 1;
 }
@@ -240,6 +243,7 @@ const void *Invocation::makeRecursiveValueImpl(std::span<const std::byte> payloa
   // failure. No invocation owner sees the node until the copy is complete.
   AllocationLease pending(backing);
   backing->bytes = payload.size();
+  backing->storageBytes = sizeof(Backing) + padded + dependencyCount * sizeof(Backing *);
   backing->record = true;
   backing->recursiveKey = key;
   auto *output = reinterpret_cast<std::byte *>(backing + 1);
@@ -343,6 +347,16 @@ void Invocation::bindEnvironmentBudget(void *state, EnvironmentReserve reserve,
   environmentBudget_ = state;
   environmentReserve_ = reserve;
   environmentRelease_ = release;
+}
+void Invocation::bindRecursiveBudget(void *state, EnvironmentReserve reserve,
+                                     EnvironmentRelease release) noexcept {
+  if (recursiveBytes_ || recursiveReserve_ || !state || !reserve || !release) {
+    fault(3);
+    return;
+  }
+  recursiveBudget_ = state;
+  recursiveReserve_ = reserve;
+  recursiveRelease_ = release;
 }
 void *Invocation::allocateEnvironment(std::uint64_t bytes, const void *key) noexcept {
   if (poll())
@@ -452,12 +466,15 @@ bool Invocation::retainRecursiveGraph(const AllocationLease &root, const void *k
       }
     }
   } staged;
+  std::vector<Owner *> existingCharges;
+  std::uint64_t charge = 0;
   // Workspace allocation is charged as one admission attempt. Container growth
   // remains bounded and allocation exceptions roll back staged references.
   if (!reserve())
     return false;
   try {
-    std::unordered_set<Backing *> owned, visited;
+    std::unordered_map<Backing *, Owner *> owned;
+    std::unordered_set<Backing *> charged, visited;
     std::vector<Backing *> pending{root.backing_};
     std::size_t owners = 0, edges = 0;
     for (auto *owner = head_; owner; owner = owner->next) {
@@ -467,7 +484,9 @@ bool Invocation::retainRecursiveGraph(const AllocationLease &root, const void *k
         fault(2);
         return false;
       }
-      owned.insert(owner->backing);
+      owned.try_emplace(owner->backing, owner);
+      if (owner->recursiveCharged)
+        charged.insert(owner->backing);
     }
     while (!pending.empty()) {
       if (poll())
@@ -482,6 +501,17 @@ bool Invocation::retainRecursiveGraph(const AllocationLease &root, const void *k
         return false;
       }
       edges += backing->dependencyCount;
+      if (!charged.contains(backing)) {
+        constexpr auto maximum = std::numeric_limits<std::uint64_t>::max();
+        if (backing->storageBytes > maximum - sizeof(Owner) ||
+            backing->storageBytes + sizeof(Owner) > maximum - charge) {
+          fault(2);
+          return false;
+        }
+        charge += backing->storageBytes + sizeof(Owner);
+        if (auto found = owned.find(backing); found != owned.end())
+          existingCharges.push_back(found->second);
+      }
       if (!owned.contains(backing)) {
         if (++owners > maxRecursiveDependencies) {
           fault(2);
@@ -499,7 +529,7 @@ bool Invocation::retainRecursiveGraph(const AllocationLease &root, const void *k
           fault(3);
           return false;
         }
-        staged.head = new (storage) Owner{staged.head, nullptr, backing, false};
+        staged.head = new (storage) Owner{staged.head, nullptr, backing, false, true};
       }
       for (std::size_t edge = 0; edge < backing->dependencyCount; ++edge) {
         if (poll())
@@ -513,6 +543,19 @@ bool Invocation::retainRecursiveGraph(const AllocationLease &root, const void *k
   }
   if (poll())
     return false;
+  if (charge > std::numeric_limits<std::uint64_t>::max() - recursiveBytes_ ||
+      (charge && recursiveReserve_ && !recursiveReserve_(recursiveBudget_, charge))) {
+    fault(2);
+    return false;
+  }
+  if (poll()) {
+    if (charge && recursiveRelease_)
+      recursiveRelease_(recursiveBudget_, charge);
+    return false;
+  }
+  recursiveBytes_ += charge;
+  for (auto *owner : existingCharges)
+    owner->recursiveCharged = true;
   // No allocation or fallible operation remains: publish the complete ledger.
   while (staged.head) {
     auto *owner = staged.head;
@@ -538,6 +581,9 @@ void Invocation::settle() noexcept {
   if (environmentBytes_ && environmentRelease_)
     environmentRelease_(environmentBudget_, environmentBytes_);
   environmentBytes_ = 0;
+  if (recursiveBytes_ && recursiveRelease_)
+    recursiveRelease_(recursiveBudget_, recursiveBytes_);
+  recursiveBytes_ = 0;
 }
 bool Invocation::enterCall(std::int64_t line, std::int64_t column) noexcept {
   if (poll())

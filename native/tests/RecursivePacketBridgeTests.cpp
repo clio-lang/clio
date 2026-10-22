@@ -31,7 +31,7 @@ static void balanced(const Invocation &context) {
 static void clean(const TaskCore &core) {
   const auto stats = core.stats();
   require(!stats.retainedBytes && !stats.retainedOwners && !stats.unfinished && !stats.records &&
-              !stats.groups && !stats.environmentBytes,
+              !stats.groups && !stats.environmentBytes && !stats.recursiveBytes,
           "recursive packet scheduler leaked");
 }
 struct Array {
@@ -200,6 +200,66 @@ int main() {
         balanced(source);
         balanced(destination);
       }
+      // The compiler-generated graph copier must honor the same shared byte cap
+      // at packet admission and at cached-result publication.
+      for (unsigned workers : {1u, 2u, 4u}) {
+        for (unsigned boundary = 0; boundary < 4; ++boundary) {
+          copies.store(0);
+          failCopy.store(0);
+          Invocation source, probe, observer;
+          Input input{fixture(source, kind), kind, 0};
+          const void *out = nullptr;
+          require(copiers[kind](&source, input.root, &out, &probe), "graph budget probe failed");
+          const auto graphBytes = probe.recursiveBytes();
+          require(graphBytes != 0, "generated copy did not reserve graph backing");
+          probe.settle();
+          const TaskEntry entry{
+              1,         83001 + kind, sizeof(Input), alignof(Input), sizeof(Input), alignof(Input),
+              construct, nothing,      resume,        &layouts[kind]};
+          const auto fixed = entry.frameBytes + entry.result->bytes;
+          TaskLimits limits;
+          limits.workers = workers;
+          limits.bytes =
+              fixed + (boundary < 2 ? graphBytes : 2 * graphBytes) - (boundary % 2 ? 0 : 1);
+          auto core = TaskCore::create(limits);
+          require(bool(core), "bounded graph task core failed");
+          auto group = core->openRoot();
+          auto task =
+              core->submit(group, entry, {entry.packetLayout, &input, sizeof(input), &source});
+          source.settle();
+          require(core->drain(), "bounded graph task drain failed");
+          auto failure = core->failure(group);
+          if (failure.kind == TaskFailure::None && task)
+            failure = core->failure(task);
+          out = reinterpret_cast<void *>(0x5a5a);
+          if (boundary == 3) {
+            require(task && failure.kind == TaskFailure::None &&
+                        core->observe(task, layouts[kind], observer, &out),
+                    "exact packet/result graph byte boundary rejected");
+            verify(observer, out, kind);
+            const auto stats = core->stats();
+            require(stats.peakBytes == limits.bytes && stats.recursiveBytes == graphBytes &&
+                        stats.recursiveBytes <= stats.retainedBytes,
+                    "graph reservations not reflected in scheduler statistics");
+          } else {
+            require(failure.kind == TaskFailure::Fault && failure.code == 2 &&
+                        (!task || !core->observe(task, layouts[kind], observer, &out)) &&
+                        out == reinterpret_cast<void *>(0x5a5a),
+                    "over-budget graph published a task result");
+            require(copies.load() == (boundary == 0 ? 1u : 2u),
+                    "graph budget failure happened at wrong boundary");
+          }
+          require(core->close(group) && core->drain() && core->release(group),
+                  "bounded graph group cleanup failed");
+          clean(*core);
+          core.reset();
+          if (boundary == 3)
+            verify(observer, out, kind);
+          observer.settle();
+          balanced(source);
+          balanced(observer);
+        }
+      }
       for (unsigned workers : {1u, 2u, 4u}) {
         for (unsigned mode = 0; mode < 10; ++mode) {
           copies.store(0);
@@ -304,7 +364,8 @@ int main() {
                     "failed group cleanup");
             auto stats = core->stats();
             require(!stats.retainedBytes && !stats.retainedOwners && !stats.unfinished &&
-                        !stats.records && !stats.groups && !stats.environmentBytes,
+                        !stats.records && !stats.groups && !stats.environmentBytes &&
+                        !stats.recursiveBytes,
                     "recursive packet scheduler leaked");
           }
           destination.settle();

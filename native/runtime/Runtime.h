@@ -83,6 +83,12 @@ public:
   void bindEnvironmentBudget(void *state, EnvironmentReserve reserve,
                              EnvironmentRelease release) noexcept;
   std::uint64_t environmentBytes() const noexcept { return environmentBytes_; }
+  // Conservative per-invocation reservations for backing reached by graph
+  // handoff. Charges include backing storage and one receiving owner allowance;
+  // duplicate graph visits reuse a surviving charged ownership registration.
+  void bindRecursiveBudget(void *state, EnvironmentReserve reserve,
+                           EnvironmentRelease release) noexcept;
+  std::uint64_t recursiveBytes() const noexcept { return recursiveBytes_; }
   void *allocateEnvironment(std::uint64_t bytes, const void *key) noexcept;
   void *allocateTransportStorage(std::uint64_t bytes, const void *key) noexcept;
   void *cloneEnvironment(const Invocation &source, const void *environment, std::uint64_t bytes,
@@ -127,7 +133,10 @@ private:
   std::atomic<std::uint64_t> live_{0};
   const std::atomic<bool> *cancellation_ = nullptr;
   std::atomic<std::uint64_t> *pollCounter_ = nullptr;
-  std::uint64_t callDepth_ = 0, environmentBytes_ = 0;
+  std::uint64_t callDepth_ = 0, environmentBytes_ = 0, recursiveBytes_ = 0;
+  void *recursiveBudget_ = nullptr;
+  EnvironmentReserve recursiveReserve_ = nullptr;
+  EnvironmentRelease recursiveRelease_ = nullptr;
   void *environmentBudget_ = nullptr;
   EnvironmentReserve environmentReserve_ = nullptr;
   EnvironmentRelease environmentRelease_ = nullptr;

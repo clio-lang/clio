@@ -88,8 +88,109 @@ static void check(Invocation &destination, const AllocationLease &root) {
   require(kalandra_string_length_v1(&destination, &text) == 1 && !destination.status(),
           "imported nested String cannot be read");
 }
+struct Budget {
+  std::uint64_t limit, used = 0, reservations = 0, refunds = 0;
+  std::atomic<bool> *cancel = nullptr;
+  bool valid = true;
+  static bool reserve(void *state, std::uint64_t bytes) noexcept {
+    auto &budget = *static_cast<Budget *>(state);
+    ++budget.reservations;
+    if (bytes > budget.limit - budget.used)
+      return false;
+    budget.used += bytes;
+    if (budget.cancel)
+      budget.cancel->store(true, std::memory_order_release);
+    return true;
+  }
+  static void release(void *state, std::uint64_t bytes) noexcept {
+    auto &budget = *static_cast<Budget *>(state);
+    ++budget.refunds;
+    if (bytes > budget.used) {
+      budget.valid = false;
+      return;
+    }
+    budget.used -= bytes;
+  }
+  void bind(Invocation &context) { context.bindRecursiveBudget(this, reserve, release); }
+};
+static void budgetTests() {
+  Invocation producer, probe;
+  auto root = fixture(producer);
+  require(import(probe, root), "budget probe failed");
+  const auto footprint = probe.recursiveBytes();
+  require(footprint > sizeof(Root) && probe.live() == 7, "empty graph reservation");
+  probe.settle();
+  require(!probe.recursiveBytes(), "settled local reservation remained");
+  for (unsigned mode = 0; mode < 4; ++mode) {
+    Budget budget{mode % 2 ? footprint : footprint - 1};
+    Invocation receiver;
+    budget.bind(receiver);
+    if (mode >= 2) {
+      for (unsigned duplicate = 0; duplicate < 2; ++duplicate)
+        require(receiver.retainFrom(producer, const_cast<std::byte *>(root.bytes().data())),
+                "pre-existing budget owner fixture failed");
+    }
+    const auto live = receiver.live(), allocations = receiver.allocations();
+    const auto references = root.referenceCount();
+    const bool success = import(receiver, root);
+    require(success == bool(mode % 2), "exact graph byte boundary changed");
+    if (success) {
+      require(receiver.recursiveBytes() == footprint && budget.used == footprint &&
+                  import(receiver, root) && budget.reservations == 1 &&
+                  receiver.live() == (mode >= 2 ? 8 : 7),
+              "duplicate/pre-existing graph backing charged twice or omitted");
+      check(receiver, root);
+      receiver.release(const_cast<std::byte *>(root.bytes().data()));
+      require(budget.used == footprint, "graph reservation refunded before settlement");
+    } else {
+      require(receiver.status() == 2 && !receiver.recursiveBytes() && !budget.used &&
+                  receiver.live() == live && receiver.allocations() == allocations &&
+                  root.referenceCount() == references,
+              "budget rejection published partial ownership or retained backing");
+    }
+    receiver.settle();
+    receiver.settle();
+    require(!budget.used && budget.valid && budget.refunds == (success ? 1u : 0u),
+            "graph settlement refund changed");
+    balanced(receiver);
+  }
+  {
+    Budget budget{footprint};
+    std::atomic<bool> cancelled{false};
+    budget.cancel = &cancelled;
+    Invocation receiver;
+    budget.bind(receiver);
+    receiver.bindCancellation(&cancelled);
+    const auto references = root.referenceCount();
+    require(!import(receiver, root) && !receiver.live() && !receiver.allocations() &&
+                !receiver.recursiveBytes() && !budget.used && budget.refunds == 1 &&
+                root.referenceCount() == references,
+            "post-reservation cancellation retained bytes or published ownership");
+    receiver.settle();
+    require(budget.valid && budget.refunds == 1, "cancelled reservation refunded twice");
+  }
+  // Null dependency slots have no edges, but their allocated table still costs bytes.
+  {
+    Invocation compact, padded;
+    Node node{42, nullptr};
+    auto *small = producer.makeRecursiveValue(bytes(node), &nodeKey);
+    std::array<const void *, 1024> empty{};
+    auto *large = producer.makeRecursiveValueFromPointers(bytes(node), &nodeKey, empty);
+    auto first = producer.lease(small), second = producer.lease(large);
+    require(first && second &&
+                compact.retainRecursiveGraph(*first, &nodeKey, sizeof(Node), alignof(Node)) &&
+                padded.retainRecursiveGraph(*second, &nodeKey, sizeof(Node), alignof(Node)) &&
+                padded.recursiveBytes() - compact.recursiveBytes() == empty.size() * sizeof(void *),
+            "unused dependency table capacity escaped accounting");
+    compact.settle();
+    padded.settle();
+  }
+  producer.settle();
+  balanced(producer);
+}
 int main() {
   try {
+    budgetTests();
     {
       Invocation producer, receiver, onward;
       auto root = fixture(producer);
