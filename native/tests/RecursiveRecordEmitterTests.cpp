@@ -40,6 +40,19 @@ int main(int argc, char **argv) {
                              {{"$tag", integer, {}}, {"text", text, {}}, {"tail", textList, {}}},
                              {{"Empty", {}, {}}, {"More", {}, {1, 2}}}});
     input.records.push_back({"TextWrapper", {}, {{"value", textList, {}}}});
+    ValueType array = integer;
+    array.tensor = array.array = true;
+    array.shape = {{std::nullopt, 1}};
+    ValueType flags = array;
+    flags.builtin = BuiltinValue::Bool;
+    ValueType chain = list;
+    chain.record = 4;
+    input.records.push_back(
+        {"Collections",
+         {},
+         {{"$tag", integer, {}}, {"values", array, {}}, {"flags", flags, {}}, {"next", chain, {}}},
+         {{"End", {}, {}}, {"Link", {}, {1, 2, 3}}}});
+    input.records.push_back({"CollectionWrapper", {}, {{"value", chain, {}}}});
     mlir::MLIRContext context;
     context.loadDialect<mlir::LLVM::LLVMDialect>();
     mlir::registerLLVMDialectTranslation(context);
@@ -133,10 +146,35 @@ int main(int argc, char **argv) {
     auto boxedText = emitter.box(loc, holder, 3);
     require(bool(boxedText), "inline String dependency box failed");
     mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{*boxedText});
+    builder.setInsertionPointToEnd(module.getBody());
+    auto collectionFunction = mlir::LLVM::LLVMFuncOp::create(
+        builder, loc, "collection_box",
+        mlir::LLVM::LLVMFunctionType::get(ptr, {ptr, ptr, builder.getI64Type()}));
+    auto *collectionEntry = collectionFunction.addEntryBlock(builder);
+    builder.setInsertionPointToStart(collectionEntry);
+    mlir::Value end = mlir::LLVM::ZeroOp::create(builder, loc, (*types)[4]);
+    end = insert(end, constant(1), 0);
+    auto boxedEnd = emitter.box(loc, end, 4);
+    require(bool(boxedEnd), "collection end box failed");
+    mlir::Value link = insert(end, collectionEntry->getArgument(2), 0);
+    for (unsigned field = 1; field <= 2; ++field) {
+      auto descriptor = mlir::LLVM::LoadOp::create(builder, loc, (*types)[4].getBody()[field],
+                                                   collectionEntry->getArgument(field - 1));
+      link = insert(link, descriptor, field);
+    }
+    link = insert(link, *boxedEnd, 3);
+    mlir::Value collectionHolder = mlir::LLVM::ZeroOp::create(builder, loc, (*types)[5]);
+    collectionHolder = insert(collectionHolder, link, 0);
+    auto boxedCollection = emitter.box(loc, collectionHolder, 5);
+    require(bool(boxedCollection), "inline collection dependency box failed");
+    mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{*boxedCollection});
     function("unsupported");
     TypedModule unsupported;
     ValueType collection;
     collection.tensor = true;
+    collection.array = true;
+    collection.shape = {{std::nullopt, 1}};
+    collection.builtin = BuiltinValue::String;
     unsupported.records.push_back({"Text", {}, {{"value", collection, {}}}});
     auto unsupportedTypes = lowerRecordTypes(unsupported, context);
     auto unsupportedStorage = planRecordStorage(unsupported);

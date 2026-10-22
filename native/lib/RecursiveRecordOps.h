@@ -65,11 +65,33 @@ public:
           dependencies.push_back(mlir::LLVM::CallOp::create(builder_, loc, function,
                                                             mlir::ValueRange{descriptor, selected})
                                      .getResult());
+        } else if (type.tensor && (type.builtin == BuiltinValue::Numeric || isBoolArray(type))) {
+          auto descriptor = slot(loc, member.getType(), 1, alignof(void *));
+          mlir::LLVM::StoreOp::create(builder_, loc, member, descriptor);
+          auto selected = mlir::LLVM::ZExtOp::create(builder_, loc, builder_.getI64Type(), active);
+          if (isBoolArray(type)) {
+            auto function = declaration("kalandra_recursive_bool_dependency",
+                                        {pointer(), builder_.getI64Type()});
+            dependencies.push_back(
+                mlir::LLVM::CallOp::create(builder_, loc, function,
+                                           mlir::ValueRange{descriptor, selected})
+                    .getResult());
+          } else {
+            auto function = declaration(
+                "kalandra_recursive_tensor_dependency",
+                {pointer(), builder_.getI64Type(), builder_.getI64Type(), builder_.getI64Type()});
+            dependencies.push_back(
+                mlir::LLVM::CallOp::create(
+                    builder_, loc, function,
+                    mlir::ValueRange{descriptor, constant(loc, type.shape.size()),
+                                     constant(loc, static_cast<unsigned>(type.element)), selected})
+                    .getResult());
+          }
         } else if (type.tensor ||
                    (type.builtin != BuiltinValue::Numeric && type.builtin != BuiltinValue::Bool)) {
-          return std::unexpected(
-              "recursive boxes currently require numeric/Bool/String fields, inline "
-              "supported records and managed recursive references");
+          return std::unexpected("recursive boxes currently require numeric/Bool/String scalars, "
+                                 "numeric collections, Bool arrays, inline "
+                                 "supported records and managed recursive references");
         }
       }
     }

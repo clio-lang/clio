@@ -18,3 +18,7 @@ RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAG
   "${SOURCE_DIR}/tests/RecursiveRecordBridgeTests.cpp" "${OUTPUT_DIR}/bridge.ll"
   "${RUNTIME}" -o "${OUTPUT_DIR}/bridge")
 RUN_OK("${OUTPUT_DIR}/bridge")
+RUN_OK("${CLANGXX}" -std=c++23 -Wall -Wextra -Werror -Wno-override-module ${FLAGS}
+  "-I${SOURCE_DIR}/include" "${SOURCE_DIR}/tests/RecursiveCollectionBridgeTests.cpp"
+  "${OUTPUT_DIR}/bridge.ll" "${RUNTIME}" -o "${OUTPUT_DIR}/collections")
+RUN_OK("${OUTPUT_DIR}/collections")

@@ -6,7 +6,7 @@ namespace kalandra {
 inline bool hasRecursiveStorage(const RecordStoragePlan &storage) {
   return std::ranges::find(storage.recursive, true) != storage.recursive.end();
 }
-// The initial executable subset is deliberately synchronous with scalar owned Strings.
+// Recursive execution remains synchronous; owned payloads need qualified dependency enumeration.
 inline std::optional<Diagnostic> recursiveRecordLayoutError(const TypedModule &module,
                                                             const SemanticLimits &limits = {}) {
   auto storage = planRecordStorage(module);
@@ -33,15 +33,16 @@ inline std::optional<Diagnostic> recursiveRecordLayoutError(const TypedModule &m
           "S068", "recursive programs do not yet support application-error payloads or channels",
           record.declaration};
     for (const auto &field : record.fields)
-      if (field.type.tensor ||
+      if ((field.type.tensor && field.type.builtin != BuiltinValue::Numeric &&
+           !isBoolArray(field.type)) ||
           (field.type.builtin != BuiltinValue::Numeric &&
            field.type.builtin != BuiltinValue::Bool && field.type.builtin != BuiltinValue::String &&
            field.type.builtin != BuiltinValue::Record))
-        return Diagnostic{
-            "S068",
-            "recursive programs currently require scalar numeric/Bool/String record fields and "
-            "direct nominal links; collection cycles and other owned payloads remain unsupported",
-            field.declaration};
+        return Diagnostic{"S068",
+                          "recursive programs require numeric/Bool/String scalars, numeric "
+                          "collections, Bool arrays "
+                          "or direct nominal links; other owned payloads remain unsupported",
+                          field.declaration};
   }
   auto physical = planRecordPhysicalLayout(module, limits);
   return physical ? std::optional<Diagnostic>{} : std::optional<Diagnostic>{physical.error()};

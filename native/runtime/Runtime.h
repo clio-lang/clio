@@ -178,3 +178,13 @@ void kalandra_call_leave_v1(kalandra::runtime::Invocation *) noexcept;
 std::int64_t kalandra_poll_v1(kalandra::runtime::Invocation *) noexcept;
 std::int64_t kalandra_status_v1(kalandra::runtime::Invocation *) noexcept;
 }
+
+// Private recursive-box bridges return borrowed validated backing; publication retains it.
+extern "C" const void *kalandra_recursive_tensor_dependency_v1(kalandra::runtime::Invocation *,
+                                                               const void *descriptor,
+                                                               std::uint64_t rank,
+                                                               std::uint64_t element,
+                                                               std::uint64_t active) noexcept;
+extern "C" const void *kalandra_recursive_bool_dependency_v1(kalandra::runtime::Invocation *,
+                                                             const void *descriptor,
+                                                             std::uint64_t active) noexcept;

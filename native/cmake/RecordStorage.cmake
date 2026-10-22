@@ -111,3 +111,14 @@ if(BUILD_TESTING)
     set_tests_properties(native-recursive-strings-${VARIANT} PROPERTIES TIMEOUT 300)
   endforeach()
 endif()
+
+if(BUILD_TESTING)
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-recursive-collections-${VARIANT}
+      COMMAND "${CMAKE_COMMAND}" "-DCOMPILER=$<TARGET_FILE:kalandra>" "-DVARIANT=${VARIANT}"
+        "-DCLANGXX=${CMAKE_CXX_COMPILER}" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/recursive-collections-${VARIANT}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyRecursiveCollections.cmake")
+    set_tests_properties(native-recursive-collections-${VARIANT} PROPERTIES TIMEOUT 600)
+  endforeach()
+endif()

@@ -833,3 +833,37 @@ extern "C" const void *kalandra_recursive_read_v1(kalandra::runtime::Invocation 
   }
   return node;
 }
+
+extern "C" const void *
+kalandra_recursive_tensor_dependency_v1(kalandra::runtime::Invocation *context,
+                                        const void *descriptor, std::uint64_t rank,
+                                        std::uint64_t element, std::uint64_t active) noexcept {
+  if (context->poll() != 0 || !context->usable())
+    return nullptr;
+  if (active > 1) {
+    context->fault(3);
+    return nullptr;
+  }
+  if (!active)
+    return nullptr;
+  void *allocated = nullptr;
+  if (!validRecordStorage(*context, descriptor, rank, element, allocated)) {
+    context->fault(3);
+    return nullptr;
+  }
+  return allocated;
+}
+extern "C" const void *kalandra_recursive_bool_dependency_v1(kalandra::runtime::Invocation *context,
+                                                             const void *descriptor,
+                                                             std::uint64_t active) noexcept {
+  if (context->poll() != 0 || !context->usable())
+    return nullptr;
+  if (active > 1) {
+    context->fault(3);
+    return nullptr;
+  }
+  if (!active)
+    return nullptr;
+  void *allocated = nullptr;
+  return validBoolArray(*context, *context, descriptor, allocated) ? allocated : nullptr;
+}
