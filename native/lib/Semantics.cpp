@@ -478,10 +478,6 @@ private:
           return {};
         auto result = recordType(id);
         if (syntax.array) {
-          if (recursiveValues_) {
-            error("S068", "record arrays in recursive programs are not yet supported", syntax.span);
-            return {};
-          }
           result.tensor = result.array = true;
           result.shape = {dynamic()};
         }
@@ -2420,10 +2416,6 @@ private:
     }
     if (!validSize(output, span))
       return {};
-    if (recursiveValues_ && isRecordArray(output)) {
-      error("S068", "record arrays in recursive programs are not yet supported", span);
-      return {};
-    }
     if (isRecordArray(output) &&
         elements.size() > limits_.maxValues / recordInlineUnits(output_, *output.record)) {
       error("S024", "record array literal exceeds configured expanded storage budget", span);
@@ -3544,10 +3536,6 @@ private:
     }
     if (!validSize(output, span))
       return {};
-    if (recursiveValues_ && isRecordArray(output)) {
-      error("S068", "record arrays in recursive programs are not yet supported", span);
-      return {};
-    }
     if (isRecordArray(output) &&
         elements.size() > limits_.maxValues / recordInlineUnits(output_, *output.record)) {
       error("S024", "record array literal exceeds configured expanded storage budget", span);

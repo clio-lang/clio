@@ -4,6 +4,7 @@
 #include "kalandra/Semantics.h"
 #include <algorithm>
 #include <functional>
+#include <limits>
 #include <unordered_set>
 
 namespace kalandra {
@@ -212,22 +213,44 @@ inline std::optional<Diagnostic> recordLayoutError(const TypedModule &module,
   }
   return {};
 }
-// Called only after finite-layout validation; memoize shared child declarations.
+// Count finite physical storage iteratively, treating managed references and
+// collection descriptors as leaves. Callers still validate complete layouts.
 inline std::size_t recordInlineUnits(const TypedModule &module, std::size_t root) {
-  std::vector<std::optional<std::size_t>> cache(module.records.size());
-  std::function<std::size_t(std::size_t)> count = [&](std::size_t id) {
-    if (cache[id])
-      return *cache[id];
-    std::size_t total = 0;
-    for (const auto &field : module.records[id].fields)
-      total += field.type.tensor                              ? 3 + 2 * field.type.shape.size()
-               : field.type.record                            ? count(*field.type.record)
-               : field.type.builtin == BuiltinValue::Function ? 2
-               : field.type.builtin == BuiltinValue::String   ? 3
-                                                              : 1;
-    cache[id] = total;
-    return total;
+  auto storage = planRecordStorage(module);
+  constexpr auto cap = std::numeric_limits<std::size_t>::max();
+  if (!storage || root >= module.records.size())
+    return cap;
+  struct Frame {
+    std::size_t id, field = 0, units = 0;
   };
-  return count(root);
+  std::vector<std::optional<std::size_t>> cache(module.records.size());
+  std::vector<Frame> pending{{root}};
+  while (!pending.empty()) {
+    auto &frame = pending.back();
+    if (frame.field == module.records[frame.id].fields.size()) {
+      cache[frame.id] = std::max<std::size_t>(1, frame.units);
+      pending.pop_back();
+      continue;
+    }
+    const auto &type = module.records[frame.id].fields[frame.field].type;
+    const auto managed =
+        storage->fields[frame.id][frame.field] == RecordFieldStorage::ManagedReference;
+    if (!managed && !type.tensor && type.record && !cache[*type.record]) {
+      pending.push_back({*type.record});
+      continue;
+    }
+    const auto units = managed                                  ? 1
+                       : type.tensor                            ? 3 + 2 * type.shape.size()
+                       : type.record                            ? *cache[*type.record]
+                       : type.builtin == BuiltinValue::Function ? 2
+                       : type.builtin == BuiltinValue::String   ? 3
+                                                                : 1;
+    if (units > cap - frame.units)
+      return cap;
+    frame.units += units;
+    ++frame.field;
+  }
+  return *cache[root];
 }
+
 } // namespace kalandra

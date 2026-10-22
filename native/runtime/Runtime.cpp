@@ -4,6 +4,7 @@
 #include "../include/kalandra/NumericType.h"
 #include "Runtime.h"
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <cstdio>
@@ -866,4 +867,79 @@ extern "C" const void *kalandra_recursive_bool_dependency_v1(kalandra::runtime::
     return nullptr;
   void *allocated = nullptr;
   return validBoolArray(*context, *context, descriptor, allocated) ? allocated : nullptr;
+}
+
+extern "C" const void *
+kalandra_recursive_reference_dependency_v1(kalandra::runtime::Invocation *context, const void *node,
+                                           std::uint64_t bytes, std::uint64_t alignment,
+                                           const void *key, std::uint64_t active) noexcept {
+  if (context->poll() || !context->usable())
+    return nullptr;
+  if (active > 1) {
+    context->fault(3);
+    return nullptr;
+  }
+  return active ? kalandra_recursive_read_v1(context, node, bytes, alignment, key) : nullptr;
+}
+extern "C" const void *kalandra_recursive_tag_check_v1(kalandra::runtime::Invocation *context,
+                                                       std::uint64_t tag, std::uint64_t cases,
+                                                       std::uint64_t active) noexcept {
+  if (context->poll() || !context->usable())
+    return nullptr;
+  if (active > 1 || (active && (!tag || tag > cases)))
+    context->fault(3);
+  return nullptr;
+}
+extern "C" const void *kalandra_recursive_record_array_dependency_v1(
+    kalandra::runtime::Invocation *context, const void *descriptor, std::uint64_t cellBytes,
+    std::uint64_t alignment, KalandraRecursiveRecordCell callback, std::uint64_t active) noexcept {
+  using namespace kalandra::runtime;
+  if (context->poll() || !context->usable())
+    return nullptr;
+  if (active > 1) {
+    context->fault(3);
+    return nullptr;
+  }
+  if (!active)
+    return nullptr;
+  void *allocated = nullptr;
+  std::uint64_t count = 0;
+  if (!callback ||
+      !validRecordArray(*context, descriptor, cellBytes, alignment, allocated, count)) {
+    context->fault(3);
+    return nullptr;
+  }
+  if (!count)
+    return nullptr;
+  if (count >= Invocation::maxRecursiveDependencies) {
+    context->fault(2);
+    return nullptr;
+  }
+  auto **dependencies =
+      static_cast<const void **>(context->allocateRecord((count + 1) * sizeof(void *)));
+  if (!dependencies)
+    return nullptr;
+  struct Temporary {
+    Invocation *context;
+    void *storage;
+    ~Temporary() { context->release(storage); }
+  } temporary{context, dependencies};
+  dependencies[0] = allocated;
+  for (std::uint64_t i = 0; i < count; ++i) {
+    if (context->poll())
+      return nullptr;
+    auto *cell = static_cast<const std::byte *>(allocated) + i * cellBytes;
+    dependencies[i + 1] = callback(cell, context);
+    if (context->poll() || !context->usable())
+      return nullptr;
+    if (!dependencies[i + 1]) {
+      context->fault(3);
+      return nullptr;
+    }
+  }
+  // The immutable array backing is retained alongside checked per-element owners.
+  static const char key = 0;
+  std::array<std::uint64_t, 2> payload{count, cellBytes};
+  return context->makeRecursiveValueFromPointers(
+      std::as_bytes(std::span{payload}), &key, {dependencies, static_cast<std::size_t>(count + 1)});
 }

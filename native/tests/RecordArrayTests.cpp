@@ -122,7 +122,7 @@ int main() {
       if (mutation == 5)
         forged.symbols[forged.functions[op.function].parameters[0]].type.tensor = true;
       require(numericCapabilityError(forged, NumericTarget::Cpu).has_value(),
-              "forged record map admitted");
+              "forged record map admitted: " + std::to_string(mutation));
     }
     const auto decl = std::string("type Point:\n  x:int\ntype Other:\n  x:int\n");
     for (auto body :
@@ -133,7 +133,7 @@ int main() {
           "fn main():\n  points=[Point {x:1}]\n  points with {x:2}\n",
           "fn main():\n  points=[Point {x:1}]\n  tensor(points)\n",
           "fn main():\n  points=[Point {x:1}]\n  shape(points)\n",
-          "type Tree:\n  children:[Tree]\nfn main():\n  0\n"})
+          "type Tree:\n  children:[Tree]\nfn main():\n  spawn Tree {children:[]}\n"})
       require(!analyze(decl + body).ok(), "unsupported record array program admitted");
     auto captures =
         analyze(decl + "fn main()->[int] ! TaskError:\n  points=[Point {x:2},Point {x:3}]\n  try "

@@ -741,6 +741,8 @@ std::optional<std::string> numericCapabilityError(const TypedModule &module, Num
       if (map->function >= module.functions.size() || map->input >= module.expressions.size())
         return "map references invalid input or callback";
       const auto &fn = module.functions[map->function];
+      if (fn.resultType.task)
+        return "map callbacks require completed results, not tasks hidden by a declared signature";
       auto result = fn.declaredResult.value_or(fn.resultType);
       if ((!map->parallel && result.fallible) ||
           (map->parallel &&

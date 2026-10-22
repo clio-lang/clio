@@ -63,6 +63,18 @@ int main(int argc, char **argv) {
          {{"$tag", integer, {}}, {"items", textArray, {}}, {"next", textChain, {}}},
          {{"End", {}, {}}, {"Link", {}, {1, 2}}}});
     input.records.push_back({"StringArrayWrapper", {}, {{"value", textChain, {}}}});
+    ValueType cells = array;
+    cells.builtin = BuiltinValue::Record;
+    cells.record = 8;
+    input.records.push_back({"Cell",
+                             {},
+                             {{"$tag", integer, {}}, {"text", text, {}}, {"values", array, {}}},
+                             {{"Empty", {}, {}}, {"Text", {}, {1}}, {"Data", {}, {2}}}});
+    input.records.push_back({"Buckets", {}, {{"cells", cells, {}}}});
+    ValueType treeArray = cells;
+    treeArray.record = 10;
+    input.records.push_back({"Tree", {}, {{"name", text, {}}, {"children", treeArray, {}}}});
+    input.records.push_back({"Trees", {}, {{"values", treeArray, {}}}});
     mlir::MLIRContext context;
     context.loadDialect<mlir::LLVM::LLVMDialect>();
     mlir::registerLLVMDialectTranslation(context);
@@ -198,14 +210,52 @@ int main(int argc, char **argv) {
     auto boxedArray = emitter.box(loc, arrayHolder, 7);
     require(bool(boxedArray), "inline String array dependency box failed");
     mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{*boxedArray});
+    builder.setInsertionPointToEnd(module.getBody());
+    auto recordsFunction = mlir::LLVM::LLVMFuncOp::create(
+        builder, loc, "record_array_box", mlir::LLVM::LLVMFunctionType::get(ptr, {ptr}));
+    auto *recordsEntry = recordsFunction.addEntryBlock(builder);
+    builder.setInsertionPointToStart(recordsEntry);
+    auto recordsDescriptor = mlir::LLVM::LoadOp::create(builder, loc, (*types)[9].getBody()[0],
+                                                        recordsEntry->getArgument(0));
+    mlir::Value buckets = mlir::LLVM::ZeroOp::create(builder, loc, (*types)[9]);
+    buckets = insert(buckets, recordsDescriptor, 0);
+    auto boxedBuckets = emitter.box(loc, buckets, 9);
+    require(bool(boxedBuckets), "record array box failed");
+    mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{*boxedBuckets});
+    builder.setInsertionPointToEnd(module.getBody());
+    auto treesFunction = mlir::LLVM::LLVMFuncOp::create(
+        builder, loc, "tree_array_box", mlir::LLVM::LLVMFunctionType::get(ptr, {ptr}));
+    auto *treesEntry = treesFunction.addEntryBlock(builder);
+    builder.setInsertionPointToStart(treesEntry);
+    auto treesDescriptor = mlir::LLVM::LoadOp::create(builder, loc, (*types)[11].getBody()[0],
+                                                      treesEntry->getArgument(0));
+    mlir::Value trees = mlir::LLVM::ZeroOp::create(builder, loc, (*types)[11]);
+    trees = insert(trees, treesDescriptor, 0);
+    auto boxedTrees = emitter.box(loc, trees, 11);
+    require(bool(boxedTrees), "recursive Tree array box failed");
+    mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{*boxedTrees});
+    function("bad_reference");
+    mlir::Value listEnd = mlir::LLVM::ZeroOp::create(builder, loc, (*types)[0]);
+    listEnd = insert(listEnd, constant(1), 0);
+    mlir::Value wrapperValue = mlir::LLVM::ZeroOp::create(builder, loc, (*types)[1]);
+    wrapperValue = insert(wrapperValue, listEnd, 0);
+    auto wrongReference = emitter.box(loc, wrapperValue, 1);
+    auto badList = insert(insert(listEnd, constant(2), 0), *wrongReference, 2);
+    auto badBox = emitter.box(loc, badList, 0);
+    require(bool(badBox), "bad-reference fixture failed");
+    auto badRead = emitter.read(loc, *badBox, 0);
+    mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{extract(*badRead, 0)});
     function("unsupported");
     TypedModule unsupported;
     ValueType collection;
     collection.tensor = true;
     collection.array = true;
     collection.shape = {{std::nullopt, 1}};
-    collection.builtin = BuiltinValue::Record;
-    collection.record = 0;
+    collection.builtin = BuiltinValue::Function;
+    auto signature = std::make_shared<FunctionSignature>();
+    signature->parameters = {integer};
+    signature->result = integer;
+    collection.callable = signature;
     unsupported.records.push_back({"Text", {}, {{"value", collection, {}}}});
     auto unsupportedTypes = lowerRecordTypes(unsupported, context);
     auto unsupportedStorage = planRecordStorage(unsupported);
@@ -218,6 +268,7 @@ int main(int argc, char **argv) {
     require(!emitter.box(loc, constant(1), 0) && !emitter.read(loc, constant(1), 0),
             "physical operand validation missing");
     mlir::LLVM::ReturnOp::create(builder, loc, mlir::ValueRange{constant(0)});
+    require(!emitter.finish(), "recursive array helper generation failed");
     require(mlir::succeeded(mlir::verify(module)), "recursive emitter MLIR verification failed");
     llvm::LLVMContext llvmContext;
     auto native = mlir::translateModuleToLLVMIR(module, llvmContext);

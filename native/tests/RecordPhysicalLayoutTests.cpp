@@ -47,6 +47,7 @@ int main() {
     module.records[0].variants = {{"Nil", {}, {}}, {"Cons", {}, {1, 2}}};
     auto list = lowerRecordTypes(module, context);
     require(bool(list), "recursive list physical type rejected");
+    require(recordInlineUnits(module, 0) == 3, "recursive literal storage units expanded a cycle");
     auto body = (*list)[0].getBody();
     require(body.size() == 3 && body[0].isInteger(64) && body[1].isInteger(64) && body[2] == ptr,
             "recursive list does not use finite pointer field");
@@ -68,6 +69,8 @@ int main() {
             "mutual recursive physical references");
     module.records = {record({nominal(1, true)}), record({nominal(0)})};
     auto mixed = lowerRecordTypes(module, context);
+    require(recordInlineUnits(module, 0) == 5 && recordInlineUnits(module, 1) == 5,
+            "array-mediated literal units expanded elements");
     require(mixed && (*mixed)[1].getBody()[0] == (*mixed)[0] &&
                 mlir::isa<mlir::LLVM::LLVMStructType>((*mixed)[0].getBody()[0]),
             "descriptor cycle introduced redundant reference");
@@ -142,7 +145,6 @@ int main() {
     for (const auto &source :
          {"enum List:\n  Cons:\n    tail:List\nfn main()->int:\n  0\n",
           "type A:\n  child:B\ntype B:\n  child:A\nfn main()->int:\n  0\n",
-          "type Tree:\n  children:[Tree]\nfn main()->int:\n  0\n",
           "type Bad:\n  next:Bad\n  unknown:Missing\nfn main()->int:\n  0\n"}) {
       auto result = analyze(source);
       require(!result.ok() && !result.module && !result.diagnostics.empty(),

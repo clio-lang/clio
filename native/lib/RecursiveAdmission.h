@@ -34,13 +34,13 @@ inline std::optional<Diagnostic> recursiveRecordLayoutError(const TypedModule &m
           record.declaration};
     for (const auto &field : record.fields)
       if ((field.type.tensor && field.type.builtin != BuiltinValue::Numeric &&
-           !isBoolArray(field.type) && !isStringArray(field.type)) ||
+           !isBoolArray(field.type) && !isStringArray(field.type) && !isRecordArray(field.type)) ||
           (field.type.builtin != BuiltinValue::Numeric &&
            field.type.builtin != BuiltinValue::Bool && field.type.builtin != BuiltinValue::String &&
            field.type.builtin != BuiltinValue::Record))
         return Diagnostic{"S068",
                           "recursive programs require numeric/Bool/String scalars, numeric "
-                          "collections, Bool/String arrays "
+                          "collections, Bool/String/record arrays "
                           "or direct nominal links; other owned payloads remain unsupported",
                           field.declaration};
   }
@@ -58,21 +58,18 @@ inline std::optional<std::string> recursiveProgramError(const TypedModule &modul
   const auto supported = [](const ValueType &type) {
     return !type.task && !type.fallible && !type.errorRecord && !type.device &&
            type.builtin != BuiltinValue::Function && type.builtin != BuiltinValue::TaskError &&
-           type.builtin != BuiltinValue::FaultKind && type.builtin != BuiltinValue::Device &&
-           !(type.builtin == BuiltinValue::Record && type.tensor);
+           type.builtin != BuiltinValue::FaultKind && type.builtin != BuiltinValue::Device;
   };
   for (const auto &symbol : module.symbols)
     if (!supported(symbol.type))
-      return "recursive programs currently require synchronous values without callable storage or "
-             "record arrays";
+      return "recursive programs currently require synchronous values without callable storage";
   for (const auto &function : module.functions)
     if (!supported(function.resultType) ||
         (function.declaredResult && !supported(*function.declaredResult)))
       return "recursive programs currently require ordinary synchronous function signatures";
   for (const auto &expression : module.expressions) {
     if (!supported(expression.type))
-      return "recursive programs currently require synchronous values without callable storage or "
-             "record arrays";
+      return "recursive programs currently require synchronous values without callable storage";
     if (std::holds_alternative<TaskOperation>(expression.operation) ||
         std::holds_alternative<ParallelOperation>(expression.operation) ||
         std::holds_alternative<CatchOperation>(expression.operation) ||

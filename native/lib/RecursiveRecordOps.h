@@ -37,6 +37,16 @@ public:
       auto current = pending.back();
       pending.pop_back();
       const auto &record = input_.records[current.id];
+      if (!record.variants.empty()) {
+        auto function =
+            declaration("kalandra_recursive_tag_check",
+                        {builder_.getI64Type(), builder_.getI64Type(), builder_.getI64Type()});
+        auto active =
+            mlir::LLVM::ZExtOp::create(builder_, loc, builder_.getI64Type(), current.active);
+        mlir::LLVM::CallOp::create(builder_, loc, function,
+                                   mlir::ValueRange{extract(loc, current.value, 0),
+                                                    constant(loc, record.variants.size()), active});
+      }
       for (std::size_t field = 0; field < record.fields.size(); ++field) {
         if (++work > 300000)
           return std::unexpected("recursive box dependency expansion exceeds configured budget");
@@ -51,9 +61,17 @@ public:
         }
         auto member = extract(loc, current.value, field);
         if (storage_.fields[current.id][field] == RecordFieldStorage::ManagedReference) {
-          auto absent = mlir::LLVM::ZeroOp::create(builder_, loc, pointer());
+          const auto [bytes, alignment] = layout(*type.record);
+          auto function = declaration("kalandra_recursive_reference_dependency",
+                                      {pointer(), builder_.getI64Type(), builder_.getI64Type(),
+                                       pointer(), builder_.getI64Type()});
+          auto selected = mlir::LLVM::ZExtOp::create(builder_, loc, builder_.getI64Type(), active);
           dependencies.push_back(
-              mlir::LLVM::SelectOp::create(builder_, loc, active, member, absent));
+              mlir::LLVM::CallOp::create(builder_, loc, function,
+                                         mlir::ValueRange{member, constant(loc, bytes),
+                                                          constant(loc, alignment),
+                                                          typeKey(loc, *type.record), selected})
+                  .getResult());
         } else if (type.record && !type.tensor) {
           pending.push_back({member, active, *type.record});
         } else if (type.builtin == BuiltinValue::String && (!type.tensor || isStringArray(type))) {
@@ -89,10 +107,25 @@ public:
                                      constant(loc, static_cast<unsigned>(type.element)), selected})
                     .getResult());
           }
+        } else if (isRecordArray(type)) {
+          auto descriptor = slot(loc, member.getType(), 1, alignof(void *));
+          mlir::LLVM::StoreOp::create(builder_, loc, member, descriptor);
+          const auto [bytes, alignment] = layout(*type.record);
+          auto callback = arrayCallback(*type.record);
+          auto address = mlir::LLVM::AddressOfOp::create(builder_, loc, callback);
+          auto function = declaration("kalandra_recursive_record_array_dependency",
+                                      {pointer(), builder_.getI64Type(), builder_.getI64Type(),
+                                       pointer(), builder_.getI64Type()});
+          auto active64 = mlir::LLVM::ZExtOp::create(builder_, loc, builder_.getI64Type(), active);
+          dependencies.push_back(mlir::LLVM::CallOp::create(
+                                     builder_, loc, function,
+                                     mlir::ValueRange{descriptor, constant(loc, bytes),
+                                                      constant(loc, alignment), address, active64})
+                                     .getResult());
         } else if (type.tensor ||
                    (type.builtin != BuiltinValue::Numeric && type.builtin != BuiltinValue::Bool)) {
           return std::unexpected("recursive boxes currently require numeric/Bool/String scalars, "
-                                 "numeric collections, Bool/String arrays, inline "
+                                 "numeric collections, Bool/String/record arrays, inline "
                                  "supported records and managed recursive references");
         }
       }
@@ -132,7 +165,34 @@ public:
     return mlir::LLVM::LoadOp::create(builder_, loc, types_[id], data).getResult();
   }
 
+  // Declare helpers before generating bodies so array-mediated cycles do not
+  // recursively expand the compiler's own call stack.
+  std::optional<std::string> finish() {
+    for (std::size_t next = 0; next < arrayCallbacks_.size(); ++next) {
+      auto [id, function] = arrayCallbacks_[next];
+      mlir::OpBuilder::InsertionGuard guard(builder_);
+      auto loc = function.getLoc();
+      auto *entry = function.addEntryBlock(builder_);
+      builder_.setInsertionPointToStart(entry);
+      auto value = mlir::LLVM::LoadOp::create(builder_, loc, types_[id], entry->getArgument(0));
+      auto boxed = box(loc, value, id);
+      if (!boxed)
+        return boxed.error();
+      mlir::LLVM::ReturnOp::create(builder_, loc, mlir::ValueRange{*boxed});
+    }
+    return {};
+  }
+
 private:
+  mlir::LLVM::LLVMFuncOp arrayCallback(std::size_t id) {
+    const auto name = "kalandra_recursive_array_cell_" + std::to_string(id);
+    if (auto found = module_.lookupSymbol<mlir::LLVM::LLVMFuncOp>(name))
+      return found;
+    auto function = declaration(name, {pointer()});
+    function.setLinkage(mlir::LLVM::Linkage::Internal);
+    arrayCallbacks_.push_back({id, function});
+    return function;
+  }
   mlir::Type pointer() { return mlir::LLVM::LLVMPointerType::get(builder_.getContext()); }
   mlir::Value constant(mlir::Location loc, std::uint64_t value, unsigned bits = 64) {
     auto type = builder_.getIntegerType(bits);
@@ -179,6 +239,7 @@ private:
     return mlir::LLVM::LLVMFuncOp::create(builder_, builder_.getUnknownLoc(), name,
                                           mlir::LLVM::LLVMFunctionType::get(pointer(), arguments));
   }
+  std::vector<std::pair<std::size_t, mlir::LLVM::LLVMFuncOp>> arrayCallbacks_;
   const TypedModule &input_;
   const RecordStoragePlan &storage_;
   const std::vector<mlir::LLVM::LLVMStructType> &types_;

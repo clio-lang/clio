@@ -9,6 +9,7 @@ using namespace kalandra::runtime;
 extern "C" std::int64_t probe(Invocation *);
 extern "C" std::int64_t wrong_key(Invocation *);
 extern "C" std::int64_t forged(Invocation *);
+extern "C" std::int64_t bad_reference(Invocation *);
 extern "C" const void *text_box(const StringDescriptor *, std::int64_t, Invocation *);
 static void require(bool value, const char *message) {
   if (!value)
@@ -29,7 +30,7 @@ int main() {
       require(!context.live() && context.allocations() == context.releases(),
               "compiled recursive cleanup leaked");
     }
-    for (auto run : {wrong_key, forged}) {
+    for (auto run : {wrong_key, forged, bad_reference}) {
       Invocation context;
       require(run(&context) == 0 && context.status() == 3 && context.callDepth() == 0,
               "bad recursive read reached an unchecked load");

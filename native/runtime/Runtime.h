@@ -188,3 +188,16 @@ extern "C" const void *kalandra_recursive_tensor_dependency_v1(kalandra::runtime
 extern "C" const void *kalandra_recursive_bool_dependency_v1(kalandra::runtime::Invocation *,
                                                              const void *descriptor,
                                                              std::uint64_t active) noexcept;
+
+// Private compiler callbacks use the checked invocation argument in the final position.
+using KalandraRecursiveRecordCell = const void *(*)(const void *, kalandra::runtime::Invocation *);
+extern "C" const void *kalandra_recursive_record_array_dependency_v1(
+    kalandra::runtime::Invocation *, const void *descriptor, std::uint64_t cellBytes,
+    std::uint64_t alignment, KalandraRecursiveRecordCell, std::uint64_t active) noexcept;
+extern "C" const void *
+kalandra_recursive_reference_dependency_v1(kalandra::runtime::Invocation *, const void *node,
+                                           std::uint64_t bytes, std::uint64_t alignment,
+                                           const void *key, std::uint64_t active) noexcept;
+extern "C" const void *kalandra_recursive_tag_check_v1(kalandra::runtime::Invocation *,
+                                                       std::uint64_t tag, std::uint64_t cases,
+                                                       std::uint64_t active) noexcept;

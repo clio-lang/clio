@@ -41,10 +41,16 @@ int main() {
                 "    next:Chain\nfn main()->int:\n  0\n");
     require(collections.ok() && !numericCapabilityError(*collections.module, NumericTarget::Cpu),
             "recursive numeric/Bool collection schema rejected");
+    auto tree = analyze(
+        "type Tree:\n  children:[Tree]\nfn main()->int:\n"
+        "  leaf=Tree {children:[]}\n  root=Tree {children:[leaf,leaf]}\n  length(root.children)\n");
+    require(tree.ok(), "array-mediated recursive source rejected");
+#ifndef KALANDRA_RECURSIVE_SOURCE_FRONTEND_ONLY
+    require(bool(lowerNative(*tree.module)), "array-mediated source failed native lowering");
+#endif
     for (const auto &source :
          {"enum Loop:\n  More:\n    next:Loop\nfn main()->int:\n  0\n",
           "type A:\n  child:B\ntype B:\n  child:A\nfn main()->int:\n  0\n",
-          "enum Tree:\n  Leaf\n  Branch:\n    children:[Tree]\nfn main()->int:\n  0\n",
           "enum Text:\n  Empty\n  More:\n    text:[fn(int)->int]\n    next:Text\nfn main()->int:\n "
           " 0\n",
           "enum Callback:\n  Empty\n  More:\n    call:fn(int)->int\n    next:Callback\nfn "
@@ -55,8 +61,6 @@ int main() {
     }
     for (const auto &tail :
          {"fn main()->int ! TaskError:\n  try parallel:\n    0\n",
-          "fn main()->int:\n  values=[List.Nil]\n  0\n",
-          "fn consume(values:[List])->int:\n  0\nfn main()->int:\n  0\n",
           "fn main()->int:\n  f=fn(x:int):x+1\n  f(1)\n",
           "fn main()->int:\n  match List.Nil:\n    List.Cons {head}:head\n",
           "fn main()->int:\n  match List.Nil:\n    List.Nil:0\n    List.Nil:1\n    List.Cons:2\n"})

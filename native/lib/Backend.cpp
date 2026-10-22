@@ -115,6 +115,8 @@ public:
         functions_[id]->setAttr("llvm.emit_c_interface", builder_.getUnitAttr());
       body(id);
     }
+    if (auto error = recursive_->finish())
+      throw LoweringFailure{*error};
     if (!exports.empty()) {
       for (std::size_t i = 0; i < exports.size(); ++i)
         interfaceWrapper(exports[i], "kalandra_cpu_" + std::to_string(i));
