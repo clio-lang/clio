@@ -72,6 +72,11 @@ public:
   const void *bindRecursiveEnvironment(const void *environment, const void *code) noexcept;
   const void *readRecursiveEnvironment(const void *environment, std::uint64_t bytes,
                                        const void *code) noexcept;
+  // Private local handoff of an immutable, code-bound capture graph. Source
+  // invocation access is exclusive, as for ordinary recursive graph transfer.
+  const void *retainRecursiveEnvironment(const Invocation &source, const void *environment,
+                                         std::uint64_t bytes, std::uint64_t alignment,
+                                         const void *code) noexcept;
   const void *recursiveFunctionDependency(const void *code, const void *environment) noexcept;
   using EnvironmentReserve = bool (*)(void *, std::uint64_t) noexcept;
   using EnvironmentRelease = void (*)(void *, std::uint64_t) noexcept;
@@ -237,3 +242,7 @@ extern "C" const void *kalandra_recursive_transfer_v1(kalandra::runtime::Invocat
 
 // Private checked task-field guard, including invocation-held expected errors.
 extern "C" bool kalandra_invocation_ready_v1(kalandra::runtime::Invocation *) noexcept;
+
+extern "C" const void *kalandra_recursive_environment_transfer_v1(
+    kalandra::runtime::Invocation *, const kalandra::runtime::Invocation *, const void *environment,
+    std::uint64_t bytes, std::uint64_t alignment, const void *code) noexcept;

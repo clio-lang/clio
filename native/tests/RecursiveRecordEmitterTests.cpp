@@ -1,4 +1,5 @@
 #include "../lib/RecursiveRecordOps.h"
+#include "../lib/TaskCallableOps.h"
 #include "../lib/TaskRecordOps.h"
 #include "../lib/TaskValueCopy.h"
 #include "mlir/IR/Verifier.h"
@@ -415,6 +416,56 @@ int main(int argc, char **argv) {
     taskBuilder.CreateRet(taskBuilder.getTrue());
     taskBuilder.SetInsertPoint(failed);
     taskBuilder.CreateRet(taskBuilder.getFalse());
+    auto *captures =
+        llvm::StructType::get(llvmContext, {taskTypes->scalar(text), taskTypes->records()[0]});
+    auto *target = llvm::Function::Create(
+        llvm::FunctionType::get(taskBuilder.getInt64Ty(), {pointer, pointer}, false),
+        llvm::GlobalValue::ExternalLinkage, "task_closure_target", *native);
+    taskBuilder.SetInsertPoint(llvm::BasicBlock::Create(llvmContext, "entry", target));
+    auto readEnvironment =
+        native->getOrInsertFunction("kalandra_recursive_environment_read_v1", pointer, pointer,
+                                    pointer, taskBuilder.getInt64Ty(), pointer);
+    auto *environment = taskBuilder.CreateCall(
+        readEnvironment,
+        {target->getArg(1), target->getArg(0),
+         taskBuilder.getInt64(native->getDataLayout().getTypeAllocSize(captures)), target});
+    auto *targetFailed = llvm::BasicBlock::Create(llvmContext, "failed", target);
+    auto *targetReady = llvm::BasicBlock::Create(llvmContext, "ready", target);
+    taskBuilder.CreateCondBr(taskBuilder.CreateIsNotNull(environment), targetReady, targetFailed);
+    taskBuilder.SetInsertPoint(targetReady);
+    auto *listAddress = taskBuilder.CreateStructGEP(captures, environment, 1);
+    auto *child = taskOps.project(taskBuilder, listAddress, 0, 2, target->getArg(1), targetFailed);
+    auto *length = taskBuilder.CreateExtractValue(
+        taskBuilder.CreateLoad(taskTypes->scalar(text),
+                               taskBuilder.CreateStructGEP(captures, environment, 0)),
+        {2});
+    taskBuilder.CreateRet(
+        taskBuilder.CreateAdd(taskBuilder.CreateExtractValue(child, {1}), length));
+    taskBuilder.SetInsertPoint(targetFailed);
+    taskBuilder.CreateRet(taskBuilder.getInt64(-1));
+    auto *stateless =
+        llvm::Function::Create(target->getFunctionType(), llvm::GlobalValue::ExternalLinkage,
+                               "task_stateless_target", *native);
+    taskBuilder.SetInsertPoint(llvm::BasicBlock::Create(llvmContext, "entry", stateless));
+    taskBuilder.CreateRet(taskBuilder.getInt64(7));
+    auto *pair = llvm::StructType::get(llvmContext, {pointer, pointer});
+    for (bool empty : {false, true}) {
+      auto *copy = llvm::Function::Create(
+          llvm::FunctionType::get(taskBuilder.getInt1Ty(), {pointer, pointer, pointer, pointer},
+                                  false),
+          llvm::GlobalValue::ExternalLinkage, empty ? "task_copy_stateless" : "task_copy_closure",
+          *native);
+      taskBuilder.SetInsertPoint(llvm::BasicBlock::Create(llvmContext, "entry", copy));
+      auto *failed = llvm::BasicBlock::Create(llvmContext, "failed", copy);
+      auto *closure = taskBuilder.CreateLoad(pair, copy->getArg(3));
+      auto *retained = TaskCallableOps(*native).retain(
+          taskBuilder, copy->getArg(0), copy->getArg(2), closure, empty ? stateless : target,
+          empty ? llvm::StructType::get(llvmContext) : captures, failed);
+      taskBuilder.CreateStore(retained, copy->getArg(1));
+      taskBuilder.CreateRet(taskBuilder.getTrue());
+      taskBuilder.SetInsertPoint(failed);
+      taskBuilder.CreateRet(taskBuilder.getFalse());
+    }
     const auto mutual = input.records.size();
     ValueType leftArray;
     leftArray.builtin = BuiltinValue::Record;

@@ -3,6 +3,8 @@
 #include "NativeLayout.h"
 #include "NativeStack.h"
 #include "RecordLayout.h"
+#include "RecursiveAdmission.h"
+#include "TaskCallableOps.h"
 #include "TaskRecordOps.h"
 #include "TaskValueCopy.h"
 #include "TaskValueTypes.h"
@@ -46,6 +48,7 @@ class Emitter {
   std::vector<Function *> synchronousEntries;
   std::vector<ValueType> functionSignatures;
   std::vector<bool> coordinating;
+  bool recursiveClosures = false;
 
 public:
   Emitter(ModulePlan &planner, llvm::Module &module)
@@ -68,6 +71,7 @@ public:
     if (!types)
       throw std::runtime_error(types.error().message);
     taskTypes = std::move(*types);
+    recursiveClosures = hasRecursiveStorage(*planRecordStorage(planner.input));
     destroy = function("kalandra_frame_destroy", voidType, {pointer});
     builder.SetInsertPoint(Block::Create(context, "entry", destroy));
     builder.CreateRetVoid();
@@ -820,10 +824,10 @@ private:
     call("kalandra_call_leave_v1", voidType, {fn->getArg(0)});
     builder.CreateRet(builder.getTrue());
     builder.SetInsertPoint(failed);
-    auto *status = call("kalandra_poll_v1", i64, {fn->getArg(0)});
+    auto *status = call("kalandra_invocation_ready_v1", boolean, {fn->getArg(0)});
     auto *fault = Block::Create(context, "copy.invalid", fn);
     auto *leave = Block::Create(context, "copy.leave", fn);
-    builder.CreateCondBr(builder.CreateICmpEQ(status, c64(0)), fault, leave);
+    builder.CreateCondBr(status, fault, leave);
     builder.SetInsertPoint(fault);
     call("kalandra_fault_v1", voidType, {fn->getArg(0), c64(3), c64(0), c64(0)});
     builder.CreateBr(leave);
@@ -902,7 +906,10 @@ private:
       builder.CreateCondBr(builder.CreateICmpEQ(code, entry), selected, next);
       builder.SetInsertPoint(selected);
       Value *copied = environment;
-      if (captures.empty()) {
+      if (recursiveClosures) {
+        TaskCallableOps(module).retain(builder, fn->getArg(0), fn->getArg(2), value, entry,
+                                       llvm::StructType::get(context, fields), failed);
+      } else if (captures.empty()) {
         auto *ready = Block::Create(context, "function.empty", fn);
         builder.CreateCondBr(
             builder.CreateICmpEQ(environment, llvm::ConstantPointerNull::get(builder.getPtrTy())),
@@ -977,8 +984,8 @@ private:
     builder.CreateBr(failed);
     builder.SetInsertPoint(failed);
     auto *fault = Block::Create(context, "function.fault", fn);
-    auto *current = call("kalandra_poll_v1", i64, {fn->getArg(0)});
-    builder.CreateCondBr(builder.CreateICmpEQ(current, c64(0)), fault, stopped);
+    auto *current = call("kalandra_invocation_ready_v1", boolean, {fn->getArg(0)});
+    builder.CreateCondBr(current, fault, stopped);
     builder.SetInsertPoint(fault);
     call("kalandra_fault_v1", voidType, {fn->getArg(0), c64(3), c64(0), c64(0)});
     builder.CreateBr(stopped);

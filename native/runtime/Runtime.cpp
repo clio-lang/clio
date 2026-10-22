@@ -301,6 +301,22 @@ const void *Invocation::readRecursiveEnvironment(const void *environment, std::u
   }
   return environment;
 }
+const void *Invocation::retainRecursiveEnvironment(const Invocation &source,
+                                                   const void *environment, std::uint64_t bytes,
+                                                   std::uint64_t alignment,
+                                                   const void *code) noexcept {
+  if (poll() || !usable())
+    return nullptr;
+  auto retained = source.lease(environment);
+  if (!code || !retained || !retained->backing_->recursiveKey ||
+      retained->backing_->environmentKey != code) {
+    fault(3);
+    return nullptr;
+  }
+  return retainRecursiveGraph(*retained, retained->backing_->recursiveKey, bytes, alignment)
+             ? environment
+             : nullptr;
+}
 const void *Invocation::recursiveFunctionDependency(const void *code,
                                                     const void *environment) noexcept {
   if (poll() || !usable())
@@ -1181,4 +1197,18 @@ extern "C" const void *kalandra_recursive_function_array_dependency_v1(
 
 extern "C" bool kalandra_invocation_ready_v1(kalandra::runtime::Invocation *context) noexcept {
   return !context->poll() && context->usable();
+}
+
+extern "C" const void *
+kalandra_recursive_environment_transfer_v1(kalandra::runtime::Invocation *destination,
+                                           const kalandra::runtime::Invocation *source,
+                                           const void *environment, std::uint64_t bytes,
+                                           std::uint64_t alignment, const void *code) noexcept {
+  if (destination->poll() || !destination->usable())
+    return nullptr;
+  if (!source) {
+    destination->fault(3);
+    return nullptr;
+  }
+  return destination->retainRecursiveEnvironment(*source, environment, bytes, alignment, code);
 }
