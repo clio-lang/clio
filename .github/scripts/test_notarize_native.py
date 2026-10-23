@@ -33,6 +33,15 @@ class CredentialTests(unittest.TestCase):
                 private_command("/usr/bin/security", "secret-value")
             self.assertNotIn("secret-value", str(error.exception))
 
+    def test_notary_diagnostic_reports_only_http_status(self):
+        with patch("subprocess.run") as run:
+            run.return_value.returncode = 1
+            run.return_value.stdout = b"secret-value"
+            run.return_value.stderr = b"Error: HTTP status code: 401. secret-value"
+            with self.assertRaisesRegex(RuntimeError, "HTTP 401") as error:
+                private_command("/usr/bin/xcrun", "notarytool", "secret-value")
+            self.assertNotIn("secret-value", str(error.exception))
+
 
 class SigningInputTests(unittest.TestCase):
     def fixture(self, root, incorrect_inventory=False):
