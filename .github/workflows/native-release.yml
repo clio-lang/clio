@@ -219,6 +219,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -229,6 +230,11 @@ jobs:
         with:
           name: native-notarized-assets
           path: signed-assets
+      - name: Require exact-commit Linux and Windows qualification
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 .github/scripts/collect_native_platforms.py
       - name: Create draft, upload assets, then publish
         env:
           GH_TOKEN: ${{ github.token }}

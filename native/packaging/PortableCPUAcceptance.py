@@ -15,7 +15,7 @@ def qualify(compiler):
     if not windows:
         modes.append(("thread", ["--thread-sanitize"]))
     with tempfile.TemporaryDirectory(prefix="kalandra portable acceptance ") as folder:
-        work = Path(folder)
+        work = Path(folder).resolve()
         source = work / "source λ.k"
         executable = work / ("program.exe" if windows else "program")
 

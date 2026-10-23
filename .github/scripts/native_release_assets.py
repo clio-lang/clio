@@ -5,7 +5,8 @@ from pathlib import Path
 
 
 ARCHIVES = tuple(f"kalandra-native-{kind}-macos-arm64.tar.gz" for kind in
-                 ("cpu", "editor-tools", "metal", "cpu-standalone", "editor-tools-standalone", "metal-standalone"))
+                 ("cpu", "editor-tools", "metal", "cpu-standalone", "editor-tools-standalone", "metal-standalone")) + tuple(
+    f"kalandra-native-cpu-standalone-{platform}-x86_64.tar.gz" for platform in ("linux", "windows"))
 IMAGES = tuple(f"kalandra-native-{kind}-standalone.dmg" for kind in ("cpu", "editor-tools", "metal"))
 
 
@@ -26,7 +27,7 @@ def validate_assets(unsigned=Path("release-assets"), signed=Path("signed-assets"
     # Path.with_suffix replaces .dmg in receipt names.
     expected_signed = {name.replace(".dmg.notarization", ".notarization") for name in expected_signed}
     if len(signed_files) != len(expected_signed) or {path.name for path in signed_files} != expected_signed:
-        raise ValueError("Both notarized distributions and their receipts are required")
+        raise ValueError("All three notarized distributions and their receipts are required")
     for path in [*assets, *signed_files]:
         if path.is_symlink() or not path.is_file():
             raise ValueError("Release assets must be regular files")

@@ -1,7 +1,7 @@
 # Kalandra native editor tools
 
 This package contains the native source checker, formatter, parser and language
-server for macOS Apple Silicon:
+server for the platform recorded in `share/kalandra-native-tools/toolchain.json`:
 
 - `bin/kalandra-check`: check source or an explicit native project manifest.
 - `bin/kalandra-fmt`: print formatted source, or use `--check` without writes.
@@ -19,20 +19,17 @@ kalandra-fmt --check path/to/main.k
 kalandra-parse path/to/main.k
 ```
 
-These tools require the matching LLVM runtime from the pinned development
-toolchain (currently LLVM 23.1.3). LLVM is an external dependency and is not
-included in this archive. The binaries retain their platform loader dependency
-paths; install the matching toolchain at those paths. Moving this package does
-not relocate LLVM. Read the package's `share/kalandra-native-tools/toolchain.json`
-for the build configuration and required LLVM version. A Debug or Release build
-is preserved as such; this development package is not a qualified release.
+Standalone distributions include their private LLVM runtime dependencies and
+licenses. External-toolchain variants retain the configured LLVM 23.1.3 loader
+paths. Read `share/kalandra-native-tools/toolchain.json` for the platform,
+configuration and `llvmRuntime` contract. Keep the complete prefix together.
 
-`SHA256SUMS` covers the installed package files, and the archive has a separate
-`.sha256` checksum. Checksums detect accidental changes, not publisher identity;
-these packages are not signed or notarized.
+`SHA256SUMS` covers installed files, and archives have `.sha256` sidecars.
+Signed, notarized and stapled macOS DMGs are separate from unsigned archives.
+The editor-only variant has no compiler or generated-program runtime; CPU and
+mixed Metal variants include these same editor tools with their compiler.
+The VS Code extension is distributed separately.
 
-The package does not include `kalandra`, generated-program runtimes, GPU tools,
-or a VS Code extension. Compiler/runtime distribution remains a separate step.
 No source checkout, Bun, Node or Python is needed to run these native tools.
 They preserve the compiler's documented language, synchronous analysis and
 resource limits. The language server does not execute application code.

@@ -29,13 +29,13 @@ def write_fixture(root):
 class AssetTests(unittest.TestCase):
     def test_complete_release(self):
         with tempfile.TemporaryDirectory() as folder:
-            self.assertEqual(len(validate_assets(*write_fixture(Path(folder)))), 23)
+            self.assertEqual(len(validate_assets(*write_fixture(Path(folder)))), 27)
 
     def test_missing_receipt_blocks_release(self):
         with tempfile.TemporaryDirectory() as folder:
             unsigned, signed = write_fixture(Path(folder))
             next(signed.glob("*.json")).unlink()
-            with self.assertRaisesRegex(ValueError, "Both notarized"):
+            with self.assertRaisesRegex(ValueError, "All three notarized"):
                 validate_assets(unsigned, signed)
 
     def test_changed_unsigned_or_signed_bytes_block_release(self):

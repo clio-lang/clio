@@ -34,7 +34,7 @@ jobs:
         run: python3 .github/scripts/provision_native_platform.py
       - name: Install system build prerequisites
         run: |
-          sudo apt-get update
+          sudo apt-get update -o Acquire::Retries=1 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
           sudo apt-get install -y cmake ninja-build libtomlplusplus-dev patchelf bubblewrap
           sudo sysctl -w vm.mmap_rnd_bits=28
       - name: Configure native CPU compiler
@@ -66,7 +66,7 @@ jobs:
           path: downloaded
       - name: Install audit tools and enable process isolation
         run: |
-          sudo apt-get update
+          sudo apt-get update -o Acquire::Retries=1 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
           sudo apt-get install -y patchelf bubblewrap
           sudo sysctl -w vm.mmap_rnd_bits=28
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0

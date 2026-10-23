@@ -24,8 +24,17 @@ def elf(path):
         return header[:4] == b"\x7fELF" and header[5] == 1 and int.from_bytes(header[16:18], "little") in (2, 3)
 
 
-def dependencies(path):
-    output = run("ldd", path)
+def dependencies(path, sdk=None):
+    environment = dict(os.environ)
+    for key in ("LD_LIBRARY_PATH", "LD_PRELOAD", "LD_AUDIT"):
+        environment.pop(key, None)
+    if sdk:
+        environment["LD_LIBRARY_PATH"] = str(sdk / "lib")
+    checked = subprocess.run(["ldd", str(path)], capture_output=True, text=True,
+                             timeout=120, env=environment)
+    if checked.returncode:
+        raise RuntimeError(f"Cannot inspect ELF dependencies in {path}: {checked.stderr}")
+    output = checked.stdout
     if "not found" in output:
         raise RuntimeError(f"Unresolved ELF dependency in {path}: {output}")
     result = {}
@@ -79,7 +88,7 @@ def bundle(prefix, llvm):
         visited.add(target)
         if "Advanced Micro Devices X86-64" not in run("readelf", "-h", source):
             raise RuntimeError(f"Wrong ELF architecture: {source}")
-        for name, dependency in dependencies(source).items():
+        for name, dependency in dependencies(source, llvm).items():
             if PLATFORM.fullmatch(name):
                 continue
             copied = library / name
