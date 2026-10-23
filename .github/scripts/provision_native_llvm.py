@@ -70,7 +70,11 @@ def install(lock, bottle):
     existing = subprocess.run(["brew", "list", "--versions", "llvm"], capture_output=True)
     if existing.returncode == 0:
         subprocess.run(["brew", "uninstall", "--force", "--ignore-dependencies", "llvm"], check=True)
-    subprocess.run(["brew", "install", "--ignore-dependencies", "--force-bottle", str(bottle)], check=True)
+    # Homebrew disables local package paths by default. Its documented developer
+    # mode permits this SHA-256-verified official bottle; scope it to this call.
+    environment = dict(os.environ, HOMEBREW_DEVELOPER="1")
+    subprocess.run(["brew", "install", "--ignore-dependencies", "--force-bottle", str(bottle)],
+                   env=environment, check=True)
     cellar = subprocess.check_output(["brew", "--cellar", "llvm"], text=True).strip()
     root = Path(cellar) / lock["homebrewBottle"]["version"]
     version = subprocess.check_output([str(root / "bin/clang"), "--version"], text=True)
