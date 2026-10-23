@@ -41,6 +41,17 @@ def private_command(*args):
         if "invalid" in response and ("password" in response or "credentials" in response):
             raise RuntimeError("Apple rejected the notarization login credentials; response suppressed")
         raise RuntimeError(f"Notarytool credential validation failed (exit {result.returncode}); response suppressed")
+    if result.returncode and Path(args[0]).name == "codesign":
+        response = (result.stdout + result.stderr).decode("utf-8", errors="replace").lower()
+        if "unable to build chain" in response:
+            raise RuntimeError("Signing failed: certificate trust chain is incomplete on the runner")
+        if "could not be found in the keychain" in response or "no identity found" in response:
+            raise RuntimeError("Signing failed: configured certificate identity is absent from the imported Keychain")
+        if "timestamp" in response:
+            raise RuntimeError("Signing failed: trusted timestamp service error")
+        if "errsecinternalcomponent" in response or "interaction is not allowed" in response:
+            raise RuntimeError("Signing failed: runner Keychain access or certificate trust error")
+        raise RuntimeError(f"Signing operation failed (exit {result.returncode}); response suppressed")
     if result.returncode:
         raise RuntimeError(f"Credential setup failed ({Path(args[0]).name}); command output suppressed")
 
@@ -71,27 +82,23 @@ def main(check_only=False):
         print("Encrypted signing identity imported successfully", flush=True)
         private_command("/usr/bin/security", "set-key-partition-list", "-S",
                         "apple-tool:,apple:,codesign:", "-s", "-k", password, keychain)
-        # Prove that the imported private key is usable without UI prompts,
-        # the certificate matches this publisher, and trusted timestamps work.
-        source, executable = root / "check.c", root / "check"
-        source.write_text("int main(void) { return 0; }\n")
-        private_command("/usr/bin/xcrun", "clang", source, "-o", executable)
-        private_command("/usr/bin/codesign", "--force", "--sign",
-                        os.environ["KALANDRA_SIGNING_IDENTITY"], "--keychain", keychain,
-                        "--timestamp", "--options", "runtime", executable)
-        private_command("/usr/bin/codesign", "--verify", "--strict", executable)
-        details = subprocess.run(["/usr/bin/codesign", "--display", "--verbose=4", str(executable)],
-                                 capture_output=True, text=True, timeout=30)
-        if (details.returncode or "Authority=Developer ID Application:" not in details.stderr or
-                f"TeamIdentifier={os.environ['KALANDRA_APPLE_TEAM_ID']}" not in details.stderr):
-            raise RuntimeError("Signing identity does not match the configured Developer ID team")
-        private_command(str(executable))
-        print("Developer ID signature, trusted timestamp and execution verified", flush=True)
-        private_command("/usr/bin/xcrun", "notarytool", "store-credentials", "kalandra-ci",
-                        "--keychain", keychain, "--apple-id", os.environ["KALANDRA_APPLE_ID"],
-                        "--team-id", os.environ["KALANDRA_APPLE_TEAM_ID"],
-                        "--password", os.environ["KALANDRA_APPLE_APP_PASSWORD"], "--validate")
-        print("Apple notarization authentication validated", flush=True)
+        failures = []
+        try:
+            validate_signing(root, keychain)
+        except RuntimeError as error:
+            failures.append(str(error))
+            print(str(error), flush=True)
+        try:
+            private_command("/usr/bin/xcrun", "notarytool", "store-credentials", "kalandra-ci",
+                            "--keychain", keychain, "--apple-id", os.environ["KALANDRA_APPLE_ID"],
+                            "--team-id", os.environ["KALANDRA_APPLE_TEAM_ID"],
+                            "--password", os.environ["KALANDRA_APPLE_APP_PASSWORD"], "--validate")
+            print("Apple notarization authentication validated", flush=True)
+        except RuntimeError as error:
+            failures.append(str(error))
+            print(str(error), flush=True)
+        if failures:
+            raise RuntimeError("; ".join(failures))
         if check_only:
             print("Credential check passed: Developer ID signing, trusted timestamp, execution, "
                   "and Apple notarization authentication", flush=True)
@@ -105,6 +112,25 @@ def main(check_only=False):
         subprocess.run(["/usr/bin/security", "delete-keychain", str(keychain)],
                        capture_output=True, timeout=30)
         shutil.rmtree(root, ignore_errors=True)
+
+
+def validate_signing(root, keychain):
+    # Prove that the imported private key is usable without UI prompts,
+    # the certificate matches this publisher, and trusted timestamps work.
+    source, executable = root / "check.c", root / "check"
+    source.write_text("int main(void) { return 0; }\n")
+    private_command("/usr/bin/xcrun", "clang", source, "-o", executable)
+    private_command("/usr/bin/codesign", "--force", "--sign",
+                    os.environ["KALANDRA_SIGNING_IDENTITY"], "--keychain", keychain,
+                    "--timestamp", "--options", "runtime", executable)
+    private_command("/usr/bin/codesign", "--verify", "--strict", executable)
+    details = subprocess.run(["/usr/bin/codesign", "--display", "--verbose=4", str(executable)],
+                             capture_output=True, text=True, timeout=30)
+    if (details.returncode or "Authority=Developer ID Application:" not in details.stderr or
+            f"TeamIdentifier={os.environ['KALANDRA_APPLE_TEAM_ID']}" not in details.stderr):
+        raise RuntimeError("Signing identity does not match the configured Developer ID team")
+    private_command(str(executable))
+    print("Developer ID signature, trusted timestamp and execution verified", flush=True)
 
 
 if __name__ == "__main__":
