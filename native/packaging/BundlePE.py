@@ -90,7 +90,12 @@ def bundle(prefix, llvm):
     shutil.copy2(llvm / "bin/clang++.exe", private / "clang++.exe")
     licenses = prefix / "share/licenses/kalandra-toolchain"
     licenses.mkdir(parents=True)
-    shutil.copy2(llvm / "LICENSE.TXT", licenses / "LLVM-LICENSE.txt")
+    shutil.copy2(Path(__file__).resolve().parents[1] / "third-party/LLVM-23.1.3-LICENSE.txt", licenses / "LLVM-LICENSE.txt")
+    for package in ("zlib", "zstd", "libxml2"):
+        copyright = llvm / "dependencies/x64-windows-static/share" / package / "copyright"
+        if not copyright.is_file():
+            raise RuntimeError(f"Missing static LLVM dependency license: {package}")
+        shutil.copy2(copyright, licenses / f"{package}-copyright")
     queue = [p for p in prefix.rglob("*") if p.suffix.lower() in (".exe", ".dll")]
     visited, metadata = set(), []
     while queue:

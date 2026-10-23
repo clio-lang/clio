@@ -172,6 +172,13 @@ std::optional<std::string> pathFromUri(llvm::StringRef ref, bool source = true) 
   if (!validUtf8(path) || path.find_first_of(std::string("\0\r\n", 3)) != path.npos ||
       (source && fs::path(path).extension() != ".k"))
     return {};
+#ifdef _WIN32
+  if (path.size() < 4 || path[0] != '/' || path[2] != ':' || path[3] != '/' ||
+      !((path[1] >= 'a' && path[1] <= 'z') || (path[1] >= 'A' && path[1] <= 'Z')) ||
+      path.find('\\') != path.npos || path.find(':', 3) != path.npos)
+    return {};
+  path.erase(0, 1);
+#endif
   std::error_code ec;
   const auto canonical = fs::weakly_canonical(fs::path(path), ec);
   if (ec || canonical.empty())
@@ -181,6 +188,11 @@ std::optional<std::string> pathFromUri(llvm::StringRef ref, bool source = true) 
 std::string uriFromPath(std::string_view path) {
   constexpr char digits[] = "0123456789ABCDEF";
   std::string uri = "file://";
+#ifdef _WIN32
+  const auto portable = fs::path(path).generic_string();
+  path = portable;
+  uri += '/';
+#endif
   for (unsigned char c : path) {
     if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '/' ||
         c == '-' || c == '_' || c == '.' || c == '~' || c == ':')

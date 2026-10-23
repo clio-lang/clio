@@ -2,7 +2,8 @@
 import json
 import os
 from pathlib import Path
-import select
+import queue
+import threading
 import subprocess
 import time
 
@@ -15,6 +16,18 @@ class Client:
     def __init__(self, server, *args):
         self.process = subprocess.Popen([server, *args], stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.output = queue.Queue()
+        def receive():
+            try:
+                while True:
+                    data = os.read(self.process.stdout.fileno(), 65536)
+                    self.output.put(data)
+                    if not data:
+                        return
+            except OSError as error:
+                self.output.put(error)
+        self.reader = threading.Thread(target=receive, daemon=True)
+        self.reader.start()
         self.buffer = b""
         self.serial = 0
         self.events = []
@@ -41,8 +54,12 @@ class Client:
                     return value
             remaining = deadline - time.monotonic()
             assert remaining > 0, "server response timed out"
-            assert select.select([self.process.stdout], [], [], remaining)[0], "server stalled"
-            data = os.read(self.process.stdout.fileno(), 65536)
+            try:
+                data = self.output.get(timeout=remaining)
+            except queue.Empty:
+                raise AssertionError("server stalled") from None
+            if isinstance(data, OSError):
+                raise data
             assert data, "server exited before response"
             self.buffer += data
 

@@ -47,16 +47,24 @@ def qualify(archive):
         tests = work / "tests"
         tests.mkdir()
         shutil.copy2(Path(__file__).with_name("PortableCPUAcceptance.py"), tests)
+        for name in ("ProtocolClient.py", "ProtocolTests.py", "RecoveryProtocolTests.py"):
+            shutil.copy2(repository / "native/lsp" / name, tests)
         compiler = prefix / "bin" / ("kalandra.exe" if windows else "kalandra")
-        command = [sys.executable, str(tests / "PortableCPUAcceptance.py"), "--compiler", str(compiler)]
+        commands = [[sys.executable, str(tests / "PortableCPUAcceptance.py"), "--compiler", str(compiler)]]
+        server = prefix / "bin" / ("kalandra-lsp.exe" if windows else "kalandra-lsp")
+        for name in ("ProtocolTests.py", "RecoveryProtocolTests.py"):
+            commands.append([sys.executable, str(tests / name), str(server), str(work / name)])
+        isolation = []
         if not windows:
-            command = ["bwrap", "--unshare-user", "--unshare-net", "--die-with-parent", "--new-session",
+            isolation = ["bwrap", "--unshare-user", "--unshare-net", "--die-with-parent", "--new-session",
                        "--ro-bind", "/", "/", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
                        "--tmpfs", str(repository), "--bind", str(work), str(work), "--chdir", str(work),
                        "--setenv", "HOME", str(work), "--setenv", "PATH", "/usr/bin:/bin",
                        "--unsetenv", "LD_LIBRARY_PATH", "--unsetenv", "LIBRARY_PATH", "--unsetenv", "CPATH",
-                       *command]
-        subprocess.run(command, check=True, timeout=1800, cwd=work)
+                       "--setenv", "PYTHONUTF8", "1"]
+        for command in commands:
+            subprocess.run([*isolation, *command], check=True, timeout=1800, cwd=work,
+                           env=dict(os.environ, PYTHONUTF8="1"))
         print("Downloaded package inventory, relocation, dependency closure and execution passed", flush=True)
 
 

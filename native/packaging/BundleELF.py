@@ -59,7 +59,7 @@ def bundle(prefix, llvm):
     library.mkdir(parents=True)
     licenses = prefix / "share/licenses/kalandra-toolchain"
     licenses.mkdir(parents=True)
-    shutil.copy2(llvm / "LICENSE.TXT", licenses / "LLVM-LICENSE.txt")
+    shutil.copy2(Path(__file__).resolve().parents[1] / "third-party/LLVM-23.1.3-LICENSE.txt", licenses / "LLVM-LICENSE.txt")
     clang = (llvm / "bin/clang++").resolve()
     destination = prefix / "libexec/kalandra/clang++"
     destination.parent.mkdir(parents=True)
