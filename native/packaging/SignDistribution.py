@@ -95,9 +95,12 @@ def sign(archive, output, identity, team, profile=None, keychain=None):
         qualified_archive = work / "signed.tar.gz"
         create_archive(prefix, qualified_archive)
         qualified_archive.with_suffix(".gz.sha256").write_text(digest(qualified_archive) + "\n")
-        runtime = work / "acceptance"
-        runtime.mkdir()
-        qualify(qualified_archive, "cpu" if "cpu" in prefix.name else "editor", runtime)
+        # Delivery staging may be inside the checkout. Acceptance deliberately
+        # denies native children access to the checkout, so extract/run its
+        # fixtures in the system temporary directory, just like unsigned tests.
+        with tempfile.TemporaryDirectory(prefix="kalandra-signed-acceptance-") as acceptance:
+            qualify(qualified_archive, "cpu" if "cpu" in prefix.name else "editor",
+                    Path(acceptance).resolve())
         delivery = work / "delivery"
         delivery.mkdir()
         image = delivery / (prefix.name + ".dmg")
