@@ -1,4 +1,5 @@
 #include "Metal.h"
+#include "../include/kalandra/NumericKernelName.h"
 #include "ElementwiseLayout.h"
 #include "MatmulLayout.h"
 #import <Foundation/Foundation.h>
@@ -112,6 +113,34 @@ struct KernelState {
   std::vector<std::uint32_t> indirectReads;
   id<MTLFunction> argumentFunction = nil;
   std::uint64_t encodedBytes = 0;
+  std::optional<NumericType> numericType{};
+  std::vector<NumericType> tensorTypes{}, scalarTypes{};
+  std::vector<std::uint8_t> scalarBuffers{};
+  bool scalarBuffer(std::size_t i) const { return !scalarBuffers.empty() && scalarBuffers[i]; }
+  NumericType tensorType(std::size_t i) const {
+    return tensorTypes.empty() ? *numericType : tensorTypes[i];
+  }
+  NumericType scalarType(std::size_t i) const {
+    return scalarTypes.empty() ? *numericType : scalarTypes[i];
+  }
+  std::uint64_t scalarWords() const {
+    if (!signature)
+      return 0;
+    if (!numericType)
+      return signature->scalars;
+    if (scalarTypes.empty())
+      return std::uint64_t(signature->scalars) *
+             (describeNumeric(*numericType)->bytes() == 8 ? 2 : 1);
+    std::uint64_t words = 0;
+    for (auto type : scalarTypes)
+      words += describeNumeric(type)->bytes() == 8 ? 2 : 1;
+    return words;
+  }
+  std::uint64_t parameterWords() const {
+    return matrix && numericType ? 4
+           : signature           ? 1 + scalarWords() + unsigned(numericType.has_value())
+                                 : 2;
+  }
   bool indirect() const { return argumentFunction != nil; }
   std::uint32_t tensorIndex(std::size_t i) const {
     return indirect() ? indirectReads[i] : reads[i];
@@ -191,7 +220,11 @@ std::expected<std::shared_ptr<Storage>, Error> allocateStorage(const std::shared
   std::copy(shape.begin(), shape.end(), storage->dimensions.begin());
   if (*size) {
     if (device) {
-      auto buffer = allocateMetal(state, index, *size, false);
+      const auto width = describeNumeric(*storageNumericType(format))->bytes();
+      if (width < 4 && *size > UINT64_MAX - 3)
+        return std::unexpected(Error::Invalid);
+      const auto physical = width < 4 ? (*size + 3) & ~UINT64_C(3) : *size;
+      auto buffer = allocateMetal(state, index, physical, false);
       if (!buffer)
         return std::unexpected(buffer.error());
       storage->metal = *buffer;
@@ -212,7 +245,8 @@ std::expected<std::shared_ptr<Storage>, Error> allocateStorage(const std::shared
 }
 } // namespace
 // Immutable submission-owned captures. Requested array payload is budgeted
-// separately from tensor/staging bytes; vector/control allocator overhead is not.
+// separately from tensor/staging bytes; vector/control allocator overhead is
+// not.
 struct Arguments {
   std::shared_ptr<State> state;
   std::vector<Buffer> tensors;
@@ -241,7 +275,7 @@ struct MatrixGraphArguments {
   std::vector<Kernel> maps;
   std::vector<std::shared_ptr<const Arguments>> mapArguments;
   std::vector<std::uint32_t> uses;
-  std::vector<std::array<std::int64_t, 2>> shapes;
+  std::vector<std::array<std::int64_t, 8>> shapes;
   explicit MatrixGraphArguments(std::shared_ptr<State> s) : state(std::move(s)) {
     ++state->argumentPacks;
   }
@@ -251,6 +285,40 @@ struct MatrixGraphArguments {
   ~MatrixGraphArguments() {
     state->argumentBytes -= reserved;
     --state->argumentPacks;
+  }
+};
+struct NumericProgramArguments {
+  struct Instruction {
+    NumericInstructionKind kind;
+    Kernel kernel;
+    std::vector<std::uint32_t> inputs;
+    std::vector<std::uint64_t> scalars;
+    std::uint32_t output, target;
+  };
+  std::shared_ptr<State> state;
+  std::vector<Instruction> code;
+  std::vector<Buffer> values;
+  std::vector<std::uint32_t> uses;
+  std::uint32_t result = 0, index = 0, inputs = 0;
+  NumericType element = NumericType::Float32;
+  std::size_t pc = 0;
+  bool scalar = false, reading = false, condition = false;
+  std::uint64_t reserved = 0;
+  explicit NumericProgramArguments(std::shared_ptr<State> s) : state(std::move(s)) {
+    ++state->argumentPacks;
+  }
+  ~NumericProgramArguments() {
+    state->argumentBytes -= reserved;
+    --state->argumentPacks;
+  }
+  void release(std::uint32_t value) {
+    if (uses[value] && !--uses[value])
+      values[value] = {};
+  }
+  void skip(std::size_t first, std::size_t last) {
+    for (auto i = first; i < last; ++i)
+      for (auto value : code[i].inputs)
+        release(value);
   }
 };
 struct Bridge {
@@ -271,14 +339,158 @@ struct Bridge {
     Kernel matrixLeftMap{}, matrixRightMap{};
     std::shared_ptr<const Arguments> leftArguments{}, rightArguments{};
     std::shared_ptr<MatrixGraphArguments> graph{};
+    bool numericScalar = false;
+    std::shared_ptr<NumericProgramArguments> numericProgram{};
   };
+  static std::expected<std::shared_ptr<NumericProgramArguments>, Error>
+  captureProgram(std::shared_ptr<State> state, std::span<const Buffer> inputs,
+                 std::span<const NumericInstruction> code, std::uint32_t resultId,
+                 NumericType element, bool scalar) noexcept {
+    if (!describeNumeric(element) || code.empty() || code.size() > UINT32_MAX ||
+        inputs.size() > UINT32_MAX)
+      return std::unexpected(Error::Invalid);
+    std::uint64_t values = inputs.size(), edges = 0, scalars = 0;
+    std::optional<std::uint32_t> index;
+    for (std::size_t pc = 0; pc < code.size(); ++pc) {
+      const auto &op = code[pc];
+      using K = NumericInstructionKind;
+      const auto kernel = op.kernel.state_;
+      bool valid = false;
+      switch (op.kind) {
+      case K::Map:
+        valid = kernel && kernel->numericType && kernel->signature && kernel->elementwise &&
+                !kernel->matrix && !kernel->reduction &&
+                op.inputs.size() == kernel->signature->tensors &&
+                op.scalars.size() == kernel->signature->scalars;
+        if (valid)
+          for (std::size_t i = 0; i < op.scalars.size(); ++i) {
+            const auto bits = describeNumeric(kernel->scalarType(i))->bits;
+            if (bits < 64 && op.scalars[i] >> bits)
+              valid = false;
+          }
+        break;
+      case K::Reduce:
+        valid = kernel && kernel->numericType && kernel->reduction && !kernel->matrix &&
+                op.inputs.size() == 1 && op.scalars.empty();
+        break;
+      case K::Matmul:
+        valid = kernel && kernel->numericType && kernel->matrix && op.inputs.size() == 2 &&
+                op.scalars.empty();
+        break;
+      case K::Branch:
+      case K::Alias:
+        valid = !kernel && op.inputs.size() == 1 && op.scalars.empty();
+        break;
+      case K::Jump:
+      case K::ShapeFault:
+        valid = !kernel && op.inputs.empty() && op.scalars.empty();
+        break;
+      case K::EqualShape:
+      case K::MatrixShape:
+        valid = !kernel && op.inputs.size() == 2 && op.scalars.empty();
+        break;
+      case K::Extent:
+        valid = !kernel && ((op.inputs.size() == 1 && op.scalars.size() % 2 == 0) ||
+                            (op.inputs.size() == 2 && op.scalars.size() == 2));
+        break;
+      }
+      if (!valid)
+        return std::unexpected(Error::Invalid);
+      if (op.output != UINT32_MAX)
+        values = std::max(values, std::uint64_t(op.output) + 1);
+      if (op.inputs.size() > UINT32_MAX - edges || op.scalars.size() > UINT32_MAX - scalars)
+        return std::unexpected(Error::Invalid);
+      edges += op.inputs.size();
+      scalars += op.scalars.size();
+      if (op.kernel) {
+        const auto &kernel = op.kernel.state_;
+        if (!kernel->numericType || kernel->registry != state)
+          return std::unexpected(Error::Residency);
+        if (index && *index != kernel->index)
+          return std::unexpected(Error::Residency);
+        index = kernel->index;
+      }
+      if ((op.kind == NumericInstructionKind::Jump || op.kind == NumericInstructionKind::Branch) &&
+          (op.target <= pc || op.target > code.size()))
+        return std::unexpected(Error::Invalid);
+    }
+    if (!index || values > UINT32_MAX || resultId >= values)
+      return std::unexpected(Error::Invalid);
+    const auto bytes =
+        sizeof(NumericProgramArguments) + values * (sizeof(Buffer) + sizeof(std::uint32_t)) +
+        code.size() * sizeof(NumericProgramArguments::Instruction) + edges * 4 + scalars * 8;
+    try {
+      if (!state->permit())
+        return std::unexpected(Error::Allocation);
+      auto result = std::make_shared<NumericProgramArguments>(state);
+      auto used = state->argumentBytes.load();
+      do {
+        if (used > state->options.maxArgumentBytes ||
+            bytes > state->options.maxArgumentBytes - used)
+          return std::unexpected(Error::Budget);
+      } while (!state->argumentBytes.compare_exchange_weak(used, used + bytes));
+      result->reserved = bytes;
+      auto peak = state->peakArgumentBytes.load();
+      while (peak < used + bytes &&
+             !state->peakArgumentBytes.compare_exchange_weak(peak, used + bytes)) {
+      }
+      if (!state->permit())
+        return std::unexpected(Error::Allocation);
+      result->values.resize(values);
+      if (!state->permit())
+        return std::unexpected(Error::Allocation);
+      result->uses.resize(values);
+      result->index = *index;
+      result->inputs = inputs.size();
+      result->result = resultId;
+      result->element = element;
+      result->scalar = scalar;
+      for (std::size_t i = 0; i < inputs.size(); ++i) {
+        const auto &input = inputs[i].storage_;
+        if (!input || !input->device || input->state != state || input->deviceIndex != *index)
+          return std::unexpected(Error::Residency);
+        result->values[i] = inputs[i];
+      }
+      if (!state->permit())
+        return std::unexpected(Error::Allocation);
+      result->code.reserve(code.size());
+      for (const auto &op : code) {
+        const bool produces =
+            op.kind == NumericInstructionKind::Map || op.kind == NumericInstructionKind::Reduce ||
+            op.kind == NumericInstructionKind::Matmul || op.kind == NumericInstructionKind::Alias;
+        if (produces && (op.output < inputs.size() || op.output >= values))
+          return std::unexpected(Error::Invalid);
+        if (!produces && op.output != UINT32_MAX)
+          return std::unexpected(Error::Invalid);
+        for (auto value : op.inputs) {
+          if (value >= values || result->uses[value] == UINT32_MAX)
+            return std::unexpected(Error::Invalid);
+          ++result->uses[value];
+        }
+        if (!state->permit())
+          return std::unexpected(Error::Allocation);
+        std::vector<std::uint32_t> arguments(op.inputs.begin(), op.inputs.end());
+        if (!state->permit())
+          return std::unexpected(Error::Allocation);
+        std::vector<std::uint64_t> captures(op.scalars.begin(), op.scalars.end());
+        result->code.push_back(
+            {op.kind, op.kernel, std::move(arguments), std::move(captures), op.output, op.target});
+      }
+      if (result->uses[resultId] == UINT32_MAX)
+        return std::unexpected(Error::Invalid);
+      ++result->uses[resultId];
+      return result;
+    } catch (...) {
+      return std::unexpected(Error::Allocation);
+    }
+  }
   static std::expected<std::shared_ptr<const Arguments>, Error>
   capture(std::shared_ptr<State> state, const Kernel &kernel, std::span<const Buffer> tensors,
           std::span<const float> scalars) noexcept {
     const auto expected = kernel.state_ && kernel.state_->signature ? *kernel.state_->signature
                                                                     : ElementwiseSignature{2, 0};
-    if (!kernel.state_ || !kernel.state_->elementwise || kernel.state_->reduction ||
-        kernel.state_->matrix || tensors.size() != expected.tensors ||
+    if (!kernel.state_ || kernel.state_->numericType || !kernel.state_->elementwise ||
+        kernel.state_->reduction || kernel.state_->matrix || tensors.size() != expected.tensors ||
         scalars.size() != expected.scalars ||
         (tensors.empty() || tensors.size() > UINT32_MAX || scalars.size() >= UINT32_MAX))
       return std::unexpected(Error::Invalid);
@@ -309,6 +521,57 @@ struct Bridge {
         result->scalarBits.resize(scalars.size());
         for (std::size_t i = 0; i < scalars.size(); ++i)
           result->scalarBits[i] = std::bit_cast<std::uint32_t>(scalars[i]);
+      }
+      return result;
+    } catch (...) {
+      return std::unexpected(Error::Allocation);
+    }
+  }
+  static std::expected<std::shared_ptr<const Arguments>, Error>
+  captureNumeric(std::shared_ptr<State> state, const Kernel &kernel,
+                 std::span<const Buffer> tensors, std::span<const std::uint64_t> scalars) noexcept {
+    if (!kernel.state_ || !kernel.state_->numericType || !kernel.state_->signature ||
+        !kernel.state_->elementwise || kernel.state_->matrix || kernel.state_->reduction ||
+        tensors.size() != kernel.state_->signature->tensors ||
+        scalars.size() != kernel.state_->signature->scalars)
+      return std::unexpected(Error::Invalid);
+    if (kernel.state_->registry != state)
+      return std::unexpected(Error::Residency);
+    for (std::size_t i = 0; i < scalars.size(); ++i) {
+      const auto bits = describeNumeric(kernel.state_->scalarType(i))->bits;
+      if (bits < 64 && scalars[i] >> bits)
+        return std::unexpected(Error::Invalid);
+    }
+    const auto words = kernel.state_->scalarWords();
+    const auto bytes = std::uint64_t(tensors.size()) * sizeof(Buffer) + words * 4;
+    try {
+      if (!state->permit())
+        return std::unexpected(Error::Allocation);
+      auto result = std::make_shared<Arguments>(state);
+      auto used = state->argumentBytes.load();
+      do {
+        if (used > state->options.maxArgumentBytes ||
+            bytes > state->options.maxArgumentBytes - used)
+          return std::unexpected(Error::Budget);
+      } while (!state->argumentBytes.compare_exchange_weak(used, used + bytes));
+      result->reserved = bytes;
+      auto peak = state->peakArgumentBytes.load();
+      while (peak < used + bytes &&
+             !state->peakArgumentBytes.compare_exchange_weak(peak, used + bytes)) {
+      }
+      if (!state->permit())
+        return std::unexpected(Error::Allocation);
+      result->tensors.assign(tensors.begin(), tensors.end());
+      if (!scalars.empty()) {
+        if (!state->permit())
+          return std::unexpected(Error::Allocation);
+        result->scalarBits.resize(words);
+        std::size_t offset = 0;
+        for (std::size_t i = 0; i < scalars.size(); ++i) {
+          result->scalarBits[offset++] = std::uint32_t(scalars[i]);
+          if (describeNumeric(kernel.state_->scalarType(i))->bytes() == 8)
+            result->scalarBits[offset++] = std::uint32_t(scalars[i] >> 32);
+        }
       }
       return result;
     } catch (...) {
@@ -363,7 +626,7 @@ struct Bridge {
         std::uint64_t(roots.size()) * (sizeof(std::uint32_t) + sizeof(Buffer)) +
         std::uint64_t(maps.size()) * (sizeof(Kernel) + sizeof(std::shared_ptr<const Arguments>)) +
         std::uint64_t(count) *
-            (sizeof(Buffer) + sizeof(std::uint32_t) + sizeof(std::array<std::int64_t, 2>) +
+            (sizeof(Buffer) + sizeof(std::uint32_t) + sizeof(std::array<std::int64_t, 8>) +
              (roots.empty() ? 0 : sizeof(std::uint32_t))) +
         std::uint64_t(products.size()) * sizeof(MatrixProduct) +
         operandCount * sizeof(std::uint32_t) +
@@ -438,16 +701,16 @@ struct Bridge {
       result->tensorResult = tensorResult;
       for (std::size_t i = 0; i < inputs.size(); ++i) {
         const auto &input = inputs[i].storage_;
-        if (!input || (input->rank != 2 && (roots.empty() || input->rank != 1)) ||
+        if (!input || (roots.empty() ? input->rank != 2 : input->rank < 1 || input->rank > 8) ||
             input->format != Format::Float32 || input->size / 4 > UINT32_MAX)
           return std::unexpected(Error::Invalid);
         if (!input->device || input->state != state || input->deviceIndex != kernel.state_->index)
           return std::unexpected(Error::Residency);
-        if (std::uint64_t(input->dimensions[0]) > UINT32_MAX ||
-            std::uint64_t(input->dimensions[1]) > UINT32_MAX)
-          return std::unexpected(Error::Invalid);
+        for (unsigned axis = 0; axis < input->rank; ++axis)
+          if (std::uint64_t(input->dimensions[axis]) > UINT32_MAX)
+            return std::unexpected(Error::Invalid);
         result->values[i] = inputs[i];
-        result->shapes[i] = {input->dimensions[0], input->rank == 2 ? input->dimensions[1] : 1};
+        result->shapes[i] = input->dimensions;
         if (!roots.empty())
           result->ranks[i] = input->rank;
       }
@@ -464,7 +727,8 @@ struct Bridge {
               edge.tensorCount() + std::count_if(broadcasts.begin(), broadcasts.end(),
                                                  [i](auto item) { return item.stage == i; });
           // Small conditional graphs may deliberately use argument buffers to
-          // keep the declared interface stable when optimization removes a read.
+          // keep the declared interface stable when optimization removes a
+          // read.
           const auto binding = mapping->signature.value_or(ElementwiseSignature{2, 0}).binding;
           if (tensors > UINT32_MAX || edge.left > edge.right || !mapping->elementwise ||
               mapping->matrix || mapping->reduction || mapping->projected ||
@@ -521,7 +785,8 @@ struct Bridge {
         ++result->uses[root];
       }
       if (tensorResult)
-        ++result->uses.back(); // The returned tensor remains live through task completion.
+        ++result->uses.back(); // The returned tensor remains live through task
+                               // completion.
       for (std::size_t i = inputs.size(); i < (roots.empty() ? count - 1 : count); ++i)
         if (!result->uses[i])
           return std::unexpected(Error::Invalid);
@@ -533,8 +798,9 @@ struct Bridge {
       return std::unexpected(Error::Allocation);
     }
   }
-  // Each invocation owns two alternating outputs and up to 32 immutable count words.
-  // A serial encoder orders dispatches and tracked buffer accesses during reuse.
+  // Each invocation owns two alternating outputs and up to 32 immutable count
+  // words. A serial encoder orders dispatches and tracked buffer accesses
+  // during reuse.
   struct ReductionScratch {
     std::array<std::shared_ptr<MetalAllocation>, 2> outputs{};
     // Apple-family devices pack all words into counts[0]. Other GPUs retain
@@ -573,6 +839,10 @@ struct Bridge {
   }
   static void destroy(void *frame) noexcept { static_cast<Frame *>(frame)->~Frame(); }
   static const Buffer &tensor(const Frame &frame, std::size_t index) {
+    if (frame.packet.numericProgram) {
+      const auto &program = *frame.packet.numericProgram;
+      return program.values[program.code[program.pc].inputs[index]];
+    }
     if (frame.packet.graph && frame.packet.kind == Kind::Elementwise) {
       if (frame.graphPhase == 2)
         return frame.packet.graph->reduced[index];
@@ -618,6 +888,146 @@ struct Bridge {
   }
   static const ValueLayout layout;
   static const TaskEntry entry, reductionEntry;
+  static const TaskEntry &numericEntry(NumericType type) {
+    static const auto entries = [] {
+      std::array<TaskEntry, 10> result{};
+      for (std::size_t i = 0; i < numericTypes.size(); ++i) {
+        result[i] = reductionEntry;
+        result[i].result = numericScalarLayout(numericTypes[i].type);
+      }
+      return result;
+    }();
+    for (std::size_t i = 0; i < numericTypes.size(); ++i)
+      if (numericTypes[i].type == type)
+        return entries[i];
+    return reductionEntry;
+  }
+  template <NumericType Type> static void completeNumeric(Task &task, const void *bits) {
+    NumericValue<Type> value;
+    std::memcpy(&value, bits, sizeof(value));
+    task.complete(&value);
+  }
+  static void completeNumeric(Task &task, NumericType type, const void *bits) {
+    switch (type) {
+#define NUMERIC_COMPLETE(T)                                                                        \
+  case NumericType::T:                                                                             \
+    completeNumeric<NumericType::T>(task, bits);                                                   \
+    return;
+      NUMERIC_COMPLETE(Int8)
+      NUMERIC_COMPLETE(UInt8)
+      NUMERIC_COMPLETE(Int16)
+      NUMERIC_COMPLETE(UInt16)
+      NUMERIC_COMPLETE(Int32)
+      NUMERIC_COMPLETE(UInt32)
+      NUMERIC_COMPLETE(Int64)
+      NUMERIC_COMPLETE(UInt64) NUMERIC_COMPLETE(Float32) NUMERIC_COMPLETE(Float64)
+#undef NUMERIC_COMPLETE
+    }
+  }
+  static id<MTLCommandBuffer> numericReductionCommand(Frame &f) {
+    const auto state = f.packet.state;
+    const auto index = f.packet.kernel.state_->index;
+    const auto type = *f.packet.kernel.state_->numericType;
+    const auto width = describeNumeric(type)->bytes();
+    if (!state->permit())
+      return nil;
+    f.scratch.reset(new (std::nothrow) ReductionScratch{});
+    if (!f.scratch)
+      return nil;
+    auto readback = allocateMetal(state, index, std::max(width, 4u), true);
+    if (!readback) {
+      f.error = readback.error();
+      return nil;
+    }
+    f.staging = *readback;
+    std::memset(f.staging->buffer.contents, 0, std::max(width, 4u));
+    if (f.packet.numericProgram) {
+      auto output =
+          allocateStorage(state, std::array<std::int64_t, 1>{1}, *storageFormat(type), true, index);
+      if (!output) {
+        f.error = output.error();
+        return nil;
+      }
+      f.result = Buffer(*output);
+    }
+    auto length = f.packet.input.bytes() / width;
+    id<MTLBuffer> input = length ? f.packet.input.storage_->metal->buffer : nil;
+    unsigned levels = 0;
+    for (auto remaining = length; remaining > 1; remaining = (remaining + 1) / 2)
+      ++levels;
+    for (unsigned level = 0; level < levels; ++level) {
+      const auto next = (length + 1) / 2;
+      auto &output = f.scratch->outputs[level % 2];
+      if (!output) {
+        auto allocated = allocateMetal(
+            state, index, std::max((next * width + 3) & ~UINT64_C(3), UINT64_C(4)), false);
+        if (!allocated) {
+          f.error = allocated.error();
+          return nil;
+        }
+        output = *allocated;
+      }
+      auto parameters = allocateMetal(state, index, 8, true);
+      if (!parameters) {
+        f.error = parameters.error();
+        return nil;
+      }
+      f.scratch->counts[level] = *parameters;
+      auto words = static_cast<std::uint32_t *>((*parameters)->buffer.contents);
+      words[0] = std::uint32_t(length);
+      words[1] = UINT32_MAX;
+      length = next;
+    }
+    id<MTLCommandBuffer> command = state->permit() ? [state->queues[index] commandBuffer] : nil;
+    if (!command)
+      return nil;
+    length = f.packet.input.bytes() / width;
+    for (unsigned level = 0; level < levels; ++level) {
+      const auto next = (length + 1) / 2;
+      auto output = f.scratch->outputs[level % 2]->buffer;
+      if (width < 4) {
+        id<MTLBlitCommandEncoder> clear = state->permit() ? [command blitCommandEncoder] : nil;
+        if (!clear)
+          return nil;
+        [clear fillBuffer:output range:NSMakeRange(0, output.length) value:0];
+        [clear endEncoding];
+      }
+      id<MTLComputeCommandEncoder> encoder =
+          state->permit() ? [command computeCommandEncoder] : nil;
+      if (!encoder)
+        return nil;
+      [encoder setComputePipelineState:f.packet.kernel.state_->pipeline];
+      [encoder setBuffer:input offset:0 atIndex:0];
+      [encoder setBuffer:output offset:0 atIndex:1];
+      [encoder setBuffer:f.scratch->counts[level]->buffer offset:0 atIndex:2];
+      [encoder dispatchThreadgroups:MTLSizeMake((next + 63) / 64, 1, 1)
+              threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
+      [encoder endEncoding];
+      input = output;
+      length = next;
+    }
+    if (!input && f.packet.numericProgram)
+      input = f.staging->buffer;
+    if (input) {
+      id<MTLBlitCommandEncoder> blit = state->permit() ? [command blitCommandEncoder] : nil;
+      if (!blit)
+        return nil;
+      if (f.packet.numericProgram && width < 4)
+        [blit fillBuffer:f.result.storage_->metal->buffer
+                   range:NSMakeRange(0, f.result.storage_->metal->bytes)
+                   value:0];
+      [blit copyFromBuffer:input
+               sourceOffset:0
+                   toBuffer:f.packet.numericProgram ? f.result.storage_->metal->buffer
+                                                    : f.staging->buffer
+          destinationOffset:0
+                       size:width];
+      [blit endEncoding];
+    }
+    if (!state->permit())
+      return nil;
+    return command;
+  }
   static id<MTLCommandBuffer> reductionCommand(Frame &f) {
     auto state = f.packet.state;
     auto index = f.packet.kernel.state_->index;
@@ -648,7 +1058,8 @@ struct Bridge {
       return nil;
     std::uint64_t length = f.packet.input.bytes() / 4;
     // Empty device storage has no Metal allocation. The epilogue uses a
-    // separately owned positive-zero seed rather than dereferencing that storage.
+    // separately owned positive-zero seed rather than dereferencing that
+    // storage.
     id<MTLBuffer> input = length ? f.packet.input.storage_->metal->buffer : nil;
     if (f.packet.epilogue) {
       // All fallible epilogue storage is prepared before opening any encoder.
@@ -699,7 +1110,8 @@ struct Bridge {
       ++levels;
     if (levels && packedCounts) {
       // Apple-family constant buffer offsets permit four-byte alignment. Each
-      // dispatch receives a distinct immutable word, retained until acknowledgement.
+      // dispatch receives a distinct immutable word, retained until
+      // acknowledgement.
       auto count = allocateMetal(state, index, levels * 4, true);
       if (!count) {
         f.error = count.error();
@@ -719,7 +1131,8 @@ struct Bridge {
         }
         output = *allocated;
       }
-      // Later levels only shrink. Never write into the input or the current read buffer.
+      // Later levels only shrink. Never write into the input or the current
+      // read buffer.
       if (!packedCounts) {
         auto count = allocateMetal(state, index, 4, true);
         if (!count) {
@@ -735,8 +1148,9 @@ struct Bridge {
       length = next;
       ++level;
     }
-    // Finish fallible storage preparation before opening an encoder. Every early
-    // allocation failure can unwind without leaving an active encoder behind.
+    // Finish fallible storage preparation before opening an encoder. Every
+    // early allocation failure can unwind without leaving an active encoder
+    // behind.
     if (level) {
       id<MTLComputeCommandEncoder> encoder =
           state->permit() ? [command computeCommandEncoderWithDispatchType:MTLDispatchTypeSerial]
@@ -774,7 +1188,8 @@ struct Bridge {
       [encoder endEncoding];
       input = f.scratch->postOutput->buffer;
     }
-    // Only the final scalar crosses back to the host. No CPU arithmetic fallback.
+    // Only the final scalar crosses back to the host. No CPU arithmetic
+    // fallback.
     id<MTLBlitCommandEncoder> blit = state->permit() ? [command blitCommandEncoder] : nil;
     if (!blit)
       return nil;
@@ -894,9 +1309,217 @@ struct Bridge {
       @autoreleasepool {
         auto &f = *static_cast<Frame *>(task.frame());
         auto state = f.packet.state;
+        if (f.packet.numericProgram && !f.packet.preparation) {
+          auto &program = *f.packet.numericProgram;
+          if (f.started) {
+            if (!f.succeeded) {
+              task.fault(std::int64_t(f.error));
+              return;
+            }
+            if (program.reading || program.condition) {
+              auto bytes = static_cast<const std::byte *>(f.staging->buffer.contents);
+              if (program.reading) {
+                completeNumeric(task, program.element, bytes);
+                return;
+              }
+              const auto value = std::to_integer<unsigned>(*bytes);
+              if (value > 1) {
+                task.fault(std::int64_t(Error::Invalid));
+                return;
+              }
+              const auto &op = program.code[program.pc];
+              for (auto input : op.inputs)
+                program.release(input);
+              if (value)
+                ++program.pc;
+              else {
+                program.skip(program.pc + 1, op.target);
+                program.pc = op.target;
+              }
+              program.condition = false;
+            } else {
+              const auto &kernel = f.packet.kernel.state_;
+              if (f.packet.kind == Kind::Reduce) {
+                for (const auto &parameters : f.scratch->counts)
+                  if (parameters && static_cast<const std::uint32_t *>(
+                                        parameters->buffer.contents)[1] != UINT32_MAX) {
+                    task.fault(4);
+                    return;
+                  }
+              } else if (kernel && kernel->numericType && f.staging &&
+                         static_cast<const std::uint32_t *>(
+                             f.staging->buffer.contents)[kernel->parameterWords() - 1] !=
+                             UINT32_MAX) {
+                task.fault(4);
+                return;
+              }
+              const auto &op = program.code[program.pc];
+              program.values[op.output] = std::move(f.result);
+              for (auto input : op.inputs)
+                program.release(input);
+              ++program.pc;
+            }
+            f.staging.reset();
+            f.resources.reset();
+            f.scratch.reset();
+            f.result = {};
+            f.packet.input = {};
+            f.packet.right = {};
+            f.packet.kernel = {};
+            f.packet.arguments.reset();
+            f.started = f.succeeded = false;
+            if (task.cancelled())
+              return;
+          }
+          bool scheduled = false;
+          while (!scheduled) {
+            if (task.cancelled())
+              return;
+            if (program.pc == program.code.size()) {
+              const auto &value = program.values[program.result];
+              if (!value || value.format() != *storageFormat(program.element)) {
+                task.fault(std::int64_t(Error::Invalid));
+                return;
+              }
+              if (!program.scalar) {
+                task.complete(&value);
+                return;
+              }
+              if (value.bytes() != describeNumeric(program.element)->bytes()) {
+                task.fault(std::int64_t(Error::Invalid));
+                return;
+              }
+              f.packet.input = value;
+              f.packet.kind = Kind::Download;
+              program.reading = true;
+              scheduled = true;
+              break;
+            }
+            const auto &op = program.code[program.pc];
+            bool valid = true;
+            for (auto value : op.inputs)
+              valid &= bool(program.values[value]);
+            if (!valid) {
+              task.fault(std::int64_t(Error::Invalid));
+              return;
+            }
+            auto input = [&](std::size_t i) -> const Buffer & {
+              return program.values[op.inputs[i]];
+            };
+            using K = NumericInstructionKind;
+            if (op.kind == K::Jump) {
+              program.skip(program.pc + 1, op.target);
+              program.pc = op.target;
+              continue;
+            }
+            if (op.kind == K::ShapeFault) {
+              task.fault(1);
+              return;
+            }
+            if (op.kind == K::Alias) {
+              if (op.inputs.size() != 1) {
+                task.fault(std::int64_t(Error::Invalid));
+                return;
+              }
+              program.values[op.output] = input(0);
+              program.release(op.inputs[0]);
+              ++program.pc;
+              continue;
+            }
+            if (op.kind == K::EqualShape || op.kind == K::MatrixShape || op.kind == K::Extent) {
+              bool same = false;
+              if (op.kind == K::Extent && op.inputs.size() == 1 && op.scalars.size() % 2 == 0) {
+                same = true;
+                for (std::size_t i = 0; i < op.scalars.size(); i += 2)
+                  same &= op.scalars[i] < input(0).shape().size() &&
+                          std::uint64_t(input(0).shape()[op.scalars[i]]) == op.scalars[i + 1];
+              } else if (op.kind == K::Extent && op.inputs.size() == 2 && op.scalars.size() == 2) {
+                const auto a = input(0).shape(), b = input(1).shape();
+                same = op.scalars[0] < a.size() && op.scalars[1] < b.size() &&
+                       a[op.scalars[0]] == b[op.scalars[1]];
+              } else if (op.inputs.size() == 2) {
+                const auto a = input(0).shape(), b = input(1).shape();
+                same = op.kind == K::MatrixShape
+                           ? a.size() == 2 && b.size() == 2 && a[1] == b[0]
+                           : std::equal(a.begin(), a.end(), b.begin(), b.end());
+              }
+              if (!same) {
+                task.fault(1);
+                return;
+              }
+              for (auto value : op.inputs)
+                program.release(value);
+              ++program.pc;
+              continue;
+            }
+            if (op.kind == K::Branch) {
+              if (op.inputs.size() != 1 || input(0).format() != Format::UInt8 ||
+                  input(0).bytes() != 1) {
+                task.fault(std::int64_t(Error::Invalid));
+                return;
+              }
+              f.packet.input = input(0);
+              f.packet.kind = Kind::Download;
+              program.condition = true;
+              scheduled = true;
+              break;
+            }
+            const auto &kernel = op.kernel.state_;
+            if (!kernel || !kernel->numericType) {
+              task.fault(std::int64_t(Error::Invalid));
+              return;
+            }
+            f.packet.kernel = op.kernel;
+            if (op.kind == K::Map) {
+              if (!kernel->elementwise || kernel->matrix || kernel->reduction) {
+                task.fault(std::int64_t(Error::Invalid));
+                return;
+              }
+              std::vector<Buffer> placeholders;
+              try {
+                if (!state->permit()) {
+                  task.fault(2);
+                  return;
+                }
+                placeholders.resize(op.inputs.size());
+              } catch (...) {
+                task.fault(2);
+                return;
+              }
+              auto arguments = captureNumeric(state, op.kernel, placeholders, op.scalars);
+              if (!arguments) {
+                task.fault(std::int64_t(arguments.error()));
+                return;
+              }
+              f.packet.arguments = *arguments;
+              f.packet.kind = Kind::Elementwise;
+              if (!kernel->readCount) {
+                auto value = allocateStorage(state, {}, *storageFormat(*kernel->numericType), true,
+                                             kernel->index);
+                if (!value) {
+                  task.fault(std::int64_t(value.error()));
+                  return;
+                }
+                f.packet.input = Buffer(*value);
+              }
+            } else if (op.kind == K::Reduce && op.inputs.size() == 1 && kernel->reduction) {
+              f.packet.kind = Kind::Reduce;
+              f.packet.input = input(0);
+            } else if (op.kind == K::Matmul && op.inputs.size() == 2 && kernel->matrix) {
+              f.packet.kind = Kind::Matmul;
+              f.packet.input = input(0);
+              f.packet.right = input(1);
+            } else {
+              task.fault(std::int64_t(Error::Invalid));
+              return;
+            }
+            scheduled = true;
+          }
+        }
         if (!f.started && !f.matrixStage && (f.packet.matrixLeftMap || f.packet.matrixRightMap) &&
             !f.packet.preparation) {
-          // Keep both original operands until their independent maps acknowledge.
+          // Keep both original operands until their independent maps
+          // acknowledge.
           f.matrixLeft = std::move(f.packet.input);
           f.matrixRight = std::move(f.packet.right);
           f.matrixKernel = std::move(f.packet.kernel);
@@ -908,6 +1531,32 @@ struct Bridge {
         if (f.started) {
           if (!f.succeeded) {
             task.fault(static_cast<std::int64_t>(f.error));
+            return;
+          }
+          if (f.packet.kind != Kind::Reduce && f.packet.kernel.state_ &&
+              f.packet.kernel.state_->numericType && f.staging) {
+            const auto words = f.packet.kernel.state_->parameterWords();
+            auto parameters = static_cast<const std::uint32_t *>(f.staging->buffer.contents);
+            if (parameters[words - 1] != UINT32_MAX) {
+              task.fault(4);
+              return;
+            }
+          }
+          if (f.packet.numericScalar) {
+            completeNumeric(task, *f.packet.kernel.state_->numericType,
+                            f.joinReadback->buffer.contents);
+            return;
+          }
+          if (f.packet.kind == Kind::Reduce && f.packet.kernel.state_ &&
+              f.packet.kernel.state_->numericType) {
+            for (const auto &parameters : f.scratch->counts) {
+              if (parameters && static_cast<const std::uint32_t *>(
+                                    parameters->buffer.contents)[1] != UINT32_MAX) {
+                task.fault(4);
+                return;
+              }
+            }
+            completeNumeric(task, *f.packet.kernel.state_->numericType, f.staging->buffer.contents);
             return;
           }
           if (f.packet.graph) {
@@ -995,7 +1644,8 @@ struct Bridge {
             f.started = f.succeeded = false;
             nextGraphStage(f);
           } else {
-            // Materialize host results on the scheduler, never in the Metal callback.
+            // Materialize host results on the scheduler, never in the Metal
+            // callback.
             if (f.packet.kind == Kind::Download) {
               auto *destination = const_cast<Storage *>(f.result.storage_.get());
               std::memcpy(destination->host.data(), f.staging->buffer.contents, destination->size);
@@ -1022,10 +1672,12 @@ struct Bridge {
                                                           : &f.result);
               return;
             }
-            // Acknowledgement transfers the resident result into the next stage.
-            // Source argument packs remain immutable; slot zero may select this result.
+            // Acknowledgement transfers the resident result into the next
+            // stage. Source argument packs remain immutable; slot zero may
+            // select this result.
             if (beforeMatrix) {
-              // nextMatrixStage has selected the next resident operand or primitive.
+              // nextMatrixStage has selected the next resident operand or
+              // primitive.
             } else if (f.packet.matrixPost) {
               f.packet.replacement = std::move(f.result);
               f.packet.kernel = std::move(f.packet.matrixPost);
@@ -1079,7 +1731,7 @@ struct Bridge {
             return;
           }
         }
-        if (f.packet.arguments) {
+        if (f.packet.arguments && !f.packet.numericScalar && f.packet.kernel.state_->readCount) {
           const auto &kernel = f.packet.kernel.state_;
           f.packet.input = tensor(f, kernel->tensorIndex(0));
         }
@@ -1097,10 +1749,16 @@ struct Bridge {
         if (matrix) {
           const auto &kernel = f.packet.kernel.state_;
           const auto &right = f.packet.right.storage_;
-          if (!kernel || !kernel->matrix || !right || source->format != Format::Float32 ||
-              right->format != Format::Float32 || source->rank != 2 || right->rank != 2 ||
-              source->dimensions[1] != right->dimensions[0] || source->size / 4 > UINT32_MAX ||
-              right->size / 4 > UINT32_MAX) {
+          const auto format = kernel && kernel->numericType
+                                  ? *storageFormat(f.packet.numericScalar
+                                                       ? *kernel->numericType
+                                                       : kernel->tensorType(kernel->tensorIndex(0)))
+                                  : Format::Float32;
+          const auto width = describeNumeric(*storageNumericType(format))->bytes();
+          if (!kernel || !kernel->matrix || !right || source->format != format ||
+              right->format != format || source->rank != 2 || right->rank != 2 ||
+              source->dimensions[1] != right->dimensions[0] || source->size / width > UINT32_MAX ||
+              right->size / width > UINT32_MAX) {
             task.fault(std::int64_t(Error::Invalid));
             return;
           }
@@ -1126,8 +1784,11 @@ struct Bridge {
         if (reduce) {
           const auto &kernel = f.packet.kernel.state_;
           if (!kernel || !kernel->reduction || kernel->matrix ||
-              source->format != Format::Float32 || (source->rank != 1 && source->rank != 2) ||
-              source->size / 4 > UINT32_MAX) {
+              source->format !=
+                  (kernel->numericType ? *storageFormat(*kernel->numericType) : Format::Float32) ||
+              ((!kernel->numericType && source->rank < 1) || source->rank > 8) ||
+              source->size / describeNumeric(*storageNumericType(source->format))->bytes() >
+                  UINT32_MAX) {
             task.fault(std::int64_t(Error::Invalid));
             return;
           }
@@ -1137,7 +1798,8 @@ struct Bridge {
             task.fault(std::int64_t(Error::Residency));
             return;
           }
-          if (!source->size && !f.packet.epilogue && !(f.packet.graph && f.graphPhase == 1)) {
+          if (!source->size && !kernel->numericType && !f.packet.epilogue &&
+              !(f.packet.graph && f.graphPhase == 1)) {
             task.complete(&f.scalar);
             return;
           }
@@ -1147,18 +1809,25 @@ struct Bridge {
           const auto &right = f.packet.right.storage_;
           const auto signature =
               kernel && kernel->signature ? *kernel->signature : ElementwiseSignature{2, 0};
+          const auto format = kernel && kernel->numericType
+                                  ? *storageFormat(f.packet.numericScalar
+                                                       ? *kernel->numericType
+                                                       : kernel->tensorType(kernel->tensorIndex(0)))
+                                  : Format::Float32;
+          const auto width = describeNumeric(*storageNumericType(format))->bytes();
           if (!kernel || kernel->reduction || kernel->matrix ||
               kernel->elementwise != (f.packet.kind == Kind::Elementwise) ||
               (!f.packet.arguments && (kernel->projected || kernel->indirect() ||
                                        signature.tensors != 2 || signature.scalars != 0)) ||
               (f.packet.arguments &&
                (f.packet.arguments->tensors.size() != signature.tensors ||
-                f.packet.arguments->scalarBits.size() != signature.scalars)) ||
-              std::uint32_t(f.packet.operation) > 2 || source->format != Format::Float32 ||
-              (source->rank != 1 && (!kernel->elementwise || source->rank != 2)) ||
-              source->size / 4 > UINT32_MAX ||
+                f.packet.arguments->scalarBits.size() != kernel->scalarWords())) ||
+              std::uint32_t(f.packet.operation) > 2 || source->format != format ||
+              (source->rank > 8 || (!kernel->numericType && source->rank < 1) ||
+               (!kernel->elementwise && source->rank != 1)) ||
+              source->size / width > UINT32_MAX ||
               (signature.tensors == 2 && !f.packet.arguments &&
-               (!right || right->format != Format::Float32 || right->rank != source->rank ||
+               (!right || right->format != format || right->rank != source->rank ||
                 source->size != right->size ||
                 !std::equal(source->dimensions.begin(), source->dimensions.begin() + source->rank,
                             right->dimensions.begin())))) {
@@ -1181,13 +1850,19 @@ struct Bridge {
                       ? std::span<const std::uint32_t>(kernel->indirectReads)
                       : std::span<const std::uint32_t>(kernel->reads.data(), kernel->readCount);
               const bool read = std::binary_search(reads.begin(), reads.end(), i);
-              const bool broadcast = f.packet.graph && f.graphPhase == 0 &&
-                                     i >= f.packet.graph->products[f.graphStage].tensorCount();
-              if (!other || other->format != Format::Float32 ||
-                  (broadcast && (other->rank != 1 || other->size != 4)) ||
-                  (other->rank != 1 && other->rank != 2) ||
+              const bool broadcast = kernel->scalarBuffer(i) ||
+                                     (f.packet.graph && f.graphPhase == 0 &&
+                                      i >= f.packet.graph->products[f.graphStage].tensorCount());
+              if (!other ||
+                  other->format !=
+                      (kernel->numericType ? *storageFormat(kernel->tensorType(i)) : format) ||
+                  (broadcast &&
+                   (other->size != describeNumeric(*storageNumericType(other->format))->bytes())) ||
+                  (other->rank > 8 || (!kernel->numericType && other->rank < 1)) ||
                   (read && !broadcast &&
-                   (other->rank != source->rank || other->size != source->size ||
+                   (other->rank != source->rank ||
+                    other->size / describeNumeric(*storageNumericType(other->format))->bytes() !=
+                        source->size / width ||
                     !std::equal(source->dimensions.begin(),
                                 source->dimensions.begin() + source->rank,
                                 other->dimensions.begin())))) {
@@ -1228,7 +1903,8 @@ struct Bridge {
         id<MTLCommandBuffer> command = nil;
         if (reduce) {
           f.error = Error::Allocation;
-          command = reductionCommand(f);
+          command = f.packet.kernel.state_->numericType ? numericReductionCommand(f)
+                                                        : reductionCommand(f);
           if (!command) {
             task.fault(std::int64_t(f.error));
             return;
@@ -1237,18 +1913,41 @@ struct Bridge {
         } else {
           auto result = allocateStorage(
               state, matrix ? std::span<const std::int64_t>(matrixShape) : f.packet.input.shape(),
-              source->format, upload || compute || matrix, index);
+              (compute || matrix) && f.packet.kernel.state_->numericType
+                  ? *storageFormat(*f.packet.kernel.state_->numericType)
+                  : source->format,
+              upload || compute || matrix, index);
           if (!result) {
             task.fault(std::int64_t(result.error()));
             return;
           }
           f.result = Buffer(*result);
-          if (!f.result.bytes()) {
-            // Empty composed results still validate both stages and all arguments.
-            if (f.packet.graph || (f.packet.reduction && f.packet.epilogue) ||
+          const bool numeric = compute && f.packet.kernel.state_->numericType.has_value();
+          if (!f.result.bytes() && numeric) {
+            // A zero-element map can still contain checked uniform scalar work.
+            // Bind an owned dummy word and execute its uniform validation once.
+            const auto &kernel = *f.packet.kernel.state_;
+            auto width = std::max(describeNumeric(*kernel.numericType)->bytes(), 4u);
+            for (std::uint32_t i = 0; i < kernel.readCount; ++i)
+              width = std::max(width,
+                               describeNumeric(kernel.tensorType(kernel.tensorIndex(i)))->bytes());
+            auto dummy = allocateMetal(state, index, width, false);
+            if (!dummy) {
+              task.fault(std::int64_t(dummy.error()));
+              return;
+            }
+            (*result)->metal = *dummy;
+          }
+          if (!f.result.bytes() && !numeric) {
+            // Empty composed results still validate both stages and all
+            // arguments.
+            if (f.packet.numericProgram || f.packet.graph ||
+                (f.packet.reduction &&
+                 (f.packet.epilogue || f.packet.reduction.state_->numericType)) ||
                 f.packet.matrixPost || f.matrixStage == 1 || f.matrixStage == 2) {
               // Empty first stages submit no command; release their admission
-              // before continuing iteratively, including arbitrarily long empty graphs.
+              // before continuing iteratively, including arbitrarily long empty
+              // graphs.
               --state->inFlight;
               f.active = false;
               f.succeeded = true;
@@ -1261,18 +1960,21 @@ struct Bridge {
           if (compute || matrix) {
             const auto &kernel = f.packet.kernel.state_;
             const auto tensors = kernel->readCount;
-            const auto parameterBytes = matrix ? 12
-                                        : kernel->signature
-                                            ? 4ull * (1ull + kernel->signature->scalars)
-                                            : 8;
+            const auto parameterBytes =
+                matrix && !kernel->numericType ? 12 : 4ull * kernel->parameterWords();
             auto parametersBuffer = allocateMetal(state, index, parameterBytes, true);
             if (!parametersBuffer) {
               task.fault(std::int64_t(parametersBuffer.error()));
               return;
             }
             f.staging = *parametersBuffer;
-            if (f.packet.graph && f.graphPhase == 2) {
-              auto readback = allocateMetal(state, index, 4, true);
+            if ((f.packet.graph && f.graphPhase == 2) || f.packet.numericScalar) {
+              auto readback =
+                  allocateMetal(state, index,
+                                f.packet.numericScalar
+                                    ? std::max(describeNumeric(*kernel->numericType)->bytes(), 4u)
+                                    : 4,
+                                true);
               if (!readback) {
                 task.fault(std::int64_t(readback.error()));
                 return;
@@ -1287,8 +1989,9 @@ struct Bridge {
                 return;
               }
               f.resources = *resources;
-              // Argument encoders are invocation-local: their mutable destination cannot
-              // be shared by concurrent calls using the same immutable Kernel.
+              // Argument encoders are invocation-local: their mutable
+              // destination cannot be shared by concurrent calls using the same
+              // immutable Kernel.
               arguments = state->permit()
                               ? [kernel->argumentFunction newArgumentEncoderWithBufferIndex:0]
                               : nil;
@@ -1301,6 +2004,18 @@ struct Bridge {
             if (!state->permit() || !(command = [state->queues[index] commandBuffer])) {
               task.fault(std::int64_t(Error::Allocation));
               return;
+            }
+            if (kernel->numericType && describeNumeric(*kernel->numericType)->bytes() < 4) {
+              id<MTLBlitCommandEncoder> clear =
+                  state->permit() ? [command blitCommandEncoder] : nil;
+              if (!clear) {
+                task.fault(std::int64_t(Error::Allocation));
+                return;
+              }
+              [clear fillBuffer:(*result)->metal->buffer
+                          range:NSMakeRange(0, (*result)->metal->bytes)
+                          value:0];
+              [clear endEncoding];
             }
             id<MTLComputeCommandEncoder> encoder =
                 state->permit() ? [command computeCommandEncoder] : nil;
@@ -1318,15 +2033,18 @@ struct Bridge {
                                                            : kernel->pipeline;
             [encoder setComputePipelineState:pipeline];
             if (!kernel->indirect()) {
-              [encoder setBuffer:matrix && !source->size ? (*result)->metal->buffer
-                                                         : source->metal->buffer
+              [encoder setBuffer:(matrix || kernel->numericType) && !source->size
+                                     ? (*result)->metal->buffer
+                                     : source->metal->buffer
                           offset:0
                          atIndex:0];
               if (f.packet.arguments) {
-                for (std::size_t i = 0; i < tensors; ++i)
-                  [encoder setBuffer:tensor(f, kernel->tensorIndex(i)).storage_->metal->buffer
+                for (std::size_t i = 0; i < tensors; ++i) {
+                  const auto &input = tensor(f, kernel->tensorIndex(i)).storage_;
+                  [encoder setBuffer:input->metal ? input->metal->buffer : (*result)->metal->buffer
                               offset:0
                              atIndex:i];
+                }
               } else if (tensors == 2)
                 [encoder setBuffer:matrix && !f.packet.right.bytes()
                                        ? (*result)->metal->buffer
@@ -1337,7 +2055,10 @@ struct Bridge {
             }
             auto *parameters = static_cast<std::uint32_t *>(f.staging->buffer.contents);
             std::fill_n(parameters, parameterBytes / 4, 0u);
-            parameters[0] = std::uint32_t(source->size / 4);
+            const auto width = describeNumeric(*storageNumericType(source->format))->bytes();
+            parameters[0] = std::uint32_t(source->size / width);
+            if (kernel->numericType)
+              parameters[kernel->parameterWords() - 1] = UINT32_MAX;
             if (matrix) {
               parameters[0] = std::uint32_t(matrixShape[0]);
               parameters[1] = std::uint32_t(source->dimensions[1]);
@@ -1350,23 +2071,32 @@ struct Bridge {
             if (kernel->indirect()) {
 
               for (std::size_t i = 0; i < tensors; ++i) {
-                auto buffer = tensor(f, kernel->tensorIndex(i)).storage_->metal->buffer;
+                const auto &input = tensor(f, kernel->tensorIndex(i)).storage_;
+                auto buffer = input->metal ? input->metal->buffer : (*result)->metal->buffer;
                 [arguments setBuffer:buffer offset:0 atIndex:i];
                 [encoder useResource:buffer usage:MTLResourceUsageRead];
               }
               [arguments setBuffer:(*result)->metal->buffer offset:0 atIndex:tensors];
               [arguments setBuffer:f.staging->buffer offset:0 atIndex:tensors + 1];
-              [encoder useResource:(*result)->metal->buffer usage:MTLResourceUsageWrite];
-              [encoder useResource:f.staging->buffer usage:MTLResourceUsageRead];
+              [encoder
+                  useResource:(*result)->metal->buffer
+                        usage:kernel->numericType ? MTLResourceUsageRead | MTLResourceUsageWrite
+                                                  : MTLResourceUsageWrite];
+              [encoder
+                  useResource:f.staging->buffer
+                        usage:kernel->numericType ? MTLResourceUsageRead | MTLResourceUsageWrite
+                                                  : MTLResourceUsageRead];
               [encoder setBuffer:f.resources->buffer offset:0 atIndex:0];
             } else
               [encoder setBuffer:f.staging->buffer offset:0 atIndex:tensors + 1];
             const auto lanes = matrix ? matmulWorkItems(layout, parameters[0], parameters[2])
-                                      : std::uint64_t(parameters[0]);
+                               : kernel->numericType
+                                   ? std::max(UINT64_C(1), std::uint64_t(parameters[0]))
+                                   : std::uint64_t(parameters[0]);
             [encoder dispatchThreadgroups:MTLSizeMake((lanes + 63) / 64, 1, 1)
                     threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
             [encoder endEncoding];
-            if (f.packet.graph && f.graphPhase == 2) {
+            if ((f.packet.graph && f.graphPhase == 2) || f.packet.numericScalar) {
               id<MTLBlitCommandEncoder> blit = state->permit() ? [command blitCommandEncoder] : nil;
               if (!blit) {
                 task.fault(std::int64_t(Error::Allocation));
@@ -1376,7 +2106,9 @@ struct Bridge {
                        sourceOffset:0
                            toBuffer:f.joinReadback->buffer
                   destinationOffset:0
-                               size:4];
+                               size:f.packet.numericScalar
+                                        ? describeNumeric(*kernel->numericType)->bytes()
+                                        : 4];
               [blit endEncoding];
             }
             if (!state->permit()) {
@@ -1410,13 +2142,17 @@ struct Bridge {
               task.fault(std::int64_t(Error::Allocation));
               return;
             }
-            if (upload)
+            if (upload) {
+              if ((*result)->metal->bytes != source->size)
+                [blit fillBuffer:(*result)->metal->buffer
+                           range:NSMakeRange(0, (*result)->metal->bytes)
+                           value:0];
               [blit copyFromBuffer:f.staging->buffer
                        sourceOffset:0
                            toBuffer:(*result)->metal->buffer
                   destinationOffset:0
                                size:source->size];
-            else
+            } else
               [blit copyFromBuffer:source->metal->buffer
                        sourceOffset:0
                            toBuffer:f.staging->buffer
@@ -1641,21 +2377,60 @@ Runtime::loadElementwiseKernel(std::string_view path, Device device, Elementwise
                                std::span<const std::uint32_t> reads) noexcept {
   return loadKernel(path, std::move(device), true, signature, false, false, reads);
 }
-std::expected<Kernel, Error>
-Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
-                    std::optional<ElementwiseSignature> signature, bool reduction, bool matrix,
-                    std::optional<std::span<const std::uint32_t>> reads) noexcept {
+std::expected<Kernel, Error> Runtime::loadKernel(
+    std::string_view path, Device device, bool elementwise,
+    std::optional<ElementwiseSignature> signature, bool reduction, bool matrix,
+    std::optional<std::span<const std::uint32_t>> reads, std::optional<NumericType> numericType,
+    std::span<const NumericType> tensorTypes, std::span<const NumericType> scalarTypes,
+    std::span<const std::uint8_t> scalarBuffers) noexcept {
   @autoreleasepool {
+    if (numericType &&
+        (!describeNumeric(*numericType) || !signature || !elementwise ||
+         ((matrix || reduction) && signature->binding != ElementwiseBinding::Direct)))
+      return std::unexpected(Error::Invalid);
+    if ((!tensorTypes.empty() &&
+         (!numericType || !signature || tensorTypes.size() != signature->tensors)) ||
+        (!scalarTypes.empty() &&
+         (!numericType || !signature || scalarTypes.size() != signature->scalars)))
+      return std::unexpected(Error::Invalid);
+    for (auto type : tensorTypes)
+      if (!describeNumeric(type))
+        return std::unexpected(Error::Invalid);
+    for (auto type : scalarTypes)
+      if (!describeNumeric(type))
+        return std::unexpected(Error::Invalid);
+    if ((matrix || reduction) && (!tensorTypes.empty() || !scalarTypes.empty()))
+      return std::unexpected(Error::Invalid);
+    if (!scalarBuffers.empty()) {
+      if (!numericType || !signature || scalarBuffers.size() != signature->tensors)
+        return std::unexpected(Error::Invalid);
+      bool seen = false;
+      for (auto role : scalarBuffers) {
+        if (role > 1 || (seen && !role))
+          return std::unexpected(Error::Invalid);
+        seen |= role;
+      }
+    }
+    const auto numericWidth = numericType ? describeNumeric(*numericType)->bytes() : 4;
+    auto scalarWords =
+        signature ? std::uint64_t(signature->scalars) * (numericWidth == 8 ? 2 : 1) : 1;
+    if (!scalarTypes.empty()) {
+      scalarWords = 0;
+      for (auto type : scalarTypes)
+        scalarWords += describeNumeric(type)->bytes() == 8 ? 2 : 1;
+    }
+    const auto parameterWords = 1 + scalarWords + unsigned(numericType.has_value());
     const auto physical = reads ? reads->size() : signature ? signature->tensors : 2;
     const bool indirect = signature && signature->binding == ElementwiseBinding::ArgumentBuffer;
     if ((signature &&
          std::uint32_t(signature->binding) > std::uint32_t(ElementwiseBinding::ArgumentBuffer)) ||
         (indirect && (reduction || matrix || !elementwise)))
       return std::unexpected(Error::Invalid);
-    if ((signature &&
-         (!elementwise || signature->tensors == 0 || signature->scalars == UINT32_MAX)) ||
-        !(indirect ? indirectElementwiseLayout(physical, signature->scalars)
-                   : directElementwiseLayout(physical, signature ? signature->scalars : 0)))
+    if ((signature && (!elementwise || (signature->tensors == 0 && !numericType) ||
+                       signature->scalars == UINT32_MAX)) ||
+        !(numericType && !indirect && physical == 0 ? true
+          : indirect ? indirectElementwiseLayout(physical, signature->scalars)
+                     : directElementwiseLayout(physical, signature ? signature->scalars : 0)))
       return std::unexpected(Error::Invalid);
     if (reads) {
       if (!signature || reduction || matrix)
@@ -1669,8 +2444,7 @@ Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
     if (indirect &&
         state_->devices[device.index_].argumentBuffersSupport != MTLArgumentBuffersTier2)
       return std::unexpected(Error::Unavailable);
-    if (signature &&
-        4ull * (1ull + signature->scalars) > state_->devices[device.index_].maxBufferLength)
+    if (signature && 4ull * parameterWords > state_->devices[device.index_].maxBufferLength)
       return std::unexpected(Error::Unavailable);
     if (path.empty() || path.find('\0') != std::string_view::npos)
       return std::unexpected(Error::Invalid);
@@ -1703,10 +2477,12 @@ Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
                                           error:&error];
         if (!pipeline || pipeline.maxTotalThreadsPerThreadgroup < 64)
           return std::unexpected(Error::Unavailable);
-        // Validate the private dynamic-array ABI, not the numerical contents of arbitrary shaders.
+        // Validate the private dynamic-array ABI, not the numerical contents of
+        // arbitrary shaders.
         const auto tensors = physical;
         const auto parameterIndex = tensors + 1, bindingCount = tensors + 2;
-        const auto words = matrix ? 3 : signature ? signature->scalars + 1 : 2;
+        const auto words = matrix ? (numericType ? 4 : 3) : parameterWords;
+
         if (indirect) {
           if (reflection.bindings.count != 1)
             return std::unexpected(Error::Invalid);
@@ -1733,18 +2509,27 @@ Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
             auto pointer = member.pointerType;
             auto fields = pointer.elementStructType.members;
             const auto count = i == parameterIndex ? words : 1;
+            const auto type = i < tensors && !tensorTypes.empty()
+                                  ? tensorTypes[reads ? (*reads)[i] : i]
+                                  : numericType.value_or(NumericType::Float32);
+            const auto width =
+                i == parameterIndex ? 4 : std::max(describeNumeric(type)->bytes(), 4u);
+            const auto wire = !numericType ? MTLDataTypeFloat
+                              : width == 8 ? MTLDataTypeULong
+                                           : MTLDataTypeUInt;
             if (member.dataType != MTLDataTypePointer || member.argumentIndex != i ||
                 member.offset < last || member.offset % alignof(std::uint64_t) ||
                 member.offset > encoder.encodedLength - sizeof(std::uint64_t) || !pointer ||
                 pointer.elementIsArgumentBuffer || pointer.elementType != MTLDataTypeStruct ||
-                pointer.alignment != 4 || pointer.dataSize != 4ull * count || fields.count != 1)
+                pointer.alignment != width || pointer.dataSize != std::uint64_t(width) * count ||
+                fields.count != 1)
               return std::unexpected(Error::Invalid);
             last = member.offset + sizeof(std::uint64_t);
             MTLStructMember *field = fields[0];
             auto array = field.arrayType;
             if (field.offset != 0 || field.dataType != MTLDataTypeArray || !array ||
-                array.stride != 4 || array.arrayLength != count ||
-                array.elementType != (i == parameterIndex ? MTLDataTypeUInt : MTLDataTypeFloat))
+                array.stride != width || array.arrayLength != count ||
+                array.elementType != (i == parameterIndex ? MTLDataTypeUInt : wire))
               return std::unexpected(Error::Invalid);
           }
           argumentFunction = function;
@@ -1755,28 +2540,63 @@ Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
           return std::unexpected(Error::Invalid);
         bool seen[directBufferEntries] = {};
         for (id<MTLBinding> argument in reflection.bindings) {
+          const auto type = argument.index < tensors && !tensorTypes.empty()
+                                ? tensorTypes[reads ? (*reads)[argument.index] : argument.index]
+                                : numericType.value_or(NumericType::Float32);
+          const auto wireWidth = std::max(describeNumeric(type)->bytes(), 4u);
+          const auto wireType = !numericType     ? MTLDataTypeFloat
+                                : wireWidth == 8 ? MTLDataTypeULong
+                                                 : MTLDataTypeUInt;
           if (argument.type != MTLBindingTypeBuffer || argument.index >= bindingCount ||
               seen[argument.index] ||
               ((id<MTLBufferBinding>)argument).bufferDataSize !=
-                  (argument.index == parameterIndex ? 4ull * words : 4ull))
+                  (argument.index == parameterIndex ? 4ull * words : wireWidth))
             return std::unexpected(Error::Invalid);
           id<MTLBufferBinding> binding = (id<MTLBufferBinding>)argument;
           auto members = binding.bufferStructType.members;
-          if (binding.bufferAlignment != 4 || members.count != 1)
+          if (binding.bufferAlignment != (argument.index == parameterIndex ? 4 : wireWidth) ||
+              members.count != 1)
             return std::unexpected(Error::Invalid);
           MTLStructMember *member = members[0];
           MTLArrayType *array = member.arrayType;
           if (member.offset != 0 || member.dataType != MTLDataTypeArray || !array ||
-              array.stride != 4 ||
+              array.stride != (argument.index == parameterIndex ? 4 : wireWidth) ||
               array.arrayLength != (argument.index == parameterIndex ? words : 1) ||
-              array.elementType !=
-                  (argument.index == parameterIndex ? MTLDataTypeUInt : MTLDataTypeFloat))
+              array.elementType != (argument.index == parameterIndex ? MTLDataTypeUInt : wireType))
             return std::unexpected(Error::Invalid);
           seen[argument.index] = true;
         }
         return pipeline;
       };
-      auto prepared = prepare(matrix        ? @"kalandra_matmul"
+      NSString *numericName = nil;
+      if (numericType)
+        numericName = [(matrix      ? @"kalandra_numeric_v1_matmul_"
+                        : reduction ? @"kalandra_numeric_v1_reduce_"
+                                    : @"kalandra_numeric_v1_")
+            stringByAppendingString:[[NSString alloc]
+                                        initWithBytes:describeNumeric(*numericType)->name.data()
+                                               length:describeNumeric(*numericType)->name.size()
+                                             encoding:NSUTF8StringEncoding]];
+      if (numericType && !matrix && !reduction && (!tensorTypes.empty() || !scalarTypes.empty())) {
+        std::vector<NumericType> ts =
+            tensorTypes.empty() ? std::vector<NumericType>(signature->tensors, *numericType)
+                                : std::vector<NumericType>(tensorTypes.begin(), tensorTypes.end());
+        std::vector<NumericType> ss =
+            scalarTypes.empty() ? std::vector<NumericType>(signature->scalars, *numericType)
+                                : std::vector<NumericType>(scalarTypes.begin(), scalarTypes.end());
+        auto spelling = numericKernelName(*numericType, ts, ss);
+        if (std::any_of(scalarBuffers.begin(), scalarBuffers.end(),
+                        [](auto x) { return x != 0; })) {
+          spelling += "_d_";
+          for (auto role : scalarBuffers)
+            spelling += role ? 's' : 't';
+        }
+        numericName = [[NSString alloc] initWithBytes:spelling.data()
+                                               length:spelling.size()
+                                             encoding:NSUTF8StringEncoding];
+      }
+      auto prepared = prepare(numericType   ? numericName
+                              : matrix      ? @"kalandra_matmul"
                               : reduction   ? @"kalandra_reduce_sum"
                               : indirect    ? @"kalandra_elementwise_v3"
                               : signature   ? @"kalandra_elementwise_v2"
@@ -1788,7 +2608,8 @@ Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
       std::array<id<MTLComputePipelineState>, 2> matrixTiles{};
       // Performance profile qualified on this device. Other Apple GPUs retain
       // the strict scalar entry until their crossover measurements exist.
-      if (matrix && [state_->devices[device.index_].name isEqualToString:@"Apple M2 Max"]) {
+      if (matrix && !numericType &&
+          [state_->devices[device.index_].name isEqualToString:@"Apple M2 Max"]) {
         const std::array<NSString *, 2> names{@"kalandra_matmul_2x1", @"kalandra_matmul_2x2"};
         for (unsigned i = 0; i < names.size(); ++i) {
           if (!state_->permit())
@@ -1804,6 +2625,22 @@ Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
       Kernel kernel;
       auto metadata = std::make_shared<KernelState>(state_, device.index_, pipeline, elementwise,
                                                     reduction, matrix, signature, matrixTiles);
+      metadata->numericType = numericType;
+      if (!scalarBuffers.empty()) {
+        if (!state_->permit())
+          return std::unexpected(Error::Allocation);
+        metadata->scalarBuffers.assign(scalarBuffers.begin(), scalarBuffers.end());
+      }
+      if (!tensorTypes.empty()) {
+        if (!state_->permit())
+          return std::unexpected(Error::Allocation);
+        metadata->tensorTypes.assign(tensorTypes.begin(), tensorTypes.end());
+      }
+      if (!scalarTypes.empty()) {
+        if (!state_->permit())
+          return std::unexpected(Error::Allocation);
+        metadata->scalarTypes.assign(scalarTypes.begin(), scalarTypes.end());
+      }
       metadata->readCount = physical;
       metadata->projected = reads.has_value();
       if (indirect) {
@@ -1823,6 +2660,41 @@ Runtime::loadKernel(std::string_view path, Device device, bool elementwise,
       return std::unexpected(Error::Allocation);
     }
   }
+}
+std::expected<Kernel, Error>
+Runtime::loadNumericKernel(std::string_view path, Device device, NumericType type,
+                           ElementwiseSignature signature,
+                           std::span<const std::uint32_t> reads) noexcept {
+  return loadKernel(path, std::move(device), true, signature, false, false,
+                    reads.empty() ? std::optional<std::span<const std::uint32_t>>{} : reads, type);
+}
+std::expected<Kernel, Error>
+Runtime::loadNumericKernel(std::string_view path, Device device, NumericType result,
+                           ElementwiseSignature signature, std::span<const NumericType> tensors,
+                           std::span<const NumericType> scalars,
+                           std::span<const std::uint32_t> reads) noexcept {
+  return loadKernel(path, std::move(device), true, signature, false, false,
+                    reads.empty() ? std::optional<std::span<const std::uint32_t>>{} : reads, result,
+                    tensors, scalars);
+}
+std::expected<Kernel, Error> Runtime::loadNumericGraphKernel(
+    std::string_view path, Device device, NumericType type, ElementwiseSignature signature,
+    std::span<const NumericType> tensors, std::span<const NumericType> scalars,
+    std::span<const std::uint32_t> reads, std::span<const std::uint8_t> roles) noexcept {
+  return loadKernel(path, std::move(device), true, signature, false, false,
+                    std::optional<std::span<const std::uint32_t>>{reads}, type, tensors, scalars,
+                    roles);
+}
+std::expected<Kernel, Error> Runtime::loadNumericMatmulKernel(std::string_view path, Device device,
+                                                              NumericType type) noexcept {
+  return loadKernel(path, std::move(device), true, ElementwiseSignature{2, 0}, false, true, {},
+                    type);
+}
+std::expected<Kernel, Error> Runtime::loadNumericReductionKernel(std::string_view path,
+                                                                 Device device,
+                                                                 NumericType type) noexcept {
+  return loadKernel(path, std::move(device), true, ElementwiseSignature{1, 0}, true, false, {},
+                    type);
 }
 std::expected<Kernel, Error> Runtime::loadReductionKernel(std::string_view path,
                                                           Device device) noexcept {
@@ -2072,8 +2944,16 @@ TaskHandle Runtime::matmulReduceSum(TaskCore &task, GroupHandle group, Kernel ma
   } else if (!epilogueScalars.empty())
     packet.preparation = Error::Invalid;
   Bridge::matrixMaps(packet, std::move(leftMap), std::move(rightMap), mapInputs, mapScalars);
-  return task.submit(group, Bridge::reductionEntry,
-                     {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
+  auto entry = &Bridge::reductionEntry;
+  if (packet.kernel.state_ && packet.kernel.state_->numericType) {
+    const auto &base = packet.kernel.state_, &end = packet.reduction.state_;
+    if (!end || !end->reduction || base->numericType != end->numericType ||
+        base->registry != end->registry || base->index != end->index || packet.epilogue ||
+        packet.matrixPost || packet.matrixLeftMap || packet.matrixRightMap)
+      packet.preparation = Error::Invalid;
+    entry = &Bridge::numericEntry(*base->numericType);
+  }
+  return task.submit(group, *entry, {entry->packetLayout, &packet, sizeof(packet)});
 }
 TaskHandle Runtime::matmulReduceSum(Task &task, GroupHandle group, Kernel matrix, Kernel reduction,
                                     Buffer left, Buffer right, Kernel leftMap, Kernel rightMap,
@@ -2111,8 +2991,16 @@ TaskHandle Runtime::matmulReduceSum(Task &task, GroupHandle group, Kernel matrix
   } else if (!epilogueScalars.empty())
     packet.preparation = Error::Invalid;
   Bridge::matrixMaps(packet, std::move(leftMap), std::move(rightMap), mapInputs, mapScalars);
-  return task.spawn(group, Bridge::reductionEntry,
-                    {Bridge::reductionEntry.packetLayout, &packet, sizeof(packet)});
+  auto entry = &Bridge::reductionEntry;
+  if (packet.kernel.state_ && packet.kernel.state_->numericType) {
+    const auto &base = packet.kernel.state_, &end = packet.reduction.state_;
+    if (!end || !end->reduction || base->numericType != end->numericType ||
+        base->registry != end->registry || base->index != end->index || packet.epilogue ||
+        packet.matrixPost || packet.matrixLeftMap || packet.matrixRightMap)
+      packet.preparation = Error::Invalid;
+    entry = &Bridge::numericEntry(*base->numericType);
+  }
+  return task.spawn(group, *entry, {entry->packetLayout, &packet, sizeof(packet)});
 }
 TaskHandle Runtime::reduceSum(TaskCore &core, GroupHandle group, Kernel kernel, Buffer input,
                               Kernel epilogue, std::span<const float> scalars) noexcept {
@@ -2270,6 +3158,127 @@ TaskHandle Runtime::elementwise(Task &task, GroupHandle group, Kernel kernel,
   else
     packet.preparation = arguments.error();
   return task.spawn(group, Bridge::entry, {Bridge::entry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::numericProgram(TaskCore &core, GroupHandle group,
+                                   std::span<const Buffer> inputs,
+                                   std::span<const NumericInstruction> code, std::uint32_t result,
+                                   NumericType element, bool scalar) noexcept {
+  Bridge::PacketData packet{state_, {}, {}, Bridge::Kind::Elementwise, {}, BinaryOperation::Add,
+                            {}};
+  auto program = Bridge::captureProgram(state_, inputs, code, result, element, scalar);
+  if (program)
+    packet.numericProgram = *program;
+  else
+    packet.preparation = program.error();
+  const auto &entry = scalar ? Bridge::numericEntry(element) : Bridge::entry;
+  return core.submit(group, entry, {entry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::numericProgram(Task &task, GroupHandle group, std::span<const Buffer> inputs,
+                                   std::span<const NumericInstruction> code, std::uint32_t result,
+                                   NumericType element, bool scalar) noexcept {
+  Bridge::PacketData packet{state_, {}, {}, Bridge::Kind::Elementwise, {}, BinaryOperation::Add,
+                            {}};
+  auto program = Bridge::captureProgram(state_, inputs, code, result, element, scalar);
+  if (program)
+    packet.numericProgram = *program;
+  else
+    packet.preparation = program.error();
+  const auto &entry = scalar ? Bridge::numericEntry(element) : Bridge::entry;
+  return task.spawn(group, entry, {entry.packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::numericElementwise(TaskCore &core, GroupHandle group, Kernel kernel,
+                                       std::span<const Buffer> tensors,
+                                       std::span<const std::uint64_t> scalars, Kernel reduction,
+                                       bool scalarResult) noexcept {
+  Bridge::PacketData packet{state_,
+                            tensors.empty() ? Buffer{} : tensors[0],
+                            {},
+                            Bridge::Kind::Elementwise,
+                            std::move(kernel),
+                            BinaryOperation::Add,
+                            {}};
+  packet.numericScalar = scalarResult;
+  if (scalarResult) {
+    const auto &kernel = packet.kernel.state_;
+    if (!kernel || !kernel->numericType || !tensors.empty() || reduction)
+      packet.preparation = Error::Invalid;
+    else {
+      auto input =
+          allocateStorage(state_, {}, *storageFormat(*kernel->numericType), true, kernel->index);
+      if (input)
+        packet.input = Buffer(*input);
+      else
+        packet.preparation = input.error();
+    }
+  }
+  auto arguments = Bridge::captureNumeric(state_, packet.kernel, tensors, scalars);
+  if (arguments)
+    packet.arguments = *arguments;
+  else
+    packet.preparation = arguments.error();
+  const auto *entry = &Bridge::entry;
+  if (scalarResult)
+    entry = &Bridge::numericEntry(packet.kernel.state_ && packet.kernel.state_->numericType
+                                      ? *packet.kernel.state_->numericType
+                                      : NumericType::Float32);
+  if (reduction) {
+    const auto &base = packet.kernel.state_, &end = reduction.state_;
+    if (!base || !end || !end->numericType || !end->reduction ||
+        base->numericType != end->numericType || base->registry != end->registry ||
+        base->index != end->index)
+      packet.preparation = Error::Invalid;
+    entry = &Bridge::numericEntry(base && base->numericType ? *base->numericType
+                                                            : NumericType::Float32);
+    packet.reduction = std::move(reduction);
+  }
+  return core.submit(group, *entry, {entry->packetLayout, &packet, sizeof(packet)});
+}
+TaskHandle Runtime::numericElementwise(Task &task, GroupHandle group, Kernel kernel,
+                                       std::span<const Buffer> tensors,
+                                       std::span<const std::uint64_t> scalars, Kernel reduction,
+                                       bool scalarResult) noexcept {
+  Bridge::PacketData packet{state_,
+                            tensors.empty() ? Buffer{} : tensors[0],
+                            {},
+                            Bridge::Kind::Elementwise,
+                            std::move(kernel),
+                            BinaryOperation::Add,
+                            {}};
+  packet.numericScalar = scalarResult;
+  if (scalarResult) {
+    const auto &kernel = packet.kernel.state_;
+    if (!kernel || !kernel->numericType || !tensors.empty() || reduction)
+      packet.preparation = Error::Invalid;
+    else {
+      auto input =
+          allocateStorage(state_, {}, *storageFormat(*kernel->numericType), true, kernel->index);
+      if (input)
+        packet.input = Buffer(*input);
+      else
+        packet.preparation = input.error();
+    }
+  }
+  auto arguments = Bridge::captureNumeric(state_, packet.kernel, tensors, scalars);
+  if (arguments)
+    packet.arguments = *arguments;
+  else
+    packet.preparation = arguments.error();
+  const auto *entry = &Bridge::entry;
+  if (scalarResult)
+    entry = &Bridge::numericEntry(packet.kernel.state_ && packet.kernel.state_->numericType
+                                      ? *packet.kernel.state_->numericType
+                                      : NumericType::Float32);
+  if (reduction) {
+    const auto &base = packet.kernel.state_, &end = reduction.state_;
+    if (!base || !end || !end->numericType || !end->reduction ||
+        base->numericType != end->numericType || base->registry != end->registry ||
+        base->index != end->index)
+      packet.preparation = Error::Invalid;
+    entry = &Bridge::numericEntry(base && base->numericType ? *base->numericType
+                                                            : NumericType::Float32);
+    packet.reduction = std::move(reduction);
+  }
+  return task.spawn(group, *entry, {entry->packetLayout, &packet, sizeof(packet)});
 }
 const ValueLayout &Runtime::bufferLayout() noexcept { return Bridge::layout; }
 Stats Runtime::stats() const noexcept {

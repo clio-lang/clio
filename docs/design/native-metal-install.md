@@ -34,7 +34,7 @@ For direct installation, install `NativeEditorTools`, `NativeCPUCompiler` and th
 with the CPU/Metal-capable driver. Archive layout requires `bin`, `lib` and `share`.
 
 LLVM/MLIR/Clang 23.1.3, SPIRV-Cross, SPIRV-Tools, Apple's selected Metal compiler
-and the macOS SDK remain external. Exact SPIR-V roots and Metal toolchain identity
+and the macOS SDK remain external. Exact SPIR-V roots, verified Metal compiler path, SDK path and Metal toolchain identity
 are recorded under `share/kalandra-native-metal/toolchain.json`. This bundle does
 not relocate those dependencies, bundle Apple's compiler, sign/notarize its tools,
 or qualify another platform. The existing CPU-only GitHub tag-release workflow
@@ -133,3 +133,14 @@ records the tested compiler configurations and hardware. These checks qualify
 this scoped numerical CPU/Metal path, not new GPU language features, another
 platform, authenticated transport, or hosted Metal release automation. ASan/UBSan
 and TSan instrument generated host code; they are not shader sanitizers.
+
+
+## Typed numerical programs
+
+The installed compiler includes the typed graph compiler and strict64 shader
+lowering resource. Relocation acceptance builds all ten numeric types through
+rank-eight maps, resident sums/feedback, selected numerical stages, conversion
+to binary64 and CPU workers, in all four host modes. The applications run again
+after deleting the compiler bundle and moving their directories. Missing
+strict64 resources reject compilation while preserving a previous application.
+See the [typed program contract](native-gpu-typed-programs.md).

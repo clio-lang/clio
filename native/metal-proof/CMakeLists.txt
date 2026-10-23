@@ -1,5 +1,5 @@
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/toolchain.json" METAL_LOCK)
-foreach(KEY IN ITEMS spirvCrossRoot spirvToolsRoot metalToolchain metalCompilerVersion metalLanguageVersion mslVersion strictMetalLanguageVersion strictMslVersion)
+foreach(KEY IN ITEMS spirvCrossRoot spirvToolsRoot metalToolchain metalCompilerVersion metalLanguageVersion mslVersion strictMetalLanguageVersion strictMslVersion typedMetalLanguageVersion typedMslVersion)
   string(JSON LOCK_${KEY} GET "${METAL_LOCK}" "${KEY}")
 endforeach()
 set(KALANDRA_SPIRV_CROSS_ROOT "${LOCK_spirvCrossRoot}" CACHE PATH "Pinned SPIRV-Cross")
@@ -13,11 +13,7 @@ foreach(TOOL IN ITEMS "${CROSS}" "${VALIDATOR}" "${DISASSEMBLER}")
     message(FATAL_ERROR "Metal proof dependency missing: ${TOOL}; see native/metal-proof/README.md")
   endif()
 endforeach()
-execute_process(COMMAND xcrun --toolchain "${KALANDRA_METAL_TOOLCHAIN}" metal --version
-  OUTPUT_VARIABLE METAL_VERSION ERROR_VARIABLE METAL_ERROR RESULT_VARIABLE STATUS)
-if(NOT STATUS EQUAL 0 OR NOT METAL_VERSION MATCHES "Apple metal version ${LOCK_metalCompilerVersion}")
-  message(FATAL_ERROR "Pinned Metal compiler unavailable: ${METAL_VERSION}${METAL_ERROR}")
-endif()
+include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/MetalToolchain.cmake")
 execute_process(COMMAND "${CROSS}" --revision OUTPUT_VARIABLE CROSS_VERSION ERROR_VARIABLE CROSS_ERROR)
 execute_process(COMMAND "${VALIDATOR}" --version OUTPUT_VARIABLE VALIDATOR_VERSION)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/versions.txt"
@@ -48,10 +44,10 @@ foreach(ROUNDING_POLICY IN ITEMS decorated compiler-rounding)
     COMMAND "${DISASSEMBLER}" "${BASE}.spv" -o "${BASE}.spvasm"
     COMMAND "${CROSS}" "${BASE}.spv" --reflect --output "${BASE}.reflection.json"
     COMMAND "${CROSS}" "${BASE}.spv" --msl --msl-version "${LOCK_mslVersion}" --output "${BASE}.metal"
-    COMMAND xcrun --toolchain "${KALANDRA_METAL_TOOLCHAIN}" --sdk macosx metal
+    COMMAND "${KALANDRA_METAL_COMPILER}" -isysroot "${KALANDRA_METAL_SDK}"
       "-std=${LOCK_metalLanguageVersion}" -fno-fast-math -ffp-contract=off
       "-fmodules-cache-path=${OUT}/module-cache" -c "${BASE}.metal" -o "${BASE}.air"
-    COMMAND xcrun --toolchain "${KALANDRA_METAL_TOOLCHAIN}" metal "${BASE}.air" -o "${BASE}.metallib"
+    COMMAND "${KALANDRA_METAL_COMPILER}" "${BASE}.air" -o "${BASE}.metallib"
     DEPENDS "${OUT}/converted.mlir" kalandra-metal-extract toolchain.json
     BYPRODUCTS "${BASE}.mlir" "${BASE}.spv" "${BASE}.air" VERBATIM)
   list(APPEND OUTPUTS "${BASE}.metallib" "${BASE}.reflection.json" "${BASE}.spvasm" "${BASE}.metal")
@@ -104,10 +100,10 @@ add_custom_command(OUTPUT "${OUT}/strict.lowered.mlir" "${OUT}/strict.metallib" 
   COMMAND "${DISASSEMBLER}" "${OUT}/strict.spv" -o "${OUT}/strict.spvasm"
   COMMAND "${CROSS}" "${OUT}/strict.spv" --reflect --output "${OUT}/strict.reflection.json"
   COMMAND "${CROSS}" "${OUT}/strict.spv" --msl --msl-version "${LOCK_strictMslVersion}" --output "${OUT}/strict.metal"
-  COMMAND xcrun --toolchain "${KALANDRA_METAL_TOOLCHAIN}" --sdk macosx metal
+  COMMAND "${KALANDRA_METAL_COMPILER}" -isysroot "${KALANDRA_METAL_SDK}"
     "-std=${LOCK_strictMetalLanguageVersion}" -fno-fast-math -ffp-contract=off "-fmodules-cache-path=${OUT}/module-cache"
     -c "${OUT}/strict.metal" -o "${OUT}/strict.air"
-  COMMAND xcrun --toolchain "${KALANDRA_METAL_TOOLCHAIN}" metal "${OUT}/strict.air" -o "${OUT}/strict.metallib"
+  COMMAND "${KALANDRA_METAL_COMPILER}" "${OUT}/strict.air" -o "${OUT}/strict.metallib"
   DEPENDS strict-gpu.mlir kalandra-metal-strict kalandra-metal-extract toolchain.json
   BYPRODUCTS "${OUT}/strict.converted.mlir" "${OUT}/strict.kernel.mlir" "${OUT}/strict.spv" "${OUT}/strict.air" VERBATIM)
 add_custom_command(OUTPUT "${OUT}/runtime.lowered.mlir" "${OUT}/runtime.metallib" "${OUT}/runtime.spvasm" "${OUT}/runtime.reflection.json" "${OUT}/runtime.metal"
@@ -121,10 +117,10 @@ add_custom_command(OUTPUT "${OUT}/runtime.lowered.mlir" "${OUT}/runtime.metallib
   COMMAND "${DISASSEMBLER}" "${OUT}/runtime.spv" -o "${OUT}/runtime.spvasm"
   COMMAND "${CROSS}" "${OUT}/runtime.spv" --reflect --output "${OUT}/runtime.reflection.json"
   COMMAND "${CROSS}" "${OUT}/runtime.spv" --msl --msl-version "${LOCK_strictMslVersion}" --output "${OUT}/runtime.metal"
-  COMMAND xcrun --toolchain "${KALANDRA_METAL_TOOLCHAIN}" --sdk macosx metal
+  COMMAND "${KALANDRA_METAL_COMPILER}" -isysroot "${KALANDRA_METAL_SDK}"
     "-std=${LOCK_strictMetalLanguageVersion}" -fno-fast-math -ffp-contract=off "-fmodules-cache-path=${OUT}/module-cache"
     -c "${OUT}/runtime.metal" -o "${OUT}/runtime.air"
-  COMMAND xcrun --toolchain "${KALANDRA_METAL_TOOLCHAIN}" metal "${OUT}/runtime.air" -o "${OUT}/runtime.metallib"
+  COMMAND "${KALANDRA_METAL_COMPILER}" "${OUT}/runtime.air" -o "${OUT}/runtime.metallib"
   DEPENDS runtime-gpu.mlir kalandra-metal-strict kalandra-metal-extract toolchain.json
   BYPRODUCTS "${OUT}/runtime.converted.mlir" "${OUT}/runtime.kernel.mlir" "${OUT}/runtime.spv" "${OUT}/runtime.air" VERBATIM)
 add_custom_target(native-metal-runtime-shader ALL DEPENDS "${OUT}/runtime.metallib")
@@ -185,3 +181,31 @@ if(BUILD_TESTING)
     -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyIntegerMinMax.cmake")
   set_tests_properties(metal-integer-minmax PROPERTIES TIMEOUT 30)
 endif()
+
+if(BUILD_TESTING)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  add_test(NAME native-metal-toolchain-selection COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ToolchainSelectionTests.py" "${CMAKE_COMMAND}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/MetalToolchain.cmake"
+    "${KALANDRA_METAL_COMPILER}" "${LOCK_metalCompilerVersion}")
+endif()
+
+include(Strict64Gpu.cmake)
+
+add_executable(kalandra-metal-integer Integer.cpp)
+target_link_libraries(kalandra-metal-integer PRIVATE kalandra-gpu-numeric)
+target_compile_options(kalandra-metal-integer PRIVATE -Wall -Wextra -Werror)
+
+include(Integer.cmake)
+
+add_executable(kalandra-metal-numeric-wire NumericWire.cpp)
+target_link_libraries(kalandra-metal-numeric-wire PRIVATE kalandra-gpu-numeric kalandra-metal-source-backend)
+target_compile_options(kalandra-metal-numeric-wire PRIVATE -Wall -Wextra -Werror)
+
+include(NumericWire.cmake)
+
+add_executable(kalandra-metal-conversion Conversion.cpp)
+target_link_libraries(kalandra-metal-conversion PRIVATE kalandra-gpu-numeric MLIR LLVM)
+target_compile_options(kalandra-metal-conversion PRIVATE -Wall -Wextra -Werror)
+
+include(Conversion.cmake)

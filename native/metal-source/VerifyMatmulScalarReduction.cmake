@@ -1,3 +1,4 @@
+include("${CMAKE_CURRENT_LIST_DIR}/VerifyAdmitted.cmake")
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/src")
 set(ROOT "${OUTPUT_DIR}/src")
 file(READ "${SOURCE_DIR}/matmul-scalar-reduction.k" SOURCE)
@@ -112,7 +113,7 @@ if(NOT DEFINED VARIANT)
       string(REPLACE "  result(reduceSum(finish(product, bias, scale)), scale)" "  ignored=reduceSum(product)\n  result(reduceSum(finish(product,bias,scale)),scale)" BAD "${BAD}")
     endif()
     file(WRITE "${ROOT}/operations.k" "${BAD}")
-    reject(${BOUNDARY} "${MAIN}")
+    admit_case(${BOUNDARY} "${MAIN}")
   endforeach()
   # A pure choice over the completed scalar is now admitted.
   string(REPLACE "  -(value + scale) / scale" "  if scale > 0: value\n  else: 0" CHOICE "${OPS}")

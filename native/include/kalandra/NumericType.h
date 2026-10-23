@@ -77,7 +77,7 @@ constexpr bool numericArithmeticAvailable(NumericType type, NumericTarget target
     return type == NumericType::Float32 || type == NumericType::Float64 || isInteger32(type) ||
            type == NumericType::Int64 || type == NumericType::UInt64;
   case NumericTarget::AppleGpu:
-    return type == NumericType::Float32;
+    return describeNumeric(type).has_value();
   }
   return false;
 }
@@ -104,9 +104,9 @@ constexpr bool numericReductionAvailable(NumericType type, NumericTarget target)
 constexpr bool numericMatmulAvailable(NumericType type, NumericTarget target) {
   return numericTensorElementwiseAvailable(type, target);
 }
-// Tensor casts use the checked scalar conversion engine lane by lane on CPU.
+// Tensor casts preserve checked scalar conversion semantics lane by lane.
 constexpr bool numericTensorConversionAvailable(NumericType type, NumericTarget target) {
-  return target == NumericTarget::Cpu && numericScalarArithmeticAvailable(type, target);
+  return numericScalarArithmeticAvailable(type, target);
 }
 // Collection storage is separate from tensor arithmetic capability. CPU arrays
 // can retain every implemented scalar width without enabling tensor operations.

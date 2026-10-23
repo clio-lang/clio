@@ -1,6 +1,6 @@
 # Apple device, transfer, and compute runtime
 
-This optional native C++23/Objective-C++ library implements retained tensor storage and asynchronous CPU↔Metal transfers through the existing task scheduler. It has been exercised on an Apple M2 Max. It also dispatches a private strict binary32 elementwise kernel through managed tasks. A separate optional source compiler now uses this bridge for a first bounded `.k` placement slice.
+This optional native C++23/Objective-C++ library implements retained tensor storage and asynchronous CPU↔Metal transfers through the existing task scheduler. It has been exercised on an Apple M2 Max. The source compiler dispatches strict typed numerical graphs through managed tasks for all ten numeric types and tensor ranks zero through eight. See the [current typed program contract](../../docs/design/native-gpu-typed-programs.md); the sections below also retain the earlier binary32 integration history.
 
 ## Build
 
@@ -21,7 +21,7 @@ The CPU-only suite has 47 tests, including platform-independent external-complet
 [Metal.h](Metal.h) exposes ordinary C++ values, not Objective-C objects or shader parameters:
 
 - `Runtime::create` snapshots Metal devices sorted by registry ID and retains a command queue for each. The default index is zero unless configured; indexed/default selectors refer to that same snapshot. Missing devices and invalid defaults/indices return an explicit error.
-- `hostTensor` checks rank (up to eight), nonnegative dimensions, byte-size arithmetic, and exact supplied byte length, then copies into an immutable host backing. A zero extent makes the payload empty even if an unused dimension is enormous. Rank zero represents one scalar element. Supported transfer representations are float32, uint32, and uint8; this does not declare arithmetic support for those formats.
+- `hostTensor` checks rank (up to eight), nonnegative dimensions, byte-size arithmetic, and exact supplied byte length, then copies into an immutable host backing. A zero extent makes the payload empty even if an unused dimension is enormous. Rank zero represents one scalar element. Supported transfer representations cover all ten native numeric types; storage support does not enable source arithmetic.
 - `Buffer` retains its backing through copies. Shape, format, and logical byte size are immutable. A host byte view is read-only and borrows from the buffer; the caller must retain it while using that view. A device buffer rejects host byte access. Raw Metal handles and writable backing pointers are not exposed.
 - `upload` and `download` return ordinary `TaskHandle`s. Host callers submit to their root groups; native task entries can spawn transfer children in their own groups. Use `bufferLayout()` with the existing task observation/read protocol. Its copy function constructs a Buffer in uninitialized aligned output storage, as required by `ValueLayout`; callers must destroy that constructed value.
 - An already-resident transfer returns a retained alias without submitting a command. Other transfers allocate fresh destination storage and use explicit private Metal buffers plus shared staging. Device buffers from another runtime registry and foreign target handles are rejected by this first bridge, even if the physical GPU is the same. General cross-registry/device transfers remain unsupported.
@@ -86,7 +86,7 @@ The [common compiler and CPU tensor ABI](../../docs/design/apple-gpu.md#common-c
 
 ## Source kernel signatures
 
-The source compiler also emits `kalandra_elementwise_v2` for dense rank-one/rank-two float32 inputs with signature-sized scalar captures. The direct Metal layout supports up to 29 contributing input tensors; larger source calls select a Tier 2 argument buffer. The former eight-scalar array cap is removed. Use `loadElementwiseKernel(path, device, ElementwiseSignature{tensorCount, scalarCount})` and the `elementwise` overload taking tensor/scalar spans. Submission copies Buffer owners and scalar bits into bounded owned arrays; the spans may be released or changed immediately afterward. Counts must match the loaded signature. All tensors must reside on its device; contributing tensors must have equal ranks and complete shapes, not just equal byte lengths. Unused tensors may have unrelated shapes. Outputs preserve the contributing domain. The older private `compute` operation interface remains rank-one.
+The source compiler also emits `kalandra_elementwise_v2` for dense rank-one through rank-eight float32 inputs with signature-sized scalar captures. The direct Metal layout supports up to 29 contributing input tensors; larger source calls select a Tier 2 argument buffer. The former eight-scalar array cap is removed. Use `loadElementwiseKernel(path, device, ElementwiseSignature{tensorCount, scalarCount})` and the `elementwise` overload taking tensor/scalar spans. Submission copies Buffer owners and scalar bits into bounded owned arrays; the spans may be released or changed immediately afterward. Counts must match the loaded signature. All tensors must reside on its device; contributing tensors must have equal ranks and complete shapes, not just equal byte lengths. Unused tensors may have unrelated shapes. Outputs preserve the contributing domain. The older private `compute` operation interface remains rank-one.
 
 Bindings contain packed tensor inputs, output, then a uint32 array with element count and scalar bits. Reflection checks the declared signature. Device parameter storage is four bytes plus four per scalar, charged to the tensor/staging budget and retained until completion acknowledgement. Host capture arrays use the separate `maxArgumentBytes` budget (1 MiB by default), with `argumentBytes`, `peakArgumentBytes` and `argumentPacks` counters. Requested array payload is counted; allocator/control overhead is excluded. Empty outputs require no encoded command. The existing two-input/no-scalar source ABI and proof kernel remain supported by their original overloads. See the [source scope and conformance](../../docs/design/apple-gpu.md#gpu-entry-scalar-parameters).
 
@@ -94,13 +94,13 @@ See [matrix helpers and resident pipeline qualification](../../docs/design/apple
 
 ## Reduction tasks and scalar outcomes
 
-`loadReductionKernel(path, device)` validates the private source-generated `kalandra_reduce_sum` entry. `reduceSum(core, group, kernel, input)` and its Task overload return float32-valued tasks observed with `Runtime::scalarLayout()`. Inputs must be dense rank-one or rank-two float32 device buffers in the loaded kernel's registry/device. Empty input returns positive zero with no command; singleton input preserves exact bits. Unsupported kinds, formats, ranks and residency fail before submission.
+`loadReductionKernel(path, device)` validates the private source-generated `kalandra_reduce_sum` entry. `reduceSum(core, group, kernel, input)` and its Task overload return float32-valued tasks observed with `Runtime::scalarLayout()`. Inputs must be dense rank-one through rank-eight float32 device buffers in the loaded kernel's registry/device. Empty input returns positive zero with no command; singleton input preserves exact bits. Unsupported kinds, formats, ranks and residency fail before submission.
 
 Nonempty reductions encode the fixed adjacent-pair tree in flat row-major order, carrying an odd element forward, and read back only the final four-byte scalar. Each invocation reuses two private output buffers, sized for its first two levels; later levels only shrink. One explicitly serial compute encoder preserves dispatch and resource ordering across all levels. Fallible scratch/count preparation finishes before the encoder opens. Each level has its own immutable count word. Apple-family GPUs pack these into one shared buffer with distinct four-byte-aligned offsets; other GPUs retain separate offset-zero buffers. The input, kernel, both output buffers and scalar staging remain retained through command acknowledgement, including cancellation. Scratch, parameter and readback bytes share the existing budget; one command admission covers the complete tree and final scalar copy. Cancellation cannot preempt the encoded tree. See [source scope, numerical evidence and limitations](../../docs/design/apple-gpu.md#rank-one-gpu-reductions).
 
 The [scratch reuse comparison](../../benchmarks/results/native-gpu-2026-10-15-reduction-reuse.md) records memory bounds and warm timing. Scratch is local to each invocation; cancellation of one reduction does not affect another. The [serial batching comparison](../../benchmarks/results/native-gpu-2026-10-16-reduction-batching.md) now records one encoder for all levels, unchanged memory bounds and roughly flat warm latency; no throughput improvement is claimed for batching alone. The [parameter packing comparison](../../benchmarks/results/native-gpu-2026-10-16-reduction-parameters.md) records the subsequent reduction in temporary buffer objects, with unchanged payload bounds.
 
-Matrix results can feed a reduction on the same device without downloading their elements. Only the final scalar is copied to the host. Source parameter ranks remain checked; rank-zero/rank-three and non-float32 inputs are rejected. See [rank-two reduction scope and conformance](../../docs/design/apple-gpu.md#rank-two-gpu-reductions).
+Matrix results can feed a reduction on the same device without downloading their elements. Only the final scalar is copied to the host. Source parameter ranks remain checked; rank-zero and non-float32 source inputs remain gated. See [rank-two reduction scope and conformance](../../docs/design/apple-gpu.md#rank-two-gpu-reductions).
 
 ## Matrix multiplication tasks
 
@@ -121,3 +121,31 @@ For the private indirect entry ABI, use `ElementwiseSignature{tensorCount, scala
 [Whole-tensor unary arithmetic](../../docs/design/apple-gpu.md#whole-tensor-unary-arithmetic) now supports `-values` in rank-one/rank-two float32 GPU helpers. It changes only each element's sign bit, preserving payloads and shapes; double negation and unary plus preserve exact original bits. Source shape guards, owned captures, direct/Tier 2 layout selection and acknowledgement-safe cleanup remain in place.
 
 [Strict float32 division](../../docs/design/apple-gpu.md#strict-tensor-division) now supports tensor/tensor and either scalar/tensor order, including transitive scalar reciprocal helpers. Division retains separately rounded results rather than becoming multiplication by a reciprocal.
+
+## Typed numerical task ABI
+
+`loadNumericKernel` checks an exact type-qualified `kalandra_numeric_v1_TYPE`
+entry and its integer-bit buffer/parameter layout. `numericElementwise` copies
+exact scalar words and Buffer owners into budgeted captures. Arithmetic faults
+are reported through a device-written first-fault index; a failed task never
+publishes its partial output. All ten formats have private task qualification.
+The source compiler now uses this interface for all-ten-type maps, sums, rank-two products and composed resident programs. See [typed programs](../../docs/design/native-gpu-typed-programs.md) for the source boundary and qualification suites.
+
+The converter packs 8/16-bit buffer elements into 32-bit words. Device backing
+allocations round those formats up to a complete word and charge the physical
+size, while public shapes/byte counts remain logical. Upload padding and packed
+output words are initialized before shader access. Generic typed empty maps
+retain an owned dummy word and dispatch uniform validation, so checked
+scalar expressions cannot disappear when the tensor domain is empty. Existing
+binary32 source kernels retain their separate empty-output fast path.
+
+
+`loadNumericGraphKernel` additionally validates heterogeneous source/destination
+formats and resident scalar roles. `numericProgram` owns a forward instruction
+program and reclaims values after executed or skipped last uses. Numerical
+intermediates remain resident; selected predicates and final scalar results
+use asynchronous readback. Branch-local checks execute only on the selected
+path. Typed multilevel reductions preserve checked tree additions and acknowledge
+all pending resources before cancellation/deadline settlement. The private
+[typed runtime tests](NumericTests.cpp) cover malformed interfaces, allocation
+and device failures, byte/capture budgets, cancellation, deadlines and cleanup.

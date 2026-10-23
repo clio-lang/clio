@@ -28,10 +28,18 @@ m::Buffer observe(TaskCore &core, TaskHandle child) {
   value->~Buffer();
   return result;
 }
-template <NumericType Type> void roundtrip(m::Runtime &runtime) {
+template <NumericType Type, std::size_t Rank = 1> void roundtrip(m::Runtime &runtime) {
   using T = NumericValue<Type>;
   std::optional<m::Buffer> host;
-  std::array<std::byte, 3 * sizeof(T)> pattern{};
+  constexpr std::size_t count = Rank == 0 ? 1 : 3;
+  std::array<std::byte, count * sizeof(T)> pattern{};
+  std::array<std::int64_t, Rank> sizes{}, strides{};
+  sizes.fill(1);
+  strides.fill(count);
+  if constexpr (Rank > 0) {
+    sizes.back() = count;
+    strides.back() = 1;
+  }
   for (std::size_t i = 0; i < pattern.size(); ++i)
     pattern[i] = std::byte((i * 83 + 31) & 255);
   {
@@ -39,7 +47,13 @@ template <NumericType Type> void roundtrip(m::Runtime &runtime) {
     auto *data = static_cast<T *>(source.allocate(5 * sizeof(T)));
     CHECK(data);
     std::memcpy(data + 1, pattern.data(), pattern.size());
-    CpuTensor<Type, 1> descriptor{data, data, 1, {3}, {1}};
+    CpuTensor<Type, Rank> descriptor{};
+    descriptor.allocated = descriptor.aligned = data;
+    descriptor.offset = 1;
+    if constexpr (Rank > 0) {
+      descriptor.sizes = sizes;
+      descriptor.strides = strides;
+    }
     auto imported = runtime.fromCpu(source, descriptor.view());
     CHECK(imported);
     host = *imported;
@@ -50,12 +64,10 @@ template <NumericType Type> void roundtrip(m::Runtime &runtime) {
     CHECK(!source.live());
   }
   Invocation output;
-  auto other = Type == NumericType::Float32 ? NumericType::UInt32 : NumericType::Float32;
-  CHECK((!runtime.toCpuTyped<NumericType::Float64, 1>(output, *host)));
-  if (other == NumericType::Float32)
-    CHECK(!runtime.toCpu<1>(output, *host));
+  if constexpr (Type == NumericType::Float64)
+    CHECK((!runtime.toCpuTyped<NumericType::Float32, Rank>(output, *host)));
   else
-    CHECK((!runtime.toCpuTyped<NumericType::UInt32, 1>(output, *host)));
+    CHECK((!runtime.toCpuTyped<NumericType::Float64, Rank>(output, *host)));
   CHECK(!output.live());
   for (unsigned workers : {1u, 2u, 4u}) {
     TaskLimits limits;
@@ -66,13 +78,15 @@ template <NumericType Type> void roundtrip(m::Runtime &runtime) {
     auto up = runtime.upload(*core, group, *host, *runtime.device());
     CHECK(up && core->drain());
     auto device = observe(*core, up);
-    CHECK((!runtime.toCpuTyped<Type, 1>(output, device)) && !output.live());
+    CHECK((!runtime.toCpuTyped<Type, Rank>(output, device)) && !output.live());
     auto down = runtime.download(*core, group, device);
     CHECK(down && core->drain());
     auto result = observe(*core, down);
-    auto copied = runtime.toCpuTyped<Type, 1>(output, result);
+    auto copied = runtime.toCpuTyped<Type, Rank>(output, result);
     CHECK(copied && !std::memcmp(copied->aligned, pattern.data(), pattern.size()));
-    CHECK(copied->sizes[0] == 3 && copied->strides[0] == 1 && copied->offset == 0);
+    CHECK(copied->offset == 0);
+    if constexpr (Rank > 0)
+      CHECK(copied->sizes == sizes && copied->strides == strides);
     CHECK(core->close(group) && core->drain() && core->release(group));
     output.release(copied->allocated);
     result = {};
@@ -82,37 +96,50 @@ template <NumericType Type> void roundtrip(m::Runtime &runtime) {
   }
   Invocation failed;
   failed.failAllocationAt(1);
-  CHECK((!runtime.toCpuTyped<Type, 1>(failed, *host)) && !failed.live() && failed.status() == 2);
+  CHECK((!runtime.toCpuTyped<Type, Rank>(failed, *host)) && !failed.live() && failed.status() == 2);
   host.reset();
   empty(runtime);
-  Invocation zero;
-  CpuTensor<Type, 1> descriptor{reinterpret_cast<T *>(1), reinterpret_cast<T *>(3), 0, {0}, {-1}};
-  auto imported = runtime.fromCpu(zero, descriptor.view());
-  CHECK(imported);
-  auto copied = runtime.toCpuTyped<Type, 1>(zero, *imported);
-  CHECK(copied);
-  CHECK(copied->sizes[0] == 0 && copied->strides[0] == 1);
-  zero.release(copied->allocated);
-  imported = {};
-  empty(runtime);
+  if constexpr (Rank > 0) {
+    Invocation zero;
+    sizes.back() = 0;
+    strides.fill(-1);
+    CpuTensor<Type, Rank> descriptor{reinterpret_cast<T *>(1), reinterpret_cast<T *>(3), 0, sizes,
+                                     strides};
+    auto imported = runtime.fromCpu(zero, descriptor.view());
+    CHECK(imported);
+    auto copied = runtime.toCpuTyped<Type, Rank>(zero, *imported);
+    CHECK(copied && copied->sizes == sizes);
+    zero.release(copied->allocated);
+    imported = {};
+    empty(runtime);
+  }
 }
 int main() {
   auto made = m::Runtime::create();
   CHECK(made);
   auto runtime = std::move(*made);
   CHECK(&m::Runtime::scalarLayout() == numericScalarLayout(NumericType::Float32));
-  roundtrip<NumericType::Float32>(*runtime);
-  roundtrip<NumericType::UInt32>(*runtime);
-  roundtrip<NumericType::UInt8>(*runtime);
-  // CPU-only formats are explicitly rejected by the current Metal storage bridge.
+  const auto qualify = [&]<NumericType Type>() {
+    [&]<std::size_t... Rank>(std::index_sequence<Rank...>) {
+      (roundtrip<Type, Rank>(*runtime), ...);
+    }(std::make_index_sequence<9>{});
+  };
+  qualify.template operator()<NumericType::Int8>();
+  qualify.template operator()<NumericType::Int16>();
+  qualify.template operator()<NumericType::Int32>();
+  qualify.template operator()<NumericType::Int64>();
+  qualify.template operator()<NumericType::UInt8>();
+  qualify.template operator()<NumericType::UInt16>();
+  qualify.template operator()<NumericType::UInt32>();
+  qualify.template operator()<NumericType::UInt64>();
+  qualify.template operator()<NumericType::Float32>();
+  qualify.template operator()<NumericType::Float64>();
   Invocation source;
-  auto *data = static_cast<double *>(source.allocate(8));
+  auto *data = source.allocate(8);
   CHECK(data);
-  CpuTensor<NumericType::Float64, 1> fp64{data, data, 0, {1}, {1}};
-  CHECK(!runtime->fromCpu(source, fp64.view()));
-  auto raw = fp64.view();
-  raw.element = NumericType::Int64;
-  CHECK(!runtime->fromCpu(source, raw));
+  CpuTensor<NumericType::Float64, 1> descriptor{
+      static_cast<double *>(data), static_cast<double *>(data), 0, {1}, {1}};
+  auto raw = descriptor.view();
   raw.element = static_cast<NumericType>(255);
   CHECK(!runtime->fromCpu(source, raw));
   source.release(data);
@@ -124,7 +151,8 @@ int main() {
   untagged.strides = stride;
   CHECK(!runtime->fromCpu(source, untagged));
   empty(*runtime);
-  std::puts("Typed CPU/Metal storage: float32/uint32/uint8 bit-preserving transfers, scalar layout "
-            "identity, zero-copy leases, width-aware offsets/budgets and mismatch/unsupported "
+  std::puts("Typed CPU/Metal storage: all ten numeric types/ranks zero through eight "
+            "bit-preserving transfers, scalar layout "
+            "identity, zero-copy leases, width-aware offsets/budgets and mismatch/invalid "
             "rejection passed");
 }

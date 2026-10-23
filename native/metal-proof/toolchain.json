@@ -8,5 +8,7 @@
   "metalLanguageVersion": "macos-metal2.1",
   "mslVersion": 20100,
   "strictMslVersion": 20200,
-  "strictMetalLanguageVersion": "macos-metal2.2"
+  "strictMetalLanguageVersion": "macos-metal2.2",
+  "typedMslVersion": 20300,
+  "typedMetalLanguageVersion": "macos-metal2.3"
 }

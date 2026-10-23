@@ -1,3 +1,4 @@
+include("${CMAKE_CURRENT_LIST_DIR}/VerifyAdmitted.cmake")
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/src")
 set(ROOT "${OUTPUT_DIR}/src")
 file(READ "${SOURCE_DIR}/pre-matmul.k" SOURCE)
@@ -99,7 +100,7 @@ compile(reused "${SQUARE_FN}${SQUARE_MAIN}")
 if(NOT DEFINED VARIANT)
   string(REPLACE "  product = matmul" "  ignored = matmul(input, weights)\n  product = matmul" BAD "${OPS}")
   file(WRITE "${ROOT}/operations.k" "${BAD}")
-  reject(two-matrices "${MAIN}")
+  admit_case(two-matrices "${MAIN}")
   # Pure same-source choices also compose through operand helpers.
   set(BRANCH "fn choose(v:Tensor[float32,?,?],s:float32)->Tensor[float32,?,?]:\n  if s > 0: v+1\n  else: v\n")
   string(REPLACE "input + scale" "choose(input,scale)" BAD "${OPS}")

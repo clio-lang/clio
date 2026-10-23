@@ -8,8 +8,8 @@
 namespace kalandra {
 namespace {
 using namespace mlir;
-template <unsigned Fraction, unsigned Exponent> class IntegerFloat {
-  static constexpr unsigned Width = Fraction == 23 ? 64 : 128;
+template <unsigned Fraction, unsigned Exponent, bool Compact = false> class IntegerFloat {
+  static constexpr unsigned Width = Fraction == 23 || Compact ? 64 : 128;
   static constexpr unsigned Bits = Fraction == 23 ? 32 : 64;
   static constexpr std::uint64_t Hidden = std::uint64_t{1} << Fraction;
   static constexpr std::uint64_t Sign = std::uint64_t{1} << (Bits - 1);
@@ -49,8 +49,16 @@ template <unsigned Fraction, unsigned Exponent> class IntegerFloat {
   Value slt(Value x, Value y) { return cmp(arith::CmpIPredicate::slt, x, y); }
   Value choose(Value p, Value x, Value y) { return arith::SelectOp::create(b, loc, p, x, y); }
   Value all(Value x, Value y) { return bitAnd(x, y); }
-  Value wide(Value x) { return arith::ExtUIOp::create(b, loc, b.getIntegerType(Width), x); }
-  Value narrow(Value x) { return arith::TruncIOp::create(b, loc, b.getIntegerType(Bits), x); }
+  Value wide(Value x) {
+    if constexpr (Width == Bits)
+      return x;
+    return arith::ExtUIOp::create(b, loc, b.getIntegerType(Width), x);
+  }
+  Value narrow(Value x) {
+    if constexpr (Width == Bits)
+      return x;
+    return arith::TruncIOp::create(b, loc, b.getIntegerType(Bits), x);
+  }
   Value nonzero(Value x) { return cmp(arith::CmpIPredicate::ne, x, c(0)); }
   // Every emitted shift stays in 1..Width-1, including eagerly evaluated select arms.
   // Bit zero jams discarded bits; count >= Width reduces any nonzero value to 1.
@@ -132,9 +140,29 @@ template <unsigned Fraction, unsigned Exponent> class IntegerFloat {
   Value multiplication(Parts a, Parts d) {
     auto [sigA, expA] = normalize(a.significand, a.exponent, Fraction, 1 - std::int64_t(Fraction));
     auto [sigB, expB] = normalize(d.significand, d.exponent, Fraction, 1 - std::int64_t(Fraction));
-    auto product = arith::MulIOp::create(b, loc, sigA, sigB);
-    auto high = nonzero(bitAnd(product, power(2 * Fraction + 1)));
-    auto sig = jam(product, choose(high, c(Fraction - 2), c(Fraction - 3)));
+    Value high, sig;
+    if constexpr (Compact && Fraction == 52) {
+      // Exact 53x53 product, represented by two 64-bit limbs. Every partial
+      // product and the middle-column carry fits in an unsigned 64-bit word.
+      auto mask = c(UINT32_MAX);
+      auto loA = bitAnd(sigA, mask), hiA = shr(sigA, c(32));
+      auto loB = bitAnd(sigB, mask), hiB = shr(sigB, c(32));
+      auto mul = [&](Value x, Value y) -> Value { return arith::MulIOp::create(b, loc, x, y); };
+      auto p00 = mul(loA, loB), p01 = mul(loA, hiB), p10 = mul(hiA, loB);
+      auto middle = add(add(shr(p00, c(32)), bitAnd(p01, mask)), bitAnd(p10, mask));
+      auto lower = bitOr(bitAnd(p00, mask), shl(middle, c(32)));
+      auto upper =
+          add(add(add(mul(hiA, hiB), shr(p01, c(32))), shr(p10, c(32))), shr(middle, c(32)));
+      high = nonzero(bitAnd(upper, power(2 * Fraction + 1 - 64)));
+      auto shift = choose(high, c(Fraction - 2), c(Fraction - 3));
+      auto sticky = arith::ExtUIOp::create(b, loc, b.getIntegerType(Width),
+                                           nonzero(shl(lower, sub(c(64), shift))));
+      sig = bitOr(bitOr(shr(lower, shift), shl(upper, sub(c(64), shift))), sticky);
+    } else {
+      auto product = arith::MulIOp::create(b, loc, sigA, sigB);
+      high = nonzero(bitAnd(product, power(2 * Fraction + 1)));
+      sig = jam(product, choose(high, c(Fraction - 2), c(Fraction - 3)));
+    }
     auto exponent = sub(add(expA, expB), c(Bias));
     exponent = choose(high, add(exponent, c(1)), exponent);
     auto tiny = slt(exponent, c(1));
@@ -155,10 +183,27 @@ template <unsigned Fraction, unsigned Exponent> class IntegerFloat {
     // The shifted numerator fits in 2*Fraction+5 bits. Protect the integer divisor even
     // for special operands: select arms may be evaluated eagerly.
     auto belowOne = lt(sigA, sigB);
-    auto numerator = shl(sigA, choose(belowOne, c(Fraction + 4), c(Fraction + 3)));
     auto divisor = choose(nonzero(sigB), sigB, c(1));
-    auto quotient = arith::DivUIOp::create(b, loc, numerator, divisor);
-    auto remainder = arith::RemUIOp::create(b, loc, numerator, divisor);
+    Value quotient, remainder;
+    if constexpr (Compact && Fraction == 52) {
+      // Restoring division produces the 56 significant/rounding bits directly;
+      // neither a 109-bit numerator nor native floating-point division is needed.
+      auto numerator = choose(belowOne, shl(sigA, c(1)), sigA);
+      auto leading = cmp(arith::CmpIPredicate::uge, numerator, divisor);
+      quotient = arith::ExtUIOp::create(b, loc, b.getIntegerType(Width), leading);
+      remainder = choose(leading, sub(numerator, divisor), numerator);
+      for (unsigned bit = 0; bit < Fraction + 3; ++bit) {
+        auto shifted = shl(remainder, c(1));
+        auto take = cmp(arith::CmpIPredicate::uge, shifted, divisor);
+        remainder = choose(take, sub(shifted, divisor), shifted);
+        quotient = bitOr(shl(quotient, c(1)),
+                         arith::ExtUIOp::create(b, loc, b.getIntegerType(Width), take));
+      }
+    } else {
+      auto numerator = shl(sigA, choose(belowOne, c(Fraction + 4), c(Fraction + 3)));
+      quotient = arith::DivUIOp::create(b, loc, numerator, divisor);
+      remainder = arith::RemUIOp::create(b, loc, numerator, divisor);
+    }
     auto sticky = arith::ExtUIOp::create(b, loc, b.getIntegerType(Width), nonzero(remainder));
     auto sig = bitOr(quotient, sticky);
     auto exponent = sub(add(sub(expA, expB), c(Bias)),
@@ -197,7 +242,7 @@ public:
 };
 } // namespace
 namespace {
-mlir::LogicalResult lowerStrictFloat(mlir::Operation *root, bool cpu) {
+mlir::LogicalResult lowerStrictFloat(mlir::Operation *root, bool cpu, bool compact = false) {
   root->getContext()->getOrLoadDialect<mlir::scf::SCFDialect>();
   llvm::SmallVector<mlir::Operation *> operations;
   bool valid = true;
@@ -222,7 +267,8 @@ mlir::LogicalResult lowerStrictFloat(mlir::Operation *root, bool cpu) {
       return;
     if (mlir::isa<mlir::arith::AddFOp, mlir::arith::SubFOp, mlir::arith::MulFOp,
                   mlir::arith::NegFOp, mlir::arith::DivFOp>(op) &&
-        (op->getResult(0).getType().isF32() || (cpu && op->getResult(0).getType().isF64())))
+        (op->getResult(0).getType().isF32() ||
+         ((cpu || compact) && op->getResult(0).getType().isF64())))
       operations.push_back(op);
     else {
       op->emitError(cpu ? "strict CPU floating lowering supports only scalar float32/float64 "
@@ -236,6 +282,7 @@ mlir::LogicalResult lowerStrictFloat(mlir::Operation *root, bool cpu) {
     return mlir::failure();
   for (auto *op : operations) {
     auto result = op->getResult(0).getType().isF32() ? IntegerFloat<23, 8>(op).lower(op)
+                  : compact                          ? IntegerFloat<52, 11, true>(op).lower(op)
                                                      : IntegerFloat<52, 11>(op).lower(op);
     op->getResult(0).replaceAllUsesWith(result);
     op->erase();
@@ -245,6 +292,9 @@ mlir::LogicalResult lowerStrictFloat(mlir::Operation *root, bool cpu) {
 } // namespace
 mlir::LogicalResult lowerStrictFloat32(mlir::Operation *root) {
   return lowerStrictFloat(root, false);
+}
+mlir::LogicalResult lowerStrictGpuFloat64(mlir::Operation *root) {
+  return lowerStrictFloat(root, false, true);
 }
 mlir::LogicalResult lowerStrictCpuFloat(mlir::Operation *root) {
   return lowerStrictFloat(root, true);

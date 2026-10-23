@@ -123,17 +123,58 @@ public:
         fn.setPrivate();
       }
     }
+    // Explicit bridge exports define the CPU reachability roots. Empty slots
+    // preserve interface ordinals for a mixed backend without lowering its
+    // GPU-only numerical functions onto the CPU.
+    std::vector<bool> reachable(input_.functions.size(), exports.empty());
+    std::vector<FunctionId> pending;
+    if (!exports.empty())
+      for (const auto &name : exports) {
+        if (name.empty())
+          continue;
+        for (FunctionId id = 0; id < input_.functions.size(); ++id)
+          if (input_.functions[id].name == name)
+            pending.push_back(id);
+      }
+    while (!pending.empty()) {
+      const auto id = pending.back();
+      pending.pop_back();
+      if (reachable.at(id))
+        continue;
+      reachable[id] = true;
+      for (auto value : input_.functions[id].expressions) {
+        const auto &op = input_.expressions.at(value).operation;
+        if (auto call = std::get_if<FunctionCall>(&op))
+          pending.push_back(call->function);
+        else if (auto map = std::get_if<ArrayMap>(&op))
+          pending.push_back(map->function);
+        else if (auto reference = std::get_if<FunctionReference>(&op))
+          pending.push_back(reference->function);
+        else if (std::holds_alternative<FunctionInvoke>(op)) {
+          // Open callable flow remains conservative; do not drop a potential
+          // CPU callback merely because it is not a direct call edge.
+          std::fill(reachable.begin(), reachable.end(), true);
+          pending.clear();
+          break;
+        }
+      }
+    }
+    functions_.resize(input_.functions.size());
     for (FunctionId id = 0; id < input_.functions.size(); ++id) {
+      if (!reachable[id])
+        continue;
       const auto &function = input_.functions[id];
       SmallVector<Type> parameters;
       for (auto parameter : function.parameters)
         parameters.push_back(type(input_.symbols[parameter].type));
       const auto result = type(function.declaredResult.value_or(function.resultType));
-      functions_.push_back(func::FuncOp::create(builder_, location(function.declaration),
-                                                "kalandra_fn_" + std::to_string(id),
-                                                builder_.getFunctionType(parameters, {result})));
+      functions_[id] = func::FuncOp::create(builder_, location(function.declaration),
+                                            "kalandra_fn_" + std::to_string(id),
+                                            builder_.getFunctionType(parameters, {result}));
     }
     for (FunctionId id = 0; id < input_.functions.size(); ++id) {
+      if (!reachable[id])
+        continue;
       if (input_.functions[id].name.starts_with("__step_"))
         functions_[id]->setAttr("llvm.emit_c_interface", builder_.getUnitAttr());
       body(id);
@@ -142,7 +183,8 @@ public:
       throw LoweringFailure{*error};
     if (!exports.empty()) {
       for (std::size_t i = 0; i < exports.size(); ++i)
-        interfaceWrapper(exports[i], "kalandra_cpu_" + std::to_string(i));
+        if (!exports[i].empty())
+          interfaceWrapper(exports[i], "kalandra_cpu_" + std::to_string(i));
       return std::move(module_);
     }
     auto main =
@@ -671,8 +713,10 @@ private:
   }
   Value checkedSigned(Location loc, Value wide, unsigned bits) {
     auto constant = [&](std::int64_t value) -> Value {
-      return arith::ConstantOp::create(builder_, loc, wide.getType(),
-          builder_.getIntegerAttr(wide.getType(), llvm::APInt(bits * 2, static_cast<std::uint64_t>(value), true)));
+      return arith::ConstantOp::create(
+          builder_, loc, wide.getType(),
+          builder_.getIntegerAttr(wide.getType(),
+                                  llvm::APInt(bits * 2, static_cast<std::uint64_t>(value), true)));
     };
     auto low = compare(loc, arith::CmpIPredicate::sge, wide,
                        constant(bits == 64 ? INT64_MIN : -(INT64_C(1) << (bits - 1))));
@@ -740,8 +784,11 @@ private:
     if (op == TokenKind::Plus)
       return operand;
     if (unsignedValue) {
-      guard(loc, compare(loc, arith::CmpIPredicate::eq, operand,
-                         arith::ConstantIntOp::create(builder_, loc, 0, cast<IntegerType>(operand.getType()).getWidth())), 4);
+      guard(loc,
+            compare(loc, arith::CmpIPredicate::eq, operand,
+                    arith::ConstantIntOp::create(builder_, loc, 0,
+                                                 cast<IntegerType>(operand.getType()).getWidth())),
+            4);
       return operand;
     }
     const auto bits = cast<IntegerType>(operand.getType()).getWidth();
@@ -764,10 +811,11 @@ private:
         guard(loc, compare(loc, arith::CmpIPredicate::ne, b, z), 4);
       if (op == TokenKind::Minus)
         guard(loc, compare(loc, arith::CmpIPredicate::uge, a, b), 4);
-      const char *name = op == TokenKind::Plus ? "arith.addi"
-                         : op == TokenKind::Minus ? "arith.subi"
-                         : op == TokenKind::Star ? "arith.muli"
-                         : op == TokenKind::Percent ? "arith.remui" : "arith.divui";
+      const char *name = op == TokenKind::Plus      ? "arith.addi"
+                         : op == TokenKind::Minus   ? "arith.subi"
+                         : op == TokenKind::Star    ? "arith.muli"
+                         : op == TokenKind::Percent ? "arith.remui"
+                                                    : "arith.divui";
       auto wide = binary(loc, name, a, b);
       auto maximum = arith::ConstantOp::create(
           builder_, loc, wideType,
@@ -778,12 +826,14 @@ private:
     const auto bits = cast<IntegerType>(a.getType()).getWidth();
     if (bits == 64 && (op == TokenKind::Slash || op == TokenKind::Percent)) {
       guard(loc, compare(loc, arith::CmpIPredicate::ne, b, integer(loc, 0)), 4);
-      auto exceptional = arith::AndIOp::create(builder_, loc,
-          compare(loc, arith::CmpIPredicate::eq, a, integer(loc, INT64_MIN)),
+      auto exceptional = arith::AndIOp::create(
+          builder_, loc, compare(loc, arith::CmpIPredicate::eq, a, integer(loc, INT64_MIN)),
           compare(loc, arith::CmpIPredicate::eq, b, integer(loc, -1)));
       if (op == TokenKind::Slash) {
-        guard(loc, compare(loc, arith::CmpIPredicate::eq, exceptional,
-                           arith::ConstantIntOp::create(builder_, loc, 0, 1)), 4);
+        guard(loc,
+              compare(loc, arith::CmpIPredicate::eq, exceptional,
+                      arith::ConstantIntOp::create(builder_, loc, 0, 1)),
+              4);
         return arith::DivSIOp::create(builder_, loc, a, b);
       }
       // LLVM srem(INT64_MIN,-1) is poison even though the mathematical remainder is zero.
@@ -794,12 +844,15 @@ private:
     a = arith::ExtSIOp::create(builder_, loc, wideType, a);
     b = arith::ExtSIOp::create(builder_, loc, wideType, b);
     if (op == TokenKind::Slash || op == TokenKind::Percent)
-      guard(loc, compare(loc, arith::CmpIPredicate::ne, b,
-                         arith::ConstantIntOp::create(builder_, loc, 0, bits * 2)), 4);
-    const char *name = op == TokenKind::Plus ? "arith.addi"
-                       : op == TokenKind::Minus ? "arith.subi"
-                       : op == TokenKind::Star ? "arith.muli"
-                       : op == TokenKind::Percent ? "arith.remsi" : "arith.divsi";
+      guard(loc,
+            compare(loc, arith::CmpIPredicate::ne, b,
+                    arith::ConstantIntOp::create(builder_, loc, 0, bits * 2)),
+            4);
+    const char *name = op == TokenKind::Plus      ? "arith.addi"
+                       : op == TokenKind::Minus   ? "arith.subi"
+                       : op == TokenKind::Star    ? "arith.muli"
+                       : op == TokenKind::Percent ? "arith.remsi"
+                                                  : "arith.divsi";
     return checkedSigned(loc, binary(loc, name, a, b), bits);
   }
   SmallVector<Value> dimensions(Location loc, Value tensor) {
@@ -835,7 +888,8 @@ private:
   }
   Value reductionScratch(Location loc, Value count, Type element = {}) {
     checkedCount(loc, {count}, element ? element.getIntOrFloatBitWidth() / 8 : 4);
-    auto scratchType = MemRefType::get({ShapedType::kDynamic}, element ? element : builder_.getF32Type());
+    auto scratchType =
+        MemRefType::get({ShapedType::kDynamic}, element ? element : builder_.getF32Type());
     return memref::AllocOp::create(builder_, loc, scratchType, ValueRange{count});
   }
   Value scratchLoad(Location loc, Value scratch, Value i, unsigned width, Value base = {}) {
@@ -884,9 +938,10 @@ private:
                                auto second = arith::AddIOp::create(builder_, loc, first, one);
                                auto a = load(first);
                                auto b = load(second);
-                               Value sum = isa<IntegerType>(elementType)
-                                               ? integerBinary(loc, a, b, TokenKind::Plus, unsignedValue)
-                                               : Value(arith::AddFOp::create(builder_, loc, a, b));
+                               Value sum =
+                                   isa<IntegerType>(elementType)
+                                       ? integerBinary(loc, a, b, TokenKind::Plus, unsignedValue)
+                                       : Value(arith::AddFOp::create(builder_, loc, a, b));
                                store(sum, i);
                                scf::YieldOp::create(builder_, loc);
                              });
@@ -921,7 +976,8 @@ private:
     return result.getResult(0);
   }
   template <class Callback>
-  Value reduction(Location loc, Value count, Value scratch, Callback element, unsigned width = 1, bool unsignedValue = false) {
+  Value reduction(Location loc, Value count, Value scratch, Callback element, unsigned width = 1,
+                  bool unsignedValue = false) {
     const auto z = index(loc, 0), one = index(loc, 1);
     scf::ForOp::create(builder_, loc, z, count, one, ValueRange{},
                        [&](OpBuilder &, Location, Value i, ValueRange) {
@@ -1208,21 +1264,26 @@ private:
           auto columns = scf::ForOp::create(
               builder_, loc, z, right[1], one, rowValues,
               [&](OpBuilder &, Location, Value column, ValueRange columnValues) {
-                auto sum = reduction(loc, left[1], scratch, [&](Value k) -> Value {
-                  auto x = tensor::ExtractOp::create(builder_, loc, a, ValueRange{row, k});
-                  auto y = tensor::ExtractOp::create(builder_, loc, b, ValueRange{k, column});
-                  return isa<IntegerType>(cellType)
-                             ? integerBinary(loc, x, y, TokenKind::Star, unsignedValue)
-                             : binary(loc, "arith.mulf", x, y);
-                }, 1, unsignedValue);
-                auto cell = tensor::InsertOp::create(builder_, loc, sum, columnValues[0], ValueRange{row, column});
+                auto sum = reduction(
+                    loc, left[1], scratch,
+                    [&](Value k) -> Value {
+                      auto x = tensor::ExtractOp::create(builder_, loc, a, ValueRange{row, k});
+                      auto y = tensor::ExtractOp::create(builder_, loc, b, ValueRange{k, column});
+                      return isa<IntegerType>(cellType)
+                                 ? integerBinary(loc, x, y, TokenKind::Star, unsignedValue)
+                                 : binary(loc, "arith.mulf", x, y);
+                    },
+                    1, unsignedValue);
+                auto cell = tensor::InsertOp::create(builder_, loc, sum, columnValues[0],
+                                                     ValueRange{row, column});
                 scf::YieldOp::create(builder_, loc, ValueRange{cell});
               });
           scf::YieldOp::create(builder_, loc, columns.getResults());
         });
     return result.getResult(0);
   }
-  Value matmul(Location loc, Value a, Value b, RankedTensorType output, const Matmul &operation, NumericType element) {
+  Value matmul(Location loc, Value a, Value b, RankedTensorType output, const Matmul &operation,
+               NumericType element) {
     if (isInteger(element) || element == NumericType::Float64)
       return scalarMatmul(loc, a, b, output, operation, isUnsigned(element));
     // Outlining prevents a large SIMD kernel's register/stack requirements from
@@ -1261,15 +1322,19 @@ private:
       throw LoweringFailure{"unsupported reduction numerical policy"};
     auto shape = dimensions(loc, tensor);
     auto count = checkedCount(loc, shape, describeNumeric(element)->bytes());
-    auto scratch = reductionScratch(loc, count, cast<RankedTensorType>(tensor.getType()).getElementType());
-    return reduction(loc, count, scratch, [&](Value linear) -> Value {
-      SmallVector<Value> indices(shape.size());
-      for (std::size_t axis = shape.size(); axis > 0; --axis) {
-        indices[axis - 1] = arith::RemUIOp::create(builder_, loc, linear, shape[axis - 1]);
-        linear = arith::DivUIOp::create(builder_, loc, linear, shape[axis - 1]);
-      }
-      return tensor::ExtractOp::create(builder_, loc, tensor, indices);
-    }, 1, isUnsigned(element));
+    auto scratch =
+        reductionScratch(loc, count, cast<RankedTensorType>(tensor.getType()).getElementType());
+    return reduction(
+        loc, count, scratch,
+        [&](Value linear) -> Value {
+          SmallVector<Value> indices(shape.size());
+          for (std::size_t axis = shape.size(); axis > 0; --axis) {
+            indices[axis - 1] = arith::RemUIOp::create(builder_, loc, linear, shape[axis - 1]);
+            linear = arith::DivUIOp::create(builder_, loc, linear, shape[axis - 1]);
+          }
+          return tensor::ExtractOp::create(builder_, loc, tensor, indices);
+        },
+        1, isUnsigned(element));
   }
   Value convertTensor(Location loc, Value input, RankedTensorType output, NumericType source,
                       NumericType destination) {
@@ -1302,7 +1367,8 @@ private:
     };
     return loop(0, empty);
   }
-  Value elementwise(Location loc, Value a, Value b, RankedTensorType output, TokenKind op, NumericType element) {
+  Value elementwise(Location loc, Value a, Value b, RankedTensorType output, TokenKind op,
+                    NumericType element) {
     const bool tensorA = isa<RankedTensorType>(a.getType());
     const bool tensorB = b && isa<RankedTensorType>(b.getType());
     auto shape = dimensions(loc, tensorA ? a : b);
@@ -1325,9 +1391,8 @@ private:
         Value left = tensorA ? tensor::ExtractOp::create(builder_, loc, a, indices).getResult() : a;
         Value result;
         if (!b) {
-          result = isInteger(element)
-                       ? integerUnary(loc, left, op, isUnsigned(element))
-                       : arith::NegFOp::create(builder_, loc, left).getResult();
+          result = isInteger(element) ? integerUnary(loc, left, op, isUnsigned(element))
+                                      : arith::NegFOp::create(builder_, loc, left).getResult();
         } else {
           Value right =
               tensorB ? tensor::ExtractOp::create(builder_, loc, b, indices).getResult() : b;
@@ -1335,9 +1400,8 @@ private:
                                    : op == TokenKind::Minus ? "arith.subf"
                                    : op == TokenKind::Slash ? "arith.divf"
                                                             : "arith.mulf";
-          result = isInteger(element)
-                       ? integerBinary(loc, left, right, op, isUnsigned(element))
-                       : binary(loc, arithmetic, left, right);
+          result = isInteger(element) ? integerBinary(loc, left, right, op, isUnsigned(element))
+                                      : binary(loc, arithmetic, left, right);
         }
         return tensor::InsertOp::create(builder_, loc, result, tensor, indices);
       }
@@ -1352,8 +1416,8 @@ private:
     };
     return loop(0, empty);
   }
-  Value outlinedElementwise(Location loc, Value a, Value b, RankedTensorType output,
-                            TokenKind op, NumericType element) {
+  Value outlinedElementwise(Location loc, Value a, Value b, RankedTensorType output, TokenKind op,
+                            NumericType element) {
     func::FuncOp helper;
     SmallVector<Value> operands{a};
     if (b)
@@ -1394,7 +1458,8 @@ private:
             llvm::APFloat number(llvm::APFloat::IEEEsingle(), llvm::APInt(32, operation.bits));
             return arith::ConstantFloatOp::create(builder_, loc, builder_.getF32Type(), number);
           } else if constexpr (std::is_same_v<T, UInt64Literal>) {
-            return arith::ConstantOp::create(builder_, loc, builder_.getI64Type(),
+            return arith::ConstantOp::create(
+                builder_, loc, builder_.getI64Type(),
                 builder_.getIntegerAttr(builder_.getI64Type(), llvm::APInt(64, operation.value)));
           } else if constexpr (std::is_same_v<T, Int32Literal> ||
                                std::is_same_v<T, UInt32Literal> ||
@@ -2121,7 +2186,8 @@ private:
             return castTensor(loc, call.getResult(0), type(node.type));
           } else if constexpr (std::is_same_v<T, Matmul>) {
             auto a = expression(frame, operation.left), b = expression(frame, operation.right);
-            return matmul(loc, a, b, cast<RankedTensorType>(type(node.type)), operation, node.type.element);
+            return matmul(loc, a, b, cast<RankedTensorType>(type(node.type)), operation,
+                          node.type.element);
           } else if constexpr (std::is_same_v<T, ReduceSum>)
             return reduce(loc, expression(frame, operation.input), operation, node.type.element);
           else if constexpr (std::is_same_v<T, DeviceSelection> || std::is_same_v<T, Transfer> ||
@@ -2165,8 +2231,8 @@ private:
     // Long float32 tensor expressions otherwise inline many allocation/shape/
     // loop bodies into one native frame. Outline operations into ordinary
     // checked, non-inlined helpers; every frame retains the same stack budget.
-    frame.outlineElementwise = std::ranges::count_if(
-        input_.functions[id].expressions, [&](ValueId value) {
+    frame.outlineElementwise =
+        std::ranges::count_if(input_.functions[id].expressions, [&](ValueId value) {
           const auto &node = input_.expressions[value];
           return node.type.element == NumericType::Float32 &&
                  (std::holds_alternative<TensorBinary>(node.operation) ||
@@ -2227,9 +2293,9 @@ private:
                   1);
         }
         checkedCount(function.getLoc(), shape, describeNumeric(t.element)->bytes());
-        auto tensorType = RankedTensorType::get(
-            SmallVector<std::int64_t>(t.shape.size(), ShapedType::kDynamic),
-            cast<RankedTensorType>(type(t)).getElementType());
+        auto tensorType =
+            RankedTensorType::get(SmallVector<std::int64_t>(t.shape.size(), ShapedType::kDynamic),
+                                  cast<RankedTensorType>(type(t)).getElementType());
         argument = bufferization::ToTensorOp::create(builder_, function.getLoc(), tensorType,
                                                      argument, true, false);
         argument = castTensor(function.getLoc(), argument, type(t));

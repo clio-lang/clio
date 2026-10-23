@@ -52,29 +52,27 @@ int main() {
               "tensor type lost numeric identity");
       for (auto target : {NumericTarget::Cpu, NumericTarget::AppleGpu})
         require(numericArithmeticAvailable(description.type, target) ==
-                    (description.type == NumericType::Float32 ||
+                    (target == NumericTarget::AppleGpu ||
+                     description.type == NumericType::Float32 ||
                      (target == NumericTarget::Cpu &&
                       (isInteger32(description.type) || description.type == NumericType::Int64 ||
                        description.type == NumericType::UInt64 ||
                        description.type == NumericType::Float64))),
                 "type description accidentally enabled arithmetic");
       require(numericTensorConversionAvailable(description.type, NumericTarget::Cpu) &&
-                  !numericTensorConversionAvailable(description.type, NumericTarget::AppleGpu),
-              "tensor conversion capability lost CPU-only numeric identity");
+                  numericTensorConversionAvailable(description.type, NumericTarget::AppleGpu),
+              "tensor conversion capability lost numeric identity");
       require(numericMatmulAvailable(description.type, NumericTarget::Cpu) &&
-                  numericMatmulAvailable(description.type, NumericTarget::AppleGpu) ==
-                      (description.type == NumericType::Float32),
+                  numericMatmulAvailable(description.type, NumericTarget::AppleGpu),
               "matmul capability lost numeric identity");
       require(numericReductionAvailable(description.type, NumericTarget::Cpu) &&
-                  numericReductionAvailable(description.type, NumericTarget::AppleGpu) ==
-                      (description.type == NumericType::Float32),
+                  numericReductionAvailable(description.type, NumericTarget::AppleGpu),
               "reduction capability lost numeric identity");
       require(numericScalarArithmeticAvailable(description.type, NumericTarget::Cpu) &&
                   analyze("fn main() -> " + std::string(description.name) + ":\n  1\n").ok(),
               "accepted CPU scalar type rejected");
-      require(numericScalarArithmeticAvailable(description.type, NumericTarget::AppleGpu) ==
-                  (description.type == NumericType::Float32),
-              "scalar admission accidentally enabled a GPU type");
+      require(numericScalarArithmeticAvailable(description.type, NumericTarget::AppleGpu),
+              "typed GPU arithmetic identity rejected");
     }
     for (auto name : {"Number", "bool", "Float32", "int128", "float16", "bfloat16", "int0"})
       require(!resolveNumeric(name), "unknown/deferred numeric type silently mapped");
@@ -88,9 +86,9 @@ int main() {
                 m::storageNumericType(m::Format::UInt8) == NumericType::UInt8 &&
                 !m::storageNumericType(static_cast<m::Format>(255)),
             "private storage format mapping changed");
-    require(!numericArithmeticAvailable(*m::storageNumericType(m::Format::UInt32),
-                                        NumericTarget::AppleGpu),
-            "integer buffer storage enabled integer shaders");
+    require(numericArithmeticAvailable(*m::storageNumericType(m::Format::UInt32),
+                                       NumericTarget::AppleGpu),
+            "checked integer shader identity rejected");
     auto numeric = analyze("fn twice(x:float32) -> float32:\n  -x * -2\n"
                            "fn main() -> float32:\n  twice(3)\n");
     require(numeric.ok(), "float32 source rejected");

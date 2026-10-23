@@ -18,7 +18,9 @@ int main(int argc, char **argv) {
   auto module = mlir::parseSourceFile<mlir::ModuleOp>(argv[1], &context);
   if (!module || mlir::failed(mlir::verify(*module)))
     return 1;
-#ifdef KALANDRA_STRICT_CPU
+#if defined(KALANDRA_STRICT_GPU64)
+  if (mlir::failed(kalandra::lowerStrictGpuFloat64(*module)))
+#elif defined(KALANDRA_STRICT_CPU)
   if (mlir::failed(kalandra::lowerStrictCpuFloat(*module)))
 #else
   if (mlir::failed(kalandra::lowerStrictFloat32(*module)))

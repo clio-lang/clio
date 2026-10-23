@@ -45,6 +45,7 @@ void buildMetalProgram(const std::filesystem::path &directory,
                        const std::map<std::string, std::string> &outputs,
                        const std::string &variant) {
   const auto strict = resource(KALANDRA_GPU_STRICT);
+  const auto strict64 = resource(KALANDRA_GPU_STRICT64);
   const auto extract = resource(KALANDRA_GPU_EXTRACT);
   const auto include = resource(KALANDRA_GPU_INCLUDE, true);
   const auto metal = resource(variant == "optimized"          ? KALANDRA_GPU_METAL_OPTIMIZED
@@ -56,11 +57,11 @@ void buildMetalProgram(const std::filesystem::path &directory,
                              : variant == "thread-sanitized" ? KALANDRA_GPU_CORE_THREAD_SANITIZED
                                                              : KALANDRA_GPU_CORE_DEBUG);
   for (const auto &[name, contents] : outputs) {
-    (void)contents;
     if (!name.starts_with("kernel") || !name.ends_with(".mlir"))
       continue;
     auto base = (directory / std::filesystem::path(name).stem()).string();
-    run({strict, base + ".mlir", base + ".lowered.mlir"});
+    const bool numeric = contents.find("@kalandra_numeric_v1_") != std::string::npos;
+    run({numeric ? strict64 : strict, base + ".mlir", base + ".lowered.mlir"});
     run({KALANDRA_GPU_OPT, base + ".lowered.mlir", "--verify-each",
          "--pass-pipeline=builtin.module(canonicalize,cse,convert-gpu-to-spirv,spirv.module(spirv-"
          "lower-abi-attrs,spirv-update-vce))",
@@ -69,20 +70,25 @@ void buildMetalProgram(const std::filesystem::path &directory,
     run({KALANDRA_GPU_TRANSLATE, "--no-implicit-module", "--serialize-spirv", base + ".kernel.mlir",
          "-o", base + ".spv"});
     run({KALANDRA_GPU_VALIDATE, "--target-env", "vulkan1.0", base + ".spv"});
-    std::vector<std::string> cross{KALANDRA_GPU_CROSS, base + ".spv", "--msl",
-                                   "--msl-version",    "20200",       "--output",
+    std::vector<std::string> cross{KALANDRA_GPU_CROSS,
+                                   base + ".spv",
+                                   "--msl",
+                                   "--msl-version",
+                                   numeric ? KALANDRA_GPU_TYPED_MSL_VERSION : "20200",
+                                   "--output",
                                    base + ".metal"};
-    if (contents.find("@kalandra_elementwise_v3(") != std::string::npos)
+    if (contents.find("@kalandra_elementwise_v3(") != std::string::npos ||
+        contents.find("// kalandra.numeric.indirect") != std::string::npos)
       cross.insert(cross.end(), {"--msl-argument-buffers", "--msl-argument-buffer-tier", "1",
                                  "--msl-device-argument-buffer", "0",
                                  "--msl-force-active-argument-buffer-resources"});
     run(std::move(cross));
-    run({"/usr/bin/xcrun", "--toolchain", KALANDRA_GPU_METAL_TOOLCHAIN, "--sdk", "macosx", "metal",
-         "-std=macos-metal2.2", "-fno-fast-math", "-ffp-contract=off",
+    run({KALANDRA_GPU_METAL_COMPILER, "-isysroot", KALANDRA_GPU_METAL_SDK,
+         std::string("-std=") + (numeric ? KALANDRA_GPU_TYPED_METAL_LANGUAGE : "macos-metal2.2"),
+         "-fno-fast-math", "-ffp-contract=off",
          "-fmodules-cache-path=" + (directory / "module-cache").string(), "-c", base + ".metal",
          "-o", base + ".air"});
-    run({"/usr/bin/xcrun", "--toolchain", KALANDRA_GPU_METAL_TOOLCHAIN, "metal", base + ".air",
-         "-o", base + ".metallib"});
+    run({KALANDRA_GPU_METAL_COMPILER, base + ".air", "-o", base + ".metallib"});
   }
   // Each entry is independently validated/lowered before offline linking.
   // Runtime loading verifies all entry interfaces before publishing the bundle.
@@ -94,8 +100,8 @@ void buildMetalProgram(const std::filesystem::path &directory,
     if (!outputs.contains(stem + "-rows2.mlir"))
       continue;
     auto base = (directory / stem).string();
-    run({"/usr/bin/xcrun", "--toolchain", KALANDRA_GPU_METAL_TOOLCHAIN, "metal", base + ".air",
-         base + "-rows2.air", base + "-quad.air", "-o", base + ".metallib"});
+    run({KALANDRA_GPU_METAL_COMPILER, base + ".air", base + "-rows2.air", base + "-quad.air", "-o",
+         base + ".metallib"});
   }
   llvm::SmallString<256> temporary;
   int descriptor = -1;

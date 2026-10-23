@@ -276,7 +276,8 @@ void lifecycle(m::Runtime &runtime, const m::Kernel &kernel, unsigned rows = 3, 
             core->failure(group).kind ==
                 (scenario == 1 ? TaskFailure::DeadlineExceeded : TaskFailure::Cancelled));
     else
-      CHECK(core->failure(task).kind == TaskFailure::Fault && core->failure(task).code == 5);
+      CHECK(core->failure(task).kind == TaskFailure::Fault &&
+            core->failure(task).code == std::int64_t(m::Error::Device));
     Invocation c;
     alignas(m::Buffer) std::byte out[sizeof(m::Buffer)];
     CHECK(!core->observe(task, m::Runtime::bufferLayout(), c, out));

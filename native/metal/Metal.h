@@ -18,13 +18,15 @@ struct KernelState;
 enum class Error : std::int64_t {
   Allocation = 2,
   Invalid = 3,
-  Unavailable = 4,
-  Device = 5,
+  // Native codes 4/5 identify checked arithmetic/bounds faults. Metal setup
+  // and command failures must remain Native when mixed programs inspect them.
+  Unavailable = 104,
+  Device = 105,
   Budget = 6,
   Residency = 7
 };
-enum class Format { Float32, UInt32, UInt8 };
-// Storage descriptions do not enable source arithmetic for these private formats.
+enum class Format { Float32, UInt32, UInt8, Int8, Int16, UInt16, Int32, Int64, UInt64, Float64 };
+// Storage identity is independent of per-operation shader admission.
 constexpr std::optional<NumericType> storageNumericType(Format format) {
   switch (format) {
   case Format::Float32:
@@ -33,6 +35,20 @@ constexpr std::optional<NumericType> storageNumericType(Format format) {
     return NumericType::UInt32;
   case Format::UInt8:
     return NumericType::UInt8;
+  case Format::Int8:
+    return NumericType::Int8;
+  case Format::Int16:
+    return NumericType::Int16;
+  case Format::UInt16:
+    return NumericType::UInt16;
+  case Format::Int32:
+    return NumericType::Int32;
+  case Format::Int64:
+    return NumericType::Int64;
+  case Format::UInt64:
+    return NumericType::UInt64;
+  case Format::Float64:
+    return NumericType::Float64;
   }
   return {};
 }
@@ -44,6 +60,20 @@ constexpr std::optional<Format> storageFormat(NumericType element) {
     return Format::UInt32;
   case NumericType::UInt8:
     return Format::UInt8;
+  case NumericType::Int8:
+    return Format::Int8;
+  case NumericType::Int16:
+    return Format::Int16;
+  case NumericType::UInt16:
+    return Format::UInt16;
+  case NumericType::Int32:
+    return Format::Int32;
+  case NumericType::Int64:
+    return Format::Int64;
+  case NumericType::UInt64:
+    return Format::UInt64;
+  case NumericType::Float64:
+    return Format::Float64;
   default:
     return {};
   }
@@ -91,7 +121,8 @@ private:
   friend class Runtime;
   friend struct Bridge;
 };
-// Trusted, compiler-produced binary32 kernel artifact; not an arbitrary shader API.
+// Trusted, compiler-produced binary32 kernel artifact; not an arbitrary shader
+// API.
 enum class BinaryOperation : std::uint32_t { Add, Multiply, MultiplyAddLeft };
 class Kernel final {
 public:
@@ -113,15 +144,38 @@ struct ElementwiseSignature {
 struct MatrixProduct {
   std::uint32_t left, right;
   // Optional sorted unique map operands. Capture copies them before submission;
-  // left/right must be their first/last entries. Matrix stages leave this empty.
+  // left/right must be their first/last entries. Matrix stages leave this
+  // empty.
   std::span<const std::uint32_t> operands{};
   std::size_t tensorCount() const noexcept {
     return operands.empty() ? (left == right ? 1u : 2u) : operands.size();
   }
 };
-// Broadcast one resident reduction into a later tensor map. Sorted by stage, then reduction.
+// Broadcast one resident reduction into a later tensor map. Sorted by stage,
+// then reduction.
 struct MatrixScalar {
   std::uint32_t stage, reduction;
+};
+// Private, compiler-owned numerical control program. Value IDs address input
+// buffers and instruction outputs. All spans are copied before admission.
+enum class NumericInstructionKind {
+  Map,
+  Reduce,
+  Matmul,
+  Branch,
+  Jump,
+  Alias,
+  EqualShape,
+  Extent,
+  MatrixShape,
+  ShapeFault
+};
+struct NumericInstruction {
+  NumericInstructionKind kind;
+  Kernel kernel{};
+  std::span<const std::uint32_t> inputs{};
+  std::span<const std::uint64_t> scalars{};
+  std::uint32_t output = UINT32_MAX, target = 0;
 };
 class Runtime final {
 public:
@@ -160,10 +214,41 @@ public:
   std::expected<Kernel, Error> loadElementwiseKernel(std::string_view metallib, Device) noexcept;
   std::expected<Kernel, Error> loadElementwiseKernel(std::string_view metallib, Device,
                                                      ElementwiseSignature) noexcept;
-  // Logical tensor indices read by the compact physical binding table. Copied on load.
+  // Logical tensor indices read by the compact physical binding table. Copied
+  // on load.
   std::expected<Kernel, Error> loadElementwiseKernel(std::string_view metallib, Device,
                                                      ElementwiseSignature,
                                                      std::span<const std::uint32_t> reads) noexcept;
+  // Typed integer-bit shader ABI. Scalar bit packets must use the exact source
+  // width. The parameter block includes a device-written first-fault index.
+  std::expected<Kernel, Error>
+  loadNumericKernel(std::string_view metallib, Device, NumericType, ElementwiseSignature,
+                    std::span<const std::uint32_t> reads = {}) noexcept;
+  std::expected<Kernel, Error>
+  loadNumericKernel(std::string_view, Device, NumericType, ElementwiseSignature,
+                    std::span<const NumericType> tensorTypes,
+                    std::span<const NumericType> scalarTypes,
+                    std::span<const std::uint32_t> reads = {}) noexcept;
+  std::expected<Kernel, Error> loadNumericReductionKernel(std::string_view, Device,
+                                                          NumericType) noexcept;
+  std::expected<Kernel, Error> loadNumericMatmulKernel(std::string_view, Device,
+                                                       NumericType) noexcept;
+  std::expected<Kernel, Error> loadNumericGraphKernel(
+      std::string_view, Device, NumericType, ElementwiseSignature,
+      std::span<const NumericType> tensorTypes, std::span<const NumericType> scalarTypes,
+      std::span<const std::uint32_t> reads, std::span<const std::uint8_t> scalarBuffers) noexcept;
+  TaskHandle numericProgram(TaskCore &, GroupHandle, std::span<const Buffer>,
+                            std::span<const NumericInstruction>, std::uint32_t result, NumericType,
+                            bool scalarResult) noexcept;
+  TaskHandle numericProgram(Task &, GroupHandle, std::span<const Buffer>,
+                            std::span<const NumericInstruction>, std::uint32_t result, NumericType,
+                            bool scalarResult) noexcept;
+  TaskHandle numericElementwise(TaskCore &, GroupHandle, Kernel, std::span<const Buffer>,
+                                std::span<const std::uint64_t> scalarBits = {},
+                                Kernel reduction = {}, bool scalarResult = false) noexcept;
+  TaskHandle numericElementwise(Task &, GroupHandle, Kernel, std::span<const Buffer>,
+                                std::span<const std::uint64_t> scalarBits = {},
+                                Kernel reduction = {}, bool scalarResult = false) noexcept;
   std::expected<Kernel, Error> loadReductionKernel(std::string_view metallib, Device) noexcept;
   std::expected<Kernel, Error> loadMatmulKernel(std::string_view metallib, Device) noexcept;
   // One task owns optional operand maps and a post stage. Map inputs are the
@@ -178,14 +263,16 @@ public:
                     Kernel leftMap = {}, Kernel rightMap = {},
                     std::span<const Buffer> mapInputs = {},
                     std::span<const float> mapScalars = {}) noexcept;
-  // Copies the product graph and inputs; one task owns all resident intermediates.
+  // Copies the product graph and inputs; one task owns all resident
+  // intermediates.
   TaskHandle matmulGraph(TaskCore &, GroupHandle, Kernel, std::span<const Buffer>,
                          std::span<const MatrixProduct>, std::span<const Kernel> maps = {},
                          std::span<const float> mapScalars = {}) noexcept;
   TaskHandle matmulGraph(Task &, GroupHandle, Kernel, std::span<const Buffer>,
                          std::span<const MatrixProduct>, std::span<const Kernel> maps = {},
                          std::span<const float> mapScalars = {}) noexcept;
-  // Resident product graph followed by one strict reduction and optional scalar epilogue.
+  // Resident product graph followed by one strict reduction and optional scalar
+  // epilogue.
   TaskHandle matmulGraphReduceSum(TaskCore &, GroupHandle, Kernel, std::span<const Buffer>,
                                   std::span<const MatrixProduct>, Kernel reduction,
                                   Kernel epilogue = {}, std::span<const float> scalars = {},
@@ -196,7 +283,8 @@ public:
                                   Kernel epilogue = {}, std::span<const float> scalars = {},
                                   std::span<const Kernel> maps = {},
                                   std::span<const float> mapScalars = {}) noexcept;
-  // Tensor-result graph with resident reduction broadcasts and no result readback.
+  // Tensor-result graph with resident reduction broadcasts and no result
+  // readback.
   TaskHandle graphTensor(TaskCore &, GroupHandle, Kernel base, std::span<const Buffer>,
                          std::span<const MatrixProduct>, Kernel reduction,
                          std::span<const std::uint32_t> roots, std::span<const Kernel> maps,
@@ -207,7 +295,8 @@ public:
                          std::span<const std::uint32_t> roots, std::span<const Kernel> maps,
                          std::span<const float> mapScalars,
                          std::span<const MatrixScalar> broadcasts) noexcept;
-  // Resident reductions may feed later maps; only the final scalar expression is read back.
+  // Resident reductions may feed later maps; only the final scalar expression
+  // is read back.
   TaskHandle graphReductions(TaskCore &, GroupHandle, Kernel base, std::span<const Buffer>,
                              std::span<const MatrixProduct>, Kernel reduction, Kernel join,
                              std::span<const std::uint32_t> roots, std::span<const float> scalars,
@@ -220,7 +309,8 @@ public:
                              std::span<const Kernel> maps = {},
                              std::span<const float> mapScalars = {},
                              std::span<const MatrixScalar> broadcasts = {}) noexcept;
-  // One scalar task: optional input maps, matrix, optional adjustment, fixed reduction tree.
+  // One scalar task: optional input maps, matrix, optional adjustment, fixed
+  // reduction tree.
   TaskHandle matmulReduceSum(TaskCore &, GroupHandle, Kernel matrix, Kernel reduction, Buffer left,
                              Buffer right, Kernel leftMap = {}, Kernel rightMap = {},
                              std::span<const Buffer> mapInputs = {},
@@ -239,7 +329,8 @@ public:
                        std::span<const float> scalars = {}) noexcept;
   TaskHandle reduceSum(Task &, GroupHandle, Kernel, Buffer, Kernel epilogue = {},
                        std::span<const float> scalars = {}) noexcept;
-  // One scheduled scalar task; a resident elementwise stage precedes the fixed reduction tree.
+  // One scheduled scalar task; a resident elementwise stage precedes the fixed
+  // reduction tree.
   TaskHandle elementwiseReduceSum(TaskCore &, GroupHandle, Kernel elementwise, Kernel reduction,
                                   std::span<const Buffer>, std::span<const float>,
                                   Kernel epilogue = {}) noexcept;
@@ -272,7 +363,10 @@ private:
   std::expected<Kernel, Error>
   loadKernel(std::string_view, Device, bool elementwise,
              std::optional<ElementwiseSignature> signature = {}, bool reduction = false,
-             bool matrix = false,
-             std::optional<std::span<const std::uint32_t>> reads = {}) noexcept;
+             bool matrix = false, std::optional<std::span<const std::uint32_t>> reads = {},
+             std::optional<NumericType> numericType = {},
+             std::span<const NumericType> tensorTypes = {},
+             std::span<const NumericType> scalarTypes = {},
+             std::span<const std::uint8_t> scalarBuffers = {}) noexcept;
 };
 } // namespace kalandra::runtime::metal

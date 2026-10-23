@@ -18,7 +18,7 @@ are supported through the existing `-O0`, `-O2`, `--sanitize` and
 
 This is a macOS ARM64 package with external toolchain dependencies. LLVM/MLIR and
 Clang 23.1.3, SPIRV-Cross, SPIRV-Tools, the selected Apple Metal toolchain and the
-Apple SDK must remain installed at their configured locations. Exact SPIR-V roots
+Apple SDK must remain installed at their configured locations. Exact SPIR-V roots, verified Metal compiler path, SDK path
 and Metal toolchain identity are recorded in `share/kalandra-native-metal/toolchain.json`.
 Moving the Kalandra bundle does not move these dependencies. Ordinary generated
 applications need Metal-capable Apple hardware and system frameworks, but do not
@@ -33,3 +33,12 @@ other platforms remain unqualified. This Metal bundle is not yet uploaded by the
 CPU-only version-tag workflow.
 
 Local or public HTTPS Git dependencies can be installed explicitly with `kalandra install --project path/to/kalandra.toml`. Installation requires system Git; subsequent project builds verify the activated cache offline. Remote installs verify TLS and require public repositories. Commit IDs and supported branch/tag names are accepted; names are locked to exact commits and unchanged requests keep their pins. Commit the generated `kalandra.lock`. Use `--frozen` to populate a cache from a matching lock without rewriting it, or `--offline` to require verified cached sources without invoking Git. Use `kalandra update name [name ...] --project path/to/kalandra.toml` to refresh selected root aliases from a matching lock; unrelated roots and unchanged-owner private pins stay fixed. Check and rebuild after updating. SSH and authenticated repositories are not supported yet.
+
+
+Typed GPU programs support all ten native numeric types, dense tensor ranks
+zero through eight, balanced sums, rank-two matrix products, explicit numeric
+conversions and resident numerical/control graphs. Numerical computations use
+strict checked compiler-generated shaders. Public GPU entries take numeric
+scalars/tensors; internal Boolean predicates select stages and shape checks.
+CPU/device transfers remain explicit. Managed closures and recursive GPU
+helpers are outside this numerical contract.

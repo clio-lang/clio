@@ -63,9 +63,10 @@
       "fixtures": [
         "scalar-entry.k"
       ],
-      "notes": "float32 scalars alongside tensor inputs; scalar-only kernels remain unsupported",
+      "notes": "All ten numeric scalar types alongside tensors or in scalar-only tasks; internal Boolean control values",
       "evidence": [
-        "gpu-entry-signatures-2026-10-15.json"
+        "gpu-entry-signatures-2026-10-15.json",
+        "gpu-typed-programs-2026-10-23.json"
       ]
     },
     {
@@ -90,9 +91,10 @@
       "fixtures": [
         "matrix-reduction.k"
       ],
-      "notes": "Rank one/two inputs; one reduction per entry, including forwarding helpers",
+      "notes": "All ten types, ranks zero through eight; balanced adjacent-pair tree, resident composition and checked integer additions",
       "evidence": [
-        "gpu-forwarding-2026-10-20.json"
+        "gpu-forwarding-2026-10-20.json",
+        "gpu-typed-programs-2026-10-23.json"
       ]
     },
     {
@@ -103,9 +105,10 @@
       "fixtures": [
         "matmul.k"
       ],
-      "notes": "Rank two; one matmul per entry, including forwarding helpers",
+      "notes": "All ten types, rank two; checked/rounded products and balanced inner tree, resident composition and empty dimensions",
       "evidence": [
-        "gpu-forwarding-2026-10-20.json"
+        "gpu-forwarding-2026-10-20.json",
+        "gpu-typed-programs-2026-10-23.json"
       ]
     },
     {
@@ -129,9 +132,10 @@
       "fixtures": [
         "forwarding/main.k"
       ],
-      "notes": "Aliases and transitive helpers retain shape obligations and one-primitive entry rules",
+      "notes": "Aliases and transitive numerical helpers retain selected invocation shape obligations; multiple numerical stages are supported",
       "evidence": [
-        "gpu-forwarding-2026-10-20.json"
+        "gpu-forwarding-2026-10-20.json",
+        "gpu-typed-programs-2026-10-23.json"
       ]
     },
     {
@@ -155,9 +159,10 @@
       "fixtures": [
         "cpu-spawn.k"
       ],
-      "notes": "Qualified mixed-target float32 scalar/tensor subset; explicit transfers",
+      "notes": "All ten numeric scalar/tensor bridges, retained CPU worker results and explicit transfers",
       "evidence": [
-        "cpu-spawn-2026-10-16.json"
+        "cpu-spawn-2026-10-16.json",
+        "gpu-typed-programs-2026-10-23.json"
       ]
     },
     {
@@ -201,9 +206,9 @@
     },
     {
       "id": "other-numeric",
-      "feature": "Other CPU numeric widths on GPU",
+      "feature": "All ten numeric types: typed GPU maps",
       "scope": "GPU",
-      "status": "rejected",
+      "status": "supported",
       "fixtures": [
         "capabilities/numeric-int8.k",
         "capabilities/numeric-uint8.k",
@@ -215,30 +220,38 @@
         "capabilities/numeric-uint64.k",
         "capabilities/numeric-float64.k"
       ],
-      "notes": "All nine CPU numeric types other than float32 are rejected; no implicit conversion or CPU fallback",
-      "diagnostic": "G00[13]"
+      "notes": "Exact integer/floating identities, checked maps and scalar lifting through rank eight; resident typed graphs and conversions",
+      "evidence": [
+        "gpu-typed-source-2026-10-23.json",
+        "gpu-typed-programs-2026-10-23.json"
+      ]
     },
     {
       "id": "rank-three",
-      "feature": "Rank-three device tensors",
+      "feature": "Higher-rank float32 device tensors",
       "scope": "GPU",
-      "status": "rejected",
+      "status": "supported",
       "fixtures": [
         "capabilities/rank-three.k"
       ],
-      "notes": "Current source bridge admits ranks one and two",
-      "diagnostic": "G00[13]"
+      "notes": "Ranks zero through eight for typed elementwise arithmetic, reductions, resident feedback and conditional stages; matrix products remain rank two",
+      "evidence": [
+        "gpu-higher-ranks-2026-10-22.json",
+        "gpu-typed-programs-2026-10-23.json"
+      ]
     },
     {
       "id": "scalar-only",
       "feature": "Scalar-only GPU functions",
       "scope": "GPU",
-      "status": "rejected",
+      "status": "supported",
       "fixtures": [
         "capabilities/scalar-only.k"
       ],
-      "notes": "Scalar parameters are supported alongside tensors; arbitrary scalar GPU entries are not",
-      "diagnostic": "G00[13]"
+      "notes": "All ten numeric scalar types, checked scalar-only GPU tasks, internal comparisons and lazy choices",
+      "evidence": [
+        "gpu-typed-source-2026-10-23.json"
+      ]
     },
     {
       "id": "reduce-expression",
@@ -272,12 +285,14 @@
       "id": "branch",
       "feature": "Branch-local numerical primitives",
       "scope": "GPU",
-      "status": "rejected",
+      "status": "supported",
       "fixtures": [
         "capabilities/branch-primitive.k"
       ],
-      "notes": "Pure shape-proven elementwise choices are supported; reductions, matrix products, dispatch and conditional shape checks inside arms are not admitted",
-      "diagnostic": "G00[13]"
+      "notes": "All ten numeric types; selected maps/reductions/products, lazy internal Boolean control and selected helper/local shape checks",
+      "evidence": [
+        "gpu-typed-programs-2026-10-23.json"
+      ]
     },
     {
       "id": "post-matmul",
@@ -469,9 +484,10 @@
       "fixtures": [
         "tensor-sources.k"
       ],
-      "notes": "Pure float32 rank-one/rank-two choices; equal complete fixed shapes, fused arms and resident reduction predicates; unproven/different shapes remain rejected",
+      "notes": "Pure equal-shape float32 choices retain the fused path; independent/different extents use selected-stage numerical programs",
       "evidence": [
-        "gpu-tensor-sources-2026-10-21.json"
+        "gpu-tensor-sources-2026-10-21.json",
+        "gpu-typed-programs-2026-10-23.json"
       ]
     },
     {
@@ -482,9 +498,10 @@
       "fixtures": [
         "dynamic-choices.k"
       ],
-      "notes": "Unconditional extent contracts, transitive equalities and per-invocation choice-result aliases prove equal vector/matrix shapes; independent unknown shapes and branch-local obligations remain rejected",
+      "notes": "Fused choices use unconditional extent proofs; branch-local and different-source obligations execute in selected-stage programs",
       "evidence": [
-        "gpu-dynamic-choices-2026-10-21.json"
+        "gpu-dynamic-choices-2026-10-21.json",
+        "gpu-typed-programs-2026-10-23.json"
       ]
     },
     {
@@ -534,9 +551,23 @@
       "fixtures": [
         "reduction-choices.k"
       ],
-      "notes": "Predicates and pure scalar arms retain one resident sum or matrix-product sum; optional mapped inputs, nested choices and constant arms; scalar results remain float32",
+      "notes": "Scalar choices over resident numerical results support all ten numeric result types, including selected primitive arms",
       "evidence": [
-        "gpu-reduction-choices-2026-10-21.json"
+        "gpu-reduction-choices-2026-10-21.json",
+        "gpu-typed-programs-2026-10-23.json"
+      ]
+    },
+    {
+      "id": "host-control",
+      "feature": "Host Boolean decisions and conditional numerical dispatch",
+      "scope": "Host",
+      "status": "supported",
+      "fixtures": [
+        "host-control.k"
+      ],
+      "notes": "Checked Boolean helpers, comparisons, lazy logic and selected GPU task dispatch; unselected branch shape checks are skipped",
+      "evidence": [
+        "gpu-host-control-2026-10-22.json"
       ]
     }
   ]

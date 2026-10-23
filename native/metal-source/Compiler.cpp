@@ -2,6 +2,8 @@
 #include "Build.h"
 #include "MatmulShader.h"
 #include "MatmulTiles.h"
+#include "NumericProgram.h"
+#include "NumericShader.h"
 #include "kalandra/Backend.h"
 #include "kalandra/Continuation.h"
 #include "kalandra/MetalSource.h"
@@ -38,7 +40,7 @@ struct Rejected {
   Diagnostic diagnostic;
 };
 struct Value {
-  enum Kind { Tensor, Target, Task, Scalar, Error, FaultKind, Text } kind;
+  enum Kind { Tensor, Target, Task, Scalar, Boolean, Error, FaultKind, Text } kind;
   std::size_t slot = 0;
   bool gpu = false;
   std::uint32_t device = 0;
@@ -47,6 +49,8 @@ struct Value {
   unsigned rank = 1;
   std::optional<std::uint64_t> width = {};
   std::optional<std::size_t> failure = {};
+  std::array<std::optional<std::uint64_t>, 6> higherExtents{};
+  NumericType element = NumericType::Float32;
 };
 class Compiler {
   Module syntax;
@@ -54,10 +58,12 @@ class Compiler {
   TypedModule cpu;
   TypedModule placement;
   std::vector<std::string> cpuExports;
+  std::set<FunctionId> usedCpuFunctions;
   std::string declarations, cpuEntries;
   std::size_t cpuEntryCount = 0;
   std::string activeGroup;
   std::optional<std::size_t> admissionExit;
+  bool conditionalHost = false;
   static std::string jump(std::size_t instruction) {
     return "f.pc=@pc" + std::to_string(instruction) + "@; continue;\n";
   }
@@ -72,7 +78,8 @@ class Compiler {
     std::string code = "if (!(" + handle + ")) { auto failure=task.failure(" + activeGroup +
                        "); if(failure.kind!=TaskFailure::None){\n";
     // Another worker can fail and settle the group between argument evaluation
-    // and admission. Preserve that error instead of faulting on an empty handle.
+    // and admission. Preserve that error instead of faulting on an empty
+    // handle.
     if (admissionExit)
       code += jump(*admissionExit);
     else
@@ -80,7 +87,8 @@ class Compiler {
     return code + "} " + error("m::Error::Invalid") + "}\n";
   }
   // Admit the placed function's typed closure, not CPU expressions used to
-  // compute its arguments. Host preflight checks fixed and inferred shape contracts.
+  // compute its arguments. Host preflight checks fixed and inferred shape
+  // contracts.
   void admitGpuTypes(FunctionId root) const {
     std::set<FunctionId> visited;
     std::vector<FunctionId> pending{root};
@@ -105,6 +113,8 @@ class Compiler {
   }
 
   std::map<std::size_t, std::size_t> entries;
+  std::map<FunctionId, NumericShader> numericShaders;
+  std::map<FunctionId, NumericProgram> numericPrograms;
   std::vector<std::string> steps, fields;
   std::size_t next = 0;
   struct Depth {
@@ -131,6 +141,53 @@ class Compiler {
     return name;
   }
   static std::string ref(const Value &v) { return "f.v" + std::to_string(v.slot); }
+  static std::string elementName(NumericType element) {
+    constexpr std::array names{"Int8",   "Int16",  "Int32",  "Int64",   "UInt8",
+                               "UInt16", "UInt32", "UInt64", "Float32", "Float64"};
+    return "kalandra::NumericType::" + std::string(names.at(static_cast<unsigned>(element)));
+  }
+  static std::string scalarType(NumericType element) {
+    return "NumericValue<" + elementName(element) + ">";
+  }
+  static std::string tensorDescriptor(NumericType element, unsigned rank) {
+    return "CpuTensor<" + elementName(element) + "," + std::to_string(rank) + ">";
+  }
+  static std::string valueStorage(const Value &value) {
+    return value.kind == Value::Tensor    ? "m::Buffer"
+           : value.kind == Value::Boolean ? "bool"
+                                          : scalarType(value.element);
+  }
+  std::optional<std::uint64_t> literalBits(ValueId id) const {
+    const auto &expression = node(id);
+    const auto bits = describeNumeric(expression.type.element)->bits;
+    const auto mask = bits == 64 ? UINT64_MAX : (UINT64_C(1) << bits) - 1;
+    if (const auto *unary = std::get_if<ScalarUnary>(&expression.operation)) {
+      auto input = literalBits(unary->operand);
+      if (!input)
+        return {};
+      if (unary->operation == TokenKind::Plus)
+        return input;
+      if (unary->operation != TokenKind::Minus)
+        return {};
+      return isInteger(expression.type.element) ? (UINT64_C(0) - *input) & mask
+                                                : *input ^ (UINT64_C(1) << (bits - 1));
+    }
+    return std::visit(
+        [&](const auto &literal) -> std::optional<std::uint64_t> {
+          using T = std::decay_t<decltype(literal)>;
+          if constexpr (std::is_same_v<T, Float32Literal> || std::is_same_v<T, Float64Literal>)
+            return literal.bits;
+          else if constexpr (std::is_same_v<T, Int32Literal> || std::is_same_v<T, UInt32Literal> ||
+                             std::is_same_v<T, Int64Literal> || std::is_same_v<T, UInt64Literal>)
+            return static_cast<std::uint64_t>(literal.value) & mask;
+          return {};
+        },
+        expression.operation);
+  }
+  static std::string scalarBits(NumericType element, std::uint64_t bits) {
+    return "std::bit_cast<" + scalarType(element) + ">(std::uint" +
+           std::to_string(describeNumeric(element)->bits) + "_t(" + std::to_string(bits) + "ull))";
+  }
   std::string error(std::string expr) const {
     return "task.fault(std::int64_t(" + expr + ")); return;";
   }
@@ -141,13 +198,23 @@ class Compiler {
     return "r.device(" + std::to_string(target.device) + ")";
   }
   static std::optional<std::uint64_t> extent(const Value &value, unsigned axis) {
-    return axis == 0 ? value.length : value.width;
+    return axis == 0 ? value.length : axis == 1 ? value.width : value.higherExtents.at(axis - 2);
+  }
+  static void setExtent(Value &value, unsigned axis, std::optional<std::uint64_t> known) {
+    if (axis == 0)
+      value.length = known;
+    else if (axis == 1)
+      value.width = known;
+    else
+      value.higherExtents.at(axis - 2) = known;
   }
   std::optional<std::uint64_t> tensorType(const TypeSyntax &t, bool dynamicOnly = false) const {
-    if (!t.tensor || !t.element || text(*t.element) != "float32" || t.dimensions.empty() ||
-        t.dimensions.size() > 2)
-      reject(t.span, "the Metal source bridge requires rank-one or rank-two float32 tensors");
-    const auto bytes = describeNumeric(NumericType::Float32)->bytes();
+    const auto numeric =
+        t.element ? resolveNumeric(text(*t.element)) : std::optional<NumericType>{};
+    if (!t.tensor || !numeric || t.dimensions.size() > 8)
+      reject(t.span, "the Metal source bridge requires rank-zero through "
+                     "rank-eight numeric tensors");
+    const auto bytes = describeNumeric(*numeric)->bytes();
     std::uint64_t count = 1;
     bool allKnown = true, empty = false;
     for (const auto &d : t.dimensions) {
@@ -164,7 +231,7 @@ class Compiler {
           reject(t.span, "tensor shape exceeds the checked allocation range");
         count *= *d.extent;
       }
-    return t.dimensions[0].extent;
+    return t.dimensions.empty() ? std::optional<std::uint64_t>{1} : t.dimensions[0].extent;
   }
   std::optional<std::uint32_t> constantBits(ValueId id) const {
     if (const auto *literal = std::get_if<Float32Literal>(&node(id).operation))
@@ -181,9 +248,10 @@ class Compiler {
                           unsigned axis = 0) const {
     auto known = extent(value, axis);
     if (known) {
-      if (*known != wanted)
+      if (*known == wanted)
+        return {};
+      if (!conditionalHost)
         reject(span, "tensor shape mismatch");
-      return {};
     }
     auto [line, column] = syntax.source->location(span.begin);
     return "if (" + ref(value) + ".shape().size()!=" + std::to_string(value.rank) + " || " +
@@ -212,7 +280,7 @@ class Compiler {
         entry.resultType.element == NumericType::Float32 &&
         std::any_of(entry.parameters.begin(), entry.parameters.end(), [&](auto parameter) {
           const auto &type = cpu.symbols[parameter].type;
-          return type.tensor && (type.shape.size() == 1 || type.shape.size() == 2);
+          return type.tensor && !type.shape.empty() && type.shape.size() <= 8;
         });
     const bool matrixSignature =
         entry.resultType.tensor && entry.resultType.shape.size() == 2 &&
@@ -458,8 +526,9 @@ class Compiler {
     }
     return false;
   }
-  // Branch arms may be evaluated speculatively only when every operation is pure,
-  // scalar or a lane calculation on one source. Shape checks and dispatch stay outside.
+  // Branch arms may be evaluated speculatively only when every operation is
+  // pure, scalar or a lane calculation on one source. Shape checks and dispatch
+  // stay outside.
   mutable std::map<ValueId, bool> scalarPurity, lanePurity;
   bool pureBranch(ValueId root, bool lane) const {
     auto &cache = lane ? lanePurity : scalarPurity;
@@ -487,7 +556,7 @@ class Compiler {
       const auto &node = cpu.expressions.at(id);
       const auto &type = node.type;
       if ((!lane && type.tensor) ||
-          (type.tensor && (type.shape.empty() || type.shape.size() > 2)) || type.task ||
+          (type.tensor && (type.shape.empty() || type.shape.size() > 8)) || type.task ||
           type.fallible ||
           (type.builtin != BuiltinValue::Bool &&
            (type.builtin != BuiltinValue::Numeric || type.element != NumericType::Float32)))
@@ -566,7 +635,7 @@ class Compiler {
     auto &cached = matrixGraphs[root];
     const auto &entry = cpu.functions.at(root);
     if (entry.resultType.tensor &&
-        (entry.resultType.shape.empty() || entry.resultType.shape.size() > 2))
+        (entry.resultType.shape.empty() || entry.resultType.shape.size() > 8))
       return cached;
     MatrixGraph graph;
     using Result = std::optional<std::int64_t>; // -1: scalar input; -2: reduced value.
@@ -821,7 +890,7 @@ class Compiler {
     std::vector<std::int64_t> args;
     for (auto parameter : entry.parameters) {
       const auto &type = cpu.symbols[parameter].type;
-      if (type.tensor && (type.shape.empty() || type.shape.size() > 2))
+      if (type.tensor && (type.shape.empty() || type.shape.size() > 8))
         return cached;
       args.push_back(type.tensor ? std::int64_t(graph.inputs++) : -1);
     }
@@ -841,7 +910,8 @@ class Compiler {
                 (!multi && graph.reductions.front() != last))))
       return cached;
     // Every product must contribute to the returned matrix. Extra unused
-    // numerical primitives retain the existing diagnostic instead of disappearing.
+    // numerical primitives retain the existing diagnostic instead of
+    // disappearing.
     std::set<std::uint32_t> live;
     if (multi || graph.tensorResult)
       live.insert(graph.reductions.begin(), graph.reductions.end());
@@ -868,44 +938,59 @@ class Compiler {
       hostExtent = std::max(hostExtent, extent.identity);
   }
   void declareCpuFunction(FunctionId id) {
-    const auto &f = cpu.functions[id];
-    declarations += std::string("extern \"C\" ") + (f.resultType.tensor ? "void" : "float") +
-                    " _mlir_ciface_kalandra_cpu_" + std::to_string(id) + "(";
-    if (f.resultType.tensor)
-      declarations += "Float32Tensor<" + std::to_string(f.resultType.shape.size()) + ">*,";
-    for (auto parameter : f.parameters)
-      declarations +=
-          cpu.symbols[parameter].type.tensor
-              ? "Float32Tensor<" + std::to_string(cpu.symbols[parameter].type.shape.size()) + ">*,"
-              : "float,";
+    const auto &fn = cpu.functions.at(id);
+    declarations +=
+        "extern \"C\" " +
+        (fn.resultType.tensor                          ? std::string("void")
+         : fn.resultType.builtin == BuiltinValue::Bool ? std::string("bool")
+                                                       : scalarType(fn.resultType.element)) +
+        " _mlir_ciface_kalandra_cpu_" + std::to_string(id) + "(";
+    if (fn.resultType.tensor)
+      declarations += tensorDescriptor(fn.resultType.element, fn.resultType.shape.size()) + "*,";
+    for (auto parameter : fn.parameters) {
+      const auto &type = cpu.symbols.at(parameter).type;
+      declarations += type.tensor ? tensorDescriptor(type.element, type.shape.size()) + "*,"
+                      : type.builtin == BuiltinValue::Bool ? "bool,"
+                                                           : scalarType(type.element) + ",";
+    }
     declarations += "Invocation*);\n";
   }
-  // Check a tiny operation wrapper with the common frontend, then import its typed
-  // nodes with fresh IDs and the original expression's source location. Only
-  // compiler-owned operator/type spellings enter this source; user text is not spliced.
+  // Check a tiny operation wrapper with the common frontend, then import its
+  // typed nodes with fresh IDs and the original expression's source location.
+  // Only compiler-owned operator/type spellings enter this source; user text is
+  // not spliced.
   FunctionId hostKernel(const std::string &operation, const std::vector<Value> &inputs,
                         SourceSpan span) {
     std::string key = operation;
     for (const auto &input : inputs) {
       completed(input, span);
-      if ((input.kind != Value::Tensor && input.kind != Value::Scalar) || input.gpu)
-        reject(span, "inline CPU expressions require completed host values; explicitly transfer "
+      if ((input.kind != Value::Tensor && input.kind != Value::Scalar &&
+           input.kind != Value::Boolean) ||
+          input.gpu)
+        reject(span, "inline CPU expressions require completed host values; "
+                     "explicitly transfer "
                      "GPU tensors to devices.cpu() and observe tasks with try await");
-      key += ":" + std::to_string(input.kind == Value::Tensor ? input.rank : 0);
+      key += ":" + (input.kind == Value::Boolean
+                        ? std::string("Bool")
+                        : std::to_string(input.kind == Value::Tensor ? input.rank : 0) + ":" +
+                              elementName(input.element));
     }
     if (auto found = hostOperations.find(key); found != hostOperations.end())
       return found->second;
-    const bool builtin = operation == "matmul" || operation == "reduceSum";
+    const auto conversion = resolveNumeric(operation);
+    const bool builtin = operation == "matmul" || operation == "reduceSum" || conversion;
     if (inputs.size() !=
-        (operation == "reduceSum" || operation == "neg" || operation == "pos" ? 1 : 2))
+        (operation == "reduceSum" || operation == "neg" || operation == "pos" || conversion ? 1
+                                                                                            : 2))
       reject(span, "inline CPU operation argument count mismatch");
     auto name = "__host_expression_" + std::to_string(cpu.functions.size());
     while (cpuFunctions.contains(name))
       name += "_";
-    const auto type = [](unsigned rank) {
+    const auto type = [](unsigned rank, NumericType element) {
+      auto name = std::string(describeNumeric(element)->name);
       if (!rank)
-        return std::string("float32");
-      std::string result = "Tensor[float32";
+        return name;
+      std::string result = "Tensor[" + name;
       for (unsigned axis = 0; axis < rank; ++axis)
         result += ",?";
       return result + "]";
@@ -919,7 +1004,8 @@ class Compiler {
         parameters += ",";
         arguments += ",";
       }
-      parameters += "a" + std::to_string(i) + ":" + type(rank);
+      parameters += "a" + std::to_string(i) + ":" +
+                    (inputs[i].kind == Value::Boolean ? "Bool" : type(rank, inputs[i].element));
       arguments += "a" + std::to_string(i);
     }
     if (operation == "reduceSum")
@@ -928,9 +1014,13 @@ class Compiler {
                        : operation == "neg" ? "-a0"
                        : operation == "pos" ? "+a0"
                                             : "a0 " + operation + " a1";
-    auto source = std::make_shared<SourceFile>(syntax.source->path(),
-                                               "fn " + name + "(" + parameters + ") -> " +
-                                                   type(resultRank) + ":\n  " + body + "\n");
+    const bool comparison = operation == "==" || operation == "!=" || operation == "<" ||
+                            operation == "<=" || operation == ">" || operation == ">=";
+    auto source = std::make_shared<SourceFile>(
+        syntax.source->path(),
+        "fn " + name + "(" + parameters + ") -> " +
+            (comparison ? "Bool" : type(resultRank, conversion.value_or(inputs.at(0).element))) +
+            ":\n  " + body + "\n");
     auto checked = kalandra::check(parse(source));
     if (!checked.ok()) {
       auto diagnostic = checked.diagnostics.front();
@@ -972,11 +1062,12 @@ class Compiler {
               op.symbol += symbols;
             else if constexpr (std::is_same_v<T, ScalarUnary> || std::is_same_v<T, TensorUnary>)
               op.operand += values;
-            else if constexpr (std::is_same_v<T, ScalarBinary> || std::is_same_v<T, TensorBinary> ||
-                               std::is_same_v<T, Matmul>) {
+            else if constexpr (std::is_same_v<T, ScalarBinary> ||
+                               std::is_same_v<T, ScalarCompare> ||
+                               std::is_same_v<T, TensorBinary> || std::is_same_v<T, Matmul>) {
               op.left += values;
               op.right += values;
-            } else if constexpr (std::is_same_v<T, ReduceSum>)
+            } else if constexpr (std::is_same_v<T, ReduceSum> || std::is_same_v<T, NumericConvert>)
               op.input += values;
             else
               reject(span, "unexpected operation in inline CPU kernel");
@@ -1015,17 +1106,27 @@ class Compiler {
   }
   Value cpuCall(FunctionId function, const std::vector<Value> &inputs, SourceSpan span,
                 bool inlineOperation = false, bool spawned = false) {
+    usedCpuFunctions.insert(function);
     const auto &fn = cpu.functions[function];
     if (inputs.size() != fn.parameters.size())
       reject(span, "CPU function argument count mismatch");
     const bool tensorResult = fn.resultType.tensor;
-    auto out = spawned ? std::string("value") : field(tensorResult ? "m::Buffer" : "float");
-    Value value{tensorResult ? Value::Tensor : Value::Scalar, spawned ? 0 : next - 1};
+    const bool booleanResult = fn.resultType.builtin == BuiltinValue::Bool;
+    if (spawned && booleanResult)
+      reject(span, "Boolean CPU task results are not implemented by the Metal bridge");
+    auto out = spawned ? std::string("value")
+                       : field(tensorResult    ? "m::Buffer"
+                               : booleanResult ? "bool"
+                                               : scalarType(fn.resultType.element));
+    Value value{tensorResult    ? Value::Tensor
+                : booleanResult ? Value::Boolean
+                                : Value::Scalar,
+                spawned ? 0 : next - 1};
+    value.element = fn.resultType.element;
     if (tensorResult) {
-      value.length = fn.resultType.shape[0].constant;
       value.rank = fn.resultType.shape.size();
-      if (value.rank == 2)
-        value.width = fn.resultType.shape[1].constant;
+      for (unsigned axis = 0; axis < value.rank; ++axis)
+        setExtent(value, axis, fn.resultType.shape[axis].constant);
     }
     std::string step, arguments;
     std::map<ExtentId, std::pair<Value, unsigned>> extentArguments;
@@ -1036,9 +1137,10 @@ class Compiler {
       const auto &type = cpu.symbols[fn.parameters[i]].type;
       if (type.tensor) {
         if (input.kind != Value::Tensor || input.gpu)
-          reject(span, "CPU tensor arguments require an explicit transfer to devices.cpu()");
-        if (type.shape.size() != input.rank)
-          reject(span, "CPU tensor argument rank mismatch");
+          reject(span, "CPU tensor arguments require an explicit transfer to "
+                       "devices.cpu()");
+        if (type.shape.size() != input.rank || type.element != input.element)
+          reject(span, "CPU tensor argument rank or element type mismatch");
         for (unsigned axis = 0; axis < input.rank; ++axis) {
           if (type.shape[axis].constant)
             fixedShapes.emplace_back(input, *type.shape[axis].constant, axis);
@@ -1046,13 +1148,15 @@ class Compiler {
             extentArguments.emplace(type.shape[axis].identity, std::pair{input, axis});
         }
         auto local = "argument" + std::to_string(i);
-        step += "auto " + local + " = r.toCpu<" + std::to_string(input.rank) +
-                ">(task.context(), " + ref(input) + ");\n";
+        step += "auto " + local + " = r.toCpuTyped<" + elementName(input.element) + "," +
+                std::to_string(input.rank) + ">(task.context(), " + ref(input) + ");\n";
         step += "if (!" + local + ") { " + error(local + ".error()") + " }\n";
         arguments += "&*" + local + ",";
       } else {
-        if (input.kind != Value::Scalar)
-          reject(span, "CPU argument requires float32");
+        if (input.kind != (type.builtin == BuiltinValue::Bool ? Value::Boolean : Value::Scalar))
+          reject(span, "CPU argument requires its declared float32 or Bool type");
+        if (type.builtin != BuiltinValue::Bool && type.element != input.element)
+          reject(span, "CPU scalar argument numeric type mismatch");
         arguments += ref(input) + ",";
       }
     }
@@ -1065,10 +1169,7 @@ class Compiler {
           if (argument != extentArguments.end())
             known = extent(argument->second.first, argument->second.second);
         }
-        if (axis == 0)
-          value.length = known;
-        else
-          value.width = known;
+        setExtent(value, axis, known);
       }
     std::string guards;
     for (const auto &[input, wanted, axis] : fixedShapes)
@@ -1087,10 +1188,9 @@ class Compiler {
                          std::to_string(extentArguments.at(extent.identity).second) + "]";
       };
       auto left = known(requirement.left), right = known(requirement.right);
-      if (left && right) {
-        if (left != right)
-          reject(span, "CPU call violates a known tensor shape requirement");
-      } else {
+      if (left && right && left != right && !conditionalHost)
+        reject(span, "CPU call violates a known tensor shape requirement");
+      if (!left || !right || left != right) {
         auto [line, column] = syntax.source->location(span.begin);
         guards += "if (" + render(requirement.left) + "!=" + render(requirement.right) +
                   ") { task.fault(1," + std::to_string(line) + "," + std::to_string(column) +
@@ -1099,7 +1199,7 @@ class Compiler {
     }
     step = guards + step;
     if (tensorResult)
-      step += "Float32Tensor<" + std::to_string(value.rank) + "> result{};\n";
+      step += tensorDescriptor(value.element, value.rank) + " result{};\n";
     step += (tensorResult ? "" : "f." + out + " = ") + std::string("_mlir_ciface_kalandra_cpu_") +
             std::to_string(function) + "(" + (tensorResult ? "&result," : "") + arguments +
             "&task.context());\n";
@@ -1111,8 +1211,9 @@ class Compiler {
     if (spawned)
       step += "if(task.cancelled()) return;\n";
     if (tensorResult) {
-      // Acquire the immutable backing lease before releasing the returned memref owner.
-      // The buffer-deallocation pipeline gives C-interface tensor results owned storage.
+      // Acquire the immutable backing lease before releasing the returned
+      // memref owner. The buffer-deallocation pipeline gives C-interface tensor
+      // results owned storage.
       step += "auto imported = r.fromCpu(task.context(), result.view());\n";
       step += "task.context().release(result.allocated);\n";
       step += "if (!imported) { " + error("imported.error()") + " }\n";
@@ -1133,16 +1234,17 @@ class Compiler {
       if (!captured.insert(input.slot).second)
         continue;
       const auto name = "v" + std::to_string(input.slot);
-      members += std::string(input.kind == Value::Tensor ? "m::Buffer " : "float ") + name + ";";
+      members += valueStorage(input) + " " + name + ";";
       captures += "," + ref(input);
       owned += ",data." + name;
       if (input.kind == Value::Tensor)
         validation += " || !data." + name + " || data." + name + ".onDevice() || data." + name +
-                      ".format()!=m::Format::Float32 || data." + name +
-                      ".shape().size()!=" + std::to_string(input.rank);
+                      ".format()!=*m::storageFormat(" + elementName(input.element) + ") || data." +
+                      name + ".shape().size()!=" + std::to_string(input.rank);
     }
     cpuEntries += "struct " + prefix + "Packet{" + members + "};\nstruct " + prefix + "Frame{" +
-                  members + (tensorResult ? "m::Buffer" : "float") + " value{};};\n";
+                  members + (tensorResult ? "m::Buffer" : scalarType(value.element)) +
+                  " value{};};\n";
     cpuEntries += "bool " + prefix +
                   "Construct(Invocation &context,void *out,const Packet &packet){\n"
                   "const auto &data=*static_cast<const " +
@@ -1155,16 +1257,18 @@ class Compiler {
                   prefix + "Frame{" + owned + ",{}};return true;}\n";
     cpuEntries += "void " + prefix + "Destroy(void *frame) noexcept {static_cast<" + prefix +
                   "Frame*>(frame)->~" + prefix + "Frame();}\n";
-    cpuEntries +=
-        "void " + prefix + "Resume(Task &task){auto &f=*static_cast<" + prefix +
-        "Frame*>(task.frame());auto &r=*f.runtime; (void)r;\nif(task.cancelled()) return;\n" +
-        step + "task.complete(&f.value); }\n";
+    cpuEntries += "void " + prefix + "Resume(Task &task){auto &f=*static_cast<" + prefix +
+                  "Frame*>(task.frame());auto &r=*f.runtime; "
+                  "(void)r;\nif(task.cancelled()) return;\n" +
+                  step + "task.complete(&f.value); }\n";
     cpuEntries += "const TaskEntry " + prefix + "Entry{1," +
                   std::to_string(0x4b414c4350550000ULL + cpuEntryCount) + "ull,sizeof(" + prefix +
                   "Packet),alignof(" + prefix + "Packet),sizeof(" + prefix + "Frame),alignof(" +
                   prefix + "Frame)," + prefix + "Construct," + prefix + "Destroy," + prefix +
-                  "Resume,&m::Runtime::" + (tensorResult ? "bufferLayout" : "scalarLayout") +
-                  "()};\n";
+                  "Resume," +
+                  (tensorResult ? "&m::Runtime::bufferLayout()"
+                                : "numericScalarLayout(" + elementName(value.element) + ")") +
+                  "};\n";
     auto taskField = field("TaskHandle");
     steps.push_back(prefix + "Packet packet{" + captures + "};\nf." + taskField + "=task.spawn(" +
                     activeGroup + "," + prefix + "Entry,{" + prefix +
@@ -1180,15 +1284,17 @@ class Compiler {
   Value spawnHelper(FunctionId id, const std::vector<Value> &inputs, Value target,
                     SourceSpan span) {
     if (target.kind != Value::Target || target.gpu)
-      reject(span,
-             "resumable helpers require CPU placement; GPU placements require numeric kernels");
+      reject(span, "resumable helpers require CPU placement; GPU placements "
+                   "require numeric kernels");
     const auto &fn = placement.functions.at(id);
     if (inputs.size() != fn.parameters.size())
       reject(span, "resumable helper argument count mismatch");
     std::string captures = "f.runtime,f.directory.c_str()";
     for (const auto &input : inputs) {
       completed(input, span);
-      if ((input.kind != Value::Tensor && input.kind != Value::Scalar) || input.gpu)
+      if ((input.kind != Value::Tensor && input.kind != Value::Scalar &&
+           input.kind != Value::Boolean) ||
+          input.gpu)
         reject(span, "resumable helper captures require completed host values");
       captures += "," + ref(input);
     }
@@ -1203,9 +1309,8 @@ class Compiler {
     value.scalarTask = !type.tensor;
     if (type.tensor) {
       value.rank = type.shape.size();
-      value.length = type.shape[0].constant;
-      if (value.rank == 2)
-        value.width = type.shape[1].constant;
+      for (unsigned axis = 0; axis < value.rank; ++axis)
+        setExtent(value, axis, type.shape[axis].constant);
     }
     return value;
   }
@@ -1219,6 +1324,7 @@ class Compiler {
     Value result{Value::Task, next - 1, target.gpu, target.device, input.length};
     result.rank = input.rank;
     result.width = input.width;
+    result.higherExtents = input.higherExtents;
     std::string step;
     if (target.gpu)
       step = "auto target = " + device(target) + ";\nif (!target) { " + error("target.error()") +
@@ -1229,10 +1335,370 @@ class Compiler {
     steps.push_back(step + admitted("f." + out));
     return result;
   }
+  Value spawnNumericProgram(FunctionId function, const std::vector<Value> &inputs, Value target,
+                            SourceSpan span) {
+    const auto &fn = cpu.functions.at(function);
+    auto found = numericPrograms.find(function);
+    if (found == numericPrograms.end()) {
+      auto program = emitNumericProgram(cpu, function);
+      if (!program)
+        throw Rejected{program.error()};
+      found = numericPrograms.emplace(function, std::move(*program)).first;
+    }
+    const auto &program = found->second;
+    std::vector<Value> tensors, scalars;
+    for (std::size_t i = 0; i < inputs.size(); ++i) {
+      const auto &type = cpu.symbols.at(fn.parameters.at(i)).type;
+      const auto &value = inputs[i];
+      completed(value, span);
+      if (type.builtin != BuiltinValue::Numeric || value.element != type.element ||
+          value.kind != (type.tensor ? Value::Tensor : Value::Scalar))
+        reject(span, "typed numerical program argument mismatch");
+      if (type.tensor) {
+        if (!value.gpu || value.device != target.device || value.rank != type.shape.size())
+          reject(span,
+                 "typed numerical program requires explicit matching device tensor transfers");
+        for (unsigned axis = 0; axis < type.shape.size(); ++axis)
+          if (type.shape[axis].constant)
+            requireLength(value, *type.shape[axis].constant, span, axis);
+      }
+      (type.tensor ? tensors : scalars).push_back(value);
+    }
+    auto locate = [&](const Extent &extent) -> std::pair<std::size_t, unsigned> {
+      std::size_t tensor = 0;
+      for (auto parameter : fn.parameters) {
+        const auto &type = cpu.symbols.at(parameter).type;
+        if (!type.tensor)
+          continue;
+        for (unsigned axis = 0; axis < type.shape.size(); ++axis)
+          if (!extent.constant && type.shape[axis].identity == extent.identity)
+            return {tensor, axis};
+        ++tensor;
+      }
+      reject(span, "typed numerical program shape contract cannot be mapped to an input");
+    };
+    for (const auto &requirement : fn.preconditions) {
+      if (requirement.left.constant && requirement.right.constant) {
+        if (requirement.left.constant != requirement.right.constant)
+          reject(span, "typed numerical program shape contract is inconsistent");
+      } else if (requirement.left.constant || requirement.right.constant) {
+        const auto &dynamic = requirement.left.constant ? requirement.right : requirement.left;
+        const auto &constant = requirement.left.constant ? requirement.left : requirement.right;
+        auto [input, axis] = locate(dynamic);
+        requireLength(tensors.at(input), *constant.constant, span, axis);
+      } else {
+        auto [a, ax] = locate(requirement.left);
+        auto [b, bx] = locate(requirement.right);
+        auto left = extent(tensors.at(a), ax), right = extent(tensors.at(b), bx);
+        if (left && right && left != right && !conditionalHost)
+          reject(span, "typed numerical program input shapes differ");
+        if (!left || !right || left != right) {
+          auto [line, column] = syntax.source->location(span.begin);
+          steps.push_back("if(" + ref(tensors[a]) + ".shape()[" + std::to_string(ax) + "]!=" +
+                          ref(tensors[b]) + ".shape()[" + std::to_string(bx) + "]){task.fault(1," +
+                          std::to_string(line) + "," + std::to_string(column) + ");return;}\n");
+        }
+      }
+    }
+    const auto [entry, inserted] = entries.emplace(function, entries.size());
+    (void)inserted;
+    const auto base = "kernel" + std::to_string(entry->second);
+    auto out = field("TaskHandle");
+    Value result{Value::Task, next - 1, true, target.device};
+    result.scalarTask = !program.type.tensor;
+    result.element = program.type.element;
+    result.rank = program.type.shape.size();
+    for (unsigned axis = 0; axis < result.rank; ++axis)
+      setExtent(result, axis, program.type.shape[axis].constant);
+    auto schema = [&](const auto &types) {
+      std::string text = "std::array<kalandra::NumericType," + std::to_string(types.size()) + ">{";
+      for (auto type : types)
+        text += elementName(type) + ",";
+      return text + "}";
+    };
+    auto indices = [&](const auto &values, const std::string &type) {
+      std::string text = "std::array<" + type + "," + std::to_string(values.size()) + ">{";
+      for (auto value : values)
+        text += std::to_string(value) + ",";
+      return text + "}";
+    };
+    auto capture = [&](const Value &value) {
+      return "std::uint64_t(std::bit_cast<std::uint" +
+             std::to_string(describeNumeric(value.element)->bits) + "_t>(" + ref(value) + "))";
+    };
+    std::string code =
+        "auto target=" + device(target) + ";if(!target){" + error("target.error()") + "}\n";
+    for (std::size_t i = 0; i < program.kernels.size(); ++i) {
+      const auto &kernel = program.kernels[i];
+      const auto name = "kernel" + std::to_string(i);
+      const auto path = base + (i ? "-stage" + std::to_string(i) : "") + ".metallib";
+      auto instruction = std::find_if(program.code.begin(), program.code.end(),
+                                      [i](const auto &op) { return op.kernel == i; });
+      if (instruction == program.code.end())
+        reject(span, "unreferenced typed numerical program kernel");
+      const auto kind = instruction->kind;
+      code += "auto " + name + "=r." +
+              (kind == NumericProgramKind::Reduce   ? "loadNumericReductionKernel"
+               : kind == NumericProgramKind::Matmul ? "loadNumericMatmulKernel"
+                                                    : "loadNumericGraphKernel") +
+              "(f.directory+\"/" + path + "\",*target," + elementName(kernel.element);
+      if (kind == NumericProgramKind::Map)
+        code += ",m::ElementwiseSignature{" + std::to_string(kernel.tensorTypes.size()) + "," +
+                std::to_string(kernel.scalarTypes.size()) +
+                (kernel.indirect ? ",m::ElementwiseBinding::ArgumentBuffer}," : "},") +
+                schema(kernel.tensorTypes) + "," + schema(kernel.scalarTypes) + "," +
+                indices(kernel.reads, "std::uint32_t") + "," +
+                indices(kernel.scalarBuffers, "std::uint8_t");
+      code += ");if(!" + name + "){" + error(name + ".error()") + "}\n";
+    }
+    constexpr std::array names{"Map",   "Reduce",     "Matmul", "Branch",      "Jump",
+                               "Alias", "EqualShape", "Extent", "MatrixShape", "ShapeFault"};
+    for (std::size_t i = 0; i < program.code.size(); ++i) {
+      const auto &op = program.code[i];
+      const auto suffix = std::to_string(i);
+      code += "auto operands" + suffix + "=" + indices(op.inputs, "std::uint32_t") + ";\n";
+      std::string captures = "std::array<std::uint64_t," +
+                             std::to_string(op.scalarSources.size() + op.constants.size()) + ">{";
+      for (auto source : op.scalarSources)
+        captures += capture(scalars.at(source)) + ",";
+      for (auto value : op.constants)
+        captures += std::to_string(value) + "ull,";
+      code += "auto scalars" + suffix + "=" + captures + "};\n";
+    }
+    code += "std::array<m::NumericInstruction," + std::to_string(program.code.size()) + "> code{{";
+    for (std::size_t i = 0; i < program.code.size(); ++i) {
+      const auto &op = program.code[i];
+      const auto suffix = std::to_string(i);
+      code +=
+          "{m::NumericInstructionKind::" + std::string(names.at(static_cast<unsigned>(op.kind))) +
+          "," + (op.kernel == UINT32_MAX ? "m::Kernel{}" : "*kernel" + std::to_string(op.kernel)) +
+          ",operands" + suffix + ",scalars" + suffix + "," + std::to_string(op.output) + "u," +
+          std::to_string(op.target) + "u},";
+    }
+    code += "}};\nf." + out + "=r.numericProgram(task," + activeGroup + ",std::array<m::Buffer," +
+            std::to_string(tensors.size()) + ">{";
+    for (const auto &value : tensors)
+      code += ref(value) + ",";
+    code += "},code," + std::to_string(program.result) + "u," + elementName(program.type.element) +
+            "," + (result.scalarTask ? "true" : "false") + ");\n" + admitted("f." + out);
+    steps.push_back(std::move(code));
+    return result;
+  }
+  Value spawnNumeric(FunctionId function, const std::vector<Value> &inputs, Value target,
+                     SourceSpan span) {
+    const auto &fn = cpu.functions.at(function);
+    if (numericPrograms.contains(function))
+      return spawnNumericProgram(function, inputs, target, span);
+    auto found = numericShaders.find(function);
+    if (found == numericShaders.end()) {
+      auto shader = emitNumericShader(cpu, function);
+      if (!shader)
+        return spawnNumericProgram(function, inputs, target, span);
+      found = numericShaders.emplace(function, std::move(*shader)).first;
+    }
+    const auto element = found->second.element;
+    std::vector<Value> tensors, scalars;
+    for (std::size_t i = 0; i < inputs.size(); ++i) {
+      const auto &value = inputs[i];
+      const auto &type = cpu.symbols.at(fn.parameters.at(i)).type;
+      completed(value, span);
+      if (value.element != type.element ||
+          value.kind != (type.tensor ? Value::Tensor : Value::Scalar))
+        reject(span, "typed GPU argument category or numerical type mismatch");
+      if (type.tensor) {
+        if (!value.gpu || value.device != target.device || value.rank != type.shape.size())
+          reject(span, "typed GPU tensors require matching ranks and explicit "
+                       "transfer to the "
+                       "selected device");
+        for (unsigned axis = 0; axis < value.rank; ++axis)
+          if (type.shape[axis].constant)
+            requireLength(value, *type.shape[axis].constant, span, axis);
+      }
+      (type.tensor ? tensors : scalars).push_back(value);
+    }
+    auto locate = [&](const Extent &extent) -> std::pair<std::size_t, unsigned> {
+      std::size_t tensor = 0;
+      for (auto parameter : fn.parameters) {
+        const auto &type = cpu.symbols.at(parameter).type;
+        if (!type.tensor)
+          continue;
+        for (unsigned axis = 0; axis < type.shape.size(); ++axis)
+          if (!extent.constant && extent.identity == type.shape[axis].identity)
+            return {tensor, axis};
+        ++tensor;
+      }
+      reject(span, "typed GPU shape contract cannot be mapped to an input");
+    };
+    for (const auto &requirement : fn.preconditions) {
+      if (requirement.left.constant && requirement.right.constant) {
+        if (requirement.left.constant != requirement.right.constant)
+          reject(span, "typed GPU shape contract is inconsistent");
+      } else if (requirement.left.constant || requirement.right.constant) {
+        const auto &dynamic = requirement.left.constant ? requirement.right : requirement.left;
+        const auto &constant = requirement.left.constant ? requirement.left : requirement.right;
+        auto [input, axis] = locate(dynamic);
+        requireLength(tensors.at(input), *constant.constant, span, axis);
+      } else {
+        auto [a, ax] = locate(requirement.left);
+        auto [b, bx] = locate(requirement.right);
+        auto left = extent(tensors.at(a), ax), right = extent(tensors.at(b), bx);
+        if (left && right && left != right && !conditionalHost)
+          reject(span, "typed GPU argument shapes differ");
+        if (!left || !right || left != right) {
+          auto [line, column] = syntax.source->location(span.begin);
+          steps.push_back("if(" + ref(tensors[a]) + ".shape()[" + std::to_string(ax) + "]!=" +
+                          ref(tensors[b]) + ".shape()[" + std::to_string(bx) + "]){task.fault(1," +
+                          std::to_string(line) + "," + std::to_string(column) + ");return;}\n");
+        }
+      }
+    }
+    const auto [entry, inserted] = entries.emplace(function, entries.size());
+    (void)inserted;
+    auto kernel = field("m::Kernel"), out = field("TaskHandle");
+    const auto &reads = found->second.reads;
+    auto result = tensors.empty() ? Value{Value::Task} : tensors.at(reads.front());
+    result.kind = Value::Task;
+    result.slot = next - 1;
+    result.element = element;
+    result.scalarTask = !found->second.reduction.empty() || found->second.scalar;
+    std::string buffers = "std::array<m::Buffer," + std::to_string(tensors.size()) + ">{";
+    for (const auto &value : tensors)
+      buffers += ref(value) + ",";
+    buffers += "}";
+    std::string capture = "std::array<std::uint64_t," + std::to_string(scalars.size()) + ">{";
+    for (const auto &value : scalars)
+      capture += "std::uint64_t(std::bit_cast<std::uint" +
+                 std::to_string(describeNumeric(value.element)->bits) + "_t>(" + ref(value) + ")),";
+    capture += "}";
+    std::string projection = "std::array<std::uint32_t," + std::to_string(reads.size()) + ">{";
+    for (auto read : reads)
+      projection += std::to_string(read) + ",";
+    projection += "}";
+    std::string reduction;
+    if (!found->second.reduction.empty())
+      reduction = "auto reduction=r.loadNumericReductionKernel(f.directory+\"/kernel" +
+                  std::to_string(entry->second) + "-reduce.metallib\",*target," +
+                  elementName(element) + ");if(!reduction){" + error("reduction.error()") + "}\n";
+    if (found->second.matrix) {
+      if (tensors.size() != 2 || !scalars.empty())
+        reject(span, "typed matrix capture layout mismatch");
+      result.rank = 2;
+      result.length = tensors[0].length;
+      result.width = tensors[1].width;
+      steps.push_back("auto target=" + device(target) + ";if(!target){" + error("target.error()") +
+                      "}\n"
+                      "auto kernel=r.loadNumericMatmulKernel(f.directory+\"/kernel" +
+                      std::to_string(entry->second) + ".metallib\",*target," +
+                      elementName(element) + ");if(!kernel){" + error("kernel.error()") + "}\n" +
+                      reduction + "f." + out +
+                      (reduction.empty() ? "=r.matmul(task," : "=r.matmulReduceSum(task,") +
+                      activeGroup + ",*kernel," + (reduction.empty() ? "" : "*reduction,") +
+                      ref(tensors[0]) + "," + ref(tensors[1]) + ");\n" + admitted("f." + out));
+      return result;
+    }
+    auto schema = [&](const std::vector<NumericType> &types) {
+      std::string result =
+          "std::array<kalandra::NumericType," + std::to_string(types.size()) + ">{";
+      for (auto type : types)
+        result += elementName(type) + ",";
+      return result + "}";
+    };
+    steps.push_back(
+        "auto target=" + device(target) + ";if(!target){" + error("target.error()") + "}\n" +
+        "auto kernel=r.loadNumericKernel(f.directory+\"/kernel" + std::to_string(entry->second) +
+        ".metallib\",*target," + elementName(element) + ",m::ElementwiseSignature{" +
+        std::to_string(tensors.size()) + "," + std::to_string(scalars.size()) +
+        (found->second.indirect ? ",m::ElementwiseBinding::ArgumentBuffer}," : "},") +
+        schema(found->second.tensorTypes) + "," + schema(found->second.scalarTypes) + "," +
+        projection + ");\n" + "if(!kernel){" + error("kernel.error()") + "}\n" + reduction + "f." +
+        kernel + "=*kernel;\nf." + out + "=r.numericElementwise(task," + activeGroup + ",f." +
+        kernel + "," + buffers + "," + capture +
+        (found->second.scalar ? ",{},true"
+         : reduction.empty()  ? ""
+                              : ",*reduction") +
+        ");\n" + admitted("f." + out));
+    return result;
+  }
   Value spawn(FunctionId function, const std::vector<Value> &inputs, Value target,
               SourceSpan span) {
     if (!target.gpu)
       return cpuCall(function, inputs, span, false, true);
+    bool mixed = false;
+    bool conditional = false, primitive = false;
+    std::set<FunctionId> inspected;
+    std::vector<FunctionId> pending{function};
+    while (!pending.empty()) {
+      auto id = pending.back();
+      pending.pop_back();
+      if (!inspected.insert(id).second)
+        continue;
+      for (auto value : cpu.functions.at(id).expressions) {
+        const auto &node = cpu.expressions.at(value);
+        conditional |= std::holds_alternative<ConditionalOperation>(node.operation);
+        primitive |= std::holds_alternative<Matmul>(node.operation) ||
+                     std::holds_alternative<ReduceSum>(node.operation);
+        if (std::holds_alternative<NumericConvert>(node.operation) ||
+            (node.type.builtin == BuiltinValue::Numeric &&
+             node.type.element != NumericType::Float32))
+          mixed = true;
+        if (auto call = std::get_if<FunctionCall>(&node.operation))
+          pending.push_back(call->function);
+      }
+    }
+    bool selectedProgram = false;
+    if ((conditional || primitive) && !matrixGraph(function) && !primitiveEntry(function))
+      selectedProgram = primitive || !emitNumericShader(cpu, function).has_value();
+    // A legacy graph may recognize the primitives while its fused map cannot
+    // prove branch-local shapes. Preflight those maps before generating host
+    // state so the selected-stage program can carry the actual obligations.
+    if (conditional && !selectedProgram && !mixed) {
+      try {
+        if (const auto &graph = matrixGraph(function); graph) {
+          for (std::size_t stage = 0; stage < graph->maps.size(); ++stage)
+            if (graph->maps[stage])
+              shader(function, nullptr, false, -1, false, stage);
+          if (!graph->tensorResult && graph->reduce &&
+              (graph->reductions.size() >= 2 || graph->scalarPost))
+            shader(function, nullptr, true, -1, true);
+        } else if (const auto entry = primitiveEntry(function); entry) {
+          if (entry->mapped)
+            shader(function);
+          if (entry->leftMapped)
+            shader(function, nullptr, false, 0);
+          if (entry->rightMapped)
+            shader(function, nullptr, false, 1);
+          if (entry->post)
+            shader(function, nullptr, true);
+          if (entry->scalarPost)
+            shader(function, nullptr, true, -1, true);
+        } else {
+          shader(function);
+        }
+      } catch (const Rejected &) {
+        selectedProgram = true;
+      }
+    }
+    if (selectedProgram || mixed ||
+        (cpu.functions.at(function).resultType.tensor &&
+         cpu.functions.at(function).resultType.shape.empty()) ||
+        std::any_of(cpu.functions.at(function).parameters.begin(),
+                    cpu.functions.at(function).parameters.end(),
+                    [&](auto p) {
+                      const auto &t = cpu.symbols.at(p).type;
+                      return t.tensor && t.shape.empty();
+                    }) ||
+        (!cpu.functions.at(function).resultType.tensor &&
+         std::none_of(cpu.functions.at(function).parameters.begin(),
+                      cpu.functions.at(function).parameters.end(),
+                      [&](auto p) { return cpu.symbols.at(p).type.tensor; })) ||
+        cpu.functions.at(function).resultType.element != NumericType::Float32 ||
+        std::any_of(cpu.functions.at(function).parameters.begin(),
+                    cpu.functions.at(function).parameters.end(), [&](auto parameter) {
+                      const auto &type = cpu.symbols.at(parameter).type;
+                      return type.builtin == BuiltinValue::Numeric &&
+                             type.element != NumericType::Float32;
+                    }))
+      return spawnNumeric(function, inputs, target, span);
     admitGpuTypes(function);
     const auto &entryFunction = cpu.functions[function];
     const auto &graph = matrixGraph(function);
@@ -1242,13 +1708,15 @@ class Compiler {
     const bool mapped = sum && primitiveEntry(function)->mapped;
     const bool post = (sum || matrix) && primitiveEntry(function)->post;
     if (!entryFunction.resultType.tensor && !sum && !(graph && graph->reduce))
-      reject(span, "GPU scalar entries currently require one reduceSum with forwarding helpers");
+      reject(span, "GPU scalar entries currently require one reduceSum with "
+                   "forwarding helpers");
     std::vector<Value> tensors, scalars;
     for (std::size_t i = 0; i < inputs.size(); ++i) {
       const auto &value = inputs[i];
       const auto &type = cpu.symbols[entryFunction.parameters[i]].type;
       if (!type.tensor && type.builtin != BuiltinValue::Numeric)
-        reject(span, "GPU scalar captures currently require float32; Boolean conditions stay "
+        reject(span, "GPU scalar captures currently require float32; Boolean "
+                     "conditions stay "
                      "internal to helpers");
       const bool tensor = type.tensor;
       completed(value, span);
@@ -1263,7 +1731,8 @@ class Compiler {
       (tensor ? tensors : scalars).push_back(value);
     }
     if (tensors.empty())
-      reject(span, "elementwise GPU entries currently require at least one tensor input");
+      reject(span, "elementwise GPU entries currently require at least one "
+                   "tensor input");
     if (tensors.size() > UINT32_MAX || scalars.size() >= UINT32_MAX)
       reject(span, "GPU argument representation limit exceeded");
     std::vector<std::uint32_t> reads;
@@ -1274,14 +1743,16 @@ class Compiler {
         reads.push_back(i);
     for (auto value : tensors)
       if (!value.gpu || value.device != target.device)
-        reject(span, "GPU arguments must be explicitly transferred to the selected device");
+        reject(span, "GPU arguments must be explicitly transferred to the "
+                     "selected device");
     auto left = tensors[reads.front()], right = tensors.back();
     if (auto entry = primitiveEntry(function); entry && (sum || matrix)) {
       left = tensors.at(entry->left);
       if (matrix)
         right = tensors.at(entry->right);
     }
-    // Parameter extent identities already include transitive helper obligations.
+    // Parameter extent identities already include transitive helper
+    // obligations.
     auto locate = [&](const Extent &wanted) -> std::pair<std::size_t, unsigned> {
       std::size_t tensor = 0;
       for (auto parameter : entryFunction.parameters) {
@@ -1311,10 +1782,10 @@ class Compiler {
       auto [a, axisA] = locate(requirement.left);
       auto [b, axisB] = locate(requirement.right);
       auto aExtent = extent(tensors[a], axisA), bExtent = extent(tensors[b], axisB);
-      if (aExtent && bExtent && aExtent != bExtent)
+      if (aExtent && bExtent && aExtent != bExtent && !conditionalHost)
         reject(span, (matrix || graph) ? "matmul inner dimensions differ"
                                        : "elementwise argument shapes differ");
-      if (!aExtent || !bExtent) {
+      if (!aExtent || !bExtent || aExtent != bExtent) {
         auto [line, column] = syntax.source->location(span.begin);
         steps.push_back("if(" + ref(tensors[a]) + ".shape()[" + std::to_string(axisA) +
                         "]!=" + ref(tensors[b]) + ".shape()[" + std::to_string(axisB) +
@@ -1339,6 +1810,7 @@ class Compiler {
       }
       result.length = shapes.back().length;
       result.width = shapes.back().width;
+      result.higherExtents = shapes.back().higherExtents;
       std::string inputs = "std::array<m::Buffer," + std::to_string(tensors.size()) + ">{";
       for (std::size_t i = 0; i < tensors.size(); ++i)
         inputs += (i ? "," : "") + ref(tensors[i]);
@@ -1501,6 +1973,7 @@ class Compiler {
     Value result{Value::Task, next - 1, true, target.device, left.length};
     result.rank = left.rank;
     result.width = matrix ? right.width : left.width;
+    result.higherExtents = left.higherExtents;
     std::string mappedSetup;
     if (mapped) {
       const auto reductionKernel = field("m::Kernel");
@@ -1524,7 +1997,8 @@ class Compiler {
     std::string matrixAdjustmentArguments;
     if (post) {
       std::vector<std::uint32_t> postReads;
-      shader(function, &postReads, true); // Validate before publishing any host/shader artifacts.
+      shader(function, &postReads,
+             true); // Validate before publishing any host/shader artifacts.
       const auto epilogue = field("m::Kernel");
       const auto count = matrix ? tensors.size() + 1 : 1;
       const bool indirectPost =
@@ -1559,7 +2033,8 @@ class Compiler {
       // Both operand maps read the original immutable argument pack. Their
       // projected read tables and shapes are independent.
       if (!post && !matrixSum)
-        arguments += ", m::Kernel{}, std::span<const m::Buffer>{}, std::span<const float>{}";
+        arguments += ", m::Kernel{}, std::span<const m::Buffer>{}, "
+                     "std::span<const float>{}";
       for (int operand = 0; operand < 2; ++operand) {
         const bool enabled = operand == 0 ? primitiveEntry(function)->leftMapped
                                           : primitiveEntry(function)->rightMapped;
@@ -1592,16 +2067,17 @@ class Compiler {
     }
     if (matrixSum && post) {
       if (!primitiveEntry(function)->leftMapped && !primitiveEntry(function)->rightMapped)
-        arguments +=
-            ", m::Kernel{}, m::Kernel{}, std::span<const m::Buffer>{}, std::span<const float>{}";
+        arguments += ", m::Kernel{}, m::Kernel{}, std::span<const "
+                     "m::Buffer>{}, std::span<const float>{}";
       arguments += matrixAdjustmentArguments;
     }
     if (matrixSum && primitiveEntry(function)->scalarPost) {
       if (!primitiveEntry(function)->leftMapped && !primitiveEntry(function)->rightMapped && !post)
-        arguments +=
-            ", m::Kernel{}, m::Kernel{}, std::span<const m::Buffer>{}, std::span<const float>{}";
+        arguments += ", m::Kernel{}, m::Kernel{}, std::span<const "
+                     "m::Buffer>{}, std::span<const float>{}";
       if (!post)
-        arguments += ", m::Kernel{}, std::span<const m::Buffer>{}, std::span<const float>{}";
+        arguments += ", m::Kernel{}, std::span<const m::Buffer>{}, "
+                     "std::span<const float>{}";
       shader(function, nullptr, true, -1, true);
       const auto scalarKernel = field("m::Kernel");
       mappedSetup += "auto scalarPost = r.loadElementwiseKernel(f.directory + \"/kernel" +
@@ -1637,43 +2113,61 @@ class Compiler {
   Value numericKernel(ValueId id, const std::vector<Value> &args) {
     const auto &typed = node(id);
     const auto span = typed.span;
+    if (const auto *compare = std::get_if<ScalarCompare>(&typed.operation)) {
+      const auto operation = compare->operation;
+      return hostOperation(operation == ComparisonKind::Equal       ? "=="
+                           : operation == ComparisonKind::NotEqual  ? "!="
+                           : operation == ComparisonKind::Less      ? "<"
+                           : operation == ComparisonKind::LessEqual ? "<="
+                           : operation == ComparisonKind::Greater   ? ">"
+                                                                    : ">=",
+                           args, span);
+    }
     if (const auto *literal = std::get_if<TensorLiteral>(&typed.operation)) {
       const auto rank = typed.type.shape.size();
-      if (rank < 1 || rank > 2)
-        reject(span, "the Metal source bridge requires rank-one or rank-two float32 tensors");
-      const auto rows = typed.type.shape[0].constant.value();
-      const auto columns = rank == 2 ? typed.type.shape[1].constant.value() : 0;
+      if (rank > 8)
+        reject(span, "the Metal source bridge requires rank-zero through "
+                     "rank-eight numeric tensors");
+      const auto rows = rank ? typed.type.shape[0].constant.value() : 1;
       const auto &elements = literal->elements;
       for (auto item : elements)
-        if (!constantBits(item))
-          reject(span, "Metal tensor literals require constant float32 numbers");
+        if (!literalBits(item))
+          reject(span, "Metal tensor literals require constant numeric values");
       auto out = field("m::Buffer");
       Value value{Value::Tensor, next - 1, false, 0, rows};
       value.rank = rank;
-      if (rank == 2)
-        value.width = columns;
+      value.element = typed.type.element;
+      const auto width = describeNumeric(value.element)->bytes();
+      for (unsigned axis = 0; axis < rank; ++axis)
+        setExtent(value, axis, typed.type.shape[axis].constant);
       std::string data = "{ ";
       for (auto item : elements)
-        data += std::to_string(*constantBits(item)) + "u,";
+        data += std::to_string(*literalBits(item)) + "ull,";
       data += " }";
-      auto descriptor = rank == 1 ? "Float32Tensor<1> descriptor{allocation,allocation,0,{" +
-                                        std::to_string(rows) + "},{1}};\n"
-                                  : "Float32Tensor<2> descriptor{allocation,allocation,0,{" +
-                                        std::to_string(rows) + "," + std::to_string(columns) +
-                                        "},{" + std::to_string(columns) + ",1}};\n";
-      steps.push_back(
-          "static const std::array<std::uint32_t," + std::to_string(elements.size()) +
-          "> data = " + data +
-          ";\n"
-          "auto *allocation=static_cast<float*>(task.context().allocate(data.size()*4));\n"
-          "if(!allocation) {task.fault(2);return;}\n"
-          "if(!data.empty()) std::memcpy(allocation,data.data(),data.size()*4);\n" +
-          descriptor +
-          "auto "
-          "value=r.fromCpu(task.context(),descriptor.view());\ntask.context().release(allocation)"
-          ";\n"
-          "if(!value) {" +
-          error("value.error()") + "}\nf." + out + "=*value;\n");
+      std::vector<std::uint64_t> strides(rank, 1);
+      const bool empty = std::any_of(typed.type.shape.begin(), typed.type.shape.end(),
+                                     [](const auto &axis) { return axis.constant == 0; });
+      if (!empty)
+        for (std::size_t axis = rank; axis > 1; --axis)
+          strides[axis - 2] = strides[axis - 1] * typed.type.shape[axis - 1].constant.value();
+      std::string dimensions, layout;
+      for (unsigned axis = 0; axis < rank; ++axis) {
+        dimensions += (axis ? "," : "") + std::to_string(typed.type.shape[axis].constant.value());
+        layout += (axis ? "," : "") + std::to_string(strides[axis]);
+      }
+      auto descriptor = tensorDescriptor(value.element, rank) +
+                        " descriptor{allocation,allocation,0" +
+                        (rank ? ",{" + dimensions + "},{" + layout + "}" : "") + "};\n";
+      steps.push_back("static const std::array<std::uint" + std::to_string(width * 8) + "_t," +
+                      std::to_string(elements.size()) + "> data=" + data + ";\n" +
+                      "auto *allocation=static_cast<" + scalarType(value.element) +
+                      "*>(task.context().allocate(data.size()*" + std::to_string(width) +
+                      "));\nif(!allocation){task.fault(2);return;}\n" +
+                      "if(!data.empty()) std::memcpy(allocation,data.data(),data.size()*" +
+                      std::to_string(width) + ");\n" + descriptor +
+                      "auto value=r.fromCpu(task.context(),descriptor.view());\n" +
+                      "task.context().release(allocation);\nif(!value){" + error("value.error()") +
+                      "}\nf." + out + "=*value;\n");
       return value;
     }
     if (const auto *shape = std::get_if<ShapeCheck>(&typed.operation)) {
@@ -1685,13 +2179,16 @@ class Compiler {
           for (auto index = first; index < steps.size(); ++index)
             steps[index] =
                 "if(" + failureRef(value) + ".kind==TaskFailure::None){\n" + steps[index] + "}\n";
-        if (requirement.axis == 0)
-          value.length = requirement.extent;
-        else
-          value.width = requirement.extent;
+        setExtent(value, requirement.axis, requirement.extent);
       }
       return value;
     }
+    if (const auto *unary = std::get_if<ScalarUnary>(&typed.operation))
+      return hostOperation(unary->operation == TokenKind::Minus ? "neg" : "pos", args, span);
+    if (const auto *binary = std::get_if<ScalarBinary>(&typed.operation))
+      return arithmetic(binary->operation, args, span);
+    if (std::holds_alternative<NumericConvert>(typed.operation))
+      return hostOperation(std::string(describeNumeric(typed.type.element)->name), args, span);
     if (const auto *unary = std::get_if<TensorUnary>(&typed.operation))
       return hostOperation(unary->operation == TokenKind::Minus ? "neg" : "pos", args, span);
     if (const auto *binary = std::get_if<TensorBinary>(&typed.operation))
@@ -1704,12 +2201,14 @@ class Compiler {
   }
   Value arithmetic(TokenKind operation, const std::vector<Value> &args, SourceSpan span) {
     if (operation != TokenKind::Plus && operation != TokenKind::Minus &&
-        operation != TokenKind::Star && operation != TokenKind::Slash)
-      reject(span, "inline float32 arithmetic supports only +, -, * and /");
-    return hostOperation(operation == TokenKind::Plus    ? "+"
-                         : operation == TokenKind::Minus ? "-"
-                         : operation == TokenKind::Star  ? "*"
-                                                         : "/",
+        operation != TokenKind::Star && operation != TokenKind::Slash &&
+        operation != TokenKind::Percent)
+      reject(span, "unsupported inline numeric arithmetic");
+    return hostOperation(operation == TokenKind::Plus      ? "+"
+                         : operation == TokenKind::Minus   ? "-"
+                         : operation == TokenKind::Star    ? "*"
+                         : operation == TokenKind::Percent ? "%"
+                                                           : "/",
                          args, span);
   }
   std::vector<std::string> plannedGroups;
@@ -1722,8 +2221,10 @@ class Compiler {
   Value lowerPlan(const continuation::Plan &plan, FunctionId entryId) {
     using namespace continuation;
     for (const auto &type : plan.slots)
-      if (type.builtin == BuiltinValue::Numeric && type.element != NumericType::Float32)
-        reject({}, "Metal supervisor frame storage currently requires float32");
+      if (type.array || type.errorRecord)
+        reject({}, "mixed Metal continuations currently require tensors and "
+                   "TaskError rather than "
+                   "array/application-error carriers");
     std::map<Slot, Value> values;
     std::map<Slot, unsigned> payloadWrites;
     std::map<std::size_t, std::size_t> joins;
@@ -1734,23 +2235,30 @@ class Compiler {
     for (std::size_t i = 0; i < plan.groups; ++i)
       plannedGroups.push_back("f." + field("GroupHandle"));
     auto shape = [](Value &value, const ValueType &type) {
+      if (type.builtin == BuiltinValue::Numeric)
+        value.element = type.element;
       value.gpu = type.device.has_value();
       value.device = type.device.value_or(0);
       if (type.tensor) {
         value.rank = type.shape.size();
-        value.length = type.shape.at(0).constant;
-        if (value.rank == 2)
-          value.width = type.shape[1].constant;
+        for (unsigned axis = 0; axis < value.rank; ++axis)
+          setExtent(value, axis, type.shape[axis].constant);
       }
     };
     auto allocate = [&](Slot slot) {
       const auto &type = plan.slots.at(slot);
       Value value{type.task ? Value::Task : type.tensor ? Value::Tensor : Value::Scalar};
       shape(value, type);
-      std::string storage = type.task ? "TaskHandle" : type.tensor ? "m::Buffer" : "float";
+      std::string storage = type.task     ? "TaskHandle"
+                            : type.tensor ? "m::Buffer"
+                                          : scalarType(type.element);
       if (type.builtin == BuiltinValue::Device) {
         value.kind = Value::Target;
       } else {
+        if (!type.task && type.builtin == BuiltinValue::Bool) {
+          value.kind = Value::Boolean;
+          storage = "bool";
+        }
         if (type.builtin == BuiltinValue::TaskError) {
           value.kind = Value::Error;
           storage = "Failure";
@@ -1797,15 +2305,14 @@ class Compiler {
       const auto &type = plan.slots.at(slot);
       if (type.tensor) {
         const bool first = payloadWrites[slot]++ == 0;
-        output.length = type.shape[0].constant          ? type.shape[0].constant
-                        : first                         ? input.length
-                        : output.length == input.length ? output.length
-                                                        : std::nullopt;
-        if (output.rank == 2)
-          output.width = type.shape[1].constant        ? type.shape[1].constant
-                         : first                       ? input.width
-                         : output.width == input.width ? output.width
-                                                       : std::nullopt;
+        for (unsigned axis = 0; axis < output.rank; ++axis) {
+          auto known = type.shape[axis].constant;
+          if (!known)
+            known = first                                         ? extent(input, axis)
+                    : extent(output, axis) == extent(input, axis) ? extent(output, axis)
+                                                                  : std::nullopt;
+          setExtent(output, axis, known);
+        }
         values[slot] = output;
       }
       return output;
@@ -1816,20 +2323,20 @@ class Compiler {
         const auto output = write(slot, input);
         steps.push_back(copy(output, input));
       } else {
-        auto length = input.length, width = input.width;
+        const auto original = input;
         shape(input, plan.slots.at(slot));
         if (input.kind == Value::Tensor || (input.kind == Value::Task && !input.scalarTask)) {
-          if (!input.length)
-            input.length = length;
-          if (input.rank == 2 && !input.width)
-            input.width = width;
+          for (unsigned axis = 0; axis < input.rank; ++axis)
+            if (!extent(input, axis))
+              setExtent(input, axis, extent(original, axis));
         }
         values.emplace(slot, input);
         payloadWrites[slot] = 1;
       }
     };
     // Parameter storage belongs to the child frame. Declared fixed dimensions
-    // are checked here; inferred operation guards stay inside their source scopes.
+    // are checked here; inferred operation guards stay inside their source
+    // scopes.
     const auto &fn = placement.functions.at(entryId);
     std::string guards;
     auto [line, column] = syntax.source->location(fn.declaration.begin);
@@ -1848,7 +2355,23 @@ class Compiler {
     }
     if (!guards.empty())
       steps.push_back(std::move(guards));
+    std::vector<std::int64_t> conditionalEdges(plan.code.size() + 1, 0);
     for (std::size_t i = 0; i < plan.code.size(); ++i) {
+      const auto &op = plan.code[i];
+      if (op.code != Code::Branch || op.jump <= i || op.jump >= plan.code.size())
+        continue;
+      auto end = op.jump;
+      if (plan.code[end - 1].code == Code::Jump)
+        end = std::max(end, plan.code[end - 1].jump);
+      if (end > plan.code.size())
+        reject({}, "invalid conditional continuation boundary");
+      ++conditionalEdges[i + 1];
+      --conditionalEdges[end];
+    }
+    std::int64_t conditionalDepth = 0;
+    for (std::size_t i = 0; i < plan.code.size(); ++i) {
+      conditionalDepth += conditionalEdges[i];
+      conditionalHost = conditionalDepth > 0;
       const auto &op = plan.code[i];
       plannedPC.push_back(steps.size() + 1);
       const auto span = node(op.source).span;
@@ -1857,15 +2380,35 @@ class Compiler {
         args.push_back(get(slot));
       switch (op.code) {
       case Code::Literal: {
-        field("float");
+        if (const auto *literal = std::get_if<BoolLiteral>(&node(op.source).operation)) {
+          field("bool");
+          Value value{Value::Boolean, next - 1};
+          steps.push_back(ref(value) + (literal->value ? "=true;\n" : "=false;\n"));
+          bind(op.output, value);
+          break;
+        }
+        const auto element = plan.slots.at(op.output).element;
+        const auto bits = literalBits(op.source);
+        if (!bits)
+          reject(span, "expected a typed numeric literal");
+        field(scalarType(element));
         Value value{Value::Scalar, next - 1};
-        const auto bits = std::get<Float32Literal>(node(op.source).operation).bits;
-        steps.push_back(ref(value) + "=std::bit_cast<float>(std::uint32_t(" + std::to_string(bits) +
-                        "u));\n");
+        value.element = element;
+        steps.push_back(ref(value) + "=" + scalarBits(element, *bits) + ";\n");
         bind(op.output, value);
         break;
       }
       case Code::Unary: {
+        if (node(op.source).type.builtin == BuiltinValue::Bool) {
+          completed(args.at(0), span);
+          if (args.at(0).kind != Value::Boolean)
+            reject(span, "Metal host Boolean negation requires Bool");
+          field("bool");
+          Value value{Value::Boolean, next - 1};
+          steps.push_back(ref(value) + "=!" + ref(args.at(0)) + ";\n");
+          bind(op.output, value);
+          break;
+        }
         field("float");
         Value value{Value::Scalar, next - 1};
         const bool neg =
@@ -1923,7 +2466,9 @@ class Compiler {
         steps.push_back("if(!task.await(" + ref(input) + ")) return;\n" + failureRef(output) +
                         "=task.failure(" + ref(input) + ");\nif(" + failureRef(output) +
                         ".kind==TaskFailure::None){\n" +
-                        (input.scalarTask ? "if(!readScalar(task," : "if(!readBuffer(task,") +
+                        (input.scalarTask
+                             ? "if(!readScalar<" + elementName(input.element) + ">(task,"
+                             : "if(!readBuffer(task,") +
                         ref(input) + "," + ref(output) + ")) return;\n}\n");
         break;
       }
@@ -1953,7 +2498,11 @@ class Compiler {
         break;
       }
       case Code::Branch:
-        throw std::runtime_error("CPU Boolean branches are not supported by the Metal target");
+        completed(args.at(0), span);
+        if (args.at(0).kind != Value::Boolean)
+          reject(span, "Metal host branch requires Bool");
+        steps.push_back("if(!" + ref(args.at(0)) + "){\n" + jump(op.jump) + "}\n");
+        break;
       case Code::Case: {
         const auto subject = args.at(0);
         const auto tag =
@@ -1971,10 +2520,14 @@ class Compiler {
         auto field = static_cast<ErrorField>(op.target);
         std::string code;
         if (field == ErrorField::Kind)
-          code = ref(subject) + ".code==1 ? 3u : " + ref(subject) + ".code==2 ? 4u : 5u";
+          code = ref(subject) + ".code==1 ? 3u : " + ref(subject) +
+                 ".code==2 ? 4u : " + ref(subject) + ".code==4 ? 1u : " + ref(subject) +
+                 ".code==5 ? 2u : 5u";
         else if (field == ErrorField::Message)
           code = ref(subject) + ".code==1 ? \"tensor shape mismatch\" : " + ref(subject) +
-                 ".code==2 ? \"allocation failed\" : \"native execution fault\"";
+                 ".code==2 ? \"allocation failed\" : " + ref(subject) +
+                 ".code==4 ? \"integer arithmetic fault\" : " + ref(subject) +
+                 ".code==5 ? \"index out of bounds\" : \"native execution fault\"";
         else
           code = "\"task admission rejected\"";
         steps.push_back(ref(output) + "=" + code + ";\n");
@@ -2018,7 +2571,8 @@ class Compiler {
       }
       }
     }
-    // All edges address common plan instructions; close/join may use two target steps.
+    // All edges address common plan instructions; close/join may use two target
+    // steps.
     for (auto &step : steps)
       for (std::size_t pos = 0; (pos = step.find("@pc", pos)) != std::string::npos;) {
         const auto end = step.find('@', pos + 3);
@@ -2031,20 +2585,28 @@ class Compiler {
     std::string code = "namespace " + helperName(id) +
                        " { struct PacketData { m::Runtime *runtime; const char *directory;";
     const auto &fn = placement.functions.at(id);
-    for (std::size_t n = 0; n < fn.parameters.size(); ++n)
-      code += std::string(placement.symbols.at(fn.parameters[n]).type.tensor ? "m::Buffer "
-                                                                             : "float ") +
-              "arg" + std::to_string(n) + ";";
+    for (std::size_t n = 0; n < fn.parameters.size(); ++n) {
+      const auto &type = placement.symbols.at(fn.parameters[n]).type;
+      code += (type.tensor                          ? "m::Buffer"
+               : type.builtin == BuiltinValue::Bool ? "bool"
+                                                    : scalarType(type.element)) +
+              " arg" + std::to_string(n) + ";";
+    }
     return code + "}; extern const TaskEntry entry; }\n";
   }
   std::string helperBody(FunctionId id) const {
     const auto &fn = placement.functions.at(id);
+    if (fn.resultType.builtin == BuiltinValue::Bool)
+      reject(fn.declaration, "Boolean coordinating task results are not "
+                             "implemented by the Metal bridge");
     std::ostringstream out;
     out << "namespace " << helperName(id)
-        << " {\nstruct Frame {m::Runtime *runtime; std::string directory; unsigned pc=1;\n";
+        << " {\nstruct Frame {m::Runtime *runtime; std::string directory; "
+           "unsigned pc=1;\n";
     for (const auto &field : fields)
       out << field << '\n';
-    out << "};\nbool construct(Invocation &context,void *out,const Packet &packet){\n"
+    out << "};\nbool construct(Invocation &context,void *out,const Packet "
+           "&packet){\n"
            "const auto &data=*static_cast<const PacketData*>(packet.data);\n"
            "if(!data.runtime || !data.directory";
     for (std::size_t n = 0; n < plannedParameters.size(); ++n) {
@@ -2052,7 +2614,7 @@ class Compiler {
       if (type.tensor) {
         auto arg = "data.arg" + std::to_string(n);
         out << " || !" << arg << " || " << arg << ".onDevice() || " << arg
-            << ".format()!=m::Format::Float32 || " << arg
+            << ".format()!=*m::storageFormat(" << elementName(type.element) << ") || " << arg
             << ".shape().size()!=" << type.shape.size();
       }
     }
@@ -2060,8 +2622,10 @@ class Compiler {
            "auto &f=*new(out) Frame{data.runtime,data.directory}; (void)f;\n";
     for (std::size_t n = 0; n < plannedParameters.size(); ++n)
       out << ref(plannedParameters[n]) << "=data.arg" << n << ";\n";
-    out << "return true;}\nvoid destroy(void *p) noexcept {static_cast<Frame*>(p)->~Frame();}\n"
-           "void resume(Task &task){auto &f=*static_cast<Frame*>(task.frame()); auto "
+    out << "return true;}\nvoid destroy(void *p) noexcept "
+           "{static_cast<Frame*>(p)->~Frame();}\n"
+           "void resume(Task &task){auto "
+           "&f=*static_cast<Frame*>(task.frame()); auto "
            "&r=*f.runtime; (void)r;\n"
            "if(task.cancelled())return;\nfor(;;){switch(f.pc){\n";
     for (std::size_t i = 0; i < steps.size(); ++i)
@@ -2071,8 +2635,11 @@ class Compiler {
            "const TaskEntry entry{1,"
         << 0x4b414c52534d0000ULL + id
         << "ull,sizeof(PacketData),alignof(PacketData),"
-           "sizeof(Frame),alignof(Frame),construct,destroy,resume,&m::Runtime::"
-        << (fn.resultType.tensor ? "bufferLayout" : "scalarLayout") << "()};\n}\n";
+           "sizeof(Frame),alignof(Frame),construct,destroy,resume,"
+        << (fn.resultType.tensor
+                ? "&m::Runtime::bufferLayout()"
+                : "numericScalarLayout(" + elementName(fn.resultType.element) + ")")
+        << "};\n}\n";
     return out.str();
   }
   static std::string reductionShader() {
@@ -2128,7 +2695,8 @@ class Compiler {
     if (!post && !matrixFunction(function) && reduction(function) &&
         !primitiveEntry(function)->mapped)
       return reductionShader();
-    // Emit scalar typed SSA once per lane. Source names never become IR identifiers.
+    // Emit scalar typed SSA once per lane. Source names never become IR
+    // identifiers.
     struct Instruction {
       std::string result, code;
       std::vector<std::string> operands;
@@ -2152,15 +2720,18 @@ class Compiler {
       const auto &fn = cpu.functions.at(fnId);
       for (auto parameter : fn.parameters)
         if (cpu.symbols[parameter].type.tensor && (cpu.symbols[parameter].type.shape.empty() ||
-                                                   cpu.symbols[parameter].type.shape.size() > 2))
-          reject(fn.declaration, "elementwise GPU helpers require rank-one or rank-two tensors");
-      if (fn.resultType.tensor && (fn.resultType.shape.empty() || fn.resultType.shape.size() > 2))
-        reject(fn.declaration, "elementwise GPU helpers require rank-one or rank-two results");
+                                                   cpu.symbols[parameter].type.shape.size() > 8))
+          reject(fn.declaration, "elementwise GPU helpers require rank-one "
+                                 "through rank-eight tensors");
+      if (fn.resultType.tensor && (fn.resultType.shape.empty() || fn.resultType.shape.size() > 8))
+        reject(fn.declaration, "elementwise GPU helpers require rank-one "
+                               "through rank-eight results");
       if (callDepth >= 128 || !active.insert(fnId).second)
         reject(fn.declaration, "recursive GPU helper calls are not implemented");
       Depth guard(callDepth);
-      // Per-invocation equivalence classes start with unconditional checked contracts.
-      // Choice-result aliases stay local: an aliased call must not prove a later call safe.
+      // Per-invocation equivalence classes start with unconditional checked
+      // contracts. Choice-result aliases stay local: an aliased call must not
+      // prove a later call safe.
       using ExtentKey = std::pair<bool, std::uint64_t>;
       std::map<ExtentKey, ExtentKey> parents;
       std::map<ExtentKey, unsigned> ranks;
@@ -2297,8 +2868,10 @@ class Compiler {
           const bool tensor = n.type.tensor;
           if (!(tensor ? pureLane(branch->trueResult) && pureLane(branch->falseResult)
                        : pureScalar(branch->trueResult) && pureScalar(branch->falseResult)))
-            reject(n.span, "GPU choices require pure scalar or shape-proven elementwise arms; "
-                           "primitives, shape checks and dispatch are not supported in arms");
+            reject(n.span, "GPU choices require pure scalar or shape-proven "
+                           "elementwise arms; "
+                           "primitives, shape checks and dispatch are not "
+                           "supported in arms");
           auto condition = emit(branch->condition);
           if (tensor)
             ++laneDepth;
@@ -2331,7 +2904,8 @@ class Compiler {
             for (std::size_t axis = 0; axis < left.shape.size(); ++axis) {
               if (sources.size() > 1 && !sameExtent(left.shape[axis], right.shape[axis]))
                 reject(n.span, "different-source GPU choices require proven equal shapes");
-              // The merged type may carry a fresh extent even though both results agree.
+              // The merged type may carry a fresh extent even though both
+              // results agree.
               unite(n.type.shape[axis], left.shape[axis]);
               unite(left.shape[axis], right.shape[axis]);
             }
@@ -2346,8 +2920,9 @@ class Compiler {
             instruction << "        " << result << " = arith.select " << condition << ", " << a
                         << ", " << b << " : i1\n";
           else {
-            // Select bits, preserving signed zeros/subnormals/NaN payloads without
-            // introducing an unqualified native floating-point operation.
+            // Select bits, preserving signed zeros/subnormals/NaN payloads
+            // without introducing an unqualified native floating-point
+            // operation.
             auto ai = temporary(), bi = temporary(), selected = temporary();
             instruction << "        " << ai << " = arith.bitcast " << a << " : f32 to i32\n"
                         << "        " << bi << " = arith.bitcast " << b << " : f32 to i32\n"
@@ -2385,7 +2960,8 @@ class Compiler {
             for (std::size_t axis = 0; axis < leftType.shape.size(); ++axis) {
               const bool commonSource = origins[a].size() == 1 && origins[a] == origins[b];
               if (!commonSource && !sameExtent(leftType.shape[axis], rightType.shape[axis]))
-                reject(n.span, "GPU branch arithmetic requires already-proven equal shapes");
+                reject(n.span, "GPU branch arithmetic requires already-proven "
+                               "equal shapes");
               unite(leftType.shape[axis], rightType.shape[axis]);
               unite(n.type.shape[axis], leftType.shape[axis]);
             }
@@ -2459,7 +3035,8 @@ class Compiler {
                 sources.insert(found->second.begin(), found->second.end());
             sourceWork += sources.size();
             if (sources.empty() || sourceWork > 300000)
-              reject(n.span, "GPU fused tensor arithmetic operand analysis limit exceeded");
+              reject(n.span, "GPU fused tensor arithmetic operand analysis "
+                             "limit exceeded");
           } else if (!origins.contains(result) || !laneDepth)
             origins[result] = {result};
         }
@@ -2540,7 +3117,8 @@ class Compiler {
     }
     std::set<std::uint32_t> used;
     std::set<std::string> live;
-    // Iterative traversal bounds compiler stack even for a long left-associated expression.
+    // Iterative traversal bounds compiler stack even for a long left-associated
+    // expression.
     std::vector<std::string> pending{result};
     while (!pending.empty()) {
       auto value = std::move(pending.back());
@@ -2593,7 +3171,8 @@ class Compiler {
            std::string(indirect ? "kalandra_elementwise_v3"
                        : legacy ? "kalandra_elementwise"
                                 : "kalandra_elementwise_v2") +
-           "(" + bindings + "%out: memref<?xf32>, %parameters: " + parameters + R"()
+           "(" + bindings + "%out: memref<?xf32>, %parameters: " + parameters +
+           R"()
       kernel attributes {spirv.entry_point_abi = #spirv.entry_point_abi<workgroup_size = [64, 1, 1]>} {
       %block = gpu.block_id x
       %thread = gpu.thread_id x
@@ -2608,7 +3187,8 @@ class Compiler {
       scf.if %valid {
 )" + loads +
            code.str() + "        memref.store " + result +
-           ", %out[%i] : memref<?xf32>\n      }\n      gpu.return\n    }\n  }\n}\n";
+           ", %out[%i] : memref<?xf32>\n      }\n      gpu.return\n    }\n  "
+           "}\n}\n";
   }
 
 public:
@@ -2618,6 +3198,51 @@ public:
     if (!checkedPlacement.ok())
       throw Rejected{checkedPlacement.diagnostics.front()};
     placement = std::move(*checkedPlacement.module);
+    // Constant shape constructors need no array carrier in a coordinating
+    // frame. Preserve their exact literal elements and complete ranked shape.
+    for (std::size_t id = 0; id < placement.expressions.size(); ++id) {
+      auto &expression = placement.expressions[id];
+      auto conversion = std::get_if<ArrayToTensor>(&expression.operation);
+      if (!conversion)
+        continue;
+      const auto *literal =
+          std::get_if<TensorLiteral>(&placement.expressions.at(conversion->input).operation);
+      if (!literal || !placement.expressions.at(conversion->input).type.array)
+        continue;
+      bool constant = true, empty = false;
+      std::vector<Extent> shape;
+      if (conversion->dimensions) {
+        for (auto dimension : *conversion->dimensions) {
+          auto bits = literalBits(dimension);
+          const auto type = node(dimension).type.element;
+          if (!bits || !isInteger(type) || *bits > INT64_MAX ||
+              (!isUnsigned(type) && (*bits & (UINT64_C(1) << (describeNumeric(type)->bits - 1))))) {
+            constant = false;
+            break;
+          }
+          shape.push_back({*bits, 0});
+          empty |= *bits == 0;
+        }
+      } else
+        shape.push_back({literal->elements.size(), 0});
+      std::uint64_t count = empty ? 0 : 1;
+      if (!empty)
+        for (const auto &axis : shape) {
+          if (*axis.constant > std::uint64_t(INT64_MAX) /
+                                   describeNumeric(expression.type.element)->bytes() / count) {
+            constant = false;
+            break;
+          }
+          count *= *axis.constant;
+        }
+      for (auto element : literal->elements)
+        constant &= literalBits(element).has_value();
+      if (!constant || shape.size() > 8 || count != literal->elements.size())
+        continue;
+      auto elements = literal->elements;
+      expression.operation = TensorLiteral{std::move(elements)};
+      expression.type.shape = std::move(shape);
+    }
     resumable = continuation::resumableFunctions(placement);
     Module hostModule = syntax;
     hostModule.functions.clear();
@@ -2633,17 +3258,22 @@ public:
         reject(fn.name, "this GPU source slice reserves standard placement/transfer names");
       if (!fn.result)
         reject(fn.span, "mixed source functions require an explicit result");
+      if (fn.result->array)
+        reject(fn.result->span, "mixed Metal array results require the CPU backend");
       if (fn.result->tensor)
         tensorType(*fn.result);
-      else if (text(fn.result->name) != "float32")
-        reject(fn.result->span,
-               "mixed source results require float32 or rank-one/rank-two float32 tensors");
+      else if (!resolveNumeric(text(fn.result->name)) && text(fn.result->name) != "Bool")
+        reject(fn.result->span, "mixed source results require float32, Bool or rank-one through "
+                                "rank-eight float32 tensors");
       for (const auto &p : fn.parameters) {
+        if (p.type.array)
+          reject(p.type.span, "mixed Metal array parameters require the CPU backend");
         if (p.type.tensor)
           tensorType(p.type);
-        else if (text(p.type.name) != "float32")
-          reject(p.type.span,
-                 "mixed source parameters require float32 or rank-one/rank-two float32 tensors");
+        else if (!resolveNumeric(text(p.type.name)) && text(p.type.name) != "Bool")
+          reject(p.type.span, "mixed source parameters require float32, Bool "
+                              "or rank-one through "
+                              "rank-eight float32 tensors");
       }
       if (resumable[i])
         continue;
@@ -2671,7 +3301,8 @@ public:
                             Binding{*import.target, text(name.name)});
     auto projectedAway = [&](Binding binding) {
       // loadModules already rejects cycles and bounds graph depth. Keep this
-      // traversal explicitly bounded as the compiler also has in-memory callers.
+      // traversal explicitly bounded as the compiler also has in-memory
+      // callers.
       for (std::size_t depth = 0; depth <= syntax.imports.size(); ++depth) {
         if (auto found = exportedFunctions.find(binding); found != exportedFunctions.end())
           return found->second == *main || resumable[found->second];
@@ -2708,13 +3339,16 @@ public:
       declareCpuFunction(i);
     const auto &fn = syntax.functions[*main];
     if (!fn.parameters.empty() || !fn.result || !fn.taskError)
-      reject(fn.span,
-             "Metal main requires no parameters, a float32 or tensor result, and ! TaskError");
+      reject(fn.span, "Metal main requires no parameters, a float32 or tensor "
+                      "result, and ! TaskError");
     bool scalarResult = !fn.result->tensor;
-    if (scalarResult && text(fn.result->name) != "float32")
-      reject(fn.span, "Metal main requires float32 or a rank-one/rank-two float32 tensor");
+    if (scalarResult && !resolveNumeric(text(fn.result->name)))
+      reject(fn.span, "Metal main requires float32 or a rank-one through "
+                      "rank-eight float32 tensor");
     if (!scalarResult)
       tensorType(*fn.result);
+    const auto mainElement = placement.functions.at(*main).resultType.element;
+    const auto mainWidth = describeNumeric(mainElement)->bytes();
     auto planned = continuation::plan(placement, {.preserveCalls = true, .entry = *main});
     if (!planned)
       reject(fn.span, planned.error());
@@ -2759,6 +3393,18 @@ public:
     outputs["continuation.plan"] = continuation::dump(*planned);
     for (auto [function, index] : entries) {
       auto base = "kernel" + std::to_string(index);
+      if (auto found = numericPrograms.find(function); found != numericPrograms.end()) {
+        for (std::size_t stage = 0; stage < found->second.kernels.size(); ++stage)
+          outputs[base + (stage ? "-stage" + std::to_string(stage) : "") + ".mlir"] =
+              found->second.kernels[stage].mlir;
+        continue;
+      }
+      if (auto found = numericShaders.find(function); found != numericShaders.end()) {
+        outputs[base + ".mlir"] = found->second.mlir;
+        if (!found->second.reduction.empty())
+          outputs[base + "-reduce.mlir"] = found->second.reduction;
+        continue;
+      }
       outputs[base + ".mlir"] = shader(function);
       if (auto entry = primitiveEntry(function); entry) {
         if ((entry->kind == PrimitiveEntry::Sum && entry->mapped) ||
@@ -2801,8 +3447,12 @@ public:
       if (!parsed || mlir::failed(mlir::verify(*parsed)))
         reject(fn.span, "generated GPU IR failed verification");
     }
-    if (!cpuExports.empty()) {
-      auto lowered = lowerNative(cpu, {}, cpuExports);
+    if (!usedCpuFunctions.empty()) {
+      auto exports = cpuExports;
+      for (std::size_t i = 0; i < exports.size(); ++i)
+        if (!usedCpuFunctions.contains(i))
+          exports[i].clear();
+      auto lowered = lowerNative(cpu, {}, exports);
       if (!lowered)
         reject(fn.span, lowered.error());
       outputs["cpu.mlir"] = lowered->mlir;
@@ -2824,7 +3474,8 @@ namespace m = kalandra::runtime::metal;
  )" << declarations
          << helperDeclarations << cpuEntries;
     if (scalarResult)
-      host << "const ValueLayout &scalarLayout=m::Runtime::scalarLayout();\n";
+      host << "const ValueLayout &scalarLayout=*numericScalarLayout(" + elementName(mainElement) +
+                  ");\n";
     host << R"(struct PacketData { m::Runtime *runtime; const char *directory; };
 struct Frame { m::Runtime *runtime; std::string directory; unsigned pc=1;
 )";
@@ -2835,8 +3486,8 @@ struct Frame { m::Runtime *runtime; std::string directory; unsigned pc=1;
          << "> gpuAwaitSites{{";
     for (auto site : gpuAwaitSites)
       host << "{" << plannedPC.at(site.instruction) << "," << site.group << "},";
-    host
-        << "}};\ninline GroupHandle continuationGroup(const Frame &f,std::size_t id){switch(id){\n";
+    host << "}};\ninline GroupHandle continuationGroup(const Frame "
+            "&f,std::size_t id){switch(id){\n";
     for (std::size_t i = 0; i < plannedGroups.size(); ++i)
       host << "case " << i << ":return " << plannedGroups[i] << ";\n";
     host << "default:return {};}}\n";
@@ -2852,13 +3503,14 @@ bool readBuffer(Task &task, TaskHandle child, m::Buffer &output) {
   if (!task.read(child,m::Runtime::bufferLayout(),slot)) return false;
   auto *value=std::launder(reinterpret_cast<m::Buffer *>(slot)); output=*value; value->~Buffer(); return true;
 }
-bool readScalar(Task &task,TaskHandle child,float &output) {
+template<kalandra::NumericType Element>
+bool readScalar(Task &task,TaskHandle child,NumericValue<Element> &output) {
   auto failure=task.failure(child);
   if(failure.kind!=TaskFailure::None) {task.fault(failure.code ? failure.code : std::int64_t(m::Error::Device)); return false;}
-  return task.read(child,m::Runtime::scalarLayout(),&output);
+  return task.read(child,*numericScalarLayout(Element),&output);
 }
 void resume(Task &task) {
-  auto &f=*static_cast<Frame *>(task.frame()); auto &r=*f.runtime;
+  auto &f=*static_cast<Frame *>(task.frame()); [[maybe_unused]] auto &r=*f.runtime;
   for (;;) { switch(f.pc) {
 )";
     for (std::size_t i = 0; i < steps.size(); ++i)
@@ -2889,21 +3541,29 @@ void resume(Task &task) {
   if (failure.kind!=TaskFailure::None) { std::fprintf(stderr,"Metal task failed: %d/%lld\n",int(failure.kind),(long long)failure.code); status=1; }
   else {
 )";
-    if (scalarResult)
-      host << R"(    Invocation context; float value=0;
-    if (!core->observe(child,scalarLayout,context,&value)) return 1;
-    std::printf("%08x\n",std::bit_cast<std::uint32_t>(value));)";
-    else
+    if (scalarResult) {
+      host << "Invocation context; " << scalarType(mainElement)
+           << " value{};\n"
+              "if(!core->observe(child,scalarLayout,context,&value))return 1;\n"
+              "std::printf(\"%0*llx\\n\","
+           << mainWidth * 2 << ",static_cast<unsigned long long>(std::bit_cast<std::uint"
+           << mainWidth * 8 << "_t>(value)));\n";
+    } else {
       host << R"(    Invocation context; alignas(m::Buffer) std::byte slot[sizeof(m::Buffer)];
     if (!core->observe(child,m::Runtime::bufferLayout(),context,slot)) return 1;
     auto *value=std::launder(reinterpret_cast<m::Buffer *>(slot));
-    auto cpu=runtime->toCpu<)"
-           << fn.result->dimensions.size() << R"(>(context,*value);
+    auto cpu=runtime->toCpuTyped<)"
+           << elementName(mainElement) << "," << fn.result->dimensions.size()
+           << R"(>(context,*value);
     if (!cpu) status=1;
-    else { std::printf("["); for (std::uint64_t i=0;i<value->bytes()/4;++i) {
-      std::uint32_t bits; std::memcpy(&bits,cpu->aligned+i,4); std::printf(i ? ",%08x" : "%08x",bits);
+    else { std::printf("["); for (std::uint64_t i=0;i<value->bytes()/)"
+           << mainWidth << R"(;++i) {
+      std::uint64_t bits=0; std::memcpy(&bits,cpu->aligned+i,)"
+           << mainWidth << R"(); std::printf(i ? ",%0*llx" : "%0*llx",)" << mainWidth * 2
+           << R"(,static_cast<unsigned long long>(bits));
     } std::puts("]"); context.release(cpu->allocated); }
     value->~Buffer();)";
+    }
     host << R"(
   }
   core->close(group); if (!core->drain() || !core->release(group)) return 1;
@@ -2915,6 +3575,34 @@ void resume(Task &task) {
     outputs["host.cpp"] = host.str();
     std::string manifest = "kernel_count=" + std::to_string(entries.size()) + "\n";
     for (auto [function, index] : entries) {
+      if (auto found = numericPrograms.find(function); found != numericPrograms.end()) {
+        const auto prefix = "kernel" + std::to_string(index) + ".";
+        manifest +=
+            prefix + "numeric_program_instructions=" + std::to_string(found->second.code.size()) +
+            "\n" + prefix +
+            "numeric_program_stages=" + std::to_string(found->second.kernels.size()) + "\n" +
+            prefix +
+            "numeric_type=" + std::string(describeNumeric(found->second.type.element)->name) + "\n";
+        continue;
+      }
+      if (auto found = numericShaders.find(function); found != numericShaders.end()) {
+        const auto prefix = "kernel" + std::to_string(index) + ".";
+        std::size_t tensors = 0, scalars = 0;
+        for (auto parameter : cpu.functions.at(function).parameters)
+          (cpu.symbols.at(parameter).type.tensor ? tensors : scalars)++;
+        std::string reads;
+        for (auto read : found->second.reads)
+          reads += (reads.empty() ? "" : ",") + std::to_string(read);
+        manifest += prefix +
+                    "numeric_type=" + std::string(describeNumeric(found->second.element)->name) +
+                    "\n" + prefix +
+                    (found->second.indirect ? "binding_layout=argument-buffer-tier2\n"
+                                            : "binding_layout=direct\n") +
+                    prefix + "tensors=" + std::to_string(tensors) + "\n" + prefix +
+                    "scalars=" + std::to_string(scalars) + "\n" + prefix +
+                    "tensor_bindings=" + reads + "\n";
+        continue;
+      }
       if (const auto &graph = matrixGraph(function); graph) {
         const auto prefix = "kernel" + std::to_string(index) + ".";
         std::string edges;
@@ -3074,8 +3762,10 @@ void resume(Task &task) {
 } // namespace
 int kalandra::compileMetalCommand(int argc, char **argv) {
   const auto usage = [] {
-    std::cerr << "usage: kalandra-metal-source <source.k | --project manifest.toml> -o directory "
-                 "[--package name=path.k ...] [--build [-O0|-O2|--sanitize|--thread-sanitize]]\n";
+    std::cerr << "usage: kalandra-metal-source <source.k | --project "
+                 "manifest.toml> -o directory "
+                 "[--package name=path.k ...] [--build "
+                 "[-O0|-O2|--sanitize|--thread-sanitize]]\n";
     return 2;
   };
   bool build = false;

@@ -16,6 +16,12 @@ ctest --preset native -R '^metal-proof-'
 
 The proof is opt-in. The default native build has no shader-tool dependency and now has 43 tests, including external-completion coverage. Override `KALANDRA_SPIRV_CROSS_ROOT` and `KALANDRA_SPIRV_TOOLS_ROOT` for the same tool releases installed elsewhere. `KALANDRA_METAL_TOOLCHAIN` selects the Apple toolchain identifier; its compiler version is checked at configuration. The verified compiler is Apple Metal 32023.864, component 17C7003j, with macOS SDK 26.2 on macOS 26.5. The explicit toolchain selector avoids relying on the default `xcrun metal` shim finding an installed component.
 
+Configuration resolves the compiler once, verifies its exact version and uses that
+executable for proof shaders, source applications and installed compiler builds.
+If Xcode resolves a different version despite the toolchain selector, supply
+`-DKALANDRA_METAL_COMPILER=/path/to/Metal.xctoolchain/usr/bin/metal`. This override
+must still match the lock. The selected macOS SDK is passed explicitly.
+
 After a macOS upgrade, restore a missing component with
 `xcodebuild -downloadComponent MetalToolchain`, then refresh Xcode's launcher cache
 with `xcrun -k`. Check the pinned compiler using
@@ -80,3 +86,16 @@ The strict lowering now uses five bounded integer normalization stages instead o
 The subtraction milestone extended the scalar proof with subtraction and exact sign-bit negation alongside add, multiply and separately rounded multiply/add. That five-mode qualification checked 2,975,530 CPU comparisons and 3,039,060 GPU comparisons per corresponding variant, including exact NaN payloads for negation. The subsequent division proof adds a sixth mode and directed quotient cases. The source compiler admits tensor subtraction and scalar negation through the same lowering. See [source semantics and qualification](../../docs/design/strict-gpu-float32.md#source-subtraction-and-scalar-negation).
 
 [Strict float32 division](../../docs/design/apple-gpu.md#strict-tensor-division) now supports tensor/tensor and either scalar/tensor order, including transitive scalar reciprocal helpers. Division retains separately rounded results rather than becoming multiplication by a reciprocal.
+
+
+## All-type numerical foundations
+
+The typed source backend adds checked integer arithmetic for all eight integer
+widths, strict integer-only binary64 arithmetic and checked conversions for all
+100 numeric type pairs. `IntegerOracle.h`, `Strict64Gpu.mm` and
+`ConversionOracle.h` compare actual shader results against LLVM APInt/APFloat;
+CPU compact-lowering tests and shader artifact checks qualify the same integer
+algorithms independently. Typed shaders require the pinned MSL 2.3 profile.
+`NumericWire.cpp` also emits typed map/scalar/reduction fixtures used by the
+managed runtime's failure, cancellation and ownership tests. These foundations
+are integrated into the [typed source programs](../../docs/design/native-gpu-typed-programs.md).

@@ -1,5 +1,5 @@
-add_library(kalandra-metal-source-backend STATIC Compiler.cpp Build.cpp)
-target_link_libraries(kalandra-metal-source-backend PUBLIC kalandra-semantics PRIVATE kalandra-packages kalandra-backend MLIR LLVM)
+add_library(kalandra-metal-source-backend STATIC Compiler.cpp NumericShader.cpp NumericProgram.cpp Build.cpp)
+target_link_libraries(kalandra-metal-source-backend PUBLIC kalandra-semantics PRIVATE kalandra-packages kalandra-backend kalandra-gpu-numeric MLIR LLVM)
 target_include_directories(kalandra-metal-source-backend SYSTEM PRIVATE ${MLIR_INCLUDE_DIRS} ${LLVM_INCLUDE_DIRS})
 target_compile_options(kalandra-metal-source-backend PRIVATE -Wall -Wextra -Werror)
 add_executable(kalandra-metal-source main.cpp)
@@ -28,9 +28,9 @@ add_custom_command(OUTPUT "${BASE}.metallib" "${BASE}.lowered.mlir" "${BASE}.spv
   COMMAND "${SOURCE_spirvToolsRoot}/bin/spirv-dis" "${BASE}.spv" -o "${BASE}.spvasm"
   COMMAND "${SOURCE_spirvCrossRoot}/bin/spirv-cross" "${BASE}.spv" --reflect --output "${BASE}.reflection.json"
   COMMAND "${SOURCE_spirvCrossRoot}/bin/spirv-cross" "${BASE}.spv" --msl --msl-version "${SOURCE_strictMslVersion}" --output "${BASE}.metal"
-  COMMAND xcrun --toolchain "${SOURCE_metalToolchain}" --sdk macosx metal "-std=${SOURCE_strictMetalLanguageVersion}" -fno-fast-math -ffp-contract=off
+  COMMAND "${KALANDRA_METAL_COMPILER}" -isysroot "${KALANDRA_METAL_SDK}" "-std=${SOURCE_strictMetalLanguageVersion}" -fno-fast-math -ffp-contract=off
     "-fmodules-cache-path=${CMAKE_CURRENT_BINARY_DIR}/module-cache" -c "${BASE}.metal" -o "${BASE}.air"
-  COMMAND xcrun --toolchain "${SOURCE_metalToolchain}" metal "${BASE}.air" -o "${BASE}.metallib"
+  COMMAND "${KALANDRA_METAL_COMPILER}" "${BASE}.air" -o "${BASE}.metallib"
   DEPENDS "${BASE}.mlir" kalandra-metal-strict kalandra-metal-extract "${PROJECT_SOURCE_DIR}/native/metal-proof/toolchain.json"
   BYPRODUCTS "${BASE}.converted.mlir" "${BASE}.kernel.mlir" "${BASE}.spv" "${BASE}.air" VERBATIM)
 add_custom_target(native-metal-source-shader-${FIXTURE} ALL DEPENDS "${BASE}.metallib")
@@ -68,13 +68,13 @@ if(BUILD_TESTING)
   # Keep libc++ container instrumentation consistent across the compiler's
   # translation units, including the TOML parser and numerical lowering.
   add_library(kalandra-metal-source-lowering-sanitized STATIC
-    ../lib/Backend.cpp ../lib/CheckedABI.cpp ../lib/TaskBackend.cpp
+    ../lib/Backend.cpp ../lib/CheckedABI.cpp ../lib/TaskBackend.cpp ../lib/TaskEnvironment.cpp
     ../lib/NumericConversion.cpp ../lib/StrictFloat.cpp)
   target_link_libraries(kalandra-metal-source-lowering-sanitized PUBLIC kalandra-semantics-sanitized PRIVATE MLIR LLVM)
   target_include_directories(kalandra-metal-source-lowering-sanitized SYSTEM PRIVATE ${MLIR_INCLUDE_DIRS} ${LLVM_INCLUDE_DIRS})
   target_compile_options(kalandra-metal-source-lowering-sanitized PRIVATE -Wall -Wextra -Werror
     -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
-  add_executable(kalandra-metal-source-compiler-sanitized main.cpp Compiler.cpp Build.cpp)
+  add_executable(kalandra-metal-source-compiler-sanitized main.cpp Compiler.cpp NumericShader.cpp NumericProgram.cpp ../lib/GpuInteger.cpp ../lib/GpuConversion.cpp Build.cpp)
   target_link_libraries(kalandra-metal-source-compiler-sanitized PRIVATE kalandra-semantics-sanitized kalandra-packages-sanitized kalandra-metal-source-lowering-sanitized MLIR LLVM)
   target_include_directories(kalandra-metal-source-compiler-sanitized SYSTEM PRIVATE ${MLIR_INCLUDE_DIRS} ${LLVM_INCLUDE_DIRS})
   target_compile_options(kalandra-metal-source-compiler-sanitized PRIVATE -Wall -Wextra -Werror -O1 -g
@@ -92,13 +92,17 @@ if(BUILD_TESTING)
     "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}" -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyArtifacts.cmake")
 endif()
 
+file(READ "${PROJECT_SOURCE_DIR}/native/metal-proof/toolchain.json" NUMERIC_SOURCE_LOCK)
+string(JSON NUMERIC_MSL_VERSION GET "${NUMERIC_SOURCE_LOCK}" typedMslVersion)
+string(JSON NUMERIC_METAL_LANGUAGE GET "${NUMERIC_SOURCE_LOCK}" typedMetalLanguageVersion)
 set(TOOLCHAIN_HEADER "#pragma once\n")
 foreach(PAIR IN ITEMS
     "CLANG|${CMAKE_CXX_COMPILER}" "OPT|${KALANDRA_LLVM_ROOT}/bin/mlir-opt"
     "TRANSLATE|${KALANDRA_LLVM_ROOT}/bin/mlir-translate"
-    "STRICT|$<TARGET_FILE:kalandra-metal-strict>" "EXTRACT|$<TARGET_FILE:kalandra-metal-extract>"
+    "STRICT|$<TARGET_FILE:kalandra-metal-strict>" "STRICT64|$<TARGET_FILE:kalandra-metal-strict64>"
+    "TYPED_MSL_VERSION|${NUMERIC_MSL_VERSION}" "TYPED_METAL_LANGUAGE|${NUMERIC_METAL_LANGUAGE}" "EXTRACT|$<TARGET_FILE:kalandra-metal-extract>"
     "CROSS|${KALANDRA_SPIRV_CROSS_ROOT}/bin/spirv-cross" "VALIDATE|${KALANDRA_SPIRV_TOOLS_ROOT}/bin/spirv-val"
-    "METAL_TOOLCHAIN|${KALANDRA_METAL_TOOLCHAIN}" "INCLUDE|${PROJECT_SOURCE_DIR}/native/metal"
+    "METAL_TOOLCHAIN|${KALANDRA_METAL_TOOLCHAIN}" "METAL_COMPILER|${KALANDRA_METAL_COMPILER}" "METAL_SDK|${KALANDRA_METAL_SDK}" "INCLUDE|${PROJECT_SOURCE_DIR}/native/metal"
     "METAL_DEBUG|$<TARGET_FILE:kalandra-metal-debug>" "CORE_DEBUG|$<TARGET_FILE:kalandra-native-runtime>"
     "METAL_OPTIMIZED|$<TARGET_FILE:kalandra-metal-optimized>" "CORE_OPTIMIZED|$<TARGET_FILE:kalandra-task-core-optimized>"
     "METAL_SANITIZED|$<TARGET_FILE:kalandra-metal-sanitized>" "CORE_SANITIZED|$<TARGET_FILE:kalandra-native-runtime-sanitized>"
@@ -110,7 +114,7 @@ foreach(PAIR IN ITEMS
 endforeach()
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/Toolchain.h" CONTENT "${TOOLCHAIN_HEADER}")
 target_include_directories(kalandra-metal-source-backend PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
-add_dependencies(kalandra-metal-source-backend kalandra-metal-strict kalandra-metal-extract
+add_dependencies(kalandra-metal-source-backend kalandra-metal-strict kalandra-metal-strict64 kalandra-metal-extract
   kalandra-metal-debug kalandra-metal-optimized kalandra-metal-sanitized kalandra-metal-thread-sanitized)
 if(BUILD_TESTING)
   target_include_directories(kalandra-metal-source-compiler-sanitized PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
@@ -907,6 +911,201 @@ if(BUILD_TESTING)
       "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/reduction-choices-cli-${VARIANT}"
       -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyReductionChoices.cmake")
     set_tests_properties(native-metal-reduction-choices-cli-${VARIANT} PROPERTIES TIMEOUT 300
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-host-control COMMAND "${CMAKE_COMMAND}"
+      "-DCOMPILER=$<TARGET_FILE:${COMPILER_TARGET}>" "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-host-control"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyHostControl.cmake")
+    set_tests_properties(${COMPILER_TARGET}-host-control PROPERTIES TIMEOUT 120)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-host-control-cli-${VARIANT} COMMAND "${CMAKE_COMMAND}"
+      "-DCOMPILER=$<TARGET_FILE:kalandra>" "-DVARIANT=${VARIANT}"
+      "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/host-control-cli-${VARIANT}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyHostControl.cmake")
+    set_tests_properties(native-metal-host-control-cli-${VARIANT} PROPERTIES TIMEOUT 300
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-higher-ranks COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/HigherRankTests.py" "--compiler=$<TARGET_FILE:${COMPILER_TARGET}>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-higher-ranks")
+    set_tests_properties(${COMPILER_TARGET}-higher-ranks PROPERTIES TIMEOUT 180)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-higher-ranks-cli-${VARIANT} COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/HigherRankTests.py" "--compiler=$<TARGET_FILE:kalandra>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/higher-ranks-cli-${VARIANT}" "--variant=${VARIANT}")
+    set_tests_properties(native-metal-higher-ranks-cli-${VARIANT} PROPERTIES TIMEOUT 600
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-wide-host COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/WideHostTests.py" "--compiler=$<TARGET_FILE:${COMPILER_TARGET}>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-wide-host")
+    set_tests_properties(${COMPILER_TARGET}-wide-host PROPERTIES TIMEOUT 180)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-wide-host-cli-${VARIANT} COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/WideHostTests.py" "--compiler=$<TARGET_FILE:kalandra>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/wide-host-cli-${VARIANT}" "--variant=${VARIANT}")
+    set_tests_properties(native-metal-wide-host-cli-${VARIANT} PROPERTIES TIMEOUT 600
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-numeric-maps COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericSourceTests.py" "--compiler=$<TARGET_FILE:${COMPILER_TARGET}>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-numeric-maps")
+    set_tests_properties(${COMPILER_TARGET}-numeric-maps PROPERTIES TIMEOUT 240)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-numeric-maps-cli-${VARIANT} COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericSourceTests.py" "--compiler=$<TARGET_FILE:kalandra>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/numeric-maps-cli-${VARIANT}" "--variant=${VARIANT}")
+    set_tests_properties(native-metal-numeric-maps-cli-${VARIANT} PROPERTIES TIMEOUT 900
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-numeric-reductions COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericReductionTests.py" "--compiler=$<TARGET_FILE:${COMPILER_TARGET}>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-numeric-reductions")
+    set_tests_properties(${COMPILER_TARGET}-numeric-reductions PROPERTIES TIMEOUT 240)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-numeric-reductions-cli-${VARIANT} COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericReductionTests.py" "--compiler=$<TARGET_FILE:kalandra>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/numeric-reductions-cli-${VARIANT}" "--variant=${VARIANT}")
+    set_tests_properties(native-metal-numeric-reductions-cli-${VARIANT} PROPERTIES TIMEOUT 900
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-numeric-matrices COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericMatmulTests.py" "--compiler=$<TARGET_FILE:${COMPILER_TARGET}>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-numeric-matrices")
+    set_tests_properties(${COMPILER_TARGET}-numeric-matrices PROPERTIES TIMEOUT 240)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-numeric-matrices-cli-${VARIANT} COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericMatmulTests.py" "--compiler=$<TARGET_FILE:kalandra>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/numeric-matrices-cli-${VARIANT}" "--variant=${VARIANT}")
+    set_tests_properties(native-metal-numeric-matrices-cli-${VARIANT} PROPERTIES TIMEOUT 1200
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-numeric-scalars COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericScalarTests.py" "--compiler=$<TARGET_FILE:${COMPILER_TARGET}>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-numeric-scalars")
+    set_tests_properties(${COMPILER_TARGET}-numeric-scalars PROPERTIES TIMEOUT 240)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-numeric-scalars-cli-${VARIANT} COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericScalarTests.py" "--compiler=$<TARGET_FILE:kalandra>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/numeric-scalars-cli-${VARIANT}" "--variant=${VARIANT}")
+    set_tests_properties(native-metal-numeric-scalars-cli-${VARIANT} PROPERTIES TIMEOUT 900
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-numeric-conversions COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericConversionTests.py" "--compiler=$<TARGET_FILE:${COMPILER_TARGET}>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-numeric-conversions")
+    set_tests_properties(${COMPILER_TARGET}-numeric-conversions PROPERTIES TIMEOUT 240)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-numeric-conversions-cli-${VARIANT} COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericConversionTests.py" "--compiler=$<TARGET_FILE:kalandra>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/numeric-conversions-cli-${VARIANT}" "--variant=${VARIANT}")
+    set_tests_properties(native-metal-numeric-conversions-cli-${VARIANT} PROPERTIES TIMEOUT 1200
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-numeric-tier2 COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericTier2Tests.py" "--compiler=$<TARGET_FILE:${COMPILER_TARGET}>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-numeric-tier2")
+    set_tests_properties(${COMPILER_TARGET}-numeric-tier2 PROPERTIES TIMEOUT 240)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-numeric-tier2-cli-${VARIANT} COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericTier2Tests.py" "--compiler=$<TARGET_FILE:kalandra>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/numeric-tier2-cli-${VARIANT}" "--variant=${VARIANT}")
+    set_tests_properties(native-metal-numeric-tier2-cli-${VARIANT} PROPERTIES TIMEOUT 1200
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-numeric-programs COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericProgramTests.py" "--compiler=$<TARGET_FILE:${COMPILER_TARGET}>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-numeric-programs")
+    set_tests_properties(${COMPILER_TARGET}-numeric-programs PROPERTIES TIMEOUT 600)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-numeric-programs-cli-${VARIANT} COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericProgramTests.py" "--compiler=$<TARGET_FILE:kalandra>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/numeric-programs-cli-${VARIANT}" "--variant=${VARIANT}")
+    set_tests_properties(native-metal-numeric-programs-cli-${VARIANT} PROPERTIES TIMEOUT 1800
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-numeric-matrix-programs COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericMatrixProgramTests.py" "--compiler=$<TARGET_FILE:${COMPILER_TARGET}>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-numeric-matrix-programs")
+    set_tests_properties(${COMPILER_TARGET}-numeric-matrix-programs PROPERTIES TIMEOUT 600)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-numeric-matrix-programs-cli-${VARIANT} COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericMatrixProgramTests.py" "--compiler=$<TARGET_FILE:kalandra>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/numeric-matrix-programs-cli-${VARIANT}" "--variant=${VARIANT}")
+    set_tests_properties(native-metal-numeric-matrix-programs-cli-${VARIANT} PROPERTIES TIMEOUT 1800
+      RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  foreach(COMPILER_TARGET IN ITEMS kalandra-metal-source kalandra-metal-source-compiler-sanitized)
+    add_test(NAME ${COMPILER_TARGET}-numeric-matrix-control COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericMatrixControlTests.py" "--compiler=$<TARGET_FILE:${COMPILER_TARGET}>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/${COMPILER_TARGET}-numeric-matrix-control")
+    set_tests_properties(${COMPILER_TARGET}-numeric-matrix-control PROPERTIES TIMEOUT 600)
+  endforeach()
+  foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
+    add_test(NAME native-metal-numeric-matrix-control-cli-${VARIANT} COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/NumericMatrixControlTests.py" "--compiler=$<TARGET_FILE:kalandra>"
+      "--root=${CMAKE_CURRENT_BINARY_DIR}/numeric-matrix-control-cli-${VARIANT}" "--variant=${VARIANT}")
+    set_tests_properties(native-metal-numeric-matrix-control-cli-${VARIANT} PROPERTIES TIMEOUT 1800
       RESOURCE_LOCK apple-metal-gpu ENVIRONMENT "MTL_DEBUG_LAYER=1")
   endforeach()
 endif()

@@ -14,7 +14,7 @@ target_include_directories(kalandra-metal-installed PRIVATE "${CMAKE_CURRENT_BIN
 target_link_libraries(kalandra-metal-installed PRIVATE kalandra-metal-source-backend kalandra-backend kalandra-packages LLVM MLIR)
 target_compile_options(kalandra-metal-installed PRIVATE -Wall -Wextra -Werror)
 add_dependencies(kalandra-metal-installed ${KALANDRA_CPU_RUNTIME_TARGETS}
-  kalandra-metal-strict kalandra-metal-extract kalandra-task-core-optimized)
+  kalandra-metal-strict kalandra-metal-strict64 kalandra-metal-extract kalandra-task-core-optimized)
 foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
   add_dependencies(kalandra-metal-installed kalandra-metal-${VARIANT})
   install(TARGETS kalandra-metal-${VARIANT} ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}/kalandra/native"
@@ -22,7 +22,7 @@ foreach(VARIANT IN ITEMS debug optimized sanitized thread-sanitized)
 endforeach()
 install(TARGETS kalandra-task-core-optimized ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}/kalandra/native"
   COMPONENT NativeMetalCompiler)
-install(TARGETS kalandra-metal-strict kalandra-metal-extract
+install(TARGETS kalandra-metal-strict kalandra-metal-strict64 kalandra-metal-extract
   RUNTIME DESTINATION "${CMAKE_INSTALL_LIBDIR}/kalandra/native" COMPONENT NativeMetalCompiler)
 install(TARGETS kalandra-metal-installed RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
   COMPONENT NativeMetalCompiler)
@@ -37,7 +37,7 @@ install(FILES packaging/Metal-README.md
   DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/doc/kalandra-native-metal"
   RENAME README.md COMPONENT NativeMetalCompiler)
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/metal-install/$<CONFIG>/toolchain.json"
-  CONTENT "{\n  \"format\": 1,\n  \"package\": \"kalandra-native-metal\",\n  \"configuration\": \"$<CONFIG>\",\n  \"llvmVersion\": \"${KALANDRA_LLVM_VERSION}\",\n  \"spirvCross\": \"${KALANDRA_SPIRV_CROSS_ROOT}\",\n  \"spirvTools\": \"${KALANDRA_SPIRV_TOOLS_ROOT}\",\n  \"metalToolchain\": \"${KALANDRA_METAL_TOOLCHAIN}\",\n  \"externalDependencies\": true\n}\n")
+  CONTENT "{\n  \"format\": 1,\n  \"package\": \"kalandra-native-metal\",\n  \"configuration\": \"$<CONFIG>\",\n  \"llvmVersion\": \"${KALANDRA_LLVM_VERSION}\",\n  \"spirvCross\": \"${KALANDRA_SPIRV_CROSS_ROOT}\",\n  \"spirvTools\": \"${KALANDRA_SPIRV_TOOLS_ROOT}\",\n  \"metalToolchain\": \"${KALANDRA_METAL_TOOLCHAIN}\",\n  \"metalCompiler\": \"${KALANDRA_METAL_COMPILER}\",\n  \"macosSdk\": \"${KALANDRA_METAL_SDK}\",\n  \"externalDependencies\": true\n}\n")
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/metal-install/$<CONFIG>/toolchain.json"
   DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/kalandra-native-metal" COMPONENT NativeMetalCompiler)
 add_custom_target(native-metal-package
@@ -50,6 +50,6 @@ if(BUILD_TESTING)
     "${CMAKE_CURRENT_SOURCE_DIR}/packaging/MetalInstallTests.py" "${CMAKE_COMMAND}"
     "${PROJECT_BINARY_DIR}" "$<CONFIG>" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackageEditorTools.cmake"
     "${CMAKE_CURRENT_SOURCE_DIR}/metal-source")
-  set_tests_properties(native-metal-install PROPERTIES TIMEOUT 300 RESOURCE_LOCK apple-metal-gpu
+  set_tests_properties(native-metal-install PROPERTIES TIMEOUT 1200 RESOURCE_LOCK apple-metal-gpu
     ENVIRONMENT "MTL_DEBUG_LAYER=1")
 endif()

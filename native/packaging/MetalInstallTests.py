@@ -50,7 +50,7 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
     metadata = json.loads((prefix / "share/kalandra-native-metal/toolchain.json").read_text())
     assert metadata["format"] == 1 and metadata["configuration"] == config
     assert metadata["llvmVersion"] == json.loads((Path(__file__).parents[1] / "toolchain-proof/toolchain.json").read_text())["llvmVersion"] and metadata["externalDependencies"] is True
-    for name in ("kalandra-metal-strict", "kalandra-metal-extract"):
+    for name in ("kalandra-metal-strict", "kalandra-metal-strict64", "kalandra-metal-extract"):
         assert os.access(resources / name, os.X_OK)
         assert run(["lipo", "-archs", resources / name], cwd).stdout.strip() == "arm64"
     assert not (prefix / "bin/kalandrac").exists()
@@ -242,6 +242,68 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
     assert (choice_app / "kernel0-post.metallib").is_file()
     assert run([choice_app / "program"], cwd).stdout.strip() == "41400000"
     applications.append((choice_app, "41400000"))
+    # Every numeric type traverses resident reductions, selected stages,
+    # conversion and a rank-eight feedback map in the relocated compiler.
+    numeric_names = ("int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "float32", "float64")
+    for numeric in numeric_names:
+        typed_source = cwd / f"typed-{numeric}.k"
+        typed_source.write_text(f"""fn increment(value:int32)->int32:
+  value+1
+fn operation(values:Tensor[{numeric},?,?,?,?,?,?,?,?],scale:{numeric})->float64:
+  amount=reduceSum(values)
+  if scale==1:
+    float64(reduceSum(values+amount))
+  else:
+    float64(reduceSum(values)/scale)
+fn main()->float64 ! TaskError:
+  try parallel:
+    worker=spawn increment(0)
+    gpu=devices.gpu()
+    values:Tensor[{numeric},1,1,1,1,1,1,1,3]=tensor([[[[[[[[1,2,3]]]]]]]])
+    resident=try await transfer(values,gpu)
+    scale=try await worker
+    try await spawn operation(resident,{numeric}(scale)) on gpu
+""")
+        for mode, flags in (("debug", []), ("optimized", ["-O2"]),
+                            ("sanitized", ["--sanitize"]), ("thread-sanitized", ["--thread-sanitize"])):
+            typed_app = cwd / f"typed {numeric} {mode}"
+            run([compiler, typed_source, "--target", "metal", "-o", typed_app, *flags], cwd)
+            assert run([typed_app / "program"], cwd).stdout.strip() == "4038000000000000"
+            applications.append((typed_app, "4038000000000000"))
+    matrix_control_source = cwd / "selected matrix shapes.k"
+    matrix_control_source.write_text("""fn operation(a:Tensor[float32,?,?],b:Tensor[float32,?,?])->Tensor[float32,?,?]:
+  product=matmul(a,b)
+  if reduceSum(product)>0:
+    product
+  else:
+    product+a
+fn main()->Tensor[float32,?,?] ! TaskError:
+  try parallel:
+    gpu=devices.gpu()
+    a:Tensor[float32,2,3]=tensor([[1,2,1],[1,1,1]])
+    b:Tensor[float32,3,2]=tensor([[1,1],[1,1],[1,1]])
+    x=try await transfer(a,gpu)
+    y=try await transfer(b,gpu)
+    answer=try await spawn operation(x,y) on gpu
+    try await transfer(answer,devices.cpu())
+""")
+    matrix_control_app = cwd / "selected matrix application"
+    run([compiler, matrix_control_source, "--target", "metal", "-o", matrix_control_app, "-O2"], cwd)
+    matrix_control_result = "[40800000,40800000,40400000,40400000]"
+    assert run([matrix_control_app / "program"], cwd).stdout.strip() == matrix_control_result
+    assert "numeric_program_stages=" in (matrix_control_app / "manifest.txt").read_text()
+    applications.append((matrix_control_app, matrix_control_result))
+    # The strict64 resource is independently required and failed compilation
+    # must preserve the last complete application.
+    strict64 = resources / "kalandra-metal-strict64"
+    strict64_saved = strict64.read_bytes()
+    strict64.unlink()
+    saved_typed = (typed_app / "program").read_bytes()
+    missing64 = run([compiler, typed_source, "--target", "metal", "-o", typed_app], cwd, 1)
+    assert "installed Metal resource is missing" in missing64.stderr
+    assert (typed_app / "program").read_bytes() == saved_typed
+    strict64.write_bytes(strict64_saved)
+    strict64.chmod(0o755)
     # Local module/project imports go through the same installed Metal compiler.
     (cwd / "helper.k").write_text("export " + source.read_text().split("\n\nfn main", 1)[0] + "\n")
     source.write_text('from "math" import combine\n\nfn main' + source.read_text().split("\n\nfn main", 1)[1])
@@ -264,4 +326,4 @@ with tempfile.TemporaryDirectory(prefix="kalandra metal install ") as temporary:
         moved = cwd / f"moved application {i}"
         app.rename(moved)
         assert run([moved / "program"], cwd).stdout.strip() == expected
-print("Metal bundle: checksums, relocation/symlink, CPU compile, four GPU modes, scoped managed packages with CPU workers, named updates/private pins/rollback, frozen/offline relocation, source integrity, project import, missing helper and independent moved applications passed")
+print("Metal bundle: checksums, relocation/symlink, CPU compile, all ten types/rank-eight resident graphs/conversions in four GPU modes, scoped managed packages with CPU workers, named updates/private pins/rollback, frozen/offline relocation, source integrity, project import, missing helper and independent moved applications passed")
