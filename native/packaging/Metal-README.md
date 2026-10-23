@@ -16,7 +16,7 @@ directory to move it. Normal, optimized, ASan/UBSan and separate TSan host build
 are supported through the existing `-O0`, `-O2`, `--sanitize` and
 `--thread-sanitize` options. CPU compilation remains available without `--target`.
 
-This is a macOS ARM64 package with external toolchain dependencies. LLVM/MLIR and
+This external-toolchain variant requires macOS 26 or later on ARM64. LLVM/MLIR and
 Clang 23.1.3, SPIRV-Cross, SPIRV-Tools, the selected Apple Metal toolchain and the
 Apple SDK must remain installed at their configured locations. Exact SPIR-V roots, verified Metal compiler path, SDK path
 and Metal toolchain identity are recorded in `share/kalandra-native-metal/toolchain.json`.
@@ -28,9 +28,10 @@ platform sanitizer runtimes.
 The tools, headers and archives under `lib/kalandra/native` are compiler-private;
 they do not define a public C/C++ API. See the CPU/editor READMEs for their usage
 and licenses. SHA256SUMS covers the complete installed bundle; an archive checksum
-is supplied separately. Signing/notarization, self-contained dependencies and
-other platforms remain unqualified. This Metal bundle is not yet uploaded by the
-CPU-only version-tag workflow.
+is supplied separately. The native release workflow builds external-toolchain
+and standalone mixed CPU/Metal variants. Standalone bundles include their private
+open-source dependencies; their DMGs are signed and notarized on GitHub Actions.
+Apple SDK/linker and the pinned Apple Metal compiler remain platform prerequisites.
 
 Local or public HTTPS Git dependencies can be installed explicitly with `kalandra install --project path/to/kalandra.toml`. Installation requires system Git; subsequent project builds verify the activated cache offline. Remote installs verify TLS and require public repositories. Commit IDs and supported branch/tag names are accepted; names are locked to exact commits and unchanged requests keep their pins. Commit the generated `kalandra.lock`. Use `--frozen` to populate a cache from a matching lock without rewriting it, or `--offline` to require verified cached sources without invoking Git. Use `kalandra update name [name ...] --project path/to/kalandra.toml` to refresh selected root aliases from a matching lock; unrelated roots and unchanged-owner private pins stay fixed. Check and rebuild after updating. SSH and authenticated repositories are not supported yet.
 
