@@ -31,7 +31,9 @@ target_compile_options(kalandra-mlir-check PRIVATE -Wall -Wextra -Werror)
 
 add_executable(kalandra-proof-cases toolchain-proof/cases.cpp)
 target_compile_options(kalandra-proof-cases PRIVATE -Wall -Wextra -Werror -ffp-contract=off)
-add_subdirectory(toolchain-proof)
+if(BUILD_TESTING)
+  add_subdirectory(toolchain-proof)
+endif()
 
 set(KALANDRA_SYNTAX_SOURCES lib/Source.cpp lib/Diagnostics.cpp lib/Lexer.cpp lib/Parser.cpp lib/Modules.cpp lib/Formatter.cpp)
 add_library(kalandra-syntax STATIC ${KALANDRA_SYNTAX_SOURCES})
