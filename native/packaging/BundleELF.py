@@ -39,7 +39,7 @@ def dependencies(path, sdk=None):
         raise RuntimeError(f"Unresolved ELF dependency in {path}: {output}")
     result = {}
     for line in output.splitlines():
-        match = re.match(r"\s*(\S+) => (/\S+) \(", line)
+        match = re.match(r"\s*(\S+) => (/.+) \(0x[0-9a-fA-F]+\)\s*$", line)
         if match:
             result[match[1]] = Path(match[2]).resolve()
         elif line.strip() and "=>" in line:
