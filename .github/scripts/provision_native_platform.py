@@ -20,7 +20,15 @@ def main():
         raise RuntimeError("Unqualified CI platform")
     asset = lock["officialArchives"][key]
     work = Path(os.environ["RUNNER_TEMP"]) / "kalandra-llvm"
-    work.mkdir()
+    work.mkdir(exist_ok=True)
+    installed = work / "installation"
+    configs = list(installed.rglob("MLIRConfig.cmake")) if installed.exists() else []
+    if len(configs) == 1:
+        root = configs[0].parents[3]
+        print(f"Restored cached LLVM/MLIR root: {root}", flush=True)
+        with open(os.environ["GITHUB_ENV"], "a") as environment:
+            environment.write(f"KALANDRA_LLVM_ROOT={root.as_posix()}\n")
+        return
     archive = work / asset["name"]
     url = f"https://github.com/llvm/llvm-project/releases/download/llvmorg-{lock['llvmVersion']}/{asset['name']}"
     with urllib.request.urlopen(url, timeout=120) as response:
@@ -31,9 +39,16 @@ def main():
     # cap may reject an otherwise valid, hash-verified release archive.
     with zstd.ZstdFile(archive, options={zstd.DecompressionParameter.window_log_max: 31}) as decoded:
         with tarfile.open(fileobj=decoded, mode="r|") as source:
-            source.extractall(work / "installation", filter="data")
+            source.extractall(installed, filter="data")
     archive.unlink()
-    configs = list((work / "installation").rglob("MLIRConfig.cmake"))
+    configs = list(installed.rglob("MLIRConfig.cmake"))
+    if not configs and key == "windows-x64":
+        llvm_configs = list(installed.rglob("LLVMConfig.cmake"))
+        if len(llvm_configs) != 1:
+            raise RuntimeError("Official Windows LLVM archive lacks its development configuration")
+        root = llvm_configs[0].parents[3]
+        build_windows_mlir(root, work, lock)
+        configs = list(installed.rglob("MLIRConfig.cmake"))
     if len(configs) != 1:
         raise RuntimeError(f"Official LLVM archive contains {len(configs)} MLIR development configurations")
     root = configs[0].parents[3]
@@ -42,6 +57,39 @@ def main():
     with open(os.environ["GITHUB_ENV"], "a") as environment:
         environment.write(f"KALANDRA_LLVM_ROOT={root.as_posix()}\n")
     print(f"LLVM/MLIR development root: {root}", flush=True)
+
+
+def build_windows_mlir(root, work, lock):
+    # LLVM's Windows release omits MLIR. Build the matching official source
+    # against its installed LLVM development libraries, never an unpinned fork.
+    source = lock["mlirSource"]
+    archive = work / source["name"]
+    url = f"https://github.com/llvm/llvm-project/releases/download/llvmorg-{lock['llvmVersion']}/{source['name']}"
+    with urllib.request.urlopen(url, timeout=120) as response:
+        save_verified(response, archive, source["sha256"])
+    with tarfile.open(archive) as package:
+        package.extractall(work / "source", filter="data")
+    archive.unlink()
+    mlir_source, = (work / "source").glob("*/mlir")
+    compiler = root / "bin/clang.exe"
+    for mode in ("address", "undefined", "thread"):
+        probe = work / "sanitizer-probe.cpp"
+        probe.write_text("int main() { return 0; }\n")
+        result = subprocess.run([str(compiler), "-x", "c++", str(probe), f"-fsanitize={mode}",
+                                 "-o", str(work / "sanitizer-probe.exe")], capture_output=True, text=True)
+        print(f"Windows {mode} sanitizer compilation: {result.returncode == 0}", flush=True)
+        if result.returncode:
+            print(result.stderr, flush=True)
+    build = work / "mlir-build"
+    subprocess.run(["cmake", "-S", str(mlir_source), "-B", str(build), "-G", "Ninja",
+                    "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_INSTALL_PREFIX={root.as_posix()}",
+                    f"-DCMAKE_C_COMPILER={compiler.as_posix()}",
+                    f"-DCMAKE_CXX_COMPILER={(root / 'bin/clang++.exe').as_posix()}",
+                    f"-DLLVM_DIR={(root / 'lib/cmake/llvm').as_posix()}",
+                    "-DMLIR_INCLUDE_TESTS=OFF", "-DMLIR_INCLUDE_INTEGRATION_TESTS=OFF",
+                    "-DMLIR_ENABLE_BINDINGS_PYTHON=OFF", "-DMLIR_ENABLE_EXECUTION_ENGINE=OFF",
+                    "-DMLIR_BUILD_MLIR_DYLIB=OFF", "-DMLIR_BUILD_MLIR_C_DYLIB=OFF"], check=True)
+    subprocess.run(["cmake", "--build", str(build), "--target", "install", "-j2"], check=True)
 
 
 if __name__ == "__main__":
