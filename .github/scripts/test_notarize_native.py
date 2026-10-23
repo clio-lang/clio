@@ -42,6 +42,15 @@ class CredentialTests(unittest.TestCase):
                 private_command("/usr/bin/xcrun", "notarytool", "secret-value")
             self.assertNotIn("secret-value", str(error.exception))
 
+    def test_agreement_failure_is_not_reported_as_bad_team_membership(self):
+        with patch("subprocess.run") as run:
+            run.return_value.returncode = 1
+            run.return_value.stdout = b""
+            run.return_value.stderr = b"HTTP status code: 403. A required agreement is missing or has expired. secret-value"
+            with self.assertRaisesRegex(RuntimeError, "agreement is missing or expired") as error:
+                private_command("/usr/bin/xcrun", "notarytool", "secret-value")
+            self.assertNotIn("secret-value", str(error.exception))
+
 
 class SigningInputTests(unittest.TestCase):
     def fixture(self, root, incorrect_inventory=False):

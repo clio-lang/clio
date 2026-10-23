@@ -10,6 +10,7 @@ from pathlib import Path
 import platform
 import re
 import secrets
+import shlex
 import shutil
 import subprocess
 import sys
@@ -31,6 +32,10 @@ def private_command(*args):
     if result.returncode and "notarytool" in args:
         # Classify known failures; never print Apple's raw response or credentials.
         response = (result.stdout + result.stderr).decode("utf-8", errors="replace").lower()
+        if "agreement" in response and any(word in response for word in ("missing", "expired", "signed")):
+            raise RuntimeError("Apple notarization access denied: a required developer agreement is missing or expired")
+        if "invalid or inaccessible developer team" in response:
+            raise RuntimeError("Apple notarization access denied: Apple reports the requested team as invalid or inaccessible")
         status = re.search(r"(?:http status code|status code)[: =]+([1-5][0-9]{2})\b", response)
         if status:
             raise RuntimeError(f"Apple notarization authentication failed (HTTP {status[1]}); response suppressed")
@@ -54,6 +59,7 @@ def private_command(*args):
         raise RuntimeError(f"Signing operation failed (exit {result.returncode}); response suppressed")
     if result.returncode:
         raise RuntimeError(f"Credential setup failed ({Path(args[0]).name}); command output suppressed")
+    return result.stdout
 
 
 def main(check_only=False):
@@ -70,6 +76,7 @@ def main(check_only=False):
     p12 = root / "identity.p12"
     password = secrets.token_urlsafe(48)
     print("::add-mask::" + password, flush=True)
+    previous_keychains = shlex.split(private_command("/usr/bin/security", "list-keychains", "-d", "user").decode())
     try:
         p12.write_bytes(base64.b64decode(os.environ["KALANDRA_SIGNING_P12_BASE64"], validate=True))
         p12.chmod(0o600)
@@ -82,6 +89,14 @@ def main(check_only=False):
         print("Encrypted signing identity imported successfully", flush=True)
         private_command("/usr/bin/security", "set-key-partition-list", "-S",
                         "apple-tool:,apple:,codesign:", "-s", "-k", password, keychain)
+        private_command("/usr/bin/security", "list-keychains", "-d", "user", "-s",
+                        keychain, *previous_keychains)
+        # Public certificate metadata only; no key or credential values are logged.
+        identities = private_command("/usr/bin/security", "find-identity", "-v", "-p",
+                                     "codesigning", keychain).decode()
+        available = re.findall(r'\b([A-F0-9]{40}) "Developer ID Application: [^"\n]* \(([A-Z0-9]{10})\)"', identities)
+        print("Imported Developer ID certificates (SHA-1, Team ID): " +
+              (", ".join(f"{fingerprint} {team}" for fingerprint, team in available) or "none"), flush=True)
         failures = []
         try:
             validate_signing(root, keychain)
@@ -109,6 +124,8 @@ def main(check_only=False):
                  os.environ["KALANDRA_SIGNING_IDENTITY"], os.environ["KALANDRA_APPLE_TEAM_ID"],
                  "kalandra-ci", keychain)
     finally:
+        subprocess.run(["/usr/bin/security", "list-keychains", "-d", "user", "-s", *previous_keychains],
+                       capture_output=True, timeout=30)
         subprocess.run(["/usr/bin/security", "delete-keychain", str(keychain)],
                        capture_output=True, timeout=30)
         shutil.rmtree(root, ignore_errors=True)
