@@ -38,12 +38,17 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: python3 .github/scripts/release_version.py
       - name: Install native dependencies
-        run: brew install cmake ninja llvm@23 tomlplusplus
+        run: |
+          brew update
+          brew install cmake ninja tomlplusplus zstd z3
+          brew upgrade zstd z3
+      - name: Install verified pinned LLVM bottle
+        run: python3 .github/scripts/provision_native_llvm.py --install --directory "$RUNNER_TEMP/pinned-llvm"
       - name: Configure CPU toolchain
         run: >-
           cmake -S . -B build/native -G Ninja
           -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
-          -DKALANDRA_LLVM_ROOT="$(brew --prefix llvm@23)"
+          -DKALANDRA_LLVM_ROOT="$KALANDRA_LLVM_ROOT"
           -Dtomlplusplus_DIR="$(brew --prefix tomlplusplus)/lib/cmake/tomlplusplus"
           -DKALANDRA_BUILD_METAL_RUNTIME=OFF -DKALANDRA_BUILD_METAL_PROOF=OFF
       - name: Build release packages
