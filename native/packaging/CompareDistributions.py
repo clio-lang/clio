@@ -18,6 +18,16 @@ def compare(first, second, platform="macos-arm64", kinds=("cpu", "editor-tools",
                             for member in archive if member.isfile()}
             a, b = inventory(left), inventory(right)
             changed = [name for name in sorted(a.keys() | b.keys()) if a.get(name) != b.get(name)]
+            with tarfile.open(left) as first_archive, tarfile.open(right) as second_archive:
+                for name in [name for name in changed if name.endswith(".lib")][:3]:
+                    x = first_archive.extractfile(name).read()
+                    y = second_archive.extractfile(name).read()
+                    different = [i for i, (a, b) in enumerate(zip(x, y)) if a != b]
+                    print(f"Archive mismatch {name}: sizes {len(x)}/{len(y)}, "
+                          f"first differing offsets {different[:16]}", flush=True)
+                    if different:
+                        start = max(0, different[0] - 40)
+                        print(repr(x[start:start + 200]), repr(y[start:start + 200]), flush=True)
             raise RuntimeError(f"Independent {kind} source builds differ: {changed}")
         print(f"Independent {kind} source builds: byte-identical SHA-256 {digest(left)}", flush=True)
 

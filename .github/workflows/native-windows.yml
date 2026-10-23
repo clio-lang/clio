@@ -15,6 +15,8 @@ jobs:
   cpu:
     runs-on: windows-2025
     timeout-minutes: 180
+    outputs:
+      archive-ready: ${{ steps.archive.outputs.artifact-id != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -48,12 +50,15 @@ jobs:
           cmake --build build/windows-repro --target native-cpu-standalone-package -j2
           python native/packaging/CompareDistributions.py build/windows build/windows-repro --platform windows-x86_64 --kind cpu
       - uses: actions/upload-artifact@v4
+        id: archive
+        if: ${{ always() && hashFiles('build/windows/native-cpu-standalone/*.tar.gz') != '' }}
         with:
           name: native-windows-assets
           path: build/windows/native-cpu-standalone/*.tar.gz*
           if-no-files-found: error
   downloaded-package:
     needs: cpu
+    if: ${{ always() && needs.cpu.outputs.archive-ready == 'true' }}
     runs-on: windows-2025
     timeout-minutes: 40
     steps:
