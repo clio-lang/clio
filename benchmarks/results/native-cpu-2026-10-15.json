@@ -4254,11 +4254,7 @@
       "dimension": 0,
       "workers": 0,
       "median_ms": 0.00125,
-      "process_medians_ms": [
-        0.00125,
-        0.001333,
-        0.00125
-      ],
+      "process_medians_ms": [0.00125, 0.001333, 0.00125],
       "sample_min_ms": 0.000958,
       "sample_max_ms": 0.001541
     },
@@ -4266,11 +4262,7 @@
       "dimension": 0,
       "workers": 1,
       "median_ms": 0.018459,
-      "process_medians_ms": [
-        0.018167,
-        0.018459,
-        0.018792
-      ],
+      "process_medians_ms": [0.018167, 0.018459, 0.018792],
       "sample_min_ms": 0.015167,
       "sample_max_ms": 0.026583
     },
@@ -4278,11 +4270,7 @@
       "dimension": 0,
       "workers": 2,
       "median_ms": 0.074625,
-      "process_medians_ms": [
-        0.07775,
-        0.062792,
-        0.074625
-      ],
+      "process_medians_ms": [0.07775, 0.062792, 0.074625],
       "sample_min_ms": 0.040042,
       "sample_max_ms": 0.112375
     },
@@ -4290,11 +4278,7 @@
       "dimension": 0,
       "workers": 4,
       "median_ms": 0.163709,
-      "process_medians_ms": [
-        0.154584,
-        0.167916,
-        0.163709
-      ],
+      "process_medians_ms": [0.154584, 0.167916, 0.163709],
       "sample_min_ms": 0.125958,
       "sample_max_ms": 0.28575
     },
@@ -4302,11 +4286,7 @@
       "dimension": 0,
       "workers": 8,
       "median_ms": 0.402417,
-      "process_medians_ms": [
-        0.406,
-        0.387667,
-        0.402417
-      ],
+      "process_medians_ms": [0.406, 0.387667, 0.402417],
       "sample_min_ms": 0.237459,
       "sample_max_ms": 0.559792
     },
@@ -4314,11 +4294,7 @@
       "dimension": 8,
       "workers": 0,
       "median_ms": 0.061958,
-      "process_medians_ms": [
-        0.062125,
-        0.061416,
-        0.061958
-      ],
+      "process_medians_ms": [0.062125, 0.061416, 0.061958],
       "sample_min_ms": 0.052792,
       "sample_max_ms": 0.09675
     },
@@ -4326,11 +4302,7 @@
       "dimension": 8,
       "workers": 1,
       "median_ms": 0.074,
-      "process_medians_ms": [
-        0.069667,
-        0.077584,
-        0.074
-      ],
+      "process_medians_ms": [0.069667, 0.077584, 0.074],
       "sample_min_ms": 0.06375,
       "sample_max_ms": 0.096792
     },
@@ -4338,11 +4310,7 @@
       "dimension": 8,
       "workers": 2,
       "median_ms": 0.140584,
-      "process_medians_ms": [
-        0.140584,
-        0.144416,
-        0.139125
-      ],
+      "process_medians_ms": [0.140584, 0.144416, 0.139125],
       "sample_min_ms": 0.107333,
       "sample_max_ms": 0.222291
     },
@@ -4350,11 +4318,7 @@
       "dimension": 8,
       "workers": 4,
       "median_ms": 0.214166,
-      "process_medians_ms": [
-        0.226,
-        0.214166,
-        0.189042
-      ],
+      "process_medians_ms": [0.226, 0.214166, 0.189042],
       "sample_min_ms": 0.142833,
       "sample_max_ms": 0.31125
     },
@@ -4362,11 +4326,7 @@
       "dimension": 8,
       "workers": 8,
       "median_ms": 0.43875,
-      "process_medians_ms": [
-        0.43875,
-        0.45675,
-        0.431584
-      ],
+      "process_medians_ms": [0.43875, 0.45675, 0.431584],
       "sample_min_ms": 0.273083,
       "sample_max_ms": 0.598959
     },
@@ -4374,11 +4334,7 @@
       "dimension": 32,
       "workers": 0,
       "median_ms": 1.345625,
-      "process_medians_ms": [
-        1.328958,
-        1.424916,
-        1.345625
-      ],
+      "process_medians_ms": [1.328958, 1.424916, 1.345625],
       "sample_min_ms": 1.32,
       "sample_max_ms": 1.473958
     },
@@ -4386,11 +4342,7 @@
       "dimension": 32,
       "workers": 1,
       "median_ms": 1.348667,
-      "process_medians_ms": [
-        1.345792,
-        1.348792,
-        1.348667
-      ],
+      "process_medians_ms": [1.345792, 1.348792, 1.348667],
       "sample_min_ms": 1.293041,
       "sample_max_ms": 1.477541
     },
@@ -4398,11 +4350,7 @@
       "dimension": 32,
       "workers": 2,
       "median_ms": 0.834792,
-      "process_medians_ms": [
-        0.834792,
-        0.830708,
-        0.893625
-      ],
+      "process_medians_ms": [0.834792, 0.830708, 0.893625],
       "sample_min_ms": 0.789584,
       "sample_max_ms": 1.0635
     },
@@ -4410,11 +4358,7 @@
       "dimension": 32,
       "workers": 4,
       "median_ms": 0.549625,
-      "process_medians_ms": [
-        0.548583,
-        0.549625,
-        0.580583
-      ],
+      "process_medians_ms": [0.548583, 0.549625, 0.580583],
       "sample_min_ms": 0.489333,
       "sample_max_ms": 0.64425
     },
@@ -4422,11 +4366,7 @@
       "dimension": 32,
       "workers": 8,
       "median_ms": 0.6085,
-      "process_medians_ms": [
-        0.6085,
-        0.618583,
-        0.592709
-      ],
+      "process_medians_ms": [0.6085, 0.618583, 0.592709],
       "sample_min_ms": 0.449666,
       "sample_max_ms": 0.805125
     },
@@ -4434,11 +4374,7 @@
       "dimension": 96,
       "workers": 0,
       "median_ms": 25.737208,
-      "process_medians_ms": [
-        26.047042,
-        25.737208,
-        25.43
-      ],
+      "process_medians_ms": [26.047042, 25.737208, 25.43],
       "sample_min_ms": 24.627541,
       "sample_max_ms": 26.778458
     },
@@ -4446,11 +4382,7 @@
       "dimension": 96,
       "workers": 1,
       "median_ms": 25.4425,
-      "process_medians_ms": [
-        25.268208,
-        25.4425,
-        25.7875
-      ],
+      "process_medians_ms": [25.268208, 25.4425, 25.7875],
       "sample_min_ms": 24.525833,
       "sample_max_ms": 44.074
     },
@@ -4458,11 +4390,7 @@
       "dimension": 96,
       "workers": 2,
       "median_ms": 14.044292,
-      "process_medians_ms": [
-        13.027333,
-        14.044292,
-        14.134417
-      ],
+      "process_medians_ms": [13.027333, 14.044292, 14.134417],
       "sample_min_ms": 12.3765,
       "sample_max_ms": 14.636792
     },
@@ -4470,11 +4398,7 @@
       "dimension": 96,
       "workers": 4,
       "median_ms": 7.703459,
-      "process_medians_ms": [
-        6.833458,
-        7.703459,
-        7.7365
-      ],
+      "process_medians_ms": [6.833458, 7.703459, 7.7365],
       "sample_min_ms": 6.491084,
       "sample_max_ms": 11.914166
     },
@@ -4482,11 +4406,7 @@
       "dimension": 96,
       "workers": 8,
       "median_ms": 4.494125,
-      "process_medians_ms": [
-        4.436209,
-        4.494125,
-        4.571375
-      ],
+      "process_medians_ms": [4.436209, 4.494125, 4.571375],
       "sample_min_ms": 4.091666,
       "sample_max_ms": 6.052292
     }

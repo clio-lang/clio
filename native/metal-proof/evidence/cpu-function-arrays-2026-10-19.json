@@ -123,10 +123,7 @@
       "Two-pointer array cell storage budget emits S024",
       "GPU function-array capability rejection"
     ],
-    "variants": [
-      "debug with native lowering",
-      "ASan/UBSan frontend"
-    ]
+    "variants": ["debug with native lowering", "ASan/UBSan frontend"]
   },
   "new_execution_suites": {
     "debug": {
@@ -135,11 +132,7 @@
       "returned_array_creation_allocation_probes": 10,
       "returned_array_callback_invocations_after_creator_exit": 128,
       "cli_allocation_failure_processes": 240,
-      "worker_local_pools": [
-        1,
-        2,
-        4
-      ],
+      "worker_local_pools": [1, 2, 4],
       "worker_local_programs": [
         "worker-local",
         "worker-recovery",
@@ -153,11 +146,7 @@
       "returned_array_creation_allocation_probes": 10,
       "returned_array_callback_invocations_after_creator_exit": 128,
       "cli_allocation_failure_processes": 240,
-      "worker_local_pools": [
-        1,
-        2,
-        4
-      ],
+      "worker_local_pools": [1, 2, 4],
       "worker_local_programs": [
         "worker-local",
         "worker-recovery",
@@ -171,11 +160,7 @@
       "returned_array_creation_allocation_probes": 10,
       "returned_array_callback_invocations_after_creator_exit": 128,
       "cli_allocation_failure_processes": 240,
-      "worker_local_pools": [
-        1,
-        2,
-        4
-      ],
+      "worker_local_pools": [1, 2, 4],
       "worker_local_programs": [
         "worker-local",
         "worker-recovery",
@@ -189,11 +174,7 @@
       "returned_array_creation_allocation_probes": 10,
       "returned_array_callback_invocations_after_creator_exit": 128,
       "cli_allocation_failure_processes": 240,
-      "worker_local_pools": [
-        1,
-        2,
-        4
-      ],
+      "worker_local_pools": [1, 2, 4],
       "worker_local_programs": [
         "worker-local",
         "worker-recovery",

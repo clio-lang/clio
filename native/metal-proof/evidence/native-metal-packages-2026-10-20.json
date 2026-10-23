@@ -45,16 +45,8 @@
       "TSan (--thread-sanitize)"
     ],
     "expectedManagedResult": {
-      "values": [
-        105,
-        107,
-        109
-      ],
-      "float32Hex": [
-        "42d20000",
-        "42d60000",
-        "42da0000"
-      ]
+      "values": [105, 107, 109],
+      "float32Hex": ["42d20000", "42d60000", "42da0000"]
     },
     "cases": [
       "Relocated packaged compiler and symlink invocation from outside the checkout",

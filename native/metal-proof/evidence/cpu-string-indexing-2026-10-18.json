@@ -61,12 +61,7 @@
       "required_argument_result_allocation_failures": 8,
       "rejected_artifact_checks": 8
     },
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "coverage": [
       "ASCII/Persian/combining marks/emoji/joiner/NUL/BOM/U+10FFFF selection at exact scalar boundaries",
       "All four integer widths, end/negative/high dynamic indexes, empty values, compile-time literal/binding/branch/concat/result bounds diagnostics",

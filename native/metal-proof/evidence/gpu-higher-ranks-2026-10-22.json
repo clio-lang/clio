@@ -12,26 +12,10 @@
   "milestone": "Rank-three through rank-eight float32 numerical source integration",
   "qualification_status": "passed",
   "qualification": {
-    "host_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
-    "worker_counts": [
-      1,
-      2,
-      4
-    ],
+    "host_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
+    "worker_counts": [1, 2, 4],
     "programs_per_mode": 54,
-    "source_ranks": [
-      3,
-      4,
-      5,
-      6,
-      7,
-      8
-    ],
+    "source_ranks": [3, 4, 5, 6, 7, 8],
     "operations": [
       "elementwise arithmetic",
       "strict sums",

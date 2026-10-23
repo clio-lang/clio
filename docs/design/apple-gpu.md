@@ -479,7 +479,6 @@ Shape obligations come from the common typed function IR, independently of shade
 
 The [fixture](../../native/metal-source/unused-inputs.k) combines mixed ranks, transitive unused parameters, a discarded matrix computation, noncontiguous input bindings, mixed scalar ordering and the 40-tensor signature. [Runtime conformance](../../native/metal-source/UnusedInputChecks.h) checks **30 cases and 2,380,720 exact identity lanes per build variant**, including signaling NaN payloads, signed zeros, empty/nonempty ignored tensors, vector and matrix result domains, caller-owned metadata changes, invalid maps, bounds/residency failures, and 40-argument capture retention through cancellation, deadlines and failed completion. The common source harness sweeps CPU and Metal allocation failures and cached result lifetimes. [CLI checks](../../native/metal-source/VerifyUnusedInputs.cmake) run optimized and host sanitizer builds with 1/2/4 scheduler workers, inspect strict artifacts, and check static/dynamic discarded shape failures, empty results and transactional diagnostics. [Qualification evidence](../../native/metal-proof/evidence/gpu-unused-inputs-2026-10-16.json) records counts and hashes. Host sanitizers do not instrument GPU instructions. No speedup claim is made.
 
-
 ### Tier 2 argument buffers for large GPU calls
 
 Elementwise GPU entries with more than 29 contributing float32 tensors now use a Metal argument buffer. Calls within the direct layout retain their existing shader ABI. Selection follows the contributing input map, so a large logical signature with only one used tensor stays on the direct path. No new source syntax is required.
@@ -497,7 +496,6 @@ The fixed input count is replaced by checked representation, compiler work limit
 The [source fixture](../../native/metal-source/indirect-arguments.k) uses 40 contributing tensors, an unused tensor of another rank, and interleaved scalar parameters in both ranks. [Conformance](../../native/metal-source/IndirectArgumentChecks.h) checks **25 cases and 793,916 CPU/GPU/APFloat lanes per rank per build variant**, including the full 595,106-pair corpus, scalar IEEE edges, aliases, empty axes and workgroup tails. It also sweeps capture/dispatch allocation checkpoints, checks exact device/capture budget boundaries, holds resources through cancellation/deadlines/failed completion, destroys a pending core, and runs two simultaneous calls through one kernel while cancelling one. The source harness additionally sweeps 87 CPU allocation failures with 1/2/4 workers.
 
 [CLI checks](../../native/metal-source/VerifyIndirectArguments.cmake) run optimized, ASan/UBSan and TSan host programs with 1/2/4 workers, verify one root Metal binding and rank-independent raw/strict/SPIR-V lane arithmetic, run a relocated executable plus its two libraries, and reject static/dynamic shape mismatches in the last contributing tensor. The former 30-input rejection now builds and runs with an argument buffer. [Evidence](../../native/metal-proof/evidence/gpu-indirect-arguments-2026-10-16.json) records source/artifact hashes and regression results. Host sanitizers do not instrument GPU instructions. No throughput improvement is claimed; large calls add resource-buffer allocation and argument encoding.
-
 
 ### Whole-tensor unary arithmetic
 
@@ -666,7 +664,6 @@ Mixed-program supervisor expressions now lower from the shared placement-aware t
 ## Common continuation planning
 
 CPU task lowering and the Metal supervisor now consume the same checked slot/group/branch plan. Scope settlement, recovery exits and selector/argument order are planned once; target emitters retain their numerical dispatch and value layouts. The [continuation design](continuations.md) describes the two call policies, inspection artifacts, conformance and remaining mixed helper scope.
-
 
 ## Resumable mixed helper bodies
 

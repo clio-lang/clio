@@ -25,11 +25,7 @@
       "native-lsp-sanitized": 6.79,
       "native-editor-tools-install": 3.76
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "Balanced and trailing-open calls; named and structural callees; nested/indexed/factory record receivers and pipelines",
       "Unknown and non-record receivers, invalid supplied prefixes and later graph errors reject guidance",

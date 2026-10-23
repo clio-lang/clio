@@ -83,22 +83,13 @@
   },
   "new_execution": {
     "source_programs_per_mode": 13,
-    "modes": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "ThreadSanitizer"
-    ],
+    "modes": ["debug", "optimized", "ASan/UBSan", "ThreadSanitizer"],
     "source_program_runs": 52,
     "extra_worker_count_runs": 60,
     "allocation_failure_probes": 512,
     "rejected_source_programs": 6,
     "rejection_runs": 24,
-    "rejection_preserves": [
-      "executable",
-      "LLVM IR",
-      "MLIR"
-    ],
+    "rejection_preserves": ["executable", "LLVM IR", "MLIR"],
     "cases": [
       "aliases",
       "array",
@@ -120,10 +111,7 @@
     "additional_promoted_positive_programs_per_mode": 3,
     "rejected_boundaries_per_mode": 8,
     "forged_ir_cases_per_mode": 6,
-    "modes": [
-      "debug",
-      "ASan/UBSan"
-    ]
+    "modes": ["debug", "ASan/UBSan"]
   },
   "restrictions": [
     "Context-insensitive proof joins every direct call site, including local-only uses",

@@ -39,12 +39,7 @@
       "native-metal-multiple-reductions-sanitized",
       "native-metal-multiple-reductions-thread-sanitized"
     ],
-    "host_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
+    "host_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
     "matrix_numerical_cases_per_mode": 96,
     "independent_vector_cases_per_mode": 12,
     "allocation_checkpoints_per_mode": 74,

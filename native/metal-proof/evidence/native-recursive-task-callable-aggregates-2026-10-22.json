@@ -35,19 +35,10 @@
       "failed": 0,
       "elapsed_seconds": 21.12
     },
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
     "new_direct_cases_per_variant_excluding_allocation_sweep": 28,
     "new_scheduler_cases_per_variant": 9,
-    "worker_pool_sizes": [
-      1,
-      2,
-      4
-    ],
+    "worker_pool_sizes": [1, 2, 4],
     "coverage": [
       "Full production function-array, function-array enum record, recursive callable-tree and callable-tree-array layouts use real target selection and checked managed environment transfer",
       "Captured/capture-free entries execute after producer settlement and scheduler destruction; UTF-8 capture backing and recursive List children remain readable",

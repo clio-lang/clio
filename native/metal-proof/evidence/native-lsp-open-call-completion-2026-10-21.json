@@ -27,11 +27,7 @@
       "native-lsp-sanitized": 6.2,
       "native-editor-tools-install": 4.06
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "First/later/empty final arguments, balanced under-arity calls, nested open calls, bound functions, factory results and pipelines",
       "Checked record-field completion while later arguments are still missing",

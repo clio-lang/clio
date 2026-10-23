@@ -87,10 +87,7 @@
     ],
     "malformed_input_corpus": {
       "cases": 512,
-      "modes": [
-        "debug",
-        "ASan/UBSan"
-      ],
+      "modes": ["debug", "ASan/UBSan"],
       "limits": [
         "source bytes",
         "tokens",

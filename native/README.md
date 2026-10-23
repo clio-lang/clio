@@ -62,20 +62,20 @@ The [native language server](../docs/design/native-language-server.md) checks op
 
 The checker supports [versioned JSON diagnostics](../docs/design/native-diagnostics.md) through `--diagnostics=json`, including original module filenames and UTF-16 editor ranges. [Unsaved source checking](../docs/design/native-source-overlays.md) supports a root buffer via `--stdin` and multiple replacement buffers through the native loader API.
 
-| Target                    | Purpose                                                                                   |
-| ------------------------- | ----------------------------------------------------------------------------------------- |
-| `kalandra`               | Compile the checked CPU subset through MLIR/LLVM into a native executable                 |
-| `kalandra-backend`        | Native MLIR construction, verified passes, LLVM translation                               |
-| `kalandra-native-runtime` | Invocation storage, checked faults, bounded task scheduler, and development entry wrapper |
+| Target                    | Purpose                                                                                                          |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `kalandra`                | Compile the checked CPU subset through MLIR/LLVM into a native executable                                        |
+| `kalandra-backend`        | Native MLIR construction, verified passes, LLVM translation                                                      |
+| `kalandra-native-runtime` | Invocation storage, checked faults, bounded task scheduler, and development entry wrapper                        |
 | `kalandra-lsp`            | Native diagnostics, incremental edits, type hover, definition, references, scope completion and validated rename |
-| `kalandra-fmt`            | Verified native source formatting to stdout, or `--check` without source writes |
-| `kalandra-check`          | Symbol/type/shape checking, JSON diagnostics and `--dump-ir` inspection                   |
-| `kalandra-semantics`      | Typed values, resolved calls, shape facts/guards, strict numeric metadata                 |
-| `kalandra-parse`          | Handwritten lexer/parser CLI with source diagnostics (syntax only)                        |
-| `kalandra-syntax`         | Source ownership, tokens, AST, lexer, recursive-descent/Pratt parser                      |
-| `kalandra-mlir-check`     | C++23 tool that parses/verifies MLIR through linked native APIs                           |
-| `kalandra-proof-cases`    | Independent scalar numerical reference and fixed-seed input generator                     |
-| `native-toolchain-proof`  | Bufferization, ownership lowering, LLVM translation, and three native proof binaries      |
+| `kalandra-fmt`            | Verified native source formatting to stdout, or `--check` without source writes                                  |
+| `kalandra-check`          | Symbol/type/shape checking, JSON diagnostics and `--dump-ir` inspection                                          |
+| `kalandra-semantics`      | Typed values, resolved calls, shape facts/guards, strict numeric metadata                                        |
+| `kalandra-parse`          | Handwritten lexer/parser CLI with source diagnostics (syntax only)                                               |
+| `kalandra-syntax`         | Source ownership, tokens, AST, lexer, recursive-descent/Pratt parser                                             |
+| `kalandra-mlir-check`     | C++23 tool that parses/verifies MLIR through linked native APIs                                                  |
+| `kalandra-proof-cases`    | Independent scalar numerical reference and fixed-seed input generator                                            |
+| `native-toolchain-proof`  | Bufferization, ownership lowering, LLVM translation, and three native proof binaries                             |
 
 [Immutable numeric arrays](../docs/design/arrays.md) now support `[T]` annotations, homogeneous literals, empty arrays with context, functions, conditional length joins and retained worker handoff. They remain distinct from tensors. [Sequential array mapping](../docs/design/array-map.md) is also available, including inline anonymous callbacks, lexical captures, explicit element-type changes and worker execution. [Explicit `tensor(values)` construction](../docs/design/arrays.md#explicit-tensor-construction-from-arrays) now connects runtime arrays to rank-one tensor operations and retained worker results. [Runtime shape lists](../docs/design/reshape.md) now build matrices and higher ranks from flat arrays using checked integer dimensions. [Checked array indexing](../docs/design/array-indexing.md) reads scalar elements with zero-based integer indices and Bounds fault recovery in worker helpers. [Checked CPU tensor indexing](../docs/design/tensor-indexing.md) also reads one scalar with one integer index per dimension, including rank-zero extraction and worker results. [CPU collection size queries](../docs/design/collection-queries.md) now provide `length(array)` and `shape(tensor)`, with int64 metadata, lexical captures and direct worker calls. [CPU tensor reshaping](../docs/design/tensor-reshape.md) now changes rank/dimensions while preserving numeric type and logical row-major order, with checked sizes and retained worker results. [Explicit tensor-to-array construction](../docs/design/tensor-array.md) now provides `array(tensor)`, preserving numeric type and logical row-major order for map pipelines and retained worker results. First-class function values, general element types, slicing and zero-copy views remain subsequent work.
 
@@ -131,7 +131,6 @@ The [signature-sized GPU argument path](../docs/design/apple-gpu.md#signature-si
 The [shared placement frontend](../docs/design/placement-ir.md) now checks device selectors, explicit transfers and tensor residency. Inspect it with `kalandra-check --placement --dump-ir`; Metal builds also emit `placement.ir`. The current supervisor emitter still uses source syntax. Flat tensor literals can provide explicit constant shapes, such as `tensor([], [0, 3])`, through the same checked constructor rules.
 
 The mixed CPU/GPU supervisor now lowers checked placement IR into native continuations, including resolved calls, shape checks, nested groups and error recovery. [The lowering design](../docs/design/placement-ir.md#ir-driven-supervisor-continuations) describes the typed lowering path. Both CPU tasks and the Metal supervisor now use the [common continuation planner](../docs/design/continuations.md); inspect it with `kalandra-check --dump-plan` (add `--placement` for mixed `main`).
-
 
 ## CPU binary64 lowering proof
 

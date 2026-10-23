@@ -25,11 +25,7 @@
       "native-lsp-sanitized",
       "native-editor-tools-install"
     ],
-    "modes": [
-      "debug",
-      "asan-ubsan",
-      "Release relocated editor tools"
-    ],
+    "modes": ["debug", "asan-ubsan", "Release relocated editor tools"],
     "cases": [
       "Complete arguments with one or nested trailing missing parentheses; zero-parameter empty calls",
       "Higher-order factory results and indexed pipelines retain their correct checked signatures and active parameter",

@@ -25,11 +25,7 @@
       "native-lsp-completion-sanitized": 0.68,
       "native-editor-tools-install": 4.12
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "Direct named call target completion replaces the full suffix while preserving existing arguments",
       "Nested incomplete calls, builtin pipeline targets, qualified device selectors and placement transfer targets retain their existing candidate rules",

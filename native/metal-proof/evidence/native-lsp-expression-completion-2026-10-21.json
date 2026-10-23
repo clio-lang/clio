@@ -25,11 +25,7 @@
       "native-lsp-completion-sanitized": 0.7,
       "native-editor-tools-install": 5.01
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "All five arithmetic operators provide scoped operand-name completion",
       "Numeric unary, nested arithmetic and left operands preserve source text after the selected name",

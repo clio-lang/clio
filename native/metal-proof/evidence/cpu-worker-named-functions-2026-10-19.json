@@ -104,10 +104,7 @@
     "selection": "New execution suites in debug, optimized, ASan/UBSan and separate ThreadSanitizer modes. New frontend and relevant existing syntax, type, map, module, closure, aggregate callable, error, recursion and worker checks in normal and ASan/UBSan modes. Not the full project suite."
   },
   "new_frontend_suites": {
-    "variants": [
-      "debug",
-      "ASan/UBSan"
-    ],
+    "variants": ["debug", "ASan/UBSan"],
     "accepted_checked_and_planned_programs_per_variant": 16,
     "rejected_boundaries_per_variant": 10,
     "forged_ir_cases_per_variant": 3
@@ -118,11 +115,7 @@
       "metadata_copy_cases": 8,
       "scheduler_tasks": 48,
       "cached_observations": 96,
-      "worker_pools": [
-        1,
-        2,
-        4
-      ],
+      "worker_pools": [1, 2, 4],
       "additional_cli_worker_runs": 30,
       "allocation_failure_cli_probes": 24
     },
@@ -131,11 +124,7 @@
       "metadata_copy_cases": 8,
       "scheduler_tasks": 48,
       "cached_observations": 96,
-      "worker_pools": [
-        1,
-        2,
-        4
-      ],
+      "worker_pools": [1, 2, 4],
       "additional_cli_worker_runs": 30,
       "allocation_failure_cli_probes": 24
     },
@@ -144,11 +133,7 @@
       "metadata_copy_cases": 8,
       "scheduler_tasks": 48,
       "cached_observations": 96,
-      "worker_pools": [
-        1,
-        2,
-        4
-      ],
+      "worker_pools": [1, 2, 4],
       "additional_cli_worker_runs": 30,
       "allocation_failure_cli_probes": 24
     },
@@ -157,11 +142,7 @@
       "metadata_copy_cases": 8,
       "scheduler_tasks": 48,
       "cached_observations": 96,
-      "worker_pools": [
-        1,
-        2,
-        4
-      ],
+      "worker_pools": [1, 2, 4],
       "additional_cli_worker_runs": 30,
       "allocation_failure_cli_probes": 24
     }

@@ -15,17 +15,8 @@
     "remaining": "GPU integer arithmetic, additional numeric widths and conversions remain gated. No new public foreign-memory ABI, deadline timer or distributed execution."
   },
   "qualification": {
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workers": [1, 2, 4],
     "distinct_programs_per_variant": 13,
     "distinct_programs_total": 52,
     "reference_runs": [
@@ -57,20 +48,7 @@
     "runtime_reference_cases_total": 4196,
     "runtime_reference_faults_total": 1260,
     "task_observer_runs_total": 192,
-    "allocation_failure_positions": [
-      1,
-      2,
-      3,
-      4,
-      5,
-      6,
-      7,
-      8,
-      9,
-      10,
-      11,
-      12
-    ],
+    "allocation_failure_positions": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
     "coverage": [
       "independent uint64 products and adjacent-tree reference",
       "unsigned endpoints and signed/float32 precision boundaries",

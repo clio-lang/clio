@@ -86,10 +86,7 @@
       }
     ],
     "scopedRuntimeExpectedResult": "[12, 11]",
-    "scopedRuntimeWorkerCounts": [
-      1,
-      4
-    ],
+    "scopedRuntimeWorkerCounts": [1, 4],
     "sanitizerInstrumentation": "Generated LLVM definitions receive SanitizeAddress or SanitizeThread attributes; runtime and collection entry archives match each mode. Sanitized frontend uses ASan/UBSan.",
     "notes": [
       "Final scoped tests include an additional positive assertion for distinct owners of one physical source, followed by rejection of cross-owner record assignment.",

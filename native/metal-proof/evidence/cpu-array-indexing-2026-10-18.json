@@ -11,20 +11,8 @@
     "dispatch_fix": "A rejected spawn with invalid handle checks its owning group failure and joins/settles the group, preserving the original failure rather than awaiting an invalid handle. No scheduler/runtime ABI change."
   },
   "contract": {
-    "elements": [
-      "int32",
-      "uint32",
-      "int64",
-      "uint64",
-      "float32",
-      "float64"
-    ],
-    "indices": [
-      "int32",
-      "uint32",
-      "int64",
-      "uint64"
-    ],
+    "elements": ["int32", "uint32", "int64", "uint64", "float32", "float64"],
+    "indices": ["int32", "uint32", "int64", "uint64"],
     "range": "0 <= index < length; no negative indexing, wrapping, truncation or mutation",
     "evaluation": "Array then index, once each; operand failures retain original locations; known invalid bounds diagnosed statically"
   },

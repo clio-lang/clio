@@ -15,31 +15,17 @@
     "arithmetic": "Existing strict binary32 lowering unchanged. Unsupported discarded operations remain diagnostics; no CPU fallback."
   },
   "conformance": {
-    "variants": [
-      "debug",
-      "optimized",
-      "host ASan/UBSan",
-      "host TSan"
-    ],
+    "variants": ["debug", "optimized", "host ASan/UBSan", "host TSan"],
     "metal_api_validation": true,
     "gpu_shader_sanitizers": false,
-    "ranks": [
-      1,
-      2
-    ],
+    "ranks": [1, 2],
     "identity_cases_per_variant": 30,
     "exact_identity_lanes_per_variant": 2380720,
     "source_cpu_allocation_failures_per_worker_configuration": 16,
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "workers": [1, 2, 4],
     "wide_signature": {
       "logical_tensors": 40,
-      "read_indices": [
-        39
-      ],
+      "read_indices": [39],
       "physical_input_buffers": 1,
       "total_buffer_bindings": 3
     },
@@ -56,21 +42,9 @@
     ]
   },
   "cli": {
-    "configurations": [
-      "optimized",
-      "host ASan/UBSan",
-      "host TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
-    "expected_bits": [
-      "40a00000",
-      "41400000",
-      "41a80000"
-    ],
+    "configurations": ["optimized", "host ASan/UBSan", "host TSan"],
+    "workers": [1, 2, 4],
+    "expected_bits": ["40a00000", "41400000", "41a80000"],
     "rejections": [
       "Static discarded matrix axis mismatch despite unrelated result domain",
       "Dynamic discarded matrix axis mismatch with nonempty and empty output domains",

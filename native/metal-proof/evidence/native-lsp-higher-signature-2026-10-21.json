@@ -27,11 +27,7 @@
       "native-lsp-sanitized",
       "native-editor-tools-install"
     ],
-    "modes": [
-      "debug",
-      "asan-ubsan",
-      "Release relocated editor tools"
-    ],
+    "modes": ["debug", "asan-ubsan", "Release relocated editor tools"],
     "cases": [
       "Factory-result signatures remain distinct from factory argument signatures, including captured two-parameter results",
       "Indexed callback arrays, indexed factory-returned arrays, direct anonymous calls and factory/indexed pipelines",

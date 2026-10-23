@@ -126,12 +126,7 @@
       "native-record-array-fields-frontend-debug",
       "native-record-array-fields-frontend-sanitized"
     ],
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "qualification_runs": "109 execution/frontend checks passed in the baseline run. Four frontend assertions then passed in a six-test rerun after preserving cycle diagnostic terminology and filtering the private scalar tag from the array-extent assertion. The diagnostic-only header change does not alter the raw worker fixture LLVM output; byte equality was checked after rebuilding.",
     "new_programs_per_variant": 18,
     "new_programs_total": 72,

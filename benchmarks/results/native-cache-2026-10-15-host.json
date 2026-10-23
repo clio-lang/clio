@@ -6,9 +6,7 @@
     "CanonicalName": "macosx26.5",
     "DisplayName": "macOS 26.5"
   },
-  "os_command": [
-    "sw_vers"
-  ],
+  "os_command": ["sw_vers"],
   "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.5\nBuildVersion:\t\t25F5068a\n",
   "note": "Supplementary host data captured after performance experiments. xcrun --show-sdk-version failed; SDK version was read from the installed SDKSettings.json instead."
 }

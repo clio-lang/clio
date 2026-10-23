@@ -27,11 +27,7 @@
       "native-lsp-signature-sanitized": 0.55,
       "native-editor-tools-install": 4.26
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "scalar_signature_pairs_checked": 100,
     "cases": [
       "All 100 concrete scalar source/destination signature pairs use a representable input; these are editor type/label checks, not repeated numerical engine qualification",

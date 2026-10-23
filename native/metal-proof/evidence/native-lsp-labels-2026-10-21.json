@@ -25,11 +25,7 @@
       "native-lsp-sanitized",
       "native-editor-tools-install"
     ],
-    "modes": [
-      "debug",
-      "asan-ubsan",
-      "Release relocated editor package"
-    ],
+    "modes": ["debug", "asan-ubsan", "Release relocated editor package"],
     "cases": [
       "Empty and partial labels, whole-suffix replacement, existing colon and missing value",
       "Fields supplied before/after the cursor, nested records, immutable updates and selected payload fields",

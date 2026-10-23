@@ -25,12 +25,7 @@
       "failed": 0,
       "elapsed_seconds": 9.31
     },
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
     "generated_entries": 7,
     "successful_entry_pool_cases_per_variant": 21,
     "additional_cross_core_resubmissions_per_variant": 18,
@@ -38,11 +33,7 @@
     "frame_result_allocation_cases_per_variant": 3,
     "frame_budget_cases_per_variant": 1,
     "nested_cancellation_deadline_cases_per_variant": 6,
-    "worker_pool_sizes": [
-      1,
-      2,
-      4
-    ],
+    "worker_pool_sizes": [1, 2, 4],
     "coverage": [
       "Compiler-generated constructors, physical frames, resume functions and result layouts run in real TaskCore pools without handwritten task construct/resume adapters",
       "List, Tree and callable-tree inputs survive producer settlement; repeated independent observations survive original scheduler destruction",

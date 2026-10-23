@@ -9,21 +9,21 @@ host sanitizers and installed compiler acceptance pass. Storage support or a
 shader arithmetic proof alone does not enable a source capability.
 
 - [x] Typed owned storage, transfers and exact CPU/device round trips for every
-  numeric type and rank, including empty tensors, offsets and settlement.
+      numeric type and rank, including empty tensors, offsets and settlement.
 - [x] Source construction, host/worker bridges, explicit placement and retained
-  device results for those types and ranks.
+      device results for those types and ranks.
 - [x] Strict elementwise arithmetic and scalar lifting, balanced row-major sums,
-  rank-two matrix products and composed resident numerical graphs. Higher
-  ranks do not introduce batch-matmul or broadcasting semantics.
+      rank-two matrix products and composed resident numerical graphs. Higher
+      ranks do not introduce batch-matmul or broadcasting semantics.
 - [x] Checked integer overflow, division and fault transport, preserving failure,
-  cancellation, deadlines, budgets and cleanup without publishing partial results.
+      cancellation, deadlines, budgets and cleanup without publishing partial results.
 - [x] Binary64 arithmetic with the CPU rounding/NaN/negation contracts, without
-  narrowing to binary32 or substituting CPU numerical execution.
+      narrowing to binary32 or substituting CPU numerical execution.
 - [x] Applicable scalar/tensor control, including selected-path numerical stages
-  and shape obligations, scalar task results and explicit conversions.
+      and shape obligations, scalar task results and explicit conversions.
 - [x] Source admission, exact numerical conformance, malformed interfaces,
-  allocation/device failure injection, host sanitizers and installed compiler
-  qualification. Unsupported programs preserve existing output artifacts.
+      allocation/device failure injection, host sanitizers and installed compiler
+      qualification. Unsupported programs preserve existing output artifacts.
 
 The numerical shader implementation may use integer bit carriers for floating
 values. The initial binary64 proof uses 64-bit limbs for multiplication and

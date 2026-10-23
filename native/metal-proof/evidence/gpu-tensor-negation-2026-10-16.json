@@ -17,26 +17,14 @@
     "runtime": "No runtime layout/lifetime changes; direct and Tier 2 argument paths retained."
   },
   "conformance": {
-    "variants": [
-      "debug",
-      "optimized",
-      "host ASan/UBSan",
-      "host TSan"
-    ],
-    "ranks": [
-      1,
-      2
-    ],
+    "variants": ["debug", "optimized", "host ASan/UBSan", "host TSan"],
+    "ranks": [1, 2],
     "cases_per_rank_per_variant": 68,
     "cpu_gpu_lanes_per_rank_per_variant": 3177168,
     "exact_unary_lanes_per_rank_per_variant": 2382876,
     "metal_api_validation": true,
     "gpu_shader_sanitizers": false,
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "workers": [1, 2, 4],
     "source_cpu_allocation_failures_per_worker_configuration": 8,
     "reference": "Negation/double-negation/plus compare exact independent CPU/GPU bits to the sign-bit rule. Negated addition compares with APFloat, NaNs by classification after arithmetic.",
     "coverage": [
@@ -47,16 +35,8 @@
     ]
   },
   "cli": {
-    "configurations": [
-      "optimized",
-      "host ASan/UBSan",
-      "host TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "configurations": ["optimized", "host ASan/UBSan", "host TSan"],
+    "workers": [1, 2, 4],
     "gpu_expected_bits": [
       "c0000000",
       "c0800000",
@@ -67,15 +47,8 @@
     ],
     "cpu_task_expected": "21",
     "rank_three_cpu_expected": "-10",
-    "empty_matrix_shape": [
-      0,
-      3
-    ],
-    "rank_independent_artifacts": [
-      "raw MLIR",
-      "strict lowered MLIR",
-      "SPIR-V"
-    ],
+    "empty_matrix_shape": [0, 3],
+    "rank_independent_artifacts": ["raw MLIR", "strict lowered MLIR", "SPIR-V"],
     "relocation": "Executable plus its eight root Metal libraries, without compiler intermediates.",
     "rejections": [
       "Static composed addition shape mismatch leaves existing output unchanged",

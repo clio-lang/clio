@@ -56,10 +56,7 @@
       "native-lsp-edits-debug",
       "native-lsp-edits-sanitized"
     ],
-    "variants": [
-      "normal",
-      "ASan/UBSan"
-    ],
+    "variants": ["normal", "ASan/UBSan"],
     "coverage": [
       "Concrete unit edit results over BMP/supplementary Unicode and LF/CRLF/CR",
       "Sequential and mixed replacements, empty no-op updates and EOF insertion",

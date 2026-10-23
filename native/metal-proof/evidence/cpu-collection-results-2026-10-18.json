@@ -11,14 +11,7 @@
     "format": "Arrays as lists; tensors as flat row-major values plus complete shape; exact decimal integers, nine/17 significant float digits; default 100 elements, --limit N and --all"
   },
   "contract": {
-    "elements": [
-      "int32",
-      "uint32",
-      "int64",
-      "uint64",
-      "float32",
-      "float64"
-    ],
+    "elements": ["int32", "uint32", "int64", "uint64", "float32", "float64"],
     "memory": "No borrowed/invalid descriptor output; retained backing survives context/root worker cleanup; no new payload copy in display",
     "errors": "Checked allocation/shape/arithmetic/bounds/task errors produce existing stderr and no collection stdout",
     "scope": "Completed CPU collections; scalar/Bool formatting unchanged; scheduler rank restrictions remain unchanged",

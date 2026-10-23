@@ -21422,11 +21422,7 @@
       "groups": 1,
       "hops": 1,
       "median_us": 6.3706,
-      "process_medians_us": [
-        6.3706,
-        6.4416,
-        6.3626
-      ],
+      "process_medians_us": [6.3706, 6.4416, 6.3626],
       "phases_us": {
         "admit_us": 0.9086,
         "execute_us": 1.9042,
@@ -21435,11 +21431,7 @@
         "release_us": 2.2127
       },
       "baseline_median_us": 6.4957,
-      "baseline_process_medians_us": [
-        6.4957,
-        6.4582999999999995,
-        6.9626
-      ],
+      "baseline_process_medians_us": [6.4957, 6.4582999999999995, 6.9626],
       "baseline_phases_us": {
         "admit_us": 0.8875,
         "execute_us": 2.0167,
@@ -21454,11 +21446,7 @@
       "groups": 1,
       "hops": 8,
       "median_us": 12.3499,
-      "process_medians_us": [
-        12.3499,
-        12.299900000000001,
-        12.4749
-      ],
+      "process_medians_us": [12.3499, 12.299900000000001, 12.4749],
       "phases_us": {
         "admit_us": 0.9126,
         "execute_us": 7.8667,
@@ -21467,11 +21455,7 @@
         "release_us": 2.2082
       },
       "baseline_median_us": 12.7457,
-      "baseline_process_medians_us": [
-        12.7457,
-        12.9416,
-        12.7455
-      ],
+      "baseline_process_medians_us": [12.7457, 12.9416, 12.7455],
       "baseline_phases_us": {
         "admit_us": 0.8874,
         "execute_us": 8.3084,
@@ -21486,11 +21470,7 @@
       "groups": 32,
       "hops": 1,
       "median_us": 7.3915,
-      "process_medians_us": [
-        7.4499,
-        7.3582,
-        7.3915
-      ],
+      "process_medians_us": [7.4499, 7.3582, 7.3915],
       "phases_us": {
         "admit_us": 0.9168,
         "execute_us": 2.8415,
@@ -21499,11 +21479,7 @@
         "release_us": 2.2459
       },
       "baseline_median_us": 7.5667,
-      "baseline_process_medians_us": [
-        7.4166,
-        7.5667,
-        7.9791
-      ],
+      "baseline_process_medians_us": [7.4166, 7.5667, 7.9791],
       "baseline_phases_us": {
         "admit_us": 0.8917,
         "execute_us": 2.9541,
@@ -21518,11 +21494,7 @@
       "groups": 32,
       "hops": 8,
       "median_us": 15.9625,
-      "process_medians_us": [
-        15.9625,
-        16.4045,
-        15.9374
-      ],
+      "process_medians_us": [15.9625, 16.4045, 15.9374],
       "phases_us": {
         "admit_us": 0.9084,
         "execute_us": 11.3207,
@@ -21531,11 +21503,7 @@
         "release_us": 2.2541
       },
       "baseline_median_us": 16.2042,
-      "baseline_process_medians_us": [
-        16.7417,
-        16.2042,
-        15.975
-      ],
+      "baseline_process_medians_us": [16.7417, 16.2042, 15.975],
       "baseline_phases_us": {
         "admit_us": 0.8999,
         "execute_us": 11.6124,
@@ -21550,11 +21518,7 @@
       "groups": 1,
       "hops": 1,
       "median_us": 12.7833,
-      "process_medians_us": [
-        12.7917,
-        12.7583,
-        12.7833
-      ],
+      "process_medians_us": [12.7917, 12.7583, 12.7833],
       "phases_us": {
         "admit_us": 0.9083,
         "execute_us": 7.4374,
@@ -21563,11 +21527,7 @@
         "release_us": 2.3167
       },
       "baseline_median_us": 12.4749,
-      "baseline_process_medians_us": [
-        12.4749,
-        12.5165,
-        11.554
-      ],
+      "baseline_process_medians_us": [12.4749, 12.5165, 11.554],
       "baseline_phases_us": {
         "admit_us": 0.8834,
         "execute_us": 7.5292,
@@ -21582,11 +21542,7 @@
       "groups": 1,
       "hops": 8,
       "median_us": 49.0916,
-      "process_medians_us": [
-        49.137800000000006,
-        49.0916,
-        48.0167
-      ],
+      "process_medians_us": [49.137800000000006, 49.0916, 48.0167],
       "phases_us": {
         "admit_us": 0.9206,
         "execute_us": 44.0124,
@@ -21595,11 +21551,7 @@
         "release_us": 2.3335
       },
       "baseline_median_us": 49.4125,
-      "baseline_process_medians_us": [
-        49.4125,
-        50.6416,
-        49.2584
-      ],
+      "baseline_process_medians_us": [49.4125, 50.6416, 49.2584],
       "baseline_phases_us": {
         "admit_us": 0.8916,
         "execute_us": 44.4541,
@@ -21614,11 +21566,7 @@
       "groups": 32,
       "hops": 1,
       "median_us": 13.2459,
-      "process_medians_us": [
-        14.0623,
-        12.675,
-        13.2459
-      ],
+      "process_medians_us": [14.0623, 12.675, 13.2459],
       "phases_us": {
         "admit_us": 0.8624,
         "execute_us": 8.2167,
@@ -21627,11 +21575,7 @@
         "release_us": 2.2166
       },
       "baseline_median_us": 13.3916,
-      "baseline_process_medians_us": [
-        13.3916,
-        13.695599999999999,
-        13.329
-      ],
+      "baseline_process_medians_us": [13.3916, 13.695599999999999, 13.329],
       "baseline_phases_us": {
         "admit_us": 0.8833,
         "execute_us": 8.3584,
@@ -21646,11 +21590,7 @@
       "groups": 32,
       "hops": 8,
       "median_us": 52.8794,
-      "process_medians_us": [
-        52.45,
-        53.4833,
-        52.8794
-      ],
+      "process_medians_us": [52.45, 53.4833, 52.8794],
       "phases_us": {
         "admit_us": 0.9251,
         "execute_us": 47.6001,
@@ -21659,11 +21599,7 @@
         "release_us": 2.3542
       },
       "baseline_median_us": 54.4792,
-      "baseline_process_medians_us": [
-        54.566700000000004,
-        54.4792,
-        53.0292
-      ],
+      "baseline_process_medians_us": [54.566700000000004, 54.4792, 53.0292],
       "baseline_phases_us": {
         "admit_us": 0.9081,
         "execute_us": 49.3834,
@@ -21678,11 +21614,7 @@
       "groups": 256,
       "hops": 1,
       "median_us": 94.0043,
-      "process_medians_us": [
-        94.0043,
-        93.0542,
-        95.50420000000001
-      ],
+      "process_medians_us": [94.0043, 93.0542, 95.50420000000001],
       "phases_us": {
         "admit_us": 0.9709,
         "execute_us": 83.8207,
@@ -21691,11 +21623,7 @@
         "release_us": 3.775
       },
       "baseline_median_us": 93.8749,
-      "baseline_process_medians_us": [
-        95.7332,
-        93.3293,
-        93.8749
-      ],
+      "baseline_process_medians_us": [95.7332, 93.3293, 93.8749],
       "baseline_phases_us": {
         "admit_us": 0.9458,
         "execute_us": 83.354,
@@ -21710,11 +21638,7 @@
       "groups": 256,
       "hops": 8,
       "median_us": 482.8041,
-      "process_medians_us": [
-        564.7126,
-        469.7376,
-        482.8041
-      ],
+      "process_medians_us": [564.7126, 469.7376, 482.8041],
       "phases_us": {
         "admit_us": 0.9959,
         "execute_us": 472.4667,
@@ -21723,11 +21647,7 @@
         "release_us": 3.7166
       },
       "baseline_median_us": 486.3957,
-      "baseline_process_medians_us": [
-        634.3543,
-        476.3083,
-        486.3957
-      ],
+      "baseline_process_medians_us": [634.3543, 476.3083, 486.3957],
       "baseline_phases_us": {
         "admit_us": 0.9752,
         "execute_us": 475.7125,
@@ -21742,11 +21662,7 @@
       "groups": 1,
       "hops": 1,
       "median_us": 16.5998,
-      "process_medians_us": [
-        17.8081,
-        16.5998,
-        15.9248
-      ],
+      "process_medians_us": [17.8081, 16.5998, 15.9248],
       "phases_us": {
         "admit_us": 1.2832,
         "execute_us": 9.6585,
@@ -21755,11 +21671,7 @@
         "release_us": 3.0623
       },
       "baseline_median_us": 14.7248,
-      "baseline_process_medians_us": [
-        14.4082,
-        16.0126,
-        14.7248
-      ],
+      "baseline_process_medians_us": [14.4082, 16.0126, 14.7248],
       "baseline_phases_us": {
         "admit_us": 1.2125,
         "execute_us": 8.5624,
@@ -21774,11 +21686,7 @@
       "groups": 1,
       "hops": 8,
       "median_us": 34.6207,
-      "process_medians_us": [
-        35.362500000000004,
-        33.5252,
-        34.6207
-      ],
+      "process_medians_us": [35.362500000000004, 33.5252, 34.6207],
       "phases_us": {
         "admit_us": 1.3711,
         "execute_us": 25.2584,
@@ -21787,11 +21695,7 @@
         "release_us": 3.4167
       },
       "baseline_median_us": 68.1208,
-      "baseline_process_medians_us": [
-        71.721,
-        61.9919,
-        68.1208
-      ],
+      "baseline_process_medians_us": [71.721, 61.9919, 68.1208],
       "baseline_phases_us": {
         "admit_us": 1.2001,
         "execute_us": 60.0,
@@ -21806,11 +21710,7 @@
       "groups": 32,
       "hops": 1,
       "median_us": 19.6208,
-      "process_medians_us": [
-        20.3835,
-        19.6208,
-        19.0709
-      ],
+      "process_medians_us": [20.3835, 19.6208, 19.0709],
       "phases_us": {
         "admit_us": 1.3415,
         "execute_us": 10.9082,
@@ -21819,11 +21719,7 @@
         "release_us": 3.2998
       },
       "baseline_median_us": 20.225,
-      "baseline_process_medians_us": [
-        20.225,
-        21.4,
-        19.7335
-      ],
+      "baseline_process_medians_us": [20.225, 21.4, 19.7335],
       "baseline_phases_us": {
         "admit_us": 1.2873,
         "execute_us": 12.6417,
@@ -21838,11 +21734,7 @@
       "groups": 32,
       "hops": 8,
       "median_us": 41.575,
-      "process_medians_us": [
-        41.2791,
-        42.324999999999996,
-        41.575
-      ],
+      "process_medians_us": [41.2791, 42.324999999999996, 41.575],
       "phases_us": {
         "admit_us": 1.3833,
         "execute_us": 32.4707,
@@ -21851,11 +21743,7 @@
         "release_us": 3.4876
       },
       "baseline_median_us": 80.1792,
-      "baseline_process_medians_us": [
-        80.1792,
-        79.0332,
-        83.1667
-      ],
+      "baseline_process_medians_us": [80.1792, 79.0332, 83.1667],
       "baseline_phases_us": {
         "admit_us": 1.2083,
         "execute_us": 73.4375,
@@ -21870,11 +21758,7 @@
       "groups": 1,
       "hops": 1,
       "median_us": 29.5501,
-      "process_medians_us": [
-        30.400199999999998,
-        29.5501,
-        29.295900000000003
-      ],
+      "process_medians_us": [30.400199999999998, 29.5501, 29.295900000000003],
       "phases_us": {
         "admit_us": 1.3541,
         "execute_us": 18.729,
@@ -21883,11 +21767,7 @@
         "release_us": 3.5458
       },
       "baseline_median_us": 34.4959,
-      "baseline_process_medians_us": [
-        34.4292,
-        35.9833,
-        34.4959
-      ],
+      "baseline_process_medians_us": [34.4292, 35.9833, 34.4959],
       "baseline_phases_us": {
         "admit_us": 1.2876,
         "execute_us": 25.9418,
@@ -21902,11 +21782,7 @@
       "groups": 1,
       "hops": 8,
       "median_us": 95.42920000000001,
-      "process_medians_us": [
-        94.8626,
-        95.42920000000001,
-        97.0541
-      ],
+      "process_medians_us": [94.8626, 95.42920000000001, 97.0541],
       "phases_us": {
         "admit_us": 1.3667,
         "execute_us": 86.7208,
@@ -21915,11 +21791,7 @@
         "release_us": 3.4125
       },
       "baseline_median_us": 201.0709,
-      "baseline_process_medians_us": [
-        201.0709,
-        199.4793,
-        203.2168
-      ],
+      "baseline_process_medians_us": [201.0709, 199.4793, 203.2168],
       "baseline_phases_us": {
         "admit_us": 1.2708,
         "execute_us": 192.5747,
@@ -21934,11 +21806,7 @@
       "groups": 32,
       "hops": 1,
       "median_us": 30.508399999999998,
-      "process_medians_us": [
-        29.775,
-        30.508399999999998,
-        30.7124
-      ],
+      "process_medians_us": [29.775, 30.508399999999998, 30.7124],
       "phases_us": {
         "admit_us": 1.3499,
         "execute_us": 20.6209,
@@ -21947,11 +21815,7 @@
         "release_us": 3.3873
       },
       "baseline_median_us": 36.6582,
-      "baseline_process_medians_us": [
-        36.8712,
-        36.3293,
-        36.6582
-      ],
+      "baseline_process_medians_us": [36.8712, 36.3293, 36.6582],
       "baseline_phases_us": {
         "admit_us": 1.2127,
         "execute_us": 28.1961,
@@ -21966,11 +21830,7 @@
       "groups": 32,
       "hops": 8,
       "median_us": 110.5958,
-      "process_medians_us": [
-        133.0459,
-        109.56259999999999,
-        110.5958
-      ],
+      "process_medians_us": [133.0459, 109.56259999999999, 110.5958],
       "phases_us": {
         "admit_us": 1.3708,
         "execute_us": 100.4916,
@@ -21979,11 +21839,7 @@
         "release_us": 3.6165
       },
       "baseline_median_us": 208.6666,
-      "baseline_process_medians_us": [
-        296.61670000000004,
-        207.9959,
-        208.6666
-      ],
+      "baseline_process_medians_us": [296.61670000000004, 207.9959, 208.6666],
       "baseline_phases_us": {
         "admit_us": 1.2458,
         "execute_us": 201.4458,
@@ -21998,11 +21854,7 @@
       "groups": 256,
       "hops": 1,
       "median_us": 135.1041,
-      "process_medians_us": [
-        135.1041,
-        132.475,
-        136.2749
-      ],
+      "process_medians_us": [135.1041, 132.475, 136.2749],
       "phases_us": {
         "admit_us": 1.225,
         "execute_us": 120.5498,
@@ -22011,11 +21863,7 @@
         "release_us": 4.6209
       },
       "baseline_median_us": 166.36690000000002,
-      "baseline_process_medians_us": [
-        168.2833,
-        166.36690000000002,
-        166.3125
-      ],
+      "baseline_process_medians_us": [168.2833, 166.36690000000002, 166.3125],
       "baseline_phases_us": {
         "admit_us": 1.1877,
         "execute_us": 151.6542,
@@ -22030,11 +21878,7 @@
       "groups": 256,
       "hops": 8,
       "median_us": 656.1292,
-      "process_medians_us": [
-        658.7460000000001,
-        656.1292,
-        647.6584
-      ],
+      "process_medians_us": [658.7460000000001, 656.1292, 647.6584],
       "phases_us": {
         "admit_us": 1.2376,
         "execute_us": 641.129,
@@ -22043,11 +21887,7 @@
         "release_us": 5.1751
       },
       "baseline_median_us": 754.2958,
-      "baseline_process_medians_us": [
-        754.2958,
-        753.1457,
-        768.7834
-      ],
+      "baseline_process_medians_us": [754.2958, 753.1457, 768.7834],
       "baseline_phases_us": {
         "admit_us": 1.2043,
         "execute_us": 739.6041,
@@ -22062,11 +21902,7 @@
       "groups": 1,
       "hops": 1,
       "median_us": 34.0541,
-      "process_medians_us": [
-        31.375,
-        34.0541,
-        37.7587
-      ],
+      "process_medians_us": [31.375, 34.0541, 37.7587],
       "phases_us": {
         "admit_us": 1.775,
         "execute_us": 21.8542,
@@ -22075,11 +21911,7 @@
         "release_us": 5.4499
       },
       "baseline_median_us": 46.4917,
-      "baseline_process_medians_us": [
-        42.0208,
-        46.4917,
-        53.929199999999994
-      ],
+      "baseline_process_medians_us": [42.0208, 46.4917, 53.929199999999994],
       "baseline_phases_us": {
         "admit_us": 1.6457,
         "execute_us": 33.4125,
@@ -22094,11 +21926,7 @@
       "groups": 1,
       "hops": 8,
       "median_us": 96.0668,
-      "process_medians_us": [
-        96.0668,
-        104.1293,
-        89.59150000000001
-      ],
+      "process_medians_us": [96.0668, 104.1293, 89.59150000000001],
       "phases_us": {
         "admit_us": 1.9708,
         "execute_us": 84.3543,
@@ -22107,11 +21935,7 @@
         "release_us": 4.5168
       },
       "baseline_median_us": 163.3248,
-      "baseline_process_medians_us": [
-        163.3248,
-        165.9794,
-        159.575
-      ],
+      "baseline_process_medians_us": [163.3248, 165.9794, 159.575],
       "baseline_phases_us": {
         "admit_us": 1.504,
         "execute_us": 152.0959,
@@ -22126,11 +21950,7 @@
       "groups": 32,
       "hops": 1,
       "median_us": 37.1291,
-      "process_medians_us": [
-        43.4666,
-        36.9833,
-        37.1291
-      ],
+      "process_medians_us": [43.4666, 36.9833, 37.1291],
       "phases_us": {
         "admit_us": 1.6583,
         "execute_us": 26.7667,
@@ -22139,11 +21959,7 @@
         "release_us": 4.8126
       },
       "baseline_median_us": 72.0917,
-      "baseline_process_medians_us": [
-        60.2917,
-        72.0917,
-        78.4459
-      ],
+      "baseline_process_medians_us": [60.2917, 72.0917, 78.4459],
       "baseline_phases_us": {
         "admit_us": 1.4168,
         "execute_us": 63.7124,
@@ -22158,11 +21974,7 @@
       "groups": 32,
       "hops": 8,
       "median_us": 104.9291,
-      "process_medians_us": [
-        99.88340000000001,
-        104.9291,
-        106.15419999999999
-      ],
+      "process_medians_us": [99.88340000000001, 104.9291, 106.15419999999999],
       "phases_us": {
         "admit_us": 1.4209,
         "execute_us": 92.8791,
@@ -22171,11 +21983,7 @@
         "release_us": 3.9709
       },
       "baseline_median_us": 187.9624,
-      "baseline_process_medians_us": [
-        187.9624,
-        190.0208,
-        176.7252
-      ],
+      "baseline_process_medians_us": [187.9624, 190.0208, 176.7252],
       "baseline_phases_us": {
         "admit_us": 1.6331,
         "execute_us": 175.3333,
@@ -22190,11 +21998,7 @@
       "groups": 1,
       "hops": 1,
       "median_us": 67.1583,
-      "process_medians_us": [
-        57.587399999999995,
-        67.1583,
-        69.1625
-      ],
+      "process_medians_us": [57.587399999999995, 67.1583, 69.1625],
       "phases_us": {
         "admit_us": 1.4207,
         "execute_us": 54.2916,
@@ -22203,11 +22007,7 @@
         "release_us": 4.3582
       },
       "baseline_median_us": 91.99589999999999,
-      "baseline_process_medians_us": [
-        91.99589999999999,
-        88.5416,
-        98.125
-      ],
+      "baseline_process_medians_us": [91.99589999999999, 88.5416, 98.125],
       "baseline_phases_us": {
         "admit_us": 1.4916,
         "execute_us": 80.375,
@@ -22222,11 +22022,7 @@
       "groups": 1,
       "hops": 8,
       "median_us": 223.67899999999997,
-      "process_medians_us": [
-        235.34560000000002,
-        223.67899999999997,
-        203.2459
-      ],
+      "process_medians_us": [235.34560000000002, 223.67899999999997, 203.2459],
       "phases_us": {
         "admit_us": 1.475,
         "execute_us": 212.0167,
@@ -22235,11 +22031,7 @@
         "release_us": 4.2461
       },
       "baseline_median_us": 339.60830000000004,
-      "baseline_process_medians_us": [
-        339.60830000000004,
-        343.921,
-        338.2291
-      ],
+      "baseline_process_medians_us": [339.60830000000004, 343.921, 338.2291],
       "baseline_phases_us": {
         "admit_us": 1.4501,
         "execute_us": 327.421,
@@ -22254,11 +22046,7 @@
       "groups": 32,
       "hops": 1,
       "median_us": 71.3959,
-      "process_medians_us": [
-        71.3959,
-        64.1001,
-        74.3165
-      ],
+      "process_medians_us": [71.3959, 64.1001, 74.3165],
       "phases_us": {
         "admit_us": 1.5081,
         "execute_us": 58.8874,
@@ -22267,11 +22055,7 @@
         "release_us": 4.2457
       },
       "baseline_median_us": 95.5876,
-      "baseline_process_medians_us": [
-        95.5876,
-        91.4042,
-        105.7041
-      ],
+      "baseline_process_medians_us": [95.5876, 91.4042, 105.7041],
       "baseline_phases_us": {
         "admit_us": 1.7082,
         "execute_us": 83.0166,
@@ -22286,11 +22070,7 @@
       "groups": 32,
       "hops": 8,
       "median_us": 214.5708,
-      "process_medians_us": [
-        223.11260000000001,
-        208.27919999999997,
-        214.5708
-      ],
+      "process_medians_us": [223.11260000000001, 208.27919999999997, 214.5708],
       "phases_us": {
         "admit_us": 1.3627,
         "execute_us": 201.8209,
@@ -22300,9 +22080,7 @@
       },
       "baseline_median_us": 340.69190000000003,
       "baseline_process_medians_us": [
-        340.25849999999997,
-        346.5999,
-        340.69190000000003
+        340.25849999999997, 346.5999, 340.69190000000003
       ],
       "baseline_phases_us": {
         "admit_us": 1.704,
@@ -22318,11 +22096,7 @@
       "groups": 256,
       "hops": 1,
       "median_us": 205.74179999999998,
-      "process_medians_us": [
-        215.846,
-        198.0626,
-        205.74179999999998
-      ],
+      "process_medians_us": [215.846, 198.0626, 205.74179999999998],
       "phases_us": {
         "admit_us": 1.3167,
         "execute_us": 187.1625,
@@ -22331,11 +22105,7 @@
         "release_us": 5.4332
       },
       "baseline_median_us": 265.9833,
-      "baseline_process_medians_us": [
-        273.4543,
-        265.9833,
-        261.80830000000003
-      ],
+      "baseline_process_medians_us": [273.4543, 265.9833, 261.80830000000003],
       "baseline_phases_us": {
         "admit_us": 1.3501,
         "execute_us": 246.7873,
@@ -22350,11 +22120,7 @@
       "groups": 256,
       "hops": 8,
       "median_us": 925.5959,
-      "process_medians_us": [
-        917.8458,
-        934.8874,
-        925.5959
-      ],
+      "process_medians_us": [917.8458, 934.8874, 925.5959],
       "phases_us": {
         "admit_us": 1.421,
         "execute_us": 909.3876,
@@ -22363,11 +22129,7 @@
         "release_us": 5.4875
       },
       "baseline_median_us": 1103.7125,
-      "baseline_process_medians_us": [
-        1103.7125,
-        1083.9208,
-        1109.2332999999999
-      ],
+      "baseline_process_medians_us": [1103.7125, 1083.9208, 1109.2332999999999],
       "baseline_phases_us": {
         "admit_us": 1.3586,
         "execute_us": 1084.2,
@@ -22382,11 +22144,7 @@
       "groups": 1,
       "hops": 1,
       "median_us": 91.05839999999999,
-      "process_medians_us": [
-        83.28320000000001,
-        91.05839999999999,
-        92.7668
-      ],
+      "process_medians_us": [83.28320000000001, 91.05839999999999, 92.7668],
       "phases_us": {
         "admit_us": 1.575,
         "execute_us": 79.7126,
@@ -22395,11 +22153,7 @@
         "release_us": 4.9211
       },
       "baseline_median_us": 140.1043,
-      "baseline_process_medians_us": [
-        140.1043,
-        137.2668,
-        153.7167
-      ],
+      "baseline_process_medians_us": [140.1043, 137.2668, 153.7167],
       "baseline_phases_us": {
         "admit_us": 1.8167,
         "execute_us": 126.7498,
@@ -22414,11 +22168,7 @@
       "groups": 1,
       "hops": 8,
       "median_us": 254.4083,
-      "process_medians_us": [
-        255.5582,
-        254.4083,
-        249.70010000000002
-      ],
+      "process_medians_us": [255.5582, 254.4083, 249.70010000000002],
       "phases_us": {
         "admit_us": 1.8166,
         "execute_us": 238.85,
@@ -22428,9 +22178,7 @@
       },
       "baseline_median_us": 296.26270000000005,
       "baseline_process_medians_us": [
-        317.12510000000003,
-        293.9748,
-        296.26270000000005
+        317.12510000000003, 293.9748, 296.26270000000005
       ],
       "baseline_phases_us": {
         "admit_us": 2.0792,
@@ -22446,11 +22194,7 @@
       "groups": 32,
       "hops": 1,
       "median_us": 95.40820000000001,
-      "process_medians_us": [
-        95.40820000000001,
-        100.32910000000001,
-        91.6126
-      ],
+      "process_medians_us": [95.40820000000001, 100.32910000000001, 91.6126],
       "phases_us": {
         "admit_us": 1.3498,
         "execute_us": 81.9334,
@@ -22459,11 +22203,7 @@
         "release_us": 5.1707
       },
       "baseline_median_us": 159.9709,
-      "baseline_process_medians_us": [
-        145.2125,
-        161.6749,
-        159.9709
-      ],
+      "baseline_process_medians_us": [145.2125, 161.6749, 159.9709],
       "baseline_phases_us": {
         "admit_us": 1.9082,
         "execute_us": 141.3249,
@@ -22478,11 +22218,7 @@
       "groups": 32,
       "hops": 8,
       "median_us": 264.6461,
-      "process_medians_us": [
-        270.23740000000004,
-        264.6461,
-        258.5915
-      ],
+      "process_medians_us": [270.23740000000004, 264.6461, 258.5915],
       "phases_us": {
         "admit_us": 1.6998,
         "execute_us": 247.0083,
@@ -22492,9 +22228,7 @@
       },
       "baseline_median_us": 318.3625,
       "baseline_process_medians_us": [
-        318.3625,
-        301.28740000000005,
-        345.77919999999995
+        318.3625, 301.28740000000005, 345.77919999999995
       ],
       "baseline_phases_us": {
         "admit_us": 2.0582,
@@ -22510,11 +22244,7 @@
       "groups": 1,
       "hops": 1,
       "median_us": 118.5334,
-      "process_medians_us": [
-        117.5667,
-        122.1877,
-        118.5334
-      ],
+      "process_medians_us": [117.5667, 122.1877, 118.5334],
       "phases_us": {
         "admit_us": 1.7209,
         "execute_us": 104.679,
@@ -22523,11 +22253,7 @@
         "release_us": 4.85
       },
       "baseline_median_us": 187.3915,
-      "baseline_process_medians_us": [
-        186.1874,
-        194.9251,
-        187.3915
-      ],
+      "baseline_process_medians_us": [186.1874, 194.9251, 187.3915],
       "baseline_phases_us": {
         "admit_us": 1.7499,
         "execute_us": 172.4333,
@@ -22542,11 +22268,7 @@
       "groups": 1,
       "hops": 8,
       "median_us": 338.3999,
-      "process_medians_us": [
-        334.0293,
-        346.9458,
-        338.3999
-      ],
+      "process_medians_us": [334.0293, 346.9458, 338.3999],
       "phases_us": {
         "admit_us": 1.5624,
         "execute_us": 321.2541,
@@ -22555,11 +22277,7 @@
         "release_us": 6.1125
       },
       "baseline_median_us": 410.9833,
-      "baseline_process_medians_us": [
-        410.9833,
-        402.05379999999997,
-        424.6625
-      ],
+      "baseline_process_medians_us": [410.9833, 402.05379999999997, 424.6625],
       "baseline_phases_us": {
         "admit_us": 2.1834,
         "execute_us": 387.9166,
@@ -22575,9 +22293,7 @@
       "hops": 1,
       "median_us": 125.49589999999999,
       "process_medians_us": [
-        119.97070000000001,
-        128.45839999999998,
-        125.49589999999999
+        119.97070000000001, 128.45839999999998, 125.49589999999999
       ],
       "phases_us": {
         "admit_us": 1.5875,
@@ -22587,11 +22303,7 @@
         "release_us": 4.1541
       },
       "baseline_median_us": 185.675,
-      "baseline_process_medians_us": [
-        192.4542,
-        184.5043,
-        185.675
-      ],
+      "baseline_process_medians_us": [192.4542, 184.5043, 185.675],
       "baseline_phases_us": {
         "admit_us": 2.1082,
         "execute_us": 165.2085,
@@ -22606,11 +22318,7 @@
       "groups": 32,
       "hops": 8,
       "median_us": 343.9584,
-      "process_medians_us": [
-        343.9584,
-        342.4498,
-        349.6626
-      ],
+      "process_medians_us": [343.9584, 342.4498, 349.6626],
       "phases_us": {
         "admit_us": 1.7917,
         "execute_us": 327.7502,
@@ -22619,11 +22327,7 @@
         "release_us": 5.0917
       },
       "baseline_median_us": 424.4959,
-      "baseline_process_medians_us": [
-        430.3669,
-        424.4959,
-        413.26259999999996
-      ],
+      "baseline_process_medians_us": [430.3669, 424.4959, 413.26259999999996],
       "baseline_phases_us": {
         "admit_us": 2.0667,
         "execute_us": 400.6959,
@@ -22638,11 +22342,7 @@
       "groups": 256,
       "hops": 1,
       "median_us": 334.55809999999997,
-      "process_medians_us": [
-        330.37910000000005,
-        334.55809999999997,
-        337.2667
-      ],
+      "process_medians_us": [330.37910000000005, 334.55809999999997, 337.2667],
       "phases_us": {
         "admit_us": 1.3626,
         "execute_us": 315.2875,
@@ -22651,11 +22351,7 @@
         "release_us": 5.6791
       },
       "baseline_median_us": 430.46680000000003,
-      "baseline_process_medians_us": [
-        422.3458,
-        430.4919,
-        430.46680000000003
-      ],
+      "baseline_process_medians_us": [422.3458, 430.4919, 430.46680000000003],
       "baseline_phases_us": {
         "admit_us": 1.8833,
         "execute_us": 403.3251,
@@ -22670,11 +22366,7 @@
       "groups": 256,
       "hops": 8,
       "median_us": 1252.6042,
-      "process_medians_us": [
-        1262.2376000000002,
-        1252.6042,
-        1230.8585
-      ],
+      "process_medians_us": [1262.2376000000002, 1252.6042, 1230.8585],
       "phases_us": {
         "admit_us": 1.404,
         "execute_us": 1230.6667,
@@ -22683,11 +22375,7 @@
         "release_us": 6.9086
       },
       "baseline_median_us": 1406.7126,
-      "baseline_process_medians_us": [
-        1406.2709,
-        1424.2376000000002,
-        1406.7126
-      ],
+      "baseline_process_medians_us": [1406.2709, 1424.2376000000002, 1406.7126],
       "baseline_phases_us": {
         "admit_us": 1.8418,
         "execute_us": 1379.6707,

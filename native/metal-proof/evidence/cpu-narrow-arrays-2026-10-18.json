@@ -157,20 +157,10 @@
     "raw_concat_exact_lane_checks": 47232,
     "private_record_worker_harness_processes": 1568,
     "source_allocation_failure_sweep_processes": 512,
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "per_variant": {
       "programs": 60,
-      "numeric_element_types": [
-        "int8",
-        "uint8",
-        "int16",
-        "uint16"
-      ],
+      "numeric_element_types": ["int8", "uint8", "int16", "uint16"],
       "slice_harnesses": 12,
       "concat_harnesses": 4,
       "scalar_record_harnesses": 4,

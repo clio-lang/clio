@@ -13,17 +13,8 @@
     "remaining": "64-bit reductions/matmul still rejected in frontend and backend, including task-containing source. Metal integer arithmetic, further formats/conversions and public foreign-memory/wire ABI remain unqualified."
   },
   "qualification": {
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
+    "workers": [1, 2, 4],
     "executable_source_programs": {
       "int64_per_variant": 18,
       "uint64_per_variant": 17,

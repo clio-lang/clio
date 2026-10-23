@@ -66,16 +66,8 @@
       "log_sha256": "dc401a0ef5e9a752b1fe4fccee83d229c56e7c6f60f590dfb32b4d8d996c98bc",
       "reason": "Rerun after adding hostname mismatch and full trusted HTTPS project activation/offline checking and worker execution"
     },
-    "generatedProgramModes": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workerCounts": [
-      1,
-      4
-    ],
+    "generatedProgramModes": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workerCounts": [1, 4],
     "remoteWorkerResult": "42",
     "coverage": [
       "Controlled smart HTTP/HTTPS with real system Git, strict TLS rejection/default trust, explicit trusted CA and hostname mismatch",

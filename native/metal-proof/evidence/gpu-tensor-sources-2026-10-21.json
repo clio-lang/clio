@@ -17,12 +17,7 @@
   ],
   "qualification": {
     "full_suite": false,
-    "host_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
+    "host_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
     "numerical_cases_per_mode": 384,
     "reference": "LLVM APFloat separately rounded arithmetic and ordered comparisons; balanced reduction; exact bits except NaNs compared by classification",
     "conditional_graph_allocation_checkpoints_per_mode": 40,

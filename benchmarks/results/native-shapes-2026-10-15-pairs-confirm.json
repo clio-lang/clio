@@ -77644,17 +77644,9 @@
       "expected_bits": 1065353216,
       "workers": 0,
       "current_median_ms": 0.001209,
-      "current_process_medians_ms": [
-        0.00125,
-        0.001209,
-        0.001042
-      ],
+      "current_process_medians_ms": [0.00125, 0.001209, 0.001042],
       "baseline_median_ms": 0.00125,
-      "baseline_process_medians_ms": [
-        0.00125,
-        0.001042,
-        0.00125
-      ],
+      "baseline_process_medians_ms": [0.00125, 0.001042, 0.00125],
       "speedup": 1.0339123242349049
     },
     {
@@ -77666,17 +77658,9 @@
       "expected_bits": 1065353216,
       "workers": 1,
       "current_median_ms": 0.008417,
-      "current_process_medians_ms": [
-        0.008417,
-        0.008625,
-        0.00825
-      ],
+      "current_process_medians_ms": [0.008417, 0.008625, 0.00825],
       "baseline_median_ms": 0.008375,
-      "baseline_process_medians_ms": [
-        0.008083,
-        0.008375,
-        0.0085
-      ],
+      "baseline_process_medians_ms": [0.008083, 0.008375, 0.0085],
       "speedup": 0.9950100986099562
     },
     {
@@ -77688,17 +77672,9 @@
       "expected_bits": 1065353216,
       "workers": 2,
       "current_median_ms": 0.020625,
-      "current_process_medians_ms": [
-        0.020625,
-        0.017709,
-        0.025916
-      ],
+      "current_process_medians_ms": [0.020625, 0.017709, 0.025916],
       "baseline_median_ms": 0.022166,
-      "baseline_process_medians_ms": [
-        0.022167,
-        0.022166,
-        0.015417
-      ],
+      "baseline_process_medians_ms": [0.022167, 0.022166, 0.015417],
       "speedup": 1.0747151515151516
     },
     {
@@ -77710,17 +77686,9 @@
       "expected_bits": 1065353216,
       "workers": 4,
       "current_median_ms": 0.028292,
-      "current_process_medians_ms": [
-        0.023083,
-        0.028292,
-        0.033083
-      ],
+      "current_process_medians_ms": [0.023083, 0.028292, 0.033083],
       "baseline_median_ms": 0.02575,
-      "baseline_process_medians_ms": [
-        0.02575,
-        0.03375,
-        0.021792
-      ],
+      "baseline_process_medians_ms": [0.02575, 0.03375, 0.021792],
       "speedup": 0.9101512795136434
     },
     {
@@ -77732,17 +77700,9 @@
       "expected_bits": 1065353216,
       "workers": 8,
       "current_median_ms": 0.095458,
-      "current_process_medians_ms": [
-        0.087667,
-        0.095458,
-        0.097083
-      ],
+      "current_process_medians_ms": [0.087667, 0.095458, 0.097083],
       "baseline_median_ms": 0.094458,
-      "baseline_process_medians_ms": [
-        0.094458,
-        0.082833,
-        0.095042
-      ],
+      "baseline_process_medians_ms": [0.094458, 0.082833, 0.095042],
       "speedup": 0.9895241886484109
     },
     {
@@ -77754,17 +77714,9 @@
       "expected_bits": 1215301448,
       "workers": 0,
       "current_median_ms": 1.815167,
-      "current_process_medians_ms": [
-        1.807375,
-        1.825,
-        1.815167
-      ],
+      "current_process_medians_ms": [1.807375, 1.825, 1.815167],
       "baseline_median_ms": 1.817417,
-      "baseline_process_medians_ms": [
-        1.802208,
-        1.853375,
-        1.817417
-      ],
+      "baseline_process_medians_ms": [1.802208, 1.853375, 1.817417],
       "speedup": 1.0012395553687348
     },
     {
@@ -77776,17 +77728,9 @@
       "expected_bits": 1215301448,
       "workers": 1,
       "current_median_ms": 1.825458,
-      "current_process_medians_ms": [
-        1.84075,
-        1.825458,
-        1.815542
-      ],
+      "current_process_medians_ms": [1.84075, 1.825458, 1.815542],
       "baseline_median_ms": 1.833667,
-      "baseline_process_medians_ms": [
-        1.833667,
-        1.853292,
-        1.820875
-      ],
+      "baseline_process_medians_ms": [1.833667, 1.853292, 1.820875],
       "speedup": 1.0044969536412232
     },
     {
@@ -77798,17 +77742,9 @@
       "expected_bits": 1215301448,
       "workers": 2,
       "current_median_ms": 0.939292,
-      "current_process_medians_ms": [
-        0.941833,
-        0.939292,
-        0.934042
-      ],
+      "current_process_medians_ms": [0.941833, 0.939292, 0.934042],
       "baseline_median_ms": 0.970875,
-      "baseline_process_medians_ms": [
-        0.970875,
-        0.976083,
-        0.93925
-      ],
+      "baseline_process_medians_ms": [0.970875, 0.976083, 0.93925],
       "speedup": 1.0336242616779447
     },
     {
@@ -77820,17 +77756,9 @@
       "expected_bits": 1215301448,
       "workers": 4,
       "current_median_ms": 0.507542,
-      "current_process_medians_ms": [
-        0.509459,
-        0.507542,
-        0.507042
-      ],
+      "current_process_medians_ms": [0.509459, 0.507542, 0.507042],
       "baseline_median_ms": 0.522292,
-      "baseline_process_medians_ms": [
-        0.522292,
-        0.517667,
-        0.530709
-      ],
+      "baseline_process_medians_ms": [0.522292, 0.517667, 0.530709],
       "speedup": 1.0290616343080965
     },
     {
@@ -77842,17 +77770,9 @@
       "expected_bits": 1215301448,
       "workers": 8,
       "current_median_ms": 0.355417,
-      "current_process_medians_ms": [
-        0.355417,
-        0.358667,
-        0.346333
-      ],
+      "current_process_medians_ms": [0.355417, 0.358667, 0.346333],
       "baseline_median_ms": 0.353083,
-      "baseline_process_medians_ms": [
-        0.371,
-        0.351125,
-        0.353083
-      ],
+      "baseline_process_medians_ms": [0.371, 0.351125, 0.353083],
       "speedup": 0.9934330659478866
     },
     {
@@ -77864,17 +77784,9 @@
       "expected_bits": 1213335128,
       "workers": 0,
       "current_median_ms": 2.1775,
-      "current_process_medians_ms": [
-        2.190333,
-        2.1525,
-        2.1775
-      ],
+      "current_process_medians_ms": [2.190333, 2.1525, 2.1775],
       "baseline_median_ms": 2.704042,
-      "baseline_process_medians_ms": [
-        2.704042,
-        2.714167,
-        2.664208
-      ],
+      "baseline_process_medians_ms": [2.704042, 2.714167, 2.664208],
       "speedup": 1.2418103329506314
     },
     {
@@ -77886,17 +77798,9 @@
       "expected_bits": 1213335128,
       "workers": 1,
       "current_median_ms": 2.189167,
-      "current_process_medians_ms": [
-        2.189167,
-        2.187417,
-        2.20475
-      ],
+      "current_process_medians_ms": [2.189167, 2.187417, 2.20475],
       "baseline_median_ms": 2.681875,
-      "baseline_process_medians_ms": [
-        2.681875,
-        2.754166,
-        2.666042
-      ],
+      "baseline_process_medians_ms": [2.681875, 2.754166, 2.666042],
       "speedup": 1.2250664293770188
     },
     {
@@ -77908,17 +77812,9 @@
       "expected_bits": 1213335128,
       "workers": 2,
       "current_median_ms": 1.134167,
-      "current_process_medians_ms": [
-        1.133875,
-        1.143584,
-        1.134167
-      ],
+      "current_process_medians_ms": [1.133875, 1.143584, 1.134167],
       "baseline_median_ms": 1.40725,
-      "baseline_process_medians_ms": [
-        1.40725,
-        1.4165,
-        1.371208
-      ],
+      "baseline_process_medians_ms": [1.40725, 1.4165, 1.371208],
       "speedup": 1.240778474422197
     },
     {
@@ -77930,17 +77826,9 @@
       "expected_bits": 1213335128,
       "workers": 4,
       "current_median_ms": 0.617208,
-      "current_process_medians_ms": [
-        0.622083,
-        0.617208,
-        0.611709
-      ],
+      "current_process_medians_ms": [0.622083, 0.617208, 0.611709],
       "baseline_median_ms": 0.735084,
-      "baseline_process_medians_ms": [
-        0.726958,
-        0.735084,
-        0.738667
-      ],
+      "baseline_process_medians_ms": [0.726958, 0.735084, 0.738667],
       "speedup": 1.1909826185013803
     },
     {
@@ -77952,17 +77840,9 @@
       "expected_bits": 1213335128,
       "workers": 8,
       "current_median_ms": 0.389625,
-      "current_process_medians_ms": [
-        0.434875,
-        0.389625,
-        0.387042
-      ],
+      "current_process_medians_ms": [0.434875, 0.389625, 0.387042],
       "baseline_median_ms": 0.4855,
-      "baseline_process_medians_ms": [
-        0.49525,
-        0.4855,
-        0.469416
-      ],
+      "baseline_process_medians_ms": [0.49525, 0.4855, 0.469416],
       "speedup": 1.2460699390439525
     },
     {
@@ -77974,17 +77854,9 @@
       "expected_bits": 0,
       "workers": 0,
       "current_median_ms": 0.003834,
-      "current_process_medians_ms": [
-        0.00375,
-        0.003834,
-        0.003917
-      ],
+      "current_process_medians_ms": [0.00375, 0.003834, 0.003917],
       "baseline_median_ms": 0.003958,
-      "baseline_process_medians_ms": [
-        0.003958,
-        0.003542,
-        0.003958
-      ],
+      "baseline_process_medians_ms": [0.003958, 0.003542, 0.003958],
       "speedup": 1.0323422013562857
     },
     {
@@ -77996,17 +77868,9 @@
       "expected_bits": 0,
       "workers": 1,
       "current_median_ms": 0.009959,
-      "current_process_medians_ms": [
-        0.010792,
-        0.009959,
-        0.009042
-      ],
+      "current_process_medians_ms": [0.010792, 0.009959, 0.009042],
       "baseline_median_ms": 0.010875,
-      "baseline_process_medians_ms": [
-        0.011083,
-        0.010875,
-        0.009625
-      ],
+      "baseline_process_medians_ms": [0.011083, 0.010875, 0.009625],
       "speedup": 1.091977106135154
     },
     {
@@ -78018,17 +77882,9 @@
       "expected_bits": 0,
       "workers": 2,
       "current_median_ms": 0.02375,
-      "current_process_medians_ms": [
-        0.022542,
-        0.02375,
-        0.02375
-      ],
+      "current_process_medians_ms": [0.022542, 0.02375, 0.02375],
       "baseline_median_ms": 0.024625,
-      "baseline_process_medians_ms": [
-        0.024625,
-        0.028084,
-        0.024
-      ],
+      "baseline_process_medians_ms": [0.024625, 0.028084, 0.024],
       "speedup": 1.036842105263158
     },
     {
@@ -78040,17 +77896,9 @@
       "expected_bits": 0,
       "workers": 4,
       "current_median_ms": 0.036333,
-      "current_process_medians_ms": [
-        0.035416,
-        0.036333,
-        0.036875
-      ],
+      "current_process_medians_ms": [0.035416, 0.036333, 0.036875],
       "baseline_median_ms": 0.039792,
-      "baseline_process_medians_ms": [
-        0.039792,
-        0.053083,
-        0.035583
-      ],
+      "baseline_process_medians_ms": [0.039792, 0.053083, 0.035583],
       "speedup": 1.0952027082817275
     },
     {
@@ -78062,17 +77910,9 @@
       "expected_bits": 0,
       "workers": 8,
       "current_median_ms": 0.103125,
-      "current_process_medians_ms": [
-        0.108834,
-        0.100625,
-        0.103125
-      ],
+      "current_process_medians_ms": [0.108834, 0.100625, 0.103125],
       "baseline_median_ms": 0.114125,
-      "baseline_process_medians_ms": [
-        0.11525,
-        0.114125,
-        0.113
-      ],
+      "baseline_process_medians_ms": [0.11525, 0.114125, 0.113],
       "speedup": 1.1066666666666667
     },
     {
@@ -78084,17 +77924,9 @@
       "expected_bits": 0,
       "workers": 0,
       "current_median_ms": 0.005875,
-      "current_process_medians_ms": [
-        0.005959,
-        0.005875,
-        0.005042
-      ],
+      "current_process_medians_ms": [0.005959, 0.005875, 0.005042],
       "baseline_median_ms": 0.006333,
-      "baseline_process_medians_ms": [
-        0.006333,
-        0.006667,
-        0.005333
-      ],
+      "baseline_process_medians_ms": [0.006333, 0.006667, 0.005333],
       "speedup": 1.0779574468085107
     },
     {
@@ -78106,17 +77938,9 @@
       "expected_bits": 0,
       "workers": 1,
       "current_median_ms": 0.0125,
-      "current_process_medians_ms": [
-        0.0125,
-        0.012833,
-        0.011792
-      ],
+      "current_process_medians_ms": [0.0125, 0.012833, 0.011792],
       "baseline_median_ms": 0.012209,
-      "baseline_process_medians_ms": [
-        0.012708,
-        0.011417,
-        0.012209
-      ],
+      "baseline_process_medians_ms": [0.012708, 0.011417, 0.012209],
       "speedup": 0.9767199999999999
     },
     {
@@ -78128,17 +77952,9 @@
       "expected_bits": 0,
       "workers": 2,
       "current_median_ms": 0.02775,
-      "current_process_medians_ms": [
-        0.026125,
-        0.02775,
-        0.043
-      ],
+      "current_process_medians_ms": [0.026125, 0.02775, 0.043],
       "baseline_median_ms": 0.027375,
-      "baseline_process_medians_ms": [
-        0.024833,
-        0.027375,
-        0.030375
-      ],
+      "baseline_process_medians_ms": [0.024833, 0.027375, 0.030375],
       "speedup": 0.9864864864864865
     },
     {
@@ -78150,17 +77966,9 @@
       "expected_bits": 0,
       "workers": 4,
       "current_median_ms": 0.041917,
-      "current_process_medians_ms": [
-        0.041917,
-        0.037916,
-        0.102375
-      ],
+      "current_process_medians_ms": [0.041917, 0.037916, 0.102375],
       "baseline_median_ms": 0.042958,
-      "baseline_process_medians_ms": [
-        0.040084,
-        0.042958,
-        0.07675
-      ],
+      "baseline_process_medians_ms": [0.040084, 0.042958, 0.07675],
       "speedup": 1.024834792566262
     },
     {
@@ -78172,17 +77980,9 @@
       "expected_bits": 0,
       "workers": 8,
       "current_median_ms": 0.1305,
-      "current_process_medians_ms": [
-        0.1305,
-        0.111083,
-        0.194834
-      ],
+      "current_process_medians_ms": [0.1305, 0.111083, 0.194834],
       "baseline_median_ms": 0.11875,
-      "baseline_process_medians_ms": [
-        0.11875,
-        0.1075,
-        0.125417
-      ],
+      "baseline_process_medians_ms": [0.11875, 0.1075, 0.125417],
       "speedup": 0.9099616858237547
     },
     {
@@ -78194,17 +77994,9 @@
       "expected_bits": 0,
       "workers": 0,
       "current_median_ms": 0.003917,
-      "current_process_medians_ms": [
-        0.004,
-        0.003875,
-        0.003917
-      ],
+      "current_process_medians_ms": [0.004, 0.003875, 0.003917],
       "baseline_median_ms": 0.00375,
-      "baseline_process_medians_ms": [
-        0.00375,
-        0.003958,
-        0.003625
-      ],
+      "baseline_process_medians_ms": [0.00375, 0.003958, 0.003625],
       "speedup": 0.9573653306101607
     },
     {
@@ -78216,17 +78008,9 @@
       "expected_bits": 0,
       "workers": 1,
       "current_median_ms": 0.01075,
-      "current_process_medians_ms": [
-        0.010959,
-        0.01075,
-        0.010333
-      ],
+      "current_process_medians_ms": [0.010959, 0.01075, 0.010333],
       "baseline_median_ms": 0.011083,
-      "baseline_process_medians_ms": [
-        0.011083,
-        0.011083,
-        0.01
-      ],
+      "baseline_process_medians_ms": [0.011083, 0.011083, 0.01],
       "speedup": 1.0309767441860467
     },
     {
@@ -78238,17 +78022,9 @@
       "expected_bits": 0,
       "workers": 2,
       "current_median_ms": 0.023125,
-      "current_process_medians_ms": [
-        0.023125,
-        0.024875,
-        0.021625
-      ],
+      "current_process_medians_ms": [0.023125, 0.024875, 0.021625],
       "baseline_median_ms": 0.026083,
-      "baseline_process_medians_ms": [
-        0.026083,
-        0.022625,
-        0.026458
-      ],
+      "baseline_process_medians_ms": [0.026083, 0.022625, 0.026458],
       "speedup": 1.1279135135135134
     },
     {
@@ -78260,17 +78036,9 @@
       "expected_bits": 0,
       "workers": 4,
       "current_median_ms": 0.04125,
-      "current_process_medians_ms": [
-        0.034416,
-        0.04125,
-        0.048708
-      ],
+      "current_process_medians_ms": [0.034416, 0.04125, 0.048708],
       "baseline_median_ms": 0.041167,
-      "baseline_process_medians_ms": [
-        0.037167,
-        0.04875,
-        0.041167
-      ],
+      "baseline_process_medians_ms": [0.037167, 0.04875, 0.041167],
       "speedup": 0.9979878787878788
     },
     {
@@ -78282,17 +78050,9 @@
       "expected_bits": 0,
       "workers": 8,
       "current_median_ms": 0.116458,
-      "current_process_medians_ms": [
-        0.119459,
-        0.116458,
-        0.0925
-      ],
+      "current_process_medians_ms": [0.119459, 0.116458, 0.0925],
       "baseline_median_ms": 0.10075,
-      "baseline_process_medians_ms": [
-        0.121917,
-        0.10075,
-        0.100333
-      ],
+      "baseline_process_medians_ms": [0.121917, 0.10075, 0.100333],
       "speedup": 0.8651187552594068
     },
     {
@@ -78304,17 +78064,9 @@
       "expected_bits": 1215421888,
       "workers": 0,
       "current_median_ms": 1.864459,
-      "current_process_medians_ms": [
-        1.864459,
-        1.855958,
-        1.88825
-      ],
+      "current_process_medians_ms": [1.864459, 1.855958, 1.88825],
       "baseline_median_ms": 1.892542,
-      "baseline_process_medians_ms": [
-        1.892542,
-        1.918083,
-        1.876958
-      ],
+      "baseline_process_medians_ms": [1.892542, 1.918083, 1.876958],
       "speedup": 1.0150622781192828
     },
     {
@@ -78326,17 +78078,9 @@
       "expected_bits": 1215421888,
       "workers": 1,
       "current_median_ms": 1.868209,
-      "current_process_medians_ms": [
-        1.877625,
-        1.860625,
-        1.868209
-      ],
+      "current_process_medians_ms": [1.877625, 1.860625, 1.868209],
       "baseline_median_ms": 1.886708,
-      "baseline_process_medians_ms": [
-        1.886708,
-        1.908709,
-        1.874708
-      ],
+      "baseline_process_medians_ms": [1.886708, 1.908709, 1.874708],
       "speedup": 1.009901997046369
     },
     {
@@ -78348,17 +78092,9 @@
       "expected_bits": 1215421888,
       "workers": 2,
       "current_median_ms": 0.965542,
-      "current_process_medians_ms": [
-        0.965542,
-        0.962292,
-        0.969542
-      ],
+      "current_process_medians_ms": [0.965542, 0.962292, 0.969542],
       "baseline_median_ms": 0.97,
-      "baseline_process_medians_ms": [
-        0.97,
-        1.00325,
-        0.9575
-      ],
+      "baseline_process_medians_ms": [0.97, 1.00325, 0.9575],
       "speedup": 1.0046170958901839
     },
     {
@@ -78370,17 +78106,9 @@
       "expected_bits": 1215421888,
       "workers": 4,
       "current_median_ms": 0.533042,
-      "current_process_medians_ms": [
-        0.533042,
-        0.544708,
-        0.531875
-      ],
+      "current_process_medians_ms": [0.533042, 0.544708, 0.531875],
       "baseline_median_ms": 0.534958,
-      "baseline_process_medians_ms": [
-        0.534958,
-        0.586,
-        0.530834
-      ],
+      "baseline_process_medians_ms": [0.534958, 0.586, 0.530834],
       "speedup": 1.0035944634756737
     },
     {
@@ -78392,17 +78120,9 @@
       "expected_bits": 1215421888,
       "workers": 8,
       "current_median_ms": 0.369666,
-      "current_process_medians_ms": [
-        0.369667,
-        0.369666,
-        0.3585
-      ],
+      "current_process_medians_ms": [0.369667, 0.369666, 0.3585],
       "baseline_median_ms": 0.360792,
-      "baseline_process_medians_ms": [
-        0.360792,
-        0.369167,
-        0.357875
-      ],
+      "baseline_process_medians_ms": [0.360792, 0.369167, 0.357875],
       "speedup": 0.9759945464283976
     },
     {
@@ -78414,17 +78134,9 @@
       "expected_bits": 1216380160,
       "workers": 0,
       "current_median_ms": 1.98475,
-      "current_process_medians_ms": [
-        1.97975,
-        2.005958,
-        1.98475
-      ],
+      "current_process_medians_ms": [1.97975, 2.005958, 1.98475],
       "baseline_median_ms": 1.990917,
-      "baseline_process_medians_ms": [
-        1.968,
-        1.990917,
-        2.028958
-      ],
+      "baseline_process_medians_ms": [1.968, 1.990917, 2.028958],
       "speedup": 1.0031071923416048
     },
     {
@@ -78436,17 +78148,9 @@
       "expected_bits": 1216380160,
       "workers": 1,
       "current_median_ms": 1.946,
-      "current_process_medians_ms": [
-        1.961125,
-        1.94525,
-        1.946
-      ],
+      "current_process_medians_ms": [1.961125, 1.94525, 1.946],
       "baseline_median_ms": 1.967083,
-      "baseline_process_medians_ms": [
-        1.94875,
-        1.974083,
-        1.967083
-      ],
+      "baseline_process_medians_ms": [1.94875, 1.974083, 1.967083],
       "speedup": 1.0108340184994862
     },
     {
@@ -78458,17 +78162,9 @@
       "expected_bits": 1216380160,
       "workers": 2,
       "current_median_ms": 1.006125,
-      "current_process_medians_ms": [
-        1.004417,
-        1.007042,
-        1.006125
-      ],
+      "current_process_medians_ms": [1.004417, 1.007042, 1.006125],
       "baseline_median_ms": 1.014959,
-      "baseline_process_medians_ms": [
-        1.014959,
-        1.003625,
-        1.021166
-      ],
+      "baseline_process_medians_ms": [1.014959, 1.003625, 1.021166],
       "speedup": 1.008780221145484
     },
     {
@@ -78480,17 +78176,9 @@
       "expected_bits": 1216380160,
       "workers": 4,
       "current_median_ms": 0.5435,
-      "current_process_medians_ms": [
-        0.5435,
-        0.555,
-        0.538875
-      ],
+      "current_process_medians_ms": [0.5435, 0.555, 0.538875],
       "baseline_median_ms": 0.546875,
-      "baseline_process_medians_ms": [
-        0.548542,
-        0.546875,
-        0.544333
-      ],
+      "baseline_process_medians_ms": [0.548542, 0.546875, 0.544333],
       "speedup": 1.0062097516099355
     },
     {
@@ -78502,17 +78190,9 @@
       "expected_bits": 1216380160,
       "workers": 8,
       "current_median_ms": 0.378667,
-      "current_process_medians_ms": [
-        0.390292,
-        0.378667,
-        0.376584
-      ],
+      "current_process_medians_ms": [0.390292, 0.378667, 0.376584],
       "baseline_median_ms": 0.362042,
-      "baseline_process_medians_ms": [
-        0.382875,
-        0.358959,
-        0.362042
-      ],
+      "baseline_process_medians_ms": [0.382875, 0.358959, 0.362042],
       "speedup": 0.956095989352122
     },
     {
@@ -78524,17 +78204,9 @@
       "expected_bits": 1215670144,
       "workers": 0,
       "current_median_ms": 1.960875,
-      "current_process_medians_ms": [
-        1.984209,
-        1.950875,
-        1.960875
-      ],
+      "current_process_medians_ms": [1.984209, 1.950875, 1.960875],
       "baseline_median_ms": 1.958042,
-      "baseline_process_medians_ms": [
-        1.963666,
-        1.950083,
-        1.958042
-      ],
+      "baseline_process_medians_ms": [1.963666, 1.950083, 1.958042],
       "speedup": 0.9985552368202971
     },
     {
@@ -78546,17 +78218,9 @@
       "expected_bits": 1215670144,
       "workers": 1,
       "current_median_ms": 1.961542,
-      "current_process_medians_ms": [
-        1.961542,
-        1.945709,
-        1.970709
-      ],
+      "current_process_medians_ms": [1.961542, 1.945709, 1.970709],
       "baseline_median_ms": 1.970709,
-      "baseline_process_medians_ms": [
-        1.970709,
-        1.974333,
-        1.961709
-      ],
+      "baseline_process_medians_ms": [1.970709, 1.974333, 1.961709],
       "speedup": 1.0046733641186374
     },
     {
@@ -78568,17 +78232,9 @@
       "expected_bits": 1215670144,
       "workers": 2,
       "current_median_ms": 1.012291,
-      "current_process_medians_ms": [
-        1.012291,
-        1.005417,
-        1.015333
-      ],
+      "current_process_medians_ms": [1.012291, 1.005417, 1.015333],
       "baseline_median_ms": 1.004667,
-      "baseline_process_medians_ms": [
-        1.004667,
-        1.007959,
-        1.000792
-      ],
+      "baseline_process_medians_ms": [1.004667, 1.007959, 1.000792],
       "speedup": 0.9924685688206256
     },
     {
@@ -78590,17 +78246,9 @@
       "expected_bits": 1215670144,
       "workers": 4,
       "current_median_ms": 0.542167,
-      "current_process_medians_ms": [
-        0.542167,
-        0.543083,
-        0.539917
-      ],
+      "current_process_medians_ms": [0.542167, 0.543083, 0.539917],
       "baseline_median_ms": 0.547417,
-      "baseline_process_medians_ms": [
-        0.548459,
-        0.547417,
-        0.541083
-      ],
+      "baseline_process_medians_ms": [0.548459, 0.547417, 0.541083],
       "speedup": 1.0096833632441666
     },
     {
@@ -78612,17 +78260,9 @@
       "expected_bits": 1215670144,
       "workers": 8,
       "current_median_ms": 0.365458,
-      "current_process_medians_ms": [
-        0.365458,
-        0.379375,
-        0.359542
-      ],
+      "current_process_medians_ms": [0.365458, 0.379375, 0.359542],
       "baseline_median_ms": 0.369583,
-      "baseline_process_medians_ms": [
-        0.369042,
-        0.369583,
-        0.394459
-      ],
+      "baseline_process_medians_ms": [0.369042, 0.369583, 0.394459],
       "speedup": 1.0112872067378467
     },
     {
@@ -78634,17 +78274,9 @@
       "expected_bits": 1216164480,
       "workers": 0,
       "current_median_ms": 2.029083,
-      "current_process_medians_ms": [
-        2.029083,
-        2.025583,
-        2.061334
-      ],
+      "current_process_medians_ms": [2.029083, 2.025583, 2.061334],
       "baseline_median_ms": 2.099,
-      "baseline_process_medians_ms": [
-        2.0905,
-        2.124125,
-        2.099
-      ],
+      "baseline_process_medians_ms": [2.0905, 2.124125, 2.099],
       "speedup": 1.0344574371772866
     },
     {
@@ -78656,17 +78288,9 @@
       "expected_bits": 1216164480,
       "workers": 1,
       "current_median_ms": 2.03375,
-      "current_process_medians_ms": [
-        2.021291,
-        2.03375,
-        2.056875
-      ],
+      "current_process_medians_ms": [2.021291, 2.03375, 2.056875],
       "baseline_median_ms": 2.084375,
-      "baseline_process_medians_ms": [
-        2.078042,
-        2.106084,
-        2.084375
-      ],
+      "baseline_process_medians_ms": [2.078042, 2.106084, 2.084375],
       "speedup": 1.0248924400737554
     },
     {
@@ -78678,17 +78302,9 @@
       "expected_bits": 1216164480,
       "workers": 2,
       "current_median_ms": 1.036,
-      "current_process_medians_ms": [
-        1.037333,
-        1.036,
-        1.032042
-      ],
+      "current_process_medians_ms": [1.037333, 1.036, 1.032042],
       "baseline_median_ms": 1.083291,
-      "baseline_process_medians_ms": [
-        1.083291,
-        1.095125,
-        1.082458
-      ],
+      "baseline_process_medians_ms": [1.083291, 1.095125, 1.082458],
       "speedup": 1.0456476833976833
     },
     {
@@ -78700,17 +78316,9 @@
       "expected_bits": 1216164480,
       "workers": 4,
       "current_median_ms": 0.562625,
-      "current_process_medians_ms": [
-        0.565209,
-        0.559125,
-        0.562625
-      ],
+      "current_process_medians_ms": [0.565209, 0.559125, 0.562625],
       "baseline_median_ms": 0.579708,
-      "baseline_process_medians_ms": [
-        0.582,
-        0.577083,
-        0.579708
-      ],
+      "baseline_process_medians_ms": [0.582, 0.577083, 0.579708],
       "speedup": 1.0303630304376805
     },
     {
@@ -78722,17 +78330,9 @@
       "expected_bits": 1216164480,
       "workers": 8,
       "current_median_ms": 0.395042,
-      "current_process_medians_ms": [
-        0.388584,
-        0.395042,
-        0.395833
-      ],
+      "current_process_medians_ms": [0.388584, 0.395042, 0.395833],
       "baseline_median_ms": 0.393917,
-      "baseline_process_medians_ms": [
-        0.373166,
-        0.402167,
-        0.393917
-      ],
+      "baseline_process_medians_ms": [0.373166, 0.402167, 0.393917],
       "speedup": 0.9971522015380644
     },
     {
@@ -78744,17 +78344,9 @@
       "expected_bits": 1215917248,
       "workers": 0,
       "current_median_ms": 1.973917,
-      "current_process_medians_ms": [
-        1.987417,
-        1.951,
-        1.973917
-      ],
+      "current_process_medians_ms": [1.987417, 1.951, 1.973917],
       "baseline_median_ms": 2.0415,
-      "baseline_process_medians_ms": [
-        2.044167,
-        2.0415,
-        2.022
-      ],
+      "baseline_process_medians_ms": [2.044167, 2.0415, 2.022],
       "speedup": 1.0342380150735822
     },
     {
@@ -78766,17 +78358,9 @@
       "expected_bits": 1215917248,
       "workers": 1,
       "current_median_ms": 1.942041,
-      "current_process_medians_ms": [
-        1.965458,
-        1.942041,
-        1.9395
-      ],
+      "current_process_medians_ms": [1.965458, 1.942041, 1.9395],
       "baseline_median_ms": 2.035333,
-      "baseline_process_medians_ms": [
-        2.035333,
-        2.009333,
-        2.040209
-      ],
+      "baseline_process_medians_ms": [2.035333, 2.009333, 2.040209],
       "speedup": 1.0480381207193876
     },
     {
@@ -78788,17 +78372,9 @@
       "expected_bits": 1215917248,
       "workers": 2,
       "current_median_ms": 1.002958,
-      "current_process_medians_ms": [
-        1.034667,
-        0.997958,
-        1.002958
-      ],
+      "current_process_medians_ms": [1.034667, 0.997958, 1.002958],
       "baseline_median_ms": 1.040375,
-      "baseline_process_medians_ms": [
-        1.040375,
-        1.043334,
-        1.0375
-      ],
+      "baseline_process_medians_ms": [1.040375, 1.043334, 1.0375],
       "speedup": 1.0373066469383563
     },
     {
@@ -78810,17 +78386,9 @@
       "expected_bits": 1215917248,
       "workers": 4,
       "current_median_ms": 0.542416,
-      "current_process_medians_ms": [
-        0.542416,
-        0.544958,
-        0.537333
-      ],
+      "current_process_medians_ms": [0.542416, 0.544958, 0.537333],
       "baseline_median_ms": 0.5585,
-      "baseline_process_medians_ms": [
-        0.557041,
-        0.560625,
-        0.5585
-      ],
+      "baseline_process_medians_ms": [0.557041, 0.560625, 0.5585],
       "speedup": 1.0296525176248488
     },
     {
@@ -78832,17 +78400,9 @@
       "expected_bits": 1215917248,
       "workers": 8,
       "current_median_ms": 0.37275,
-      "current_process_medians_ms": [
-        0.377958,
-        0.37275,
-        0.367375
-      ],
+      "current_process_medians_ms": [0.377958, 0.37275, 0.367375],
       "baseline_median_ms": 0.412791,
-      "baseline_process_medians_ms": [
-        0.412791,
-        0.423833,
-        0.387042
-      ],
+      "baseline_process_medians_ms": [0.412791, 0.423833, 0.387042],
       "speedup": 1.107420523138833
     },
     {
@@ -78854,17 +78414,9 @@
       "expected_bits": 1164997760,
       "workers": 0,
       "current_median_ms": 0.031292,
-      "current_process_medians_ms": [
-        0.031292,
-        0.032375,
-        0.031083
-      ],
+      "current_process_medians_ms": [0.031292, 0.032375, 0.031083],
       "baseline_median_ms": 0.035042,
-      "baseline_process_medians_ms": [
-        0.030416,
-        0.03675,
-        0.035042
-      ],
+      "baseline_process_medians_ms": [0.030416, 0.03675, 0.035042],
       "speedup": 1.119838936469385
     },
     {
@@ -78876,17 +78428,9 @@
       "expected_bits": 1164997760,
       "workers": 1,
       "current_median_ms": 0.037458,
-      "current_process_medians_ms": [
-        0.03825,
-        0.036917,
-        0.037458
-      ],
+      "current_process_medians_ms": [0.03825, 0.036917, 0.037458],
       "baseline_median_ms": 0.039625,
-      "baseline_process_medians_ms": [
-        0.039625,
-        0.043208,
-        0.036791
-      ],
+      "baseline_process_medians_ms": [0.039625, 0.043208, 0.036791],
       "speedup": 1.0578514603022051
     },
     {
@@ -78898,17 +78442,9 @@
       "expected_bits": 1164997760,
       "workers": 2,
       "current_median_ms": 0.040875,
-      "current_process_medians_ms": [
-        0.040875,
-        0.0375,
-        0.062875
-      ],
+      "current_process_medians_ms": [0.040875, 0.0375, 0.062875],
       "baseline_median_ms": 0.040125,
-      "baseline_process_medians_ms": [
-        0.039334,
-        0.040125,
-        0.042084
-      ],
+      "baseline_process_medians_ms": [0.039334, 0.040125, 0.042084],
       "speedup": 0.981651376146789
     },
     {
@@ -78920,17 +78456,9 @@
       "expected_bits": 1164997760,
       "workers": 4,
       "current_median_ms": 0.05175,
-      "current_process_medians_ms": [
-        0.046791,
-        0.05175,
-        0.083541
-      ],
+      "current_process_medians_ms": [0.046791, 0.05175, 0.083541],
       "baseline_median_ms": 0.054667,
-      "baseline_process_medians_ms": [
-        0.045917,
-        0.054667,
-        0.063167
-      ],
+      "baseline_process_medians_ms": [0.045917, 0.054667, 0.063167],
       "speedup": 1.0563671497584541
     },
     {
@@ -78942,17 +78470,9 @@
       "expected_bits": 1164997760,
       "workers": 8,
       "current_median_ms": 0.144625,
-      "current_process_medians_ms": [
-        0.144625,
-        0.133166,
-        0.159459
-      ],
+      "current_process_medians_ms": [0.144625, 0.133166, 0.159459],
       "baseline_median_ms": 0.123916,
-      "baseline_process_medians_ms": [
-        0.118875,
-        0.123916,
-        0.14475
-      ],
+      "baseline_process_medians_ms": [0.118875, 0.123916, 0.14475],
       "speedup": 0.8568089887640449
     },
     {
@@ -78964,17 +78484,9 @@
       "expected_bits": 1156606720,
       "workers": 0,
       "current_median_ms": 0.018875,
-      "current_process_medians_ms": [
-        0.02025,
-        0.018875,
-        0.01775
-      ],
+      "current_process_medians_ms": [0.02025, 0.018875, 0.01775],
       "baseline_median_ms": 0.019375,
-      "baseline_process_medians_ms": [
-        0.019375,
-        0.020666,
-        0.017416
-      ],
+      "baseline_process_medians_ms": [0.019375, 0.020666, 0.017416],
       "speedup": 1.0264900662251657
     },
     {
@@ -78986,17 +78498,9 @@
       "expected_bits": 1156606720,
       "workers": 1,
       "current_median_ms": 0.026167,
-      "current_process_medians_ms": [
-        0.026167,
-        0.027208,
-        0.022167
-      ],
+      "current_process_medians_ms": [0.026167, 0.027208, 0.022167],
       "baseline_median_ms": 0.0275,
-      "baseline_process_medians_ms": [
-        0.0285,
-        0.0275,
-        0.022875
-      ],
+      "baseline_process_medians_ms": [0.0285, 0.0275, 0.022875],
       "speedup": 1.0509420262162266
     },
     {
@@ -79008,17 +78512,9 @@
       "expected_bits": 1156606720,
       "workers": 2,
       "current_median_ms": 0.03375,
-      "current_process_medians_ms": [
-        0.03375,
-        0.031958,
-        0.034416
-      ],
+      "current_process_medians_ms": [0.03375, 0.031958, 0.034416],
       "baseline_median_ms": 0.03175,
-      "baseline_process_medians_ms": [
-        0.03175,
-        0.032916,
-        0.031375
-      ],
+      "baseline_process_medians_ms": [0.03175, 0.032916, 0.031375],
       "speedup": 0.9407407407407407
     },
     {
@@ -79030,17 +78526,9 @@
       "expected_bits": 1156606720,
       "workers": 4,
       "current_median_ms": 0.049167,
-      "current_process_medians_ms": [
-        0.049167,
-        0.051625,
-        0.049167
-      ],
+      "current_process_medians_ms": [0.049167, 0.051625, 0.049167],
       "baseline_median_ms": 0.047917,
-      "baseline_process_medians_ms": [
-        0.050458,
-        0.047917,
-        0.044291
-      ],
+      "baseline_process_medians_ms": [0.050458, 0.047917, 0.044291],
       "speedup": 0.9745764435495352
     },
     {
@@ -79052,17 +78540,9 @@
       "expected_bits": 1156606720,
       "workers": 8,
       "current_median_ms": 0.121458,
-      "current_process_medians_ms": [
-        0.115958,
-        0.131667,
-        0.121458
-      ],
+      "current_process_medians_ms": [0.115958, 0.131667, 0.121458],
       "baseline_median_ms": 0.126167,
-      "baseline_process_medians_ms": [
-        0.116625,
-        0.126167,
-        0.137459
-      ],
+      "baseline_process_medians_ms": [0.116625, 0.126167, 0.137459],
       "speedup": 1.0387706038301305
     },
     {
@@ -79074,17 +78554,9 @@
       "expected_bits": 1139819520,
       "workers": 0,
       "current_median_ms": 0.014458,
-      "current_process_medians_ms": [
-        0.014458,
-        0.014541,
-        0.013084
-      ],
+      "current_process_medians_ms": [0.014458, 0.014541, 0.013084],
       "baseline_median_ms": 0.01475,
-      "baseline_process_medians_ms": [
-        0.01475,
-        0.013625,
-        0.015291
-      ],
+      "baseline_process_medians_ms": [0.01475, 0.013625, 0.015291],
       "speedup": 1.0201964310416378
     },
     {
@@ -79096,17 +78568,9 @@
       "expected_bits": 1139819520,
       "workers": 1,
       "current_median_ms": 0.020875,
-      "current_process_medians_ms": [
-        0.020875,
-        0.0215,
-        0.020292
-      ],
+      "current_process_medians_ms": [0.020875, 0.0215, 0.020292],
       "baseline_median_ms": 0.019375,
-      "baseline_process_medians_ms": [
-        0.020625,
-        0.019375,
-        0.018375
-      ],
+      "baseline_process_medians_ms": [0.020625, 0.019375, 0.018375],
       "speedup": 0.9281437125748503
     },
     {
@@ -79118,17 +78582,9 @@
       "expected_bits": 1139819520,
       "workers": 2,
       "current_median_ms": 0.03075,
-      "current_process_medians_ms": [
-        0.029333,
-        0.03075,
-        0.031916
-      ],
+      "current_process_medians_ms": [0.029333, 0.03075, 0.031916],
       "baseline_median_ms": 0.030542,
-      "baseline_process_medians_ms": [
-        0.028375,
-        0.030584,
-        0.030542
-      ],
+      "baseline_process_medians_ms": [0.028375, 0.030584, 0.030542],
       "speedup": 0.9932357723577235
     },
     {
@@ -79140,17 +78596,9 @@
       "expected_bits": 1139819520,
       "workers": 4,
       "current_median_ms": 0.045959,
-      "current_process_medians_ms": [
-        0.044166,
-        0.045959,
-        0.046041
-      ],
+      "current_process_medians_ms": [0.044166, 0.045959, 0.046041],
       "baseline_median_ms": 0.046291,
-      "baseline_process_medians_ms": [
-        0.046291,
-        0.046583,
-        0.042666
-      ],
+      "baseline_process_medians_ms": [0.046291, 0.046583, 0.042666],
       "speedup": 1.007223829935377
     },
     {
@@ -79162,17 +78610,9 @@
       "expected_bits": 1139819520,
       "workers": 8,
       "current_median_ms": 0.123292,
-      "current_process_medians_ms": [
-        0.118333,
-        0.126666,
-        0.123292
-      ],
+      "current_process_medians_ms": [0.118333, 0.126666, 0.123292],
       "baseline_median_ms": 0.122917,
-      "baseline_process_medians_ms": [
-        0.122917,
-        0.125834,
-        0.114583
-      ],
+      "baseline_process_medians_ms": [0.122917, 0.125834, 0.114583],
       "speedup": 0.99695844012588
     },
     {
@@ -79184,17 +78624,9 @@
       "expected_bits": 1163027840,
       "workers": 0,
       "current_median_ms": 0.040166,
-      "current_process_medians_ms": [
-        0.040166,
-        0.041583,
-        0.037625
-      ],
+      "current_process_medians_ms": [0.040166, 0.041583, 0.037625],
       "baseline_median_ms": 0.047125,
-      "baseline_process_medians_ms": [
-        0.049041,
-        0.047125,
-        0.046625
-      ],
+      "baseline_process_medians_ms": [0.049041, 0.047125, 0.046625],
       "speedup": 1.1732559876512474
     },
     {
@@ -79206,17 +78638,9 @@
       "expected_bits": 1163027840,
       "workers": 1,
       "current_median_ms": 0.046042,
-      "current_process_medians_ms": [
-        0.052,
-        0.046042,
-        0.045958
-      ],
+      "current_process_medians_ms": [0.052, 0.046042, 0.045958],
       "baseline_median_ms": 0.049625,
-      "baseline_process_medians_ms": [
-        0.048792,
-        0.052334,
-        0.049625
-      ],
+      "baseline_process_medians_ms": [0.048792, 0.052334, 0.049625],
       "speedup": 1.0778202510751054
     },
     {
@@ -79228,17 +78652,9 @@
       "expected_bits": 1163027840,
       "workers": 2,
       "current_median_ms": 0.039583,
-      "current_process_medians_ms": [
-        0.039583,
-        0.0395,
-        0.041625
-      ],
+      "current_process_medians_ms": [0.039583, 0.0395, 0.041625],
       "baseline_median_ms": 0.0465,
-      "baseline_process_medians_ms": [
-        0.04275,
-        0.0465,
-        0.047292
-      ],
+      "baseline_process_medians_ms": [0.04275, 0.0465, 0.047292],
       "speedup": 1.174746734709345
     },
     {
@@ -79250,17 +78666,9 @@
       "expected_bits": 1163027840,
       "workers": 4,
       "current_median_ms": 0.053792,
-      "current_process_medians_ms": [
-        0.055,
-        0.053292,
-        0.053792
-      ],
+      "current_process_medians_ms": [0.055, 0.053292, 0.053792],
       "baseline_median_ms": 0.049667,
-      "baseline_process_medians_ms": [
-        0.048375,
-        0.056791,
-        0.049667
-      ],
+      "baseline_process_medians_ms": [0.048375, 0.056791, 0.049667],
       "speedup": 0.9233157346817371
     },
     {
@@ -79272,17 +78680,9 @@
       "expected_bits": 1163027840,
       "workers": 8,
       "current_median_ms": 0.127709,
-      "current_process_medians_ms": [
-        0.130792,
-        0.124583,
-        0.127709
-      ],
+      "current_process_medians_ms": [0.130792, 0.124583, 0.127709],
       "baseline_median_ms": 0.136083,
-      "baseline_process_medians_ms": [
-        0.119958,
-        0.143083,
-        0.136083
-      ],
+      "baseline_process_medians_ms": [0.119958, 0.143083, 0.136083],
       "speedup": 1.0655709464485668
     },
     {
@@ -79294,17 +78694,9 @@
       "expected_bits": 1161057152,
       "workers": 0,
       "current_median_ms": 0.029584,
-      "current_process_medians_ms": [
-        0.029584,
-        0.032417,
-        0.028083
-      ],
+      "current_process_medians_ms": [0.029584, 0.032417, 0.028083],
       "baseline_median_ms": 0.035875,
-      "baseline_process_medians_ms": [
-        0.035875,
-        0.035333,
-        0.037292
-      ],
+      "baseline_process_medians_ms": [0.035875, 0.035333, 0.037292],
       "speedup": 1.2126487290427257
     },
     {
@@ -79316,17 +78708,9 @@
       "expected_bits": 1161057152,
       "workers": 1,
       "current_median_ms": 0.037333,
-      "current_process_medians_ms": [
-        0.037791,
-        0.037333,
-        0.034833
-      ],
+      "current_process_medians_ms": [0.037791, 0.037333, 0.034833],
       "baseline_median_ms": 0.044333,
-      "baseline_process_medians_ms": [
-        0.042958,
-        0.044917,
-        0.044333
-      ],
+      "baseline_process_medians_ms": [0.042958, 0.044917, 0.044333],
       "speedup": 1.1875016741220903
     },
     {
@@ -79338,17 +78722,9 @@
       "expected_bits": 1161057152,
       "workers": 2,
       "current_median_ms": 0.038458,
-      "current_process_medians_ms": [
-        0.037875,
-        0.038583,
-        0.038458
-      ],
+      "current_process_medians_ms": [0.037875, 0.038583, 0.038458],
       "baseline_median_ms": 0.041833,
-      "baseline_process_medians_ms": [
-        0.041833,
-        0.038959,
-        0.04525
-      ],
+      "baseline_process_medians_ms": [0.041833, 0.038959, 0.04525],
       "speedup": 1.0877580737427843
     },
     {
@@ -79360,17 +78736,9 @@
       "expected_bits": 1161057152,
       "workers": 4,
       "current_median_ms": 0.046375,
-      "current_process_medians_ms": [
-        0.044875,
-        0.046375,
-        0.046625
-      ],
+      "current_process_medians_ms": [0.044875, 0.046375, 0.046625],
       "baseline_median_ms": 0.049417,
-      "baseline_process_medians_ms": [
-        0.049417,
-        0.053083,
-        0.048791
-      ],
+      "baseline_process_medians_ms": [0.049417, 0.053083, 0.048791],
       "speedup": 1.0655956873315364
     },
     {
@@ -79382,17 +78750,9 @@
       "expected_bits": 1161057152,
       "workers": 8,
       "current_median_ms": 0.123292,
-      "current_process_medians_ms": [
-        0.123292,
-        0.115792,
-        0.140792
-      ],
+      "current_process_medians_ms": [0.123292, 0.115792, 0.140792],
       "baseline_median_ms": 0.13625,
-      "baseline_process_medians_ms": [
-        0.122333,
-        0.14,
-        0.13625
-      ],
+      "baseline_process_medians_ms": [0.122333, 0.14, 0.13625],
       "speedup": 1.1051000875969246
     },
     {
@@ -79404,17 +78764,9 @@
       "expected_bits": 1152668416,
       "workers": 0,
       "current_median_ms": 0.023375,
-      "current_process_medians_ms": [
-        0.023125,
-        0.023375,
-        0.025417
-      ],
+      "current_process_medians_ms": [0.023125, 0.023375, 0.025417],
       "baseline_median_ms": 0.030125,
-      "baseline_process_medians_ms": [
-        0.029958,
-        0.033125,
-        0.030125
-      ],
+      "baseline_process_medians_ms": [0.029958, 0.033125, 0.030125],
       "speedup": 1.2887700534759359
     },
     {
@@ -79426,17 +78778,9 @@
       "expected_bits": 1152668416,
       "workers": 1,
       "current_median_ms": 0.032542,
-      "current_process_medians_ms": [
-        0.032542,
-        0.032917,
-        0.030709
-      ],
+      "current_process_medians_ms": [0.032542, 0.032917, 0.030709],
       "baseline_median_ms": 0.038833,
-      "baseline_process_medians_ms": [
-        0.037167,
-        0.038833,
-        0.041167
-      ],
+      "baseline_process_medians_ms": [0.037167, 0.038833, 0.041167],
       "speedup": 1.1933194026181548
     },
     {
@@ -79448,17 +78792,9 @@
       "expected_bits": 1152668416,
       "workers": 2,
       "current_median_ms": 0.033917,
-      "current_process_medians_ms": [
-        0.031584,
-        0.038709,
-        0.033917
-      ],
+      "current_process_medians_ms": [0.031584, 0.038709, 0.033917],
       "baseline_median_ms": 0.0395,
-      "baseline_process_medians_ms": [
-        0.0395,
-        0.037083,
-        0.039667
-      ],
+      "baseline_process_medians_ms": [0.0395, 0.037083, 0.039667],
       "speedup": 1.164607718843058
     },
     {
@@ -79470,17 +78806,9 @@
       "expected_bits": 1152668416,
       "workers": 4,
       "current_median_ms": 0.047458,
-      "current_process_medians_ms": [
-        0.047458,
-        0.047,
-        0.068334
-      ],
+      "current_process_medians_ms": [0.047458, 0.047, 0.068334],
       "baseline_median_ms": 0.050959,
-      "baseline_process_medians_ms": [
-        0.050834,
-        0.050959,
-        0.061917
-      ],
+      "baseline_process_medians_ms": [0.050834, 0.050959, 0.061917],
       "speedup": 1.0737704918032787
     },
     {
@@ -79492,17 +78820,9 @@
       "expected_bits": 1152668416,
       "workers": 8,
       "current_median_ms": 0.123167,
-      "current_process_medians_ms": [
-        0.123167,
-        0.121625,
-        0.140292
-      ],
+      "current_process_medians_ms": [0.123167, 0.121625, 0.140292],
       "baseline_median_ms": 0.128333,
-      "baseline_process_medians_ms": [
-        0.128333,
-        0.131125,
-        0.113167
-      ],
+      "baseline_process_medians_ms": [0.128333, 0.131125, 0.113167],
       "speedup": 1.0419430529281382
     },
     {
@@ -79514,17 +78834,9 @@
       "expected_bits": 1056964608,
       "workers": 0,
       "current_median_ms": 0.004084,
-      "current_process_medians_ms": [
-        0.004125,
-        0.004084,
-        0.003833
-      ],
+      "current_process_medians_ms": [0.004125, 0.004084, 0.003833],
       "baseline_median_ms": 0.004167,
-      "baseline_process_medians_ms": [
-        0.004042,
-        0.004167,
-        0.00425
-      ],
+      "baseline_process_medians_ms": [0.004042, 0.004167, 0.00425],
       "speedup": 1.0203232125367285
     },
     {
@@ -79536,17 +78848,9 @@
       "expected_bits": 1056964608,
       "workers": 1,
       "current_median_ms": 0.010375,
-      "current_process_medians_ms": [
-        0.010667,
-        0.01025,
-        0.010375
-      ],
+      "current_process_medians_ms": [0.010667, 0.01025, 0.010375],
       "baseline_median_ms": 0.010958,
-      "baseline_process_medians_ms": [
-        0.010958,
-        0.009208,
-        0.011209
-      ],
+      "baseline_process_medians_ms": [0.010958, 0.009208, 0.011209],
       "speedup": 1.0561927710843373
     },
     {
@@ -79558,17 +78862,9 @@
       "expected_bits": 1056964608,
       "workers": 2,
       "current_median_ms": 0.021375,
-      "current_process_medians_ms": [
-        0.025792,
-        0.021375,
-        0.020875
-      ],
+      "current_process_medians_ms": [0.025792, 0.021375, 0.020875],
       "baseline_median_ms": 0.025833,
-      "baseline_process_medians_ms": [
-        0.025833,
-        0.021916,
-        0.02725
-      ],
+      "baseline_process_medians_ms": [0.025833, 0.021916, 0.02725],
       "speedup": 1.2085614035087717
     },
     {
@@ -79580,17 +78876,9 @@
       "expected_bits": 1056964608,
       "workers": 4,
       "current_median_ms": 0.038959,
-      "current_process_medians_ms": [
-        0.038959,
-        0.03575,
-        0.039584
-      ],
+      "current_process_medians_ms": [0.038959, 0.03575, 0.039584],
       "baseline_median_ms": 0.0475,
-      "baseline_process_medians_ms": [
-        0.048958,
-        0.035416,
-        0.0475
-      ],
+      "baseline_process_medians_ms": [0.048958, 0.035416, 0.0475],
       "speedup": 1.2192304730614236
     },
     {
@@ -79602,17 +78890,9 @@
       "expected_bits": 1056964608,
       "workers": 8,
       "current_median_ms": 0.109666,
-      "current_process_medians_ms": [
-        0.103583,
-        0.109666,
-        0.119084
-      ],
+      "current_process_medians_ms": [0.103583, 0.109666, 0.119084],
       "baseline_median_ms": 0.112791,
-      "baseline_process_medians_ms": [
-        0.112791,
-        0.112334,
-        0.12
-      ],
+      "baseline_process_medians_ms": [0.112791, 0.112334, 0.12],
       "speedup": 1.0284956139551
     },
     {
@@ -79624,17 +78904,9 @@
       "expected_bits": 1076887552,
       "workers": 0,
       "current_median_ms": 0.004167,
-      "current_process_medians_ms": [
-        0.00425,
-        0.004,
-        0.004167
-      ],
+      "current_process_medians_ms": [0.00425, 0.004, 0.004167],
       "baseline_median_ms": 0.004125,
-      "baseline_process_medians_ms": [
-        0.004125,
-        0.00425,
-        0.003709
-      ],
+      "baseline_process_medians_ms": [0.004125, 0.00425, 0.003709],
       "speedup": 0.9899208063354933
     },
     {
@@ -79646,17 +78918,9 @@
       "expected_bits": 1076887552,
       "workers": 1,
       "current_median_ms": 0.00975,
-      "current_process_medians_ms": [
-        0.009625,
-        0.011042,
-        0.00975
-      ],
+      "current_process_medians_ms": [0.009625, 0.011042, 0.00975],
       "baseline_median_ms": 0.011125,
-      "baseline_process_medians_ms": [
-        0.01125,
-        0.011125,
-        0.009625
-      ],
+      "baseline_process_medians_ms": [0.01125, 0.011125, 0.009625],
       "speedup": 1.141025641025641
     },
     {
@@ -79668,17 +78932,9 @@
       "expected_bits": 1076887552,
       "workers": 2,
       "current_median_ms": 0.022958,
-      "current_process_medians_ms": [
-        0.022959,
-        0.021833,
-        0.022958
-      ],
+      "current_process_medians_ms": [0.022959, 0.021833, 0.022958],
       "baseline_median_ms": 0.024917,
-      "baseline_process_medians_ms": [
-        0.024917,
-        0.023708,
-        0.025208
-      ],
+      "baseline_process_medians_ms": [0.024917, 0.023708, 0.025208],
       "speedup": 1.0853297325551008
     },
     {
@@ -79690,17 +78946,9 @@
       "expected_bits": 1076887552,
       "workers": 4,
       "current_median_ms": 0.040417,
-      "current_process_medians_ms": [
-        0.040417,
-        0.04575,
-        0.038625
-      ],
+      "current_process_medians_ms": [0.040417, 0.04575, 0.038625],
       "baseline_median_ms": 0.03575,
-      "baseline_process_medians_ms": [
-        0.03575,
-        0.045209,
-        0.035458
-      ],
+      "baseline_process_medians_ms": [0.03575, 0.045209, 0.035458],
       "speedup": 0.8845287873914441
     },
     {
@@ -79712,17 +78960,9 @@
       "expected_bits": 1076887552,
       "workers": 8,
       "current_median_ms": 0.105458,
-      "current_process_medians_ms": [
-        0.104709,
-        0.106833,
-        0.105458
-      ],
+      "current_process_medians_ms": [0.104709, 0.106833, 0.105458],
       "baseline_median_ms": 0.110334,
-      "baseline_process_medians_ms": [
-        0.110334,
-        0.100041,
-        0.121125
-      ],
+      "baseline_process_medians_ms": [0.110334, 0.100041, 0.121125],
       "speedup": 1.046236416393256
     },
     {
@@ -79734,17 +78974,9 @@
       "expected_bits": 1083965440,
       "workers": 0,
       "current_median_ms": 0.00425,
-      "current_process_medians_ms": [
-        0.0045,
-        0.00425,
-        0.004
-      ],
+      "current_process_medians_ms": [0.0045, 0.00425, 0.004],
       "baseline_median_ms": 0.00475,
-      "baseline_process_medians_ms": [
-        0.005459,
-        0.004125,
-        0.00475
-      ],
+      "baseline_process_medians_ms": [0.005459, 0.004125, 0.00475],
       "speedup": 1.1176470588235292
     },
     {
@@ -79756,17 +78988,9 @@
       "expected_bits": 1083965440,
       "workers": 1,
       "current_median_ms": 0.01125,
-      "current_process_medians_ms": [
-        0.0115,
-        0.010417,
-        0.01125
-      ],
+      "current_process_medians_ms": [0.0115, 0.010417, 0.01125],
       "baseline_median_ms": 0.011417,
-      "baseline_process_medians_ms": [
-        0.011167,
-        0.011417,
-        0.011917
-      ],
+      "baseline_process_medians_ms": [0.011167, 0.011417, 0.011917],
       "speedup": 1.0148444444444444
     },
     {
@@ -79778,17 +79002,9 @@
       "expected_bits": 1083965440,
       "workers": 2,
       "current_median_ms": 0.027208,
-      "current_process_medians_ms": [
-        0.023542,
-        0.028209,
-        0.027208
-      ],
+      "current_process_medians_ms": [0.023542, 0.028209, 0.027208],
       "baseline_median_ms": 0.02425,
-      "baseline_process_medians_ms": [
-        0.023333,
-        0.026166,
-        0.02425
-      ],
+      "baseline_process_medians_ms": [0.023333, 0.026166, 0.02425],
       "speedup": 0.8912819758894444
     },
     {
@@ -79800,17 +79016,9 @@
       "expected_bits": 1083965440,
       "workers": 4,
       "current_median_ms": 0.038958,
-      "current_process_medians_ms": [
-        0.038958,
-        0.036,
-        0.042292
-      ],
+      "current_process_medians_ms": [0.038958, 0.036, 0.042292],
       "baseline_median_ms": 0.03775,
-      "baseline_process_medians_ms": [
-        0.03775,
-        0.051625,
-        0.03675
-      ],
+      "baseline_process_medians_ms": [0.03775, 0.051625, 0.03675],
       "speedup": 0.9689922480620154
     },
     {
@@ -79822,17 +79030,9 @@
       "expected_bits": 1083965440,
       "workers": 8,
       "current_median_ms": 0.1095,
-      "current_process_medians_ms": [
-        0.116084,
-        0.106709,
-        0.1095
-      ],
+      "current_process_medians_ms": [0.116084, 0.106709, 0.1095],
       "baseline_median_ms": 0.103791,
-      "baseline_process_medians_ms": [
-        0.130375,
-        0.101875,
-        0.103791
-      ],
+      "baseline_process_medians_ms": [0.130375, 0.101875, 0.103791],
       "speedup": 0.9478630136986301
     },
     {
@@ -79844,17 +79044,9 @@
       "expected_bits": 1139663872,
       "workers": 0,
       "current_median_ms": 0.012958,
-      "current_process_medians_ms": [
-        0.012958,
-        0.014625,
-        0.0125
-      ],
+      "current_process_medians_ms": [0.012958, 0.014625, 0.0125],
       "baseline_median_ms": 0.013,
-      "baseline_process_medians_ms": [
-        0.012542,
-        0.013,
-        0.013125
-      ],
+      "baseline_process_medians_ms": [0.012542, 0.013, 0.013125],
       "speedup": 1.0032412409322424
     },
     {
@@ -79866,17 +79058,9 @@
       "expected_bits": 1139663872,
       "workers": 1,
       "current_median_ms": 0.020583,
-      "current_process_medians_ms": [
-        0.01875,
-        0.020583,
-        0.021875
-      ],
+      "current_process_medians_ms": [0.01875, 0.020583, 0.021875],
       "baseline_median_ms": 0.019167,
-      "baseline_process_medians_ms": [
-        0.019167,
-        0.01875,
-        0.02175
-      ],
+      "baseline_process_medians_ms": [0.019167, 0.01875, 0.02175],
       "speedup": 0.9312053636496137
     },
     {
@@ -79888,17 +79072,9 @@
       "expected_bits": 1139663872,
       "workers": 2,
       "current_median_ms": 0.0315,
-      "current_process_medians_ms": [
-        0.030083,
-        0.0315,
-        0.031667
-      ],
+      "current_process_medians_ms": [0.030083, 0.0315, 0.031667],
       "baseline_median_ms": 0.031459,
-      "baseline_process_medians_ms": [
-        0.035166,
-        0.031459,
-        0.026167
-      ],
+      "baseline_process_medians_ms": [0.035166, 0.031459, 0.026167],
       "speedup": 0.9986984126984128
     },
     {
@@ -79910,17 +79086,9 @@
       "expected_bits": 1139663872,
       "workers": 4,
       "current_median_ms": 0.045541,
-      "current_process_medians_ms": [
-        0.045083,
-        0.045541,
-        0.051375
-      ],
+      "current_process_medians_ms": [0.045083, 0.045541, 0.051375],
       "baseline_median_ms": 0.045291,
-      "baseline_process_medians_ms": [
-        0.059792,
-        0.04475,
-        0.045291
-      ],
+      "baseline_process_medians_ms": [0.059792, 0.04475, 0.045291],
       "speedup": 0.9945104411409499
     },
     {
@@ -79932,17 +79100,9 @@
       "expected_bits": 1139663872,
       "workers": 8,
       "current_median_ms": 0.119375,
-      "current_process_medians_ms": [
-        0.124291,
-        0.1145,
-        0.119375
-      ],
+      "current_process_medians_ms": [0.124291, 0.1145, 0.119375],
       "baseline_median_ms": 0.122459,
-      "baseline_process_medians_ms": [
-        0.125125,
-        0.106959,
-        0.122459
-      ],
+      "baseline_process_medians_ms": [0.125125, 0.106959, 0.122459],
       "speedup": 1.025834554973822
     },
     {
@@ -79954,17 +79114,9 @@
       "expected_bits": 1229618672,
       "workers": 0,
       "current_median_ms": 6.210875,
-      "current_process_medians_ms": [
-        6.210875,
-        6.157292,
-        6.257041
-      ],
+      "current_process_medians_ms": [6.210875, 6.157292, 6.257041],
       "baseline_median_ms": 6.266375,
-      "baseline_process_medians_ms": [
-        6.2155,
-        6.266375,
-        6.314333
-      ],
+      "baseline_process_medians_ms": [6.2155, 6.266375, 6.314333],
       "speedup": 1.0089359389780024
     },
     {
@@ -79976,17 +79128,9 @@
       "expected_bits": 1229618672,
       "workers": 1,
       "current_median_ms": 6.131875,
-      "current_process_medians_ms": [
-        6.118791,
-        6.152125,
-        6.131875
-      ],
+      "current_process_medians_ms": [6.118791, 6.152125, 6.131875],
       "baseline_median_ms": 6.197584,
-      "baseline_process_medians_ms": [
-        6.249459,
-        6.149084,
-        6.197584
-      ],
+      "baseline_process_medians_ms": [6.249459, 6.149084, 6.197584],
       "speedup": 1.0107159718683112
     },
     {
@@ -79998,17 +79142,9 @@
       "expected_bits": 1229618672,
       "workers": 2,
       "current_median_ms": 3.121959,
-      "current_process_medians_ms": [
-        3.121959,
-        3.117583,
-        3.202959
-      ],
+      "current_process_medians_ms": [3.121959, 3.117583, 3.202959],
       "baseline_median_ms": 3.15025,
-      "baseline_process_medians_ms": [
-        3.130667,
-        3.234834,
-        3.15025
-      ],
+      "baseline_process_medians_ms": [3.130667, 3.234834, 3.15025],
       "speedup": 1.0090619383534507
     },
     {
@@ -80020,17 +79156,9 @@
       "expected_bits": 1229618672,
       "workers": 4,
       "current_median_ms": 1.694083,
-      "current_process_medians_ms": [
-        1.721208,
-        1.679292,
-        1.694083
-      ],
+      "current_process_medians_ms": [1.721208, 1.679292, 1.694083],
       "baseline_median_ms": 1.78825,
-      "baseline_process_medians_ms": [
-        1.63625,
-        1.831209,
-        1.78825
-      ],
+      "baseline_process_medians_ms": [1.63625, 1.831209, 1.78825],
       "speedup": 1.0555858243073095
     },
     {
@@ -80042,17 +79170,9 @@
       "expected_bits": 1229618672,
       "workers": 8,
       "current_median_ms": 1.0175,
-      "current_process_medians_ms": [
-        0.977625,
-        1.0175,
-        1.0395
-      ],
+      "current_process_medians_ms": [0.977625, 1.0175, 1.0395],
       "baseline_median_ms": 1.067875,
-      "baseline_process_medians_ms": [
-        0.977458,
-        1.271167,
-        1.067875
-      ],
+      "baseline_process_medians_ms": [0.977458, 1.271167, 1.067875],
       "speedup": 1.0495085995085993
     },
     {
@@ -80064,17 +79184,9 @@
       "expected_bits": 1190125552,
       "workers": 0,
       "current_median_ms": 0.291167,
-      "current_process_medians_ms": [
-        0.287875,
-        0.291167,
-        0.294791
-      ],
+      "current_process_medians_ms": [0.287875, 0.291167, 0.294791],
       "baseline_median_ms": 0.292917,
-      "baseline_process_medians_ms": [
-        0.297583,
-        0.292917,
-        0.289666
-      ],
+      "baseline_process_medians_ms": [0.297583, 0.292917, 0.289666],
       "speedup": 1.0060102964965123
     },
     {
@@ -80086,17 +79198,9 @@
       "expected_bits": 1190125552,
       "workers": 1,
       "current_median_ms": 0.292375,
-      "current_process_medians_ms": [
-        0.292375,
-        0.294875,
-        0.290417
-      ],
+      "current_process_medians_ms": [0.292375, 0.294875, 0.290417],
       "baseline_median_ms": 0.288167,
-      "baseline_process_medians_ms": [
-        0.288167,
-        0.290916,
-        0.287083
-      ],
+      "baseline_process_medians_ms": [0.288167, 0.290916, 0.287083],
       "speedup": 0.9856075245831553
     },
     {
@@ -80108,17 +79212,9 @@
       "expected_bits": 1190125552,
       "workers": 2,
       "current_median_ms": 0.168208,
-      "current_process_medians_ms": [
-        0.168,
-        0.168208,
-        0.168375
-      ],
+      "current_process_medians_ms": [0.168, 0.168208, 0.168375],
       "baseline_median_ms": 0.16675,
-      "baseline_process_medians_ms": [
-        0.164125,
-        0.168,
-        0.16675
-      ],
+      "baseline_process_medians_ms": [0.164125, 0.168, 0.16675],
       "speedup": 0.9913321601826312
     },
     {
@@ -80130,17 +79226,9 @@
       "expected_bits": 1190125552,
       "workers": 4,
       "current_median_ms": 0.109041,
-      "current_process_medians_ms": [
-        0.108708,
-        0.109041,
-        0.113667
-      ],
+      "current_process_medians_ms": [0.108708, 0.109041, 0.113667],
       "baseline_median_ms": 0.115,
-      "baseline_process_medians_ms": [
-        0.115,
-        0.115334,
-        0.112583
-      ],
+      "baseline_process_medians_ms": [0.115, 0.115334, 0.112583],
       "speedup": 1.0546491686613293
     },
     {
@@ -80152,17 +79240,9 @@
       "expected_bits": 1190125552,
       "workers": 8,
       "current_median_ms": 0.139708,
-      "current_process_medians_ms": [
-        0.144708,
-        0.136167,
-        0.139708
-      ],
+      "current_process_medians_ms": [0.144708, 0.136167, 0.139708],
       "baseline_median_ms": 0.141708,
-      "baseline_process_medians_ms": [
-        0.131459,
-        0.159625,
-        0.141708
-      ],
+      "baseline_process_medians_ms": [0.131459, 0.159625, 0.141708],
       "speedup": 1.0143155724797435
     },
     {
@@ -80174,17 +79254,9 @@
       "expected_bits": 1206895440,
       "workers": 0,
       "current_median_ms": 0.999708,
-      "current_process_medians_ms": [
-        0.999708,
-        1.006708,
-        0.996166
-      ],
+      "current_process_medians_ms": [0.999708, 1.006708, 0.996166],
       "baseline_median_ms": 1.00475,
-      "baseline_process_medians_ms": [
-        1.003458,
-        1.015542,
-        1.00475
-      ],
+      "baseline_process_medians_ms": [1.003458, 1.015542, 1.00475],
       "speedup": 1.0050434726940267
     },
     {
@@ -80196,17 +79268,9 @@
       "expected_bits": 1206895440,
       "workers": 1,
       "current_median_ms": 0.981125,
-      "current_process_medians_ms": [
-        0.978417,
-        0.983917,
-        0.981125
-      ],
+      "current_process_medians_ms": [0.978417, 0.983917, 0.981125],
       "baseline_median_ms": 1.004625,
-      "baseline_process_medians_ms": [
-        1.013792,
-        1.004625,
-        0.991959
-      ],
+      "baseline_process_medians_ms": [1.013792, 1.004625, 0.991959],
       "speedup": 1.0239520958083832
     },
     {
@@ -80218,17 +79282,9 @@
       "expected_bits": 1206895440,
       "workers": 2,
       "current_median_ms": 0.518083,
-      "current_process_medians_ms": [
-        0.52025,
-        0.516167,
-        0.518083
-      ],
+      "current_process_medians_ms": [0.52025, 0.516167, 0.518083],
       "baseline_median_ms": 0.525625,
-      "baseline_process_medians_ms": [
-        0.525625,
-        0.533667,
-        0.524458
-      ],
+      "baseline_process_medians_ms": [0.525625, 0.533667, 0.524458],
       "speedup": 1.0145575129853712
     },
     {
@@ -80240,17 +79296,9 @@
       "expected_bits": 1206895440,
       "workers": 4,
       "current_median_ms": 0.292625,
-      "current_process_medians_ms": [
-        0.292625,
-        0.29475,
-        0.291458
-      ],
+      "current_process_medians_ms": [0.292625, 0.29475, 0.291458],
       "baseline_median_ms": 0.305209,
-      "baseline_process_medians_ms": [
-        0.30675,
-        0.305209,
-        0.292875
-      ],
+      "baseline_process_medians_ms": [0.30675, 0.305209, 0.292875],
       "speedup": 1.0430038445108927
     },
     {
@@ -80262,17 +79310,9 @@
       "expected_bits": 1206895440,
       "workers": 8,
       "current_median_ms": 0.237834,
-      "current_process_medians_ms": [
-        0.237834,
-        0.236125,
-        0.271208
-      ],
+      "current_process_medians_ms": [0.237834, 0.236125, 0.271208],
       "baseline_median_ms": 0.243625,
-      "baseline_process_medians_ms": [
-        0.236166,
-        0.263291,
-        0.243625
-      ],
+      "baseline_process_medians_ms": [0.236166, 0.263291, 0.243625],
       "speedup": 1.0243489156302297
     },
     {
@@ -80284,17 +79324,9 @@
       "expected_bits": 1198501704,
       "workers": 0,
       "current_median_ms": 0.495834,
-      "current_process_medians_ms": [
-        0.492709,
-        0.495834,
-        0.510625
-      ],
+      "current_process_medians_ms": [0.492709, 0.495834, 0.510625],
       "baseline_median_ms": 0.508917,
-      "baseline_process_medians_ms": [
-        0.510041,
-        0.508917,
-        0.503542
-      ],
+      "baseline_process_medians_ms": [0.510041, 0.508917, 0.503542],
       "speedup": 1.0263858468761722
     },
     {
@@ -80306,17 +79338,9 @@
       "expected_bits": 1198501704,
       "workers": 1,
       "current_median_ms": 0.489708,
-      "current_process_medians_ms": [
-        0.489708,
-        0.489708,
-        0.505791
-      ],
+      "current_process_medians_ms": [0.489708, 0.489708, 0.505791],
       "baseline_median_ms": 0.502541,
-      "baseline_process_medians_ms": [
-        0.500625,
-        0.507333,
-        0.502541
-      ],
+      "baseline_process_medians_ms": [0.500625, 0.507333, 0.502541],
       "speedup": 1.026205412204824
     },
     {
@@ -80328,17 +79352,9 @@
       "expected_bits": 1198501704,
       "workers": 2,
       "current_median_ms": 0.275125,
-      "current_process_medians_ms": [
-        0.265792,
-        0.275125,
-        0.284458
-      ],
+      "current_process_medians_ms": [0.265792, 0.275125, 0.284458],
       "baseline_median_ms": 0.275208,
-      "baseline_process_medians_ms": [
-        0.272583,
-        0.285958,
-        0.275208
-      ],
+      "baseline_process_medians_ms": [0.272583, 0.285958, 0.275208],
       "speedup": 1.0003016810540664
     },
     {
@@ -80350,17 +79366,9 @@
       "expected_bits": 1198501704,
       "workers": 4,
       "current_median_ms": 0.165625,
-      "current_process_medians_ms": [
-        0.162542,
-        0.165625,
-        0.194333
-      ],
+      "current_process_medians_ms": [0.162542, 0.165625, 0.194333],
       "baseline_median_ms": 0.171792,
-      "baseline_process_medians_ms": [
-        0.169042,
-        0.1805,
-        0.171792
-      ],
+      "baseline_process_medians_ms": [0.169042, 0.1805, 0.171792],
       "speedup": 1.037234716981132
     },
     {
@@ -80372,17 +79380,9 @@
       "expected_bits": 1198501704,
       "workers": 8,
       "current_median_ms": 0.180417,
-      "current_process_medians_ms": [
-        0.180417,
-        0.167709,
-        0.222833
-      ],
+      "current_process_medians_ms": [0.180417, 0.167709, 0.222833],
       "baseline_median_ms": 0.186541,
-      "baseline_process_medians_ms": [
-        0.190209,
-        0.186541,
-        0.183333
-      ],
+      "baseline_process_medians_ms": [0.190209, 0.186541, 0.183333],
       "speedup": 1.0339435862474158
     },
     {
@@ -80394,17 +79394,9 @@
       "expected_bits": 1181663072,
       "workers": 0,
       "current_median_ms": 0.319542,
-      "current_process_medians_ms": [
-        0.319542,
-        0.320625,
-        0.319458
-      ],
+      "current_process_medians_ms": [0.319542, 0.320625, 0.319458],
       "baseline_median_ms": 0.344292,
-      "baseline_process_medians_ms": [
-        0.344292,
-        0.3425,
-        0.3465
-      ],
+      "baseline_process_medians_ms": [0.344292, 0.3425, 0.3465],
       "speedup": 1.0774546069061344
     },
     {
@@ -80416,17 +79408,9 @@
       "expected_bits": 1181663072,
       "workers": 1,
       "current_median_ms": 0.31275,
-      "current_process_medians_ms": [
-        0.321458,
-        0.311167,
-        0.31275
-      ],
+      "current_process_medians_ms": [0.321458, 0.311167, 0.31275],
       "baseline_median_ms": 0.337333,
-      "baseline_process_medians_ms": [
-        0.337333,
-        0.334792,
-        0.339875
-      ],
+      "baseline_process_medians_ms": [0.337333, 0.334792, 0.339875],
       "speedup": 1.0786027178257396
     },
     {
@@ -80438,17 +79422,9 @@
       "expected_bits": 1181663072,
       "workers": 2,
       "current_median_ms": 0.181791,
-      "current_process_medians_ms": [
-        0.180667,
-        0.181959,
-        0.181791
-      ],
+      "current_process_medians_ms": [0.180667, 0.181959, 0.181791],
       "baseline_median_ms": 0.197083,
-      "baseline_process_medians_ms": [
-        0.19875,
-        0.197083,
-        0.195083
-      ],
+      "baseline_process_medians_ms": [0.19875, 0.197083, 0.195083],
       "speedup": 1.0841185757270713
     },
     {
@@ -80460,17 +79436,9 @@
       "expected_bits": 1181663072,
       "workers": 4,
       "current_median_ms": 0.12,
-      "current_process_medians_ms": [
-        0.125167,
-        0.12,
-        0.118542
-      ],
+      "current_process_medians_ms": [0.125167, 0.12, 0.118542],
       "baseline_median_ms": 0.13725,
-      "baseline_process_medians_ms": [
-        0.143041,
-        0.13725,
-        0.129
-      ],
+      "baseline_process_medians_ms": [0.143041, 0.13725, 0.129],
       "speedup": 1.14375
     },
     {
@@ -80482,17 +79450,9 @@
       "expected_bits": 1181663072,
       "workers": 8,
       "current_median_ms": 0.158042,
-      "current_process_medians_ms": [
-        0.158042,
-        0.154125,
-        0.184417
-      ],
+      "current_process_medians_ms": [0.158042, 0.154125, 0.184417],
       "baseline_median_ms": 0.163709,
-      "baseline_process_medians_ms": [
-        0.163709,
-        0.160084,
-        0.169209
-      ],
+      "baseline_process_medians_ms": [0.163709, 0.160084, 0.169209],
       "speedup": 1.0358575568519761
     },
     {
@@ -80504,17 +79464,9 @@
       "expected_bits": 1204929384,
       "workers": 0,
       "current_median_ms": 1.200834,
-      "current_process_medians_ms": [
-        1.213875,
-        1.200834,
-        1.197417
-      ],
+      "current_process_medians_ms": [1.213875, 1.200834, 1.197417],
       "baseline_median_ms": 1.517417,
-      "baseline_process_medians_ms": [
-        1.517417,
-        1.514458,
-        1.523291
-      ],
+      "baseline_process_medians_ms": [1.517417, 1.514458, 1.523291],
       "speedup": 1.2636359396885832
     },
     {
@@ -80526,17 +79478,9 @@
       "expected_bits": 1204929384,
       "workers": 1,
       "current_median_ms": 1.186666,
-      "current_process_medians_ms": [
-        1.212,
-        1.177375,
-        1.186666
-      ],
+      "current_process_medians_ms": [1.212, 1.177375, 1.186666],
       "baseline_median_ms": 1.463958,
-      "baseline_process_medians_ms": [
-        1.459709,
-        1.485083,
-        1.463958
-      ],
+      "baseline_process_medians_ms": [1.459709, 1.485083, 1.463958],
       "speedup": 1.2336731649849242
     },
     {
@@ -80548,17 +79492,9 @@
       "expected_bits": 1204929384,
       "workers": 2,
       "current_median_ms": 0.614666,
-      "current_process_medians_ms": [
-        0.614083,
-        0.614666,
-        0.620166
-      ],
+      "current_process_medians_ms": [0.614083, 0.614666, 0.620166],
       "baseline_median_ms": 0.763042,
-      "baseline_process_medians_ms": [
-        0.763042,
-        0.759625,
-        0.764417
-      ],
+      "baseline_process_medians_ms": [0.763042, 0.759625, 0.764417],
       "speedup": 1.2413928865432609
     },
     {
@@ -80570,17 +79506,9 @@
       "expected_bits": 1204929384,
       "workers": 4,
       "current_median_ms": 0.3445,
-      "current_process_medians_ms": [
-        0.345083,
-        0.3445,
-        0.342042
-      ],
+      "current_process_medians_ms": [0.345083, 0.3445, 0.342042],
       "baseline_median_ms": 0.41975,
-      "baseline_process_medians_ms": [
-        0.42025,
-        0.415167,
-        0.41975
-      ],
+      "baseline_process_medians_ms": [0.42025, 0.415167, 0.41975],
       "speedup": 1.218432510885341
     },
     {
@@ -80592,17 +79520,9 @@
       "expected_bits": 1204929384,
       "workers": 8,
       "current_median_ms": 0.259541,
-      "current_process_medians_ms": [
-        0.259541,
-        0.278208,
-        0.258791
-      ],
+      "current_process_medians_ms": [0.259541, 0.278208, 0.258791],
       "baseline_median_ms": 0.310459,
-      "baseline_process_medians_ms": [
-        0.311083,
-        0.301667,
-        0.310459
-      ],
+      "baseline_process_medians_ms": [0.311083, 0.301667, 0.310459],
       "speedup": 1.196184803171753
     },
     {
@@ -80614,17 +79534,9 @@
       "expected_bits": 1194559376,
       "workers": 0,
       "current_median_ms": 0.698416,
-      "current_process_medians_ms": [
-        0.711833,
-        0.698416,
-        0.692917
-      ],
+      "current_process_medians_ms": [0.711833, 0.698416, 0.692917],
       "baseline_median_ms": 1.018291,
-      "baseline_process_medians_ms": [
-        1.011959,
-        1.048917,
-        1.018291
-      ],
+      "baseline_process_medians_ms": [1.011959, 1.048917, 1.018291],
       "speedup": 1.458000675814987
     },
     {
@@ -80636,17 +79548,9 @@
       "expected_bits": 1194559376,
       "workers": 1,
       "current_median_ms": 0.676083,
-      "current_process_medians_ms": [
-        0.676083,
-        0.691416,
-        0.675917
-      ],
+      "current_process_medians_ms": [0.676083, 0.691416, 0.675917],
       "baseline_median_ms": 0.995208,
-      "baseline_process_medians_ms": [
-        1.035083,
-        0.995208,
-        0.994708
-      ],
+      "baseline_process_medians_ms": [1.035083, 0.995208, 0.994708],
       "speedup": 1.4720204471936138
     },
     {
@@ -80658,17 +79562,9 @@
       "expected_bits": 1194559376,
       "workers": 2,
       "current_median_ms": 0.368208,
-      "current_process_medians_ms": [
-        0.365375,
-        0.373625,
-        0.368208
-      ],
+      "current_process_medians_ms": [0.365375, 0.373625, 0.368208],
       "baseline_median_ms": 0.528,
-      "baseline_process_medians_ms": [
-        0.528,
-        0.539583,
-        0.520375
-      ],
+      "baseline_process_medians_ms": [0.528, 0.539583, 0.520375],
       "speedup": 1.4339721027245471
     },
     {
@@ -80680,17 +79576,9 @@
       "expected_bits": 1194559376,
       "workers": 4,
       "current_median_ms": 0.219625,
-      "current_process_medians_ms": [
-        0.219625,
-        0.227959,
-        0.213042
-      ],
+      "current_process_medians_ms": [0.219625, 0.227959, 0.213042],
       "baseline_median_ms": 0.303541,
-      "baseline_process_medians_ms": [
-        0.303541,
-        0.299416,
-        0.304292
-      ],
+      "baseline_process_medians_ms": [0.303541, 0.299416, 0.304292],
       "speedup": 1.3820876494023906
     },
     {
@@ -80702,17 +79590,9 @@
       "expected_bits": 1194559376,
       "workers": 8,
       "current_median_ms": 0.201584,
-      "current_process_medians_ms": [
-        0.206083,
-        0.201584,
-        0.197791
-      ],
+      "current_process_medians_ms": [0.206083, 0.201584, 0.197791],
       "baseline_median_ms": 0.25175,
-      "baseline_process_medians_ms": [
-        0.25175,
-        0.233375,
-        0.259375
-      ],
+      "baseline_process_medians_ms": [0.25175, 0.233375, 0.259375],
       "speedup": 1.2488590364314627
     },
     {
@@ -80724,17 +79604,9 @@
       "expected_bits": 1096876032,
       "workers": 0,
       "current_median_ms": 0.004458,
-      "current_process_medians_ms": [
-        0.004917,
-        0.004209,
-        0.004458
-      ],
+      "current_process_medians_ms": [0.004917, 0.004209, 0.004458],
       "baseline_median_ms": 0.004542,
-      "baseline_process_medians_ms": [
-        0.004416,
-        0.004917,
-        0.004542
-      ],
+      "baseline_process_medians_ms": [0.004416, 0.004917, 0.004542],
       "speedup": 1.0188425302826378
     },
     {
@@ -80746,17 +79618,9 @@
       "expected_bits": 1096876032,
       "workers": 1,
       "current_median_ms": 0.011791,
-      "current_process_medians_ms": [
-        0.011792,
-        0.010167,
-        0.011791
-      ],
+      "current_process_medians_ms": [0.011792, 0.010167, 0.011791],
       "baseline_median_ms": 0.011667,
-      "baseline_process_medians_ms": [
-        0.011667,
-        0.01175,
-        0.011458
-      ],
+      "baseline_process_medians_ms": [0.011667, 0.01175, 0.011458],
       "speedup": 0.9894835043677381
     },
     {
@@ -80768,17 +79632,9 @@
       "expected_bits": 1096876032,
       "workers": 2,
       "current_median_ms": 0.023917,
-      "current_process_medians_ms": [
-        0.024958,
-        0.02175,
-        0.023917
-      ],
+      "current_process_medians_ms": [0.024958, 0.02175, 0.023917],
       "baseline_median_ms": 0.024958,
-      "baseline_process_medians_ms": [
-        0.024834,
-        0.024958,
-        0.026458
-      ],
+      "baseline_process_medians_ms": [0.024834, 0.024958, 0.026458],
       "speedup": 1.0435255257766443
     },
     {
@@ -80790,17 +79646,9 @@
       "expected_bits": 1096876032,
       "workers": 4,
       "current_median_ms": 0.04275,
-      "current_process_medians_ms": [
-        0.04275,
-        0.047083,
-        0.037583
-      ],
+      "current_process_medians_ms": [0.04275, 0.047083, 0.037583],
       "baseline_median_ms": 0.0435,
-      "baseline_process_medians_ms": [
-        0.046458,
-        0.0435,
-        0.043125
-      ],
+      "baseline_process_medians_ms": [0.046458, 0.0435, 0.043125],
       "speedup": 1.0175438596491226
     },
     {
@@ -80812,17 +79660,9 @@
       "expected_bits": 1096876032,
       "workers": 8,
       "current_median_ms": 0.119917,
-      "current_process_medians_ms": [
-        0.100375,
-        0.126209,
-        0.119917
-      ],
+      "current_process_medians_ms": [0.100375, 0.126209, 0.119917],
       "baseline_median_ms": 0.115584,
-      "baseline_process_medians_ms": [
-        0.128375,
-        0.101459,
-        0.115584
-      ],
+      "baseline_process_medians_ms": [0.128375, 0.101459, 0.115584],
       "speedup": 0.9638666744498279
     },
     {
@@ -80834,17 +79674,9 @@
       "expected_bits": 1093500928,
       "workers": 0,
       "current_median_ms": 0.004375,
-      "current_process_medians_ms": [
-        0.004375,
-        0.004458,
-        0.004209
-      ],
+      "current_process_medians_ms": [0.004375, 0.004458, 0.004209],
       "baseline_median_ms": 0.004375,
-      "baseline_process_medians_ms": [
-        0.004417,
-        0.004375,
-        0.004167
-      ],
+      "baseline_process_medians_ms": [0.004417, 0.004375, 0.004167],
       "speedup": 1.0
     },
     {
@@ -80856,17 +79688,9 @@
       "expected_bits": 1093500928,
       "workers": 1,
       "current_median_ms": 0.011542,
-      "current_process_medians_ms": [
-        0.0115,
-        0.011542,
-        0.012292
-      ],
+      "current_process_medians_ms": [0.0115, 0.011542, 0.012292],
       "baseline_median_ms": 0.011292,
-      "baseline_process_medians_ms": [
-        0.011292,
-        0.011292,
-        0.011292
-      ],
+      "baseline_process_medians_ms": [0.011292, 0.011292, 0.011292],
       "speedup": 0.9783399757407728
     },
     {
@@ -80878,17 +79702,9 @@
       "expected_bits": 1093500928,
       "workers": 2,
       "current_median_ms": 0.022667,
-      "current_process_medians_ms": [
-        0.025292,
-        0.022125,
-        0.022667
-      ],
+      "current_process_medians_ms": [0.025292, 0.022125, 0.022667],
       "baseline_median_ms": 0.023708,
-      "baseline_process_medians_ms": [
-        0.023292,
-        0.023708,
-        0.024667
-      ],
+      "baseline_process_medians_ms": [0.023292, 0.023708, 0.024667],
       "speedup": 1.045925795208894
     },
     {
@@ -80900,17 +79716,9 @@
       "expected_bits": 1093500928,
       "workers": 4,
       "current_median_ms": 0.038417,
-      "current_process_medians_ms": [
-        0.037542,
-        0.038417,
-        0.047
-      ],
+      "current_process_medians_ms": [0.037542, 0.038417, 0.047],
       "baseline_median_ms": 0.039334,
-      "baseline_process_medians_ms": [
-        0.050583,
-        0.036417,
-        0.039334
-      ],
+      "baseline_process_medians_ms": [0.050583, 0.036417, 0.039334],
       "speedup": 1.0238696410443293
     },
     {
@@ -80922,17 +79730,9 @@
       "expected_bits": 1093500928,
       "workers": 8,
       "current_median_ms": 0.109292,
-      "current_process_medians_ms": [
-        0.122458,
-        0.109292,
-        0.105833
-      ],
+      "current_process_medians_ms": [0.122458, 0.109292, 0.105833],
       "baseline_median_ms": 0.112375,
-      "baseline_process_medians_ms": [
-        0.110875,
-        0.112375,
-        0.112584
-      ],
+      "baseline_process_medians_ms": [0.110875, 0.112375, 0.112584],
       "speedup": 1.028208835047396
     },
     {
@@ -80944,17 +79744,9 @@
       "expected_bits": 1075445760,
       "workers": 0,
       "current_median_ms": 0.004084,
-      "current_process_medians_ms": [
-        0.004084,
-        0.004167,
-        0.004083
-      ],
+      "current_process_medians_ms": [0.004084, 0.004167, 0.004083],
       "baseline_median_ms": 0.003875,
-      "baseline_process_medians_ms": [
-        0.00425,
-        0.003875,
-        0.003792
-      ],
+      "baseline_process_medians_ms": [0.00425, 0.003875, 0.003792],
       "speedup": 0.948824681684623
     },
     {
@@ -80966,17 +79758,9 @@
       "expected_bits": 1075445760,
       "workers": 1,
       "current_median_ms": 0.011333,
-      "current_process_medians_ms": [
-        0.010333,
-        0.011375,
-        0.011333
-      ],
+      "current_process_medians_ms": [0.010333, 0.011375, 0.011333],
       "baseline_median_ms": 0.011167,
-      "baseline_process_medians_ms": [
-        0.011167,
-        0.011167,
-        0.009166
-      ],
+      "baseline_process_medians_ms": [0.011167, 0.011167, 0.009166],
       "speedup": 0.985352510367952
     },
     {
@@ -80988,17 +79772,9 @@
       "expected_bits": 1075445760,
       "workers": 2,
       "current_median_ms": 0.025166,
-      "current_process_medians_ms": [
-        0.023083,
-        0.025166,
-        0.025709
-      ],
+      "current_process_medians_ms": [0.023083, 0.025166, 0.025709],
       "baseline_median_ms": 0.025625,
-      "baseline_process_medians_ms": [
-        0.025625,
-        0.023666,
-        0.026583
-      ],
+      "baseline_process_medians_ms": [0.025625, 0.023666, 0.026583],
       "speedup": 1.0182388937455296
     },
     {
@@ -81010,17 +79786,9 @@
       "expected_bits": 1075445760,
       "workers": 4,
       "current_median_ms": 0.042875,
-      "current_process_medians_ms": [
-        0.050708,
-        0.038291,
-        0.042875
-      ],
+      "current_process_medians_ms": [0.050708, 0.038291, 0.042875],
       "baseline_median_ms": 0.040042,
-      "baseline_process_medians_ms": [
-        0.037334,
-        0.040917,
-        0.040042
-      ],
+      "baseline_process_medians_ms": [0.037334, 0.040917, 0.040042],
       "speedup": 0.9339241982507288
     },
     {
@@ -81032,17 +79800,9 @@
       "expected_bits": 1075445760,
       "workers": 8,
       "current_median_ms": 0.128084,
-      "current_process_medians_ms": [
-        0.106042,
-        0.13,
-        0.128084
-      ],
+      "current_process_medians_ms": [0.106042, 0.13, 0.128084],
       "baseline_median_ms": 0.1095,
-      "baseline_process_medians_ms": [
-        0.114583,
-        0.103958,
-        0.1095
-      ],
+      "baseline_process_medians_ms": [0.114583, 0.103958, 0.1095],
       "speedup": 0.8549077168108429
     },
     {
@@ -81054,17 +79814,9 @@
       "expected_bits": 1100726272,
       "workers": 0,
       "current_median_ms": 0.004583,
-      "current_process_medians_ms": [
-        0.005291,
-        0.004333,
-        0.004583
-      ],
+      "current_process_medians_ms": [0.005291, 0.004333, 0.004583],
       "baseline_median_ms": 0.005417,
-      "baseline_process_medians_ms": [
-        0.005417,
-        0.00525,
-        0.005583
-      ],
+      "baseline_process_medians_ms": [0.005417, 0.00525, 0.005583],
       "speedup": 1.1819768710451668
     },
     {
@@ -81076,17 +79828,9 @@
       "expected_bits": 1100726272,
       "workers": 1,
       "current_median_ms": 0.011833,
-      "current_process_medians_ms": [
-        0.012208,
-        0.010125,
-        0.011833
-      ],
+      "current_process_medians_ms": [0.012208, 0.010125, 0.011833],
       "baseline_median_ms": 0.012417,
-      "baseline_process_medians_ms": [
-        0.0125,
-        0.012166,
-        0.012417
-      ],
+      "baseline_process_medians_ms": [0.0125, 0.012166, 0.012417],
       "speedup": 1.049353502915575
     },
     {
@@ -81098,17 +79842,9 @@
       "expected_bits": 1100726272,
       "workers": 2,
       "current_median_ms": 0.025084,
-      "current_process_medians_ms": [
-        0.025916,
-        0.025084,
-        0.021834
-      ],
+      "current_process_medians_ms": [0.025916, 0.025084, 0.021834],
       "baseline_median_ms": 0.025917,
-      "baseline_process_medians_ms": [
-        0.024791,
-        0.025917,
-        0.029917
-      ],
+      "baseline_process_medians_ms": [0.024791, 0.025917, 0.029917],
       "speedup": 1.0332084197097753
     },
     {
@@ -81120,17 +79856,9 @@
       "expected_bits": 1100726272,
       "workers": 4,
       "current_median_ms": 0.041791,
-      "current_process_medians_ms": [
-        0.044833,
-        0.041791,
-        0.035875
-      ],
+      "current_process_medians_ms": [0.044833, 0.041791, 0.035875],
       "baseline_median_ms": 0.0405,
-      "baseline_process_medians_ms": [
-        0.041084,
-        0.039291,
-        0.0405
-      ],
+      "baseline_process_medians_ms": [0.041084, 0.039291, 0.0405],
       "speedup": 0.969108181187337
     },
     {
@@ -81142,17 +79870,9 @@
       "expected_bits": 1100726272,
       "workers": 8,
       "current_median_ms": 0.115083,
-      "current_process_medians_ms": [
-        0.146041,
-        0.115083,
-        0.110209
-      ],
+      "current_process_medians_ms": [0.146041, 0.115083, 0.110209],
       "baseline_median_ms": 0.11975,
-      "baseline_process_medians_ms": [
-        0.104917,
-        0.11975,
-        0.135167
-      ],
+      "baseline_process_medians_ms": [0.104917, 0.11975, 0.135167],
       "speedup": 1.040553339763475
     },
     {
@@ -81164,17 +79884,9 @@
       "expected_bits": 1099153408,
       "workers": 0,
       "current_median_ms": 0.004666,
-      "current_process_medians_ms": [
-        0.004833,
-        0.004666,
-        0.004333
-      ],
+      "current_process_medians_ms": [0.004833, 0.004666, 0.004333],
       "baseline_median_ms": 0.004708,
-      "baseline_process_medians_ms": [
-        0.004708,
-        0.004833,
-        0.004666
-      ],
+      "baseline_process_medians_ms": [0.004708, 0.004833, 0.004666],
       "speedup": 1.0090012858979855
     },
     {
@@ -81186,17 +79898,9 @@
       "expected_bits": 1099153408,
       "workers": 1,
       "current_median_ms": 0.011625,
-      "current_process_medians_ms": [
-        0.011625,
-        0.010125,
-        0.011667
-      ],
+      "current_process_medians_ms": [0.011625, 0.010125, 0.011667],
       "baseline_median_ms": 0.011708,
-      "baseline_process_medians_ms": [
-        0.011708,
-        0.010375,
-        0.01175
-      ],
+      "baseline_process_medians_ms": [0.011708, 0.010375, 0.01175],
       "speedup": 1.0071397849462365
     },
     {
@@ -81208,17 +79912,9 @@
       "expected_bits": 1099153408,
       "workers": 2,
       "current_median_ms": 0.024709,
-      "current_process_medians_ms": [
-        0.025375,
-        0.024666,
-        0.024709
-      ],
+      "current_process_medians_ms": [0.025375, 0.024666, 0.024709],
       "baseline_median_ms": 0.024333,
-      "baseline_process_medians_ms": [
-        0.024333,
-        0.024666,
-        0.0235
-      ],
+      "baseline_process_medians_ms": [0.024333, 0.024666, 0.0235],
       "speedup": 0.9847828726375006
     },
     {
@@ -81230,17 +79926,9 @@
       "expected_bits": 1099153408,
       "workers": 4,
       "current_median_ms": 0.045375,
-      "current_process_medians_ms": [
-        0.045375,
-        0.0455,
-        0.038041
-      ],
+      "current_process_medians_ms": [0.045375, 0.0455, 0.038041],
       "baseline_median_ms": 0.042542,
-      "baseline_process_medians_ms": [
-        0.039792,
-        0.048334,
-        0.042542
-      ],
+      "baseline_process_medians_ms": [0.039792, 0.048334, 0.042542],
       "speedup": 0.9375647382920111
     },
     {
@@ -81252,17 +79940,9 @@
       "expected_bits": 1099153408,
       "workers": 8,
       "current_median_ms": 0.116667,
-      "current_process_medians_ms": [
-        0.11175,
-        0.119292,
-        0.116667
-      ],
+      "current_process_medians_ms": [0.11175, 0.119292, 0.116667],
       "baseline_median_ms": 0.110542,
-      "baseline_process_medians_ms": [
-        0.112959,
-        0.110542,
-        0.104708
-      ],
+      "baseline_process_medians_ms": [0.112959, 0.110542, 0.104708],
       "speedup": 0.9475001499995714
     },
     {
@@ -81274,17 +79954,9 @@
       "expected_bits": 1090748416,
       "workers": 0,
       "current_median_ms": 0.0045,
-      "current_process_medians_ms": [
-        0.0045,
-        0.004583,
-        0.004417
-      ],
+      "current_process_medians_ms": [0.0045, 0.004583, 0.004417],
       "baseline_median_ms": 0.005,
-      "baseline_process_medians_ms": [
-        0.005,
-        0.005,
-        0.00475
-      ],
+      "baseline_process_medians_ms": [0.005, 0.005, 0.00475],
       "speedup": 1.1111111111111112
     },
     {
@@ -81296,17 +79968,9 @@
       "expected_bits": 1090748416,
       "workers": 1,
       "current_median_ms": 0.0115,
-      "current_process_medians_ms": [
-        0.011583,
-        0.009791,
-        0.0115
-      ],
+      "current_process_medians_ms": [0.011583, 0.009791, 0.0115],
       "baseline_median_ms": 0.010875,
-      "baseline_process_medians_ms": [
-        0.011791,
-        0.010875,
-        0.010708
-      ],
+      "baseline_process_medians_ms": [0.011791, 0.010875, 0.010708],
       "speedup": 0.9456521739130435
     },
     {
@@ -81318,17 +79982,9 @@
       "expected_bits": 1090748416,
       "workers": 2,
       "current_median_ms": 0.02325,
-      "current_process_medians_ms": [
-        0.021208,
-        0.026959,
-        0.02325
-      ],
+      "current_process_medians_ms": [0.021208, 0.026959, 0.02325],
       "baseline_median_ms": 0.025291,
-      "baseline_process_medians_ms": [
-        0.025291,
-        0.025208,
-        0.025791
-      ],
+      "baseline_process_medians_ms": [0.025291, 0.025208, 0.025791],
       "speedup": 1.0877849462365592
     },
     {
@@ -81340,17 +79996,9 @@
       "expected_bits": 1090748416,
       "workers": 4,
       "current_median_ms": 0.040833,
-      "current_process_medians_ms": [
-        0.040833,
-        0.046917,
-        0.040333
-      ],
+      "current_process_medians_ms": [0.040833, 0.046917, 0.040333],
       "baseline_median_ms": 0.047792,
-      "baseline_process_medians_ms": [
-        0.054125,
-        0.038625,
-        0.047792
-      ],
+      "baseline_process_medians_ms": [0.054125, 0.038625, 0.047792],
       "speedup": 1.1704258810276003
     },
     {
@@ -81362,17 +80010,9 @@
       "expected_bits": 1090748416,
       "workers": 8,
       "current_median_ms": 0.105959,
-      "current_process_medians_ms": [
-        0.105959,
-        0.115458,
-        0.105958
-      ],
+      "current_process_medians_ms": [0.105959, 0.115458, 0.105958],
       "baseline_median_ms": 0.109708,
-      "baseline_process_medians_ms": [
-        0.116125,
-        0.103458,
-        0.109708
-      ],
+      "baseline_process_medians_ms": [0.116125, 0.103458, 0.109708],
       "speedup": 1.0353816098679678
     },
     {
@@ -81384,17 +80024,9 @@
       "expected_bits": 1085079552,
       "workers": 0,
       "current_median_ms": 0.00425,
-      "current_process_medians_ms": [
-        0.00425,
-        0.003667,
-        0.004625
-      ],
+      "current_process_medians_ms": [0.00425, 0.003667, 0.004625],
       "baseline_median_ms": 0.004625,
-      "baseline_process_medians_ms": [
-        0.004667,
-        0.003834,
-        0.004625
-      ],
+      "baseline_process_medians_ms": [0.004667, 0.003834, 0.004625],
       "speedup": 1.088235294117647
     },
     {
@@ -81406,17 +80038,9 @@
       "expected_bits": 1085079552,
       "workers": 1,
       "current_median_ms": 0.010875,
-      "current_process_medians_ms": [
-        0.011166,
-        0.010875,
-        0.010708
-      ],
+      "current_process_medians_ms": [0.011166, 0.010875, 0.010708],
       "baseline_median_ms": 0.011208,
-      "baseline_process_medians_ms": [
-        0.011334,
-        0.009542,
-        0.011208
-      ],
+      "baseline_process_medians_ms": [0.011334, 0.009542, 0.011208],
       "speedup": 1.0306206896551724
     },
     {
@@ -81428,17 +80052,9 @@
       "expected_bits": 1085079552,
       "workers": 2,
       "current_median_ms": 0.021833,
-      "current_process_medians_ms": [
-        0.021667,
-        0.021833,
-        0.023917
-      ],
+      "current_process_medians_ms": [0.021667, 0.021833, 0.023917],
       "baseline_median_ms": 0.023542,
-      "baseline_process_medians_ms": [
-        0.022416,
-        0.02375,
-        0.023542
-      ],
+      "baseline_process_medians_ms": [0.022416, 0.02375, 0.023542],
       "speedup": 1.0782760042138047
     },
     {
@@ -81450,17 +80066,9 @@
       "expected_bits": 1085079552,
       "workers": 4,
       "current_median_ms": 0.0395,
-      "current_process_medians_ms": [
-        0.0395,
-        0.039417,
-        0.042917
-      ],
+      "current_process_medians_ms": [0.0395, 0.039417, 0.042917],
       "baseline_median_ms": 0.041209,
-      "baseline_process_medians_ms": [
-        0.041209,
-        0.034667,
-        0.042542
-      ],
+      "baseline_process_medians_ms": [0.041209, 0.034667, 0.042542],
       "speedup": 1.0432658227848102
     },
     {
@@ -81472,17 +80080,9 @@
       "expected_bits": 1085079552,
       "workers": 8,
       "current_median_ms": 0.103208,
-      "current_process_medians_ms": [
-        0.101709,
-        0.103208,
-        0.114875
-      ],
+      "current_process_medians_ms": [0.101709, 0.103208, 0.114875],
       "baseline_median_ms": 0.109375,
-      "baseline_process_medians_ms": [
-        0.111167,
-        0.109375,
-        0.105459
-      ],
+      "baseline_process_medians_ms": [0.111167, 0.109375, 0.105459],
       "speedup": 1.059753119913185
     },
     {
@@ -81494,17 +80094,9 @@
       "expected_bits": 1206904512,
       "workers": 0,
       "current_median_ms": 0.985417,
-      "current_process_medians_ms": [
-        0.994042,
-        0.985417,
-        0.980834
-      ],
+      "current_process_medians_ms": [0.994042, 0.985417, 0.980834],
       "baseline_median_ms": 0.978542,
-      "baseline_process_medians_ms": [
-        0.978542,
-        1.7175,
-        0.96925
-      ],
+      "baseline_process_medians_ms": [0.978542, 1.7175, 0.96925],
       "speedup": 0.9930232581739508
     },
     {
@@ -81516,17 +80108,9 @@
       "expected_bits": 1206904512,
       "workers": 1,
       "current_median_ms": 0.96725,
-      "current_process_medians_ms": [
-        0.99175,
-        0.961458,
-        0.96725
-      ],
+      "current_process_medians_ms": [0.99175, 0.961458, 0.96725],
       "baseline_median_ms": 0.978209,
-      "baseline_process_medians_ms": [
-        0.978209,
-        1.211125,
-        0.97475
-      ],
+      "baseline_process_medians_ms": [0.978209, 1.211125, 0.97475],
       "speedup": 1.0113300594468855
     },
     {
@@ -81538,17 +80122,9 @@
       "expected_bits": 1206904512,
       "workers": 2,
       "current_median_ms": 0.509083,
-      "current_process_medians_ms": [
-        0.50875,
-        0.511041,
-        0.509083
-      ],
+      "current_process_medians_ms": [0.50875, 0.511041, 0.509083],
       "baseline_median_ms": 0.518542,
-      "baseline_process_medians_ms": [
-        0.519875,
-        0.518542,
-        0.51125
-      ],
+      "baseline_process_medians_ms": [0.519875, 0.518542, 0.51125],
       "speedup": 1.0185804672322587
     },
     {
@@ -81560,17 +80136,9 @@
       "expected_bits": 1206904512,
       "workers": 4,
       "current_median_ms": 0.299958,
-      "current_process_medians_ms": [
-        0.291083,
-        0.303167,
-        0.299958
-      ],
+      "current_process_medians_ms": [0.291083, 0.303167, 0.299958],
       "baseline_median_ms": 0.296375,
-      "baseline_process_medians_ms": [
-        0.296375,
-        0.441,
-        0.289667
-      ],
+      "baseline_process_medians_ms": [0.296375, 0.441, 0.289667],
       "speedup": 0.9880549943658778
     },
     {
@@ -81582,17 +80150,9 @@
       "expected_bits": 1206904512,
       "workers": 8,
       "current_median_ms": 0.248125,
-      "current_process_medians_ms": [
-        0.252709,
-        0.248125,
-        0.235
-      ],
+      "current_process_medians_ms": [0.252709, 0.248125, 0.235],
       "baseline_median_ms": 0.247042,
-      "baseline_process_medians_ms": [
-        0.247042,
-        0.449708,
-        0.245584
-      ],
+      "baseline_process_medians_ms": [0.247042, 0.449708, 0.245584],
       "speedup": 0.9956352644836272
     },
     {
@@ -81604,17 +80164,9 @@
       "expected_bits": 1206965788,
       "workers": 0,
       "current_median_ms": 1.000375,
-      "current_process_medians_ms": [
-        0.996125,
-        1.000625,
-        1.000375
-      ],
+      "current_process_medians_ms": [0.996125, 1.000625, 1.000375],
       "baseline_median_ms": 1.006625,
-      "baseline_process_medians_ms": [
-        1.013708,
-        0.987667,
-        1.006625
-      ],
+      "baseline_process_medians_ms": [1.013708, 0.987667, 1.006625],
       "speedup": 1.0062476571285768
     },
     {
@@ -81626,17 +80178,9 @@
       "expected_bits": 1206965788,
       "workers": 1,
       "current_median_ms": 0.980125,
-      "current_process_medians_ms": [
-        0.976375,
-        0.985625,
-        0.980125
-      ],
+      "current_process_medians_ms": [0.976375, 0.985625, 0.980125],
       "baseline_median_ms": 0.982875,
-      "baseline_process_medians_ms": [
-        0.982875,
-        0.984042,
-        0.977667
-      ],
+      "baseline_process_medians_ms": [0.982875, 0.984042, 0.977667],
       "speedup": 1.0028057645708457
     },
     {
@@ -81648,17 +80192,9 @@
       "expected_bits": 1206965788,
       "workers": 2,
       "current_median_ms": 0.515584,
-      "current_process_medians_ms": [
-        0.51175,
-        0.515708,
-        0.515584
-      ],
+      "current_process_medians_ms": [0.51175, 0.515708, 0.515584],
       "baseline_median_ms": 0.524417,
-      "baseline_process_medians_ms": [
-        0.524417,
-        0.523792,
-        0.527709
-      ],
+      "baseline_process_medians_ms": [0.524417, 0.523792, 0.527709],
       "speedup": 1.017132028922542
     },
     {
@@ -81670,17 +80206,9 @@
       "expected_bits": 1206965788,
       "workers": 4,
       "current_median_ms": 0.294667,
-      "current_process_medians_ms": [
-        0.299167,
-        0.294667,
-        0.290125
-      ],
+      "current_process_medians_ms": [0.299167, 0.294667, 0.290125],
       "baseline_median_ms": 0.299375,
-      "baseline_process_medians_ms": [
-        0.299375,
-        0.298542,
-        0.303958
-      ],
+      "baseline_process_medians_ms": [0.299375, 0.298542, 0.303958],
       "speedup": 1.015977357491677
     },
     {
@@ -81692,17 +80220,9 @@
       "expected_bits": 1206965788,
       "workers": 8,
       "current_median_ms": 0.236833,
-      "current_process_medians_ms": [
-        0.236667,
-        0.236833,
-        0.241333
-      ],
+      "current_process_medians_ms": [0.236667, 0.236833, 0.241333],
       "baseline_median_ms": 0.253834,
-      "baseline_process_medians_ms": [
-        0.253834,
-        0.226917,
-        0.258333
-      ],
+      "baseline_process_medians_ms": [0.253834, 0.226917, 0.258333],
       "speedup": 1.0717847597252073
     }
   ]

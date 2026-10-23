@@ -50,28 +50,12 @@
     ],
     "managed_programs_compiled": 16,
     "expected_before_update": {
-      "values": [
-        6,
-        8,
-        10
-      ],
-      "float32_hex": [
-        "40c00000",
-        "41000000",
-        "41200000"
-      ]
+      "values": [6, 8, 10],
+      "float32_hex": ["40c00000", "41000000", "41200000"]
     },
     "expected_after_update": {
-      "values": [
-        105,
-        107,
-        109
-      ],
-      "float32_hex": [
-        "42d20000",
-        "42d60000",
-        "42da0000"
-      ]
+      "values": [105, 107, 109],
+      "float32_hex": ["42d20000", "42d60000", "42da0000"]
     },
     "cases": [
       "Relocated installed compiler symlink outside checkout",

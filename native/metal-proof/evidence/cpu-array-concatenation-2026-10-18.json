@@ -62,12 +62,7 @@
     "additional_alias_cases": 24,
     "private_record_worker_harness_runs": 232,
     "source_allocation_failure_sweep_runs": 400,
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "per_variant": {
       "compiled_programs": 27,
       "numeric_element_types": 6,

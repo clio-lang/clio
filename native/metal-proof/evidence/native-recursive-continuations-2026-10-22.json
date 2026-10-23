@@ -18,18 +18,9 @@
       "elapsed_seconds": 60.16,
       "parallel_jobs": 4
     },
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
     "successful_programs_per_variant": 7,
-    "worker_pool_sizes": [
-      1,
-      2,
-      4
-    ],
+    "worker_pool_sizes": [1, 2, 4],
     "successful_pool_executions_per_variant": 21,
     "fault_programs_per_variant": 2,
     "allocation_injection_positions_per_variant": 35,

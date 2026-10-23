@@ -38,12 +38,7 @@
       "native-metal-matrix-graph-reduction-sanitized",
       "native-metal-matrix-graph-reduction-thread-sanitized"
     ],
-    "host_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
+    "host_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
     "numerical_cases_per_mode": 288,
     "allocation_checkpoints_per_mode": 56,
     "stage_failure_scenarios_per_mode": 15,

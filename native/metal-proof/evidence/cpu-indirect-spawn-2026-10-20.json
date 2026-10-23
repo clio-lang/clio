@@ -112,21 +112,12 @@
     "numeric_width_programs_per_mode": 10,
     "evaluation_order_programs_per_mode": 1,
     "compiled_source_programs": 108,
-    "modes": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "ThreadSanitizer"
-    ],
+    "modes": ["debug", "optimized", "ASan/UBSan", "ThreadSanitizer"],
     "extra_worker_count_runs": 84,
     "allocation_failure_probes": 512,
     "rejected_programs": 4,
     "rejection_runs": 16,
-    "rejection_preserves": [
-      "executable",
-      "LLVM IR",
-      "MLIR"
-    ],
+    "rejection_preserves": ["executable", "LLVM IR", "MLIR"],
     "cases": [
       "aggregate",
       "alias",
@@ -165,17 +156,11 @@
     "additional_promoted_positive_programs_per_mode": 3,
     "rejected_boundaries_per_mode": 11,
     "forged_ir_cases_per_mode": 8,
-    "modes": [
-      "debug",
-      "ASan/UBSan"
-    ]
+    "modes": ["debug", "ASan/UBSan"]
   },
   "placement_frontend": {
     "new_rejected_cases_per_mode": 4,
-    "modes": [
-      "debug",
-      "ASan/UBSan"
-    ]
+    "modes": ["debug", "ASan/UBSan"]
   },
   "restrictions": [
     "Targets remain transitively synchronous; resumable function values remain unsupported",

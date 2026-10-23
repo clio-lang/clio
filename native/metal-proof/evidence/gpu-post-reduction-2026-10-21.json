@@ -49,12 +49,7 @@
       "kalandra-metal-source-pre-reduction",
       "native-metal-install"
     ],
-    "host_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
+    "host_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
     "numerical_cases_per_mode": 288,
     "reference": "LLVM APFloat nearest-ties-even per operation; fixed balanced-adjacent row-major sum; NaN classification comparison",
     "comparison": "map/reduce/epilogue task versus separate map plus reduce/epilogue calls versus independent reference; source CLI also compares GPU epilogue to a CPU scalar helper",

@@ -58,10 +58,7 @@
       "native-lsp-hover-debug",
       "native-lsp-hover-sanitized"
     ],
-    "variants": [
-      "normal",
-      "ASan/UBSan"
-    ],
+    "variants": ["normal", "ASan/UBSan"],
     "coverage": [
       "Exact inferred types at binding/parameter declarations and reads, same-spelled parameters in separate functions",
       "Direct calls, function references, closure signatures and pipeline targets",

@@ -14,17 +14,8 @@
     "remaining": "UInt32 matmul and GPU integer arithmetic remain rejected. No new scalar types, conversions, public foreign-memory ABI or distributed execution."
   },
   "qualification": {
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workers": [1, 2, 4],
     "compiled_programs_per_variant": 10,
     "compiled_programs_total": 40,
     "runtime_reference_runs": 16,

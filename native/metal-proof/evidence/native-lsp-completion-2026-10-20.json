@@ -99,10 +99,7 @@
       "native-type-exports-frontend-debug",
       "native-type-exports-frontend-sanitized"
     ],
-    "variants": [
-      "debug",
-      "ASan/UBSan"
-    ],
+    "variants": ["debug", "ASan/UBSan"],
     "coverage": [
       "Partial identifiers and suffix replacement",
       "Empty expression positions and binding order",

@@ -51,18 +51,10 @@
     "compiled_field_programs": 88,
     "private_worker_harness_runs": 248,
     "source_allocation_sweep_runs": 480,
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "per_variant": {
       "compiled_field_programs": 22,
-      "harness_pool_sizes": [
-        1,
-        4
-      ],
+      "harness_pool_sizes": [1, 4],
       "harness_runs": 62,
       "worker_success_samples_per_pool": 12,
       "scheduler_allocation_failure_positions_per_pool": 20,

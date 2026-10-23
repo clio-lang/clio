@@ -42,12 +42,7 @@
       "native-task-recovery-sanitized",
       "native-task-recovery-thread-sanitized"
     ],
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "compiled_String_source_programs": 72,
     "literal_vectors_per_variant": 14,
     "invalid_literal_builds_per_variant": 10,

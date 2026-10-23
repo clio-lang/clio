@@ -13,17 +13,8 @@
     "remaining": "CPU float64 arithmetic/default float, further numeric formats/conversions, Metal integer arithmetic, public foreign-memory/wire ABI and native distributed execution remain separate work."
   },
   "qualification": {
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
+    "workers": [1, 2, 4],
     "runtime_reference_runs": [
       {
         "numeric": "int64",

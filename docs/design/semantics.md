@@ -101,7 +101,6 @@ The [shared CPU/GPU helper path](apple-gpu.md#shared-cpugpu-helpers) now consume
 
 The optional [placement-aware check](placement-ir.md) extends this same typed module with `DeviceSelection`, owned `Transfer` tasks, checked spawn targets and exact tensor residency. It reuses group/error obligations and shape checking; it does not create a separate semantic type system for Metal. The normal CPU checker retains its existing policy, and CPU backends reject placement-bearing IR. Metal compilation must pass the shared check before publishing its artifacts, while device capability admission and the current syntax-driven executable emitter remain target-specific.
 
-
 ## Current numeric source scope
 
 The initial float32-only subset above has expanded to checked int32/uint32/int64/uint64 CPU scalars and tensors, plus [strict float64 CPU scalars](numbers.md#cpu-float64-scalar-source-and-worker-integration). Whole-number literals default to int64; decimal/exponent literals default to float64. Literal contexts select concrete types without introducing implicit conversions between already typed values. The `int`, `uint` and `float` aliases now have executable scalar implementations. [Synchronous float64 tensor literals and elementwise operations](numbers.md#cpu-float64-tensor-literals-and-elementwise-arithmetic) are now qualified. [Float64 tensor worker captures/results](numbers.md#float64-tensor-captures-and-results-in-cpu-tasks) are also qualified. [CPU float64 reductions](numbers.md#cpu-float64-reducesum) are also qualified. [CPU float64 matrix multiplication](numbers.md#cpu-float64-matmul) is also qualified. [Explicit CPU scalar conversions](numbers.md#explicit-cpu-scalar-numeric-conversions) now support all 36 pairs among the six implemented scalar types. [Explicit CPU tensor conversions](tensors.md#explicit-cpu-element-conversions) now preserve shape and use the same checked per-element rules. Implicit conversions remain disabled; GPU conversions and GPU float64 arithmetic remain gated. See the numeric qualification record for the current operations and worker support.
@@ -114,12 +113,9 @@ The initial float32-only subset above has expanded to checked int32/uint32/int64
 
 [Conditionals and logical operators](control-flow.md) now use ConditionalOperation with a completed Bool condition and two typed statement/result branches. Branch scopes and task-obligation state are copied independently; only observations common to all paths discharge incoming obligations. Joins retain concrete numeric identity, category/rank/residency and common shape facts. Synchronous CPU lowering uses native MLIR branches; continuation lowering uses explicit Boolean dispatch and existing result copies. Bool fail/rethrow contexts are also supported.
 
-
 [Native tensor inference](tensors.md#native-tensor-element-and-shape-inference) now determines element identity and literal shape without an expected tensor type. It checks each leaf once in source order, requires homogeneous completed numeric scalars, and reuses the existing typed tensor literal operation. Empty data still requires element context.
 
-
 [Immutable native numeric arrays](arrays.md) now retain a distinct source category across annotations, typed literals, calls, branch joins and task continuations. Runtime storage reuses checked rank-one buffers, while source conformance and IR capability checks reject implicit tensor/array interchange and unsupported operations.
-
 
 [Sequential array maps](array-map.md) now lower to a typed `ArrayMap` with a checked input array and resolved callback function. Output length facts are preserved, output element identity follows the callback, and transitive resumable callbacks are rejected before lowering. Inline anonymous numeric callbacks lift only referenced lexical CPU values into private parameters; `ArrayMap` records those capture operands explicitly. Worker kernels import synchronous callback/helper definitions with remapped function, value, symbol and capture identities.
 

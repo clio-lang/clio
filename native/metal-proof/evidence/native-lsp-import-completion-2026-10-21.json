@@ -24,11 +24,7 @@
       "native-lsp-completion-sanitized": 0.67,
       "native-editor-tools-install": 4.16
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "Empty and partial public import names, later comma-separated slots and full identifier suffix replacement",
       "Function/type/error/alias item kinds; private declarations and ordinary imported names remain hidden",

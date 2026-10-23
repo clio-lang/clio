@@ -13,17 +13,8 @@
     "remaining": "64-bit matmul remains gated in source and backend. Metal integer arithmetic, further formats/conversions, public foreign-memory/wire ABI and distributed execution remain separate work."
   },
   "qualification": {
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
+    "workers": [1, 2, 4],
     "runtime_reference_runs": [
       {
         "numeric": "int64",
@@ -281,9 +272,7 @@
     "command": "caffeinate -i ctest --preset native -j4 --output-on-failure",
     "tests": 289,
     "full_run_passed": 288,
-    "full_run_failed": [
-      "native-uint32-tensors-optimized"
-    ],
+    "full_run_failed": ["native-uint32-tensors-optimized"],
     "resolved": "The pre-existing uint32 tensor cancellation sender could start after the optimized kernel completed. The same compiled executable passed on immediate rerun; its LLVM and harness source matched prior qualification hashes. Only that test harness was changed after the full run, adding the established thread-ready handshake and bounded larger-workload retries. Other faults are not retried.",
     "recheck_command": "caffeinate -i ctest --preset native -R '^native-uint32-tensors-' -j4 --output-on-failure",
     "recheck_tests": 4,

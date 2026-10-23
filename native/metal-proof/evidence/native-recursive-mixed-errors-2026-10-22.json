@@ -25,17 +25,8 @@
       "failed": 0,
       "elapsed_seconds": 0.61
     },
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "worker_pool_sizes": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
+    "worker_pool_sizes": [1, 2, 4],
     "generated_component_entries_total": 28,
     "new_mixed_error_entries": 9,
     "coverage": [

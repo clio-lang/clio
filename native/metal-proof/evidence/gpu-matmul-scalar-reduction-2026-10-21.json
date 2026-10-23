@@ -47,12 +47,7 @@
       "native-metal-post-reduction-sanitized",
       "native-metal-post-reduction-thread-sanitized"
     ],
-    "host_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
+    "host_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
     "numerical_cases_per_mode": 192,
     "allocation_checkpoints_per_mode": 62,
     "reference": "Full/plain-input graph versus checked CPU execution, separate GPU calls and LLVM APFloat: round input operations/products, contraction tree nodes, matrix-result arithmetic, final reduction tree nodes, then scalar arithmetic; NaNs compared by classification",

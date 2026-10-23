@@ -8,11 +8,7 @@
   "metalCompiler": "32023.864",
   "cpuComparisonsPerVariant": 2002120,
   "cpuCheckedFaultsPerVariant": 722702,
-  "cpuVariants": [
-    "debug",
-    "optimized",
-    "sanitized"
-  ],
+  "cpuVariants": ["debug", "optimized", "sanitized"],
   "gpuVariants": {
     "debug": {
       "arithmetic": "integer MLIR lowering; 64-bit integer limbs; no native double or 128-bit integer arithmetic",

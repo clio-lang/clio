@@ -25,11 +25,7 @@
       "native-lsp-sanitized",
       "native-editor-tools-install"
     ],
-    "modes": [
-      "debug",
-      "asan-ubsan",
-      "Release relocated editor package"
-    ],
+    "modes": ["debug", "asan-ubsan", "Release relocated editor package"],
     "cases": [
       "Enum expressions, existing payload construction and partial prefix/suffix replacement",
       "Remaining ordinary and payload match cases; wrong family, shadowed enum, prior errors and fallback boundaries",

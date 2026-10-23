@@ -141,10 +141,7 @@
     "selection": "New execution suites in debug, optimized, ASan/UBSan and separate ThreadSanitizer modes. New frontend and selected existing regressions in debug/ASan-UBSan, including CPU tasks, int32 runtime and int8/int32/float64 matrix multiplication. Not the full project suite."
   },
   "new_frontend_suites": {
-    "variants": [
-      "debug",
-      "ASan/UBSan"
-    ],
+    "variants": ["debug", "ASan/UBSan"],
     "accepted_checked_and_planned_programs_per_variant": 22,
     "unsupported_boundaries_per_variant": 4,
     "static_backedge_and_plan_dump_checks": true
@@ -160,11 +157,7 @@
       "arithmetic_fault_contexts": 1,
       "already_stopped_contexts": 2,
       "additional_worker_runs": 9,
-      "worker_counts": [
-        1,
-        2,
-        4
-      ],
+      "worker_counts": [1, 2, 4],
       "oversized_stack_source_rejections": 1,
       "preserved_artifacts": 3,
       "deep_cli_failure_with_settled_ledger": 1
@@ -179,11 +172,7 @@
       "arithmetic_fault_contexts": 1,
       "already_stopped_contexts": 2,
       "additional_worker_runs": 9,
-      "worker_counts": [
-        1,
-        2,
-        4
-      ],
+      "worker_counts": [1, 2, 4],
       "oversized_stack_source_rejections": 1,
       "preserved_artifacts": 3,
       "deep_cli_failure_with_settled_ledger": 1
@@ -198,11 +187,7 @@
       "arithmetic_fault_contexts": 1,
       "already_stopped_contexts": 2,
       "additional_worker_runs": 9,
-      "worker_counts": [
-        1,
-        2,
-        4
-      ],
+      "worker_counts": [1, 2, 4],
       "oversized_stack_source_rejections": 1,
       "preserved_artifacts": 3,
       "deep_cli_failure_with_settled_ledger": 1
@@ -217,11 +202,7 @@
       "arithmetic_fault_contexts": 1,
       "already_stopped_contexts": 2,
       "additional_worker_runs": 9,
-      "worker_counts": [
-        1,
-        2,
-        4
-      ],
+      "worker_counts": [1, 2, 4],
       "oversized_stack_source_rejections": 1,
       "preserved_artifacts": 3,
       "deep_cli_failure_with_settled_ledger": 1

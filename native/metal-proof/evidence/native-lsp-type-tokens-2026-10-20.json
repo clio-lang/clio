@@ -90,10 +90,7 @@
       "native-mixed-errors-frontend-debug",
       "native-mixed-errors-frontend-sanitized"
     ],
-    "variants": [
-      "normal",
-      "ASan/UBSan"
-    ],
+    "variants": ["normal", "ASan/UBSan"],
     "coverage": [
       "Record parameter, result, binding and nested field annotations",
       "Nested callable and array element annotations",

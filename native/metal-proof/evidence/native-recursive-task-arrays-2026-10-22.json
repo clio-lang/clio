@@ -16,19 +16,10 @@
     "failed": 0,
     "elapsed_seconds": 109.6,
     "selection": "^(native-recursive-record-bridge-|native-(task-value-layout|recursive-source-frontend)-(debug|sanitized)$|frontend-continuation-(debug|sanitized)$|native-record-workers-(debug|optimized|sanitized|thread-sanitized)$|native-(enum-payloads|record-array-fields|record-closures|worker-callable-aggregates|worker-error-functions)-(debug|sanitized)$)",
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
     "new_direct_state_cases_per_variant": 13,
     "new_scheduler_cases_per_variant": 3,
-    "worker_pool_sizes": [
-      1,
-      2,
-      4
-    ],
+    "worker_pool_sizes": [1, 2, 4],
     "additional_checks": [
       "Allocation failure sweep through the first successful nested-tree copy; unchanged output on failure and balanced retained references after cleanup",
       "Depth 128 success and 129 checked CallLimitFault with balanced call depth; malformed cyclic descriptor graph likewise bounded",

@@ -14,35 +14,13 @@
     "remaining": "Integer reductions/matmul, additional source numeric types, conversions and GPU integer arithmetic remain gated. CLI main still requires a scalar result."
   },
   "qualification": {
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workers": [1, 2, 4],
     "compiled_task_programs_per_variant": 9,
     "compiled_task_programs_total": 36,
     "task_observer_runs_per_variant": 72,
     "task_observer_runs_total": 288,
-    "allocation_failure_positions": [
-      1,
-      2,
-      3,
-      4,
-      5,
-      6,
-      7,
-      8,
-      9,
-      10,
-      11,
-      12
-    ],
+    "allocation_failure_positions": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
     "coverage": [
       "exact returned integer bits at signed endpoints and above float32 precision",
       "mixed int32/float32 tensor capture packets and result layouts",

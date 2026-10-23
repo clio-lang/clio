@@ -14,10 +14,7 @@
     "remaining": "Element-aware CPU storage/ABI and actual per-type arithmetic, literal/conversion, operator and GPU conformance remain ahead. Deferred extended numeric formats are not added."
   },
   "qualification": {
-    "new_variants": [
-      "debug",
-      "ASan/UBSan"
-    ],
+    "new_variants": ["debug", "ASan/UBSan"],
     "concrete_types": 10,
     "coverage": [
       "canonical aliases and identity uniqueness",
@@ -30,17 +27,8 @@
       "existing semantic overflow and explicit shape tests",
       "full CPU/GPU arithmetic and ownership/lifecycle regression"
     ],
-    "regression_variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "regression_variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workers": [1, 2, 4],
     "metal_api_validation": true,
     "gpu_shader_sanitizers": false
   },

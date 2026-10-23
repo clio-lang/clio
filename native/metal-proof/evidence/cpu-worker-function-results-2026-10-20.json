@@ -84,12 +84,7 @@
     "implementation_changed_during_run": false
   },
   "new_execution": {
-    "modes": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "ThreadSanitizer"
-    ],
+    "modes": ["debug", "optimized", "ASan/UBSan", "ThreadSanitizer"],
     "compiled_ctest_source_programs": 88,
     "valid_scheduled_tasks": 144,
     "cached_observations": 288,
@@ -130,10 +125,7 @@
     ]
   },
   "frontend": {
-    "modes": [
-      "debug",
-      "ASan/UBSan"
-    ],
+    "modes": ["debug", "ASan/UBSan"],
     "valid_programs_per_mode": 48,
     "unsupported_boundaries_per_mode": 10,
     "forged_ir_cases_per_mode": 6

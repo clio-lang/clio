@@ -45,39 +45,17 @@
     "focused_compiled_language_programs": 104,
     "focused_source_allocation_sweep_runs": 480,
     "focused_private_worker_harness_runs": 232,
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "per_variant": {
       "compiled_language_programs": 26,
-      "worker_pool_sizes": [
-        1,
-        4
-      ],
-      "worker_modes_per_pool": [
-        0,
-        1,
-        2,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9
-      ],
+      "worker_pool_sizes": [1, 4],
+      "worker_modes_per_pool": [0, 1, 2, 4, 5, 6, 7, 8, 9],
       "scheduler_allocation_failure_positions": 20,
       "source_allocation_sweep_programs": 5,
       "source_allocation_failure_positions": 24,
       "rejected_source_and_mapping_cases": 11,
       "preserved_rejection_output_files": 33,
-      "package_dependency_output_protection": [
-        "direct",
-        "symlink",
-        "hardlink"
-      ]
+      "package_dependency_output_protection": ["direct", "symlink", "hardlink"]
     },
     "coverage": [
       "Transitive package imports/reexports and canonical aliases/relative diamonds preserve nominal identity and original function helper scope",

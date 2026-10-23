@@ -142,28 +142,15 @@
     "extended_seconds": 5.61
   },
   "execution": {
-    "modes": [
-      "Debug",
-      "Optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "modes": ["Debug", "Optimized", "ASan/UBSan", "TSan"],
     "source_catalog_per_mode": 21,
     "numeric_width_programs_per_mode": 10,
     "companion_programs_per_mode": 6,
     "compiled_programs": 148,
     "additional_worker_count_runs": 252,
-    "worker_counts": [
-      1,
-      2,
-      4
-    ],
+    "worker_counts": [1, 2, 4],
     "allocation_failure_probes": 640,
-    "allowed_probe_statuses": [
-      0,
-      86,
-      88
-    ],
+    "allowed_probe_statuses": [0, 86, 88],
     "allocation_checks": [
       "Correct complete success or no published output",
       "Zero live allocations",
@@ -213,10 +200,7 @@
   "frontend": {
     "accepted": 21,
     "rejected": 3,
-    "modes": [
-      "Debug",
-      "ASan/UBSan"
-    ],
+    "modes": ["Debug", "ASan/UBSan"],
     "checks": [
       "Checked/planned coordinating calls",
       "GPU gate preservation",

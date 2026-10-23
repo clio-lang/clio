@@ -33,10 +33,7 @@
       "resident uploads",
       "direct Metal buffer allocation"
     ],
-    "post_timing": [
-      "numerical validation",
-      "returned output deallocation"
-    ],
+    "post_timing": ["numerical validation", "returned output deallocation"],
     "source_continuations_measured": false
   },
   "build_seconds": 3.8432627501897514,
@@ -10825,11 +10822,7 @@
       "workload": "matmul-256",
       "mode": "cpu",
       "wall_ms": 2.207084,
-      "wall_ms_process_medians": [
-        2.207084,
-        2.196458,
-        2.223792
-      ],
+      "wall_ms_process_medians": [2.207084, 2.196458, 2.223792],
       "wall_ms_min": 2.097,
       "wall_ms_max": 2.391375,
       "gpu_ms": null,
@@ -10837,35 +10830,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -10873,51 +10850,27 @@
       "workload": "matmul-256",
       "mode": "device",
       "wall_ms": 2.8205,
-      "wall_ms_process_medians": [
-        2.8205,
-        2.694167,
-        3.147625
-      ],
+      "wall_ms_process_medians": [2.8205, 2.694167, 3.147625],
       "wall_ms_min": 2.664208,
       "wall_ms_max": 3.791833,
       "gpu_ms": 2.499249764,
-      "gpu_ms_process_medians": [
-        2.500791568,
-        2.498041838,
-        2.499249764
-      ],
+      "gpu_ms_process_medians": [2.500791568, 2.498041838, 2.499249764],
       "gpu_ms_min": 2.493833192,
       "gpu_ms_max": 2.845874988,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -10925,11 +10878,7 @@
       "workload": "matmul-256",
       "mode": "resident",
       "wall_ms": 2.827959,
-      "wall_ms_process_medians": [
-        2.827959,
-        3.042,
-        2.723375
-      ],
+      "wall_ms_process_medians": [2.827959, 3.042, 2.723375],
       "wall_ms_min": 2.692125,
       "wall_ms_max": 3.643917,
       "gpu_ms": null,
@@ -10937,35 +10886,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 2.827209,
-      "compute_ms_process_medians": [
-        2.827209,
-        3.041333,
-        2.722708
-      ],
+      "compute_ms_process_medians": [2.827209, 3.041333, 2.722708],
       "compute_ms_min": 2.691459,
       "compute_ms_max": 3.643166,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.000625,
-      "retire_ms_process_medians": [
-        0.000625,
-        0.000583,
-        0.000667
-      ],
+      "retire_ms_process_medians": [0.000625, 0.000583, 0.000667],
       "retire_ms_min": 0.0005,
       "retire_ms_max": 0.001042
     },
@@ -10973,11 +10906,7 @@
       "workload": "matmul-256",
       "mode": "transfers",
       "wall_ms": 3.236708,
-      "wall_ms_process_medians": [
-        3.443916,
-        3.19775,
-        3.236708
-      ],
+      "wall_ms_process_medians": [3.443916, 3.19775, 3.236708],
       "wall_ms_min": 3.111583,
       "wall_ms_max": 4.3915,
       "gpu_ms": null,
@@ -10985,35 +10914,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.263583,
-      "upload_ms_process_medians": [
-        0.263583,
-        0.244709,
-        0.27425
-      ],
+      "upload_ms_process_medians": [0.263583, 0.244709, 0.27425],
       "upload_ms_min": 0.210208,
       "upload_ms_max": 0.758,
       "compute_ms": 2.72775,
-      "compute_ms_process_medians": [
-        2.737625,
-        2.72775,
-        2.715792
-      ],
+      "compute_ms_process_medians": [2.737625, 2.72775, 2.715792],
       "compute_ms_min": 2.691084,
       "compute_ms_max": 3.089,
       "download_ms": 0.21225,
-      "download_ms_process_medians": [
-        0.217208,
-        0.21225,
-        0.21
-      ],
+      "download_ms_process_medians": [0.217208, 0.21225, 0.21],
       "download_ms_min": 0.182125,
       "download_ms_max": 1.037375,
       "retire_ms": 0.004875,
-      "retire_ms_process_medians": [
-        0.004875,
-        0.004584,
-        0.0055
-      ],
+      "retire_ms_process_medians": [0.004875, 0.004584, 0.0055],
       "retire_ms_min": 0.003958,
       "retire_ms_max": 0.009125
     },
@@ -11021,11 +10934,7 @@
       "workload": "matmul-32",
       "mode": "cpu",
       "wall_ms": 0.005916,
-      "wall_ms_process_medians": [
-        0.009084,
-        0.005875,
-        0.005916
-      ],
+      "wall_ms_process_medians": [0.009084, 0.005875, 0.005916],
       "wall_ms_min": 0.00575,
       "wall_ms_max": 0.016375,
       "gpu_ms": null,
@@ -11033,35 +10942,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -11069,51 +10962,27 @@
       "workload": "matmul-32",
       "mode": "device",
       "wall_ms": 0.242833,
-      "wall_ms_process_medians": [
-        0.32175,
-        0.223458,
-        0.242833
-      ],
+      "wall_ms_process_medians": [0.32175, 0.223458, 0.242833],
       "wall_ms_min": 0.190792,
       "wall_ms_max": 0.903167,
       "gpu_ms": 0.057666562,
-      "gpu_ms_process_medians": [
-        0.063667074,
-        0.057666562,
-        0.057499856
-      ],
+      "gpu_ms_process_medians": [0.063667074, 0.057666562, 0.057499856],
       "gpu_ms_min": 0.057083089,
       "gpu_ms_max": 0.072208233,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -11121,11 +10990,7 @@
       "workload": "matmul-32",
       "mode": "resident",
       "wall_ms": 0.257584,
-      "wall_ms_process_medians": [
-        0.337375,
-        0.252583,
-        0.257584
-      ],
+      "wall_ms_process_medians": [0.337375, 0.252583, 0.257584],
       "wall_ms_min": 0.231042,
       "wall_ms_max": 1.017917,
       "gpu_ms": null,
@@ -11133,35 +10998,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.256833,
-      "compute_ms_process_medians": [
-        0.336041,
-        0.251959,
-        0.256833
-      ],
+      "compute_ms_process_medians": [0.336041, 0.251959, 0.256833],
       "compute_ms_min": 0.230417,
       "compute_ms_max": 1.017166,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.000625,
-      "retire_ms_process_medians": [
-        0.001083,
-        0.000541,
-        0.000625
-      ],
+      "retire_ms_process_medians": [0.001083, 0.000541, 0.000625],
       "retire_ms_min": 0.000541,
       "retire_ms_max": 0.001583
     },
@@ -11169,11 +11018,7 @@
       "workload": "matmul-32",
       "mode": "transfers",
       "wall_ms": 0.622583,
-      "wall_ms_process_medians": [
-        0.839875,
-        0.616708,
-        0.622583
-      ],
+      "wall_ms_process_medians": [0.839875, 0.616708, 0.622583],
       "wall_ms_min": 0.56775,
       "wall_ms_max": 2.569833,
       "gpu_ms": null,
@@ -11181,35 +11026,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.194458,
-      "upload_ms_process_medians": [
-        0.261292,
-        0.193666,
-        0.194458
-      ],
+      "upload_ms_process_medians": [0.261292, 0.193666, 0.194458],
       "upload_ms_min": 0.179875,
       "upload_ms_max": 0.835041,
       "compute_ms": 0.241375,
-      "compute_ms_process_medians": [
-        0.323709,
-        0.241375,
-        0.23875
-      ],
+      "compute_ms_process_medians": [0.323709, 0.241375, 0.23875],
       "compute_ms_min": 0.22125,
       "compute_ms_max": 0.922458,
       "download_ms": 0.176875,
-      "download_ms_process_medians": [
-        0.244584,
-        0.162875,
-        0.176875
-      ],
+      "download_ms_process_medians": [0.244584, 0.162875, 0.176875],
       "download_ms_min": 0.152,
       "download_ms_max": 0.80525,
       "retire_ms": 0.003958,
-      "retire_ms_process_medians": [
-        0.006459,
-        0.003666,
-        0.003958
-      ],
+      "retire_ms_process_medians": [0.006459, 0.003666, 0.003958],
       "retire_ms_min": 0.003583,
       "retire_ms_max": 0.007125
     },
@@ -11217,11 +11046,7 @@
       "workload": "matmul-8",
       "mode": "cpu",
       "wall_ms": 0.000875,
-      "wall_ms_process_medians": [
-        0.001042,
-        0.000875,
-        0.000833
-      ],
+      "wall_ms_process_medians": [0.001042, 0.000875, 0.000833],
       "wall_ms_min": 0.000708,
       "wall_ms_max": 0.004333,
       "gpu_ms": null,
@@ -11229,35 +11054,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -11265,51 +11074,27 @@
       "workload": "matmul-8",
       "mode": "device",
       "wall_ms": 0.208833,
-      "wall_ms_process_medians": [
-        0.231875,
-        0.189291,
-        0.208833
-      ],
+      "wall_ms_process_medians": [0.231875, 0.189291, 0.208833],
       "wall_ms_min": 0.182875,
       "wall_ms_max": 0.243625,
       "gpu_ms": 0.028749928,
-      "gpu_ms_process_medians": [
-        0.028749928,
-        0.028749928,
-        0.028833281
-      ],
+      "gpu_ms_process_medians": [0.028749928, 0.028749928, 0.028833281],
       "gpu_ms_min": 0.028333161,
       "gpu_ms_max": 0.029374845,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -11317,11 +11102,7 @@
       "workload": "matmul-8",
       "mode": "resident",
       "wall_ms": 0.22525,
-      "wall_ms_process_medians": [
-        0.22525,
-        0.2065,
-        0.228458
-      ],
+      "wall_ms_process_medians": [0.22525, 0.2065, 0.228458],
       "wall_ms_min": 0.199083,
       "wall_ms_max": 0.280209,
       "gpu_ms": null,
@@ -11329,35 +11110,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.224583,
-      "compute_ms_process_medians": [
-        0.224583,
-        0.205875,
-        0.227833
-      ],
+      "compute_ms_process_medians": [0.224583, 0.205875, 0.227833],
       "compute_ms_min": 0.198458,
       "compute_ms_max": 0.279292,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.000625,
-      "retire_ms_process_medians": [
-        0.000667,
-        0.000625,
-        0.000583
-      ],
+      "retire_ms_process_medians": [0.000667, 0.000625, 0.000583],
       "retire_ms_min": 0.0005,
       "retire_ms_max": 0.000792
     },
@@ -11365,11 +11130,7 @@
       "workload": "matmul-8",
       "mode": "transfers",
       "wall_ms": 0.604792,
-      "wall_ms_process_medians": [
-        0.628833,
-        0.549708,
-        0.604792
-      ],
+      "wall_ms_process_medians": [0.628833, 0.549708, 0.604792],
       "wall_ms_min": 0.5255,
       "wall_ms_max": 0.816917,
       "gpu_ms": null,
@@ -11377,35 +11138,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.201167,
-      "upload_ms_process_medians": [
-        0.210833,
-        0.187,
-        0.201167
-      ],
+      "upload_ms_process_medians": [0.210833, 0.187, 0.201167],
       "upload_ms_min": 0.174208,
       "upload_ms_max": 0.234458,
       "compute_ms": 0.217459,
-      "compute_ms_process_medians": [
-        0.228209,
-        0.202458,
-        0.217459
-      ],
+      "compute_ms_process_medians": [0.228209, 0.202458, 0.217459],
       "compute_ms_min": 0.184833,
       "compute_ms_max": 0.424708,
       "download_ms": 0.172625,
-      "download_ms_process_medians": [
-        0.183334,
-        0.157875,
-        0.172625
-      ],
+      "download_ms_process_medians": [0.183334, 0.157875, 0.172625],
       "download_ms_min": 0.153167,
       "download_ms_max": 0.255709,
       "retire_ms": 0.004042,
-      "retire_ms_process_medians": [
-        0.004125,
-        0.003666,
-        0.004042
-      ],
+      "retire_ms_process_medians": [0.004125, 0.003666, 0.004042],
       "retire_ms_min": 0.003417,
       "retire_ms_max": 0.005209
     },
@@ -11413,11 +11158,7 @@
       "workload": "matmul-96",
       "mode": "cpu",
       "wall_ms": 0.1145,
-      "wall_ms_process_medians": [
-        0.116667,
-        0.1145,
-        0.114417
-      ],
+      "wall_ms_process_medians": [0.116667, 0.1145, 0.114417],
       "wall_ms_min": 0.105958,
       "wall_ms_max": 0.14,
       "gpu_ms": null,
@@ -11425,35 +11166,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -11461,51 +11186,27 @@
       "workload": "matmul-96",
       "mode": "device",
       "wall_ms": 0.38875,
-      "wall_ms_process_medians": [
-        0.3935,
-        0.376375,
-        0.38875
-      ],
+      "wall_ms_process_medians": [0.3935, 0.376375, 0.38875],
       "wall_ms_min": 0.372416,
       "wall_ms_max": 0.4935,
       "gpu_ms": 0.20683324,
-      "gpu_ms_process_medians": [
-        0.20683324,
-        0.206999946,
-        0.206124969
-      ],
+      "gpu_ms_process_medians": [0.20683324, 0.206999946, 0.206124969],
       "gpu_ms_min": 0.204499811,
       "gpu_ms_max": 0.208875164,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -11513,11 +11214,7 @@
       "workload": "matmul-96",
       "mode": "resident",
       "wall_ms": 0.393667,
-      "wall_ms_process_medians": [
-        0.390083,
-        0.399833,
-        0.393667
-      ],
+      "wall_ms_process_medians": [0.390083, 0.399833, 0.393667],
       "wall_ms_min": 0.375125,
       "wall_ms_max": 0.534791,
       "gpu_ms": null,
@@ -11525,35 +11222,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.39275,
-      "compute_ms_process_medians": [
-        0.389375,
-        0.399208,
-        0.39275
-      ],
+      "compute_ms_process_medians": [0.389375, 0.399208, 0.39275],
       "compute_ms_min": 0.3745,
       "compute_ms_max": 0.534125,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.000583,
-      "retire_ms_process_medians": [
-        0.000583,
-        0.000542,
-        0.000583
-      ],
+      "retire_ms_process_medians": [0.000583, 0.000542, 0.000583],
       "retire_ms_min": 0.0005,
       "retire_ms_max": 0.000833
     },
@@ -11561,11 +11242,7 @@
       "workload": "matmul-96",
       "mode": "transfers",
       "wall_ms": 0.798708,
-      "wall_ms_process_medians": [
-        0.798708,
-        0.797833,
-        0.82575
-      ],
+      "wall_ms_process_medians": [0.798708, 0.797833, 0.82575],
       "wall_ms_min": 0.75425,
       "wall_ms_max": 1.535209,
       "gpu_ms": null,
@@ -11573,35 +11250,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.212125,
-      "upload_ms_process_medians": [
-        0.21725,
-        0.202417,
-        0.212125
-      ],
+      "upload_ms_process_medians": [0.21725, 0.202417, 0.212125],
       "upload_ms_min": 0.194542,
       "upload_ms_max": 0.939209,
       "compute_ms": 0.395083,
-      "compute_ms_process_medians": [
-        0.393125,
-        0.395083,
-        0.402542
-      ],
+      "compute_ms_process_medians": [0.393125, 0.395083, 0.402542],
       "compute_ms_min": 0.380875,
       "compute_ms_max": 1.119083,
       "download_ms": 0.179959,
-      "download_ms_process_medians": [
-        0.177167,
-        0.179959,
-        0.191416
-      ],
+      "download_ms_process_medians": [0.177167, 0.179959, 0.191416],
       "download_ms_min": 0.16625,
       "download_ms_max": 0.281083,
       "retire_ms": 0.004792,
-      "retire_ms_process_medians": [
-        0.004875,
-        0.004792,
-        0.004541
-      ],
+      "retire_ms_process_medians": [0.004875, 0.004792, 0.004541],
       "retire_ms_min": 0.003958,
       "retire_ms_max": 0.005791
     },
@@ -11609,11 +11270,7 @@
       "workload": "matmul-deep-tail",
       "mode": "cpu",
       "wall_ms": 0.366459,
-      "wall_ms_process_medians": [
-        0.726292,
-        0.366459,
-        0.3385
-      ],
+      "wall_ms_process_medians": [0.726292, 0.366459, 0.3385],
       "wall_ms_min": 0.329625,
       "wall_ms_max": 1.006833,
       "gpu_ms": null,
@@ -11621,35 +11278,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -11657,51 +11298,27 @@
       "workload": "matmul-deep-tail",
       "mode": "device",
       "wall_ms": 1.385417,
-      "wall_ms_process_medians": [
-        1.940917,
-        1.385417,
-        1.3785
-      ],
+      "wall_ms_process_medians": [1.940917, 1.385417, 1.3785],
       "wall_ms_min": 1.364875,
       "wall_ms_max": 2.266834,
       "gpu_ms": 1.190875191,
-      "gpu_ms_process_medians": [
-        1.708250027,
-        1.190875191,
-        1.188750379
-      ],
+      "gpu_ms_process_medians": [1.708250027, 1.190875191, 1.188750379],
       "gpu_ms_min": 1.183500048,
       "gpu_ms_max": 2.001125365,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -11709,11 +11326,7 @@
       "workload": "matmul-deep-tail",
       "mode": "resident",
       "wall_ms": 1.400375,
-      "wall_ms_process_medians": [
-        2.148208,
-        1.400375,
-        1.396291
-      ],
+      "wall_ms_process_medians": [2.148208, 1.400375, 1.396291],
       "wall_ms_min": 1.360166,
       "wall_ms_max": 2.721042,
       "gpu_ms": null,
@@ -11721,35 +11334,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 1.399708,
-      "compute_ms_process_medians": [
-        2.146958,
-        1.399708,
-        1.395667
-      ],
+      "compute_ms_process_medians": [2.146958, 1.399708, 1.395667],
       "compute_ms_min": 1.359417,
       "compute_ms_max": 2.719541,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.000584,
-      "retire_ms_process_medians": [
-        0.001125,
-        0.000541,
-        0.000584
-      ],
+      "retire_ms_process_medians": [0.001125, 0.000541, 0.000584],
       "retire_ms_min": 0.0005,
       "retire_ms_max": 0.00125
     },
@@ -11757,11 +11354,7 @@
       "workload": "matmul-deep-tail",
       "mode": "transfers",
       "wall_ms": 1.841375,
-      "wall_ms_process_medians": [
-        3.118667,
-        1.841375,
-        1.802125
-      ],
+      "wall_ms_process_medians": [3.118667, 1.841375, 1.802125],
       "wall_ms_min": 1.743167,
       "wall_ms_max": 3.530916,
       "gpu_ms": null,
@@ -11769,35 +11362,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.252375,
-      "upload_ms_process_medians": [
-        0.726958,
-        0.225875,
-        0.252375
-      ],
+      "upload_ms_process_medians": [0.726958, 0.225875, 0.252375],
       "upload_ms_min": 0.211292,
       "upload_ms_max": 1.602708,
       "compute_ms": 1.391541,
-      "compute_ms_process_medians": [
-        1.978,
-        1.391541,
-        1.373209
-      ],
+      "compute_ms_process_medians": [1.978, 1.391541, 1.373209],
       "compute_ms_min": 1.310875,
       "compute_ms_max": 2.466458,
       "download_ms": 0.195,
-      "download_ms_process_medians": [
-        0.235459,
-        0.195,
-        0.172916
-      ],
+      "download_ms_process_medians": [0.235459, 0.195, 0.172916],
       "download_ms_min": 0.160208,
       "download_ms_max": 0.268833,
       "retire_ms": 0.0065,
-      "retire_ms_process_medians": [
-        0.009959,
-        0.0065,
-        0.006042
-      ],
+      "retire_ms_process_medians": [0.009959, 0.0065, 0.006042],
       "retire_ms_min": 0.005458,
       "retire_ms_max": 0.0125
     },
@@ -11805,11 +11382,7 @@
       "workload": "sum-1048576",
       "mode": "cpu",
       "wall_ms": 1.611583,
-      "wall_ms_process_medians": [
-        1.611583,
-        1.538125,
-        1.619875
-      ],
+      "wall_ms_process_medians": [1.611583, 1.538125, 1.619875],
       "wall_ms_min": 1.523791,
       "wall_ms_max": 1.701459,
       "gpu_ms": null,
@@ -11817,35 +11390,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -11853,51 +11410,27 @@
       "workload": "sum-1048576",
       "mode": "device",
       "wall_ms": 0.324416,
-      "wall_ms_process_medians": [
-        0.324416,
-        0.301208,
-        0.775708
-      ],
+      "wall_ms_process_medians": [0.324416, 0.301208, 0.775708],
       "wall_ms_min": 0.287,
       "wall_ms_max": 1.21675,
       "gpu_ms": 0.105666462,
-      "gpu_ms_process_medians": [
-        0.110124703,
-        0.105666462,
-        0.103374943
-      ],
+      "gpu_ms_process_medians": [0.110124703, 0.105666462, 0.103374943],
       "gpu_ms_min": 0.093124807,
       "gpu_ms_max": 0.133125111,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -11905,11 +11438,7 @@
       "workload": "sum-1048576",
       "mode": "resident",
       "wall_ms": 0.568,
-      "wall_ms_process_medians": [
-        0.59,
-        0.568,
-        0.556541
-      ],
+      "wall_ms_process_medians": [0.59, 0.568, 0.556541],
       "wall_ms_min": 0.528958,
       "wall_ms_max": 1.583208,
       "gpu_ms": null,
@@ -11917,35 +11446,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.5675,
-      "compute_ms_process_medians": [
-        0.589333,
-        0.5675,
-        0.556042
-      ],
+      "compute_ms_process_medians": [0.589333, 0.5675, 0.556042],
       "compute_ms_min": 0.528416,
       "compute_ms_max": 1.582625,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.000458,
-      "retire_ms_process_medians": [
-        0.000458,
-        0.000416,
-        0.000458
-      ],
+      "retire_ms_process_medians": [0.000458, 0.000416, 0.000458],
       "retire_ms_min": 0.000375,
       "retire_ms_max": 0.000708
     },
@@ -11953,11 +11466,7 @@
       "workload": "sum-1048576",
       "mode": "transfers",
       "wall_ms": 1.249417,
-      "wall_ms_process_medians": [
-        1.269417,
-        1.12075,
-        1.249417
-      ],
+      "wall_ms_process_medians": [1.269417, 1.12075, 1.249417],
       "wall_ms_min": 1.094667,
       "wall_ms_max": 2.250917,
       "gpu_ms": null,
@@ -11965,35 +11474,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.655,
-      "upload_ms_process_medians": [
-        0.657083,
-        0.589792,
-        0.655
-      ],
+      "upload_ms_process_medians": [0.657083, 0.589792, 0.655],
       "upload_ms_min": 0.571875,
       "upload_ms_max": 1.658958,
       "compute_ms": 0.562417,
-      "compute_ms_process_medians": [
-        0.5745,
-        0.524792,
-        0.562417
-      ],
+      "compute_ms_process_medians": [0.5745, 0.524792, 0.562417],
       "compute_ms_min": 0.514959,
       "compute_ms_max": 1.118875,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.001709,
-      "retire_ms_process_medians": [
-        0.001709,
-        0.001542,
-        0.00175
-      ],
+      "retire_ms_process_medians": [0.001709, 0.001542, 0.00175],
       "retire_ms_min": 0.001458,
       "retire_ms_max": 0.003875
     },
@@ -12001,11 +11494,7 @@
       "workload": "sum-4097",
       "mode": "cpu",
       "wall_ms": 0.008291,
-      "wall_ms_process_medians": [
-        0.016084,
-        0.008291,
-        0.007667
-      ],
+      "wall_ms_process_medians": [0.016084, 0.008291, 0.007667],
       "wall_ms_min": 0.006208,
       "wall_ms_max": 0.021791,
       "gpu_ms": null,
@@ -12013,35 +11502,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -12049,51 +11522,27 @@
       "workload": "sum-4097",
       "mode": "device",
       "wall_ms": 0.227,
-      "wall_ms_process_medians": [
-        0.369792,
-        0.198834,
-        0.227
-      ],
+      "wall_ms_process_medians": [0.369792, 0.198834, 0.227],
       "wall_ms_min": 0.196791,
       "wall_ms_max": 1.00025,
       "gpu_ms": 0.029124785,
-      "gpu_ms_process_medians": [
-        0.071583316,
-        0.028374605,
-        0.029124785
-      ],
+      "gpu_ms_process_medians": [0.071583316, 0.028374605, 0.029124785],
       "gpu_ms_min": 0.028083101,
       "gpu_ms_max": 0.095083378,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -12101,11 +11550,7 @@
       "workload": "sum-4097",
       "mode": "resident",
       "wall_ms": 0.306416,
-      "wall_ms_process_medians": [
-        0.543458,
-        0.306416,
-        0.302083
-      ],
+      "wall_ms_process_medians": [0.543458, 0.306416, 0.302083],
       "wall_ms_min": 0.287417,
       "wall_ms_max": 0.585833,
       "gpu_ms": null,
@@ -12113,35 +11558,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.305917,
-      "compute_ms_process_medians": [
-        0.54225,
-        0.305917,
-        0.301542
-      ],
+      "compute_ms_process_medians": [0.54225, 0.305917, 0.301542],
       "compute_ms_min": 0.286791,
       "compute_ms_max": 0.584542,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0005,
-      "retire_ms_process_medians": [
-        0.001041,
-        0.0005,
-        0.0005
-      ],
+      "retire_ms_process_medians": [0.001041, 0.0005, 0.0005],
       "retire_ms_min": 0.000416,
       "retire_ms_max": 0.001084
     },
@@ -12149,11 +11578,7 @@
       "workload": "sum-4097",
       "mode": "transfers",
       "wall_ms": 0.514292,
-      "wall_ms_process_medians": [
-        0.885084,
-        0.4805,
-        0.514292
-      ],
+      "wall_ms_process_medians": [0.885084, 0.4805, 0.514292],
       "wall_ms_min": 0.440542,
       "wall_ms_max": 0.988042,
       "gpu_ms": null,
@@ -12161,35 +11586,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.193042,
-      "upload_ms_process_medians": [
-        0.298875,
-        0.184417,
-        0.193042
-      ],
+      "upload_ms_process_medians": [0.298875, 0.184417, 0.193042],
       "upload_ms_min": 0.167209,
       "upload_ms_max": 0.32675,
       "compute_ms": 0.317959,
-      "compute_ms_process_medians": [
-        0.554458,
-        0.297666,
-        0.317959
-      ],
+      "compute_ms_process_medians": [0.554458, 0.297666, 0.317959],
       "compute_ms_min": 0.271125,
       "compute_ms_max": 0.685792,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.003333,
-      "retire_ms_process_medians": [
-        0.004708,
-        0.002584,
-        0.003333
-      ],
+      "retire_ms_process_medians": [0.004708, 0.002584, 0.003333],
       "retire_ms_min": 0.002166,
       "retire_ms_max": 0.007875
     },
@@ -12197,11 +11606,7 @@
       "workload": "sum-64",
       "mode": "cpu",
       "wall_ms": 0.000583,
-      "wall_ms_process_medians": [
-        0.001208,
-        0.000417,
-        0.000583
-      ],
+      "wall_ms_process_medians": [0.001208, 0.000417, 0.000583],
       "wall_ms_min": 0.000333,
       "wall_ms_max": 0.005459,
       "gpu_ms": null,
@@ -12209,35 +11614,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -12245,51 +11634,27 @@
       "workload": "sum-64",
       "mode": "device",
       "wall_ms": 0.188833,
-      "wall_ms_process_medians": [
-        0.307875,
-        0.188833,
-        0.18475
-      ],
+      "wall_ms_process_medians": [0.307875, 0.188833, 0.18475],
       "wall_ms_min": 0.183917,
       "wall_ms_max": 0.358834,
       "gpu_ms": 0.014749821,
-      "gpu_ms_process_medians": [
-        0.037041493,
-        0.014374964,
-        0.014749821
-      ],
+      "gpu_ms_process_medians": [0.037041493, 0.014374964, 0.014749821],
       "gpu_ms_min": 0.013666693,
       "gpu_ms_max": 0.042875297,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -12297,11 +11662,7 @@
       "workload": "sum-64",
       "mode": "resident",
       "wall_ms": 0.235917,
-      "wall_ms_process_medians": [
-        0.469125,
-        0.235917,
-        0.23525
-      ],
+      "wall_ms_process_medians": [0.469125, 0.235917, 0.23525],
       "wall_ms_min": 0.224792,
       "wall_ms_max": 0.507917,
       "gpu_ms": null,
@@ -12309,35 +11670,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.23525,
-      "compute_ms_process_medians": [
-        0.468,
-        0.23525,
-        0.2345
-      ],
+      "compute_ms_process_medians": [0.468, 0.23525, 0.2345],
       "compute_ms_min": 0.224166,
       "compute_ms_max": 0.506792,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.000583,
-      "retire_ms_process_medians": [
-        0.000917,
-        0.000583,
-        0.0005
-      ],
+      "retire_ms_process_medians": [0.000917, 0.000583, 0.0005],
       "retire_ms_min": 0.000417,
       "retire_ms_max": 0.001083
     },
@@ -12345,11 +11690,7 @@
       "workload": "sum-64",
       "mode": "transfers",
       "wall_ms": 0.440083,
-      "wall_ms_process_medians": [
-        0.78725,
-        0.440083,
-        0.433333
-      ],
+      "wall_ms_process_medians": [0.78725, 0.440083, 0.433333],
       "wall_ms_min": 0.38575,
       "wall_ms_max": 1.387292,
       "gpu_ms": null,
@@ -12357,35 +11698,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.182208,
-      "upload_ms_process_medians": [
-        0.309375,
-        0.177625,
-        0.182208
-      ],
+      "upload_ms_process_medians": [0.309375, 0.177625, 0.182208],
       "upload_ms_min": 0.152042,
       "upload_ms_max": 1.012625,
       "compute_ms": 0.24375,
-      "compute_ms_process_medians": [
-        0.435458,
-        0.235,
-        0.24375
-      ],
+      "compute_ms_process_medians": [0.435458, 0.235, 0.24375],
       "compute_ms_min": 0.230792,
       "compute_ms_max": 0.616542,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.001542,
-      "retire_ms_process_medians": [
-        0.002709,
-        0.001292,
-        0.001542
-      ],
+      "retire_ms_process_medians": [0.002709, 0.001292, 0.001542],
       "retire_ms_min": 0.001208,
       "retire_ms_max": 0.00725
     },
@@ -12393,11 +11718,7 @@
       "workload": "sum-65536",
       "mode": "cpu",
       "wall_ms": 0.099791,
-      "wall_ms_process_medians": [
-        0.099417,
-        0.103792,
-        0.099791
-      ],
+      "wall_ms_process_medians": [0.099417, 0.103792, 0.099791],
       "wall_ms_min": 0.091125,
       "wall_ms_max": 0.121292,
       "gpu_ms": null,
@@ -12405,35 +11726,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -12441,51 +11746,27 @@
       "workload": "sum-65536",
       "mode": "device",
       "wall_ms": 0.219917,
-      "wall_ms_process_medians": [
-        0.219917,
-        0.224334,
-        0.215917
-      ],
+      "wall_ms_process_medians": [0.219917, 0.224334, 0.215917],
       "wall_ms_min": 0.20875,
       "wall_ms_max": 0.244042,
       "gpu_ms": 0.036125071,
-      "gpu_ms_process_medians": [
-        0.036166515,
-        0.035666861,
-        0.036125071
-      ],
+      "gpu_ms_process_medians": [0.036166515, 0.035666861, 0.036125071],
       "gpu_ms_min": 0.035250094,
       "gpu_ms_max": 0.039458275,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.0,
-      "compute_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "compute_ms_process_medians": [0.0, 0.0, 0.0],
       "compute_ms_min": 0.0,
       "compute_ms_max": 0.0,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.0,
-      "retire_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "retire_ms_process_medians": [0.0, 0.0, 0.0],
       "retire_ms_min": 0.0,
       "retire_ms_max": 0.0
     },
@@ -12493,11 +11774,7 @@
       "workload": "sum-65536",
       "mode": "resident",
       "wall_ms": 0.358917,
-      "wall_ms_process_medians": [
-        0.337792,
-        0.360125,
-        0.358917
-      ],
+      "wall_ms_process_medians": [0.337792, 0.360125, 0.358917],
       "wall_ms_min": 0.33425,
       "wall_ms_max": 0.817708,
       "gpu_ms": null,
@@ -12505,35 +11782,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.0,
-      "upload_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "upload_ms_process_medians": [0.0, 0.0, 0.0],
       "upload_ms_min": 0.0,
       "upload_ms_max": 0.0,
       "compute_ms": 0.358375,
-      "compute_ms_process_medians": [
-        0.337083,
-        0.359583,
-        0.358375
-      ],
+      "compute_ms_process_medians": [0.337083, 0.359583, 0.358375],
       "compute_ms_min": 0.33375,
       "compute_ms_max": 0.816916,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.000459,
-      "retire_ms_process_medians": [
-        0.000459,
-        0.000625,
-        0.000458
-      ],
+      "retire_ms_process_medians": [0.000459, 0.000625, 0.000458],
       "retire_ms_min": 0.000416,
       "retire_ms_max": 0.000917
     },
@@ -12541,11 +11802,7 @@
       "workload": "sum-65536",
       "mode": "transfers",
       "wall_ms": 0.579334,
-      "wall_ms_process_medians": [
-        0.542833,
-        0.579334,
-        0.593042
-      ],
+      "wall_ms_process_medians": [0.542833, 0.579334, 0.593042],
       "wall_ms_min": 0.53375,
       "wall_ms_max": 1.346583,
       "gpu_ms": null,
@@ -12553,35 +11810,19 @@
       "gpu_ms_min": null,
       "gpu_ms_max": null,
       "upload_ms": 0.208,
-      "upload_ms_process_medians": [
-        0.193083,
-        0.21625,
-        0.208
-      ],
+      "upload_ms_process_medians": [0.193083, 0.21625, 0.208],
       "upload_ms_min": 0.18575,
       "upload_ms_max": 0.243292,
       "compute_ms": 0.361041,
-      "compute_ms_process_medians": [
-        0.3485,
-        0.362542,
-        0.361041
-      ],
+      "compute_ms_process_medians": [0.3485, 0.362542, 0.361041],
       "compute_ms_min": 0.338042,
       "compute_ms_max": 1.158875,
       "download_ms": 0.0,
-      "download_ms_process_medians": [
-        0.0,
-        0.0,
-        0.0
-      ],
+      "download_ms_process_medians": [0.0, 0.0, 0.0],
       "download_ms_min": 0.0,
       "download_ms_max": 0.0,
       "retire_ms": 0.001625,
-      "retire_ms_process_medians": [
-        0.001625,
-        0.001583,
-        0.001709
-      ],
+      "retire_ms_process_medians": [0.001625, 0.001583, 0.001709],
       "retire_ms_min": 0.001292,
       "retire_ms_max": 0.006667
     }
@@ -23214,11 +22455,7 @@
         "workload": "matmul-256",
         "mode": "cpu",
         "wall_ms": 2.2135,
-        "wall_ms_process_medians": [
-          2.189666,
-          2.781667,
-          2.2135
-        ],
+        "wall_ms_process_medians": [2.189666, 2.781667, 2.2135],
         "wall_ms_min": 2.118041,
         "wall_ms_max": 3.290208,
         "gpu_ms": null,
@@ -23226,35 +22463,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -23262,51 +22483,27 @@
         "workload": "matmul-256",
         "mode": "device",
         "wall_ms": 7.971625,
-        "wall_ms_process_medians": [
-          7.945625,
-          7.971625,
-          8.10925
-        ],
+        "wall_ms_process_medians": [7.945625, 7.971625, 8.10925],
         "wall_ms_min": 7.904792,
         "wall_ms_max": 8.527084,
         "gpu_ms": 7.726499811,
-        "gpu_ms_process_medians": [
-          7.720666472,
-          7.726499811,
-          7.733458187
-        ],
+        "gpu_ms_process_medians": [7.720666472, 7.726499811, 7.733458187],
         "gpu_ms_min": 7.701958064,
         "gpu_ms_max": 7.839541417,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -23314,11 +22511,7 @@
         "workload": "matmul-256",
         "mode": "resident",
         "wall_ms": 8.110875,
-        "wall_ms_process_medians": [
-          8.110875,
-          8.189375,
-          7.991791
-        ],
+        "wall_ms_process_medians": [8.110875, 8.189375, 7.991791],
         "wall_ms_min": 7.781667,
         "wall_ms_max": 8.559583,
         "gpu_ms": null,
@@ -23326,35 +22519,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 8.105334,
-        "compute_ms_process_medians": [
-          8.105334,
-          8.188459,
-          7.990042
-        ],
+        "compute_ms_process_medians": [8.105334, 8.188459, 7.990042],
         "compute_ms_min": 7.78075,
         "compute_ms_max": 8.558916,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.000917,
-        "retire_ms_process_medians": [
-          0.001708,
-          0.000917,
-          0.000792
-        ],
+        "retire_ms_process_medians": [0.001708, 0.000917, 0.000792],
         "retire_ms_min": 0.000667,
         "retire_ms_max": 0.005375
       },
@@ -23362,11 +22539,7 @@
         "workload": "matmul-256",
         "mode": "transfers",
         "wall_ms": 8.670458,
-        "wall_ms_process_medians": [
-          8.700709,
-          8.670458,
-          8.654375
-        ],
+        "wall_ms_process_medians": [8.700709, 8.670458, 8.654375],
         "wall_ms_min": 8.307833,
         "wall_ms_max": 9.2,
         "gpu_ms": null,
@@ -23374,35 +22547,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.286958,
-        "upload_ms_process_medians": [
-          0.286958,
-          0.309791,
-          0.265
-        ],
+        "upload_ms_process_medians": [0.286958, 0.309791, 0.265],
         "upload_ms_min": 0.224042,
         "upload_ms_max": 0.879375,
         "compute_ms": 8.033791,
-        "compute_ms_process_medians": [
-          8.033791,
-          7.962416,
-          8.041
-        ],
+        "compute_ms_process_medians": [8.033791, 7.962416, 8.041],
         "compute_ms_min": 7.721333,
         "compute_ms_max": 8.382708,
         "download_ms": 0.227167,
-        "download_ms_process_medians": [
-          0.21775,
-          0.227167,
-          0.251958
-        ],
+        "download_ms_process_medians": [0.21775, 0.227167, 0.251958],
         "download_ms_min": 0.192583,
         "download_ms_max": 0.408167,
         "retire_ms": 0.005458,
-        "retire_ms_process_medians": [
-          0.00475,
-          0.005458,
-          0.005875
-        ],
+        "retire_ms_process_medians": [0.00475, 0.005458, 0.005875],
         "retire_ms_min": 0.00375,
         "retire_ms_max": 0.009958
       },
@@ -23410,11 +22567,7 @@
         "workload": "matmul-32",
         "mode": "cpu",
         "wall_ms": 0.006041,
-        "wall_ms_process_medians": [
-          0.0095,
-          0.006041,
-          0.005916
-        ],
+        "wall_ms_process_medians": [0.0095, 0.006041, 0.005916],
         "wall_ms_min": 0.005708,
         "wall_ms_max": 0.011375,
         "gpu_ms": null,
@@ -23422,35 +22575,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -23458,51 +22595,27 @@
         "workload": "matmul-32",
         "mode": "device",
         "wall_ms": 0.308167,
-        "wall_ms_process_medians": [
-          0.6375,
-          0.305834,
-          0.308167
-        ],
+        "wall_ms_process_medians": [0.6375, 0.305834, 0.308167],
         "wall_ms_min": 0.293084,
         "wall_ms_max": 1.249,
         "gpu_ms": 0.119250268,
-        "gpu_ms_process_medians": [
-          0.356791541,
-          0.118416734,
-          0.119250268
-        ],
+        "gpu_ms_process_medians": [0.356791541, 0.118416734, 0.119250268],
         "gpu_ms_min": 0.116041861,
         "gpu_ms_max": 0.362666789,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -23510,11 +22623,7 @@
         "workload": "matmul-32",
         "mode": "resident",
         "wall_ms": 0.312416,
-        "wall_ms_process_medians": [
-          0.630375,
-          0.3095,
-          0.312416
-        ],
+        "wall_ms_process_medians": [0.630375, 0.3095, 0.312416],
         "wall_ms_min": 0.29325,
         "wall_ms_max": 1.015834,
         "gpu_ms": null,
@@ -23522,35 +22631,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.311792,
-        "compute_ms_process_medians": [
-          0.629167,
-          0.308791,
-          0.311792
-        ],
+        "compute_ms_process_medians": [0.629167, 0.308791, 0.311792],
         "compute_ms_min": 0.292625,
         "compute_ms_max": 1.014417,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.000583,
-        "retire_ms_process_medians": [
-          0.001,
-          0.000583,
-          0.000583
-        ],
+        "retire_ms_process_medians": [0.001, 0.000583, 0.000583],
         "retire_ms_min": 0.0005,
         "retire_ms_max": 0.001292
       },
@@ -23558,11 +22651,7 @@
         "workload": "matmul-32",
         "mode": "transfers",
         "wall_ms": 0.747625,
-        "wall_ms_process_medians": [
-          1.274791,
-          0.68775,
-          0.747625
-        ],
+        "wall_ms_process_medians": [1.274791, 0.68775, 0.747625],
         "wall_ms_min": 0.680083,
         "wall_ms_max": 2.379084,
         "gpu_ms": null,
@@ -23570,35 +22659,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.210666,
-        "upload_ms_process_medians": [
-          0.278875,
-          0.210666,
-          0.200042
-        ],
+        "upload_ms_process_medians": [0.278875, 0.210666, 0.200042],
         "upload_ms_min": 0.18525,
         "upload_ms_max": 0.914333,
         "compute_ms": 0.328125,
-        "compute_ms_process_medians": [
-          0.619958,
-          0.309958,
-          0.328125
-        ],
+        "compute_ms_process_medians": [0.619958, 0.309958, 0.328125],
         "compute_ms_min": 0.3045,
         "compute_ms_max": 1.003625,
         "download_ms": 0.177625,
-        "download_ms_process_medians": [
-          0.307458,
-          0.173333,
-          0.177625
-        ],
+        "download_ms_process_medians": [0.307458, 0.173333, 0.177625],
         "download_ms_min": 0.155333,
         "download_ms_max": 0.757375,
         "retire_ms": 0.003917,
-        "retire_ms_process_medians": [
-          0.006125,
-          0.00375,
-          0.003917
-        ],
+        "retire_ms_process_medians": [0.006125, 0.00375, 0.003917],
         "retire_ms_min": 0.003667,
         "retire_ms_max": 0.006959
       },
@@ -23606,11 +22679,7 @@
         "workload": "matmul-8",
         "mode": "cpu",
         "wall_ms": 0.000875,
-        "wall_ms_process_medians": [
-          0.000875,
-          0.000792,
-          0.000875
-        ],
+        "wall_ms_process_medians": [0.000875, 0.000792, 0.000875],
         "wall_ms_min": 0.00075,
         "wall_ms_max": 0.006125,
         "gpu_ms": null,
@@ -23618,35 +22687,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -23654,51 +22707,27 @@
         "workload": "matmul-8",
         "mode": "device",
         "wall_ms": 0.220417,
-        "wall_ms_process_medians": [
-          0.223459,
-          0.220417,
-          0.217541
-        ],
+        "wall_ms_process_medians": [0.223459, 0.220417, 0.217541],
         "wall_ms_min": 0.204459,
         "wall_ms_max": 0.769584,
         "gpu_ms": 0.041250139,
-        "gpu_ms_process_medians": [
-          0.041250139,
-          0.040750019,
-          0.041875057
-        ],
+        "gpu_ms_process_medians": [0.041250139, 0.040750019, 0.041875057],
         "gpu_ms_min": 0.039916951,
         "gpu_ms_max": 0.047208276,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -23706,11 +22735,7 @@
         "workload": "matmul-8",
         "mode": "resident",
         "wall_ms": 0.236917,
-        "wall_ms_process_medians": [
-          0.23825,
-          0.224791,
-          0.236917
-        ],
+        "wall_ms_process_medians": [0.23825, 0.224791, 0.236917],
         "wall_ms_min": 0.211292,
         "wall_ms_max": 0.299708,
         "gpu_ms": null,
@@ -23718,35 +22743,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.236291,
-        "compute_ms_process_medians": [
-          0.237042,
-          0.224084,
-          0.236291
-        ],
+        "compute_ms_process_medians": [0.237042, 0.224084, 0.236291],
         "compute_ms_min": 0.210583,
         "compute_ms_max": 0.299083,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.000542,
-        "retire_ms_process_medians": [
-          0.000583,
-          0.000542,
-          0.000541
-        ],
+        "retire_ms_process_medians": [0.000583, 0.000542, 0.000541],
         "retire_ms_min": 0.0005,
         "retire_ms_max": 0.000958
       },
@@ -23754,11 +22763,7 @@
         "workload": "matmul-8",
         "mode": "transfers",
         "wall_ms": 0.618583,
-        "wall_ms_process_medians": [
-          0.618583,
-          0.625458,
-          0.605958
-        ],
+        "wall_ms_process_medians": [0.618583, 0.625458, 0.605958],
         "wall_ms_min": 0.55725,
         "wall_ms_max": 1.284667,
         "gpu_ms": null,
@@ -23766,35 +22771,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.199292,
-        "upload_ms_process_medians": [
-          0.199292,
-          0.201459,
-          0.195042
-        ],
+        "upload_ms_process_medians": [0.199292, 0.201459, 0.195042],
         "upload_ms_min": 0.182875,
         "upload_ms_max": 0.331583,
         "compute_ms": 0.230916,
-        "compute_ms_process_medians": [
-          0.228375,
-          0.235292,
-          0.230916
-        ],
+        "compute_ms_process_medians": [0.228375, 0.235292, 0.230916],
         "compute_ms_min": 0.213166,
         "compute_ms_max": 0.940625,
         "download_ms": 0.167416,
-        "download_ms_process_medians": [
-          0.167416,
-          0.172916,
-          0.164208
-        ],
+        "download_ms_process_medians": [0.167416, 0.172916, 0.164208],
         "download_ms_min": 0.148792,
         "download_ms_max": 0.193916,
         "retire_ms": 0.003875,
-        "retire_ms_process_medians": [
-          0.003834,
-          0.003875,
-          0.004
-        ],
+        "retire_ms_process_medians": [0.003834, 0.003875, 0.004],
         "retire_ms_min": 0.003584,
         "retire_ms_max": 0.004875
       },
@@ -23802,11 +22791,7 @@
         "workload": "matmul-96",
         "mode": "cpu",
         "wall_ms": 0.1215,
-        "wall_ms_process_medians": [
-          0.12375,
-          0.1215,
-          0.107917
-        ],
+        "wall_ms_process_medians": [0.12375, 0.1215, 0.107917],
         "wall_ms_min": 0.106208,
         "wall_ms_max": 0.139833,
         "gpu_ms": null,
@@ -23814,35 +22799,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -23850,51 +22819,27 @@
         "workload": "matmul-96",
         "mode": "device",
         "wall_ms": 0.775708,
-        "wall_ms_process_medians": [
-          0.775708,
-          1.230959,
-          0.762125
-        ],
+        "wall_ms_process_medians": [0.775708, 1.230959, 0.762125],
         "wall_ms_min": 0.74625,
         "wall_ms_max": 1.769208,
         "gpu_ms": 0.571375247,
-        "gpu_ms_process_medians": [
-          0.571375247,
-          0.994374976,
-          0.570875127
-        ],
+        "gpu_ms_process_medians": [0.571375247, 0.994374976, 0.570875127],
         "gpu_ms_min": 0.567874871,
         "gpu_ms_max": 1.30674988,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -23902,11 +22847,7 @@
         "workload": "matmul-96",
         "mode": "resident",
         "wall_ms": 0.793042,
-        "wall_ms_process_medians": [
-          0.793042,
-          1.487667,
-          0.776042
-        ],
+        "wall_ms_process_medians": [0.793042, 1.487667, 0.776042],
         "wall_ms_min": 0.756875,
         "wall_ms_max": 1.736083,
         "gpu_ms": null,
@@ -23914,35 +22855,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.792375,
-        "compute_ms_process_medians": [
-          0.792375,
-          1.486916,
-          0.775417
-        ],
+        "compute_ms_process_medians": [0.792375, 1.486916, 0.775417],
         "compute_ms_min": 0.756209,
         "compute_ms_max": 1.735292,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.000625,
-        "retire_ms_process_medians": [
-          0.000625,
-          0.000625,
-          0.000583
-        ],
+        "retire_ms_process_medians": [0.000625, 0.000625, 0.000583],
         "retire_ms_min": 0.0005,
         "retire_ms_max": 0.000875
       },
@@ -23950,11 +22875,7 @@
         "workload": "matmul-96",
         "mode": "transfers",
         "wall_ms": 1.212291,
-        "wall_ms_process_medians": [
-          1.212291,
-          1.865083,
-          1.197833
-        ],
+        "wall_ms_process_medians": [1.212291, 1.865083, 1.197833],
         "wall_ms_min": 1.144125,
         "wall_ms_max": 1.989959,
         "gpu_ms": null,
@@ -23962,35 +22883,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.210333,
-        "upload_ms_process_medians": [
-          0.210333,
-          0.2005,
-          0.21375
-        ],
+        "upload_ms_process_medians": [0.210333, 0.2005, 0.21375],
         "upload_ms_min": 0.1825,
         "upload_ms_max": 0.277375,
         "compute_ms": 0.785958,
-        "compute_ms_process_medians": [
-          0.785958,
-          1.484334,
-          0.779416
-        ],
+        "compute_ms_process_medians": [0.785958, 1.484334, 0.779416],
         "compute_ms_min": 0.762083,
         "compute_ms_max": 1.522959,
         "download_ms": 0.191625,
-        "download_ms_process_medians": [
-          0.202291,
-          0.191625,
-          0.181125
-        ],
+        "download_ms_process_medians": [0.202291, 0.191625, 0.181125],
         "download_ms_min": 0.164292,
         "download_ms_max": 0.858334,
         "retire_ms": 0.004708,
-        "retire_ms_process_medians": [
-          0.005167,
-          0.004708,
-          0.004583
-        ],
+        "retire_ms_process_medians": [0.005167, 0.004708, 0.004583],
         "retire_ms_min": 0.004042,
         "retire_ms_max": 0.019292
       },
@@ -23998,11 +22903,7 @@
         "workload": "matmul-deep-tail",
         "mode": "cpu",
         "wall_ms": 0.349292,
-        "wall_ms_process_medians": [
-          0.958458,
-          0.337,
-          0.349292
-        ],
+        "wall_ms_process_medians": [0.958458, 0.337, 0.349292],
         "wall_ms_min": 0.330875,
         "wall_ms_max": 1.374125,
         "gpu_ms": null,
@@ -24010,35 +22911,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -24046,51 +22931,27 @@
         "workload": "matmul-deep-tail",
         "mode": "device",
         "wall_ms": 3.454875,
-        "wall_ms_process_medians": [
-          3.533625,
-          3.421833,
-          3.454875
-        ],
+        "wall_ms_process_medians": [3.533625, 3.421833, 3.454875],
         "wall_ms_min": 3.407625,
         "wall_ms_max": 3.854167,
         "gpu_ms": 3.261708654,
-        "gpu_ms_process_medians": [
-          3.278749995,
-          3.224000335,
-          3.261708654
-        ],
+        "gpu_ms_process_medians": [3.278749995, 3.224000335, 3.261708654],
         "gpu_ms_min": 3.217083402,
         "gpu_ms_max": 3.597875126,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -24098,11 +22959,7 @@
         "workload": "matmul-deep-tail",
         "mode": "resident",
         "wall_ms": 3.4635,
-        "wall_ms_process_medians": [
-          3.639541,
-          3.4635,
-          3.449167
-        ],
+        "wall_ms_process_medians": [3.639541, 3.4635, 3.449167],
         "wall_ms_min": 3.441875,
         "wall_ms_max": 4.335208,
         "gpu_ms": null,
@@ -24110,35 +22967,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 3.462709,
-        "compute_ms_process_medians": [
-          3.638,
-          3.462709,
-          3.44775
-        ],
+        "compute_ms_process_medians": [3.638, 3.462709, 3.44775],
         "compute_ms_min": 3.44125,
         "compute_ms_max": 4.334,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.000625,
-        "retire_ms_process_medians": [
-          0.001125,
-          0.000583,
-          0.000625
-        ],
+        "retire_ms_process_medians": [0.001125, 0.000583, 0.000625],
         "retire_ms_min": 0.000541,
         "retire_ms_max": 0.001375
       },
@@ -24146,11 +22987,7 @@
         "workload": "matmul-deep-tail",
         "mode": "transfers",
         "wall_ms": 3.891125,
-        "wall_ms_process_medians": [
-          4.807875,
-          3.8605,
-          3.891125
-        ],
+        "wall_ms_process_medians": [4.807875, 3.8605, 3.891125],
         "wall_ms_min": 3.81725,
         "wall_ms_max": 5.039334,
         "gpu_ms": null,
@@ -24158,35 +22995,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.241375,
-        "upload_ms_process_medians": [
-          0.825375,
-          0.228584,
-          0.241375
-        ],
+        "upload_ms_process_medians": [0.825375, 0.228584, 0.241375],
         "upload_ms_min": 0.213292,
         "upload_ms_max": 1.236166,
         "compute_ms": 3.450833,
-        "compute_ms_process_medians": [
-          3.579166,
-          3.448334,
-          3.450833
-        ],
+        "compute_ms_process_medians": [3.579166, 3.448334, 3.450833],
         "compute_ms_min": 3.434375,
         "compute_ms_max": 4.082583,
         "download_ms": 0.181708,
-        "download_ms_process_medians": [
-          0.221708,
-          0.160417,
-          0.181708
-        ],
+        "download_ms_process_medians": [0.221708, 0.160417, 0.181708],
         "download_ms_min": 0.146667,
         "download_ms_max": 0.248584,
         "retire_ms": 0.005792,
-        "retire_ms_process_medians": [
-          0.009333,
-          0.005416,
-          0.005792
-        ],
+        "retire_ms_process_medians": [0.009333, 0.005416, 0.005792],
         "retire_ms_min": 0.004958,
         "retire_ms_max": 0.015416
       },
@@ -24194,11 +23015,7 @@
         "workload": "sum-1048576",
         "mode": "cpu",
         "wall_ms": 1.641792,
-        "wall_ms_process_medians": [
-          1.658667,
-          1.641792,
-          1.548541
-        ],
+        "wall_ms_process_medians": [1.658667, 1.641792, 1.548541],
         "wall_ms_min": 1.468583,
         "wall_ms_max": 1.988,
         "gpu_ms": null,
@@ -24206,35 +23023,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -24242,51 +23043,27 @@
         "workload": "sum-1048576",
         "mode": "device",
         "wall_ms": 0.4625,
-        "wall_ms_process_medians": [
-          0.4625,
-          0.440458,
-          0.487292
-        ],
+        "wall_ms_process_medians": [0.4625, 0.440458, 0.487292],
         "wall_ms_min": 0.41275,
         "wall_ms_max": 1.110084,
         "gpu_ms": 0.233625062,
-        "gpu_ms_process_medians": [
-          0.233625062,
-          0.230125152,
-          0.237124972
-        ],
+        "gpu_ms_process_medians": [0.233625062, 0.230125152, 0.237124972],
         "gpu_ms_min": 0.228958204,
         "gpu_ms_max": 0.315333251,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -24294,11 +23071,7 @@
         "workload": "sum-1048576",
         "mode": "resident",
         "wall_ms": 0.720625,
-        "wall_ms_process_medians": [
-          0.720625,
-          0.736459,
-          0.6905
-        ],
+        "wall_ms_process_medians": [0.720625, 0.736459, 0.6905],
         "wall_ms_min": 0.657833,
         "wall_ms_max": 1.241292,
         "gpu_ms": null,
@@ -24306,35 +23079,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.720083,
-        "compute_ms_process_medians": [
-          0.720083,
-          0.735708,
-          0.689958
-        ],
+        "compute_ms_process_medians": [0.720083, 0.735708, 0.689958],
         "compute_ms_min": 0.657334,
         "compute_ms_max": 1.240375,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.000458,
-        "retire_ms_process_medians": [
-          0.000542,
-          0.000458,
-          0.000458
-        ],
+        "retire_ms_process_medians": [0.000542, 0.000458, 0.000458],
         "retire_ms_min": 0.000416,
         "retire_ms_max": 0.00075
       },
@@ -24342,11 +23099,7 @@
         "workload": "sum-1048576",
         "mode": "transfers",
         "wall_ms": 1.409458,
-        "wall_ms_process_medians": [
-          1.636916,
-          1.409458,
-          1.387083
-        ],
+        "wall_ms_process_medians": [1.636916, 1.409458, 1.387083],
         "wall_ms_min": 1.253459,
         "wall_ms_max": 2.482083,
         "gpu_ms": null,
@@ -24354,35 +23107,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.697833,
-        "upload_ms_process_medians": [
-          0.743333,
-          0.697833,
-          0.610292
-        ],
+        "upload_ms_process_medians": [0.743333, 0.697833, 0.610292],
         "upload_ms_min": 0.588167,
         "upload_ms_max": 1.78225,
         "compute_ms": 0.694,
-        "compute_ms_process_medians": [
-          0.71175,
-          0.694,
-          0.680916
-        ],
+        "compute_ms_process_medians": [0.71175, 0.694, 0.680916],
         "compute_ms_min": 0.657375,
         "compute_ms_max": 1.200542,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.001875,
-        "retire_ms_process_medians": [
-          0.001875,
-          0.001917,
-          0.001625
-        ],
+        "retire_ms_process_medians": [0.001875, 0.001917, 0.001625],
         "retire_ms_min": 0.001458,
         "retire_ms_max": 0.006958
       },
@@ -24390,11 +23127,7 @@
         "workload": "sum-4097",
         "mode": "cpu",
         "wall_ms": 0.007875,
-        "wall_ms_process_medians": [
-          0.011833,
-          0.007875,
-          0.00775
-        ],
+        "wall_ms_process_medians": [0.011833, 0.007875, 0.00775],
         "wall_ms_min": 0.006041,
         "wall_ms_max": 0.013625,
         "gpu_ms": null,
@@ -24402,35 +23135,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -24438,51 +23155,27 @@
         "workload": "sum-4097",
         "mode": "device",
         "wall_ms": 0.221542,
-        "wall_ms_process_medians": [
-          0.254125,
-          0.221542,
-          0.21475
-        ],
+        "wall_ms_process_medians": [0.254125, 0.221542, 0.21475],
         "wall_ms_min": 0.207583,
         "wall_ms_max": 1.055375,
         "gpu_ms": 0.03766641,
-        "gpu_ms_process_medians": [
-          0.044417102,
-          0.03766641,
-          0.037500169
-        ],
+        "gpu_ms_process_medians": [0.044417102, 0.03766641, 0.037500169],
         "gpu_ms_min": 0.036749989,
         "gpu_ms_max": 0.050500035,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -24490,11 +23183,7 @@
         "workload": "sum-4097",
         "mode": "resident",
         "wall_ms": 0.318792,
-        "wall_ms_process_medians": [
-          0.375334,
-          0.318792,
-          0.303584
-        ],
+        "wall_ms_process_medians": [0.375334, 0.318792, 0.303584],
         "wall_ms_min": 0.291917,
         "wall_ms_max": 0.534,
         "gpu_ms": null,
@@ -24502,35 +23191,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.318125,
-        "compute_ms_process_medians": [
-          0.374416,
-          0.318125,
-          0.303042
-        ],
+        "compute_ms_process_medians": [0.374416, 0.318125, 0.303042],
         "compute_ms_min": 0.291291,
         "compute_ms_max": 0.531584,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.000542,
-        "retire_ms_process_medians": [
-          0.000792,
-          0.0005,
-          0.000542
-        ],
+        "retire_ms_process_medians": [0.000792, 0.0005, 0.000542],
         "retire_ms_min": 0.000416,
         "retire_ms_max": 0.002167
       },
@@ -24538,11 +23211,7 @@
         "workload": "sum-4097",
         "mode": "transfers",
         "wall_ms": 0.507792,
-        "wall_ms_process_medians": [
-          0.606083,
-          0.507792,
-          0.475959
-        ],
+        "wall_ms_process_medians": [0.606083, 0.507792, 0.475959],
         "wall_ms_min": 0.463584,
         "wall_ms_max": 0.726166,
         "gpu_ms": null,
@@ -24550,35 +23219,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.179834,
-        "upload_ms_process_medians": [
-          0.210917,
-          0.179834,
-          0.168791
-        ],
+        "upload_ms_process_medians": [0.210917, 0.179834, 0.168791],
         "upload_ms_min": 0.141375,
         "upload_ms_max": 0.247375,
         "compute_ms": 0.311,
-        "compute_ms_process_medians": [
-          0.383583,
-          0.311,
-          0.306292
-        ],
+        "compute_ms_process_medians": [0.383583, 0.311, 0.306292],
         "compute_ms_min": 0.297959,
         "compute_ms_max": 0.51975,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.002583,
-        "retire_ms_process_medians": [
-          0.003375,
-          0.002417,
-          0.002583
-        ],
+        "retire_ms_process_medians": [0.003375, 0.002417, 0.002583],
         "retire_ms_min": 0.002166,
         "retire_ms_max": 0.007792
       },
@@ -24586,11 +23239,7 @@
         "workload": "sum-64",
         "mode": "cpu",
         "wall_ms": 0.000625,
-        "wall_ms_process_medians": [
-          0.000667,
-          0.0005,
-          0.000625
-        ],
+        "wall_ms_process_medians": [0.000667, 0.0005, 0.000625],
         "wall_ms_min": 0.0005,
         "wall_ms_max": 0.004041,
         "gpu_ms": null,
@@ -24598,35 +23247,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -24634,51 +23267,27 @@
         "workload": "sum-64",
         "mode": "device",
         "wall_ms": 0.217125,
-        "wall_ms_process_medians": [
-          0.233792,
-          0.217125,
-          0.201875
-        ],
+        "wall_ms_process_medians": [0.233792, 0.217125, 0.201875],
         "wall_ms_min": 0.184958,
         "wall_ms_max": 0.241125,
         "gpu_ms": 0.024499837,
-        "gpu_ms_process_medians": [
-          0.024499837,
-          0.033041462,
-          0.019875355
-        ],
+        "gpu_ms_process_medians": [0.024499837, 0.033041462, 0.019875355],
         "gpu_ms_min": 0.019500032,
         "gpu_ms_max": 0.040375162,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -24686,11 +23295,7 @@
         "workload": "sum-64",
         "mode": "resident",
         "wall_ms": 0.276,
-        "wall_ms_process_medians": [
-          0.295,
-          0.276,
-          0.254375
-        ],
+        "wall_ms_process_medians": [0.295, 0.276, 0.254375],
         "wall_ms_min": 0.2425,
         "wall_ms_max": 1.044584,
         "gpu_ms": null,
@@ -24698,35 +23303,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.275333,
-        "compute_ms_process_medians": [
-          0.29425,
-          0.275333,
-          0.253583
-        ],
+        "compute_ms_process_medians": [0.29425, 0.275333, 0.253583],
         "compute_ms_min": 0.24175,
         "compute_ms_max": 1.043875,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.000625,
-        "retire_ms_process_medians": [
-          0.000625,
-          0.000625,
-          0.000625
-        ],
+        "retire_ms_process_medians": [0.000625, 0.000625, 0.000625],
         "retire_ms_min": 0.000541,
         "retire_ms_max": 0.003708
       },
@@ -24734,11 +23323,7 @@
         "workload": "sum-64",
         "mode": "transfers",
         "wall_ms": 0.451375,
-        "wall_ms_process_medians": [
-          0.497916,
-          0.451375,
-          0.402541
-        ],
+        "wall_ms_process_medians": [0.497916, 0.451375, 0.402541],
         "wall_ms_min": 0.380917,
         "wall_ms_max": 0.513583,
         "gpu_ms": null,
@@ -24746,35 +23331,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.175084,
-        "upload_ms_process_medians": [
-          0.201583,
-          0.175084,
-          0.160875
-        ],
+        "upload_ms_process_medians": [0.201583, 0.175084, 0.160875],
         "upload_ms_min": 0.1395,
         "upload_ms_max": 0.213291,
         "compute_ms": 0.275708,
-        "compute_ms_process_medians": [
-          0.2945,
-          0.275708,
-          0.239708
-        ],
+        "compute_ms_process_medians": [0.2945, 0.275708, 0.239708],
         "compute_ms_min": 0.23225,
         "compute_ms_max": 0.318083,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.001792,
-        "retire_ms_process_medians": [
-          0.001833,
-          0.001792,
-          0.001709
-        ],
+        "retire_ms_process_medians": [0.001833, 0.001792, 0.001709],
         "retire_ms_min": 0.001583,
         "retire_ms_max": 0.001917
       },
@@ -24782,11 +23351,7 @@
         "workload": "sum-65536",
         "mode": "cpu",
         "wall_ms": 0.0995,
-        "wall_ms_process_medians": [
-          0.112292,
-          0.098,
-          0.0995
-        ],
+        "wall_ms_process_medians": [0.112292, 0.098, 0.0995],
         "wall_ms_min": 0.091,
         "wall_ms_max": 0.141375,
         "gpu_ms": null,
@@ -24794,35 +23359,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -24830,51 +23379,27 @@
         "workload": "sum-65536",
         "mode": "device",
         "wall_ms": 0.245584,
-        "wall_ms_process_medians": [
-          0.245584,
-          0.301209,
-          0.232166
-        ],
+        "wall_ms_process_medians": [0.245584, 0.301209, 0.232166],
         "wall_ms_min": 0.223958,
         "wall_ms_max": 0.344833,
         "gpu_ms": 0.051083509,
-        "gpu_ms_process_medians": [
-          0.050916802,
-          0.106374733,
-          0.051083509
-        ],
+        "gpu_ms_process_medians": [0.050916802, 0.106374733, 0.051083509],
         "gpu_ms_min": 0.050374772,
         "gpu_ms_max": 0.110125169,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.0,
-        "compute_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "compute_ms_process_medians": [0.0, 0.0, 0.0],
         "compute_ms_min": 0.0,
         "compute_ms_max": 0.0,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0,
-        "retire_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "retire_ms_process_medians": [0.0, 0.0, 0.0],
         "retire_ms_min": 0.0,
         "retire_ms_max": 0.0
       },
@@ -24882,11 +23407,7 @@
         "workload": "sum-65536",
         "mode": "resident",
         "wall_ms": 0.386875,
-        "wall_ms_process_medians": [
-          0.386875,
-          0.438625,
-          0.351542
-        ],
+        "wall_ms_process_medians": [0.386875, 0.438625, 0.351542],
         "wall_ms_min": 0.344708,
         "wall_ms_max": 1.126833,
         "gpu_ms": null,
@@ -24894,35 +23415,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.0,
-        "upload_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "upload_ms_process_medians": [0.0, 0.0, 0.0],
         "upload_ms_min": 0.0,
         "upload_ms_max": 0.0,
         "compute_ms": 0.386167,
-        "compute_ms_process_medians": [
-          0.386167,
-          0.438042,
-          0.350958
-        ],
+        "compute_ms_process_medians": [0.386167, 0.438042, 0.350958],
         "compute_ms_min": 0.34425,
         "compute_ms_max": 1.126292,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.0005,
-        "retire_ms_process_medians": [
-          0.0005,
-          0.0005,
-          0.0005
-        ],
+        "retire_ms_process_medians": [0.0005, 0.0005, 0.0005],
         "retire_ms_min": 0.000416,
         "retire_ms_max": 0.000917
       },
@@ -24930,11 +23435,7 @@
         "workload": "sum-65536",
         "mode": "transfers",
         "wall_ms": 0.61125,
-        "wall_ms_process_medians": [
-          0.61125,
-          0.664417,
-          0.545084
-        ],
+        "wall_ms_process_medians": [0.61125, 0.664417, 0.545084],
         "wall_ms_min": 0.535375,
         "wall_ms_max": 0.705416,
         "gpu_ms": null,
@@ -24942,35 +23443,19 @@
         "gpu_ms_min": null,
         "gpu_ms_max": null,
         "upload_ms": 0.213,
-        "upload_ms_process_medians": [
-          0.213,
-          0.2315,
-          0.189125
-        ],
+        "upload_ms_process_medians": [0.213, 0.2315, 0.189125],
         "upload_ms_min": 0.18525,
         "upload_ms_max": 0.290625,
         "compute_ms": 0.396375,
-        "compute_ms_process_medians": [
-          0.396375,
-          0.435333,
-          0.349083
-        ],
+        "compute_ms_process_medians": [0.396375, 0.435333, 0.349083],
         "compute_ms_min": 0.346958,
         "compute_ms_max": 0.465667,
         "download_ms": 0.0,
-        "download_ms_process_medians": [
-          0.0,
-          0.0,
-          0.0
-        ],
+        "download_ms_process_medians": [0.0, 0.0, 0.0],
         "download_ms_min": 0.0,
         "download_ms_max": 0.0,
         "retire_ms": 0.00175,
-        "retire_ms_process_medians": [
-          0.00175,
-          0.00175,
-          0.001875
-        ],
+        "retire_ms_process_medians": [0.00175, 0.00175, 0.001875],
         "retire_ms_min": 0.001333,
         "retire_ms_max": 0.003125
       }

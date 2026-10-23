@@ -15,17 +15,8 @@
     "remaining": "Int64 tensor arithmetic/reductions/matmul, uint64, float64, conversions and GPU int64 remain gated. No public foreign-memory/wire ABI or distributed execution."
   },
   "qualification": {
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workers": [1, 2, 4],
     "runtime_reference_runs": [
       {
         "variant": "debug",

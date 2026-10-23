@@ -59,16 +59,8 @@
     }
   },
   "conformance": {
-    "variants": [
-      "debug",
-      "optimized",
-      "host ASan/UBSan",
-      "host TSan"
-    ],
-    "ranks": [
-      1,
-      2
-    ],
+    "variants": ["debug", "optimized", "host ASan/UBSan", "host TSan"],
+    "ranks": [1, 2],
     "cases_per_rank_per_variant": 25,
     "cpu_gpu_apfloat_lanes_per_rank_per_variant": 793916,
     "metal_api_validation": true,
@@ -76,11 +68,7 @@
     "references": "Generated CPU and actual GPU compared independently with APFloat. Arithmetic NaNs compared by classification.",
     "capture_dispatch_checkpoints_swept": 14,
     "source_cpu_allocation_failures_per_worker_configuration": 87,
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "workers": [1, 2, 4],
     "coverage": [
       "Full 595106-pair corpus, IEEE scalar edges, empty axes and workgroup tails",
       "40 contributing aliased inputs, unused tensor of opposite rank, mixed scalar order",
@@ -94,16 +82,8 @@
     ]
   },
   "cli": {
-    "configurations": [
-      "optimized",
-      "host ASan/UBSan",
-      "host TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "configurations": ["optimized", "host ASan/UBSan", "host TSan"],
+    "workers": [1, 2, 4],
     "expected_bits": [
       "42280000",
       "42a40000",
@@ -113,11 +93,7 @@
       "43720000"
     ],
     "thirty_input_entry": "Former rejection now builds/runs with nonprojected Tier 2 input layout.",
-    "rank_independent_artifacts": [
-      "raw MLIR",
-      "strict lowered MLIR",
-      "SPIR-V"
-    ],
+    "rank_independent_artifacts": ["raw MLIR", "strict lowered MLIR", "SPIR-V"],
     "root_layout": "One Metal buffer binding, with 42 pointer members for forty inputs plus output and parameters.",
     "relocation": "Executable plus its two root Metal libraries, without build intermediates.",
     "rejections": [

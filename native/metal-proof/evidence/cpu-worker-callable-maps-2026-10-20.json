@@ -97,12 +97,7 @@
     "full_project_suite": false
   },
   "worker_map_execution": {
-    "modes": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "modes": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "fixtures_per_mode": 12,
     "numeric_width_programs_per_mode": 10,
     "numeric_types": [
@@ -117,18 +112,10 @@
       "float32",
       "float64"
     ],
-    "worker_counts": [
-      1,
-      2,
-      4
-    ],
+    "worker_counts": [1, 2, 4],
     "additional_worker_count_runs": 144,
     "allocation_failure_probes": 640,
-    "allocation_probe_allowed_statuses": [
-      0,
-      86,
-      88
-    ],
+    "allocation_probe_allowed_statuses": [0, 86, 88],
     "failed_probe_requirements": [
       "No published output",
       "Zero live allocations",
@@ -146,10 +133,7 @@
     "additional_direct_parameter_programs": 3,
     "rejected_worker_boundaries": 12,
     "forged_ir_cases": 9,
-    "modes": [
-      "debug",
-      "ASan/UBSan"
-    ]
+    "modes": ["debug", "ASan/UBSan"]
   },
   "promoted_regressions": [
     "Function-value frontend spawned map alias",

@@ -16,11 +16,7 @@
   ],
   "qualification": {
     "full_suite": false,
-    "modes": [
-      "debug",
-      "asan-ubsan",
-      "Release installed editor package"
-    ],
+    "modes": ["debug", "asan-ubsan", "Release installed editor package"],
     "cases": [
       "Empty member after dot, partial prefix and suffix replacement, alphabetical field names, nested records, call/index results and captured receivers",
       "Primitive receivers, invalid field chains, unmatched enum payloads and prior errors do not leak lexical or stale member suggestions; failed checks publish no typed module",
@@ -46,11 +42,7 @@
   "progress": {
     "main_roadmap_estimate_complete_percent": 82,
     "remaining_percent": 18,
-    "excludes": [
-      "NVIDIA/CUDA",
-      "distributed execution",
-      "C/C++ integration"
-    ],
+    "excludes": ["NVIDIA/CUDA", "distributed execution", "C/C++ integration"],
     "basis": "Coarse effort reassessment after GPU composition/control integration and record-field completion; not a percentage computed from tests or this one change"
   },
   "sha256": {

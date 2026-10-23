@@ -13,17 +13,8 @@
     "task_integration": "Exact scalar results, nested worker tasks and cached awaits reuse existing task layouts. Child overflow is TaskError.Fault/Arithmetic; handlers reuse parent tensor data and start another group."
   },
   "qualification": {
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workers": [1, 2, 4],
     "compiled_programs_per_variant": 9,
     "compiled_programs_total": 36,
     "runtime_reference_runs": 16,

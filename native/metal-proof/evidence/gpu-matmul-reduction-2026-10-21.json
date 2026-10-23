@@ -46,12 +46,7 @@
       "native-metal-pre-matmul-sanitized",
       "native-metal-pre-reduction-sanitized"
     ],
-    "host_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
+    "host_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
     "numerical_cases_per_mode": 192,
     "allocation_checkpoints_per_mode": 43,
     "reference": "Plain/transformed composed helper versus checked CPU execution, separately scheduled GPU calls and LLVM APFloat: round each input operation/product, fixed adjacent contraction tree, then fixed adjacent row-major sum of matrix cells; NaNs compared by classification",

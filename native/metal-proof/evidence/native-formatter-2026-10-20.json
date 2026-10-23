@@ -21,10 +21,7 @@
     "full_suite": false,
     "seconds": 27.84,
     "accepted_native_fixtures_per_variant": 319,
-    "variants": [
-      "debug",
-      "ASan/UBSan"
-    ],
+    "variants": ["debug", "ASan/UBSan"],
     "coverage": [
       "Exact style output and idempotence across 319 native fixtures",
       "Comments, String escapes, Unicode, CRLF, blank/comment-only buffers and missing final newline",

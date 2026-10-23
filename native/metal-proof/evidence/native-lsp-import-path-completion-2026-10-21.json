@@ -26,11 +26,7 @@
       "native-lsp-completion-sanitized": 0.68,
       "native-editor-tools-install": 4.45
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "Partial relative prefixes replace the complete inner string including Unicode suffixes, while retaining quotes and local aliases",
       "Ordinary/re-export paths, nested folders, explicit parent directories and File/Folder kinds",

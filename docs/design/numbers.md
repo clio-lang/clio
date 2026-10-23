@@ -288,7 +288,6 @@ The compiler's existing private `--test-entry` option can now select a parameter
 
 Checked CPU int32 reduceSum is qualified below. Int32 matmul is qualified below; additional numeric types, conversions and GPU integer arithmetic remain separate increments. Distributed execution still requires its agreed design review.
 
-
 ## Checked CPU int32 reduceSum
 
 `reduceSum` accepts a CPU `Tensor[int32, ...]` of any supported rank and returns an `int32`. A rank-zero tensor returns its single element. Any zero extent gives the empty identity `0`.
@@ -310,7 +309,6 @@ An overflow raises an execution Arithmetic fault at the reduceSum source locatio
 
 Checked CPU int32 matmul is qualified below. GPU integer arithmetic, additional numeric types and conversions remain separate increments. Distributed execution still requires the agreed design review.
 
-
 ## Checked CPU int32 matmul
 
 `matmul` accepts two CPU int32 matrices shaped `[M,K]` and `[K,N]`, and returns a fresh immutable `Tensor[int32,M,N]`. Known inner-dimension mismatches are diagnosed; dynamic mismatches fault before element access. Both operands must have the same numeric element type.
@@ -329,7 +327,6 @@ Zero output rows or columns give an empty matrix without sizing scratch from the
 [Runtime conformance tests](../../native/tests/Int32MatmulRuntimeTests.cpp) compare exact cells against independently computed int64 products and an adjacent-pair reference tree. They cover endpoints and values above float32 precision, deterministic random shapes/contents, noncontiguous/offset and transposed views, operand aliases, empty contractions/outputs, odd and multi-level trees, product/pair/later-level overflow, late-cell failure, invalid dimensions and byte counts, huge unused contraction extents in valid empty descriptors, allocation failure, retained results and cancellation. The [compiled test driver](../../native/cmake/VerifyInt32Matmul.cmake) adds fixed-shape results, synchronous CLI faults, nested/cached worker results, returned tensors surviving worker/core/invocation destruction, allocation/admission/cancellation/deadline signals, and Arithmetic recovery with unchanged parent data and a new parallel group. Tests run in debug, optimized, ASan/UBSan and TSan modes with 1/2/4 workers. [Qualification evidence](../../native/metal-proof/evidence/cpu-int32-matmul-2026-10-16.json) records the full CPU/Metal regression and unchanged float32 numerical artifacts.
 
 Checked CPU uint32 scalar arithmetic is qualified below. GPU integer arithmetic and numeric conversions remain separate qualification work. Distributed execution still requires the agreed design review.
-
 
 ## Checked CPU uint32 scalar arithmetic
 
@@ -354,7 +351,6 @@ The common continuation planner carries explicit UInt32 literals and sends unsig
 
 Uint32 tensor literals and checked synchronous elementwise operations are now qualified below. Uint32 tensor task handoff, reductions and matmul are qualified below; GPU arithmetic and numeric conversions remain gated. This increment adds no public foreign-memory/wire ABI and no distributed execution. Distributed execution still requires the agreed design review.
 
-
 ## Checked CPU uint32 tensor literals and elementwise operations
 
 The synchronous CPU subset now accepts immutable uint32 tensor literals, ordinary tensor-valued functions and elementwise unary/binary operations. Literals retain their exact integer bits, including UINT32_MAX and values above INT32_MAX or float32 precision. Ranks zero through three and explicit/nested literal shapes have compiled conformance coverage; rank-zero tensors contain one element and a zero extent gives an empty tensor. Existing rank/size bounds still apply.
@@ -375,7 +371,6 @@ On an Arithmetic fault, the source operation location is preserved and no partia
 Uint32 tensor handoff through CPU tasks is now qualified below. GPU uint32 arithmetic remains rejected. Uint32 reductions and matmul are qualified below; static matmul shape/type errors preserve existing executable/IR files.
 
 Uint32 tensor task captures/results are qualified below. Reductions and matmul are qualified below; GPU integer arithmetic remains a later increment. Distributed execution still requires the agreed design review.
-
 
 ## UInt32 tensor captures and results in CPU tasks
 
@@ -401,7 +396,6 @@ The [compiled driver](../../native/cmake/VerifyUInt32TensorTasks.cmake) uses the
 
 Checked CPU uint32 reduceSum is qualified below. Uint32 matmul is qualified below; GPU integer arithmetic, further numeric types and conversions remain separate increments. Distributed execution still requires the agreed design review.
 
-
 ## Checked CPU uint32 reduceSum
 
 `reduceSum` accepts a CPU uint32 tensor of any supported rank and returns an exact uint32 scalar. The reduction uses the existing row-major balanced-adjacent tree: add neighboring pairs and carry an odd tail unchanged. A rank-zero tensor returns its one element; empty input returns zero. Inputs and results preserve the full unsigned range, including values above INT32_MAX and float32 precision. There are no implicit numeric conversions.
@@ -425,7 +419,6 @@ The implementation reuses the same reduction scratch/tree lowering and checked u
 Additional numeric types reuse these mechanisms, but each needs conformance checks for its own range, representation and arithmetic rules. Wider integers need suitable checked intermediates or overflow instructions; additional float formats need their own rounding and edge-case qualification. Shared algorithms and test harnesses do not imply automatic backend support.
 
 Unsigned matmul is qualified below; GPU integer arithmetic and numeric conversions remain gated. Distributed execution still requires the agreed design review.
-
 
 ## Checked CPU uint32 matmul
 
@@ -456,7 +449,6 @@ The [shared compiled driver](../../native/cmake/VerifyInt32Matmul.cmake) also ch
 
 Further integer widths should extend the shared numerical policies and conformance matrix. GPU integer arithmetic, numeric conversions and broader language values remain separate increments. Distributed execution still requires the agreed design review.
 
-
 ## Checked CPU int64 scalar arithmetic
 
 The CPU subset now supports signed int64 scalar literals, immutable bindings, ordinary functions, private native scalar interfaces and structured worker calls. Values range from -9223372036854775808 through 9223372036854775807. The accepted `int` alias has exactly this type, and unconstrained whole-number literals now infer int64. An expected int32, uint32 or float32 type still types a literal directly; an already typed int64 value never silently narrows or converts.
@@ -482,7 +474,6 @@ The common continuation planner sends int64 arithmetic through the checked kerne
 [Frontend checks](../../native/tests/Int64Tests.cpp) cover endpoints, values above float64 integer precision, signed minimum parsing, constant overflow/zero division, the int alias, default inference and rejected conversions/tensor/GPU capabilities. The [shared signed scalar driver](../../native/cmake/VerifyInt32.cmake), [width specialization](../../native/cmake/SignedScalarType.cmake) and [runtime harness](../../native/tests/Int32RuntimeTests.cpp) compare all six nontrivial operators against independent wider arithmetic over boundaries and deterministic full-range inputs. Exact endpoints and CLI output, native-width division/remainder, source locations and artifact preservation on static errors are checked. The [shared worker driver](../../native/cmake/VerifyInt32Tasks.cmake) checks mixed-width/family captures with each supported root type, nested/cached calls, every arithmetic failure, recovery with owned parent data, root admission/allocation rejection and zero-live-allocation cleanup at 1/2/4 workers. Generated programs run in debug, optimized, ASan/UBSan and TSan builds; frontend checks also run independently under ASan/UBSan. [Qualification evidence](../../native/metal-proof/evidence/cpu-int64-scalars-2026-10-16.json) records the regression and numerical artifact comparison.
 
 Checked CPU uint64 scalars are now qualified below. Int64 tensors and further numeric formats remain separate increments. Distributed execution still requires the agreed design review.
-
 
 ## Checked CPU uint64 scalar arithmetic
 
@@ -510,7 +501,6 @@ The dedicated CLI entry preserves exact unsigned decimal output. The common cont
 
 Shared int64/uint64 tensor literals and elementwise arithmetic are implemented below. Tensor worker handoff, reductions and matmul are qualified below; GPU integer arithmetic, float64 and explicit numeric conversions remain gated. Distributed execution still requires the agreed design review.
 
-
 ## Shared int64/uint64 CPU tensor literals and elementwise arithmetic
 
 The synchronous CPU subset supports both `Tensor[int64,...]` and `Tensor[uint64,...]` through one ranked tensor lowering. The `int` and `uint` aliases keep their 64-bit meanings in tensor element context too. No source conversion, width promotion or signed/unsigned mixing is implicit.
@@ -535,7 +525,6 @@ Shape validation and allocation guards use the numeric description's eight-byte 
 The [shared harness](../../native/tests/Integer64TensorRuntimeTests.cpp) and [compiled driver](../../native/cmake/VerifyInteger64Tensors.cmake) qualify both signednesses with independent 128-bit arithmetic references. Coverage includes full-range boundary/random pairs, scalar operand order, rank zero through three, all empty-axis positions, noncontiguous inputs, aliases, late faults, shape refinement/mismatch, negative and oversized dimensions, allocation rejection, retained results and cooperative cancellation. Debug, optimized, ASan/UBSan and TSan variants cover 25 generated programs per type. Shared frontend checks cover contextual literals, strict type rules and backend rejection of forged reduction/matmul IR. [Qualification evidence](../../native/metal-proof/evidence/cpu-integer64-tensors-2026-10-17.json) records the full regression and float32 artifact comparison.
 
 Shared int64/uint64 tensor worker captures/results and lifetime handling are qualified below. Their reductions and matmul are qualified below; Metal integer operations remain gated separately. Distributed execution still requires the agreed design discussion.
-
 
 ## Shared int64/uint64 tensor captures and results in CPU tasks
 
@@ -567,7 +556,6 @@ A [mixed-packet fixture](../../native/tests/fixtures/task-integer64-tensor-mixed
 
 Shared checked int64/uint64 reductions are qualified below. Matmul is qualified below, with backend admission guards against mismatched element types. GPU integer arithmetic, further numeric formats and explicit conversions remain separate work. Discuss native distributed execution before implementation.
 
-
 ## Shared checked int64/uint64 CPU reduceSum
 
 `reduceSum` now accepts both int64 and uint64 CPU tensors and returns the same scalar element type. It supports rank zero, fixed/dynamic shapes and empty tensors. Inputs are traversed in row-major order. Adjacent pairs are summed, an odd final element is carried unchanged, and the tree repeats until one value remains. Empty input returns an exact typed zero.
@@ -596,7 +584,6 @@ The [shared 32/64-bit runtime harness](../../native/tests/Int32ReductionRuntimeT
 Debug, optimized, ASan/UBSan and TSan builds qualify both types. Frontend checks also run independently under ASan/UBSan and backend admission rejects mismatched reduction element types. [Qualification evidence](../../native/metal-proof/evidence/cpu-integer64-reductions-2026-10-17.json) records the full native/Metal regression and unchanged float32 numerical artifacts. Host sanitizers do not instrument Metal shaders.
 
 Shared checked int64/uint64 matrix multiplication is qualified below. GPU integer arithmetic and further numeric formats/conversions are separate work. Discuss native distributed execution before implementation.
-
 
 ## Shared checked int64/uint64 CPU matmul
 
@@ -631,7 +618,6 @@ Debug, optimized, ASan/UBSan and TSan variants qualify both types. Frontend chec
 
 Next: CPU float64 literals and scalar arithmetic, so the accepted `float` default has an executable implementation. Further tensor formats and explicit conversions remain separate work. Discuss native distributed execution before implementation.
 
-
 ### CPU binary64 arithmetic lowering proof
 
 The shared [strict floating lowering](../../native/lib/StrictFloat.cpp) now has a CPU-only binary64 specialization for add, subtract, multiply, divide and sign-bit negation. Binary32 and binary64 share exponent alignment, sticky-bit shifts, normalization and nearest/ties-to-even rounding. Binary64 uses i128 intermediates for its 53-bit significand products and division numerator; binary32 retains its existing i64 sequence. This is a correctness implementation, not a hardware-double performance claim.
@@ -643,7 +629,6 @@ The [CPU-only proof tool](../../native/metal-proof/Strict.cpp) accepts mixed sca
 [Qualification evidence](../../native/metal-proof/evidence/cpu-strict-float64-2026-10-17.json) records 467,411 operand pairs, 22,435,728 exact result comparisons per build variant, 30 focused regression checks and preservation of all 640 tracked binary32 artifacts.
 
 This first qualified the internal arithmetic building block. Source integration is now implemented below; float64 tensors and GPU arithmetic remain separate work. Distributed execution still requires the agreed design review.
-
 
 ### CPU float64 scalar source and worker integration
 
@@ -671,7 +656,6 @@ Dedicated native entries return LLVM `double` and print 17 significant decimal d
 
 CPU float64 tensor literals, elementwise arithmetic, worker handoff, reductions and matrix multiplication are qualified below, reusing width-aware storage and the strict scalar engine. Explicit conversions remain separate work. Discuss native distributed execution before implementation.
 
-
 ### CPU float64 tensor literals and elementwise arithmetic
 
 Synchronous CPU functions now accept `Tensor[float64, ...]` and `Tensor[float, ...]`. Rank-zero, vector, matrix and higher-rank literals preserve their binary64 elements. Nested arrays or flat data with an explicit constant shape use the existing checked tensor constructor, including empty vectors and empty matrices. Finite-literal overflow remains a compile-time S015 error; tiny values round directly to binary64, and negative zero is preserved.
@@ -697,7 +681,6 @@ CPU worker captures/results are now supported as described below; the temporary 
 
 Float64 reductions and matrix multiplication are qualified below. Explicit numeric conversions and GPU numeric formats remain separate work. Discuss native distributed execution before implementation.
 
-
 ### Float64 tensor captures and results in CPU tasks
 
 CPU workers accept and return `Tensor[float64, ...]` (including the `float` alias) through the existing continuation planner and retained tensor storage. Each rank has a distinct float64 layout identity. Float32, int64 and uint64 descriptors cannot be observed as float64 results even when their descriptor size, alignment and copy callback match.
@@ -721,7 +704,6 @@ The [worker driver](../../native/cmake/VerifyFloat64TensorTasks.cmake) and [shar
 
 Float64 reductions and matrix multiplication are qualified below. Explicit numeric conversions and GPU execution remain separate milestones. Discuss native distributed execution before implementation.
 
-
 ### CPU float64 reduceSum
 
 `reduceSum` accepts a CPU `Tensor[float64, ...]` or `Tensor[float, ...]` and returns the same scalar element type. It uses the existing row-major balanced-adjacent reduction tree: add neighboring pairs and carry an odd tail unchanged to the next level. Each addition rounds separately to binary64, nearest with ties to even. The compiler does not reassociate the tree or narrow intermediate values to float32.
@@ -743,7 +725,6 @@ Ordinary functions, direct `spawn reduceSum(values)`, nested workers, aliased ha
 The [compiled driver](../../native/cmake/VerifyFloat64Reductions.cmake) and [runtime harness](../../native/tests/Float64ReductionRuntimeTests.cpp) compare result bits against an independent APFloat adjacent-pair tree. Tests cover ranks zero through three, empty axes, singleton payload preservation, sampled boundary/random operand pairs, odd lengths and power-of-two neighbors, longer trees, row-major strided access, exact eight-byte bounds, injected allocation failures and cancellation. Eight ARM floating environments check independence from host rounding/flush-to-zero/default-NaN controls and absence of floating exception flags. Worker tests reuse the existing scalar result harness for nested/cached calls, recovery, scheduler and invocation allocation injection, cancellation, deadlines and admission rejection with one, two and four workers. The [evidence record](../../native/metal-proof/evidence/cpu-float64-reductions-2026-10-17.json) records 66 focused checks passing across the regression run and updated capability-test rerun, including 791,572 ranked reduction invocations and 636 worker process runs across debug, optimized, ASan/UBSan and TSan builds. All 640 tracked float32 numerical artifacts remain unchanged. The strict arithmetic engine, task backend, continuation planner, tensor storage and runtime are unchanged.
 
 Float64 matrix multiplication is qualified below. Explicit conversions and GPU formats remain separate work; discuss native distributed execution before implementation.
-
 
 ### CPU float64 matmul
 
@@ -767,7 +748,6 @@ The existing scalar matrix-multiplication path now serves both checked integers 
 The [compiled driver](../../native/cmake/VerifyFloat64Matmul.cmake) and [runtime harness](../../native/tests/Float64MatmulRuntimeTests.cpp) compare exact output bits with independently computed APFloat products and adjacent-pair sums. Probes cover sampled operand boundaries, random matrices, odd and long contractions, separately rounded/FMA-sensitive results, zero inner/output dimensions, padded/displaced/transposed and aliased views, eight ARM floating environments, immutable inputs, retained results, malformed metadata, allocation injection and cancellation. Worker probes use the shared tensor lifetime/layout harness for direct builtin and ordinary calls, nested/cached awaits, empty results, zero-length contractions, recovery after an integer sibling fault, allocation failures, cancellation, deadlines and admission rejection with one, two and four workers. The [evidence record](../../native/metal-proof/evidence/cpu-float64-matmul-2026-10-17.json) records 70 focused checks passing across debug, optimized, ASan/UBSan and TSan builds, including 279,384 matmul invocations, 693,888 exact cell checks before/after settlement and 372 worker process runs. All 640 tracked float32 numerical artifacts remain unchanged, as do the strict engine, task backend, continuation planner, tensor storage and runtime.
 
 Explicit numeric conversions are next. Additional numeric types, float64 performance work and GPU formats remain separate milestones. Discuss native distributed execution before implementation.
-
 
 ### Explicit CPU scalar numeric conversions
 

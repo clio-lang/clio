@@ -227,12 +227,7 @@
     ]
   },
   "new_execution_suites": {
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "compiled_programs": 128,
     "programs_per_variant": 32,
     "cli_allocation_failure_runs": 1664,
@@ -291,11 +286,7 @@
     "exact_lane_comparisons": 1053184,
     "borrowed_inputs": "Offset and non-unit-stride storage; immutable snapshots remain unchanged",
     "retained_outputs": "Output leases remain valid after invocation settlement",
-    "worker_pool_sizes": [
-      1,
-      2,
-      4
-    ]
+    "worker_pool_sizes": [1, 2, 4]
   },
   "implementation_notes": [
     "Numeric indirect-call adapters pack/unpack ordered copies into invocation-owned backing",

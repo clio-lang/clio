@@ -47,12 +47,7 @@
       "native-metal-post-reduction-thread-sanitized",
       "native-metal-pre-matmul-sanitized"
     ],
-    "host_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
+    "host_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
     "numerical_cases_per_mode": 192,
     "allocation_checkpoints_per_mode": 54,
     "reference": "Plain/input-transformed graph versus checked CPU execution, separate GPU calls and LLVM APFloat; round input operations/products, each contraction tree node, intervening tensor/scalar operations, then each final row-major reduction tree node; NaNs compared by classification",

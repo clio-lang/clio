@@ -45,19 +45,10 @@
       "native-metal-forwarding-thread-sanitized"
     ],
     "new_execution_suite": {
-      "variants": [
-        "debug",
-        "optimized",
-        "ASan/UBSan",
-        "ThreadSanitizer"
-      ],
+      "variants": ["debug", "optimized", "ASan/UBSan", "ThreadSanitizer"],
       "builds": 20,
       "runs": 72,
-      "worker_counts": [
-        1,
-        2,
-        4
-      ],
+      "worker_counts": [1, 2, 4],
       "successful_runs": 60,
       "expected_shape_fault_runs": 12,
       "accepted_fixture": {

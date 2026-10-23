@@ -56,22 +56,11 @@
       "length_programs": 18,
       "count_vectors": 9,
       "argument_allocation_sweep_positions": 12,
-      "construction_failures_required_at_positions": [
-        1,
-        2,
-        3,
-        4,
-        5
-      ],
+      "construction_failures_required_at_positions": [1, 2, 3, 4, 5],
       "single_evaluation_and_no_query_allocation_probes": 2,
       "rejected_build_artifact_checks": 9
     },
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "coverage": [
       "Empty/ASCII/Persian/composed/decomposed/emoji/NUL/BOM/U+10FFFF counts and all encoding-width boundaries",
       "Unicode scalars distinguished from UTF-8 bytes and visible grapheme clusters; no normalization or stripping",

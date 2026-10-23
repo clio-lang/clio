@@ -15,19 +15,10 @@
     "failed": 0,
     "elapsed_seconds": 43.09,
     "selection": "^native-recursive-(handoff|value-runtime|record-bridge|source-frontend|source|function-arrays|callable-fields)-",
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
     "new_direct_callback_probes_per_variant": 68,
     "new_scheduler_cases_per_variant": 120,
-    "worker_pool_sizes": [
-      1,
-      2,
-      4
-    ],
+    "worker_pool_sizes": [1, 2, 4],
     "coverage": [
       "Generated construction/copy/read paths for numeric recursive lists, scalar captured functions, duplicate-environment function arrays and array-mediated trees",
       "Input backing remains readable after producer settlement",

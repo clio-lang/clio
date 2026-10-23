@@ -37,16 +37,8 @@
     "log": "/tmp/kalandra-snapshot-qualification.log",
     "log_sha256": "6d3debd09d4667c03e859708a2d3081a7d000360334b61b3ec89328d7f701fb8",
     "scopedSnapshotProgramResult": "[12, 11]",
-    "workerCounts": [
-      1,
-      4
-    ],
-    "generatedProgramModes": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "workerCounts": [1, 4],
+    "generatedProgramModes": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "coverage": [
       "Loose and packed bare stores, commit/repository identity and raw blob/export attributes behavior",
       "Unsafe source Git config and inherited config environment do not execute marker commands",

@@ -177,12 +177,7 @@
     },
     "programs_per_variant": 33,
     "programs_total": 132,
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "numeric_widths": [
       "int8",
       "uint8",
@@ -198,13 +193,7 @@
     "private_harness_processes": 16,
     "private_task_payload_groups": 64,
     "private_application_payload_groups": 8,
-    "private_task_failure_codes": [
-      1,
-      2,
-      4,
-      5,
-      99
-    ],
+    "private_task_failure_codes": [1, 2, 4, 5, 99],
     "private_task_variants": [
       "Fault",
       "Cancelled",

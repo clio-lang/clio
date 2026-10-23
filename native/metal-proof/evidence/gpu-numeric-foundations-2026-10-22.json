@@ -13,23 +13,8 @@
   "qualification_status": "passed_for_listed_scopes",
   "qualification": {
     "storage_types": 10,
-    "storage_ranks": [
-      0,
-      1,
-      2,
-      3,
-      4,
-      5,
-      6,
-      7,
-      8
-    ],
-    "storage_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
+    "storage_ranks": [0, 1, 2, 3, 4, 5, 6, 7, 8],
+    "storage_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
     "integer_gpu_comparisons_per_mode": 2642148,
     "integer_pair_count": 338726,
     "integer_operations": [
@@ -50,18 +35,9 @@
       "negate",
       "separately rounded multiply/add"
     ],
-    "arithmetic_proof_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan"
-    ],
+    "arithmetic_proof_modes": ["debug", "optimized", "asan-ubsan"],
     "reference": "LLVM APInt checked arithmetic and LLVM APFloat with exact canonical NaNs/negation payloads",
-    "typed_task_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
+    "typed_task_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
     "typed_task_successes_per_mode": 330,
     "typed_task_failure_scenarios_per_mode": 138,
     "typed_task_cases": [

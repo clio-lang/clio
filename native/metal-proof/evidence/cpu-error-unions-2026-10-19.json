@@ -173,12 +173,7 @@
       "failures": []
     },
     "correction": "Restore the terminating newline after inline fail guards; all 114 frontend/CLI, control-flow and application-error/union checks passed after this parser fix. Final review restricted match-dispatch obligation adoption to synthesized intermediate nodes, preserving all-branches handling for incoming results. After that checker-only refinement and added positive/negative tests, all 102 frontend/CLI checks and four union execution suites rerun. A new insertion-widening case additionally verifies shifted tags and payload positions. Unchanged passing source-task, task-recovery, enum and record suites retained from the baseline.",
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "union_programs_per_variant": 27,
     "union_programs_total": 108,
     "numeric_widths": [

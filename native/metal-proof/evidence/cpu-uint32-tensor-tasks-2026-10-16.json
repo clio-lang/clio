@@ -14,17 +14,8 @@
     "remaining": "UInt32 reductions/matmul and GPU arithmetic remain gated. No new conversions or tensor CLI printer."
   },
   "qualification": {
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workers": [1, 2, 4],
     "compiled_task_programs_per_variant": 14,
     "compiled_task_programs_total": 56,
     "task_observer_runs_by_variant": {
@@ -34,20 +25,7 @@
       "thread-sanitized": 87
     },
     "task_observer_runs_total": 348,
-    "allocation_failure_positions": [
-      1,
-      2,
-      3,
-      4,
-      5,
-      6,
-      7,
-      8,
-      9,
-      10,
-      11,
-      12
-    ],
+    "allocation_failure_positions": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
     "coverage": [
       "uint32 endpoints and values above signed/float32 precision",
       "three numeric tensor families in the same capture packet",

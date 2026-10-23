@@ -89,10 +89,7 @@
   "new_frontend_suites": {
     "positive_programs_per_variant": 24,
     "negative_programs_per_variant": 19,
-    "variants": [
-      "debug with native lowering",
-      "ASan/UBSan frontend"
-    ],
+    "variants": ["debug with native lowering", "ASan/UBSan frontend"],
     "additional_checks": [
       "Header grouping, factory/returned callable error spans and expression containment",
       "Declared channel retained on always-successful closure, absent from creation effects",
@@ -110,15 +107,8 @@
         "arithmetic_fault": 4
       },
       "cli_allocation_failure_processes": 240,
-      "task_error_ownership_pools": [
-        1,
-        4
-      ],
-      "worker_owned_result_pools": [
-        1,
-        2,
-        4
-      ]
+      "task_error_ownership_pools": [1, 4],
+      "worker_owned_result_pools": [1, 2, 4]
     },
     "optimized": {
       "compiled_programs": 35,
@@ -128,15 +118,8 @@
         "arithmetic_fault": 4
       },
       "cli_allocation_failure_processes": 240,
-      "task_error_ownership_pools": [
-        1,
-        4
-      ],
-      "worker_owned_result_pools": [
-        1,
-        2,
-        4
-      ]
+      "task_error_ownership_pools": [1, 4],
+      "worker_owned_result_pools": [1, 2, 4]
     },
     "sanitized": {
       "compiled_programs": 35,
@@ -146,15 +129,8 @@
         "arithmetic_fault": 4
       },
       "cli_allocation_failure_processes": 240,
-      "task_error_ownership_pools": [
-        1,
-        4
-      ],
-      "worker_owned_result_pools": [
-        1,
-        2,
-        4
-      ]
+      "task_error_ownership_pools": [1, 4],
+      "worker_owned_result_pools": [1, 2, 4]
     },
     "thread-sanitized": {
       "compiled_programs": 35,
@@ -164,15 +140,8 @@
         "arithmetic_fault": 4
       },
       "cli_allocation_failure_processes": 240,
-      "task_error_ownership_pools": [
-        1,
-        4
-      ],
-      "worker_owned_result_pools": [
-        1,
-        2,
-        4
-      ]
+      "task_error_ownership_pools": [1, 4],
+      "worker_owned_result_pools": [1, 2, 4]
     }
   },
   "new_execution_totals": {

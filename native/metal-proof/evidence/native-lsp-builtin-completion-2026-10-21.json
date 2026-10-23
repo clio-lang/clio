@@ -25,11 +25,7 @@
       "native-lsp-completion-sanitized": 0.66,
       "native-editor-tools-install": 4.51
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "Direct builtin callee names and complete suffix replacement with Function items",
       "Piped calls and bare pipeline targets share checker invocation context",

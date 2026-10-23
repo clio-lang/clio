@@ -57,16 +57,8 @@
     "command": "ctest --test-dir build/native -R '^native-(package-install-|library-(manifests|cli-)|projects-frontend-|project-cli-|scoped-packages|git-snapshot|overlays-cli-|cpu-install$|editor-tools-install$)' --output-on-failure",
     "log": "/tmp/kalandra-install-qualification.log",
     "log_sha256": "214944fb955e23ebaa7e547e23004141ad98fe88eb88bfffcbb532e34ee670e5",
-    "generatedProgramModes": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workerCounts": [
-      1,
-      4
-    ],
+    "generatedProgramModes": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workerCounts": [1, 4],
     "scopedProgramResult": "[12, 11]",
     "coverage": [
       "Public install/check/build, exact transitive scopes, nominal type isolation and JSON/stdin checking",

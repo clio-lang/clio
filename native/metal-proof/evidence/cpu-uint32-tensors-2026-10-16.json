@@ -13,12 +13,7 @@
     "gates": "Uint32 tensor task modules, reductions/matmul and GPU arithmetic remain rejected. Backend checks reject forged reduction/matmul IR and task modules with unsigned tensor values before publication. No public foreign-memory/wire ABI or tensor CLI printer added."
   },
   "qualification": {
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "compiled_tensor_programs_per_variant": 25,
     "compiled_tensor_programs_total": 100,
     "runtime_reference_runs": 100,

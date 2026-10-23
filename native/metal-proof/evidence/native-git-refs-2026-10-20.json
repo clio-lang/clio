@@ -71,16 +71,8 @@
       "log_sha256": "5360ca7b412da7043b06b7ca791f548f88efac25ae3df506849894503e8238db",
       "reason": "Final fixture routes normal per-owner graph installation/changes/failures through the debug or ASan/UBSan API, while frozen/offline and public remote installation still exercise CLI paths"
     },
-    "generatedProgramModes": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workerCounts": [
-      1,
-      4
-    ],
+    "generatedProgramModes": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workerCounts": [1, 4],
     "retainedWorkerResult": "[13, 11]",
     "coverage": [
       "Loose/packed branches and lightweight/nested annotated tags; loose overrides, explicit namespaces and ambiguous equal-target names",

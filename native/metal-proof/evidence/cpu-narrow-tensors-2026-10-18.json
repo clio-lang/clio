@@ -163,20 +163,10 @@
     "private_worker_harness_processes": 1152,
     "source_allocation_failure_sweep_processes": 320,
     "artifact_preserving_rejections": 80,
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "per_variant": {
       "programs": 150,
-      "element_types": [
-        "int8",
-        "uint8",
-        "int16",
-        "uint16"
-      ],
+      "element_types": ["int8", "uint8", "int16", "uint16"],
       "kernel_harnesses": 100,
       "task_harnesses": 24,
       "task_processes": 288,

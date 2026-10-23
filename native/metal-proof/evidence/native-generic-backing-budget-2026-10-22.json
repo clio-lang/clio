@@ -17,12 +17,7 @@
       "elapsed_seconds": 56.25,
       "parallel_jobs": 4
     },
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
     "direct_generic_boundary_cases_per_variant": 15,
     "scheduler_buffer_boundary_cases_per_variant": 12,
     "coverage": [

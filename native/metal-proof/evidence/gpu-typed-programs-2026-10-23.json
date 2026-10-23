@@ -17,21 +17,9 @@
   "qualification": {
     "distinctCTestChecks": 138,
     "sourceCasesPerCompiler": 630,
-    "sourceCompilers": [
-      "normal",
-      "ASan/UBSan"
-    ],
-    "applicationModes": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "sourceCompilers": ["normal", "ASan/UBSan"],
+    "applicationModes": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workers": [1, 2, 4],
     "caseCounts": {
       "maps": 58,
       "reductions": 48,

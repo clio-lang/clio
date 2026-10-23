@@ -184,12 +184,7 @@
     },
     "programs_per_variant": 24,
     "programs_total": 96,
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "numeric_widths": [
       "int8",
       "uint8",
@@ -202,11 +197,7 @@
       "float32",
       "float64"
     ],
-    "worker_counts_in_propagation_test": [
-      1,
-      2,
-      4
-    ],
+    "worker_counts_in_propagation_test": [1, 2, 4],
     "allocation_injections_per_variant": 128,
     "allocation_injections_total": 512,
     "coverage": [

@@ -87,7 +87,6 @@ The subtraction milestone extended the scalar proof with subtraction and exact s
 
 [Strict float32 division](../../docs/design/apple-gpu.md#strict-tensor-division) now supports tensor/tensor and either scalar/tensor order, including transitive scalar reciprocal helpers. Division retains separately rounded results rather than becoming multiplication by a reciprocal.
 
-
 ## All-type numerical foundations
 
 The typed source backend adds checked integer arithmetic for all eight integer

@@ -94,27 +94,14 @@
     "test_correction": "An old control-map test still rejected supported function-array worker transport. Promoted it to an executable success case, rebuilt only its test binaries, then reran all six affected checks. UBSan also caught a Task* versus Task& signature mismatch in the private probe wrapper; corrected the wrapper and reran all four parallel-map execution modes with sanitizer checks enabled."
   },
   "parallel_map_execution": {
-    "modes": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "modes": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "fixtures_per_mode": 20,
     "additional_numeric_width_programs_per_mode": 10,
     "compiled_programs_including_probe_and_ordering": 128,
-    "worker_counts": [
-      1,
-      2,
-      4
-    ],
+    "worker_counts": [1, 2, 4],
     "additional_worker_count_runs": 240,
     "allocation_failure_probes": 640,
-    "allocation_probe_allowed_statuses": [
-      0,
-      86,
-      88
-    ],
+    "allocation_probe_allowed_statuses": [0, 86, 88],
     "failed_probe_requirements": [
       "No published output",
       "Zero live allocations",
@@ -160,10 +147,7 @@
     "accepted_catalog": 20,
     "rejected_programs": 4,
     "forged_ir_cases": 4,
-    "modes": [
-      "debug",
-      "ASan/UBSan"
-    ]
+    "modes": ["debug", "ASan/UBSan"]
   },
   "remaining": [
     "Adaptive chunk granularity, window sizing, capacity-aware admission and throughput tuning",

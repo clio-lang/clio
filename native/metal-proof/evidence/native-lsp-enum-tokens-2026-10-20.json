@@ -94,10 +94,7 @@
       "native-enums-frontend-debug",
       "native-enums-frontend-sanitized"
     ],
-    "variants": [
-      "normal",
-      "ASan/UBSan"
-    ],
+    "variants": ["normal", "ASan/UBSan"],
     "coverage": [
       "Enum declarations and constructors with and without payloads",
       "Same-spelled cases across families and payload fields across variants",

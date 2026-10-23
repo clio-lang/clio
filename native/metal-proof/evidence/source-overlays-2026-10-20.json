@@ -55,10 +55,7 @@
       "json": 12,
       "terminal": 1
     },
-    "new_variants": [
-      "normal",
-      "ASan/UBSan"
-    ],
+    "new_variants": ["normal", "ASan/UBSan"],
     "coverage": [
       "Unsaved export signature changes recheck the importer",
       "Multiple buffers retain source lifetime after caller buffers are released",

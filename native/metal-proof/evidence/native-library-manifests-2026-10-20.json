@@ -41,16 +41,8 @@
     "log": "/tmp/kalandra-library-qualification.log",
     "log_sha256": "3e711360d04e34f67d84703d6ee38d2780f134a22978323c77f36bff5fffcea1",
     "manifestBackedScopedResult": "[12, 11]",
-    "scopedWorkers": [
-      1,
-      4
-    ],
-    "generatedProgramModes": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "scopedWorkers": [1, 4],
+    "generatedProgramModes": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "coverage": [
       "Strict metadata, missing/wrong fields, SemVer boundary spellings, name validation, library/application entry selection, byte/count limits, fresh reads, manifest aliases and canonical escapes",
       "Manifest-backed two-version graph with worker execution, shared/separate nominal types, scoped aliases and loader rejection cases",

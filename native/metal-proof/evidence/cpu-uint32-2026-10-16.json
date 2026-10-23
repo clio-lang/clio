@@ -15,17 +15,8 @@
     "gates": "Uint32 tensors/operators/reductions/matmul, GPU arithmetic and numeric conversions remain unsupported. Frontend and backend tensor admission gates remain explicit."
   },
   "qualification": {
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workers": [1, 2, 4],
     "compiled_programs_per_variant": 30,
     "compiled_programs_total": 120,
     "runtime_reference_runs": 28,

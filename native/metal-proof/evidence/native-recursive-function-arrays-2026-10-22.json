@@ -16,12 +16,7 @@
     "failed": 0,
     "elapsed_seconds": 161.2,
     "selection": "^(native-recursive-(collections|record-bridge|source-frontend|source|strings|string-arrays|record-arrays|callable-fields|function-arrays|value-runtime)-|native-function-arrays-(frontend-)?(debug|optimized|sanitized|thread-sanitized)$)",
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
     "new_source_programs_per_variant": 11,
     "new_source_allocation_probes_per_variant": 45,
     "coverage": [

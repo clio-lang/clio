@@ -11,11 +11,7 @@
   },
   "qualification": {
     "full_suite": false,
-    "worker_pool_sizes": [
-      1,
-      2,
-      4
-    ],
+    "worker_pool_sizes": [1, 2, 4],
     "coverage": [
       "Captured and capture-free closures are created and returned by compiler-generated TaskEntry factories in real scheduler pools",
       "Captured aggregate includes recursive List children, UTF-8 String captures in nested closures, duplicate function-array environments and recursive child arrays",
@@ -42,12 +38,7 @@
       "elapsed_seconds": 14.39,
       "reason": "Final capture metadata validation changes and invocation-readiness guards rechecked after final emitter/CLI build"
     },
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
     "build": "Compiler, recursive record component emitter and debug task-value layout targets build with pinned LLVM/MLIR 23.1.3",
     "format": "New C++ files and changed existing C++ ranges formatted; new files pass clang-format --dry-run --Werror; git diff --check passes"
   },

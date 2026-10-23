@@ -13,12 +13,7 @@
     "remaining": "64-bit tensor-containing task modules are explicitly gated, including local-only tensor values in those modules. Reductions/matmul are gated in frontend and backend; Metal integer operations, further formats/conversions and public foreign-memory/wire ABI remain unqualified."
   },
   "qualification": {
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "source_programs_per_type_variant": 31,
     "executable_tensor_programs_per_type_variant": 25,
     "source_programs_total": 248,

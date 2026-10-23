@@ -25,11 +25,7 @@
       "native-lsp-completion-sanitized": 0.67,
       "native-editor-tools-install": 4.62
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "Empty/partial named channels, parenthesized unions, alias definitions, nested/returned callable channels and anonymous functions",
       "Ordinary records/enums, numeric types and value bindings are excluded from error-channel candidates",

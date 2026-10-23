@@ -16,12 +16,7 @@
     "remaining": "Integer tensor task modules/handoff explicitly gated; integer reductions/matmul rejected with S053 and operand-aware backend checks. Metal, conversions and additional source arithmetic types remain gated. No new tensor CLI display or public foreign-memory API."
   },
   "qualification": {
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "compiled_tensor_programs_per_variant": 25,
     "compiled_tensor_programs_total": 100,
     "runtime_tensor_cases_total": 110164,

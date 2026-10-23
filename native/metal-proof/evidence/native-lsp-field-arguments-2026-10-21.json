@@ -27,11 +27,7 @@
       "native-lsp-signature-sanitized": 0.5,
       "native-editor-tools-install": 6.32
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "Named and structural callees; indexed receivers and piped calls; nested records and record-returning factories",
       "A final active field need not yet exist or have the expected argument type",

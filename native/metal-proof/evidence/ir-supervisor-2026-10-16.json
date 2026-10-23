@@ -15,22 +15,9 @@
     "remaining": "C++ target continuation backend remains distinct from ordinary CPU task planner. Signature capability checks and CPU export construction still use source interfaces; asynchronous helper bodies and broader values are not introduced."
   },
   "source_fixture": {
-    "expected_bits": [
-      "41700000",
-      "00000000",
-      "41c80000"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "expected_bits": ["41700000", "00000000", "41c80000"],
+    "workers": [1, 2, 4],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "coverage": [
       "main-first declaration order",
       "nested immutable shadowing",

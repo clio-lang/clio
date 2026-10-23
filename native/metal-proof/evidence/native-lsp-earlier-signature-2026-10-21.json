@@ -27,11 +27,7 @@
       "native-lsp-signature-sanitized": 0.69,
       "native-editor-tools-install": 4.03
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "First and middle name/member slots receive checked active parameter guidance in balanced/open calls",
       "Missing later required parameters retain all public parameter labels",

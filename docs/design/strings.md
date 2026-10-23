@@ -10,13 +10,13 @@ A String is a finite sequence of Unicode scalar values, stored as well-formed UT
 
 Double quotes delimit a literal. Direct Unicode text and the following escapes are allowed:
 
-| Escape | Value |
-| --- | --- |
-| `\"` | Double quote |
-| `\\` | Backslash |
-| `\n`, `\r`, `\t` | LF, CR, tab |
-| `\0` | U+0000 |
-| `\u{H…}` | One scalar, with 1–6 hexadecimal digits |
+| Escape           | Value                                   |
+| ---------------- | --------------------------------------- |
+| `\"`             | Double quote                            |
+| `\\`             | Backslash                               |
+| `\n`, `\r`, `\t` | LF, CR, tab                             |
+| `\0`             | U+0000                                  |
+| `\u{H…}`         | One scalar, with 1–6 hexadecimal digits |
 
 Hex digits are case-insensitive. Unknown escapes, empty/oversized Unicode escapes, surrogate escapes and out-of-range escapes are compile errors. Raw LF/CR inside a literal is rejected; multiline/raw strings and interpolation are separate work. There is no `\xNN` byte escape or UTF-16 surrogate-pair escape syntax. Source byte spans remain available for diagnostics after decoding.
 
@@ -36,14 +36,14 @@ fn main() -> String:
 
 `String` annotations, inferred literals, ordinary helper arguments/results and immutable bindings follow existing core rules. Passing a number or Bool where String is required is a type error; there is no implicit formatting or parsing.
 
-| Expression | Result / rule |
-| --- | --- |
-| `length(text)` | `int64` number of Unicode scalars |
-| `byteLength(text)` | `int64` number of UTF-8 bytes |
-| `text[index]` | A String containing one scalar |
-| `slice(text, start, end)` | String over the half-open scalar interval `[start, end)` |
-| `left + right` | Concatenate two Strings, preserving both operands |
-| `left == right`, `left != right` | Exact scalar-sequence equality/inequality |
+| Expression                       | Result / rule                                            |
+| -------------------------------- | -------------------------------------------------------- |
+| `length(text)`                   | `int64` number of Unicode scalars                        |
+| `byteLength(text)`               | `int64` number of UTF-8 bytes                            |
+| `text[index]`                    | A String containing one scalar                           |
+| `slice(text, start, end)`        | String over the half-open scalar interval `[start, end)` |
+| `left + right`                   | Concatenate two Strings, preserving both operands        |
+| `left == right`, `left != right` | Exact scalar-sequence equality/inequality                |
 
 Index and slice operands accept completed int32/uint32/int64/uint64 scalars. Negative signed indexes, values above INT64_MAX, and out-of-range positions cause a checked Bounds fault; known-invalid constant cases are compile errors. Indexing requires `index < length(text)`. Slicing requires `0 <= start <= end <= length(text)`; it neither clamps nor wraps. An empty slice at the end is valid. `slice(text, 0, length(text))` equals `text`.
 
@@ -53,15 +53,15 @@ String length is not array/tensor shape metadata. A String is not `[uint8]` or `
 
 Use “scalar” precisely; do not describe `length` as a count of visible characters. [Unicode text segmentation](https://www.unicode.org/reports/tr29/) defines grapheme clusters separately. A combining mark or a joiner may be a distinct scalar within one visible unit. Source order is preserved even for right-to-left text.
 
-| Text | Scalars | UTF-8 bytes | Selected result |
-| --- | ---: | ---: | --- |
-| `""` | 0 | 0 | `slice("", 0, 0) == ""` |
-| `"hello"` | 5 | 5 | `"hello"[1] == "e"` |
-| `"سلام"` | 4 | 8 | `"سلام"[0] == "س"` |
-| `"é"` | 1 | 2 | Index 0 returns `"é"` |
-| `"e\u{301}"` | 2 | 3 | Index 1 returns the combining mark alone |
-| `"👩‍💻"` | 3 | 11 | Index 1 returns U+200D, the joiner |
-| `"a\0b"` | 3 | 3 | Index 1 returns `"\0"` |
+| Text         | Scalars | UTF-8 bytes | Selected result                          |
+| ------------ | ------: | ----------: | ---------------------------------------- |
+| `""`         |       0 |           0 | `slice("", 0, 0) == ""`                  |
+| `"hello"`    |       5 |           5 | `"hello"[1] == "e"`                      |
+| `"سلام"`     |       4 |           8 | `"سلام"[0] == "س"`                       |
+| `"é"`        |       1 |           2 | Index 0 returns `"é"`                    |
+| `"e\u{301}"` |       2 |           3 | Index 1 returns the combining mark alone |
+| `"👩‍💻"`       |       3 |          11 | Index 1 returns U+200D, the joiner       |
+| `"a\0b"`     |       3 |           3 | Index 1 returns `"\0"`                   |
 
 `"é" != "e\u{301}"`. Normalization can make distinct sequences comparable in other ways, but String equality does not perform it. [Unicode normalization](https://www.unicode.org/reports/tr15/) and grapheme-aware APIs belong in explicitly named library operations, with pinned Unicode data and independent conformance tests when introduced. The language core does not silently change text, equality or scalar indexing when such tables are updated.
 
@@ -87,7 +87,6 @@ A String-valued CLI `main` writes its UTF-8 bytes followed by one LF, without qu
 
 [Conformance vectors](fixtures/strings-semantics.json) record scalar/byte counts, exact equality, index/slice results, invalid UTF-8, literal escape cases and bounds decisions for future tests. The literal/value, equality/concatenation and length tests consume their corresponding text, escape, count and invalid UTF-8 vectors; scalar index and slice vectors are consumed by their corresponding qualified tests. Qualification must also cover all scalar boundary widths, cancellation during long scans, failure cleanup, external descriptor validation and result lifetime. Reuse generic ownership/scheduling machinery rather than building a separate String runtime for each context.
 
-
 ## Qualified literal/value foundation
 
 ```kalandra
@@ -106,7 +105,6 @@ Source Strings support synchronous helpers and local CPU task modules. Placement
 
 Qualification covers debug, optimized generated code, address/undefined sanitizers and thread sanitizer: exact Unicode/NUL/BOM bytes and scalar encoding boundaries; strict escape/UTF-8 rejection; imported helpers and conditional results; raw CLI output and scalar/collection cleanup; invocation isolation, retained result lifetime and malformed native descriptors; allocation failure, cancellation during scans/copies and unpublished failed results. Rejected literal builds preserve prior executable/MLIR/LLVM artifacts. See the [recorded evidence](../../native/metal-proof/evidence/cpu-string-values-2026-10-18.json).
 
-
 ## Exact equality and concatenation
 
 ```kalandra
@@ -123,7 +121,6 @@ Operands evaluate once, from left to right. The checked call boundary stops eval
 
 Validation, comparison and copying poll cooperatively. Qualification interrupts large comparisons/copies after input validation and checks that interrupted concatenation leaves its output empty and settles partial owners. Tests cover exact Unicode/NUL behavior, all equality/concatenation conformance vectors, imported/chained helpers, short-circuit logic, synchronous map callbacks, source fault order, malformed descriptors, count overflow and allocation failure. Local CPU task diagnostic equality now uses managed String storage, as described in the worker section below. See the [operation evidence](../../native/metal-proof/evidence/cpu-string-operations-2026-10-18.json).
 
-
 ## Scalar and byte lengths
 
 ```kalandra
@@ -137,7 +134,6 @@ This prints `[3, 11]`. `length` counts Unicode scalars; `byteLength` counts UTF-
 Each query evaluates its argument once. It validates the complete owner/descriptor and UTF-8 sequence before returning a count; malformed trailing bytes cannot produce a plausible byte length. Scalar counting shares that validation scan, publishes its count only after successful validation, and polls cooperatively. There is no count cache or additional managed allocation. The String byte-length bound also bounds the scalar count to nonnegative int64. Failed or cancelled scans return through the existing checked invocation boundary and settle their owners normally.
 
 The queries compose with synchronous helpers, relative module imports, pipelines, conditionals and map callbacks. The worker integration below extends these queries to local CPU tasks and managed task diagnostics. Qualification covers the complete text/count vectors, Unicode encoding boundaries, embedded NULs, no additional allocation, single argument evaluation, source fault ordering, malformed descriptors/UTF-8, cancellation during long scans, allocation failure in argument construction, and preservation of existing outputs on rejected builds. See the [length evidence](../../native/metal-proof/evidence/cpu-string-lengths-2026-10-18.json).
-
 
 ## Scalar indexing
 
@@ -154,7 +150,6 @@ The checked runtime locates the scalar during complete UTF-8 validation, includi
 
 This is a copying implementation. Earlier temporary reclamation and safe shared-storage views remain optimization work; retaining the indexed result does not require retaining its entire parent. Source buffers still follow the current invocation cleanup policy. Local CPU workers/captures are qualified below; String record fields are now supported; [direct String arrays](string-arrays.md) are also supported. Slicing is qualified below. Qualification covers all scalar-index conformance vectors, four integer widths, dynamic bounds, escaped/Unicode/NUL/BOM text, source evaluation and fault order, imported helpers, sequential callbacks, parent release, retained results, allocation failure, complete malformed-input rejection, cancellation, and rejected-build output preservation. See the [indexing evidence](../../native/metal-proof/evidence/cpu-string-indexing-2026-10-18.json).
 
-
 ## Half-open scalar slicing
 
 ```kalandra
@@ -169,7 +164,6 @@ Known negative/high bounds, reversed ranges and bounds beyond a tracked scalar e
 Both scalar boundaries are located during complete UTF-8 validation. Even an empty range validates the full input, so malformed trailing text cannot be discarded silently. Invalid descriptors or UTF-8 report RuntimeFault before allocation. The initial implementation copies nonempty ranges into independent invocation-owned buffers; full-range slicing also copies. Parent/result lifetimes follow the existing managed model, and a retained result does not require retaining its parent. Allocation failure reports AllocationFault, and interrupted scans/copies leave the result unpublished and settle partial owners. Validation and copying poll cooperatively.
 
 Slicing composes with imported helpers, pipelines, sequential callbacks, equality, lengths and indexing. The worker integration below also supports slicing inside local CPU tasks and callbacks with String captures. String record fields are now supported; [direct String arrays](string-arrays.md) are also supported. Qualification includes all 18 design slice vectors, 16 mixed integer-bound signatures, 55 scalar intervals spanning ASCII, Unicode, joiners, NUL and BOM, empty/end/full ranges, source evaluation/fault order, retained ownership, malformed-input rejection, allocation failure, cancellation during scan/copy, and rejected-build output preservation. See the [slicing evidence](../../native/metal-proof/evidence/cpu-string-slicing-2026-10-18.json).
-
 
 ## Local CPU workers and captures
 

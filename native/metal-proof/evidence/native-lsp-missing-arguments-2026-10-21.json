@@ -34,11 +34,7 @@
       "native-lsp-signature-sanitized",
       "native-editor-tools-install"
     ],
-    "modes": [
-      "debug",
-      "asan-ubsan",
-      "Release relocated editor tools"
-    ],
+    "modes": ["debug", "asan-ubsan", "Release relocated editor tools"],
     "cases": [
       "Empty first arguments, next arguments, balanced and trailing-unclosed calls, bound callable/factory/indexed-pipeline targets",
       "Named parameter labels, nominal record parameter names and expected-error union display metadata",

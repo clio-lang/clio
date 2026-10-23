@@ -103,7 +103,6 @@ a resource error and preserves the existing application executable. Finally the
 test removes the installed compiler bundle, moves all generated applications and
 executes them again. The independent CPU/editor installation gates remain in place.
 
-
 The installed-package acceptance creates a numerical library and a wrapper that
 privately depends on its `main` branch. Both the application and wrapper initially
 resolve that branch to the same commit. Across all four host modes, a CPU worker
@@ -133,7 +132,6 @@ records the tested compiler configurations and hardware. These checks qualify
 this scoped numerical CPU/Metal path, not new GPU language features, another
 platform, authenticated transport, or hosted Metal release automation. ASan/UBSan
 and TSan instrument generated host code; they are not shader sanitizers.
-
 
 ## Typed numerical programs
 

@@ -129,65 +129,18 @@
       "--seed",
       "20261017"
     ],
-    [
-      "sysctl",
-      "-n",
-      "machdep.cpu.brand_string"
-    ],
-    [
-      "sysctl",
-      "-n",
-      "hw.logicalcpu"
-    ],
-    [
-      "sysctl",
-      "-n",
-      "hw.perflevel0.logicalcpu"
-    ],
-    [
-      "sysctl",
-      "-n",
-      "hw.perflevel1.logicalcpu"
-    ],
-    [
-      "sysctl",
-      "-n",
-      "hw.memsize"
-    ],
-    [
-      "sysctl",
-      "-n",
-      "hw.perflevel0.l1dcachesize"
-    ],
-    [
-      "sysctl",
-      "-n",
-      "hw.perflevel0.l2cachesize"
-    ],
-    [
-      "sysctl",
-      "-n",
-      "hw.perflevel1.l1dcachesize"
-    ],
-    [
-      "sysctl",
-      "-n",
-      "hw.perflevel1.l2cachesize"
-    ],
-    [
-      "git",
-      "rev-parse",
-      "HEAD"
-    ],
-    [
-      "git",
-      "status",
-      "--short"
-    ],
-    [
-      "/opt/homebrew/Cellar/llvm/22.1.8/bin/clang++",
-      "--version"
-    ]
+    ["sysctl", "-n", "machdep.cpu.brand_string"],
+    ["sysctl", "-n", "hw.logicalcpu"],
+    ["sysctl", "-n", "hw.perflevel0.logicalcpu"],
+    ["sysctl", "-n", "hw.perflevel1.logicalcpu"],
+    ["sysctl", "-n", "hw.memsize"],
+    ["sysctl", "-n", "hw.perflevel0.l1dcachesize"],
+    ["sysctl", "-n", "hw.perflevel0.l2cachesize"],
+    ["sysctl", "-n", "hw.perflevel1.l1dcachesize"],
+    ["sysctl", "-n", "hw.perflevel1.l2cachesize"],
+    ["git", "rev-parse", "HEAD"],
+    ["git", "status", "--short"],
+    ["/opt/homebrew/Cellar/llvm/22.1.8/bin/clang++", "--version"]
   ],
   "source_sha256": {
     "native/benchmarks/CacheBlocking.cpp": "b912e48dc0d8128a00495cd0965173e6f6ece289efca348c951700657a89d267",
@@ -16459,11 +16412,7 @@
       "product_scratch_bytes": -1,
       "output_and_sum_bytes": 8192,
       "expected_bits": 3241443328,
-      "process_medians_ms": [
-        0.002208,
-        0.002167,
-        0.002416
-      ],
+      "process_medians_ms": [0.002208, 0.002167, 0.002416],
       "median_ms": 0.002208,
       "native_over_variant": 8.133605072463768,
       "cpp_control_over_variant": 15.983242753623191
@@ -16477,11 +16426,7 @@
       "product_scratch_bytes": 528,
       "output_and_sum_bytes": 8192,
       "expected_bits": 3241443328,
-      "process_medians_ms": [
-        0.03525,
-        0.035167,
-        0.03725
-      ],
+      "process_medians_ms": [0.03525, 0.035167, 0.03725],
       "median_ms": 0.03525,
       "native_over_variant": 0.5094751773049646,
       "cpp_control_over_variant": 1.001163120567376
@@ -16495,11 +16440,7 @@
       "product_scratch_bytes": 528,
       "output_and_sum_bytes": 8192,
       "expected_bits": 3241443328,
-      "process_medians_ms": [
-        0.035208,
-        0.035208,
-        0.037292
-      ],
+      "process_medians_ms": [0.035208, 0.035208, 0.037292],
       "median_ms": 0.035208,
       "native_over_variant": 0.5100829356964326,
       "cpp_control_over_variant": 1.0023574187684616
@@ -16513,11 +16454,7 @@
       "product_scratch_bytes": 528,
       "output_and_sum_bytes": 8192,
       "expected_bits": 3241443328,
-      "process_medians_ms": [
-        0.035167,
-        0.035334,
-        0.040875
-      ],
+      "process_medians_ms": [0.035167, 0.035334, 0.040875],
       "median_ms": 0.035334,
       "native_over_variant": 0.5082639950189619,
       "cpp_control_over_variant": 0.9987830418293996
@@ -16531,11 +16468,7 @@
       "product_scratch_bytes": 8448,
       "output_and_sum_bytes": 8192,
       "expected_bits": 3241443328,
-      "process_medians_ms": [
-        0.010583,
-        0.008625,
-        0.009167
-      ],
+      "process_medians_ms": [0.010583, 0.008625, 0.009167],
       "median_ms": 0.009167,
       "native_over_variant": 1.9590923966401221,
       "cpp_control_over_variant": 3.849787280462529
@@ -16549,11 +16482,7 @@
       "product_scratch_bytes": 2112,
       "output_and_sum_bytes": 8192,
       "expected_bits": 3241443328,
-      "process_medians_ms": [
-        0.019416,
-        0.017583,
-        0.018166
-      ],
+      "process_medians_ms": [0.019416, 0.017583, 0.018166],
       "median_ms": 0.018166,
       "native_over_variant": 0.9886050864251897,
       "cpp_control_over_variant": 1.942695144775955
@@ -16567,11 +16496,7 @@
       "product_scratch_bytes": 512,
       "output_and_sum_bytes": 8192,
       "expected_bits": 3241443328,
-      "process_medians_ms": [
-        0.035291,
-        0.03525,
-        0.040125
-      ],
+      "process_medians_ms": [0.035291, 0.03525, 0.040125],
       "median_ms": 0.035291,
       "native_over_variant": 0.5088832846901475,
       "cpp_control_over_variant": 1.0
@@ -16585,11 +16510,7 @@
       "product_scratch_bytes": 512,
       "output_and_sum_bytes": 8192,
       "expected_bits": 3241443328,
-      "process_medians_ms": [
-        0.017959,
-        0.017875,
-        0.020542
-      ],
+      "process_medians_ms": [0.017959, 0.017875, 0.020542],
       "median_ms": 0.017959,
       "native_over_variant": 1.0,
       "cpp_control_over_variant": 1.9650871429366894
@@ -16603,11 +16524,7 @@
       "product_scratch_bytes": -1,
       "output_and_sum_bytes": 73728,
       "expected_bits": 3254009856,
-      "process_medians_ms": [
-        0.018666,
-        0.018708,
-        0.018542
-      ],
+      "process_medians_ms": [0.018666, 0.018708, 0.018542],
       "median_ms": 0.018666,
       "native_over_variant": 20.471713275474126,
       "cpp_control_over_variant": 43.77611700417872
@@ -16621,11 +16538,7 @@
       "product_scratch_bytes": 1552,
       "output_and_sum_bytes": 73728,
       "expected_bits": 3254009856,
-      "process_medians_ms": [
-        0.802875,
-        0.8035,
-        0.824958
-      ],
+      "process_medians_ms": [0.802875, 0.8035, 0.824958],
       "median_ms": 0.8035,
       "native_over_variant": 0.4755756067205974,
       "cpp_control_over_variant": 1.016957062850031
@@ -16639,11 +16552,7 @@
       "product_scratch_bytes": 1552,
       "output_and_sum_bytes": 73728,
       "expected_bits": 3254009856,
-      "process_medians_ms": [
-        0.804875,
-        0.807583,
-        0.820125
-      ],
+      "process_medians_ms": [0.804875, 0.807583, 0.820125],
       "median_ms": 0.807583,
       "native_over_variant": 0.4731711786899922,
       "cpp_control_over_variant": 1.011815503793418
@@ -16657,11 +16566,7 @@
       "product_scratch_bytes": 1056,
       "output_and_sum_bytes": 73728,
       "expected_bits": 3254009856,
-      "process_medians_ms": [
-        0.887417,
-        0.904,
-        0.895
-      ],
+      "process_medians_ms": [0.887417, 0.904, 0.895],
       "median_ms": 0.895,
       "native_over_variant": 0.4269553072625698,
       "cpp_control_over_variant": 0.9129888268156424
@@ -16675,11 +16580,7 @@
       "product_scratch_bytes": 24832,
       "output_and_sum_bytes": 73728,
       "expected_bits": 3254009856,
-      "process_medians_ms": [
-        0.198167,
-        0.204833,
-        0.198042
-      ],
+      "process_medians_ms": [0.198167, 0.204833, 0.198042],
       "median_ms": 0.198167,
       "native_over_variant": 1.928297849793356,
       "cpp_control_over_variant": 4.123416108635645
@@ -16693,11 +16594,7 @@
       "product_scratch_bytes": 6208,
       "output_and_sum_bytes": 73728,
       "expected_bits": 3254009856,
-      "process_medians_ms": [
-        0.417042,
-        0.417292,
-        0.426375
-      ],
+      "process_medians_ms": [0.417042, 0.417292, 0.426375],
       "median_ms": 0.417292,
       "native_over_variant": 0.9157256789011052,
       "cpp_control_over_variant": 1.9581611916835213
@@ -16711,11 +16608,7 @@
       "product_scratch_bytes": 1536,
       "output_and_sum_bytes": 73728,
       "expected_bits": 3254009856,
-      "process_medians_ms": [
-        0.808042,
-        0.81825,
-        0.817125
-      ],
+      "process_medians_ms": [0.808042, 0.81825, 0.817125],
       "median_ms": 0.817125,
       "native_over_variant": 0.4676457090408444,
       "cpp_control_over_variant": 1.0
@@ -16729,11 +16622,7 @@
       "product_scratch_bytes": 1536,
       "output_and_sum_bytes": 73728,
       "expected_bits": 3254009856,
-      "process_medians_ms": [
-        0.381792,
-        0.382125,
-        0.386375
-      ],
+      "process_medians_ms": [0.381792, 0.382125, 0.386375],
       "median_ms": 0.382125,
       "native_over_variant": 1.0,
       "cpp_control_over_variant": 2.138370951913641
@@ -16747,11 +16636,7 @@
       "product_scratch_bytes": -1,
       "output_and_sum_bytes": 131072,
       "expected_bits": 1115226112,
-      "process_medians_ms": [
-        0.0655,
-        0.067958,
-        0.066333
-      ],
+      "process_medians_ms": [0.0655, 0.067958, 0.066333],
       "median_ms": 0.066333,
       "native_over_variant": 134.01196990939653,
       "cpp_control_over_variant": 206.5010477439585
@@ -16765,11 +16650,7 @@
       "product_scratch_bytes": 16400,
       "output_and_sum_bytes": 131072,
       "expected_bits": 1115226112,
-      "process_medians_ms": [
-        13.767875,
-        13.544083,
-        13.658584
-      ],
+      "process_medians_ms": [13.767875, 13.544083, 13.658584],
       "median_ms": 13.658584,
       "native_over_variant": 0.6508299835473429,
       "cpp_control_over_variant": 1.0028736507386125
@@ -16783,11 +16664,7 @@
       "product_scratch_bytes": 4160,
       "output_and_sum_bytes": 131072,
       "expected_bits": 1115226112,
-      "process_medians_ms": [
-        14.469,
-        14.229,
-        14.388792
-      ],
+      "process_medians_ms": [14.469, 14.229, 14.388792],
       "median_ms": 14.388792,
       "native_over_variant": 0.6178014109871072,
       "cpp_control_over_variant": 0.9519794295448847
@@ -16801,11 +16678,7 @@
       "product_scratch_bytes": 1280,
       "output_and_sum_bytes": 131072,
       "expected_bits": 1115226112,
-      "process_medians_ms": [
-        16.331167,
-        16.183084,
-        16.275875
-      ],
+      "process_medians_ms": [16.331167, 16.183084, 16.275875],
       "median_ms": 16.275875,
       "native_over_variant": 0.5461713118342333,
       "cpp_control_over_variant": 0.8416035389802392
@@ -16819,11 +16692,7 @@
       "product_scratch_bytes": 66560,
       "output_and_sum_bytes": 131072,
       "expected_bits": 1115226112,
-      "process_medians_ms": [
-        3.748583,
-        3.774083,
-        3.73175
-      ],
+      "process_medians_ms": [3.748583, 3.774083, 3.73175],
       "median_ms": 3.748583,
       "native_over_variant": 2.3714070089951327,
       "cpp_control_over_variant": 3.6541365097158045
@@ -16837,11 +16706,7 @@
       "product_scratch_bytes": 16640,
       "output_and_sum_bytes": 131072,
       "expected_bits": 1115226112,
-      "process_medians_ms": [
-        7.636416,
-        7.615958,
-        7.528833
-      ],
+      "process_medians_ms": [7.636416, 7.615958, 7.528833],
       "median_ms": 7.615958,
       "native_over_variant": 1.1672091679077012,
       "cpp_control_over_variant": 1.7985700551394848
@@ -16855,11 +16720,7 @@
       "product_scratch_bytes": 16384,
       "output_and_sum_bytes": 131072,
       "expected_bits": 1115226112,
-      "process_medians_ms": [
-        13.80125,
-        13.697834,
-        13.61025
-      ],
+      "process_medians_ms": [13.80125, 13.697834, 13.61025],
       "median_ms": 13.697834,
       "native_over_variant": 0.6489650845527841,
       "cpp_control_over_variant": 1.0
@@ -16873,11 +16734,7 @@
       "product_scratch_bytes": 16384,
       "output_and_sum_bytes": 131072,
       "expected_bits": 1115226112,
-      "process_medians_ms": [
-        8.986875,
-        8.889416,
-        8.863
-      ],
+      "process_medians_ms": [8.986875, 8.889416, 8.863],
       "median_ms": 8.889416,
       "native_over_variant": 1.0,
       "cpp_control_over_variant": 1.5409149487435394
@@ -16891,11 +16748,7 @@
       "product_scratch_bytes": -1,
       "output_and_sum_bytes": 17152,
       "expected_bits": 3334474752,
-      "process_medians_ms": [
-        0.040083,
-        0.050375,
-        0.037667
-      ],
+      "process_medians_ms": [0.040083, 0.050375, 0.037667],
       "median_ms": 0.040083,
       "native_over_variant": 137.39303445350896,
       "cpp_control_over_variant": 191.5764289100117
@@ -16909,11 +16762,7 @@
       "product_scratch_bytes": 16464,
       "output_and_sum_bytes": 17152,
       "expected_bits": 3334474752,
-      "process_medians_ms": [
-        7.822417,
-        7.9685,
-        7.797417
-      ],
+      "process_medians_ms": [7.822417, 7.9685, 7.797417],
       "median_ms": 7.822417,
       "native_over_variant": 0.7040183360206954,
       "cpp_control_over_variant": 0.9816605276860081
@@ -16927,11 +16776,7 @@
       "product_scratch_bytes": 4368,
       "output_and_sum_bytes": 17152,
       "expected_bits": 3334474752,
-      "process_medians_ms": [
-        8.121333,
-        8.271625,
-        8.072458
-      ],
+      "process_medians_ms": [8.121333, 8.271625, 8.072458],
       "median_ms": 8.121333,
       "native_over_variant": 0.6781060449066675,
       "cpp_control_over_variant": 0.9455292622528838
@@ -16945,11 +16790,7 @@
       "product_scratch_bytes": 2064,
       "output_and_sum_bytes": 17152,
       "expected_bits": 3334474752,
-      "process_medians_ms": [
-        9.063083,
-        9.155708,
-        8.975
-      ],
+      "process_medians_ms": [9.063083, 9.155708, 8.975],
       "median_ms": 9.063083,
       "native_over_variant": 0.6076436682749126,
       "cpp_control_over_variant": 0.8472787902306532
@@ -16963,11 +16804,7 @@
       "product_scratch_bytes": 69888,
       "output_and_sum_bytes": 17152,
       "expected_bits": 3334474752,
-      "process_medians_ms": [
-        2.045416,
-        2.034083,
-        2.055958
-      ],
+      "process_medians_ms": [2.045416, 2.034083, 2.055958],
       "median_ms": 2.045416,
       "native_over_variant": 2.6924229594371027,
       "cpp_control_over_variant": 3.7542279907852487
@@ -16981,11 +16818,7 @@
       "product_scratch_bytes": 17472,
       "output_and_sum_bytes": 17152,
       "expected_bits": 3334474752,
-      "process_medians_ms": [
-        4.296375,
-        4.307375,
-        4.333167
-      ],
+      "process_medians_ms": [4.296375, 4.307375, 4.333167],
       "median_ms": 4.307375,
       "native_over_variant": 1.2785339098638961,
       "cpp_control_over_variant": 1.7827465683856174
@@ -16999,11 +16832,7 @@
       "product_scratch_bytes": 65552,
       "output_and_sum_bytes": 17152,
       "expected_bits": 3334474752,
-      "process_medians_ms": [
-        7.664583,
-        7.707,
-        7.678958
-      ],
+      "process_medians_ms": [7.664583, 7.707, 7.678958],
       "median_ms": 7.678958,
       "native_over_variant": 0.7171708713604112,
       "cpp_control_over_variant": 1.0
@@ -17017,11 +16846,7 @@
       "product_scratch_bytes": 65552,
       "output_and_sum_bytes": 17152,
       "expected_bits": 3334474752,
-      "process_medians_ms": [
-        5.507125,
-        5.59475,
-        5.504958
-      ],
+      "process_medians_ms": [5.507125, 5.59475, 5.504958],
       "median_ms": 5.507125,
       "native_over_variant": 1.0,
       "cpp_control_over_variant": 1.394367841659668
@@ -17035,11 +16860,7 @@
       "product_scratch_bytes": -1,
       "output_and_sum_bytes": 32896,
       "expected_bits": 3284125184,
-      "process_medians_ms": [
-        0.093875,
-        0.123208,
-        0.106792
-      ],
+      "process_medians_ms": [0.093875, 0.123208, 0.106792],
       "median_ms": 0.106792,
       "native_over_variant": 192.32752453367294,
       "cpp_control_over_variant": 282.6873735860364
@@ -17053,11 +16874,7 @@
       "product_scratch_bytes": 16528,
       "output_and_sum_bytes": 32896,
       "expected_bits": 3284125184,
-      "process_medians_ms": [
-        29.792,
-        30.611583,
-        29.937
-      ],
+      "process_medians_ms": [29.792, 30.611583, 29.937],
       "median_ms": 29.937,
       "native_over_variant": 0.6860754584627718,
       "cpp_control_over_variant": 1.0084093262517955
@@ -17071,11 +16888,7 @@
       "product_scratch_bytes": 4624,
       "output_and_sum_bytes": 32896,
       "expected_bits": 3284125184,
-      "process_medians_ms": [
-        30.719625,
-        31.337792,
-        30.89825
-      ],
+      "process_medians_ms": [30.719625, 31.337792, 30.89825],
       "median_ms": 30.89825,
       "native_over_variant": 0.6647315301028376,
       "cpp_control_over_variant": 0.9770375344881991
@@ -17089,11 +16902,7 @@
       "product_scratch_bytes": 3088,
       "output_and_sum_bytes": 32896,
       "expected_bits": 3284125184,
-      "process_medians_ms": [
-        34.058209,
-        36.118,
-        34.251
-      ],
+      "process_medians_ms": [34.058209, 36.118, 34.251],
       "median_ms": 34.251,
       "native_over_variant": 0.5996625208023124,
       "cpp_control_over_variant": 0.8813976234270533
@@ -17107,11 +16916,7 @@
       "product_scratch_bytes": 73984,
       "output_and_sum_bytes": 32896,
       "expected_bits": 3284125184,
-      "process_medians_ms": [
-        7.22525,
-        7.447958,
-        7.199208
-      ],
+      "process_medians_ms": [7.22525, 7.447958, 7.199208],
       "median_ms": 7.22525,
       "native_over_variant": 2.8426754783571506,
       "cpp_control_over_variant": 4.178229127019826
@@ -17125,11 +16930,7 @@
       "product_scratch_bytes": 18496,
       "output_and_sum_bytes": 32896,
       "expected_bits": 3284125184,
-      "process_medians_ms": [
-        15.250041,
-        15.500584,
-        15.513625
-      ],
+      "process_medians_ms": [15.250041, 15.500584, 15.513625],
       "median_ms": 15.500584,
       "native_over_variant": 1.3250494949093532,
       "cpp_control_over_variant": 1.9475879102361562
@@ -17143,11 +16944,7 @@
       "product_scratch_bytes": 131088,
       "output_and_sum_bytes": 32896,
       "expected_bits": 3284125184,
-      "process_medians_ms": [
-        29.427125,
-        30.18875,
-        30.989084
-      ],
+      "process_medians_ms": [29.427125, 30.18875, 30.989084],
       "median_ms": 30.18875,
       "native_over_variant": 0.6803541385449878,
       "cpp_control_over_variant": 1.0
@@ -17161,11 +16958,7 @@
       "product_scratch_bytes": 131088,
       "output_and_sum_bytes": 32896,
       "expected_bits": 3284125184,
-      "process_medians_ms": [
-        20.293583,
-        21.102,
-        20.539041
-      ],
+      "process_medians_ms": [20.293583, 21.102, 20.539041],
       "median_ms": 20.539041,
       "native_over_variant": 1.0,
       "cpp_control_over_variant": 1.4698227633899752
@@ -17179,11 +16972,7 @@
       "product_scratch_bytes": -1,
       "output_and_sum_bytes": 134144,
       "expected_bits": 1106780160,
-      "process_medians_ms": [
-        0.065625,
-        0.073667,
-        0.069042
-      ],
+      "process_medians_ms": [0.065625, 0.073667, 0.069042],
       "median_ms": 0.069042,
       "native_over_variant": 115.32472987456909,
       "cpp_control_over_variant": 201.285087338142
@@ -17197,11 +16986,7 @@
       "product_scratch_bytes": 16416,
       "output_and_sum_bytes": 134144,
       "expected_bits": 1106780160,
-      "process_medians_ms": [
-        13.738083,
-        13.815708,
-        13.895125
-      ],
+      "process_medians_ms": [13.738083, 13.815708, 13.895125],
       "median_ms": 13.815708,
       "native_over_variant": 0.5763186367285701,
       "cpp_control_over_variant": 1.0058930747523036
@@ -17215,11 +17000,7 @@
       "product_scratch_bytes": 4176,
       "output_and_sum_bytes": 134144,
       "expected_bits": 1106780160,
-      "process_medians_ms": [
-        14.430708,
-        14.568667,
-        14.583167
-      ],
+      "process_medians_ms": [14.430708, 14.568667, 14.583167],
       "median_ms": 14.568667,
       "native_over_variant": 0.5465325001937377,
       "cpp_control_over_variant": 0.953905048416578
@@ -17233,11 +17014,7 @@
       "product_scratch_bytes": 1296,
       "output_and_sum_bytes": 134144,
       "expected_bits": 1106780160,
-      "process_medians_ms": [
-        16.239917,
-        16.523333,
-        16.685334
-      ],
+      "process_medians_ms": [16.239917, 16.523333, 16.685334],
       "median_ms": 16.523333,
       "native_over_variant": 0.4818791705039171,
       "cpp_control_over_variant": 0.8410606383106847
@@ -17251,11 +17028,7 @@
       "product_scratch_bytes": 66816,
       "output_and_sum_bytes": 134144,
       "expected_bits": 1106780160,
-      "process_medians_ms": [
-        3.989625,
-        3.998958,
-        3.967167
-      ],
+      "process_medians_ms": [3.989625, 3.998958, 3.967167],
       "median_ms": 3.989625,
       "native_over_variant": 1.9957389478961054,
       "cpp_control_over_variant": 3.483316101137325
@@ -17269,11 +17042,7 @@
       "product_scratch_bytes": 16704,
       "output_and_sum_bytes": 134144,
       "expected_bits": 1106780160,
-      "process_medians_ms": [
-        8.092292,
-        8.270208,
-        8.327584
-      ],
+      "process_medians_ms": [8.092292, 8.270208, 8.327584],
       "median_ms": 8.270208,
       "native_over_variant": 0.9627629679930662,
       "cpp_control_over_variant": 1.6803839758322887
@@ -17287,11 +17056,7 @@
       "product_scratch_bytes": 16400,
       "output_and_sum_bytes": 134144,
       "expected_bits": 1106780160,
-      "process_medians_ms": [
-        13.855084,
-        13.897125,
-        14.07825
-      ],
+      "process_medians_ms": [13.855084, 13.897125, 14.07825],
       "median_ms": 13.897125,
       "native_over_variant": 0.5729422452485675,
       "cpp_control_over_variant": 1.0
@@ -17305,11 +17070,7 @@
       "product_scratch_bytes": 16400,
       "output_and_sum_bytes": 134144,
       "expected_bits": 1106780160,
-      "process_medians_ms": [
-        7.95525,
-        7.965583,
-        7.96225
-      ],
+      "process_medians_ms": [7.95525, 7.965583, 7.96225],
       "median_ms": 7.96225,
       "native_over_variant": 1.0,
       "cpp_control_over_variant": 1.7453766209300137
@@ -17323,11 +17084,7 @@
       "product_scratch_bytes": -1,
       "output_and_sum_bytes": 1048576,
       "expected_bits": 3297385472,
-      "process_medians_ms": [
-        0.384416,
-        0.398292,
-        0.380917
-      ],
+      "process_medians_ms": [0.384416, 0.398292, 0.380917],
       "median_ms": 0.384416,
       "native_over_variant": 183.28787303338052,
       "cpp_control_over_variant": 286.7759146341463
@@ -17341,11 +17098,7 @@
       "product_scratch_bytes": 16400,
       "output_and_sum_bytes": 1048576,
       "expected_bits": 3297385472,
-      "process_medians_ms": [
-        111.649291,
-        113.260375,
-        112.035291
-      ],
+      "process_medians_ms": [111.649291, 113.260375, 112.035291],
       "median_ms": 112.035291,
       "native_over_variant": 0.6288981835196912,
       "cpp_control_over_variant": 0.9839868225093465
@@ -17359,11 +17112,7 @@
       "product_scratch_bytes": 4160,
       "output_and_sum_bytes": 1048576,
       "expected_bits": 3297385472,
-      "process_medians_ms": [
-        117.650375,
-        118.627417,
-        118.348583
-      ],
+      "process_medians_ms": [117.650375, 118.627417, 118.348583],
       "median_ms": 118.348583,
       "native_over_variant": 0.5953496798521026,
       "cpp_control_over_variant": 0.9314961548800292
@@ -17377,11 +17126,7 @@
       "product_scratch_bytes": 1280,
       "output_and_sum_bytes": 1048576,
       "expected_bits": 3297385472,
-      "process_medians_ms": [
-        132.217375,
-        133.232083,
-        132.78625
-      ],
+      "process_medians_ms": [132.217375, 133.232083, 132.78625],
       "median_ms": 132.78625,
       "native_over_variant": 0.5306181249941165,
       "cpp_control_over_variant": 0.8302158544276986
@@ -17395,11 +17140,7 @@
       "product_scratch_bytes": 66560,
       "output_and_sum_bytes": 1048576,
       "expected_bits": 3297385472,
-      "process_medians_ms": [
-        28.057917,
-        28.358541,
-        28.336708
-      ],
+      "process_medians_ms": [28.057917, 28.358541, 28.336708],
       "median_ms": 28.336708,
       "native_over_variant": 2.486484703868918,
       "cpp_control_over_variant": 3.8904042770246985
@@ -17413,11 +17154,7 @@
       "product_scratch_bytes": 16640,
       "output_and_sum_bytes": 1048576,
       "expected_bits": 3297385472,
-      "process_medians_ms": [
-        59.887916,
-        60.244625,
-        60.160375
-      ],
+      "process_medians_ms": [59.887916, 60.244625, 60.160375],
       "median_ms": 60.160375,
       "native_over_variant": 1.1711827095492673,
       "cpp_control_over_variant": 1.832456164044855
@@ -17431,11 +17168,7 @@
       "product_scratch_bytes": 16384,
       "output_and_sum_bytes": 1048576,
       "expected_bits": 3297385472,
-      "process_medians_ms": [
-        109.557042,
-        110.989542,
-        110.24125
-      ],
+      "process_medians_ms": [109.557042, 110.989542, 110.24125],
       "median_ms": 110.24125,
       "native_over_variant": 0.6391327293549376,
       "cpp_control_over_variant": 1.0
@@ -17449,11 +17182,7 @@
       "product_scratch_bytes": 16384,
       "output_and_sum_bytes": 1048576,
       "expected_bits": 3297385472,
-      "process_medians_ms": [
-        70.122833,
-        71.606,
-        70.458791
-      ],
+      "process_medians_ms": [70.122833, 71.606, 70.458791],
       "median_ms": 70.458791,
       "native_over_variant": 1.0,
       "cpp_control_over_variant": 1.5646202331232164
@@ -17467,11 +17196,7 @@
       "product_scratch_bytes": -1,
       "output_and_sum_bytes": 134680,
       "expected_bits": 1109954560,
-      "process_medians_ms": [
-        0.044,
-        0.0475,
-        0.047208
-      ],
+      "process_medians_ms": [0.044, 0.0475, 0.047208],
       "median_ms": 0.047208,
       "native_over_variant": 40.38334604304355,
       "cpp_control_over_variant": 77.87610150821895
@@ -17485,11 +17210,7 @@
       "product_scratch_bytes": 4128,
       "output_and_sum_bytes": 134680,
       "expected_bits": 1109954560,
-      "process_medians_ms": [
-        3.616625,
-        3.690375,
-        3.632334
-      ],
+      "process_medians_ms": [3.616625, 3.690375, 3.632334],
       "median_ms": 3.632334,
       "native_over_variant": 0.5248462834089597,
       "cpp_control_over_variant": 1.012124710998493
@@ -17503,11 +17224,7 @@
       "product_scratch_bytes": 4128,
       "output_and_sum_bytes": 134680,
       "expected_bits": 1109954560,
-      "process_medians_ms": [
-        3.624333,
-        3.744416,
-        3.716
-      ],
+      "process_medians_ms": [3.624333, 3.744416, 3.716],
       "median_ms": 3.716,
       "native_over_variant": 0.5130293326157158,
       "cpp_control_over_variant": 0.9893366523143164
@@ -17521,11 +17238,7 @@
       "product_scratch_bytes": 1104,
       "output_and_sum_bytes": 134680,
       "expected_bits": 1109954560,
-      "process_medians_ms": [
-        4.182084,
-        4.285042,
-        4.284541
-      ],
+      "process_medians_ms": [4.182084, 4.285042, 4.284541],
       "median_ms": 4.284541,
       "native_over_variant": 0.44495244648143173,
       "cpp_control_over_variant": 0.858055740393195
@@ -17539,11 +17252,7 @@
       "product_scratch_bytes": 66048,
       "output_and_sum_bytes": 134680,
       "expected_bits": 1109954560,
-      "process_medians_ms": [
-        1.022709,
-        1.063542,
-        1.045834
-      ],
+      "process_medians_ms": [1.022709, 1.063542, 1.045834],
       "median_ms": 1.045834,
       "native_over_variant": 1.8228676826341468,
       "cpp_control_over_variant": 3.515256723342328
@@ -17557,11 +17266,7 @@
       "product_scratch_bytes": 16512,
       "output_and_sum_bytes": 134680,
       "expected_bits": 1109954560,
-      "process_medians_ms": [
-        1.962083,
-        2.068542,
-        2.043792
-      ],
+      "process_medians_ms": [1.962083, 2.068542, 2.043792],
       "median_ms": 2.043792,
       "native_over_variant": 0.9327842559321106,
       "cpp_control_over_variant": 1.7988009543045478
@@ -17575,11 +17280,7 @@
       "product_scratch_bytes": 4112,
       "output_and_sum_bytes": 134680,
       "expected_bits": 1109954560,
-      "process_medians_ms": [
-        3.656792,
-        3.684125,
-        3.676375
-      ],
+      "process_medians_ms": [3.656792, 3.684125, 3.676375],
       "median_ms": 3.676375,
       "native_over_variant": 0.5185589065315698,
       "cpp_control_over_variant": 1.0
@@ -17593,11 +17294,7 @@
       "product_scratch_bytes": 4112,
       "output_and_sum_bytes": 134680,
       "expected_bits": 1109954560,
-      "process_medians_ms": [
-        1.875,
-        1.986583,
-        1.906417
-      ],
+      "process_medians_ms": [1.875, 1.986583, 1.906417],
       "median_ms": 1.906417,
       "native_over_variant": 1.0,
       "cpp_control_over_variant": 1.92842122159003
@@ -17611,11 +17308,7 @@
       "product_scratch_bytes": -1,
       "output_and_sum_bytes": 524288,
       "expected_bits": 3255762944,
-      "process_medians_ms": [
-        0.11925,
-        0.118,
-        0.126334
-      ],
+      "process_medians_ms": [0.11925, 0.118, 0.126334],
       "median_ms": 0.11925,
       "native_over_variant": 72.07232704402517,
       "cpp_control_over_variant": 121.437106918239
@@ -17629,11 +17322,7 @@
       "product_scratch_bytes": 4112,
       "output_and_sum_bytes": 524288,
       "expected_bits": 3255762944,
-      "process_medians_ms": [
-        14.295,
-        14.50875,
-        14.50275
-      ],
+      "process_medians_ms": [14.295, 14.50875, 14.50275],
       "median_ms": 14.50275,
       "native_over_variant": 0.5926203651031701,
       "cpp_control_over_variant": 0.9985261415938356
@@ -17647,11 +17336,7 @@
       "product_scratch_bytes": 4112,
       "output_and_sum_bytes": 524288,
       "expected_bits": 3255762944,
-      "process_medians_ms": [
-        14.350375,
-        14.486125,
-        14.562583
-      ],
+      "process_medians_ms": [14.350375, 14.486125, 14.562583],
       "median_ms": 14.486125,
       "native_over_variant": 0.5933004858096973,
       "cpp_control_over_variant": 0.9996721000267498
@@ -17665,11 +17350,7 @@
       "product_scratch_bytes": 1088,
       "output_and_sum_bytes": 524288,
       "expected_bits": 3255762944,
-      "process_medians_ms": [
-        16.253708,
-        16.420792,
-        16.537625
-      ],
+      "process_medians_ms": [16.253708, 16.420792, 16.537625],
       "median_ms": 16.420792,
       "native_over_variant": 0.5233989322804894,
       "cpp_control_over_variant": 0.8818926029877244
@@ -17683,11 +17364,7 @@
       "product_scratch_bytes": 65792,
       "output_and_sum_bytes": 524288,
       "expected_bits": 3255762944,
-      "process_medians_ms": [
-        3.581958,
-        3.628875,
-        3.638958
-      ],
+      "process_medians_ms": [3.581958, 3.628875, 3.638958],
       "median_ms": 3.628875,
       "native_over_variant": 2.3683992973028833,
       "cpp_control_over_variant": 3.9905962591712307
@@ -17701,11 +17378,7 @@
       "product_scratch_bytes": 16448,
       "output_and_sum_bytes": 524288,
       "expected_bits": 3255762944,
-      "process_medians_ms": [
-        7.506167,
-        7.499292,
-        7.65275
-      ],
+      "process_medians_ms": [7.506167, 7.499292, 7.65275],
       "median_ms": 7.506167,
       "native_over_variant": 1.1450084976793085,
       "cpp_control_over_variant": 1.9292636308251603
@@ -17719,11 +17392,7 @@
       "product_scratch_bytes": 4096,
       "output_and_sum_bytes": 524288,
       "expected_bits": 3255762944,
-      "process_medians_ms": [
-        14.177875,
-        14.481375,
-        14.517
-      ],
+      "process_medians_ms": [14.177875, 14.481375, 14.517],
       "median_ms": 14.481375,
       "native_over_variant": 0.593495092834762,
       "cpp_control_over_variant": 1.0
@@ -17737,11 +17406,7 @@
       "product_scratch_bytes": 4096,
       "output_and_sum_bytes": 524288,
       "expected_bits": 3255762944,
-      "process_medians_ms": [
-        8.594625,
-        8.58725,
-        8.738917
-      ],
+      "process_medians_ms": [8.594625, 8.58725, 8.738917],
       "median_ms": 8.594625,
       "native_over_variant": 1.0,
       "cpp_control_over_variant": 1.684933897639513
@@ -17755,11 +17420,7 @@
       "product_scratch_bytes": -1,
       "output_and_sum_bytes": 2097152,
       "expected_bits": 1117704192,
-      "process_medians_ms": [
-        0.57575,
-        0.574959,
-        0.575959
-      ],
+      "process_medians_ms": [0.57575, 0.574959, 0.575959],
       "median_ms": 0.57575,
       "native_over_variant": 117.14546244029528,
       "cpp_control_over_variant": 193.46793920972647
@@ -17773,11 +17434,7 @@
       "product_scratch_bytes": 8208,
       "output_and_sum_bytes": 2097152,
       "expected_bits": 1117704192,
-      "process_medians_ms": [
-        111.753959,
-        111.465291,
-        112.343333
-      ],
+      "process_medians_ms": [111.753959, 111.465291, 112.343333],
       "median_ms": 111.753959,
       "native_over_variant": 0.6035267171161247,
       "cpp_control_over_variant": 0.9967357487532054
@@ -17791,11 +17448,7 @@
       "product_scratch_bytes": 4128,
       "output_and_sum_bytes": 2097152,
       "expected_bits": 1117704192,
-      "process_medians_ms": [
-        115.182375,
-        115.190958,
-        115.373834
-      ],
+      "process_medians_ms": [115.182375, 115.190958, 115.373834],
       "median_ms": 115.190958,
       "native_over_variant": 0.5855190474238439,
       "cpp_control_over_variant": 0.9669957428429409
@@ -17809,11 +17462,7 @@
       "product_scratch_bytes": 1152,
       "output_and_sum_bytes": 2097152,
       "expected_bits": 1117704192,
-      "process_medians_ms": [
-        131.007,
-        130.448416,
-        130.779709
-      ],
+      "process_medians_ms": [131.007, 130.448416, 130.779709],
       "median_ms": 130.779709,
       "native_over_variant": 0.5157260290279435,
       "cpp_control_over_variant": 0.8517312574842937
@@ -17827,11 +17476,7 @@
       "product_scratch_bytes": 66048,
       "output_and_sum_bytes": 2097152,
       "expected_bits": 1117704192,
-      "process_medians_ms": [
-        28.464917,
-        28.595458,
-        28.413833
-      ],
+      "process_medians_ms": [28.464917, 28.595458, 28.413833],
       "median_ms": 28.464917,
       "native_over_variant": 2.3694606241079152,
       "cpp_control_over_variant": 3.9132088809533507
@@ -17845,11 +17490,7 @@
       "product_scratch_bytes": 16512,
       "output_and_sum_bytes": 2097152,
       "expected_bits": 1117704192,
-      "process_medians_ms": [
-        60.019167,
-        60.3935,
-        60.418667
-      ],
+      "process_medians_ms": [60.019167, 60.3935, 60.418667],
       "median_ms": 60.3935,
       "native_over_variant": 1.1167840910031708,
       "cpp_control_over_variant": 1.8443899757424225
@@ -17863,11 +17504,7 @@
       "product_scratch_bytes": 8192,
       "output_and_sum_bytes": 2097152,
       "expected_bits": 1117704192,
-      "process_medians_ms": [
-        111.389166,
-        111.045042,
-        111.944959
-      ],
+      "process_medians_ms": [111.389166, 111.045042, 111.944959],
       "median_ms": 111.389166,
       "native_over_variant": 0.6055032317954513,
       "cpp_control_over_variant": 1.0
@@ -17881,11 +17518,7 @@
       "product_scratch_bytes": 8192,
       "output_and_sum_bytes": 2097152,
       "expected_bits": 1117704192,
-      "process_medians_ms": [
-        67.4465,
-        67.26625,
-        67.695042
-      ],
+      "process_medians_ms": [67.4465, 67.26625, 67.695042],
       "median_ms": 67.4465,
       "native_over_variant": 1.0,
       "cpp_control_over_variant": 1.6515188482723344
@@ -17899,11 +17532,7 @@
       "product_scratch_bytes": -1,
       "output_and_sum_bytes": 1048576,
       "expected_bits": 3241639936,
-      "process_medians_ms": [
-        0.204042,
-        0.217875,
-        0.206834
-      ],
+      "process_medians_ms": [0.204042, 0.217875, 0.206834],
       "median_ms": 0.206834,
       "native_over_variant": 40.64894069640388,
       "cpp_control_over_variant": 73.2560072328534
@@ -17917,11 +17546,7 @@
       "product_scratch_bytes": 2064,
       "output_and_sum_bytes": 1048576,
       "expected_bits": 3241639936,
-      "process_medians_ms": [
-        14.990208,
-        15.219209,
-        15.273541
-      ],
+      "process_medians_ms": [14.990208, 15.219209, 15.273541],
       "median_ms": 15.219209,
       "native_over_variant": 0.5524323241766377,
       "cpp_control_over_variant": 0.995572963088949
@@ -17935,11 +17560,7 @@
       "product_scratch_bytes": 2064,
       "output_and_sum_bytes": 1048576,
       "expected_bits": 3241639936,
-      "process_medians_ms": [
-        14.949166,
-        15.07125,
-        15.169125
-      ],
+      "process_medians_ms": [14.949166, 15.07125, 15.169125],
       "median_ms": 15.07125,
       "native_over_variant": 0.5578557186696526,
       "cpp_control_over_variant": 1.0053468026872356
@@ -17953,11 +17574,7 @@
       "product_scratch_bytes": 1056,
       "output_and_sum_bytes": 1048576,
       "expected_bits": 3241639936,
-      "process_medians_ms": [
-        16.385291,
-        16.434792,
-        16.569875
-      ],
+      "process_medians_ms": [16.385291, 16.434792, 16.569875],
       "median_ms": 16.434792,
       "native_over_variant": 0.5115722182550287,
       "cpp_control_over_variant": 0.9219364017506275
@@ -17971,11 +17588,7 @@
       "product_scratch_bytes": 33024,
       "output_and_sum_bytes": 1048576,
       "expected_bits": 3241639936,
-      "process_medians_ms": [
-        3.699958,
-        3.774,
-        3.732459
-      ],
+      "process_medians_ms": [3.699958, 3.774, 3.732459],
       "median_ms": 3.732459,
       "native_over_variant": 2.2525587019174225,
       "cpp_control_over_variant": 4.059477411540221
@@ -17989,11 +17602,7 @@
       "product_scratch_bytes": 8256,
       "output_and_sum_bytes": 1048576,
       "expected_bits": 3241639936,
-      "process_medians_ms": [
-        7.804709,
-        7.825917,
-        7.768083
-      ],
+      "process_medians_ms": [7.804709, 7.825917, 7.768083],
       "median_ms": 7.804709,
       "native_over_variant": 1.0772449043263497,
       "cpp_control_over_variant": 1.9413706519999656
@@ -18007,11 +17616,7 @@
       "product_scratch_bytes": 2048,
       "output_and_sum_bytes": 1048576,
       "expected_bits": 3241639936,
-      "process_medians_ms": [
-        14.995709,
-        15.151833,
-        15.169084
-      ],
+      "process_medians_ms": [14.995709, 15.151833, 15.169084],
       "median_ms": 15.151833,
       "native_over_variant": 0.554888837541966,
       "cpp_control_over_variant": 1.0
@@ -18025,11 +17630,7 @@
       "product_scratch_bytes": 2048,
       "output_and_sum_bytes": 1048576,
       "expected_bits": 3241639936,
-      "process_medians_ms": [
-        8.41275,
-        8.370541,
-        8.407583
-      ],
+      "process_medians_ms": [8.41275, 8.370541, 8.407583],
       "median_ms": 8.407583,
       "native_over_variant": 1.0,
       "cpp_control_over_variant": 1.8021627618781757
@@ -18043,11 +17644,7 @@
       "product_scratch_bytes": -1,
       "output_and_sum_bytes": 524288,
       "expected_bits": 1104576512,
-      "process_medians_ms": [
-        0.103792,
-        0.103917,
-        0.111375
-      ],
+      "process_medians_ms": [0.103792, 0.103917, 0.111375],
       "median_ms": 0.103917,
       "native_over_variant": 23.603366147983486,
       "cpp_control_over_variant": 39.50469124397356
@@ -18061,11 +17658,7 @@
       "product_scratch_bytes": 1040,
       "output_and_sum_bytes": 524288,
       "expected_bits": 1104576512,
-      "process_medians_ms": [
-        4.119791,
-        4.115209,
-        4.235167
-      ],
+      "process_medians_ms": [4.119791, 4.115209, 4.235167],
       "median_ms": 4.119791,
       "native_over_variant": 0.5953678232706464,
       "cpp_control_over_variant": 0.9964605000593477
@@ -18079,11 +17672,7 @@
       "product_scratch_bytes": 1040,
       "output_and_sum_bytes": 524288,
       "expected_bits": 1104576512,
-      "process_medians_ms": [
-        4.171166,
-        4.117875,
-        4.129958
-      ],
+      "process_medians_ms": [4.171166, 4.117875, 4.129958],
       "median_ms": 4.129958,
       "native_over_variant": 0.5939021655910302,
       "cpp_control_over_variant": 0.9940074451120327
@@ -18097,11 +17686,7 @@
       "product_scratch_bytes": 1040,
       "output_and_sum_bytes": 524288,
       "expected_bits": 1104576512,
-      "process_medians_ms": [
-        4.162375,
-        4.1305,
-        4.179
-      ],
+      "process_medians_ms": [4.162375, 4.1305, 4.179],
       "median_ms": 4.162375,
       "native_over_variant": 0.5892767950989519,
       "cpp_control_over_variant": 0.9862660139944144
@@ -18115,11 +17700,7 @@
       "product_scratch_bytes": 16640,
       "output_and_sum_bytes": 524288,
       "expected_bits": 1104576512,
-      "process_medians_ms": [
-        0.984042,
-        1.016625,
-        0.987333
-      ],
+      "process_medians_ms": [0.984042, 1.016625, 0.987333],
       "median_ms": 0.987333,
       "native_over_variant": 2.4842591101482476,
       "cpp_control_over_variant": 4.157876825751798
@@ -18133,11 +17714,7 @@
       "product_scratch_bytes": 4160,
       "output_and_sum_bytes": 524288,
       "expected_bits": 1104576512,
-      "process_medians_ms": [
-        2.081958,
-        2.048916,
-        2.050667
-      ],
+      "process_medians_ms": [2.081958, 2.048916, 2.050667],
       "median_ms": 2.050667,
       "native_over_variant": 1.1960942464086077,
       "cpp_control_over_variant": 2.0018896290816603
@@ -18151,11 +17728,7 @@
       "product_scratch_bytes": 1024,
       "output_and_sum_bytes": 524288,
       "expected_bits": 1104576512,
-      "process_medians_ms": [
-        4.105209,
-        4.070333,
-        4.171375
-      ],
+      "process_medians_ms": [4.105209, 4.070333, 4.171375],
       "median_ms": 4.105209,
       "native_over_variant": 0.5974826129437014,
       "cpp_control_over_variant": 1.0
@@ -18169,11 +17742,7 @@
       "product_scratch_bytes": 1024,
       "output_and_sum_bytes": 524288,
       "expected_bits": 1104576512,
-      "process_medians_ms": [
-        2.4185,
-        2.466542,
-        2.452791
-      ],
+      "process_medians_ms": [2.4185, 2.466542, 2.452791],
       "median_ms": 2.452791,
       "native_over_variant": 1.0,
       "cpp_control_over_variant": 1.6736888711675804
@@ -18187,11 +17756,7 @@
       "product_scratch_bytes": -1,
       "output_and_sum_bytes": 262144,
       "expected_bits": 1124576256,
-      "process_medians_ms": [
-        0.073458,
-        0.070916,
-        0.065584
-      ],
+      "process_medians_ms": [0.073458, 0.070916, 0.065584],
       "median_ms": 0.070916,
       "native_over_variant": 60.910090811664496,
       "cpp_control_over_variant": 101.74125726211291
@@ -18205,11 +17770,7 @@
       "product_scratch_bytes": 4112,
       "output_and_sum_bytes": 262144,
       "expected_bits": 1124576256,
-      "process_medians_ms": [
-        7.2445,
-        7.33225,
-        7.219083
-      ],
+      "process_medians_ms": [7.2445, 7.33225, 7.219083],
       "median_ms": 7.2445,
       "native_over_variant": 0.5962454275657395,
       "cpp_control_over_variant": 0.995939402305197
@@ -18223,11 +17784,7 @@
       "product_scratch_bytes": 4112,
       "output_and_sum_bytes": 262144,
       "expected_bits": 1124576256,
-      "process_medians_ms": [
-        7.14575,
-        7.257167,
-        7.178042
-      ],
+      "process_medians_ms": [7.14575, 7.257167, 7.178042],
       "median_ms": 7.178042,
       "native_over_variant": 0.6017657740091239,
       "cpp_control_over_variant": 1.0051603208785906
@@ -18241,11 +17798,7 @@
       "product_scratch_bytes": 1088,
       "output_and_sum_bytes": 262144,
       "expected_bits": 1124576256,
-      "process_medians_ms": [
-        8.278458,
-        8.380084,
-        8.166208
-      ],
+      "process_medians_ms": [8.278458, 8.380084, 8.166208],
       "median_ms": 8.278458,
       "native_over_variant": 0.52177591527311,
       "cpp_control_over_variant": 0.8715491459882987
@@ -18259,11 +17812,7 @@
       "product_scratch_bytes": 65792,
       "output_and_sum_bytes": 262144,
       "expected_bits": 1124576256,
-      "process_medians_ms": [
-        1.834542,
-        1.806584,
-        1.800625
-      ],
+      "process_medians_ms": [1.834542, 1.806584, 1.800625],
       "median_ms": 1.806584,
       "native_over_variant": 2.390976561289151,
       "cpp_control_over_variant": 3.9937711172024106
@@ -18277,11 +17826,7 @@
       "product_scratch_bytes": 16448,
       "output_and_sum_bytes": 262144,
       "expected_bits": 1124576256,
-      "process_medians_ms": [
-        3.722875,
-        3.818291,
-        3.750959
-      ],
+      "process_medians_ms": [3.722875, 3.818291, 3.750959],
       "median_ms": 3.750959,
       "native_over_variant": 1.1515721712767322,
       "cpp_control_over_variant": 1.9235302225377564
@@ -18295,11 +17840,7 @@
       "product_scratch_bytes": 4096,
       "output_and_sum_bytes": 262144,
       "expected_bits": 1124576256,
-      "process_medians_ms": [
-        7.156917,
-        7.275333,
-        7.215083
-      ],
+      "process_medians_ms": [7.156917, 7.275333, 7.215083],
       "median_ms": 7.215083,
       "native_over_variant": 0.5986764116227076,
       "cpp_control_over_variant": 1.0
@@ -18313,11 +17854,7 @@
       "product_scratch_bytes": 4096,
       "output_and_sum_bytes": 262144,
       "expected_bits": 1124576256,
-      "process_medians_ms": [
-        4.297167,
-        4.439792,
-        4.3195
-      ],
+      "process_medians_ms": [4.297167, 4.439792, 4.3195],
       "median_ms": 4.3195,
       "native_over_variant": 1.0,
       "cpp_control_over_variant": 1.670351429563607

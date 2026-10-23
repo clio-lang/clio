@@ -7,21 +7,9 @@
   "metalCompiler": "32023.864",
   "maps": {
     "programs": 58,
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
-    "ranks": [
-      1,
-      8
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
+    "workers": [1, 2, 4],
+    "ranks": [1, 8],
     "checks": [
       "checked helpers and arithmetic",
       "lazy conditional and short-circuit work",
@@ -32,14 +20,8 @@
   },
   "scalarTasks": {
     "programs": 48,
-    "variants": [
-      "debug"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug"],
+    "workers": [1, 2, 4],
     "checks": [
       "all ten scalar identities",
       "scalar-only dispatch",
@@ -50,14 +32,8 @@
   },
   "matrices": {
     "programs": 38,
-    "variants": [
-      "debug"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug"],
+    "workers": [1, 2, 4],
     "checks": [
       "all ten numeric identities",
       "separately checked products",
@@ -68,10 +44,7 @@
     ]
   },
   "sourceCompiler": {
-    "variants": [
-      "normal",
-      "asan-ubsan"
-    ],
+    "variants": ["normal", "asan-ubsan"],
     "programCounts": {
       "maps": 58,
       "reductions": 48,

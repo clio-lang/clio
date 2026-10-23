@@ -44,11 +44,7 @@
         "complete strict LSP suite",
         "unfinished-code recovery protocol"
       ],
-      "cpu_modes": [
-        "normal",
-        "ASan/UBSan",
-        "TSan"
-      ],
+      "cpu_modes": ["normal", "ASan/UBSan", "TSan"],
       "cpu_result_families": [
         "all ten numeric types",
         "Bool",
@@ -165,9 +161,7 @@
             "bundledSHA256": "0af4670c6d14ccc614f70aa1e757b3313fe629b5d05d8e818c9f644443b730bb"
           }
         ],
-        "externalRequirements": [
-          "macOS system libraries"
-        ]
+        "externalRequirements": ["macOS system libraries"]
       }
     },
     "cpu": {

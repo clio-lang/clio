@@ -178,12 +178,7 @@
       "native-workers-thread-sanitized"
     ],
     "failed": [],
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "programs_per_variant": 24,
     "programs_total": 96,
     "numeric_widths": [
@@ -198,11 +193,7 @@
       "float32",
       "float64"
     ],
-    "worker_counts_in_rethrow_test": [
-      1,
-      2,
-      4
-    ],
+    "worker_counts_in_rethrow_test": [1, 2, 4],
     "allocation_injections_per_variant": 120,
     "allocation_injections_total": 480,
     "private_harness_processes": 4,

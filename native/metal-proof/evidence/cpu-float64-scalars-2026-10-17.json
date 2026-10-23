@@ -49,41 +49,25 @@
         "variant": "debug",
         "harness_process_runs": 108,
         "task_core_allocation_injection_runs": 72,
-        "workers": [
-          1,
-          2,
-          4
-        ]
+        "workers": [1, 2, 4]
       },
       {
         "variant": "optimized",
         "harness_process_runs": 108,
         "task_core_allocation_injection_runs": 72,
-        "workers": [
-          1,
-          2,
-          4
-        ]
+        "workers": [1, 2, 4]
       },
       {
         "variant": "sanitized",
         "harness_process_runs": 108,
         "task_core_allocation_injection_runs": 72,
-        "workers": [
-          1,
-          2,
-          4
-        ]
+        "workers": [1, 2, 4]
       },
       {
         "variant": "thread-sanitized",
         "harness_process_runs": 108,
         "task_core_allocation_injection_runs": 72,
-        "workers": [
-          1,
-          2,
-          4
-        ]
+        "workers": [1, 2, 4]
       }
     ],
     "mixed_scalar_families": [

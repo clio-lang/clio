@@ -17,19 +17,10 @@
     "failed": 0,
     "elapsed_seconds": 106.95,
     "selection": "^(native-recursive-record-bridge-|native-(task-value-layout|recursive-source-frontend)-(debug|sanitized)$|frontend-continuation-(debug|sanitized)$|native-record-workers-(debug|optimized|sanitized|thread-sanitized)$|native-(enum-payloads|record-array-fields|record-closures|worker-callable-aggregates|worker-error-functions)-(debug|sanitized)$)",
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
     "new_direct_field_probes_per_variant": 31,
     "new_scheduler_field_cases_per_variant": 12,
-    "worker_pool_sizes": [
-      1,
-      2,
-      4
-    ],
+    "worker_pool_sizes": [1, 2, 4],
     "coverage": [
       "Production LLVM field emitter linked to compiler-created recursive lists and real scheduler adapters",
       "Inline head reads, managed/transitive child projection after producer settlement and managed-tail registration",

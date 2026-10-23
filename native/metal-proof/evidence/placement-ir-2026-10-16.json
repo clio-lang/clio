@@ -17,16 +17,8 @@
   "qualification": {
     "source_fixtures": 19,
     "target_ir_artifacts": 70,
-    "frontend_variants": [
-      "debug",
-      "ASan/UBSan"
-    ],
-    "cpu_constructor_variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "frontend_variants": ["debug", "ASan/UBSan"],
+    "cpu_constructor_variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "cpu_constructor_expected": 165,
     "artifact_preflight": [
       "symlink rejection",

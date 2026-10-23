@@ -65,12 +65,12 @@ Synchronous functions may return owned values or typed expected errors and may u
 
 ## Ownership at each handoff
 
-| Handoff | Required ownership before publication |
-| --- | --- |
-| Parent to child arguments/captures | Child execution owns a complete environment and all required captured backing before the parent may resume or release its packet. |
-| Child to cached outcome | Outcome owns the callable and transitive backing before child execution storage is settled. |
-| Cached outcome to observer | Observing invocation owns its callable and backing before the task/group may be released. Repeated observations remain independent of that release. |
-| Onward submission | The new child acquires its own ownership; the previous producer or observer need not stay alive. |
+| Handoff                            | Required ownership before publication                                                                                                               |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Parent to child arguments/captures | Child execution owns a complete environment and all required captured backing before the parent may resume or release its packet.                   |
+| Child to cached outcome            | Outcome owns the callable and transitive backing before child execution storage is settled.                                                         |
+| Cached outcome to observer         | Observing invocation owns its callable and backing before the task/group may be released. Repeated observations remain independent of that release. |
+| Onward submission                  | The new child acquires its own ownership; the previous producer or observer need not stay alive.                                                    |
 
 Use the existing `ValueLayout` copy/retain and task publication protocols as the integration points. They currently transport ordinary owned data; copying two callable pointers through those hooks is insufficient. Never access a source invocation concurrently with its execution or after settlement. Task publication synchronization establishes visibility of immutable environments before another worker reads them.
 

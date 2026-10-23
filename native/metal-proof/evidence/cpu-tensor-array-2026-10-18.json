@@ -10,14 +10,7 @@
     "continuations": "Input remapped through direct synthetic task kernels and imported helper/callback graphs"
   },
   "contract": {
-    "elements": [
-      "int32",
-      "uint32",
-      "int64",
-      "uint64",
-      "float32",
-      "float64"
-    ],
+    "elements": ["int32", "uint32", "int64", "uint64", "float32", "float64"],
     "source_ranks": "Fixed at compile time; raw execution qualifies 0,1,2,3,8",
     "length": "Product of source extents; rank zero gives one; any zero extent gives empty; known counts/rank-one extent identity preserved",
     "memory": "Ordered managed copy, non-contiguous borrowed input respected, source unchanged, result retained independently",

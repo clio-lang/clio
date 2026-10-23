@@ -44,10 +44,7 @@
       "native-lsp-workspace-debug",
       "native-lsp-workspace-sanitized"
     ],
-    "variants": [
-      "normal",
-      "ASan/UBSan"
-    ],
+    "variants": ["normal", "ASan/UBSan"],
     "coverage": [
       "Local/captured bindings, same-name no-op and fixed main/keyword rejection",
       "Existing bindings named error remain distinct from grammatical error keywords",

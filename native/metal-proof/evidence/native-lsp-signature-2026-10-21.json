@@ -28,11 +28,7 @@
       "native-lsp-sanitized",
       "native-editor-tools-install"
     ],
-    "modes": [
-      "debug",
-      "asan-ubsan",
-      "Release relocated editor tools"
-    ],
+    "modes": ["debug", "asan-ubsan", "Release relocated editor tools"],
     "cases": [
       "Named signatures, structural function bindings/parameters/callable fields, zero-parameter functions and captured closures",
       "Nested calls, collection/String commas, active parameters, pipelines and expected-error channels",

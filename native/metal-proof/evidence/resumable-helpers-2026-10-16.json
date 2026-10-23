@@ -15,27 +15,15 @@
   },
   "qualification": {
     "planner_source_fixtures": 23,
-    "planner_variants": [
-      "debug",
-      "ASan/UBSan"
-    ],
+    "planner_variants": ["debug", "ASan/UBSan"],
     "classifier_cases": [
       "transitive effects",
       "nonfallible recovered wrapper",
       "ordinary numeric callee preserved",
       "spawned resumable helper rejected"
     ],
-    "runtime_variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "runtime_variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workers": [1, 2, 4],
     "coverage": [
       "transitive CPU/GPU orchestration",
       "successful and recovered helper paths",

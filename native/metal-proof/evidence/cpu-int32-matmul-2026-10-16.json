@@ -15,17 +15,8 @@
     "remaining": "GPU integer arithmetic, additional numeric types and conversions remain gated. No integer SIMD/tiled optimization or public foreign-memory/wire API is introduced."
   },
   "qualification": {
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workers": [1, 2, 4],
     "compiled_programs_per_variant": 11,
     "compiled_programs_total": 44,
     "runtime_reference_runs": 4,
@@ -38,20 +29,7 @@
       "thread-sanitized": 48
     },
     "task_observer_runs_total": 192,
-    "allocation_failure_positions": [
-      1,
-      2,
-      3,
-      4,
-      5,
-      6,
-      7,
-      8,
-      9,
-      10,
-      11,
-      12
-    ],
+    "allocation_failure_positions": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
     "coverage": [
       "independent wider integer products and adjacent-pair reference tree",
       "signed endpoints and values above float32 precision",

@@ -40,12 +40,7 @@
       "native-metal-tensor-control-thread-sanitized",
       "native-metal-tensor-feedback-sanitized"
     ],
-    "host_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
+    "host_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
     "numerical_cases_per_mode": 288,
     "reference": "LLVM APFloat comparison and separately rounded arithmetic; balanced reduction reference; exact bits except NaNs compared by classification",
     "conditional_graph_allocation_checkpoints_per_mode": 33,

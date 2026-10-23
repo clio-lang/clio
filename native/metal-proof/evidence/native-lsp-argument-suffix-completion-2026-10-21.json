@@ -24,11 +24,7 @@
       "native-lsp-sanitized": 8.52,
       "native-editor-tools-install": 4.94
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "Lexical final argument suffixes use whole-identifier replacement in open calls",
       "Grouped names and checked function-value callees retain final argument context",

@@ -81,12 +81,7 @@
     "checked_conversion_fault_cases": 3754048,
     "private_worker_harness_runs": 288,
     "source_allocation_failure_sweep_runs": 160,
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "per_variant": {
       "byte_programs": 69,
       "exhaustive_operation_harnesses": 24,

@@ -27,11 +27,7 @@
       "native-lsp-signature-sanitized": 0.58,
       "native-editor-tools-install": 4.91
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "CPU and default GPU calls show zero parameters and no active parameter",
       "Explicit GPU indices expose a single uint32 index parameter and exact Device[gpu:index] result",

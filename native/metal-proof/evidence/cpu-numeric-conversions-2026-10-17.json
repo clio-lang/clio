@@ -360,11 +360,7 @@
         "mixed_worker_conversion_pairs": 36,
         "scheduler_allocation_injection_runs": 72,
         "invocation_allocation_injection_runs": 72,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "compiled_source_programs": 50
       },
       {
@@ -594,11 +590,7 @@
         "mixed_worker_conversion_pairs": 36,
         "scheduler_allocation_injection_runs": 72,
         "invocation_allocation_injection_runs": 72,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "compiled_source_programs": 50
       },
       {
@@ -828,11 +820,7 @@
         "mixed_worker_conversion_pairs": 36,
         "scheduler_allocation_injection_runs": 72,
         "invocation_allocation_injection_runs": 72,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "compiled_source_programs": 50
       },
       {
@@ -1062,11 +1050,7 @@
         "mixed_worker_conversion_pairs": 36,
         "scheduler_allocation_injection_runs": 72,
         "invocation_allocation_injection_runs": 72,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "compiled_source_programs": 50
       }
     ],

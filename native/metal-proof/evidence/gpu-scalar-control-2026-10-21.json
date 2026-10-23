@@ -40,12 +40,7 @@
       "native-metal-scalar-control-thread-sanitized",
       "native-metal-tensor-feedback-sanitized"
     ],
-    "host_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
+    "host_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
     "comparison_feedback_pairs_per_mode": 384,
     "reference": "LLVM APFloat comparison predicates and division; encoded truth-table results compare exactly, numerical NaNs compare by classification",
     "conditional_graph_allocation_checkpoints_per_mode": 33,

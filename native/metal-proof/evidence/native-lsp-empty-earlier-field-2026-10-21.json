@@ -24,11 +24,7 @@
       "native-lsp-signature-sanitized": 0.6,
       "native-editor-tools-install": 5.06
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "Empty first and middle field slots retain checked active parameter guidance",
       "Pipelines count their implicit first argument and indexed callable values retain public signatures",

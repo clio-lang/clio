@@ -158,7 +158,6 @@ The [cache-blocking research](../../benchmarks/results/native-cache-2026-10-15.m
 
 The shared TensorBinary operation lowers float32 `+`, `-`, `*` and `/` over ranked tensors to fresh result storage and serial MLIR loops. Scalar operands lift over tensor elements; two tensor operands require equal ranks and all corresponding extents. Dynamic shape guards and overflow-safe element counts run before result allocation/computation. Loops use the existing checked invocation/cancellation protocol and ownership-based deallocation. The task backend extracts TensorBinary as a compiled kernel, so ordinary CPU tasks execute the same operation. Rank-two, empty-dimension, scalar-lifting, and task cases accompany CPU/GPU numerical conformance; GPU admission remains a separate capability check; the [shared source subset](apple-gpu.md#strict-tensor-subtraction-and-scalar-negation) now includes rank-one/rank-two float32 subtraction and scalar negation.
 
-
 The shared TensorUnary operation now lowers whole-tensor `-` through the same checked ranked-loop and ownership path. Each lane emits MLIR `arith.negf`, preserving every non-sign bit, rather than subtracting from zero or multiplying by -1. TensorUnary retains its operand during CPU task kernel extraction. Unary `+` remains an identity. [Whole-tensor unary qualification](apple-gpu.md#whole-tensor-unary-arithmetic) covers exact CPU/GPU bits, input immutability, empty dimensions, nested helpers, inline CPU task negation and rank-three CPU lowering.
 
 ### Inline operations in mixed CPU/GPU programs

@@ -40,10 +40,7 @@
       "native-lsp-workspace-debug",
       "native-lsp-workspace-sanitized"
     ],
-    "variants": [
-      "normal",
-      "ASan/UBSan"
-    ],
+    "variants": ["normal", "ASan/UBSan"],
     "coverage": [
       "Unopened direct/nested importers and declaration filtering",
       "Fresh additions, deletions and on-disk edits",

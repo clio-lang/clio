@@ -73,19 +73,10 @@
       "native-metal-modules-thread-sanitized"
     ],
     "new_execution_suite": {
-      "variants": [
-        "debug",
-        "optimized",
-        "ASan/UBSan",
-        "ThreadSanitizer"
-      ],
+      "variants": ["debug", "optimized", "ASan/UBSan", "ThreadSanitizer"],
       "builds": 36,
       "execution_runs": 120,
-      "worker_counts": [
-        1,
-        2,
-        4
-      ],
+      "worker_counts": [1, 2, 4],
       "programs": [
         "five-file imported shared helpers and spawned coordinator",
         "explicit package entry",

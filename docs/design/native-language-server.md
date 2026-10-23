@@ -1360,7 +1360,6 @@ malformed expressions. Protocol, relocated Release and installed VS Code checks
 preserve expression text and actual diagnostics while applying identifier-only
 edits and following live imported field names.
 
-
 ## Structural unfinished-code recovery
 
 The [N4 completion contract](native-tooling-completion.md) extends the earlier

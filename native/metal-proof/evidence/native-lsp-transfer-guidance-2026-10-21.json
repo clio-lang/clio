@@ -26,11 +26,7 @@
       "native-lsp-signature-sanitized": 0.58,
       "native-editor-tools-install": 4.8
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "GPU-bound and CPU-bound transfer signatures expose actual input and result residency with exact target device",
       "Direct and piped calls select the correct active parameter",

@@ -139,10 +139,7 @@
       "Field code/environment pair counts against inline layout budget",
       "Canonical error-union callable payload signature agrees with original declaration"
     ],
-    "variants": [
-      "debug with native lowering",
-      "ASan/UBSan frontend"
-    ]
+    "variants": ["debug with native lowering", "ASan/UBSan frontend"]
   },
   "new_execution_suites": {
     "debug": {
@@ -152,11 +149,7 @@
       "body_fault_allocation_probes": 3,
       "returned_aggregate_callback_invocations_after_creator_exit": 64,
       "cli_allocation_failure_processes": 240,
-      "worker_local_pools": [
-        1,
-        2,
-        4
-      ],
+      "worker_local_pools": [1, 2, 4],
       "worker_local_programs": [
         "worker-local",
         "worker-recovery",
@@ -170,11 +163,7 @@
       "body_fault_allocation_probes": 3,
       "returned_aggregate_callback_invocations_after_creator_exit": 64,
       "cli_allocation_failure_processes": 240,
-      "worker_local_pools": [
-        1,
-        2,
-        4
-      ],
+      "worker_local_pools": [1, 2, 4],
       "worker_local_programs": [
         "worker-local",
         "worker-recovery",
@@ -188,11 +177,7 @@
       "body_fault_allocation_probes": 3,
       "returned_aggregate_callback_invocations_after_creator_exit": 64,
       "cli_allocation_failure_processes": 240,
-      "worker_local_pools": [
-        1,
-        2,
-        4
-      ],
+      "worker_local_pools": [1, 2, 4],
       "worker_local_programs": [
         "worker-local",
         "worker-recovery",
@@ -206,11 +191,7 @@
       "body_fault_allocation_probes": 3,
       "returned_aggregate_callback_invocations_after_creator_exit": 64,
       "cli_allocation_failure_processes": 240,
-      "worker_local_pools": [
-        1,
-        2,
-        4
-      ],
+      "worker_local_pools": [1, 2, 4],
       "worker_local_programs": [
         "worker-local",
         "worker-recovery",

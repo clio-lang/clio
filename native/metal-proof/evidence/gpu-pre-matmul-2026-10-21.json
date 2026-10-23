@@ -49,12 +49,7 @@
       "native-metal-pre-reduction-sanitized",
       "native-metal-recovery-sanitized"
     ],
-    "host_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
+    "host_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
     "numerical_cases_per_mode": 96,
     "result_cells_per_mode": 4392,
     "allocation_checkpoints_per_mode": 41,

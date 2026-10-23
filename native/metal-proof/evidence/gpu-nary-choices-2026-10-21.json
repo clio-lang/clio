@@ -43,12 +43,7 @@
       "native-metal-tensor-sources-cli-debug"
     ],
     "full_suite": false,
-    "host_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
+    "host_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
     "numerical_cases_per_mode": 288,
     "reference": "LLVM APFloat separately rounded arithmetic and ordered comparisons; balanced reduction reference; exact bits except NaNs compared by classification",
     "conditional_graph_allocation_checkpoints_per_mode": 71,

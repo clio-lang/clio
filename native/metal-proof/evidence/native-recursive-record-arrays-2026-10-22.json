@@ -27,12 +27,7 @@
         "reason": "Final additional direct-recursive List array source case"
       }
     ],
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
     "coverage": [
       "Arrays of records with String/numeric/Bool/String-array fields",
       "Arrays of enums with selected owned payloads and invalid inactive pointer bits",

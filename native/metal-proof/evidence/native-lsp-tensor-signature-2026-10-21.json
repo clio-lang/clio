@@ -27,11 +27,7 @@
       "native-lsp-signature-sanitized": 0.57,
       "native-editor-tools-install": 4.42
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "tensor_element_types_checked": 10,
     "signature_families_checked": 3,
     "cases": [

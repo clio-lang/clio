@@ -530,11 +530,7 @@
         "mixed_worker_conversion_pairs": 36,
         "scheduler_allocation_injection_runs": 96,
         "invocation_allocation_injection_runs": 96,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "compiled_source_programs": 68,
         "scalar_regression_invocations": 3896352
       },
@@ -934,11 +930,7 @@
         "mixed_worker_conversion_pairs": 36,
         "scheduler_allocation_injection_runs": 96,
         "invocation_allocation_injection_runs": 96,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "compiled_source_programs": 68,
         "scalar_regression_invocations": 3896352
       },
@@ -1338,11 +1330,7 @@
         "mixed_worker_conversion_pairs": 36,
         "scheduler_allocation_injection_runs": 96,
         "invocation_allocation_injection_runs": 96,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "compiled_source_programs": 68,
         "scalar_regression_invocations": 3896352
       },
@@ -1742,11 +1730,7 @@
         "mixed_worker_conversion_pairs": 36,
         "scheduler_allocation_injection_runs": 96,
         "invocation_allocation_injection_runs": 96,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "compiled_source_programs": 68,
         "scalar_regression_invocations": 3896352
       }

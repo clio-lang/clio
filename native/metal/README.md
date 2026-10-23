@@ -114,9 +114,7 @@ Source-generated elementwise helpers now accept strict float32 subtraction for v
 
 [Signature-sized capture qualification](../../docs/design/apple-gpu.md#signature-sized-gpu-captures) covers three tensor/twelve scalar entries, the 29-input direct-buffer boundary, capture allocation failures, exact byte-budget limits and completion-safe cleanup. The [compact input projection](../../docs/design/apple-gpu.md#unused-tensor-arguments-and-shape-obligations) now copies validated binding maps, retains unused logical owners and derives result shape from contributing tensors. Source guards preserve operation-derived shape obligations independently of shader liveness. The [Tier 2 argument-buffer path](../../docs/design/apple-gpu.md#tier-2-argument-buffers-for-large-gpu-calls) now handles larger contributing-input sets through one root binding, with per-invocation encoders, byte-budgeted resource storage and explicit resource residency. GPU-ABI-001 remains open for broader operations and types.
 
-
 For the private indirect entry ABI, use `ElementwiseSignature{tensorCount, scalarCount, ElementwiseBinding::ArgumentBuffer}`, optionally followed by the sorted logical input map. The loader requires Tier 2 support and matching nested reflection. Submission still uses the owned tensor/scalar-span overload. The direct two-buffer proof overload cannot submit an indirect kernel. Resource-buffer storage is charged to `maxBytes`, separately from the logical capture charge in `maxArgumentBytes`.
-
 
 [Whole-tensor unary arithmetic](../../docs/design/apple-gpu.md#whole-tensor-unary-arithmetic) now supports `-values` in rank-one/rank-two float32 GPU helpers. It changes only each element's sign bit, preserving payloads and shapes; double negation and unary plus preserve exact original bits. Source shape guards, owned captures, direct/Tier 2 layout selection and acknowledgement-safe cleanup remain in place.
 
@@ -138,7 +136,6 @@ output words are initialized before shader access. Generic typed empty maps
 retain an owned dummy word and dispatch uniform validation, so checked
 scalar expressions cannot disappear when the tensor domain is empty. Existing
 binary32 source kernels retain their separate empty-output fast path.
-
 
 `loadNumericGraphKernel` additionally validates heterogeneous source/destination
 formats and resident scalar roles. `numericProgram` owns a forward instruction

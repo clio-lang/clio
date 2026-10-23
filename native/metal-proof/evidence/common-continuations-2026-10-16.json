@@ -18,10 +18,7 @@
   },
   "qualification": {
     "planner_source_fixtures": 22,
-    "planner_variants": [
-      "debug",
-      "ASan/UBSan"
-    ],
+    "planner_variants": ["debug", "ASan/UBSan"],
     "additional_planner_cases": [
       "synthetic builtin child",
       "CPU recursion guard",
@@ -31,17 +28,8 @@
     ],
     "artifact_sources": 19,
     "matched_target_plans": 70,
-    "runtime_variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "runtime_variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workers": [1, 2, 4],
     "coverage": [
       "CPU task execution and helper expansion",
       "Mixed pipelines, tensors and shape guards",

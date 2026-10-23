@@ -59,19 +59,12 @@
       "native-uint32-reductions-debug",
       "native-int32-reductions-debug"
     ],
-    "metal_tests": [
-      "native-reduction-cli"
-    ],
+    "metal_tests": ["native-reduction-cli"],
     "narrow_runtime_harness_runs": 64,
     "narrow_runtime_cases": 59840,
     "narrow_checked_faults": 29440,
     "narrow_allocation_sweep_processes": 1152,
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "coverage": [
       "Four narrow types at ranks zero through three",
       "Independent wider adjacent-pair reference, full-range/random inputs, odd lengths and empty axes",

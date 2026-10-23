@@ -57,19 +57,10 @@
       "reason": "Owned diagnostic text adds a fallible allocation. Remove unused message bindings from two numeric recovery fixtures; explicitly test successful managed diagnostic recovery and its allocation-failure cleanup separately. Test-only changes; no compiler/runtime edits or rebuild after focused qualification."
     },
     "compiled_worker_programs": 56,
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "per_variant": {
       "compiled_worker_programs": 14,
-      "harness_pool_sizes": [
-        1,
-        2,
-        4
-      ],
+      "harness_pool_sizes": [1, 2, 4],
       "storage_failure_sweep_positions": 36,
       "input_texts": 5,
       "scheduler_modes": 5

@@ -17,22 +17,9 @@
   },
   "qualification": {
     "cpu_storage_types": 10,
-    "metal_storage_types": [
-      "float32",
-      "uint32",
-      "uint8"
-    ],
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "metal_storage_types": ["float32", "uint32", "uint8"],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workers": [1, 2, 4],
     "coverage": [
       "rank-zero/ranked memref ABI sizes",
       "all numeric widths and host alignments",

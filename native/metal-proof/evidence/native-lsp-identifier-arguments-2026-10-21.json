@@ -27,11 +27,7 @@
       "native-lsp-signature-sanitized",
       "native-editor-tools-install"
     ],
-    "modes": [
-      "debug",
-      "asan-ubsan",
-      "Release relocated editor tools"
-    ],
+    "modes": ["debug", "asan-ubsan", "Release relocated editor tools"],
     "cases": [
       "Partial identifiers with suffixes and trailing unclosed calls, first/final names, resolved names and an active name whose actual type is wrong",
       "Named, factory-result and indexed/piped signatures retain correct active parameters",

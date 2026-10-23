@@ -13,20 +13,8 @@
       "float32",
       "float64"
     ],
-    "operator_indices": [
-      "==",
-      "!=",
-      "<",
-      "<=",
-      ">",
-      ">="
-    ],
-    "Bool": [
-      "true",
-      "false",
-      "==",
-      "!="
-    ],
+    "operator_indices": ["==", "!=", "<", "<=", ">", ">="],
+    "Bool": ["true", "false", "==", "!="],
     "implicit_truthiness_or_numeric_conversion": false,
     "evaluation": "left then right, once each; operand faults retain their source location",
     "float": "NaN unequal, all NaN ordered comparisons false; signed zero equal; infinity ordered; no floating exception flags",
@@ -312,11 +300,7 @@
         "host_fp_environments": 8,
         "native_boolean_operand_pairs": 8,
         "worker_harness_runs": 246,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "scheduler_allocation_injection_runs": 96,
         "invocation_allocation_injection_runs": 96,
         "compiled_source_programs": 60
@@ -509,11 +493,7 @@
         "host_fp_environments": 8,
         "native_boolean_operand_pairs": 8,
         "worker_harness_runs": 246,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "scheduler_allocation_injection_runs": 96,
         "invocation_allocation_injection_runs": 96,
         "compiled_source_programs": 60
@@ -706,11 +686,7 @@
         "host_fp_environments": 8,
         "native_boolean_operand_pairs": 8,
         "worker_harness_runs": 246,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "scheduler_allocation_injection_runs": 96,
         "invocation_allocation_injection_runs": 96,
         "compiled_source_programs": 60
@@ -903,11 +879,7 @@
         "host_fp_environments": 8,
         "native_boolean_operand_pairs": 8,
         "worker_harness_runs": 246,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "scheduler_allocation_injection_runs": 96,
         "invocation_allocation_injection_runs": 96,
         "compiled_source_programs": 60

@@ -100,11 +100,7 @@
         "host_fp_environments": 8,
         "worker_process_runs": 93,
         "invocation_allocation_injection_runs": 72,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "compiled_source_programs": 7
       },
       {
@@ -115,11 +111,7 @@
         "host_fp_environments": 8,
         "worker_process_runs": 93,
         "invocation_allocation_injection_runs": 72,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "compiled_source_programs": 7
       },
       {
@@ -130,11 +122,7 @@
         "host_fp_environments": 8,
         "worker_process_runs": 93,
         "invocation_allocation_injection_runs": 72,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "compiled_source_programs": 7
       },
       {
@@ -145,11 +133,7 @@
         "host_fp_environments": 8,
         "worker_process_runs": 93,
         "invocation_allocation_injection_runs": 72,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "compiled_source_programs": 7
       }
     ],

@@ -10,14 +10,7 @@
     "continuations": "Single input operand collected/remapped through kernels, imports and direct builtin task entries"
   },
   "contract": {
-    "elements": [
-      "int32",
-      "uint32",
-      "int64",
-      "uint64",
-      "float32",
-      "float64"
-    ],
+    "elements": ["int32", "uint32", "int64", "uint64", "float32", "float64"],
     "metadata": "Exact nonnegative int64 values; dimension order preserved",
     "rank_zero": "shape(rank-zero tensor) is an empty int64 array; length of that array is zero",
     "category": "length requires array; shape requires tensor; no implicit interchange or conversion",

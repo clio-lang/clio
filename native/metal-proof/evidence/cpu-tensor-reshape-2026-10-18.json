@@ -10,20 +10,8 @@
     "continuations": "Ordered input/dimension operands preserved through synthetic direct task kernels and imported helper/callback graphs"
   },
   "contract": {
-    "elements": [
-      "int32",
-      "uint32",
-      "int64",
-      "uint64",
-      "float32",
-      "float64"
-    ],
-    "dimensions": [
-      "int32",
-      "uint32",
-      "int64",
-      "uint64"
-    ],
+    "elements": ["int32", "uint32", "int64", "uint64", "float32", "float64"],
+    "dimensions": ["int32", "uint32", "int64", "uint64"],
     "rank": "Output fixed by call-site list; empty list gives rank zero and requires one element",
     "counts": "Input/output element counts equal; static contradictions diagnosed, dynamic counts checked before output allocation",
     "memory": "Ordered managed copy; non-contiguous input respected, original remains unchanged, result retained independently",

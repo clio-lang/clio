@@ -29,11 +29,7 @@
       "native-lsp-signature-sanitized": 0.52,
       "native-editor-tools-install": 4.14
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "Missing right array in direct and piped concat calls, including an end-of-buffer missing closing parenthesis",
       "Final partial identifiers and checked record-field receivers retain guidance while real diagnostics/hover remain unchanged",

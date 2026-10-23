@@ -15,20 +15,8 @@
     "remaining": "Integer tensors, CPU task continuations, Metal/GPU arithmetic, conversions and additional numerical types remain unsupported and explicitly gated."
   },
   "qualification": {
-    "operations": [
-      "add",
-      "sub",
-      "mul",
-      "div",
-      "rem",
-      "neg"
-    ],
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "operations": ["add", "sub", "mul", "div", "rem", "neg"],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "runtime_inputs_per_operation_per_variant": 10361,
     "runtime_input_cases_total": 248664,
     "fault_counts_in_logged_variant_order": [

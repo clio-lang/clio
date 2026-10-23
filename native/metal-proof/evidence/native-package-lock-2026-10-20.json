@@ -62,16 +62,8 @@
     "command": "ctest --test-dir build/native -R '^native-(remote-git-|package-lock-|package-install-|library-(manifests|cli-)|projects-frontend-|project-cli-|scoped-packages|git-snapshot|overlays-cli-|cpu-install$|editor-tools-install$)' --output-on-failure",
     "log": "/tmp/kalandra-lock-release-qualification.log",
     "log_sha256": "841e9f20103767ec713f23ca58e9870911ea574a82f93632cce40feef6c0f656",
-    "generatedProgramModes": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workerCounts": [
-      1,
-      4
-    ],
+    "generatedProgramModes": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workerCounts": [1, 4],
     "coverage": [
       "Deterministic generated lock output and fresh-cache reinstall from copied manifest/lock with private transitive versions",
       "Frozen/offline preserve formatted lock bytes, inode and mtime; missing/stale lock and missing-cache offline attempts reject",

@@ -54,27 +54,15 @@
     "source_failure_sweep_runs": 480,
     "private_worker_harness_runs": 8,
     "malformed_tail_CLI_runs": 12,
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "per_variant": {
       "compiled_language_programs": 24,
-      "worker_pool_sizes": [
-        1,
-        4
-      ],
+      "worker_pool_sizes": [1, 4],
       "worker_modes_per_pool": 10,
       "partial_owner_failure_positions_per_pool": 7,
       "source_allocation_sweep_programs": 5,
       "source_allocation_failure_positions": 24,
-      "hidden_tail_display_limits": [
-        0,
-        1,
-        100
-      ],
+      "hidden_tail_display_limits": [0, 1, 100],
       "rejected_sources": 3,
       "preserved_rejection_output_files": 9
     },

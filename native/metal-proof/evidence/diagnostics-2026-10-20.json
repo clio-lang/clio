@@ -48,10 +48,7 @@
       "native-diagnostics-cli-sanitized"
     ],
     "new_cli_suite": {
-      "variants": [
-        "normal",
-        "ASan/UBSan"
-      ],
+      "variants": ["normal", "ASan/UBSan"],
       "json_responses_per_variant": 29,
       "legacy_protocol_checks_per_variant": 4,
       "coverage": [

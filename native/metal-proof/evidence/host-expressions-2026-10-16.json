@@ -18,36 +18,15 @@
     "result_float32": 173,
     "result_bits": "432d0000",
     "matrix_reference": [
-      [
-        4,
-        5
-      ],
-      [
-        10,
-        11
-      ]
+      [4, 5],
+      [10, 11]
     ],
     "reverse_division_reference": [
-      [
-        60,
-        45
-      ],
-      [
-        20,
-        18
-      ]
+      [60, 45],
+      [20, 18]
     ],
-    "variants": [
-      "debug",
-      "optimized",
-      "host ASan/UBSan",
-      "host TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug", "optimized", "host ASan/UBSan", "host TSan"],
+    "workers": [1, 2, 4],
     "cpu_allocation_failures_per_worker_configuration": 34,
     "metal_preparation_failures_per_variant": 41,
     "coverage": [
@@ -63,27 +42,16 @@
     "gpu_shader_sanitizers": false
   },
   "cli": {
-    "all_build_variants_workers": [
-      1,
-      2,
-      4
-    ],
+    "all_build_variants_workers": [1, 2, 4],
     "expected_bits": {
       "main": "432d0000",
-      "vector": [
-        "3f800000",
-        "40000000",
-        "40800000"
-      ],
+      "vector": ["3f800000", "40000000", "40800000"],
       "empty": "00000000",
       "signed_zero": "80000000",
       "nan": "7fc00000",
       "division_rounding_difference": "b4000000"
     },
-    "deterministic_outputs": [
-      "host.cpp",
-      "cpu.ll"
-    ],
+    "deterministic_outputs": ["host.cpp", "cpu.ll"],
     "relocation": "Executable plus one Metal library",
     "transactional_rejections": [
       "Device tensor without download",

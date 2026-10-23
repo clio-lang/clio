@@ -72,10 +72,7 @@
       "native-recursive-callables-frontend-debug",
       "native-recursive-callables-frontend-sanitized"
     ],
-    "variants": [
-      "normal",
-      "ASan/UBSan"
-    ],
+    "variants": ["normal", "ASan/UBSan"],
     "coverage": [
       "Exact local parameter/binding/function declaration ranges",
       "Function reference versus function-valued binding call destinations",

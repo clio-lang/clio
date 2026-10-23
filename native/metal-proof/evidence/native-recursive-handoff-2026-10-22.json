@@ -17,12 +17,7 @@
     "failed": 0,
     "elapsed_seconds": 21.5,
     "selection": "^native-recursive-(handoff|value-runtime|record-bridge|function-arrays|source-frontend)-",
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
     "coverage": [
       "Nested recursive node, function-array storage, duplicate environments and captured String reads in the receiving invocation",
       "Producer settled before import; onward transfer after first receiver settlement",

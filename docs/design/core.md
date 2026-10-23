@@ -267,7 +267,6 @@ The core syntax and immutable transformations are accepted. Numeric families now
 
 Implementation follows the accepted core plus the required numeric and memory-safety decisions. Future conformance tests should assert the specified behavior and diagnostics rather than compare with generated prototype JavaScript.
 
-
 The [native immutable array foundation](arrays.md) now implements numeric array literals, `[T]` annotations, value passing and retained worker results. [Sequential maps](array-map.md) support named and anonymous expression callbacks with lexical captures, including numeric, Bool, String and record elements. The examples above continue to define the accepted complete core direction.
 
 The native [sequential array map](array-map.md) implements the anonymous expression callback and lexical capture examples above. [Named CPU function values](native-function-values.md) now support general bindings, parameters, returned named functions and runtime-selected calls. Returned captured closures and anonymous block bodies remain separate work.

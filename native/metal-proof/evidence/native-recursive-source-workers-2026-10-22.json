@@ -21,12 +21,7 @@
       "passed": 143,
       "failed": 0
     },
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
     "platform": {
       "macOS": "27.2",
       "architecture": "arm64",
@@ -36,11 +31,7 @@
     "source_worker_programs_per_variant": 40,
     "successful_cli_programs_per_variant": 39,
     "successful_scalar_pool_programs_per_variant": 38,
-    "worker_pool_sizes": [
-      1,
-      2,
-      4
-    ],
+    "worker_pool_sizes": [1, 2, 4],
     "source_pool_executions_per_variant": 297,
     "source_allocation_injection_positions_per_variant": {
       "scheduler": 24,

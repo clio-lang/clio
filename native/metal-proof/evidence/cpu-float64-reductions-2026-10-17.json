@@ -115,11 +115,7 @@
         "worker_process_runs": 159,
         "scheduler_allocation_injection_runs": 72,
         "invocation_allocation_injection_runs": 72,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "compiled_programs": 8
       },
       {
@@ -151,11 +147,7 @@
         "worker_process_runs": 159,
         "scheduler_allocation_injection_runs": 72,
         "invocation_allocation_injection_runs": 72,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "compiled_programs": 8
       },
       {
@@ -187,11 +179,7 @@
         "worker_process_runs": 159,
         "scheduler_allocation_injection_runs": 72,
         "invocation_allocation_injection_runs": 72,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "compiled_programs": 8
       },
       {
@@ -223,11 +211,7 @@
         "worker_process_runs": 159,
         "scheduler_allocation_injection_runs": 72,
         "invocation_allocation_injection_runs": 72,
-        "workers": [
-          1,
-          2,
-          4
-        ],
+        "workers": [1, 2, 4],
         "compiled_programs": 8
       }
     ],

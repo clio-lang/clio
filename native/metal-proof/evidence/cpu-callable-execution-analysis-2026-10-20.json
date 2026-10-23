@@ -116,12 +116,7 @@
     ],
     "full_project_suite": false,
     "seconds": 407.6,
-    "modes": [
-      "Debug",
-      "Optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "modes": ["Debug", "Optimized", "ASan/UBSan", "TSan"],
     "qualification": "Two new analysis checks plus 73 focused compiler, higher-order callable and worker regressions."
   },
   "remaining": [

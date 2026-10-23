@@ -74,10 +74,7 @@
       "native-lsp-references-debug",
       "native-lsp-references-sanitized"
     ],
-    "variants": [
-      "normal",
-      "ASan/UBSan"
-    ],
+    "variants": ["normal", "ASan/UBSan"],
     "coverage": [
       "Declaration inclusion and unused symbols",
       "Bindings, parameters, direct and pipeline calls, function references and function-valued bindings",

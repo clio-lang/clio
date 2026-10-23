@@ -16,10 +16,10 @@ fn main():
 
 ## Results and categories
 
-| Call | Input | Result |
-| --- | --- | --- |
-| `length(values)` | Completed CPU numeric array `[T]` | Element count as `int` (`int64`) |
-| `shape(values)` | Completed CPU numeric `Tensor[T, ...]` | Immutable `[int]` containing extents in dimension order |
+| Call             | Input                                  | Result                                                  |
+| ---------------- | -------------------------------------- | ------------------------------------------------------- |
+| `length(values)` | Completed CPU numeric array `[T]`      | Element count as `int` (`int64`)                        |
+| `shape(values)`  | Completed CPU numeric `Tensor[T, ...]` | Immutable `[int]` containing extents in dimension order |
 
 Both accept all six implemented numeric element types. The result does not inherit the input's precision or signedness. Metadata uses the existing nonnegative signed 64-bit extent range. It is not a floating-point approximation and does not introduce a universal Number type.
 

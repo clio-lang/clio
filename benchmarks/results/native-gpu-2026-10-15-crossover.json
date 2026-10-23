@@ -41682,19 +41682,11 @@
       "workload": "m1-k256-n65536",
       "variant": "scalar",
       "gpu_ms": 2.529208548,
-      "gpu_ms_process_medians": [
-        2.543624956,
-        2.529208548,
-        2.52712518
-      ],
+      "gpu_ms_process_medians": [2.543624956, 2.529208548, 2.52712518],
       "gpu_ms_min": 2.522416878,
       "gpu_ms_max": 2.700374927,
       "wall_ms": 2.748875,
-      "wall_ms_process_medians": [
-        2.785625,
-        2.748875,
-        2.730625
-      ],
+      "wall_ms_process_medians": [2.785625, 2.748875, 2.730625],
       "wall_ms_min": 2.693167,
       "wall_ms_max": 3.092875
     },
@@ -41702,19 +41694,11 @@
       "workload": "m1-k256-n65536",
       "variant": "shared8x8",
       "gpu_ms": 21.064375062,
-      "gpu_ms_process_medians": [
-        21.064375062,
-        21.072916687,
-        20.903874654
-      ],
+      "gpu_ms_process_medians": [21.064375062, 21.072916687, 20.903874654],
       "gpu_ms_min": 20.401083399,
       "gpu_ms_max": 21.589125041,
       "wall_ms": 21.439708,
-      "wall_ms_process_medians": [
-        21.438583,
-        21.476041,
-        21.439708
-      ],
+      "wall_ms_process_medians": [21.438583, 21.476041, 21.439708],
       "wall_ms_min": 20.992209,
       "wall_ms_max": 21.973458
     },
@@ -41722,19 +41706,11 @@
       "workload": "m1-k256-n65536",
       "variant": "register2x2",
       "gpu_ms": 4.521000199,
-      "gpu_ms_process_medians": [
-        4.455999937,
-        4.569833167,
-        4.521000199
-      ],
+      "gpu_ms_process_medians": [4.455999937, 4.569833167, 4.521000199],
       "gpu_ms_min": 4.217833281,
       "gpu_ms_max": 4.874083214,
       "wall_ms": 4.738375,
-      "wall_ms_process_medians": [
-        4.703125,
-        4.7775,
-        4.738375
-      ],
+      "wall_ms_process_medians": [4.703125, 4.7775, 4.738375],
       "wall_ms_min": 4.4235,
       "wall_ms_max": 5.098041
     },
@@ -41742,19 +41718,11 @@
       "workload": "m1-k256-n65536",
       "variant": "register2x1",
       "gpu_ms": 4.249708261,
-      "gpu_ms_process_medians": [
-        4.23800014,
-        4.249708261,
-        4.257000051
-      ],
+      "gpu_ms_process_medians": [4.23800014, 4.249708261, 4.257000051],
       "gpu_ms_min": 4.098541569,
       "gpu_ms_max": 4.45262529,
       "wall_ms": 4.466209,
-      "wall_ms_process_medians": [
-        4.466209,
-        4.45875,
-        4.519875
-      ],
+      "wall_ms_process_medians": [4.466209, 4.45875, 4.519875],
       "wall_ms_min": 4.307875,
       "wall_ms_max": 5.105666
     },
@@ -41762,19 +41730,11 @@
       "workload": "m1024-k256-n256",
       "variant": "scalar",
       "gpu_ms": 9.593874682,
-      "gpu_ms_process_medians": [
-        9.579791687,
-        9.678124916,
-        9.593874682
-      ],
+      "gpu_ms_process_medians": [9.579791687, 9.678124916, 9.593874682],
       "gpu_ms_min": 9.485083632,
       "gpu_ms_max": 9.966041893,
       "wall_ms": 9.830708,
-      "wall_ms_process_medians": [
-        9.830708,
-        9.879125,
-        9.769
-      ],
+      "wall_ms_process_medians": [9.830708, 9.879125, 9.769],
       "wall_ms_min": 9.70775,
       "wall_ms_max": 10.358084
     },
@@ -41782,19 +41742,11 @@
       "workload": "m1024-k256-n256",
       "variant": "shared8x8",
       "gpu_ms": 11.119541712,
-      "gpu_ms_process_medians": [
-        11.228125077,
-        11.012124829,
-        11.119541712
-      ],
+      "gpu_ms_process_medians": [11.228125077, 11.012124829, 11.119541712],
       "gpu_ms_min": 10.88241674,
       "gpu_ms_max": 11.519500054,
       "wall_ms": 11.475917,
-      "wall_ms_process_medians": [
-        11.475917,
-        11.676083,
-        11.375041
-      ],
+      "wall_ms_process_medians": [11.475917, 11.676083, 11.375041],
       "wall_ms_min": 11.18,
       "wall_ms_max": 11.790292
     },
@@ -41802,19 +41754,11 @@
       "workload": "m1024-k256-n256",
       "variant": "register2x2",
       "gpu_ms": 7.639999967,
-      "gpu_ms_process_medians": [
-        7.611833513,
-        7.779750042,
-        7.639999967
-      ],
+      "gpu_ms_process_medians": [7.611833513, 7.779750042, 7.639999967],
       "gpu_ms_min": 7.514249999,
       "gpu_ms_max": 8.060874883,
       "wall_ms": 7.874667,
-      "wall_ms_process_medians": [
-        7.84625,
-        8.014125,
-        7.874667
-      ],
+      "wall_ms_process_medians": [7.84625, 8.014125, 7.874667],
       "wall_ms_min": 7.74175,
       "wall_ms_max": 8.269333
     },
@@ -41822,19 +41766,11 @@
       "workload": "m1024-k256-n256",
       "variant": "register2x1",
       "gpu_ms": 8.065875154,
-      "gpu_ms_process_medians": [
-        8.065875154,
-        8.147833403,
-        8.059291635
-      ],
+      "gpu_ms_process_medians": [8.065875154, 8.147833403, 8.059291635],
       "gpu_ms_min": 7.845541928,
       "gpu_ms_max": 8.479000069,
       "wall_ms": 8.352042,
-      "wall_ms_process_medians": [
-        8.394542,
-        8.352042,
-        8.278167
-      ],
+      "wall_ms_process_medians": [8.394542, 8.352042, 8.278167],
       "wall_ms_min": 8.049542,
       "wall_ms_max": 8.704417
     },
@@ -41842,19 +41778,11 @@
       "workload": "m1024-k256-n64",
       "variant": "scalar",
       "gpu_ms": 2.498041838,
-      "gpu_ms_process_medians": [
-        2.503124997,
-        2.496666741,
-        2.498041838
-      ],
+      "gpu_ms_process_medians": [2.503124997, 2.496666741, 2.498041838],
       "gpu_ms_min": 2.494500019,
       "gpu_ms_max": 2.600499894,
       "wall_ms": 2.697292,
-      "wall_ms_process_medians": [
-        2.697292,
-        2.691834,
-        2.738167
-      ],
+      "wall_ms_process_medians": [2.697292, 2.691834, 2.738167],
       "wall_ms_min": 2.668166,
       "wall_ms_max": 2.791333
     },
@@ -41862,19 +41790,11 @@
       "workload": "m1024-k256-n64",
       "variant": "shared8x8",
       "gpu_ms": 2.950458322,
-      "gpu_ms_process_medians": [
-        2.950458322,
-        2.977250144,
-        2.943249885
-      ],
+      "gpu_ms_process_medians": [2.950458322, 2.977250144, 2.943249885],
       "gpu_ms_min": 2.934749704,
       "gpu_ms_max": 3.360333387,
       "wall_ms": 3.17925,
-      "wall_ms_process_medians": [
-        3.157333,
-        3.17925,
-        3.179959
-      ],
+      "wall_ms_process_medians": [3.157333, 3.17925, 3.179959],
       "wall_ms_min": 3.107125,
       "wall_ms_max": 3.572959
     },
@@ -41882,19 +41802,11 @@
       "workload": "m1024-k256-n64",
       "variant": "register2x2",
       "gpu_ms": 2.294958569,
-      "gpu_ms_process_medians": [
-        2.297000028,
-        2.294958569,
-        2.293999773
-      ],
+      "gpu_ms_process_medians": [2.297000028, 2.294958569, 2.293999773],
       "gpu_ms_min": 2.272249665,
       "gpu_ms_max": 2.372375224,
       "wall_ms": 2.491792,
-      "wall_ms_process_medians": [
-        2.491834,
-        2.488041,
-        2.491792
-      ],
+      "wall_ms_process_medians": [2.491834, 2.488041, 2.491792],
       "wall_ms_min": 2.452834,
       "wall_ms_max": 2.55975
     },
@@ -41902,19 +41814,11 @@
       "workload": "m1024-k256-n64",
       "variant": "register2x1",
       "gpu_ms": 2.247833181,
-      "gpu_ms_process_medians": [
-        2.247833181,
-        2.250999678,
-        2.245250158
-      ],
+      "gpu_ms_process_medians": [2.247833181, 2.250999678, 2.245250158],
       "gpu_ms_min": 2.24033324,
       "gpu_ms_max": 2.441249788,
       "wall_ms": 2.454791,
-      "wall_ms_process_medians": [
-        2.454791,
-        2.444625,
-        2.456125
-      ],
+      "wall_ms_process_medians": [2.454791, 2.444625, 2.456125],
       "wall_ms_min": 2.431334,
       "wall_ms_max": 2.62225
     },
@@ -41922,19 +41826,11 @@
       "workload": "m127-k256-n513",
       "variant": "scalar",
       "gpu_ms": 2.501375042,
-      "gpu_ms_process_medians": [
-        2.501375042,
-        2.49895826,
-        2.580666915
-      ],
+      "gpu_ms_process_medians": [2.501375042, 2.49895826, 2.580666915],
       "gpu_ms_min": 2.495749854,
       "gpu_ms_max": 2.681291662,
       "wall_ms": 2.724708,
-      "wall_ms_process_medians": [
-        2.710834,
-        2.724708,
-        2.778875
-      ],
+      "wall_ms_process_medians": [2.710834, 2.724708, 2.778875],
       "wall_ms_min": 2.663041,
       "wall_ms_max": 2.92425
     },
@@ -41942,19 +41838,11 @@
       "workload": "m127-k256-n513",
       "variant": "shared8x8",
       "gpu_ms": 3.246666398,
-      "gpu_ms_process_medians": [
-        3.005249891,
-        3.246666398,
-        3.375541884
-      ],
+      "gpu_ms_process_medians": [3.005249891, 3.246666398, 3.375541884],
       "gpu_ms_min": 2.967749722,
       "gpu_ms_max": 3.494666424,
       "wall_ms": 3.447666,
-      "wall_ms_process_medians": [
-        3.38475,
-        3.447666,
-        3.543792
-      ],
+      "wall_ms_process_medians": [3.38475, 3.447666, 3.543792],
       "wall_ms_min": 3.1435,
       "wall_ms_max": 3.668041
     },
@@ -41962,19 +41850,11 @@
       "workload": "m127-k256-n513",
       "variant": "register2x2",
       "gpu_ms": 2.300041728,
-      "gpu_ms_process_medians": [
-        2.303875051,
-        2.300041728,
-        2.298249863
-      ],
+      "gpu_ms_process_medians": [2.303875051, 2.300041728, 2.298249863],
       "gpu_ms_min": 2.277625259,
       "gpu_ms_max": 2.553875092,
       "wall_ms": 2.509167,
-      "wall_ms_process_medians": [
-        2.5105,
-        2.509167,
-        2.4905
-      ],
+      "wall_ms_process_medians": [2.5105, 2.509167, 2.4905],
       "wall_ms_min": 2.464334,
       "wall_ms_max": 2.8155
     },
@@ -41982,19 +41862,11 @@
       "workload": "m127-k256-n513",
       "variant": "register2x1",
       "gpu_ms": 2.255208325,
-      "gpu_ms_process_medians": [
-        2.264958341,
-        2.250000369,
-        2.255208325
-      ],
+      "gpu_ms_process_medians": [2.264958341, 2.250000369, 2.255208325],
       "gpu_ms_min": 2.245416399,
       "gpu_ms_max": 2.445041668,
       "wall_ms": 2.451708,
-      "wall_ms_process_medians": [
-        2.469875,
-        2.451708,
-        2.450375
-      ],
+      "wall_ms_process_medians": [2.469875, 2.451708, 2.450375],
       "wall_ms_min": 2.432625,
       "wall_ms_max": 2.669666
     },
@@ -42002,19 +41874,11 @@
       "workload": "m128-k1025-n512",
       "variant": "scalar",
       "gpu_ms": 10.05616691,
-      "gpu_ms_process_medians": [
-        10.042499751,
-        10.05616691,
-        10.079208761
-      ],
+      "gpu_ms_process_medians": [10.042499751, 10.05616691, 10.079208761],
       "gpu_ms_min": 9.935125243,
       "gpu_ms_max": 10.819291696,
       "wall_ms": 10.265042,
-      "wall_ms_process_medians": [
-        10.260666,
-        10.265042,
-        10.336959
-      ],
+      "wall_ms_process_medians": [10.260666, 10.265042, 10.336959],
       "wall_ms_min": 10.1185,
       "wall_ms_max": 11.022833
     },
@@ -42022,19 +41886,11 @@
       "workload": "m128-k1025-n512",
       "variant": "shared8x8",
       "gpu_ms": 11.961124837,
-      "gpu_ms_process_medians": [
-        11.961124837,
-        13.451249804,
-        11.88412495
-      ],
+      "gpu_ms_process_medians": [11.961124837, 13.451249804, 11.88412495],
       "gpu_ms_min": 11.741083581,
       "gpu_ms_max": 14.582375064,
       "wall_ms": 12.360375,
-      "wall_ms_process_medians": [
-        12.360375,
-        13.678084,
-        12.088
-      ],
+      "wall_ms_process_medians": [12.360375, 13.678084, 12.088],
       "wall_ms_min": 11.945667,
       "wall_ms_max": 14.824166
     },
@@ -42042,19 +41898,11 @@
       "workload": "m128-k1025-n512",
       "variant": "register2x2",
       "gpu_ms": 9.127249941,
-      "gpu_ms_process_medians": [
-        9.118708316,
-        9.127249941,
-        9.129375219
-      ],
+      "gpu_ms_process_medians": [9.118708316, 9.127249941, 9.129375219],
       "gpu_ms_min": 9.077624884,
       "gpu_ms_max": 9.181541391,
       "wall_ms": 9.331292,
-      "wall_ms_process_medians": [
-        9.318667,
-        9.337625,
-        9.331292
-      ],
+      "wall_ms_process_medians": [9.318667, 9.337625, 9.331292],
       "wall_ms_min": 9.275875,
       "wall_ms_max": 9.412792
     },
@@ -42062,19 +41910,11 @@
       "workload": "m128-k1025-n512",
       "variant": "register2x1",
       "gpu_ms": 8.979000151,
-      "gpu_ms_process_medians": [
-        8.979000151,
-        9.010958485,
-        8.97054188
-      ],
+      "gpu_ms_process_medians": [8.979000151, 9.010958485, 8.97054188],
       "gpu_ms_min": 8.897999767,
       "gpu_ms_max": 9.053333197,
       "wall_ms": 9.18925,
-      "wall_ms_process_medians": [
-        9.178291,
-        9.203375,
-        9.18925
-      ],
+      "wall_ms_process_medians": [9.178291, 9.203375, 9.18925],
       "wall_ms_min": 9.081625,
       "wall_ms_max": 9.311334
     },
@@ -42082,19 +41922,11 @@
       "workload": "m128-k128-n128",
       "variant": "scalar",
       "gpu_ms": 0.387124717,
-      "gpu_ms_process_medians": [
-        0.387999695,
-        0.387124717,
-        0.386250205
-      ],
+      "gpu_ms_process_medians": [0.387999695, 0.387124717, 0.386250205],
       "gpu_ms_min": 0.38475031,
       "gpu_ms_max": 0.404333696,
       "wall_ms": 0.593209,
-      "wall_ms_process_medians": [
-        0.593209,
-        0.5955,
-        0.564125
-      ],
+      "wall_ms_process_medians": [0.593209, 0.5955, 0.564125],
       "wall_ms_min": 0.55075,
       "wall_ms_max": 0.797375
     },
@@ -42102,19 +41934,11 @@
       "workload": "m128-k128-n128",
       "variant": "shared8x8",
       "gpu_ms": 0.612000003,
-      "gpu_ms_process_medians": [
-        0.612000003,
-        0.610833522,
-        0.61466638
-      ],
+      "gpu_ms_process_medians": [0.612000003, 0.610833522, 0.61466638],
       "gpu_ms_min": 0.609999988,
       "gpu_ms_max": 0.620333478,
       "wall_ms": 0.790917,
-      "wall_ms_process_medians": [
-        0.787792,
-        0.790917,
-        0.794667
-      ],
+      "wall_ms_process_medians": [0.787792, 0.790917, 0.794667],
       "wall_ms_min": 0.772166,
       "wall_ms_max": 0.909167
     },
@@ -42122,19 +41946,11 @@
       "workload": "m128-k128-n128",
       "variant": "register2x2",
       "gpu_ms": 0.620124862,
-      "gpu_ms_process_medians": [
-        0.621625222,
-        0.618250109,
-        0.620124862
-      ],
+      "gpu_ms_process_medians": [0.621625222, 0.618250109, 0.620124862],
       "gpu_ms_min": 0.614375342,
       "gpu_ms_max": 0.638041645,
       "wall_ms": 0.823708,
-      "wall_ms_process_medians": [
-        0.795167,
-        0.830875,
-        0.823708
-      ],
+      "wall_ms_process_medians": [0.795167, 0.830875, 0.823708],
       "wall_ms_min": 0.7815,
       "wall_ms_max": 1.381209
     },
@@ -42142,19 +41958,11 @@
       "workload": "m128-k128-n128",
       "variant": "register2x1",
       "gpu_ms": 0.378291588,
-      "gpu_ms_process_medians": [
-        0.378291588,
-        0.379833393,
-        0.377125107
-      ],
+      "gpu_ms_process_medians": [0.378291588, 0.379833393, 0.377125107],
       "gpu_ms_min": 0.374916475,
       "gpu_ms_max": 0.391124748,
       "wall_ms": 0.561375,
-      "wall_ms_process_medians": [
-        0.561375,
-        0.569125,
-        0.554958
-      ],
+      "wall_ms_process_medians": [0.561375, 0.569125, 0.554958],
       "wall_ms_min": 0.535292,
       "wall_ms_max": 0.721875
     },
@@ -42162,19 +41970,11 @@
       "workload": "m128-k256-n128",
       "variant": "scalar",
       "gpu_ms": 0.757208094,
-      "gpu_ms_process_medians": [
-        0.752875116,
-        0.757208094,
-        0.757750124
-      ],
+      "gpu_ms_process_medians": [0.752875116, 0.757208094, 0.757750124],
       "gpu_ms_min": 0.751166604,
       "gpu_ms_max": 0.775999855,
       "wall_ms": 0.955292,
-      "wall_ms_process_medians": [
-        0.955292,
-        0.93075,
-        0.976875
-      ],
+      "wall_ms_process_medians": [0.955292, 0.93075, 0.976875],
       "wall_ms_min": 0.88625,
       "wall_ms_max": 1.024542
     },
@@ -42182,19 +41982,11 @@
       "workload": "m128-k256-n128",
       "variant": "shared8x8",
       "gpu_ms": 1.192749944,
-      "gpu_ms_process_medians": [
-        1.182916574,
-        1.192875206,
-        1.192749944
-      ],
+      "gpu_ms_process_medians": [1.182916574, 1.192875206, 1.192749944],
       "gpu_ms_min": 1.180124935,
       "gpu_ms_max": 1.239375211,
       "wall_ms": 1.379916,
-      "wall_ms_process_medians": [
-        1.417959,
-        1.379916,
-        1.379
-      ],
+      "wall_ms_process_medians": [1.417959, 1.379916, 1.379],
       "wall_ms_min": 1.347917,
       "wall_ms_max": 1.50825
     },
@@ -42202,19 +41994,11 @@
       "workload": "m128-k256-n128",
       "variant": "register2x2",
       "gpu_ms": 1.229249872,
-      "gpu_ms_process_medians": [
-        1.222208142,
-        1.23366667,
-        1.229249872
-      ],
+      "gpu_ms_process_medians": [1.222208142, 1.23366667, 1.229249872],
       "gpu_ms_min": 1.21704163,
       "gpu_ms_max": 1.294124871,
       "wall_ms": 1.419042,
-      "wall_ms_process_medians": [
-        1.419042,
-        1.460625,
-        1.416667
-      ],
+      "wall_ms_process_medians": [1.419042, 1.460625, 1.416667],
       "wall_ms_min": 1.398625,
       "wall_ms_max": 1.592875
     },
@@ -42222,19 +42006,11 @@
       "workload": "m128-k256-n128",
       "variant": "register2x1",
       "gpu_ms": 0.73658349,
-      "gpu_ms_process_medians": [
-        0.73683355,
-        0.73658349,
-        0.73629152
-      ],
+      "gpu_ms_process_medians": [0.73683355, 0.73658349, 0.73629152],
       "gpu_ms_min": 0.731249806,
       "gpu_ms_max": 0.767791644,
       "wall_ms": 0.932916,
-      "wall_ms_process_medians": [
-        0.936,
-        0.929458,
-        0.932916
-      ],
+      "wall_ms_process_medians": [0.936, 0.929458, 0.932916],
       "wall_ms_min": 0.912542,
       "wall_ms_max": 1.514209
     },
@@ -42242,19 +42018,11 @@
       "workload": "m128-k256-n511",
       "variant": "scalar",
       "gpu_ms": 2.501249779,
-      "gpu_ms_process_medians": [
-        2.501249779,
-        2.548791934,
-        2.498750109
-      ],
+      "gpu_ms_process_medians": [2.501249779, 2.548791934, 2.498750109],
       "gpu_ms_min": 2.495499793,
       "gpu_ms_max": 2.681166865,
       "wall_ms": 2.725125,
-      "wall_ms_process_medians": [
-        2.695584,
-        2.725125,
-        2.735625
-      ],
+      "wall_ms_process_medians": [2.695584, 2.725125, 2.735625],
       "wall_ms_min": 2.651458,
       "wall_ms_max": 4.366667
     },
@@ -42262,19 +42030,11 @@
       "workload": "m128-k256-n511",
       "variant": "shared8x8",
       "gpu_ms": 3.055750392,
-      "gpu_ms_process_medians": [
-        3.14833317,
-        3.045999911,
-        3.055750392
-      ],
+      "gpu_ms_process_medians": [3.14833317, 3.045999911, 3.055750392],
       "gpu_ms_min": 2.937041689,
       "gpu_ms_max": 3.824249841,
       "wall_ms": 3.274166,
-      "wall_ms_process_medians": [
-        3.461292,
-        3.274166,
-        3.242875
-      ],
+      "wall_ms_process_medians": [3.461292, 3.274166, 3.242875],
       "wall_ms_min": 3.127458,
       "wall_ms_max": 4.189625
     },
@@ -42282,19 +42042,11 @@
       "workload": "m128-k256-n511",
       "variant": "register2x2",
       "gpu_ms": 2.301250119,
-      "gpu_ms_process_medians": [
-        2.298625186,
-        2.308125142,
-        2.301250119
-      ],
+      "gpu_ms_process_medians": [2.298625186, 2.308125142, 2.301250119],
       "gpu_ms_min": 2.285500057,
       "gpu_ms_max": 2.364375163,
       "wall_ms": 2.507333,
-      "wall_ms_process_medians": [
-        2.507333,
-        2.573666,
-        2.494375
-      ],
+      "wall_ms_process_medians": [2.507333, 2.573666, 2.494375],
       "wall_ms_min": 2.474083,
       "wall_ms_max": 4.443791
     },
@@ -42302,19 +42054,11 @@
       "workload": "m128-k256-n511",
       "variant": "register2x1",
       "gpu_ms": 2.256750129,
-      "gpu_ms_process_medians": [
-        2.260291949,
-        2.247500233,
-        2.256750129
-      ],
+      "gpu_ms_process_medians": [2.260291949, 2.247500233, 2.256750129],
       "gpu_ms_min": 2.244041767,
       "gpu_ms_max": 2.336416394,
       "wall_ms": 2.469041,
-      "wall_ms_process_medians": [
-        2.469041,
-        2.474042,
-        2.464292
-      ],
+      "wall_ms_process_medians": [2.469041, 2.474042, 2.464292],
       "wall_ms_min": 2.424708,
       "wall_ms_max": 2.969042
     },
@@ -42322,19 +42066,11 @@
       "workload": "m128-k256-n512",
       "variant": "scalar",
       "gpu_ms": 2.531958278,
-      "gpu_ms_process_medians": [
-        2.579250373,
-        2.502999734,
-        2.531958278
-      ],
+      "gpu_ms_process_medians": [2.579250373, 2.502999734, 2.531958278],
       "gpu_ms_min": 2.493666485,
       "gpu_ms_max": 2.666749991,
       "wall_ms": 2.71625,
-      "wall_ms_process_medians": [
-        2.807542,
-        2.68775,
-        2.71625
-      ],
+      "wall_ms_process_medians": [2.807542, 2.68775, 2.71625],
       "wall_ms_min": 2.667125,
       "wall_ms_max": 2.875125
     },
@@ -42342,19 +42078,11 @@
       "workload": "m128-k256-n512",
       "variant": "shared8x8",
       "gpu_ms": 3.028916661,
-      "gpu_ms_process_medians": [
-        3.028916661,
-        3.039416857,
-        2.954208292
-      ],
+      "gpu_ms_process_medians": [3.028916661, 3.039416857, 2.954208292],
       "gpu_ms_min": 2.935625147,
       "gpu_ms_max": 3.596999682,
       "wall_ms": 3.218416,
-      "wall_ms_process_medians": [
-        3.218416,
-        3.252542,
-        3.155084
-      ],
+      "wall_ms_process_medians": [3.218416, 3.252542, 3.155084],
       "wall_ms_min": 3.109584,
       "wall_ms_max": 3.793458
     },
@@ -42362,19 +42090,11 @@
       "workload": "m128-k256-n512",
       "variant": "register2x2",
       "gpu_ms": 2.297500148,
-      "gpu_ms_process_medians": [
-        2.297500148,
-        2.317875158,
-        2.29062466
-      ],
+      "gpu_ms_process_medians": [2.297500148, 2.317875158, 2.29062466],
       "gpu_ms_min": 2.285291441,
       "gpu_ms_max": 2.364375163,
       "wall_ms": 2.500417,
-      "wall_ms_process_medians": [
-        2.489,
-        2.52025,
-        2.500417
-      ],
+      "wall_ms_process_medians": [2.489, 2.52025, 2.500417],
       "wall_ms_min": 2.466291,
       "wall_ms_max": 2.673583
     },
@@ -42382,19 +42102,11 @@
       "workload": "m128-k256-n512",
       "variant": "register2x1",
       "gpu_ms": 2.24662479,
-      "gpu_ms_process_medians": [
-        2.246499993,
-        2.25016661,
-        2.24662479
-      ],
+      "gpu_ms_process_medians": [2.246499993, 2.25016661, 2.24662479],
       "gpu_ms_min": 2.241624985,
       "gpu_ms_max": 2.325416543,
       "wall_ms": 2.453459,
-      "wall_ms_process_medians": [
-        2.453459,
-        2.467875,
-        2.44375
-      ],
+      "wall_ms_process_medians": [2.453459, 2.467875, 2.44375],
       "wall_ms_min": 2.424458,
       "wall_ms_max": 2.546292
     },
@@ -42402,19 +42114,11 @@
       "workload": "m128-k512-n128",
       "variant": "scalar",
       "gpu_ms": 1.490916591,
-      "gpu_ms_process_medians": [
-        1.488749869,
-        1.491500065,
-        1.490916591
-      ],
+      "gpu_ms_process_medians": [1.488749869, 1.491500065, 1.490916591],
       "gpu_ms_min": 1.483500004,
       "gpu_ms_max": 1.525875181,
       "wall_ms": 1.683542,
-      "wall_ms_process_medians": [
-        1.665208,
-        1.685125,
-        1.683542
-      ],
+      "wall_ms_process_medians": [1.665208, 1.685125, 1.683542],
       "wall_ms_min": 1.645833,
       "wall_ms_max": 1.800833
     },
@@ -42422,19 +42126,11 @@
       "workload": "m128-k512-n128",
       "variant": "shared8x8",
       "gpu_ms": 2.334500197,
-      "gpu_ms_process_medians": [
-        2.330999821,
-        2.334500197,
-        2.335916739
-      ],
+      "gpu_ms_process_medians": [2.330999821, 2.334500197, 2.335916739],
       "gpu_ms_min": 2.320374828,
       "gpu_ms_max": 2.438458148,
       "wall_ms": 2.594333,
-      "wall_ms_process_medians": [
-        2.512417,
-        2.594333,
-        2.617375
-      ],
+      "wall_ms_process_medians": [2.512417, 2.594333, 2.617375],
       "wall_ms_min": 2.499,
       "wall_ms_max": 2.955458
     },
@@ -42442,19 +42138,11 @@
       "workload": "m128-k512-n128",
       "variant": "register2x2",
       "gpu_ms": 2.448041923,
-      "gpu_ms_process_medians": [
-        2.448041923,
-        2.480583265,
-        2.440041397
-      ],
+      "gpu_ms_process_medians": [2.448041923, 2.480583265, 2.440041397],
       "gpu_ms_min": 2.40595825,
       "gpu_ms_max": 2.534958534,
       "wall_ms": 2.659792,
-      "wall_ms_process_medians": [
-        2.675583,
-        2.659792,
-        2.629875
-      ],
+      "wall_ms_process_medians": [2.675583, 2.659792, 2.629875],
       "wall_ms_min": 2.584709,
       "wall_ms_max": 2.882458
     },
@@ -42462,19 +42150,11 @@
       "workload": "m128-k512-n128",
       "variant": "register2x1",
       "gpu_ms": 1.446999609,
-      "gpu_ms_process_medians": [
-        1.446624752,
-        1.44900009,
-        1.446999609
-      ],
+      "gpu_ms_process_medians": [1.446624752, 1.44900009, 1.446999609],
       "gpu_ms_min": 1.441875007,
       "gpu_ms_max": 1.518749632,
       "wall_ms": 1.636375,
-      "wall_ms_process_medians": [
-        1.631333,
-        1.636375,
-        1.640208
-      ],
+      "wall_ms_process_medians": [1.631333, 1.636375, 1.640208],
       "wall_ms_min": 1.620083,
       "wall_ms_max": 2.05325
     },
@@ -42482,19 +42162,11 @@
       "workload": "m16-k1025-n4096",
       "variant": "scalar",
       "gpu_ms": 10.065374896,
-      "gpu_ms_process_medians": [
-        10.091083124,
-        10.061708279,
-        10.065374896
-      ],
+      "gpu_ms_process_medians": [10.091083124, 10.061708279, 10.065374896],
       "gpu_ms_min": 9.962833486,
       "gpu_ms_max": 10.262874886,
       "wall_ms": 10.280334,
-      "wall_ms_process_medians": [
-        10.366875,
-        10.280334,
-        10.248667
-      ],
+      "wall_ms_process_medians": [10.366875, 10.280334, 10.248667],
       "wall_ms_min": 10.171416,
       "wall_ms_max": 10.467833
     },
@@ -42502,19 +42174,11 @@
       "workload": "m16-k1025-n4096",
       "variant": "shared8x8",
       "gpu_ms": 11.853833217,
-      "gpu_ms_process_medians": [
-        11.853833217,
-        11.892374605,
-        11.736291926
-      ],
+      "gpu_ms_process_medians": [11.853833217, 11.892374605, 11.736291926],
       "gpu_ms_min": 11.592249852,
       "gpu_ms_max": 13.934291434,
       "wall_ms": 12.113291,
-      "wall_ms_process_medians": [
-        12.210291,
-        12.113291,
-        11.954584
-      ],
+      "wall_ms_process_medians": [12.210291, 12.113291, 11.954584],
       "wall_ms_min": 11.785125,
       "wall_ms_max": 14.141292
     },
@@ -42522,19 +42186,11 @@
       "workload": "m16-k1025-n4096",
       "variant": "register2x2",
       "gpu_ms": 9.142500348,
-      "gpu_ms_process_medians": [
-        9.159749839,
-        9.129249956,
-        9.142500348
-      ],
+      "gpu_ms_process_medians": [9.159749839, 9.129249956, 9.142500348],
       "gpu_ms_min": 9.102750104,
       "gpu_ms_max": 9.2849168,
       "wall_ms": 9.332583,
-      "wall_ms_process_medians": [
-        9.368667,
-        9.326167,
-        9.332583
-      ],
+      "wall_ms_process_medians": [9.368667, 9.326167, 9.332583],
       "wall_ms_min": 9.299083,
       "wall_ms_max": 9.580583
     },
@@ -42542,19 +42198,11 @@
       "workload": "m16-k1025-n4096",
       "variant": "register2x1",
       "gpu_ms": 8.975708392,
-      "gpu_ms_process_medians": [
-        9.013208095,
-        8.975708392,
-        8.955374826
-      ],
+      "gpu_ms_process_medians": [9.013208095, 8.975708392, 8.955374826],
       "gpu_ms_min": 8.904125076,
       "gpu_ms_max": 9.131333325,
       "wall_ms": 9.18975,
-      "wall_ms_process_medians": [
-        9.2345,
-        9.18975,
-        9.166291
-      ],
+      "wall_ms_process_medians": [9.2345, 9.18975, 9.166291],
       "wall_ms_min": 9.11125,
       "wall_ms_max": 9.3495
     },
@@ -42562,19 +42210,11 @@
       "workload": "m181-k256-n181",
       "variant": "scalar",
       "gpu_ms": 1.384125091,
-      "gpu_ms_process_medians": [
-        1.381000038,
-        1.384125091,
-        1.385750249
-      ],
+      "gpu_ms_process_medians": [1.381000038, 1.384125091, 1.385750249],
       "gpu_ms_min": 1.378833782,
       "gpu_ms_max": 1.433333382,
       "wall_ms": 1.5735,
-      "wall_ms_process_medians": [
-        1.564041,
-        1.578166,
-        1.5735
-      ],
+      "wall_ms_process_medians": [1.564041, 1.578166, 1.5735],
       "wall_ms_min": 1.545875,
       "wall_ms_max": 1.623875
     },
@@ -42582,19 +42222,11 @@
       "workload": "m181-k256-n181",
       "variant": "shared8x8",
       "gpu_ms": 1.764249988,
-      "gpu_ms_process_medians": [
-        1.764249988,
-        1.770999748,
-        1.763000153
-      ],
+      "gpu_ms_process_medians": [1.764249988, 1.770999748, 1.763000153],
       "gpu_ms_min": 1.751374919,
       "gpu_ms_max": 1.885999925,
       "wall_ms": 1.968458,
-      "wall_ms_process_medians": [
-        1.980625,
-        1.968458,
-        1.954375
-      ],
+      "wall_ms_process_medians": [1.980625, 1.968458, 1.954375],
       "wall_ms_min": 1.930708,
       "wall_ms_max": 2.2485
     },
@@ -42602,19 +42234,11 @@
       "workload": "m181-k256-n181",
       "variant": "register2x2",
       "gpu_ms": 1.490541734,
-      "gpu_ms_process_medians": [
-        1.503875013,
-        1.479875296,
-        1.490541734
-      ],
+      "gpu_ms_process_medians": [1.503875013, 1.479875296, 1.490541734],
       "gpu_ms_min": 1.4585834,
       "gpu_ms_max": 1.533499919,
       "wall_ms": 1.690458,
-      "wall_ms_process_medians": [
-        1.695291,
-        1.690458,
-        1.681167
-      ],
+      "wall_ms_process_medians": [1.695291, 1.690458, 1.681167],
       "wall_ms_min": 1.645291,
       "wall_ms_max": 2.182125
     },
@@ -42622,19 +42246,11 @@
       "workload": "m181-k256-n181",
       "variant": "register2x1",
       "gpu_ms": 1.236625016,
-      "gpu_ms_process_medians": [
-        1.23412488,
-        1.236625016,
-        1.23791676
-      ],
+      "gpu_ms_process_medians": [1.23412488, 1.236625016, 1.23791676],
       "gpu_ms_min": 1.230999827,
       "gpu_ms_max": 1.27837481,
       "wall_ms": 1.44025,
-      "wall_ms_process_medians": [
-        1.467792,
-        1.438208,
-        1.44025
-      ],
+      "wall_ms_process_medians": [1.467792, 1.438208, 1.44025],
       "wall_ms_min": 1.372834,
       "wall_ms_max": 1.614917
     },
@@ -42642,19 +42258,11 @@
       "workload": "m2-k256-n32768",
       "variant": "scalar",
       "gpu_ms": 2.531958278,
-      "gpu_ms_process_medians": [
-        2.520916518,
-        2.583708148,
-        2.531958278
-      ],
+      "gpu_ms_process_medians": [2.520916518, 2.583708148, 2.531958278],
       "gpu_ms_min": 2.518208232,
       "gpu_ms_max": 2.783542033,
       "wall_ms": 2.784166,
-      "wall_ms_process_medians": [
-        2.720709,
-        2.833916,
-        2.784166
-      ],
+      "wall_ms_process_medians": [2.720709, 2.833916, 2.784166],
       "wall_ms_min": 2.70025,
       "wall_ms_max": 3.186083
     },
@@ -42662,19 +42270,11 @@
       "workload": "m2-k256-n32768",
       "variant": "shared8x8",
       "gpu_ms": 10.742249899,
-      "gpu_ms_process_medians": [
-        10.742249899,
-        11.058749631,
-        10.691291653
-      ],
+      "gpu_ms_process_medians": [10.742249899, 11.058749631, 10.691291653],
       "gpu_ms_min": 10.526542086,
       "gpu_ms_max": 11.486041825,
       "wall_ms": 10.919792,
-      "wall_ms_process_medians": [
-        10.919792,
-        11.327209,
-        10.895291
-      ],
+      "wall_ms_process_medians": [10.919792, 11.327209, 10.895291],
       "wall_ms_min": 10.712708,
       "wall_ms_max": 11.847709
     },
@@ -42682,19 +42282,11 @@
       "workload": "m2-k256-n32768",
       "variant": "register2x2",
       "gpu_ms": 2.332374919,
-      "gpu_ms_process_medians": [
-        2.325208392,
-        2.344249748,
-        2.332374919
-      ],
+      "gpu_ms_process_medians": [2.325208392, 2.344249748, 2.332374919],
       "gpu_ms_min": 2.305291593,
       "gpu_ms_max": 2.394625451,
       "wall_ms": 2.537833,
-      "wall_ms_process_medians": [
-        2.517292,
-        2.537833,
-        2.555334
-      ],
+      "wall_ms_process_medians": [2.517292, 2.537833, 2.555334],
       "wall_ms_min": 2.496667,
       "wall_ms_max": 2.752292
     },
@@ -42702,19 +42294,11 @@
       "workload": "m2-k256-n32768",
       "variant": "register2x1",
       "gpu_ms": 2.284500282,
-      "gpu_ms_process_medians": [
-        2.287291922,
-        2.284500282,
-        2.277874853
-      ],
+      "gpu_ms_process_medians": [2.287291922, 2.284500282, 2.277874853],
       "gpu_ms_min": 2.270625439,
       "gpu_ms_max": 2.456124872,
       "wall_ms": 2.490875,
-      "wall_ms_process_medians": [
-        2.479167,
-        2.490875,
-        2.49525
-      ],
+      "wall_ms_process_medians": [2.479167, 2.490875, 2.49525],
       "wall_ms_min": 2.462625,
       "wall_ms_max": 2.663584
     },
@@ -42722,19 +42306,11 @@
       "workload": "m255-k256-n255",
       "variant": "scalar",
       "gpu_ms": 2.502583433,
-      "gpu_ms_process_medians": [
-        2.502583433,
-        2.566500101,
-        2.49920832
-      ],
+      "gpu_ms_process_medians": [2.502583433, 2.566500101, 2.49920832],
       "gpu_ms_min": 2.495416906,
       "gpu_ms_max": 2.637750003,
       "wall_ms": 2.705,
-      "wall_ms_process_medians": [
-        2.705,
-        2.756209,
-        2.68925
-      ],
+      "wall_ms_process_medians": [2.705, 2.756209, 2.68925],
       "wall_ms_min": 2.6615,
       "wall_ms_max": 2.819667
     },
@@ -42742,19 +42318,11 @@
       "workload": "m255-k256-n255",
       "variant": "shared8x8",
       "gpu_ms": 3.040249925,
-      "gpu_ms_process_medians": [
-        3.040249925,
-        2.953958232,
-        3.051124979
-      ],
+      "gpu_ms_process_medians": [3.040249925, 2.953958232, 3.051124979],
       "gpu_ms_min": 2.93420814,
       "gpu_ms_max": 4.050250165,
       "wall_ms": 3.254708,
-      "wall_ms_process_medians": [
-        3.278042,
-        3.160083,
-        3.254708
-      ],
+      "wall_ms_process_medians": [3.278042, 3.160083, 3.254708],
       "wall_ms_min": 3.121333,
       "wall_ms_max": 4.251375
     },
@@ -42762,19 +42330,11 @@
       "workload": "m255-k256-n255",
       "variant": "register2x2",
       "gpu_ms": 2.298291773,
-      "gpu_ms_process_medians": [
-        2.300333697,
-        2.296875231,
-        2.298291773
-      ],
+      "gpu_ms_process_medians": [2.300333697, 2.296875231, 2.298291773],
       "gpu_ms_min": 2.272791695,
       "gpu_ms_max": 2.329458483,
       "wall_ms": 2.507834,
-      "wall_ms_process_medians": [
-        2.511917,
-        2.507834,
-        2.492375
-      ],
+      "wall_ms_process_medians": [2.511917, 2.507834, 2.492375],
       "wall_ms_min": 2.467083,
       "wall_ms_max": 2.660083
     },
@@ -42782,19 +42342,11 @@
       "workload": "m255-k256-n255",
       "variant": "register2x1",
       "gpu_ms": 2.249124926,
-      "gpu_ms_process_medians": [
-        2.245374955,
-        2.254249994,
-        2.249124926
-      ],
+      "gpu_ms_process_medians": [2.245374955, 2.254249994, 2.249124926],
       "gpu_ms_min": 2.238791436,
       "gpu_ms_max": 2.359875012,
       "wall_ms": 2.448,
-      "wall_ms_process_medians": [
-        2.446333,
-        2.45475,
-        2.448
-      ],
+      "wall_ms_process_medians": [2.446333, 2.45475, 2.448],
       "wall_ms_min": 2.410333,
       "wall_ms_max": 2.876959
     },
@@ -42802,19 +42354,11 @@
       "workload": "m255-k256-n257",
       "variant": "scalar",
       "gpu_ms": 2.502749674,
-      "gpu_ms_process_medians": [
-        2.502749674,
-        2.497875132,
-        2.578083426
-      ],
+      "gpu_ms_process_medians": [2.502749674, 2.497875132, 2.578083426],
       "gpu_ms_min": 2.494916786,
       "gpu_ms_max": 2.856999636,
       "wall_ms": 2.697459,
-      "wall_ms_process_medians": [
-        2.697459,
-        2.68575,
-        2.778
-      ],
+      "wall_ms_process_medians": [2.697459, 2.68575, 2.778],
       "wall_ms_min": 2.671125,
       "wall_ms_max": 3.313125
     },
@@ -42822,19 +42366,11 @@
       "workload": "m255-k256-n257",
       "variant": "shared8x8",
       "gpu_ms": 3.383041825,
-      "gpu_ms_process_medians": [
-        3.364500124,
-        3.451749682,
-        3.383041825
-      ],
+      "gpu_ms_process_medians": [3.364500124, 3.451749682, 3.383041825],
       "gpu_ms_min": 3.173791803,
       "gpu_ms_max": 3.664333373,
       "wall_ms": 3.62325,
-      "wall_ms_process_medians": [
-        3.62325,
-        3.639792,
-        3.576709
-      ],
+      "wall_ms_process_medians": [3.62325, 3.639792, 3.576709],
       "wall_ms_min": 3.368084,
       "wall_ms_max": 3.854042
     },
@@ -42842,19 +42378,11 @@
       "workload": "m255-k256-n257",
       "variant": "register2x2",
       "gpu_ms": 2.301291563,
-      "gpu_ms_process_medians": [
-        2.304749563,
-        2.299624961,
-        2.301291563
-      ],
+      "gpu_ms_process_medians": [2.304749563, 2.299624961, 2.301291563],
       "gpu_ms_min": 2.280041575,
       "gpu_ms_max": 2.424541395,
       "wall_ms": 2.508583,
-      "wall_ms_process_medians": [
-        2.508583,
-        2.495125,
-        2.518
-      ],
+      "wall_ms_process_medians": [2.508583, 2.495125, 2.518],
       "wall_ms_min": 2.475167,
       "wall_ms_max": 2.698833
     },
@@ -42862,19 +42390,11 @@
       "workload": "m255-k256-n257",
       "variant": "register2x1",
       "gpu_ms": 2.24941643,
-      "gpu_ms_process_medians": [
-        2.248958219,
-        2.24941643,
-        2.251000144
-      ],
+      "gpu_ms_process_medians": [2.248958219, 2.24941643, 2.251000144],
       "gpu_ms_min": 2.242458519,
       "gpu_ms_max": 2.321583219,
       "wall_ms": 2.457709,
-      "wall_ms_process_medians": [
-        2.457709,
-        2.470208,
-        2.449833
-      ],
+      "wall_ms_process_medians": [2.457709, 2.470208, 2.449833],
       "wall_ms_min": 2.403625,
       "wall_ms_max": 2.72325
     },
@@ -42882,19 +42402,11 @@
       "workload": "m256-k1-n256",
       "variant": "scalar",
       "gpu_ms": 0.03087474,
-      "gpu_ms_process_medians": [
-        0.031999778,
-        0.03087474,
-        0.030500349
-      ],
+      "gpu_ms_process_medians": [0.031999778, 0.03087474, 0.030500349],
       "gpu_ms_min": 0.028916635,
       "gpu_ms_max": 0.03366638,
       "wall_ms": 0.203459,
-      "wall_ms_process_medians": [
-        0.228209,
-        0.203459,
-        0.190208
-      ],
+      "wall_ms_process_medians": [0.228209, 0.203459, 0.190208],
       "wall_ms_min": 0.170375,
       "wall_ms_max": 0.309958
     },
@@ -42902,19 +42414,11 @@
       "workload": "m256-k1-n256",
       "variant": "shared8x8",
       "gpu_ms": 0.047541689,
-      "gpu_ms_process_medians": [
-        0.047916546,
-        0.047541689,
-        0.046583358
-      ],
+      "gpu_ms_process_medians": [0.047916546, 0.047541689, 0.046583358],
       "gpu_ms_min": 0.044375192,
       "gpu_ms_max": 0.098625198,
       "wall_ms": 0.216416,
-      "wall_ms_process_medians": [
-        0.262209,
-        0.216416,
-        0.2085
-      ],
+      "wall_ms_process_medians": [0.262209, 0.216416, 0.2085],
       "wall_ms_min": 0.194208,
       "wall_ms_max": 0.403208
     },
@@ -42922,19 +42426,11 @@
       "workload": "m256-k1-n256",
       "variant": "register2x2",
       "gpu_ms": 0.028749928,
-      "gpu_ms_process_medians": [
-        0.02866704,
-        0.029083341,
-        0.028749928
-      ],
+      "gpu_ms_process_medians": [0.02866704, 0.029083341, 0.028749928],
       "gpu_ms_min": 0.028208364,
       "gpu_ms_max": 0.03470853,
       "wall_ms": 0.208833,
-      "wall_ms_process_medians": [
-        0.219833,
-        0.208833,
-        0.192292
-      ],
+      "wall_ms_process_medians": [0.219833, 0.208833, 0.192292],
       "wall_ms_min": 0.171375,
       "wall_ms_max": 0.34825
     },
@@ -42942,19 +42438,11 @@
       "workload": "m256-k1-n256",
       "variant": "register2x1",
       "gpu_ms": 0.044375192,
-      "gpu_ms_process_medians": [
-        0.044375192,
-        0.05124975,
-        0.044166576
-      ],
+      "gpu_ms_process_medians": [0.044375192, 0.05124975, 0.044166576],
       "gpu_ms_min": 0.043124892,
       "gpu_ms_max": 0.057666562,
       "wall_ms": 0.241709,
-      "wall_ms_process_medians": [
-        0.269125,
-        0.241709,
-        0.2315
-      ],
+      "wall_ms_process_medians": [0.269125, 0.241709, 0.2315],
       "wall_ms_min": 0.192792,
       "wall_ms_max": 0.350375
     },
@@ -42962,19 +42450,11 @@
       "workload": "m256-k1025-n256",
       "variant": "scalar",
       "gpu_ms": 10.186166503,
-      "gpu_ms_process_medians": [
-        10.270874947,
-        10.096000042,
-        10.186166503
-      ],
+      "gpu_ms_process_medians": [10.270874947, 10.096000042, 10.186166503],
       "gpu_ms_min": 10.003333446,
       "gpu_ms_max": 10.412166361,
       "wall_ms": 10.3975,
-      "wall_ms_process_medians": [
-        10.59375,
-        10.342333,
-        10.3975
-      ],
+      "wall_ms_process_medians": [10.59375, 10.342333, 10.3975],
       "wall_ms_min": 10.226,
       "wall_ms_max": 10.682291
     },
@@ -42982,19 +42462,11 @@
       "workload": "m256-k1025-n256",
       "variant": "shared8x8",
       "gpu_ms": 11.887250002,
-      "gpu_ms_process_medians": [
-        11.91300014,
-        11.820625048,
-        11.887250002
-      ],
+      "gpu_ms_process_medians": [11.91300014, 11.820625048, 11.887250002],
       "gpu_ms_min": 11.724083219,
       "gpu_ms_max": 12.649625074,
       "wall_ms": 12.105792,
-      "wall_ms_process_medians": [
-        12.27475,
-        12.041417,
-        12.105792
-      ],
+      "wall_ms_process_medians": [12.27475, 12.041417, 12.105792],
       "wall_ms_min": 11.9175,
       "wall_ms_max": 13.7165
     },
@@ -43002,19 +42474,11 @@
       "workload": "m256-k1025-n256",
       "variant": "register2x2",
       "gpu_ms": 9.137291461,
-      "gpu_ms_process_medians": [
-        9.137291461,
-        9.119666647,
-        9.146749973
-      ],
+      "gpu_ms_process_medians": [9.137291461, 9.119666647, 9.146749973],
       "gpu_ms_min": 9.078874718,
       "gpu_ms_max": 9.349249769,
       "wall_ms": 9.358333,
-      "wall_ms_process_medians": [
-        9.381125,
-        9.342833,
-        9.358333
-      ],
+      "wall_ms_process_medians": [9.381125, 9.342833, 9.358333],
       "wall_ms_min": 9.311375,
       "wall_ms_max": 9.61275
     },
@@ -43022,19 +42486,11 @@
       "workload": "m256-k1025-n256",
       "variant": "register2x1",
       "gpu_ms": 8.955791593,
-      "gpu_ms_process_medians": [
-        8.977083489,
-        8.955791593,
-        8.94283317
-      ],
+      "gpu_ms_process_medians": [8.977083489, 8.955791593, 8.94283317],
       "gpu_ms_min": 8.894208353,
       "gpu_ms_max": 9.142708499,
       "wall_ms": 9.17225,
-      "wall_ms_process_medians": [
-        9.202666,
-        9.17225,
-        9.167125
-      ],
+      "wall_ms_process_medians": [9.202666, 9.17225, 9.167125],
       "wall_ms_min": 9.082167,
       "wall_ms_max": 27.351958
     },
@@ -43042,19 +42498,11 @@
       "workload": "m256-k128-n256",
       "variant": "scalar",
       "gpu_ms": 1.263124868,
-      "gpu_ms_process_medians": [
-        1.263249665,
-        1.263124868,
-        1.259000041
-      ],
+      "gpu_ms_process_medians": [1.263249665, 1.263124868, 1.259000041],
       "gpu_ms_min": 1.256833319,
       "gpu_ms_max": 1.330125146,
       "wall_ms": 1.479875,
-      "wall_ms_process_medians": [
-        1.48225,
-        1.479875,
-        1.450792
-      ],
+      "wall_ms_process_medians": [1.48225, 1.479875, 1.450792],
       "wall_ms_min": 1.425333,
       "wall_ms_max": 1.787042
     },
@@ -43062,19 +42510,11 @@
       "workload": "m256-k128-n256",
       "variant": "shared8x8",
       "gpu_ms": 1.500749961,
-      "gpu_ms_process_medians": [
-        1.49750011,
-        1.500749961,
-        1.511124894
-      ],
+      "gpu_ms_process_medians": [1.49750011, 1.500749961, 1.511124894],
       "gpu_ms_min": 1.494833268,
       "gpu_ms_max": 1.726875082,
       "wall_ms": 1.759666,
-      "wall_ms_process_medians": [
-        1.684334,
-        1.759666,
-        1.7745
-      ],
+      "wall_ms_process_medians": [1.684334, 1.759666, 1.7745],
       "wall_ms_min": 1.661167,
       "wall_ms_max": 1.917375
     },
@@ -43082,19 +42522,11 @@
       "workload": "m256-k128-n256",
       "variant": "register2x2",
       "gpu_ms": 1.166374888,
-      "gpu_ms_process_medians": [
-        1.167625189,
-        1.166374888,
-        1.163125038
-      ],
+      "gpu_ms_process_medians": [1.167625189, 1.166374888, 1.163125038],
       "gpu_ms_min": 1.15150027,
       "gpu_ms_max": 1.232374925,
       "wall_ms": 1.359375,
-      "wall_ms_process_medians": [
-        1.34775,
-        1.383333,
-        1.359375
-      ],
+      "wall_ms_process_medians": [1.34775, 1.383333, 1.359375],
       "wall_ms_min": 1.318083,
       "wall_ms_max": 1.497167
     },
@@ -43102,19 +42534,11 @@
       "workload": "m256-k128-n256",
       "variant": "register2x1",
       "gpu_ms": 1.14066666,
-      "gpu_ms_process_medians": [
-        1.14066666,
-        1.139875036,
-        1.142125111
-      ],
+      "gpu_ms_process_medians": [1.14066666, 1.139875036, 1.142125111],
       "gpu_ms_min": 1.13687478,
       "gpu_ms_max": 1.167916693,
       "wall_ms": 1.335375,
-      "wall_ms_process_medians": [
-        1.335375,
-        1.35275,
-        1.331
-      ],
+      "wall_ms_process_medians": [1.335375, 1.35275, 1.331],
       "wall_ms_min": 1.317875,
       "wall_ms_max": 1.421709
     },
@@ -43122,19 +42546,11 @@
       "workload": "m256-k255-n256",
       "variant": "scalar",
       "gpu_ms": 2.507041674,
-      "gpu_ms_process_medians": [
-        2.507041674,
-        2.503041644,
-        2.507791854
-      ],
+      "gpu_ms_process_medians": [2.507041674, 2.503041644, 2.507791854],
       "gpu_ms_min": 2.494708635,
       "gpu_ms_max": 2.649874892,
       "wall_ms": 2.705667,
-      "wall_ms_process_medians": [
-        2.705667,
-        2.737125,
-        2.693708
-      ],
+      "wall_ms_process_medians": [2.705667, 2.737125, 2.693708],
       "wall_ms_min": 2.672,
       "wall_ms_max": 2.835583
     },
@@ -43142,19 +42558,11 @@
       "workload": "m256-k255-n256",
       "variant": "shared8x8",
       "gpu_ms": 2.956375014,
-      "gpu_ms_process_medians": [
-        2.951708157,
-        2.956375014,
-        3.238916863
-      ],
+      "gpu_ms_process_medians": [2.951708157, 2.956375014, 3.238916863],
       "gpu_ms_min": 2.923041582,
       "gpu_ms_max": 3.560249694,
       "wall_ms": 3.198625,
-      "wall_ms_process_medians": [
-        3.198625,
-        3.189083,
-        3.424042
-      ],
+      "wall_ms_process_medians": [3.198625, 3.189083, 3.424042],
       "wall_ms_min": 3.086167,
       "wall_ms_max": 3.94075
     },
@@ -43162,19 +42570,11 @@
       "workload": "m256-k255-n256",
       "variant": "register2x2",
       "gpu_ms": 2.333874814,
-      "gpu_ms_process_medians": [
-        2.334250137,
-        2.333874814,
-        2.332291566
-      ],
+      "gpu_ms_process_medians": [2.334250137, 2.333874814, 2.332291566],
       "gpu_ms_min": 2.309541684,
       "gpu_ms_max": 2.393499948,
       "wall_ms": 2.534042,
-      "wall_ms_process_medians": [
-        2.534042,
-        2.507333,
-        2.544041
-      ],
+      "wall_ms_process_medians": [2.534042, 2.507333, 2.544041],
       "wall_ms_min": 2.490125,
       "wall_ms_max": 2.72675
     },
@@ -43182,19 +42582,11 @@
       "workload": "m256-k255-n256",
       "variant": "register2x1",
       "gpu_ms": 2.268291544,
-      "gpu_ms_process_medians": [
-        2.268291544,
-        2.327791415,
-        2.265708521
-      ],
+      "gpu_ms_process_medians": [2.268291544, 2.327791415, 2.265708521],
       "gpu_ms_min": 2.256208099,
       "gpu_ms_max": 2.356125042,
       "wall_ms": 2.501875,
-      "wall_ms_process_medians": [
-        2.467958,
-        2.521667,
-        2.501875
-      ],
+      "wall_ms_process_medians": [2.467958, 2.521667, 2.501875],
       "wall_ms_min": 2.437709,
       "wall_ms_max": 3.0
     },
@@ -43202,19 +42594,11 @@
       "workload": "m256-k256-n1024",
       "variant": "scalar",
       "gpu_ms": 9.709333535,
-      "gpu_ms_process_medians": [
-        9.628499858,
-        9.787625168,
-        9.709333535
-      ],
+      "gpu_ms_process_medians": [9.628499858, 9.787625168, 9.709333535],
       "gpu_ms_min": 9.503916837,
       "gpu_ms_max": 9.895000141,
       "wall_ms": 9.940042,
-      "wall_ms_process_medians": [
-        9.834042,
-        10.002709,
-        9.940042
-      ],
+      "wall_ms_process_medians": [9.834042, 10.002709, 9.940042],
       "wall_ms_min": 9.742834,
       "wall_ms_max": 10.234833
     },
@@ -43222,19 +42606,11 @@
       "workload": "m256-k256-n1024",
       "variant": "shared8x8",
       "gpu_ms": 11.236125138,
-      "gpu_ms_process_medians": [
-        11.025125161,
-        11.265875306,
-        11.236125138
-      ],
+      "gpu_ms_process_medians": [11.025125161, 11.265875306, 11.236125138],
       "gpu_ms_min": 10.866499972,
       "gpu_ms_max": 11.607374996,
       "wall_ms": 11.45325,
-      "wall_ms_process_medians": [
-        11.225584,
-        11.45325,
-        11.531333
-      ],
+      "wall_ms_process_medians": [11.225584, 11.45325, 11.531333],
       "wall_ms_min": 11.094708,
       "wall_ms_max": 12.506333
     },
@@ -43242,19 +42618,11 @@
       "workload": "m256-k256-n1024",
       "variant": "register2x2",
       "gpu_ms": 7.865958381,
-      "gpu_ms_process_medians": [
-        7.630874868,
-        7.865958381,
-        7.993666921
-      ],
+      "gpu_ms_process_medians": [7.630874868, 7.865958381, 7.993666921],
       "gpu_ms_min": 7.51545839,
       "gpu_ms_max": 8.386583533,
       "wall_ms": 8.110542,
-      "wall_ms_process_medians": [
-        7.85275,
-        8.110542,
-        8.196459
-      ],
+      "wall_ms_process_medians": [7.85275, 8.110542, 8.196459],
       "wall_ms_min": 7.710959,
       "wall_ms_max": 8.577709
     },
@@ -43262,19 +42630,11 @@
       "workload": "m256-k256-n1024",
       "variant": "register2x1",
       "gpu_ms": 8.15154193,
-      "gpu_ms_process_medians": [
-        8.15150002,
-        8.15154193,
-        8.173250128
-      ],
+      "gpu_ms_process_medians": [8.15150002, 8.15154193, 8.173250128],
       "gpu_ms_min": 7.985750213,
       "gpu_ms_max": 8.434041869,
       "wall_ms": 8.38275,
-      "wall_ms_process_medians": [
-        8.333166,
-        8.427291,
-        8.38275
-      ],
+      "wall_ms_process_medians": [8.333166, 8.427291, 8.38275],
       "wall_ms_min": 8.193084,
       "wall_ms_max": 8.707459
     },
@@ -43282,19 +42642,11 @@
       "workload": "m256-k256-n256",
       "variant": "scalar",
       "gpu_ms": 2.565625124,
-      "gpu_ms_process_medians": [
-        2.572583035,
-        2.565625124,
-        2.50599999
-      ],
+      "gpu_ms_process_medians": [2.572583035, 2.565625124, 2.50599999],
       "gpu_ms_min": 2.495999914,
       "gpu_ms_max": 2.717624884,
       "wall_ms": 2.77775,
-      "wall_ms_process_medians": [
-        2.77775,
-        2.750083,
-        2.863583
-      ],
+      "wall_ms_process_medians": [2.77775, 2.750083, 2.863583],
       "wall_ms_min": 2.687417,
       "wall_ms_max": 3.225667
     },
@@ -43302,19 +42654,11 @@
       "workload": "m256-k256-n256",
       "variant": "shared8x8",
       "gpu_ms": 2.96512479,
-      "gpu_ms_process_medians": [
-        2.971875016,
-        2.96512479,
-        2.956500277
-      ],
+      "gpu_ms_process_medians": [2.971875016, 2.96512479, 2.956500277],
       "gpu_ms_min": 2.932499629,
       "gpu_ms_max": 3.632583655,
       "wall_ms": 3.194542,
-      "wall_ms_process_medians": [
-        3.26875,
-        3.194542,
-        3.157834
-      ],
+      "wall_ms_process_medians": [3.26875, 3.194542, 3.157834],
       "wall_ms_min": 3.129625,
       "wall_ms_max": 3.823333
     },
@@ -43322,19 +42666,11 @@
       "workload": "m256-k256-n256",
       "variant": "register2x2",
       "gpu_ms": 2.298333216,
-      "gpu_ms_process_medians": [
-        2.293500118,
-        2.298333216,
-        2.298625186
-      ],
+      "gpu_ms_process_medians": [2.293500118, 2.298333216, 2.298625186],
       "gpu_ms_min": 2.278916538,
       "gpu_ms_max": 2.349250019,
       "wall_ms": 2.498333,
-      "wall_ms_process_medians": [
-        2.499791,
-        2.47675,
-        2.498333
-      ],
+      "wall_ms_process_medians": [2.499791, 2.47675, 2.498333],
       "wall_ms_min": 2.471041,
       "wall_ms_max": 2.643083
     },
@@ -43342,19 +42678,11 @@
       "workload": "m256-k256-n256",
       "variant": "register2x1",
       "gpu_ms": 2.248374745,
-      "gpu_ms_process_medians": [
-        2.248374745,
-        2.249083482,
-        2.245750278
-      ],
+      "gpu_ms_process_medians": [2.248374745, 2.249083482, 2.245750278],
       "gpu_ms_min": 2.243000083,
       "gpu_ms_max": 2.327125054,
       "wall_ms": 2.461584,
-      "wall_ms_process_medians": [
-        2.461958,
-        2.461584,
-        2.438209
-      ],
+      "wall_ms_process_medians": [2.461958, 2.461584, 2.438209],
       "wall_ms_min": 2.409083,
       "wall_ms_max": 2.582958
     },
@@ -43362,19 +42690,11 @@
       "workload": "m256-k257-n256",
       "variant": "scalar",
       "gpu_ms": 2.515750006,
-      "gpu_ms_process_medians": [
-        2.515750006,
-        2.583083231,
-        2.508416772
-      ],
+      "gpu_ms_process_medians": [2.515750006, 2.583083231, 2.508416772],
       "gpu_ms_min": 2.50650011,
       "gpu_ms_max": 2.647041809,
       "wall_ms": 2.706125,
-      "wall_ms_process_medians": [
-        2.706125,
-        2.7775,
-        2.696291
-      ],
+      "wall_ms_process_medians": [2.706125, 2.7775, 2.696291],
       "wall_ms_min": 2.636625,
       "wall_ms_max": 2.823916
     },
@@ -43382,19 +42702,11 @@
       "workload": "m256-k257-n256",
       "variant": "shared8x8",
       "gpu_ms": 2.96287518,
-      "gpu_ms_process_medians": [
-        2.96287518,
-        3.070999868,
-        2.96237506
-      ],
+      "gpu_ms_process_medians": [2.96287518, 3.070999868, 2.96237506],
       "gpu_ms_min": 2.946000081,
       "gpu_ms_max": 3.487499896,
       "wall_ms": 3.190083,
-      "wall_ms_process_medians": [
-        3.190083,
-        3.262042,
-        3.160042
-      ],
+      "wall_ms_process_medians": [3.190083, 3.262042, 3.160042],
       "wall_ms_min": 3.137583,
       "wall_ms_max": 3.701541
     },
@@ -43402,19 +42714,11 @@
       "workload": "m256-k257-n256",
       "variant": "register2x2",
       "gpu_ms": 2.31549982,
-      "gpu_ms_process_medians": [
-        2.318750136,
-        2.30895821,
-        2.31549982
-      ],
+      "gpu_ms_process_medians": [2.318750136, 2.30895821, 2.31549982],
       "gpu_ms_min": 2.29945872,
       "gpu_ms_max": 2.481749747,
       "wall_ms": 2.509792,
-      "wall_ms_process_medians": [
-        2.515417,
-        2.504416,
-        2.509792
-      ],
+      "wall_ms_process_medians": [2.515417, 2.504416, 2.509792],
       "wall_ms_min": 2.475541,
       "wall_ms_max": 2.673125
     },
@@ -43422,19 +42726,11 @@
       "workload": "m256-k257-n256",
       "variant": "register2x1",
       "gpu_ms": 2.268082928,
-      "gpu_ms_process_medians": [
-        2.262250055,
-        2.268082928,
-        2.27099983
-      ],
+      "gpu_ms_process_medians": [2.262250055, 2.268082928, 2.27099983],
       "gpu_ms_min": 2.26150034,
       "gpu_ms_max": 2.364875283,
       "wall_ms": 2.481833,
-      "wall_ms_process_medians": [
-        2.472875,
-        2.494416,
-        2.481833
-      ],
+      "wall_ms_process_medians": [2.472875, 2.494416, 2.481833],
       "wall_ms_min": 2.43075,
       "wall_ms_max": 2.674375
     },
@@ -43442,19 +42738,11 @@
       "workload": "m256-k32-n256",
       "variant": "scalar",
       "gpu_ms": 0.327291898,
-      "gpu_ms_process_medians": [
-        0.327291898,
-        0.327624846,
-        0.327083282
-      ],
+      "gpu_ms_process_medians": [0.327291898, 0.327624846, 0.327083282],
       "gpu_ms_min": 0.325916801,
       "gpu_ms_max": 0.340249855,
       "wall_ms": 0.500625,
-      "wall_ms_process_medians": [
-        0.500625,
-        0.501709,
-        0.491166
-      ],
+      "wall_ms_process_medians": [0.500625, 0.501709, 0.491166],
       "wall_ms_min": 0.480667,
       "wall_ms_max": 0.534708
     },
@@ -43462,19 +42750,11 @@
       "workload": "m256-k32-n256",
       "variant": "shared8x8",
       "gpu_ms": 0.42491639,
-      "gpu_ms_process_medians": [
-        0.42491639,
-        0.424833503,
-        0.428250059
-      ],
+      "gpu_ms_process_medians": [0.42491639, 0.424833503, 0.428250059],
       "gpu_ms_min": 0.420833472,
       "gpu_ms_max": 0.506750308,
       "wall_ms": 0.608292,
-      "wall_ms_process_medians": [
-        0.608292,
-        0.620375,
-        0.606667
-      ],
+      "wall_ms_process_medians": [0.608292, 0.620375, 0.606667],
       "wall_ms_min": 0.585292,
       "wall_ms_max": 1.1075
     },
@@ -43482,19 +42762,11 @@
       "workload": "m256-k32-n256",
       "variant": "register2x2",
       "gpu_ms": 0.309333205,
-      "gpu_ms_process_medians": [
-        0.309083611,
-        0.309333205,
-        0.309749972
-      ],
+      "gpu_ms_process_medians": [0.309083611, 0.309333205, 0.309749972],
       "gpu_ms_min": 0.305875205,
       "gpu_ms_max": 0.316500198,
       "wall_ms": 0.4875,
-      "wall_ms_process_medians": [
-        0.492458,
-        0.486917,
-        0.4875
-      ],
+      "wall_ms_process_medians": [0.492458, 0.486917, 0.4875],
       "wall_ms_min": 0.467709,
       "wall_ms_max": 0.767666
     },
@@ -43502,19 +42774,11 @@
       "workload": "m256-k32-n256",
       "variant": "register2x1",
       "gpu_ms": 0.310458243,
-      "gpu_ms_process_medians": [
-        0.310458243,
-        0.312750228,
-        0.310250092
-      ],
+      "gpu_ms_process_medians": [0.310458243, 0.312750228, 0.310250092],
       "gpu_ms_min": 0.305749942,
       "gpu_ms_max": 0.319958199,
       "wall_ms": 0.499833,
-      "wall_ms_process_medians": [
-        0.510333,
-        0.499833,
-        0.47725
-      ],
+      "wall_ms_process_medians": [0.510333, 0.499833, 0.47725],
       "wall_ms_min": 0.467458,
       "wall_ms_max": 0.646666
     },
@@ -43522,19 +42786,11 @@
       "workload": "m256-k511-n256",
       "variant": "scalar",
       "gpu_ms": 5.123374984,
-      "gpu_ms_process_medians": [
-        5.123374984,
-        5.271249916,
-        5.098875146
-      ],
+      "gpu_ms_process_medians": [5.123374984, 5.271249916, 5.098875146],
       "gpu_ms_min": 4.984125029,
       "gpu_ms_max": 5.55829145,
       "wall_ms": 5.307125,
-      "wall_ms_process_medians": [
-        5.307125,
-        5.477208,
-        5.302833
-      ],
+      "wall_ms_process_medians": [5.307125, 5.477208, 5.302833],
       "wall_ms_min": 5.147917,
       "wall_ms_max": 5.7395
     },
@@ -43542,19 +42798,11 @@
       "workload": "m256-k511-n256",
       "variant": "shared8x8",
       "gpu_ms": 5.912458524,
-      "gpu_ms_process_medians": [
-        5.850624759,
-        5.912458524,
-        5.951874889
-      ],
+      "gpu_ms_process_medians": [5.850624759, 5.912458524, 5.951874889],
       "gpu_ms_min": 5.794083234,
       "gpu_ms_max": 7.271999959,
       "wall_ms": 6.159167,
-      "wall_ms_process_medians": [
-        6.159167,
-        6.112666,
-        6.174625
-      ],
+      "wall_ms_process_medians": [6.159167, 6.112666, 6.174625],
       "wall_ms_min": 6.010042,
       "wall_ms_max": 7.456917
     },
@@ -43562,19 +42810,11 @@
       "workload": "m256-k511-n256",
       "variant": "register2x2",
       "gpu_ms": 4.608999938,
-      "gpu_ms_process_medians": [
-        4.600707907,
-        4.638375249,
-        4.608999938
-      ],
+      "gpu_ms_process_medians": [4.600707907, 4.638375249, 4.608999938],
       "gpu_ms_min": 4.560749978,
       "gpu_ms_max": 4.72924998,
       "wall_ms": 4.818375,
-      "wall_ms_process_medians": [
-        4.818375,
-        4.88675,
-        4.792458
-      ],
+      "wall_ms_process_medians": [4.818375, 4.88675, 4.792458],
       "wall_ms_min": 4.754417,
       "wall_ms_max": 4.932833
     },
@@ -43582,19 +42822,11 @@
       "workload": "m256-k511-n256",
       "variant": "register2x1",
       "gpu_ms": 4.483624827,
-      "gpu_ms_process_medians": [
-        4.481916782,
-        4.543375224,
-        4.483624827
-      ],
+      "gpu_ms_process_medians": [4.481916782, 4.543375224, 4.483624827],
       "gpu_ms_min": 4.470125306,
       "gpu_ms_max": 4.941791762,
       "wall_ms": 4.727791,
-      "wall_ms_process_medians": [
-        4.711625,
-        4.757458,
-        4.727791
-      ],
+      "wall_ms_process_medians": [4.711625, 4.757458, 4.727791],
       "wall_ms_min": 4.667583,
       "wall_ms_max": 5.640625
     },
@@ -43602,19 +42834,11 @@
       "workload": "m256-k512-n256",
       "variant": "scalar",
       "gpu_ms": 5.053500179,
-      "gpu_ms_process_medians": [
-        5.053500179,
-        5.051624961,
-        5.152041558
-      ],
+      "gpu_ms_process_medians": [5.053500179, 5.051624961, 5.152041558],
       "gpu_ms_min": 4.978791345,
       "gpu_ms_max": 5.479542073,
       "wall_ms": 5.266,
-      "wall_ms_process_medians": [
-        5.26575,
-        5.266,
-        5.378833
-      ],
+      "wall_ms_process_medians": [5.26575, 5.266, 5.378833],
       "wall_ms_min": 5.154667,
       "wall_ms_max": 5.829834
     },
@@ -43622,19 +42846,11 @@
       "workload": "m256-k512-n256",
       "variant": "shared8x8",
       "gpu_ms": 5.968166981,
-      "gpu_ms_process_medians": [
-        5.968166981,
-        5.893999711,
-        5.999541376
-      ],
+      "gpu_ms_process_medians": [5.968166981, 5.893999711, 5.999541376],
       "gpu_ms_min": 5.817499943,
       "gpu_ms_max": 6.933041848,
       "wall_ms": 6.152583,
-      "wall_ms_process_medians": [
-        6.152583,
-        6.095792,
-        6.194417
-      ],
+      "wall_ms_process_medians": [6.152583, 6.095792, 6.194417],
       "wall_ms_min": 6.002083,
       "wall_ms_max": 7.156125
     },
@@ -43642,19 +42858,11 @@
       "workload": "m256-k512-n256",
       "variant": "register2x2",
       "gpu_ms": 4.556833301,
-      "gpu_ms_process_medians": [
-        4.566291813,
-        4.556833301,
-        4.555458669
-      ],
+      "gpu_ms_process_medians": [4.566291813, 4.556833301, 4.555458669],
       "gpu_ms_min": 4.541375209,
       "gpu_ms_max": 4.691374954,
       "wall_ms": 4.764209,
-      "wall_ms_process_medians": [
-        4.764209,
-        4.762458,
-        4.776708
-      ],
+      "wall_ms_process_medians": [4.764209, 4.762458, 4.776708],
       "wall_ms_min": 4.713209,
       "wall_ms_max": 5.266125
     },
@@ -43662,19 +42870,11 @@
       "workload": "m256-k512-n256",
       "variant": "register2x1",
       "gpu_ms": 4.526250064,
-      "gpu_ms_process_medians": [
-        4.463374615,
-        4.52850014,
-        4.526250064
-      ],
+      "gpu_ms_process_medians": [4.463374615, 4.52850014, 4.526250064],
       "gpu_ms_min": 4.452000372,
       "gpu_ms_max": 4.664250184,
       "wall_ms": 4.738167,
-      "wall_ms_process_medians": [
-        4.6745,
-        4.738167,
-        4.738209
-      ],
+      "wall_ms_process_medians": [4.6745, 4.738167, 4.738209],
       "wall_ms_min": 4.643833,
       "wall_ms_max": 4.864917
     },
@@ -43682,19 +42882,11 @@
       "workload": "m256-k513-n256",
       "variant": "scalar",
       "gpu_ms": 5.070874933,
-      "gpu_ms_process_medians": [
-        5.059042014,
-        5.43366652,
-        5.070874933
-      ],
+      "gpu_ms_process_medians": [5.059042014, 5.43366652, 5.070874933],
       "gpu_ms_min": 4.98558348,
       "gpu_ms_max": 5.503083114,
       "wall_ms": 5.265041,
-      "wall_ms_process_medians": [
-        5.253,
-        5.634584,
-        5.265041
-      ],
+      "wall_ms_process_medians": [5.253, 5.634584, 5.265041],
       "wall_ms_min": 5.158292,
       "wall_ms_max": 5.701167
     },
@@ -43702,19 +42894,11 @@
       "workload": "m256-k513-n256",
       "variant": "shared8x8",
       "gpu_ms": 5.97295817,
-      "gpu_ms_process_medians": [
-        5.97295817,
-        6.160458084,
-        5.941499956
-      ],
+      "gpu_ms_process_medians": [5.97295817, 6.160458084, 5.941499956],
       "gpu_ms_min": 5.837291945,
       "gpu_ms_max": 6.710416637,
       "wall_ms": 6.229583,
-      "wall_ms_process_medians": [
-        6.229583,
-        6.417791,
-        6.172708
-      ],
+      "wall_ms_process_medians": [6.229583, 6.417791, 6.172708],
       "wall_ms_min": 6.020416,
       "wall_ms_max": 6.892167
     },
@@ -43722,19 +42906,11 @@
       "workload": "m256-k513-n256",
       "variant": "register2x2",
       "gpu_ms": 4.591374658,
-      "gpu_ms_process_medians": [
-        4.585875198,
-        4.591374658,
-        4.594708327
-      ],
+      "gpu_ms_process_medians": [4.585875198, 4.591374658, 4.594708327],
       "gpu_ms_min": 4.556291737,
       "gpu_ms_max": 4.700750113,
       "wall_ms": 4.802583,
-      "wall_ms_process_medians": [
-        4.801667,
-        4.810083,
-        4.802583
-      ],
+      "wall_ms_process_medians": [4.801667, 4.810083, 4.802583],
       "wall_ms_min": 4.751417,
       "wall_ms_max": 4.955875
     },
@@ -43742,19 +42918,11 @@
       "workload": "m256-k513-n256",
       "variant": "register2x1",
       "gpu_ms": 4.509958439,
-      "gpu_ms_process_medians": [
-        4.509958439,
-        4.538416397,
-        4.507500213
-      ],
+      "gpu_ms_process_medians": [4.509958439, 4.538416397, 4.507500213],
       "gpu_ms_min": 4.470624961,
       "gpu_ms_max": 4.901250359,
       "wall_ms": 4.76,
-      "wall_ms_process_medians": [
-        4.7775,
-        4.76,
-        4.691583
-      ],
+      "wall_ms_process_medians": [4.7775, 4.76, 4.691583],
       "wall_ms_min": 4.656834,
       "wall_ms_max": 5.13975
     },
@@ -43762,19 +42930,11 @@
       "workload": "m256-k64-n256",
       "variant": "scalar",
       "gpu_ms": 0.638958067,
-      "gpu_ms_process_medians": [
-        0.638208352,
-        0.638958067,
-        0.6397916
-      ],
+      "gpu_ms_process_medians": [0.638208352, 0.638958067, 0.6397916],
       "gpu_ms_min": 0.636624638,
       "gpu_ms_max": 0.693874899,
       "wall_ms": 0.821708,
-      "wall_ms_process_medians": [
-        0.828958,
-        0.821708,
-        0.81375
-      ],
+      "wall_ms_process_medians": [0.828958, 0.821708, 0.81375],
       "wall_ms_min": 0.79675,
       "wall_ms_max": 1.368375
     },
@@ -43782,19 +42942,11 @@
       "workload": "m256-k64-n256",
       "variant": "shared8x8",
       "gpu_ms": 0.786499586,
-      "gpu_ms_process_medians": [
-        0.82629174,
-        0.783874653,
-        0.786499586
-      ],
+      "gpu_ms_process_medians": [0.82629174, 0.783874653, 0.786499586],
       "gpu_ms_min": 0.776208472,
       "gpu_ms_max": 0.910500064,
       "wall_ms": 0.970333,
-      "wall_ms_process_medians": [
-        1.005917,
-        0.961417,
-        0.970333
-      ],
+      "wall_ms_process_medians": [1.005917, 0.961417, 0.970333],
       "wall_ms_min": 0.943167,
       "wall_ms_max": 1.120958
     },
@@ -43802,19 +42954,11 @@
       "workload": "m256-k64-n256",
       "variant": "register2x2",
       "gpu_ms": 0.595000107,
-      "gpu_ms_process_medians": [
-        0.595625024,
-        0.594375189,
-        0.595000107
-      ],
+      "gpu_ms_process_medians": [0.595625024, 0.594375189, 0.595000107],
       "gpu_ms_min": 0.586583279,
       "gpu_ms_max": 0.606958289,
       "wall_ms": 0.792875,
-      "wall_ms_process_medians": [
-        0.79875,
-        0.778916,
-        0.792875
-      ],
+      "wall_ms_process_medians": [0.79875, 0.778916, 0.792875],
       "wall_ms_min": 0.755583,
       "wall_ms_max": 0.855792
     },
@@ -43822,19 +42966,11 @@
       "workload": "m256-k64-n256",
       "variant": "register2x1",
       "gpu_ms": 0.588583294,
-      "gpu_ms_process_medians": [
-        0.588583294,
-        0.589708332,
-        0.586375128
-      ],
+      "gpu_ms_process_medians": [0.588583294, 0.589708332, 0.586375128],
       "gpu_ms_min": 0.583874993,
       "gpu_ms_max": 0.634916592,
       "wall_ms": 0.832292,
-      "wall_ms_process_medians": [
-        0.834792,
-        0.772125,
-        0.832292
-      ],
+      "wall_ms_process_medians": [0.834792, 0.772125, 0.832292],
       "wall_ms_min": 0.755875,
       "wall_ms_max": 1.061083
     },
@@ -43842,19 +42978,11 @@
       "workload": "m256-k8-n256",
       "variant": "scalar",
       "gpu_ms": 0.09574974,
-      "gpu_ms_process_medians": [
-        0.094749965,
-        0.09574974,
-        0.09574974
-      ],
+      "gpu_ms_process_medians": [0.094749965, 0.09574974, 0.09574974],
       "gpu_ms_min": 0.091416761,
       "gpu_ms_max": 0.102083199,
       "wall_ms": 0.286541,
-      "wall_ms_process_medians": [
-        0.287458,
-        0.274958,
-        0.286541
-      ],
+      "wall_ms_process_medians": [0.287458, 0.274958, 0.286541],
       "wall_ms_min": 0.246708,
       "wall_ms_max": 0.555458
     },
@@ -43862,19 +42990,11 @@
       "workload": "m256-k8-n256",
       "variant": "shared8x8",
       "gpu_ms": 0.149124768,
-      "gpu_ms_process_medians": [
-        0.148625113,
-        0.153583474,
-        0.149124768
-      ],
+      "gpu_ms_process_medians": [0.148625113, 0.153583474, 0.149124768],
       "gpu_ms_min": 0.14550006,
       "gpu_ms_max": 0.351499766,
       "wall_ms": 0.347292,
-      "wall_ms_process_medians": [
-        0.343958,
-        0.347292,
-        0.367208
-      ],
+      "wall_ms_process_medians": [0.343958, 0.347292, 0.367208],
       "wall_ms_min": 0.3045,
       "wall_ms_max": 0.484834
     },
@@ -43882,19 +43002,11 @@
       "workload": "m256-k8-n256",
       "variant": "register2x2",
       "gpu_ms": 0.093291979,
-      "gpu_ms_process_medians": [
-        0.093291979,
-        0.096375123,
-        0.091333408
-      ],
+      "gpu_ms_process_medians": [0.093291979, 0.096375123, 0.091333408],
       "gpu_ms_min": 0.090999994,
       "gpu_ms_max": 0.098874792,
       "wall_ms": 0.279291,
-      "wall_ms_process_medians": [
-        0.279292,
-        0.279291,
-        0.277708
-      ],
+      "wall_ms_process_medians": [0.279292, 0.279291, 0.277708],
       "wall_ms_min": 0.25925,
       "wall_ms_max": 0.384958
     },
@@ -43902,19 +43014,11 @@
       "workload": "m256-k8-n256",
       "variant": "register2x1",
       "gpu_ms": 0.101291575,
-      "gpu_ms_process_medians": [
-        0.101291575,
-        0.101500191,
-        0.100333244
-      ],
+      "gpu_ms_process_medians": [0.101291575, 0.101500191, 0.100333244],
       "gpu_ms_min": 0.098458026,
       "gpu_ms_max": 0.105791725,
       "wall_ms": 0.284333,
-      "wall_ms_process_medians": [
-        0.284333,
-        0.276541,
-        0.300209
-      ],
+      "wall_ms_process_medians": [0.284333, 0.276541, 0.300209],
       "wall_ms_min": 0.230958,
       "wall_ms_max": 0.320959
     },
@@ -43922,19 +43026,11 @@
       "workload": "m257-k256-n255",
       "variant": "scalar",
       "gpu_ms": 2.504125237,
-      "gpu_ms_process_medians": [
-        2.500124741,
-        2.565625124,
-        2.504125237
-      ],
+      "gpu_ms_process_medians": [2.500124741, 2.565625124, 2.504125237],
       "gpu_ms_min": 2.496291883,
       "gpu_ms_max": 2.604874782,
       "wall_ms": 2.709875,
-      "wall_ms_process_medians": [
-        2.709875,
-        2.742417,
-        2.703458
-      ],
+      "wall_ms_process_medians": [2.709875, 2.742417, 2.703458],
       "wall_ms_min": 2.639625,
       "wall_ms_max": 2.811167
     },
@@ -43942,19 +43038,11 @@
       "workload": "m257-k256-n255",
       "variant": "shared8x8",
       "gpu_ms": 3.372999839,
-      "gpu_ms_process_medians": [
-        3.356250003,
-        3.379375208,
-        3.372999839
-      ],
+      "gpu_ms_process_medians": [3.356250003, 3.379375208, 3.372999839],
       "gpu_ms_min": 3.042874858,
       "gpu_ms_max": 3.491250332,
       "wall_ms": 3.569,
-      "wall_ms_process_medians": [
-        3.562167,
-        3.585208,
-        3.569
-      ],
+      "wall_ms_process_medians": [3.562167, 3.585208, 3.569],
       "wall_ms_min": 3.241708,
       "wall_ms_max": 3.707958
     },
@@ -43962,19 +43050,11 @@
       "workload": "m257-k256-n255",
       "variant": "register2x2",
       "gpu_ms": 2.301874571,
-      "gpu_ms_process_medians": [
-        2.301874571,
-        2.302499954,
-        2.301749773
-      ],
+      "gpu_ms_process_medians": [2.301874571, 2.302499954, 2.301749773],
       "gpu_ms_min": 2.279000357,
       "gpu_ms_max": 2.367083449,
       "wall_ms": 2.495875,
-      "wall_ms_process_medians": [
-        2.495875,
-        2.496958,
-        2.49475
-      ],
+      "wall_ms_process_medians": [2.495875, 2.496958, 2.49475],
       "wall_ms_min": 2.471625,
       "wall_ms_max": 2.62775
     },
@@ -43982,19 +43062,11 @@
       "workload": "m257-k256-n255",
       "variant": "register2x1",
       "gpu_ms": 2.252999693,
-      "gpu_ms_process_medians": [
-        2.259624656,
-        2.252999693,
-        2.248666715
-      ],
+      "gpu_ms_process_medians": [2.259624656, 2.252999693, 2.248666715],
       "gpu_ms_min": 2.239666879,
       "gpu_ms_max": 2.387291752,
       "wall_ms": 2.454834,
-      "wall_ms_process_medians": [
-        2.526417,
-        2.444875,
-        2.454834
-      ],
+      "wall_ms_process_medians": [2.526417, 2.444875, 2.454834],
       "wall_ms_min": 2.427916,
       "wall_ms_max": 2.92525
     },
@@ -44002,19 +43074,11 @@
       "workload": "m257-k256-n257",
       "variant": "scalar",
       "gpu_ms": 2.60574976,
-      "gpu_ms_process_medians": [
-        2.60574976,
-        2.586249728,
-        2.631916665
-      ],
+      "gpu_ms_process_medians": [2.60574976, 2.586249728, 2.631916665],
       "gpu_ms_min": 2.576750237,
       "gpu_ms_max": 2.851875033,
       "wall_ms": 2.834333,
-      "wall_ms_process_medians": [
-        2.78625,
-        2.855959,
-        2.834333
-      ],
+      "wall_ms_process_medians": [2.78625, 2.855959, 2.834333],
       "wall_ms_min": 2.754042,
       "wall_ms_max": 3.216333
     },
@@ -44022,19 +43086,11 @@
       "workload": "m257-k256-n257",
       "variant": "shared8x8",
       "gpu_ms": 3.466249909,
-      "gpu_ms_process_medians": [
-        3.466249909,
-        3.500000108,
-        3.393624909
-      ],
+      "gpu_ms_process_medians": [3.466249909, 3.500000108, 3.393624909],
       "gpu_ms_min": 3.123916686,
       "gpu_ms_max": 4.017625004,
       "wall_ms": 3.671583,
-      "wall_ms_process_medians": [
-        3.671583,
-        3.708834,
-        3.63525
-      ],
+      "wall_ms_process_medians": [3.671583, 3.708834, 3.63525],
       "wall_ms_min": 3.291958,
       "wall_ms_max": 4.703333
     },
@@ -44042,19 +43098,11 @@
       "workload": "m257-k256-n257",
       "variant": "register2x2",
       "gpu_ms": 2.303583547,
-      "gpu_ms_process_medians": [
-        2.303583547,
-        2.30900012,
-        2.301749773
-      ],
+      "gpu_ms_process_medians": [2.303583547, 2.30900012, 2.301749773],
       "gpu_ms_min": 2.274250146,
       "gpu_ms_max": 2.408499829,
       "wall_ms": 2.504166,
-      "wall_ms_process_medians": [
-        2.492875,
-        2.561875,
-        2.504166
-      ],
+      "wall_ms_process_medians": [2.492875, 2.561875, 2.504166],
       "wall_ms_min": 2.463833,
       "wall_ms_max": 2.642833
     },
@@ -44062,19 +43110,11 @@
       "workload": "m257-k256-n257",
       "variant": "register2x1",
       "gpu_ms": 2.246791497,
-      "gpu_ms_process_medians": [
-        2.246791497,
-        2.248958219,
-        2.24637473
-      ],
+      "gpu_ms_process_medians": [2.246791497, 2.248958219, 2.24637473],
       "gpu_ms_min": 2.24337494,
       "gpu_ms_max": 2.346000168,
       "wall_ms": 2.461125,
-      "wall_ms_process_medians": [
-        2.455584,
-        2.461125,
-        2.498917
-      ],
+      "wall_ms_process_medians": [2.455584, 2.461125, 2.498917],
       "wall_ms_min": 2.424958,
       "wall_ms_max": 2.97225
     },
@@ -44082,19 +43122,11 @@
       "workload": "m32768-k256-n2",
       "variant": "scalar",
       "gpu_ms": 2.569749951,
-      "gpu_ms_process_medians": [
-        2.501791809,
-        2.604916692,
-        2.569749951
-      ],
+      "gpu_ms_process_medians": [2.501791809, 2.604916692, 2.569749951],
       "gpu_ms_min": 2.498166636,
       "gpu_ms_max": 2.781125251,
       "wall_ms": 2.776584,
-      "wall_ms_process_medians": [
-        2.704042,
-        2.791125,
-        2.776584
-      ],
+      "wall_ms_process_medians": [2.704042, 2.791125, 2.776584],
       "wall_ms_min": 2.658292,
       "wall_ms_max": 2.973708
     },
@@ -44102,19 +43134,11 @@
       "workload": "m32768-k256-n2",
       "variant": "shared8x8",
       "gpu_ms": 11.297000106,
-      "gpu_ms_process_medians": [
-        11.297000106,
-        11.331791524,
-        11.091332883
-      ],
+      "gpu_ms_process_medians": [11.297000106, 11.331791524, 11.091332883],
       "gpu_ms_min": 10.903374758,
       "gpu_ms_max": 12.035958469,
       "wall_ms": 11.575083,
-      "wall_ms_process_medians": [
-        11.491209,
-        11.69225,
-        11.575083
-      ],
+      "wall_ms_process_medians": [11.491209, 11.69225, 11.575083],
       "wall_ms_min": 11.080792,
       "wall_ms_max": 12.230166
     },
@@ -44122,19 +43146,11 @@
       "workload": "m32768-k256-n2",
       "variant": "register2x2",
       "gpu_ms": 2.337749582,
-      "gpu_ms_process_medians": [
-        2.338750288,
-        2.337749582,
-        2.332250122
-      ],
+      "gpu_ms_process_medians": [2.338750288, 2.337749582, 2.332250122],
       "gpu_ms_min": 2.324250061,
       "gpu_ms_max": 2.369083464,
       "wall_ms": 2.541583,
-      "wall_ms_process_medians": [
-        2.541583,
-        2.551125,
-        2.530417
-      ],
+      "wall_ms_process_medians": [2.541583, 2.551125, 2.530417],
       "wall_ms_min": 2.50175,
       "wall_ms_max": 2.637125
     },
@@ -44142,19 +43158,11 @@
       "workload": "m32768-k256-n2",
       "variant": "register2x1",
       "gpu_ms": 2.272041515,
-      "gpu_ms_process_medians": [
-        2.272041515,
-        2.323458437,
-        2.252541948
-      ],
+      "gpu_ms_process_medians": [2.272041515, 2.323458437, 2.252541948],
       "gpu_ms_min": 2.249583602,
       "gpu_ms_max": 2.405916806,
       "wall_ms": 2.490542,
-      "wall_ms_process_medians": [
-        2.490542,
-        2.549875,
-        2.461334
-      ],
+      "wall_ms_process_medians": [2.490542, 2.549875, 2.461334],
       "wall_ms_min": 2.428375,
       "wall_ms_max": 2.837292
     },
@@ -44162,19 +43170,11 @@
       "workload": "m384-k256-n384",
       "variant": "scalar",
       "gpu_ms": 5.529083312,
-      "gpu_ms_process_medians": [
-        5.587750115,
-        5.51812537,
-        5.529083312
-      ],
+      "gpu_ms_process_medians": [5.587750115, 5.51812537, 5.529083312],
       "gpu_ms_min": 5.423708353,
       "gpu_ms_max": 5.704916548,
       "wall_ms": 5.726375,
-      "wall_ms_process_medians": [
-        5.783625,
-        5.711583,
-        5.726375
-      ],
+      "wall_ms_process_medians": [5.783625, 5.711583, 5.726375],
       "wall_ms_min": 5.636958,
       "wall_ms_max": 5.948208
     },
@@ -44182,19 +43182,11 @@
       "workload": "m384-k256-n384",
       "variant": "shared8x8",
       "gpu_ms": 6.393000018,
-      "gpu_ms_process_medians": [
-        6.380875129,
-        6.46424992,
-        6.393000018
-      ],
+      "gpu_ms_process_medians": [6.380875129, 6.46424992, 6.393000018],
       "gpu_ms_min": 6.289875135,
       "gpu_ms_max": 6.862082984,
       "wall_ms": 6.598292,
-      "wall_ms_process_medians": [
-        6.572125,
-        6.660917,
-        6.598292
-      ],
+      "wall_ms_process_medians": [6.572125, 6.660917, 6.598292],
       "wall_ms_min": 6.488417,
       "wall_ms_max": 7.046666
     },
@@ -44202,19 +43194,11 @@
       "workload": "m384-k256-n384",
       "variant": "register2x2",
       "gpu_ms": 4.667916801,
-      "gpu_ms_process_medians": [
-        4.667916801,
-        4.730999935,
-        4.664291628
-      ],
+      "gpu_ms_process_medians": [4.667916801, 4.730999935, 4.664291628],
       "gpu_ms_min": 4.652416799,
       "gpu_ms_max": 4.986875225,
       "wall_ms": 4.900708,
-      "wall_ms_process_medians": [
-        4.872458,
-        4.952084,
-        4.900708
-      ],
+      "wall_ms_process_medians": [4.872458, 4.952084, 4.900708],
       "wall_ms_min": 4.843125,
       "wall_ms_max": 5.180834
     },
@@ -44222,19 +43206,11 @@
       "workload": "m384-k256-n384",
       "variant": "register2x1",
       "gpu_ms": 4.697333556,
-      "gpu_ms_process_medians": [
-        4.701291677,
-        4.679250065,
-        4.697333556
-      ],
+      "gpu_ms_process_medians": [4.701291677, 4.679250065, 4.697333556],
       "gpu_ms_min": 4.620499909,
       "gpu_ms_max": 4.798833281,
       "wall_ms": 4.912667,
-      "wall_ms_process_medians": [
-        4.892291,
-        4.912667,
-        4.985334
-      ],
+      "wall_ms_process_medians": [4.892291, 4.912667, 4.985334],
       "wall_ms_min": 4.799542,
       "wall_ms_max": 5.3005
     },
@@ -44242,19 +43218,11 @@
       "workload": "m4096-k1025-n16",
       "variant": "scalar",
       "gpu_ms": 10.047708172,
-      "gpu_ms_process_medians": [
-        10.149416514,
-        10.026166681,
-        10.047708172
-      ],
+      "gpu_ms_process_medians": [10.149416514, 10.026166681, 10.047708172],
       "gpu_ms_min": 9.936375078,
       "gpu_ms_max": 10.297833476,
       "wall_ms": 10.270542,
-      "wall_ms_process_medians": [
-        10.364542,
-        10.228083,
-        10.270542
-      ],
+      "wall_ms_process_medians": [10.364542, 10.228083, 10.270542],
       "wall_ms_min": 10.116959,
       "wall_ms_max": 10.552417
     },
@@ -44262,19 +43230,11 @@
       "workload": "m4096-k1025-n16",
       "variant": "shared8x8",
       "gpu_ms": 11.941249948,
-      "gpu_ms_process_medians": [
-        11.941249948,
-        11.826124974,
-        12.133458629
-      ],
+      "gpu_ms_process_medians": [11.941249948, 11.826124974, 12.133458629],
       "gpu_ms_min": 11.748333462,
       "gpu_ms_max": 13.697749935,
       "wall_ms": 12.148,
-      "wall_ms_process_medians": [
-        12.148,
-        12.051625,
-        12.357917
-      ],
+      "wall_ms_process_medians": [12.148, 12.051625, 12.357917],
       "wall_ms_min": 11.920666,
       "wall_ms_max": 13.970041
     },
@@ -44282,19 +43242,11 @@
       "workload": "m4096-k1025-n16",
       "variant": "register2x2",
       "gpu_ms": 9.125374723,
-      "gpu_ms_process_medians": [
-        9.124124888,
-        9.155958425,
-        9.125374723
-      ],
+      "gpu_ms_process_medians": [9.124124888, 9.155958425, 9.125374723],
       "gpu_ms_min": 9.07404162,
       "gpu_ms_max": 9.199250024,
       "wall_ms": 9.322584,
-      "wall_ms_process_medians": [
-        9.322584,
-        9.379625,
-        9.3145
-      ],
+      "wall_ms_process_medians": [9.322584, 9.379625, 9.3145],
       "wall_ms_min": 9.29175,
       "wall_ms_max": 9.443584
     },
@@ -44302,19 +43254,11 @@
       "workload": "m4096-k1025-n16",
       "variant": "register2x1",
       "gpu_ms": 8.998958394,
-      "gpu_ms_process_medians": [
-        8.976500016,
-        9.071083274,
-        8.998958394
-      ],
+      "gpu_ms_process_medians": [8.976500016, 9.071083274, 8.998958394],
       "gpu_ms_min": 8.891124744,
       "gpu_ms_max": 9.258625098,
       "wall_ms": 9.236292,
-      "wall_ms_process_medians": [
-        9.192958,
-        9.3145,
-        9.236292
-      ],
+      "wall_ms_process_medians": [9.192958, 9.3145, 9.236292],
       "wall_ms_min": 9.109667,
       "wall_ms_max": 9.524417
     },
@@ -44322,19 +43266,11 @@
       "workload": "m511-k256-n128",
       "variant": "scalar",
       "gpu_ms": 2.502749674,
-      "gpu_ms_process_medians": [
-        2.515124623,
-        2.498375252,
-        2.502749674
-      ],
+      "gpu_ms_process_medians": [2.515124623, 2.498375252, 2.502749674],
       "gpu_ms_min": 2.495166846,
       "gpu_ms_max": 2.641833387,
       "wall_ms": 2.701875,
-      "wall_ms_process_medians": [
-        2.701875,
-        2.68925,
-        2.716417
-      ],
+      "wall_ms_process_medians": [2.701875, 2.68925, 2.716417],
       "wall_ms_min": 2.665042,
       "wall_ms_max": 2.844583
     },
@@ -44342,19 +43278,11 @@
       "workload": "m511-k256-n128",
       "variant": "shared8x8",
       "gpu_ms": 2.991999965,
-      "gpu_ms_process_medians": [
-        2.991999965,
-        3.052750137,
-        2.987041604
-      ],
+      "gpu_ms_process_medians": [2.991999965, 3.052750137, 2.987041604],
       "gpu_ms_min": 2.932624891,
       "gpu_ms_max": 3.6403751,
       "wall_ms": 3.255375,
-      "wall_ms_process_medians": [
-        3.261,
-        3.255375,
-        3.210959
-      ],
+      "wall_ms_process_medians": [3.261, 3.255375, 3.210959],
       "wall_ms_min": 3.117792,
       "wall_ms_max": 3.844416
     },
@@ -44362,19 +43290,11 @@
       "workload": "m511-k256-n128",
       "variant": "register2x2",
       "gpu_ms": 2.292249817,
-      "gpu_ms_process_medians": [
-        2.292249817,
-        2.296291757,
-        2.29137484
-      ],
+      "gpu_ms_process_medians": [2.292249817, 2.296291757, 2.29137484],
       "gpu_ms_min": 2.269708551,
       "gpu_ms_max": 2.376708202,
       "wall_ms": 2.503291,
-      "wall_ms_process_medians": [
-        2.503291,
-        2.484416,
-        2.505125
-      ],
+      "wall_ms_process_medians": [2.503291, 2.484416, 2.505125],
       "wall_ms_min": 2.462208,
       "wall_ms_max": 2.588917
     },
@@ -44382,19 +43302,11 @@
       "workload": "m511-k256-n128",
       "variant": "register2x1",
       "gpu_ms": 2.250832971,
-      "gpu_ms_process_medians": [
-        2.253457904,
-        2.250832971,
-        2.248750068
-      ],
+      "gpu_ms_process_medians": [2.253457904, 2.250832971, 2.248750068],
       "gpu_ms_min": 2.243333496,
       "gpu_ms_max": 2.342875116,
       "wall_ms": 2.4915,
-      "wall_ms_process_medians": [
-        2.463834,
-        2.4915,
-        2.500375
-      ],
+      "wall_ms_process_medians": [2.463834, 2.4915, 2.500375],
       "wall_ms_min": 2.428084,
       "wall_ms_max": 2.616084
     },
@@ -44402,19 +43314,11 @@
       "workload": "m511-k256-n511",
       "variant": "scalar",
       "gpu_ms": 9.565750137,
-      "gpu_ms_process_medians": [
-        9.565750137,
-        9.567500092,
-        9.538041893
-      ],
+      "gpu_ms_process_medians": [9.565750137, 9.567500092, 9.538041893],
       "gpu_ms_min": 9.488750249,
       "gpu_ms_max": 9.812125005,
       "wall_ms": 9.815625,
-      "wall_ms_process_medians": [
-        9.899833,
-        9.815625,
-        9.810625
-      ],
+      "wall_ms_process_medians": [9.899833, 9.815625, 9.810625],
       "wall_ms_min": 9.689084,
       "wall_ms_max": 10.331875
     },
@@ -44422,19 +43326,11 @@
       "workload": "m511-k256-n511",
       "variant": "shared8x8",
       "gpu_ms": 11.140292045,
-      "gpu_ms_process_medians": [
-        11.163833085,
-        11.138874572,
-        11.140292045
-      ],
+      "gpu_ms_process_medians": [11.163833085, 11.138874572, 11.140292045],
       "gpu_ms_min": 10.883791838,
       "gpu_ms_max": 11.918666773,
       "wall_ms": 11.368708,
-      "wall_ms_process_medians": [
-        11.366208,
-        11.468166,
-        11.368708
-      ],
+      "wall_ms_process_medians": [11.366208, 11.468166, 11.368708],
       "wall_ms_min": 11.165084,
       "wall_ms_max": 12.123041
     },
@@ -44442,19 +43338,11 @@
       "workload": "m511-k256-n511",
       "variant": "register2x2",
       "gpu_ms": 7.647499908,
-      "gpu_ms_process_medians": [
-        7.621250115,
-        7.68429134,
-        7.647499908
-      ],
+      "gpu_ms_process_medians": [7.621250115, 7.68429134, 7.647499908],
       "gpu_ms_min": 7.521000225,
       "gpu_ms_max": 8.370291442,
       "wall_ms": 7.911708,
-      "wall_ms_process_medians": [
-        7.826333,
-        7.979666,
-        7.911708
-      ],
+      "wall_ms_process_medians": [7.826333, 7.979666, 7.911708],
       "wall_ms_min": 7.739375,
       "wall_ms_max": 8.56325
     },
@@ -44462,19 +43350,11 @@
       "workload": "m511-k256-n511",
       "variant": "register2x1",
       "gpu_ms": 8.088166825,
-      "gpu_ms_process_medians": [
-        8.088166825,
-        8.166250307,
-        8.051583078
-      ],
+      "gpu_ms_process_medians": [8.088166825, 8.166250307, 8.051583078],
       "gpu_ms_min": 7.896750234,
       "gpu_ms_max": 8.36512493,
       "wall_ms": 8.310708,
-      "wall_ms_process_medians": [
-        8.305125,
-        8.409833,
-        8.310708
-      ],
+      "wall_ms_process_medians": [8.305125, 8.409833, 8.310708],
       "wall_ms_min": 8.097458,
       "wall_ms_max": 8.770167
     },
@@ -44482,19 +43362,11 @@
       "workload": "m511-k512-n511",
       "variant": "scalar",
       "gpu_ms": 19.166791346,
-      "gpu_ms_process_medians": [
-        19.166791346,
-        19.028249662,
-        19.334875047
-      ],
+      "gpu_ms_process_medians": [19.166791346, 19.028249662, 19.334875047],
       "gpu_ms_min": 18.936375156,
       "gpu_ms_max": 19.725291524,
       "wall_ms": 19.387833,
-      "wall_ms_process_medians": [
-        19.387833,
-        19.372125,
-        19.622667
-      ],
+      "wall_ms_process_medians": [19.387833, 19.372125, 19.622667],
       "wall_ms_min": 19.126125,
       "wall_ms_max": 19.943917
     },
@@ -44502,19 +43374,11 @@
       "workload": "m511-k512-n511",
       "variant": "shared8x8",
       "gpu_ms": 22.253250238,
-      "gpu_ms_process_medians": [
-        22.06816664,
-        22.253250238,
-        22.413374856
-      ],
+      "gpu_ms_process_medians": [22.06816664, 22.253250238, 22.413374856],
       "gpu_ms_min": 21.766250022,
       "gpu_ms_max": 23.103250191,
       "wall_ms": 22.468875,
-      "wall_ms_process_medians": [
-        22.249416,
-        22.468875,
-        22.615708
-      ],
+      "wall_ms_process_medians": [22.249416, 22.468875, 22.615708],
       "wall_ms_min": 21.958333,
       "wall_ms_max": 23.307291
     },
@@ -44522,19 +43386,11 @@
       "workload": "m511-k512-n511",
       "variant": "register2x2",
       "gpu_ms": 15.253416728,
-      "gpu_ms_process_medians": [
-        15.188124962,
-        15.253416728,
-        15.280792024
-      ],
+      "gpu_ms_process_medians": [15.188124962, 15.253416728, 15.280792024],
       "gpu_ms_min": 15.056999866,
       "gpu_ms_max": 15.653541777,
       "wall_ms": 15.480917,
-      "wall_ms_process_medians": [
-        15.48,
-        15.491458,
-        15.480917
-      ],
+      "wall_ms_process_medians": [15.48, 15.491458, 15.480917],
       "wall_ms_min": 15.248459,
       "wall_ms_max": 16.259209
     },
@@ -44542,19 +43398,11 @@
       "workload": "m511-k512-n511",
       "variant": "register2x1",
       "gpu_ms": 16.129250173,
-      "gpu_ms_process_medians": [
-        16.112000216,
-        16.135583166,
-        16.129250173
-      ],
+      "gpu_ms_process_medians": [16.112000216, 16.135583166, 16.129250173],
       "gpu_ms_min": 15.829750337,
       "gpu_ms_max": 16.462208237,
       "wall_ms": 16.36675,
-      "wall_ms_process_medians": [
-        16.330083,
-        16.36675,
-        16.387792
-      ],
+      "wall_ms_process_medians": [16.330083, 16.36675, 16.387792],
       "wall_ms_min": 16.035125,
       "wall_ms_max": 16.800542
     },
@@ -44562,19 +43410,11 @@
       "workload": "m512-k1025-n128",
       "variant": "scalar",
       "gpu_ms": 10.117999744,
-      "gpu_ms_process_medians": [
-        10.096999817,
-        10.437416844,
-        10.117999744
-      ],
+      "gpu_ms_process_medians": [10.096999817, 10.437416844, 10.117999744],
       "gpu_ms_min": 9.939541575,
       "gpu_ms_max": 10.580374859,
       "wall_ms": 10.378208,
-      "wall_ms_process_medians": [
-        10.31,
-        10.667375,
-        10.378208
-      ],
+      "wall_ms_process_medians": [10.31, 10.667375, 10.378208],
       "wall_ms_min": 10.179625,
       "wall_ms_max": 10.797709
     },
@@ -44582,19 +43422,11 @@
       "workload": "m512-k1025-n128",
       "variant": "shared8x8",
       "gpu_ms": 11.840916704,
-      "gpu_ms_process_medians": [
-        11.840916704,
-        12.008458376,
-        11.761916801
-      ],
+      "gpu_ms_process_medians": [11.840916704, 12.008458376, 11.761916801],
       "gpu_ms_min": 11.646208353,
       "gpu_ms_max": 15.688667074,
       "wall_ms": 12.042792,
-      "wall_ms_process_medians": [
-        12.042792,
-        12.201416,
-        11.974166
-      ],
+      "wall_ms_process_medians": [12.042792, 12.201416, 11.974166],
       "wall_ms_min": 11.852041,
       "wall_ms_max": 15.948333
     },
@@ -44602,19 +43434,11 @@
       "workload": "m512-k1025-n128",
       "variant": "register2x2",
       "gpu_ms": 9.142749943,
-      "gpu_ms_process_medians": [
-        9.142749943,
-        9.176916908,
-        9.101250209
-      ],
+      "gpu_ms_process_medians": [9.142749943, 9.176916908, 9.101250209],
       "gpu_ms_min": 9.089958388,
       "gpu_ms_max": 9.30499984,
       "wall_ms": 9.359792,
-      "wall_ms_process_medians": [
-        9.359792,
-        9.391958,
-        9.352125
-      ],
+      "wall_ms_process_medians": [9.359792, 9.391958, 9.352125],
       "wall_ms_min": 9.2925,
       "wall_ms_max": 9.837042
     },
@@ -44622,19 +43446,11 @@
       "workload": "m512-k1025-n128",
       "variant": "register2x1",
       "gpu_ms": 8.99487501,
-      "gpu_ms_process_medians": [
-        8.991499897,
-        9.059125092,
-        8.99487501
-      ],
+      "gpu_ms_process_medians": [8.991499897, 9.059125092, 8.99487501],
       "gpu_ms_min": 8.91245855,
       "gpu_ms_max": 9.312124923,
       "wall_ms": 9.229834,
-      "wall_ms_process_medians": [
-        9.183541,
-        9.273667,
-        9.229834
-      ],
+      "wall_ms_process_medians": [9.183541, 9.273667, 9.229834],
       "wall_ms_min": 9.114125,
       "wall_ms_max": 9.53
     },
@@ -44642,19 +43458,11 @@
       "workload": "m512-k256-n128",
       "variant": "scalar",
       "gpu_ms": 2.568208147,
-      "gpu_ms_process_medians": [
-        2.568208147,
-        2.620291896,
-        2.499499824
-      ],
+      "gpu_ms_process_medians": [2.568208147, 2.620291896, 2.499499824],
       "gpu_ms_min": 2.493749838,
       "gpu_ms_max": 2.891041804,
       "wall_ms": 2.759625,
-      "wall_ms_process_medians": [
-        2.759625,
-        2.803125,
-        2.695458
-      ],
+      "wall_ms_process_medians": [2.759625, 2.803125, 2.695458],
       "wall_ms_min": 2.67225,
       "wall_ms_max": 3.184583
     },
@@ -44662,19 +43470,11 @@
       "workload": "m512-k256-n128",
       "variant": "shared8x8",
       "gpu_ms": 3.032749984,
-      "gpu_ms_process_medians": [
-        3.016083501,
-        3.144874703,
-        3.032749984
-      ],
+      "gpu_ms_process_medians": [3.016083501, 3.144874703, 3.032749984],
       "gpu_ms_min": 2.931500319,
       "gpu_ms_max": 3.692000173,
       "wall_ms": 3.332625,
-      "wall_ms_process_medians": [
-        3.332625,
-        3.366292,
-        3.200583
-      ],
+      "wall_ms_process_medians": [3.332625, 3.366292, 3.200583],
       "wall_ms_min": 3.119375,
       "wall_ms_max": 3.9055
     },
@@ -44682,19 +43482,11 @@
       "workload": "m512-k256-n128",
       "variant": "register2x2",
       "gpu_ms": 2.301249653,
-      "gpu_ms_process_medians": [
-        2.305374946,
-        2.292500343,
-        2.301249653
-      ],
+      "gpu_ms_process_medians": [2.305374946, 2.292500343, 2.301249653],
       "gpu_ms_min": 2.280250192,
       "gpu_ms_max": 2.322208136,
       "wall_ms": 2.50075,
-      "wall_ms_process_medians": [
-        2.489042,
-        2.512541,
-        2.50075
-      ],
+      "wall_ms_process_medians": [2.489042, 2.512541, 2.50075],
       "wall_ms_min": 2.460958,
       "wall_ms_max": 2.997625
     },
@@ -44702,19 +43494,11 @@
       "workload": "m512-k256-n128",
       "variant": "register2x1",
       "gpu_ms": 2.249500249,
-      "gpu_ms_process_medians": [
-        2.249500249,
-        2.27379147,
-        2.245166339
-      ],
+      "gpu_ms_process_medians": [2.249500249, 2.27379147, 2.245166339],
       "gpu_ms_min": 2.242958173,
       "gpu_ms_max": 2.621166408,
       "wall_ms": 2.459333,
-      "wall_ms_process_medians": [
-        2.485833,
-        2.459333,
-        2.453167
-      ],
+      "wall_ms_process_medians": [2.485833, 2.459333, 2.453167],
       "wall_ms_min": 2.430625,
       "wall_ms_max": 2.803666
     },
@@ -44722,19 +43506,11 @@
       "workload": "m512-k256-n512",
       "variant": "scalar",
       "gpu_ms": 9.671375155,
-      "gpu_ms_process_medians": [
-        9.671375155,
-        9.647666477,
-        9.701750241
-      ],
+      "gpu_ms_process_medians": [9.671375155, 9.647666477, 9.701750241],
       "gpu_ms_min": 9.476750158,
       "gpu_ms_max": 9.859541897,
       "wall_ms": 9.874959,
-      "wall_ms_process_medians": [
-        9.874959,
-        9.828458,
-        9.875333
-      ],
+      "wall_ms_process_medians": [9.874959, 9.828458, 9.875333],
       "wall_ms_min": 9.665875,
       "wall_ms_max": 10.139084
     },
@@ -44742,19 +43518,11 @@
       "workload": "m512-k256-n512",
       "variant": "shared8x8",
       "gpu_ms": 11.166541837,
-      "gpu_ms_process_medians": [
-        11.166541837,
-        11.082083452,
-        11.270291638
-      ],
+      "gpu_ms_process_medians": [11.166541837, 11.082083452, 11.270291638],
       "gpu_ms_min": 10.852083564,
       "gpu_ms_max": 11.722250376,
       "wall_ms": 11.421834,
-      "wall_ms_process_medians": [
-        11.364417,
-        11.421834,
-        11.704958
-      ],
+      "wall_ms_process_medians": [11.364417, 11.421834, 11.704958],
       "wall_ms_min": 11.036042,
       "wall_ms_max": 12.005083
     },
@@ -44762,19 +43530,11 @@
       "workload": "m512-k256-n512",
       "variant": "register2x2",
       "gpu_ms": 7.690500002,
-      "gpu_ms_process_medians": [
-        7.690500002,
-        7.731291465,
-        7.625500206
-      ],
+      "gpu_ms_process_medians": [7.690500002, 7.731291465, 7.625500206],
       "gpu_ms_min": 7.531374693,
       "gpu_ms_max": 7.83412531,
       "wall_ms": 7.896208,
-      "wall_ms_process_medians": [
-        7.896208,
-        7.947666,
-        7.820792
-      ],
+      "wall_ms_process_medians": [7.896208, 7.947666, 7.820792],
       "wall_ms_min": 7.721416,
       "wall_ms_max": 8.044291
     },
@@ -44782,19 +43542,11 @@
       "workload": "m512-k256-n512",
       "variant": "register2x1",
       "gpu_ms": 8.074250072,
-      "gpu_ms_process_medians": [
-        8.074250072,
-        8.055083454,
-        8.125416934
-      ],
+      "gpu_ms_process_medians": [8.074250072, 8.055083454, 8.125416934],
       "gpu_ms_min": 7.949166466,
       "gpu_ms_max": 8.29425035,
       "wall_ms": 8.300042,
-      "wall_ms_process_medians": [
-        8.300042,
-        8.27125,
-        8.371541
-      ],
+      "wall_ms_process_medians": [8.300042, 8.27125, 8.371541],
       "wall_ms_min": 8.161209,
       "wall_ms_max": 8.546792
     },
@@ -44802,19 +43554,11 @@
       "workload": "m512-k511-n512",
       "variant": "scalar",
       "gpu_ms": 19.173041917,
-      "gpu_ms_process_medians": [
-        19.173041917,
-        19.200208131,
-        19.046958536
-      ],
+      "gpu_ms_process_medians": [19.173041917, 19.200208131, 19.046958536],
       "gpu_ms_min": 18.913791981,
       "gpu_ms_max": 19.453708548,
       "wall_ms": 19.365333,
-      "wall_ms_process_medians": [
-        19.365333,
-        19.425625,
-        19.3215
-      ],
+      "wall_ms_process_medians": [19.365333, 19.425625, 19.3215],
       "wall_ms_min": 19.16475,
       "wall_ms_max": 19.739542
     },
@@ -44822,19 +43566,11 @@
       "workload": "m512-k511-n512",
       "variant": "shared8x8",
       "gpu_ms": 22.302125115,
-      "gpu_ms_process_medians": [
-        22.553499788,
-        22.302125115,
-        22.153916769
-      ],
+      "gpu_ms_process_medians": [22.553499788, 22.302125115, 22.153916769],
       "gpu_ms_min": 21.657625213,
       "gpu_ms_max": 22.899416741,
       "wall_ms": 22.518334,
-      "wall_ms_process_medians": [
-        22.74075,
-        22.518334,
-        22.389958
-      ],
+      "wall_ms_process_medians": [22.74075, 22.518334, 22.389958],
       "wall_ms_min": 21.878459,
       "wall_ms_max": 23.100375
     },
@@ -44842,19 +43578,11 @@
       "workload": "m512-k511-n512",
       "variant": "register2x2",
       "gpu_ms": 15.278541949,
-      "gpu_ms_process_medians": [
-        15.321999788,
-        15.210041776,
-        15.278541949
-      ],
+      "gpu_ms_process_medians": [15.321999788, 15.210041776, 15.278541949],
       "gpu_ms_min": 15.12087509,
       "gpu_ms_max": 15.928541776,
       "wall_ms": 15.549958,
-      "wall_ms_process_medians": [
-        15.549958,
-        15.424833,
-        15.65975
-      ],
+      "wall_ms_process_medians": [15.549958, 15.424833, 15.65975],
       "wall_ms_min": 15.349333,
       "wall_ms_max": 16.13525
     },
@@ -44862,19 +43590,11 @@
       "workload": "m512-k511-n512",
       "variant": "register2x1",
       "gpu_ms": 16.096875072,
-      "gpu_ms_process_medians": [
-        16.142791603,
-        16.054374631,
-        16.096875072
-      ],
+      "gpu_ms_process_medians": [16.142791603, 16.054374631, 16.096875072],
       "gpu_ms_min": 15.969250351,
       "gpu_ms_max": 16.353582963,
       "wall_ms": 16.333542,
-      "wall_ms_process_medians": [
-        16.388167,
-        16.295,
-        16.333542
-      ],
+      "wall_ms_process_medians": [16.388167, 16.295, 16.333542],
       "wall_ms_min": 16.187708,
       "wall_ms_max": 16.585042
     },
@@ -44882,19 +43602,11 @@
       "workload": "m512-k512-n512",
       "variant": "scalar",
       "gpu_ms": 19.190750085,
-      "gpu_ms_process_medians": [
-        19.190750085,
-        19.290999975,
-        19.154666923
-      ],
+      "gpu_ms_process_medians": [19.190750085, 19.290999975, 19.154666923],
       "gpu_ms_min": 19.008624833,
       "gpu_ms_max": 20.239791367,
       "wall_ms": 19.471542,
-      "wall_ms_process_medians": [
-        19.404958,
-        19.579959,
-        19.471542
-      ],
+      "wall_ms_process_medians": [19.404958, 19.579959, 19.471542],
       "wall_ms_min": 19.213833,
       "wall_ms_max": 20.500542
     },
@@ -44902,19 +43614,11 @@
       "workload": "m512-k512-n512",
       "variant": "shared8x8",
       "gpu_ms": 22.614833433,
-      "gpu_ms_process_medians": [
-        22.644374985,
-        22.614833433,
-        22.24758314
-      ],
+      "gpu_ms_process_medians": [22.644374985, 22.614833433, 22.24758314],
       "gpu_ms_min": 21.671708208,
       "gpu_ms_max": 23.268999998,
       "wall_ms": 22.904375,
-      "wall_ms_process_medians": [
-        22.904375,
-        23.118167,
-        22.458333
-      ],
+      "wall_ms_process_medians": [22.904375, 23.118167, 22.458333],
       "wall_ms_min": 21.917083,
       "wall_ms_max": 23.471667
     },
@@ -44922,19 +43626,11 @@
       "workload": "m512-k512-n512",
       "variant": "register2x2",
       "gpu_ms": 15.326499939,
-      "gpu_ms_process_medians": [
-        15.424374957,
-        15.326499939,
-        15.187041834
-      ],
+      "gpu_ms_process_medians": [15.424374957, 15.326499939, 15.187041834],
       "gpu_ms_min": 15.044666827,
       "gpu_ms_max": 15.848374926,
       "wall_ms": 15.585291,
-      "wall_ms_process_medians": [
-        15.643917,
-        15.585291,
-        15.366291
-      ],
+      "wall_ms_process_medians": [15.643917, 15.585291, 15.366291],
       "wall_ms_min": 15.277875,
       "wall_ms_max": 16.344375
     },
@@ -44942,19 +43638,11 @@
       "workload": "m512-k512-n512",
       "variant": "register2x1",
       "gpu_ms": 16.12637518,
-      "gpu_ms_process_medians": [
-        16.02933323,
-        16.280125361,
-        16.12637518
-      ],
+      "gpu_ms_process_medians": [16.02933323, 16.280125361, 16.12637518],
       "gpu_ms_min": 15.922999941,
       "gpu_ms_max": 16.568083316,
       "wall_ms": 16.413375,
-      "wall_ms_process_medians": [
-        16.413375,
-        16.511375,
-        16.34025
-      ],
+      "wall_ms_process_medians": [16.413375, 16.511375, 16.34025],
       "wall_ms_min": 16.192792,
       "wall_ms_max": 16.753667
     },
@@ -44962,19 +43650,11 @@
       "workload": "m512-k513-n512",
       "variant": "scalar",
       "gpu_ms": 19.245916512,
-      "gpu_ms_process_medians": [
-        19.163583405,
-        19.347083289,
-        19.245916512
-      ],
+      "gpu_ms_process_medians": [19.163583405, 19.347083289, 19.245916512],
       "gpu_ms_min": 19.108999986,
       "gpu_ms_max": 19.72120814,
       "wall_ms": 19.51475,
-      "wall_ms_process_medians": [
-        19.3855,
-        19.56025,
-        19.51475
-      ],
+      "wall_ms_process_medians": [19.3855, 19.56025, 19.51475],
       "wall_ms_min": 19.344292,
       "wall_ms_max": 20.021542
     },
@@ -44982,19 +43662,11 @@
       "workload": "m512-k513-n512",
       "variant": "shared8x8",
       "gpu_ms": 22.198624909,
-      "gpu_ms_process_medians": [
-        22.464125417,
-        22.198624909,
-        22.180167027
-      ],
+      "gpu_ms_process_medians": [22.464125417, 22.198624909, 22.180167027],
       "gpu_ms_min": 21.685875021,
       "gpu_ms_max": 22.800874896,
       "wall_ms": 22.444875,
-      "wall_ms_process_medians": [
-        22.681208,
-        22.444875,
-        22.385625
-      ],
+      "wall_ms_process_medians": [22.681208, 22.444875, 22.385625],
       "wall_ms_min": 21.999584,
       "wall_ms_max": 23.112792
     },
@@ -45002,19 +43674,11 @@
       "workload": "m512-k513-n512",
       "variant": "register2x2",
       "gpu_ms": 15.317749698,
-      "gpu_ms_process_medians": [
-        15.317749698,
-        15.417041723,
-        15.253416728
-      ],
+      "gpu_ms_process_medians": [15.317749698, 15.417041723, 15.253416728],
       "gpu_ms_min": 15.144583303,
       "gpu_ms_max": 16.205583233,
       "wall_ms": 15.513625,
-      "wall_ms_process_medians": [
-        15.513625,
-        15.662083,
-        15.498625
-      ],
+      "wall_ms_process_medians": [15.513625, 15.662083, 15.498625],
       "wall_ms_min": 15.372791,
       "wall_ms_max": 16.485917
     },
@@ -45022,19 +43686,11 @@
       "workload": "m512-k513-n512",
       "variant": "register2x1",
       "gpu_ms": 16.16049977,
-      "gpu_ms_process_medians": [
-        16.184375156,
-        16.16049977,
-        16.055332962
-      ],
+      "gpu_ms_process_medians": [16.184375156, 16.16049977, 16.055332962],
       "gpu_ms_min": 15.805833507,
       "gpu_ms_max": 16.433125362,
       "wall_ms": 16.372375,
-      "wall_ms_process_medians": [
-        16.402208,
-        16.372375,
-        16.353292
-      ],
+      "wall_ms_process_medians": [16.402208, 16.372375, 16.353292],
       "wall_ms_min": 16.062167,
       "wall_ms_max": 16.909125
     },
@@ -45042,19 +43698,11 @@
       "workload": "m513-k256-n127",
       "variant": "scalar",
       "gpu_ms": 2.555749845,
-      "gpu_ms_process_medians": [
-        2.572624944,
-        2.555749845,
-        2.498249989
-      ],
+      "gpu_ms_process_medians": [2.572624944, 2.555749845, 2.498249989],
       "gpu_ms_min": 2.49545835,
       "gpu_ms_max": 2.756000031,
       "wall_ms": 2.783916,
-      "wall_ms_process_medians": [
-        2.797167,
-        2.783916,
-        2.776416
-      ],
+      "wall_ms_process_medians": [2.797167, 2.783916, 2.776416],
       "wall_ms_min": 2.644792,
       "wall_ms_max": 2.947542
     },
@@ -45062,19 +43710,11 @@
       "workload": "m513-k256-n127",
       "variant": "shared8x8",
       "gpu_ms": 3.081500065,
-      "gpu_ms_process_medians": [
-        3.081500065,
-        3.073999658,
-        3.30487499
-      ],
+      "gpu_ms_process_medians": [3.081500065, 3.073999658, 3.30487499],
       "gpu_ms_min": 2.948958427,
       "gpu_ms_max": 3.479749896,
       "wall_ms": 3.279375,
-      "wall_ms_process_medians": [
-        3.277041,
-        3.279375,
-        3.486167
-      ],
+      "wall_ms_process_medians": [3.277041, 3.279375, 3.486167],
       "wall_ms_min": 3.14575,
       "wall_ms_max": 3.840917
     },
@@ -45082,19 +43722,11 @@
       "workload": "m513-k256-n127",
       "variant": "register2x2",
       "gpu_ms": 2.30216654,
-      "gpu_ms_process_medians": [
-        2.29941681,
-        2.30216654,
-        2.303416375
-      ],
+      "gpu_ms_process_medians": [2.29941681, 2.30216654, 2.303416375],
       "gpu_ms_min": 2.285124734,
       "gpu_ms_max": 2.669000067,
       "wall_ms": 2.516083,
-      "wall_ms_process_medians": [
-        2.573334,
-        2.516083,
-        2.508958
-      ],
+      "wall_ms_process_medians": [2.573334, 2.516083, 2.508958],
       "wall_ms_min": 2.464208,
       "wall_ms_max": 2.992042
     },
@@ -45102,19 +43734,11 @@
       "workload": "m513-k256-n127",
       "variant": "register2x1",
       "gpu_ms": 2.251124941,
-      "gpu_ms_process_medians": [
-        2.251124941,
-        2.247833181,
-        2.258250024
-      ],
+      "gpu_ms_process_medians": [2.251124941, 2.247833181, 2.258250024],
       "gpu_ms_min": 2.242375165,
       "gpu_ms_max": 2.340958454,
       "wall_ms": 2.476041,
-      "wall_ms_process_medians": [
-        2.463333,
-        2.476041,
-        2.5065
-      ],
+      "wall_ms_process_medians": [2.463333, 2.476041, 2.5065],
       "wall_ms_min": 2.425458,
       "wall_ms_max": 2.647834
     },
@@ -45122,19 +43746,11 @@
       "workload": "m513-k256-n513",
       "variant": "scalar",
       "gpu_ms": 9.640375152,
-      "gpu_ms_process_medians": [
-        9.597249795,
-        9.640375152,
-        9.661625139
-      ],
+      "gpu_ms_process_medians": [9.597249795, 9.640375152, 9.661625139],
       "gpu_ms_min": 9.541291744,
       "gpu_ms_max": 10.031583719,
       "wall_ms": 9.871167,
-      "wall_ms_process_medians": [
-        9.77875,
-        9.934125,
-        9.871167
-      ],
+      "wall_ms_process_medians": [9.77875, 9.934125, 9.871167],
       "wall_ms_min": 9.723541,
       "wall_ms_max": 10.25375
     },
@@ -45142,19 +43758,11 @@
       "workload": "m513-k256-n513",
       "variant": "shared8x8",
       "gpu_ms": 11.404249817,
-      "gpu_ms_process_medians": [
-        11.48808375,
-        11.404249817,
-        11.379667092
-      ],
+      "gpu_ms_process_medians": [11.48808375, 11.404249817, 11.379667092],
       "gpu_ms_min": 11.205583345,
       "gpu_ms_max": 12.015874963,
       "wall_ms": 11.606375,
-      "wall_ms_process_medians": [
-        11.664791,
-        11.606375,
-        11.566916
-      ],
+      "wall_ms_process_medians": [11.664791, 11.606375, 11.566916],
       "wall_ms_min": 11.392083,
       "wall_ms_max": 12.375792
     },
@@ -45162,19 +43770,11 @@
       "workload": "m513-k256-n513",
       "variant": "register2x2",
       "gpu_ms": 7.892083377,
-      "gpu_ms_process_medians": [
-        7.924916688,
-        7.892083377,
-        7.865124848
-      ],
+      "gpu_ms_process_medians": [7.924916688, 7.892083377, 7.865124848],
       "gpu_ms_min": 7.543708198,
       "gpu_ms_max": 8.065625094,
       "wall_ms": 8.105917,
-      "wall_ms_process_medians": [
-        8.146875,
-        8.105917,
-        8.081542
-      ],
+      "wall_ms_process_medians": [8.146875, 8.105917, 8.081542],
       "wall_ms_min": 7.746083,
       "wall_ms_max": 8.286958
     },
@@ -45182,19 +43782,11 @@
       "workload": "m513-k256-n513",
       "variant": "register2x1",
       "gpu_ms": 8.126958273,
-      "gpu_ms_process_medians": [
-        8.052958176,
-        8.143875282,
-        8.126958273
-      ],
+      "gpu_ms_process_medians": [8.052958176, 8.143875282, 8.126958273],
       "gpu_ms_min": 7.991874591,
       "gpu_ms_max": 8.264708333,
       "wall_ms": 8.386167,
-      "wall_ms_process_medians": [
-        8.2825,
-        8.3965,
-        8.386167
-      ],
+      "wall_ms_process_medians": [8.2825, 8.3965, 8.386167],
       "wall_ms_min": 8.192375,
       "wall_ms_max": 8.513792
     },
@@ -45202,19 +43794,11 @@
       "workload": "m513-k512-n513",
       "variant": "scalar",
       "gpu_ms": 19.28975014,
-      "gpu_ms_process_medians": [
-        19.247500226,
-        19.347500056,
-        19.28975014
-      ],
+      "gpu_ms_process_medians": [19.247500226, 19.347500056, 19.28975014],
       "gpu_ms_min": 19.133666996,
       "gpu_ms_max": 19.612500444,
       "wall_ms": 19.487208,
-      "wall_ms_process_medians": [
-        19.487208,
-        19.553792,
-        19.485083
-      ],
+      "wall_ms_process_medians": [19.487208, 19.553792, 19.485083],
       "wall_ms_min": 19.360083,
       "wall_ms_max": 19.898834
     },
@@ -45222,19 +43806,11 @@
       "workload": "m513-k512-n513",
       "variant": "shared8x8",
       "gpu_ms": 22.970416583,
-      "gpu_ms_process_medians": [
-        23.070499767,
-        22.679083515,
-        22.970416583
-      ],
+      "gpu_ms_process_medians": [23.070499767, 22.679083515, 22.970416583],
       "gpu_ms_min": 22.423124872,
       "gpu_ms_max": 23.585458286,
       "wall_ms": 23.280125,
-      "wall_ms_process_medians": [
-        23.280125,
-        23.002042,
-        23.3505
-      ],
+      "wall_ms_process_medians": [23.280125, 23.002042, 23.3505],
       "wall_ms_min": 22.639875,
       "wall_ms_max": 23.867083
     },
@@ -45242,19 +43818,11 @@
       "workload": "m513-k512-n513",
       "variant": "register2x2",
       "gpu_ms": 15.590041876,
-      "gpu_ms_process_medians": [
-        15.703499783,
-        15.590041876,
-        15.455249697
-      ],
+      "gpu_ms_process_medians": [15.703499783, 15.590041876, 15.455249697],
       "gpu_ms_min": 15.11008339,
       "gpu_ms_max": 15.999749769,
       "wall_ms": 15.807083,
-      "wall_ms_process_medians": [
-        15.922291,
-        15.807083,
-        15.644
-      ],
+      "wall_ms_process_medians": [15.922291, 15.807083, 15.644],
       "wall_ms_min": 15.319416,
       "wall_ms_max": 16.262792
     },
@@ -45262,19 +43830,11 @@
       "workload": "m513-k512-n513",
       "variant": "register2x1",
       "gpu_ms": 16.09216677,
-      "gpu_ms_process_medians": [
-        16.09216677,
-        16.066125128,
-        16.137083061
-      ],
+      "gpu_ms_process_medians": [16.09216677, 16.066125128, 16.137083061],
       "gpu_ms_min": 15.991208144,
       "gpu_ms_max": 16.499250196,
       "wall_ms": 16.356458,
-      "wall_ms_process_medians": [
-        16.317083,
-        16.356458,
-        16.379833
-      ],
+      "wall_ms_process_medians": [16.317083, 16.356458, 16.379833],
       "wall_ms_min": 16.229625,
       "wall_ms_max": 16.7245
     },
@@ -45282,19 +43842,11 @@
       "workload": "m64-k256-n1024",
       "variant": "scalar",
       "gpu_ms": 2.497874666,
-      "gpu_ms_process_medians": [
-        2.497874666,
-        2.502333373,
-        2.497291658
-      ],
+      "gpu_ms_process_medians": [2.497874666, 2.502333373, 2.497291658],
       "gpu_ms_min": 2.494750079,
       "gpu_ms_max": 2.755000256,
       "wall_ms": 2.702334,
-      "wall_ms_process_medians": [
-        2.702334,
-        2.693292,
-        2.742083
-      ],
+      "wall_ms_process_medians": [2.702334, 2.693292, 2.742083],
       "wall_ms_min": 2.668,
       "wall_ms_max": 2.92875
     },
@@ -45302,19 +43854,11 @@
       "workload": "m64-k256-n1024",
       "variant": "shared8x8",
       "gpu_ms": 2.953208517,
-      "gpu_ms_process_medians": [
-        3.181916662,
-        2.94549996,
-        2.953208517
-      ],
+      "gpu_ms_process_medians": [3.181916662, 2.94549996, 2.953208517],
       "gpu_ms_min": 2.934999764,
       "gpu_ms_max": 3.658500034,
       "wall_ms": 3.185792,
-      "wall_ms_process_medians": [
-        3.389875,
-        3.136167,
-        3.185792
-      ],
+      "wall_ms_process_medians": [3.389875, 3.136167, 3.185792],
       "wall_ms_min": 3.108833,
       "wall_ms_max": 3.853208
     },
@@ -45322,19 +43866,11 @@
       "workload": "m64-k256-n1024",
       "variant": "register2x2",
       "gpu_ms": 2.302124631,
-      "gpu_ms_process_medians": [
-        2.302000299,
-        2.302499954,
-        2.302124631
-      ],
+      "gpu_ms_process_medians": [2.302000299, 2.302499954, 2.302124631],
       "gpu_ms_min": 2.267375123,
       "gpu_ms_max": 2.361791674,
       "wall_ms": 2.504417,
-      "wall_ms_process_medians": [
-        2.497917,
-        2.505917,
-        2.504417
-      ],
+      "wall_ms_process_medians": [2.497917, 2.505917, 2.504417],
       "wall_ms_min": 2.472542,
       "wall_ms_max": 2.652167
     },
@@ -45342,19 +43878,11 @@
       "workload": "m64-k256-n1024",
       "variant": "register2x1",
       "gpu_ms": 2.271208446,
-      "gpu_ms_process_medians": [
-        2.312083263,
-        2.271208446,
-        2.255375031
-      ],
+      "gpu_ms_process_medians": [2.312083263, 2.271208446, 2.255375031],
       "gpu_ms_min": 2.242875285,
       "gpu_ms_max": 2.337291837,
       "wall_ms": 2.491833,
-      "wall_ms_process_medians": [
-        2.531541,
-        2.491833,
-        2.447083
-      ],
+      "wall_ms_process_medians": [2.531541, 2.491833, 2.447083],
       "wall_ms_min": 2.423208,
       "wall_ms_max": 2.959667
     },
@@ -45362,19 +43890,11 @@
       "workload": "m65536-k256-n1",
       "variant": "scalar",
       "gpu_ms": 2.510541584,
-      "gpu_ms_process_medians": [
-        2.510541584,
-        2.506624907,
-        2.511874773
-      ],
+      "gpu_ms_process_medians": [2.510541584, 2.506624907, 2.511874773],
       "gpu_ms_min": 2.502874937,
       "gpu_ms_max": 2.601000015,
       "wall_ms": 2.723666,
-      "wall_ms_process_medians": [
-        2.710208,
-        2.723666,
-        2.735959
-      ],
+      "wall_ms_process_medians": [2.710208, 2.723666, 2.735959],
       "wall_ms_min": 2.690417,
       "wall_ms_max": 2.973417
     },
@@ -45382,19 +43902,11 @@
       "workload": "m65536-k256-n1",
       "variant": "shared8x8",
       "gpu_ms": 21.78495843,
-      "gpu_ms_process_medians": [
-        21.78495843,
-        21.77062491,
-        21.894874983
-      ],
+      "gpu_ms_process_medians": [21.78495843, 21.77062491, 21.894874983],
       "gpu_ms_min": 21.384916734,
       "gpu_ms_max": 23.118750192,
       "wall_ms": 22.066041,
-      "wall_ms_process_medians": [
-        22.00325,
-        22.066041,
-        22.225667
-      ],
+      "wall_ms_process_medians": [22.00325, 22.066041, 22.225667],
       "wall_ms_min": 21.630834,
       "wall_ms_max": 23.316875
     },
@@ -45402,19 +43914,11 @@
       "workload": "m65536-k256-n1",
       "variant": "register2x2",
       "gpu_ms": 4.481375217,
-      "gpu_ms_process_medians": [
-        4.542374983,
-        4.481375217,
-        4.423750099
-      ],
+      "gpu_ms_process_medians": [4.542374983, 4.481375217, 4.423750099],
       "gpu_ms_min": 4.328625277,
       "gpu_ms_max": 4.655666649,
       "wall_ms": 4.721875,
-      "wall_ms_process_medians": [
-        4.721875,
-        4.757542,
-        4.627959
-      ],
+      "wall_ms_process_medians": [4.721875, 4.757542, 4.627959],
       "wall_ms_min": 4.513375,
       "wall_ms_max": 4.94375
     },
@@ -45422,19 +43926,11 @@
       "workload": "m65536-k256-n1",
       "variant": "register2x1",
       "gpu_ms": 2.265958115,
-      "gpu_ms_process_medians": [
-        2.262542024,
-        2.267250326,
-        2.265958115
-      ],
+      "gpu_ms_process_medians": [2.262542024, 2.267250326, 2.265958115],
       "gpu_ms_min": 2.259000205,
       "gpu_ms_max": 2.340000123,
       "wall_ms": 2.476833,
-      "wall_ms_process_medians": [
-        2.504917,
-        2.476375,
-        2.476833
-      ],
+      "wall_ms_process_medians": [2.504917, 2.476375, 2.476833],
       "wall_ms_min": 2.43375,
       "wall_ms_max": 2.695708
     },
@@ -45442,19 +43938,11 @@
       "workload": "m8-k256-n8192",
       "variant": "scalar",
       "gpu_ms": 2.525083255,
-      "gpu_ms_process_medians": [
-        2.504291944,
-        2.57108314,
-        2.525083255
-      ],
+      "gpu_ms_process_medians": [2.504291944, 2.57108314, 2.525083255],
       "gpu_ms_min": 2.496624831,
       "gpu_ms_max": 2.657666802,
       "wall_ms": 2.769375,
-      "wall_ms_process_medians": [
-        2.710667,
-        2.784584,
-        2.769375
-      ],
+      "wall_ms_process_medians": [2.710667, 2.784584, 2.769375],
       "wall_ms_min": 2.670708,
       "wall_ms_max": 2.957
     },
@@ -45462,19 +43950,11 @@
       "workload": "m8-k256-n8192",
       "variant": "shared8x8",
       "gpu_ms": 2.98999995,
-      "gpu_ms_process_medians": [
-        2.98999995,
-        2.96912482,
-        3.099750262
-      ],
+      "gpu_ms_process_medians": [2.98999995, 2.96912482, 3.099750262],
       "gpu_ms_min": 2.94225011,
       "gpu_ms_max": 3.279000055,
       "wall_ms": 3.190209,
-      "wall_ms_process_medians": [
-        3.190209,
-        3.16825,
-        3.314833
-      ],
+      "wall_ms_process_medians": [3.190209, 3.16825, 3.314833],
       "wall_ms_min": 3.119959,
       "wall_ms_max": 3.491166
     },
@@ -45482,19 +43962,11 @@
       "workload": "m8-k256-n8192",
       "variant": "register2x2",
       "gpu_ms": 2.304083668,
-      "gpu_ms_process_medians": [
-        2.295874991,
-        2.305124886,
-        2.304083668
-      ],
+      "gpu_ms_process_medians": [2.295874991, 2.305124886, 2.304083668],
       "gpu_ms_min": 2.277624793,
       "gpu_ms_max": 2.375250217,
       "wall_ms": 2.498209,
-      "wall_ms_process_medians": [
-        2.475833,
-        2.516625,
-        2.498209
-      ],
+      "wall_ms_process_medians": [2.475833, 2.516625, 2.498209],
       "wall_ms_min": 2.466333,
       "wall_ms_max": 2.727708
     },
@@ -45502,19 +43974,11 @@
       "workload": "m8-k256-n8192",
       "variant": "register2x1",
       "gpu_ms": 2.25345837,
-      "gpu_ms_process_medians": [
-        2.25345837,
-        2.257499844,
-        2.250500023
-      ],
+      "gpu_ms_process_medians": [2.25345837, 2.257499844, 2.250500023],
       "gpu_ms_min": 2.245541662,
       "gpu_ms_max": 2.353499644,
       "wall_ms": 2.472541,
-      "wall_ms_process_medians": [
-        2.487042,
-        2.472541,
-        2.453
-      ],
+      "wall_ms_process_medians": [2.487042, 2.472541, 2.453],
       "wall_ms_min": 2.415208,
       "wall_ms_max": 2.589875
     },
@@ -45522,19 +43986,11 @@
       "workload": "m8192-k256-n8",
       "variant": "scalar",
       "gpu_ms": 2.500458155,
-      "gpu_ms_process_medians": [
-        2.493708394,
-        2.54066661,
-        2.500458155
-      ],
+      "gpu_ms_process_medians": [2.493708394, 2.54066661, 2.500458155],
       "gpu_ms_min": 2.490541432,
       "gpu_ms_max": 2.606916707,
       "wall_ms": 2.741334,
-      "wall_ms_process_medians": [
-        2.76025,
-        2.734375,
-        2.741334
-      ],
+      "wall_ms_process_medians": [2.76025, 2.734375, 2.741334],
       "wall_ms_min": 2.64325,
       "wall_ms_max": 2.966625
     },
@@ -45542,19 +43998,11 @@
       "workload": "m8192-k256-n8",
       "variant": "shared8x8",
       "gpu_ms": 2.973333467,
-      "gpu_ms_process_medians": [
-        2.962125,
-        2.973333467,
-        3.066250123
-      ],
+      "gpu_ms_process_medians": [2.962125, 2.973333467, 3.066250123],
       "gpu_ms_min": 2.958499826,
       "gpu_ms_max": 3.710083198,
       "wall_ms": 3.265375,
-      "wall_ms_process_medians": [
-        3.326375,
-        3.172333,
-        3.265375
-      ],
+      "wall_ms_process_medians": [3.326375, 3.172333, 3.265375],
       "wall_ms_min": 3.14525,
       "wall_ms_max": 3.984958
     },
@@ -45562,19 +44010,11 @@
       "workload": "m8192-k256-n8",
       "variant": "register2x2",
       "gpu_ms": 2.306624781,
-      "gpu_ms_process_medians": [
-        2.306624781,
-        2.33337516,
-        2.300125081
-      ],
+      "gpu_ms_process_medians": [2.306624781, 2.33337516, 2.300125081],
       "gpu_ms_min": 2.284249756,
       "gpu_ms_max": 2.4092081,
       "wall_ms": 2.512,
-      "wall_ms_process_medians": [
-        2.494709,
-        2.535709,
-        2.512
-      ],
+      "wall_ms_process_medians": [2.494709, 2.535709, 2.512],
       "wall_ms_min": 2.468583,
       "wall_ms_max": 2.691542
     },
@@ -45582,19 +44022,11 @@
       "workload": "m8192-k256-n8",
       "variant": "register2x1",
       "gpu_ms": 2.250749618,
-      "gpu_ms_process_medians": [
-        2.255874686,
-        2.248749603,
-        2.250749618
-      ],
+      "gpu_ms_process_medians": [2.255874686, 2.248749603, 2.250749618],
       "gpu_ms_min": 2.24387506,
       "gpu_ms_max": 2.562624868,
       "wall_ms": 2.4535,
-      "wall_ms_process_medians": [
-        2.461459,
-        2.4535,
-        2.451583
-      ],
+      "wall_ms_process_medians": [2.461459, 2.4535, 2.451583],
       "wall_ms_min": 2.413958,
       "wall_ms_max": 2.769167
     }

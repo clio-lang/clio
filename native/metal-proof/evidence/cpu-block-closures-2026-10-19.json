@@ -92,10 +92,7 @@
       "CRLF input without a final source newline",
       "Direct-map callback AST cannot discard a pending expected error"
     ],
-    "variants": [
-      "debug with native lowering",
-      "ASan/UBSan frontend"
-    ]
+    "variants": ["debug with native lowering", "ASan/UBSan frontend"]
   },
   "new_execution_suites": {
     "debug": {
@@ -108,11 +105,7 @@
       "body_fault_allocation_probes": 3,
       "returned_closure_invocations_after_creator_exit": 64,
       "cli_allocation_failure_processes": 240,
-      "worker_owned_result_pools": [
-        1,
-        2,
-        4
-      ]
+      "worker_owned_result_pools": [1, 2, 4]
     },
     "optimized": {
       "compiled_programs": 39,
@@ -124,11 +117,7 @@
       "body_fault_allocation_probes": 3,
       "returned_closure_invocations_after_creator_exit": 64,
       "cli_allocation_failure_processes": 240,
-      "worker_owned_result_pools": [
-        1,
-        2,
-        4
-      ]
+      "worker_owned_result_pools": [1, 2, 4]
     },
     "sanitized": {
       "compiled_programs": 39,
@@ -140,11 +129,7 @@
       "body_fault_allocation_probes": 3,
       "returned_closure_invocations_after_creator_exit": 64,
       "cli_allocation_failure_processes": 240,
-      "worker_owned_result_pools": [
-        1,
-        2,
-        4
-      ]
+      "worker_owned_result_pools": [1, 2, 4]
     },
     "thread-sanitized": {
       "compiled_programs": 39,
@@ -156,11 +141,7 @@
       "body_fault_allocation_probes": 3,
       "returned_closure_invocations_after_creator_exit": 64,
       "cli_allocation_failure_processes": 240,
-      "worker_owned_result_pools": [
-        1,
-        2,
-        4
-      ]
+      "worker_owned_result_pools": [1, 2, 4]
     }
   },
   "new_execution_totals": {

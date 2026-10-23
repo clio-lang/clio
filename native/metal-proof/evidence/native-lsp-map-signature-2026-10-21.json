@@ -27,11 +27,7 @@
       "native-lsp-signature-sanitized": 0.57,
       "native-editor-tools-install": 4.13
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "numeric_map_widths_checked": 10,
     "cases": [
       "Named, inferred inline, captured inline, captured bound and indexed callback public signatures",

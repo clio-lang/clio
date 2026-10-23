@@ -15,21 +15,12 @@
     "failed": 0,
     "elapsed_seconds": 128.34,
     "selection": "^(native-recursive-(record-bridge|handoff|value-runtime|callable-fields|function-arrays)-|native-(task-value-layout|recursive-source-frontend)-(debug|sanitized)$|frontend-continuation-(debug|sanitized)$|native-record-workers-(debug|optimized|sanitized|thread-sanitized)$|native-(enum-payloads|record-array-fields|record-closures|worker-callable-aggregates|worker-error-functions)-(debug|sanitized)$)",
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
     "new_direct_capture_state_cases_per_variant": 18,
     "new_capture_free_cases_per_variant": 4,
     "new_runtime_metadata_cases_per_variant": 5,
     "new_scheduler_cases_per_variant": 3,
-    "worker_pool_sizes": [
-      1,
-      2,
-      4
-    ],
+    "worker_pool_sizes": [1, 2, 4],
     "additional_checks": [
       "Production TaskCallableOps helper emits LLVM callbacks; a known generated callable reads captured String length and projects a managed recursive List child; receiver checks also read retained UTF-8 character bytes",
       "Unknown/null/wrong code, null/unknown/foreign/unbound/ordinary environment storage, wrong code binding and wrong capture size/alignment are rejected without publishing output",

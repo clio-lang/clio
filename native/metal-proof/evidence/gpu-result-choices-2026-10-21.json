@@ -17,17 +17,8 @@
   ],
   "qualification": {
     "full_suite": false,
-    "host_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
-    "worker_counts": [
-      1,
-      2,
-      4
-    ],
+    "host_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
+    "worker_counts": [1, 2, 4],
     "result_scenarios_per_mode": 12,
     "program_runs_per_mode": 36,
     "reference": "Exact float32 output bits for asymmetric rectangular matrix products, pure choices, mapped operands and scaled terminal sums; existing strict arithmetic lowering is unchanged",

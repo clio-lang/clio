@@ -4,14 +4,7 @@
   "baseline_commit": "29c0726",
   "host": "Apple M2 Max / macOS arm64",
   "contract": {
-    "fields": [
-      "int32",
-      "uint32",
-      "int64",
-      "uint64",
-      "float32",
-      "float64"
-    ],
+    "fields": ["int32", "uint32", "int64", "uint64", "float32", "float64"],
     "categories": "Numeric arrays and ranked tensors, including rank zero and empty values, directly or inside finite nested records",
     "shapes": "Strict source category/element identity; fixed dimension guards; fresh dynamic shape identities per field read",
     "ownership": "Logical row-major copy when initializing/replacing or reading a collection field; recursive immutable backing retention through worker packets and observations",

@@ -11,20 +11,8 @@
     "continuations": "Operand collection, kernel parameters and imported helper/callback remapping preserve all index operands; awaited index expressions are supported"
   },
   "contract": {
-    "elements": [
-      "int32",
-      "uint32",
-      "int64",
-      "uint64",
-      "float32",
-      "float64"
-    ],
-    "indices": [
-      "int32",
-      "uint32",
-      "int64",
-      "uint64"
-    ],
+    "elements": ["int32", "uint32", "int64", "uint64", "float32", "float64"],
+    "indices": ["int32", "uint32", "int64", "uint64"],
     "rank": "One integer per dimension; zero for rank zero; missing/extra axes diagnosed",
     "range": "0 <= index[axis] < extent[axis]; no negative indexing, wrapping, truncation, slicing or mutation",
     "evaluation": "Tensor then each index, once each, before validation; operand failures retain original locations; known invalid bounds diagnosed statically",

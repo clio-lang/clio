@@ -25,11 +25,7 @@
       "native-lsp-completion-sanitized": 0.61,
       "native-editor-tools-install": 3.62
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "Function parameter/result, record field, enum payload, local binding, anonymous parameter, nested suite and callable parameter/result annotations",
       "Empty/partial type names and suffix replacement; all ten concrete numeric types plus aliases",

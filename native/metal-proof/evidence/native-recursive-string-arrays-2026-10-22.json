@@ -27,12 +27,7 @@
       "recursive_value_runtime": 4,
       "existing_nonrecursive_string_arrays": 4
     },
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
     "coverage": [
       "Returned recursive nodes and escaping String arrays",
       "Shared tails and shared/duplicate String backing",

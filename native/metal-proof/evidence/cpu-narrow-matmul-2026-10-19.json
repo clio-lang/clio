@@ -59,20 +59,13 @@
       "native-int16-matmul-thread-sanitized",
       "native-uint16-matmul-thread-sanitized"
     ],
-    "metal_tests": [
-      "native-matmul-cli"
-    ],
+    "metal_tests": ["native-matmul-cli"],
     "narrow_runtime_harness_runs": 16,
     "narrow_runtime_cases": 16800,
     "narrow_checked_faults": 5060,
     "narrow_worker_harness_processes": 1344,
     "narrow_static_rejection_probes": 48,
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "coverage": [
       "Independent wider checked product and adjacent-tree reference",
       "Boundary/random matrices, odd contraction sizes, empty rows/columns/contractions",

@@ -116,10 +116,7 @@
     "selection": "New execution suites in debug, optimized, ASan/UBSan and separate ThreadSanitizer modes; new frontend and selected relevant existing regressions in debug/ASan-UBSan. Not the full project suite."
   },
   "new_frontend_suites": {
-    "variants": [
-      "debug",
-      "ASan/UBSan"
-    ],
+    "variants": ["debug", "ASan/UBSan"],
     "accepted_programs_per_variant": 11,
     "rejected_programs_per_variant": 4,
     "forged_capture_or_target_cases_per_variant": 6,
@@ -133,11 +130,7 @@
       "already_faulted_contexts": 1,
       "already_cancelled_contexts": 1,
       "additional_worker_runs": 12,
-      "worker_counts": [
-        1,
-        2,
-        4
-      ],
+      "worker_counts": [1, 2, 4],
       "rejected_cli_programs": 4,
       "preserved_artifacts": 12
     },
@@ -148,11 +141,7 @@
       "already_faulted_contexts": 1,
       "already_cancelled_contexts": 1,
       "additional_worker_runs": 12,
-      "worker_counts": [
-        1,
-        2,
-        4
-      ],
+      "worker_counts": [1, 2, 4],
       "rejected_cli_programs": 4,
       "preserved_artifacts": 12
     },
@@ -163,11 +152,7 @@
       "already_faulted_contexts": 1,
       "already_cancelled_contexts": 1,
       "additional_worker_runs": 12,
-      "worker_counts": [
-        1,
-        2,
-        4
-      ],
+      "worker_counts": [1, 2, 4],
       "rejected_cli_programs": 4,
       "preserved_artifacts": 12
     },
@@ -178,11 +163,7 @@
       "already_faulted_contexts": 1,
       "already_cancelled_contexts": 1,
       "additional_worker_runs": 12,
-      "worker_counts": [
-        1,
-        2,
-        4
-      ],
+      "worker_counts": [1, 2, 4],
       "rejected_cli_programs": 4,
       "preserved_artifacts": 12
     }

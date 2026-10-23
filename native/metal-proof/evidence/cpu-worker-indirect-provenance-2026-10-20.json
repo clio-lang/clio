@@ -136,21 +136,12 @@
   "new_execution": {
     "programs_per_mode": 17,
     "program_runs": 68,
-    "modes": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "ThreadSanitizer"
-    ],
+    "modes": ["debug", "optimized", "ASan/UBSan", "ThreadSanitizer"],
     "extra_worker_count_runs": 72,
     "allocation_failure_probes": 512,
     "rejected_programs": 4,
     "rejection_runs": 16,
-    "rejection_preserves": [
-      "executable",
-      "LLVM IR",
-      "MLIR"
-    ],
+    "rejection_preserves": ["executable", "LLVM IR", "MLIR"],
     "cases": [
       "alias",
       "array-factory",
@@ -176,10 +167,7 @@
     "additional_promoted_positive_programs_per_mode": 3,
     "rejected_boundaries_per_mode": 8,
     "forged_ir_cases_per_mode": 8,
-    "modes": [
-      "debug",
-      "ASan/UBSan"
-    ]
+    "modes": ["debug", "ASan/UBSan"]
   },
   "compiler_resource_guards": {
     "target_flow_steps_per_query": 300000,

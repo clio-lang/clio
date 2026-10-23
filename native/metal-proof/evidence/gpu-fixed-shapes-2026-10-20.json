@@ -41,19 +41,10 @@
       "native-metal-fixed-shapes-thread-sanitized"
     ],
     "fixed_shape_execution": {
-      "variants": [
-        "debug",
-        "optimized",
-        "ASan/UBSan",
-        "ThreadSanitizer"
-      ],
+      "variants": ["debug", "optimized", "ASan/UBSan", "ThreadSanitizer"],
       "builds": 48,
       "execution_runs": 132,
-      "worker_counts": [
-        1,
-        2,
-        4
-      ],
+      "worker_counts": [1, 2, 4],
       "success_runs": 24,
       "expected_shape_fault_runs": 108,
       "accepted_fixture_result": {

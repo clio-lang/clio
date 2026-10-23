@@ -27,11 +27,7 @@
       "native-lsp-signature-sanitized": 0.56,
       "native-editor-tools-install": 4.22
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "Checked collection, conversion, tensor and map/parallel-map signatures at builtin call tokens",
       "Direct, piped-call and bare pipeline targets use the matching operation span",

@@ -201,10 +201,7 @@
         "checked_fault": 4
       },
       "cli_allocation_failure_processes": 192,
-      "task_ownership_harness_worker_pools": [
-        1,
-        4
-      ]
+      "task_ownership_harness_worker_pools": [1, 4]
     },
     "optimized": {
       "compiled_programs": 37,
@@ -214,10 +211,7 @@
         "checked_fault": 4
       },
       "cli_allocation_failure_processes": 192,
-      "task_ownership_harness_worker_pools": [
-        1,
-        4
-      ]
+      "task_ownership_harness_worker_pools": [1, 4]
     },
     "sanitized": {
       "compiled_programs": 37,
@@ -227,10 +221,7 @@
         "checked_fault": 4
       },
       "cli_allocation_failure_processes": 192,
-      "task_ownership_harness_worker_pools": [
-        1,
-        4
-      ]
+      "task_ownership_harness_worker_pools": [1, 4]
     },
     "thread-sanitized": {
       "compiled_programs": 37,
@@ -240,10 +231,7 @@
         "checked_fault": 4
       },
       "cli_allocation_failure_processes": 192,
-      "task_ownership_harness_worker_pools": [
-        1,
-        4
-      ]
+      "task_ownership_harness_worker_pools": [1, 4]
     }
   },
   "new_execution_totals": {

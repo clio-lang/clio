@@ -30,16 +30,8 @@
         "reason": "Updated only the optional-attribute locator; rerun includes the native ownership harness, source cases, worker pool probes and failure cleanup."
       }
     ],
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "new_layout_test_variants": [
-      "Debug",
-      "ASan/UBSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
+    "new_layout_test_variants": ["Debug", "ASan/UBSan"],
     "coverage": [
       "Exact LLVM type agreement with translated ordinary MLIR records, including target size/alignment and field offsets",
       "Recursive lists, self/mutual nominal links, array-mediated cycles and inline shared children",

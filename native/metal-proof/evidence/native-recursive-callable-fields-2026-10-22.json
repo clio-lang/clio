@@ -30,12 +30,7 @@
         "reason": "Updated rejection/positive coverage; implementation unchanged from broader qualification"
       }
     ],
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
     "coverage": [
       "Named and capture-free anonymous functions in recursive fields",
       "Returned nodes and owned String/numeric/Bool/String-array and tensor captures",

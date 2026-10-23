@@ -63,12 +63,7 @@
     "numeric_bounds_fault_cases": 58176,
     "private_record_worker_harness_runs": 232,
     "source_allocation_failure_sweep_runs": 400,
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "per_variant": {
       "compiled_programs": 47,
       "numeric_element_bound_pairs": 24,

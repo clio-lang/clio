@@ -57,12 +57,7 @@
       "chained_concatenation_CLI_allocation_sweep_positions": 32,
       "chained_concatenation_generated_harness_invocations": 32
     },
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "coverage": [
       "Exact UTF-8/NUL/BOM/emoji/combining-mark sequences and empty/prefix cases",
       "All equality/concatenation design vectors; no normalization or implicit numeric/Bool conversions",

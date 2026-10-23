@@ -24,11 +24,7 @@
       "native-lsp-completion-sanitized": 0.68,
       "native-editor-tools-install": 5.17
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "Direct transfer call completion replaces the full partial identifier and preserves existing arguments and explicit GPU index",
       "Direct, piped and bare pipeline targets share the checked group context",

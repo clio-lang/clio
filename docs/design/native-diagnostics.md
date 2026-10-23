@@ -28,14 +28,14 @@ A successful response looks like:
 
 The summary counts functions and typed expressions in the checked source graph. It is `null` on failure. Each failure entry has these fields:
 
-| Field | Meaning |
-| --- | --- |
-| `severity` | `"error"` in this version |
-| `code` | Existing lexer/parser/module/semantic code, or a command-level code below |
-| `message` | Human-readable explanation; consume `code` for classification |
-| `file` | Original source filename, fallback input filename, or `null` when unavailable |
-| `byteRange` | Half-open UTF-8 byte offsets `{ "start": n, "end": n }`, or `null` |
-| `range` | Half-open `{ "start": { "line": n, "character": n }, "end": ... }`, or `null` |
+| Field       | Meaning                                                                       |
+| ----------- | ----------------------------------------------------------------------------- |
+| `severity`  | `"error"` in this version                                                     |
+| `code`      | Existing lexer/parser/module/semantic code, or a command-level code below     |
+| `message`   | Human-readable explanation; consume `code` for classification                 |
+| `file`      | Original source filename, fallback input filename, or `null` when unavailable |
+| `byteRange` | Half-open UTF-8 byte offsets `{ "start": n, "end": n }`, or `null`            |
+| `range`     | Half-open `{ "start": { "line": n, "character": n }, "end": ... }`, or `null` |
 
 Lines and characters are zero-based. Characters count UTF-16 code units, so a supplementary Unicode scalar such as an emoji occupies two units. CRLF is one line ending; standalone CR also advances the editor line. This range convention does not change which line endings the lexer accepts. Invalid UTF-8 bytes are replaced with U+FFFD in JSON strings and counted individually when locating invalid source. Offsets inside a valid multibyte scalar map to its beginning for the editor range; the byte range remains a byte range.
 

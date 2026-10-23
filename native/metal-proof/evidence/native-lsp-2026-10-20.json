@@ -54,10 +54,7 @@
       "native-lsp-debug",
       "native-lsp-sanitized"
     ],
-    "new_variants": [
-      "normal",
-      "ASan/UBSan"
-    ],
+    "new_variants": ["normal", "ASan/UBSan"],
     "protocol_harness": "Independent Python stdlib subprocess/pipe client; no Python dependency in server",
     "coverage": [
       "Initialization, shutdown/exit, request errors and parse-error recovery",

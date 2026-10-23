@@ -75,10 +75,7 @@
       "native-lsp-imports-debug",
       "native-lsp-imports-sanitized"
     ],
-    "variants": [
-      "normal",
-      "ASan/UBSan"
-    ],
+    "variants": ["normal", "ASan/UBSan"],
     "coverage": [
       "Functions, records and error-family aliases through re-export chains",
       "Imported source names versus explicit local alias metadata",

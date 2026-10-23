@@ -22,12 +22,7 @@
       "existing_recursive_source": 4,
       "existing_string_runtime": 4
     },
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
     "coverage": [
       "Returned String lists and shared tails",
       "Unicode, embedded NUL and canonical empty Strings",

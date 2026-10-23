@@ -45,10 +45,7 @@
       "Compiled opaque callback contracts naming containing records, locally and through workers",
       "Existing enum payload ownership, nested records, error unions and error payload fields"
     ],
-    "sanitizers": [
-      "address",
-      "undefined"
-    ],
+    "sanitizers": ["address", "undefined"],
     "format_check": "New C++ files pass clang-format --dry-run --Werror; git diff --check passes"
   },
   "pending": [

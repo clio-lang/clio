@@ -52,12 +52,7 @@
     "implementation_changed_during_run": false
   },
   "new_execution": {
-    "modes": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "ThreadSanitizer"
-    ],
+    "modes": ["debug", "optimized", "ASan/UBSan", "ThreadSanitizer"],
     "compiled_source_programs": 80,
     "post_creator_calls": 516,
     "invalid_or_stopped_graphs": 40,
@@ -71,10 +66,7 @@
     "cli_allocation_probes": 384
   },
   "frontend": {
-    "modes": [
-      "debug",
-      "ASan/UBSan"
-    ],
+    "modes": ["debug", "ASan/UBSan"],
     "valid_programs_per_mode": 37,
     "unsupported_boundaries_per_mode": 10,
     "forged_ir_cases_per_mode": 3

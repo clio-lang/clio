@@ -210,10 +210,7 @@
     "positive_programs_per_variant": 28,
     "negative_programs_per_variant": 15,
     "forged_capture_metadata_cases_per_variant": 6,
-    "variants": [
-      "debug with native lowering",
-      "ASan/UBSan frontend"
-    ]
+    "variants": ["debug with native lowering", "ASan/UBSan frontend"]
   },
   "manual_checks": [
     {
@@ -237,11 +234,7 @@
       "returned_closure_creation_allocation_probes": 8,
       "returned_closure_invocations_after_creator_exit": 64,
       "cli_allocation_failure_processes": 240,
-      "worker_owned_result_pools": [
-        1,
-        2,
-        4
-      ]
+      "worker_owned_result_pools": [1, 2, 4]
     },
     "optimized": {
       "compiled_programs": 44,
@@ -252,11 +245,7 @@
       "returned_closure_creation_allocation_probes": 8,
       "returned_closure_invocations_after_creator_exit": 64,
       "cli_allocation_failure_processes": 240,
-      "worker_owned_result_pools": [
-        1,
-        2,
-        4
-      ]
+      "worker_owned_result_pools": [1, 2, 4]
     },
     "sanitized": {
       "compiled_programs": 44,
@@ -267,11 +256,7 @@
       "returned_closure_creation_allocation_probes": 8,
       "returned_closure_invocations_after_creator_exit": 64,
       "cli_allocation_failure_processes": 240,
-      "worker_owned_result_pools": [
-        1,
-        2,
-        4
-      ]
+      "worker_owned_result_pools": [1, 2, 4]
     },
     "thread-sanitized": {
       "compiled_programs": 44,
@@ -282,11 +267,7 @@
       "returned_closure_creation_allocation_probes": 8,
       "returned_closure_invocations_after_creator_exit": 64,
       "cli_allocation_failure_processes": 240,
-      "worker_owned_result_pools": [
-        1,
-        2,
-        4
-      ]
+      "worker_owned_result_pools": [1, 2, 4]
     }
   },
   "new_execution_totals": {

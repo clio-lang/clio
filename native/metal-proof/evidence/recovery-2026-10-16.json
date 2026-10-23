@@ -20,17 +20,8 @@
     "expected_value": 180,
     "expected_bits": "43340000",
     "gpu_root_kernels": 1,
-    "variants": [
-      "debug",
-      "optimized",
-      "host ASan/UBSan",
-      "host TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug", "optimized", "host ASan/UBSan", "host TSan"],
+    "workers": [1, 2, 4],
     "supervisor_cpu_allocation_failures_per_worker_configuration": 10,
     "metal_preparation_failure_positions": 53,
     "metal_preparation_recovered": 19,
@@ -62,11 +53,7 @@
     ]
   },
   "cli": {
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "workers": [1, 2, 4],
     "all_build_variants": true,
     "expected_bits": {
       "main": "43340000",
@@ -74,17 +61,11 @@
       "rethrow": "43340000",
       "handler_try_failure": "43340000",
       "handler_try_success": "44148000",
-      "tensor_fallback": [
-        "41a00000",
-        "42200000"
-      ],
+      "tensor_fallback": ["41a00000", "42200000"],
       "deferred_handler_result": "43340000",
       "await_catch_does_not_heal_group": "43340000"
     },
-    "deterministic_outputs": [
-      "host.cpp",
-      "cpu.ll"
-    ],
+    "deterministic_outputs": ["host.cpp", "cpu.ll"],
     "relocation": "Executable plus one Metal library",
     "transactional_rejections": [
       "Branch type/residency mismatch",

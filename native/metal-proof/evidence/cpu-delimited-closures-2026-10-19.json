@@ -121,11 +121,7 @@
   "new_frontend_suites": {
     "debug": {
       "catalog_programs": 24,
-      "source_ending_modes": [
-        "LF",
-        "CRLF",
-        "EOF without final newline"
-      ],
+      "source_ending_modes": ["LF", "CRLF", "EOF without final newline"],
       "syntax_rejections": 9,
       "semantic_rejections": 2,
       "truncation_prefixes": 364,
@@ -139,11 +135,7 @@
     },
     "sanitized": {
       "catalog_programs": 24,
-      "source_ending_modes": [
-        "LF",
-        "CRLF",
-        "EOF without final newline"
-      ],
+      "source_ending_modes": ["LF", "CRLF", "EOF without final newline"],
       "syntax_rejections": 9,
       "semantic_rejections": 2,
       "truncation_prefixes": 364,
@@ -164,11 +156,7 @@
       "already_faulted_contexts": 1,
       "already_cancelled_contexts": 1,
       "additional_worker_runs": 6,
-      "worker_counts": [
-        1,
-        2,
-        4
-      ],
+      "worker_counts": [1, 2, 4],
       "rejected_cli_programs": 9,
       "preserved_artifacts": 27
     },
@@ -179,11 +167,7 @@
       "already_faulted_contexts": 1,
       "already_cancelled_contexts": 1,
       "additional_worker_runs": 6,
-      "worker_counts": [
-        1,
-        2,
-        4
-      ],
+      "worker_counts": [1, 2, 4],
       "rejected_cli_programs": 9,
       "preserved_artifacts": 27
     },
@@ -194,11 +178,7 @@
       "already_faulted_contexts": 1,
       "already_cancelled_contexts": 1,
       "additional_worker_runs": 6,
-      "worker_counts": [
-        1,
-        2,
-        4
-      ],
+      "worker_counts": [1, 2, 4],
       "rejected_cli_programs": 9,
       "preserved_artifacts": 27
     },
@@ -209,11 +189,7 @@
       "already_faulted_contexts": 1,
       "already_cancelled_contexts": 1,
       "additional_worker_runs": 6,
-      "worker_counts": [
-        1,
-        2,
-        4
-      ],
+      "worker_counts": [1, 2, 4],
       "rejected_cli_programs": 9,
       "preserved_artifacts": 27
     }

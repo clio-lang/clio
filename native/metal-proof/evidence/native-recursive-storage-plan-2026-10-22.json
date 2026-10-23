@@ -15,10 +15,7 @@
     "passed": 8,
     "failed": 0,
     "elapsed_seconds": 4.29,
-    "sanitizers": [
-      "address",
-      "undefined"
-    ],
+    "sanitizers": ["address", "undefined"],
     "coverage": [
       "512 three-node direct graphs compared with reachability and fixed-point reference",
       "10000-type finite chain and cyclic graph",

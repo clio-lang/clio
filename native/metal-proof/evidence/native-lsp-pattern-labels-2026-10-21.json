@@ -25,11 +25,7 @@
       "native-lsp-sanitized",
       "native-editor-tools-install"
     ],
-    "modes": [
-      "debug",
-      "asan-ubsan",
-      "Release relocated editor package"
-    ],
+    "modes": ["debug", "asan-ubsan", "Release relocated editor package"],
     "cases": [
       "Empty/partial shorthand patterns, whole-suffix replacement, explicit/missing binders and exclusion of supplied field labels rather than binder names",
       "Binding-name positions, unknown variants, payloadless cases and prior invalid fields fail closed",

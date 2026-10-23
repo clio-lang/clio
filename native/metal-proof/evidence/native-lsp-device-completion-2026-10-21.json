@@ -25,11 +25,7 @@
       "native-lsp-completion-sanitized": 0.65,
       "native-editor-tools-install": 4.31
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "Partial member suffix replacement and empty member lists use Function items for cpu/gpu",
       "Explicit namespace prefixes can be completed before parentheses are added",

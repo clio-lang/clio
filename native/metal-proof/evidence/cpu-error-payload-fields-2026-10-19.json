@@ -191,12 +191,7 @@
     },
     "programs_per_variant": 25,
     "programs_total": 100,
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "numeric_widths": [
       "int8",
       "uint8",
@@ -214,17 +209,8 @@
     "private_harness_processes": 8,
     "task_harness_groups": 24,
     "pure_harness_calls": 24,
-    "task_kind_values": [
-      1,
-      2,
-      3,
-      4
-    ],
-    "malformed_kind_values": [
-      0,
-      5,
-      99
-    ],
+    "task_kind_values": [1, 2, 3, 4],
+    "malformed_kind_values": [0, 5, 99],
     "malformed_direct_copy_checks": 72,
     "coverage": [
       "Forward and reverse declaration order",

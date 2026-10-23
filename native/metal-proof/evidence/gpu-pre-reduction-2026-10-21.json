@@ -45,12 +45,7 @@
       "native-metal-install"
     ],
     "numerical_cases_per_host_mode": 216,
-    "host_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
+    "host_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
     "reference": "LLVM APFloat nearest-ties-even per map operation, then fixed balanced-adjacent row-major reduction; NaNs compared by classification",
     "comparison": "composed runtime task versus separate GPU stages versus independent reference",
     "allocation_checkpoints_per_host_mode": 24,

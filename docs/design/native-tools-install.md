@@ -42,7 +42,6 @@ external-dependency description below applies to `native-editor-tools-package`
 and direct component installs. Neither artifact has a publisher signature or
 notarization; the standalone package records its measured minimum macOS version.
 
-
 The checker and language server still link to **LLVM 23.1.3** from the pinned toolchain. The LLVM runtime is external: the archive neither bundles it nor changes its loader paths. The dependency must remain available at the paths used when linking; moving the tools does not relocate LLVM. The installed metadata identifies the required LLVM version and the actual build configuration. A stripped Debug build remains a Debug build.
 
 No Kalandra checkout, Bun, Node or Python is needed to run these installed commands. The formatter/parser/checker retain their source contracts, and the language server does not run application code. CMake and the compiler toolchain are needed to build/install/package from source; Python is also needed to create normalized archives; platform inspection tools are used by acceptance tests.

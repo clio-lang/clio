@@ -16,21 +16,9 @@
   },
   "qualification": {
     "planner_source_fixtures": 24,
-    "planner_variants": [
-      "debug",
-      "ASan/UBSan"
-    ],
-    "runtime_variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "planner_variants": ["debug", "ASan/UBSan"],
+    "runtime_variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workers": [1, 2, 4],
     "coverage": [
       "sibling coordinating helpers",
       "two levels of resumable children plus CPU/GPU children",

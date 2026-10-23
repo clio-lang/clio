@@ -161,7 +161,6 @@ Raw collection probes execute 2,944 invocations and compare 1,053,184 lanes exac
 
 The [collection qualification evidence](../../native/metal-proof/evidence/cpu-function-collections-2026-10-19.json) records the regression and final callable batches with their corresponding frozen implementation/test hashes. This is focused macOS ARM64 qualification; the remaining callable, closure, transport and platform gaps listed above are unchanged.
 
-
 ### Expected-error signature extension
 
 All 169 selected checks passed on Apple M2 Max, including existing frontend, function-value, collection, map, module, task and expected-error regressions. The new execution suites compile 148 programs across debug, optimized, ASan/UBSan and separate ThreadSanitizer builds. They cover all ten numeric scalar widths and numeric tensor signatures, canonical error aliases/unions, independent factory/invocation channels, higher-order calls, local imports, Strings, Bool arrays, records, rank-zero tensors and checked shape refinements.

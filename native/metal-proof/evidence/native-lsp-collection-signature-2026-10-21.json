@@ -27,11 +27,7 @@
       "native-lsp-signature-sanitized": 0.54,
       "native-editor-tools-install": 4.45
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "Array/String length, String byteLength, tensor shape, array/String slicing and array concat signatures",
       "Bool/String/nominal array type printing retains checked module context; scalar String concat stays unsupported",

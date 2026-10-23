@@ -23,12 +23,7 @@
       "recursive_string_source": 4,
       "recursive_value_runtime": 4
     },
-    "variants": [
-      "Debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["Debug", "optimized", "ASan/UBSan", "TSan"],
     "coverage": [
       "All ten numeric collection widths",
       "Numeric arrays and fixed/dynamic/rank-zero/zero-count tensors",

@@ -16,35 +16,15 @@
     "limits": "Pure float32 scalar/rank-one/rank-two CPU functions in the existing single mixed parallel block. No nested task creation in these function bodies, mixed-source failure recovery, new types or shared placement-aware task IR. CPU-only target placement handling is unchanged."
   },
   "source_fixture": {
-    "expected_bits": [
-      "42500000",
-      "42580000",
-      "42800000",
-      "42840000"
-    ],
+    "expected_bits": ["42500000", "42580000", "42800000", "42840000"],
     "expected_matrix": [
-      [
-        52,
-        54
-      ],
-      [
-        64,
-        66
-      ]
+      [52, 54],
+      [64, 66]
     ],
     "cpu_call_sites": 4,
     "gpu_root_kernels": 1,
-    "variants": [
-      "debug",
-      "optimized",
-      "host ASan/UBSan",
-      "host TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug", "optimized", "host ASan/UBSan", "host TSan"],
+    "workers": [1, 2, 4],
     "parent_cpu_allocation_failures_per_worker_configuration": 6,
     "child_cpu_allocation_failures_per_worker_configuration": {
       "tensor_matmul": 4,
@@ -66,25 +46,12 @@
     "gpu_shader_sanitizers": false
   },
   "cli": {
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "workers": [1, 2, 4],
     "all_build_variants": true,
     "expected_bits": {
-      "main": [
-        "42500000",
-        "42580000",
-        "42800000",
-        "42840000"
-      ],
+      "main": ["42500000", "42580000", "42800000", "42840000"],
       "twelve_scalars_and_zero_arguments": "42d00000",
-      "vector": [
-        "40000000",
-        "40400000",
-        "40800000"
-      ],
+      "vector": ["40000000", "40400000", "40800000"],
       "aliased_source_capture": [
         "40400000",
         "3f800000",
@@ -94,10 +61,7 @@
       "empty_matmul_and_reduction": "00000000",
       "gpu_scalar_to_cpu_task": "40c00000"
     },
-    "deterministic_outputs": [
-      "host.cpp",
-      "cpu.ll"
-    ],
+    "deterministic_outputs": ["host.cpp", "cpu.ll"],
     "relocation": "Executable plus one Metal library",
     "transactional_rejections": [
       "Hidden GPU download",

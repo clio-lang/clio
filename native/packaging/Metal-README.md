@@ -34,7 +34,6 @@ CPU-only version-tag workflow.
 
 Local or public HTTPS Git dependencies can be installed explicitly with `kalandra install --project path/to/kalandra.toml`. Installation requires system Git; subsequent project builds verify the activated cache offline. Remote installs verify TLS and require public repositories. Commit IDs and supported branch/tag names are accepted; names are locked to exact commits and unchanged requests keep their pins. Commit the generated `kalandra.lock`. Use `--frozen` to populate a cache from a matching lock without rewriting it, or `--offline` to require verified cached sources without invoking Git. Use `kalandra update name [name ...] --project path/to/kalandra.toml` to refresh selected root aliases from a matching lock; unrelated roots and unchanged-owner private pins stay fixed. Check and rebuild after updating. SSH and authenticated repositories are not supported yet.
 
-
 Typed GPU programs support all ten native numeric types, dense tensor ranks
 zero through eight, balanced sums, rank-two matrix products, explicit numeric
 conversions and resident numerical/control graphs. Numerical computations use

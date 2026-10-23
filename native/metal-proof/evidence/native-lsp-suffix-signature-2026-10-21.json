@@ -27,11 +27,7 @@
       "native-lsp-sanitized": 8.52,
       "native-editor-tools-install": 4.72
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "Named and bound function signatures survive final argument suffixes in open calls",
       "Factory-returned and indexed pipeline callables retain public signatures and implicit first parameter accounting",

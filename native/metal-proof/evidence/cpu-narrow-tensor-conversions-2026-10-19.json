@@ -71,12 +71,7 @@
     "runtime_cases": 759632,
     "checked_faults": 425872,
     "exact_lane_checks": 87803712,
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "coverage": [
       "Full valid scalar corpus at rank two, including every valid 8/16-bit representation",
       "Invalid values sampled across the full corpus and tested in first/middle/last lanes",

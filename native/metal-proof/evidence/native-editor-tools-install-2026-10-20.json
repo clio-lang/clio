@@ -18,9 +18,7 @@
   "qualification": {
     "full_suite": false,
     "ctest_checks_passed": 1,
-    "ctest_checks": [
-      "native-editor-tools-install"
-    ],
+    "ctest_checks": ["native-editor-tools-install"],
     "ctest_seconds": 4.55,
     "coverage": [
       "Direct prefix and DESTDIR staging with paths containing spaces",

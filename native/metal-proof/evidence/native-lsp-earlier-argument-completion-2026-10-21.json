@@ -25,11 +25,7 @@
       "native-lsp-completion-sanitized": 0.74,
       "native-editor-tools-install": 5.4
     },
-    "modes": [
-      "debug",
-      "ASan/UBSan",
-      "relocated Release editor tools"
-    ],
+    "modes": ["debug", "ASan/UBSan", "relocated Release editor tools"],
     "cases": [
       "Earlier lexical suffixes and record members complete before later supplied arguments",
       "Balanced and open calls retain completion with missing later required parameters",

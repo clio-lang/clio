@@ -195,12 +195,7 @@
     },
     "correction": "Restrict no-else parsing to bodies ending in fail, restoring P035 for ordinary incomplete if expressions. Generalize two TaskError-only diagnostic texts. Add fallible dynamic-to-fixed tensor shape refinement coverage. All frontend/CLI checks plus all four control-flow and application-error suites rerun after these changes; other passing baseline suites remain unchanged.",
     "application_programs_per_variant": 41,
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
     "numeric_widths": [
       "int8",
       "uint8",

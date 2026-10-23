@@ -72,7 +72,6 @@ Direct calls suspend their containing invocation; independently scheduled calls 
 
 The [helper fixture](../../native/metal-source/resumable-helpers.k) exercises transitive helper calls, CPU tasks, GPU work and returned host tensors. It reuses the full recovery lifecycle harness in debug, optimized, ASan/UBSan and TSan builds: allocation-failure sweeps, held completions, scope/root cancellation and deadlines, failed completion recovery, bounded admission and budget rejection, with zero retained resources after cleanup. [CLI tests](../../native/metal-source/VerifyResumableHelpers.cmake) cover successful and failed helper paths, repeated calls, helper-owned scopes, deferred errors, identical standalone plans and normal/sanitized compiler emission, and transactional recursion/escape diagnostics and a spawned helper acceptance case. [Qualification evidence](../../native/metal-proof/evidence/resumable-helpers-2026-10-16.json) records the complete regression run.
 
-
 ## Independently scheduled mixed helpers
 
 A coordinating helper can now be spawned as its own task, including from another coordinating helper:

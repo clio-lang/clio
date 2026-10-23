@@ -17,17 +17,8 @@
   "qualification_status": "passed",
   "qualification": {
     "full_suite": false,
-    "host_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
-    "worker_counts": [
-      1,
-      2,
-      4
-    ],
+    "host_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
+    "worker_counts": [1, 2, 4],
     "operand_scenarios_per_mode": 13,
     "program_runs_per_mode": 39,
     "reference": "Exact float32 output bits for asymmetric integer-valued rectangular matrices, choices, bias/scaling and deterministic sums; existing strict arithmetic lowering is unchanged",

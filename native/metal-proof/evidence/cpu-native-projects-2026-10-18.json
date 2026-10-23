@@ -59,12 +59,7 @@
     "supplementary_cli_compiled_programs": 4,
     "source_allocation_sweep_runs": 480,
     "private_worker_harness_runs": 232,
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "per_variant": {
       "manifest_programs": 26,
       "mixed_manifest_and_cli_programs": 1,
@@ -74,10 +69,7 @@
       "manifest_output_alias_checks": 9,
       "package_source_output_alias_checks": 3,
       "supplementary_cli_duplicate_checks": 2,
-      "worker_pool_sizes": [
-        1,
-        4
-      ]
+      "worker_pool_sizes": [1, 4]
     },
     "coverage": [
       "Frontend strict schema, byte/count budgets, comments/CRLF, canonical symlink bases, fresh reads and unused package entries",

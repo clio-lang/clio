@@ -14,17 +14,8 @@
     "remaining": "Int32 tensors, reductions/matmul, Metal modules/kernels, conversions and other source numeric arithmetic types remain separately gated."
   },
   "qualification": {
-    "variants": [
-      "debug",
-      "optimized",
-      "ASan/UBSan",
-      "TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug", "optimized", "ASan/UBSan", "TSan"],
+    "workers": [1, 2, 4],
     "compiled_task_programs_per_variant": 17,
     "task_program_executions_per_variant": 57,
     "task_program_executions_total": 228,

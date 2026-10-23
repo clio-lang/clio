@@ -66,12 +66,7 @@
       "required_argument_result_allocation_failures": 5,
       "rejected_build_artifact_checks": 12
     },
-    "variants": [
-      "debug",
-      "optimized",
-      "sanitized",
-      "thread-sanitized"
-    ],
+    "variants": ["debug", "optimized", "sanitized", "thread-sanitized"],
     "coverage": [
       "All design slice vectors; complete interval grid over ASCII/Persian/combining/emoji/joiner/NUL/BOM/U+10FFFF text",
       "Zero/full/end ranges and canonical empty input/output; empty results do not allocate",

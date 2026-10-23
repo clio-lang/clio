@@ -145,11 +145,7 @@
         "dynamic_skip_probes": 6,
         "boolean_worker_harness_runs": 162,
         "tensor_worker_harness_runs": 72,
-        "worker_counts": [
-          1,
-          2,
-          4
-        ],
+        "worker_counts": [1, 2, 4],
         "scheduler_allocation_injection_runs": 72,
         "invocation_allocation_injection_runs": 72,
         "tensor_worker_types": [
@@ -197,11 +193,7 @@
         "dynamic_skip_probes": 6,
         "boolean_worker_harness_runs": 162,
         "tensor_worker_harness_runs": 72,
-        "worker_counts": [
-          1,
-          2,
-          4
-        ],
+        "worker_counts": [1, 2, 4],
         "scheduler_allocation_injection_runs": 72,
         "invocation_allocation_injection_runs": 72,
         "tensor_worker_types": [
@@ -249,11 +241,7 @@
         "dynamic_skip_probes": 6,
         "boolean_worker_harness_runs": 162,
         "tensor_worker_harness_runs": 72,
-        "worker_counts": [
-          1,
-          2,
-          4
-        ],
+        "worker_counts": [1, 2, 4],
         "scheduler_allocation_injection_runs": 72,
         "invocation_allocation_injection_runs": 72,
         "tensor_worker_types": [
@@ -301,11 +289,7 @@
         "dynamic_skip_probes": 6,
         "boolean_worker_harness_runs": 162,
         "tensor_worker_harness_runs": 72,
-        "worker_counts": [
-          1,
-          2,
-          4
-        ],
+        "worker_counts": [1, 2, 4],
         "scheduler_allocation_injection_runs": 72,
         "invocation_allocation_injection_runs": 72,
         "tensor_worker_types": [

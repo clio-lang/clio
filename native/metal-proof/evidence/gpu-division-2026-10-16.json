@@ -60,31 +60,16 @@
         "submissions": 1020
       }
     },
-    "references": [
-      "LLVM APFloat",
-      "CPU hardware"
-    ],
+    "references": ["LLVM APFloat", "CPU hardware"],
     "nan_comparison": "Classification for arithmetic; exact bits for sign-bit negation."
   },
   "source_conformance": {
-    "variants": [
-      "debug",
-      "optimized",
-      "host ASan/UBSan",
-      "host TSan"
-    ],
-    "ranks": [
-      1,
-      2
-    ],
+    "variants": ["debug", "optimized", "host ASan/UBSan", "host TSan"],
+    "ranks": [1, 2],
     "cases_per_rank_per_variant": 436,
     "cpu_gpu_apfloat_lanes_per_rank_per_variant": 3499236,
     "source_cpu_allocation_failures_per_worker_configuration": 9,
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "workers": [1, 2, 4],
     "metal_api_validation": true,
     "gpu_shader_sanitizers": false,
     "coverage": [
@@ -96,16 +81,8 @@
     ]
   },
   "cli": {
-    "gpu_configurations": [
-      "optimized",
-      "host ASan/UBSan",
-      "host TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "gpu_configurations": ["optimized", "host ASan/UBSan", "host TSan"],
+    "workers": [1, 2, 4],
     "gpu_expected_bits": [
       "40c00000",
       "40c00000",
@@ -115,15 +92,8 @@
       "40c00000"
     ],
     "cpu_task_expected": "6",
-    "rounding_expected_bits": [
-      "3fd55555",
-      "3fd55556"
-    ],
-    "rank_independent_artifacts": [
-      "raw MLIR",
-      "strict lowered MLIR",
-      "SPIR-V"
-    ],
+    "rounding_expected_bits": ["3fd55555", "3fd55556"],
+    "rank_independent_artifacts": ["raw MLIR", "strict lowered MLIR", "SPIR-V"],
     "relocation": "Executable plus eight Metal libraries",
     "faults": [
       "Static shape mismatch leaves prior artifact unchanged",

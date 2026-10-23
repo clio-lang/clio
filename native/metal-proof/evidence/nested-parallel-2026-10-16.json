@@ -18,17 +18,8 @@
     "expected_bits": "42400000",
     "nested_groups": 4,
     "gpu_root_kernels": 1,
-    "variants": [
-      "debug",
-      "optimized",
-      "host ASan/UBSan",
-      "host TSan"
-    ],
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "variants": ["debug", "optimized", "host ASan/UBSan", "host TSan"],
+    "workers": [1, 2, 4],
     "parent_cpu_allocation_failures_per_worker_configuration": 4,
     "metal_preparation_failure_positions": 31,
     "coverage": [
@@ -48,26 +39,15 @@
     "gpu_shader_sanitizers": false
   },
   "cli": {
-    "workers": [
-      1,
-      2,
-      4
-    ],
+    "workers": [1, 2, 4],
     "all_build_variants": true,
     "expected_bits": {
       "main": "42400000",
       "contextual_literal": "40c00000",
       "empty": "00000000",
-      "tensor": [
-        "40800000",
-        "40c00000",
-        "41000000"
-      ]
+      "tensor": ["40800000", "40c00000", "41000000"]
     },
-    "deterministic_outputs": [
-      "host.cpp",
-      "cpu.ll"
-    ],
+    "deterministic_outputs": ["host.cpp", "cpu.ll"],
     "relocation": "Executable plus one Metal library",
     "transactional_rejections": [
       "Unobserved inner task",

@@ -12,17 +12,8 @@
   "milestone": "Host Boolean decisions and selected numerical dispatch",
   "qualification_status": "passed",
   "qualification": {
-    "host_modes": [
-      "debug",
-      "optimized",
-      "asan-ubsan",
-      "tsan"
-    ],
-    "worker_counts": [
-      1,
-      2,
-      4
-    ],
+    "host_modes": ["debug", "optimized", "asan-ubsan", "tsan"],
+    "worker_counts": [1, 2, 4],
     "source_checks": [
       "kalandra-metal-source-host-control",
       "kalandra-metal-source-compiler-sanitized-host-control"
