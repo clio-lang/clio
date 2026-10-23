@@ -19,6 +19,29 @@ concurrency:
   group: native-release-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  signing-credentials:
+    if: startsWith(github.ref, 'refs/tags/') || vars.KALANDRA_NOTARIZE == 'true'
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Validate publisher credentials without a release build
+        env:
+          KALANDRA_SIGNING_P12_BASE64: ${{ secrets.KALANDRA_SIGNING_P12_BASE64 }}
+          KALANDRA_SIGNING_P12_PASSWORD: ${{ secrets.KALANDRA_SIGNING_P12_PASSWORD }}
+          KALANDRA_APPLE_ID: ${{ secrets.KALANDRA_APPLE_ID }}
+          KALANDRA_APPLE_APP_PASSWORD: ${{ secrets.KALANDRA_APPLE_APP_PASSWORD }}
+          KALANDRA_APPLE_TEAM_ID: ${{ vars.KALANDRA_APPLE_TEAM_ID }}
+          KALANDRA_SIGNING_IDENTITY: ${{ vars.KALANDRA_SIGNING_IDENTITY }}
+        run: python3 .github/scripts/notarize_native.py --check-only
+      - name: Remove temporary signing credentials
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/kalandra-signing/signing.keychain-db" 2>/dev/null || true
+          rm -rf "$RUNNER_TEMP/kalandra-signing"
   build:
     runs-on: macos-15
     outputs:
@@ -53,7 +76,7 @@ jobs:
           -DKALANDRA_BUILD_METAL_RUNTIME=OFF -DKALANDRA_BUILD_METAL_PROOF=OFF
       - name: Build release packages
         run: >-
-          cmake --build build/native --target native-cpu-package native-editor-tools-package
+          cmake --build build/native --target kalandra native-cpu-package native-editor-tools-package
           native-cpu-standalone-package native-editor-tools-standalone-package -j2
       - name: Qualify installed and relocated packages
         run: >-
@@ -107,7 +130,7 @@ jobs:
           --archive release-assets/kalandra-native-cpu-standalone-macos-arm64.tar.gz
   notarize:
     if: startsWith(github.ref, 'refs/tags/') || vars.KALANDRA_NOTARIZE == 'true'
-    needs: [build, qualify-standalone]
+    needs: [build, qualify-standalone, signing-credentials]
     runs-on: macos-15
     timeout-minutes: 60
     steps:

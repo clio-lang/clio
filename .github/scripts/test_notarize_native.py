@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import tempfile
+import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -23,6 +24,13 @@ class CredentialTests(unittest.TestCase):
             run.return_value.stderr = b"secret-value"
             with self.assertRaises(RuntimeError) as error:
                 private_command("/usr/bin/security", "import", "secret-value")
+            self.assertNotIn("secret-value", str(error.exception))
+
+    def test_timeout_does_not_echo_credential_arguments(self):
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(
+                ["security", "secret-value"], 180)):
+            with self.assertRaises(RuntimeError) as error:
+                private_command("/usr/bin/security", "secret-value")
             self.assertNotIn("secret-value", str(error.exception))
 
 
