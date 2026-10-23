@@ -8,8 +8,8 @@
 #define NOMINMAX
 #endif
 #include <random>
-#include <sddl.h>
 #include <windows.h>
+#include <sddl.h>
 #else
 #include <fcntl.h>
 #include <sys/stat.h>
