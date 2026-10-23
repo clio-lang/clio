@@ -91,6 +91,24 @@ fn main()->int ! TaskError:
         run([compiler, "new", project])
         run([compiler, "--project", project / "kalandra.toml", "-o", executable])
         assert run([executable]).stdout.strip() == "[2, 4, 6]"
+        # A failing build must preserve a previously working output.
+        prior = executable.read_bytes()
+        source.write_text("fn main():\n  missing_value\n", encoding="utf-8")
+        run([compiler, source, "-o", executable], expected=1)
+        assert executable.read_bytes() == prior
+        if windows:
+            rejected = run([compiler, source, "-o", executable, "--thread-sanitize"], expected=2)
+            assert "ThreadSanitizer is unavailable" in rejected.stderr
+            assert executable.read_bytes() == prior
+        # Ordinary applications must remain executable after removing the compiler.
+        prefix = compiler.parent.parent
+        if (prefix / "SHA256SUMS").is_file():
+            hidden = prefix.with_name(prefix.name + ".hidden")
+            prefix.rename(hidden)
+            try:
+                assert run([executable]).stdout.strip() == "[2, 4, 6]"
+            finally:
+                hidden.rename(prefix)
         print(json.dumps({"platform": platform.platform(), "programsCompiled": compiled + 1,
                           "numericTypes": list(values), "modes": [name for name, _ in modes],
                           "workerCounts": [1, 2, 4], "starter": "passed"}), flush=True)

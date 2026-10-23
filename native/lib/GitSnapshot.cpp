@@ -517,12 +517,27 @@ std::string extract(const fs::path &database, const std::string &commit, const f
     const fs::path relative(std::string(line.substr(tab + 1)));
     require(hex(object, 40) && !relative.empty() && !relative.has_root_path(),
             "invalid Git tree entry");
+#ifdef _WIN32
+    require(relative.generic_string() == line.substr(tab + 1),
+            "Git source path is not a portable normalized path");
+#endif
     for (const auto &part : relative) {
       auto name = part.string();
       std::ranges::transform(name, name.begin(), [](unsigned char c) {
         return char(c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c);
       });
       require(name != "." && name != ".." && name != ".git", "unsafe Git source path");
+#ifdef _WIN32
+      require(!name.empty() && name.back() != '.' && name.back() != ' ' &&
+                  name.find_first_of("<>:\"\\|?*") == std::string::npos &&
+                  std::ranges::none_of(name, [](unsigned char c) { return c < 32; }),
+              "Git source path is unsafe on Windows");
+      const auto stem = name.substr(0, name.find('.'));
+      require(stem != "con" && stem != "prn" && stem != "aux" && stem != "nul" &&
+                  !(stem.size() == 4 && (stem.starts_with("com") || stem.starts_with("lpt")) &&
+                    stem[3] >= '1' && stem[3] <= '9'),
+              "Git source path uses a reserved Windows device name");
+#endif
     }
     const auto target = source / relative;
     require(!fs::exists(target), "Git source paths collide on this filesystem");

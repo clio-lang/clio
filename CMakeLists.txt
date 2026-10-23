@@ -64,6 +64,8 @@ add_compile_definitions(KALANDRA_NATIVE_CPU_DATA_LAYOUT="${KALANDRA_NATIVE_CPU_D
   KALANDRA_NATIVE_CPU_TARGET_TRIPLE="${KALANDRA_NATIVE_CPU_TARGET_TRIPLE}")
 if(WIN32)
   add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
+  add_link_options("LINKER:/MANIFEST:EMBED"
+    "LINKER:/MANIFESTINPUT:${PROJECT_SOURCE_DIR}/native/windows/application.manifest")
 endif()
 include(CTest)
 add_subdirectory(native)

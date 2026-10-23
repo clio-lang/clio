@@ -18,11 +18,26 @@ inline std::expected<GitTransport, std::string> gitTransport(std::string_view re
       repository.find_first_of("\r\n") != std::string_view::npos ||
       repository.find('\0') != std::string_view::npos)
     return invalid();
+#ifdef _WIN32
+  // Windows local identities use normalized drive-qualified paths. Reject
+  // UNC/device paths so the local transport cannot access a network share.
+  if (repository.size() >= 3 &&
+      ((repository[0] >= 'A' && repository[0] <= 'Z') ||
+       (repository[0] >= 'a' && repository[0] <= 'z')) &&
+      repository[1] == ':' && repository[2] == '\\') {
+    const std::filesystem::path path(repository);
+    if (!path.is_absolute() || path.lexically_normal().string() != repository ||
+        repository.find(':', 2) != std::string_view::npos)
+      return invalid();
+    return GitTransport::Local;
+  }
+#else
   if (repository.starts_with('/')) {
     if (std::filesystem::path(repository).lexically_normal().string() != repository)
       return invalid();
     return GitTransport::Local;
   }
+#endif
   const bool secure = repository.starts_with("https://");
   if (!secure && !repository.starts_with("http://"))
     return invalid();

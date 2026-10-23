@@ -40,9 +40,35 @@ jobs:
       - name: Configure native CPU compiler
         run: >-
           cmake -S . -B build/linux -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
-          -DKALANDRA_LLVM_ROOT="$KALANDRA_LLVM_ROOT"
+          -DCMAKE_INSTALL_LIBDIR=lib -DKALANDRA_LLVM_ROOT="$KALANDRA_LLVM_ROOT"
           -DKALANDRA_BUILD_METAL_RUNTIME=OFF -DKALANDRA_BUILD_METAL_PROOF=OFF
       - name: Build native CPU toolchain
         run: cmake --build build/linux --target native-cpu-toolchain -j2
-      - name: Execute portable CPU acceptance
-        run: python3 native/packaging/PortableCPUAcceptance.py --compiler build/linux/native/install-bin/kalandra
+      - name: Package standalone compiler
+        run: cmake --build build/linux --target native-cpu-standalone-package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-linux-assets
+          path: build/linux/native-cpu-standalone/*.tar.gz*
+          if-no-files-found: error
+  downloaded-package:
+    needs: cpu
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-linux-assets
+          path: downloaded
+      - name: Install audit tools and enable process isolation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y patchelf bubblewrap
+          sudo sysctl -w vm.mmap_rnd_bits=28
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Qualify downloaded compiler without LLVM or the checkout
+        run: python3 native/packaging/PortablePackageTests.py downloaded/kalandra-native-cpu-standalone-linux-x86_64.tar.gz
