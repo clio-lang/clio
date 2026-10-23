@@ -1,79 +1,57 @@
-import { homeExamples } from "$lib/playground/home-examples";
-import { highlightKalandra } from "../../../../scripts/website-highlighting";
-import { compile } from "../../../../packages/compiler/src/compile";
-import remoteClient from "../../../../examples/workflows/remote-batch/client/main.kalandra?raw";
-import { highlightSnippet } from "$lib/server/highlight";
-import invoiceJs from "../../../../examples/workflows/invoices/vendor/invoice-math/index.js?raw";
+import matrix from "../../../../native/metal-source/matrix-graph.k?raw";
+import arithmetic from "../../../../native/metal-source/pre-matmul.k?raw";
+import placement from "../../../../native/benchmarks/gpu.k?raw";
 
-export async function load() {
-  const source = "export fn double value: value * 2\n";
-  const compiled = compile(
-    { path: "double.kalandra", text: source },
-    { strictNames: true },
-  );
-  if (!compiled.output)
-    throw new Error("Homepage JavaScript example failed to compile");
+// Read examples from the qualified native fixtures so the homepage cannot
+// silently drift into an invented dialect or advertise browser GPU execution.
+export function load() {
   return {
-    lessons: [
-      [
-        "functions",
-        "Functions & pipelines",
-        "Compose calls and keep the data flow visible.",
-        "10 -> double -> addThree",
-      ],
-      [
-        "collections",
-        "Arrays & maps",
-        "Transform collections and update their elements.",
-        "[1 2 3] -> * double",
-      ],
-      [
-        "types",
-        "Types & records",
-        "Describe data and check function boundaries.",
-        "Point 1.5 2.5",
-      ],
-      [
-        "modules",
-        "Modules & imports",
-        "Split a program into reusable source files.",
-        'from "./math" import double',
-      ],
-      [
-        "parallel",
-        "Parallel execution",
-        "Dispatch typed work and collect its results.",
-        "[1 2 3] -> * [await] |double|",
-      ],
-      [
-        "workflows",
-        "Complete workflows",
-        "Follow invoices, local batches, and remote calls.",
-        "items -> * total",
-      ],
-    ].map(([slug, title, description, source]) => [
-      slug,
-      title,
-      description,
-      highlightKalandra(source),
-    ]),
-    examples: homeExamples.map((example) => ({
-      ...example,
-      html: highlightKalandra(example.source),
-    })),
-    remoteClient: highlightKalandra(remoteClient),
-    invoiceJs: await highlightSnippet(invoiceJs, "javascript"),
-    commands: await highlightSnippet(
-      [
-        "kalandra new my-app",
-        "kalandra check my-app/src/math.kalandra --strict",
-        "kalandra run my-app/src/main.kalandra --strict",
-        "kalandra build my-app/src/main.kalandra \\",
-        "  -o my-app/build --strict --watch",
-      ].join("\n"),
-      "bash",
-    ),
-    compiledSource: highlightKalandra(source),
-    javascript: await highlightSnippet(compiled.output.code, "javascript"),
+    examples: [
+      {
+        title: "Matrix graphs",
+        file: "matrix-graph.k",
+        path: "native/metal-source/matrix-graph.k",
+        source: matrix.split("\nfn main")[0].trim(),
+        heading: "Keep the graph on the GPU.",
+        description:
+          "Compose matrix products as ordinary functions. Intermediate tensors stay on the device, ready for the next operation.",
+        stages: [
+          "Input tensors",
+          "Matrix product",
+          "Projection",
+          "Resident result",
+        ],
+      },
+      {
+        title: "Tensor arithmetic",
+        file: "pre-matmul.k",
+        path: "native/metal-source/pre-matmul.k",
+        source: arithmetic.split("\nfn main")[0].trim(),
+        heading: "Build with numerical primitives.",
+        description:
+          "Combine elementwise arithmetic, matrix products and typed scalar parameters in a single resident numerical graph.",
+        stages: [
+          "Input + scale",
+          "Matrix product",
+          "Bias + scale",
+          "Resident result",
+        ],
+      },
+      {
+        title: "CPU ↔ GPU",
+        file: "gpu.k",
+        path: "native/benchmarks/gpu.k",
+        source: placement.trim(),
+        heading: "Choose where the work happens.",
+        description:
+          "Transfer tensors explicitly, place a typed task on the GPU, and await its result. CPU workers and GPU tasks belong to the same language.",
+        stages: [
+          "CPU tensor",
+          "Transfer to GPU",
+          "Spawn + await",
+          "Transfer to CPU",
+        ],
+      },
+    ],
   };
 }

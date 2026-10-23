@@ -1,0 +1,57 @@
+meta { title = "Errors and recovery", description = "Declare expected errors and handle task execution failures.", order = 9, group = "Language" }
+
+A function can return a success value or a declared expected-error family. Write the channel after !, construct a declared error with fail and use try when propagating an error. Do not silently discard an expected-error result.
+
+h2 { "Validate and recover" }
+
+codeblock { language = kalandra, """error InputError:
+  Negative:
+    value: int
+
+fn requirePositive(value: int) -> int ! InputError:
+  if value < 0:
+    fail InputError.Negative { value: value }
+  value
+
+fn main() -> int:
+  requirePositive(-1) catch fn(error):
+    match error:
+      InputError.Negative { value }: -value
+""" }
+
+An early validation guard may omit else when its body ends in fail. catch receives the actual error family and must produce the original success type, or propagate through another declared channel. Payload bindings belong to their match branch.
+
+h2 { "Propagate through a helper" }
+
+codeblock { language = kalandra, """error InputError:
+  Negative
+
+fn validated(value: int) -> int ! InputError:
+  if value < 0: fail InputError.Negative
+  value
+
+fn adjusted(value: int) -> int ! InputError:
+  result = try validated(value)
+  result + 2
+
+fn main() -> int:
+  adjusted(40) catch fn(error): 0
+""" }
+
+h2 { "Task errors are a separate channel" }
+
+CPU worker execution can fail independently of an application validation error. parallelMap and ordinary spawn/await observation therefore use TaskError, combined with the callback application families when necessary. Error unions use the spelling ! (InputError | TaskError).
+
+Checked arithmetic, bounds, shape and allocation faults are execution failures rather than implicit application variants. Handle a TaskError at a task boundary when you need recovery. An application-only handler does not swallow unrelated execution faults.
+
+h2 { "Choose a recovery policy" }
+
+Handle specific variants when different failures need different policies. A catch-all fallback is appropriate only when every error truly has the same meaning to the application. Parallel groups settle unfinished children before leaving; completed effects are not rolled back, and racing failures need not select a deterministic winner.
+
+link { url = "/docs/parallelism", "Task groups and observation" }
+
+link { url = "https://github.com/kalandra-lang/kalandra/blob/native/docs/design/application-errors.md", "Application channels and early guards" }
+
+link { url = "https://github.com/kalandra-lang/kalandra/blob/native/docs/design/mixed-error-channels.md", "Combine application and task errors" }
+
+link { url = "https://github.com/kalandra-lang/kalandra/blob/native/docs/design/worker-errors.md", "Worker error transport" }

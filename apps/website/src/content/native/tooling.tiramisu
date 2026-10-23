@@ -1,0 +1,44 @@
+meta { title = "Editor and CLI tools", description = "Check, format and navigate native projects.", order = 4, group = "Projects and tools" }
+
+The native toolchain includes kalandra, kalandra-check, kalandra-fmt and kalandra-lsp. The VS Code extension connects the native language server to the editor; it does not download or build that server for you.
+
+h2 { "Check source without executing it" }
+
+codeblock { language = bash, """kalandra-check main.k
+kalandra-check --project my-app/kalandra.toml
+kalandra-check --diagnostics=json main.k
+""" }
+
+The checker reports syntax, name, type and shape diagnostics. JSON diagnostics include original module paths and UTF-16 editor ranges. --placement adds placement checking; it is not proof that every checked GPU program can be lowered or executed by an available device.
+
+h2 { "Format source" }
+
+codeblock { language = bash, """kalandra-fmt main.k
+kalandra-fmt --check main.k
+""" }
+
+The first command writes the formatted result to standard output; it does not edit main.k. --check returns success only when formatting is already canonical. Formatting uses two-space indentation while preserving meaningful tokens, comments and String spellings. Format Document in the editor applies a proposed edit to the open buffer.
+
+h2 { "Set up VS Code" }
+
+Install the native VSIX using Extensions: Install from VSIX. Set Kalandra Native: Server Path in User Settings to the absolute kalandra-lsp path, or an executable name on PATH. Open a trusted local workspace with a .k file.
+
+If the project uses package mappings, set Kalandra Native: Project Path to its explicit TOML manifest. Relative paths require a single local workspace folder. Restart the server after manifest-content changes with Kalandra: Restart Native Language Server.
+
+The server supplies diagnostics, hover, definition, references, rename, completion, signature help and formatting within its documented workspace/unfinished-source boundaries. Lexical highlighting is not proof that a call is type-correct. Use Kalandra: Show Native Language Server Output for startup diagnostics.
+
+h2 { "Compile and inspect" }
+
+codeblock { language = bash, """kalandra main.k -O2 -o program
+kalandra main.k --emit-mlir program.mlir --emit-llvm program.ll -o program
+""" }
+
+IR outputs are explicit inspection artifacts. Source paths, project manifests and installed dependency files are protected against accidental output replacement. Use the appropriate Metal-capable driver for --target metal.
+
+link { url = "/docs/troubleshooting", "Troubleshoot checks, builds and editor startup" }
+
+link { url = "https://github.com/kalandra-lang/kalandra/blob/native/docs/design/native-vscode.md", "VS Code configuration and supported behavior" }
+
+link { url = "https://github.com/kalandra-lang/kalandra/blob/native/docs/design/native-language-server.md", "Language-server protocol and workspace boundaries" }
+
+link { url = "https://github.com/kalandra-lang/kalandra/blob/native/docs/design/native-formatter.md", "Formatter command and style reference" }

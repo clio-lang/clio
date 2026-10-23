@@ -1,6 +1,5 @@
 <script lang="ts">
   import { DocsLayout, DocPage, PrevNextNav } from "$lib/components";
-  import Playground from "$lib/components/Playground.svelte";
   import OpenDropdown from "$lib/components/OpenDropdown.svelte";
   import config from "$lib/tiramisu.config";
   import { resolveConfig, getOpenLinks } from "@tiramisu-docs/kit";
@@ -40,7 +39,7 @@
     meta={{
       ...data.meta,
       description: data.meta?.description || resolved.description,
-      image: data.meta?.image || "/social/kalandra.png",
+      image: data.meta?.image || "/social/native.png",
     }}
     lastEdited={data.lastEdited}
     slug={data.slug}
@@ -55,7 +54,6 @@
     {#if data.component}
       {@const Component = data.component}
       <Component />
-      {#if data.slug === "playground"}<Playground />{/if}
     {/if}
   </DocPage>
   <PrevNextNav

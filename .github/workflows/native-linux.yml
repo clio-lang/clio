@@ -9,6 +9,12 @@ on:
         "native/**",
         ".github/workflows/native-linux.yml",
         ".github/scripts/provision_native_platform.py",
+        "apps/website/**",
+        "scripts/verify-docs.*",
+        "scripts/website-highlighting.ts",
+        "tests/fixtures/docs-examples.json",
+        "package.json",
+        "bun.lock",
       ]
   workflow_dispatch:
 permissions:
@@ -44,7 +50,18 @@ jobs:
           -DCMAKE_INSTALL_LIBDIR=lib -DKALANDRA_LLVM_ROOT="$KALANDRA_LLVM_ROOT"
           -DKALANDRA_BUILD_METAL_RUNTIME=OFF -DKALANDRA_BUILD_METAL_PROOF=OFF
       - name: Build native CPU toolchain
-        run: cmake --build build/linux --target native-cpu-toolchain -j2
+        run: cmake --build build/linux --target native-cpu-toolchain kalandra -j2
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
+      - name: Verify runnable native documentation
+        run: bun run verify:docs -- --tools build/linux/native --report docs-verification.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-docs-verification
+          path: docs-verification.json
+          if-no-files-found: error
       - name: Package standalone compiler
         run: cmake --build build/linux --target native-cpu-standalone-package
       - name: Independently rebuild and compare the distribution

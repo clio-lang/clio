@@ -1,6 +1,6 @@
 # Kalandra
 
-A functional language and framework for parallel and distributed computing. The next chapter of [Clio](https://clio-lang.org).
+A native language for CPU and GPU computing. The next chapter of [Clio](https://clio-lang.org).
 
 Kalandra's native implementation uses C++23 and MLIR/LLVM. It combines immutable values, automatic memory management, structured parallel tasks and explicit GPU execution. Current development targets Apple Silicon with Metal.
 
@@ -32,7 +32,21 @@ build/native/native/kalandra main.k -o program
 ./program
 ```
 
-The native toolchain does not require Bun or Node. The earlier JavaScript prototype, its npm release and its website documentation describe a different implementation and are not the native development target.
+The native toolchain does not require Bun or Node. Local CPU execution and Apple Metal GPU execution are implemented; [distributed execution](docs/native-distributed-roadmap.md) follows a separate roadmap.
+
+## Website and documentation
+
+The website lives in `apps/website`. Its native language documentation is authored in Tiramisu under `apps/website/src/content/native`.
+
+```sh
+bun install --frozen-lockfile
+bun run dev
+bun run check
+```
+
+The root Bun workspace contains website development tools. `bun run build` builds the static site; the CMake commands above build and test the native compiler. The native VS Code extension has its own tooling in `native/editor/vscode`.
+
+After building the native tools, verify the documentation with `bun run verify:docs`. This extracts the actual Tiramisu blocks, compares them with the rendered site, and checks expected diagnostics, CPU results, multi-file projects and local Git dependency workflows. `--tools /path/to/bin` selects another native tool directory. On a supported Mac with a Metal-enabled build, run `bun run verify:docs -- --gpu` to compile and execute the GPU examples too. Machine-provisioning recipes and the Windows-only PowerShell invocation are reported separately from executed programs. Linux qualification runs the CPU verifier in CI.
 
 ## Contributors and supporters
 

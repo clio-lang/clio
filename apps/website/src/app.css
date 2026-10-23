@@ -2,12 +2,13 @@
 @import "@tiramisu-docs/kit/styles/components.css";
 @import "tailwindcss";
 @import "@fontsource-variable/fira-code";
+@import "@fontsource-variable/geist";
 
 @source "../../../node_modules/@tiramisu-docs/kit";
 @source "../node_modules/@tiramisu-docs/kit";
 
 @theme {
-  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Fira Code Variable", ui-monospace, monospace;
 }
 
@@ -62,7 +63,7 @@
   color: var(--shiki-dark);
 }
 
-/* Shiki's JavaScript and shell snippets share the documentation theme pairing. */
+/* Shiki snippets share the documentation theme pairing. */
 .syntax-code span {
   color: var(--shiki-light);
 }
@@ -82,4 +83,39 @@ textarea,
   font-feature-settings:
     "calt" 1,
     "liga" 1;
+}
+
+/* The native site and docs share a true-black default surface. */
+html.dark {
+  color-scheme: dark;
+  --background: #000000;
+  --foreground: #eeeef2;
+  --card: #0b0b0d;
+  --card-foreground: #eeeef2;
+  --popover: #111114;
+  --popover-foreground: #eeeef2;
+  --primary: #95baff;
+  --primary-foreground: #08080a;
+  --muted: #17171b;
+  --muted-foreground: #aaaab5;
+  --accent: #1a1a20;
+  --accent-foreground: #eeeef2;
+  --border: #292930;
+  --input: #292930;
+  --ring: #95baff;
+  --sidebar: #050505;
+  --sidebar-foreground: #eeeef2;
+  --sidebar-primary: #95baff;
+  --sidebar-primary-foreground: #08080a;
+  --sidebar-accent: #1a1a20;
+  --sidebar-accent-foreground: #eeeef2;
+  --sidebar-border: #292930;
+}
+
+/* The selected offset-merge mark is intentionally wider than it is tall. */
+header a[href="/"] > img[src="/brand/kalandra-mark.svg"],
+header a[href="/"] > img[src="/brand/kalandra-mark-light.svg"] {
+  width: 2rem;
+  height: 1.375rem;
+  object-fit: contain;
 }
