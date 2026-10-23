@@ -1,14 +1,14 @@
 """Require byte-identical standalone archives from independent source builds."""
 from pathlib import Path
-import sys
+import argparse
 import tarfile
 
 from BundleMachO import digest
 
 
-def compare(first, second):
-    for kind in ("cpu", "editor-tools", "metal"):
-        relative = Path(f"native-{kind}-standalone") / f"kalandra-native-{kind}-standalone-macos-arm64.tar.gz"
+def compare(first, second, platform="macos-arm64", kinds=("cpu", "editor-tools", "metal")):
+    for kind in kinds:
+        relative = Path(f"native-{kind}-standalone") / f"kalandra-native-{kind}-standalone-{platform}.tar.gz"
         left, right = first / relative, second / relative
         if digest(left) != digest(right):
             def inventory(path):
@@ -23,4 +23,10 @@ def compare(first, second):
 
 
 if __name__ == "__main__":
-    compare(*map(Path, sys.argv[1:]))
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("first", type=Path)
+    parser.add_argument("second", type=Path)
+    parser.add_argument("--platform", default="macos-arm64")
+    parser.add_argument("--kind", action="append", choices=("cpu", "editor-tools", "metal"))
+    args = parser.parse_args()
+    compare(args.first, args.second, args.platform, args.kind or ("cpu", "editor-tools", "metal"))

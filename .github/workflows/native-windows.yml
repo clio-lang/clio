@@ -25,7 +25,6 @@ jobs:
         with:
           path: ${{ runner.temp }}/kalandra-llvm/installation
           key: native-llvm-mlir-${{ runner.os }}-${{ hashFiles('native/toolchain-proof/toolchain.json') }}-v2
-          fail-on-cache-miss: true
       - name: Provision verified LLVM and matching MLIR
         run: python .github/scripts/provision_native_platform.py
       - name: Configure native compiler
@@ -38,6 +37,16 @@ jobs:
         run: cmake --build build/windows --target native-cpu-toolchain -j2
       - name: Package standalone compiler
         run: cmake --build build/windows --target native-cpu-standalone-package
+      - name: Independently configure the second build
+        run: >-
+          cmake -S . -B build/windows-repro -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_TESTING=OFF -DCMAKE_INSTALL_LIBDIR=lib
+          -DKALANDRA_LLVM_ROOT="$env:KALANDRA_LLVM_ROOT"
+          -DKALANDRA_BUILD_METAL_RUNTIME=OFF -DKALANDRA_BUILD_METAL_PROOF=OFF
+      - name: Independently rebuild and compare the distribution
+        run: |
+          cmake --build build/windows-repro --target native-cpu-standalone-package -j2
+          python native/packaging/CompareDistributions.py build/windows build/windows-repro --platform windows-x86_64 --kind cpu
       - uses: actions/upload-artifact@v4
         with:
           name: native-windows-assets
