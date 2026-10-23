@@ -1,3 +1,4 @@
+#include "PlatformFileSystem.h"
 #include "kalandra/Project.h"
 #include <cerrno>
 #include <cstdlib>
@@ -5,9 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string_view>
-#include <sys/stdio.h>
 #include <system_error>
-#include <unistd.h>
 
 namespace kalandra {
 std::expected<void, std::string> createNativeProject(std::string path) {
@@ -29,10 +28,9 @@ std::expected<void, std::string> createNativeProject(std::string path) {
     return std::unexpected("cannot inspect new project destination: " + error.message());
   if (fs::exists(status) || fs::is_symlink(status))
     return std::unexpected("new project destination already exists: " + destination.string());
-  auto pattern = (parent / ".kalandra-new-XXXXXX").string();
-  if (!::mkdtemp(pattern.data()))
-    return std::unexpected("cannot stage new project: " +
-                           std::error_code(errno, std::generic_category()).message());
+  fs::path staging;
+  if (auto error = detail::createPrivateStage(parent, ".kalandra-new-", staging))
+    return std::unexpected("cannot stage new project: " + error.message());
   struct Stage {
     fs::path path;
     ~Stage() {
@@ -41,7 +39,7 @@ std::expected<void, std::string> createNativeProject(std::string path) {
         fs::remove_all(path, ignored);
       }
     }
-  } stage{pattern};
+  } stage{staging};
   if (!fs::create_directory(stage.path / "src", error))
     return std::unexpected("cannot create starter source directory: " + error.message());
   const auto write = [&](const char *name, std::string_view text) {
@@ -55,11 +53,11 @@ std::expected<void, std::string> createNativeProject(std::string path) {
       !write("src/main.k", "from \"./math.k\" import double\n\nfn main() -> [int] ! TaskError:\n  "
                            "try parallelMap([1, 2, 3], double)\n"))
     return std::unexpected("cannot write native starter files");
-  // Darwin's exclusive rename publishes the complete project atomically and
+  // Exclusive rename publishes the complete project atomically and
   // rejects a destination created after the initial check, including empty dirs.
-  if (::renameatx_np(AT_FDCWD, stage.path.c_str(), AT_FDCWD, destination.c_str(), RENAME_EXCL))
+  if (auto publication = detail::publishDirectoryExclusive(stage.path, destination))
     return std::unexpected("cannot publish new project without replacing an existing path: " +
-                           std::error_code(errno, std::generic_category()).message());
+                           publication.message());
   stage.path.clear();
   return {};
 }

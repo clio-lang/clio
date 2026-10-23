@@ -1,0 +1,48 @@
+name: Native Linux qualification
+on:
+  push:
+    branches: ["native"]
+    paths:
+      [
+        "CMakeLists.txt",
+        "native/**",
+        ".github/workflows/native-linux.yml",
+        ".github/scripts/provision_native_platform.py",
+      ]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-linux-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  cpu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      ZERO_AR_DATE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/kalandra-llvm/installation
+          key: native-llvm-mlir-${{ runner.os }}-${{ hashFiles('native/toolchain-proof/toolchain.json') }}-v2
+      - name: Provision verified LLVM/MLIR
+        run: python3 .github/scripts/provision_native_platform.py
+      - name: Install system build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build libtomlplusplus-dev patchelf bubblewrap
+          sudo sysctl -w vm.mmap_rnd_bits=28
+      - name: Configure native CPU compiler
+        run: >-
+          cmake -S . -B build/linux -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          -DKALANDRA_LLVM_ROOT="$KALANDRA_LLVM_ROOT"
+          -DKALANDRA_BUILD_METAL_RUNTIME=OFF -DKALANDRA_BUILD_METAL_PROOF=OFF
+      - name: Build native CPU toolchain
+        run: cmake --build build/linux --target native-cpu-toolchain -j2
+      - name: Execute portable CPU acceptance
+        run: python3 native/packaging/PortableCPUAcceptance.py --compiler build/linux/native/install-bin/kalandra

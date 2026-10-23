@@ -1,4 +1,5 @@
 #include "kalandra/GitSnapshot.h"
+#include "PlatformFileSystem.h"
 #include "kalandra/GitRepository.h"
 #include "kalandra/GitRevision.h"
 #include <algorithm>
@@ -16,7 +17,6 @@
 #include <sstream>
 #include <stdexcept>
 #include <sys/resource.h>
-#include <sys/stdio.h>
 #include <sys/wait.h>
 #include <toml++/toml.hpp>
 #include <unistd.h>
@@ -89,9 +89,8 @@ void write(const fs::path &path, std::string_view text) {
 struct Stage {
   fs::path path;
   explicit Stage(const fs::path &parent) {
-    auto pattern = (parent / ".kalandra-snapshot-XXXXXX").string();
-    require(::mkdtemp(pattern.data()), "cannot create private snapshot staging directory");
-    path = pattern;
+    require(!detail::createPrivateStage(parent, ".kalandra-snapshot-", path),
+            "cannot create private snapshot staging directory");
   }
   ~Stage() {
     std::error_code ignored;
@@ -629,11 +628,12 @@ installGitSnapshot(std::string cache, GitSnapshotRequest request, GitSnapshotLim
     text << metadata;
     require(text.str().size() <= 16384, "snapshot metadata exceeds configured size limit");
     write(stage.path / "published/snapshot.toml", text.str());
-    // Darwin exclusive rename never replaces a competing or preexisting snapshot.
-    if (::renameatx_np(AT_FDCWD, (stage.path / "published").c_str(), AT_FDCWD, destination.c_str(),
-                       RENAME_EXCL)) {
-      const auto error = errno;
-      require(error == EEXIST || error == ENOTEMPTY,
+    // Exclusive publication never replaces a competing or preexisting snapshot.
+    const auto publication =
+        detail::publishDirectoryExclusive(stage.path / "published", destination);
+    if (publication) {
+      require(publication == std::errc::file_exists ||
+                  publication == std::errc::directory_not_empty || fs::exists(destination),
               "cannot publish snapshot without replacing an existing path");
       auto winner = load(root, request, limits);
       require(winner.digest == tree, "competing snapshot has different source contents");

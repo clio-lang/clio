@@ -2431,7 +2431,7 @@ std::expected<BackendOutput, std::string> lowerNative(const TypedModule &input,
       for (const auto &function : input.functions)
         if (function.name == "main" && function.resultType.tensor)
           collectionMetadata(*native, function.resultType);
-    native->setTargetTriple(llvm::Triple("arm64-apple-macosx"));
+    native->setTargetTriple(llvm::Triple(KALANDRA_NATIVE_CPU_TARGET_TRIPLE));
     for (auto &function : *native)
       if (function.getName().starts_with("kalandra_fn_"))
         function.addFnAttr(llvm::Attribute::NoInline);

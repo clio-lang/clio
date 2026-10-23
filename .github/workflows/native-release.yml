@@ -13,11 +13,12 @@ on:
   workflow_dispatch:
 env:
   HOMEBREW_NO_AUTO_UPDATE: "1"
+  ZERO_AR_DATE: "1"
 permissions:
   contents: read
 concurrency:
   group: native-release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 jobs:
   signing-credentials:
     if: startsWith(github.ref, 'refs/tags/') || vars.KALANDRA_NOTARIZE == 'true'
