@@ -298,6 +298,8 @@ int main(int argc, char **argv) {
   }
   // Installed compilers resolve only their adjacent private runtime resources.
   // Never fall back to the build-tree archives when an installed file is missing.
+  std::string clang = KALANDRA_CLANGXX;
+  std::optional<std::filesystem::path> clangResources;
 #ifdef KALANDRA_INSTALLED_COMPILER
   static int executableAnchor;
   std::error_code resourceError;
@@ -309,6 +311,17 @@ int main(int argc, char **argv) {
   }
   const auto runtimeRoot = executable.parent_path() / KALANDRA_RUNTIME_RELATIVE_DIR;
   const auto runtimePath = [&](std::string_view name) { return (runtimeRoot / name).string(); };
+  const auto toolchainRoot = runtimeRoot.parent_path() / "toolchain";
+  if (std::filesystem::exists(toolchainRoot)) {
+    clang = (executable.parent_path() / "../libexec/kalandra/clang++").string();
+    clangResources = toolchainRoot / "clang";
+    if (!std::filesystem::is_regular_file(clang) ||
+        !std::filesystem::is_directory(*clangResources / "include") ||
+        !std::filesystem::is_directory(*clangResources / "lib")) {
+      std::cerr << "bundled Clang or its compiler resources are missing\n";
+      return 1;
+    }
+  }
 #else
   const auto runtimePath = [](std::string_view name) { return std::string(name); };
 #endif
@@ -406,8 +419,10 @@ int main(int argc, char **argv) {
   }
   llvm::sys::fs::closeFile(descriptor);
   llvm::FileRemover removeOutput(linkedOutput);
-  std::vector<std::string> command{KALANDRA_CLANGXX, optimization, "-ffp-contract=off",
-                                   "-Wno-override-module", std::string(temporary)};
+  std::vector<std::string> command{clang, optimization, "-ffp-contract=off", "-Wno-override-module",
+                                   std::string(temporary)};
+  if (clangResources)
+    command.push_back("-resource-dir=" + clangResources->string());
   command.insert(command.end(), archives.begin(), archives.end());
   command.insert(command.end(), {"-o", std::string(linkedOutput)});
   if (sanitize) {

@@ -50,9 +50,18 @@ add_custom_target(native-cpu-package
     "-DOUTPUT_DIR=${PROJECT_BINARY_DIR}/native-cpu" -DPACKAGE_CPU=ON
     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackageEditorTools.cmake"
   DEPENDS kalandra-installed ${KALANDRA_EDITOR_TOOLS} VERBATIM)
+add_custom_target(native-cpu-standalone-package
+  COMMAND "${CMAKE_COMMAND}" "-DBUILD_DIR=${PROJECT_BINARY_DIR}" "-DCONFIG=$<CONFIG>"
+    "-DOUTPUT_DIR=${PROJECT_BINARY_DIR}/native-cpu-standalone" -DPACKAGE_CPU=ON -DSTANDALONE=ON
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackageEditorTools.cmake"
+  DEPENDS kalandra-installed ${KALANDRA_EDITOR_TOOLS} VERBATIM)
 if(BUILD_TESTING)
   add_test(NAME native-cpu-install COMMAND "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/packaging/CompilerInstallTests.py" "${CMAKE_COMMAND}"
     "${PROJECT_BINARY_DIR}" "$<CONFIG>" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackageEditorTools.cmake")
   set_tests_properties(native-cpu-install PROPERTIES TIMEOUT 240)
+  add_test(NAME native-standalone-cpu-install COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/packaging/StandaloneTests.py" --kind cpu
+    --build "${PROJECT_BINARY_DIR}" --config "$<CONFIG>" --cmake "${CMAKE_COMMAND}")
+  set_tests_properties(native-standalone-cpu-install PROPERTIES TIMEOUT 300 LABELS distribution)
 endif()

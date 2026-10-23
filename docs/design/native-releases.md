@@ -15,6 +15,13 @@ version tag. The workflow checks out the tagged commit, checks the version parse
 installs the pinned native dependencies, builds Release packages, runs installation
 and relocation acceptance, and builds/tests the editor package. It uploads the CPU
 bundle, the smaller editor-tools-only bundle, the VSIX and their checksum sidecars.
+Additional standalone CPU/editor archives bundle private LLVM/Clang dependencies
+and licenses. The build job also requires byte-identical repacks of those binaries
+from different staging directories. A separate `qualify-standalone` job downloads
+artifacts without installing LLVM or building native code; publication depends on
+its isolation checks. This hosted gate is implemented but has not yet run during
+local qualification. See the [N5 checklist](native-distribution-qualification.md).
+
 The VSIX retains its independent version from `native/editor/vscode/package.json`.
 
 Only the publishing job receives repository write permission. It creates a draft
@@ -30,7 +37,7 @@ for a rehearsal before the first native release tag. It creates no tag. Existing
 
 This first release workflow distributes the [CPU package](native-cpu-install.md)
 with external Homebrew LLVM/MLIR/Clang 23.1.3 and Apple SDK dependencies. The compiler
-is not self-contained or signed/notarized; Metal release-runner qualification and additional platforms
+has optional standalone dependency bundles but is not Developer ID signed/notarized; Metal release-runner qualification and additional platforms
 remain tracked work. The [initial Metal bundle](native-metal-install.md) is built
 and qualified separately on Apple hardware. Qualification here establishes installation and packaging
 behavior, not completion of all language/GPU release gates. No tag or release is

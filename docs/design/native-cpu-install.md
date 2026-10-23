@@ -31,6 +31,13 @@ with the Apple SDK. CI packages use Homebrew `llvm@23`. Install it with
 Moving the bundle does not relocate LLVM or Clang. This is not a self-contained,
 signed or notarized toolchain, and other platforms are not qualified.
 
+The additional [standalone CPU package](native-distribution-qualification.md),
+built with `native-cpu-standalone-package`, includes LLVM/MLIR, their non-system
+dependencies, private Clang and compiler resources. It removes the Homebrew
+runtime requirement while retaining Apple's SDK/system-linker prerequisite.
+It has dependency-isolation acceptance and measured minimum-OS metadata; it is
+ad-hoc signed, without Developer ID or notarization.
+
 For a custom prefix, build `native-cpu-toolchain`, then install **both** CMake
 components `NativeEditorTools` and `NativeCPUCompiler` with the same `--prefix`.
 Direct installation honors GNUInstallDirs and DESTDIR. The packaged archive

@@ -31,13 +31,21 @@ build/native/native-editor-tools/
 
 The archive contains one `kalandra-native-editor-tools` directory with `bin`, licenses, a standalone README, `share/kalandra-native-tools/toolchain.json` and a `SHA256SUMS` file covering the installed files. Extract it into a directory you control and add its `bin` directory to PATH. The archive layout requires the default relative `bin` and `share` destinations; direct installs can use other configured install directories.
 
-Packaging stages and strips copies of the tools without modifying the build binaries. It ignores an inherited `DESTDIR`, preserves the selected CMake configuration in metadata, validates the requested configuration, and publishes the archive only after successful staging/archiving. An unsuccessful packaging attempt preserves an existing archive. Archive and file checksums detect accidental changes; they are not signatures or publisher authentication. Timestamp-normalized/reproducible archives, signing and notarization remain release work.
+Packaging stages and strips copies of the tools without modifying the build binaries. It ignores an inherited `DESTDIR`, preserves the selected CMake configuration in metadata, validates the requested configuration, and publishes the archive only after successful staging/archiving. An unsuccessful packaging attempt preserves an existing archive. Archive and file checksums detect accidental changes; they are not signatures or publisher authentication. Archive timestamps, ownership, ordering and permissions are now normalized (`SOURCE_DATE_EPOCH`, default zero), with independent-staging repack checks. Independent source-build reproducibility, signing and notarization remain release work.
 
 ## Runtime dependency and scope
 
+An additional [standalone editor archive](native-distribution-qualification.md)
+now bundles LLVM and its non-system dependencies using package-relative loader
+paths. Build `native-editor-tools-standalone-package` for that artifact. The
+external-dependency description below applies to `native-editor-tools-package`
+and direct component installs. Neither artifact has a publisher signature or
+notarization; the standalone package records its measured minimum macOS version.
+
+
 The checker and language server still link to **LLVM 23.1.3** from the pinned toolchain. The LLVM runtime is external: the archive neither bundles it nor changes its loader paths. The dependency must remain available at the paths used when linking; moving the tools does not relocate LLVM. The installed metadata identifies the required LLVM version and the actual build configuration. A stripped Debug build remains a Debug build.
 
-No Kalandra checkout, Bun, Node or Python is needed to run these installed commands. The formatter/parser/checker retain their source contracts, and the language server does not run application code. CMake and the compiler toolchain are needed to build/install/package from source; Python and platform inspection tools are used by acceptance tests only.
+No Kalandra checkout, Bun, Node or Python is needed to run these installed commands. The formatter/parser/checker retain their source contracts, and the language server does not run application code. CMake and the compiler toolchain are needed to build/install/package from source; Python is also needed to create normalized archives; platform inspection tools are used by acceptance tests.
 
 This package has been tested on the development macOS ARM64 machine with its pinned LLVM runtime. It does not qualify a clean-machine, self-contained release, another operating system/architecture, an application compiler/runtime bundle or a Homebrew/Marketplace release. No registry upload or machine-wide installation is performed by the package build target.
 
