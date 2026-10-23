@@ -1,5 +1,6 @@
 """Independent stdlib-only, framed stdio tests for the native language server."""
 import json
+import os
 from pathlib import Path
 from ProtocolClient import Client as BaseClient, frame, edit, apply_workspace_edit, publications
 import subprocess
@@ -1287,8 +1288,10 @@ with tempfile.TemporaryDirectory(dir=ROOT) as temp:
     (path_root / "math😀.k").write_text(math_text)
     (path_root / "notes.txt").write_text("not Kalandra")
     (path_root / ".hidden.k").write_text(math_text)
-    (path_root / 'bad"name.k').write_text(math_text)
-    (path_root / ("bad" + chr(92) + "name.k")).write_text(math_text)
+    if os.name != "nt":
+        # Windows forbids quotes and treats backslashes as path separators.
+        (path_root / 'bad"name.k').write_text(math_text)
+        (path_root / ("bad" + chr(92) + "name.k")).write_text(math_text)
     (path_root / "nested").mkdir()
     (path_root / "nested" / "helper.k").write_text(math_text)
     (path_root / "linked.k").symlink_to(path_root / "math.k")

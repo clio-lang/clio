@@ -76,7 +76,13 @@ if(WIN32)
   # Standard C environment reads are intentional; retain all ordinary warnings.
   add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
   # COFF objects otherwise carry wall-clock timestamps, including inside .lib.
-  add_compile_options(-mno-incremental-linker-compatible)
+  add_compile_options(-mno-incremental-linker-compatible -gno-codeview-command-line)
+  # CodeView's S_OBJNAME does not honor source/debug prefix maps. Keep each
+  # object's target-relative identity without embedding the physical build root.
+  foreach(_language IN ITEMS C CXX)
+    string(APPEND CMAKE_${_language}_COMPILE_OBJECT
+      " -object-file-name=/kalandra/build/<OBJECT>")
+  endforeach()
   execute_process(COMMAND "${CMAKE_CXX_COMPILER}" --rtlib=compiler-rt -print-libgcc-file-name
     OUTPUT_VARIABLE KALANDRA_COMPILER_BUILTINS OUTPUT_STRIP_TRAILING_WHITESPACE
     RESULT_VARIABLE _builtins_status)
