@@ -105,9 +105,42 @@ jobs:
         run: >-
           python3 native/packaging/StandaloneTests.py --kind cpu
           --archive release-assets/kalandra-native-cpu-standalone-macos-arm64.tar.gz
+  notarize:
+    if: startsWith(github.ref, 'refs/tags/') || vars.KALANDRA_NOTARIZE == 'true'
+    needs: [build, qualify-standalone]
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-release-assets
+          path: release-assets
+      - name: Sign, notarize, staple and assess standalone distributions
+        env:
+          KALANDRA_SIGNING_P12_BASE64: ${{ secrets.KALANDRA_SIGNING_P12_BASE64 }}
+          KALANDRA_SIGNING_P12_PASSWORD: ${{ secrets.KALANDRA_SIGNING_P12_PASSWORD }}
+          KALANDRA_APPLE_ID: ${{ secrets.KALANDRA_APPLE_ID }}
+          KALANDRA_APPLE_APP_PASSWORD: ${{ secrets.KALANDRA_APPLE_APP_PASSWORD }}
+          KALANDRA_APPLE_TEAM_ID: ${{ vars.KALANDRA_APPLE_TEAM_ID }}
+          KALANDRA_SIGNING_IDENTITY: ${{ vars.KALANDRA_SIGNING_IDENTITY }}
+        run: python3 .github/scripts/notarize_native.py
+      - name: Remove temporary signing credentials
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/kalandra-signing/signing.keychain-db" 2>/dev/null || true
+          rm -rf "$RUNNER_TEMP/kalandra-signing"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-notarized-assets
+          path: signed-assets/**/*
+          if-no-files-found: error
   publish:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [build, qualify-standalone]
+    needs: [build, qualify-standalone, notarize]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -117,6 +150,10 @@ jobs:
         with:
           name: native-release-assets
           path: release-assets
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-notarized-assets
+          path: signed-assets
       - name: Create draft, upload assets, then publish
         env:
           GH_TOKEN: ${{ github.token }}

@@ -19,8 +19,16 @@ Additional standalone CPU/editor archives bundle private LLVM/Clang dependencies
 and licenses. The build job also requires byte-identical repacks of those binaries
 from different staging directories. A separate `qualify-standalone` job downloads
 artifacts without installing LLVM or building native code; publication depends on
-its isolation checks. This hosted gate is implemented but has not yet run during
-local qualification. See the [N5 checklist](native-distribution-qualification.md).
+its isolation checks. Hosted runs have started; successful qualification remains
+open. See the [N5 checklist](native-distribution-qualification.md).
+
+The `notarize` job then signs staging copies of both standalone bundles, repeats
+their runtime acceptance with hardened signatures, submits signed DMGs to Apple,
+staples tickets and assesses Gatekeeper acceptance. Tagged publication requires
+this job to pass and validates all 16 assets, checksum sidecars and accepted
+receipts before creating a release. Configure the publisher credentials using
+the [CI signing instructions](native-ci-signing.md). A native branch rehearsal
+requires repository variable `KALANDRA_NOTARIZE=true` and publishes no release.
 
 The VSIX retains its independent version from `native/editor/vscode/package.json`.
 
@@ -35,10 +43,12 @@ artifacts, but does not publish a release. GitHub requires the workflow to exist
 default branch before manual dispatch is available; then select the native branch
 for a rehearsal before the first native release tag. It creates no tag. Existing historical tags are not replayed.
 
-This first release workflow distributes the [CPU package](native-cpu-install.md)
-with external Homebrew LLVM/MLIR/Clang 23.1.3 and Apple SDK dependencies. The compiler
-has optional standalone dependency bundles but is not Developer ID signed/notarized; Metal release-runner qualification and additional platforms
-remain tracked work. The [initial Metal bundle](native-metal-install.md) is built
+The workflow distributes the [CPU package](native-cpu-install.md), external
+Homebrew LLVM/MLIR/Clang 23.1.3 variants, standalone dependency bundles, and
+signed/notarized standalone DMGs after the publisher credentials are configured
+and qualification succeeds. The Apple SDK remains a CPU compilation prerequisite.
+Metal release-runner qualification and additional platforms remain tracked work.
+The [initial Metal bundle](native-metal-install.md) is built
 and qualified separately on Apple hardware. Qualification here establishes installation and packaging
 behavior, not completion of all language/GPU release gates. No tag or release is
 created simply by committing this workflow.

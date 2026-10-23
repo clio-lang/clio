@@ -33,9 +33,8 @@ class PublishTests(unittest.TestCase):
             previous = Path.cwd()
             os.chdir(temporary)
             try:
-                Path("release-assets").mkdir()
-                for name in range(6):
-                    Path(f"release-assets/{name}").write_text("asset")
+                from test_native_release_assets import write_fixture
+                write_fixture(Path.cwd())
                 with patch.dict(os.environ, {"RELEASE_TAG": tag, "RELEASE_PRERELEASE": classify(tag)["prerelease"]}), patch("subprocess.run") as run:
                     if fail:
                         run.side_effect = subprocess.CalledProcessError(1, "gh")

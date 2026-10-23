@@ -141,7 +141,7 @@ def qualify(archive, kind, runtime, build=None):
     assert "Library not loaded" in execute([prefix / "bin/kalandra-check", source], expected=None).stderr
     dependency.with_name(dependency.name + ".hidden").rename(dependency)
     assert all(digest(prefix / path) == checksum for path, checksum in listed.items())
-    checks = ["checksums", "ad-hoc signatures", "loader confinement", "relocation",
+    checks = ["checksums", "code signatures", "loader confinement", "relocation",
               "denied checkout/Homebrew/network", "strict LSP protocols", "missing dylib rejection"]
     if kind == "cpu":
         checks += ["CPU/sanitizer/worker execution", "missing private Clang rejection",

@@ -79,7 +79,11 @@ The release workflow now builds both standalone archives and gates publication
 on a separate `qualify-standalone` job. It downloads artifacts without installing
 LLVM/Homebrew or building native code, then runs the isolation tests. Its
 `macos-15` ARM64 label follows the current [GitHub runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
-This job is prepared and **has not been run** during local qualification.
+Hosted qualification runs are now triggered by relevant pushes to `native`.
+Initial runs failed while provisioning the exact pinned LLVM bottle; successful
+hosted artifact acceptance remains an open gate. Branch pushes do not publish releases.
+The [CI signing setup](native-ci-signing.md) adds a separate hosted signing/notary
+job; credentials and an accepted hosted submission are still required.
 
 ## Remaining N5 work
 
@@ -95,7 +99,12 @@ This job is prepared and **has not been run** during local qualification.
 - [ ] Metal dependency/compiler packaging and release-runner/hardware qualification.
 - [ ] CPU runtime/linker/install qualification on Windows, Linux and FreeBSD, in that order.
 
-The current machine has no valid code-signing identity. Its pinned Metal compiler
-command reports a missing Metal Toolchain component. These gates remain open.
+The earlier local qualification record's missing identity/component observations
+were caused by sandbox restrictions. An unrestricted check found the existing
+Developer ID Application identity and a cached, signature-verified Metal compiler
+matching the pin (32023.864). The external-dependency Metal package subsequently
+passed `native-metal-install` on this Mac. No artifact has been Developer ID signed
+or submitted for notarization locally. Hosted signing, Metal distribution closure
+and release-runner/hardware qualification remain open.
 Apple Metal is the first GPU platform; CUDA, distributed execution and C/C++
 embedding retain separate roadmaps. N6 covers website, onboarding and release work.
