@@ -1,4 +1,7 @@
 find_package(Threads REQUIRED)
+if(WIN32)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/WindowsLLVMDependencies.cmake")
+endif()
 find_package(MLIR REQUIRED CONFIG PATHS "${KALANDRA_LLVM_ROOT}/lib/cmake/mlir" NO_DEFAULT_PATH)
 if(NOT LLVM_PACKAGE_VERSION VERSION_EQUAL KALANDRA_LLVM_VERSION)
   message(FATAL_ERROR "MLIR/LLVM libraries must match ${KALANDRA_LLVM_VERSION}")

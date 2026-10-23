@@ -92,6 +92,7 @@ def build_windows_mlir(root, work, lock):
                     f"-DCMAKE_CXX_COMPILER={(root / 'bin/clang++.exe').as_posix()}",
                     f"-DLLVM_DIR={(root / 'lib/cmake/llvm').as_posix()}",
                     f"-DCMAKE_PREFIX_PATH={dependencies.as_posix()}",
+                    f"-DCMAKE_PROJECT_INCLUDE={Path('native/cmake/WindowsLLVMDependencies.cmake').resolve().as_posix()}",
                     f"-DCMAKE_TOOLCHAIN_FILE={(work / 'vcpkg/scripts/buildsystems/vcpkg.cmake').as_posix()}",
                     f"-DVCPKG_INSTALLED_DIR={(root / 'dependencies').as_posix()}",
                     "-DVCPKG_TARGET_TRIPLET=x64-windows-static", "-DVCPKG_MANIFEST_MODE=OFF",
