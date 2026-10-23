@@ -4,7 +4,12 @@ on:
     branches: ["native"]
     tags: ["v*"]
     paths:
-      ["CMakeLists.txt", "native/**", ".github/workflows/native-windows.yml"]
+      [
+        "CMakeLists.txt",
+        "native/**",
+        "apps/website/src/content/native/getting-started.tiramisu",
+        ".github/workflows/native-windows.yml",
+      ]
   workflow_dispatch:
 permissions:
   contents: read
@@ -36,7 +41,28 @@ jobs:
           -DKALANDRA_LLVM_ROOT="$env:KALANDRA_LLVM_ROOT"
           -DKALANDRA_BUILD_METAL_RUNTIME=OFF -DKALANDRA_BUILD_METAL_PROOF=OFF
       - name: Build native CPU toolchain
-        run: cmake --build build/windows --target native-cpu-toolchain -j2 -- -k 0
+        run: cmake --build build/windows --target native-cpu-toolchain kalandra -j2 -- -k 0
+      - name: Verify documented PowerShell starter commands
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $repo = (Get-Location).Path
+          $driver = Join-Path $repo 'build/windows/native/kalandra.exe'
+          $document = Get-Content 'apps/website/src/content/native/getting-started.tiramisu' -Raw
+          $match = [regex]::Match($document, 'codeblock \{ language = powershell, """([\s\S]*?)""" \}')
+          if (-not $match.Success) { throw 'Documented PowerShell example not found' }
+          $env:PATH = "$(Split-Path $driver);$env:PATH"
+          $example = Join-Path $env:RUNNER_TEMP 'native-docs-powershell'
+          New-Item -ItemType Directory -Path $example | Out-Null
+          Push-Location $example
+          try {
+            & $driver new my-app
+            if ($LASTEXITCODE -ne 0) { throw 'Starter creation failed' }
+            $result = @(& ([scriptblock]::Create($match.Groups[1].Value)))
+            if ($LASTEXITCODE -ne 0 -or $result[-1].Trim() -ne '[2, 4, 6]') {
+              throw "Documented starter returned unexpected output: $result"
+            }
+          } finally { Pop-Location }
       - name: Package standalone compiler
         run: cmake --build build/windows --target native-cpu-standalone-package
       - name: Independently configure the second build

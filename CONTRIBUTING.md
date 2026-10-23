@@ -14,6 +14,6 @@ Keep lexer/parser, semantic analysis, typed IR, lowering and runtime responsibil
 
 Add tests for meaningful behavior changes and regressions. Use relevant debug, optimized and sanitizer configurations, and document the scope of qualification honestly. GPU tests need access to the target hardware. The numerical contract applies to every backend.
 
-Keep native design documentation current with the implementation. The retired JavaScript prototype and the website's prototype documentation are not specifications for the native language; the website will be rebuilt separately.
+Keep native design documentation current with the implementation. Write user-facing documentation in Tiramisu under `apps/website/src/content/native`, using examples checked by the native compiler. Run `bun run check` for website and documentation changes. The website uses Bun independently of the native CMake build.
 
 Submit focused changes with a clear explanation of behavior, validation and remaining limitations. Please retain project history and contributor attribution.

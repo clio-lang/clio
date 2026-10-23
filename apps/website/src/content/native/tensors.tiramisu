@@ -1,0 +1,45 @@
+meta { title = "Tensors and shapes", description = "Construct dense tensors and compose numerical operations.", order = 7, group = "Language" }
+
+A Tensor annotation records its numeric element type and dimensions. Tensor[float32, 2, 3] is a two-by-three matrix; a ? dimension accepts a runtime extent. A shape annotation is a checked obligation, not a request to resize data.
+
+h2 { "Elementwise arithmetic" }
+
+codeblock { language = kalandra, """fn main() -> float32:
+  values: Tensor[float32, 2, 2] = tensor([[1, 2], [3, 4]])
+  doubled = values * 2
+  reduceSum(doubled)
+""" }
+
+Elementwise operations require compatible complete shapes and numeric identities. Scalar lifting is explicit in the expression, as above; do not assume NumPy-style broadcasting between differently shaped tensors.
+
+h2 { "Runtime shape construction" }
+
+codeblock { language = kalandra, """fn main() -> int:
+  values: [int] = [1, 2, 3, 4]
+  matrix = tensor(values, [2, 2])
+  matrix[1, 0]
+""" }
+
+Dimensions are checked and the element count must agree. Tensor indexing reads one scalar with one integer index per dimension. shape(tensor) returns its dimension array, and reshape preserves numeric identity and row-major logical order while checking the requested element count.
+
+h2 { "Matrix products and reductions" }
+
+codeblock { language = kalandra, """fn main() -> float32:
+  left: Tensor[float32, 1, 2] = tensor([[2, 3]])
+  right: Tensor[float32, 2, 1] = tensor([[4], [5]])
+  reduceSum(matmul(left, right))
+""" }
+
+matmul currently multiplies rank-two tensors with matching inner dimensions. reduceSum follows a balanced adjacent-pair tree, rather than an arbitrary sequential or reassociated sum. Integer products and sums remain checked.
+
+h2 { "Move to a GPU" }
+
+Building a tensor does not place it on a device. Transfer data explicitly and dispatch an eligible numerical function on the chosen GPU. A tensor result can remain resident for later numerical work.
+
+link { url = "/docs/gpu", "GPU placement and residence" }
+
+link { url = "/docs/gpu-numerics", "Numerical types, ranks and strict semantics" }
+
+link { url = "https://github.com/kalandra-lang/kalandra/blob/native/docs/design/tensors.md", "Tensor construction and conversion" }
+
+link { url = "https://github.com/kalandra-lang/kalandra/blob/native/docs/design/tensor-reshape.md", "Checked reshape behavior" }
