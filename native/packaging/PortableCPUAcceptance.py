@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import stat
 import subprocess
 import tempfile
 
@@ -123,7 +124,15 @@ fn main()->int ! TaskError:
         (project / "main.k").write_text('from "numbers" import answer\nfn main()->int:\n  answer()\n', encoding="utf-8")
         run([compiler, "install", "--project", manifest])
         active = (project / "kalandra.lock").read_bytes()
-        shutil.rmtree(library)
+        def remove_fixture_readonly(function, path, error):
+            # Git marks object files read-only on Windows. This is a disposable
+            # local fixture; remove it so frozen/offline tests cannot use origin.
+            if not windows or not isinstance(error, PermissionError):
+                raise error
+            os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
+            function(path)
+
+        shutil.rmtree(library, onexc=remove_fixture_readonly)
         for flag in ("--frozen", "--offline"):
             run([compiler, "install", "--project", manifest, flag])
             assert (project / "kalandra.lock").read_bytes() == active
