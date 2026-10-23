@@ -75,6 +75,8 @@ add_compile_definitions(KALANDRA_NATIVE_CPU_DATA_LAYOUT="${KALANDRA_NATIVE_CPU_D
 if(WIN32)
   # Standard C environment reads are intentional; retain all ordinary warnings.
   add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+  # COFF objects otherwise carry wall-clock timestamps, including inside .lib.
+  add_compile_options(-mno-incremental-linker-compatible)
   execute_process(COMMAND "${CMAKE_CXX_COMPILER}" --rtlib=compiler-rt -print-libgcc-file-name
     OUTPUT_VARIABLE KALANDRA_COMPILER_BUILTINS OUTPUT_STRIP_TRAILING_WHITESPACE
     RESULT_VARIABLE _builtins_status)
