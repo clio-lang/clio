@@ -1,5 +1,6 @@
 #include "kalandra/GitSnapshot.h"
 #include "PlatformFileSystem.h"
+#include "WindowsGitProcess.h"
 #include "kalandra/GitRepository.h"
 #include "kalandra/GitRevision.h"
 #include <algorithm>
@@ -13,13 +14,15 @@
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/SHA256.h>
 #include <map>
-#include <poll.h>
 #include <sstream>
 #include <stdexcept>
+#include <toml++/toml.hpp>
+#ifndef _WIN32
+#include <poll.h>
 #include <sys/resource.h>
 #include <sys/wait.h>
-#include <toml++/toml.hpp>
 #include <unistd.h>
+#endif
 #include <unordered_set>
 namespace kalandra {
 namespace {
@@ -129,12 +132,18 @@ std::string git(const fs::path &database, std::vector<std::string> arguments, st
                 unsigned seconds, const GitSnapshotLimits *network = nullptr,
                 GitTransport transport = GitTransport::Local) {
   require(seconds > 0, "Git process timeout must be nonzero");
-  std::vector<std::string> command = {"/usr/bin/git",
+#ifdef _WIN32
+  const auto gitExecutable = detail::windowsGit();
+  const std::string gitPath = gitExecutable.string(), nullPath = "NUL", askPass = "NUL";
+#else
+  const std::string gitPath = "/usr/bin/git", nullPath = "/dev/null", askPass = "/usr/bin/false";
+#endif
+  std::vector<std::string> command = {gitPath,
                                       "--no-pager",
                                       "--no-replace-objects",
                                       "--git-dir=" + database.string(),
                                       "-c",
-                                      "core.hooksPath=/dev/null",
+                                      "core.hooksPath=" + nullPath,
                                       "-c",
                                       "protocol.allow=never",
                                       "-c",
@@ -152,7 +161,7 @@ std::string git(const fs::path &database, std::vector<std::string> arguments, st
                                    "-c",
                                    "credential.interactive=false",
                                    "-c",
-                                   "core.askPass=/usr/bin/false",
+                                   "core.askPass=" + askPass,
                                    "-c",
                                    "gc.auto=0",
                                    "-c",
@@ -180,6 +189,13 @@ std::string git(const fs::path &database, std::vector<std::string> arguments, st
     }
   }
   command.insert(command.end(), arguments.begin(), arguments.end());
+#ifdef _WIN32
+  return detail::windowsGitProcess(gitExecutable, command, database.parent_path(), maximum, seconds,
+                                   [&] {
+                                     if (network)
+                                       objectBudget(database, *network);
+                                   });
+#else
   std::vector<char *> argv;
   for (auto &item : command)
     argv.push_back(item.data());
@@ -288,6 +304,7 @@ std::string git(const fs::path &database, std::vector<std::string> arguments, st
   if (network)
     objectBudget(database, *network);
   return result;
+#endif
 }
 std::string treeDigest(const fs::path &source, GitSnapshotLimits limits) {
   require(fs::is_directory(fs::symlink_status(source)), "snapshot source root must be a directory");

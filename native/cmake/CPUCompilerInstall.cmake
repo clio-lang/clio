@@ -14,10 +14,12 @@ target_compile_definitions(kalandra-installed PRIVATE KALANDRA_INSTALLED_COMPILE
 set(KALANDRA_CPU_RUNTIME_TARGETS)
 macro(kalandra_install_runtime MACRO TARGET)
   target_compile_definitions(kalandra-installed PRIVATE ${MACRO}="$<TARGET_FILE_NAME:${TARGET}>")
-  add_dependencies(kalandra-installed ${TARGET})
-  list(APPEND KALANDRA_CPU_RUNTIME_TARGETS ${TARGET})
-  install(TARGETS ${TARGET} ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}/kalandra/native"
-    COMPONENT NativeCPUCompiler)
+  if(NOT WIN32 OR NOT VARIANT STREQUAL "thread-sanitized")
+    add_dependencies(kalandra-installed ${TARGET})
+    list(APPEND KALANDRA_CPU_RUNTIME_TARGETS ${TARGET})
+    install(TARGETS ${TARGET} ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}/kalandra/native"
+      COMPONENT NativeCPUCompiler)
+  endif()
 endmacro()
 foreach(VARIANT IN ITEMS debug sanitized thread-sanitized)
   if(VARIANT STREQUAL "debug")

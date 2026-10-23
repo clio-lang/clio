@@ -1,4 +1,5 @@
 #include "kalandra/PackageInstall.h"
+#include "PlatformFileSystem.h"
 #include "kalandra/GitRevision.h"
 #include "kalandra/PackageLock.h"
 #include <algorithm>
@@ -11,9 +12,11 @@
 #include <llvm/Support/SHA256.h>
 #include <map>
 #include <stdexcept>
+#ifndef _WIN32
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
 namespace kalandra {
 namespace {
 namespace fs = std::filesystem;
@@ -52,7 +55,7 @@ fs::path cache(const NativeProject &project) {
 }
 void directory(const fs::path &path, bool create) {
   if (create && !fs::exists(fs::symlink_status(path)))
-    require(::mkdir(path.c_str(), 0700) == 0 || errno == EEXIST,
+    require(!detail::createPrivateDirectory(path) || fs::is_directory(fs::symlink_status(path)),
             "cannot create private package cache directory");
   require(fs::is_directory(fs::symlink_status(path)),
           "package cache must use real directories: " + path.string());
@@ -210,15 +213,24 @@ Resolved resolve(const NativeProject &project, const NativePackageLock &active, 
   return result;
 }
 struct Guard {
+#ifdef _WIN32
+  HANDLE fd = INVALID_HANDLE_VALUE;
+#else
   int fd = -1;
+#endif
   fs::path temporary;
   ~Guard() {
     if (!temporary.empty()) {
       std::error_code ignored;
-      fs::remove(temporary, ignored);
+      fs::remove_all(temporary, ignored);
     }
+#ifdef _WIN32
+    if (fd != INVALID_HANDLE_VALUE)
+      CloseHandle(fd);
+#else
     if (fd >= 0)
       ::close(fd);
+#endif
   }
 };
 bool within(const fs::path &path, const fs::path &root) {
@@ -273,6 +285,16 @@ std::expected<void, std::string> installNativeProject(std::string manifest,
     const auto root = cache(*project);
     directory(root, !options.offline);
     Guard guard;
+#ifdef _WIN32
+    guard.fd = CreateFileW((root / "install.guard").c_str(), GENERIC_READ | GENERIC_WRITE, 0,
+                           nullptr, OPEN_ALWAYS, FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+    require(guard.fd != INVALID_HANDLE_VALUE, "cannot acquire package installation guard");
+    BY_HANDLE_FILE_INFORMATION status{};
+    require(
+        GetFileInformationByHandle(guard.fd, &status) && status.nNumberOfLinks == 1 &&
+            !(status.dwFileAttributes & (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DIRECTORY)),
+        "package installation guard must be a private regular file");
+#else
     guard.fd =
         ::open((root / "install.guard").c_str(), O_CREAT | O_RDWR | O_NOFOLLOW | O_CLOEXEC, 0600);
     require(guard.fd >= 0, "cannot open package installation guard");
@@ -281,6 +303,7 @@ std::expected<void, std::string> installNativeProject(std::string manifest,
             "package installation guard must be a private regular file");
     require(::flock(guard.fd, LOCK_EX | LOCK_NB) == 0,
             "another package installation is in progress");
+#endif
     directory(root / "snapshots", !options.offline);
     auto resolved =
         resolve(*project, active, !options.offline, true, matching && options.updateRoots.empty(),
@@ -302,6 +325,17 @@ std::expected<void, std::string> installNativeProject(std::string manifest,
       unchanged();
       return {}; // Neither mode rewrites even the lock's formatting or comments.
     }
+#ifdef _WIN32
+    require(!detail::createPrivateStage(root, ".activate-", guard.temporary),
+            "cannot stage package lock activation");
+    const auto staged = guard.temporary / "kalandra.lock";
+    std::ofstream file(staged, std::ios::binary);
+    file.write(contents.data(), std::streamsize(contents.size()));
+    file.close();
+    require(bool(file), "cannot write package lock activation");
+    unchanged();
+    require(!detail::replaceFile(staged, destination), "cannot activate kalandra.lock");
+#else
     auto name = (root / ".activate-XXXXXX").string();
     const int fd = ::mkstemp(name.data());
     require(fd >= 0, "cannot stage package lock activation");
@@ -322,6 +356,7 @@ std::expected<void, std::string> installNativeProject(std::string manifest,
     require(::rename(guard.temporary.c_str(), destination.c_str()) == 0,
             "cannot activate kalandra.lock");
     guard.temporary.clear();
+#endif
     return {};
   } catch (const std::exception &error) {
     return std::unexpected(error.what());

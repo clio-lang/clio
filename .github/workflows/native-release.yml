@@ -18,7 +18,7 @@ permissions:
   contents: read
 concurrency:
   group: native-release-${{ github.ref }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  cancel-in-progress: false
 jobs:
   signing-credentials:
     if: startsWith(github.ref, 'refs/tags/') || vars.KALANDRA_NOTARIZE == 'true'

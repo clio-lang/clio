@@ -23,6 +23,19 @@
 #endif
 
 namespace kalandra::detail {
+inline std::error_code replaceFile(const std::filesystem::path &source,
+                                   const std::filesystem::path &destination) {
+#ifdef _WIN32
+  return MoveFileExW(source.c_str(), destination.c_str(),
+                     MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)
+             ? std::error_code{}
+             : std::error_code(int(GetLastError()), std::system_category());
+#else
+  std::error_code error;
+  std::filesystem::rename(source, destination, error);
+  return error;
+#endif
+}
 inline std::error_code createPrivateDirectory(const std::filesystem::path &path) {
 #ifdef _WIN32
   PSECURITY_DESCRIPTOR descriptor = nullptr;

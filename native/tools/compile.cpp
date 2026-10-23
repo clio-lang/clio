@@ -1,3 +1,4 @@
+#include "../lib/PlatformFileSystem.h"
 #include "kalandra/Backend.h"
 #include "kalandra/PackageInstall.h"
 #include "kalandra/Project.h"
@@ -203,6 +204,12 @@ int main(int argc, char **argv) {
     std::cerr << "--sanitize and --thread-sanitize are separate builds\n";
     return 2;
   }
+#ifdef _WIN32
+  if (threadSanitize) {
+    std::cerr << "ThreadSanitizer is unavailable for the Windows native target\n";
+    return 2;
+  }
+#endif
   if (output.empty()) {
     std::cerr << "missing -o executable\n";
     return 2;
@@ -313,7 +320,12 @@ int main(int argc, char **argv) {
   const auto runtimePath = [&](std::string_view name) { return (runtimeRoot / name).string(); };
   const auto toolchainRoot = runtimeRoot.parent_path() / "toolchain";
   if (std::filesystem::exists(toolchainRoot)) {
-    clang = (executable.parent_path() / "../libexec/kalandra/clang++").string();
+    clang = (executable.parent_path() / "../libexec/kalandra/clang++"
+#ifdef _WIN32
+                                        ".exe"
+#endif
+             )
+                .string();
     clangResources = toolchainRoot / "clang";
     if (!std::filesystem::is_regular_file(clang) ||
         !std::filesystem::is_directory(*clangResources / "include") ||
@@ -423,6 +435,11 @@ int main(int argc, char **argv) {
                                    std::string(temporary)};
   if (clangResources)
     command.push_back("-resource-dir=" + clangResources->string());
+#ifdef _WIN32
+  command.push_back("-fms-runtime-lib=static");
+#else
+  command.push_back("-pthread");
+#endif
   command.insert(command.end(), archives.begin(), archives.end());
   command.insert(command.end(), {"-o", std::string(linkedOutput)});
   if (sanitize) {
@@ -438,8 +455,8 @@ int main(int argc, char **argv) {
     std::cerr << "native link failed: " << error << '\n';
     return 1;
   }
-  std::error_code publishError;
-  std::filesystem::rename(std::filesystem::path(std::string(linkedOutput)), output, publishError);
+  const auto publishError =
+      kalandra::detail::replaceFile(std::filesystem::path(std::string(linkedOutput)), output);
   if (publishError) {
     std::cerr << "cannot publish executable: " << publishError.message() << '\n';
     return 1;

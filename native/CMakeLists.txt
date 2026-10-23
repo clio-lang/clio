@@ -4,7 +4,10 @@ if(NOT LLVM_PACKAGE_VERSION VERSION_EQUAL KALANDRA_LLVM_VERSION)
   message(FATAL_ERROR "MLIR/LLVM libraries must match ${KALANDRA_LLVM_VERSION}")
 endif()
 if(NOT TARGET LLVM)
-  llvm_map_components_to_libnames(KALANDRA_LLVM_COMPONENTS all)
+  # The installed LLVM config does not populate the build-tree-only
+  # LLVM_COMPONENT_LIBS property used by the `all` pseudo-component.
+  llvm_map_components_to_libnames(KALANDRA_LLVM_COMPONENTS
+    Support Core AsmParser IRReader Passes Linker TargetParser)
   add_library(LLVM INTERFACE)
   target_link_libraries(LLVM INTERFACE ${KALANDRA_LLVM_COMPONENTS})
 endif()
