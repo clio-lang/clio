@@ -37,9 +37,9 @@ LLVM/MLIR/Clang 23.1.3, SPIRV-Cross, SPIRV-Tools, Apple's selected Metal compile
 and the macOS SDK remain external. Exact SPIR-V roots, verified Metal compiler path, SDK path and Metal toolchain identity
 are recorded under `share/kalandra-native-metal/toolchain.json`. This bundle does
 not relocate those dependencies, bundle Apple's compiler, sign/notarize its tools,
-or qualify another platform. The existing CPU-only GitHub tag-release workflow
-is unchanged; hosted GPU/Metal toolchain qualification is required before adding
-this artifact to automated publication.
+or qualify another platform. The native release workflow also builds a standalone
+variant, includes the mixed compiler in automated publication, and signs/notarizes
+its standalone DMG on GitHub Actions. See the standalone distribution below.
 
 A generated Metal application is a directory containing `program` and its shader
 libraries. Keep those files together when moving the application. Ordinary

@@ -66,8 +66,8 @@ workflow covers standalone mixed CPU/Metal, CPU and editor distributions. The
 macOS 26 hosted qualification, physical GPU execution and downloaded quarantine
 checks are tracked in the [N5 record](native-distribution-qualification.md).
 
-Hosted run [39950944721](https://github.com/kalandra-lang/kalandra/actions/runs/39950944721)
+Hosted macOS 26 run [39973422436](https://github.com/kalandra-lang/kalandra/actions/runs/39973422436)
 successfully signed and notarized all three distributions. Stapling, ticket
-validation, hosted Gatekeeper assessment and quarantined local CLI execution
-passed. No signing or notarization occurred locally. The current macOS 26 build
-repeats these gates for its own exact archives.
+validation and hosted Gatekeeper assessment passed. No signing or notarization
+occurred locally. Local quarantine and physical GPU checks passed using the exact
+downloaded signed artifacts, as recorded in the N5 evidence.

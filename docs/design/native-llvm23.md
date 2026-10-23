@@ -49,6 +49,7 @@ qualification, not a claim that the entire native roadmap or every test has run.
 
 The tag-release workflow now provisions `llvm@23`, enforces the locked version,
 and disables Homebrew automatic updates. Generated release notes and package
-acceptance read the LLVM version from the shared lock. The initial Metal bundle
-remains separate from CPU-only automated publication; signing/notarization,
-self-contained dependencies and additional platforms remain release work.
+acceptance read the LLVM version from the shared lock. The mixed CPU/Metal
+distribution now participates in automated publication with standalone private
+dependencies and hosted Developer ID signing/notarization. Current platform
+qualification is recorded in the [N5 checklist](native-distribution-qualification.md).

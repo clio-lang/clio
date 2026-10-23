@@ -19,8 +19,8 @@ Additional standalone mixed Metal, CPU and editor archives bundle private LLVM/C
 and licenses. The build job independently compiles the source twice and requires byte-identical
 standalone archives, as well as independent staging repacks. A separate `qualify-standalone` job downloads
 artifacts without installing LLVM or building native code; publication depends on
-its isolation checks. Hosted macOS qualification and signing have passed; the current N5 record tracks
-the macOS 26 baseline and remaining platform gates. See the [N5 checklist](native-distribution-qualification.md).
+its isolation checks. N5 qualification is complete for macOS 26+ ARM64 CPU/Metal,
+Linux x86-64 and Windows x86-64. See the [N5 checklist](native-distribution-qualification.md).
 
 The `notarize` job then signs staging copies of all three standalone bundles, repeats
 their runtime acceptance with hardened signatures, submits signed DMGs to Apple,
@@ -55,7 +55,8 @@ successful `native` or selected-tag qualification runs for the exact tagged comm
 their archive/checksum pairs. Missing, failed or different-commit platform results
 block release creation. Linux targets Ubuntu 24.04 / glibc 2.39 x86-64. Windows
 targets Windows 11 x86-64 with Microsoft C++ Build Tools and the Windows SDK;
-ThreadSanitizer is explicitly unsupported. Bootstrap its pinned LLVM/MLIR SDK
-through `Native platform preflight` before the Windows qualification workflow.
+ThreadSanitizer is explicitly unsupported. The Windows workflow provisions its
+pinned LLVM/MLIR SDK automatically and caches it; a cache miss rebuilds matching
+MLIR from verified official source. `Native platform preflight` can warm that cache.
 
 No tag or release is created simply by committing these workflows.
