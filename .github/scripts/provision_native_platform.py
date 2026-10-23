@@ -6,6 +6,7 @@ import platform
 import subprocess
 import tarfile
 import urllib.request
+from compression import zstd
 
 from provision_native_llvm import save_verified, sha256
 
@@ -25,8 +26,12 @@ def main():
     with urllib.request.urlopen(url, timeout=120) as response:
         save_verified(response, archive, asset["sha256"])
     print(f"Verified official archive: {archive.name} SHA-256 {sha256(archive)}", flush=True)
-    with tarfile.open(archive) as source:
-        source.extractall(work / "installation", filter="data")
+    print(f"Archive magic: {archive.open('rb').read(8).hex()}", flush=True)
+    # LLVM uses long-window zstd compression; Python's default decoder window
+    # cap may reject an otherwise valid, hash-verified release archive.
+    with zstd.ZstdFile(archive, options={zstd.DecompressionParameter.window_log_max: 31}) as decoded:
+        with tarfile.open(fileobj=decoded, mode="r|") as source:
+            source.extractall(work / "installation", filter="data")
     archive.unlink()
     configs = list((work / "installation").rglob("MLIRConfig.cmake"))
     if len(configs) != 1:

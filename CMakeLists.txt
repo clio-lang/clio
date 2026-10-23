@@ -14,6 +14,9 @@ if(NOT DEFINED CMAKE_CXX_COMPILER)
   set(CMAKE_CXX_COMPILER "${KALANDRA_LLVM_ROOT}/bin/clang++" CACHE FILEPATH "C++ compiler")
 endif()
 project(KalandraNative LANGUAGES C CXX)
+add_compile_options("-ffile-prefix-map=${PROJECT_SOURCE_DIR}=/kalandra/src"
+  "-ffile-prefix-map=${PROJECT_BINARY_DIR}=/kalandra/build"
+  "-fdebug-compilation-dir=/kalandra/build")
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)

@@ -44,6 +44,8 @@ jobs:
           rm -rf "$RUNNER_TEMP/kalandra-signing"
   build:
     runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
     outputs:
       tag: ${{ steps.version.outputs.tag }}
       prerelease: ${{ steps.version.outputs.prerelease }}
@@ -67,17 +69,52 @@ jobs:
           brew upgrade zstd z3
       - name: Install verified pinned LLVM bottle
         run: python3 .github/scripts/provision_native_llvm.py --install --directory "$RUNNER_TEMP/pinned-llvm"
-      - name: Configure CPU toolchain
+      - name: Install verified pinned Metal translation tools
+        run: python3 .github/scripts/provision_native_metal.py
+      - name: Configure mixed CPU/Metal toolchain
         run: >-
           cmake -S . -B build/native -G Ninja
           -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
           -DKALANDRA_LLVM_ROOT="$KALANDRA_LLVM_ROOT"
           -Dtomlplusplus_DIR="$(brew --prefix tomlplusplus)/lib/cmake/tomlplusplus"
-          -DKALANDRA_BUILD_METAL_RUNTIME=OFF -DKALANDRA_BUILD_METAL_PROOF=OFF
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0
+          -DKALANDRA_SPIRV_CROSS_ROOT="$KALANDRA_SPIRV_CROSS_ROOT"
+          -DKALANDRA_SPIRV_TOOLS_ROOT="$KALANDRA_SPIRV_TOOLS_ROOT"
+          -DKALANDRA_METAL_COMPILER="$KALANDRA_METAL_COMPILER"
+          -DKALANDRA_BUILD_METAL_RUNTIME=ON -DKALANDRA_BUILD_METAL_PROOF=ON
       - name: Build release packages
         run: >-
           cmake --build build/native --target kalandra native-cpu-package native-editor-tools-package
-          native-cpu-standalone-package native-editor-tools-standalone-package -j2
+          native-cpu-standalone-package native-editor-tools-standalone-package
+          native-metal-package native-metal-standalone-package -j2
+      - name: Remove archive staging copies before the independent build
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+          for stage in Path("build/native").glob("native-*/package-stage"):
+              shutil.rmtree(stage)
+          PY
+      - name: Independently rebuild standalone distributions
+        run: |
+          cmake -S . -B build/native-repro -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
+            -DKALANDRA_LLVM_ROOT="$KALANDRA_LLVM_ROOT" \
+            -Dtomlplusplus_DIR="$(brew --prefix tomlplusplus)/lib/cmake/tomlplusplus" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+            -DKALANDRA_SPIRV_CROSS_ROOT="$KALANDRA_SPIRV_CROSS_ROOT" \
+            -DKALANDRA_SPIRV_TOOLS_ROOT="$KALANDRA_SPIRV_TOOLS_ROOT" \
+            -DKALANDRA_METAL_COMPILER="$KALANDRA_METAL_COMPILER" \
+            -DKALANDRA_BUILD_METAL_RUNTIME=ON -DKALANDRA_BUILD_METAL_PROOF=ON
+          cmake --build build/native-repro --target native-cpu-standalone-package \
+            native-editor-tools-standalone-package native-metal-standalone-package -j2
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+          for stage in Path("build/native-repro").glob("native-*/package-stage"):
+              shutil.rmtree(stage)
+          PY
+          python3 native/packaging/CompareDistributions.py build/native build/native-repro
       - name: Qualify installed and relocated packages
         run: >-
           ctest --test-dir build/native
@@ -98,6 +135,8 @@ jobs:
           cp build/native/native-editor-tools/*.tar.gz* release-assets/
           cp build/native/native-cpu-standalone/*.tar.gz* release-assets/
           cp build/native/native-editor-tools-standalone/*.tar.gz* release-assets/
+          cp build/native/native-metal/*.tar.gz* release-assets/
+          cp build/native/native-metal-standalone/*.tar.gz* release-assets/
           cp build/native/editor/kalandra-native.vsix release-assets/
           cd release-assets
           shasum -a 256 kalandra-native.vsix > kalandra-native.vsix.sha256
@@ -110,6 +149,8 @@ jobs:
     needs: build
     runs-on: macos-15
     timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -120,6 +161,8 @@ jobs:
           name: native-release-assets
           path: release-assets
       # This job intentionally performs no Homebrew/LLVM installation or native build.
+      - name: Install Apple platform Metal component
+        run: xcodebuild -downloadComponent MetalToolchain
       - name: Qualify downloaded standalone editor tools
         run: >-
           python3 native/packaging/StandaloneTests.py --kind editor
@@ -128,11 +171,17 @@ jobs:
         run: >-
           python3 native/packaging/StandaloneTests.py --kind cpu
           --archive release-assets/kalandra-native-cpu-standalone-macos-arm64.tar.gz
+      - name: Qualify downloaded mixed CPU/Metal compiler
+        run: >-
+          python3 native/packaging/StandaloneTests.py --kind metal
+          --archive release-assets/kalandra-native-metal-standalone-macos-arm64.tar.gz
   notarize:
     if: startsWith(github.ref, 'refs/tags/') || vars.KALANDRA_NOTARIZE == 'true'
     needs: [build, qualify-standalone, signing-credentials]
     runs-on: macos-15
     timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -142,6 +191,8 @@ jobs:
         with:
           name: native-release-assets
           path: release-assets
+      - name: Install Apple platform Metal component
+        run: xcodebuild -downloadComponent MetalToolchain
       - name: Sign, notarize, staple and assess standalone distributions
         env:
           KALANDRA_SIGNING_P12_BASE64: ${{ secrets.KALANDRA_SIGNING_P12_BASE64 }}

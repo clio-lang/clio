@@ -118,7 +118,7 @@ def main(check_only=False):
             print("Credential check passed: Developer ID signing, trusted timestamp, execution, "
                   "and Apple notarization authentication", flush=True)
             return
-        for kind in ("editor-tools", "cpu"):
+        for kind in ("editor-tools", "metal", "cpu"):
             name = f"kalandra-native-{kind}-standalone-macos-arm64.tar.gz"
             sign(Path("release-assets") / name, Path("signed-assets") / kind,
                  os.environ["KALANDRA_SIGNING_IDENTITY"], os.environ["KALANDRA_APPLE_TEAM_ID"],

@@ -23,10 +23,10 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def qualify(archive, kind, runtime, build=None):
+def qualify(archive, kind, runtime, build=None, metal_execute=False):
     archive = archive.resolve()
     assert archive.with_suffix(".gz.sha256").read_text().split()[0] == digest(archive)
-    name = "kalandra-native-" + ("cpu" if kind == "cpu" else "editor-tools") + "-standalone"
+    name = "kalandra-native-" + ("editor-tools" if kind == "editor" else kind) + "-standalone"
     prefix = runtime / "relocated prefix λ" / name
     with tarfile.open(archive) as bundle:
         assert all(p.isdir() or p.isfile() for p in bundle.getmembers())
@@ -77,9 +77,9 @@ def qualify(archive, kind, runtime, build=None):
     environment.pop("CPATH", None)
     environment.pop("LIBRARY_PATH", None)
 
-    def execute(args, expected=0):
+    def execute(args, expected=0, overrides=None):
         result = subprocess.run(["/usr/bin/sandbox-exec", "-f", str(profile), *map(str, args)],
-                                env=environment, cwd=runtime, capture_output=True, text=True, timeout=90)
+                                env=environment | (overrides or {}), cwd=runtime, capture_output=True, text=True, timeout=120)
         assert (result.returncode == expected if expected is not None else result.returncode != 0), (
             args, result.returncode, result.stdout, result.stderr)
         return result
@@ -100,7 +100,7 @@ def qualify(archive, kind, runtime, build=None):
                                  str(wrapper), str(runtime / script)], capture_output=True,
                                 text=True, timeout=90, env=environment)
         assert result.returncode == 0, (script, result.stdout, result.stderr)
-    if kind == "cpu":
+    if kind in ("cpu", "metal"):
         compiler = prefix / "bin/kalandra"
         executable = runtime / "program"
         link = runtime / "compiler symlink"
@@ -134,6 +134,64 @@ def qualify(archive, kind, runtime, build=None):
         prefix.rename(hidden)
         assert execute([executable]).stdout.strip() == "42"
         hidden.rename(prefix)
+    if kind == "metal":
+        assert {"SPIRV-Cross", "SPIRV-Tools"} <= {
+            p.name.removesuffix("-LICENSE.txt") for p in (prefix / "share/licenses/kalandra-toolchain").iterdir()}
+        info = json.loads((prefix / "share/kalandra-native-metal/toolchain.json").read_text())
+        assert info["spirvCross"] == info["spirvTools"] == info["clang"] == "bundled"
+        applications = []
+        for numeric in ("int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "float32", "float64"):
+            source.write_text(f"""fn increment(value:int32)->int32:
+  value+1
+fn operation(values:Tensor[{numeric},?,?,?,?,?,?,?,?],scale:{numeric})->float64:
+  amount=reduceSum(values)
+  if scale==1:
+    float64(reduceSum(values+amount))
+  else:
+    float64(reduceSum(values)/scale)
+fn main()->float64 ! TaskError:
+  try parallel:
+    worker=spawn increment(0)
+    gpu=devices.gpu()
+    values:Tensor[{numeric},1,1,1,1,1,1,1,3]=tensor([[[[[[[[1,2,3]]]]]]]])
+    resident=try await transfer(values,gpu)
+    scale=try await worker
+    try await spawn operation(resident,{numeric}(scale)) on gpu
+""")
+            for mode, flags in (("normal", []), ("optimized", ["-O2"]),
+                                ("sanitized", ["--sanitize"]), ("thread-sanitized", ["--thread-sanitize"])):
+                app = runtime / f"{numeric} {mode} application"
+                execute([compiler, source, "--target", "metal", "-o", app, *flags])
+                assert list(app.glob("*.metallib"))
+                if not flags or flags == ["-O2"]:
+                    assert all(system(dep) for dep in inspect(app / "program")[0])
+                    applications.append((app, "4038000000000000"))
+                if metal_execute:
+                    assert execute([app / "program"]).stdout.strip() == "4038000000000000"
+        source.write_bytes((repository / "native/metal-source/matrix-graph.k").read_bytes())
+        app = runtime / "resident matrix application"
+        execute([compiler, source, "--target", "metal", "-o", app, "-O2"])
+        applications.append((app, "[42d40000,431c0000,43710000,43b10000]"))
+        if metal_execute:
+            assert execute([app / "program"]).stdout.strip() == applications[-1][1]
+        prior = digest(app / "program")
+        for missing in (prefix / "libexec/kalandra/mlir-opt",
+                        prefix / "lib/kalandra/native/kalandra-metal-strict64"):
+            hidden = missing.with_name(missing.name + ".hidden")
+            missing.rename(hidden)
+            execute([compiler, source, "--target", "metal", "-o", app], expected=1)
+            assert digest(app / "program") == prior
+            hidden.rename(missing)
+        invalid = execute([compiler, source, "--target", "metal", "-o", app], expected=1,
+                          overrides={"KALANDRA_METAL_COMPILER": "/usr/bin/true"})
+        assert "version mismatch" in invalid.stderr
+        assert digest(app / "program") == prior
+        hidden = prefix.with_name("unavailable mixed compiler bundle")
+        prefix.rename(hidden)
+        if metal_execute:
+            for app, expected in applications:
+                assert execute([app / "program"]).stdout.strip() == expected
+        hidden.rename(prefix)
     # A missing vendored dylib cannot fall back to a Homebrew copy.
     dependency = prefix / next(item["path"] for item in record["dependencies"]
                                if item["name"].startswith("libLLVM."))
@@ -143,11 +201,17 @@ def qualify(archive, kind, runtime, build=None):
     assert all(digest(prefix / path) == checksum for path, checksum in listed.items())
     checks = ["checksums", "code signatures", "loader confinement", "relocation",
               "denied checkout/Homebrew/network", "strict LSP protocols", "missing dylib rejection"]
-    if kind == "cpu":
+    if kind in ("cpu", "metal"):
         checks += ["CPU/sanitizer/worker execution", "missing private Clang rejection",
                    "generated ordinary programs run without compiler bundle"]
+    if kind == "metal":
+        checks += ["all ten GPU types/rank-eight/worker bridges in four host modes",
+                   "resident matrix graph", "missing shader tools and wrong Apple compiler rejection"]
+        if metal_execute:
+            checks.append("GPU execution and moved applications without compiler bundle")
     print(json.dumps({"kind": kind, "minimumMacOS": record["minimumMacOS"],
                       "dependencyLibraries": len(record["dependencies"]),
+                      "gpuExecution": kind == "metal" and metal_execute,
                       "checks": checks}))
 
 
@@ -157,7 +221,8 @@ if __name__ == "__main__":
     parser.add_argument("--build", type=Path)
     parser.add_argument("--cmake", default="cmake")
     parser.add_argument("--config", default="Release")
-    parser.add_argument("--kind", choices=("editor", "cpu"), required=True)
+    parser.add_argument("--kind", choices=("editor", "cpu", "metal"), required=True)
+    parser.add_argument("--metal-execute", action="store_true")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="kalandra standalone ") as temporary:
         work = Path(temporary).resolve()
@@ -167,8 +232,10 @@ if __name__ == "__main__":
             output = work / "artifacts"
             command = [args.cmake, f"-DBUILD_DIR={args.build.resolve()}", f"-DCONFIG={args.config}",
                        f"-DOUTPUT_DIR={output}", "-DSTANDALONE=ON"]
-            if args.kind == "cpu":
+            if args.kind in ("cpu", "metal"):
                 command.append("-DPACKAGE_CPU=ON")
+            if args.kind == "metal":
+                command.append("-DPACKAGE_METAL=ON")
             command += ["-P", str(Path(__file__).resolve().parents[1] / "cmake/PackageEditorTools.cmake")]
             subprocess.run(command, check=True, timeout=240)
             archive, = output.glob("*.tar.gz")
@@ -181,4 +248,4 @@ if __name__ == "__main__":
             shutil.rmtree(other)
             # Drop all staging resources before any relocated runtime tests.
             shutil.rmtree(output / "package-stage")
-        qualify(archive, args.kind, work, args.build)
+        qualify(archive, args.kind, work, args.build, args.metal_execute)

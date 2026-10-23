@@ -81,8 +81,12 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def bundle(prefix, llvm, cpu=False):
+def bundle(prefix, llvm, cpu=False, cross=None, spirv=None):
     prefix, llvm = prefix.resolve(), llvm.resolve()
+    metal = cross is not None or spirv is not None
+    if metal and (not cpu or cross is None or spirv is None):
+        raise ValueError("Metal bundling requires CPU, SPIRV-Cross and SPIRV-Tools")
+    extra_roots = {}
     library = prefix / "lib/kalandra/toolchain/lib"
     library.mkdir(parents=True)
     licenses = prefix / "share/licenses/kalandra-toolchain"
@@ -102,6 +106,19 @@ def bundle(prefix, llvm, cpu=False):
         seeds.append((original, clang))
         seeds.extend((p, destination / p.relative_to(resources))
                      for p in sorted(resources.rglob("*")) if p.is_file() and macho(p))
+    if metal:
+        cross, spirv = cross.resolve(), spirv.resolve()
+        extra_roots = {cross: "SPIRV-Cross", spirv: "SPIRV-Tools"}
+        for root, upstream in extra_roots.items():
+            shutil.copy2(root / "LICENSE", licenses / f"{upstream}-LICENSE.txt")
+        for root, name in ((llvm, "mlir-opt"), (llvm, "mlir-translate"),
+                           (cross, "spirv-cross"), (spirv, "spirv-val")):
+            original = (root / "bin" / name).resolve()
+            destination = prefix / "libexec/kalandra" / name
+            shutil.copy2(original, destination)
+            seeds.append((original, destination))
+        seeds.extend((p, p) for p in sorted((prefix / "lib/kalandra/native").iterdir())
+                     if p.is_file() and macho(p))
 
     copied, origins, edits, metadata = {}, {}, {}, []
     minimum = (0,)
@@ -111,6 +128,9 @@ def bundle(prefix, llvm, cpu=False):
             return copied[source]
         if source.is_relative_to(llvm):
             upstream = "LLVM"
+        elif any(source.is_relative_to(root) for root in extra_roots):
+            upstream = next(upstream for root, upstream in extra_roots.items()
+                            if source.is_relative_to(root))
         else:
             home = source.parent.parent
             if source.name.startswith("libz3.") and (home / "LICENSE.txt").is_file():
@@ -192,6 +212,9 @@ def bundle(prefix, llvm, cpu=False):
               "dependencies": sorted(metadata, key=lambda item: item["name"]),
               "externalRequirements": ["macOS system libraries"] +
               (["Apple command-line tools / SDK and system linker"] if cpu else [])}
+    if metal:
+        record["metal"] = "bundled shader translation tools; external Apple Metal compiler/SDK"
+        record["externalRequirements"].append("Pinned Apple Metal compiler from Xcode's Metal Toolchain component")
     (library.parent / "standalone.json").write_text(json.dumps(record, indent=2) + "\n")
     installed = prefix / "share/kalandra-native-tools/toolchain.json"
     info = json.loads(installed.read_text())
@@ -203,6 +226,18 @@ def bundle(prefix, llvm, cpu=False):
     if cpu:
         shutil.copy2(Path(__file__).with_name("STANDALONE-README.md"),
                      prefix / "share/doc/kalandra-native-cpu/README.md")
+    if metal:
+        installed = prefix / "share/kalandra-native-metal/toolchain.json"
+        shutil.copy2(Path(__file__).with_name("STANDALONE-README.md"),
+                     prefix / "share/doc/kalandra-native-metal/README.md")
+        info = json.loads(installed.read_text())
+        for key in ("spirvCross", "spirvTools", "metalCompiler", "macosSdk"):
+            info.pop(key, None)
+        info.update(spirvTools="bundled", spirvCross="bundled", clang="bundled",
+                    metalCompiler="resolved and version-checked on the installed machine",
+                    macosSdk="resolved by xcrun on the installed machine",
+                    minimumMacOS=record["minimumMacOS"], externalDependencies=["Apple Metal compiler", "Apple SDK/linker"])
+        installed.write_text(json.dumps(info, indent=2) + "\n")
     print(f"Bundled {len(metadata)} libraries and {len(edits)} Mach-O files; macOS >= {record['minimumMacOS']}")
 
 
@@ -211,5 +246,7 @@ if __name__ == "__main__":
     parser.add_argument("prefix", type=Path)
     parser.add_argument("--llvm", type=Path, required=True)
     parser.add_argument("--cpu", action="store_true")
+    parser.add_argument("--spirv-cross", type=Path)
+    parser.add_argument("--spirv-tools", type=Path)
     args = parser.parse_args()
-    bundle(args.prefix, args.llvm, args.cpu)
+    bundle(args.prefix, args.llvm, args.cpu, args.spirv_cross, args.spirv_tools)

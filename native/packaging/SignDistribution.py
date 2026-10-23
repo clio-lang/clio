@@ -35,10 +35,11 @@ def extract_verified(archive, stage):
                 Path(name).is_absolute() or ".." in Path(name).parts for name in names):
             raise ValueError("Unsafe or duplicate archive member")
         roots = {Path(member.name).parts[0] for member in members}
-        allowed = {"kalandra-native-editor-tools-standalone", "kalandra-native-cpu-standalone"}
+        allowed = {"kalandra-native-editor-tools-standalone", "kalandra-native-cpu-standalone",
+                   "kalandra-native-metal-standalone"}
         if len(roots) != 1 or not roots <= allowed or any(
                 not (member.isdir() or member.isfile()) for member in members):
-            raise ValueError("Only standalone CPU/editor packages can be signed")
+            raise ValueError("Only qualified standalone native packages can be signed")
         package.extractall(stage, filter="data")
     prefix = (stage / roots.pop()).resolve()
     listed = set()
@@ -99,7 +100,8 @@ def sign(archive, output, identity, team, profile=None, keychain=None):
         # denies native children access to the checkout, so extract/run its
         # fixtures in the system temporary directory, just like unsigned tests.
         with tempfile.TemporaryDirectory(prefix="kalandra-signed-acceptance-") as acceptance:
-            qualify(qualified_archive, "cpu" if "cpu" in prefix.name else "editor",
+            kind = "metal" if "metal" in prefix.name else "cpu" if "cpu" in prefix.name else "editor"
+            qualify(qualified_archive, kind,
                     Path(acceptance).resolve())
         delivery = work / "delivery"
         delivery.mkdir()

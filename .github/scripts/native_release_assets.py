@@ -5,8 +5,8 @@ from pathlib import Path
 
 
 ARCHIVES = tuple(f"kalandra-native-{kind}-macos-arm64.tar.gz" for kind in
-                 ("cpu", "editor-tools", "cpu-standalone", "editor-tools-standalone"))
-IMAGES = tuple(f"kalandra-native-{kind}-standalone.dmg" for kind in ("cpu", "editor-tools"))
+                 ("cpu", "editor-tools", "metal", "cpu-standalone", "editor-tools-standalone", "metal-standalone"))
+IMAGES = tuple(f"kalandra-native-{kind}-standalone.dmg" for kind in ("cpu", "editor-tools", "metal"))
 
 
 def digest(path):

@@ -45,7 +45,16 @@ add_custom_target(native-metal-package
     "-DOUTPUT_DIR=${PROJECT_BINARY_DIR}/native-metal" -DPACKAGE_CPU=ON -DPACKAGE_METAL=ON
     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackageEditorTools.cmake"
   DEPENDS kalandra-installed kalandra-metal-installed ${KALANDRA_EDITOR_TOOLS} VERBATIM)
+add_custom_target(native-metal-standalone-package
+  COMMAND "${CMAKE_COMMAND}" "-DBUILD_DIR=${PROJECT_BINARY_DIR}" "-DCONFIG=$<CONFIG>"
+    "-DOUTPUT_DIR=${PROJECT_BINARY_DIR}/native-metal-standalone" -DPACKAGE_CPU=ON -DPACKAGE_METAL=ON -DSTANDALONE=ON
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackageEditorTools.cmake"
+  DEPENDS kalandra-installed kalandra-metal-installed ${KALANDRA_EDITOR_TOOLS} VERBATIM)
 if(BUILD_TESTING)
+  add_test(NAME native-standalone-metal-install COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/packaging/StandaloneTests.py" --kind metal
+    --build "${PROJECT_BINARY_DIR}" --cmake "${CMAKE_COMMAND}" --config "$<CONFIG>")
+  set_tests_properties(native-standalone-metal-install PROPERTIES TIMEOUT 1200 LABELS distribution)
   add_test(NAME native-metal-install COMMAND "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/packaging/MetalInstallTests.py" "${CMAKE_COMMAND}"
     "${PROJECT_BINARY_DIR}" "$<CONFIG>" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PackageEditorTools.cmake"
