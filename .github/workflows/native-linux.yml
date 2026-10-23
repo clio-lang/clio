@@ -2,6 +2,7 @@ name: Native Linux qualification
 on:
   push:
     branches: ["native"]
+    tags: ["v*"]
     paths:
       [
         "CMakeLists.txt",

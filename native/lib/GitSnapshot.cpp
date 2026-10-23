@@ -533,9 +533,12 @@ std::string extract(const fs::path &database, const std::string &commit, const f
                   std::ranges::none_of(name, [](unsigned char c) { return c < 32; }),
               "Git source path is unsafe on Windows");
       const auto stem = name.substr(0, name.find('.'));
+      const auto suffix = stem.size() >= 3 ? stem.substr(3) : std::string{};
+      const bool deviceNumber = (suffix.size() == 1 && suffix[0] >= '1' && suffix[0] <= '9') ||
+                                suffix == "¹" || suffix == "²" || suffix == "³";
       require(stem != "con" && stem != "prn" && stem != "aux" && stem != "nul" &&
-                  !(stem.size() == 4 && (stem.starts_with("com") || stem.starts_with("lpt")) &&
-                    stem[3] >= '1' && stem[3] <= '9'),
+                  stem != "conin$" && stem != "conout$" && stem != "clock$" &&
+                  !((stem.starts_with("com") || stem.starts_with("lpt")) && deviceNumber),
               "Git source path uses a reserved Windows device name");
 #endif
     }

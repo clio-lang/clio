@@ -32,6 +32,10 @@ def qualify(archive, kind, runtime, build=None, metal_execute=False):
         assert all(p.isdir() or p.isfile() for p in bundle.getmembers())
         assert all(Path(p.name).parts[0] == name for p in bundle.getmembers())
         bundle.extractall(prefix.parent, filter="data")
+    return qualify_prefix(prefix, kind, runtime, build, metal_execute)
+
+
+def qualify_prefix(prefix, kind, runtime, build=None, metal_execute=False):
     files = {str(p.relative_to(prefix)) for p in prefix.rglob("*") if p.is_file()}
     listed = {}
     for line in (prefix / "SHA256SUMS").read_text().splitlines():

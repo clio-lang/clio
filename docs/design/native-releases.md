@@ -1,7 +1,7 @@
 # Native release automation
 
-The `Native release` GitHub Actions workflow builds macOS Apple Silicon CPU
-packages and a separately versioned VS Code extension from a version tag.
+The `Native release` GitHub Actions workflow builds macOS 26+ Apple Silicon
+mixed CPU/Metal, CPU-only and editor packages and a separately versioned VS Code extension from a version tag.
 It does not publish npm packages, the website or the extension Marketplace.
 
 - `v1.0.0` creates a normal GitHub release and marks it latest.
@@ -15,17 +15,17 @@ version tag. The workflow checks out the tagged commit, checks the version parse
 installs the pinned native dependencies, builds Release packages, runs installation
 and relocation acceptance, and builds/tests the editor package. It uploads the CPU
 bundle, the smaller editor-tools-only bundle, the VSIX and their checksum sidecars.
-Additional standalone CPU/editor archives bundle private LLVM/Clang dependencies
-and licenses. The build job also requires byte-identical repacks of those binaries
-from different staging directories. A separate `qualify-standalone` job downloads
+Additional standalone mixed Metal, CPU and editor archives bundle private LLVM/Clang dependencies
+and licenses. The build job independently compiles the source twice and requires byte-identical
+standalone archives, as well as independent staging repacks. A separate `qualify-standalone` job downloads
 artifacts without installing LLVM or building native code; publication depends on
-its isolation checks. Hosted runs have started; successful qualification remains
-open. See the [N5 checklist](native-distribution-qualification.md).
+its isolation checks. Hosted macOS qualification and signing have passed; the current N5 record tracks
+the macOS 26 baseline and remaining platform gates. See the [N5 checklist](native-distribution-qualification.md).
 
-The `notarize` job then signs staging copies of both standalone bundles, repeats
+The `notarize` job then signs staging copies of all three standalone bundles, repeats
 their runtime acceptance with hardened signatures, submits signed DMGs to Apple,
 staples tickets and assesses Gatekeeper acceptance. Tagged publication requires
-this job to pass and validates all 16 assets, checksum sidecars and accepted
+this job to pass and validates all 27 assets, checksum sidecars and accepted
 receipts before creating a release. Configure the publisher credentials using
 the [CI signing instructions](native-ci-signing.md). A native branch rehearsal
 requires repository variable `KALANDRA_NOTARIZE=true` and publishes no release.
@@ -43,12 +43,19 @@ artifacts, but does not publish a release. GitHub requires the workflow to exist
 default branch before manual dispatch is available; then select the native branch
 for a rehearsal before the first native release tag. It creates no tag. Existing historical tags are not replayed.
 
-The workflow distributes the [CPU package](native-cpu-install.md), external
-Homebrew LLVM/MLIR/Clang 23.1.3 variants, standalone dependency bundles, and
-signed/notarized standalone DMGs after the publisher credentials are configured
-and qualification succeeds. The Apple SDK remains a CPU compilation prerequisite.
-Metal release-runner qualification and additional platforms remain tracked work.
-The [initial Metal bundle](native-metal-install.md) is built
-and qualified separately on Apple hardware. Qualification here establishes installation and packaging
-behavior, not completion of all language/GPU release gates. No tag or release is
-created simply by committing this workflow.
+The macOS Metal DMG is the primary mixed CPU/GPU distribution. CPU-only and
+editor-only packages are alternatives. Standalone bundles contain their private
+open-source toolchain; Apple SDK/linker and the pinned Apple Metal compiler remain
+platform prerequisites. Their signatures and notarization are produced only on
+GitHub Actions. The supported macOS minimum is 26.0.
+
+Linux and Windows qualification workflows produce standalone CPU/editor archives
+and execute the downloaded packages on fresh runners. Publication requires
+successful `native` or selected-tag qualification runs for the exact tagged commit, then collects
+their archive/checksum pairs. Missing, failed or different-commit platform results
+block release creation. Linux targets Ubuntu 24.04 / glibc 2.39 x86-64. Windows
+targets Windows 11 x86-64 with Microsoft C++ Build Tools and the Windows SDK;
+ThreadSanitizer is explicitly unsupported. Bootstrap its pinned LLVM/MLIR SDK
+through `Native platform preflight` before the Windows qualification workflow.
+
+No tag or release is created simply by committing these workflows.

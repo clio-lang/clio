@@ -2,6 +2,7 @@ name: Native Windows qualification
 on:
   push:
     branches: ["native"]
+    tags: ["v*"]
     paths:
       ["CMakeLists.txt", "native/**", ".github/workflows/native-windows.yml"]
   workflow_dispatch:

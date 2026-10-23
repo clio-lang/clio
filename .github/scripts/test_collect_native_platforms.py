@@ -46,6 +46,34 @@ class QualificationGate(unittest.TestCase):
             self.assertEqual([record["commit"] for record in records], ["commit", "commit"])
         self.run_in_workspace(check)
 
+    def test_waits_for_pending_same_commit_qualification(self):
+        calls = 0
+        def api(path):
+            nonlocal calls
+            response = self.api(path)
+            if "/workflows/native-linux" in path:
+                calls += 1
+                if calls == 1:
+                    response["workflow_runs"][0].update(status="in_progress", conclusion=None)
+            return response
+        def check():
+            with patch.object(collector, "api", side_effect=api), patch.object(collector.subprocess, "run", side_effect=self.download), patch.object(collector.time, "sleep") as sleep:
+                collector.collect()
+                sleep.assert_called_once_with(30)
+        self.run_in_workspace(check)
+
+    def test_selected_tag_qualifies_without_a_native_branch_run(self):
+        def api(path):
+            response = self.api(path)
+            if "workflow_runs" in response:
+                response["workflow_runs"][0]["head_branch"] = "v1.2.3"
+            return response
+        def check():
+            with patch.dict(os.environ, RELEASE_TAG="v1.2.3"), patch.object(collector, "api", side_effect=api), patch.object(collector.subprocess, "run", side_effect=self.download):
+                collector.collect()
+            self.assertEqual(len(list(Path("release-assets").iterdir())), 4)
+        self.run_in_workspace(check)
+
     def test_failed_wrong_commit_and_unqualified_branch_cannot_publish(self):
         for field, value in (("conclusion", "failure"), ("head_sha", "other"),
                              ("head_branch", "develop"), ("event", "pull_request")):

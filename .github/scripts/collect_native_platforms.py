@@ -4,11 +4,35 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 import zipfile
 
 
 def api(path):
     return json.loads(subprocess.check_output(["gh", "api", path], text=True))
+
+
+def qualified_artifact(repository, commit, platform):
+    deadline = time.monotonic() + 3600
+    announced = False
+    while True:
+        runs = api(f"repos/{repository}/actions/workflows/native-{platform}.yml/runs?head_sha={commit}&per_page=100")["workflow_runs"]
+        candidates = [run for run in runs if run["head_sha"] == commit and run["event"] == "push" and
+                      run["head_branch"] in ("native", os.environ.get("RELEASE_TAG"))]
+        for run in candidates:
+            if run.get("status", "completed") != "completed" or run["conclusion"] != "success":
+                continue
+            artifacts = api(f"repos/{repository}/actions/runs/{run['id']}/artifacts?per_page=100")["artifacts"]
+            available = [item for item in artifacts if item["name"] == f"native-{platform}-assets" and not item["expired"]]
+            if len(available) == 1:
+                return run, available[0]
+        pending = any(run.get("status", "completed") != "completed" for run in candidates)
+        if not pending or time.monotonic() >= deadline:
+            raise RuntimeError(f"No successful {platform} qualification for the exact release commit")
+        if not announced:
+            print(f"Waiting for same-commit {platform} qualification before creating a release", flush=True)
+            announced = True
+        time.sleep(30)
 
 
 def collect():
@@ -17,13 +41,7 @@ def collect():
     destination = Path("release-assets")
     receipts = []
     for platform in ("linux", "windows"):
-        runs = api(f"repos/{repository}/actions/workflows/native-{platform}.yml/runs?head_sha={commit}&status=completed&per_page=100")["workflow_runs"]
-        run = next((run for run in runs if run["head_sha"] == commit and run["conclusion"] == "success" and
-                    run["event"] == "push" and run["head_branch"] == "native"), None)
-        if run is None:
-            raise RuntimeError(f"No successful {platform} qualification for the exact release commit")
-        artifacts = api(f"repos/{repository}/actions/runs/{run['id']}/artifacts?per_page=100")["artifacts"]
-        artifact, = [item for item in artifacts if item["name"] == f"native-{platform}-assets" and not item["expired"]]
+        run, artifact = qualified_artifact(repository, commit, platform)
         archive_name = f"kalandra-native-cpu-standalone-{platform}-x86_64.tar.gz"
         expected = {archive_name, archive_name + ".sha256"}
         with tempfile.TemporaryFile() as download:

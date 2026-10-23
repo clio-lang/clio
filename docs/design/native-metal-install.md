@@ -142,3 +142,13 @@ to binary64 and CPU workers, in all four host modes. The applications run again
 after deleting the compiler bundle and moving their directories. Missing
 strict64 resources reject compilation while preserving a previous application.
 See the [typed program contract](native-gpu-typed-programs.md).
+
+## Standalone hosted distribution
+
+The primary macOS distribution now bundles the private LLVM/MLIR, Clang,
+SPIRV-Cross/SPIRV-Tools and strict numerical helper closure. It builds, signs and
+notarizes entirely on GitHub Actions. Apple SDK/linker and the exact pinned Apple
+Metal compiler remain platform prerequisites. The supported minimum is macOS
+26.0; generated CPU executables and Metal shaders preserve that deployment target.
+Hosted downloaded-package compilation and physical GPU execution are independent
+gates. See the [distribution checklist](native-distribution-qualification.md).

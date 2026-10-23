@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import time
 import uuid
+from StandaloneTests import qualify_prefix
 
 def run(args):
     p = subprocess.run(list(map(str, args)), capture_output=True, text=True, timeout=180)
@@ -14,7 +15,7 @@ def run(args):
         raise RuntimeError((args, p.returncode, p.stdout, p.stderr))
     return p.stdout + p.stderr
 
-def qualify(root, destination):
+def qualify(root, destination, metal_execute=False):
     results = []
     for kind in ('editor-tools', 'cpu', 'metal'):
         image = root / kind / f'kalandra-native-{kind}-standalone.dmg'
@@ -53,18 +54,23 @@ def qualify(root, destination):
             source = directory / 'source λ.k'
             source.write_text('fn main()->int:\n  42\n')
             run([prefix / 'bin/kalandra-check', source])
+            if kind == 'metal' and metal_execute:
+                acceptance = directory / 'physical GPU acceptance'
+                acceptance.mkdir()
+                qualify_prefix(prefix.resolve(), 'metal', acceptance.resolve(), metal_execute=True)
             if kind != 'editor-tools':
                 output = directory / 'program'
                 run([binary, source, '-o', output])
                 assert run([output]).strip() == '42'
                 prefix.rename(directory / 'unavailable compiler')
                 assert run([output]).strip() == '42'
-            results.append({'kind': kind, 'artifactSHA256': record['artifactSHA256'], 'staple': staple.strip(), 'imageGatekeeper': assessment.strip(), 'binaryGatekeeper': binary_assessment.strip(), 'quarantineExecution': 'passed', 'notarization': record['notarization']})
+            results.append({'kind': kind, 'artifactSHA256': record['artifactSHA256'], 'staple': staple.strip(), 'imageGatekeeper': assessment.strip(), 'binaryGatekeeper': binary_assessment.strip(), 'quarantineExecution': 'passed', 'gpuExecutionQualified': kind == 'metal' and metal_execute, 'notarization': record['notarization']})
         print(f'Quarantined {kind}: staple, image Gatekeeper, quarantined CLI execution and compiler independence passed', flush=True)
     destination.write_text(json.dumps(results, indent=2) + '\n')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('signed', type=Path)
     parser.add_argument('--record', type=Path, required=True)
+    parser.add_argument('--metal-execute', action='store_true')
     args = parser.parse_args()
-    qualify(args.signed.resolve(), args.record.resolve())
+    qualify(args.signed.resolve(), args.record.resolve(), args.metal_execute)

@@ -80,8 +80,12 @@ explicit sanitizer limitation.
   gap at Metal's uninstrumented completion callback. The per-command
   commit/completion synchronization is now explicitly exposed to TSan; a rebuilt
   hosted artifact must pass physical execution before that gate closes.
-- The official Linux LLVM/MLIR archive has been verified and the native compiler
-  builds. Downloaded-package execution and dependency packaging remain open.
+- Hosted run [39957496021](https://github.com/kalandra-lang/kalandra/actions/runs/39957496021)
+  passed Linux standalone packaging and fresh downloaded-artifact qualification:
+  all ten numeric types, scalar/array/tensor/worker results, ownership/errors,
+  all four host modes, worker counts 1/2/4, Git package activation, compiler
+  independence and strict/unfinished-code LSP protocols. Bubblewrap denied the
+  checkout and network; no LLVM or product build was installed in that job.
 - The official Windows archive omits MLIR. CI builds the matching hash-pinned
   official source against static dependencies from a pinned vcpkg baseline.
   Successful Windows compilation, packaging and downloaded execution remain open.

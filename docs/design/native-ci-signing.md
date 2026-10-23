@@ -62,8 +62,12 @@ job and block publication. Only a successful tagged run can publish a release.
 Unsigned `.tar.gz` artifacts retain deterministic repack qualification. Trusted
 signing timestamps and notarization tickets make the signed DMGs different
 deliveries; their receipts bind them to the exact unsigned input hashes. This
-workflow covers standalone CPU/editor distributions. Metal release packaging and
-clean-machine/minimum-OS/download-quarantine qualification remain separate gates.
+workflow covers standalone mixed CPU/Metal, CPU and editor distributions. The
+macOS 26 hosted qualification, physical GPU execution and downloaded quarantine
+checks are tracked in the [N5 record](native-distribution-qualification.md).
 
-This path is implemented and locally checked, but successful signing/notarization
-must be demonstrated by a hosted run with the publisher credentials configured.
+Hosted run [39950944721](https://github.com/kalandra-lang/kalandra/actions/runs/39950944721)
+successfully signed and notarized all three distributions. Stapling, ticket
+validation, hosted Gatekeeper assessment and quarantined local CLI execution
+passed. No signing or notarization occurred locally. The current macOS 26 build
+repeats these gates for its own exact archives.

@@ -16,7 +16,7 @@ def qualify(compiler):
         modes.append(("thread", ["--thread-sanitize"]))
     with tempfile.TemporaryDirectory(prefix="kalandra portable acceptance ") as folder:
         work = Path(folder).resolve()
-        source = work / "source λ.k"
+        source = work / "source λ🙂.k"
         executable = work / ("program.exe" if windows else "program")
 
         def run(args, expected=0, env=None):
@@ -30,11 +30,16 @@ def qualify(compiler):
                   "int32": "2147483647", "uint32": "4294967295",
                   "int64": "9223372036854775807", "uint64": "18446744073709551615",
                   "float32": "1.5", "float64": "1.5"}
+        rank8_values = "[" * 8 + "1,2" + "]" * 8
         for numeric, value in values.items():
             cases += [(f"{numeric} scalar", f"fn main()->{numeric}:\n  {value}\n", value),
                       (f"{numeric} array", f"fn main()->[{numeric}]:\n  [{value},0]\n", f"[{value}, 0]"),
                       (f"{numeric} tensor", f"fn main()->Tensor[{numeric},2,2]:\n  tensor([[1,2],[3,4]])*2\n",
                        "tensor([2, 4, 6, 8], [2, 2])"),
+                      (f"{numeric} rank-zero tensor", f"fn main()->Tensor[{numeric}]:\n  tensor(1)*2\n",
+                       "tensor([2], [])"),
+                      (f"{numeric} rank-eight tensor", f"fn main()->Tensor[{numeric},1,1,1,1,1,1,1,2]:\n  tensor({rank8_values})*2\n",
+                       "tensor([2, 4], [1, 1, 1, 1, 1, 1, 1, 2])"),
                       (f"{numeric} worker", f"fn echo(value:{numeric})->{numeric}:\n  value\n"
                        f"fn main()->{numeric} ! TaskError:\n  try parallel:\n"
                        f"    work=spawn echo({value})\n    first=try await work\n    again=try await work\n"
@@ -94,7 +99,7 @@ fn main()->int ! TaskError:
                     assert result.stdout.strip() == expected, (mode, name, workers, result.stdout, expected)
                 compiled += 1
             print(f"Portable CPU {platform.system()} {mode}: {len(cases)} programs, workers 1/2/4 passed", flush=True)
-        project = work / "starter project λ"
+        project = work / "starter project λ🙂"
         run([compiler, "new", project])
         run([compiler, "--project", project / "kalandra.toml", "-o", executable])
         assert run([executable]).stdout.strip() == "[2, 4, 6]"
@@ -102,7 +107,7 @@ fn main()->int ! TaskError:
         import shutil
         git = shutil.which("git")
         assert git, "Git is a declared package-management prerequisite"
-        library = work / "library source λ"
+        library = work / "library source λ🙂"
         library.mkdir()
         (library / "kalandra.toml").write_text("format=1\n[package]\nname='numbers'\nversion='1.0.0'\nentry='public.k'\n", encoding="utf-8")
         (library / "public.k").write_text("export fn answer()->int:\n  42\n", encoding="utf-8")
@@ -113,16 +118,26 @@ fn main()->int ! TaskError:
             run([git, "-C", library, *args], env=git_env)
         commit = run([git, "-C", library, "rev-parse", "HEAD"], env=git_env).stdout.strip()
         manifest = project / "kalandra.toml"
-        manifest.write_text("format=1\n[project]\nentry='main.k'\n[dependencies]\nnumbers={git=" + json.dumps(str(library)) +
+        manifest.write_text("format=1\n[project]\nentry='main.k'\n[dependencies]\nnumbers={git=" + json.dumps(str(library), ensure_ascii=False) +
                             ",rev=" + json.dumps(commit) + "}\n", encoding="utf-8")
         (project / "main.k").write_text('from "numbers" import answer\nfn main()->int:\n  answer()\n', encoding="utf-8")
         run([compiler, "install", "--project", manifest])
         active = (project / "kalandra.lock").read_bytes()
+        shutil.rmtree(library)
         for flag in ("--frozen", "--offline"):
             run([compiler, "install", "--project", manifest, flag])
             assert (project / "kalandra.lock").read_bytes() == active
         run([compiler, "--project", manifest, "-o", executable])
         assert run([executable]).stdout.strip() == "42"
+        prior_package_output = executable.read_bytes()
+        cached_source, = (project / ".kalandra/snapshots").glob("*/source/public.k")
+        original_source = cached_source.read_bytes()
+        cached_source.write_text("corrupted", encoding="utf-8")
+        run([compiler, "--project", manifest, "-o", executable], expected=1)
+        assert executable.read_bytes() == prior_package_output
+        assert (project / "kalandra.lock").read_bytes() == active
+        assert run([executable]).stdout.strip() == "42"
+        cached_source.write_bytes(original_source)
         # Restore the ordinary starter output for the compiler-removal check.
         run([compiler, "new", work / "independent starter"])
         run([compiler, "--project", work / "independent starter/kalandra.toml", "-o", executable])
@@ -144,7 +159,7 @@ fn main()->int ! TaskError:
                 assert run([executable]).stdout.strip() == "[2, 4, 6]"
             finally:
                 hidden.rename(prefix)
-        print(json.dumps({"platform": platform.platform(), "programsCompiled": compiled + 1,
+        print(json.dumps({"platform": platform.platform(), "programsCompiled": compiled + 3,
                           "numericTypes": list(values), "modes": [name for name, _ in modes],
                           "workerCounts": [1, 2, 4], "starter": "passed"}), flush=True)
 

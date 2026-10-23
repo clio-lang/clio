@@ -234,6 +234,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
         run: python3 .github/scripts/collect_native_platforms.py
       - name: Create draft, upload assets, then publish
         env:
