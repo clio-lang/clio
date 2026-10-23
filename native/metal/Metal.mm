@@ -17,6 +17,9 @@
 #include <string>
 #include <utility>
 #include <vector>
+#if __has_feature(thread_sanitizer)
+#include <sanitizer/tsan_interface.h>
+#endif
 
 namespace kalandra::runtime::metal {
 struct State {
@@ -2170,6 +2173,12 @@ struct Bridge {
           return;
         auto *frame = &f;
         [command addCompletedHandler:^(id<MTLCommandBuffer> finished) {
+#if __has_feature(thread_sanitizer)
+          // Metal is not instrumented. Its commit-to-completion handoff also
+          // publishes the copied block and the leased frame. Use the callback
+          // argument as the per-command token, before reading any captures.
+          __tsan_acquire((__bridge void *)finished);
+#endif
           @autoreleasepool {
             // The external lease pins frame. Never access it after signal().
             {
@@ -2185,6 +2194,9 @@ struct Bridge {
           }
         }];
         ++state->submissions;
+#if __has_feature(thread_sanitizer)
+        __tsan_release((__bridge void *)command);
+#endif
         [command commit];
         return;
       }

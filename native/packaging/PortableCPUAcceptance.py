@@ -83,7 +83,14 @@ fn main()->int ! TaskError:
                 source.write_text(text, encoding="utf-8")
                 run([compiler, source, "-o", executable, *flags])
                 for workers in (1, 2, 4):
-                    result = run([executable], env=dict(os.environ, KALANDRA_WORKERS=str(workers)))
+                    environment = dict(os.environ, KALANDRA_WORKERS=str(workers))
+                    if windows and mode == "address-undefined":
+                        resources = compiler.parent.parent / "lib/kalandra/toolchain/clang/lib/windows"
+                        if not resources.is_dir():
+                            root = Path(os.environ["KALANDRA_LLVM_ROOT"])
+                            resources, = root.glob("lib/clang/*/lib/windows")
+                        environment["PATH"] = str(resources) + os.pathsep + environment.get("PATH", "")
+                    result = run([executable], env=environment)
                     assert result.stdout.strip() == expected, (mode, name, workers, result.stdout, expected)
                 compiled += 1
             print(f"Portable CPU {platform.system()} {mode}: {len(cases)} programs, workers 1/2/4 passed", flush=True)
@@ -91,6 +98,34 @@ fn main()->int ! TaskError:
         run([compiler, "new", project])
         run([compiler, "--project", project / "kalandra.toml", "-o", executable])
         assert run([executable]).stdout.strip() == "[2, 4, 6]"
+        # Activate a pinned local dependency, then compile using its immutable cache.
+        import shutil
+        git = shutil.which("git")
+        assert git, "Git is a declared package-management prerequisite"
+        library = work / "library source λ"
+        library.mkdir()
+        (library / "kalandra.toml").write_text("format=1\n[package]\nname='numbers'\nversion='1.0.0'\nentry='public.k'\n", encoding="utf-8")
+        (library / "public.k").write_text("export fn answer()->int:\n  42\n", encoding="utf-8")
+        git_env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL="NUL" if windows else "/dev/null",
+                       GIT_AUTHOR_NAME="Fixture", GIT_AUTHOR_EMAIL="fixture@example.invalid",
+                       GIT_COMMITTER_NAME="Fixture", GIT_COMMITTER_EMAIL="fixture@example.invalid")
+        for args in (["init", "--template=", "--initial-branch=main"], ["add", "--all"], ["commit", "-m", "fixture"]):
+            run([git, "-C", library, *args], env=git_env)
+        commit = run([git, "-C", library, "rev-parse", "HEAD"], env=git_env).stdout.strip()
+        manifest = project / "kalandra.toml"
+        manifest.write_text("format=1\n[project]\nentry='main.k'\n[dependencies]\nnumbers={git=" + json.dumps(str(library)) +
+                            ",rev=" + json.dumps(commit) + "}\n", encoding="utf-8")
+        (project / "main.k").write_text('from "numbers" import answer\nfn main()->int:\n  answer()\n', encoding="utf-8")
+        run([compiler, "install", "--project", manifest])
+        active = (project / "kalandra.lock").read_bytes()
+        for flag in ("--frozen", "--offline"):
+            run([compiler, "install", "--project", manifest, flag])
+            assert (project / "kalandra.lock").read_bytes() == active
+        run([compiler, "--project", manifest, "-o", executable])
+        assert run([executable]).stdout.strip() == "42"
+        # Restore the ordinary starter output for the compiler-removal check.
+        run([compiler, "new", work / "independent starter"])
+        run([compiler, "--project", work / "independent starter/kalandra.toml", "-o", executable])
         # A failing build must preserve a previously working output.
         prior = executable.read_bytes()
         source.write_text("fn main():\n  missing_value\n", encoding="utf-8")

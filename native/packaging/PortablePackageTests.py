@@ -28,7 +28,7 @@ def qualify(archive):
             assert len({Path(member.name).parts[0] for member in package.getmembers()}) == 1
             package.extractall(work, filter="data")
         prefix, = work.glob("kalandra-native-*")
-        files = {str(p.relative_to(prefix)) for p in prefix.rglob("*") if p.is_file()}
+        files = {p.relative_to(prefix).as_posix() for p in prefix.rglob("*") if p.is_file()}
         listed = {}
         for line in (prefix / "SHA256SUMS").read_text().splitlines():
             expected, name = line.split("  ", 1)
@@ -38,7 +38,10 @@ def qualify(archive):
         assert files == listed.keys() | {"SHA256SUMS"}
         assert json.loads((prefix / "share/kalandra-native-tools/toolchain.json").read_text())["standalone"]
         windows = platform.system() == "Windows"
-        if not windows:
+        if windows:
+            from BundlePE import audit as audit_pe
+            audit_pe(prefix)
+        else:
             audit(prefix)
         repository = Path(__file__).resolve().parents[2]
         tests = work / "tests"
