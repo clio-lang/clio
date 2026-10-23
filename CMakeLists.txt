@@ -73,7 +73,17 @@ endif()
 add_compile_definitions(KALANDRA_NATIVE_CPU_DATA_LAYOUT="${KALANDRA_NATIVE_CPU_DATA_LAYOUT}"
   KALANDRA_NATIVE_CPU_TARGET_TRIPLE="${KALANDRA_NATIVE_CPU_TARGET_TRIPLE}")
 if(WIN32)
-  add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
+  # Standard C environment reads are intentional; retain all ordinary warnings.
+  add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+  execute_process(COMMAND "${CMAKE_CXX_COMPILER}" --rtlib=compiler-rt -print-libgcc-file-name
+    OUTPUT_VARIABLE KALANDRA_COMPILER_BUILTINS OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE _builtins_status)
+  if(NOT _builtins_status EQUAL 0 OR NOT EXISTS "${KALANDRA_COMPILER_BUILTINS}")
+    message(FATAL_ERROR "Pinned Windows Clang lacks compiler-rt builtins: ${KALANDRA_COMPILER_BUILTINS}")
+  endif()
+  # CMake's MSVC-target link rule uses -nostdlib, so supply compiler helpers
+  # explicitly (including the checker's exact 128-bit constant arithmetic).
+  link_libraries("${KALANDRA_COMPILER_BUILTINS}")
   add_link_options("LINKER:/Brepro" "LINKER:/MANIFEST:EMBED"
     "LINKER:/MANIFESTINPUT:${PROJECT_SOURCE_DIR}/native/windows/application.manifest")
 endif()

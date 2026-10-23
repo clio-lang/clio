@@ -429,7 +429,10 @@ int main(int argc, char **argv) {
     std::cerr << "cannot create output: " << error.message() << '\n';
     return 1;
   }
-  llvm::sys::fs::closeFile(descriptor);
+  if (auto error = llvm::sys::Process::SafelyCloseFileDescriptor(descriptor)) {
+    std::cerr << "cannot close temporary output: " << error.message() << '\n';
+    return 1;
+  }
   llvm::FileRemover removeOutput(linkedOutput);
   std::vector<std::string> command{clang, optimization, "-ffp-contract=off", "-Wno-override-module",
                                    std::string(temporary)};
@@ -437,6 +440,7 @@ int main(int argc, char **argv) {
     command.push_back("-resource-dir=" + clangResources->string());
 #ifdef _WIN32
   command.push_back("-fms-runtime-lib=static");
+  command.push_back("--rtlib=compiler-rt");
 #else
   command.push_back("-pthread");
 #ifdef __APPLE__
