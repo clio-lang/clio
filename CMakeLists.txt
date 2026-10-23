@@ -81,7 +81,7 @@ if(WIN32)
   # object's target-relative identity without embedding the physical build root.
   foreach(_language IN ITEMS C CXX)
     string(APPEND CMAKE_${_language}_COMPILE_OBJECT
-      " -object-file-name=/kalandra/build/<OBJECT>")
+      " -Xclang -object-file-name=/kalandra/build/<OBJECT>")
   endforeach()
   execute_process(COMMAND "${CMAKE_CXX_COMPILER}" --rtlib=compiler-rt -print-libgcc-file-name
     OUTPUT_VARIABLE KALANDRA_COMPILER_BUILTINS OUTPUT_STRIP_TRAILING_WHITESPACE
