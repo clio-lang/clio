@@ -150,8 +150,20 @@ fn main()->int ! TaskError:
             rejected = run([compiler, source, "-o", executable, "--thread-sanitize"], expected=2)
             assert "ThreadSanitizer is unavailable" in rejected.stderr
             assert executable.read_bytes() == prior
-        # Ordinary applications must remain executable after removing the compiler.
         prefix = compiler.parent.parent
+        private_clang = prefix / "libexec/kalandra" / ("clang++.exe" if windows else "clang++")
+        if (prefix / "SHA256SUMS").is_file():
+            # Missing bundled tools must not fall back to an ambient LLVM install.
+            source.write_text("fn main()->int:\n  42\n", encoding="utf-8")
+            unavailable_clang = private_clang.with_name(private_clang.name + ".unavailable")
+            private_clang.rename(unavailable_clang)
+            try:
+                rejected = run([compiler, source, "-o", executable], expected=1)
+                assert "bundled Clang or its compiler resources are missing" in rejected.stderr
+                assert executable.read_bytes() == prior
+            finally:
+                unavailable_clang.rename(private_clang)
+        # Ordinary applications must remain executable after removing the compiler.
         if (prefix / "SHA256SUMS").is_file():
             hidden = prefix.with_name(prefix.name + ".hidden")
             prefix.rename(hidden)

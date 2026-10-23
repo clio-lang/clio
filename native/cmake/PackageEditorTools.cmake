@@ -11,18 +11,21 @@ if(PACKAGE_METAL AND (NOT PACKAGE_CPU OR NOT EXISTS "${BUILD_DIR}/native/metal-i
 endif()
 # Keep GNUInstallDirs overrides for explicit installs. The archive has one
 # predictable relative layout; reject incompatible configured destinations.
-file(STRINGS "${BUILD_DIR}/CMakeCache.txt" _dirs
-  REGEX "^CMAKE_INSTALL_(BINDIR|DATAROOTDIR):PATH=")
-foreach(_entry IN LISTS _dirs)
-  if(NOT _entry MATCHES "^CMAKE_INSTALL_BINDIR:PATH=bin$|^CMAKE_INSTALL_DATAROOTDIR:PATH=share$")
-    message(FATAL_ERROR "The editor-tools archive requires bindir=bin and datarootdir=share")
+function(require_archive_directory key expected)
+  file(STRINGS "${BUILD_DIR}/CMakeCache.txt" _entries
+    REGEX "^CMAKE_INSTALL_${key}:[^=]+=")
+  list(LENGTH _entries _count)
+  string(REGEX REPLACE "^CMAKE_INSTALL_${key}:[^=]+=" "" _value "${_entries}")
+  if(NOT _count EQUAL 1 OR NOT _value STREQUAL "${expected}")
+    message(FATAL_ERROR "The archive requires CMAKE_INSTALL_${key}=${expected}; got ${_entries}")
   endif()
-endforeach()
+endfunction()
+# LLVM's Windows package declares these as STRING; GNUInstallDirs commonly
+# declares PATH. Their exact relative values, rather than cache types, matter.
+require_archive_directory(BINDIR bin)
+require_archive_directory(DATAROOTDIR share)
 if(PACKAGE_CPU)
-  file(STRINGS "${BUILD_DIR}/CMakeCache.txt" _libdir REGEX "^CMAKE_INSTALL_LIBDIR:PATH=")
-  if(NOT _libdir STREQUAL "CMAKE_INSTALL_LIBDIR:PATH=lib")
-    message(FATAL_ERROR "The CPU archive requires libdir=lib")
-  endif()
+  require_archive_directory(LIBDIR lib)
 endif()
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
 set(_work "${OUTPUT_DIR}/package-stage")
